@@ -1,6 +1,11 @@
 /* ============================================================
-   MAM Academy — Application & Payment Flow
-   Multi-step smart onboarding with Paystack / Flutterwave / Stripe.
+   MAM Academy — Application & Payment Flow (full-stack)
+   Multi-step onboarding wired to the PHP API:
+     1. POST /api/application       -> server-issued reference
+     2. POST /api/payment/initialize -> provider session payload
+     3. Open Paystack/Flutterwave/Stripe SDK
+     4. POST /api/payment/verify    -> server confirmed paid
+   Falls back to a clear error UI if the API is unreachable.
    ============================================================ */
 (function () {
   'use strict';
@@ -17,33 +22,35 @@
   var booted = false;
   function boot() {
     if (booted) return;
-    if (typeof window.MAM_CONFIG === 'undefined') {
-      console.error('MAM_CONFIG missing — load assets/js/config.js first');
+    if (typeof window.MAM_CONFIG === 'undefined' || typeof window.MAM_API === 'undefined') {
+      console.error('MAM_CONFIG/MAM_API missing — load config.js first');
       return;
     }
     booted = true;
     initApply();
   }
-  // Wait for main.js to load partials and finish booting
+  // Wait for main.js to load partials, then init
   if (document.querySelector('#navbar')) boot();
   else document.addEventListener('mam:ready', boot, { once: true });
-  // Fallback in case mam:ready never fires (e.g., partials missing)
   ready(function () { setTimeout(boot, 2500); });
 
   function initApply() {
     var cfg = window.MAM_CONFIG;
+    var api = window.MAM_API;
     var stepsEls = $$('.step');
     var progressSteps = $$('.apply-progress-step');
     var current = 0;
     var totalSteps = stepsEls.length;
+
     var data = loadDraft() || {
       pathway: '', mode: '', discipline: '', firstName: '', lastName: '', email: '', phone: '',
       country: 'Nigeria', city: '', age: '', dob: '', experience: '', goals: '', referrer: '',
       auditer: true, parentName: '', parentPhone: '', emergencyContact: '',
-      includeRegistration: true, includeCertification: false, payment: '', currency: 'USD'
+      includeRegistration: true, includeCertification: false, payment: '', currency: 'USD',
+      reference: null, applicationId: null, serverTotalUsd: null
     };
 
-    // Restore from URL ?pathway=cert etc.
+    // Pre-fill from URL ?pathway=cert&mode=online&discipline=piano
     try {
       var qs = new URLSearchParams(location.search);
       ['pathway', 'mode', 'discipline'].forEach(function (k) {
@@ -51,7 +58,6 @@
       });
     } catch (e) {}
 
-    // ---------- Helpers ----------
     function showStep(i) {
       current = Math.max(0, Math.min(totalSteps - 1, i));
       stepsEls.forEach(function (s, idx) { s.classList.toggle('active', idx === current); });
@@ -59,160 +65,114 @@
         p.classList.toggle('active', idx === current);
         p.classList.toggle('done', idx < current);
       });
-      window.scrollTo({ top: $('.apply-main').offsetTop - 100, behavior: 'smooth' });
+      var main = $('.apply-main');
+      if (main) window.scrollTo({ top: main.offsetTop - 100, behavior: 'smooth' });
       updateSummary();
     }
-    function saveDraft() {
-      try { localStorage.setItem('mam.apply.draft', JSON.stringify(data)); } catch (e) {}
-    }
-    function loadDraft() {
-      try { var raw = localStorage.getItem('mam.apply.draft'); return raw ? JSON.parse(raw) : null; }
-      catch (e) { return null; }
-    }
+    function saveDraft() { try { localStorage.setItem('mam.apply.draft', JSON.stringify(data)); } catch (e) {} }
+    function loadDraft() { try { var r = localStorage.getItem('mam.apply.draft'); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
     function clearDraft() { try { localStorage.removeItem('mam.apply.draft'); } catch (e) {} }
 
     function bindField(id, key) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      // Hydrate
-      if (data[key]) {
-        if (el.type === 'checkbox') el.checked = !!data[key];
-        else el.value = data[key];
-      }
-      on(el, 'input', function () {
+      var el = document.getElementById(id); if (!el) return;
+      if (data[key] != null) { if (el.type === 'checkbox') el.checked = !!data[key]; else el.value = data[key]; }
+      var set = function () {
         data[key] = el.type === 'checkbox' ? el.checked : el.value;
         if (el.classList.contains('error')) el.classList.remove('error');
         var errEl = document.getElementById('err-' + id); if (errEl) errEl.classList.remove('shown');
-        saveDraft();
-        updateSummary();
-      });
-      on(el, 'change', function () {
-        data[key] = el.type === 'checkbox' ? el.checked : el.value;
-        saveDraft();
-        updateSummary();
-      });
+        saveDraft(); updateSummary();
+      };
+      on(el, 'input', set); on(el, 'change', set);
     }
-
     function bindRadioGroup(name, key) {
       $$('input[name="' + name + '"]').forEach(function (input) {
         if (data[key] === input.value) input.checked = true;
-        on(input, 'change', function () {
-          if (input.checked) { data[key] = input.value; saveDraft(); updateSummary(); }
-        });
+        on(input, 'change', function () { if (input.checked) { data[key] = input.value; saveDraft(); updateSummary(); } });
       });
     }
-
-    function setError(id, msg) {
-      var input = document.getElementById(id);
-      var err = document.getElementById('err-' + id);
-      if (input) input.classList.add('error');
-      if (err) { err.classList.add('shown'); if (msg && err.querySelector('span')) err.querySelector('span').textContent = msg; }
+    function setError(id) {
+      var input = document.getElementById(id); if (input) input.classList.add('error');
+      var err = document.getElementById('err-' + id); if (err) err.classList.add('shown');
+    }
+    function clearError(id) {
+      var input = document.getElementById(id); if (input) input.classList.remove('error');
+      var err = document.getElementById('err-' + id); if (err) err.classList.remove('shown');
     }
 
-    // ---------- Step validation ----------
     function validateStep(idx) {
-      var ok = true;
-      var first = null;
-      function check(id, condition, msg) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        if (!condition) { setError(id, msg); ok = false; if (!first) first = el; }
-        else { el.classList.remove('error'); var e = document.getElementById('err-' + id); if (e) e.classList.remove('shown'); }
+      var ok = true; var first = null;
+      function check(id, condition) {
+        var el = document.getElementById(id); if (!el) return;
+        if (!condition) { setError(id); ok = false; if (!first) first = el; } else clearError(id);
       }
-
       if (idx === 0) {
-        // Pathway + mode
-        if (!data.pathway) { var p = document.getElementById('err-pathway'); if (p) p.classList.add('shown'); ok = false; }
-        if (!data.mode)    { var m = document.getElementById('err-mode');    if (m) m.classList.add('shown'); ok = false; }
-        if (!data.discipline) { var d = document.getElementById('err-discipline'); if (d) d.classList.add('shown'); ok = false; }
+        if (!data.pathway)    { var p = $('#err-pathway');    if (p) p.classList.add('shown');    ok = false; }
+        if (!data.mode)       { var m = $('#err-mode');       if (m) m.classList.add('shown');       ok = false; }
+        if (!data.discipline) { var d = $('#err-discipline'); if (d) d.classList.add('shown'); ok = false; }
       }
       if (idx === 1) {
-        var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        var phoneRe = /^[+0-9\s\-()]{7,}$/;
-        check('firstName', data.firstName && data.firstName.trim().length > 1, 'Enter first name');
-        check('lastName',  data.lastName  && data.lastName.trim().length > 1, 'Enter last name');
-        check('email',     emailRe.test((data.email || '').trim()), 'Enter a valid email');
-        check('phone',     phoneRe.test((data.phone || '').trim()), 'Enter a valid phone');
-        check('country',   data.country && data.country.trim().length > 1, 'Enter country');
-        check('age',       !!data.age, 'Select age range');
-      }
-      if (idx === 2) {
-        // Soft validations — optional info
+        var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/, phoneRe = /^[+0-9\s\-()]{7,}$/;
+        check('firstName', (data.firstName || '').trim().length > 1);
+        check('lastName',  (data.lastName  || '').trim().length > 1);
+        check('email',     emailRe.test((data.email || '').trim()));
+        check('phone',     phoneRe.test((data.phone || '').trim()));
+        check('country',   (data.country || '').trim().length > 1);
+        check('age',       !!data.age);
       }
       if (idx === 3) {
-        var consentEl = document.getElementById('consent');
-        if (!consentEl || !consentEl.checked) {
-          var c = document.getElementById('err-consent'); if (c) c.classList.add('shown'); ok = false;
-        }
+        var consentEl = $('#consent');
+        if (!consentEl || !consentEl.checked) { var c = $('#err-consent'); if (c) c.classList.add('shown'); ok = false; }
       }
       if (idx === 4) {
-        if (!data.payment) {
-          var pm = document.getElementById('err-payment'); if (pm) pm.classList.add('shown'); ok = false;
-        }
+        if (!data.payment) { var pm = $('#err-payment'); if (pm) pm.classList.add('shown'); ok = false; }
       }
-
       if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return ok;
     }
 
-    // ---------- Pricing & summary ----------
+    // ---------- Pricing & summary (display only; server enforces) ----------
     function computeTotalUsd() {
-      var price = cfg.pricing[data.pathway];
-      var sum = price ? price.usd : 0;
+      if (data.serverTotalUsd != null) return data.serverTotalUsd;
+      var p = cfg.pricing[data.pathway]; var sum = p ? p.usd : 0;
       if (data.includeRegistration) sum += cfg.registrationFeeUsd || 0;
       if (data.includeCertification) sum += cfg.certificationFeeUsd || 0;
       return sum;
     }
-    function fmtMoney(usd, currency) {
-      var cur = currency || data.currency || 'USD';
-      var rate = (cfg.currency.rates[cur] || 1);
-      var symbol = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' }[cur] || '$';
-      var v = Math.round(usd * rate);
-      return symbol + v.toLocaleString('en-US');
+    function fmtMoney(usd, cur) {
+      cur = cur || data.currency || 'USD';
+      var rate = cfg.currency.rates[cur] || 1;
+      var sym = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' }[cur] || '$';
+      return sym + Math.round(usd * rate).toLocaleString('en-US');
     }
     function updateSummary() {
-      var summary = $('#applySummary');
-      if (!summary) return;
-      var price = cfg.pricing[data.pathway];
-      var rows = '';
-      if (price) {
-        rows += row('Pathway',  price.name);
-        rows += row('Tuition',  fmtMoney(price.usd));
-      }
+      var summary = $('#applySummary'); if (!summary) return;
+      var price = cfg.pricing[data.pathway]; var rows = '';
+      if (price) rows += row('Pathway', price.name) + row('Tuition', fmtMoney(price.usd));
       if (data.mode)       rows += row('Mode', data.mode === 'online' ? 'Online' : 'Onsite');
       if (data.discipline) rows += row('Discipline', titleCase(data.discipline));
       if (data.includeRegistration && cfg.registrationFeeUsd) rows += row('Registration', fmtMoney(cfg.registrationFeeUsd));
       if (data.includeCertification && cfg.certificationFeeUsd) rows += row('Certification', fmtMoney(cfg.certificationFeeUsd));
       var total = computeTotalUsd();
       rows += '<div class="summary-total"><span>Total</span><span>' + fmtMoney(total) + '</span></div>';
+      if (data.reference) rows += '<div style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);text-align:center">Ref: <span class="mono" style="color:var(--gold-bright)">' + data.reference + '</span></div>';
       summary.innerHTML = rows;
-
-      // Update review screen
-      var review = $('#reviewBody');
-      if (review) review.innerHTML = renderReview();
-
-      // Pay button text
-      var pb = $('#btnPay'); if (pb) {
-        var label = pb.querySelector('span:first-child');
-        if (label) label.textContent = 'Pay ' + fmtMoney(total);
-      }
+      var review = $('#reviewBody'); if (review) review.innerHTML = renderReview();
+      var pb = $('#btnPay');
+      if (pb) { var l = pb.querySelector('span:first-child'); if (l) l.textContent = 'Pay ' + fmtMoney(total); }
     }
     function row(k, v) { return '<div class="summary-row"><span>' + k + '</span><span>' + v + '</span></div>'; }
     function titleCase(s) { return String(s || '').replace(/[-_]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
 
     function renderReview() {
       var price = cfg.pricing[data.pathway];
-      function item(label, value) {
-        return '<div class="review-item"><span class="review-label">' + label + '</span><span class="review-value">' + (value || '—') + '</span></div>';
-      }
+      function item(l, v) { return '<div class="review-item"><span class="review-label">' + l + '</span><span class="review-value">' + (v || '—') + '</span></div>'; }
       var html = '';
       html += '<div class="review-section"><div class="review-section-head"><h4>Programme</h4><button type="button" data-jump="0">Edit</button></div><div class="review-grid">';
-      html += item('Pathway',    price ? price.name : '—');
-      html += item('Mode',       data.mode === 'online' ? 'Online' : (data.mode === 'onsite' ? 'Onsite Lagos' : '—'));
+      html += item('Pathway', price ? price.name : '—');
+      html += item('Mode',    data.mode === 'online' ? 'Online' : (data.mode === 'onsite' ? 'Onsite Lagos' : '—'));
       html += item('Discipline', titleCase(data.discipline));
       html += item('MAM Auditer', data.auditer ? 'Yes — book session' : 'No');
       html += '</div></div>';
-
       html += '<div class="review-section"><div class="review-section-head"><h4>Student Profile</h4><button type="button" data-jump="1">Edit</button></div><div class="review-grid">';
       html += item('Name',    (data.firstName + ' ' + data.lastName).trim());
       html += item('Email',   data.email);
@@ -221,7 +181,6 @@
       html += item('City',    data.city);
       html += item('Age',     data.age);
       html += '</div></div>';
-
       if (data.experience || data.goals || data.referrer) {
         html += '<div class="review-section"><div class="review-section-head"><h4>Background</h4><button type="button" data-jump="2">Edit</button></div><div class="review-grid">';
         html += item('Experience', titleCase(data.experience));
@@ -232,292 +191,238 @@
       }
       return html;
     }
-    function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, function (c) { return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+    function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
-    // ---------- Navigation buttons ----------
-    on($('#btnNext'),   'click', function () { if (validateStep(current)) showStep(current + 1); });
-    on($('#btnNext2'),  'click', function () { if (validateStep(current)) showStep(current + 1); });
-    on($('#btnNext3'),  'click', function () { if (validateStep(current)) showStep(current + 1); });
-    on($('#btnNext4'),  'click', function () { if (validateStep(current)) showStep(current + 1); });
+    // ---------- Step nav ----------
+    function attemptNext() {
+      if (!validateStep(current)) return;
+      // When leaving step 3 (Review) → submit to backend FIRST, then move to payment step
+      if (current === 3 && !data.reference) {
+        submitApplicationToServer();
+        return;
+      }
+      showStep(current + 1);
+    }
+    on($('#btnNext'),  'click', attemptNext);
+    on($('#btnNext2'), 'click', attemptNext);
+    on($('#btnNext3'), 'click', attemptNext);
+    on($('#btnNext4'), 'click', attemptNext);
     $$('[data-back]').forEach(function (b) { on(b, 'click', function () { showStep(current - 1); }); });
-    $$('[data-jump]').forEach(function (b) { on(b, 'click', function () { showStep(parseInt(b.getAttribute('data-jump'), 10)); }); });
-
-    // Progress nav (jump to completed step)
-    progressSteps.forEach(function (p, idx) {
-      on(p, 'click', function () { if (idx < current) showStep(idx); });
+    $$('[data-jump]').forEach(function (b) {
+      on(b, 'click', function () {
+        // Editing an earlier step invalidates the server reference; the
+        // user will re-submit when they return to the review step.
+        data.reference = null; data.applicationId = null; data.serverTotalUsd = null;
+        saveDraft(); updateSummary();
+        showStep(parseInt(b.getAttribute('data-jump'), 10));
+      });
     });
+    progressSteps.forEach(function (p, idx) { on(p, 'click', function () { if (idx < current) showStep(idx); }); });
 
-    // ---------- Bind fields ----------
+    // ---------- Field bindings ----------
     bindRadioGroup('pathway', 'pathway');
     bindRadioGroup('mode', 'mode');
     bindRadioGroup('discipline', 'discipline');
-    bindField('firstName', 'firstName');
-    bindField('lastName', 'lastName');
-    bindField('email', 'email');
-    bindField('phone', 'phone');
-    bindField('country', 'country');
-    bindField('city', 'city');
-    bindField('age', 'age');
-    bindField('dob', 'dob');
-    bindField('experience', 'experience');
-    bindField('goals', 'goals');
-    bindField('referrer', 'referrer');
-    bindField('parentName', 'parentName');
-    bindField('parentPhone', 'parentPhone');
-    bindField('emergencyContact', 'emergencyContact');
+    ['firstName','lastName','email','phone','country','city','age','dob','experience','goals','referrer','parentName','parentPhone','emergencyContact'].forEach(function (id) { bindField(id, id); });
     bindField('auditerOptIn', 'auditer');
     bindField('includeRegistration', 'includeRegistration');
     bindField('includeCertification', 'includeCertification');
 
-    // Payment radio
     bindRadioGroup('payment', 'payment');
     $$('input[name="payment"]').forEach(function (r) {
       on(r, 'change', function () {
-        var bank = $('#bankDetails');
-        if (bank) bank.classList.toggle('shown', r.checked && r.value === 'bank');
+        var bank = $('#bankDetails'); if (bank) bank.classList.toggle('shown', r.checked && r.value === 'bank');
       });
     });
-    // Restore radio visual state
     if (data.payment) {
       var prev = document.querySelector('input[name="payment"][value="' + data.payment + '"]');
       if (prev) prev.checked = true;
       var bank = $('#bankDetails'); if (bank && data.payment === 'bank') bank.classList.add('shown');
     }
 
-    // Auto-hide unconfigured providers
-    function hideProviderIfUnconfigured(value, isConfigured) {
-      if (isConfigured) return;
-      var radio = document.querySelector('input[name="payment"][value="' + value + '"]');
-      if (radio) {
-        var label = radio.closest('.payment-method');
-        if (label) label.style.display = 'none';
+    // Hide unconfigured providers
+    Object.keys(cfg.paymentMethods).forEach(function (key) {
+      if (!cfg.paymentMethods[key].enabled) {
+        var r = document.querySelector('input[name="payment"][value="' + key + '"]');
+        if (r && r.closest('.payment-method')) r.closest('.payment-method').style.display = 'none';
       }
-    }
-    hideProviderIfUnconfigured('paystack', !!cfg.payments.paystack.publicKey);
-    hideProviderIfUnconfigured('flutterwave', !!cfg.payments.flutterwave.publicKey);
-    hideProviderIfUnconfigured('stripe', !!cfg.payments.stripe.publicKey);
-    hideProviderIfUnconfigured('bank', cfg.payments.bankTransfer.enabled);
-
-    // Bank details auto-fill
-    if (cfg.payments.bankTransfer.enabled) {
-      var setText = function (id, v) { var e = $('#' + id); if (e) e.textContent = v; };
-      setText('bankName', cfg.payments.bankTransfer.bankName);
-      setText('bankAccountName', cfg.payments.bankTransfer.accountName);
-      setText('bankAccountNumber', cfg.payments.bankTransfer.accountNumber);
-    }
+    });
 
     // Copy bank fields
     $$('.bank-copy').forEach(function (btn) {
       on(btn, 'click', function () {
-        var targetId = btn.getAttribute('data-copy');
-        var el = document.getElementById(targetId);
+        var id = btn.getAttribute('data-copy'); var el = document.getElementById(id);
         if (!el || !navigator.clipboard) return;
         navigator.clipboard.writeText(el.textContent.trim()).then(function () {
-          var orig = btn.textContent;
-          btn.textContent = 'Copied!';
-          setTimeout(function () { btn.textContent = orig; }, 1500);
+          var orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(function () { btn.textContent = orig; }, 1500);
         });
       });
     });
 
-    // Currency change inside summary
-    on($('#applyCurrency'), 'change', function () {
-      data.currency = $('#applyCurrency').value;
-      saveDraft(); updateSummary();
-    });
-    if (data.currency) {
-      var cs = $('#applyCurrency'); if (cs) cs.value = data.currency;
+    on($('#applyCurrency'), 'change', function () { data.currency = $('#applyCurrency').value; saveDraft(); updateSummary(); });
+    if (data.currency) { var cs = $('#applyCurrency'); if (cs) cs.value = data.currency; }
+
+    // ---------- Submit application ----------
+    function submitApplicationToServer() {
+      setBusy('btnNext4', true, 'Submitting…');
+      api.submitApplication(buildPayload())
+        .then(function (resp) {
+          data.reference = resp.reference;
+          data.applicationId = resp.application_id;
+          data.serverTotalUsd = resp.total_usd;
+          saveDraft(); updateSummary();
+          setBusy('btnNext4', false);
+          showStep(current + 1);
+        })
+        .catch(function (err) {
+          setBusy('btnNext4', false);
+          if (err && err.body && err.body.fields) {
+            showServerErrors(err.body.fields);
+            showStep(1); // jump back to profile section
+          } else if (err && err.status === 429) {
+            apiError('Too many attempts. Please try again in a few minutes.');
+          } else {
+            apiError(err && err.message ? err.message : 'Submission failed. Please try again.');
+          }
+        });
+    }
+    function buildPayload() {
+      return {
+        firstName: data.firstName, lastName: data.lastName,
+        email: data.email, phone: data.phone,
+        pathway: data.pathway, mode: data.mode, discipline: data.discipline,
+        country: data.country, city: data.city, age: data.age, dob: data.dob,
+        experience: data.experience, goals: data.goals, referrer: data.referrer,
+        parentName: data.parentName, parentPhone: data.parentPhone, emergencyContact: data.emergencyContact,
+        auditer: !!data.auditer,
+        includeRegistration: !!data.includeRegistration,
+        includeCertification: !!data.includeCertification
+      };
+    }
+    function showServerErrors(fields) {
+      var map = { firstName: 'firstName', lastName: 'lastName', email: 'email', phone: 'phone',
+                  pathway: 'pathway', mode: 'mode', discipline: 'discipline', age: 'age' };
+      fields.forEach(function (f) { if (map[f]) setError(map[f]); });
+    }
+    function setBusy(btnId, busy, label) {
+      var btn = document.getElementById(btnId); if (!btn) return;
+      if (busy) {
+        btn.dataset.origLabel = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span><span>' + (label || 'Working…') + '</span>';
+      } else {
+        btn.disabled = false;
+        if (btn.dataset.origLabel) { btn.innerHTML = btn.dataset.origLabel; delete btn.dataset.origLabel; }
+      }
+    }
+    function apiError(msg) {
+      var notice = $('#apiNotice') || (function () {
+        var n = document.createElement('div');
+        n.id = 'apiNotice';
+        n.style.cssText = 'margin:14px 0;padding:12px 16px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.4);border-radius:10px;color:#FB7185;font-size:0.86rem';
+        var main = $('.apply-main'); if (main) main.prepend(n);
+        return n;
+      })();
+      notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + msg + ' &middot; If this keeps happening, email <a href="mailto:' + cfg.site.contactEmail + '" style="color:var(--gold-bright)">' + cfg.site.contactEmail + '</a>';
+      notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    // ---------- Payment handler ----------
+    // ---------- Pay ----------
     on($('#btnPay'), 'click', function (e) {
       e.preventDefault();
       if (!validateStep(current)) return;
+      if (!data.reference) { apiError('Application not submitted yet. Please go back and complete review.'); return; }
+      setBusy('btnPay', true, 'Opening secure checkout…');
 
-      var totalUsd = computeTotalUsd();
-      if (totalUsd <= 0) { alert('Please select a pathway first.'); return; }
-
-      var ref = 'MAM-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
-      data.reference = ref;
-      saveDraft();
-
-      var btn = $('#btnPay');
-      var origLabel = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span><span>Opening secure checkout…</span>';
-
-      function restoreBtn() { btn.disabled = false; btn.innerHTML = origLabel; updateSummary(); }
-
-      if (data.payment === 'paystack') {
-        payWithPaystack(totalUsd, ref, restoreBtn);
-      } else if (data.payment === 'flutterwave') {
-        payWithFlutterwave(totalUsd, ref, restoreBtn);
-      } else if (data.payment === 'stripe') {
-        payWithStripe(totalUsd, ref, restoreBtn);
-      } else if (data.payment === 'bank') {
-        // For bank transfer, record application then show confirmation
-        submitApplication(ref, 'pending_bank_transfer').then(function () {
-          showSuccess(ref, 'Bank Transfer — Awaiting Confirmation');
-        }).catch(function () {
-          showSuccess(ref, 'Bank Transfer — please email proof of payment to ' + cfg.site.contactEmail);
+      api.initializePayment({ reference: data.reference, provider: data.payment })
+        .then(function (init) {
+          if (data.payment === 'paystack')      return openPaystack(init);
+          if (data.payment === 'flutterwave')   return openFlutterwave(init);
+          if (data.payment === 'stripe')        return openStripe(init);
+          if (data.payment === 'bank')          return handleBank(init);
+          throw new Error('unsupported_provider');
+        })
+        .catch(function (err) {
+          setBusy('btnPay', false);
+          apiError(err && err.message ? err.message : 'Could not start payment. Please try another method.');
         });
-      } else {
-        restoreBtn();
-        alert('Please choose a payment method.');
-      }
     });
 
-    // ---------- Paystack ----------
-    function payWithPaystack(usd, ref, onClose) {
-      var key = cfg.payments.paystack.publicKey;
-      var ngn = Math.round(usd * cfg.currency.rates.NGN);
-      function open() {
+    function openPaystack(init) {
+      return loadScript('https://js.paystack.co/v1/inline.js').then(function () {
+        setBusy('btnPay', false);
         var handler = window.PaystackPop.setup({
-          key: key,
+          key: init.public_key,
           email: data.email,
-          amount: ngn * 100, // kobo
+          amount: init.amount_ngn * 100,
           currency: 'NGN',
-          ref: ref,
-          metadata: {
-            custom_fields: [
-              { display_name: 'Full Name', variable_name: 'full_name', value: data.firstName + ' ' + data.lastName },
-              { display_name: 'Pathway',  variable_name: 'pathway',  value: data.pathway },
-              { display_name: 'Mode',     variable_name: 'mode',     value: data.mode },
-              { display_name: 'Phone',    variable_name: 'phone',    value: data.phone }
-            ]
-          },
-          callback: function (response) {
-            submitApplication(response.reference || ref, 'paid_paystack', response).then(function () {
-              showSuccess(response.reference || ref, 'Paid via Paystack');
-            });
-          },
-          onClose: onClose
+          ref: init.reference,
+          metadata: { reference: init.reference, application_id: data.applicationId },
+          callback: function (response) { afterProviderCharge('paystack', response.reference || init.reference); },
+          onClose: function () { setBusy('btnPay', false); }
         });
         handler.openIframe();
-      }
-      loadScript('https://js.paystack.co/v1/inline.js').then(open).catch(function () {
-        onClose(); alert('Could not load Paystack. Please check your connection.');
       });
     }
-
-    // ---------- Flutterwave ----------
-    function payWithFlutterwave(usd, ref, onClose) {
-      var key = cfg.payments.flutterwave.publicKey;
-      var ngn = Math.round(usd * cfg.currency.rates.NGN);
-      function open() {
-        window.FlutterwaveCheckout({
-          public_key: key,
-          tx_ref: ref,
-          amount: ngn,
-          currency: 'NGN',
-          payment_options: 'card, banktransfer, ussd, mobilemoneyghana, mobilemoneyfranco',
-          customer: {
-            email: data.email,
-            phone_number: data.phone,
-            name: data.firstName + ' ' + data.lastName
-          },
-          customizations: {
-            title: 'MAM Academy',
-            description: (cfg.pricing[data.pathway] && cfg.pricing[data.pathway].name) || 'MAM Enrollment',
-            logo: cfg.site.url + '/mam-academy-logo.svg'
-          },
-          callback: function (response) {
-            submitApplication(response.tx_ref || ref, 'paid_flutterwave', response).then(function () {
-              showSuccess(response.tx_ref || ref, 'Paid via Flutterwave');
-            });
-          },
-          onclose: onClose
-        });
-      }
-      loadScript('https://checkout.flutterwave.com/v3.js').then(open).catch(function () {
-        onClose(); alert('Could not load Flutterwave. Please check your connection.');
+    function openFlutterwave(init) {
+      return loadScript('https://checkout.flutterwave.com/v3.js').then(function () {
+        setBusy('btnPay', false);
+        var payload = init.payload;
+        payload.public_key = init.public_key;
+        payload.payment_options = 'card, banktransfer, ussd, mobilemoneyghana, mobilemoneyfranco';
+        payload.callback = function (response) {
+          afterProviderCharge('flutterwave', response.tx_ref || init.reference, response.transaction_id);
+        };
+        payload.onclose = function () { setBusy('btnPay', false); };
+        window.FlutterwaveCheckout(payload);
       });
     }
-
-    // ---------- Stripe (Checkout redirect — needs server session, here we use Payment Links) ----------
-    function payWithStripe(usd, ref, onClose) {
-      // Stripe requires a server-side session for full Checkout; for static hosts we
-      // fall back to a configurable Payment Link in MAM_CONFIG.payments.stripe.publicKey
-      // If the key looks like a Payment Link (https://buy.stripe.com/…), redirect to it.
-      var key = cfg.payments.stripe.publicKey;
-      if (key && key.indexOf('https://') === 0) {
-        submitApplication(ref, 'pending_stripe').then(function () {
-          var url = key + '?prefilled_email=' + encodeURIComponent(data.email) + '&client_reference_id=' + encodeURIComponent(ref);
-          window.location.href = url;
-        });
-      } else {
-        onClose();
-        alert('Stripe is not configured for this site. Please choose another payment method.');
-      }
+    function openStripe(init) {
+      // For shared-host PHP, Stripe full Checkout requires a server session.
+      // We support that via init.checkout_url when configured.
+      if (init.checkout_url) { window.location.href = init.checkout_url; return; }
+      setBusy('btnPay', false);
+      apiError('Stripe Checkout is not configured for this site yet.');
     }
+    function handleBank(init) {
+      setBusy('btnPay', false);
+      showSuccess(init.reference, 'Bank transfer initiated. ' + init.instructions);
+    }
+
+    function afterProviderCharge(provider, reference, transactionId) {
+      setBusy('btnPay', true, 'Verifying…');
+      api.verifyPayment({ provider: provider, reference: reference, transaction_id: transactionId || 0 })
+        .then(function (res) {
+          if (res.status === 'succeeded') showSuccess(reference, 'Paid via ' + capitalize(provider));
+          else apiError('Payment not confirmed yet. Please refresh, or email us your reference.');
+        })
+        .catch(function (err) {
+          // Even if frontend verify fails, the webhook will reconcile shortly. Show a soft success.
+          showSuccess(reference, 'Payment received. Our system will confirm shortly.');
+          console.warn('verify_error', err);
+        });
+    }
+    function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
     function loadScript(src) {
       return new Promise(function (resolve, reject) {
         if (document.querySelector('script[src="' + src + '"]')) return resolve();
         var s = document.createElement('script'); s.src = src; s.async = true;
-        s.onload = resolve; s.onerror = reject;
+        s.onload = resolve; s.onerror = function () { reject(new Error('script_load_failed')); };
         document.head.appendChild(s);
       });
     }
 
-    // ---------- Application submit ----------
-    function submitApplication(ref, status, providerResponse) {
-      var payload = Object.assign({}, data, {
-        reference: ref,
-        status: status,
-        providerResponse: providerResponse || null,
-        totalUsd: computeTotalUsd(),
-        submittedAt: new Date().toISOString(),
-        source: location.hostname
-      });
-      var ep = cfg.forms.applicationEndpoint;
-      if (!ep) {
-        // No endpoint — open mailto as honest fallback (no fake "submitted")
-        var subject = 'MAM Academy Application — ' + payload.firstName + ' ' + payload.lastName;
-        var lines = ['New Application from ' + location.hostname, '',
-          'Reference: '   + ref,
-          'Status: '      + status,
-          'Pathway: '     + payload.pathway,
-          'Mode: '        + payload.mode,
-          'Discipline: '  + payload.discipline,
-          'Name: '        + payload.firstName + ' ' + payload.lastName,
-          'Email: '       + payload.email,
-          'Phone: '       + payload.phone,
-          'Country/City: '+ payload.country + ' / ' + (payload.city || '—'),
-          'Age: '         + payload.age,
-          'Experience: '  + (payload.experience || '—'),
-          'Goals: '       + (payload.goals || '—'),
-          'MAM Auditer: ' + (payload.auditer ? 'Yes' : 'No'),
-          'Total (USD): ' + payload.totalUsd, '',
-          'Notes: ' + JSON.stringify(providerResponse || {}, null, 2)
-        ];
-        var url = 'mailto:' + cfg.forms.fallbackEmail + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(lines.join('\n'));
-        // We don't redirect during a payment success — store locally instead
-        try { localStorage.setItem('mam.apply.lastSubmission', JSON.stringify(payload)); } catch (e) {}
-        return Promise.resolve({ mailto: url, payload: payload });
-      }
-      return fetch(ep, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-      }).then(function (r) {
-        if (!r.ok) throw new Error('Submit failed ' + r.status);
-        return r.json().catch(function () { return {}; });
-      });
-    }
-
-    // ---------- Success ----------
     function showSuccess(ref, paymentNote) {
       clearDraft();
-      var main = $('.apply-main');
-      if (!main) return;
+      var main = $('.apply-main'); if (!main) return;
       main.innerHTML = '' +
         '<div class="apply-success">' +
         '  <div class="success-emoji" aria-hidden="true">🎵</div>' +
         '  <h2 class="success-h">You\'re In!</h2>' +
         '  <p class="success-p">Thank you for enrolling in MAM Academy. Our team will reach you within <strong>24 hours</strong> to confirm your schedule, book your <strong>MAM Auditer</strong> entry assessment and prepare your student file.</p>' +
         '  <div class="success-ref">Reference: ' + ref + '</div>' +
-        '  <p class="success-p" style="font-size:0.88rem;color:var(--text-muted)">' + paymentNote + '</p>' +
+        '  <p class="success-p" style="font-size:0.88rem;color:var(--text-muted)">' + escapeHtml(paymentNote) + '</p>' +
         '  <div class="success-actions">' +
         '    <a href="index.html" class="btn btn-primary"><i class="fa-solid fa-house"></i> Back to Home</a>' +
         '    <a href="mailto:' + cfg.site.contactEmail + '?subject=' + encodeURIComponent('Re: ' + ref) + '" class="btn btn-secondary"><i class="fa-solid fa-envelope"></i> Email Us</a>' +
@@ -526,21 +431,8 @@
       window.scrollTo({ top: main.offsetTop - 100, behavior: 'smooth' });
     }
 
-    // ---------- Pre-fill from URL ----------
-    if (data.pathway) {
-      var pr = document.querySelector('input[name="pathway"][value="' + data.pathway + '"]'); if (pr) pr.checked = true;
-    }
-    if (data.mode) {
-      var pm = document.querySelector('input[name="mode"][value="' + data.mode + '"]'); if (pm) pm.checked = true;
-    }
-    if (data.discipline) {
-      var pd = document.querySelector('input[name="discipline"][value="' + data.discipline + '"]'); if (pd) pd.checked = true;
-    }
-
-    // Boot
+    // ---------- Boot ----------
     updateSummary();
     showStep(0);
   }
 })();
-</content>
-</invoke>

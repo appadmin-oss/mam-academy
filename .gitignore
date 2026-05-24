@@ -1,0 +1,3 @@
+api/logs/*.log
+api/storage/mam.db*
+api/.env

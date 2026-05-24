@@ -156,24 +156,27 @@
 <script src="assets/js/main.js"></script>
 <script>
 document.addEventListener('mam:ready', function () {
-  var form = document.getElementById('ppForm');
-  if (!form) return;
+  var form = document.getElementById('ppForm'); if (!form) return;
   form.addEventListener('submit', function (e) {
     e.preventDefault();
-    var email = document.getElementById('ppEmail').value.trim();
+    var emailEl = document.getElementById('ppEmail');
+    var email = emailEl.value.trim();
+    var msg = document.getElementById('ppMsg');
     var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!re.test(email)) { document.getElementById('ppEmail').style.borderColor = 'var(--red-hot)'; return; }
-    var ep = window.MAM_CONFIG.forms.newsletterEndpoint;
-    var fallback = window.MAM_CONFIG.forms.fallbackEmail;
-    if (ep) {
-      var fd = new FormData(); fd.append('email', email); fd.append('source', 'power-play');
-      fetch(ep, { method:'POST', body: fd, headers:{Accept:'application/json'} })
-        .then(function () { document.getElementById('ppMsg').style.display = 'block'; document.getElementById('ppEmail').value=''; })
-        .catch(function () { window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Power Play — register me') + '&body=' + encodeURIComponent('Email: ' + email); });
-    } else {
+    if (!re.test(email)) { emailEl.style.borderColor = 'var(--red-hot)'; return; }
+    emailEl.style.borderColor = '';
+    if (window.MAM_API) {
+      window.MAM_API.subscribeNewsletter(email, 'power-play')
+        .then(function () { msg.textContent = 'Thanks — check your inbox for the link.'; msg.style.display='block'; emailEl.value=''; })
+        .catch(function (err) {
+          if (err && err.status === 429) { msg.textContent = 'Too many requests — please try later.'; msg.style.color='var(--red-hot)'; msg.style.display='block'; return; }
+          mailto();
+        });
+    } else { mailto(); }
+    function mailto() {
+      var fallback = window.MAM_CONFIG.forms.fallbackEmail;
       window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Power Play — register me') + '&body=' + encodeURIComponent('Please send me the link for the next Power Play session.\nEmail: ' + email);
-      document.getElementById('ppMsg').textContent = 'Opening your email…';
-      document.getElementById('ppMsg').style.display = 'block';
+      msg.textContent = 'Opening your email…'; msg.style.display='block';
     }
   });
 });

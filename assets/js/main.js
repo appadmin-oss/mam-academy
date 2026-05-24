@@ -373,7 +373,7 @@
   }
 
   // ============================================================
-  // Newsletter
+  // Newsletter — uses backend API; mailto only if API unreachable
   // ============================================================
   function initNewsletter() {
     var form = $('#newsletterForm'); if (!form) return;
@@ -383,19 +383,27 @@
       var msg = $('#newsletterMsg');
       var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!input || !re.test(input.value.trim())) {
-        if (input) input.style.borderColor = 'var(--red-hot)';
-        return;
+        if (input) input.style.borderColor = 'var(--red-hot)'; return;
       }
       input.style.borderColor = '';
-      var ep = window.MAM_CONFIG && window.MAM_CONFIG.forms ? window.MAM_CONFIG.forms.newsletterEndpoint : null;
-      var fallback = window.MAM_CONFIG && window.MAM_CONFIG.forms ? window.MAM_CONFIG.forms.fallbackEmail : 'connect@mamcentre.org';
-      if (ep) {
-        var fd = new FormData(); fd.append('email', input.value.trim()); fd.append('source', location.hostname);
-        fetch(ep, { method: 'POST', body: fd, headers: { 'Accept': 'application/json' } })
-          .then(function () { if (msg) { msg.textContent = 'Thanks — you\'re subscribed.'; msg.classList.add('shown'); } input.value = ''; })
-          .catch(function () { window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Subscribe ' + input.value); });
-      } else {
-        window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Newsletter subscribe') + '&body=' + encodeURIComponent('Please subscribe ' + input.value.trim());
+      var email = input.value.trim();
+      if (window.MAM_API && window.MAM_API.subscribeNewsletter) {
+        window.MAM_API.subscribeNewsletter(email, 'footer-' + location.pathname)
+          .then(function () {
+            if (msg) { msg.textContent = "Thanks — you're subscribed."; msg.classList.add('shown'); }
+            input.value = '';
+          })
+          .catch(function (err) {
+            if (err && err.status === 429) {
+              if (msg) { msg.textContent = 'You\'re sending too many requests — please try later.'; msg.classList.add('shown'); msg.style.color = 'var(--red-hot)'; }
+              return;
+            }
+            mailtoSubscribe(email);
+          });
+      } else { mailtoSubscribe(email); }
+      function mailtoSubscribe(em) {
+        var fallback = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'connect@mamcentre.org';
+        window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Newsletter subscribe') + '&body=' + encodeURIComponent('Please subscribe ' + em);
         if (msg) { msg.textContent = 'Opening your email…'; msg.classList.add('shown'); }
       }
     });

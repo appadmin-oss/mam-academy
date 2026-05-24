@@ -16,6 +16,8 @@ DirectoryIndex index.html index.htm
 # Lets you write `/about` instead of `/about.html`.
 <IfModule mod_rewrite.c>
   RewriteEngine On
+  # Never touch /api/* — the api directory has its own .htaccess router.
+  RewriteRule ^api(/|$) - [L]
   # Skip if file or dir actually exists
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d

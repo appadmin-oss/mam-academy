@@ -83,6 +83,7 @@
 <script>
 document.addEventListener('mam:ready', function () {
   var form = document.getElementById('contactForm'); if (!form) return;
+  var submit = document.getElementById('cf-submit');
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var name = document.getElementById('cf-name').value.trim();
@@ -90,22 +91,29 @@ document.addEventListener('mam:ready', function () {
     var phone = document.getElementById('cf-phone').value.trim();
     var topic = document.getElementById('cf-topic').value;
     var message = document.getElementById('cf-message').value.trim();
+    var msgEl = document.getElementById('cf-msg');
     var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!name || !re.test(email) || !topic || !message) { alert('Please complete the required fields.'); return; }
-    if (form.querySelector('[name=_honeypot]').value) { document.getElementById('cf-msg').style.display='block'; return; }
-    var ep = window.MAM_CONFIG.forms.contactEndpoint;
-    var fallback = window.MAM_CONFIG.forms.fallbackEmail;
-    var payload = { name: name, email: email, phone: phone, topic: topic, message: message, source: 'contact.html', submittedAt: new Date().toISOString() };
-    if (ep) {
-      fetch(ep, { method:'POST', body: JSON.stringify(payload), headers:{'Content-Type':'application/json',Accept:'application/json'} })
-        .then(function (r) { if (!r.ok) throw new Error(); document.getElementById('cf-msg').style.display='block'; form.reset(); })
-        .catch(function () { mailtoFallback(); });
+    if (form.querySelector('[name=_honeypot]').value) { msgEl.style.display='block'; return; }
+    submit.disabled = true; var origLabel = submit.innerHTML;
+    submit.innerHTML = '<span class="spinner"></span><span>Sending…</span>';
+    var payload = { name: name, email: email, phone: phone, topic: topic, message: message };
+    var done = function () { submit.disabled = false; submit.innerHTML = origLabel; };
+    if (window.MAM_API) {
+      window.MAM_API.sendContact(payload)
+        .then(function () { msgEl.textContent = "Thanks — we'll be in touch shortly."; msgEl.style.display='block'; form.reset(); done(); })
+        .catch(function (err) {
+          if (err && err.status === 429) { msgEl.textContent = 'Too many submissions — please try later.'; msgEl.style.color = 'var(--red-hot)'; msgEl.style.display='block'; done(); return; }
+          mailtoFallback();
+        });
     } else { mailtoFallback(); }
     function mailtoFallback() {
+      done();
+      var fallback = window.MAM_CONFIG.forms.fallbackEmail;
       var subject = 'MAM Contact — ' + topic;
       var body = 'From: ' + name + ' <' + email + '>\nPhone: ' + (phone||'—') + '\nTopic: ' + topic + '\n\n' + message;
       window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-      document.getElementById('cf-msg').textContent = 'Opening your email…'; document.getElementById('cf-msg').style.display='block';
+      msgEl.textContent = 'Opening your email…'; msgEl.style.display='block';
     }
   });
 });
