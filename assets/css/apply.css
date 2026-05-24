@@ -42,6 +42,13 @@
 .step-title{font-family:var(--font-serif);font-size:1.9rem;font-weight:700;line-height:1.15;margin-bottom:8px}
 .step-desc{font-size:0.95rem;color:var(--text-muted);line-height:1.6}
 
+/* Sub-step section header within a step (used on Apply Step 1) */
+.substep-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:14px 18px;margin:24px 0 14px;background:linear-gradient(90deg,rgba(224,138,26,0.08),transparent);border-left:3px solid var(--gold);border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+.substep-num{font-family:var(--font-display);font-size:1.4rem;color:var(--gold-bright);letter-spacing:0.04em;line-height:1}
+.substep-title{font-size:1.05rem;font-weight:700;color:var(--text)}
+.substep-meta{margin-left:auto;font-size:0.78rem;color:var(--text-muted)}
+@media (max-width:560px){.substep-meta{margin-left:0;width:100%}}
+
 .field{margin-bottom:22px}
 .field-label{display:block;font-size:0.78rem;font-weight:700;color:var(--text-soft);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px}
 .field-label .req{color:var(--gold-bright)}
