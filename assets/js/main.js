@@ -82,23 +82,47 @@
       });
     });
 
-    // Desktop dropdown keyboard support
+    // Desktop dropdown: JS-managed hover with delay so cursor can cross
+    // the gap to a fixed-position mega menu without :hover dropping out.
+    var CLOSE_DELAY = 220;
     $$('.nav-item').forEach(function (item) {
       var trigger = item.querySelector('.nav-link');
       var dd = item.querySelector('.nav-dropdown, .mega-menu');
       if (!trigger || !dd) return;
       trigger.setAttribute('aria-haspopup', 'true');
       trigger.setAttribute('aria-expanded', 'false');
+      var closeT = null;
+      function open() {
+        if (closeT) { clearTimeout(closeT); closeT = null; }
+        // Close other open menus
+        $$('.nav-item.js-hover').forEach(function (n) { if (n !== item) n.classList.remove('js-hover', 'open'); });
+        item.classList.add('js-hover'); item.classList.add('open');
+        trigger.setAttribute('aria-expanded', 'true');
+      }
+      function scheduleClose() {
+        if (closeT) clearTimeout(closeT);
+        closeT = setTimeout(function () {
+          item.classList.remove('js-hover'); item.classList.remove('open');
+          trigger.setAttribute('aria-expanded', 'false');
+          closeT = null;
+        }, CLOSE_DELAY);
+      }
+      on(item, 'mouseenter', open);
+      on(item, 'mouseleave', scheduleClose);
+      on(dd,   'mouseenter', open);
+      on(dd,   'mouseleave', scheduleClose);
+      on(trigger, 'focus', open);
+      on(item, 'focusout', function (e) {
+        if (!item.contains(e.relatedTarget) && !dd.contains(e.relatedTarget)) scheduleClose();
+      });
       on(trigger, 'keydown', function (e) {
         if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
           var first = dd.querySelector('a');
-          if (first) { e.preventDefault(); item.classList.add('open'); first.focus(); trigger.setAttribute('aria-expanded', 'true'); }
+          if (first) { e.preventDefault(); open(); first.focus(); }
         }
+        if (e.key === 'Escape') { item.classList.remove('js-hover', 'open'); trigger.blur(); }
       });
-      on(item, 'mouseleave', function () { item.classList.remove('open'); trigger.setAttribute('aria-expanded', 'false'); });
-      on(item, 'focusout', function (e) {
-        if (!item.contains(e.relatedTarget)) { item.classList.remove('open'); trigger.setAttribute('aria-expanded', 'false'); }
-      });
+      on(dd, 'keydown', function (e) { if (e.key === 'Escape') { item.classList.remove('js-hover', 'open'); trigger.focus(); } });
     });
 
     // Highlight current page in nav
