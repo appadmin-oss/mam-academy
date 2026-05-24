@@ -420,12 +420,16 @@
         '<div class="apply-success">' +
         '  <div class="success-emoji" aria-hidden="true">🎵</div>' +
         '  <h2 class="success-h">You\'re In!</h2>' +
-        '  <p class="success-p">Thank you for enrolling in MAM Academy. Our team will reach you within <strong>24 hours</strong> to confirm your schedule, book your <strong>MAM Auditer</strong> entry assessment and prepare your student file.</p>' +
+        '  <p class="success-p">Thank you for enrolling in MAM Academy. Our team will reach you within <strong>24 hours</strong> to confirm your schedule and book your <strong>MAM Auditer</strong> entry assessment.</p>' +
         '  <div class="success-ref">Reference: ' + ref + '</div>' +
         '  <p class="success-p" style="font-size:0.88rem;color:var(--text-muted)">' + escapeHtml(paymentNote) + '</p>' +
+        '  <div style="margin:24px auto 28px;max-width:480px;padding:18px 22px;background:rgba(224,138,26,0.08);border:1px solid var(--border-gold);border-radius:12px;font-size:0.88rem;color:var(--text-soft);line-height:1.65;text-align:left">' +
+        '    <strong style="display:block;color:var(--gold-bright);margin-bottom:6px"><i class="fa-solid fa-envelope-open-text"></i> Check your email</strong>' +
+        '    We just emailed you your student portal credentials — sign in to track your application, see your classes once you\'re placed, and view your MAM Auditer report.' +
+        '  </div>' +
         '  <div class="success-actions">' +
-        '    <a href="index.html" class="btn btn-primary"><i class="fa-solid fa-house"></i> Back to Home</a>' +
-        '    <a href="mailto:' + cfg.site.contactEmail + '?subject=' + encodeURIComponent('Re: ' + ref) + '" class="btn btn-secondary"><i class="fa-solid fa-envelope"></i> Email Us</a>' +
+        '    <a href="portal/login.html" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket"></i> Open Student Portal</a>' +
+        '    <a href="index.html" class="btn btn-secondary"><i class="fa-solid fa-house"></i> Back to Home</a>' +
         '  </div>' +
         '</div>';
       window.scrollTo({ top: main.offsetTop - 100, behavior: 'smooth' });
