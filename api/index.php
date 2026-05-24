@@ -35,6 +35,27 @@ $map = [
     'payment/webhook/flutterwave'  => 'webhook-flutterwave.php',
     'newsletter'                   => 'newsletter.php',
     'contact'                      => 'contact.php',
+
+    // Auth
+    'auth/login'                   => 'auth/login.php',
+    'auth/logout'                  => 'auth/logout.php',
+    'auth/me'                      => 'auth/me.php',
+    'auth/change-password'         => 'auth/change-password.php',
+
+    // Student portal
+    'student/dashboard'            => 'student/dashboard.php',
+    'student/update-profile'       => 'student/update-profile.php',
+
+    // Instructor portal
+    'instructor/dashboard'         => 'instructor/dashboard.php',
+    'instructor/mark-attendance'   => 'instructor/mark-attendance.php',
+
+    // Admin (JSON; UI lives at /admin/)
+    'admin/list-users'             => 'admin/list-users.php',
+    'admin/create-user'            => 'admin/create-user.php',
+    'admin/reset-password'         => 'admin/reset-password.php',
+    'admin/create-class'           => 'admin/create-class.php',
+    'admin/enroll-student'         => 'admin/enroll-student.php',
 ];
 
 if (!isset($map[$route])) {

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Instructor Portal — MAM Academy</title>
+<link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="/assets/css/main.css">
+<link rel="stylesheet" href="/assets/css/portal.css">
+</head>
+<body>
+<div class="portal-shell">
+  <aside class="portal-side">
+    <div class="portal-brand">
+      <img src="/mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
+      <div>
+        <div class="portal-brand-name">MAM ACADEMY</div>
+        <div class="portal-brand-sub">Instructor Portal</div>
+      </div>
+    </div>
+    <div class="portal-user" id="userCard"><div class="portal-avatar">?</div><div><div class="portal-user-name">Loading…</div></div></div>
+    <nav class="portal-nav">
+      <a class="portal-nav-link active" href="#overview" data-tab="overview"><i class="fa-solid fa-gauge"></i>Overview</a>
+      <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-chalkboard-user"></i>My Classes</a>
+      <a class="portal-nav-link" href="#students" data-tab="students"><i class="fa-solid fa-users"></i>Students</a>
+      <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
+    </nav>
+    <div class="portal-side-foot">
+      <a href="/"><i class="fa-solid fa-house"></i>Back to site</a>
+      <button type="button" data-action="logout"><i class="fa-solid fa-right-from-bracket"></i>Sign out</button>
+    </div>
+  </aside>
+
+  <main class="portal-main">
+    <button class="portal-side-toggle" id="sidebarToggle"><i class="fa-solid fa-bars"></i> Menu</button>
+    <header class="portal-top">
+      <h1 id="pageTitle">Overview <small id="pageSub">Welcome back</small></h1>
+    </header>
+    <div id="content"><div class="empty-state"><i class="fa-solid fa-circle-notch fa-spin"></i>Loading…</div></div>
+  </main>
+</div>
+
+<script src="/assets/js/config.js"></script>
+<script src="/assets/js/portal.js"></script>
+<script>
+(function () {
+  var P = window.MAM_PORTAL, API = window.MAM_API;
+  var content = document.getElementById('content');
+  var pageTitle = document.getElementById('pageTitle');
+  var pageSub = document.getElementById('pageSub');
+  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], attendance: ['Attendance', 'Mark and review attendance'] };
+  var data = null;
+
+  function show(tab) {
+    document.querySelectorAll('[data-tab]').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-tab') === tab); });
+    var t = tabs[tab] || tabs.overview;
+    pageTitle.firstChild.textContent = t[0] + ' ';
+    pageSub.textContent = t[1];
+    if (!data) return;
+    if (tab === 'overview') return renderOverview();
+    if (tab === 'classes') return renderClasses();
+    if (tab === 'students') return renderStudents();
+    if (tab === 'attendance') return renderAttendance();
+  }
+
+  function renderOverview() {
+    var classes = data.classes || [], students = data.students || [], att = data.recent_attendance || [];
+    content.innerHTML = ''
+      + '<section class="kpi-row">'
+      + kpi('Active Classes', classes.filter(function(c){return c.status==='active';}).length)
+      + kpi('Students', students.length, 'Across all classes', 'gold')
+      + kpi('Attendance entries', att.length, att[0] ? 'Last: ' + P.fmtDate(att[0].session_date) : 'No records')
+      + '</section>'
+      + '<section class="panel"><div class="panel-head"><h2>Recent attendance</h2><a class="panel-action" href="#attendance" data-tab="attendance">All →</a></div>'
+      + (att.length ? attendanceTable(att.slice(0,8)) : '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded yet.') + '</div>') + '</section>';
+    bindTabLinks();
+  }
+
+  function renderClasses() {
+    var classes = data.classes || [];
+    if (!classes.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('chalkboard-user', 'No classes assigned. Ask the admin to assign you.') + '</div></section>'; return; }
+    var rows = classes.map(function (c) {
+      return '<tr><td><strong>' + P.escapeHtml(c.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(c.discipline || '') + ' · ' + P.escapeHtml(c.pathway || '') + '</span></td>'
+        + '<td>' + P.escapeHtml(c.mode || '—') + '</td>'
+        + '<td>' + P.escapeHtml(c.schedule || '—') + '</td>'
+        + '<td>' + (c.enrolled_count || 0) + ' / ' + (c.capacity || '—') + '</td>'
+        + '<td><span class="pill ' + P.escapeHtml(c.status) + '">' + P.escapeHtml(c.status) + '</span></td></tr>';
+    }).join('');
+    content.innerHTML = '<section class="panel"><table class="ptable"><thead><tr><th>Class</th><th>Mode</th><th>Schedule</th><th>Enrolled</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></section>';
+  }
+
+  function renderStudents() {
+    var s = data.students || [];
+    if (!s.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('users', 'No students enrolled in your classes.') + '</div></section>'; return; }
+    var rows = s.map(function (st) {
+      return '<tr><td><strong>' + P.escapeHtml(st.name || '—') + '</strong></td>'
+        + '<td><a href="mailto:' + P.escapeHtml(st.email) + '" style="color:var(--gold-bright)">' + P.escapeHtml(st.email) + '</a></td>'
+        + '<td>' + P.escapeHtml(st.phone || '—') + '</td>'
+        + '<td>' + P.escapeHtml(st.class_title || '—') + '</td></tr>';
+    }).join('');
+    content.innerHTML = '<section class="panel"><table class="ptable"><thead><tr><th>Student</th><th>Email</th><th>Phone</th><th>Class</th></tr></thead><tbody>' + rows + '</tbody></table></section>';
+  }
+
+  function renderAttendance() {
+    var students = data.students || [], att = data.recent_attendance || [];
+    // Form to mark new attendance
+    var classGroups = {};
+    students.forEach(function (st) { classGroups[st.class_id] = classGroups[st.class_id] || { title: st.class_title, items: [] }; classGroups[st.class_id].items.push(st); });
+
+    var classes = (data.classes || []).filter(function (c) { return c.status === 'active'; });
+    var classOpts = classes.map(function (c) { return '<option value="' + c.id + '">' + P.escapeHtml(c.title) + '</option>'; }).join('');
+
+    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Mark attendance</h2></div>'
+      + '<form id="attForm" class="profile-form">'
+      + '<div class="field"><label>Class</label><select id="att-class" required>' + classOpts + '</select></div>'
+      + '<div class="field"><label>Date</label><input id="att-date" type="date" value="' + new Date().toISOString().slice(0,10) + '" required></div>'
+      + '<div class="field full"><label>Enrollment ID</label><input id="att-enrollment" type="number" required placeholder="Select student below first"></div>'
+      + '<div class="field"><label>Status</label><select id="att-status" required><option value="present">Present</option><option value="late">Late</option><option value="absent">Absent</option><option value="excused">Excused</option></select></div>'
+      + '<div class="field"><label>Notes</label><input id="att-notes" placeholder="Optional"></div>'
+      + '<div class="actions"><button type="submit" class="btn btn-primary">Save attendance</button></div>'
+      + '</form></section>'
+      + '<section class="panel"><div class="panel-head"><h2>Recent attendance</h2></div>'
+      + (att.length ? attendanceTable(att) : '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded yet.') + '</div>') + '</section>';
+
+    document.getElementById('attForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var payload = {
+        enrollment_id: parseInt(document.getElementById('att-enrollment').value, 10),
+        session_date: document.getElementById('att-date').value,
+        status: document.getElementById('att-status').value,
+        notes: document.getElementById('att-notes').value,
+      };
+      API.request('instructor/mark-attendance', { method: 'POST', body: payload })
+        .then(function () { alert('Attendance saved.'); load(); })
+        .catch(function (err) { alert('Could not save: ' + (err.body && err.body.error || 'unknown')); });
+    });
+  }
+  function attendanceTable(att) {
+    var rows = att.map(function (a) {
+      return '<tr><td>' + P.fmtDate(a.session_date) + '</td>'
+        + '<td><strong>' + P.escapeHtml(a.student_name || '—') + '</strong></td>'
+        + '<td>' + P.escapeHtml(a.class_title || '—') + '</td>'
+        + '<td><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
+        + '<td style="color:var(--text-muted);font-size:0.82rem">' + P.escapeHtml(a.notes || '') + '</td></tr>';
+    }).join('');
+    return '<table class="ptable"><thead><tr><th>Date</th><th>Student</th><th>Class</th><th>Status</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function kpi(label, value, sub, cls) {
+    return '<div class="kpi"><div class="kpi-label">' + P.escapeHtml(label) + '</div><div class="kpi-value ' + (cls || '') + '">' + value + '</div><div class="kpi-sub">' + P.escapeHtml(sub || '') + '</div></div>';
+  }
+  function empty(icon, text) { return '<div class="empty-state"><i class="fa-solid fa-' + icon + '"></i>' + text + '</div>'; }
+
+  function bindTabLinks() {
+    document.querySelectorAll('[data-tab]').forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        var t = a.getAttribute('data-tab'); if (!t) return;
+        e.preventDefault(); show(t);
+        try { history.replaceState(null, '', '#' + t); } catch (e2) {}
+      });
+    });
+  }
+
+  function load() {
+    return API.request('instructor/dashboard').then(function (r) {
+      data = r;
+      P.mountUserCard({ name: r.user.name, email: r.user.email, role: 'instructor', avatar_url: r.user.avatar_url });
+      var tab = (location.hash || '#overview').slice(1);
+      if (!tabs[tab]) tab = 'overview';
+      show(tab);
+    });
+  }
+
+  P.requireAuth(['instructor', 'admin']).then(function () {
+    P.init(); bindTabLinks(); return load();
+  }).catch(function (e) {
+    if (e.message !== 'unauthenticated') content.innerHTML = empty('triangle-exclamation', 'Could not load your dashboard.');
+  });
+})();
+</script>
+</body>
+</html>

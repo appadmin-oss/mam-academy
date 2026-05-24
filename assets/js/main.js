@@ -510,5 +510,3 @@
     ]).then(boot);
   });
 })();
-</content>
-</invoke>

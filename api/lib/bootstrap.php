@@ -70,7 +70,7 @@ function mam_env(string $key, $default = null) {
 }
 
 // ---------- Library autoload (manual; no Composer needed) ----------
-$mam_libs = ['response', 'validation', 'auth', 'mailer', 'csrf', 'rate-limit', 'log', 'db', 'paystack', 'flutterwave'];
+$mam_libs = ['log', 'response', 'validation', 'db', 'session', 'auth', 'mailer', 'csrf', 'rate-limit', 'paystack', 'flutterwave'];
 foreach ($mam_libs as $lib) {
     require_once __DIR__ . '/' . $lib . '.php';
 }
@@ -100,6 +100,9 @@ mam_log('info', 'request', [
     'route' => $_GET['route'] ?? ($_SERVER['REQUEST_URI'] ?? ''),
     'ip' => mam_client_ip(),
 ]);
+
+// Best-effort session GC
+if (function_exists('mam_session_gc')) mam_session_gc();
 
 // ---------- Helpers ----------
 function mam_client_ip(): string {

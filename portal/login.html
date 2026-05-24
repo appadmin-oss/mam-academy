@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Sign in — MAM Academy Portal</title>
+<link rel="canonical" href="https://academy.mamcentre.org/portal/login.html">
+<link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="/assets/css/main.css">
+<link rel="stylesheet" href="/assets/css/portal.css">
+</head>
+<body>
+<main class="login-shell">
+  <aside class="login-side" aria-hidden="true">
+    <div class="login-brand">
+      <img src="/mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
+      <span class="login-brand-name">MAM ACADEMY</span>
+    </div>
+    <div>
+      <h2>Crafting the timeless in time.</h2>
+      <p class="quote">"We interpret the timeless using instruments and replay it in time."</p>
+      <p class="quote-cite">— The MAM Academy Vision</p>
+    </div>
+    <div style="font-size:0.78rem;color:rgba(255,255,255,0.5);letter-spacing:0.06em">© <span data-year>2026</span> MAM Centre · Commissioned 5 May 2008</div>
+  </aside>
+
+  <section class="login-main">
+    <div class="login-card">
+      <h1>Welcome back</h1>
+      <p class="lede">Sign in to your MAM Academy portal — students, instructors and admins.</p>
+
+      <form class="login-form" id="loginForm" novalidate autocomplete="on">
+        <div class="login-error" id="loginError"><i class="fa-solid fa-circle-exclamation"></i><span>Invalid email or password</span></div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="email" required>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" id="loginBtn"><i class="fa-solid fa-right-to-bracket"></i>Sign in</button>
+        <p class="login-foot">
+          New to MAM? <a href="/apply.html">Apply now →</a><br>
+          Lost your password? Email <a href="mailto:connect@mamcentre.org">connect@mamcentre.org</a>
+        </p>
+      </form>
+    </div>
+  </section>
+</main>
+
+<script src="/assets/js/config.js"></script>
+<script>
+(function () {
+  var form = document.getElementById('loginForm');
+  var btn = document.getElementById('loginBtn');
+  var err = document.getElementById('loginError');
+  var origLabel = btn.innerHTML;
+
+  function setLoading(b) {
+    btn.disabled = b;
+    btn.innerHTML = b ? '<span class="spinner" style="width:16px;height:16px;border-width:2px"></span>Signing in…' : origLabel;
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    err.classList.remove('shown');
+    var email = document.getElementById('email').value.trim();
+    var password = document.getElementById('password').value;
+    if (!email || !password) { err.querySelector('span').textContent = 'Email and password are required.'; err.classList.add('shown'); return; }
+    setLoading(true);
+    window.MAM_API.request('auth/login', { method: 'POST', body: { email: email, password: password } })
+      .then(function (r) {
+        var next = new URLSearchParams(location.search).get('next');
+        window.location.href = next || r.redirect || '/portal/student/';
+      })
+      .catch(function (e) {
+        setLoading(false);
+        var msg = (e && e.body && e.body.error === 'invalid_credentials') ? 'Invalid email or password.'
+                : (e && e.status === 429) ? 'Too many attempts — please wait a few minutes.'
+                : 'Could not sign you in. Please try again.';
+        err.querySelector('span').textContent = msg;
+        err.classList.add('shown');
+      });
+  });
+
+  // If already logged in, redirect to the right portal
+  window.MAM_API.request('auth/me', { method: 'GET' }).then(function (r) {
+    if (r.authenticated) {
+      var map = { admin: '/admin/', instructor: '/portal/instructor/', student: '/portal/student/' };
+      window.location.href = map[r.user.role] || '/';
+    }
+  }).catch(function () {});
+
+  document.querySelectorAll('[data-year]').forEach(function (e) { e.textContent = new Date().getFullYear(); });
+})();
+</script>
+</body>
+</html>

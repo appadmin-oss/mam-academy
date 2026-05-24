@@ -84,77 +84,138 @@
 
 <main id="main">
 
-<!-- ====================== HERO ====================== -->
-<section id="hero" aria-label="Hero">
-  <div class="hero-slides">
-    <article class="hero-slide active">
-      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1465225314224-587cd83d322b?w=1920&q=80')"></div>
-      <div class="slide-overlay"></div>
+<!-- ====================== HERO — original 4-slide carousel ====================== -->
+<section id="hero" aria-label="Hero carousel">
+  <div class="hero-slides" id="heroSlides">
+
+    <!-- Slide 1: Become a Meta-Musician -->
+    <article class="hero-slide active" data-slide="0">
+      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&q=80')"></div>
+      <div class="slide-overlay slide-overlay-1" aria-hidden="true"></div>
+      <div class="hero-deco hero-deco-1" aria-hidden="true">♩</div>
+      <div class="hero-deco hero-deco-2" aria-hidden="true">𝄞</div>
+      <div class="hero-content">
+        <div class="hero-card card-white" role="region" aria-label="Slide 1: Become a Meta-Musician">
+          <div class="card-brand">
+            <img src="mam-academy-logo.svg" alt="MAM Academy" onerror="this.style.display='none'">
+            <div class="card-brand-name" style="color:#3D2B1A">MAM ACADEMY</div>
+          </div>
+          <h1 class="card-headline xl">
+            <span class="text-red">BECOME</span><br>
+            <span class="text-dark">A META-</span><br>
+            <span class="text-red">MUSICIAN</span>
+          </h1>
+          <div class="card-body">
+            <p class="card-subtitle">A Creative Intelligence &amp; Performance Academy</p>
+            <p class="card-desc">We interpret the timeless using instruments and replay it in time — forming complete musicians, performers and creative thinkers.</p>
+            <div class="hero-card-actions">
+              <a href="apply.html" class="btn-signup btn-signup-orange">Apply Now</a>
+              <a href="auditer.html" class="btn-signup btn-signup-ghost-dark">Book Auditer</a>
+            </div>
+          </div>
+        </div>
+      </div>
     </article>
-    <article class="hero-slide">
-      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1920&q=80')"></div>
-      <div class="slide-overlay"></div>
+
+    <!-- Slide 2: Music Changes -->
+    <article class="hero-slide" data-slide="1">
+      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1920&q=80')"></div>
+      <div class="slide-overlay slide-overlay-2" aria-hidden="true"></div>
+      <div class="hero-content">
+        <div class="hero-card card-dark" role="region" aria-label="Slide 2: Music Changes">
+          <div class="card-brand">
+            <img src="mam-academy-logo.svg" alt="MAM Academy" onerror="this.style.display='none'">
+            <div class="card-brand-name">MAM ACADEMY</div>
+          </div>
+          <h2 class="card-headline xl">
+            <span class="text-gold">Music</span><br>
+            <span class="text-red">Changes</span>
+          </h2>
+          <div class="card-body">
+            <p class="card-subtitle" style="color:#FBBF24">Trinity-Equivalent · Grade 1 – 8</p>
+            <p class="card-desc">Pre-Certification, Certification, Pre-Diploma &amp; Diploma — pathways built for measurable, professional formation.</p>
+            <div class="hero-card-actions">
+              <a href="pathways.html" class="btn-signup btn-signup-gold">View Pathways</a>
+              <a href="apply.html" class="btn-signup btn-signup-ghost-light">Apply</a>
+            </div>
+          </div>
+        </div>
+      </div>
     </article>
-    <article class="hero-slide">
-      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1519677100203-a0e668c92439?w=1920&q=80')"></div>
-      <div class="slide-overlay"></div>
+
+    <!-- Slide 3: Practice With Focus -->
+    <article class="hero-slide" data-slide="2">
+      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=1920&q=80')"></div>
+      <div class="slide-overlay slide-overlay-3" aria-hidden="true"></div>
+      <div class="hero-content">
+        <div class="hero-card card-dark-red" role="region" aria-label="Slide 3: Practice with Focus">
+          <div class="card-brand">
+            <img src="mam-academy-logo.svg" alt="MAM Academy" onerror="this.style.display='none'">
+            <div class="card-brand-name">MAM ACADEMY</div>
+          </div>
+          <h2 class="card-headline lg">
+            <span class="text-red">PRACTICE</span><br>
+            <span class="text-white">WITH</span><br>
+            <span class="text-red">FOCUS</span>
+          </h2>
+          <div class="card-body">
+            <p class="card-subtitle" style="color:#fff">The MAM Rapid Rhythm Intelligence System</p>
+            <p class="card-desc">Sight read. Sight sing. Lock the timing. A signature method for fast rhythm fluency &amp; ensemble synchronization.</p>
+            <div class="hero-card-actions">
+              <a href="schools.html#rhythm" class="btn-signup btn-signup-red">Explore Rhythm</a>
+              <a href="crash.html" class="btn-signup btn-signup-ghost-light">Crash Course $40</a>
+            </div>
+          </div>
+        </div>
+      </div>
     </article>
-    <article class="hero-slide">
-      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1514119412350-e174d90d280e?w=1920&q=80')"></div>
-      <div class="slide-overlay"></div>
+
+    <!-- Slide 4: Music Shapes You -->
+    <article class="hero-slide" data-slide="3">
+      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1555685813-4a31571be76a?w=1920&q=80')"></div>
+      <div class="slide-overlay slide-overlay-4" aria-hidden="true"></div>
+      <div class="hero-content">
+        <div class="hero-card card-purple" role="region" aria-label="Slide 4: Music Shapes You">
+          <div class="card-brand">
+            <img src="mam-academy-logo.svg" alt="MAM Academy" onerror="this.style.display='none'">
+            <div class="card-brand-name">MAM ACADEMY</div>
+          </div>
+          <h2 class="card-headline xl">
+            <span class="text-white">MUSIC</span><br>
+            <span class="text-white">SHAPES</span><br>
+            <span class="text-white">YOU</span>
+          </h2>
+          <div class="card-body">
+            <p class="card-subtitle" style="color:#C7D2FE">MetaMusic &amp; Creative Consciousness</p>
+            <p class="card-desc">Philosophy, civilization &amp; consciousness of sound. Beyond skill — we form thinkers and architects of culture.</p>
+            <div class="hero-card-actions">
+              <a href="metamusic-order.html" class="btn-signup btn-signup-blue">The MetaMusic Order</a>
+              <a href="power-play.html" class="btn-signup btn-signup-ghost-light">⚡ Free · Power Play</a>
+            </div>
+          </div>
+        </div>
+      </div>
     </article>
+
+  </div><!-- /.hero-slides -->
+
+  <button class="hero-arrow hero-arrow-prev" id="prevArrow" aria-label="Previous slide"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+  <button class="hero-arrow hero-arrow-next" id="nextArrow" aria-label="Next slide"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+
+  <div class="hero-nav" role="tablist" aria-label="Slide navigation">
+    <button class="hero-dot active" role="tab" aria-selected="true" aria-label="Slide 1" data-dot="0"></button>
+    <button class="hero-dot" role="tab" aria-selected="false" aria-label="Slide 2" data-dot="1"></button>
+    <button class="hero-dot" role="tab" aria-selected="false" aria-label="Slide 3" data-dot="2"></button>
+    <button class="hero-dot" role="tab" aria-selected="false" aria-label="Slide 4" data-dot="3"></button>
   </div>
 
-  <div class="hero-inner">
-    <div class="hero-text">
-      <div class="hero-eyebrow"><span class="dot"></span>Online &amp; Onsite · Trinity-Equivalent · MAM Auditer</div>
-      <h1 class="hero-title">
-        <span>Become a</span>
-        <span class="accent-gold">Meta-Musician.</span>
-        <span>Build civilization</span>
-        <span class="accent-red">through sound.</span>
-      </h1>
-      <p class="hero-lede">MAM Academy forms complete musicians, performers and creative thinkers — not just instrumentalists. Train online from anywhere or onsite in Lagos.</p>
-      <div class="hero-actions">
-        <a href="apply.html" class="btn btn-primary btn-large"><i class="fa-solid fa-music"></i>Apply Now</a>
-        <a href="auditer.html" class="btn btn-secondary btn-large" style="color:#fff;border-color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.06)"><i class="fa-solid fa-clipboard-check"></i>Book Auditer</a>
-      </div>
-      <div class="hero-stats">
-        <div><div class="hero-stat-num" data-count="500">500+</div><div class="hero-stat-label">Students Formed</div></div>
-        <div><div class="hero-stat-num">4</div><div class="hero-stat-label">Signature Schools</div></div>
-        <div><div class="hero-stat-num">2</div><div class="hero-stat-label">Modes — Online &amp; Onsite</div></div>
-      </div>
-    </div>
-
-    <aside class="hero-side">
-      <a href="metamusic-order.html" class="hero-card">
-        <div class="hero-card-tag">🔥 12-Week Intensive</div>
-        <h3>The MetaMusic Order</h3>
-        <p>A civilization-engineering incubation for musicians ready to architect culture, not just perform.</p>
-        <div class="hero-card-foot">
-          <div class="hero-card-price">$240</div>
-          <div class="hero-card-arrow"><i class="fa-solid fa-arrow-right"></i></div>
-        </div>
-      </a>
-      <a href="power-play.html" class="hero-card" style="border-color:rgba(165,180,252,0.5);background:linear-gradient(135deg,rgba(67,56,202,0.3),rgba(26,18,11,0.7))">
-        <div class="hero-card-tag" style="color:#A5B4FC">⚡ Free Monthly Series</div>
-        <h3>Power Play with Van. BOJA</h3>
-        <p>A fierce monthly gathering for musicians, creatives and culture shapers — globally, online.</p>
-        <div class="hero-card-foot">
-          <div class="hero-card-price" style="color:#A5B4FC;font-size:1.1rem">FREE</div>
-          <div class="hero-card-arrow" style="background:linear-gradient(135deg,#6366F1,#A5B4FC)"><i class="fa-solid fa-arrow-right"></i></div>
-        </div>
-      </a>
-    </aside>
+  <div class="scroll-cue" aria-hidden="true">
+    <span class="scroll-cue-text">Scroll</span>
+    <i class="fa-solid fa-chevron-down scroll-cue-icon"></i>
   </div>
 
-  <button class="hero-arrow hero-arrow-prev" id="prevArrow" aria-label="Previous slide"><i class="fa-solid fa-chevron-left"></i></button>
-  <button class="hero-arrow hero-arrow-next" id="nextArrow" aria-label="Next slide"><i class="fa-solid fa-chevron-right"></i></button>
-  <div class="hero-nav" role="tablist">
-    <button class="hero-dot active" data-dot="0" aria-label="Slide 1"></button>
-    <button class="hero-dot" data-dot="1" aria-label="Slide 2"></button>
-    <button class="hero-dot" data-dot="2" aria-label="Slide 3"></button>
-    <button class="hero-dot" data-dot="3" aria-label="Slide 4"></button>
+  <div class="slide-url" aria-hidden="true">
+    <span>academy.mamcentre.org</span> · Online &amp; Onsite · Trinity-Equivalent
   </div>
 </section>
 
@@ -224,14 +285,14 @@
   <div class="container">
     <div class="about-grid">
       <div class="about-visual fade-in-up">
-        <div class="about-badge"><span class="about-badge-num">2019</span>Founded</div>
+        <div class="about-badge"><span class="about-badge-num">2008</span>Commissioned</div>
         <img class="about-img-main" src="https://images.unsplash.com/photo-1514119412350-e174d90d280e?w=900&q=80" alt="Violinist at MAM Academy" loading="lazy">
         <img class="about-img-accent" src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=700&q=80" alt="MAM Academy ensemble class" loading="lazy">
       </div>
       <div class="about-content fade-in-up stagger-2">
         <div class="section-eyebrow"><span class="line"></span>Our Mission</div>
         <h2 class="section-title" id="about-title">Not Just a Music School.<br><span class="highlight-gold">A Transformational Academy.</span></h2>
-        <p class="section-desc">MAM Academy develops musicians, performers, worship leaders, composers, conductors, actors, creative thinkers and cultural artists. We teach you not only <em>how to play</em> — but <em>how to think, perform, interpret, communicate and lead creatively</em>.</p>
+        <p class="section-desc">MAM Academy began unofficially among the <strong>K-Folks</strong>, was <strong>commissioned 5 May 2008</strong>, and registered under <strong>Just-Folks Limited in 2011</strong>. We develop musicians, performers, worship leaders, composers, conductors, actors, creative thinkers and cultural artists — teaching <em>how to think, perform, interpret, communicate and lead creatively</em>.</p>
         <blockquote class="about-quote">
           <p>"We interpret the timeless using instruments and replay it in time."</p>
           <cite>— The MAM Academy Vision</cite>

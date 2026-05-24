@@ -123,6 +123,105 @@ function mam_db_migrate(PDO $db): void {
               reset_at INTEGER NOT NULL
             );
         ",
+        2 => "
+            CREATE TABLE users (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              email TEXT UNIQUE NOT NULL,
+              password_hash TEXT NOT NULL,
+              role TEXT NOT NULL CHECK(role IN ('admin','instructor','student')),
+              name TEXT,
+              phone TEXT,
+              avatar_url TEXT,
+              status TEXT DEFAULT 'active',
+              customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+              last_login TEXT,
+              must_change_password INTEGER DEFAULT 0,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_users_role ON users(role);
+            CREATE INDEX idx_users_customer ON users(customer_id);
+
+            CREATE TABLE sessions (
+              token_hash TEXT PRIMARY KEY,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              ip TEXT, ua TEXT,
+              created_at TEXT DEFAULT (datetime('now')),
+              expires_at TEXT NOT NULL
+            );
+            CREATE INDEX idx_sessions_user ON sessions(user_id);
+            CREATE INDEX idx_sessions_expires ON sessions(expires_at);
+
+            CREATE TABLE instructor_profiles (
+              user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+              bio TEXT, specialties TEXT, photo_url TEXT,
+              years_experience INTEGER,
+              updated_at TEXT DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE classes (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              title TEXT NOT NULL,
+              discipline TEXT,
+              pathway TEXT,
+              instructor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              mode TEXT,
+              schedule TEXT,
+              capacity INTEGER DEFAULT 12,
+              status TEXT DEFAULT 'active',
+              starts_on TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE enrollments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+              application_id INTEGER REFERENCES applications(id) ON DELETE SET NULL,
+              status TEXT DEFAULT 'active',
+              enrolled_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_enrollments_unique ON enrollments(student_id, class_id);
+
+            CREATE TABLE attendance (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+              session_date TEXT NOT NULL,
+              status TEXT NOT NULL CHECK(status IN ('present','absent','late','excused')),
+              notes TEXT,
+              marked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_attendance_enrollment ON attendance(enrollment_id);
+
+            CREATE TABLE class_resources (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+              title TEXT NOT NULL,
+              url TEXT NOT NULL,
+              type TEXT,
+              posted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE auditer_results (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              dimensions TEXT,
+              recommended_pathway TEXT,
+              notes TEXT,
+              audited_at TEXT DEFAULT (datetime('now')),
+              audited_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE password_resets (
+              token_hash TEXT PRIMARY KEY,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              expires_at TEXT NOT NULL,
+              used_at TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {
