@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Apply Now — MAM Academy | Smart Onboarding &amp; Secure Payment</title>
+<meta name="description" content="Complete your MAM Academy enrollment in five guided steps. Pay securely with Paystack, Flutterwave, Stripe or bank transfer.">
+<meta name="robots" content="noindex, follow">
+<link rel="canonical" href="https://academy.mamcentre.org/apply.html">
+<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="assets/css/main.css">
+<link rel="stylesheet" href="assets/css/apply.css">
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to main content</a>
+
+<div id="preloader" role="status" aria-label="Loading">
+  <div class="preloader-logo">
+    <img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
+    <div class="preloader-name">MAM ACADEMY</div>
+    <div class="preloader-tag">Preparing your application</div>
+  </div>
+  <div class="waves" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+</div>
+
+<div id="include-header"></div>
+
+<main id="main">
+  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&q=80');padding:80px 24px 60px">
+    <div class="page-hero-inner">
+      <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="index.html">Home</a><i class="fa-solid fa-chevron-right"></i>
+        <span>Apply</span>
+      </nav>
+      <div class="page-hero-eyebrow"><i class="fa-solid fa-music"></i>Application &amp; Enrollment</div>
+      <h1 class="page-hero-title">Begin Your <span class="highlight-gold">Musical Journey</span></h1>
+      <p class="page-hero-lede">Complete your MAM Academy enrollment in five guided steps. We auto-save your progress, so you can pause and return anytime.</p>
+    </div>
+  </header>
+
+  <section class="apply-shell" aria-label="Application form">
+    <aside class="apply-side">
+      <div class="apply-side-card">
+        <h4>Your Progress</h4>
+        <div class="apply-progress" id="applyProgress">
+          <div class="apply-progress-step active" data-step="0"><div class="apply-progress-num"><span>1</span></div><div><div class="apply-progress-label">Choose Programme</div><div class="apply-progress-sub">Pathway, mode &amp; discipline</div></div></div>
+          <div class="apply-progress-step" data-step="1"><div class="apply-progress-num"><span>2</span></div><div><div class="apply-progress-label">Student Profile</div><div class="apply-progress-sub">Your details</div></div></div>
+          <div class="apply-progress-step" data-step="2"><div class="apply-progress-num"><span>3</span></div><div><div class="apply-progress-label">Background</div><div class="apply-progress-sub">Experience &amp; goals</div></div></div>
+          <div class="apply-progress-step" data-step="3"><div class="apply-progress-num"><span>4</span></div><div><div class="apply-progress-label">Review</div><div class="apply-progress-sub">Confirm details</div></div></div>
+          <div class="apply-progress-step" data-step="4"><div class="apply-progress-num"><span>5</span></div><div><div class="apply-progress-label">Payment</div><div class="apply-progress-sub">Secure checkout</div></div></div>
+        </div>
+      </div>
+
+      <div class="apply-side-card">
+        <h4>Order Summary</h4>
+        <div id="applySummary">
+          <div class="summary-row"><span>Pathway</span><span>—</span></div>
+          <div class="summary-total"><span>Total</span><span>$0</span></div>
+        </div>
+        <div style="margin-top:14px">
+          <label class="field-label" style="font-size:0.7rem;margin-bottom:6px">Display currency</label>
+          <select id="applyCurrency" class="field-select" style="padding:9px 14px;font-size:0.85rem">
+            <option value="USD">USD ($)</option>
+            <option value="NGN">NGN (₦)</option>
+            <option value="GBP">GBP (£)</option>
+            <option value="EUR">EUR (€)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="apply-side-card">
+        <h4>Need help?</h4>
+        <div class="help-list">
+          <div class="help-item"><i class="fa-solid fa-floppy-disk"></i><span><strong>Auto-save:</strong> Your progress is stored in your browser. Close and return anytime.</span></div>
+          <div class="help-item"><i class="fa-solid fa-lock"></i><span>Payments are processed by certified providers. We never see your card details.</span></div>
+          <div class="help-item"><i class="fa-solid fa-headset"></i><span>Stuck? Email <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a></span></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="apply-main">
+      <!-- STEP 1: Programme -->
+      <div class="step active" data-step="0">
+        <div class="step-head">
+          <div class="step-num">Step 1 of 5</div>
+          <h2 class="step-title">Choose Your Programme</h2>
+          <p class="step-desc">Pick the certification pathway, learning mode and primary discipline. You can change these later before payment.</p>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Certification Pathway <span class="req">*</span></label>
+          <div class="choice-grid">
+            <label class="choice-card"><input type="radio" name="pathway" value="pre-cert">
+              <div class="choice-card-head"><span class="choice-card-title">Pre-Certification</span><span class="choice-card-price">$120</span></div>
+              <span class="choice-card-desc">Grade 1–2 equivalent · Foundations for beginners</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="pathway" value="cert">
+              <div class="choice-card-head"><span class="choice-card-title">Certification</span><span class="choice-card-price">$150</span></div>
+              <span class="choice-card-desc">Grade 3–4 equivalent · Developing musicianship</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="pathway" value="pre-dip">
+              <div class="choice-card-head"><span class="choice-card-title">Pre-Diploma</span><span class="choice-card-price">$160</span></div>
+              <span class="choice-card-desc">Grade 5–6 equivalent · Advanced musicianship</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="pathway" value="diploma">
+              <div class="choice-card-head"><span class="choice-card-title">Diploma</span><span class="choice-card-price">$180</span></div>
+              <span class="choice-card-desc">Grade 7–8 equivalent · Professional mastery</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="pathway" value="crash">
+              <div class="choice-card-head"><span class="choice-card-title">Crash Programme</span><span class="choice-card-price">$40</span></div>
+              <span class="choice-card-desc">6-week intensive — fast track</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="pathway" value="meta-order">
+              <div class="choice-card-head"><span class="choice-card-title">🔥 MetaMusic Order</span><span class="choice-card-price">$240</span></div>
+              <span class="choice-card-desc">12-week civilization-engineering intensive</span>
+              <span class="choice-card-icon"></span></label>
+          </div>
+          <div class="field-error" id="err-pathway"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a pathway</span></div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Learning Mode <span class="req">*</span></label>
+          <div class="choice-grid">
+            <label class="choice-card"><input type="radio" name="mode" value="online">
+              <div class="choice-card-head"><span class="choice-card-title"><i class="fa-solid fa-globe" style="color:var(--gold-bright);margin-right:6px"></i>Online</span></div>
+              <span class="choice-card-desc">Live video classes, digital assignments, virtual rehearsals — from anywhere.</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="mode" value="onsite">
+              <div class="choice-card-head"><span class="choice-card-title"><i class="fa-solid fa-location-dot" style="color:var(--gold-bright);margin-right:6px"></i>Onsite Lagos</span></div>
+              <span class="choice-card-desc">Physical lessons, ensemble training, live stagecraft at MAM Centre.</span>
+              <span class="choice-card-icon"></span></label>
+          </div>
+          <div class="field-error" id="err-mode"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a learning mode</span></div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">Primary Discipline <span class="req">*</span></label>
+          <div class="choice-grid">
+            <label class="choice-card"><input type="radio" name="discipline" value="piano"><div class="choice-card-head"><span class="choice-card-title">Piano &amp; Keyboard</span></div><span class="choice-card-desc">Classical, gospel &amp; contemporary</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="violin"><div class="choice-card-head"><span class="choice-card-title">Violin / Strings</span></div><span class="choice-card-desc">Bow technique &amp; ensemble</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="guitar"><div class="choice-card-head"><span class="choice-card-title">Guitar</span></div><span class="choice-card-desc">Classical &amp; contemporary</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="drums"><div class="choice-card-head"><span class="choice-card-title">Drums &amp; Percussion</span></div><span class="choice-card-desc">Kit, djembe, afro-rhythms</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="voice"><div class="choice-card-head"><span class="choice-card-title">Voice &amp; Choir</span></div><span class="choice-card-desc">Breath, tone &amp; performance</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="wind"><div class="choice-card-head"><span class="choice-card-title">Wind / Brass</span></div><span class="choice-card-desc">Saxophone, trumpet, flute</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="theory"><div class="choice-card-head"><span class="choice-card-title">Music Theory &amp; Ear</span></div><span class="choice-card-desc">Notation &amp; aural skills</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="performance"><div class="choice-card-head"><span class="choice-card-title">Performance Intelligence</span></div><span class="choice-card-desc">Stagecraft &amp; psychology</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="rhythm"><div class="choice-card-head"><span class="choice-card-title">Rhythm Intelligence</span></div><span class="choice-card-desc">MAM Rapid System</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="metamusic"><div class="choice-card-head"><span class="choice-card-title">MetaMusic &amp; Consciousness</span></div><span class="choice-card-desc">Philosophy of sound</span><span class="choice-card-icon"></span></label>
+          </div>
+          <div class="field-error" id="err-discipline"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a discipline</span></div>
+        </div>
+
+        <div class="step-actions">
+          <span></span>
+          <button type="button" class="btn-step btn-step-next" id="btnNext">Continue <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- STEP 2: Student Profile -->
+      <div class="step" data-step="1">
+        <div class="step-head">
+          <div class="step-num">Step 2 of 5</div>
+          <h2 class="step-title">Student Profile</h2>
+          <p class="step-desc">Tell us about the student. We use this only to onboard and contact you about your enrollment.</p>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="firstName">First Name <span class="req">*</span></label>
+            <input type="text" id="firstName" class="field-input" placeholder="e.g. Tunde" autocomplete="given-name" maxlength="60">
+            <div class="field-error" id="err-firstName"><i class="fa-solid fa-circle-exclamation"></i><span>Enter first name</span></div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="lastName">Last Name <span class="req">*</span></label>
+            <input type="text" id="lastName" class="field-input" placeholder="e.g. Adeyemi" autocomplete="family-name" maxlength="60">
+            <div class="field-error" id="err-lastName"><i class="fa-solid fa-circle-exclamation"></i><span>Enter last name</span></div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="email">Email <span class="req">*</span></label>
+            <input type="email" id="email" class="field-input" placeholder="you@example.com" autocomplete="email">
+            <div class="field-error" id="err-email"><i class="fa-solid fa-circle-exclamation"></i><span>Valid email required</span></div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="phone">Phone <span class="req">*</span></label>
+            <input type="tel" id="phone" class="field-input" placeholder="+234 800 000 0000" autocomplete="tel">
+            <div class="field-error" id="err-phone"><i class="fa-solid fa-circle-exclamation"></i><span>Valid phone required</span></div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="country">Country <span class="req">*</span></label>
+            <input type="text" id="country" class="field-input" placeholder="Nigeria" autocomplete="country-name">
+            <div class="field-error" id="err-country"><i class="fa-solid fa-circle-exclamation"></i><span>Enter country</span></div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="city">City</label>
+            <input type="text" id="city" class="field-input" placeholder="Lagos" autocomplete="address-level2">
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="age">Age Range <span class="req">*</span></label>
+            <div class="field-select-wrap">
+              <select id="age" class="field-select">
+                <option value="">Select age range</option>
+                <option value="4-7">4 – 7 years</option>
+                <option value="8-12">8 – 12 years</option>
+                <option value="13-17">13 – 17 years</option>
+                <option value="18-25">18 – 25 years</option>
+                <option value="26+">26 years &amp; above</option>
+              </select>
+              <i class="fa-solid fa-chevron-down field-select-arrow"></i>
+            </div>
+            <div class="field-error" id="err-age"><i class="fa-solid fa-circle-exclamation"></i><span>Select age range</span></div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="dob">Date of Birth <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:normal">(optional)</span></label>
+            <input type="date" id="dob" class="field-input">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="parentName">Parent / Guardian <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:normal">(for under 18)</span></label>
+          <div class="field-row">
+            <input type="text" id="parentName" class="field-input" placeholder="Guardian name">
+            <input type="tel" id="parentPhone" class="field-input" placeholder="Guardian phone">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="emergencyContact">Emergency Contact</label>
+          <input type="text" id="emergencyContact" class="field-input" placeholder="Name &amp; phone (optional)">
+        </div>
+
+        <div class="step-actions">
+          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
+          <button type="button" class="btn-step btn-step-next" id="btnNext2">Continue <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- STEP 3: Background -->
+      <div class="step" data-step="2">
+        <div class="step-head">
+          <div class="step-num">Step 3 of 5</div>
+          <h2 class="step-title">Background &amp; Goals</h2>
+          <p class="step-desc">Helps us prepare your MAM Auditer placement and recommend the right instructor.</p>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="experience">Current musical level</label>
+          <div class="field-select-wrap">
+            <select id="experience" class="field-select">
+              <option value="">Select level</option>
+              <option value="none">Complete beginner</option>
+              <option value="some">Some basic knowledge</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced musician</option>
+            </select>
+            <i class="fa-solid fa-chevron-down field-select-arrow"></i>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="goals">What do you want to achieve at MAM?</label>
+          <textarea id="goals" class="field-textarea" placeholder="e.g. lead my church worship team, perform on stage, pass Grade 5 ABRSM, write my own songs…" maxlength="1000"></textarea>
+          <div class="field-help">Your goals help us shape your learning roadmap.</div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="referrer">How did you hear about MAM Academy?</label>
+          <div class="field-select-wrap">
+            <select id="referrer" class="field-select">
+              <option value="">Select source</option>
+              <option value="search">Google / Search</option>
+              <option value="instagram">Instagram</option>
+              <option value="twitter">Twitter / X</option>
+              <option value="facebook">Facebook</option>
+              <option value="youtube">YouTube</option>
+              <option value="friend">Referred by a friend</option>
+              <option value="church">My church</option>
+              <option value="power-play">Power Play series</option>
+              <option value="other">Other</option>
+            </select>
+            <i class="fa-solid fa-chevron-down field-select-arrow"></i>
+          </div>
+        </div>
+
+        <label class="consent">
+          <input type="checkbox" id="auditerOptIn" checked>
+          <span class="consent-text">Yes — I want to book a <strong>MAM Auditer entry assessment</strong> with my enrollment (recommended).</span>
+        </label>
+
+        <div class="step-actions">
+          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
+          <button type="button" class="btn-step btn-step-next" id="btnNext3">Continue <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- STEP 4: Review -->
+      <div class="step" data-step="3">
+        <div class="step-head">
+          <div class="step-num">Step 4 of 5</div>
+          <h2 class="step-title">Review &amp; Confirm</h2>
+          <p class="step-desc">Take a final look. You can edit any section before payment.</p>
+        </div>
+
+        <div id="reviewBody"></div>
+
+        <div class="field" style="margin-top:24px">
+          <label class="field-label">Optional Add-ons</label>
+          <label class="choice-card" style="margin-bottom:10px">
+            <input type="checkbox" id="includeRegistration" checked>
+            <div class="choice-card-head"><span class="choice-card-title">Registration &amp; Student File</span><span class="choice-card-price">+$5</span></div>
+            <span class="choice-card-desc">Onboarding, hard-copy student file, academy documentation.</span>
+            <span class="choice-card-icon"></span>
+          </label>
+          <label class="choice-card">
+            <input type="checkbox" id="includeCertification">
+            <div class="choice-card-head"><span class="choice-card-title">Certification &amp; Graduation</span><span class="choice-card-price">+$22</span></div>
+            <span class="choice-card-desc">Pay now for graduation processing &amp; certificate (or pay later).</span>
+            <span class="choice-card-icon"></span>
+          </label>
+        </div>
+
+        <label class="consent">
+          <input type="checkbox" id="consent">
+          <span class="consent-text">I confirm the information above is accurate and I agree to MAM Academy's <a href="terms.html">Terms of Service</a> and <a href="privacy.html">Privacy Policy</a>.</span>
+        </label>
+        <div class="field-error" id="err-consent"><i class="fa-solid fa-circle-exclamation"></i><span>Please confirm to continue</span></div>
+
+        <div class="step-actions">
+          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
+          <button type="button" class="btn-step btn-step-next" id="btnNext4">Continue to Payment <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- STEP 5: Payment -->
+      <div class="step" data-step="4">
+        <div class="step-head">
+          <div class="step-num">Step 5 of 5</div>
+          <h2 class="step-title">Secure Payment</h2>
+          <p class="step-desc">Choose your preferred payment method. Your details are sent directly to the provider — we never store card information.</p>
+        </div>
+
+        <div class="payment-secure">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>All transactions are encrypted &amp; PCI-DSS compliant. Verified by Paystack &amp; Flutterwave.</span>
+        </div>
+
+        <div class="payment-methods">
+          <label class="payment-method"><input type="radio" name="payment" value="paystack">
+            <div class="payment-logo paystack">PAY<br>STACK</div>
+            <div class="payment-method-info"><div class="payment-method-name">Paystack</div><div class="payment-method-desc">Cards · Bank · USSD · QR · Mobile money</div></div>
+            <div class="payment-method-check"></div>
+          </label>
+          <label class="payment-method"><input type="radio" name="payment" value="flutterwave">
+            <div class="payment-logo flutterwave">Flutter<br>wave</div>
+            <div class="payment-method-info"><div class="payment-method-name">Flutterwave</div><div class="payment-method-desc">Cards · Bank · M-Pesa · Apple/Google Pay</div></div>
+            <div class="payment-method-check"></div>
+          </label>
+          <label class="payment-method"><input type="radio" name="payment" value="stripe">
+            <div class="payment-logo stripe">stripe</div>
+            <div class="payment-method-info"><div class="payment-method-name">Stripe</div><div class="payment-method-desc">International cards · Apple/Google Pay</div></div>
+            <div class="payment-method-check"></div>
+          </label>
+          <label class="payment-method"><input type="radio" name="payment" value="bank">
+            <div class="payment-logo bank"><i class="fa-solid fa-building-columns"></i></div>
+            <div class="payment-method-info"><div class="payment-method-name">Bank Transfer</div><div class="payment-method-desc">Direct transfer · Manual confirmation</div></div>
+            <div class="payment-method-check"></div>
+          </label>
+        </div>
+        <div class="field-error" id="err-payment"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a payment method</span></div>
+
+        <div class="bank-details" id="bankDetails">
+          <h4><i class="fa-solid fa-building-columns" style="margin-right:8px"></i>Bank Transfer Instructions</h4>
+          <div class="bank-row"><span>Bank</span><span><span id="bankName">—</span><button type="button" class="bank-copy" data-copy="bankName">copy</button></span></div>
+          <div class="bank-row"><span>Account Name</span><span><span id="bankAccountName">—</span><button type="button" class="bank-copy" data-copy="bankAccountName">copy</button></span></div>
+          <div class="bank-row"><span>Account Number</span><span><span id="bankAccountNumber">—</span><button type="button" class="bank-copy" data-copy="bankAccountNumber">copy</button></span></div>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:12px;line-height:1.55">After transfer, email your proof of payment to <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> using your application reference (issued on submit).</p>
+        </div>
+
+        <div class="step-actions" style="flex-direction:column;align-items:stretch">
+          <button type="button" class="btn-pay" id="btnPay"><span>Pay $0</span><i class="fa-solid fa-lock"></i></button>
+          <button type="button" class="btn-step btn-step-back" data-back style="margin-top:12px;align-self:flex-start"><i class="fa-solid fa-arrow-left"></i> Back to review</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="include-footer"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/main.js"></script>
+<script src="assets/js/apply.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Thank You — MAM Academy</title>
+<meta name="robots" content="noindex, follow">
+<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="assets/css/main.css">
+<link rel="stylesheet" href="assets/css/apply.css">
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to main content</a>
+<div id="include-header"></div>
+<main id="main" style="min-height:calc(100vh - var(--nav-h));display:flex;align-items:center;justify-content:center;padding:60px 24px">
+  <div class="apply-main" style="max-width:680px;margin:0">
+    <div class="apply-success">
+      <div class="success-emoji" aria-hidden="true">🎵</div>
+      <h1 class="success-h">Thank You!</h1>
+      <p class="success-p">Your transaction has been received. Our team will contact you within <strong>24 hours</strong> to confirm your enrollment and schedule your MAM Auditer assessment.</p>
+      <div class="success-ref" id="refDisplay">Reference: pending</div>
+      <p class="success-p" style="font-size:0.88rem;color:var(--text-muted)">A copy of your application is also stored in your browser. We'll email a full confirmation to the address you provided.</p>
+      <div class="success-actions">
+        <a href="index.html" class="btn btn-primary"><i class="fa-solid fa-house"></i> Back to Home</a>
+        <a href="mailto:connect@mamcentre.org" class="btn btn-secondary"><i class="fa-solid fa-envelope"></i> Email Us</a>
+      </div>
+    </div>
+  </div>
+</main>
+<div id="include-footer"></div>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/main.js"></script>
+<script>
+document.addEventListener('mam:ready', function () {
+  try {
+    var qs = new URLSearchParams(location.search);
+    var ref = qs.get('ref') || qs.get('reference') || qs.get('tx_ref');
+    if (!ref) {
+      var last = JSON.parse(localStorage.getItem('mam.apply.lastSubmission') || 'null');
+      if (last && last.reference) ref = last.reference;
+    }
+    if (ref) document.getElementById('refDisplay').textContent = 'Reference: ' + ref;
+  } catch (e) {}
+});
+</script>
+</body>
+</html>

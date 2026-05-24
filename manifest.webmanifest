@@ -1,0 +1,21 @@
+{
+  "name": "MAM Academy",
+  "short_name": "MAM Academy",
+  "description": "A Creative Intelligence and Performance Academy — Trinity-equivalent certification, MAM Auditer, the MAM Method and the MetaMusic Order.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#120D08",
+  "theme_color": "#1A120B",
+  "orientation": "portrait-primary",
+  "categories": ["education", "music", "arts"],
+  "lang": "en",
+  "icons": [
+    { "src": "mam-academy-logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Apply Now",       "url": "/apply.html",            "description": "Apply to MAM Academy" },
+    { "name": "Pathways",        "url": "/pathways.html",         "description": "View certification pathways" },
+    { "name": "MetaMusic Order", "url": "/metamusic-order.html",  "description": "12-week intensive" }
+  ]
+}
