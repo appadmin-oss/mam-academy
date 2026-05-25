@@ -1,24 +1,24 @@
 /* ============================================================
-   MAM Academy — Motion (clean build)
+   MAM Academy — Motion (smooth build)
    ─────────────────────────────────────────────────────────────
-   Scope, intentionally narrow:
-     1. Scroll progress reed
-     2. Floating musical glyphs (CSS-driven, hero only)
-     3. 3D card tilt on hover
-     4. Magnetic primary CTAs
-     5. Hero background parallax (cursor)
-     6. Pathway progression timeline (gated on .motion-on; no FOUC)
-     7. Mega menu — sequenced reveal on hover only
-     8. Three.js golden particle field (lazy, hero only, optional)
+   The previous build wrote inline transforms directly on each
+   mousemove and let a 100ms CSS transition catch up. That can
+   look stepped when the cursor moves fast.
 
-   NOT in scope (all caused FOUC and have been removed):
-     • Section staggers     — owned by main.js `.fade-in-up`
-     • Baton-sweep eyebrows  — same
-     • Hero phrase reveal    — fights the existing CSS card entrance
-     • Stat ticker overrides — main.js already does this; doubling
-                                up garbled the numbers
+   This build does it the way premium sites do: every interactive
+   transform has a target value AND a current value. A rAF loop
+   lerps current toward target at ~10% per frame (capped by a
+   "settled" threshold) so motion is continuous, even when the
+   cursor moves quickly or leaves the element. The loop self-
+   suspends once the value is close enough to its target so we
+   never burn CPU on a stationary card.
 
-   Powered by Motion One — vanilla-JS sibling of Framer Motion.
+   Lerping applies to:
+     • 3D card tilt   (rotateX / rotateY + translateZ lift)
+     • Magnetic CTAs  (translate x / y)
+     • Hero bg parallax  (image translate)
+
+   Loaded lazily by main.js so we don't have to touch every page.
    ============================================================ */
 (function () {
   'use strict';
@@ -28,38 +28,38 @@
   var TOUCH = matchMedia('(hover: none)').matches;
   var SMALL = matchMedia('(max-width: 768px)').matches;
 
+  /* Lerp coefficients — lower = smoother but laggier.
+     0.12 gives ~30 frames to converge (~500ms at 60fps) which
+     reads as "responsive but luxurious." */
+  var LERP = 0.12;
+  var LERP_SETTLE = 0.015;  // below this, snap to target & stop
+
   var EASE = {
-    outExpo:   [0.16, 1.00, 0.30, 1.00],
-    outQuart:  [0.25, 1.00, 0.50, 1.00],
-    sforzando: [0.34, 1.56, 0.64, 1.00],
+    outExpo:  [0.16, 1.00, 0.30, 1.00],
+    outQuart: [0.25, 1.00, 0.50, 1.00],
   };
 
   var MOTION_URL = 'https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.min.js';
   var THREE_URL  = 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js';
 
-  function $(s, c) { return (c || document).querySelector(s); }
+  function $(s, c)  { return (c || document).querySelector(s); }
   function $$(s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); }
-
   function loadScript(url) {
-    return new Promise(function (resolve) {
-      if (document.querySelector('script[src="' + url + '"]')) return setTimeout(resolve, 30);
+    return new Promise(function (r) {
+      if (document.querySelector('script[src="' + url + '"]')) return setTimeout(r, 30);
       var s = document.createElement('script');
       s.src = url; s.async = true;
-      s.onload  = function () { resolve(); };
-      s.onerror = function () { resolve(); };
+      s.onload  = function () { r(); };
+      s.onerror = function () { r(); };
       document.head.appendChild(s);
     });
   }
 
   /* ─────────────  Boot  ───────────── */
   function boot() {
-    if (RM) {
-      document.documentElement.classList.add('motion-reduced');
-      return;
-    }
+    if (RM) { document.documentElement.classList.add('motion-reduced'); return; }
     document.documentElement.classList.add('motion-on');
 
-    // 1. CSS-only effects (no library dependencies)
     initScrollProgress();
     initFloatingNotes();
     if (!TOUCH) {
@@ -67,21 +67,66 @@
       initMagneticButtons();
       initHeroBackgroundParallax();
     }
-
-    // 2. Motion One — only what doesn't fight existing CSS reveals
     loadScript(MOTION_URL).then(function () {
       var M = window.Motion;
       if (!M) return;
       initPathwayProgression(M);
       initMegaMenuPhrasing(M);
     });
-
-    // 3. Three.js — home hero only, WebGL-capable, non-touch, non-mobile
     if ($('#hero') && !TOUCH && !SMALL && canRunThree()) {
       loadScript(THREE_URL).then(function () {
         if (window.THREE) initHeroParticleField(window.THREE);
       });
     }
+  }
+
+  /* ============================================================
+     Lerp helper — returns an animator with target / settle API.
+     Each interactive element gets one of these. The animator
+     owns its own rAF loop and shuts off when there's nothing to
+     do, so 12 idle cards cost zero frames.
+     ============================================================ */
+  function makeLerper(apply, opts) {
+    opts = opts || {};
+    var rate = opts.rate || LERP;
+    var settle = opts.settle || LERP_SETTLE;
+
+    var state = {};      // current values
+    var target = {};     // target values
+    var raf = null;
+
+    function step() {
+      var moving = false;
+      for (var k in target) {
+        var diff = target[k] - state[k];
+        if (Math.abs(diff) > settle) {
+          state[k] += diff * rate;
+          moving = true;
+        } else if (state[k] !== target[k]) {
+          state[k] = target[k];
+          moving = true;
+        }
+      }
+      apply(state);
+      raf = moving ? requestAnimationFrame(step) : null;
+    }
+
+    return {
+      setTarget: function (delta) {
+        for (var k in delta) {
+          target[k] = delta[k];
+          if (state[k] === undefined) state[k] = delta[k];  // first-run seed
+        }
+        if (!raf) raf = requestAnimationFrame(step);
+      },
+      seed: function (vals) {
+        for (var k in vals) { state[k] = vals[k]; target[k] = vals[k]; }
+        apply(state);
+      },
+      stop: function () {
+        if (raf) { cancelAnimationFrame(raf); raf = null; }
+      }
+    };
   }
 
   /* ============================================================
@@ -105,16 +150,14 @@
   }
 
   /* ============================================================
-     2. Floating musical glyphs (BMP-only — safe on every device)
+     2. Floating glyphs (CSS-only)
      ============================================================ */
   function initFloatingNotes() {
-    var hero = $('#hero');
-    if (!hero || hero.querySelector('.floating-notes')) return;
-    // Restricted to BMP block — these render reliably everywhere.
+    var hero = $('#hero'); if (!hero || hero.querySelector('.floating-notes')) return;
     var glyphs = ['♪', '♫', '♬', '♭', '♮', '♯', '♩'];
-    var container = document.createElement('div');
-    container.className = 'floating-notes';
-    container.setAttribute('aria-hidden', 'true');
+    var c = document.createElement('div');
+    c.className = 'floating-notes';
+    c.setAttribute('aria-hidden', 'true');
     var COUNT = SMALL ? 5 : 9;
     for (var i = 0; i < COUNT; i++) {
       var n = document.createElement('span');
@@ -125,135 +168,147 @@
       n.style.animationDelay = (i * 1.4 + Math.random()) + 's';
       n.style.animationDuration = (16 + Math.random() * 12) + 's';
       n.style.setProperty('--drift', ((Math.random() - 0.5) * 80) + 'px');
-      n.style.setProperty('--spin', ((Math.random() - 0.5) * 540) + 'deg');
-      container.appendChild(n);
+      n.style.setProperty('--spin', ((Math.random() - 0.5) * 240) + 'deg');
+      c.appendChild(n);
     }
-    hero.insertBefore(container, hero.firstChild);
+    hero.insertBefore(c, hero.firstChild);
   }
 
   /* ============================================================
-     3. 3D card tilt — long sustain release (~700ms)
+     3. Card tilt — lerped (smooth even on fast cursor moves)
      ============================================================ */
   function initCardTilt() {
-    var SELECTOR = [
-      '.school-card',  '.pathway-card', '.faculty-card', '.mode-card',
-      '.program-card', '.next-step-card', '.unique-card', '.method-step',
-      '.hero-card',    '.kpi'
-    ].join(',');
-    $$(SELECTOR).forEach(attachTilt);
+    var SEL = '.school-card,.pathway-card,.faculty-card,.mode-card,.program-card,.next-step-card,.unique-card,.method-step,.hero-card,.kpi';
+    $$(SEL).forEach(attachTilt);
   }
   function attachTilt(card) {
     if (card.dataset.tilt) return; card.dataset.tilt = '1';
-    var max  = card.classList.contains('hero-card') ? 3.5 : 6;
-    var rect = null, raf = null, lx = 0, ly = 0;
+    var MAX = card.classList.contains('hero-card') ? 3.5 : 6;
+    var LIFT = card.classList.contains('hero-card') ? 0 : 4;
+    var TZ = 14;
 
+    var lerper = makeLerper(function (s) {
+      // Compose the transform from the lerped state values.
+      if (s.rx === 0 && s.ry === 0 && s.lift === 0) {
+        card.style.transform = '';
+        card.style.willChange = '';
+        return;
+      }
+      card.style.transform =
+        'perspective(1200px) rotateX(' + s.rx.toFixed(3) + 'deg) rotateY(' + s.ry.toFixed(3) + 'deg) ' +
+        'translate3d(0,' + (-s.lift).toFixed(2) + 'px,' + (s.lift * TZ / Math.max(LIFT, 0.01)).toFixed(2) + 'px)';
+    });
+    lerper.seed({ rx: 0, ry: 0, lift: 0 });
+
+    var rect = null;
     card.addEventListener('mouseenter', function () {
       rect = card.getBoundingClientRect();
       card.style.willChange = 'transform';
-      card.style.transition = 'transform 0.10s linear';
+      card.style.transition = 'none';
+      lerper.setTarget({ lift: LIFT });
     });
     card.addEventListener('mousemove', function (e) {
       if (!rect) return;
-      lx = e.clientX; ly = e.clientY;
-      if (raf) return;
-      raf = requestAnimationFrame(function () {
-        raf = null; if (!rect) return;
-        var x = (lx - rect.left) / rect.width;
-        var y = (ly - rect.top)  / rect.height;
-        var rotY = (x - 0.5) * (max * 2);
-        var rotX = -(y - 0.5) * (max * 2);
-        card.style.transform =
-          'perspective(1100px) rotateX(' + rotX.toFixed(2) + 'deg) rotateY(' + rotY.toFixed(2) + 'deg) translate3d(0,-4px,12px)';
+      var x = (e.clientX - rect.left) / rect.width;
+      var y = (e.clientY - rect.top)  / rect.height;
+      lerper.setTarget({
+        rx: -(y - 0.5) * MAX * 2,
+        ry:  (x - 0.5) * MAX * 2
       });
     });
     card.addEventListener('mouseleave', function () {
       rect = null;
-      card.style.transition = 'transform 0.7s cubic-bezier(0.16,1,0.3,1)';
-      card.style.transform = '';
-      setTimeout(function () { card.style.willChange = ''; card.style.transition = ''; }, 720);
+      lerper.setTarget({ rx: 0, ry: 0, lift: 0 });
     });
   }
 
   /* ============================================================
-     4. Magnetic CTAs — clamped to ±14px
+     4. Magnetic CTAs — lerped (smooth on fast cursor moves)
      ============================================================ */
   function initMagneticButtons() {
-    var SELECTOR = '.btn-primary, .btn-cta-large, .btn-nav-cta, .btn-pay, .btn-hero, .btn-signup, .compare-cta-primary';
-    $$(SELECTOR).forEach(function (btn) {
-      if (btn.dataset.magnetic) return; btn.dataset.magnetic = '1';
-      var rect = null, raf = null, lx = 0, ly = 0;
-      btn.addEventListener('mouseenter', function () {
-        rect = btn.getBoundingClientRect();
-        btn.style.willChange = 'transform';
-        btn.style.transition = 'transform 0.16s cubic-bezier(0.16,1,0.3,1)';
+    var SEL = '.btn-primary, .btn-cta-large, .btn-nav-cta, .btn-pay, .btn-hero, .btn-signup, .compare-cta-primary';
+    $$(SEL).forEach(attachMagnetic);
+  }
+  function attachMagnetic(btn) {
+    if (btn.dataset.magnetic) return; btn.dataset.magnetic = '1';
+
+    var lerper = makeLerper(function (s) {
+      if (Math.abs(s.x) < 0.05 && Math.abs(s.y) < 0.05) {
+        btn.style.transform = ''; btn.style.willChange = ''; return;
+      }
+      btn.style.transform = 'translate(' + s.x.toFixed(2) + 'px,' + s.y.toFixed(2) + 'px)';
+    }, { rate: 0.14 });
+    lerper.seed({ x: 0, y: 0 });
+
+    var rect = null;
+    btn.addEventListener('mouseenter', function () {
+      rect = btn.getBoundingClientRect();
+      btn.style.willChange = 'transform';
+      btn.style.transition = 'none';
+    });
+    btn.addEventListener('mousemove', function (e) {
+      if (!rect) return;
+      var x = (e.clientX - (rect.left + rect.width  / 2)) * 0.18;
+      var y = (e.clientY - (rect.top  + rect.height / 2)) * 0.22;
+      lerper.setTarget({
+        x: Math.max(-14, Math.min(14, x)),
+        y: Math.max(-12, Math.min(12, y))
       });
-      btn.addEventListener('mousemove', function (e) {
-        if (!rect) return;
-        lx = e.clientX; ly = e.clientY;
-        if (raf) return;
-        raf = requestAnimationFrame(function () {
-          raf = null; if (!rect) return;
-          var x = (lx - (rect.left + rect.width  / 2)) * 0.18;
-          var y = (ly - (rect.top  + rect.height / 2)) * 0.22;
-          x = Math.max(-14, Math.min(14, x));
-          y = Math.max(-12, Math.min(12, y));
-          btn.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
-        });
-      });
-      btn.addEventListener('mouseleave', function () {
-        rect = null;
-        btn.style.transition = 'transform 0.45s cubic-bezier(0.34,1.56,0.64,1)';
-        btn.style.transform = '';
-        setTimeout(function () { btn.style.transition = ''; btn.style.willChange = ''; }, 460);
-      });
+    });
+    btn.addEventListener('mouseleave', function () {
+      rect = null;
+      lerper.setTarget({ x: 0, y: 0 });
     });
   }
 
   /* ============================================================
-     5. Hero bg parallax (cursor-driven; subtle)
+     5. Hero background parallax — lerped
      ============================================================ */
   function initHeroBackgroundParallax() {
     var hero = $('#hero'); if (!hero) return;
-    var raf = null, x = 0, y = 0;
+
+    var lerper = makeLerper(function (s) {
+      $$('.hero-slide.active .slide-bg').forEach(function (bg) {
+        if (Math.abs(s.x) < 0.05 && Math.abs(s.y) < 0.05) {
+          bg.style.transform = '';
+        } else {
+          bg.style.transform = 'scale(1.06) translate(' + s.x.toFixed(2) + 'px,' + s.y.toFixed(2) + 'px)';
+        }
+      });
+    }, { rate: 0.08 });  // slower for backgrounds (premium feel)
+    lerper.seed({ x: 0, y: 0 });
+
     hero.addEventListener('mousemove', function (e) {
       var r = hero.getBoundingClientRect();
-      x = (e.clientX - r.left) / r.width - 0.5;
-      y = (e.clientY - r.top)  / r.height - 0.5;
-      if (raf) return;
-      raf = requestAnimationFrame(function () {
-        raf = null;
-        $$('.hero-slide.active .slide-bg').forEach(function (bg) {
-          bg.style.transform = 'scale(1.06) translate(' + (x * -14).toFixed(1) + 'px,' + (y * -10).toFixed(1) + 'px)';
-        });
-      });
+      var dx = (e.clientX - r.left) / r.width  - 0.5;
+      var dy = (e.clientY - r.top)  / r.height - 0.5;
+      lerper.setTarget({ x: dx * -14, y: dy * -10 });
     });
     hero.addEventListener('mouseleave', function () {
-      $$('.hero-slide.active .slide-bg').forEach(function (bg) { bg.style.transform = ''; });
+      lerper.setTarget({ x: 0, y: 0 });
     });
   }
 
   /* ============================================================
-     6. Pathway progression — initial state in CSS (no FOUC),
-        Motion One animates to final state on view.
+     6. Pathway progression (Motion-library timeline)
      ============================================================ */
   function initPathwayProgression(M) {
     var pp = $('.pathway-progression'); if (!pp) return;
     var nodes = $$('.pp-node', pp);
     var track = pp.querySelector('.pathway-progression-track');
     M.inView(pp, function () {
-      // Unspool the connecting track
       if (track) {
         M.animate(function (v) {
           track.style.setProperty('--track-progress', (v * 100).toFixed(1) + '%');
         }, { duration: 1.1, easing: EASE.outExpo });
       }
-      // Phrase the four nodes — featured node gets the accent
       nodes.forEach(function (n, i) {
-        var isFeatured = n.classList.contains('featured');
+        var feat = n.classList.contains('featured');
         M.animate(n,
-          { opacity: 1, transform: ['translateY(20px) scale(0.85)',
-                                    'translateY(0px) scale(' + (isFeatured ? 1.04 : 1) + ')',
-                                    'translateY(0px) scale(1)'] },
+          { opacity: 1,
+            transform: ['translateY(20px) scale(0.85)',
+                        'translateY(0) scale(' + (feat ? 1.04 : 1) + ')',
+                        'translateY(0) scale(1)'] },
           { duration: 0.85, delay: 0.25 + i * 0.18, easing: EASE.outExpo, offset: [0, 0.7, 1] }
         );
       });
@@ -261,15 +316,15 @@
   }
 
   /* ============================================================
-     7. Mega menu — sequenced reveal on open
+     7. Mega menu phrased reveal
      ============================================================ */
   function initMegaMenuPhrasing(M) {
     $$('.nav-item').forEach(function (item) {
       var dd = item.querySelector('.mega-menu'); if (!dd) return;
       var open = false;
       var obs = new MutationObserver(function () {
-        var nowOpen = item.classList.contains('js-hover') || item.classList.contains('open');
-        if (nowOpen && !open) {
+        var now = item.classList.contains('js-hover') || item.classList.contains('open');
+        if (now && !open) {
           open = true;
           dd.querySelectorAll('.mega-banner, .mega-col, .mega-spotlight').forEach(function (el, i) {
             M.animate(el,
@@ -277,16 +332,14 @@
               { duration: 0.32, delay: i * 0.04, easing: EASE.outQuart }
             );
           });
-        } else if (!nowOpen) {
-          open = false;
-        }
+        } else if (!now) { open = false; }
       });
       obs.observe(item, { attributes: true, attributeFilter: ['class'] });
     });
   }
 
   /* ============================================================
-     8. Three.js — golden particle field over the hero.
+     8. Three.js golden particle field — hero only
      ============================================================ */
   function canRunThree() {
     try {
@@ -297,7 +350,6 @@
       return true;
     } catch (e) { return false; }
   }
-
   function initHeroParticleField(THREE) {
     var hero = $('#hero'); if (!hero) return;
     if (hero.querySelector('.hero-three-canvas')) return;
@@ -305,14 +357,11 @@
     var canvas = document.createElement('canvas');
     canvas.className = 'hero-three-canvas';
     canvas.setAttribute('aria-hidden', 'true');
-    // Insert AFTER .hero-slides so the canvas sits above the slide bg but
-    // below the slide-overlay (which integrates the particle warmth with
-    // the rest of the scene's gradient treatment).
     var slides = hero.querySelector('.hero-slides');
     if (slides && slides.nextSibling) hero.insertBefore(canvas, slides.nextSibling);
     else hero.appendChild(canvas);
 
-    function W() { return hero.clientWidth || window.innerWidth; }
+    function W() { return hero.clientWidth  || window.innerWidth; }
     function H() { return hero.clientHeight || window.innerHeight; }
 
     var renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: false, powerPreference: 'low-power' });
@@ -328,7 +377,6 @@
     var velocities = new Float32Array(COUNT * 3);
     var sizes      = new Float32Array(COUNT);
     var phases     = new Float32Array(COUNT);
-
     for (var i = 0; i < COUNT; i++) {
       positions[i*3]   = (Math.random() - 0.5) * 140;
       positions[i*3+1] = (Math.random() - 0.5) * 100;
@@ -339,7 +387,6 @@
       sizes[i]  = Math.random() * 2.8 + 0.8;
       phases[i] = Math.random() * Math.PI * 2;
     }
-
     var geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('aSize',    new THREE.BufferAttribute(sizes, 1));
@@ -347,34 +394,27 @@
 
     var material = new THREE.ShaderMaterial({
       uniforms: { uTime: { value: 0 }, uPx: { value: renderer.getPixelRatio() } },
-      vertexShader: [
-        'attribute float aSize;',
-        'attribute float aPhase;',
-        'uniform float uTime;',
-        'uniform float uPx;',
-        'varying float vAlpha;',
-        'void main() {',
-        '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
-        '  float twinkle = 0.5 + 0.5 * sin(uTime * 1.1 + aPhase);',
-        '  vAlpha = 0.30 + 0.45 * twinkle;',
-        '  gl_PointSize = aSize * uPx * (220.0 / -mv.z) * (0.6 + 0.4 * twinkle);',
-        '  gl_Position = projectionMatrix * mv;',
-        '}'
-      ].join('\n'),
-      fragmentShader: [
-        'varying float vAlpha;',
-        'void main() {',
-        '  vec2 c = gl_PointCoord - 0.5;',
-        '  float d = length(c);',
-        '  if (d > 0.5) discard;',
-        '  float a = smoothstep(0.5, 0.0, d) * vAlpha;',
-        '  vec3 col = vec3(0.98, 0.72, 0.32);',
-        '  gl_FragColor = vec4(col, a);',
-        '}'
-      ].join('\n'),
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      vertexShader:
+        'attribute float aSize; attribute float aPhase;' +
+        'uniform float uTime; uniform float uPx;' +
+        'varying float vAlpha;' +
+        'void main(){' +
+        '  vec4 mv = modelViewMatrix * vec4(position,1.0);' +
+        '  float t = 0.5 + 0.5 * sin(uTime * 1.1 + aPhase);' +
+        '  vAlpha = 0.30 + 0.45 * t;' +
+        '  gl_PointSize = aSize * uPx * (220.0 / -mv.z) * (0.6 + 0.4 * t);' +
+        '  gl_Position = projectionMatrix * mv;' +
+        '}',
+      fragmentShader:
+        'varying float vAlpha;' +
+        'void main(){' +
+        '  vec2 c = gl_PointCoord - 0.5;' +
+        '  float d = length(c);' +
+        '  if (d > 0.5) discard;' +
+        '  float a = smoothstep(0.5, 0.0, d) * vAlpha;' +
+        '  gl_FragColor = vec4(0.98, 0.72, 0.32, a);' +
+        '}',
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     });
 
     var points = new THREE.Points(geometry, material);
@@ -383,8 +423,8 @@
     var mx = 0, my = 0;
     hero.addEventListener('mousemove', function (e) {
       var r = hero.getBoundingClientRect();
-      mx = (e.clientX - r.left) / r.width - 0.5;
-      my = (e.clientY - r.top) / r.height - 0.5;
+      mx = (e.clientX - r.left) / r.width  - 0.5;
+      my = (e.clientY - r.top)  / r.height - 0.5;
     }, { passive: true });
 
     var visible = true;
@@ -400,7 +440,6 @@
       rafId = requestAnimationFrame(loop);
       var dt = lastT ? Math.min(0.05, (t - lastT) / 1000) : 0.016;
       lastT = t;
-
       var pos = geometry.attributes.position.array;
       for (var i = 0; i < COUNT; i++) {
         pos[i*3]   += velocities[i*3]   * dt * 60;
@@ -411,11 +450,9 @@
         if (pos[i*3]   < -80) pos[i*3]   = 80;
       }
       geometry.attributes.position.needsUpdate = true;
-
       camera.position.x += (mx * 8 - camera.position.x) * 0.04;
       camera.position.y += (-my * 6 - camera.position.y) * 0.04;
       camera.lookAt(0, 0, 0);
-
       material.uniforms.uTime.value = (t || 0) / 1000;
       renderer.render(scene, camera);
     }
@@ -430,7 +467,6 @@
         camera.updateProjectionMatrix();
       });
     });
-
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) {
         visible = false;

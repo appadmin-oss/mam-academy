@@ -8,12 +8,14 @@
 declare(strict_types=1);
 
 define('MAM_COOKIE', 'mam_sid');
-define('MAM_SESSION_TTL', 60 * 60 * 24 * 14); // 14 days
+define('MAM_SESSION_TTL_LONG',  60 * 60 * 24 * 30);  // 30 days when "remember me" is checked
+define('MAM_SESSION_TTL_SHORT', 60 * 60 * 24);       // 1 day for a session-by-session sign-in
 
-function mam_session_start_cookie(int $userId): string {
+function mam_session_start_cookie(int $userId, bool $remember = true): string {
     $token = bin2hex(random_bytes(20));
     $hash  = hash('sha256', $token);
-    $exp   = date('Y-m-d H:i:s', time() + MAM_SESSION_TTL);
+    $ttl   = $remember ? MAM_SESSION_TTL_LONG : MAM_SESSION_TTL_SHORT;
+    $exp   = date('Y-m-d H:i:s', time() + $ttl);
     mam_db_insert('sessions', [
         'token_hash' => $hash,
         'user_id'    => $userId,
@@ -21,22 +23,22 @@ function mam_session_start_cookie(int $userId): string {
         'ua'         => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 240),
         'expires_at' => $exp,
     ]);
-    mam_session_set_cookie($token);
+    mam_session_set_cookie($token, $ttl);
     return $token;
 }
 
-function mam_session_set_cookie(string $token): void {
+function mam_session_set_cookie(string $token, int $ttl = null): void {
+    if ($ttl === null) $ttl = MAM_SESSION_TTL_LONG;
     $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-    $params = [
-        'expires'  => time() + MAM_SESSION_TTL,
+    setcookie(MAM_COOKIE, $token, [
+        'expires'  => time() + $ttl,
         'path'     => '/',
         'secure'   => $secure,
         'httponly' => true,
         'samesite' => 'Lax',
-    ];
-    setcookie(MAM_COOKIE, $token, $params);
-    $_COOKIE[MAM_COOKIE] = $token; // make immediately readable in same request
+    ]);
+    $_COOKIE[MAM_COOKIE] = $token;
 }
 
 function mam_session_clear_cookie(): void {

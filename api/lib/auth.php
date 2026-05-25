@@ -10,7 +10,7 @@
  */
 declare(strict_types=1);
 
-function mam_login(string $email, string $password): ?array {
+function mam_login(string $email, string $password, bool $remember = true): ?array {
     $email = strtolower(trim($email));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
     $u = mam_db_row('SELECT * FROM users WHERE email = ? AND status = "active"', [$email]);
@@ -23,8 +23,8 @@ function mam_login(string $email, string $password): ?array {
         } catch (Throwable $e) {}
     }
     mam_db_update('users', ['last_login' => date('Y-m-d H:i:s')], ['id' => (int)$u['id']]);
-    mam_session_start_cookie((int)$u['id']);
-    mam_audit('login', 'user', (int)$u['id'], ['email' => $email]);
+    mam_session_start_cookie((int)$u['id'], $remember);
+    mam_audit('login', 'user', (int)$u['id'], ['email' => $email, 'remember' => $remember]);
     return $u;
 }
 

@@ -41,6 +41,8 @@ $map = [
     'auth/logout'                  => 'auth/logout.php',
     'auth/me'                      => 'auth/me.php',
     'auth/change-password'         => 'auth/change-password.php',
+    'auth/request-reset'           => 'auth/request-reset.php',
+    'auth/perform-reset'           => 'auth/perform-reset.php',
 
     // Student portal
     'student/dashboard'            => 'student/dashboard.php',

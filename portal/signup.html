@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>How to join — MAM Academy Portal</title>
+<link rel="canonical" href="https://academy.mamcentre.org/portal/signup.html">
+<link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="/assets/css/main.css">
+<link rel="stylesheet" href="/assets/css/portal.css">
+<style>
+  .signup-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:48px 24px;background:radial-gradient(ellipse at top,rgba(224,138,26,0.08),transparent 50%),var(--bg)}
+  .signup-card{max-width:680px;width:100%;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-xl);padding:48px;text-align:center}
+  .signup-card h1{font-family:var(--font-serif);font-size:clamp(1.8rem,3vw,2.4rem);margin:8px 0 14px;color:var(--text)}
+  .signup-eye{font-size:0.78rem;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:8px}
+  .signup-lede{font-size:1.05rem;color:var(--text-soft);line-height:1.7;max-width:520px;margin:0 auto 36px}
+  .signup-paths{display:grid;grid-template-columns:1fr 1fr;gap:18px;text-align:left;margin-bottom:32px}
+  @media (max-width:560px){.signup-paths{grid-template-columns:1fr}.signup-card{padding:32px 24px}}
+  .path-card{padding:24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--radius-md);display:flex;flex-direction:column;gap:10px;transition:all 0.3s var(--ease)}
+  .path-card:hover{border-color:var(--border-gold);transform:translateY(-2px)}
+  .path-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,rgba(224,138,26,0.18),rgba(251,191,36,0.08));border:1px solid rgba(251,191,36,0.3);display:flex;align-items:center;justify-content:center;color:var(--gold-bright)}
+  .path-title{font-size:1rem;font-weight:700;color:var(--text)}
+  .path-desc{font-size:0.85rem;color:var(--text-muted);line-height:1.55}
+  .path-cta{margin-top:auto;color:var(--gold-bright);font-weight:700;font-size:0.85rem;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+  .path-cta:hover{text-decoration:underline;text-underline-offset:3px}
+  .signup-foot{padding-top:28px;border-top:1px solid var(--border);font-size:0.88rem;color:var(--text-muted)}
+  .signup-foot a{color:var(--gold-bright);font-weight:600}
+</style>
+</head>
+<body>
+<main class="signup-shell">
+  <div class="signup-card">
+    <img src="/mam-academy-logo.svg" alt="" style="width:54px;height:54px;border-radius:12px;margin:0 auto 8px" onerror="this.style.display='none'">
+    <div class="signup-eye">Portal Access</div>
+    <h1>Your portal is created<br>when you join MAM Academy</h1>
+    <p class="signup-lede">We don't have a separate "sign up" form — your portal account is created automatically as part of your application or by an admin invitation. Pick the path that matches you.</p>
+
+    <div class="signup-paths">
+      <div class="path-card">
+        <div class="path-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+        <div class="path-title">I'm a future student</div>
+        <p class="path-desc">Apply for a programme. Once payment clears, we email you your portal credentials within minutes.</p>
+        <a class="path-cta" href="/apply.html">Start your application <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
+
+      <div class="path-card">
+        <div class="path-icon"><i class="fa-solid fa-chalkboard-user"></i></div>
+        <div class="path-title">I'm an instructor</div>
+        <p class="path-desc">Instructor accounts are created by the academy admin. Reach out and we'll set you up.</p>
+        <a class="path-cta" href="/contact.html?topic=Faculty">Apply to teach <i class="fa-solid fa-arrow-right"></i></a>
+      </div>
+    </div>
+
+    <div class="signup-foot">
+      Already have an account? <a href="/portal/login.html">Sign in →</a>
+    </div>
+  </div>
+</main>
+<script>document.querySelectorAll('[data-year]').forEach(function(e){e.textContent=new Date().getFullYear();});</script>
+</body>
+</html>

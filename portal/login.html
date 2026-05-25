@@ -14,6 +14,40 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css">
 <link rel="stylesheet" href="/assets/css/portal.css">
+<style>
+  /* Login-page additions for show-hide pw, caps-lock warning, remember row, forgot panel */
+  .input-pw{position:relative}
+  .input-pw input{padding-right:46px !important}
+  .pw-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:8px;background:transparent;color:var(--text-muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s var(--ease)}
+  .pw-toggle:hover{color:var(--gold-bright);background:rgba(224,138,26,0.08)}
+  .caps-warn{margin-top:8px;padding:8px 12px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.35);border-radius:8px;color:#FBBF24;font-size:0.82rem;display:flex;align-items:center;gap:8px}
+  .caps-warn i{font-size:0.75rem}
+
+  .remember-row{display:flex;align-items:center;gap:10px;padding:6px 0;color:var(--text-soft);font-size:0.88rem;cursor:pointer;user-select:none}
+  .remember-row input{accent-color:var(--gold);width:18px;height:18px}
+
+  .label-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:6px}
+  .label-row label{margin-bottom:0}
+  .link-inline{background:transparent;color:var(--gold-bright);font-size:0.78rem;font-weight:700;letter-spacing:0.04em;text-decoration:none;cursor:pointer;border:none;padding:0;font-family:inherit}
+  .link-inline:hover{text-decoration:underline;text-underline-offset:3px}
+
+  .alt-actions{margin-top:18px;padding-top:18px;border-top:1px solid var(--border);text-align:center}
+  .alt-actions a{display:inline-block;font-size:0.85rem;color:var(--gold-bright);text-decoration:none;font-weight:600}
+  .alt-actions a:hover{text-decoration:underline;text-underline-offset:3px}
+
+  /* Forgot-password sub-panel slides into the same card */
+  .login-panel{transition:opacity 0.35s var(--ease),transform 0.35s var(--ease)}
+  .login-panel.hidden{opacity:0;transform:translateY(-8px) scale(0.98);pointer-events:none;position:absolute;inset:0}
+  .login-card{position:relative;min-height:480px}
+
+  .forgot-sub-msg{margin-top:14px;padding:12px 14px;border-radius:8px;font-size:0.85rem;display:none;align-items:flex-start;gap:10px;line-height:1.55}
+  .forgot-sub-msg.success{display:flex;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.4);color:#34D399}
+  .forgot-sub-msg.error{display:flex;background:rgba(244,63,94,0.10);border:1px solid rgba(244,63,94,0.4);color:#FB7185}
+
+  /* Subtle entrance for the whole panel */
+  @keyframes panelIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .login-card{animation:panelIn 0.5s cubic-bezier(0.16,1,0.3,1) both}
+</style>
 </head>
 <body>
 <main class="login-shell">
@@ -32,25 +66,70 @@
 
   <section class="login-main">
     <div class="login-card">
-      <h1>Welcome back</h1>
-      <p class="lede">Sign in to your MAM Academy portal — students, instructors and admins.</p>
 
-      <form class="login-form" id="loginForm" novalidate autocomplete="on">
-        <div class="login-error" id="loginError"><i class="fa-solid fa-circle-exclamation"></i><span>Invalid email or password</span></div>
-        <div class="field">
-          <label for="email">Email</label>
-          <input type="email" id="email" name="email" autocomplete="email" required>
-        </div>
-        <div class="field">
-          <label for="password">Password</label>
-          <input type="password" id="password" name="password" autocomplete="current-password" required>
-        </div>
-        <button type="submit" id="loginBtn"><i class="fa-solid fa-right-to-bracket"></i>Sign in</button>
-        <p class="login-foot">
-          New to MAM? <a href="/apply.html">Apply now →</a><br>
-          Lost your password? Email <a href="mailto:connect@mamcentre.org">connect@mamcentre.org</a>
-        </p>
-      </form>
+      <!-- ============ Sign-in panel ============ -->
+      <div class="login-panel" id="signinPanel">
+        <h1>Welcome back</h1>
+        <p class="lede">Sign in to your MAM Academy portal — students, instructors and admins.</p>
+
+        <form class="login-form" id="loginForm" novalidate autocomplete="on">
+          <div class="login-error" id="loginError"><i class="fa-solid fa-circle-exclamation"></i><span>Invalid email or password</span></div>
+
+          <div class="field">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" autocomplete="username" required>
+          </div>
+
+          <div class="field">
+            <div class="label-row">
+              <label for="password">Password</label>
+              <button type="button" class="link-inline" id="forgotLink">Forgot?</button>
+            </div>
+            <div class="input-pw">
+              <input type="password" id="password" name="password" autocomplete="current-password" required>
+              <button type="button" class="pw-toggle" id="togglePw" aria-label="Show password" tabindex="-1">
+                <i class="fa-solid fa-eye" id="pwIcon"></i>
+              </button>
+            </div>
+            <div class="caps-warn" id="capsWarn" hidden>
+              <i class="fa-solid fa-arrow-up"></i><span>Caps Lock is on</span>
+            </div>
+          </div>
+
+          <label class="remember-row">
+            <input type="checkbox" id="remember" checked>
+            <span>Keep me signed in for 30 days</span>
+          </label>
+
+          <button type="submit" id="loginBtn"><i class="fa-solid fa-right-to-bracket"></i>Sign in</button>
+
+          <div class="alt-actions">
+            <a href="/portal/signup.html">New to MAM? See how to join →</a>
+          </div>
+        </form>
+      </div>
+
+      <!-- ============ Forgot-password panel (same card) ============ -->
+      <div class="login-panel hidden" id="forgotPanel">
+        <h1>Reset your password</h1>
+        <p class="lede">Enter your account email. We'll send a one-time link that expires in 60 minutes.</p>
+
+        <form class="login-form" id="forgotForm" novalidate>
+          <div class="field">
+            <label for="forgotEmail">Email</label>
+            <input type="email" id="forgotEmail" autocomplete="email" required>
+          </div>
+
+          <button type="submit" id="forgotBtn"><i class="fa-solid fa-paper-plane"></i>Send reset link</button>
+
+          <div class="forgot-sub-msg" id="forgotMsg"></div>
+
+          <div class="alt-actions">
+            <button type="button" class="link-inline" id="backToLogin"><i class="fa-solid fa-arrow-left" style="margin-right:6px"></i>Back to sign in</button>
+          </div>
+        </form>
+      </div>
+
     </div>
   </section>
 </main>
@@ -58,46 +137,162 @@
 <script src="/assets/js/config.js"></script>
 <script>
 (function () {
-  var form = document.getElementById('loginForm');
-  var btn = document.getElementById('loginBtn');
-  var err = document.getElementById('loginError');
-  var origLabel = btn.innerHTML;
+  'use strict';
+  var $  = function (s) { return document.querySelector(s); };
+
+  // ─── show/hide password ───
+  var pwField = $('#password');
+  var togglePw = $('#togglePw');
+  var pwIcon = $('#pwIcon');
+  togglePw.addEventListener('click', function () {
+    var showing = pwField.type === 'text';
+    pwField.type = showing ? 'password' : 'text';
+    pwIcon.className = 'fa-solid ' + (showing ? 'fa-eye' : 'fa-eye-slash');
+    togglePw.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+    pwField.focus();
+  });
+
+  // ─── Caps lock detection ───
+  var capsWarn = $('#capsWarn');
+  function checkCaps(e) {
+    var on = e.getModifierState && e.getModifierState('CapsLock');
+    if (on) capsWarn.removeAttribute('hidden'); else capsWarn.setAttribute('hidden', '');
+  }
+  pwField.addEventListener('keydown', checkCaps);
+  pwField.addEventListener('keyup', checkCaps);
+  pwField.addEventListener('focus', checkCaps);
+  pwField.addEventListener('blur', function () { capsWarn.setAttribute('hidden', ''); });
+
+  // ─── Pre-fill email from previous session ───
+  try {
+    var savedEmail = localStorage.getItem('mam.lastEmail');
+    if (savedEmail) {
+      $('#email').value = savedEmail;
+      pwField.focus();
+    } else {
+      $('#email').focus();
+    }
+  } catch (e) { $('#email').focus(); }
+
+  // ─── Sign-in submit ───
+  var form = $('#loginForm');
+  var btn = $('#loginBtn');
+  var err = $('#loginError');
+  var origBtnLabel = btn.innerHTML;
 
   function setLoading(b) {
     btn.disabled = b;
-    btn.innerHTML = b ? '<span class="spinner" style="width:16px;height:16px;border-width:2px"></span>Signing in…' : origLabel;
+    btn.innerHTML = b
+      ? '<span class="spinner" style="width:16px;height:16px;border-width:2px"></span><span>Signing in…</span>'
+      : origBtnLabel;
   }
+  function showError(msg) {
+    err.querySelector('span').textContent = msg;
+    err.classList.add('shown');
+    err.style.display = 'flex';
+  }
+  function hideError() { err.classList.remove('shown'); err.style.display = ''; }
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
-    err.classList.remove('shown');
-    var email = document.getElementById('email').value.trim();
-    var password = document.getElementById('password').value;
-    if (!email || !password) { err.querySelector('span').textContent = 'Email and password are required.'; err.classList.add('shown'); return; }
+    hideError();
+    var email = $('#email').value.trim();
+    var password = pwField.value;
+    var remember = $('#remember').checked;
+
+    if (!email || !password) {
+      showError('Email and password are required.');
+      return;
+    }
+    // Remember email for next visit (only the email, never the password)
+    try { localStorage.setItem('mam.lastEmail', email); } catch (e) {}
+
     setLoading(true);
-    window.MAM_API.request('auth/login', { method: 'POST', body: { email: email, password: password } })
+    window.MAM_API.request('auth/login', {
+      method: 'POST', body: { email: email, password: password, remember: remember }
+    })
       .then(function (r) {
         var next = new URLSearchParams(location.search).get('next');
+        // Avoid open-redirect: only honor relative paths
+        if (next && !/^\//.test(next)) next = null;
         window.location.href = next || r.redirect || '/portal/student/';
       })
       .catch(function (e) {
         setLoading(false);
-        var msg = (e && e.body && e.body.error === 'invalid_credentials') ? 'Invalid email or password.'
-                : (e && e.status === 429) ? 'Too many attempts — please wait a few minutes.'
-                : 'Could not sign you in. Please try again.';
-        err.querySelector('span').textContent = msg;
-        err.classList.add('shown');
+        var status = e && e.status;
+        var code = e && e.body && e.body.error;
+        var msg;
+        if (code === 'invalid_credentials')  msg = "We couldn't sign you in with that email & password.";
+        else if (status === 429)             msg = 'Too many attempts. Please try again in a few minutes.';
+        else if (status === 503)             msg = 'Portal is being configured. Please try again shortly.';
+        else if (code === 'csrf_invalid')    msg = 'Session expired — please refresh the page and try again.';
+        else                                 msg = 'Could not sign you in. Please try again.';
+        showError(msg);
       });
   });
 
-  // If already logged in, redirect to the right portal
-  window.MAM_API.request('auth/me', { method: 'GET' }).then(function (r) {
-    if (r.authenticated) {
-      var map = { admin: '/admin/', instructor: '/portal/instructor/', student: '/portal/student/' };
-      window.location.href = map[r.user.role] || '/';
-    }
-  }).catch(function () {});
+  // ─── Forgot password flow ───
+  var signinPanel = $('#signinPanel');
+  var forgotPanel = $('#forgotPanel');
+  var forgotLink = $('#forgotLink');
+  var backLink = $('#backToLogin');
+  var forgotForm = $('#forgotForm');
+  var forgotBtn = $('#forgotBtn');
+  var forgotMsg = $('#forgotMsg');
+  var origForgotBtn = forgotBtn.innerHTML;
 
+  function showForgot() {
+    signinPanel.classList.add('hidden');
+    forgotPanel.classList.remove('hidden');
+    var emailVal = $('#email').value.trim();
+    if (emailVal) $('#forgotEmail').value = emailVal;
+    setTimeout(function () { $('#forgotEmail').focus(); }, 200);
+  }
+  function showSignin() {
+    forgotPanel.classList.add('hidden');
+    signinPanel.classList.remove('hidden');
+    forgotMsg.className = 'forgot-sub-msg';
+  }
+  forgotLink.addEventListener('click', showForgot);
+  backLink.addEventListener('click', showSignin);
+
+  forgotForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var email = $('#forgotEmail').value.trim();
+    if (!email) return;
+    forgotBtn.disabled = true;
+    forgotBtn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px"></span><span>Sending…</span>';
+
+    window.MAM_API.request('auth/request-reset', { method: 'POST', body: { email: email } })
+      .then(function () {
+        forgotBtn.disabled = false;
+        forgotBtn.innerHTML = origForgotBtn;
+        forgotMsg.innerHTML = '<i class="fa-solid fa-circle-check"></i><span><strong>Check your inbox.</strong> If that email is on file, you\'ll receive a reset link within a minute. The link expires in 60 minutes.</span>';
+        forgotMsg.className = 'forgot-sub-msg success';
+      })
+      .catch(function (e) {
+        forgotBtn.disabled = false;
+        forgotBtn.innerHTML = origForgotBtn;
+        var status = e && e.status;
+        var msg = status === 429
+          ? 'Too many reset requests. Please wait a few minutes.'
+          : "Couldn't send the reset link. Please try again.";
+        forgotMsg.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i><span>' + msg + '</span>';
+        forgotMsg.className = 'forgot-sub-msg error';
+      });
+  });
+
+  // ─── If already logged in, bounce to the right portal ───
+  window.MAM_API.request('auth/me', { method: 'GET' })
+    .then(function (r) {
+      if (r && r.authenticated && r.user) {
+        var map = { admin: '/admin/', instructor: '/portal/instructor/', student: '/portal/student/' };
+        window.location.href = map[r.user.role] || '/';
+      }
+    })
+    .catch(function () {});
+
+  // ─── Year stamp ───
   document.querySelectorAll('[data-year]').forEach(function (e) { e.textContent = new Date().getFullYear(); });
 })();
 </script>

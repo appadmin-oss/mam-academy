@@ -57,15 +57,48 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($id && in_array($status, ['submitted', 'in_review', 'paid', 'enrolled', 'cancelled'], true)) {
             mam_db_update('applications', ['status' => $status, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $id]);
             mam_audit('update_status', 'application', $id, ['status' => $status]);
+
+            // When an admin marks a bank-transfer (or any) application as paid
+            // from the dashboard, mirror the verify-payment flow: provision a
+            // student account and email them their credentials.
+            if (in_array($status, ['paid', 'enrolled'], true)) {
+                $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$id]);
+                if ($app && $app['customer_id']) {
+                    try {
+                        $prov = mam_ensure_student_user((int)$app['customer_id']);
+                        if ($prov['password']) {
+                            $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
+                            $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login.html';
+                            $name = htmlspecialchars(trim($customer['first_name'] . ' ' . $customer['last_name']), ENT_QUOTES);
+                            $body = "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>"
+                                  . "<table style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>"
+                                  . "<tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:24px;text-align:center'>"
+                                  . "<div style='font-family:Impact,sans-serif;font-size:24px;color:#1A120B;font-weight:900;letter-spacing:.08em'>MAM ACADEMY</div></td></tr>"
+                                  . "<tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>"
+                                  . "<h2 style='font-family:Georgia,serif;margin:0 0 12px;color:#fff'>Welcome, $name</h2>"
+                                  . "<p>Your application has been confirmed. Sign in to your portal to track your classes and MAM Auditer placement.</p>"
+                                  . "<div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:14px;color:#FBBF24;margin:16px 0'>"
+                                  . "<div>Email: <strong>" . htmlspecialchars($customer['email']) . "</strong></div>"
+                                  . "<div>Temporary password: <strong>" . htmlspecialchars($prov['password']) . "</strong></div></div>"
+                                  . "<p>Please change this password on first sign-in.</p>"
+                                  . "<p><a href='$loginUrl' style='display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none'>Open student portal →</a></p>"
+                                  . "</td></tr></table></body></html>";
+                            @mam_send_mail($customer['email'], 'Your MAM Academy student portal is ready', $body, true);
+                        }
+                    } catch (Throwable $e) {
+                        mam_log('warn', 'admin_provision_failed', ['app_id' => $id, 'err' => $e->getMessage()]);
+                    }
+                }
+            }
         }
-        header('Location: ' . $_SERVER['HTTP_REFERER'] ?? '?v=applications');
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '?v=applications'));
         exit;
     }
     if ($action === 'msg_status') {
         $id = (int)($_POST['id'] ?? 0);
         $status = $_POST['status'] ?? 'read';
         if ($id) mam_db_update('messages', ['status' => $status], ['id' => $id]);
-        header('Location: ' . $_SERVER['HTTP_REFERER'] ?? '?v=messages');
+        header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? '?v=messages'));
         exit;
     }
 }

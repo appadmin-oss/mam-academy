@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Reset password — MAM Academy Portal</title>
+<link rel="canonical" href="https://academy.mamcentre.org/portal/reset.html">
+<link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="/assets/css/main.css">
+<link rel="stylesheet" href="/assets/css/portal.css">
+<style>
+  .input-pw{position:relative}
+  .input-pw input{padding-right:46px !important}
+  .pw-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:8px;background:transparent;color:var(--text-muted);display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .pw-toggle:hover{color:var(--gold-bright);background:rgba(224,138,26,0.08)}
+  .pw-strength{margin-top:8px;display:flex;gap:4px;height:4px}
+  .pw-strength span{flex:1;border-radius:2px;background:rgba(255,255,255,0.1);transition:background 0.25s}
+  .pw-strength.weak span:nth-child(1){background:#FB7185}
+  .pw-strength.ok span:nth-child(1),.pw-strength.ok span:nth-child(2){background:#FBBF24}
+  .pw-strength.good span:nth-child(1),.pw-strength.good span:nth-child(2),.pw-strength.good span:nth-child(3){background:#34D399}
+  .pw-strength.strong span{background:#34D399}
+  .pw-hint{margin-top:6px;font-size:0.78rem;color:var(--text-muted)}
+  .pw-hint.danger{color:#FB7185}
+  .pw-hint.ok{color:#34D399}
+</style>
+</head>
+<body>
+<main class="login-shell">
+  <aside class="login-side" aria-hidden="true">
+    <div class="login-brand">
+      <img src="/mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
+      <span class="login-brand-name">MAM ACADEMY</span>
+    </div>
+    <div>
+      <h2>Set a new password.</h2>
+      <p class="quote">"We interpret the timeless using instruments and replay it in time."</p>
+      <p class="quote-cite">— The MAM Academy Vision</p>
+    </div>
+    <div style="font-size:0.78rem;color:rgba(255,255,255,0.5);letter-spacing:0.06em">© <span data-year>2026</span> MAM Centre</div>
+  </aside>
+
+  <section class="login-main">
+    <div class="login-card">
+
+      <!-- Loading / token check -->
+      <div id="checkingState">
+        <h1>Verifying link…</h1>
+        <p class="lede"><span class="spinner" style="display:inline-block;vertical-align:middle;margin-right:8px"></span>Just a moment.</p>
+      </div>
+
+      <!-- Invalid / expired token -->
+      <div id="invalidState" style="display:none">
+        <h1>This link won't work</h1>
+        <p class="lede">It's expired or has already been used. Reset links are valid for 60 minutes and can only be used once.</p>
+        <div class="alt-actions" style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);text-align:center">
+          <a href="/portal/login.html#forgot" style="display:inline-block;padding:13px 26px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:8px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase">Request a new link</a>
+        </div>
+      </div>
+
+      <!-- New password form -->
+      <div id="formState" style="display:none">
+        <h1>Set a new password</h1>
+        <p class="lede">Pick something you'll remember. Minimum 8 characters.</p>
+
+        <form class="login-form" id="resetForm" novalidate>
+          <div class="login-error" id="resetError" style="display:none"><i class="fa-solid fa-circle-exclamation"></i><span></span></div>
+
+          <div class="field">
+            <label for="newPw">New password</label>
+            <div class="input-pw">
+              <input type="password" id="newPw" autocomplete="new-password" minlength="8" required>
+              <button type="button" class="pw-toggle" id="togglePw" aria-label="Show password" tabindex="-1"><i class="fa-solid fa-eye" id="pwIcon"></i></button>
+            </div>
+            <div class="pw-strength" id="pwStrength"><span></span><span></span><span></span><span></span></div>
+            <div class="pw-hint" id="pwHint">At least 8 characters.</div>
+          </div>
+
+          <div class="field">
+            <label for="confirmPw">Confirm new password</label>
+            <input type="password" id="confirmPw" autocomplete="new-password" required>
+            <div class="pw-hint" id="matchHint"></div>
+          </div>
+
+          <button type="submit" id="resetBtn"><i class="fa-solid fa-key"></i>Set new password</button>
+        </form>
+      </div>
+
+      <!-- Success -->
+      <div id="successState" style="display:none">
+        <div style="text-align:center">
+          <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,rgba(16,185,129,0.2),rgba(16,185,129,0.1));border:2px solid rgba(16,185,129,0.4);margin:0 auto 18px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:#34D399"><i class="fa-solid fa-check"></i></div>
+          <h1>Password updated</h1>
+          <p class="lede">Your password is set. All your existing sessions have been signed out for safety.</p>
+          <a href="/portal/login.html" style="display:inline-block;margin-top:18px;padding:13px 28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:8px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase">Sign in →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/assets/js/config.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (s) { return document.querySelector(s); };
+
+  var token = new URLSearchParams(location.search).get('token') || '';
+  var checking = $('#checkingState'), invalid = $('#invalidState'),
+      formS = $('#formState'), success = $('#successState');
+
+  function show(s) {
+    [checking, invalid, formS, success].forEach(function (el) { el.style.display = 'none'; });
+    s.style.display = 'block';
+  }
+
+  if (!/^[a-f0-9]{40}$/.test(token)) {
+    show(invalid);
+  } else {
+    // Show the form — we don't preflight (would waste a token check).
+    // The server validates on submit; bad/expired tokens get caught then.
+    setTimeout(function () { show(formS); setTimeout(function () { $('#newPw').focus(); }, 50); }, 250);
+  }
+
+  // ─── Show/hide pw ───
+  $('#togglePw').addEventListener('click', function () {
+    var fld = $('#newPw');
+    var showing = fld.type === 'text';
+    fld.type = showing ? 'password' : 'text';
+    $('#pwIcon').className = 'fa-solid ' + (showing ? 'fa-eye' : 'fa-eye-slash');
+    fld.focus();
+  });
+
+  // ─── Strength meter ───
+  var pw = $('#newPw'), confirm = $('#confirmPw'), strength = $('#pwStrength'), hint = $('#pwHint'), match = $('#matchHint');
+  function scorePw(s) {
+    if (!s) return 0;
+    var score = 0;
+    if (s.length >= 8) score++;
+    if (s.length >= 12) score++;
+    if (/[A-Z]/.test(s) && /[a-z]/.test(s)) score++;
+    if (/\d/.test(s) && /[^A-Za-z0-9]/.test(s)) score++;
+    return score;
+  }
+  function update() {
+    var s = pw.value;
+    var n = scorePw(s);
+    strength.className = 'pw-strength' + (n >= 4 ? ' strong' : n === 3 ? ' good' : n === 2 ? ' ok' : n === 1 ? ' weak' : '');
+    if (!s) { hint.textContent = 'At least 8 characters.'; hint.className = 'pw-hint'; }
+    else if (s.length < 8) { hint.textContent = (8 - s.length) + ' more character' + (8 - s.length === 1 ? '' : 's') + ' to go.'; hint.className = 'pw-hint danger'; }
+    else if (n < 3) { hint.textContent = 'Add a number, an uppercase letter, or a symbol to make it stronger.'; hint.className = 'pw-hint'; }
+    else { hint.textContent = '✓ Strong enough.'; hint.className = 'pw-hint ok'; }
+
+    // Match indicator
+    if (!confirm.value) { match.textContent = ''; match.className = 'pw-hint'; }
+    else if (confirm.value === pw.value) { match.textContent = '✓ Passwords match.'; match.className = 'pw-hint ok'; }
+    else { match.textContent = 'Passwords don\'t match yet.'; match.className = 'pw-hint danger'; }
+  }
+  pw.addEventListener('input', update);
+  confirm.addEventListener('input', update);
+
+  // ─── Submit ───
+  var form = $('#resetForm'), btn = $('#resetBtn'), err = $('#resetError');
+  var origBtn = btn.innerHTML;
+  function setLoading(b) {
+    btn.disabled = b;
+    btn.innerHTML = b ? '<span class="spinner" style="width:16px;height:16px;border-width:2px"></span><span>Saving…</span>' : origBtn;
+  }
+  function showError(m) { err.querySelector('span').textContent = m; err.style.display = 'flex'; }
+  function hideError() { err.style.display = 'none'; }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    hideError();
+    var p1 = pw.value, p2 = confirm.value;
+    if (p1.length < 8)   { showError('Password must be at least 8 characters.'); pw.focus(); return; }
+    if (p1 !== p2)       { showError('Passwords don\'t match.'); confirm.focus(); return; }
+
+    setLoading(true);
+    window.MAM_API.request('auth/perform-reset', { method: 'POST', body: { token: token, password: p1 } })
+      .then(function () {
+        try { localStorage.removeItem('mam.apply.draft'); } catch (e) {}
+        show(success);
+      })
+      .catch(function (e) {
+        setLoading(false);
+        var code = e && e.body && e.body.error;
+        if (code === 'invalid_or_expired' || code === 'invalid_token') {
+          show(invalid);
+        } else if (code === 'weak_password') {
+          showError('Password is too weak. Try a longer one.');
+        } else if (e && e.status === 429) {
+          showError('Too many requests. Please wait a few minutes.');
+        } else {
+          showError('Something went wrong. Please try again.');
+        }
+      });
+  });
+
+  document.querySelectorAll('[data-year]').forEach(function (e) { e.textContent = new Date().getFullYear(); });
+})();
+</script>
+</body>
+</html>
