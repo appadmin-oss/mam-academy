@@ -418,7 +418,7 @@
       var main = $('.apply-main'); if (!main) return;
       main.innerHTML = '' +
         '<div class="apply-success">' +
-        '  <div class="success-emoji" aria-hidden="true">🎵</div>' +
+        '  <div class="success-emoji" aria-hidden="true" style="background:transparent;border:none"><lottie-player src="https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Party%20popper/Animated/party_popper.json" class="fx-lottie fx-xl" background="transparent" speed="1" loop autoplay aria-hidden="true"></lottie-player></div>' +
         '  <h2 class="success-h">You\'re In!</h2>' +
         '  <p class="success-p">Thank you for enrolling in MAM Academy. Our team will reach you within <strong>24 hours</strong> to confirm your schedule and book your <strong>MAM Auditer</strong> entry assessment.</p>' +
         '  <div class="success-ref">Reference: ' + ref + '</div>' +

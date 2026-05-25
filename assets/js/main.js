@@ -5,6 +5,26 @@
 (function () {
   'use strict';
 
+  // Lottie player — for genuinely animated 3D emojis sourced from
+  // Microsoft Fluent Animated Emoji (MIT licensed). Industry-standard
+  // animation runtime used by Stripe, Notion, Linear, Airbnb.
+  if (typeof document !== 'undefined' && !document.querySelector('script[data-mam-lottie]')) {
+    var __lp = document.createElement('script');
+    __lp.src = 'https://unpkg.com/@lottiefiles/lottie-player@2.0.4/dist/lottie-player.js';
+    __lp.async = true;
+    __lp.dataset.mamLottie = '1';
+    (document.head || document.documentElement).appendChild(__lp);
+  }
+  // Iconify — fallback for static emoji + line icons where a full
+  // Lottie animation would be visual overkill.
+  if (typeof document !== 'undefined' && !document.querySelector('script[data-mam-iconify]')) {
+    var __ic = document.createElement('script');
+    __ic.src = 'https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js';
+    __ic.async = true;
+    __ic.dataset.mamIconify = '1';
+    (document.head || document.documentElement).appendChild(__ic);
+  }
+
   var $  = function (s, c) { return (c || document).querySelector(s); };
   var $$ = function (s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); };
   var on = function (el, ev, fn, opts) { if (el) el.addEventListener(ev, fn, opts || false); };
@@ -535,6 +555,7 @@
         l.dataset.mamMotionCss = '1';
         document.head.appendChild(l);
       }
+
     }
   }
 

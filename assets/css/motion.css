@@ -43,14 +43,27 @@
   100% { transform: translate(var(--drift, 0px), -130vh) rotate(var(--spin, 0deg)); opacity:0; }
 }
 
-/* ─────────────  Three.js canvas — sits between slide-bg and slide-overlay  ───────────── */
+/* ─────────────  Three.js sculptural ambient  ─────────────
+   A single, slowly-rotating low-poly wireframe icosahedron lives
+   between the slide background and the gradient overlay. One
+   sculptural element — never particles, never noise. The visual
+   signature of the site. */
 .hero-three-canvas{
-  position:absolute; inset:0;
-  width:100% !important; height:100% !important;
+  position:absolute;
+  top:8%; right:6%;
+  width:520px; height:520px;
   pointer-events:none;
   z-index:1;
   mix-blend-mode:screen;
-  opacity:0.9;
+  opacity:0;
+  transition: opacity 1.2s cubic-bezier(0.16,1,0.3,1);
+}
+.hero-three-canvas.fx-ready{ opacity:0.72; }
+@media (max-width: 1024px){
+  .hero-three-canvas{ width:380px; height:380px; top:5%; right:-5%; }
+}
+@media (max-width: 768px){
+  .hero-three-canvas{ display:none; }
 }
 
 /* Soft stage-light glow over the lower-third of the hero,
@@ -169,6 +182,89 @@
 @media (max-width: 768px){
   .hero-three-canvas{ opacity:0.65; }
   .floating-note{ font-size: clamp(0.9rem, 3vw, 1.6rem) !important; }
+}
+
+/* ─────────────  Lottie 3D emoji integration  ─────────────
+   Real 3D-rendered animated emojis from Microsoft Fluent Emoji,
+   played by @lottiefiles/lottie-player. Genuine 3D depth, not
+   CSS bob on flat images.
+
+   The .fx-lottie class standardises sizing + drop shadow so
+   the animated emojis sit naturally next to typography. */
+lottie-player.fx-lottie{
+  display:inline-block;
+  vertical-align:middle;
+  pointer-events:none;          /* purely decorative */
+  filter: drop-shadow(0 8px 18px rgba(0,0,0,0.32));
+}
+lottie-player.fx-lottie.fx-sm{ width:24px;  height:24px; }
+lottie-player.fx-lottie.fx-md{ width:40px;  height:40px; }
+lottie-player.fx-lottie.fx-lg{ width:64px;  height:64px; }
+lottie-player.fx-lottie.fx-xl{ width:96px;  height:96px; }
+
+/* Hide the player while the runtime is loading the JSON, then
+   fade in once the first frame paints. */
+lottie-player.fx-lottie:not([loaded]){
+  opacity:0;
+  transition: opacity 0.28s ease;
+}
+lottie-player.fx-lottie[loaded]{
+  opacity:1;
+}
+
+.motion-reduced lottie-player.fx-lottie{
+  /* lottie-player auto-pauses when prefers-reduced-motion is set,
+     but we also hide its drop shadow / sizing transitions. */
+  filter:none;
+}
+
+/* ─────────────  Iconify integration  ─────────────
+   Two opt-in classes for the selectively-upgraded icons:
+
+   .fx-emoji  → 3D Fluent emojis (fluent-emoji:* set). Adds a slow,
+                restrained bob so the static 3D feels alive without
+                attention-seeking. Pause on hover with a small scale.
+
+   .fx-icon   → animated line icons (line-md:* set). These already
+                self-animate via stroke-dasharray on render; this
+                class only standardises sizing + colour. */
+iconify-icon[class*="fx-emoji"],
+iconify-icon[class*="fx-icon"]{
+  display:inline-flex;
+  vertical-align:middle;
+}
+iconify-icon.fx-emoji{
+  animation: fxEmojiBob 4.6s ease-in-out infinite;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,0.25));
+  transition: transform 0.45s cubic-bezier(0.16,1,0.3,1);
+  will-change: transform;
+}
+iconify-icon.fx-emoji.fx-still{ animation:none; }
+iconify-icon.fx-emoji:hover{
+  animation-play-state: paused;
+  transform: scale(1.08);
+}
+@keyframes fxEmojiBob{
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50%      { transform: translateY(-3px) rotate(1.5deg); }
+}
+/* Per-instance start offset so a row of emojis don't bob in unison */
+iconify-icon.fx-emoji.fx-off-1 { animation-delay: 0.4s; }
+iconify-icon.fx-emoji.fx-off-2 { animation-delay: 0.9s; }
+iconify-icon.fx-emoji.fx-off-3 { animation-delay: 1.4s; }
+iconify-icon.fx-emoji.fx-off-4 { animation-delay: 1.9s; }
+
+/* Animated line icons — gold-toned by default, sized by context */
+iconify-icon.fx-icon{
+  color: var(--gold-bright);
+}
+iconify-icon.fx-icon.fx-lg{ font-size:2.4rem; }
+iconify-icon.fx-icon.fx-md{ font-size:1.6rem; }
+iconify-icon.fx-icon.fx-sm{ font-size:1.05rem; }
+
+.motion-reduced iconify-icon.fx-emoji,
+.motion-reduced iconify-icon.fx-icon{
+  animation: none !important;
 }
 
 @media print{
