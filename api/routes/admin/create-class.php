@@ -1,8 +1,5 @@
 <?php
 declare(strict_types=1);
-mam_require_method('POST');
-mam_csrf_require();
-mam_require_admin();
 
 $in = mam_json_input();
 $data = [

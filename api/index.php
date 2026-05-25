@@ -1,67 +1,76 @@
 <?php
 /**
- * MAM Academy API router
+ * MAM Academy API
+ * ─────────────────────────────────────────────────────────────
+ * Single entry point. The bootstrap loads .env, libraries, CORS
+ * and structured logging. The router below declares every route
+ * with its HTTP method, handler file, and middleware chain.
  *
- * Routes are dispatched from the `route` query parameter populated by
- * the project root .htaccess rewrite (/api/foo → /api/index.php?route=foo).
- * Each route lives in /api/routes/<name>.php and includes the bootstrap.
- *
- * Available routes:
- *   GET   /api/health
- *   GET   /api/csrf
- *   POST  /api/application
- *   POST  /api/payment/initialize
- *   POST  /api/payment/verify
- *   POST  /api/payment/webhook/paystack
- *   POST  /api/payment/webhook/flutterwave
- *   POST  /api/newsletter
- *   POST  /api/contact
+ * Routes resolve from the `route` query parameter set by the
+ * project root .htaccess rewrite (/api/foo → /api/index.php?route=foo).
  */
 declare(strict_types=1);
 
 require_once __DIR__ . '/lib/bootstrap.php';
+require_once __DIR__ . '/lib/router.php';
 
-$route = $_GET['route'] ?? '';
-$route = trim($route, '/');
+/** Helper: include a route file as the request handler. */
+$f = function (string $path): callable {
+    return function () use ($path) { require __DIR__ . '/routes/' . $path; };
+};
 
-// Whitelist routes → file map
-$map = [
-    'health'                       => 'health.php',
-    'csrf'                         => 'csrf-token.php',
-    'application'                  => 'application.php',
-    'payment/initialize'           => 'payment-init.php',
-    'payment/verify'               => 'payment-verify.php',
-    'payment/webhook/paystack'     => 'webhook-paystack.php',
-    'payment/webhook/flutterwave'  => 'webhook-flutterwave.php',
-    'newsletter'                   => 'newsletter.php',
-    'contact'                      => 'contact.php',
+$r = new MamRouter();
 
-    // Auth
-    'auth/login'                   => 'auth/login.php',
-    'auth/logout'                  => 'auth/logout.php',
-    'auth/me'                      => 'auth/me.php',
-    'auth/change-password'         => 'auth/change-password.php',
-    'auth/request-reset'           => 'auth/request-reset.php',
-    'auth/perform-reset'           => 'auth/perform-reset.php',
+/* ─── Public ─── */
+$r->get('/health',  $f('health.php'));
+$r->get('/csrf',    $f('csrf-token.php'));
 
-    // Student portal
-    'student/dashboard'            => 'student/dashboard.php',
-    'student/update-profile'       => 'student/update-profile.php',
+/* ─── Public forms (CSRF + rate-limited) ─── */
+$r->post('/application', $f('application.php'), [mw_csrf(), mw_rate_limit('apply',       10, 600)]);
+$r->post('/newsletter',  $f('newsletter.php'),  [mw_csrf(), mw_rate_limit('newsletter',  5,  600)]);
+$r->post('/contact',     $f('contact.php'),     [mw_csrf(), mw_rate_limit('contact',     5,  600)]);
 
-    // Instructor portal
-    'instructor/dashboard'         => 'instructor/dashboard.php',
-    'instructor/mark-attendance'   => 'instructor/mark-attendance.php',
+/* ─── Payments ─── */
+$r->group('/payment', function (MamRouter $r) use ($f) {
+    $r->post('/initialize', $f('payment-init.php'),   [mw_csrf(), mw_rate_limit('payment_init',   20, 600)]);
+    $r->post('/verify',     $f('payment-verify.php'), [mw_csrf(), mw_rate_limit('payment_verify', 30, 600)]);
+    // Webhooks rely on HMAC signatures, not CSRF cookies.
+    $r->post('/webhook/paystack',    $f('webhook-paystack.php'));
+    $r->post('/webhook/flutterwave', $f('webhook-flutterwave.php'));
+});
 
-    // Admin (JSON; UI lives at /admin/)
-    'admin/list-users'             => 'admin/list-users.php',
-    'admin/create-user'            => 'admin/create-user.php',
-    'admin/reset-password'         => 'admin/reset-password.php',
-    'admin/create-class'           => 'admin/create-class.php',
-    'admin/enroll-student'         => 'admin/enroll-student.php',
-];
+/* ─── Auth ─── */
+$r->group('/auth', function (MamRouter $r) use ($f) {
+    $r->get ('/me',                $f('auth/me.php'));
+    $r->post('/login',             $f('auth/login.php'),            [mw_csrf(), mw_rate_limit('login',          8,  600)]);
+    $r->post('/logout',            $f('auth/logout.php'),           [mw_csrf()]);
+    $r->post('/change-password',   $f('auth/change-password.php'),  [mw_csrf(), mw_user()]);
+    $r->post('/request-reset',     $f('auth/request-reset.php'),    [mw_csrf(), mw_rate_limit('reset_request',  5,  600)]);
+    $r->post('/perform-reset',     $f('auth/perform-reset.php'),    [mw_csrf(), mw_rate_limit('reset_perform', 10, 600)]);
+});
 
-if (!isset($map[$route])) {
-    mam_fail('route_not_found', 404, ['route' => $route]);
-}
+/* ─── Student portal ─── */
+$r->group('/student', function (MamRouter $r) use ($f) {
+    $r->get ('/dashboard',       $f('student/dashboard.php'),       [mw_role('student')]);
+    $r->post('/update-profile',  $f('student/update-profile.php'),  [mw_csrf(), mw_role('student')]);
+});
 
-require __DIR__ . '/routes/' . $map[$route];
+/* ─── Instructor portal ─── */
+$r->group('/instructor', function (MamRouter $r) use ($f) {
+    $r->get ('/dashboard',        $f('instructor/dashboard.php'),       [mw_role('instructor', 'admin')]);
+    $r->post('/mark-attendance',  $f('instructor/mark-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
+});
+
+/* ─── Admin (JSON endpoints; the HTML dashboard is at /admin/) ─── */
+$r->group('/admin', function (MamRouter $r) use ($f) {
+    $r->get ('/list-users',      $f('admin/list-users.php'),     [mw_admin()]);
+    $r->post('/create-user',     $f('admin/create-user.php'),    [mw_csrf(), mw_admin()]);
+    $r->post('/reset-password',  $f('admin/reset-password.php'), [mw_csrf(), mw_admin()]);
+    $r->post('/create-class',    $f('admin/create-class.php'),   [mw_csrf(), mw_admin()]);
+    $r->post('/enroll-student',  $f('admin/enroll-student.php'), [mw_csrf(), mw_admin()]);
+});
+
+/* ─── Dispatch ─── */
+$route  = '/' . trim((string)($_GET['route'] ?? ''), '/');
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$r->dispatch($method, $route);

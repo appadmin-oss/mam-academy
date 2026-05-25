@@ -9,8 +9,6 @@
  */
 declare(strict_types=1);
 
-mam_require_method('POST');
-
 $raw = file_get_contents('php://input') ?: '';
 $signature = $_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] ?? '';
 $valid = $signature !== '' && mam_paystack_verify_signature($raw, $signature);

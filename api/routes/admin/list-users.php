@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
-mam_require_method('GET');
-mam_require_admin();
+
 $role = $_GET['role'] ?? '';
 $where = ''; $params = [];
 if (in_array($role, ['admin', 'instructor', 'student'], true)) {

@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-mam_require_method('GET');
+
 $u = mam_require_role('instructor', 'admin');
 
 $instructorId = (int)$u['id'];

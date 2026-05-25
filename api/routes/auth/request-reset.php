@@ -8,9 +8,6 @@
  * success — whether the email matched a real account or not.
  */
 declare(strict_types=1);
-mam_require_method('POST');
-mam_csrf_require();
-mam_rate_limit('reset_request', mam_client_ip(), 5, 600);
 
 $in = mam_json_input();
 $email = mam_email(mam_str($in, 'email', 120));

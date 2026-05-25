@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
-mam_require_method('POST');
-mam_csrf_require();
+
 $u = mam_require_role('instructor', 'admin');
 
 $in = mam_json_input();

@@ -15,10 +15,6 @@
  */
 declare(strict_types=1);
 
-mam_require_method('POST');
-mam_csrf_require();
-mam_rate_limit('payment_init', mam_client_ip(), 20, 600);
-
 $in = mam_json_input();
 $ref = preg_replace('/[^A-Za-z0-9\-]/', '', (string)($in['reference'] ?? ''));
 $provider = strtolower(trim((string)($in['provider'] ?? '')));

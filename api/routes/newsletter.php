@@ -1,10 +1,6 @@
 <?php
 declare(strict_types=1);
 
-mam_require_method('POST');
-mam_csrf_require();
-mam_rate_limit('newsletter', mam_client_ip(), 5, 600);
-
 $in = mam_json_input();
 if (!$in) {
     parse_str(file_get_contents('php://input') ?: '', $form);

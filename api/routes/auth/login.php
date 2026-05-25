@@ -1,8 +1,5 @@
 <?php
 declare(strict_types=1);
-mam_require_method('POST');
-mam_csrf_require();
-mam_rate_limit('login', mam_client_ip(), 8, 600);
 
 $in = mam_json_input();
 $email = mam_str($in, 'email', 120);

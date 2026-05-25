@@ -6,8 +6,6 @@
  */
 declare(strict_types=1);
 
-mam_require_method('POST');
-
 $raw = file_get_contents('php://input') ?: '';
 $signature = $_SERVER['HTTP_VERIF_HASH'] ?? '';
 $valid = mam_flw_verify_signature($signature);

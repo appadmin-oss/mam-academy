@@ -9,12 +9,8 @@
  */
 declare(strict_types=1);
 
-mam_require_method('POST');
-mam_csrf_require();
-
 $rateLimit = (int)mam_env('RATE_LIMIT_APPLY', '10');
 $rateWindow = (int)mam_env('RATE_LIMIT_APPLY_WINDOW', '600');
-mam_rate_limit('apply', mam_client_ip(), $rateLimit, $rateWindow);
 
 $input = mam_json_input();
 mam_honeypot($input);

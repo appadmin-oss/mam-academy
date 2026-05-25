@@ -5,18 +5,8 @@
 (function () {
   'use strict';
 
-  // Lottie player — for genuinely animated 3D emojis sourced from
-  // Microsoft Fluent Animated Emoji (MIT licensed). Industry-standard
-  // animation runtime used by Stripe, Notion, Linear, Airbnb.
-  if (typeof document !== 'undefined' && !document.querySelector('script[data-mam-lottie]')) {
-    var __lp = document.createElement('script');
-    __lp.src = 'https://unpkg.com/@lottiefiles/lottie-player@2.0.4/dist/lottie-player.js';
-    __lp.async = true;
-    __lp.dataset.mamLottie = '1';
-    (document.head || document.documentElement).appendChild(__lp);
-  }
-  // Iconify — fallback for static emoji + line icons where a full
-  // Lottie animation would be visual overkill.
+  // Iconify — Microsoft Fluent 3D emoji + line-md animated icons.
+  // ~6KB runtime, lazy-loads each icon on demand. Dependable CDN.
   if (typeof document !== 'undefined' && !document.querySelector('script[data-mam-iconify]')) {
     var __ic = document.createElement('script');
     __ic.src = 'https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js';
@@ -81,15 +71,56 @@
     }, { passive: true });
 
     var menuOpen = false;
+    var menuOpenerEl = null;
     function setMenu(open) {
       menuOpen = open;
-      if (hamburger) { hamburger.classList.toggle('open', open); hamburger.setAttribute('aria-expanded', String(open)); }
-      if (mobileMenu) { mobileMenu.classList.toggle('open', open); }
+      if (hamburger) {
+        hamburger.classList.toggle('open', open);
+        hamburger.setAttribute('aria-expanded', String(open));
+      }
+      if (mobileMenu) {
+        mobileMenu.classList.toggle('open', open);
+        mobileMenu.setAttribute('aria-hidden', String(!open));
+        if (open) {
+          mobileMenu.setAttribute('aria-modal', 'true');
+          mobileMenu.setAttribute('role', 'dialog');
+          menuOpenerEl = document.activeElement;
+          // Move focus into the menu for keyboard users
+          var firstLink = mobileMenu.querySelector('a, button');
+          if (firstLink) firstLink.focus();
+        } else {
+          mobileMenu.removeAttribute('aria-modal');
+          // Restore focus to whatever opened the menu
+          if (menuOpenerEl && typeof menuOpenerEl.focus === 'function') {
+            menuOpenerEl.focus();
+            menuOpenerEl = null;
+          }
+        }
+      }
       document.body.style.overflow = open ? 'hidden' : '';
     }
+    // Initial aria-hidden state
+    if (mobileMenu) mobileMenu.setAttribute('aria-hidden', 'true');
     on(hamburger, 'click', function () { setMenu(!menuOpen); });
     $$('#mobileMenu a').forEach(function (a) { on(a, 'click', function () { setMenu(false); }); });
     on(document, 'keydown', function (e) { if (e.key === 'Escape' && menuOpen) setMenu(false); });
+
+    // Focus trap inside open mobile menu — Tab cycles within
+    on(document, 'keydown', function (e) {
+      if (!menuOpen || e.key !== 'Tab' || !mobileMenu) return;
+      var focusable = mobileMenu.querySelectorAll('a[href], button:not([disabled])');
+      if (!focusable.length) return;
+      var first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+
+    // Promote every error message to a screen-reader live region so
+    // appearing/changing text is announced.
+    $$('.field-error, .form-error').forEach(function (el) {
+      if (!el.getAttribute('role')) el.setAttribute('role', 'alert');
+      if (!el.getAttribute('aria-live')) el.setAttribute('aria-live', 'polite');
+    });
 
     $$('[data-mobile-toggle]').forEach(function (btn) {
       on(btn, 'click', function () {

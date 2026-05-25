@@ -8,9 +8,6 @@
  * for that user, and marks the token used.
  */
 declare(strict_types=1);
-mam_require_method('POST');
-mam_csrf_require();
-mam_rate_limit('reset_perform', mam_client_ip(), 10, 600);
 
 $in       = mam_json_input();
 $token    = mam_str($in, 'token', 64);

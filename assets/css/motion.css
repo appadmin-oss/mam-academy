@@ -184,40 +184,6 @@
   .floating-note{ font-size: clamp(0.9rem, 3vw, 1.6rem) !important; }
 }
 
-/* ─────────────  Lottie 3D emoji integration  ─────────────
-   Real 3D-rendered animated emojis from Microsoft Fluent Emoji,
-   played by @lottiefiles/lottie-player. Genuine 3D depth, not
-   CSS bob on flat images.
-
-   The .fx-lottie class standardises sizing + drop shadow so
-   the animated emojis sit naturally next to typography. */
-lottie-player.fx-lottie{
-  display:inline-block;
-  vertical-align:middle;
-  pointer-events:none;          /* purely decorative */
-  filter: drop-shadow(0 8px 18px rgba(0,0,0,0.32));
-}
-lottie-player.fx-lottie.fx-sm{ width:24px;  height:24px; }
-lottie-player.fx-lottie.fx-md{ width:40px;  height:40px; }
-lottie-player.fx-lottie.fx-lg{ width:64px;  height:64px; }
-lottie-player.fx-lottie.fx-xl{ width:96px;  height:96px; }
-
-/* Hide the player while the runtime is loading the JSON, then
-   fade in once the first frame paints. */
-lottie-player.fx-lottie:not([loaded]){
-  opacity:0;
-  transition: opacity 0.28s ease;
-}
-lottie-player.fx-lottie[loaded]{
-  opacity:1;
-}
-
-.motion-reduced lottie-player.fx-lottie{
-  /* lottie-player auto-pauses when prefers-reduced-motion is set,
-     but we also hide its drop shadow / sizing transitions. */
-  filter:none;
-}
-
 /* ─────────────  Iconify integration  ─────────────
    Two opt-in classes for the selectively-upgraded icons:
 

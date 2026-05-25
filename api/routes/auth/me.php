@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-mam_require_method('GET');
+
 $u = mam_current_user();
 if (!$u) mam_ok(['authenticated' => false, 'user' => null]);
 mam_ok([

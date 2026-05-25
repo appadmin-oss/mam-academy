@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-mam_require_method('GET');
+
 $u = mam_require_role('student');
 
 $customer = $u['customer_id'] ? mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$u['customer_id']]) : null;

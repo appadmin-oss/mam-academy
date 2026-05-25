@@ -1,10 +1,6 @@
 <?php
 declare(strict_types=1);
 
-mam_require_method('POST');
-mam_csrf_require();
-mam_rate_limit('contact', mam_client_ip(), 5, 600);
-
 $in = mam_json_input();
 mam_honeypot($in);
 $name    = mam_str($in, 'name', 120);
