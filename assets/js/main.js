@@ -500,6 +500,42 @@
     }
 
     document.dispatchEvent(new CustomEvent('mam:ready'));
+
+    // Lazy-load the motion choreography module after the rest of
+    // the page is wired up. Failure here is non-fatal — site works
+    // with CSS fades only.
+    var existing = document.querySelector('script[data-mam-motion]');
+    if (!existing) {
+      var basePath = (function () {
+        var src = (document.currentScript && document.currentScript.getAttribute('src')) || '';
+        // Find the path prefix for main.js so motion.js loads from the same folder.
+        var idx = src.indexOf('main.js');
+        if (idx >= 0) return src.slice(0, idx);
+        // Fallback: look for any script tag whose src ends with /main.js
+        var ss = document.querySelectorAll('script[src]');
+        for (var i = 0; i < ss.length; i++) {
+          var s = ss[i].getAttribute('src') || '';
+          var j = s.indexOf('main.js');
+          if (j >= 0) return s.slice(0, j);
+        }
+        return 'assets/js/';
+      })();
+      var m = document.createElement('script');
+      m.src = basePath + 'motion.js';
+      m.async = true;
+      m.dataset.mamMotion = '1';
+      document.head.appendChild(m);
+
+      // Make sure the motion CSS is loaded alongside the JS module.
+      if (!document.querySelector('link[data-mam-motion-css]')) {
+        var cssPath = basePath.replace(/js\/?$/, '') + 'css/motion.css';
+        var l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = cssPath;
+        l.dataset.mamMotionCss = '1';
+        document.head.appendChild(l);
+      }
+    }
   }
 
   // Wait for partials to load before binding nav/hero events
