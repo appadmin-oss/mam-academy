@@ -1,37 +1,37 @@
 /* ============================================================
-   MAM Academy — Motion as Music
+   MAM Academy — Motion (clean build)
    ─────────────────────────────────────────────────────────────
-   Animation discipline borrowed from a musician's vocabulary:
-     • Anacrusis  — a pickup note before the downbeat (1st card
-                    in a stagger enters 80ms early; the rest land
-                    on the beat).
-     • Sustain    — card tilt releases over 700ms out-expo, the
-                    sound of a damper pedal lifting.
-     • Crescendo  — number tickers overshoot then settle (sforzando).
-     • Phrasing   — section eyebrow line draws first; the title
-                    arrives on the downbeat (conductor's baton).
-     • Dust       — three.js particle field over the hero is the
-                    visual equivalent of stage light catching dust.
-     • Silence    — sections that don't need motion stay still.
+   Scope, intentionally narrow:
+     1. Scroll progress reed
+     2. Floating musical glyphs (CSS-driven, hero only)
+     3. 3D card tilt on hover
+     4. Magnetic primary CTAs
+     5. Hero background parallax (cursor)
+     6. Pathway progression timeline (gated on .motion-on; no FOUC)
+     7. Mega menu — sequenced reveal on hover only
+     8. Three.js golden particle field (lazy, hero only, optional)
 
-   Powered by Motion One (vanilla-JS sibling of Framer Motion) and
-   three.js for the ambient WebGL backdrop. Loaded lazily from a
-   CDN; the site degrades to clean CSS fade-ins without them.
+   NOT in scope (all caused FOUC and have been removed):
+     • Section staggers     — owned by main.js `.fade-in-up`
+     • Baton-sweep eyebrows  — same
+     • Hero phrase reveal    — fights the existing CSS card entrance
+     • Stat ticker overrides — main.js already does this; doubling
+                                up garbled the numbers
+
+   Powered by Motion One — vanilla-JS sibling of Framer Motion.
    ============================================================ */
 (function () {
   'use strict';
 
   /* ─────────────  Config  ───────────── */
-  var RM     = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var TOUCH  = matchMedia('(hover: none)').matches;
-  var SMALL  = matchMedia('(max-width: 768px)').matches;
+  var RM    = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var TOUCH = matchMedia('(hover: none)').matches;
+  var SMALL = matchMedia('(max-width: 768px)').matches;
 
-  // Curves named for the gesture they describe, in [x1,y1,x2,y2] cubic-bezier.
   var EASE = {
-    outExpo:   [0.16, 1.00, 0.30, 1.00],  // long sustain release
-    outQuart:  [0.25, 1.00, 0.50, 1.00],  // gentle landing
-    sforzando: [0.34, 1.56, 0.64, 1.00],  // overshoot accent
-    legato:    [0.65, 0.00, 0.35, 1.00],  // smooth in-out
+    outExpo:   [0.16, 1.00, 0.30, 1.00],
+    outQuart:  [0.25, 1.00, 0.50, 1.00],
+    sforzando: [0.34, 1.56, 0.64, 1.00],
   };
 
   var MOTION_URL = 'https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.min.js';
@@ -39,15 +39,13 @@
 
   function $(s, c) { return (c || document).querySelector(s); }
   function $$(s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); }
+
   function loadScript(url) {
     return new Promise(function (resolve) {
-      if (document.querySelector('script[src="' + url + '"]')) {
-        // Already injected — wait briefly for globals to attach.
-        return setTimeout(resolve, 50);
-      }
+      if (document.querySelector('script[src="' + url + '"]')) return setTimeout(resolve, 30);
       var s = document.createElement('script');
       s.src = url; s.async = true;
-      s.onload = function () { resolve(); };
+      s.onload  = function () { resolve(); };
       s.onerror = function () { resolve(); };
       document.head.appendChild(s);
     });
@@ -57,14 +55,11 @@
   function boot() {
     if (RM) {
       document.documentElement.classList.add('motion-reduced');
-      // Even in reduced-motion: ensure all the reveal-targeted elements
-      // are visible (no opacity:0 stuck).
-      $$('.fade-in-up, .fade-in').forEach(function (el) { el.classList.add('visible'); });
       return;
     }
     document.documentElement.classList.add('motion-on');
 
-    // CSS-only effects (no library)
+    // 1. CSS-only effects (no library dependencies)
     initScrollProgress();
     initFloatingNotes();
     if (!TOUCH) {
@@ -73,19 +68,15 @@
       initHeroBackgroundParallax();
     }
 
-    // Motion One — staggered reveals, baton sweeps, ticker
+    // 2. Motion One — only what doesn't fight existing CSS reveals
     loadScript(MOTION_URL).then(function () {
       var M = window.Motion;
-      if (!M) return scriptFailFallback();
-      initBatonSweeps(M);
-      initHeroPhraseReveal(M);
-      initSectionStaggers(M);
-      initStatTicker(M);
-      initPathwayProgressionMotion(M);
+      if (!M) return;
+      initPathwayProgression(M);
       initMegaMenuPhrasing(M);
     });
 
-    // Three.js — only on the home hero, only when GPU & memory allow
+    // 3. Three.js — home hero only, WebGL-capable, non-touch, non-mobile
     if ($('#hero') && !TOUCH && !SMALL && canRunThree()) {
       loadScript(THREE_URL).then(function () {
         if (window.THREE) initHeroParticleField(window.THREE);
@@ -93,13 +84,8 @@
     }
   }
 
-  /* If Motion library fails (offline / blocked), ensure reveals still happen via CSS. */
-  function scriptFailFallback() {
-    $$('.fade-in-up, .fade-in').forEach(function (el) { el.classList.add('visible'); });
-  }
-
   /* ============================================================
-     Scroll progress — a thin gold reed at the top of the page
+     1. Scroll progress reed
      ============================================================ */
   function initScrollProgress() {
     if ($('.scroll-progress')) return;
@@ -110,8 +96,7 @@
     function update() {
       raf = null;
       var max = document.documentElement.scrollHeight - window.innerHeight;
-      var p = max > 0 ? window.scrollY / max : 0;
-      bar.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+      bar.style.transform = 'scaleX(' + (max > 0 ? (window.scrollY / max).toFixed(4) : 0) + ')';
     }
     window.addEventListener('scroll', function () {
       if (raf) return; raf = requestAnimationFrame(update);
@@ -120,13 +105,13 @@
   }
 
   /* ============================================================
-     Floating notation — musical glyphs drift upward through the
-     hero. CSS-driven so there's no JS cost beyond DOM creation.
+     2. Floating musical glyphs (BMP-only — safe on every device)
      ============================================================ */
   function initFloatingNotes() {
     var hero = $('#hero');
     if (!hero || hero.querySelector('.floating-notes')) return;
-    var glyphs = ['♩', '♪', '♫', '♬', '𝄞', '♭', '♮', '♯', '𝄢', '𝄐'];
+    // Restricted to BMP block — these render reliably everywhere.
+    var glyphs = ['♪', '♫', '♬', '♭', '♮', '♯', '♩'];
     var container = document.createElement('div');
     container.className = 'floating-notes';
     container.setAttribute('aria-hidden', 'true');
@@ -140,15 +125,14 @@
       n.style.animationDelay = (i * 1.4 + Math.random()) + 's';
       n.style.animationDuration = (16 + Math.random() * 12) + 's';
       n.style.setProperty('--drift', ((Math.random() - 0.5) * 80) + 'px');
-      n.style.setProperty('--spin', ((Math.random() - 0.5) * 720) + 'deg');
+      n.style.setProperty('--spin', ((Math.random() - 0.5) * 540) + 'deg');
       container.appendChild(n);
     }
     hero.insertBefore(container, hero.firstChild);
   }
 
   /* ============================================================
-     Card tilt — perspective follow with long sustain on release.
-     Picture lifting the damper pedal: the note holds, then fades.
+     3. 3D card tilt — long sustain release (~700ms)
      ============================================================ */
   function initCardTilt() {
     var SELECTOR = [
@@ -166,7 +150,6 @@
     card.addEventListener('mouseenter', function () {
       rect = card.getBoundingClientRect();
       card.style.willChange = 'transform';
-      // Tighten the transition during follow so motion feels responsive.
       card.style.transition = 'transform 0.10s linear';
     });
     card.addEventListener('mousemove', function (e) {
@@ -179,17 +162,12 @@
         var y = (ly - rect.top)  / rect.height;
         var rotY = (x - 0.5) * (max * 2);
         var rotX = -(y - 0.5) * (max * 2);
-        // Lift the card slightly toward the viewer (3D translateZ illusion).
         card.style.transform =
-          'perspective(1100px) ' +
-          'rotateX(' + rotX.toFixed(2) + 'deg) ' +
-          'rotateY(' + rotY.toFixed(2) + 'deg) ' +
-          'translate3d(0,-4px,12px)';
+          'perspective(1100px) rotateX(' + rotX.toFixed(2) + 'deg) rotateY(' + rotY.toFixed(2) + 'deg) translate3d(0,-4px,12px)';
       });
     });
     card.addEventListener('mouseleave', function () {
       rect = null;
-      // Long out-expo release — the "let-go" should feel sustained.
       card.style.transition = 'transform 0.7s cubic-bezier(0.16,1,0.3,1)';
       card.style.transform = '';
       setTimeout(function () { card.style.willChange = ''; card.style.transition = ''; }, 720);
@@ -197,8 +175,7 @@
   }
 
   /* ============================================================
-     Magnetic buttons — cursor attracts the CTA toward itself.
-     Restrained: only primary CTAs, max 14px pull.
+     4. Magnetic CTAs — clamped to ±14px
      ============================================================ */
   function initMagneticButtons() {
     var SELECTOR = '.btn-primary, .btn-cta-large, .btn-nav-cta, .btn-pay, .btn-hero, .btn-signup, .compare-cta-primary';
@@ -218,7 +195,6 @@
           raf = null; if (!rect) return;
           var x = (lx - (rect.left + rect.width  / 2)) * 0.18;
           var y = (ly - (rect.top  + rect.height / 2)) * 0.22;
-          // Clamp the pull so the button never visually escapes.
           x = Math.max(-14, Math.min(14, x));
           y = Math.max(-12, Math.min(12, y));
           btn.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
@@ -234,8 +210,7 @@
   }
 
   /* ============================================================
-     Hero background parallax — slide bg drifts opposite the cursor.
-     Subtle (~14px max). Don't fight the carousel transitions.
+     5. Hero bg parallax (cursor-driven; subtle)
      ============================================================ */
   function initHeroBackgroundParallax() {
     var hero = $('#hero'); if (!hero) return;
@@ -258,190 +233,27 @@
   }
 
   /* ============================================================
-     Baton sweep — the eyebrow line draws first; the title lands.
+     6. Pathway progression — initial state in CSS (no FOUC),
+        Motion One animates to final state on view.
      ============================================================ */
-  function initBatonSweeps(M) {
-    $$('.section-eyebrow').forEach(function (eyebrow) {
-      var line = eyebrow.querySelector('.line');
-      var title = eyebrow.parentElement && eyebrow.parentElement.querySelector('.section-title');
-      var desc  = eyebrow.parentElement && eyebrow.parentElement.querySelector('.section-desc');
-
-      // Initial state
-      if (line) line.style.transform = 'scaleX(0)';
-      eyebrow.style.opacity = '0';
-      if (title) { title.style.opacity = '0'; title.style.transform = 'translateY(18px)'; }
-      if (desc)  { desc.style.opacity  = '0'; desc.style.transform  = 'translateY(14px)'; }
-
-      M.inView(eyebrow, function () {
-        // 1. Eyebrow + line sweep
-        M.animate(eyebrow, { opacity: 1 }, { duration: 0.4, easing: 'ease-out' });
-        if (line) {
-          M.animate(line, { transform: ['scaleX(0)', 'scaleX(1)'] }, {
-            duration: 0.6, easing: EASE.outExpo
-          });
-        }
-        // 2. Title — downbeat
-        if (title) {
-          M.animate(title, { opacity: 1, transform: 'translateY(0px)' }, {
-            duration: 0.7, delay: 0.18, easing: EASE.outExpo
-          });
-        }
-        // 3. Description — release
-        if (desc) {
-          M.animate(desc, { opacity: 1, transform: 'translateY(0px)' }, {
-            duration: 0.6, delay: 0.32, easing: EASE.outQuart
-          });
-        }
-      }, { amount: 0.35 });
-    });
-  }
-
-  /* ============================================================
-     Hero phrase reveal — each <span> in the active slide's
-     headline enters as a word in a musical line.
-     ============================================================ */
-  function initHeroPhraseReveal(M) {
-    var slides = $$('.hero-slide');
-    if (!slides.length) return;
-
-    function arrange(slide) {
-      $$('.card-headline span', slide).forEach(function (s) {
-        s.style.display = 'inline-block';
-        s.style.opacity = '0';
-        s.style.transform = 'translateY(22px) scale(0.94)';
-      });
-      var subtitle = slide.querySelector('.card-subtitle');
-      var desc     = slide.querySelector('.card-desc');
-      [subtitle, desc].forEach(function (el) {
-        if (!el) return;
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(12px)';
-      });
-      var actions = $$('.btn-signup', slide);
-      actions.forEach(function (b) {
-        b.style.opacity = '0';
-        b.style.transform = 'translateY(10px)';
-      });
-    }
-
-    function phrase(slide) {
-      var words = $$('.card-headline span', slide);
-      // Anacrusis: word[0] arrives 60ms before the downbeat, the rest in tempo.
-      words.forEach(function (w, i) {
-        var delay = (i === 0 ? 0.30 : 0.36 + (i - 1) * 0.12);
-        M.animate(w, { opacity: 1, transform: 'translateY(0px) scale(1)' }, {
-          duration: 0.65, delay: delay, easing: EASE.outExpo
-        });
-      });
-      var sub = slide.querySelector('.card-subtitle');
-      var desc = slide.querySelector('.card-desc');
-      if (sub)  M.animate(sub,  { opacity: 1, transform: 'translateY(0)' }, { duration: 0.55, delay: 0.30 + words.length * 0.12, easing: EASE.outQuart });
-      if (desc) M.animate(desc, { opacity: 1, transform: 'translateY(0)' }, { duration: 0.55, delay: 0.42 + words.length * 0.12, easing: EASE.outQuart });
-      $$('.btn-signup', slide).forEach(function (b, i) {
-        M.animate(b, { opacity: 1, transform: 'translateY(0)' }, {
-          duration: 0.5, delay: 0.55 + words.length * 0.12 + i * 0.08, easing: EASE.outQuart
-        });
-      });
-    }
-
-    slides.forEach(arrange);
-    var active = $('.hero-slide.active') || slides[0];
-    phrase(active);
-
-    // Re-phrase whenever the active slide changes.
-    var prev = active;
-    var obs = new MutationObserver(function () {
-      var now = $('.hero-slide.active');
-      if (now && now !== prev) {
-        arrange(now);
-        phrase(now);
-        prev = now;
-      }
-    });
-    slides.forEach(function (s) { obs.observe(s, { attributes: true, attributeFilter: ['class'] }); });
-  }
-
-  /* ============================================================
-     Section staggers — anacrusis stagger with musical phrasing.
-     ============================================================ */
-  function initSectionStaggers(M) {
-    var groups = [
-      { selector: '.how-grid > .how-step',           anacrusis: true,  y: 24, scale: 0.96 },
-      { selector: '.schools-grid > .school-card',    anacrusis: true,  y: 30, scale: 0.96 },
-      { selector: '.pathways-grid > .pathway-card',  anacrusis: true,  y: 30, scale: 0.96 },
-      { selector: '.modes-grid > .mode-card',        anacrusis: false, y: 30, scale: 0.97 },
-      { selector: '.method-grid > .method-step',     anacrusis: false, y: 22, scale: 0.95 },
-      { selector: '.faculty-grid > .faculty-card',   anacrusis: true,  y: 28, scale: 0.96 },
-      { selector: '.extras-row > .extra-card',       anacrusis: false, y: 18, scale: 0.98 },
-      { selector: '.unique-grid > .unique-card',     anacrusis: true,  y: 24, scale: 0.96 },
-      { selector: '.testimonials-track > .testimonial-card', anacrusis: false, y: 14, scale: 0.98 },
-    ];
-    groups.forEach(function (g) {
-      var items = $$(g.selector);
-      if (!items.length) return;
-      items.forEach(function (el) {
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(' + g.y + 'px) scale(' + g.scale + ')';
-      });
-      var anchor = items[0].parentElement;
-      M.inView(anchor, function () {
-        items.forEach(function (el, i) {
-          // Anacrusis: first card lands 60ms early; the rest land on consecutive beats.
-          var delay;
-          if (g.anacrusis) {
-            delay = i === 0 ? 0 : 0.06 + (i - 1) * 0.09;
-          } else {
-            delay = i * 0.085;
-          }
-          M.animate(el, { opacity: 1, transform: 'translateY(0px) scale(1)' }, {
-            duration: 0.65, delay: delay, easing: EASE.outExpo
-          });
-        });
-      }, { amount: 0.18 });
-    });
-  }
-
-  /* ============================================================
-     Stat counters — sforzando: a sharp tick up with overshoot.
-     ============================================================ */
-  function initStatTicker(M) {
-    $$('.stat-number[data-count]').forEach(function (el) {
-      if (el.dataset.tickerRun) return; el.dataset.tickerRun = '1';
-      var target = parseInt(el.getAttribute('data-count'), 10) || 0;
-      var suffix = (el.textContent.replace(/[0-9.,]/g, '').trim()) || '+';
-      el.textContent = '0' + suffix;
-      M.inView(el, function () {
-        M.animate(function (v) {
-          // Slight overshoot near the end, settling on target — sforzando.
-          var settled = v < 0.85 ? v / 0.85 : 1 + Math.sin((v - 0.85) / 0.15 * Math.PI) * 0.04 * (1 - v);
-          el.textContent = Math.round(target * Math.min(1, settled)).toLocaleString('en-US') + suffix;
-        }, { duration: 1.8, easing: EASE.outExpo });
-      }, { amount: 0.5 });
-    });
-  }
-
-  /* ============================================================
-     Pathway progression — the track unspools, then the nodes
-     answer one by one (a phrase of four).
-     ============================================================ */
-  function initPathwayProgressionMotion(M) {
+  function initPathwayProgression(M) {
     var pp = $('.pathway-progression'); if (!pp) return;
     var nodes = $$('.pp-node', pp);
     var track = pp.querySelector('.pathway-progression-track');
-    nodes.forEach(function (n) { n.style.opacity = '0'; n.style.transform = 'translateY(20px) scale(0.85)'; });
-    if (track) track.style.setProperty('--track-progress', '0%');
     M.inView(pp, function () {
-      // 1. Unspool the track
+      // Unspool the connecting track
       if (track) {
         M.animate(function (v) {
           track.style.setProperty('--track-progress', (v * 100).toFixed(1) + '%');
         }, { duration: 1.1, easing: EASE.outExpo });
       }
-      // 2. Each node lands on its beat, with the featured one accented.
+      // Phrase the four nodes — featured node gets the accent
       nodes.forEach(function (n, i) {
         var isFeatured = n.classList.contains('featured');
         M.animate(n,
-          { opacity: 1, transform: ['translateY(20px) scale(0.85)', 'translateY(0px) scale(' + (isFeatured ? 1.04 : 1) + ')', 'translateY(0px) scale(1)'] },
+          { opacity: 1, transform: ['translateY(20px) scale(0.85)',
+                                    'translateY(0px) scale(' + (isFeatured ? 1.04 : 1) + ')',
+                                    'translateY(0px) scale(1)'] },
           { duration: 0.85, delay: 0.25 + i * 0.18, easing: EASE.outExpo, offset: [0, 0.7, 1] }
         );
       });
@@ -449,8 +261,7 @@
   }
 
   /* ============================================================
-     Mega menu — each column resolves one after another instead
-     of all-at-once.
+     7. Mega menu — sequenced reveal on open
      ============================================================ */
   function initMegaMenuPhrasing(M) {
     $$('.nav-item').forEach(function (item) {
@@ -460,8 +271,7 @@
         var nowOpen = item.classList.contains('js-hover') || item.classList.contains('open');
         if (nowOpen && !open) {
           open = true;
-          var pieces = dd.querySelectorAll('.mega-banner, .mega-col, .mega-spotlight');
-          pieces.forEach(function (el, i) {
+          dd.querySelectorAll('.mega-banner, .mega-col, .mega-spotlight').forEach(function (el, i) {
             M.animate(el,
               { opacity: [0.2, 1], transform: ['translateY(10px)', 'translateY(0)'] },
               { duration: 0.32, delay: i * 0.04, easing: EASE.outQuart }
@@ -476,15 +286,13 @@
   }
 
   /* ============================================================
-     Three.js — golden particle field as ambient hero backdrop.
-     Loaded lazily, paused when out of viewport, capped DPR.
+     8. Three.js — golden particle field over the hero.
      ============================================================ */
   function canRunThree() {
     try {
       var c = document.createElement('canvas');
       var gl = c.getContext('webgl2') || c.getContext('webgl');
       if (!gl) return false;
-      // Skip on memory-constrained devices
       if (navigator.deviceMemory && navigator.deviceMemory < 2) return false;
       return true;
     } catch (e) { return false; }
@@ -497,7 +305,12 @@
     var canvas = document.createElement('canvas');
     canvas.className = 'hero-three-canvas';
     canvas.setAttribute('aria-hidden', 'true');
-    hero.insertBefore(canvas, hero.firstChild);
+    // Insert AFTER .hero-slides so the canvas sits above the slide bg but
+    // below the slide-overlay (which integrates the particle warmth with
+    // the rest of the scene's gradient treatment).
+    var slides = hero.querySelector('.hero-slides');
+    if (slides && slides.nextSibling) hero.insertBefore(canvas, slides.nextSibling);
+    else hero.appendChild(canvas);
 
     function W() { return hero.clientWidth || window.innerWidth; }
     function H() { return hero.clientHeight || window.innerHeight; }
@@ -506,17 +319,15 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.8));
     renderer.setSize(W(), H(), false);
 
-    var scene = new THREE.Scene();
+    var scene  = new THREE.Scene();
     var camera = new THREE.PerspectiveCamera(36, W() / H(), 0.1, 600);
     camera.position.z = 70;
 
-    // Particle field — count tuned per viewport
     var COUNT = SMALL ? 90 : 220;
     var positions  = new Float32Array(COUNT * 3);
     var velocities = new Float32Array(COUNT * 3);
     var sizes      = new Float32Array(COUNT);
     var phases     = new Float32Array(COUNT);
-    var hues       = new Float32Array(COUNT); // small per-particle warm-tone variance
 
     for (var i = 0; i < COUNT; i++) {
       positions[i*3]   = (Math.random() - 0.5) * 140;
@@ -527,50 +338,37 @@
       velocities[i*3+2] = (Math.random() - 0.5) * 0.020;
       sizes[i]  = Math.random() * 2.8 + 0.8;
       phases[i] = Math.random() * Math.PI * 2;
-      hues[i]   = 0.07 + Math.random() * 0.04;  // hue around amber (0.07–0.11)
     }
 
     var geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('aSize',    new THREE.BufferAttribute(sizes, 1));
     geometry.setAttribute('aPhase',   new THREE.BufferAttribute(phases, 1));
-    geometry.setAttribute('aHue',     new THREE.BufferAttribute(hues, 1));
 
     var material = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uPx:   { value: renderer.getPixelRatio() }
-      },
+      uniforms: { uTime: { value: 0 }, uPx: { value: renderer.getPixelRatio() } },
       vertexShader: [
         'attribute float aSize;',
         'attribute float aPhase;',
-        'attribute float aHue;',
         'uniform float uTime;',
         'uniform float uPx;',
         'varying float vAlpha;',
-        'varying float vHue;',
         'void main() {',
         '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
         '  float twinkle = 0.5 + 0.5 * sin(uTime * 1.1 + aPhase);',
         '  vAlpha = 0.30 + 0.45 * twinkle;',
-        '  vHue   = aHue;',
         '  gl_PointSize = aSize * uPx * (220.0 / -mv.z) * (0.6 + 0.4 * twinkle);',
         '  gl_Position = projectionMatrix * mv;',
         '}'
       ].join('\n'),
       fragmentShader: [
         'varying float vAlpha;',
-        'varying float vHue;',
-        'vec3 hsl(float h, float s, float l) {',
-        '  vec3 rgb = clamp(abs(mod(h*6.0 + vec3(0.0,4.0,2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);',
-        '  return l + s*(rgb-0.5)*(1.0 - abs(2.0*l-1.0));',
-        '}',
         'void main() {',
         '  vec2 c = gl_PointCoord - 0.5;',
         '  float d = length(c);',
         '  if (d > 0.5) discard;',
         '  float a = smoothstep(0.5, 0.0, d) * vAlpha;',
-        '  vec3 col = hsl(vHue, 0.85, 0.58);',
+        '  vec3 col = vec3(0.98, 0.72, 0.32);',
         '  gl_FragColor = vec4(col, a);',
         '}'
       ].join('\n'),
@@ -608,14 +406,12 @@
         pos[i*3]   += velocities[i*3]   * dt * 60;
         pos[i*3+1] += velocities[i*3+1] * dt * 60;
         pos[i*3+2] += velocities[i*3+2] * dt * 60;
-        // Wrap on Y (continuous drift up), gentle clamp on X/Z.
         if (pos[i*3+1] > 55)  pos[i*3+1] = -55;
         if (pos[i*3]   > 80)  pos[i*3]   = -80;
         if (pos[i*3]   < -80) pos[i*3]   = 80;
       }
       geometry.attributes.position.needsUpdate = true;
 
-      // Slow camera parallax follows the mouse (subtle).
       camera.position.x += (mx * 8 - camera.position.x) * 0.04;
       camera.position.y += (-my * 6 - camera.position.y) * 0.04;
       camera.lookAt(0, 0, 0);
@@ -625,7 +421,6 @@
     }
     rafId = requestAnimationFrame(loop);
 
-    // Resize
     var resizeRaf = null;
     window.addEventListener('resize', function () {
       if (resizeRaf) cancelAnimationFrame(resizeRaf);
@@ -636,12 +431,11 @@
       });
     });
 
-    // Pause when tab hidden
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) {
         visible = false;
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-      } else if (io && hero.getBoundingClientRect().top < window.innerHeight) {
+      } else if (hero.getBoundingClientRect().top < window.innerHeight) {
         visible = true; if (!rafId) { lastT = 0; rafId = requestAnimationFrame(loop); }
       }
     });
@@ -652,7 +446,9 @@
     boot();
   } else {
     document.addEventListener('mam:ready', boot, { once: true });
-    // If partials never resolve, fall through with bare effects after 3s.
-    setTimeout(function () { if (!document.documentElement.classList.contains('motion-on') && !document.documentElement.classList.contains('motion-reduced')) boot(); }, 3000);
+    setTimeout(function () {
+      if (!document.documentElement.classList.contains('motion-on') &&
+          !document.documentElement.classList.contains('motion-reduced')) boot();
+    }, 3000);
   }
 })();

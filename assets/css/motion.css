@@ -1,17 +1,22 @@
 /* ============================================================
-   MAM Academy — Motion stylesheet
-   Loaded alongside main.css. All effects respect prefers-
-   reduced-motion (the .motion-reduced class on <html>).
+   MAM Academy — Motion stylesheet (clean build)
+   ─────────────────────────────────────────────────────────────
+   Two rules:
+   1. The site looks correct WITHOUT this stylesheet — nothing
+      here is required for layout or readability.
+   2. Initial "to-be-animated" states are gated on .motion-on
+      (added by motion.js at boot) so the page never flashes
+      empty content if the script fails to load.
    ============================================================ */
 
 /* ─────────────  Scroll progress reed  ───────────── */
 .scroll-progress{
   position:fixed; top:0; left:0; right:0; height:2px;
-  background:linear-gradient(90deg, var(--gold) 0%, var(--gold-bright) 50%, var(--red) 100%);
+  background:linear-gradient(90deg, var(--gold) 0%, var(--gold-bright) 55%, var(--red) 100%);
   transform:scaleX(0); transform-origin:left;
   z-index:9999; pointer-events:none;
   will-change:transform;
-  box-shadow:0 0 12px rgba(251,191,36,0.5);
+  box-shadow:0 0 10px rgba(251,191,36,0.55);
 }
 
 /* ─────────────  Floating musical glyphs  ───────────── */
@@ -25,7 +30,6 @@
 .floating-note{
   position:absolute; bottom:-12%;
   color:rgba(251,191,36,0.22);
-  font-family:'Cormorant Garamond', serif;
   font-weight:600;
   text-shadow:0 0 14px rgba(251,191,36,0.35), 0 0 3px rgba(251,191,36,0.5);
   animation: floatNote linear infinite;
@@ -39,18 +43,19 @@
   100% { transform: translate(var(--drift, 0px), -130vh) rotate(var(--spin, 0deg)); opacity:0; }
 }
 
-/* ─────────────  Three.js canvas — ambient particle field  ───────────── */
+/* ─────────────  Three.js canvas — sits between slide-bg and slide-overlay  ───────────── */
 .hero-three-canvas{
   position:absolute; inset:0;
   width:100% !important; height:100% !important;
   pointer-events:none;
-  z-index:2;
+  z-index:1;
   mix-blend-mode:screen;
-  opacity:0.85;
+  opacity:0.9;
 }
 
-/* Slight stage-light gradient layered above the three.js layer.
-   Pulls the eye to the central content card without overpowering. */
+/* Soft stage-light glow over the lower-third of the hero,
+   focusing attention on the content card. Layered above the
+   overlay so it tints everything below it. */
 #hero::after{
   content:''; position:absolute; inset:0;
   background:
@@ -60,7 +65,7 @@
   pointer-events:none;
 }
 
-/* ─────────────  3D perspective parents  ───────────── */
+/* ─────────────  3D perspective parents (no FOUC — pure containers)  ───────────── */
 .schools-grid,
 .pathways-grid,
 .faculty-grid,
@@ -71,8 +76,6 @@
 .unique-grid{
   perspective:1200px;
 }
-/* Cards should sit at the right transform layer so the tilt
-   reads as depth, not as flicker. */
 .school-card,
 .pathway-card,
 .faculty-card,
@@ -86,27 +89,26 @@
   backface-visibility:hidden;
 }
 
-/* ─────────────  Pathway progression — animated track fill  ───────────── */
-.pathway-progression-track{
+/* ─────────────  Pathway progression — gated initial state  ───────────── */
+/* Without .motion-on (no JS / library blocked / reduced motion), the
+   progression shows in its final state — no FOUC, no empty timeline. */
+.motion-on .pathway-progression-track{
   --track-progress: 100%;
 }
-.pathway-progression-track::before{
-  /* Override the static gradient with a width controlled by JS. */
+.motion-on .pathway-progression .pp-node{
+  opacity:0;
+  transform:translateY(20px) scale(0.85);
+  /* Motion One will set inline styles with !important precedence implicitly
+     because inline beats class. fill:forwards is implied. */
+}
+.motion-on .pathway-progression-track::before{
   background:linear-gradient(90deg, var(--gold) 0%, var(--gold-bright) 60%, var(--red) 100%) !important;
   background-size:var(--track-progress, 100%) 100% !important;
   background-repeat:no-repeat !important;
   opacity:0.6;
 }
 
-/* ─────────────  Polished section title presentation  ───────────── */
-.section-eyebrow .line{
-  transform-origin:left;
-}
-
-/* The active hero card has been entering with translateY(60px) → 0 by CSS;
-   keep that as-is but make sure transition continuity isn't fought by Motion. */
-
-/* ─────────────  Mega-spotlight hover lift  ───────────── */
+/* ─────────────  Mega-spotlight refinement  ───────────── */
 .mega-spotlight{
   transition: transform 0.45s cubic-bezier(0.16,1,0.3,1), box-shadow 0.45s;
 }
@@ -116,21 +118,29 @@
 }
 
 /* ─────────────  Subtle gold shimmer on featured cards  ───────────── */
+.pathway-card.featured,
+.next-step-card{
+  position:relative;
+  overflow:hidden;
+}
 .pathway-card.featured::after,
 .next-step-card::after{
   content:''; position:absolute; top:0; left:-100%;
   width:60%; height:100%;
-  background:linear-gradient(120deg, transparent 30%, rgba(251,191,36,0.08) 50%, transparent 70%);
+  background:linear-gradient(120deg, transparent 30%, rgba(251,191,36,0.10) 50%, transparent 70%);
   transform:skewX(-18deg);
-  transition:left 0.8s cubic-bezier(0.16,1,0.3,1);
+  transition:left 0.9s cubic-bezier(0.16,1,0.3,1);
   pointer-events:none;
+  z-index:0;
 }
+.pathway-card.featured > *,
+.next-step-card > *{ position:relative; z-index:1; }
 .pathway-card.featured:hover::after,
 .next-step-card:hover::after{
   left:140%;
 }
 
-/* ─────────────  CTA click feedback — soft press, no ripple  ───────────── */
+/* ─────────────  Soft press feedback on CTAs  ───────────── */
 .btn-primary:active,
 .btn-cta-large:active,
 .btn-nav-cta:active,
@@ -150,9 +160,9 @@
 .motion-reduced *,
 .motion-reduced *::before,
 .motion-reduced *::after{
-  animation-duration: 0.001ms !important;
-  animation-iteration-count: 1 !important;
-  transition-duration: 0.001ms !important;
+  animation-duration:0.001ms !important;
+  animation-iteration-count:1 !important;
+  transition-duration:0.001ms !important;
 }
 
 /* ─────────────  Mobile  ───────────── */
@@ -161,7 +171,6 @@
   .floating-note{ font-size: clamp(0.9rem, 3vw, 1.6rem) !important; }
 }
 
-/* ─────────────  Print  ───────────── */
 @media print{
   .scroll-progress,
   .floating-notes,
