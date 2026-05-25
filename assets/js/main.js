@@ -5,8 +5,20 @@
 (function () {
   'use strict';
 
-  // Iconify — Microsoft Fluent 3D emoji + line-md animated icons.
-  // ~6KB runtime, lazy-loads each icon on demand. Dependable CDN.
+  // dotLottie web component — for genuinely-animated 3D emoji.
+  // Sourced from Google's Noto Animated Emoji set (Lottie JSON
+  // hosted on fonts.gstatic.com — Google's font CDN, bulletproof).
+  // Docs: https://developers.lottiefiles.com/docs/dotlottie-player/dotlottie-web/
+  if (typeof document !== 'undefined' && !document.querySelector('script[data-mam-lottie]')) {
+    var __lp = document.createElement('script');
+    __lp.type = 'module';
+    __lp.src = 'https://unpkg.com/@lottiefiles/dotlottie-wc@0.6.0/dist/dotlottie-wc.js';
+    __lp.async = true;
+    __lp.dataset.mamLottie = '1';
+    (document.head || document.documentElement).appendChild(__lp);
+  }
+  // Iconify — Microsoft Fluent 3D emoji (static) + line-md animated icons.
+  // Used for inline decorations where a Lottie player would be overkill.
   if (typeof document !== 'undefined' && !document.querySelector('script[data-mam-iconify]')) {
     var __ic = document.createElement('script');
     __ic.src = 'https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js';

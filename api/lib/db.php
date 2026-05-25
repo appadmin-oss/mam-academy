@@ -5,23 +5,54 @@
  */
 declare(strict_types=1);
 
+/**
+ * Open (and cache) the PDO connection.
+ *
+ * Production:  set DB_DSN (e.g. "mysql:host=localhost;dbname=mam;charset=utf8mb4")
+ *              with DB_USERNAME + DB_PASSWORD in api/.env. Schema must be
+ *              applied once from db/schema-mysql.sql (or schema-pgsql.sql).
+ * Default:     SQLite file at api/storage/mam.db with auto-migrate.
+ */
 function mam_db(): PDO {
     static $pdo = null;
     if ($pdo !== null) return $pdo;
-    $path = MAM_STORAGE . '/mam.db';
-    if (!is_dir(MAM_STORAGE)) {
-        @mkdir(MAM_STORAGE, 0750, true);
-    }
-    $pdo = new PDO('sqlite:' . $path, null, null, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+
+    $dsn = (string)mam_env('DB_DSN', '');
+    $user = (string)mam_env('DB_USERNAME', '') ?: null;
+    $pass = (string)mam_env('DB_PASSWORD', '') ?: null;
+
+    $opts = [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
-    ]);
+        PDO::ATTR_EMULATE_PREPARES   => false,
+    ];
+
+    if ($dsn !== '') {
+        // Production driver (MySQL, PostgreSQL, etc.)
+        $pdo = new PDO($dsn, $user, $pass, $opts);
+        $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if ($driver === 'mysql') {
+            $pdo->exec("SET NAMES utf8mb4");
+            $pdo->exec("SET SESSION sql_mode='STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION'");
+        }
+        // Migrations on non-SQLite drivers are applied manually from the
+        // shipped schema file in db/. Skip auto-migrate here.
+        return $pdo;
+    }
+
+    // Default: SQLite with auto-migrate
+    $path = MAM_STORAGE . '/mam.db';
+    if (!is_dir(MAM_STORAGE)) @mkdir(MAM_STORAGE, 0750, true);
+    $pdo = new PDO('sqlite:' . $path, null, null, $opts);
     $pdo->exec('PRAGMA journal_mode = WAL');
     $pdo->exec('PRAGMA foreign_keys = ON');
     $pdo->exec('PRAGMA synchronous = NORMAL');
     mam_db_migrate($pdo);
     return $pdo;
+}
+
+function mam_db_driver(): string {
+    return mam_db()->getAttribute(PDO::ATTR_DRIVER_NAME);
 }
 
 function mam_db_migrate(PDO $db): void {
