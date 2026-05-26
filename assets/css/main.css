@@ -51,7 +51,9 @@
 
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{font-size:16px;scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;-webkit-tap-highlight-color:transparent;scroll-padding-top:calc(var(--nav-h) + 16px)}
-body{font-family:var(--font-body);background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;min-height:100vh}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;min-height:100vh;min-height:100dvh}
+/* Long, unbroken strings (URLs, course codes) must never force a horizontal scrollbar on narrow screens */
+h1,h2,h3,h4,h5,h6,p,a,li,figcaption{overflow-wrap:break-word;word-break:break-word}
 img,svg{display:block;max-width:100%;height:auto}
 a{color:inherit;text-decoration:none}
 button{cursor:pointer;border:none;background:none;font-family:inherit;color:inherit}
@@ -69,7 +71,7 @@ ul,ol{list-style:none}
 .skip-link:focus{top:16px;outline:3px solid #fff}
 
 /* ===== Preloader ===== */
-#preloader{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;transition:opacity 0.5s var(--ease),visibility 0.5s var(--ease)}
+#preloader{position:fixed;inset:0;background:var(--bg);z-index:9999;padding:24px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;transition:opacity 0.5s var(--ease),visibility 0.5s var(--ease)}
 #preloader.hidden{opacity:0;visibility:hidden;pointer-events:none}
 .preloader-logo{display:flex;flex-direction:column;align-items:center;gap:14px}
 .preloader-logo img{width:64px;height:64px;border-radius:16px;filter:drop-shadow(0 8px 24px rgba(224,138,26,0.5));animation:pulse 1.4s ease-in-out infinite}
@@ -219,8 +221,8 @@ ul,ol{list-style:none}
 .mobile-nav-cta{display:block;margin:20px 0 8px;padding:16px;text-align:center;font-weight:800;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:var(--radius-md);letter-spacing:0.04em}
 
 /* ===== Section base ===== */
-section,.section{padding:96px 24px;position:relative}
-.container{max-width:var(--content-w);margin:0 auto}
+section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:relative}
+.container{max-width:var(--content-w);margin:0 auto;width:100%}
 .section-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:0.78rem;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:18px}
 .section-eyebrow .line{width:32px;height:2px;background:linear-gradient(90deg,var(--gold-bright),transparent)}
 .section-title{font-family:var(--font-serif);font-size:clamp(2rem,5vw,3.4rem);font-weight:700;line-height:1.1;letter-spacing:-0.02em;margin-bottom:18px;color:var(--text)}
@@ -241,7 +243,7 @@ section,.section{padding:96px 24px;position:relative}
 .btn-block{width:100%}
 
 /* ===== Hero — original 4-slide carousel with promo cards (restored) ===== */
-#hero{position:relative;width:100%;min-height:calc(100vh - var(--nav-h));overflow:hidden;background:var(--bg-surface)}
+#hero{position:relative;width:100%;min-height:calc(100vh - var(--nav-h));min-height:calc(100dvh - var(--nav-h));overflow:hidden;background:var(--bg-surface)}
 .hero-slides{position:absolute;inset:0}
 .hero-slide{position:absolute;inset:0;opacity:0;transition:opacity 0.9s var(--ease);pointer-events:none}
 .hero-slide.active{opacity:1;pointer-events:auto}
@@ -617,7 +619,7 @@ section,.section{padding:96px 24px;position:relative}
 .testimonials-track{display:flex;gap:24px;width:max-content;animation:marquee 36s linear infinite;padding:8px 24px}
 .testimonials-track:hover{animation-play-state:paused}
 @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(calc(-50% - 12px))}}
-.testimonial-card{width:340px;flex-shrink:0;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;transition:border-color 0.3s}
+.testimonial-card{width:min(340px,82vw);flex-shrink:0;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;transition:border-color 0.3s}
 .testimonial-card:hover{border-color:var(--border-gold)}
 .testimonial-stars{color:var(--gold-bright);font-size:0.95rem;margin-bottom:14px;letter-spacing:2px}
 .testimonial-quote{font-family:var(--font-serif);font-size:1.02rem;font-style:italic;color:var(--text);line-height:1.65;margin-bottom:20px}
@@ -819,4 +821,71 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
   .hero-dot{width:14px;height:14px}
   .hero-dot.active{width:32px;height:14px;border-radius:7px}
   .pw-toggle,.bank-copy{min-width:44px;min-height:44px}
+}
+
+/* ═══════════════  Responsive refinement layer  ═══════════════
+   Smooths the gaps between the original breakpoints so every
+   screen width — tiny phones, phablets, tablets (portrait &
+   landscape), small laptops, and ultra-wide — gets a tuned layout.
+   Placed last so these refinements win wherever viewports overlap. */
+
+/* ---- Tablet landscape / small laptop (≤1100px) ---- */
+@media (max-width:1100px){
+  .method-grid{grid-template-columns:repeat(3,1fr)}
+  .programs-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+}
+
+/* ---- Tablet portrait (≤900px) ---- */
+@media (max-width:900px){
+  .pathways-grid{grid-template-columns:repeat(2,1fr)}
+  .method-grid{grid-template-columns:repeat(2,1fr)}
+  .extras-row{grid-template-columns:1fr 1fr}
+  .pathway-progression-side{grid-template-columns:1fr 1fr}
+  .programs-header{flex-direction:column;align-items:flex-start;gap:18px}
+  .mega-spotlight{min-height:140px}
+}
+
+/* ---- Large phone / phablet (≤640px) ---- */
+@media (max-width:640px){
+  .stats-inner{grid-template-columns:repeat(2,1fr)}
+  .method-grid{grid-template-columns:1fr 1fr}
+  .extras-row{grid-template-columns:1fr}
+  .pathway-progression-side{grid-template-columns:1fr}
+  .mode-features,.about-pillars{grid-template-columns:1fr}
+  .footer-newsletter-form{flex-wrap:wrap}
+  .footer-newsletter-input{flex:1 1 100%}
+  .footer-newsletter-btn{flex:1 1 100%}
+  .page-hero-actions{flex-direction:column;align-items:stretch}
+  .page-hero-actions .btn{width:100%}
+  .cookie-banner{flex-direction:column;align-items:stretch}
+  .cookie-actions{justify-content:stretch}
+  .cookie-btn{flex:1}
+}
+
+/* ---- Compact phones (≤420px): drop to single columns everywhere ---- */
+@media (max-width:420px){
+  .stats-inner{grid-template-columns:1fr}
+  .stat-item{border-right:none!important;border-top:1px solid var(--border)}
+  .stat-item:first-child{border-top:none}
+  .method-grid{grid-template-columns:1fr}
+  .pathway-progression-track{grid-template-columns:1fr}
+  .countdown-wrap{gap:6px}
+}
+
+/* ---- Short / landscape phones: let the hero flow instead of clipping ---- */
+@media (max-height:560px) and (orientation:landscape){
+  #hero{min-height:auto}
+  .hero-slide{position:relative}
+  .hero-slide:not(.active){display:none}
+  .hero-content{position:relative;padding:24px 20px 32px}
+  .hero-card{transform:none;opacity:1}
+  .scroll-cue,.hero-nav{display:none}
+}
+
+/* ---- Fluid typography polish so headings never crowd on mid widths ---- */
+@media (max-width:768px){
+  .section-desc,.cta-desc{font-size:1rem}
+  .next-step-title{font-size:1.4rem}
+  .mode-title,.school-name{font-size:1.5rem}
+  .testimonials-track{animation-duration:48s}
 }
