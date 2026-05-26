@@ -443,7 +443,7 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 /* ===== Training modes (Online vs Onsite) ===== */
 #modes{background:var(--bg);padding:96px 24px}
 .modes-head{text-align:center;max-width:720px;margin:0 auto 56px}
-.modes-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.modes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr));gap:clamp(20px,3vw,32px)}
 .mode-card{position:relative;border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);background:var(--bg-card);transition:all 0.35s var(--ease)}
 .mode-card:hover{transform:translateY(-6px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
 .mode-img{height:240px;background-size:cover;background-position:center;position:relative}
@@ -476,7 +476,7 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 
 /* ===== Schools ===== */
 .schools-head{text-align:center;max-width:760px;margin:0 auto 56px}
-.schools-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}
+.schools-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:clamp(16px,2.5vw,24px)}
 .school-card{position:relative;overflow:hidden;padding:36px;border-radius:var(--radius-lg);border:1px solid var(--border);background:linear-gradient(180deg,var(--bg-raised),var(--bg-card));transition:all 0.35s var(--ease)}
 .school-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--gold),var(--gold-bright))}
 .school-card[data-school="B"]::before{background:linear-gradient(90deg,var(--red),var(--orange))}
@@ -514,7 +514,7 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 .currency-toggle{display:inline-flex;align-items:center;gap:0;margin:24px auto 0;padding:4px;background:var(--bg-raised);border:1px solid var(--border);border-radius:100px}
 .currency-btn{padding:8px 18px;font-size:0.82rem;font-weight:700;color:var(--text-muted);border-radius:100px;transition:all 0.2s var(--ease)}
 .currency-btn.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
-.pathways-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.pathways-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:clamp(14px,2vw,20px)}
 .pathway-card{position:relative;padding:32px 26px 28px;border-radius:var(--radius-lg);background:var(--bg-card);border:1px solid var(--border);transition:all 0.35s var(--ease);display:flex;flex-direction:column}
 .pathway-card:hover{transform:translateY(-6px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
 .pathway-card.featured{border-color:var(--border-gold);background:linear-gradient(180deg,rgba(224,138,26,0.1),var(--bg-card))}
@@ -529,7 +529,7 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 .pathway-feat{display:flex;align-items:flex-start;gap:10px;font-size:0.84rem;color:var(--text-soft);line-height:1.5}
 .pathway-feat i{color:var(--gold-bright);font-size:0.75rem;margin-top:4px;flex-shrink:0}
 
-.extras-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:32px}
+.extras-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:clamp(14px,2vw,20px);margin-top:32px}
 .extra-card{padding:22px 24px;border-radius:var(--radius-md);background:var(--bg-raised);border:1px solid var(--border);display:flex;align-items:center;gap:18px;transition:all 0.25s var(--ease)}
 .extra-card:hover{border-color:var(--border-gold)}
 .extra-icon{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,rgba(224,138,26,0.2),rgba(251,191,36,0.1));border:1px solid rgba(251,191,36,0.3);display:flex;align-items:center;justify-content:center;color:var(--gold-bright);font-size:1.2rem;flex-shrink:0}
@@ -552,7 +552,7 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 
 /* ===== Method ===== */
 .method-head{text-align:center;max-width:720px;margin:0 auto 64px}
-.method-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:18px}
+.method-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(170px,100%),1fr));gap:clamp(12px,1.8vw,18px)}
 .method-step{position:relative;padding:28px 22px;border-radius:var(--radius-md);background:var(--bg-card);border:1px solid var(--border);text-align:center;transition:all 0.3s var(--ease)}
 .method-step:hover{transform:translateY(-4px);border-color:var(--border-gold);background:linear-gradient(180deg,rgba(224,138,26,0.07),var(--bg-card))}
 .method-num{width:44px;height:44px;margin:0 auto 14px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-family:var(--font-display);font-size:1.3rem;line-height:44px}
@@ -561,7 +561,7 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 
 /* ===== Unique cards ===== */
 .unique-head{text-align:center;max-width:760px;margin:0 auto 56px}
-.unique-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.unique-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(290px,100%),1fr));gap:clamp(16px,2.5vw,24px)}
 .unique-card{padding:36px 32px;border-radius:var(--radius-lg);background:linear-gradient(180deg,var(--bg-elevated),var(--bg-card));border:1px solid var(--border);position:relative;overflow:hidden;transition:all 0.35s var(--ease)}
 .unique-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--gold),var(--gold-bright),var(--gold));opacity:0;transition:opacity 0.3s}
 .unique-card:hover{transform:translateY(-6px);border-color:var(--border-gold)}
@@ -580,7 +580,7 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 .filter-tab{padding:9px 20px;border-radius:100px;font-size:0.85rem;font-weight:600;color:var(--text-soft);background:var(--bg-raised);border:1px solid var(--border);transition:all 0.2s var(--ease)}
 .filter-tab:hover{color:var(--gold-bright);border-color:var(--border-gold)}
 .filter-tab.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent;box-shadow:0 4px 16px rgba(224,138,26,0.35)}
-.programs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:24px}
+.programs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:clamp(16px,2.5vw,24px)}
 .program-card{border-radius:var(--radius-lg);overflow:hidden;background:var(--bg-card);border:1px solid var(--border);transition:all 0.35s var(--ease);position:relative;display:flex;flex-direction:column}
 .program-card:hover{transform:translateY(-6px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
 .program-card.featured{border-color:var(--border-gold);background:linear-gradient(135deg,rgba(224,138,26,0.1),var(--bg-card))}
@@ -711,8 +711,6 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
   .mega-spotlight{grid-column:1 / -1;min-height:160px;flex-direction:row;align-items:center;border-left:none;border-top:1px solid var(--border)}
   .mega-spotlight-body{flex:1;justify-content:center}
   .mega-spotlight-foot{flex-direction:column;align-items:flex-end;justify-content:center;gap:8px}
-  .pathways-grid{grid-template-columns:repeat(2,1fr)}
-  .method-grid{grid-template-columns:repeat(3,1fr)}
   .footer-grid{grid-template-columns:2fr 1fr 1fr}
   .footer-brand{grid-column:1 / -1;max-width:560px}
   .footer-newsletter{grid-column:1 / -1;max-width:560px}
@@ -723,10 +721,6 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
   .about-grid,.auditer-grid{grid-template-columns:1fr;gap:56px}
   .about-visual,.auditer-visual{max-width:540px;margin:0 auto}
   .about-badge{left:-8px}.about-img-accent{right:-8px}
-  .schools-grid{grid-template-columns:1fr}
-  .unique-grid{grid-template-columns:1fr}
-  .extras-row{grid-template-columns:1fr}
-  .modes-grid{grid-template-columns:1fr}
 }
 @media (max-width:768px){
   :root{--nav-h:64px}
@@ -742,9 +736,6 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
   .stats-inner{grid-template-columns:repeat(2,1fr)}
   .stat-item:nth-child(2){border-right:none}
   .stat-item:nth-child(3),.stat-item:nth-child(4){border-top:1px solid var(--border)}
-  .programs-grid{grid-template-columns:1fr}
-  .pathways-grid{grid-template-columns:1fr}
-  .method-grid{grid-template-columns:1fr 1fr}
   .countdown-wrap{gap:8px}
   .countdown-box{min-width:64px;padding:14px 12px}
   .countdown-num{font-size:2rem}
@@ -829,17 +820,14 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
    landscape), small laptops, and ultra-wide — gets a tuned layout.
    Placed last so these refinements win wherever viewports overlap. */
 
-/* ---- Tablet landscape / small laptop (≤1100px) ---- */
-@media (max-width:1100px){
-  .method-grid{grid-template-columns:repeat(3,1fr)}
-  .programs-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
-}
+/* Card grids (pathways, schools, unique, method, modes, extras, programs)
+   now use intrinsic auto-fit + minmax(min(…),1fr), so they reflow at every
+   width without breakpoints. The rules below only handle layouts that
+   genuinely need a fixed column count (sub-grids, stats borders, content
+   splits) plus a few flex/typography refinements. */
 
 /* ---- Tablet portrait (≤900px) ---- */
 @media (max-width:900px){
-  .pathways-grid{grid-template-columns:repeat(2,1fr)}
-  .method-grid{grid-template-columns:repeat(2,1fr)}
-  .extras-row{grid-template-columns:1fr 1fr}
   .pathway-progression-side{grid-template-columns:1fr 1fr}
   .programs-header{flex-direction:column;align-items:flex-start;gap:18px}
   .mega-spotlight{min-height:140px}
@@ -848,8 +836,6 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
 /* ---- Large phone / phablet (≤640px) ---- */
 @media (max-width:640px){
   .stats-inner{grid-template-columns:repeat(2,1fr)}
-  .method-grid{grid-template-columns:1fr 1fr}
-  .extras-row{grid-template-columns:1fr}
   .pathway-progression-side{grid-template-columns:1fr}
   .mode-features,.about-pillars{grid-template-columns:1fr}
   .footer-newsletter-form{flex-wrap:wrap}
@@ -867,7 +853,6 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
   .stats-inner{grid-template-columns:1fr}
   .stat-item{border-right:none!important;border-top:1px solid var(--border)}
   .stat-item:first-child{border-top:none}
-  .method-grid{grid-template-columns:1fr}
   .pathway-progression-track{grid-template-columns:1fr}
   .countdown-wrap{gap:6px}
 }
