@@ -7,7 +7,7 @@ $classId = (int)($in['class_id'] ?? 0);
 $applicationId = isset($in['application_id']) ? (int)$in['application_id'] : null;
 if (!$studentId || !$classId) mam_fail('validation', 422, ['fields' => ['student_id', 'class_id']]);
 
-$student = mam_db_row('SELECT id FROM users WHERE id = ? AND role = "student"', [$studentId]);
+$student = mam_db_row("SELECT id FROM users WHERE id = ? AND role = 'student'", [$studentId]);
 $class = mam_db_row('SELECT id FROM classes WHERE id = ?', [$classId]);
 if (!$student || !$class) mam_fail('not_found', 404);
 
@@ -17,7 +17,11 @@ try {
         'application_id' => $applicationId, 'status' => 'active',
     ]);
 } catch (PDOException $e) {
-    if (str_contains($e->getMessage(), 'UNIQUE')) mam_fail('already_enrolled', 409);
+    $msg = $e->getMessage();
+    // SQLite: "UNIQUE constraint failed", MySQL: "Duplicate entry" / SQLSTATE 23000
+    if (str_contains($msg, 'UNIQUE') || str_contains($msg, 'Duplicate') || ($e->getCode() === '23000')) {
+        mam_fail('already_enrolled', 409);
+    }
     throw $e;
 }
 

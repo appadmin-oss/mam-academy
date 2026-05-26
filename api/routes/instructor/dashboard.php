@@ -5,12 +5,12 @@ $u = mam_require_role('instructor', 'admin');
 
 $instructorId = (int)$u['id'];
 $classes = mam_db_all(
-    'SELECT c.*, (SELECT COUNT(*) FROM enrollments e WHERE e.class_id = c.id AND e.status = "active") AS enrolled_count FROM classes c WHERE c.instructor_id = ? AND c.status = "active" ORDER BY c.starts_on DESC',
+    "SELECT c.*, (SELECT COUNT(*) FROM enrollments e WHERE e.class_id = c.id AND e.status = 'active') AS enrolled_count FROM classes c WHERE c.instructor_id = ? AND c.status = 'active' ORDER BY c.starts_on DESC",
     [$instructorId]
 );
 
 $students = mam_db_all(
-    'SELECT DISTINCT u.id, u.name, u.email, u.phone, e.class_id, c.title AS class_title FROM enrollments e JOIN classes c ON c.id = e.class_id JOIN users u ON u.id = e.student_id WHERE c.instructor_id = ? AND e.status = "active" ORDER BY u.name',
+    "SELECT DISTINCT u.id, u.name, u.email, u.phone, e.class_id, c.title AS class_title FROM enrollments e JOIN classes c ON c.id = e.class_id JOIN users u ON u.id = e.student_id WHERE c.instructor_id = ? AND e.status = 'active' ORDER BY u.name",
     [$instructorId]
 );
 

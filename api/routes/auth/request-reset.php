@@ -13,7 +13,7 @@ $in = mam_json_input();
 $email = mam_email(mam_str($in, 'email', 120));
 
 if ($email) {
-    $user = mam_db_row('SELECT id, email, name FROM users WHERE email = ? AND status = "active"', [$email]);
+    $user = mam_db_row("SELECT id, email, name FROM users WHERE email = ? AND status = 'active'", [$email]);
     if ($user) {
         $token   = bin2hex(random_bytes(20));
         $hash    = hash('sha256', $token);

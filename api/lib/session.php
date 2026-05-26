@@ -60,8 +60,8 @@ function mam_session_user(): ?array {
     if (!$token || !preg_match('/^[a-f0-9]{40}$/', $token)) return $user = null;
     $hash = hash('sha256', $token);
     $row = mam_db_row(
-        'SELECT u.*, s.expires_at AS session_expires FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > datetime("now") AND u.status = "active"',
-        [$hash]
+        "SELECT u.*, s.expires_at AS session_expires FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.status = 'active'",
+        [$hash, date('Y-m-d H:i:s')]
     );
     if (!$row) return $user = null;
     return $user = $row;
@@ -79,5 +79,5 @@ function mam_session_destroy(): void {
 /** Sweep expired sessions occasionally (1 in 50 requests). */
 function mam_session_gc(): void {
     if (random_int(1, 50) !== 1) return;
-    try { mam_db()->exec("DELETE FROM sessions WHERE expires_at <= datetime('now')"); } catch (Throwable $e) {}
+    try { mam_db()->prepare('DELETE FROM sessions WHERE expires_at <= ?')->execute([date('Y-m-d H:i:s')]); } catch (Throwable $e) {}
 }

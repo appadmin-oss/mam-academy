@@ -13,7 +13,7 @@ declare(strict_types=1);
 function mam_login(string $email, string $password, bool $remember = true): ?array {
     $email = strtolower(trim($email));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
-    $u = mam_db_row('SELECT * FROM users WHERE email = ? AND status = "active"', [$email]);
+    $u = mam_db_row("SELECT * FROM users WHERE email = ? AND status = 'active'", [$email]);
     if (!$u) return null;
     if (!password_verify($password, $u['password_hash'])) return null;
     // Rehash if algorithm has been upgraded
