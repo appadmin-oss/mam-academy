@@ -52,8 +52,11 @@
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{font-size:16px;scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;-webkit-tap-highlight-color:transparent;scroll-padding-top:calc(var(--nav-h) + 16px)}
 body{font-family:var(--font-body);background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;min-height:100vh;min-height:100dvh}
-/* Long, unbroken strings (URLs, course codes) must never force a horizontal scrollbar on narrow screens */
-h1,h2,h3,h4,h5,h6,p,a,li,figcaption{overflow-wrap:break-word;word-break:break-word}
+/* Long, unbroken strings (URLs, course codes) must never force a horizontal
+   scrollbar. overflow-wrap:break-word breaks only when a word would overflow —
+   unlike word-break:break-word it does NOT collapse min-content, so it never
+   shatters headings per-character inside fr/grid tracks. */
+h1,h2,h3,h4,h5,h6,p,a,li,figcaption{overflow-wrap:break-word}
 img,svg{display:block;max-width:100%;height:auto}
 a{color:inherit;text-decoration:none}
 button{cursor:pointer;border:none;background:none;font-family:inherit;color:inherit}
