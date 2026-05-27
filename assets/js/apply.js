@@ -47,8 +47,13 @@
       country: 'Nigeria', city: '', age: '', dob: '', experience: '', goals: '', referrer: '',
       auditer: true, parentName: '', parentPhone: '', emergencyContact: '',
       includeRegistration: true, includeCertification: false, payment: '', currency: 'USD',
+      programTrack: '', policyAgree: false, policySignName: '',
       reference: null, applicationId: null, serverTotalUsd: null
     };
+
+    // KTAMS (Kids @ MAM) = under 16; MAM = 16 and above. Derived from age.
+    var KTAMS_AGES = ['under-6', '6-9', '10-12', '13-15'];
+    function deriveTrack(age) { return age ? (KTAMS_AGES.indexOf(age) >= 0 ? 'KTAMS' : 'MAM') : ''; }
 
     // Pre-fill from URL ?pathway=cert&mode=online&discipline=piano
     try {
@@ -68,6 +73,8 @@
       var main = $('.apply-main');
       if (main) window.scrollTo({ top: main.offsetTop - 100, behavior: 'smooth' });
       updateSummary();
+      updateTrackUI();
+      if (current === 3) renderPolicy();
     }
     function saveDraft() { try { localStorage.setItem('mam.apply.draft', JSON.stringify(data)); } catch (e) {} }
     function loadDraft() { try { var r = localStorage.getItem('mam.apply.draft'); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
@@ -118,8 +125,13 @@
         check('phone',     phoneRe.test((data.phone || '').trim()));
         check('country',   (data.country || '').trim().length > 1);
         check('age',       !!data.age);
+        // Under-16 (KTAMS) applicants must provide a parent/guardian
+        if (deriveTrack(data.age) === 'KTAMS') check('parentName', (data.parentName || '').trim().length > 1);
       }
       if (idx === 3) {
+        var pa = $('#policyAgree');
+        if (!pa || !pa.checked) { var pe = $('#err-policyAgree'); if (pe) pe.classList.add('shown'); ok = false; if (!first) first = pa; }
+        check('policySignName', (data.policySignName || '').trim().length > 1);
         var consentEl = $('#consent');
         if (!consentEl || !consentEl.checked) { var c = $('#err-consent'); if (c) c.classList.add('shown'); ok = false; }
       }
@@ -163,11 +175,56 @@
     function row(k, v) { return '<div class="summary-row"><span>' + k + '</span><span>' + v + '</span></div>'; }
     function titleCase(s) { return String(s || '').replace(/[-_]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
 
+    // ---------- Track (KTAMS vs MAM) ----------
+    function updateTrackUI() {
+      data.programTrack = deriveTrack(data.age);
+      var tracks = cfg.tracks || {};
+      var badge = $('#trackBadge');
+      if (badge) {
+        if (data.programTrack && tracks[data.programTrack]) {
+          var t = tracks[data.programTrack];
+          badge.hidden = false;
+          badge.classList.toggle('is-ktams', data.programTrack === 'KTAMS');
+          var nm = $('#trackBadgeName'); if (nm) nm.textContent = t.name;
+          var nt = $('#trackBadgeNote'); if (nt) nt.textContent = t.note;
+        } else { badge.hidden = true; }
+      }
+      // Guardian is required for KTAMS (under-16) applicants
+      var isKid = data.programTrack === 'KTAMS';
+      var req = $('#guardianReq'), opt = $('#guardianOpt');
+      if (req) req.hidden = !isKid;
+      if (opt) opt.textContent = isKid ? '(required for under-16)' : '(for under 16)';
+      if (!isKid) clearError('parentName');
+    }
+
+    // ---------- Policy summary (online vs onsite) ----------
+    function renderPolicy() {
+      var pol = (cfg.policies || {})[data.mode];
+      var titleEl = $('#policyTitle'), introEl = $('#policyIntro'),
+          pointsEl = $('#policyPoints'), nameEl = $('#policyConsentName'), dateEl = $('#policySignDate');
+      if (dateEl) dateEl.textContent = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+      if (!pol) {
+        if (titleEl) titleEl.textContent = 'Class Policy';
+        if (introEl) introEl.textContent = 'Choose a learning mode in Step 1 to see the policy that applies to you.';
+        if (pointsEl) pointsEl.innerHTML = '';
+        if (nameEl) nameEl.textContent = 'MAM Academy class policy';
+        return;
+      }
+      if (titleEl) titleEl.textContent = pol.title;
+      if (introEl) introEl.textContent = pol.intro;
+      if (pointsEl) pointsEl.innerHTML = pol.points.map(function (p) {
+        return '<li><i class="fa-solid fa-check"></i><span>' + escapeHtml(p) + '</span></li>';
+      }).join('');
+      if (nameEl) nameEl.textContent = pol.title;
+    }
+
     function renderReview() {
       var price = cfg.pricing[data.pathway];
       function item(l, v) { return '<div class="review-item"><span class="review-label">' + l + '</span><span class="review-value">' + (v || '—') + '</span></div>'; }
       var html = '';
       html += '<div class="review-section"><div class="review-section-head"><h4>Programme</h4><button type="button" data-jump="0">Edit</button></div><div class="review-grid">';
+      var trk = deriveTrack(data.age);
+      html += item('Track', trk && cfg.tracks[trk] ? cfg.tracks[trk].name : '—');
       html += item('Pathway', price ? price.name : '—');
       html += item('Mode',    data.mode === 'online' ? 'Online' : (data.mode === 'onsite' ? 'Onsite Lagos' : '—'));
       html += item('Discipline', titleCase(data.discipline));
@@ -227,6 +284,11 @@
     bindField('auditerOptIn', 'auditer');
     bindField('includeRegistration', 'includeRegistration');
     bindField('includeCertification', 'includeCertification');
+    bindField('policySignName', 'policySignName');
+    bindField('policyAgree', 'policyAgree');
+    // Live feedback: age drives the KTAMS/MAM track + guardian requirement; mode drives the policy shown
+    $$('input[name="mode"]').forEach(function (i) { on(i, 'change', renderPolicy); });
+    var ageEl = document.getElementById('age'); if (ageEl) { on(ageEl, 'change', updateTrackUI); }
 
     bindRadioGroup('payment', 'payment');
     $$('input[name="payment"]').forEach(function (r) {
@@ -296,7 +358,11 @@
         parentName: data.parentName, parentPhone: data.parentPhone, emergencyContact: data.emergencyContact,
         auditer: !!data.auditer,
         includeRegistration: !!data.includeRegistration,
-        includeCertification: !!data.includeCertification
+        includeCertification: !!data.includeCertification,
+        programTrack: deriveTrack(data.age),
+        policyMode: data.mode,
+        policyAgreed: !!data.policyAgree,
+        policySignedName: data.policySignName
       };
     }
     function showServerErrors(fields) {

@@ -61,9 +61,14 @@ function mam_validate_application(array $in): array {
     $out['discipline'] = mam_str($in, 'discipline', 32);
     if (!mam_in($out['discipline'], $allowedDisc)) $errors[] = 'discipline';
 
-    $allowedAges = ['4-7','8-12','13-17','18-25','26+'];
-    $out['age'] = mam_str($in, 'age', 8);
+    $allowedAges = ['under-6','6-9','10-12','13-15','16-17','18-25','26+'];
+    $out['age'] = mam_str($in, 'age', 12);
     if (!mam_in($out['age'], $allowedAges)) $errors[] = 'age';
+
+    // Programme track is derived from age server-side (never trust client).
+    // KTAMS = Kids @ MAM (under 16) · MAM = 16 and above.
+    $ktamsAges = ['under-6','6-9','10-12','13-15'];
+    $out['programTrack'] = mam_in($out['age'], $ktamsAges) ? 'KTAMS' : 'MAM';
 
     $out['country']  = mam_str($in, 'country',  80) ?: null;
     $out['city']     = mam_str($in, 'city',     80) ?: null;
@@ -78,6 +83,20 @@ function mam_validate_application(array $in): array {
     $out['auditer']               = mam_bool($in, 'auditer');
     $out['includeRegistration']   = mam_bool($in, 'includeRegistration');
     $out['includeCertification']  = mam_bool($in, 'includeCertification');
+
+    // Under-16 (KTAMS) students must have a parent/guardian on record.
+    if ($out['programTrack'] === 'KTAMS' && ($out['parentName'] === null || $out['parentName'] === '')) {
+        $errors[] = 'parentName';
+    }
+
+    // Class policy agreement (online -> home policy, onsite -> onsite policy).
+    // policyMode mirrors the chosen learning mode; the signed name is the
+    // applicant's electronic signature on the policy.
+    $out['policyMode']       = mam_in($out['mode'], ['online','onsite']) ? $out['mode'] : null;
+    $out['policyAgreed']     = mam_bool($in, 'policyAgreed');
+    $out['policySignedName'] = mam_str($in, 'policySignedName', 120) ?: null;
+    if (!$out['policyAgreed'])                 $errors[] = 'policyAgreed';
+    if (($out['policySignedName'] ?? '') === '') $errors[] = 'policySignedName';
 
     if (!empty($errors)) mam_fail('validation', 422, ['fields' => $errors]);
 

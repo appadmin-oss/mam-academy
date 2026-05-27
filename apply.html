@@ -182,6 +182,10 @@
           <div class="step-num">Step 2 of 5</div>
           <h2 class="step-title">Student Profile</h2>
           <p class="step-desc">Tell us about the student. We use this only to onboard and contact you about your enrollment.</p>
+          <div class="track-badge" id="trackBadge" hidden>
+            <i class="fa-solid fa-graduation-cap"></i>
+            <div><strong id="trackBadgeName">MAM Academy</strong><span id="trackBadgeNote"></span></div>
+          </div>
         </div>
 
         <div class="field-row">
@@ -228,11 +232,17 @@
             <div class="field-select-wrap">
               <select id="age" class="field-select">
                 <option value="">Select age range</option>
-                <option value="4-7">4 – 7 years</option>
-                <option value="8-12">8 – 12 years</option>
-                <option value="13-17">13 – 17 years</option>
-                <option value="18-25">18 – 25 years</option>
-                <option value="26+">26 years &amp; above</option>
+                <optgroup label="KTAMS — Kids @ MAM (under 16)">
+                  <option value="under-6">Under 6 years</option>
+                  <option value="6-9">6 – 9 years</option>
+                  <option value="10-12">10 – 12 years</option>
+                  <option value="13-15">13 – 15 years</option>
+                </optgroup>
+                <optgroup label="MAM Academy (16 and above)">
+                  <option value="16-17">16 – 17 years</option>
+                  <option value="18-25">18 – 25 years</option>
+                  <option value="26+">26 years &amp; above</option>
+                </optgroup>
               </select>
               <i class="fa-solid fa-chevron-down field-select-arrow"></i>
             </div>
@@ -244,12 +254,13 @@
           </div>
         </div>
 
-        <div class="field">
-          <label class="field-label" for="parentName">Parent / Guardian <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:normal">(for under 18)</span></label>
+        <div class="field" id="guardianField">
+          <label class="field-label" for="parentName">Parent / Guardian <span class="req" id="guardianReq" hidden>*</span><span id="guardianOpt" style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:normal">(for under 16)</span></label>
           <div class="field-row">
-            <input type="text" id="parentName" class="field-input" placeholder="Guardian name">
-            <input type="tel" id="parentPhone" class="field-input" placeholder="Guardian phone">
+            <input type="text" id="parentName" class="field-input" placeholder="Guardian name" autocomplete="name">
+            <input type="tel" id="parentPhone" class="field-input" placeholder="Guardian phone" autocomplete="tel">
           </div>
+          <div class="field-error" id="err-parentName"><i class="fa-solid fa-circle-exclamation"></i><span>A parent/guardian is required for under-16 (KTAMS) students</span></div>
         </div>
 
         <div class="field">
@@ -347,9 +358,29 @@
           </label>
         </div>
 
+        <div class="policy-block" id="policyBlock" style="margin-top:24px">
+          <div class="policy-block-head"><i class="fa-solid fa-file-contract"></i><h4 id="policyTitle">Class Policy</h4></div>
+          <p class="policy-intro" id="policyIntro"></p>
+          <ul class="policy-points" id="policyPoints"></ul>
+          <p class="policy-note">The complete, full-length policy is emailed to you the moment you submit — keep it for your records.</p>
+        </div>
+
         <label class="consent">
+          <input type="checkbox" id="policyAgree">
+          <span class="consent-text">I have read and agree to abide by the <strong id="policyConsentName">MAM Academy class policy</strong>.</span>
+        </label>
+        <div class="field-error" id="err-policyAgree"><i class="fa-solid fa-circle-exclamation"></i><span>Please agree to the class policy to continue</span></div>
+
+        <div class="field" id="policySignField" style="margin-top:14px">
+          <label class="field-label" for="policySignName">Type your full name to sign <span class="req">*</span></label>
+          <input type="text" id="policySignName" class="field-input" placeholder="Your full legal name" autocomplete="name" maxlength="120">
+          <div class="field-help">Signed on <span id="policySignDate">—</span>. This acts as your electronic signature on the policy.</div>
+          <div class="field-error" id="err-policySignName"><i class="fa-solid fa-circle-exclamation"></i><span>Type your full name to sign the policy</span></div>
+        </div>
+
+        <label class="consent" style="margin-top:14px">
           <input type="checkbox" id="consent">
-          <span class="consent-text">I confirm the information above is accurate and I agree to MAM Academy's <a href="terms.html">Terms of Service</a> and <a href="privacy.html">Privacy Policy</a>.</span>
+          <span class="consent-text">I confirm the information above is accurate and I agree to MAM Academy's <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
         </label>
         <div class="field-error" id="err-consent"><i class="fa-solid fa-circle-exclamation"></i><span>Please confirm to continue</span></div>
 

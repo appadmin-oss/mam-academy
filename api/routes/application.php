@@ -77,6 +77,11 @@ try {
         'auditer_optin'          => $v['auditer'],
         'include_registration'   => $v['includeRegistration'],
         'include_certification'  => $v['includeCertification'],
+        'program_track'          => $v['programTrack'],
+        'policy_mode'            => $v['policyMode'],
+        'policy_agreed'          => $v['policyAgreed'],
+        'policy_signed_name'     => $v['policySignedName'],
+        'policy_signed_at'       => $v['policyAgreed'] ? date('Y-m-d H:i:s') : null,
         'total_usd'              => $total,
         'status'                 => 'submitted',
         'source'                 => substr((string)($_SERVER['HTTP_REFERER'] ?? ''), 0, 200),
@@ -101,6 +106,16 @@ $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$appId]);
     mam_email_application_confirmation($app, $customer),
     true
 );
+// Send the full class policy the applicant agreed to (online vs onsite),
+// stamped with their electronic signature — keep for their records.
+if (!empty($v['policyMode'])) {
+    @mam_send_mail(
+        $v['email'],
+        'MAM Academy — Your ' . ($v['policyMode'] === 'onsite' ? 'Onsite' : 'Online/Home') . ' Class Policy',
+        mam_email_policy($v['policyMode'], (string)$v['policySignedName'], $reference),
+        true
+    );
+}
 $notify = mam_env('NOTIFY_EMAIL');
 if ($notify) {
     @mam_send_mail(

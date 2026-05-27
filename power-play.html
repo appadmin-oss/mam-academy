@@ -14,24 +14,48 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="assets/css/main.css">
 <style>
-.pp-hero{position:relative;padding:140px 24px 110px;background:radial-gradient(ellipse at top right,rgba(99,102,241,0.35),transparent 60%),radial-gradient(ellipse at bottom left,rgba(251,191,36,0.25),transparent 60%),var(--bg-surface);overflow:hidden;border-bottom:1px solid var(--border)}
-.pp-hero-inner{position:relative;max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1.2fr 1fr;gap:48px;align-items:center}
-.pp-eyebrow{display:inline-flex;gap:8px;padding:8px 18px;background:rgba(99,102,241,0.2);border:1px solid rgba(165,180,252,0.5);border-radius:100px;font-size:0.8rem;font-weight:800;color:#C7D2FE;letter-spacing:0.14em;text-transform:uppercase;margin-bottom:22px}
-.pp-title{font-family:var(--font-display);font-size:clamp(3.2rem,9vw,6rem);line-height:0.93;letter-spacing:0.02em;color:#fff;margin-bottom:20px}
-.pp-title .accent{color:#FBBF24}
-.pp-lede{font-size:1.15rem;color:rgba(255,255,255,0.9);line-height:1.65;margin-bottom:24px;max-width:560px}
-.pp-host{display:flex;align-items:center;gap:18px;padding:16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:24px;max-width:480px}
-.pp-host-avatar{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#6366F1,#A5B4FC);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.5rem;color:#fff;flex-shrink:0}
-.pp-host-name{font-size:1.05rem;font-weight:700;color:var(--text)}
-.pp-host-role{font-size:0.85rem;color:var(--text-muted)}
+.pp-hero{position:relative;padding:clamp(96px,12vw,148px) clamp(16px,4vw,24px) clamp(72px,9vw,108px);background:radial-gradient(ellipse 70% 60% at 85% 0%,rgba(99,102,241,0.34),transparent 60%),radial-gradient(ellipse 60% 60% at 0% 100%,rgba(251,191,36,0.20),transparent 62%),var(--bg-surface);overflow:hidden;border-bottom:1px solid var(--border)}
+/* faint electric grid texture for depth */
+.pp-hero::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(165,180,252,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(165,180,252,0.05) 1px,transparent 1px);background-size:46px 46px;mask-image:radial-gradient(ellipse 80% 70% at 70% 20%,#000,transparent 75%);-webkit-mask-image:radial-gradient(ellipse 80% 70% at 70% 20%,#000,transparent 75%);pointer-events:none}
+.pp-hero-inner{position:relative;z-index:1;max-width:1100px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,0.88fr);gap:clamp(28px,4vw,52px);align-items:start}
+.pp-eyebrow{display:inline-flex;align-items:center;gap:9px;padding:8px 18px;background:rgba(99,102,241,0.2);border:1px solid rgba(165,180,252,0.5);border-radius:100px;font-size:0.78rem;font-weight:800;color:#C7D2FE;letter-spacing:0.14em;text-transform:uppercase;margin-bottom:22px}
+.pp-eyebrow .pp-live{width:8px;height:8px;border-radius:50%;background:#A5B4FC;box-shadow:0 0 0 0 rgba(165,180,252,0.6);animation:ppPulse 1.8s ease-out infinite}
+@keyframes ppPulse{0%{box-shadow:0 0 0 0 rgba(165,180,252,0.55)}70%{box-shadow:0 0 0 9px rgba(165,180,252,0)}100%{box-shadow:0 0 0 0 rgba(165,180,252,0)}}
+.pp-title{font-family:var(--font-display);font-size:clamp(2.8rem,10vw,6rem);line-height:0.92;letter-spacing:0.02em;color:#fff;margin-bottom:18px;text-shadow:0 0 48px rgba(99,102,241,0.35)}
+.pp-title .accent{background:linear-gradient(135deg,#FBBF24,#F59E0B);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.pp-lede{font-size:clamp(1.02rem,2.2vw,1.18rem);color:rgba(255,255,255,0.9);line-height:1.65;margin-bottom:22px;max-width:560px}
+.pp-host{display:flex;align-items:center;gap:16px;padding:14px 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:22px;max-width:480px}
+.pp-host-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6366F1,#A5B4FC);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.4rem;color:#fff;flex-shrink:0;box-shadow:0 6px 18px rgba(99,102,241,0.4)}
+.pp-host-name{font-size:1.02rem;font-weight:700;color:var(--text)}
+.pp-host-role{font-size:0.84rem;color:var(--text-muted)}
+.pp-stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:26px}
+.pp-stat{flex:1;min-width:104px;padding:14px 16px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:var(--radius-md)}
+.pp-stat b{display:block;font-family:var(--font-display);font-size:1.7rem;line-height:1;color:#C7D2FE;letter-spacing:0.02em}
+.pp-stat span{font-size:0.74rem;color:var(--text-muted);letter-spacing:0.04em;text-transform:uppercase}
+.pp-cta-row{display:flex;gap:12px;flex-wrap:wrap}
 .pp-side{position:relative}
-.pp-side-card{padding:28px;border-radius:var(--radius-lg);background:rgba(18,13,8,0.85);backdrop-filter:blur(20px);border:1px solid var(--border-gold);box-shadow:var(--shadow-lg)}
-.pp-side-card h3{font-family:var(--font-serif);font-size:1.4rem;font-weight:700;color:var(--text);margin-bottom:14px}
-.pp-side-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:0.9rem}
+.pp-side-card{padding:24px;border-radius:var(--radius-lg);background:rgba(18,13,8,0.88);backdrop-filter:blur(20px);border:1px solid var(--border-gold);box-shadow:var(--shadow-lg)}
+.pp-next{display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:18px;border-radius:var(--radius-md);background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(99,102,241,0.08));border:1px solid rgba(165,180,252,0.4)}
+.pp-next-cal{width:46px;height:46px;border-radius:12px;background:#0E0A06;border:1px solid rgba(165,180,252,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;flex-shrink:0}
+.pp-next-cal b{font-family:var(--font-display);font-size:1.3rem;color:#C7D2FE}
+.pp-next-cal span{font-size:0.58rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted)}
+.pp-next-label{font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:#A5B4FC;font-weight:800}
+.pp-next-when{font-size:0.95rem;font-weight:700;color:var(--text);margin-top:2px}
+.pp-side-card h3{font-family:var(--font-serif);font-size:1.25rem;font-weight:700;color:var(--text);margin-bottom:10px}
+.pp-side-row{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--border);font-size:0.88rem}
 .pp-side-row:last-child{border-bottom:none}
 .pp-side-row span:first-child{color:var(--text-muted)}
-.pp-side-row span:last-child{color:var(--text);font-weight:700}
-@media (max-width:1024px){.pp-hero-inner{grid-template-columns:1fr;gap:32px}.pp-title{font-size:clamp(2.6rem,8vw,4rem)}}
+.pp-side-row span:last-child{color:var(--text);font-weight:700;text-align:right}
+.pp-side-card .btn{width:100%;margin-top:16px}
+@media (max-width:1024px){
+  .pp-hero-inner{grid-template-columns:1fr;gap:30px}
+  .pp-side{order:2;max-width:520px}
+  .pp-title{font-size:clamp(2.8rem,13vw,4.4rem)}
+}
+@media (max-width:420px){
+  .pp-stat{min-width:0;flex:1 1 30%}
+  .pp-stat b{font-size:1.4rem}
+}
 </style>
 </head>
 <body>
@@ -45,7 +69,7 @@
     <div class="pp-hero-inner">
       <div>
         <nav class="breadcrumb" style="justify-content:flex-start"><a href="index.html">Home</a><i class="fa-solid fa-chevron-right"></i><span>Power Play</span></nav>
-        <div class="pp-eyebrow"><iconify-icon icon="fluent-emoji:high-voltage" class="fx-emoji" width="20" aria-hidden="true"></iconify-icon>Free Monthly Series</div>
+        <div class="pp-eyebrow"><span class="pp-live" aria-hidden="true"></span>Free Monthly Series</div>
         <h1 class="pp-title">POWER <span class="accent">PLAY</span></h1>
         <p class="pp-lede">A monthly gathering for musicians, creatives and culture shapers — built to forge presence, mastery and intentional influence.</p>
         <div class="pp-host">
@@ -55,7 +79,12 @@
             <div class="pp-host-role">Babatunde Oluwaseyi Just-Joe Adeola</div>
           </div>
         </div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="pp-stats">
+          <div class="pp-stat"><b>Free</b><span>Forever</span></div>
+          <div class="pp-stat"><b>90<small style="font-size:0.5em">min</small></b><span>Each session</span></div>
+          <div class="pp-stat"><b>Global</b><span>Join online</span></div>
+        </div>
+        <div class="pp-cta-row">
           <a href="#register" class="btn btn-primary btn-large"><i class="fa-solid fa-bolt"></i>Register Free</a>
           <a href="#why" class="btn btn-secondary btn-large">Learn More</a>
         </div>
@@ -63,13 +92,21 @@
 
       <aside class="pp-side">
         <div class="pp-side-card">
-          <h3>Next Session</h3>
+          <div class="pp-next">
+            <div class="pp-next-cal"><b>—</b><span>Next</span></div>
+            <div>
+              <div class="pp-next-label">Next Session</div>
+              <div class="pp-next-when">New date announced monthly</div>
+            </div>
+          </div>
+          <h3>What to expect</h3>
           <div class="pp-side-row"><span>Format</span><span>Free · Google Meet</span></div>
           <div class="pp-side-row"><span>Frequency</span><span>Monthly</span></div>
           <div class="pp-side-row"><span>Duration</span><span>90 minutes</span></div>
           <div class="pp-side-row"><span>Audience</span><span>Global · Online</span></div>
           <div class="pp-side-row"><span>Host</span><span>Van. BOJA</span></div>
-          <p style="font-size:0.85rem;color:var(--text-muted);margin-top:14px;line-height:1.6">Raw conversations. Fierce insights. Transformational growth — for musicians ready to think like architects.</p>
+          <a href="#register" class="btn btn-primary"><i class="fa-solid fa-bolt"></i> Save my seat</a>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:14px;line-height:1.6;text-align:center">Raw conversations. Fierce insights. Growth for musicians who think like architects.</p>
         </div>
       </aside>
     </div>
@@ -109,7 +146,7 @@
 
   <section style="background:var(--bg-surface)">
     <div class="container">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center" class="about-grid">
+      <div class="about-grid">
         <div>
           <div class="section-eyebrow" style="color:#A5B4FC"><span class="line" style="background:linear-gradient(90deg,#A5B4FC,transparent)"></span>What You'll Get</div>
           <h2 class="section-title">Every Month: <span class="highlight-purple">Mindset, Mastery, Movement.</span></h2>

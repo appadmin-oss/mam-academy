@@ -151,6 +151,26 @@
 .success-ref{display:inline-block;padding:12px 22px;background:var(--bg-elevated);border:1px dashed var(--border-gold);border-radius:var(--radius-sm);font-family:'SF Mono',monospace;font-size:0.95rem;color:var(--gold-bright);margin-bottom:28px}
 .success-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
 
+/* Track badge (KTAMS vs MAM) */
+.track-badge{display:flex;gap:12px;align-items:flex-start;margin-top:16px;padding:14px 16px;border-radius:var(--radius-md);background:linear-gradient(90deg,rgba(224,138,26,0.12),transparent);border:1px solid var(--border-gold)}
+.track-badge.is-ktams{background:linear-gradient(90deg,rgba(16,185,129,0.12),transparent);border-color:rgba(52,211,153,0.45)}
+.track-badge > i{color:var(--gold-bright);font-size:1.1rem;margin-top:2px;flex-shrink:0}
+.track-badge.is-ktams > i{color:#34D399}
+.track-badge strong{display:block;font-size:0.95rem;color:var(--text);margin-bottom:2px}
+.track-badge span{font-size:0.82rem;color:var(--text-muted);line-height:1.5}
+
+/* Policy summary + agreement */
+.policy-block{padding:22px 24px;border-radius:var(--radius-md);background:var(--bg-elevated);border:1px solid var(--border)}
+.policy-block-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.policy-block-head i{color:var(--gold-bright);font-size:1rem}
+.policy-block-head h4{font-family:var(--font-serif);font-size:1.18rem;font-weight:700;color:var(--text);line-height:1.2}
+.policy-intro{font-size:0.86rem;color:var(--text-muted);line-height:1.55;margin-bottom:14px}
+.policy-points{display:flex;flex-direction:column;gap:9px;margin:0 0 14px}
+.policy-points li{display:flex;gap:10px;align-items:flex-start;font-size:0.87rem;color:var(--text-soft);line-height:1.5}
+.policy-points li i{color:var(--gold-bright);font-size:0.72rem;margin-top:5px;flex-shrink:0}
+.policy-note{font-size:0.8rem;color:var(--text-muted);line-height:1.5;padding-top:12px;border-top:1px dashed var(--border);margin:0}
+.policy-note a{color:var(--gold-bright);text-decoration:underline}
+
 /* Mobile */
 @media (max-width:960px){
   .apply-shell{grid-template-columns:1fr;padding:24px 16px 64px}
@@ -163,5 +183,7 @@
   .payment-methods{grid-template-columns:1fr}
   .review-grid{grid-template-columns:1fr}
 }
-</content>
-</invoke>
+@media (max-width:560px){
+  .apply-main{padding:24px 16px}
+  .policy-block{padding:18px 16px}
+}

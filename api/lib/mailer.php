@@ -124,3 +124,66 @@ function mam_email_application_confirmation(array $app, array $customer): string
     </td></tr></table>
     </body></html>";
 }
+
+/**
+ * Full class-policy email (online/home vs onsite), stamped with the
+ * applicant's typed signature and the date they agreed.
+ */
+function mam_email_policy(string $mode, string $signedName, string $reference): string {
+    $isOnsite = ($mode === 'onsite');
+    $title = $isOnsite ? 'MAM Academy Policy — Onsite Classes' : 'MAM Academy Policy — Online / Home Classes';
+
+    $online = [
+        ['Conducive Learning Environment', 'Your space must be conducive for teaching and learning — minimal noise and distractions during class.'],
+        ['No Picking Calls', 'Phones must be on silent; calls are not to be answered during class.'],
+        ['Class Readiness', 'Be ready at least 15 minutes early. Lateness incurs a ₦500 / $0.50 fine; notify the instructor 2 hours ahead if unavoidable. Max two late arrivals.'],
+        ['Assignment Compliance', 'All assignments must be completed on time. Late submission incurs a ₦1,000 / $1 fine.'],
+        ['No Absenteeism', 'Notify the instructor at least 24 hours ahead. Max two absences; absence without notice or beyond two incurs a ₦1,000 / $1 fine.'],
+        ['Class Rescheduling', 'Allowed only with 24-hour notice plus a ₦2,000 / $2 inconvenience fee.'],
+        ['Certification', 'A certificate is issued after revision and a completed examination.'],
+        ['Non-Refundable Payments', 'All payments are final and strictly non-refundable.'],
+        ['Daily Practice Assessment', 'Free minutes are allocated daily to review your practice online at the agreed time.'],
+        ['Internet-Connected Devices', 'Two devices requested: one to your left facing the instrument, one facing you for communication.'],
+    ];
+    $onsite = [
+        ['Punctuality and Notification', 'Arrive at least 30 minutes before class. Lateness without notice incurs a ₦1,000 fine; notify at least 2 hours ahead if unavoidable.'],
+        ['Class Attendance', 'Notify the Academy at least 24 hours in advance of any absence. Failure to do so incurs a ₦2,000 fine.'],
+        ['Assignment Compliance', 'Submit assignments on time (late: ₦1,000) and a 1-minute practice video daily.'],
+        ['No Use of Phones in Class', 'Phones must be switched off or on silent during class.'],
+        ['Conducive Learning Environment', 'Maintain decorum and participate actively in all learning activities.'],
+        ['Certification', 'A certificate is issued after a thorough revision and a successful examination.'],
+        ['Non-Refundable Payments', 'All payments are strictly non-refundable.'],
+        ['Daily Practice Assessments', 'Allocate free time daily to review concepts taught; consistent practice is essential.'],
+    ];
+    $points = $isOnsite ? $onsite : $online;
+
+    $rows = '';
+    $i = 1;
+    foreach ($points as $p) {
+        $rows .= "<tr><td style='padding:10px 0;border-bottom:1px solid #251A10;vertical-align:top'>"
+            . "<strong style='color:#FBBF24'>{$i}. " . htmlspecialchars($p[0]) . "</strong><br>"
+            . "<span style='color:rgba(255,255,255,0.82);font-size:14px'>" . htmlspecialchars($p[1]) . "</span></td></tr>";
+        $i++;
+    }
+    $sig = htmlspecialchars($signedName, ENT_QUOTES);
+    $ref = htmlspecialchars($reference, ENT_QUOTES);
+    $date = date('F j, Y');
+
+    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
+    <table cellpadding='0' cellspacing='0' style='max-width:600px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
+    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:22px;text-align:center'>
+      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
+    </td></tr>
+    <tr><td style='padding:30px 28px;color:#FBF7F3;line-height:1.6'>
+      <h2 style='font-family:Georgia,serif;margin:0 0 6px;font-size:20px;color:#fff'>" . htmlspecialchars($title) . "</h2>
+      <p style='color:rgba(255,255,255,0.7);font-size:13px;margin:0 0 18px'>Welcome to MAM Academy — \"Crafting the Timeless in Time.\" Please keep this policy for your records.</p>
+      <table cellpadding='0' cellspacing='0' style='width:100%'>{$rows}</table>
+      <div style='margin-top:22px;padding:16px 18px;background:#251A10;border:1px dashed #FBBF24;border-radius:10px'>
+        <div style='color:rgba(255,255,255,0.7);font-size:12px;text-transform:uppercase;letter-spacing:.08em'>Agreed &amp; electronically signed</div>
+        <div style='color:#fff;font-size:16px;margin-top:4px'><strong>{$sig}</strong></div>
+        <div style='color:rgba(255,255,255,0.7);font-size:13px;margin-top:2px'>{$date} · Application {$ref}</div>
+      </div>
+      <p style='margin-top:24px;color:rgba(255,255,255,0.6);font-size:13px'>ACADEMIC DIRECTOR · MAM Centre, 2 Oremeji Street, Egbeda, Lagos · <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a> · +234-704-444-6517</p>
+    </td></tr></table>
+    </body></html>";
+}
