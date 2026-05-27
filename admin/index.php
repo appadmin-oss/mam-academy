@@ -361,7 +361,20 @@ button.tiny:hover{border-color:var(--gold)}
 .form-grid input:focus,.form-grid select:focus{outline:none;border-color:var(--gold)}
 .form-grid .full{grid-column:1/-1}
 .form-grid .actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;padding-top:6px}
-@media(max-width:920px){body{grid-template-columns:1fr}aside{position:static;height:auto}}
+@media(max-width:920px){
+  body{grid-template-columns:1fr}
+  aside{position:static;height:auto}
+  main{padding:20px 16px}
+  /* Let wide data tables scroll horizontally instead of being clipped by the card */
+  .card{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .card>table{min-width:620px}
+  .top{flex-wrap:wrap;gap:10px}
+  .form-grid{grid-template-columns:1fr}
+}
+@media(max-width:520px){
+  .kpi-grid{grid-template-columns:1fr 1fr}
+  th,td{padding:9px 12px}
+}
 </style>
 </head>
 <body>

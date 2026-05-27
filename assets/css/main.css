@@ -721,7 +721,8 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
   .nav-hamburger{display:flex}
   .hero-inner{grid-template-columns:1fr;padding:48px 24px 110px}
   .hero-side{display:none}
-  .about-grid,.auditer-grid{grid-template-columns:1fr;gap:56px}
+  /* !important so inline per-page ratios (e.g. 1.1fr 1fr) still collapse on mobile */
+  .about-grid,.auditer-grid{grid-template-columns:1fr!important;gap:56px}
   .about-visual,.auditer-visual{max-width:540px;margin:0 auto}
   .about-badge{left:-8px}.about-img-accent{right:-8px}
 }
