@@ -18,15 +18,17 @@ function mam_send_mail(string $to, string $subject, string $body, bool $html = f
             $from, $fromName, $replyTo, $to, $subject, $body, $html);
     }
 
-    // PHP mail() fallback
+    // PHP mail() fallback (no SMTP configured). Many hosts disable this —
+    // configure MAIL_HOST/MAIL_USERNAME/MAIL_PASSWORD in api/.env for reliable delivery.
     $headers = [];
     $headers[] = 'From: ' . mb_encode_mimeheader($fromName) . " <$from>";
     if ($replyTo) $headers[] = "Reply-To: $replyTo";
     $headers[] = 'MIME-Version: 1.0';
     $headers[] = $html ? 'Content-Type: text/html; charset=UTF-8' : 'Content-Type: text/plain; charset=UTF-8';
     $headers[] = 'X-Mailer: MAM-Academy';
-    $ok = @mail($to, $subject, $body, implode("\r\n", $headers));
-    if (!$ok) mam_log('warn', 'mail_failed', ['to' => $to, 'subject' => $subject]);
+    $params = (strpos($from, '@') !== false) ? ('-f' . $from) : '';
+    $ok = @mail($to, $subject, $body, implode("\r\n", $headers), $params);
+    if (!$ok) mam_log('warn', 'mail_failed_phpmail', ['to' => $to, 'subject' => $subject, 'hint' => 'Set MAIL_HOST + SMTP creds in api/.env; PHP mail() is unreliable/disabled on most hosts']);
     return (bool)$ok;
 }
 
@@ -38,67 +40,79 @@ function mam_send_mail(string $to, string $subject, string $body, bool $html = f
 function mam_smtp_send(string $host, int $port, string $user, string $pass, string $encryption,
                        string $from, string $fromName, ?string $replyTo,
                        string $to, string $subject, string $body, bool $html): bool {
+    // Most authenticated relays (Gmail, Office365, SES, …) reject a MAIL FROM
+    // envelope that differs from the authenticated account. Use the auth user
+    // as the envelope sender when it's an address; keep the friendly From header.
+    $envelopeFrom = ($user !== '' && strpos($user, '@') !== false) ? $user : $from;
+
     $remote = ($encryption === 'ssl' ? 'ssl://' : '') . $host;
     $errno = 0; $errstr = '';
-    $sock = @stream_socket_client("$remote:$port", $errno, $errstr, 20);
-    if (!$sock) { mam_log('error', 'smtp_connect_failed', ['err' => $errstr]); return false; }
+    $ctx = stream_context_create(['ssl' => ['verify_peer' => true, 'verify_peer_name' => true, 'SNI_enabled' => true]]);
+    $sock = @stream_socket_client("$remote:$port", $errno, $errstr, 20, STREAM_CLIENT_CONNECT, $ctx);
+    if (!$sock) { mam_log('error', 'smtp_connect_failed', ['host' => $host, 'port' => $port, 'err' => $errstr]); return false; }
     stream_set_timeout($sock, 30);
 
     $get = function () use ($sock) {
         $resp = '';
-        while ($line = fgets($sock, 1024)) {
+        while ($line = fgets($sock, 2048)) {
             $resp .= $line;
             if (preg_match('/^\d{3} /', $line)) break;
         }
         return $resp;
     };
-    $send = function ($cmd) use ($sock, $get) {
-        fwrite($sock, $cmd . "\r\n");
-        return $get();
+    $send = function ($cmd) use ($sock, $get) { fwrite($sock, $cmd . "\r\n"); return $get(); };
+    // Verify a response code; on mismatch log the exact server reply and bail.
+    $expect = function ($resp, array $codes, string $step) use ($sock) {
+        if (!in_array(substr((string)$resp, 0, 3), $codes, true)) {
+            mam_log('error', 'smtp_step_failed', ['step' => $step, 'reply' => trim((string)$resp)]);
+            @fwrite($sock, "QUIT\r\n"); fclose($sock);
+            return false;
+        }
+        return true;
     };
 
-    $banner = $get();
-    if (substr($banner, 0, 3) !== '220') { fclose($sock); return false; }
+    if (!$expect($get(), ['220'], 'banner')) return false;
 
-    $ehlo = $send('EHLO ' . ($_SERVER['SERVER_NAME'] ?? 'mamcentre.org'));
-    if (substr($ehlo, 0, 3) !== '250') { fclose($sock); return false; }
+    $ehloName = $_SERVER['SERVER_NAME'] ?? 'mamcentre.org';
+    if (!$expect($send('EHLO ' . $ehloName), ['250'], 'ehlo')) return false;
 
     if ($encryption === 'tls') {
-        if (substr($send('STARTTLS'), 0, 3) !== '220') { fclose($sock); return false; }
-        if (!stream_socket_enable_crypto($sock, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) { fclose($sock); return false; }
-        $send('EHLO ' . ($_SERVER['SERVER_NAME'] ?? 'mamcentre.org'));
+        if (!$expect($send('STARTTLS'), ['220'], 'starttls')) return false;
+        if (!stream_socket_enable_crypto($sock, true, STREAM_CRYPTO_METHOD_TLS_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT)) {
+            mam_log('error', 'smtp_tls_failed'); fclose($sock); return false;
+        }
+        if (!$expect($send('EHLO ' . $ehloName), ['250'], 'ehlo_tls')) return false;
     }
 
     if ($user !== '') {
-        $send('AUTH LOGIN');
-        $send(base64_encode($user));
-        $resp = $send(base64_encode($pass));
-        if (substr($resp, 0, 3) !== '235') { mam_log('error', 'smtp_auth_failed'); fclose($sock); return false; }
+        if (!$expect($send('AUTH LOGIN'), ['334'], 'auth_init')) return false;
+        if (!$expect($send(base64_encode($user)), ['334'], 'auth_user')) return false;
+        if (!$expect($send(base64_encode($pass)), ['235'], 'auth_pass')) return false;
     }
 
-    $send('MAIL FROM:<' . $from . '>');
-    $send('RCPT TO:<' . $to . '>');
-    $send('DATA');
+    if (!$expect($send('MAIL FROM:<' . $envelopeFrom . '>'), ['250'], 'mail_from')) return false;
+    if (!$expect($send('RCPT TO:<' . $to . '>'), ['250', '251'], 'rcpt_to')) return false;
+    if (!$expect($send('DATA'), ['354'], 'data')) return false;
 
     $head = [];
     $head[] = 'From: ' . mb_encode_mimeheader($fromName) . " <$from>";
+    if (strcasecmp($envelopeFrom, $from) !== 0) $head[] = "Sender: <$envelopeFrom>";
     $head[] = "To: $to";
     if ($replyTo) $head[] = "Reply-To: $replyTo";
     $head[] = 'Subject: ' . mb_encode_mimeheader($subject);
     $head[] = 'Date: ' . date('r');
-    $head[] = 'Message-ID: <' . bin2hex(random_bytes(8)) . '@' . ($_SERVER['SERVER_NAME'] ?? 'mam.local') . '>';
+    $head[] = 'Message-ID: <' . bin2hex(random_bytes(8)) . '@' . substr(strrchr($envelopeFrom, '@') ?: '@mam.local', 1) . '>';
     $head[] = 'MIME-Version: 1.0';
     $head[] = $html ? 'Content-Type: text/html; charset=UTF-8' : 'Content-Type: text/plain; charset=UTF-8';
     $head[] = 'Content-Transfer-Encoding: 8bit';
     $head[] = 'X-Mailer: MAM-Academy';
 
-    // Dot-stuff
-    $bodyEsc = preg_replace('/^\./m', '..', $body);
+    $bodyEsc = preg_replace('/^\./m', '..', $body);          // dot-stuffing
+    $bodyEsc = preg_replace('/\r\n|\r|\n/', "\r\n", $bodyEsc); // normalise CRLF
     $payload = implode("\r\n", $head) . "\r\n\r\n" . $bodyEsc . "\r\n.";
-    $resp = $send($payload);
-    $send('QUIT');
-    fclose($sock);
-    return substr($resp, 0, 3) === '250';
+    $ok = $expect($send($payload), ['250'], 'body');
+    if ($ok) { @fwrite($sock, "QUIT\r\n"); fclose($sock); }
+    return $ok;
 }
 
 /**

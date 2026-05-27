@@ -175,6 +175,7 @@
       var pb = $('#btnPay');
       if (pb) { var l = pb.querySelector('span:first-child'); if (l) l.textContent = 'Pay ' + fmtMoney(total); }
       var amb = $('#ambTotal'); if (amb) amb.textContent = fmtMoney(total);
+      var sp = $('#spTotal'); if (sp) sp.textContent = fmtMoney(total);
     }
     function row(k, v) { return '<div class="summary-row"><span>' + k + '</span><span>' + v + '</span></div>'; }
     function titleCase(s) { return String(s || '').replace(/[-_]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
@@ -361,7 +362,11 @@
 
     on($('#applyCurrency'), 'change', function () { data.currency = $('#applyCurrency').value; saveDraft(); updateSummary(); });
     if (data.currency) { var cs = $('#applyCurrency'); if (cs) cs.value = data.currency; }
-    on($('#ambView'), 'click', function () { var s = $('.summary-card') || $('#applySummary'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+    on($('#ambView'), 'click', function () {
+      var panel = $('#summaryPanel'); if (panel) panel.open = true;
+      var s = panel || $('#applySummary');
+      if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
 
     // ---------- Submit application ----------
     function submitApplicationToServer() {
