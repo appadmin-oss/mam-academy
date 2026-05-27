@@ -253,6 +253,14 @@ function mam_db_migrate(PDO $db): void {
               created_at TEXT DEFAULT (datetime('now'))
             );
         ",
+        // KTAMS/MAM track + class-policy agreement on applications.
+        3 => "
+            ALTER TABLE applications ADD COLUMN program_track TEXT DEFAULT 'MAM';
+            ALTER TABLE applications ADD COLUMN policy_mode TEXT;
+            ALTER TABLE applications ADD COLUMN policy_agreed INTEGER DEFAULT 0;
+            ALTER TABLE applications ADD COLUMN policy_signed_name TEXT;
+            ALTER TABLE applications ADD COLUMN policy_signed_at TEXT;
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

@@ -68,6 +68,49 @@ window.MAM_CONFIG = {
     label: 'May 2026',
     spotsTotal: 25,
     spotsRemaining: 7
+  },
+
+  /* -------- Programme tracks (age-based routing) --------
+     KTAMS = Kids @ MAM (under 16) · MAM = main academy (16+). The track
+     is derived from the applicant's age and shown in the form; the
+     server re-derives it so it can never be spoofed. */
+  tracks: {
+    KTAMS: { name: 'KTAMS — Kids @ MAM', note: 'Our nurturing junior track for young musicians under 16. A parent or guardian co-enrols.' },
+    MAM:   { name: 'MAM Academy', note: 'The full academy experience for ages 16 and above.' }
+  },
+
+  /* -------- Class policies (short summaries shown before consent) --------
+     Online/home vs onsite classes have different policies. The full
+     signed policy is emailed on submit; this is the at-a-glance summary
+     the applicant agrees to inside the form. */
+  policies: {
+    online: {
+      title: 'MAM Academy Policy — Online / Home Classes',
+      intro: 'A quick summary of what keeps online classes effective. The full policy is emailed to you on submission.',
+      points: [
+        'A quiet, distraction-free space; phones on silent — no calls during class.',
+        'Be ready 15 minutes early. Max 2 late arrivals; lateness without 2-hour notice incurs a ₦500 / $0.50 fee.',
+        'Submit assignments on time (late submission: ₦1,000 / $1).',
+        'Max 2 absences — notify 24 hours ahead, or a ₦1,000 / $1 fee applies.',
+        'Rescheduling needs 24-hour notice plus a ₦2,000 / $2 inconvenience fee.',
+        'Two internet-connected devices: one on your instrument, one on your face.',
+        'Daily online practice review at the agreed time; certificate after revision + exam.',
+        'All payments are final and strictly non-refundable.'
+      ]
+    },
+    onsite: {
+      title: 'MAM Academy Policy — Onsite Classes (Lagos)',
+      intro: 'A quick summary of what keeps onsite classes effective. The full policy is emailed to you on submission.',
+      points: [
+        'Arrive 30 minutes early. Lateness without 2-hour notice incurs a ₦1,000 fee.',
+        'Notify absences at least 24 hours ahead, or a ₦2,000 fee applies.',
+        'Submit assignments on time (late: ₦1,000) plus a daily 1-minute practice video.',
+        'No phone use in class — switched off or on silent.',
+        'Maintain decorum and participate actively in all activities.',
+        'Daily practice of concepts taught; certificate after revision + exam.',
+        'All payments are strictly non-refundable.'
+      ]
+    }
   }
 };
 

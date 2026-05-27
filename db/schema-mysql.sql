@@ -48,6 +48,11 @@ CREATE TABLE IF NOT EXISTS applications (
   auditer_optin          TINYINT(1) DEFAULT 0,
   include_registration   TINYINT(1) DEFAULT 1,
   include_certification  TINYINT(1) DEFAULT 0,
+  program_track          VARCHAR(8) DEFAULT 'MAM',
+  policy_mode            VARCHAR(16),
+  policy_agreed          TINYINT(1) DEFAULT 0,
+  policy_signed_name     VARCHAR(120),
+  policy_signed_at       DATETIME NULL,
   total_usd              DECIMAL(10,2),
   status                 VARCHAR(24) DEFAULT 'submitted',
   source                 VARCHAR(200),
@@ -246,3 +251,17 @@ CREATE TABLE IF NOT EXISTS password_resets (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (1), (2) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v3 — KTAMS/MAM track + class-policy agreement.
+-- For EXISTING installs (the CREATE TABLE above is skipped once the
+-- table exists). Safe on MariaDB (IF NOT EXISTS). On MySQL 8, drop the
+-- "IF NOT EXISTS" and run once, or guard via your migration tool.
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS program_track      VARCHAR(8)   DEFAULT 'MAM' AFTER include_certification,
+  ADD COLUMN IF NOT EXISTS policy_mode        VARCHAR(16)                AFTER program_track,
+  ADD COLUMN IF NOT EXISTS policy_agreed      TINYINT(1)   DEFAULT 0     AFTER policy_mode,
+  ADD COLUMN IF NOT EXISTS policy_signed_name VARCHAR(120)               AFTER policy_agreed,
+  ADD COLUMN IF NOT EXISTS policy_signed_at   DATETIME     NULL          AFTER policy_signed_name;
+INSERT INTO schema_version (version) VALUES (3) ON DUPLICATE KEY UPDATE version = version;
