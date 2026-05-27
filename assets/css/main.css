@@ -230,6 +230,25 @@ ul,ol{list-style:none}
 .mobile-nav-link:hover,.mobile-nav-sub-link:hover{background:var(--glass-light);color:var(--gold-bright)}
 .mobile-nav-cta{display:block;margin:20px 0 8px;padding:16px;text-align:center;font-weight:800;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:var(--radius-md);letter-spacing:0.04em}
 
+/* ===== UI polish: depth, tactility & warmth on cards/buttons =====
+   Resting soft shadow + a 1px top highlight gives surfaces real lift on
+   the dark canvas; hover adds a warm glow so the UI feels alive. */
+.school-card,.pathway-card,.unique-card,.mode-card,.program-card,.how-step,
+.method-step,.faculty-card,.next-step-card,.extra-card,.team-card,.testimonial-card,
+.pp-side-card,.apply-main,.summary-panel,.faq-item,.choice-card,.payment-method{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.05), var(--shadow-sm);
+}
+.school-card:hover,.pathway-card:hover,.unique-card:hover,.mode-card:hover,
+.program-card:hover,.how-step:hover,.method-step:hover,.faculty-card:hover,
+.next-step-card:hover,.team-card:hover{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.08), var(--shadow-md), 0 0 0 1px var(--border-gold), 0 14px 38px rgba(245,168,35,0.10);
+}
+/* Buttons feel more tactile: soft top sheen + warmer, springier hover */
+.btn-primary,.btn-nav-cta,.btn-pay,.btn-signup{position:relative}
+.btn-primary::after,.btn-pay::after{content:'';position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg,rgba(255,255,255,0.22),transparent 45%);pointer-events:none;opacity:0.7}
+.btn-primary,.btn-secondary,.btn-step,.btn-pay{transition:transform 0.2s var(--ease-bounce),box-shadow 0.25s var(--ease),background 0.25s,border-color 0.25s}
+.btn-secondary:hover{box-shadow:0 6px 22px rgba(245,168,35,0.14)}
+
 /* ===== Section base ===== */
 section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:relative}
 .container{max-width:var(--content-w);margin:0 auto;width:100%}
