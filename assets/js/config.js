@@ -123,9 +123,23 @@ window.MAM_API = (function () {
 
   function getCsrf(force) {
     if (!force && csrfToken && (Date.now() - csrfFetchedAt) < 6000 * 1000) return Promise.resolve(csrfToken);
-    return fetch(url(cfg.csrfPath), { credentials: 'same-origin' })
-      .then(function (r) { if (!r.ok) throw new Error('csrf_unavailable'); return r.json(); })
+    return fetch(url(cfg.csrfPath), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (r) {
+        // Never let an HTML error page surface as "Unexpected token '<'".
+        return r.text().then(function (t) {
+          var j = {};
+          try { j = JSON.parse(t); } catch (e) { throw apiUnavailable(r.status); }
+          if (!r.ok || !j.token) throw apiUnavailable(r.status);
+          return j;
+        });
+      })
       .then(function (j) { csrfToken = j.token; csrfFetchedAt = Date.now(); return csrfToken; });
+  }
+
+  function apiUnavailable(status) {
+    var e = new Error('api_unavailable');
+    e.status = status || 0; e.apiDown = true;
+    return e;
   }
 
   function request(path, opts) {
@@ -140,7 +154,14 @@ window.MAM_API = (function () {
         credentials: 'same-origin',
         body: opts.body != null && method !== 'GET' ? JSON.stringify(opts.body) : undefined
       }).then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (data) {
+        return r.text().then(function (t) {
+          var data = {}, parsed = true;
+          if (t) { try { data = JSON.parse(t); } catch (e) { parsed = false; } }
+          if (!parsed) {
+            // Server returned HTML/text (misconfig, 404 page, maintenance) —
+            // surface a clean, actionable error instead of a parser crash.
+            throw apiUnavailable(r.status);
+          }
           if (!r.ok) {
             var err = new Error(data.error || ('http_' + r.status));
             err.status = r.status; err.body = data;

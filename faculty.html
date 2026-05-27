@@ -28,6 +28,16 @@
 .faculty-bio{font-size:0.88rem;color:var(--text-soft);line-height:1.65;flex:1;margin-bottom:16px}
 .faculty-tags{display:flex;flex-wrap:wrap;gap:6px}
 .faculty-tag{padding:3px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:100px;font-size:0.72rem;color:var(--text-muted)}
+/* Leadership & studio team — distinct accent-coded cards */
+.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr));gap:18px}
+.team-card{position:relative;display:flex;gap:16px;align-items:flex-start;padding:22px 22px 22px 26px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);transition:transform .3s var(--ease),border-color .3s,box-shadow .3s;overflow:hidden}
+.team-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent,var(--gold))}
+.team-card:hover{transform:translateY(-4px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
+.team-avatar{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.2rem;letter-spacing:0.04em;color:#1A120B;flex-shrink:0;background:linear-gradient(135deg,var(--accent,var(--gold)),var(--gold-light));box-shadow:0 6px 16px color-mix(in srgb,var(--accent,var(--gold)) 35%,transparent)}
+.team-info{min-width:0}
+.team-name{font-size:1.04rem;font-weight:700;color:var(--text);line-height:1.2}
+.team-role{font-size:0.72rem;color:var(--accent,var(--gold-bright));font-weight:800;letter-spacing:0.08em;text-transform:uppercase;margin:4px 0 8px}
+.team-line{font-size:0.85rem;color:var(--text-muted);line-height:1.55}
 </style>
 </head>
 <body>
@@ -157,6 +167,66 @@
       </div>
 
       <p style="text-align:center;font-size:0.9rem;color:var(--text-muted);margin-top:48px;line-height:1.7">Specific instructor assignments are made after your <a href="auditer.html" style="color:var(--gold-bright)">MAM Auditer entry assessment</a> — we match you to the right teacher for your level, mode and goals.</p>
+    </div>
+  </section>
+
+  <section style="border-top:1px solid var(--border)">
+    <div class="container">
+      <div style="text-align:center;max-width:720px;margin:0 auto 48px">
+        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Behind the Scenes<span class="line" style="transform:scaleX(-1)"></span></div>
+        <h2 class="section-title">The Team That <span class="highlight-gold">Carries You</span></h2>
+        <p class="section-desc" style="margin:0 auto">Beyond the studio, a dedicated crew makes your journey smooth — from your very first MAM Auditer to graduation day, online or onsite.</p>
+      </div>
+      <div class="team-grid">
+        <article class="team-card" style="--accent:#FBBF24">
+          <div class="team-avatar">AD</div>
+          <div class="team-info">
+            <h3 class="team-name">Academic Director</h3>
+            <div class="team-role">Curriculum &amp; Certification</div>
+            <p class="team-line">Owns the MAM Method curriculum and Trinity-equivalent certification — guards the standard from Grade 1 to Diploma.</p>
+          </div>
+        </article>
+        <article class="team-card" style="--accent:#A5B4FC">
+          <div class="team-avatar">MA</div>
+          <div class="team-info">
+            <h3 class="team-name">Head of Admissions</h3>
+            <div class="team-role">MAM Auditer &amp; Placement</div>
+            <p class="team-line">Runs your entry assessment and places you with the right instructor, level and pathway — KTAMS or MAM.</p>
+          </div>
+        </article>
+        <article class="team-card" style="--accent:#34D399">
+          <div class="team-avatar">OC</div>
+          <div class="team-info">
+            <h3 class="team-name">Operations &amp; Onsite Lead</h3>
+            <div class="team-role">Lagos Studio · Scheduling</div>
+            <p class="team-line">Coordinates onsite lessons, ensembles and stagecraft at MAM Centre, and keeps every timetable running on time.</p>
+          </div>
+        </article>
+        <article class="team-card" style="--accent:#F05A28">
+          <div class="team-avatar">SC</div>
+          <div class="team-info">
+            <h3 class="team-name">Student Care &amp; Success</h3>
+            <div class="team-role">Onboarding &amp; Support</div>
+            <p class="team-line">Your first point of contact — onboarding, reminders, progress check-ins and a friendly answer whenever you're stuck.</p>
+          </div>
+        </article>
+        <article class="team-card" style="--accent:#A5B4FC">
+          <div class="team-avatar">RL</div>
+          <div class="team-info">
+            <h3 class="team-name">Rhythm Lab Coordinator</h3>
+            <div class="team-role">MAM Rapid System</div>
+            <p class="team-line">Leads rhythm-intelligence labs and group clinics that sharpen timing, feel and groove across every discipline.</p>
+          </div>
+        </article>
+        <article class="team-card" style="--accent:#FBBF24">
+          <div class="team-avatar">OP</div>
+          <div class="team-info">
+            <h3 class="team-name">Online Learning Producer</h3>
+            <div class="team-role">Virtual Classes &amp; Media</div>
+            <p class="team-line">Makes online classes feel as present as the room — clean audio, recordings and a smooth experience on any device.</p>
+          </div>
+        </article>
+      </div>
     </div>
   </section>
 
