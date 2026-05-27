@@ -75,6 +75,9 @@
       updateSummary();
       updateTrackUI();
       if (current === 3) renderPolicy();
+      progressSteps.forEach(function (p, idx) { p.setAttribute('aria-current', idx === current ? 'step' : 'false'); });
+      var ambStep = $('#ambStep'); if (ambStep) ambStep.textContent = 'Step ' + (current + 1) + ' of ' + totalSteps;
+      var bar = $('#applyMobileBar'); if (bar) bar.style.display = current === totalSteps - 1 ? 'none' : '';
     }
     function saveDraft() { try { localStorage.setItem('mam.apply.draft', JSON.stringify(data)); } catch (e) {} }
     function loadDraft() { try { var r = localStorage.getItem('mam.apply.draft'); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
@@ -171,6 +174,7 @@
       var review = $('#reviewBody'); if (review) review.innerHTML = renderReview();
       var pb = $('#btnPay');
       if (pb) { var l = pb.querySelector('span:first-child'); if (l) l.textContent = 'Pay ' + fmtMoney(total); }
+      var amb = $('#ambTotal'); if (amb) amb.textContent = fmtMoney(total);
     }
     function row(k, v) { return '<div class="summary-row"><span>' + k + '</span><span>' + v + '</span></div>'; }
     function titleCase(s) { return String(s || '').replace(/[-_]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
@@ -265,14 +269,17 @@
     on($('#btnNext3'), 'click', attemptNext);
     on($('#btnNext4'), 'click', attemptNext);
     $$('[data-back]').forEach(function (b) { on(b, 'click', function () { showStep(current - 1); }); });
-    $$('[data-jump]').forEach(function (b) {
-      on(b, 'click', function () {
-        // Editing an earlier step invalidates the server reference; the
-        // user will re-submit when they return to the review step.
-        data.reference = null; data.applicationId = null; data.serverTotalUsd = null;
-        saveDraft(); updateSummary();
-        showStep(parseInt(b.getAttribute('data-jump'), 10));
-      });
+    // Review "Edit" buttons live inside #reviewBody, which is re-rendered via
+    // innerHTML — so we delegate instead of binding once (the old bug).
+    on(document, 'click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-jump]') : null;
+      if (!b) return;
+      e.preventDefault();
+      // Editing an earlier step invalidates the server reference; the
+      // user will re-submit when they return to the review step.
+      data.reference = null; data.applicationId = null; data.serverTotalUsd = null;
+      saveDraft(); updateSummary();
+      showStep(parseInt(b.getAttribute('data-jump'), 10));
     });
     progressSteps.forEach(function (p, idx) { on(p, 'click', function () { if (idx < current) showStep(idx); }); });
 
@@ -289,6 +296,37 @@
     // Live feedback: age drives the KTAMS/MAM track + guardian requirement; mode drives the policy shown
     $$('input[name="mode"]').forEach(function (i) { on(i, 'change', renderPolicy); });
     var ageEl = document.getElementById('age'); if (ageEl) { on(ageEl, 'change', updateTrackUI); }
+
+    // Date of birth is age-range aware: picking a DOB auto-selects the matching
+    // age band (and therefore the KTAMS/MAM track), and we cap it to today.
+    var dobEl = document.getElementById('dob');
+    if (dobEl) {
+      dobEl.setAttribute('max', new Date().toISOString().slice(0, 10));
+      on(dobEl, 'change', function () {
+        var band = ageBandFromDob(dobEl.value);
+        if (band && ageEl) {
+          ageEl.value = band; data.age = band;
+          saveDraft(); updateTrackUI(); updateSummary();
+          var ae = document.getElementById('err-age'); if (ae) ae.classList.remove('shown');
+          ageEl.classList.remove('error');
+        }
+      });
+    }
+    function ageBandFromDob(dob) {
+      if (!dob) return '';
+      var d = new Date(dob); if (isNaN(d)) return '';
+      var t = new Date(), age = t.getFullYear() - d.getFullYear();
+      var m = t.getMonth() - d.getMonth();
+      if (m < 0 || (m === 0 && t.getDate() < d.getDate())) age--;
+      if (age < 0 || age > 120) return '';
+      if (age < 6)  return 'under-6';
+      if (age <= 9) return '6-9';
+      if (age <= 12) return '10-12';
+      if (age <= 15) return '13-15';
+      if (age <= 17) return '16-17';
+      if (age <= 25) return '18-25';
+      return '26+';
+    }
 
     bindRadioGroup('payment', 'payment');
     $$('input[name="payment"]').forEach(function (r) {
@@ -323,6 +361,7 @@
 
     on($('#applyCurrency'), 'change', function () { data.currency = $('#applyCurrency').value; saveDraft(); updateSummary(); });
     if (data.currency) { var cs = $('#applyCurrency'); if (cs) cs.value = data.currency; }
+    on($('#ambView'), 'click', function () { var s = $('.summary-card') || $('#applySummary'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
 
     // ---------- Submit application ----------
     function submitApplicationToServer() {
@@ -343,10 +382,35 @@
             showStep(1); // jump back to profile section
           } else if (err && err.status === 429) {
             apiError('Too many attempts. Please try again in a few minutes.');
+          } else if (err && (err.apiDown || err.message === 'api_unavailable' || err.message === 'Failed to fetch')) {
+            apiUnavailableFallback();
           } else {
             apiError(err && err.message ? err.message : 'Submission failed. Please try again.');
           }
         });
+    }
+    // When the API can't be reached, never lose the application — let the
+    // applicant send it by email in one tap, pre-filled with their details.
+    function apiUnavailableFallback() {
+      var p = cfg.pricing[data.pathway] || {};
+      var subject = 'MAM Academy application — ' + (data.firstName || '') + ' ' + (data.lastName || '');
+      var bodyLines = [
+        'Hi MAM Academy, I tried to apply on the site but checkout was unavailable. My details:',
+        '', 'Name: ' + data.firstName + ' ' + data.lastName,
+        'Email: ' + data.email, 'Phone: ' + data.phone,
+        'Country/City: ' + (data.country || '') + ' ' + (data.city || ''),
+        'Age band: ' + data.age + ' (' + (deriveTrack(data.age) || '') + ')',
+        'Pathway: ' + (p.name || data.pathway), 'Mode: ' + data.mode, 'Discipline: ' + data.discipline,
+        'Add-ons: ' + (data.includeRegistration ? 'Registration ' : '') + (data.includeCertification ? 'Certification' : ''),
+        'Policy agreed: ' + (data.policyAgree ? 'Yes — ' + (data.policySignName || '') : 'No'),
+        '', 'Please confirm next steps. Thank you.'
+      ];
+      var mailto = 'mailto:' + cfg.site.contactEmail + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyLines.join('\n'));
+      var notice = ensureNotice();
+      notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> We couldn\'t reach our secure server just now. Your details are saved on this device — '
+        + '<a href="' + mailto + '" style="color:var(--gold-bright);font-weight:700;text-decoration:underline">email your application in one tap</a> '
+        + 'and we\'ll confirm within 24 hours, or try again shortly.';
+      notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     function buildPayload() {
       return {
@@ -381,14 +445,19 @@
         if (btn.dataset.origLabel) { btn.innerHTML = btn.dataset.origLabel; delete btn.dataset.origLabel; }
       }
     }
+    function ensureNotice() {
+      var notice = $('#apiNotice');
+      if (!notice) {
+        notice = document.createElement('div');
+        notice.id = 'apiNotice';
+        notice.setAttribute('role', 'alert');
+        notice.style.cssText = 'margin:14px 0;padding:14px 16px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.45);border-radius:12px;color:#FECDD3;font-size:0.88rem;line-height:1.55';
+        var main = $('.apply-main'); if (main) main.prepend(notice);
+      }
+      return notice;
+    }
     function apiError(msg) {
-      var notice = $('#apiNotice') || (function () {
-        var n = document.createElement('div');
-        n.id = 'apiNotice';
-        n.style.cssText = 'margin:14px 0;padding:12px 16px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.4);border-radius:10px;color:#FB7185;font-size:0.86rem';
-        var main = $('.apply-main'); if (main) main.prepend(n);
-        return n;
-      })();
+      var notice = ensureNotice();
       notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + msg + ' &middot; If this keeps happening, email <a href="mailto:' + cfg.site.contactEmail + '" style="color:var(--gold-bright)">' + cfg.site.contactEmail + '</a>';
       notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }

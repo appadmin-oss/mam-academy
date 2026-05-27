@@ -193,6 +193,7 @@ ul,ol{list-style:none}
 .dropdown-meta{font-size:0.74rem;font-weight:700;color:var(--gold-bright);font-family:var(--font-body);letter-spacing:0.02em;white-space:nowrap}
 .dropdown-arrow{color:var(--gold-bright);font-size:0.7rem;opacity:0;transform:translateX(-4px);transition:all 0.2s var(--ease);margin-left:6px;flex-shrink:0}
 
+.nav-ico{display:inline-block;vertical-align:-3px;margin-right:5px}
 .nav-cta-group{display:flex;align-items:center;gap:10px;flex-shrink:0}
 .btn-nav-ghost{padding:9px 16px;font-size:0.85rem;font-weight:600;color:var(--text-soft);border:1px solid var(--border-strong);border-radius:var(--radius-sm);transition:all 0.2s var(--ease)}
 .btn-nav-ghost:hover{color:var(--gold-bright);border-color:var(--border-gold);background:rgba(224,138,26,0.08)}

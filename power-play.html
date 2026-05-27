@@ -33,28 +33,39 @@
 .pp-stat b{display:block;font-family:var(--font-display);font-size:1.7rem;line-height:1;color:#C7D2FE;letter-spacing:0.02em}
 .pp-stat span{font-size:0.74rem;color:var(--text-muted);letter-spacing:0.04em;text-transform:uppercase}
 .pp-cta-row{display:flex;gap:12px;flex-wrap:wrap}
-.pp-side{position:relative}
-.pp-side-card{padding:24px;border-radius:var(--radius-lg);background:rgba(18,13,8,0.88);backdrop-filter:blur(20px);border:1px solid var(--border-gold);box-shadow:var(--shadow-lg)}
+.pp-aside{position:relative}
+.pp-aside-card{padding:24px;border-radius:var(--radius-lg);background:rgba(18,13,8,0.88);backdrop-filter:blur(20px);border:1px solid var(--border-gold);box-shadow:var(--shadow-lg)}
 .pp-next{display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:18px;border-radius:var(--radius-md);background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(99,102,241,0.08));border:1px solid rgba(165,180,252,0.4)}
 .pp-next-cal{width:46px;height:46px;border-radius:12px;background:#0E0A06;border:1px solid rgba(165,180,252,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;flex-shrink:0}
 .pp-next-cal b{font-family:var(--font-display);font-size:1.3rem;color:#C7D2FE}
 .pp-next-cal span{font-size:0.58rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted)}
 .pp-next-label{font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:#A5B4FC;font-weight:800}
 .pp-next-when{font-size:0.95rem;font-weight:700;color:var(--text);margin-top:2px}
-.pp-side-card h3{font-family:var(--font-serif);font-size:1.25rem;font-weight:700;color:var(--text);margin-bottom:10px}
-.pp-side-row{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--border);font-size:0.88rem}
-.pp-side-row:last-child{border-bottom:none}
-.pp-side-row span:first-child{color:var(--text-muted)}
-.pp-side-row span:last-child{color:var(--text);font-weight:700;text-align:right}
-.pp-side-card .btn{width:100%;margin-top:16px}
+.pp-aside-card h3{font-family:var(--font-serif);font-size:1.25rem;font-weight:700;color:var(--text);margin-bottom:10px}
+.pp-aside-row{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--border);font-size:0.88rem}
+.pp-aside-row:last-child{border-bottom:none}
+.pp-aside-row span:first-child{color:var(--text-muted)}
+.pp-aside-row span:last-child{color:var(--text);font-weight:700;text-align:right}
+.pp-aside-card .btn{width:100%;margin-top:16px}
 @media (max-width:1024px){
   .pp-hero-inner{grid-template-columns:1fr;gap:30px}
-  .pp-side{order:2;max-width:520px}
+  .pp-aside{order:2;max-width:560px}
   .pp-title{font-size:clamp(2.8rem,13vw,4.4rem)}
 }
+@media (max-width:600px){
+  .pp-hero{padding:96px 18px 64px}
+  .pp-lede{font-size:1.02rem;margin-bottom:20px}
+  .pp-host{width:100%;max-width:none}
+  .pp-cta-row{flex-direction:column;gap:10px}
+  .pp-cta-row .btn{width:100%;justify-content:center}
+  .pp-stats{gap:10px}
+}
 @media (max-width:420px){
-  .pp-stat{min-width:0;flex:1 1 30%}
+  .pp-stat{min-width:0;flex:1 1 30%;padding:12px}
   .pp-stat b{font-size:1.4rem}
+}
+@media (prefers-reduced-motion:reduce){
+  .pp-eyebrow .pp-live{animation:none}
 }
 </style>
 </head>
@@ -90,8 +101,8 @@
         </div>
       </div>
 
-      <aside class="pp-side">
-        <div class="pp-side-card">
+      <aside class="pp-aside">
+        <div class="pp-aside-card">
           <div class="pp-next">
             <div class="pp-next-cal"><b>—</b><span>Next</span></div>
             <div>
@@ -100,11 +111,11 @@
             </div>
           </div>
           <h3>What to expect</h3>
-          <div class="pp-side-row"><span>Format</span><span>Free · Google Meet</span></div>
-          <div class="pp-side-row"><span>Frequency</span><span>Monthly</span></div>
-          <div class="pp-side-row"><span>Duration</span><span>90 minutes</span></div>
-          <div class="pp-side-row"><span>Audience</span><span>Global · Online</span></div>
-          <div class="pp-side-row"><span>Host</span><span>Van. BOJA</span></div>
+          <div class="pp-aside-row"><span>Format</span><span>Free · Google Meet</span></div>
+          <div class="pp-aside-row"><span>Frequency</span><span>Monthly</span></div>
+          <div class="pp-aside-row"><span>Duration</span><span>90 minutes</span></div>
+          <div class="pp-aside-row"><span>Audience</span><span>Global · Online</span></div>
+          <div class="pp-aside-row"><span>Host</span><span>Van. BOJA</span></div>
           <a href="#register" class="btn btn-primary"><i class="fa-solid fa-bolt"></i> Save my seat</a>
           <p style="font-size:0.82rem;color:var(--text-muted);margin-top:14px;line-height:1.6;text-align:center">Raw conversations. Fierce insights. Growth for musicians who think like architects.</p>
         </div>

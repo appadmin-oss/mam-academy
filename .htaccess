@@ -67,7 +67,7 @@ ErrorDocument 404 /404.html
   # HSTS — enable after HTTPS is live
   # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
   # CSP — keep relaxed for inline styles/scripts; tighten as you wish
-  Header set Content-Security-Policy "default-src 'self' https:; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; script-src 'self' 'unsafe-inline' https://js.paystack.co https://checkout.flutterwave.com https://js.stripe.com; frame-src https://checkout.flutterwave.com https://standard.paystack.co https://js.stripe.com; connect-src 'self' https:; manifest-src 'self';"
+  Header set Content-Security-Policy "default-src 'self' https:; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.paystack.co https://checkout.flutterwave.com https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://code.iconify.design https://api.iconify.design; frame-src https://checkout.flutterwave.com https://standard.paystack.co https://js.stripe.com; connect-src 'self' https:; manifest-src 'self';"
 
   # ----- Cache-control fine-tuning -----
   <FilesMatch "\.(html)$">
