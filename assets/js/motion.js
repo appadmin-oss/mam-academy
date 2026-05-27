@@ -267,8 +267,8 @@
     var layer = document.createElement('div');
     layer.className = 'floating-notes';
     layer.setAttribute('aria-hidden', 'true');
-    var glyphs = ['♪', '♫', '♬', '♩', '𝄞', '⚘'];
-    var count = SMALL ? 7 : 13;
+    var glyphs = ['♪', '♫', '♬', '♩', '𝄞'];
+    var count = SMALL ? 3 : 6;
     for (var i = 0; i < count; i++) {
       var n = document.createElement('span');
       n.className = 'floating-note';

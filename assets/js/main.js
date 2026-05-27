@@ -589,6 +589,16 @@
       m.dataset.mamMotion = '1';
       document.head.appendChild(m);
 
+      // Progressive third-party libraries (jQuery, GSAP, Swiper, Splide,
+      // SplitType, WebFont) — all optional & guarded inside libs.js.
+      if (!document.querySelector('script[data-mam-libs]')) {
+        var lib = document.createElement('script');
+        lib.src = basePath + 'libs.js';
+        lib.async = true;
+        lib.dataset.mamLibs = '1';
+        document.head.appendChild(lib);
+      }
+
       // Make sure the motion CSS is loaded alongside the JS module.
       if (!document.querySelector('link[data-mam-motion-css]')) {
         var cssPath = basePath.replace(/js\/?$/, '') + 'css/motion.css';
