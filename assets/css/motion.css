@@ -130,6 +130,41 @@
   box-shadow: 0 18px 48px rgba(0,0,0,0.4);
 }
 
+/* ─────────────  Cursor spotlight + smooth tilt return  ─────────────
+   .fx-spot is appended by motion.js to interactive cards. A warm gold
+   radial tracks the cursor; it brightens (screen blend) so it can never
+   reduce text contrast. Tilt is applied inline by JS; the transition
+   here only smooths the *return* to rest, keeping live tracking crisp. */
+.motion-on .school-card,
+.motion-on .pathway-card,
+.motion-on .program-card,
+.motion-on .unique-card,
+.motion-on .mode-card,
+.motion-on .faculty-card,
+.motion-on .how-step,
+.motion-on .next-step-card,
+.motion-on .method-step{
+  transition: transform 0.5s cubic-bezier(0.16,1,0.3,1), border-color 0.3s, box-shadow 0.3s;
+}
+.fx-spot{
+  position:absolute; inset:0; border-radius:inherit;
+  pointer-events:none; z-index:0; opacity:0;
+  mix-blend-mode:screen;
+  transition:opacity 0.4s ease;
+  background:radial-gradient(220px circle at var(--spot-x,50%) var(--spot-y,50%),
+            rgba(251,191,36,0.16), rgba(224,138,26,0.05) 45%, transparent 68%);
+}
+.school-card:hover .fx-spot,
+.pathway-card:hover .fx-spot,
+.program-card:hover .fx-spot,
+.unique-card:hover .fx-spot,
+.mode-card:hover .fx-spot,
+.faculty-card:hover .fx-spot,
+.how-step:hover .fx-spot,
+.next-step-card:hover .fx-spot,
+.method-step:hover .fx-spot{ opacity:1; }
+.motion-reduced .fx-spot{ display:none; }
+
 /* ─────────────  Subtle gold shimmer on featured cards  ───────────── */
 .pathway-card.featured,
 .next-step-card{

@@ -47,14 +47,22 @@
     if (RM) { document.documentElement.classList.add('motion-reduced'); return; }
     document.documentElement.classList.add('motion-on');
 
-    initScrollProgress();
+    // Each effect is independent — one failing must never block the rest.
+    [initScrollProgress, initFloatingNotes, initCardFX, initMagnetic, loadEmojiRuntimes]
+      .forEach(function (fn) { try { fn(); } catch (e) { /* non-fatal */ } });
 
     loadScript(MOTION_URL).then(function () {
       var M = window.Motion;
-      if (!M) return;
+      // If the choreography library is blocked/offline, never leave gated
+      // content hidden — reveal the pathway timeline in its final state.
+      if (!M) { revealPathway(); return; }
       initPathwayProgression(M);
       initMegaMenuPhrasing(M);
     });
+
+    // Safety net: if the timeline is still hidden shortly after boot
+    // (library slow or inView never fires above the fold), reveal it.
+    setTimeout(revealPathway, 2600);
 
     // One sculptural ambient piece — only where it belongs, only when capable
     if ($('#hero') && canRunThree()) {
@@ -62,6 +70,20 @@
         if (window.THREE) initHeroWireframe(window.THREE);
       });
     }
+  }
+
+  /* Reveal the pathway-progression nodes/track if motion can't (no FOUC,
+     no hidden content). Idempotent. */
+  function revealPathway() {
+    var pp = $('.pathway-progression'); if (!pp) return;
+    $$('.pp-node', pp).forEach(function (n) {
+      if (+getComputedStyle(n).opacity < 0.99) {
+        n.style.opacity = '1';
+        n.style.transform = 'none';
+      }
+    });
+    var track = pp.querySelector('.pathway-progression-track');
+    if (track) track.style.setProperty('--track-progress', '100%');
   }
 
   /* ============================================================
@@ -232,6 +254,118 @@
     // Fade in via CSS class once the first render lands, so we never
     // show a popping wireframe.
     requestAnimationFrame(function () { canvas.classList.add('fx-ready'); });
+  }
+
+  /* ============================================================
+     Floating musical glyphs — the signature ambient drift in the
+     hero. Pure CSS animation; JS only seeds randomised instances.
+     ============================================================ */
+  function initFloatingNotes() {
+    var host = $('#hero') || $('.page-hero') || $('.order-hero') || $('.pp-hero');
+    if (!host) return;
+    if (host.querySelector('.floating-notes')) return;
+    var layer = document.createElement('div');
+    layer.className = 'floating-notes';
+    layer.setAttribute('aria-hidden', 'true');
+    var glyphs = ['♪', '♫', '♬', '♩', '𝄞', '⚘'];
+    var count = SMALL ? 7 : 13;
+    for (var i = 0; i < count; i++) {
+      var n = document.createElement('span');
+      n.className = 'floating-note';
+      n.textContent = glyphs[(Math.random() * glyphs.length) | 0];
+      var size = 0.9 + Math.random() * 2.4;            // rem
+      var dur  = 14 + Math.random() * 13;              // s
+      n.style.left = (Math.random() * 100).toFixed(2) + '%';
+      n.style.fontSize = size.toFixed(2) + 'rem';
+      n.style.animationDuration = dur.toFixed(1) + 's';
+      n.style.animationDelay = (-Math.random() * dur).toFixed(1) + 's';
+      n.style.setProperty('--drift', ((Math.random() * 160 - 80) | 0) + 'px');
+      n.style.setProperty('--spin', ((Math.random() * 220 - 110) | 0) + 'deg');
+      layer.appendChild(n);
+    }
+    // The layer is position:absolute/inset:0 (pointer-events:none, screen
+    // blend) so paint order is irrelevant — append safely.
+    host.appendChild(layer);
+  }
+
+  /* ============================================================
+     Card field — cursor-tracking spotlight + restrained 3D tilt.
+     Fine-pointer only (never on touch). Reduced motion → skipped
+     entirely because boot() returns before this runs.
+     ============================================================ */
+  var CARD_SEL = '.pathway-card,.school-card,.program-card,.unique-card,.mode-card,.faculty-card,.how-step,.next-step-card,.method-step';
+  function initCardFX() {
+    if (!matchMedia('(pointer:fine)').matches) return;
+    $$(CARD_SEL).forEach(function (card) {
+      if (card.__fx) return; card.__fx = 1;
+      var cs = getComputedStyle(card);
+      if (cs.position === 'static') card.style.position = 'relative';
+      var spot = document.createElement('span');
+      spot.className = 'fx-spot';
+      card.appendChild(spot);
+      var raf = null, rect = null, mx = 0, my = 0;
+      function apply() {
+        raf = null;
+        var px = mx / rect.width, py = my / rect.height;          // 0..1
+        spot.style.setProperty('--spot-x', (px * 100).toFixed(1) + '%');
+        spot.style.setProperty('--spot-y', (py * 100).toFixed(1) + '%');
+        var rx = (0.5 - py) * 6, ry = (px - 0.5) * 6;             // deg, ±6
+        card.style.transform = 'perspective(900px) rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg) translateY(-6px)';
+      }
+      card.addEventListener('pointermove', function (e) {
+        if (e.pointerType && e.pointerType !== 'mouse') return;
+        rect = card.getBoundingClientRect();
+        mx = e.clientX - rect.left; my = e.clientY - rect.top;
+        if (!raf) raf = requestAnimationFrame(apply);
+      });
+      card.addEventListener('pointerleave', function () {
+        if (raf) { cancelAnimationFrame(raf); raf = null; }
+        card.style.transform = '';
+      });
+    });
+  }
+
+  /* ============================================================
+     Magnetic CTAs — primary buttons ease toward the cursor within
+     a small radius. Premium, subtle, fine-pointer only.
+     ============================================================ */
+  function initMagnetic() {
+    if (!matchMedia('(pointer:fine)').matches) return;
+    $$('.btn-primary,.btn-nav-cta,.btn-large,.mobile-nav-cta,.floating-enroll-btn').forEach(function (btn) {
+      if (btn.__mag) return; btn.__mag = 1;
+      var raf = null, tx = 0, ty = 0;
+      btn.style.willChange = 'transform';
+      btn.addEventListener('pointermove', function (e) {
+        var r = btn.getBoundingClientRect();
+        tx = (e.clientX - (r.left + r.width / 2)) * 0.22;
+        ty = (e.clientY - (r.top + r.height / 2)) * 0.30;
+        if (!raf) raf = requestAnimationFrame(function () {
+          raf = null; btn.style.transform = 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px)';
+        });
+      });
+      btn.addEventListener('pointerleave', function () {
+        if (raf) { cancelAnimationFrame(raf); raf = null; }
+        btn.style.transform = '';
+      });
+    });
+  }
+
+  /* ============================================================
+     Animated-emoji / line-icon runtimes. Loaded lazily and with
+     graceful failure — the page is fully functional without them
+     (custom elements simply stay blank; CSS reserves their box).
+     ============================================================ */
+  function loadEmojiRuntimes() {
+    if (document.querySelector('iconify-icon') && !window.customElements.get('iconify-icon')) {
+      loadScript('https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js');
+    }
+    if (document.querySelector('dotlottie-wc') && !window.customElements.get('dotlottie-wc')) {
+      var s = document.createElement('script');
+      s.type = 'module'; s.async = true;
+      s.src = 'https://unpkg.com/@lottiefiles/dotlottie-wc@0.6.2/dist/dotlottie-wc.js';
+      s.onerror = function () {};
+      document.head.appendChild(s);
+    }
   }
 
   /* ─────────────  Entry  ───────────── */
