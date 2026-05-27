@@ -824,10 +824,18 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
   .filter-tab,.currency-btn,
   .faq-question,.program-expand,
   .hero-arrow,.toolbar-btn,
+  .footer-newsletter-btn,.btn,
   .cookie-btn{min-height:44px}
   .hero-dot{width:14px;height:14px}
   .hero-dot.active{width:32px;height:14px;border-radius:7px}
   .pw-toggle,.bank-copy{min-width:44px;min-height:44px}
+  /* Square off the icon-only nav CTA and give form controls / inline CTAs a comfortable tap area */
+  .btn-nav-cta{min-width:44px;justify-content:center}
+  input:not([type=checkbox]):not([type=radio]),select,textarea,
+  .field-input,.field-select{min-height:44px}
+  input[type=checkbox],input[type=radio]{min-width:20px;min-height:20px}
+  .footer-link,.footer-bottom-link{display:inline-block;padding-block:6px}
+  .path-cta,.link-inline,.school-link,.how-step-link{min-height:32px;display:inline-flex;align-items:center}
 }
 
 /* ═══════════════  Responsive refinement layer  ═══════════════
