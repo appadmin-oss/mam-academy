@@ -3,7 +3,7 @@
         'name' => 'mam-academy/api',
         'pretty_version' => 'dev-claude/relaxed-volta-omN7l',
         'version' => 'dev-claude/relaxed-volta-omN7l',
-        'reference' => 'bd378ed04515af70516e18985b43c48c955f3b4d',
+        'reference' => 'b29f274ea153f7a595adcb94b927aa637dda80c1',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'mam-academy/api' => array(
             'pretty_version' => 'dev-claude/relaxed-volta-omN7l',
             'version' => 'dev-claude/relaxed-volta-omN7l',
-            'reference' => 'bd378ed04515af70516e18985b43c48c955f3b4d',
+            'reference' => 'b29f274ea153f7a595adcb94b927aa637dda80c1',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

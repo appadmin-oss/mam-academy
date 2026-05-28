@@ -265,6 +265,26 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 @supports ((-webkit-background-clip:text) or (background-clip:text)){
   .highlight-gold{background:linear-gradient(135deg,var(--gold),var(--gold-bright));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
 }
+/* Gradient-text safety net. On any engine WITHOUT background-clip:text
+   support (older Android WebViews, some in-app browsers, Firefox <49), the
+   `-webkit-text-fill-color:transparent` used for gradient text would render
+   the text invisible. This forces it back to a solid, on-brand colour so
+   text is never transparent. Covers every gradient-text class on the site
+   AND any inline `-webkit-text-fill-color:transparent` (the 18 inline spots
+   across compare/metamusic/power-play/schools/404). Active ONLY where the
+   gradient can't paint — supported browsers keep the gradient. */
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  [style*="-webkit-text-fill-color:transparent"],
+  .highlight-gold,.preloader-name,.nav-brand-name,.footer-logo-name,
+  .stat-number,.countdown-num,.mam-exit-glow,.portal-brand-name,
+  .kpi-value.gold,.pp-title .accent,.match-result-name,.col-price{
+    -webkit-text-fill-color:currentColor!important;
+    color:var(--gold-bright)!important;
+    background:none!important;
+  }
+  .highlight-red{-webkit-text-fill-color:currentColor!important;color:var(--red-hot,#E11D48)!important;background:none!important}
+  .highlight-purple{-webkit-text-fill-color:currentColor!important;color:#A78BFA!important;background:none!important}
+}
 
 /* Native emoji with a CSS-driven bounce — replaces the dotlottie-wc nodes.
    Forces the colour-emoji font stack so the glyph never falls back to a
