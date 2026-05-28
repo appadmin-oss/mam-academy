@@ -57,9 +57,53 @@ function mam_validate_application(array $in): array {
     $out['mode'] = mam_str($in, 'mode', 16);
     if (!mam_in($out['mode'], ['online','onsite'])) $errors[] = 'mode';
 
-    $allowedDisc = ['piano','violin','guitar','drums','voice','wind','theory','performance','rhythm','metamusic','multiple'];
+    $allowedPrograms = [
+        'music-business','songwriting','audio-engineering',
+        'classical','contemporary','african','grand',
+        'music-education','music-direction','artistic-direction',
+        'music-production','orchestration','arranging','conducting','film-scoring'
+    ];
+    $out['program'] = mam_str($in, 'program', 40);
+    if (!mam_in($out['program'], $allowedPrograms)) $errors[] = 'program';
+
+    // Courses (kept under "discipline" for back-compat with the existing schema).
+    // Updated to match the academy's published course catalogue: every Google
+    // Form option plus the legacy MAM-specific tracks (theory, performance,
+    // rhythm, metamusic).
+    $allowedDisc = [
+        'piano','voice','guitar','bass','violin','saxophone','trumpet','flute','clarinet',
+        'drums','robotics','theory','performance','rhythm','metamusic','multiple'
+    ];
     $out['discipline'] = mam_str($in, 'discipline', 32);
     if (!mam_in($out['discipline'], $allowedDisc)) $errors[] = 'discipline';
+
+    $out['sex'] = mam_str($in, 'sex', 12);
+    if (!mam_in($out['sex'], ['female','male'])) $errors[] = 'sex';
+
+    $out['address'] = mam_str($in, 'address', 200);
+    if ($out['address'] === '' || strlen($out['address']) < 3) $errors[] = 'address';
+
+    $out['lga']   = mam_str($in, 'lga',   80);
+    $out['state'] = mam_str($in, 'state', 80);
+    if ($out['lga']   === '') $errors[] = 'lga';
+    if ($out['state'] === '') $errors[] = 'state';
+
+    // Headshot URL is optional. If supplied, must be an https URL from a known
+    // host so we don't store user-controlled redirects in the DB.
+    $hs = mam_str($in, 'headshotUrl', 500);
+    if ($hs !== '') {
+        $valid = filter_var($hs, FILTER_VALIDATE_URL) && stripos($hs, 'https://') === 0;
+        $host = $valid ? parse_url($hs, PHP_URL_HOST) : '';
+        $allowedHosts = ['res.cloudinary.com'];
+        if (!$valid || !in_array($host, $allowedHosts, true)) {
+            $errors[] = 'headshotUrl';
+            $out['headshotUrl'] = null;
+        } else {
+            $out['headshotUrl'] = $hs;
+        }
+    } else {
+        $out['headshotUrl'] = null;
+    }
 
     // Date of birth is now the single source of truth — age range, programme
     // track and guardian-requirement all derive from it server-side.

@@ -43,7 +43,13 @@ window.MAM_CONFIG = {
     provider: 'cloudinary',
     cloudName: '',          // e.g. 'mam-academy' — set this once and every image is served via the CDN
     defaultWidth: 1920,     // hero/full-bleed cap
-    contentWidth: 1200      // in-content image cap
+    contentWidth: 1200,     // in-content image cap
+    // Unsigned upload preset for applicant-supplied images (headshots).
+    // Create one in Cloudinary → Settings → Upload → "Upload presets" with
+    // signing mode = Unsigned, and folder restriction = mam-academy/.
+    // Leaving this empty disables in-browser uploads — applicants can still
+    // submit and we'll request the headshot manually.
+    uploadPreset: ''
   },
 
   /* -------- Optional payment methods --------

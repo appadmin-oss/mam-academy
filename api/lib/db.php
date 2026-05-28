@@ -261,6 +261,17 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE applications ADD COLUMN policy_signed_name TEXT;
             ALTER TABLE applications ADD COLUMN policy_signed_at TEXT;
         ",
+        // Expanded applicant profile to match the published Google Form:
+        // sex/address/LGA/state on customers, programme + headshot URL on
+        // applications. All additive, all nullable for backwards compat.
+        4 => "
+            ALTER TABLE customers    ADD COLUMN sex TEXT;
+            ALTER TABLE customers    ADD COLUMN address TEXT;
+            ALTER TABLE customers    ADD COLUMN lga TEXT;
+            ALTER TABLE customers    ADD COLUMN state TEXT;
+            ALTER TABLE applications ADD COLUMN program TEXT;
+            ALTER TABLE applications ADD COLUMN headshot_url TEXT;
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

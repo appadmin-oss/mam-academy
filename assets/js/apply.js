@@ -43,9 +43,13 @@
     var totalSteps = stepsEls.length;
 
     var data = loadDraft() || {
-      pathway: '', mode: '', discipline: '', firstName: '', lastName: '', email: '', phone: '',
-      country: 'Nigeria', city: '', dob: '', experience: '', goals: '', referrer: '',
+      pathway: '', mode: '', program: '', discipline: '',
+      firstName: '', lastName: '', email: '', phone: '',
+      sex: '', address: '', lga: '', state: '',
+      country: 'Nigeria', city: '', dob: '',
+      experience: '', goals: '', referrer: '',
       auditer: true, parentName: '', parentPhone: '',
+      headshotUrl: '',
       includeRegistration: true, includeCertification: false, payment: '', currency: 'USD',
       programTrack: '', policyAgree: false, policySignName: '',
       reference: null, applicationId: null, serverTotalUsd: null
@@ -54,6 +58,13 @@
     if ('age' in data) delete data.age;
     if ('emergencyContact' in data) delete data.emergencyContact;
     if (typeof data.dob !== 'string') data.dob = '';
+    // Default the new required fields to empty so legacy drafts don't write "undefined"
+    ['program','sex','address','lga','state','headshotUrl'].forEach(function (k) {
+      if (typeof data[k] !== 'string') data[k] = '';
+    });
+    // The legacy "wind" discipline was split into saxophone/trumpet/flute/clarinet —
+    // any draft that still carries it needs the user to re-pick a specific instrument.
+    if (data.discipline === 'wind') data.discipline = '';
 
     // KTAMS (Kids @ MAM) = under 16; MAM = 16 and above. Derived entirely from DOB.
     function ageFromDob(dob) {
@@ -153,6 +164,7 @@
       if (idx === 0) {
         if (!data.pathway)    { var p = $('#err-pathway');    if (p) p.classList.add('shown');    ok = false; }
         if (!data.mode)       { var m = $('#err-mode');       if (m) m.classList.add('shown');       ok = false; }
+        check('program',  !!data.program);
         if (!data.discipline) { var d = $('#err-discipline'); if (d) d.classList.add('shown'); ok = false; }
       }
       if (idx === 1) {
@@ -161,6 +173,10 @@
         check('lastName',  (data.lastName  || '').trim().length > 1);
         check('email',     emailRe.test((data.email || '').trim()));
         check('phone',     phoneRe.test((data.phone || '').trim()));
+        if (!data.sex) { var sxe = $('#err-sex'); if (sxe) sxe.classList.add('shown'); ok = false; }
+        check('address',   (data.address || '').trim().length > 2);
+        check('lga',       (data.lga     || '').trim().length > 1);
+        check('state',     (data.state   || '').trim().length > 1);
         check('country',   (data.country || '').trim().length > 1);
         check('dob',       ageFromDob(data.dob) !== null);
         // Under-16 (KTAMS) applicants must provide a parent/guardian
@@ -281,20 +297,24 @@
       html += item('Track', trk && cfg.tracks[trk] ? cfg.tracks[trk].name : '—');
       html += item('Pathway', price ? price.name : '—');
       html += item('Mode',    data.mode === 'online' ? 'Online' : (data.mode === 'onsite' ? 'Onsite Lagos' : '—'));
-      html += item('Discipline', titleCase(data.discipline));
+      html += item('Programme', titleCase(data.program));
+      html += item('Course', titleCase(data.discipline));
       html += item('MAM Auditer', data.auditer ? 'Yes — book session' : 'No');
       html += '</div></div>';
       var ageDisp = ageFromDob(data.dob);
       var dobDisp = data.dob ? new Date(data.dob).toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' }) : '';
       var ageLine = (ageDisp !== null ? (ageDisp + ' yrs') : '') + (dobDisp ? ' · ' + dobDisp : '');
+      var locLine = [data.address, data.lga, data.state, data.country].filter(function (v) { return v && v.trim(); }).join(', ');
       html += '<div class="review-section"><div class="review-section-head"><h4>Student Profile</h4><button type="button" data-jump="1">Edit</button></div><div class="review-grid">';
       html += item('Name',    (data.firstName + ' ' + data.lastName).trim());
+      html += item('Sex',     titleCase(data.sex));
       html += item('Email',   data.email);
       html += item('Phone',   data.phone);
-      html += item('Country', data.country);
-      html += item('City',    data.city);
       html += item('Age',     ageLine || '—');
-      html += '</div></div>';
+      html += '</div>';
+      if (locLine) html += '<div class="review-item" style="margin-top:14px"><span class="review-label">Address</span><span class="review-value">' + escapeHtml(locLine) + '</span></div>';
+      if (data.headshotUrl) html += '<div class="review-item" style="margin-top:14px"><span class="review-label">Headshot</span><span class="review-value"><img src="' + escapeHtml(data.headshotUrl) + '" alt="Headshot" style="width:56px;height:56px;object-fit:cover;border-radius:50%;border:2px solid var(--border-gold);vertical-align:middle"></span></div>';
+      html += '</div>';
       if (data.experience || data.goals || data.referrer) {
         html += '<div class="review-section"><div class="review-section-head"><h4>Background</h4><button type="button" data-jump="2">Edit</button></div><div class="review-grid">';
         html += item('Experience', titleCase(data.experience));
@@ -340,7 +360,21 @@
     bindRadioGroup('pathway', 'pathway');
     bindRadioGroup('mode', 'mode');
     bindRadioGroup('discipline', 'discipline');
-    ['firstName','lastName','email','phone','country','city','dob','experience','goals','referrer','parentName','parentPhone'].forEach(function (id) { bindField(id, id); });
+    bindRadioGroup('sex', 'sex');
+    ['firstName','lastName','email','phone','address','lga','state','country','city','dob','program','experience','goals','referrer','parentName','parentPhone'].forEach(function (id) { bindField(id, id); });
+
+    // ---------- Headshot widget (AI-validated, optional Cloudinary upload) ----------
+    var headshotState = null;
+    var hsMount = document.getElementById('headshotMount');
+    if (hsMount && window.MAM_HEADSHOT) {
+      window.MAM_HEADSHOT.mount(hsMount, {
+        onChange: function (s) {
+          headshotState = s;
+          data.headshotUrl = (s.uploaded && s.uploaded.url) || '';
+          saveDraft();
+        }
+      });
+    }
     bindField('auditerOptIn', 'auditer');
     bindField('includeRegistration', 'includeRegistration');
     bindField('includeCertification', 'includeCertification');
@@ -474,10 +508,13 @@
       return {
         firstName: data.firstName, lastName: data.lastName,
         email: data.email, phone: data.phone,
-        pathway: data.pathway, mode: data.mode, discipline: data.discipline,
+        sex: data.sex,
+        pathway: data.pathway, mode: data.mode, program: data.program, discipline: data.discipline,
+        address: data.address, lga: data.lga, state: data.state,
         country: data.country, city: data.city, dob: data.dob,
         experience: data.experience, goals: data.goals, referrer: data.referrer,
         parentName: data.parentName, parentPhone: data.parentPhone,
+        headshotUrl: data.headshotUrl,
         auditer: !!data.auditer,
         includeRegistration: !!data.includeRegistration,
         includeCertification: !!data.includeCertification,
@@ -493,11 +530,16 @@
     var SERVER_FIELDS = {
       pathway:          { id: null,              step: 0 },
       mode:             { id: null,              step: 0 },
+      program:          { id: 'program',         step: 0 },
       discipline:       { id: null,              step: 0 },
       firstName:        { id: 'firstName',       step: 1 },
       lastName:         { id: 'lastName',        step: 1 },
       email:            { id: 'email',           step: 1 },
       phone:            { id: 'phone',           step: 1 },
+      sex:              { id: null,              step: 1 },
+      address:          { id: 'address',         step: 1 },
+      lga:              { id: 'lga',             step: 1 },
+      state:            { id: 'state',           step: 1 },
       country:          { id: 'country',         step: 1 },
       dob:              { id: 'dob',             step: 1 },
       parentName:       { id: 'parentName',      step: 1 },
@@ -505,9 +547,11 @@
       policySignedName: { id: 'policySignName',  step: 3 }
     };
     var FIELD_LABELS = {
-      pathway: 'pathway', mode: 'learning mode', discipline: 'discipline',
+      pathway: 'pathway', mode: 'learning mode', program: 'programme', discipline: 'course',
       firstName: 'first name', lastName: 'last name', email: 'email',
-      phone: 'phone', country: 'country', dob: 'date of birth',
+      phone: 'mobile number', sex: 'sex',
+      address: 'address', lga: 'local government', state: 'state', country: 'country',
+      dob: 'date of birth',
       parentName: 'parent/guardian (under-16 students)',
       policyAgreed: 'class policy agreement',
       policySignedName: 'policy signature'

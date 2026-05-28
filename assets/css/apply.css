@@ -107,6 +107,34 @@
 .dob-readout span{display:block;font-size:0.78rem;color:var(--text-muted);margin-top:2px}
 @media (max-width:560px){.dob-row{grid-template-columns:1fr}}
 
+/* Sex inline pill picker — two compact options instead of a dropdown */
+.sex-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sex-pill{position:relative;padding:14px 18px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);cursor:pointer;font-weight:700;color:var(--text-soft);display:flex;align-items:center;justify-content:center;gap:10px;transition:all .2s var(--ease)}
+.sex-pill input{position:absolute;opacity:0;pointer-events:none}
+.sex-pill i{color:var(--text-muted)}
+.sex-pill:has(input:checked){border-color:var(--gold-bright);background:rgba(224,138,26,0.1);color:var(--gold-bright);box-shadow:0 0 0 3px rgba(224,138,26,0.12)}
+.sex-pill:has(input:checked) i{color:var(--gold-bright)}
+
+/* Headshot dropzone + AI-validation widget */
+.headshot-mount{display:flex;flex-direction:column;gap:10px}
+.hs-dropzone{position:relative;display:flex;align-items:center;justify-content:center;min-height:220px;padding:24px;background:linear-gradient(180deg,rgba(224,138,26,0.05),var(--bg-elevated));border:1.5px dashed var(--border-gold);border-radius:var(--radius-md);cursor:pointer;text-align:center;transition:all .2s var(--ease);outline:none}
+.hs-dropzone:hover,.hs-dropzone:focus-visible{border-color:var(--gold-bright);background:linear-gradient(180deg,rgba(224,138,26,0.09),var(--bg-elevated))}
+.hs-dropzone.is-dragover{border-color:var(--gold-bright);background:rgba(224,138,26,0.12);transform:scale(1.005)}
+.hs-empty{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--text-muted)}
+.hs-empty i{font-size:2.2rem;color:var(--gold-bright);margin-bottom:4px}
+.hs-empty strong{font-size:1rem;color:var(--text)}
+.hs-empty span{font-size:0.8rem;line-height:1.5;max-width:340px}
+.hs-preview{display:flex;flex-direction:column;align-items:center;gap:10px;width:100%}
+.hs-preview img{width:160px;height:160px;object-fit:cover;border-radius:50%;border:3px solid var(--border-gold);box-shadow:0 6px 20px rgba(0,0,0,0.35)}
+.hs-replace{background:none;border:1px solid var(--border-gold);color:var(--gold-bright);padding:6px 14px;border-radius:100px;font-size:0.78rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer}
+.hs-replace:hover{background:rgba(224,138,26,0.08)}
+.hs-status{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border-radius:var(--radius-sm);font-size:0.85rem;line-height:1.5;animation:stepFade 0.3s var(--ease)}
+.hs-status i{font-size:0.95rem;margin-top:2px;flex-shrink:0}
+.hs-status-working{background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.32);color:#C7D2FE}
+.hs-status-ok{background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.32);color:#A7F3D0}
+.hs-status-warn{background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.32);color:#FDE68A}
+.hs-status-error{background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.32);color:#FECDD3}
+
 .choice-grid-1{grid-template-columns:1fr}
 .choice-card{position:relative;padding:16px 18px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-md);cursor:pointer;transition:all 0.2s var(--ease)}
 .choice-card:hover{border-color:var(--border-gold);background:rgba(224,138,26,0.04)}
