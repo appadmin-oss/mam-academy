@@ -42,6 +42,24 @@
     (document.head || document.documentElement).appendChild(__ic);
   }
 
+  // libs.js + lead.js progressive enhancement modules. libs.js pulls in
+  // SweetAlert2/Tom Select/AOS/GSAP/etc; lead.js mounts the sticky
+  // apply-now bar and the exit-intent capture modal. Both are optional
+  // — the site degrades cleanly if either CDN/script is blocked.
+  if (typeof document !== 'undefined') {
+    var __base = (document.currentScript && document.currentScript.getAttribute('src')) || '';
+    var __idx  = __base.indexOf('main.js');
+    var __dir  = __idx >= 0 ? __base.slice(0, __idx) : 'assets/js/';
+    [['libs.js', 'mamLibs'], ['lead.js', 'mamLead']].forEach(function (pair) {
+      if (document.querySelector('script[data-' + pair[1] + ']')) return;
+      var s = document.createElement('script');
+      s.src = __dir + pair[0];
+      s.async = true;
+      s.dataset[pair[1]] = '1';
+      (document.head || document.documentElement).appendChild(s);
+    });
+  }
+
   var $  = function (s, c) { return (c || document).querySelector(s); };
   var $$ = function (s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); };
   var on = function (el, ev, fn, opts) { if (el) el.addEventListener(ev, fn, opts || false); };

@@ -19,7 +19,13 @@
     swiperCss:'https://cdn.jsdelivr.net/npm/swiper@8/swiper-bundle.min.css',
     splideJs: 'https://cdn.jsdelivr.net/npm/@splidejs/splide@4/dist/js/splide.min.js',
     splideCss:'https://cdn.jsdelivr.net/npm/@splidejs/splide@4/dist/css/splide.min.css',
-    webfont:  'https://cdn.jsdelivr.net/npm/webfontloader@1.6.28/webfontloader.js'
+    webfont:  'https://cdn.jsdelivr.net/npm/webfontloader@1.6.28/webfontloader.js',
+    swal2Js:  'https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js',
+    swal2Css: 'https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css',
+    tomJs:    'https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js',
+    tomCss:   'https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css',
+    aosJs:    'https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js',
+    aosCss:   'https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css'
   };
 
   function loadJs(src) {
@@ -94,11 +100,84 @@
     }
   }
 
+  /* ---- AOS: scroll-triggered fades / rises on opted-in elements ---- */
+  function initAos() {
+    if (RM || !window.AOS) return;
+    try {
+      window.AOS.init({ duration: 700, easing: 'ease-out-quart', once: true, offset: 70, disable: 'phone' });
+    } catch (e) {}
+  }
+
+  /* ---- Tom Select: enhance every <select data-enhance="select"> ---- */
+  function initTomSelect() {
+    if (!window.TomSelect) return;
+    document.querySelectorAll('select[data-enhance="select"]').forEach(function (sel) {
+      if (sel.tomselect) return;
+      try {
+        new window.TomSelect(sel, {
+          allowEmptyOption: true,
+          maxOptions: 100,
+          placeholder: sel.querySelector('option[value=""]') ? sel.querySelector('option[value=""]').textContent : 'Select…'
+        });
+      } catch (e) {}
+    });
+  }
+
+  /* ---- MAM_DIALOG: branded confirm/alert/toast backed by SweetAlert2 ----
+     Falls back to native confirm()/alert() if the library can't load, so
+     the user is never stuck. Theme matches the site's gold-on-dark. */
+  function makeDialog() {
+    var swal = window.Swal;
+    var theme = {
+      background: '#1A120B',
+      color: '#FBF7F3',
+      confirmButtonColor: '#E08A1A',
+      cancelButtonColor:  '#3A2A1A',
+      iconColor: '#FBBF24',
+      customClass: {
+        popup: 'mam-swal',
+        confirmButton: 'mam-swal-confirm',
+        cancelButton:  'mam-swal-cancel',
+        title: 'mam-swal-title'
+      }
+    };
+    function merge(a, b) { for (var k in b) a[k] = b[k]; return a; }
+    return {
+      alert: function (title, text, icon) {
+        if (!swal) return Promise.resolve(window.alert(title + (text ? '\n' + text : '')));
+        return swal.fire(merge({ title: title, text: text || '', icon: icon || 'info' }, theme));
+      },
+      confirm: function (title, text, confirmLabel) {
+        if (!swal) return Promise.resolve(window.confirm(title + (text ? '\n' + text : '')));
+        return swal.fire(merge({
+          title: title, text: text || '', icon: 'question',
+          showCancelButton: true, confirmButtonText: confirmLabel || 'Yes',
+          cancelButtonText: 'Cancel', reverseButtons: true
+        }, theme)).then(function (r) { return !!r.isConfirmed; });
+      },
+      toast: function (message, icon) {
+        if (!swal) { console.log('[toast]', message); return; }
+        swal.fire(merge({
+          toast: true, position: 'top-end', timer: 3500, showConfirmButton: false,
+          title: message, icon: icon || 'success'
+        }, theme));
+      },
+      prompt: function (title, placeholder, inputType) {
+        if (!swal) return Promise.resolve(window.prompt(title));
+        return swal.fire(merge({
+          title: title, input: inputType || 'text', inputPlaceholder: placeholder || '',
+          showCancelButton: true, confirmButtonText: 'Submit', cancelButtonText: 'Cancel'
+        }, theme)).then(function (r) { return r.isConfirmed ? r.value : null; });
+      }
+    };
+  }
+
   function boot() {
     loadJs(CDN.webfont).then(initWebFont);
     loadJs(CDN.jquery); // available globally for any jQuery-based snippet
 
     loadCss(CDN.swiperCss); loadCss(CDN.splideCss);
+    loadCss(CDN.swal2Css);  loadCss(CDN.tomCss);  loadCss(CDN.aosCss);
 
     // GSAP core then plugins, then run reveals.
     loadJs(CDN.gsap).then(function (ok) {
@@ -107,6 +186,17 @@
     });
 
     Promise.all([loadJs(CDN.swiperJs), loadJs(CDN.splideJs)]).then(initCarousels);
+
+    // SweetAlert2 → MAM_DIALOG. Available before/after load: degrades to
+    // native alert/confirm if the script never arrives.
+    window.MAM_DIALOG = makeDialog();
+    loadJs(CDN.swal2Js).then(function (ok) { if (ok) window.MAM_DIALOG = makeDialog(); });
+
+    // Tom Select runs after partials settle so dropdowns added later get covered.
+    loadJs(CDN.tomJs).then(function (ok) { if (ok) initTomSelect(); });
+    document.addEventListener('mam:ready', function () { initTomSelect(); });
+
+    loadJs(CDN.aosJs).then(initAos);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

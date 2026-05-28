@@ -355,6 +355,59 @@ function mam_send(string $to, string $subject, string $body, string $context, bo
     return (bool)$result['ok'];
 }
 
+/**
+ * Welcome email sent to every new newsletter subscriber.
+ */
+function mam_email_newsletter_welcome(string $source = 'site'): string {
+    $site = htmlspecialchars($source, ENT_QUOTES);
+    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
+    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
+    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:22px;text-align:center'>
+      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
+    </td></tr>
+    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
+      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're on the inside.</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px'>Thanks for joining the MAM Academy circle. Once a month you'll get:</p>
+      <ul style='color:rgba(255,255,255,0.86);font-size:15px;line-height:1.85;padding-left:18px;margin:14px 0'>
+        <li>The date &amp; theme of the next free <strong style='color:#FBBF24'>Power Play with Van. BOJA</strong></li>
+        <li>Open intake dates &amp; new programme launches</li>
+        <li>Student showcases, faculty essays &amp; long-form notes on the MAM Method</li>
+      </ul>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px'>If you're ready to enrol, you can start your application in five guided steps:</p>
+      <p style='text-align:center;margin:24px 0'><a href='https://academy.mamcentre.org/apply.html' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Begin your application</a></p>
+      <p style='font-size:13px;color:rgba(255,255,255,0.5);margin-top:24px'>You'll only ever get these monthly notes — no daily noise. Reply with \"unsubscribe\" any time and we'll take you off the list immediately.</p>
+      <p style='margin-top:24px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · subscribed via <code style='color:#FBBF24'>$site</code></p>
+    </td></tr></table>
+    </body></html>";
+}
+
+/**
+ * Auto-responder for the public contact form. Confirms receipt to the
+ * sender and surfaces faster routes (apply, FAQ, phone) so they aren't
+ * stuck waiting if they had a simple question.
+ */
+function mam_email_contact_autoresponse(string $name, string $topic): string {
+    $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);
+    $t = htmlspecialchars($topic ?: 'your message', ENT_QUOTES);
+    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
+    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
+    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:22px;text-align:center'>
+      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
+    </td></tr>
+    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
+      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Got it, $n.</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px'>Your message about <strong>$t</strong> is with our team. We reply to every contact-form message within <strong>24 hours</strong> (often much sooner during Lagos working hours).</p>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin-top:18px'>If your question is time-sensitive, these are the fastest routes:</p>
+      <div style='margin:16px 0;padding:16px 18px;background:#251A10;border:1px solid #3A2A1A;border-radius:10px'>
+        <p style='margin:0 0 8px;font-size:14px'>📞 <strong style='color:#FBBF24'>+234 704 444 6517</strong> · Mon–Fri 9 am – 6 pm WAT</p>
+        <p style='margin:0 0 8px;font-size:14px'>✉️ <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a> · WhatsApp on the same number</p>
+        <p style='margin:0;font-size:14px'>🎓 Ready to apply? <a href='https://academy.mamcentre.org/apply.html' style='color:#FBBF24'>apply.html</a> · 5 steps, auto-saved on this device</p>
+      </div>
+      <p style='font-size:13px;color:rgba(255,255,255,0.55);margin-top:24px'>You're getting this once — it's our acknowledgement that we received your note. A real human will reply from this same address shortly.</p>
+    </td></tr></table>
+    </body></html>";
+}
+
 function mam_email_application_confirmation(array $app, array $customer): string {
     $tot = number_format((float)$app['total_usd'], 2);
     $ref = htmlspecialchars($app['reference'], ENT_QUOTES);

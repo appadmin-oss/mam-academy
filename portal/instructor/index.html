@@ -137,8 +137,8 @@
         notes: document.getElementById('att-notes').value,
       };
       API.request('instructor/mark-attendance', { method: 'POST', body: payload })
-        .then(function () { alert('Attendance saved.'); load(); })
-        .catch(function (err) { alert('Could not save: ' + (err.body && err.body.error || 'unknown')); });
+        .then(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Attendance saved', 'success') : alert('Attendance saved.')); load(); })
+        .catch(function (err) { var msg = 'Could not save: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not save', msg, 'error') : alert(msg)); });
     });
   }
   function attendanceTable(att) {

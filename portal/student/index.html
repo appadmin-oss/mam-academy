@@ -174,16 +174,16 @@
       var name = document.getElementById('pf-name').value.trim();
       var phone = document.getElementById('pf-phone').value.trim();
       API.request('student/update-profile', { method: 'POST', body: { name: name, phone: phone } })
-        .then(function () { alert('Profile updated.'); load(); })
-        .catch(function () { alert('Could not update profile.'); });
+        .then(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Profile updated.', 'success') : alert('Profile updated.')); load(); })
+        .catch(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not update profile', 'Please try again in a moment.', 'error') : alert('Could not update profile.')); });
     });
     document.getElementById('pwForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var current = document.getElementById('pw-current').value;
       var next = document.getElementById('pw-next').value;
       API.request('auth/change-password', { method: 'POST', body: { current: current, next: next } })
-        .then(function () { alert('Password changed. Please sign in again next time.'); load(); })
-        .catch(function (err) { alert('Could not change password: ' + (err.body && err.body.error || 'unknown')); });
+        .then(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Password changed', 'success') : alert('Password changed.')); load(); })
+        .catch(function (err) { var msg = 'Could not change password: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Password change failed', msg, 'error') : alert(msg)); });
     });
   }
 

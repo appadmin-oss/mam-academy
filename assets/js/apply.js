@@ -237,6 +237,25 @@
             if (ppOk) data.parentPhone = parentPhoneIti.getNumber();
           }
         }
+        // Headshot is mandatory — every student gets a class roster photo
+        // and the AI check stops us collecting blurry/multi-face/no-face
+        // shots that we'd otherwise have to chase manually.
+        var hsOk = !!(headshotState && headshotState.validation && headshotState.validation.ok && (headshotState.uploaded || !hasCloudinaryConfigured()));
+        if (!hsOk) {
+          ok = false;
+          var hsHost = document.getElementById('headshotMount');
+          if (hsHost) {
+            hsHost.classList.add('headshot-required-pulse');
+            if (!first) first = hsHost;
+            // Persistent inline status nudge under the dropzone
+            var status = hsHost.parentNode && hsHost.parentNode.querySelector('.hs-status');
+            if (status) {
+              status.hidden = false;
+              status.className = 'hs-status hs-status-error';
+              status.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> A clear headshot is required to continue. Upload a front-facing photo.';
+            }
+          }
+        }
       }
       if (idx === 3) {
         var pa = $('#policyAgree');
@@ -422,8 +441,12 @@
     // would race with the country picker's setNumber().
     ['firstName','lastName','email','address','lga','state','country','city','dob','program','experience','goals','referrer','parentName'].forEach(function (id) { bindField(id, id); });
 
-    // ---------- Headshot widget (AI-validated, optional Cloudinary upload) ----------
+    // ---------- Headshot widget (AI-validated; upload required when Cloudinary is configured) ----------
     var headshotState = null;
+    function hasCloudinaryConfigured() {
+      var c = (window.MAM_CONFIG && window.MAM_CONFIG.cdn) || {};
+      return !!(c.cloudName && c.uploadPreset);
+    }
     var hsMount = document.getElementById('headshotMount');
     if (hsMount && window.MAM_HEADSHOT) {
       window.MAM_HEADSHOT.mount(hsMount, {

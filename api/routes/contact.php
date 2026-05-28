@@ -29,5 +29,9 @@ $body = "<h3>New contact message</h3>"
       . "<p>" . nl2br(htmlspecialchars($message)) . "</p>";
 mam_send($notify, '[MAM Contact] ' . $topic, $body, 'contact_message', true, ['reply_to' => $email]);
 
+// Auto-responder to the sender so they're never left wondering whether
+// their message got through. Surfaces apply/phone as faster routes.
+mam_send($email, 'Got your message — MAM Academy', mam_email_contact_autoresponse($name, $topic), 'contact_autoresponse', true);
+
 mam_audit('create', 'message', $id, ['email' => $email, 'topic' => $topic]);
 mam_ok(['received' => true, 'id' => $id]);

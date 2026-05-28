@@ -20,6 +20,11 @@ try {
     mam_fail('save_failed', 500);
 }
 
+// Welcome the new subscriber with a branded confirmation — sets
+// expectations, gives them an immediate next step (apply), and acts
+// as a delivery test (if this doesn't arrive, nothing else will).
+mam_send($email, 'Welcome to the MAM Academy circle', mam_email_newsletter_welcome($source), 'newsletter_welcome', true);
+
 $notify = mam_env('NOTIFY_EMAIL');
 if ($notify) mam_send($notify, 'New newsletter subscriber', "$email subscribed via $source", 'newsletter_notice', false);
 mam_audit('subscribe', 'newsletter', null, ['email' => $email, 'source' => $source]);
