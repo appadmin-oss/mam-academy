@@ -6,20 +6,46 @@
 declare(strict_types=1);
 
 function mam_send_mail(string $to, string $subject, string $body, bool $html = false, array $opts = []): bool {
+    $result = mam_send_mail_verbose($to, $subject, $body, $html, $opts);
+    return (bool)$result['ok'];
+}
+
+/**
+ * Same as mam_send_mail() but returns a structured result:
+ *   ['ok' => bool, 'transport' => 'smtp'|'mail()', 'error' => ?string, 'steps' => array]
+ * Useful for diagnostics (CLI tester, /api/admin/mail-test).
+ */
+function mam_send_mail_verbose(string $to, string $subject, string $body, bool $html = false, array $opts = []): array {
     $from      = $opts['from']      ?? mam_env('MAIL_FROM_EMAIL', 'no-reply@mamcentre.org');
     $fromName  = $opts['from_name'] ?? mam_env('MAIL_FROM_NAME', 'MAM Academy');
     $replyTo   = $opts['reply_to']  ?? null;
     $host      = mam_env('MAIL_HOST', '');
 
     if ($host) {
-        return mam_smtp_send($host, (int)mam_env('MAIL_PORT', '587'),
+        $transcript = [];
+        $ok = mam_smtp_send($host, (int)mam_env('MAIL_PORT', '587'),
             mam_env('MAIL_USERNAME', ''), mam_env('MAIL_PASSWORD', ''),
             strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls')),
-            $from, $fromName, $replyTo, $to, $subject, $body, $html);
+            $from, $fromName, $replyTo, $to, $subject, $body, $html, $transcript);
+        $failedStep = null;
+        foreach ($transcript as $s) {
+            if (!($s['ok'] ?? true)) { $failedStep = $s; break; }
+        }
+        return [
+            'ok'        => $ok,
+            'transport' => 'smtp',
+            'host'      => $host,
+            'error'     => $ok ? null : ($failedStep['step'] ?? 'smtp_failed') . ': ' . trim((string)($failedStep['reply'] ?? '')),
+            'steps'     => $transcript,
+        ];
     }
 
     // PHP mail() fallback (no SMTP configured). Many hosts disable this —
     // configure MAIL_HOST/MAIL_USERNAME/MAIL_PASSWORD in api/.env for reliable delivery.
+    mam_log('warn', 'mail_not_configured', [
+        'hint' => 'MAIL_HOST is empty in api/.env — falling back to PHP mail(), which is unreliable on most hosts. Run `php api/tools/mail-test.php you@example.com` after setting MAIL_HOST.',
+        'to' => $to, 'subject' => $subject,
+    ]);
     $headers = [];
     $headers[] = 'From: ' . mb_encode_mimeheader($fromName) . " <$from>";
     if ($replyTo) $headers[] = "Reply-To: $replyTo";
@@ -29,7 +55,13 @@ function mam_send_mail(string $to, string $subject, string $body, bool $html = f
     $params = (strpos($from, '@') !== false) ? ('-f' . $from) : '';
     $ok = @mail($to, $subject, $body, implode("\r\n", $headers), $params);
     if (!$ok) mam_log('warn', 'mail_failed_phpmail', ['to' => $to, 'subject' => $subject, 'hint' => 'Set MAIL_HOST + SMTP creds in api/.env; PHP mail() is unreliable/disabled on most hosts']);
-    return (bool)$ok;
+    return [
+        'ok'        => (bool)$ok,
+        'transport' => 'mail()',
+        'host'      => null,
+        'error'     => $ok ? null : 'PHP mail() returned false (host likely has no MTA or sendmail is disabled)',
+        'steps'     => [],
+    ];
 }
 
 /**
@@ -39,7 +71,9 @@ function mam_send_mail(string $to, string $subject, string $body, bool $html = f
  */
 function mam_smtp_send(string $host, int $port, string $user, string $pass, string $encryption,
                        string $from, string $fromName, ?string $replyTo,
-                       string $to, string $subject, string $body, bool $html): bool {
+                       string $to, string $subject, string $body, bool $html,
+                       array &$transcript = null): bool {
+    if ($transcript === null) $transcript = [];
     // Most authenticated relays (Gmail, Office365, SES, …) reject a MAIL FROM
     // envelope that differs from the authenticated account. Use the auth user
     // as the envelope sender when it's an address; keep the friendly From header.
@@ -49,7 +83,12 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
     $errno = 0; $errstr = '';
     $ctx = stream_context_create(['ssl' => ['verify_peer' => true, 'verify_peer_name' => true, 'SNI_enabled' => true]]);
     $sock = @stream_socket_client("$remote:$port", $errno, $errstr, 20, STREAM_CLIENT_CONNECT, $ctx);
-    if (!$sock) { mam_log('error', 'smtp_connect_failed', ['host' => $host, 'port' => $port, 'err' => $errstr]); return false; }
+    if (!$sock) {
+        mam_log('error', 'smtp_connect_failed', ['host' => $host, 'port' => $port, 'err' => $errstr]);
+        $transcript[] = ['step' => 'connect', 'ok' => false, 'reply' => "$errno $errstr"];
+        return false;
+    }
+    $transcript[] = ['step' => 'connect', 'ok' => true, 'reply' => "$remote:$port"];
     stream_set_timeout($sock, 30);
 
     $get = function () use ($sock) {
@@ -62,9 +101,12 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
     };
     $send = function ($cmd) use ($sock, $get) { fwrite($sock, $cmd . "\r\n"); return $get(); };
     // Verify a response code; on mismatch log the exact server reply and bail.
-    $expect = function ($resp, array $codes, string $step) use ($sock) {
-        if (!in_array(substr((string)$resp, 0, 3), $codes, true)) {
-            mam_log('error', 'smtp_step_failed', ['step' => $step, 'reply' => trim((string)$resp)]);
+    $expect = function ($resp, array $codes, string $step) use ($sock, &$transcript) {
+        $reply = trim((string)$resp);
+        $ok = in_array(substr((string)$resp, 0, 3), $codes, true);
+        $transcript[] = ['step' => $step, 'ok' => $ok, 'reply' => $reply];
+        if (!$ok) {
+            mam_log('error', 'smtp_step_failed', ['step' => $step, 'reply' => $reply]);
             @fwrite($sock, "QUIT\r\n"); fclose($sock);
             return false;
         }
@@ -79,8 +121,12 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
     if ($encryption === 'tls') {
         if (!$expect($send('STARTTLS'), ['220'], 'starttls')) return false;
         if (!stream_socket_enable_crypto($sock, true, STREAM_CRYPTO_METHOD_TLS_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT)) {
-            mam_log('error', 'smtp_tls_failed'); fclose($sock); return false;
+            mam_log('error', 'smtp_tls_failed');
+            $transcript[] = ['step' => 'tls_handshake', 'ok' => false, 'reply' => 'stream_socket_enable_crypto returned false'];
+            fclose($sock);
+            return false;
         }
+        $transcript[] = ['step' => 'tls_handshake', 'ok' => true, 'reply' => 'TLS negotiated'];
         if (!$expect($send('EHLO ' . $ehloName), ['250'], 'ehlo_tls')) return false;
     }
 

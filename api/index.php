@@ -68,6 +68,7 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->post('/reset-password',  $f('admin/reset-password.php'), [mw_csrf(), mw_admin()]);
     $r->post('/create-class',    $f('admin/create-class.php'),   [mw_csrf(), mw_admin()]);
     $r->post('/enroll-student',  $f('admin/enroll-student.php'), [mw_csrf(), mw_admin()]);
+    $r->post('/mail-test',       $f('admin/mail-test.php'),      [mw_csrf(), mw_admin(), mw_rate_limit('mail_test', 10, 600)]);
 });
 
 /* ─── Dispatch ─── */
