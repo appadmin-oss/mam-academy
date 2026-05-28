@@ -795,9 +795,18 @@
           else apiError('Payment not confirmed yet. Please refresh, or email us your reference.');
         })
         .catch(function (err) {
-          // Even if frontend verify fails, the webhook will reconcile shortly. Show a soft success.
-          showSuccess(reference, 'Payment received. Our system will confirm shortly.');
           console.warn('verify_error', err);
+          // A 402 is a DEFINITIVE rejection (e.g. amount/currency mismatch) —
+          // never show success for it. Only a transient/network/5xx error gets
+          // the soft "webhook will reconcile" message, since a genuine payment
+          // will be confirmed by the signed webhook shortly.
+          var status = err && err.status;
+          if (status === 402 || (err && err.body && err.body.error === 'verification_failed')) {
+            apiError('We could not confirm your payment amount. If you were charged, email ' +
+              cfg.site.contactEmail + ' with reference ' + reference + ' and we will sort it out.');
+          } else {
+            showSuccess(reference, 'Payment received. Our system will confirm shortly.');
+          }
         });
     }
     function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }

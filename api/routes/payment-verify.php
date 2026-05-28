@@ -26,13 +26,28 @@ try {
         $resp = mam_paystack_verify($ref);
         $data = $resp['data']['data'] ?? null;
         $status = $data['status'] ?? null;
-        $ok = ($status === 'success');
+        // CRITICAL: the inline popup sets the charge amount client-side, so we
+        // MUST confirm the amount actually paid (kobo) is at least what's owed
+        // and in the right currency. Without this, a tampered popup could pay
+        // a token amount and still be marked "paid".
+        $paidKobo     = (float)($data['amount'] ?? 0);
+        $expectedKobo = (float)$payment['amount'] * 100;
+        $currencyOk   = strtoupper((string)($data['currency'] ?? 'NGN')) === 'NGN';
+        $ok = ($status === 'success' && $currencyOk && $paidKobo >= $expectedKobo);
+        if ($status === 'success' && !$ok) {
+            mam_log('warn', 'paystack_amount_or_currency_mismatch', ['ref' => $ref, 'paid_kobo' => $paidKobo, 'expected_kobo' => $expectedKobo, 'currency' => $data['currency'] ?? '']);
+        }
         $providerRef = $data['reference'] ?? $ref;
     } elseif ($provider === 'flutterwave') {
         $resp = $txId > 0 ? mam_flw_verify_by_id($txId) : mam_flw_verify_by_tx_ref($ref);
         $data = $resp['data']['data'] ?? null;
         $status = $data['status'] ?? null;
-        $ok = ($status === 'successful' && (float)($data['amount'] ?? 0) >= (float)$payment['amount']);
+        // Confirm amount AND currency — guard against a tampered inline amount.
+        $currencyOk = strtoupper((string)($data['currency'] ?? 'NGN')) === 'NGN';
+        $ok = ($status === 'successful' && $currencyOk && (float)($data['amount'] ?? 0) >= (float)$payment['amount']);
+        if ($status === 'successful' && !$ok) {
+            mam_log('warn', 'flw_amount_or_currency_mismatch', ['ref' => $ref, 'paid' => $data['amount'] ?? 0, 'expected' => $payment['amount'], 'currency' => $data['currency'] ?? '']);
+        }
         $providerRef = $data['tx_ref'] ?? ($data['flw_ref'] ?? $ref);
     } else {
         mam_fail('unsupported_provider', 400);

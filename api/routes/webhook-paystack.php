@@ -41,8 +41,15 @@ try {
     if ($eventType === 'charge.success') {
         $ref = $payload['data']['reference'] ?? '';
         $amount = (float)($payload['data']['amount'] ?? 0) / 100;
+        $currency = strtoupper((string)($payload['data']['currency'] ?? 'NGN'));
         $payment = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$ref]);
-        if ($payment && $payment['status'] !== 'succeeded') {
+        // Never credit an underpayment or a different currency, even from a
+        // signature-valid webhook.
+        $amountOk = $payment && $currency === 'NGN' && (float)($payload['data']['amount'] ?? 0) >= (float)$payment['amount'] * 100;
+        if ($payment && !$amountOk) {
+            mam_log('warn', 'paystack_webhook_amount_mismatch', ['ref' => $ref, 'paid' => $amount, 'expected' => $payment['amount'], 'currency' => $currency]);
+        }
+        if ($payment && $amountOk && $payment['status'] !== 'succeeded') {
             mam_db_update('payments', [
                 'status' => 'succeeded',
                 'provider_reference' => $payload['data']['reference'] ?? null,

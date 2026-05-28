@@ -24,6 +24,11 @@ $app = mam_db_row('SELECT a.*, c.email AS email, c.first_name, c.last_name, c.ph
                     WHERE a.reference = ?', [$ref]);
 if (!$app) mam_fail('application_not_found', 404);
 
+// Don't let an already-paid application start another charge.
+if (($app['status'] ?? '') === 'paid') {
+    mam_ok(['already_paid' => true, 'reference' => $ref, 'status' => 'paid']);
+}
+
 $totalUsd = (float)$app['total_usd'];
 if ($totalUsd <= 0) mam_fail('zero_amount', 400);
 

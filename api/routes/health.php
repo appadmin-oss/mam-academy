@@ -25,6 +25,7 @@ mam_ok([
     'time' => date('c'),
     'env' => mam_env('APP_ENV', 'production'),
     'db' => $dbOk ? 'ok' : 'down',
-    'db_error' => $dbErr,
+    // Don't leak the raw DB error (file path / DSN) to the public in prod.
+    'db_error' => (mam_env('APP_ENV', 'production') === 'production') ? ($dbErr ? 'see logs' : null) : $dbErr,
     'features' => $features,
 ]);
