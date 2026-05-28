@@ -226,7 +226,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $cid = (int)($_POST['class_id'] ?? 0);
         $status = (string)($_POST['status'] ?? '');
         if ($cid && in_array($status, ['active', 'paused', 'archived'], true)) {
-            mam_db_update('classes', ['status' => $status, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $cid]);
+            mam_db_update('classes', ['status' => $status], ['id' => $cid]);
             mam_audit('update_status', 'class', $cid, ['status' => $status]);
         }
         header('Location: ?v=classes&ok=1');
@@ -264,7 +264,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $eid = (int)($_POST['enrollment_id'] ?? 0);
         $status = (string)($_POST['status'] ?? '');
         if ($eid && in_array($status, ['active', 'completed', 'withdrawn', 'paused'], true)) {
-            mam_db_update('enrollments', ['status' => $status, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $eid]);
+            mam_db_update('enrollments', ['status' => $status], ['id' => $eid]);
             mam_audit('update_status', 'enrollment', $eid, ['status' => $status]);
         }
         header('Location: ?v=enrollments&ok=1');
@@ -468,8 +468,8 @@ button.tiny:hover{border-color:var(--gold)}
         <tr>
           <td class="mono"><?= htmlspecialchars($r['reference']) ?></td>
           <td><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong><br><span class="muted"><?= htmlspecialchars((string)($r['email'] ?? '')) ?></span></td>
-          <td><?= htmlspecialchars($r['pathway']) ?></td>
-          <td class="muted"><?= htmlspecialchars($r['mode']) ?></td>
+          <td><?= htmlspecialchars((string)($r['pathway'] ?? '')) ?></td>
+          <td class="muted"><?= htmlspecialchars((string)($r['mode'] ?? '')) ?></td>
           <td>$<?= number_format((float)$r['total_usd'], 0) ?></td>
           <td><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
           <td class="muted"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
@@ -511,8 +511,8 @@ button.tiny:hover{border-color:var(--gold)}
             <?php if ($loc): ?><br><span class="muted"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <?= htmlspecialchars($loc) ?></span><?php endif; ?>
           </td>
           <td class="muted"><?= htmlspecialchars((string)($r['program'] ?? '—')) ?></td>
-          <td><?= htmlspecialchars($r['pathway']) ?> · <span class="muted"><?= htmlspecialchars($r['mode']) ?></span></td>
-          <td><?= htmlspecialchars($r['discipline']) ?></td>
+          <td><?= htmlspecialchars((string)($r['pathway'] ?? '')) ?> · <span class="muted"><?= htmlspecialchars((string)($r['mode'] ?? '')) ?></span></td>
+          <td><?= htmlspecialchars((string)($r['discipline'] ?? '')) ?></td>
           <td><?php $s = strtolower((string)($r['session'] ?? '')); echo $s ? '<span class="pill">' . htmlspecialchars($sessionLabels[$s] ?? strtoupper($s)) . '</span>' : '<span class="muted">—</span>'; ?></td>
           <td class="muted"><?= htmlspecialchars((string)($r['age_range'] ?? '')) ?></td>
           <td>$<?= number_format((float)$r['total_usd'], 2) ?></td>
@@ -689,7 +689,7 @@ button.tiny:hover{border-color:var(--gold)}
       foreach ($classes as $c): ?>
         <tr>
           <td><strong><?= htmlspecialchars($c['title']) ?></strong><br><span class="muted mono">#<?= (int)$c['id'] ?></span></td>
-          <td><?= htmlspecialchars($c['discipline']) ?></td>
+          <td><?= htmlspecialchars((string)($c['discipline'] ?? '—')) ?></td>
           <td class="muted"><?= htmlspecialchars((string)($c['pathway'] ?? '—')) ?></td>
           <td><?= htmlspecialchars((string)($c['instructor_name'] ?? '— unassigned —')) ?></td>
           <td class="muted"><?= htmlspecialchars((string)($c['mode'] ?? '—')) ?></td>

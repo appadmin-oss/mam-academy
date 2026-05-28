@@ -989,6 +989,9 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
 .ts-dropdown .optgroup-header{color:var(--gold-bright)!important;font-size:0.72rem!important;letter-spacing:0.12em!important;text-transform:uppercase!important;background:var(--bg)!important;font-weight:800!important}
 .ts-dropdown .active{background:rgba(224,138,26,0.14)!important;color:var(--gold-bright)!important}
 .ts-dropdown .option.selected{background:rgba(224,138,26,0.22)!important}
+/* When Tom Select enhances a .field-select-wrap, hide our manual chevron —
+   Tom Select renders its own caret, so the two would overlap. */
+.field-select-wrap:has(.ts-wrapper) .field-select-arrow{display:none}
 
 /* AOS: prevent FOUC if AOS fails to init by letting elements still display */
 [data-aos]:not(.aos-init){opacity:1;transform:none}

@@ -88,8 +88,14 @@
 .field-select-wrap .field-select{padding-right:42px}
 .field-select-arrow{position:absolute;right:16px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.78rem;pointer-events:none}
 .field-textarea{resize:vertical;min-height:110px;line-height:1.55}
-.field-row{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.field-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.field-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;align-items:start}
+/* min-width:0 stops a wide child (long email, the intl-tel-input control with
+   its dial-code padding) from blowing out its grid track and breaking the row.
+   Resetting the inner .field margin keeps vertical rhythm even when one cell
+   shows an error/help note and the other doesn't. */
+.field-row > *,.field-row-3 > *{min-width:0}
+.field-row .field,.field-row-3 .field{margin-bottom:0}
 .field-error{font-size:0.8rem;color:#FB7185;margin-top:6px;display:none;align-items:center;gap:6px}
 .field-error.shown{display:flex}
 .field-help{font-size:0.78rem;color:var(--text-muted);margin-top:5px;line-height:1.5}
@@ -161,6 +167,7 @@
 .iti--separate-dial-code .iti__selected-flag{background:var(--bg-elevated)}
 .iti--separate-dial-code input.field-input{padding-left:96px}
 
+.choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .choice-grid-1{grid-template-columns:1fr}
 /* Reserve bottom-right space for the check indicator so it never overlaps
    the gold-coloured price in the head row. */
@@ -291,12 +298,12 @@
   /* On a single column, gap:0 removes visual separation between stacked
      inputs. Keep a real vertical gap so the form breathes on mobile. */
   .field-row,.field-row-3{grid-template-columns:1fr;gap:18px}
-  .choice-grid{grid-template-columns:1fr}
   .payment-methods{grid-template-columns:1fr}
   .review-grid{grid-template-columns:1fr}
 }
 @media (max-width:560px){
   .apply-main{padding:24px 16px}
+  .choice-grid{grid-template-columns:1fr}
   .step-name{display:none}
   .apply-stepper::before{left:12%;right:12%}
   .apply-stepper{margin-bottom:18px}
