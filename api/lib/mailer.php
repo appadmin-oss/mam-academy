@@ -5,6 +5,25 @@
  */
 declare(strict_types=1);
 
+/**
+ * Convert an HTML email body to a serviceable plain-text alternative.
+ * No DOM parsing — fast, dependency-free, "good enough" for transactional
+ * mail. Keeps line breaks at <br> / </p> / </div>, decodes entities,
+ * strips everything else.
+ */
+function mam_html_to_text(string $html): string {
+    // Inject newlines at block boundaries before strip_tags so paragraphs survive
+    $h = preg_replace('#<br\s*/?>#i', "\n", $html);
+    $h = preg_replace('#</(p|div|tr|li|h[1-6])>#i', "\n\n", (string)$h);
+    $h = preg_replace('#<li[^>]*>#i', '• ', (string)$h);
+    $text = strip_tags((string)$h);
+    $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    // Collapse runs of whitespace; preserve double newlines as paragraph breaks.
+    $text = preg_replace("/[ \t]+/", ' ', $text);
+    $text = preg_replace("/\n{3,}/", "\n\n", $text);
+    return trim($text);
+}
+
 function mam_send_mail(string $to, string $subject, string $body, bool $html = false, array $opts = []): bool {
     $result = mam_send_mail_verbose($to, $subject, $body, $html, $opts);
     return (bool)$result['ok'];
@@ -22,19 +41,34 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
     $host      = mam_env('MAIL_HOST', '');
 
     if ($host) {
-        $transcript = [];
-        $ok = mam_smtp_send($host, (int)mam_env('MAIL_PORT', '587'),
-            mam_env('MAIL_USERNAME', ''), mam_env('MAIL_PASSWORD', ''),
-            strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls')),
-            $from, $fromName, $replyTo, $to, $subject, $body, $html, $transcript);
-        $failedStep = null;
-        foreach ($transcript as $s) {
-            if (!($s['ok'] ?? true)) { $failedStep = $s; break; }
+        // Retry-once-on-transient: 4xx replies are usually rate-limit or
+        // greylisting and clear on a second attempt. 5xx is permanent —
+        // don't waste time. The retry uses a fresh connection.
+        $attempts = 0; $maxAttempts = 2; $transcript = []; $ok = false; $failedStep = null;
+        while ($attempts < $maxAttempts) {
+            $attempts++;
+            $transcript = [];
+            $ok = mam_smtp_send($host, (int)mam_env('MAIL_PORT', '587'),
+                mam_env('MAIL_USERNAME', ''), mam_env('MAIL_PASSWORD', ''),
+                strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls')),
+                $from, $fromName, $replyTo, $to, $subject, $body, $html, $transcript);
+            $failedStep = null;
+            foreach ($transcript as $s) {
+                if (!($s['ok'] ?? true)) { $failedStep = $s; break; }
+            }
+            if ($ok) break;
+            $code = $failedStep ? substr(trim((string)($failedStep['reply'] ?? '')), 0, 1) : '';
+            // 4xx = transient → retry once with a short pause. Anything else (5xx,
+            // connect failure) is treated as permanent.
+            if ($code !== '4' || $attempts >= $maxAttempts) break;
+            usleep(500000); // 0.5 s pause before retry
+            mam_log('info', 'smtp_retry', ['step' => $failedStep['step'] ?? '', 'reply' => $failedStep['reply'] ?? '', 'attempt' => $attempts]);
         }
         return [
             'ok'        => $ok,
             'transport' => 'smtp',
             'host'      => $host,
+            'attempts'  => $attempts,
             'error'     => $ok ? null : ($failedStep['step'] ?? 'smtp_failed') . ': ' . trim((string)($failedStep['reply'] ?? '')),
             'steps'     => $transcript,
         ];
@@ -149,11 +183,31 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
     $head[] = 'Date: ' . date('r');
     $head[] = 'Message-ID: <' . bin2hex(random_bytes(8)) . '@' . substr(strrchr($envelopeFrom, '@') ?: '@mam.local', 1) . '>';
     $head[] = 'MIME-Version: 1.0';
-    $head[] = $html ? 'Content-Type: text/html; charset=UTF-8' : 'Content-Type: text/plain; charset=UTF-8';
-    $head[] = 'Content-Transfer-Encoding: 8bit';
     $head[] = 'X-Mailer: MAM-Academy';
 
-    $bodyEsc = preg_replace('/^\./m', '..', $body);          // dot-stuffing
+    // Build a multipart/alternative body when we have HTML: include a
+    // plain-text fallback. Most spam filters score multipart messages
+    // higher than HTML-only, and screen readers fall back gracefully.
+    if ($html) {
+        $boundary = 'mam_' . bin2hex(random_bytes(8));
+        $head[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
+        $text = mam_html_to_text($body);
+        $bodyOut = "--$boundary\r\n"
+                 . "Content-Type: text/plain; charset=UTF-8\r\n"
+                 . "Content-Transfer-Encoding: 8bit\r\n\r\n"
+                 . $text . "\r\n"
+                 . "--$boundary\r\n"
+                 . "Content-Type: text/html; charset=UTF-8\r\n"
+                 . "Content-Transfer-Encoding: 8bit\r\n\r\n"
+                 . $body . "\r\n"
+                 . "--$boundary--\r\n";
+    } else {
+        $head[] = 'Content-Type: text/plain; charset=UTF-8';
+        $head[] = 'Content-Transfer-Encoding: 8bit';
+        $bodyOut = $body;
+    }
+
+    $bodyEsc = preg_replace('/^\./m', '..', $bodyOut);       // dot-stuffing
     $bodyEsc = preg_replace('/\r\n|\r|\n/', "\r\n", $bodyEsc); // normalise CRLF
     $payload = implode("\r\n", $head) . "\r\n\r\n" . $bodyEsc . "\r\n.";
     $ok = $expect($send($payload), ['250'], 'body');

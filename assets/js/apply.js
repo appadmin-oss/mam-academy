@@ -136,6 +136,8 @@
         data[key] = el.type === 'checkbox' ? el.checked : el.value;
         if (el.classList.contains('error')) el.classList.remove('error');
         var errEl = document.getElementById('err-' + id); if (errEl) errEl.classList.remove('shown');
+        // Drop any smart-validation note the moment the user edits again
+        var note = document.getElementById('note-' + id); if (note) note.remove();
         saveDraft(); updateSummary();
       };
       on(el, 'input', set); on(el, 'change', set);
@@ -150,6 +152,28 @@
       var input = document.getElementById(id); if (input) input.classList.add('error');
       var err = document.getElementById('err-' + id); if (err) err.classList.add('shown');
     }
+    // Inline coloured note attached underneath a field. Used by smart
+    // validation to surface the *specific* reason ("That looks like a
+    // temporary email service…") below the matching input. One note per
+    // field; replacing it removes any prior note.
+    function setFieldHelp(id, text, kind) {
+      var input = document.getElementById(id); if (!input) return;
+      var parent = input.parentNode; if (!parent) return;
+      var noteId = 'note-' + id;
+      var note = document.getElementById(noteId);
+      if (!note) {
+        note = document.createElement('div');
+        note.id = noteId;
+        note.className = 'field-note';
+        parent.appendChild(note);
+      }
+      note.className = 'field-note field-note-' + (kind || 'info');
+      note.textContent = text;
+    }
+    function setFieldHelpError(id, text) { setFieldHelp(id, text, 'error'); }
+    function setFieldHelpWarn(id, text)  { setFieldHelp(id, text, 'warn');  }
+    function setFieldHelpOk(id, text)    { setFieldHelp(id, text, 'ok');    }
+    function clearFieldHelp(id) { var n = document.getElementById('note-' + id); if (n) n.remove(); }
     function clearError(id) {
       var input = document.getElementById(id); if (input) input.classList.remove('error');
       var err = document.getElementById('err-' + id); if (err) err.classList.remove('shown');
@@ -168,11 +192,24 @@
         if (!data.discipline) { var d = $('#err-discipline'); if (d) d.classList.add('shown'); ok = false; }
       }
       if (idx === 1) {
-        var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/, phoneRe = /^[+0-9\s\-()]{7,}$/;
-        check('firstName', (data.firstName || '').trim().length > 1);
-        check('lastName',  (data.lastName  || '').trim().length > 1);
-        check('email',     emailRe.test((data.email || '').trim()));
-        check('phone',     phoneRe.test((data.phone || '').trim()));
+        var SV = window.MAM_VALIDATE;
+        // Smart name validation: gibberish/placeholder detection beats a
+        // bare length check ("asdf" was passing the old `length > 1` rule).
+        var fn = SV ? SV.name(data.firstName || '') : { ok: (data.firstName || '').trim().length > 1 };
+        var ln = SV ? SV.name(data.lastName  || '') : { ok: (data.lastName  || '').trim().length > 1 };
+        check('firstName', fn.ok); if (!fn.ok && fn.reason) setFieldHelpError('firstName', fn.reason);
+        check('lastName',  ln.ok); if (!ln.ok && ln.reason) setFieldHelpError('lastName',  ln.reason);
+        // Email: disposable-domain check + typo detection. A 'warn' lets us
+        // surface a message but still allow submission — the user can click
+        // through if they really mean it.
+        var em = SV ? SV.email(data.email || '') : { ok: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((data.email || '').trim()) };
+        if (em.ok || em.severity === 'warn') {
+          clearError('email');
+          if (em.severity === 'warn' && em.reason) setFieldHelpWarn('email', em.reason);
+        } else {
+          setError('email'); if (em.reason) setFieldHelpError('email', em.reason); ok = false;
+        }
+        check('phone',     /^[+0-9\s\-()]{7,}$/.test((data.phone || '').trim()));
         if (!data.sex) { var sxe = $('#err-sex'); if (sxe) sxe.classList.add('shown'); ok = false; }
         check('address',   (data.address || '').trim().length > 2);
         check('lga',       (data.lga     || '').trim().length > 1);
@@ -181,6 +218,18 @@
         check('dob',       ageFromDob(data.dob) !== null);
         // Under-16 (KTAMS) applicants must provide a parent/guardian
         if (deriveTrack(data.dob) === 'KTAMS') check('parentName', (data.parentName || '').trim().length > 1);
+        // Phone validation via libphonenumber-js is async; kicked off in
+        // parallel with the sync checks. Fire-and-attach pattern: if it
+        // resolves before the user moves on, the inline note appears.
+        if (SV) {
+          var countryHint = (data.country || 'Nigeria').toLowerCase().indexOf('nigeria') >= 0 ? 'NG'
+            : (data.country || '').toLowerCase().indexOf('united kingdom') >= 0 ? 'GB'
+            : (data.country || '').toLowerCase().indexOf('united states') >= 0 ? 'US' : 'NG';
+          SV.phone(data.phone || '', countryHint).then(function (r) {
+            if (r.ok) { clearError('phone'); if (r.formatted) setFieldHelpOk('phone', 'Looks valid · ' + r.formatted); }
+            else if (r.reason) { setError('phone'); setFieldHelpError('phone', r.reason); }
+          });
+        }
       }
       if (idx === 3) {
         var pa = $('#policyAgree');
