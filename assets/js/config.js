@@ -232,7 +232,11 @@ window.MAM_API = (function () {
 
   return {
     health:           function ()      { return request(cfg.healthPath); },
-    submitApplication: function (data) { return request(cfg.applicationPath, { method: 'POST', body: data }); },
+    submitApplication: function (data, idempotencyKey) {
+      var opts = { method: 'POST', body: data };
+      if (idempotencyKey) opts.headers = { 'X-Idempotency-Key': idempotencyKey };
+      return request(cfg.applicationPath, opts);
+    },
     initializePayment: function (data) { return request(cfg.paymentInitPath, { method: 'POST', body: data }); },
     verifyPayment:     function (data) { return request(cfg.paymentVerifyPath, { method: 'POST', body: data }); },
     subscribeNewsletter: function (email, source) { return request(cfg.newsletterPath, { method: 'POST', body: { email: email, source: source || 'site' } }); },

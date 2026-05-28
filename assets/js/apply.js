@@ -62,6 +62,12 @@
     ['program','sex','address','lga','state','headshotUrl','session'].forEach(function (k) {
       if (typeof data[k] !== 'string') data[k] = '';
     });
+    // Stable idempotency key per draft — lets a retried submit be de-duped
+    // server-side instead of creating a second application for one applicant.
+    if (!data.idempotencyKey) {
+      data.idempotencyKey = 'MAMK-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+      saveDraft();
+    }
     // The legacy "wind" discipline was split into saxophone/trumpet/flute/clarinet —
     // any draft that still carries it needs the user to re-pick a specific instrument.
     if (data.discipline === 'wind') data.discipline = '';
@@ -574,19 +580,26 @@
     });
 
     // ---------- Submit application ----------
+    var submitting = false;
     function submitApplicationToServer() {
+      // Re-entrancy guard: a fast double-click or a stray keypress must never
+      // fire two submits and create duplicate applications for one applicant.
+      if (submitting) return;
+      submitting = true;
       setBusy('btnNext4', true, 'Submitting…');
-      api.submitApplication(buildPayload())
+      api.submitApplication(buildPayload(), data.idempotencyKey)
         .then(function (resp) {
           data.reference = resp.reference;
           data.applicationId = resp.application_id;
           data.serverTotalUsd = resp.total_usd;
           saveDraft(); updateSummary();
           setBusy('btnNext4', false);
+          submitting = false;
           showStep(current + 1);
         })
         .catch(function (err) {
           setBusy('btnNext4', false);
+          submitting = false;
           if (err && err.body && err.body.fields) {
             showServerErrors(err.body.fields);
           } else if (err && err.status === 429) {

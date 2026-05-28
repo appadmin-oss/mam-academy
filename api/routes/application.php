@@ -15,6 +15,24 @@ $rateWindow = (int)mam_env('RATE_LIMIT_APPLY_WINDOW', '600');
 $input = mam_json_input();
 mam_honeypot($input);
 
+// Idempotency: if this exact submission was already accepted (client retry,
+// flaky network, double-tap that beat the UI guard), return the original
+// application instead of creating a duplicate.
+$idemKey = substr(trim((string)($_SERVER['HTTP_X_IDEMPOTENCY_KEY'] ?? '')), 0, 80);
+if ($idemKey !== '') {
+    $prior = mam_db_row('SELECT id, reference, total_usd, pathway FROM applications WHERE idempotency_key = ?', [$idemKey]);
+    if ($prior) {
+        mam_ok([
+            'reference'      => $prior['reference'],
+            'application_id' => (int)$prior['id'],
+            'total_usd'      => (float)$prior['total_usd'],
+            'currency_base'  => 'USD',
+            'pathway'        => $prior['pathway'],
+            'idempotent'     => true,
+        ]);
+    }
+}
+
 $v = mam_validate_application($input);
 
 // Pricing — server is the source of truth, never trust client total
@@ -72,6 +90,7 @@ try {
 
     $appId = mam_db_insert('applications', [
         'reference'              => $reference,
+        'idempotency_key'        => $idemKey ?: null,
         'customer_id'            => $customerId,
         'pathway'                => $v['pathway'],
         'mode'                   => $v['mode'],

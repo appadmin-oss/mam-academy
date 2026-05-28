@@ -282,6 +282,12 @@ function mam_db_migrate(PDO $db): void {
         6 => "
             ALTER TABLE applications ADD COLUMN recovery_sent_at TEXT;
         ",
+        // Idempotency key so a retried submission returns the original
+        // application instead of creating a duplicate.
+        7 => "
+            ALTER TABLE applications ADD COLUMN idempotency_key TEXT;
+            CREATE INDEX idx_apps_idem ON applications(idempotency_key);
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

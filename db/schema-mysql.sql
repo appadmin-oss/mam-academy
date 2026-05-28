@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS applications (
   total_usd              DECIMAL(10,2),
   status                 VARCHAR(24) DEFAULT 'submitted',
   recovery_sent_at       DATETIME NULL,
+  idempotency_key        VARCHAR(80) NULL,
   source                 VARCHAR(200),
   ip                     VARCHAR(64),
   user_agent             VARCHAR(255),
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS applications (
   updated_at             DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_apps_status  (status),
   KEY idx_apps_created (created_at),
+  KEY idx_apps_idem    (idempotency_key),
   CONSTRAINT fk_apps_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

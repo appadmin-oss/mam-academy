@@ -175,6 +175,9 @@
 .choice-card:hover{border-color:var(--border-gold);background:rgba(224,138,26,0.04)}
 .choice-card input[type="radio"],.choice-card input[type="checkbox"]{position:absolute;opacity:0;pointer-events:none}
 .choice-card:has(input:checked){border-color:var(--gold-bright);background:rgba(224,138,26,0.1);box-shadow:0 0 0 3px rgba(224,138,26,0.12)}
+/* The radio/checkbox is visually hidden, so surface keyboard focus on the card. */
+.choice-card:has(input:focus-visible){outline:2px solid var(--gold-bright);outline-offset:2px}
+.sex-pill:has(input:focus-visible){outline:2px solid var(--gold-bright);outline-offset:2px}
 .choice-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:8px}
 .choice-card-title{font-size:0.97rem;font-weight:700;color:var(--text);line-height:1.3}
 .choice-card-price{font-family:var(--font-display);font-size:1.35rem;color:var(--gold-bright);line-height:1;flex-shrink:0;letter-spacing:0.02em}
@@ -185,16 +188,21 @@
 .choice-card:has(input:checked) .choice-card-icon::before{content:'✓';font-weight:900;font-size:0.72rem}
 
 .step-actions{display:flex;justify-content:space-between;gap:12px;margin-top:44px;padding-top:28px;border-top:1px solid var(--border)}
-.btn-step{padding:14px 28px;border-radius:var(--radius-sm);font-size:0.9rem;font-weight:800;letter-spacing:0.04em;transition:all 0.2s var(--ease);display:inline-flex;align-items:center;gap:10px}
+.btn-step{padding:14px 28px;min-height:50px;border-radius:var(--radius-sm);font-size:0.9rem;font-weight:800;letter-spacing:0.04em;transition:all 0.2s var(--ease);display:inline-flex;align-items:center;justify-content:center;gap:10px}
 .btn-step-next{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;box-shadow:0 4px 16px rgba(224,138,26,0.35)}
 .btn-step-next:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(224,138,26,0.5)}
 .btn-step-back{background:transparent;color:var(--text-soft);border:1.5px solid var(--border-strong)}
 .btn-step-back:hover{color:var(--text);border-color:var(--border-gold)}
 .btn-step:disabled{opacity:0.5;cursor:not-allowed}
+.btn-step:focus-visible,.btn-pay:focus-visible{outline:2px solid var(--gold-bright);outline-offset:3px}
 
-.consent{display:flex;gap:12px;align-items:flex-start;cursor:pointer;padding:14px;background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:var(--radius-sm);margin-bottom:20px}
-.consent input{accent-color:var(--gold);margin-top:2px;flex-shrink:0;width:18px;height:18px}
-.consent-text{font-size:0.85rem;color:var(--text-soft);line-height:1.55}
+/* Consent block: bigger tap target, clearer checked state for feedback. */
+.consent{display:flex;gap:13px;align-items:flex-start;cursor:pointer;padding:16px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);margin-bottom:20px;transition:border-color 0.2s var(--ease),background 0.2s var(--ease)}
+.consent:hover{border-color:var(--border-gold)}
+.consent:has(input:checked){border-color:var(--gold-bright);background:rgba(224,138,26,0.06)}
+.consent:has(input:focus-visible){outline:2px solid var(--gold-bright);outline-offset:2px}
+.consent input{accent-color:var(--gold);margin-top:1px;flex-shrink:0;width:20px;height:20px}
+.consent-text{font-size:0.86rem;color:var(--text-soft);line-height:1.6}
 .consent-text a{color:var(--gold-bright);text-decoration:underline}
 
 /* Review step */
