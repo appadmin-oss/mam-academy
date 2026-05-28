@@ -69,6 +69,11 @@
       progressSteps.forEach(function (p, idx) {
         p.classList.toggle('active', idx === current);
         p.classList.toggle('done', idx < current);
+        // Future steps require validation — make that visible so the buttons
+        // don't look broken when nothing happens on click.
+        var isFuture = idx > current;
+        p.setAttribute('aria-disabled', isFuture ? 'true' : 'false');
+        if (isFuture) p.setAttribute('tabindex', '-1'); else p.removeAttribute('tabindex');
       });
       var main = $('.apply-main');
       if (main) window.scrollTo({ top: main.offsetTop - 100, behavior: 'smooth' });
@@ -294,8 +299,24 @@
     bindField('includeCertification', 'includeCertification');
     bindField('policySignName', 'policySignName');
     bindField('policyAgree', 'policyAgree');
-    // Live feedback: age drives the KTAMS/MAM track + guardian requirement; mode drives the policy shown
-    $$('input[name="mode"]').forEach(function (i) { on(i, 'change', renderPolicy); });
+    // Live feedback: age drives the KTAMS/MAM track + guardian requirement; mode drives the policy shown.
+    // Changing mode after the user already signed/agreed must revoke that agreement —
+    // an online-policy signature is not valid consent for the onsite policy.
+    $$('input[name="mode"]').forEach(function (i) {
+      on(i, 'change', function () {
+        if (data.policyAgree || (data.policySignName || '').trim() !== '') {
+          data.policyAgree = false;
+          data.policySignName = '';
+          var pa = $('#policyAgree'); if (pa) pa.checked = false;
+          var pn = $('#policySignName'); if (pn) pn.value = '';
+          // Editing the mode also invalidates the server-issued reference — the
+          // next "Continue to Payment" will resubmit with the new policy mode.
+          data.reference = null; data.applicationId = null; data.serverTotalUsd = null;
+          saveDraft();
+        }
+        renderPolicy();
+      });
+    });
     var ageEl = document.getElementById('age'); if (ageEl) { on(ageEl, 'change', updateTrackUI); }
 
     // Date of birth is age-range aware: picking a DOB auto-selects the matching
@@ -384,7 +405,6 @@
           setBusy('btnNext4', false);
           if (err && err.body && err.body.fields) {
             showServerErrors(err.body.fields);
-            showStep(1); // jump back to profile section
           } else if (err && err.status === 429) {
             apiError('Too many attempts. Please try again in a few minutes.');
           } else if (err && (err.apiDown || err.message === 'api_unavailable' || err.message === 'Failed to fetch')) {
@@ -434,10 +454,53 @@
         policySignedName: data.policySignName
       };
     }
+    // Server field name -> (input id used by setError, owning step index).
+    // Used both to surface inline errors and to send the user to the lowest
+    // step that contains a failing field instead of always jumping to Profile.
+    var SERVER_FIELDS = {
+      pathway:          { id: null,              step: 0 },
+      mode:             { id: null,              step: 0 },
+      discipline:       { id: null,              step: 0 },
+      firstName:        { id: 'firstName',       step: 1 },
+      lastName:         { id: 'lastName',        step: 1 },
+      email:            { id: 'email',           step: 1 },
+      phone:            { id: 'phone',           step: 1 },
+      country:          { id: 'country',         step: 1 },
+      age:              { id: 'age',             step: 1 },
+      parentName:       { id: 'parentName',      step: 1 },
+      policyAgreed:     { id: 'policyAgree',     step: 3 },
+      policySignedName: { id: 'policySignName',  step: 3 }
+    };
+    var FIELD_LABELS = {
+      pathway: 'pathway', mode: 'learning mode', discipline: 'discipline',
+      firstName: 'first name', lastName: 'last name', email: 'email',
+      phone: 'phone', country: 'country', age: 'age range',
+      parentName: 'parent/guardian (under-16 students)',
+      policyAgreed: 'class policy agreement',
+      policySignedName: 'policy signature'
+    };
     function showServerErrors(fields) {
-      var map = { firstName: 'firstName', lastName: 'lastName', email: 'email', phone: 'phone',
-                  pathway: 'pathway', mode: 'mode', discipline: 'discipline', age: 'age' };
-      fields.forEach(function (f) { if (map[f]) setError(map[f]); });
+      var target = null;
+      var labels = [];
+      fields.forEach(function (f) {
+        var spec = SERVER_FIELDS[f]; if (!spec) return;
+        if (spec.id) {
+          setError(spec.id);
+        } else {
+          // Grouped fields (pathway/mode/discipline) live in radio cards; the
+          // matching .field-error has id err-<field>.
+          var ge = document.getElementById('err-' + f);
+          if (ge) ge.classList.add('shown');
+        }
+        if (target === null || spec.step < target) target = spec.step;
+        if (FIELD_LABELS[f]) labels.push(FIELD_LABELS[f]);
+      });
+      if (target !== null) showStep(target);
+      if (labels.length) {
+        var notice = ensureNotice();
+        notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Please fix the highlighted '
+          + (labels.length === 1 ? 'field' : 'fields') + ': <strong>' + labels.join(', ') + '</strong>.';
+      }
     }
     function setBusy(btnId, busy, label) {
       var btn = document.getElementById(btnId); if (!btn) return;

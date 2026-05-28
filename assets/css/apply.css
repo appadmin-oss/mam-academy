@@ -10,6 +10,8 @@
 .apply-stepper::before{content:'';position:absolute;left:10%;right:10%;top:17px;height:2px;background:var(--border);z-index:0}
 .apply-progress-step{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px;background:none;border:none;padding:0;cursor:default;position:relative;z-index:1;color:var(--text-muted)}
 .apply-progress-step.done,.apply-progress-step.active{cursor:pointer}
+.apply-progress-step[aria-disabled="true"]{cursor:not-allowed;opacity:0.55}
+.apply-progress-step[aria-disabled="true"]:hover .step-dot{transform:none}
 .step-dot{width:36px;height:36px;border-radius:50%;background:var(--bg-raised);border:2px solid var(--border-strong);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:var(--text-muted);transition:all .25s var(--ease)}
 .apply-progress-step.active .step-dot{background:linear-gradient(135deg,var(--gold),var(--gold-light));border-color:transparent;color:#1A120B;box-shadow:0 4px 14px rgba(224,138,26,0.45);transform:scale(1.08)}
 .apply-progress-step.done .step-dot{background:var(--emerald);border-color:var(--emerald);color:#fff}
