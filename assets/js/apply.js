@@ -42,7 +42,9 @@
     var current = 0;
     var totalSteps = stepsEls.length;
 
-    var data = loadDraft() || {
+    var savedDraft = loadDraft();
+    var resuming = !!savedDraft;
+    var data = savedDraft || {
       pathway: '', mode: '', program: '', discipline: '', session: '',
       firstName: '', lastName: '', email: '', phone: '',
       sex: '', address: '', lga: '', state: '',
@@ -130,6 +132,8 @@
       progressSteps.forEach(function (p, idx) { p.setAttribute('aria-current', idx === current ? 'step' : 'false'); });
       var ambStep = $('#ambStep'); if (ambStep) ambStep.textContent = 'Step ' + (current + 1) + ' of ' + totalSteps;
       var bar = $('#applyMobileBar'); if (bar) bar.style.display = current === totalSteps - 1 ? 'none' : '';
+      // Remember where the applicant is so a return visit resumes here.
+      data.currentStep = current; saveDraft();
     }
     function saveDraft() { try { localStorage.setItem('mam.apply.draft', JSON.stringify(data)); } catch (e) {} }
     function loadDraft() { try { var r = localStorage.getItem('mam.apply.draft'); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
@@ -498,6 +502,51 @@
     }
     var phoneIti       = initIti('phone',       'phone');
     var parentPhoneIti = initIti('parentPhone', 'parentPhone');
+
+    // ---------- Live per-field validation (instant feedback on blur) ----------
+    // One validator per field id; returns {ok, msg?, warn?}. Reused by the
+    // on-blur affordance below. Step-level validateStep() still gates Next.
+    var SV = window.MAM_VALIDATE;
+    function validateField(id) {
+      var v = String(data[id] == null ? '' : data[id]).trim();
+      switch (id) {
+        case 'firstName':
+        case 'lastName':  return SV ? SV.name(v) : { ok: v.length > 1 };
+        case 'email':     return SV ? SV.email(v) : { ok: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) };
+        case 'address':   return { ok: v.length > 2, msg: 'Enter your address' };
+        case 'lga':       return { ok: v.length > 1, msg: 'Enter LGA / county' };
+        case 'state':     return { ok: v.length > 1, msg: 'Enter state / province' };
+        case 'country':   return { ok: v.length > 1, msg: 'Enter country' };
+        case 'dob':       return { ok: ageFromDob(v) !== null, msg: 'A valid date of birth is required' };
+        default:          return { ok: true };
+      }
+    }
+    function markField(id) {
+      var el = document.getElementById(id); if (!el || (el.value || '') === '') { setValid(id, false); return; }
+      var r = validateField(id);
+      if (r.ok) {
+        clearError(id);
+        if (r.warn && r.reason) setFieldHelpWarn(id, r.reason); else clearFieldHelp(id);
+        setValid(id, !r.warn);
+      } else {
+        setValid(id, false);
+        setError(id);
+        if (r.reason || r.msg) setFieldHelpError(id, r.reason || r.msg);
+      }
+    }
+    function setValid(id, on) {
+      var el = document.getElementById(id); if (!el) return;
+      el.classList.toggle('valid', !!on);
+    }
+    // Wire blur validation + Enter-to-advance on the Step-2 text inputs.
+    ['firstName', 'lastName', 'email', 'address', 'lga', 'state', 'country', 'dob'].forEach(function (id) {
+      var el = document.getElementById(id); if (!el) return;
+      on(el, 'blur', function () { markField(id); });
+      on(el, 'keydown', function (e) {
+        if (e.key === 'Enter' && el.tagName !== 'TEXTAREA') { e.preventDefault(); attemptNext(); }
+      });
+    });
+
     bindField('auditerOptIn', 'auditer');
     bindField('includeRegistration', 'includeRegistration');
     bindField('includeCertification', 'includeCertification');
@@ -1045,12 +1094,40 @@
       }
     }
 
+    // Returning visitor: resume where they left off (never auto-land on the
+    // payment step — they must re-confirm review → submit), and offer a
+    // one-tap "start over".
+    function showResumeBanner() {
+      var main = $('.apply-main'); if (!main || document.getElementById('resumeBanner')) return;
+      var b = document.createElement('div');
+      b.id = 'resumeBanner';
+      b.className = 'resume-banner';
+      b.setAttribute('role', 'status');
+      b.innerHTML = '<span><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Welcome back — we saved your progress on this device.</span>' +
+        '<button type="button" id="resumeStartOver">Start over</button>';
+      main.insertBefore(b, main.firstChild);
+      var btn = document.getElementById('resumeStartOver');
+      if (btn) on(btn, 'click', function () {
+        var go = function () { clearDraft(); location.href = location.pathname; };
+        if (window.MAM_DIALOG && window.MAM_DIALOG.confirm) {
+          window.MAM_DIALOG.confirm('Start a new application?', 'This clears the details saved on this device.', 'Start over').then(function (ok) { if (ok) go(); });
+        } else if (confirm('Start over? This clears your saved details.')) { go(); }
+      });
+    }
+
     // ---------- Boot ----------
     updateSummary();
     renderPathwayHint();
     renderModeHint();
     renderAddonContext();
     applyKtamsCopy();
-    showStep(0);
+
+    var restoreTo = 0;
+    if (resuming && typeof data.currentStep === 'number') {
+      // Cap at Review (3); the payment step always needs a fresh submit.
+      restoreTo = Math.max(0, Math.min(3, data.currentStep));
+    }
+    showStep(restoreTo);
+    if (resuming && restoreTo > 0) showResumeBanner();
   }
 })();

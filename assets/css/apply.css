@@ -84,6 +84,16 @@
 .field-input::placeholder,.field-textarea::placeholder{color:var(--text-faint)}
 .field-input:focus,.field-select:focus,.field-textarea:focus{border-color:var(--gold-bright);background:rgba(45,30,18,0.85);box-shadow:0 0 0 4px rgba(224,138,26,0.15)}
 .field-input.error,.field-select.error{border-color:var(--red-hot);box-shadow:0 0 0 4px rgba(225,29,72,0.15)}
+/* Valid-field affordance: subtle green border + a check mark on the right,
+   shown once a field passes live (blur) validation. */
+.field-input.valid{border-color:rgba(16,185,129,0.55)}
+.field-input.valid:not([type="date"]):not([type="tel"]){background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%2334D399' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:42px}
+
+/* Resume banner — shown to a returning applicant whose draft was restored. */
+.resume-banner{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 26px;padding:13px 16px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.32);border-radius:var(--radius-sm);font-size:0.86rem;color:#A7F3D0;line-height:1.5}
+.resume-banner i{margin-right:7px}
+.resume-banner button{flex-shrink:0;background:transparent;border:1px solid rgba(16,185,129,0.5);color:#A7F3D0;font-weight:700;font-size:0.78rem;padding:7px 14px;border-radius:100px;cursor:pointer;letter-spacing:0.03em}
+.resume-banner button:hover{background:rgba(16,185,129,0.14)}
 .field-select-wrap{position:relative}
 .field-select-wrap .field-select{padding-right:42px}
 .field-select-arrow{position:absolute;right:16px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.78rem;pointer-events:none}
