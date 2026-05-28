@@ -84,6 +84,34 @@
 document.addEventListener('mam:ready', function () {
   var form = document.getElementById('contactForm'); if (!form) return;
   var submit = document.getElementById('cf-submit');
+
+  // Topic-aware tip: most contact-form senders are actually looking for an
+  // existing flow (apply, auditer, partnerships). Surface the shortcut so
+  // they don't wait 24h for an answer we can give in one link.
+  var TOPIC_TIPS = {
+    'Enrollment & Pathways':    { icon: 'graduation-cap', html: "Tip: you can start your enrollment directly at <a href='apply.html'>apply.html</a> — 5 quick steps with auto-save." },
+    'MAM Auditer Assessment':   { icon: 'gauge-high',     html: "Tip: the MAM Auditer is automatically included with your application. <a href='auditer.html'>Read about it</a>." },
+    'MetaMusic Order':          { icon: 'fire',           html: "The MetaMusic Order is a 12-week intensive. <a href='apply.html?pathway=meta-order'>Apply</a> or <a href='metamusic-order.html'>learn more</a>." },
+    'Power Play series':        { icon: 'bolt',           html: "Catch the series at <a href='power-play.html'>power-play.html</a>." },
+    'Crash Programmes':         { icon: 'forward',        html: "6-week fast-track. <a href='crash.html'>See details</a> or <a href='apply.html?pathway=crash'>start an application</a>." },
+    'Partnerships & Speaking':  { icon: 'handshake',      html: "Briefly include the organisation, timeline and audience size so we can route this to the right team." },
+    'Press & Media':            { icon: 'newspaper',      html: 'For press kits and interview requests, please include your outlet and deadline.' }
+  };
+  var topicEl = document.getElementById('cf-topic');
+  if (topicEl) {
+    topicEl.addEventListener('change', function () {
+      var existing = document.getElementById('cf-topic-tip');
+      var spec = TOPIC_TIPS[topicEl.value];
+      if (!spec) { if (existing) existing.remove(); return; }
+      if (!existing) {
+        existing = document.createElement('div');
+        existing.id = 'cf-topic-tip';
+        existing.className = 'context-tip';
+        topicEl.closest('.field').appendChild(existing);
+      }
+      existing.innerHTML = '<i class="fa-solid fa-' + spec.icon + '"></i><span>' + spec.html + '</span>';
+    });
+  }
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var name = document.getElementById('cf-name').value.trim();

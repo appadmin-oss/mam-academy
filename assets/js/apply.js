@@ -638,8 +638,205 @@
       window.scrollTo({ top: main.offsetTop - 100, behavior: 'smooth' });
     }
 
+    // ──────────────────────────────────────────────────────────
+    // Smart, context-aware behaviours
+    // ──────────────────────────────────────────────────────────
+
+    // 1) Pathway → Discipline coupling. The MetaMusic Order intensive IS the
+    //    MetaMusic discipline — auto-select it unless the user picked one
+    //    already, and surface a contextual tip.
+    function reactToPathwayChange() {
+      // Auto-pick metamusic discipline for the MetaMusic Order pathway
+      if (data.pathway === 'meta-order' && !data.discipline) {
+        var radio = document.querySelector('input[name="discipline"][value="metamusic"]');
+        if (radio) {
+          radio.checked = true;
+          data.discipline = 'metamusic';
+          saveDraft(); updateSummary();
+          var err = $('#err-discipline'); if (err) err.classList.remove('shown');
+        }
+      }
+      renderPathwayHint();
+      renderAddonContext();
+    }
+    $$('input[name="pathway"]').forEach(function (i) { on(i, 'change', reactToPathwayChange); });
+
+    // 2) Pathway → Add-on relevance. The 6-week Crash Programme is not part of
+    //    the certification track, so the +$22 graduation add-on is hidden and
+    //    silently disabled. Returning to a different pathway brings it back.
+    function renderAddonContext() {
+      var certEl = $('#includeCertification');
+      var certCard = certEl ? certEl.closest('.choice-card') : null;
+      if (!certCard) return;
+      var hideCert = data.pathway === 'crash';
+      certCard.style.display = hideCert ? 'none' : '';
+      if (hideCert && data.includeCertification) {
+        data.includeCertification = false;
+        certEl.checked = false;
+        saveDraft(); updateSummary();
+      }
+    }
+
+    function renderPathwayHint() {
+      var anchor = document.querySelector('.field [id="err-pathway"]');
+      if (!anchor) return;
+      var hintId = 'pathway-context-tip';
+      var tip = document.getElementById(hintId);
+      var msg = '';
+      if (data.pathway === 'meta-order') {
+        msg = 'The MetaMusic Order is our 12-week civilization-engineering intensive — discipline is pre-set to MetaMusic & Consciousness.';
+      } else if (data.pathway === 'crash') {
+        msg = "6-week intensive — fast-track. Graduation certification doesn't apply, so we've hidden that add-on for you.";
+      } else if (data.pathway === 'diploma') {
+        msg = 'Top tier. We pair Diploma students with a senior instructor and an end-of-term recital opportunity.';
+      } else if (data.pathway === 'pre-cert') {
+        msg = 'Foundations track. No prior experience expected — your MAM Auditer placement will pace it for you.';
+      }
+      if (!msg) { if (tip) tip.remove(); return; }
+      if (!tip) {
+        tip = document.createElement('div');
+        tip.id = hintId;
+        tip.className = 'context-tip';
+        anchor.parentNode.appendChild(tip);
+      }
+      tip.innerHTML = '<i class="fa-solid fa-circle-info"></i><span>' + msg + '</span>';
+    }
+
+    // 3) Mode → contextual callout. Online students learn what kit they'll
+    //    need without scrolling; onsite students see the actual address.
+    function renderModeHint() {
+      var anchor = document.querySelector('.field [id="err-mode"]');
+      if (!anchor) return;
+      var hintId = 'mode-context-tip';
+      var tip = document.getElementById(hintId);
+      var msg = '';
+      if (data.mode === 'online') {
+        msg = "You'll need <strong>two internet-connected devices</strong> (one on your instrument, one on your face) and a quiet space. We hold live video classes plus daily practice review.";
+      } else if (data.mode === 'onsite') {
+        msg = 'Onsite classes are at <strong>MAM Centre, 2 Oremeji Street, Egbeda, Lagos</strong>. Arrive 30 minutes early; ensemble &amp; stagecraft are baked in.';
+      }
+      if (!msg) { if (tip) tip.remove(); return; }
+      if (!tip) {
+        tip = document.createElement('div');
+        tip.id = hintId;
+        tip.className = 'context-tip';
+        anchor.parentNode.appendChild(tip);
+      }
+      tip.innerHTML = '<i class="fa-solid fa-' + (data.mode === 'online' ? 'wifi' : 'location-dot') + '"></i><span>' + msg + '</span>';
+    }
+    $$('input[name="mode"]').forEach(function (i) { on(i, 'change', renderModeHint); });
+
+    // 4) Email typo detection. Catches the half-dozen domain typos that
+    //    silently swallow our confirmation emails ("gmial.com", "yahooo.com",
+    //    etc.) and offers a one-tap correction.
+    var EMAIL_TYPOS = {
+      'gmial.com':'gmail.com','gmal.com':'gmail.com','gmai.com':'gmail.com',
+      'gnail.com':'gmail.com','gmail.con':'gmail.com','gmail.co':'gmail.com',
+      'gmaill.com':'gmail.com','gmail.cm':'gmail.com',
+      'yahooo.com':'yahoo.com','yaho.com':'yahoo.com','yhoo.com':'yahoo.com',
+      'yahoo.con':'yahoo.com','yahoo.co':'yahoo.com',
+      'hotnail.com':'hotmail.com','hotmial.com':'hotmail.com','hotmal.com':'hotmail.com',
+      'hotmail.con':'hotmail.com','hotmai.com':'hotmail.com',
+      'outlok.com':'outlook.com','outloook.com':'outlook.com','outlook.con':'outlook.com',
+      'icoud.com':'icloud.com','iclod.com':'icloud.com','icloud.con':'icloud.com',
+      'ymai.com':'ymail.com','live.con':'live.com','aol.con':'aol.com'
+    };
+    function suggestEmailFix(value) {
+      var at = value.lastIndexOf('@');
+      if (at < 1) return null;
+      var local = value.slice(0, at);
+      var domain = value.slice(at + 1).toLowerCase().trim();
+      if (!domain) return null;
+      if (EMAIL_TYPOS[domain]) return local + '@' + EMAIL_TYPOS[domain];
+      // Missing dot or single-char TLD ("gmail.c", "gmailcom")
+      if (domain.indexOf('.') === -1) {
+        if (domain === 'gmailcom') return local + '@gmail.com';
+        if (domain === 'yahoocom') return local + '@yahoo.com';
+      }
+      return null;
+    }
+    var emailEl = document.getElementById('email');
+    if (emailEl) {
+      var emailTipId = 'email-typo-tip';
+      var renderEmailTip = function () {
+        var existing = document.getElementById(emailTipId);
+        var s = suggestEmailFix((emailEl.value || '').trim());
+        if (!s) { if (existing) existing.remove(); return; }
+        if (!existing) {
+          existing = document.createElement('div');
+          existing.id = emailTipId;
+          existing.className = 'context-tip context-tip-suggest';
+          emailEl.parentNode.appendChild(existing);
+        }
+        existing.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>'
+          + '<span>Did you mean <button type="button" class="suggest-apply">' + escapeHtml(s) + '</button>?</span>';
+        var btn = existing.querySelector('.suggest-apply');
+        if (btn) on(btn, 'click', function () {
+          emailEl.value = s; data.email = s; saveDraft();
+          existing.remove();
+          clearError('email');
+          emailEl.focus();
+        });
+      };
+      on(emailEl, 'blur', renderEmailTip);
+      on(emailEl, 'input', function () {
+        // Live-clear the tip the moment the user starts editing again
+        var t = document.getElementById(emailTipId); if (t) t.remove();
+      });
+    }
+
+    // 5) KTAMS-aware copy. Under-16 enrolments are usually completed by a
+    //    parent — the form copy should match that mental model.
+    function applyKtamsCopy() {
+      var isKid = deriveTrack(data.age) === 'KTAMS';
+      var titleEl = document.querySelector('.step[data-step="1"] .step-title');
+      var descEl  = document.querySelector('.step[data-step="1"] .step-desc');
+      if (titleEl) titleEl.textContent = isKid ? "Child's Profile" : 'Student Profile';
+      if (descEl)  descEl.textContent  = isKid
+        ? 'Tell us about the young musician. The contact details below are the parent or guardian we should reach.'
+        : 'Tell us about the student. We use this only to onboard and contact you about your enrollment.';
+      var firstName = document.getElementById('firstName');
+      var lastName  = document.getElementById('lastName');
+      if (firstName) firstName.placeholder = isKid ? "Child's first name" : 'e.g. Tunde';
+      if (lastName)  lastName.placeholder  = isKid ? "Child's last name"  : 'e.g. Adeyemi';
+    }
+    var ageElForCopy = document.getElementById('age');
+    if (ageElForCopy) on(ageElForCopy, 'change', applyKtamsCopy);
+    var dobElForCopy = document.getElementById('dob');
+    if (dobElForCopy) on(dobElForCopy, 'change', function () { setTimeout(applyKtamsCopy, 0); });
+
+    // 6) Currency auto-default by locale. First-time visitors land on the
+    //    currency that matches their browser locale instead of always USD.
+    function detectCurrencyFromLocale() {
+      try {
+        var lang = (navigator.language || 'en-US');
+        var country = (lang.split('-')[1] || '').toUpperCase();
+        if (country === 'NG') return 'NGN';
+        if (country === 'GB' || country === 'UK') return 'GBP';
+        if (['IE','DE','FR','IT','ES','NL','BE','AT','PT','FI','GR','LU','SK','SI','LT','LV','EE','CY','MT'].indexOf(country) >= 0) return 'EUR';
+      } catch (e) {}
+      return 'USD';
+    }
+    if (!data.currency || data.currency === 'USD') {
+      var draftRaw = null;
+      try { draftRaw = localStorage.getItem('mam.apply.draft'); } catch (e) {}
+      // Only auto-default if the user has never touched the selector before
+      if (!draftRaw || draftRaw.indexOf('"currency"') === -1) {
+        var detected = detectCurrencyFromLocale();
+        if (detected !== data.currency) {
+          data.currency = detected;
+          var sel = $('#applyCurrency'); if (sel) sel.value = detected;
+          saveDraft();
+        }
+      }
+    }
+
     // ---------- Boot ----------
     updateSummary();
+    renderPathwayHint();
+    renderModeHint();
+    renderAddonContext();
+    applyKtamsCopy();
     showStep(0);
   }
 })();

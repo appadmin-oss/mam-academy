@@ -89,6 +89,14 @@
 .field-error.shown{display:flex}
 .field-help{font-size:0.78rem;color:var(--text-muted);margin-top:5px;line-height:1.5}
 
+/* Context-aware hints injected by apply.js (pathway/mode/typo suggestions) */
+.context-tip{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:11px 14px;background:rgba(224,138,26,0.08);border:1px solid rgba(224,138,26,0.28);border-radius:var(--radius-sm);font-size:0.82rem;line-height:1.55;color:var(--text-soft);animation:stepFade 0.3s var(--ease)}
+.context-tip i{color:var(--gold-bright);font-size:0.9rem;margin-top:2px;flex-shrink:0}
+.context-tip-suggest{background:rgba(16,185,129,0.08);border-color:rgba(16,185,129,0.32)}
+.context-tip-suggest i{color:var(--emerald,#10b981)}
+.context-tip .suggest-apply{background:none;border:0;padding:0;margin:0;color:var(--gold-bright);font-weight:700;font-family:inherit;font-size:inherit;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.context-tip .suggest-apply:hover{color:var(--gold-light,#FBBF24)}
+
 .choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .choice-grid-1{grid-template-columns:1fr}
 .choice-card{position:relative;padding:16px 18px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-md);cursor:pointer;transition:all 0.2s var(--ease)}
