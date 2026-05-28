@@ -67,6 +67,63 @@ function mam_resolve_ehlo_host(): string {
     return $hn !== false && $hn !== '' ? $hn : 'localhost';
 }
 
+/** True when PHPMailer is autoloadable (composer install or bundled vendor). */
+function mam_phpmailer_available(): bool {
+    return class_exists('PHPMailer\\PHPMailer\\PHPMailer');
+}
+
+/**
+ * Send via PHPMailer when it's installed. Honours the same MAIL_* env as the
+ * built-in client and returns the same {ok,transport,host,error,steps} shape
+ * so callers (mam_send, the CLI tester, the admin endpoint) don't care which
+ * transport ran.
+ */
+function mam_send_via_phpmailer(string $to, string $subject, string $body, bool $html, string $from, string $fromName, ?string $replyTo): array {
+    $host = (string)mam_env('MAIL_HOST', '');
+    $user = (string)mam_env('MAIL_USERNAME', '');
+    $pass = (string)mam_env('MAIL_PASSWORD', '');
+    $enc  = strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls'));
+    $mailClass = 'PHPMailer\\PHPMailer\\PHPMailer';
+    $mail = new $mailClass(true); // exceptions on
+    try {
+        $mail->isSMTP();
+        $mail->Host        = $host;
+        $mail->Port        = (int)mam_env('MAIL_PORT', '587');
+        $mail->Timeout     = 20;
+        $mail->CharSet     = 'UTF-8';
+        $mail->Hostname    = mam_resolve_ehlo_host();
+        if ($user !== '') {
+            $mail->SMTPAuth = true;
+            $mail->Username = $user;
+            $mail->Password = $pass;
+        }
+        if ($enc === 'ssl')      $mail->SMTPSecure = 'ssl';
+        elseif ($enc === 'tls')  $mail->SMTPSecure = 'tls';
+        else                     $mail->SMTPSecure = '';
+        $mail->setFrom($from, $fromName);
+        // Authenticated relays usually require the envelope sender to match the
+        // login — mirror the built-in client's behaviour.
+        if ($user !== '' && strpos($user, '@') !== false) $mail->Sender = $user;
+        $mail->addAddress($to);
+        if ($replyTo) $mail->addReplyTo($replyTo);
+        $mail->Subject = $subject;
+        if ($html) {
+            $mail->isHTML(true);
+            $mail->Body    = $body;
+            $mail->AltBody = mam_html_to_text($body);
+        } else {
+            $mail->isHTML(false);
+            $mail->Body = $body;
+        }
+        $mail->send();
+        return ['ok' => true, 'transport' => 'phpmailer', 'host' => $host, 'attempts' => 1, 'error' => null, 'steps' => []];
+    } catch (Throwable $e) {
+        $info = isset($mail->ErrorInfo) ? (string)$mail->ErrorInfo : $e->getMessage();
+        mam_log('error', 'phpmailer_send_failed', ['err' => $e->getMessage(), 'info' => $info, 'to' => $to]);
+        return ['ok' => false, 'transport' => 'phpmailer', 'host' => $host, 'attempts' => 1, 'error' => $info, 'steps' => []];
+    }
+}
+
 function mam_send_mail(string $to, string $subject, string $body, bool $html = false, array $opts = []): bool {
     $result = mam_send_mail_verbose($to, $subject, $body, $html, $opts);
     return (bool)$result['ok'];
@@ -100,6 +157,12 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
     }
 
     if ($host) {
+        // Transport preference: PHPMailer when it's installed (composer
+        // install / bundled vendor), otherwise the built-in SMTP client.
+        // Both honour the same MAIL_* env and produce the same result shape.
+        if (mam_phpmailer_available()) {
+            return mam_send_via_phpmailer($to, $subject, $body, $html, $from, $fromName, $replyTo);
+        }
         // Retry-once-on-transient: 4xx replies are usually rate-limit or
         // greylisting and clear on a second attempt. 5xx is permanent —
         // don't waste time. The retry uses a fresh connection.

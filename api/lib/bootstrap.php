@@ -69,6 +69,13 @@ function mam_env(string $key, $default = null) {
     return $env[$key] ?? $default;
 }
 
+// ---------- Composer autoload (OPTIONAL) ----------
+// If `composer install` has been run (vendor/ exists), load it so optional
+// packages — chiefly PHPMailer — become available. The app runs fine
+// without it: the mailer falls back to its built-in SMTP client.
+$mam_vendor = MAM_API_ROOT . '/vendor/autoload.php';
+if (is_file($mam_vendor)) require_once $mam_vendor;
+
 // ---------- Library autoload (manual; no Composer needed) ----------
 $mam_libs = ['log', 'response', 'validation', 'db', 'session', 'auth', 'mailer', 'csrf', 'rate-limit', 'paystack', 'flutterwave'];
 foreach ($mam_libs as $lib) {

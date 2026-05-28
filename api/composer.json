@@ -10,8 +10,10 @@
         "ext-curl": "*",
         "ext-json": "*",
         "ext-mbstring": "*",
-        "ext-openssl": "*"
+        "ext-openssl": "*",
+        "phpmailer/phpmailer": "^6.9"
     },
+    "_comment_mailer": "PHPMailer is the preferred SMTP transport. If vendor/ is absent (no composer install), the mailer falls back to its built-in SMTP client automatically — email works either way.",
     "config": {
         "optimize-autoloader": true,
         "sort-packages": true
