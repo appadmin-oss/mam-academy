@@ -104,11 +104,19 @@
       '16-17':'16–17 years','18-25':'18–25 years','26+':'26 & above'
     };
 
-    // Pre-fill from URL ?pathway=cert&mode=online&discipline=piano
+    // Pre-fill from URL ?pathway=cert&mode=online&discipline=piano.
+    // SECURITY: only accept a value that matches a real radio option for that
+    // field. Without this allowlist, an arbitrary ?discipline=<img onerror…>
+    // is reflected unescaped into #reviewBody/#applySummary innerHTML at boot
+    // (titleCase() does not neutralise HTML) — a reflected DOM XSS. Matching
+    // against the rendered inputs makes only known-safe tokens enter `data`.
     try {
       var qs = new URLSearchParams(location.search);
       ['pathway', 'mode', 'discipline'].forEach(function (k) {
-        if (qs.get(k)) data[k] = qs.get(k);
+        var val = qs.get(k);
+        if (val && document.querySelector('input[name="' + k + '"][value="' + (window.CSS && CSS.escape ? CSS.escape(val) : val.replace(/["\\\]]/g, '')) + '"]')) {
+          data[k] = val;
+        }
       });
     } catch (e) {}
 
@@ -313,7 +321,7 @@
       var amb = $('#ambTotal'); if (amb) amb.textContent = fmtMoney(total);
       var sp = $('#spTotal'); if (sp) sp.textContent = fmtMoney(total);
     }
-    function row(k, v) { return '<div class="summary-row"><span>' + k + '</span><span>' + v + '</span></div>'; }
+    function row(k, v) { return '<div class="summary-row"><span>' + k + '</span><span>' + escapeHtml(v) + '</span></div>'; }
     function titleCase(s) { return String(s || '').replace(/[-_]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
 
     // ---------- Track (KTAMS vs MAM) ----------
@@ -375,7 +383,7 @@
 
     function renderReview() {
       var price = cfg.pricing[data.pathway];
-      function item(l, v) { return '<div class="review-item"><span class="review-label">' + l + '</span><span class="review-value">' + (v || '—') + '</span></div>'; }
+      function item(l, v) { return '<div class="review-item"><span class="review-label">' + l + '</span><span class="review-value">' + escapeHtml(v || '—') + '</span></div>'; }
       var html = '';
       html += '<div class="review-section"><div class="review-section-head"><h4>Programme</h4><button type="button" data-jump="0">Edit</button></div><div class="review-grid">';
       var trk = deriveTrack(data.dob);
