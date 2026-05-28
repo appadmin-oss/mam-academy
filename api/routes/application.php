@@ -43,7 +43,7 @@ try {
             'phone'      => $v['phone'],
             'country'    => $v['country'],
             'city'       => $v['city'],
-            'age_range'  => $v['age'],
+            'age_range'  => $v['ageRange'],
             'dob'        => $v['dob'],
             'updated_at' => date('Y-m-d H:i:s'),
         ], ['id' => $customerId]);
@@ -55,7 +55,7 @@ try {
             'phone'      => $v['phone'],
             'country'    => $v['country'],
             'city'       => $v['city'],
-            'age_range'  => $v['age'],
+            'age_range'  => $v['ageRange'],
             'dob'        => $v['dob'],
         ]);
     }
@@ -73,7 +73,6 @@ try {
         'referrer'               => $v['referrer'],
         'parent_name'            => $v['parentName'],
         'parent_phone'           => $v['parentPhone'],
-        'emergency_contact'      => $v['emergencyContact'],
         'auditer_optin'          => $v['auditer'],
         'include_registration'   => $v['includeRegistration'],
         'include_certification'  => $v['includeCertification'],

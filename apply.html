@@ -220,46 +220,30 @@
           </div>
         </div>
 
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="age">Age Range <span class="req">*</span></label>
-            <div class="field-select-wrap">
-              <select id="age" class="field-select">
-                <option value="">Select age range</option>
-                <optgroup label="KTAMS — Kids @ MAM (under 16)">
-                  <option value="under-6">Under 6 years</option>
-                  <option value="6-9">6 – 9 years</option>
-                  <option value="10-12">10 – 12 years</option>
-                  <option value="13-15">13 – 15 years</option>
-                </optgroup>
-                <optgroup label="MAM Academy (16 and above)">
-                  <option value="16-17">16 – 17 years</option>
-                  <option value="18-25">18 – 25 years</option>
-                  <option value="26+">26 years &amp; above</option>
-                </optgroup>
-              </select>
-              <i class="fa-solid fa-chevron-down field-select-arrow"></i>
+        <div class="field">
+          <label class="field-label" for="dob">Date of Birth <span class="req">*</span></label>
+          <div class="dob-row">
+            <input type="date" id="dob" class="field-input" required autocomplete="bday">
+            <div class="dob-readout" id="dobReadout" hidden>
+              <i class="fa-solid fa-cake-candles"></i>
+              <div>
+                <strong id="dobAge">—</strong>
+                <span id="dobBand"></span>
+              </div>
             </div>
-            <div class="field-error" id="err-age"><i class="fa-solid fa-circle-exclamation"></i><span>Select age range</span></div>
           </div>
-          <div class="field">
-            <label class="field-label" for="dob">Date of Birth <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:normal">(optional)</span></label>
-            <input type="date" id="dob" class="field-input">
-          </div>
+          <div class="field-help">We use your date of birth to place you on the right track. The age band is calculated automatically.</div>
+          <div class="field-error" id="err-dob"><i class="fa-solid fa-circle-exclamation"></i><span>A valid date of birth is required</span></div>
         </div>
 
-        <div class="field" id="guardianField">
-          <label class="field-label" for="parentName">Parent / Guardian <span class="req" id="guardianReq" hidden>*</span><span id="guardianOpt" style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:normal">(for under 16)</span></label>
+        <div class="field" id="guardianField" hidden>
+          <label class="field-label" for="parentName">Parent / Guardian <span class="req">*</span></label>
           <div class="field-row">
             <input type="text" id="parentName" class="field-input" placeholder="Guardian name" autocomplete="name">
             <input type="tel" id="parentPhone" class="field-input" placeholder="Guardian phone" autocomplete="tel">
           </div>
-          <div class="field-error" id="err-parentName"><i class="fa-solid fa-circle-exclamation"></i><span>A parent/guardian is required for under-16 (KTAMS) students</span></div>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="emergencyContact">Emergency Contact</label>
-          <input type="text" id="emergencyContact" class="field-input" placeholder="Name &amp; phone (optional)">
+          <div class="field-help">Required for under-16 (KTAMS) students — this is the contact we use for scheduling and updates.</div>
+          <div class="field-error" id="err-parentName"><i class="fa-solid fa-circle-exclamation"></i><span>A parent/guardian is required for under-16 students</span></div>
         </div>
 
         <div class="step-actions">

@@ -61,24 +61,26 @@ function mam_validate_application(array $in): array {
     $out['discipline'] = mam_str($in, 'discipline', 32);
     if (!mam_in($out['discipline'], $allowedDisc)) $errors[] = 'discipline';
 
-    $allowedAges = ['under-6','6-9','10-12','13-15','16-17','18-25','26+'];
-    $out['age'] = mam_str($in, 'age', 12);
-    if (!mam_in($out['age'], $allowedAges)) $errors[] = 'age';
-
-    // Programme track is derived from age server-side (never trust client).
-    // KTAMS = Kids @ MAM (under 16) · MAM = 16 and above.
-    $ktamsAges = ['under-6','6-9','10-12','13-15'];
-    $out['programTrack'] = mam_in($out['age'], $ktamsAges) ? 'KTAMS' : 'MAM';
+    // Date of birth is now the single source of truth — age range, programme
+    // track and guardian-requirement all derive from it server-side.
+    $out['dob'] = mam_str($in, 'dob', 20);
+    $age = mam_age_from_dob($out['dob']);
+    if ($age === null || $age < 3 || $age > 120) {
+        $errors[] = 'dob';
+        $out['ageRange'] = null;
+        $out['programTrack'] = 'MAM';
+    } else {
+        $out['ageRange']     = mam_age_band($age);
+        $out['programTrack'] = $age < 16 ? 'KTAMS' : 'MAM';
+    }
 
     $out['country']  = mam_str($in, 'country',  80) ?: null;
     $out['city']     = mam_str($in, 'city',     80) ?: null;
-    $out['dob']      = mam_str($in, 'dob',      20) ?: null;
     $out['experience']= mam_str($in, 'experience', 32) ?: null;
     $out['goals']    = mam_str($in, 'goals',    1000) ?: null;
     $out['referrer'] = mam_str($in, 'referrer', 40) ?: null;
     $out['parentName']  = mam_str($in, 'parentName',  120) ?: null;
     $out['parentPhone'] = mam_str($in, 'parentPhone', 24)  ?: null;
-    $out['emergencyContact'] = mam_str($in, 'emergencyContact', 200) ?: null;
 
     $out['auditer']               = mam_bool($in, 'auditer');
     $out['includeRegistration']   = mam_bool($in, 'includeRegistration');
@@ -101,6 +103,34 @@ function mam_validate_application(array $in): array {
     if (!empty($errors)) mam_fail('validation', 422, ['fields' => $errors]);
 
     return $out;
+}
+
+/**
+ * Compute integer age in completed years from an ISO date string.
+ * Returns null if the value is missing or unparseable.
+ */
+function mam_age_from_dob(?string $dob): ?int {
+    if (!$dob) return null;
+    $ts = strtotime($dob);
+    if ($ts === false) return null;
+    $now = new DateTimeImmutable('today');
+    $d   = new DateTimeImmutable(date('Y-m-d', $ts));
+    if ($d > $now) return null; // future-dated DOB
+    return (int)$now->diff($d)->y;
+}
+
+/**
+ * Bucket a completed-years age into the seven canonical bands. Kept in sync
+ * with the bands the apply UI used to ask for explicitly.
+ */
+function mam_age_band(int $age): string {
+    if ($age < 6)  return 'under-6';
+    if ($age <= 9) return '6-9';
+    if ($age <= 12) return '10-12';
+    if ($age <= 15) return '13-15';
+    if ($age <= 17) return '16-17';
+    if ($age <= 25) return '18-25';
+    return '26+';
 }
 
 /**

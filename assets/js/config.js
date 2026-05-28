@@ -33,6 +33,19 @@ window.MAM_CONFIG = {
     fallbackEmail: 'connect@mamcentre.org'
   },
 
+  /* -------- Image CDN (Cloudinary fetch) --------
+     Set `cloudName` to your Cloudinary cloud name to route every <img>
+     and inline page-hero background through Cloudinary, with q_auto and
+     f_auto applied so each browser gets the smallest right-sized variant.
+     Leaving cloudName empty is a safe no-op — the site keeps using the
+     original URLs. Opt an asset out with the `data-no-cdn` attribute. */
+  cdn: {
+    provider: 'cloudinary',
+    cloudName: '',          // e.g. 'mam-academy' — set this once and every image is served via the CDN
+    defaultWidth: 1920,     // hero/full-bleed cap
+    contentWidth: 1200      // in-content image cap
+  },
+
   /* -------- Optional payment methods --------
      Server returns the public keys + payloads in payment/initialize.
      This section is only used to decide which method buttons show in
@@ -190,4 +203,58 @@ window.MAM_API = (function () {
     sendContact:       function (data) { return request(cfg.contactPath, { method: 'POST', body: data }); },
     url: url
   };
+})();
+
+/* -------- Cloudinary fetch helper --------
+   Wraps any absolute image URL in a Cloudinary fetch URL so we get q_auto,
+   f_auto, the right width and DPR variant — without uploading anything.
+   Returns the original URL when no cloud name is configured. */
+window.MAM_CDN = (function () {
+  var cdn = (window.MAM_CONFIG && window.MAM_CONFIG.cdn) || {};
+
+  function isHttp(u) { return /^https?:\/\//i.test(u || ''); }
+
+  function image(src, opts) {
+    if (!cdn.cloudName || !isHttp(src)) return src;
+    opts = opts || {};
+    var dpr = Math.min(3, Math.round(window.devicePixelRatio || 1));
+    var w   = opts.width || cdn.contentWidth || 1200;
+    var transforms = ['q_auto', 'f_auto', 'w_' + w, 'dpr_' + dpr];
+    if (opts.crop)    transforms.push('c_' + opts.crop);
+    if (opts.gravity) transforms.push('g_' + opts.gravity);
+    return 'https://res.cloudinary.com/' + cdn.cloudName + '/image/fetch/' + transforms.join(',') + '/' + encodeURIComponent(src);
+  }
+
+  /**
+   * Rewrite every <img> and inline page-hero background on the page to go
+   * through Cloudinary. Run once partials/header/footer have loaded.
+   * Opt-out per element with `data-no-cdn`.
+   */
+  function rewriteAll(root) {
+    if (!cdn.cloudName) return; // no-op until cloud name is configured
+    root = root || document;
+
+    // Heroes use `--page-hero-img:url(...)` inline; route those through CDN at hero width
+    root.querySelectorAll('[style*="--page-hero-img"]').forEach(function (el) {
+      if (el.hasAttribute('data-no-cdn') || el.hasAttribute('data-cdn-done')) return;
+      var s = el.getAttribute('style') || '';
+      var m = s.match(/--page-hero-img\s*:\s*url\(['"]?([^'")]+)['"]?\)/);
+      if (!m || !isHttp(m[1])) return;
+      var cdnUrl = image(m[1], { width: cdn.defaultWidth || 1920 });
+      el.setAttribute('style', s.replace(m[0], "--page-hero-img:url('" + cdnUrl + "')"));
+      el.setAttribute('data-cdn-done', '1');
+    });
+
+    // <img src="https://..."> — skip same-origin, data:, blob:, the logo, and explicit opt-outs
+    root.querySelectorAll('img[src]').forEach(function (img) {
+      if (img.hasAttribute('data-no-cdn') || img.hasAttribute('data-cdn-done')) return;
+      var src = img.getAttribute('src') || '';
+      if (!isHttp(src)) return;
+      var width = parseInt(img.getAttribute('width') || '0', 10) || undefined;
+      img.setAttribute('src', image(src, { width: width }));
+      img.setAttribute('data-cdn-done', '1');
+    });
+  }
+
+  return { image: image, rewriteAll: rewriteAll };
 })();

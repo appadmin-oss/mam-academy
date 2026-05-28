@@ -556,6 +556,11 @@
     initFilters();
     initImageFallback();
     initYear();
+    // Route all <img> and hero backgrounds through Cloudinary fetch once
+    // partials are in place. Safe no-op until MAM_CONFIG.cdn.cloudName is set.
+    if (window.MAM_CDN && typeof window.MAM_CDN.rewriteAll === 'function') {
+      try { window.MAM_CDN.rewriteAll(document); } catch (e) {}
+    }
 
     if (window.console && console.log) {
       console.log('%c🎵 MAM Academy', 'background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#120D08;padding:12px 24px;font-size:18px;font-weight:900;border-radius:8px;letter-spacing:2px');

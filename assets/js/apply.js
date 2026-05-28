@@ -44,16 +44,46 @@
 
     var data = loadDraft() || {
       pathway: '', mode: '', discipline: '', firstName: '', lastName: '', email: '', phone: '',
-      country: 'Nigeria', city: '', age: '', dob: '', experience: '', goals: '', referrer: '',
-      auditer: true, parentName: '', parentPhone: '', emergencyContact: '',
+      country: 'Nigeria', city: '', dob: '', experience: '', goals: '', referrer: '',
+      auditer: true, parentName: '', parentPhone: '',
       includeRegistration: true, includeCertification: false, payment: '', currency: 'USD',
       programTrack: '', policyAgree: false, policySignName: '',
       reference: null, applicationId: null, serverTotalUsd: null
     };
+    // Clean up legacy draft shape — early-2026 drafts had `age` and `emergencyContact`.
+    if ('age' in data) delete data.age;
+    if ('emergencyContact' in data) delete data.emergencyContact;
+    if (typeof data.dob !== 'string') data.dob = '';
 
-    // KTAMS (Kids @ MAM) = under 16; MAM = 16 and above. Derived from age.
-    var KTAMS_AGES = ['under-6', '6-9', '10-12', '13-15'];
-    function deriveTrack(age) { return age ? (KTAMS_AGES.indexOf(age) >= 0 ? 'KTAMS' : 'MAM') : ''; }
+    // KTAMS (Kids @ MAM) = under 16; MAM = 16 and above. Derived entirely from DOB.
+    function ageFromDob(dob) {
+      if (!dob) return null;
+      var d = new Date(dob); if (isNaN(d)) return null;
+      var t = new Date();
+      var a = t.getFullYear() - d.getFullYear();
+      var m = t.getMonth() - d.getMonth();
+      if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
+      if (a < 0 || a > 120) return null;
+      return a;
+    }
+    function ageBandFromDob(dob) {
+      var a = ageFromDob(dob); if (a === null) return '';
+      if (a < 6)  return 'under-6';
+      if (a <= 9) return '6-9';
+      if (a <= 12) return '10-12';
+      if (a <= 15) return '13-15';
+      if (a <= 17) return '16-17';
+      if (a <= 25) return '18-25';
+      return '26+';
+    }
+    function deriveTrack(dob) {
+      var a = ageFromDob(dob); if (a === null) return '';
+      return a < 16 ? 'KTAMS' : 'MAM';
+    }
+    var BAND_LABELS = {
+      'under-6':'Under 6','6-9':'6–9 years','10-12':'10–12 years','13-15':'13–15 years',
+      '16-17':'16–17 years','18-25':'18–25 years','26+':'26 & above'
+    };
 
     // Pre-fill from URL ?pathway=cert&mode=online&discipline=piano
     try {
@@ -132,9 +162,9 @@
         check('email',     emailRe.test((data.email || '').trim()));
         check('phone',     phoneRe.test((data.phone || '').trim()));
         check('country',   (data.country || '').trim().length > 1);
-        check('age',       !!data.age);
+        check('dob',       ageFromDob(data.dob) !== null);
         // Under-16 (KTAMS) applicants must provide a parent/guardian
-        if (deriveTrack(data.age) === 'KTAMS') check('parentName', (data.parentName || '').trim().length > 1);
+        if (deriveTrack(data.dob) === 'KTAMS') check('parentName', (data.parentName || '').trim().length > 1);
       }
       if (idx === 3) {
         var pa = $('#policyAgree');
@@ -187,7 +217,7 @@
 
     // ---------- Track (KTAMS vs MAM) ----------
     function updateTrackUI() {
-      data.programTrack = deriveTrack(data.age);
+      data.programTrack = deriveTrack(data.dob);
       var tracks = cfg.tracks || {};
       var badge = $('#trackBadge');
       if (badge) {
@@ -199,12 +229,26 @@
           var nt = $('#trackBadgeNote'); if (nt) nt.textContent = t.note;
         } else { badge.hidden = true; }
       }
-      // Guardian is required for KTAMS (under-16) applicants
+      // Guardian section is only shown for KTAMS (under-16) — no need to
+      // collect parent details for an adult applicant.
       var isKid = data.programTrack === 'KTAMS';
-      var req = $('#guardianReq'), opt = $('#guardianOpt');
-      if (req) req.hidden = !isKid;
-      if (opt) opt.textContent = isKid ? '(required for under-16)' : '(for under 16)';
+      var gf = $('#guardianField'); if (gf) gf.hidden = !isKid;
       if (!isKid) clearError('parentName');
+
+      // Live age-band readout under the DOB picker — gives the applicant
+      // immediate, visible confirmation that the date they entered places
+      // them on the right track.
+      var readout = $('#dobReadout');
+      var ageEl = $('#dobAge'), bandEl = $('#dobBand');
+      var a = ageFromDob(data.dob);
+      if (a === null) {
+        if (readout) readout.hidden = true;
+      } else {
+        if (readout) readout.hidden = false;
+        if (ageEl) ageEl.textContent = a + (a === 1 ? ' year' : ' years');
+        var band = ageBandFromDob(data.dob);
+        if (bandEl) bandEl.textContent = (BAND_LABELS[band] || '') + ' · ' + (isKid ? 'KTAMS — Kids @ MAM' : 'MAM Academy');
+      }
     }
 
     // ---------- Policy summary (online vs onsite) ----------
@@ -233,20 +277,23 @@
       function item(l, v) { return '<div class="review-item"><span class="review-label">' + l + '</span><span class="review-value">' + (v || '—') + '</span></div>'; }
       var html = '';
       html += '<div class="review-section"><div class="review-section-head"><h4>Programme</h4><button type="button" data-jump="0">Edit</button></div><div class="review-grid">';
-      var trk = deriveTrack(data.age);
+      var trk = deriveTrack(data.dob);
       html += item('Track', trk && cfg.tracks[trk] ? cfg.tracks[trk].name : '—');
       html += item('Pathway', price ? price.name : '—');
       html += item('Mode',    data.mode === 'online' ? 'Online' : (data.mode === 'onsite' ? 'Onsite Lagos' : '—'));
       html += item('Discipline', titleCase(data.discipline));
       html += item('MAM Auditer', data.auditer ? 'Yes — book session' : 'No');
       html += '</div></div>';
+      var ageDisp = ageFromDob(data.dob);
+      var dobDisp = data.dob ? new Date(data.dob).toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' }) : '';
+      var ageLine = (ageDisp !== null ? (ageDisp + ' yrs') : '') + (dobDisp ? ' · ' + dobDisp : '');
       html += '<div class="review-section"><div class="review-section-head"><h4>Student Profile</h4><button type="button" data-jump="1">Edit</button></div><div class="review-grid">';
       html += item('Name',    (data.firstName + ' ' + data.lastName).trim());
       html += item('Email',   data.email);
       html += item('Phone',   data.phone);
       html += item('Country', data.country);
       html += item('City',    data.city);
-      html += item('Age',     data.age);
+      html += item('Age',     ageLine || '—');
       html += '</div></div>';
       if (data.experience || data.goals || data.referrer) {
         html += '<div class="review-section"><div class="review-section-head"><h4>Background</h4><button type="button" data-jump="2">Edit</button></div><div class="review-grid">';
@@ -293,7 +340,7 @@
     bindRadioGroup('pathway', 'pathway');
     bindRadioGroup('mode', 'mode');
     bindRadioGroup('discipline', 'discipline');
-    ['firstName','lastName','email','phone','country','city','age','dob','experience','goals','referrer','parentName','parentPhone','emergencyContact'].forEach(function (id) { bindField(id, id); });
+    ['firstName','lastName','email','phone','country','city','dob','experience','goals','referrer','parentName','parentPhone'].forEach(function (id) { bindField(id, id); });
     bindField('auditerOptIn', 'auditer');
     bindField('includeRegistration', 'includeRegistration');
     bindField('includeCertification', 'includeCertification');
@@ -317,37 +364,23 @@
         renderPolicy();
       });
     });
-    var ageEl = document.getElementById('age'); if (ageEl) { on(ageEl, 'change', updateTrackUI); }
-
-    // Date of birth is age-range aware: picking a DOB auto-selects the matching
-    // age band (and therefore the KTAMS/MAM track), and we cap it to today.
+    // DOB is the single source of truth — every age-dependent UI (track
+    // badge, KTAMS guardian fields, age-band readout, KTAMS copy in Step 2)
+    // listens to DOB changes through updateTrackUI() and applyKtamsCopy().
     var dobEl = document.getElementById('dob');
     if (dobEl) {
-      dobEl.setAttribute('max', new Date().toISOString().slice(0, 10));
+      // Cap to today so future-dated DOBs can't be picked; also enforce a
+      // sensible lower bound matching the server's age <= 120 check.
+      var today = new Date().toISOString().slice(0, 10);
+      var minDate = new Date(); minDate.setFullYear(minDate.getFullYear() - 120);
+      dobEl.setAttribute('max', today);
+      dobEl.setAttribute('min', minDate.toISOString().slice(0, 10));
       on(dobEl, 'change', function () {
-        var band = ageBandFromDob(dobEl.value);
-        if (band && ageEl) {
-          ageEl.value = band; data.age = band;
-          saveDraft(); updateTrackUI(); updateSummary();
-          var ae = document.getElementById('err-age'); if (ae) ae.classList.remove('shown');
-          ageEl.classList.remove('error');
-        }
+        clearError('dob');
+        updateTrackUI();
+        updateSummary();
+        if (typeof applyKtamsCopy === 'function') applyKtamsCopy();
       });
-    }
-    function ageBandFromDob(dob) {
-      if (!dob) return '';
-      var d = new Date(dob); if (isNaN(d)) return '';
-      var t = new Date(), age = t.getFullYear() - d.getFullYear();
-      var m = t.getMonth() - d.getMonth();
-      if (m < 0 || (m === 0 && t.getDate() < d.getDate())) age--;
-      if (age < 0 || age > 120) return '';
-      if (age < 6)  return 'under-6';
-      if (age <= 9) return '6-9';
-      if (age <= 12) return '10-12';
-      if (age <= 15) return '13-15';
-      if (age <= 17) return '16-17';
-      if (age <= 25) return '18-25';
-      return '26+';
     }
 
     bindRadioGroup('payment', 'payment');
@@ -424,7 +457,7 @@
         '', 'Name: ' + data.firstName + ' ' + data.lastName,
         'Email: ' + data.email, 'Phone: ' + data.phone,
         'Country/City: ' + (data.country || '') + ' ' + (data.city || ''),
-        'Age band: ' + data.age + ' (' + (deriveTrack(data.age) || '') + ')',
+        'Date of birth: ' + (data.dob || '') + ' (' + (deriveTrack(data.dob) || '') + ')',
         'Pathway: ' + (p.name || data.pathway), 'Mode: ' + data.mode, 'Discipline: ' + data.discipline,
         'Add-ons: ' + (data.includeRegistration ? 'Registration ' : '') + (data.includeCertification ? 'Certification' : ''),
         'Policy agreed: ' + (data.policyAgree ? 'Yes — ' + (data.policySignName || '') : 'No'),
@@ -442,13 +475,13 @@
         firstName: data.firstName, lastName: data.lastName,
         email: data.email, phone: data.phone,
         pathway: data.pathway, mode: data.mode, discipline: data.discipline,
-        country: data.country, city: data.city, age: data.age, dob: data.dob,
+        country: data.country, city: data.city, dob: data.dob,
         experience: data.experience, goals: data.goals, referrer: data.referrer,
-        parentName: data.parentName, parentPhone: data.parentPhone, emergencyContact: data.emergencyContact,
+        parentName: data.parentName, parentPhone: data.parentPhone,
         auditer: !!data.auditer,
         includeRegistration: !!data.includeRegistration,
         includeCertification: !!data.includeCertification,
-        programTrack: deriveTrack(data.age),
+        programTrack: deriveTrack(data.dob),
         policyMode: data.mode,
         policyAgreed: !!data.policyAgree,
         policySignedName: data.policySignName
@@ -466,7 +499,7 @@
       email:            { id: 'email',           step: 1 },
       phone:            { id: 'phone',           step: 1 },
       country:          { id: 'country',         step: 1 },
-      age:              { id: 'age',             step: 1 },
+      dob:              { id: 'dob',             step: 1 },
       parentName:       { id: 'parentName',      step: 1 },
       policyAgreed:     { id: 'policyAgree',     step: 3 },
       policySignedName: { id: 'policySignName',  step: 3 }
@@ -474,7 +507,7 @@
     var FIELD_LABELS = {
       pathway: 'pathway', mode: 'learning mode', discipline: 'discipline',
       firstName: 'first name', lastName: 'last name', email: 'email',
-      phone: 'phone', country: 'country', age: 'age range',
+      phone: 'phone', country: 'country', dob: 'date of birth',
       parentName: 'parent/guardian (under-16 students)',
       policyAgreed: 'class policy agreement',
       policySignedName: 'policy signature'
@@ -788,7 +821,7 @@
     // 5) KTAMS-aware copy. Under-16 enrolments are usually completed by a
     //    parent — the form copy should match that mental model.
     function applyKtamsCopy() {
-      var isKid = deriveTrack(data.age) === 'KTAMS';
+      var isKid = deriveTrack(data.dob) === 'KTAMS';
       var titleEl = document.querySelector('.step[data-step="1"] .step-title');
       var descEl  = document.querySelector('.step[data-step="1"] .step-desc');
       if (titleEl) titleEl.textContent = isKid ? "Child's Profile" : 'Student Profile';
@@ -800,10 +833,7 @@
       if (firstName) firstName.placeholder = isKid ? "Child's first name" : 'e.g. Tunde';
       if (lastName)  lastName.placeholder  = isKid ? "Child's last name"  : 'e.g. Adeyemi';
     }
-    var ageElForCopy = document.getElementById('age');
-    if (ageElForCopy) on(ageElForCopy, 'change', applyKtamsCopy);
-    var dobElForCopy = document.getElementById('dob');
-    if (dobElForCopy) on(dobElForCopy, 'change', function () { setTimeout(applyKtamsCopy, 0); });
+    // DOB drives KTAMS copy; the change listener above on #dob already calls applyKtamsCopy.
 
     // 6) Currency auto-default by locale. First-time visitors land on the
     //    currency that matches their browser locale instead of always USD.
