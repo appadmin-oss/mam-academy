@@ -43,7 +43,7 @@
     var totalSteps = stepsEls.length;
 
     var data = loadDraft() || {
-      pathway: '', mode: '', program: '', discipline: '',
+      pathway: '', mode: '', program: '', discipline: '', session: '',
       firstName: '', lastName: '', email: '', phone: '',
       sex: '', address: '', lga: '', state: '',
       country: 'Nigeria', city: '', dob: '',
@@ -59,7 +59,7 @@
     if ('emergencyContact' in data) delete data.emergencyContact;
     if (typeof data.dob !== 'string') data.dob = '';
     // Default the new required fields to empty so legacy drafts don't write "undefined"
-    ['program','sex','address','lga','state','headshotUrl'].forEach(function (k) {
+    ['program','sex','address','lga','state','headshotUrl','session'].forEach(function (k) {
       if (typeof data[k] !== 'string') data[k] = '';
     });
     // The legacy "wind" discipline was split into saxophone/trumpet/flute/clarinet —
@@ -190,6 +190,7 @@
         if (!data.mode)       { var m = $('#err-mode');       if (m) m.classList.add('shown');       ok = false; }
         check('program',  !!data.program);
         if (!data.discipline) { var d = $('#err-discipline'); if (d) d.classList.add('shown'); ok = false; }
+        if (!data.session)    { var se = $('#err-session');   if (se) se.classList.add('shown');     ok = false; }
       }
       if (idx === 1) {
         var SV = window.MAM_VALIDATE;
@@ -209,26 +210,32 @@
         } else {
           setError('email'); if (em.reason) setFieldHelpError('email', em.reason); ok = false;
         }
-        check('phone',     /^[+0-9\s\-()]{7,}$/.test((data.phone || '').trim()));
+        // Phone: trust intl-tel-input's libphonenumber-utils when available,
+        // fall back to permissive regex if the country-picker didn't initialise.
+        var phoneOk;
+        if (phoneIti) {
+          try { phoneOk = phoneIti.isValidNumber(); } catch (e) { phoneOk = false; }
+          if (phoneOk) { data.phone = phoneIti.getNumber(); saveDraft(); setFieldHelpOk('phone', 'Looks valid · ' + phoneIti.getNumber('international')); }
+          else if ((data.phone || '').trim()) setFieldHelpError('phone', 'That number isn\'t valid for the selected country.');
+        } else {
+          phoneOk = /^[+0-9\s\-()]{7,}$/.test((data.phone || '').trim());
+        }
+        check('phone', phoneOk);
         if (!data.sex) { var sxe = $('#err-sex'); if (sxe) sxe.classList.add('shown'); ok = false; }
         check('address',   (data.address || '').trim().length > 2);
         check('lga',       (data.lga     || '').trim().length > 1);
         check('state',     (data.state   || '').trim().length > 1);
         check('country',   (data.country || '').trim().length > 1);
         check('dob',       ageFromDob(data.dob) !== null);
-        // Under-16 (KTAMS) applicants must provide a parent/guardian
-        if (deriveTrack(data.dob) === 'KTAMS') check('parentName', (data.parentName || '').trim().length > 1);
-        // Phone validation via libphonenumber-js is async; kicked off in
-        // parallel with the sync checks. Fire-and-attach pattern: if it
-        // resolves before the user moves on, the inline note appears.
-        if (SV) {
-          var countryHint = (data.country || 'Nigeria').toLowerCase().indexOf('nigeria') >= 0 ? 'NG'
-            : (data.country || '').toLowerCase().indexOf('united kingdom') >= 0 ? 'GB'
-            : (data.country || '').toLowerCase().indexOf('united states') >= 0 ? 'US' : 'NG';
-          SV.phone(data.phone || '', countryHint).then(function (r) {
-            if (r.ok) { clearError('phone'); if (r.formatted) setFieldHelpOk('phone', 'Looks valid · ' + r.formatted); }
-            else if (r.reason) { setError('phone'); setFieldHelpError('phone', r.reason); }
-          });
+        // Under-16 (KTAMS) applicants must provide a parent/guardian; if the
+        // intl-tel-input is wired on parentPhone, also validate it.
+        if (deriveTrack(data.dob) === 'KTAMS') {
+          check('parentName', (data.parentName || '').trim().length > 1);
+          if (parentPhoneIti) {
+            var ppOk = false;
+            try { ppOk = parentPhoneIti.isValidNumber(); } catch (e) {}
+            if (ppOk) data.parentPhone = parentPhoneIti.getNumber();
+          }
         }
       }
       if (idx === 3) {
@@ -409,8 +416,11 @@
     bindRadioGroup('pathway', 'pathway');
     bindRadioGroup('mode', 'mode');
     bindRadioGroup('discipline', 'discipline');
+    bindRadioGroup('session', 'session');
     bindRadioGroup('sex', 'sex');
-    ['firstName','lastName','email','phone','address','lga','state','country','city','dob','program','experience','goals','referrer','parentName','parentPhone'].forEach(function (id) { bindField(id, id); });
+    // phone + parentPhone are owned by intl-tel-input below; binding them here
+    // would race with the country picker's setNumber().
+    ['firstName','lastName','email','address','lga','state','country','city','dob','program','experience','goals','referrer','parentName'].forEach(function (id) { bindField(id, id); });
 
     // ---------- Headshot widget (AI-validated, optional Cloudinary upload) ----------
     var headshotState = null;
@@ -424,6 +434,41 @@
         }
       });
     }
+
+    // ---------- intl-tel-input: international phone with country flag/picker ----------
+    // Initialises on #phone and #parentPhone. On every change we write the
+    // E.164 form back into data.phone / data.parentPhone so the payload and
+    // draft always carry a canonical, dial-anywhere number.
+    function initIti(inputId, key) {
+      var el = document.getElementById(inputId);
+      if (!el || typeof window.intlTelInput !== 'function') return null;
+      var iti = window.intlTelInput(el, {
+        initialCountry: 'ng',
+        preferredCountries: ['ng', 'gb', 'us', 'ca', 'za'],
+        separateDialCode: true,
+        utilsScript: 'https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/js/utils.js'
+      });
+      // Hydrate from existing draft value (E.164 → flag auto-picks)
+      if (data[key]) try { iti.setNumber(data[key]); } catch (e) {}
+      var sync = function () {
+        var raw = el.value.trim();
+        // Persist E.164 when valid; otherwise persist whatever the user typed
+        // so the draft round-trips losslessly even mid-edit.
+        var num = '';
+        try { num = iti.isValidNumber() ? iti.getNumber() : raw; } catch (e) { num = raw; }
+        data[key] = num;
+        if (el.classList.contains('error')) el.classList.remove('error');
+        var errEl = document.getElementById('err-' + inputId); if (errEl) errEl.classList.remove('shown');
+        var note = document.getElementById('note-' + inputId); if (note) note.remove();
+        saveDraft();
+      };
+      on(el, 'blur',            sync);
+      on(el, 'countrychange',   sync);
+      on(el, 'input',           function () { data[key] = el.value.trim(); saveDraft(); });
+      return iti;
+    }
+    var phoneIti       = initIti('phone',       'phone');
+    var parentPhoneIti = initIti('parentPhone', 'parentPhone');
     bindField('auditerOptIn', 'auditer');
     bindField('includeRegistration', 'includeRegistration');
     bindField('includeCertification', 'includeCertification');
@@ -558,7 +603,7 @@
         firstName: data.firstName, lastName: data.lastName,
         email: data.email, phone: data.phone,
         sex: data.sex,
-        pathway: data.pathway, mode: data.mode, program: data.program, discipline: data.discipline,
+        pathway: data.pathway, mode: data.mode, program: data.program, discipline: data.discipline, session: data.session,
         address: data.address, lga: data.lga, state: data.state,
         country: data.country, city: data.city, dob: data.dob,
         experience: data.experience, goals: data.goals, referrer: data.referrer,
@@ -581,6 +626,7 @@
       mode:             { id: null,              step: 0 },
       program:          { id: 'program',         step: 0 },
       discipline:       { id: null,              step: 0 },
+      session:          { id: null,              step: 0 },
       firstName:        { id: 'firstName',       step: 1 },
       lastName:         { id: 'lastName',        step: 1 },
       email:            { id: 'email',           step: 1 },
@@ -596,7 +642,7 @@
       policySignedName: { id: 'policySignName',  step: 3 }
     };
     var FIELD_LABELS = {
-      pathway: 'pathway', mode: 'learning mode', program: 'programme', discipline: 'course',
+      pathway: 'pathway', mode: 'learning mode', program: 'programme', discipline: 'course', session: 'session',
       firstName: 'first name', lastName: 'last name', email: 'email',
       phone: 'mobile number', sex: 'sex',
       address: 'address', lga: 'local government', state: 'state', country: 'country',

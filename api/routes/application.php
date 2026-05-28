@@ -77,6 +77,7 @@ try {
         'mode'                   => $v['mode'],
         'program'                => $v['program'],
         'discipline'             => $v['discipline'],
+        'session'                => $v['session'],
         'headshot_url'           => $v['headshotUrl'],
         'experience'             => $v['experience'],
         'goals'                  => $v['goals'],

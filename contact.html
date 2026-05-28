@@ -112,16 +112,13 @@ document.addEventListener('mam:ready', function () {
       existing.innerHTML = '<i class="fa-solid fa-' + spec.icon + '"></i><span>' + spec.html + '</span>';
     });
   }
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
+  var doSubmit = function () {
     var name = document.getElementById('cf-name').value.trim();
     var email = document.getElementById('cf-email').value.trim();
     var phone = document.getElementById('cf-phone').value.trim();
     var topic = document.getElementById('cf-topic').value;
     var message = document.getElementById('cf-message').value.trim();
     var msgEl = document.getElementById('cf-msg');
-    var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!name || !re.test(email) || !topic || !message) { alert('Please complete the required fields.'); return; }
     if (form.querySelector('[name=_honeypot]').value) { msgEl.style.display='block'; return; }
     submit.disabled = true; var origLabel = submit.innerHTML;
     submit.innerHTML = '<span class="spinner"></span><span>Sending…</span>';
@@ -143,7 +140,32 @@ document.addEventListener('mam:ready', function () {
       window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
       msgEl.textContent = 'Opening your email…'; msgEl.style.display='block';
     }
-  });
+  };
+
+  // Hand validation to JustValidate when reachable. The library handles
+  // aria-live errors, focus management and inline error rendering — the
+  // raw submit handler is the fallback when the CDN is blocked.
+  if (typeof window.MAM_LOAD_JUSTVALIDATE === 'function') {
+    window.MAM_LOAD_JUSTVALIDATE().then(function (JV) {
+      if (!JV) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var em = document.getElementById('cf-email').value.trim();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { alert('Please enter a valid email.'); return; }
+          doSubmit();
+        });
+        return;
+      }
+      var v = new JV(form, { errorFieldCssClass: 'jv-error', errorLabelCssClass: 'jv-error-label', focusInvalidField: true });
+      v.addField('#cf-name',    [{ rule: 'required', errorMessage: 'Enter your name' }, { rule: 'minLength', value: 2 }])
+       .addField('#cf-email',   [{ rule: 'required', errorMessage: 'Email is required' }, { rule: 'email' }])
+       .addField('#cf-topic',   [{ rule: 'required', errorMessage: 'Pick a topic' }])
+       .addField('#cf-message', [{ rule: 'required', errorMessage: 'Tell us how we can help' }, { rule: 'minLength', value: 10, errorMessage: 'A little more detail would help' }])
+       .onSuccess(function (e) { e.preventDefault(); doSubmit(); });
+    });
+  } else {
+    form.addEventListener('submit', function (e) { e.preventDefault(); doSubmit(); });
+  }
 });
 </script>
 </body>

@@ -147,6 +147,18 @@
 .hs-status-warn{background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.32);color:#FDE68A}
 .hs-status-error{background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.32);color:#FECDD3}
 
+/* intl-tel-input: blend the country-picker flag/dropdown into our dark form */
+.iti{width:100%}
+.iti--allow-dropdown .iti__flag-container{background:var(--bg-elevated);border-radius:var(--radius-sm) 0 0 var(--radius-sm)}
+.iti__selected-flag{padding:0 10px 0 12px}
+.iti__country-list{background:var(--bg-surface);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);max-height:280px}
+.iti__country.iti__highlight{background:rgba(224,138,26,0.14)}
+.iti__divider{border-bottom-color:var(--border)}
+.iti__dial-code{color:var(--text-muted)}
+.iti--separate-dial-code .iti__selected-dial-code{color:var(--text);font-weight:600}
+.iti--separate-dial-code .iti__selected-flag{background:var(--bg-elevated)}
+.iti--separate-dial-code input.field-input{padding-left:96px}
+
 .choice-grid-1{grid-template-columns:1fr}
 /* Reserve bottom-right space for the check indicator so it never overlaps
    the gold-coloured price in the head row. */

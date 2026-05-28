@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS applications (
   mode                   VARCHAR(16),
   program                VARCHAR(40),
   discipline             VARCHAR(32),
+  session                VARCHAR(12),
   headshot_url           VARCHAR(500),
   experience             VARCHAR(32),
   goals                  TEXT,

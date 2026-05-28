@@ -57,6 +57,10 @@ function mam_validate_application(array $in): array {
     $out['mode'] = mam_str($in, 'mode', 16);
     if (!mam_in($out['mode'], ['online','onsite'])) $errors[] = 'mode';
 
+    // Session names are mapped to scale degrees: tonic/mediant/dominant + summer.
+    $out['session'] = mam_str($in, 'session', 12);
+    if (!mam_in($out['session'], ['toni','medi','summer','domi'])) $errors[] = 'session';
+
     $allowedPrograms = [
         'music-business','songwriting','audio-engineering',
         'classical','contemporary','african','grand',

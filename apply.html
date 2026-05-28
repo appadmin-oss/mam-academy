@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
 <link rel="stylesheet" href="assets/css/main.css">
 <link rel="stylesheet" href="assets/css/apply.css">
 </head>
@@ -204,6 +205,34 @@
             <label class="choice-card"><input type="radio" name="discipline" value="metamusic"><div class="choice-card-head"><span class="choice-card-title">MetaMusic &amp; Consciousness</span></div><span class="choice-card-desc">Philosophy of sound</span><span class="choice-card-icon"></span></label>
           </div>
           <div class="field-error" id="err-discipline"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a course</span></div>
+        </div>
+
+        <div class="substep-head">
+          <span class="substep-num">1.5</span>
+          <span class="substep-title">Preferred session</span>
+          <span class="substep-meta">Intake periods named after scale degrees — pick the one that fits your calendar</span>
+        </div>
+        <div class="field">
+          <label class="field-label sr-only">Session <span class="req">*</span></label>
+          <div class="choice-grid">
+            <label class="choice-card"><input type="radio" name="session" value="toni">
+              <div class="choice-card-head"><span class="choice-card-title">TONI</span></div>
+              <span class="choice-card-desc">Tonic · first session of the academic cycle (Jan – Mar).</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="session" value="medi">
+              <div class="choice-card-head"><span class="choice-card-title">MEDI</span></div>
+              <span class="choice-card-desc">Mediant · mid-year session (Apr – Jun).</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="session" value="summer">
+              <div class="choice-card-head"><span class="choice-card-title">SUMMER</span></div>
+              <span class="choice-card-desc">Summer intensive (Jul – Aug) — for crash &amp; holiday tracks.</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="session" value="domi">
+              <div class="choice-card-head"><span class="choice-card-title">DOMI</span></div>
+              <span class="choice-card-desc">Dominant · year-closing session (Sep – Dec).</span>
+              <span class="choice-card-icon"></span></label>
+          </div>
+          <div class="field-error" id="err-session"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a session</span></div>
         </div>
 
         <div class="step-actions">
@@ -509,6 +538,7 @@
 
 <div id="include-footer"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/js/intlTelInputWithUtils.min.js"></script>
 <script src="assets/js/config.js"></script>
 <script src="assets/js/main.js"></script>
 <script src="assets/js/validate.js"></script>

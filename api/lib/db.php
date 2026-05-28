@@ -272,6 +272,11 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE applications ADD COLUMN program TEXT;
             ALTER TABLE applications ADD COLUMN headshot_url TEXT;
         ",
+        // Preferred intake session (TONI / MEDI / SUMMER / DOMI — named for
+        // scale degrees) so we can route applicants to the matching cohort.
+        5 => "
+            ALTER TABLE applications ADD COLUMN session TEXT;
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

@@ -927,3 +927,9 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
   .mode-title,.school-name{font-size:1.5rem}
   .testimonials-track{animation-duration:48s}
 }
+
+/* JustValidate error styling — matches our field-error palette so the
+   library's auto-rendered messages don't look bolted on. */
+.jv-error{border-color:var(--red-hot,#E11D48)!important;box-shadow:0 0 0 3px rgba(225,29,72,0.18)!important}
+.jv-error-label{color:#FB7185;font-size:0.78rem;margin-top:5px;display:flex;align-items:center;gap:6px;line-height:1.5}
+.jv-error-label::before{content:'\f06a';font-family:'Font Awesome 6 Free';font-weight:900;font-size:0.78rem}

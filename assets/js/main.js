@@ -462,18 +462,37 @@
   // ============================================================
   // Newsletter — uses backend API; mailto only if API unreachable
   // ============================================================
+  // Lazy-loads JustValidate once and resolves with the constructor.
+  // Returns a Promise<JustValidate|null> — null if the CDN is unreachable
+  // so the caller can fall back to a permissive submit.
+  var justValidatePromise = null;
+  function loadJustValidate() {
+    if (justValidatePromise) return justValidatePromise;
+    justValidatePromise = new Promise(function (resolve) {
+      if (window.JustValidate) return resolve(window.JustValidate);
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/just-validate@4.5.0/dist/just-validate.production.min.js';
+      s.async = true;
+      s.onload  = function () { resolve(window.JustValidate || null); };
+      s.onerror = function () { resolve(null); };
+      document.head.appendChild(s);
+    });
+    return justValidatePromise;
+  }
+  window.MAM_LOAD_JUSTVALIDATE = loadJustValidate;
+
   function initNewsletter() {
     var form = $('#newsletterForm'); if (!form) return;
-    on(form, 'submit', function (e) {
-      e.preventDefault();
-      var input = $('#newsletterEmail');
-      var msg = $('#newsletterMsg');
-      var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!input || !re.test(input.value.trim())) {
-        if (input) input.style.borderColor = 'var(--red-hot)'; return;
-      }
-      input.style.borderColor = '';
-      var email = input.value.trim();
+    var input = $('#newsletterEmail');
+    var msg = $('#newsletterMsg');
+
+    var mailtoSubscribe = function (em) {
+      var fallback = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'connect@mamcentre.org';
+      window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Newsletter subscribe') + '&body=' + encodeURIComponent('Please subscribe ' + em);
+      if (msg) { msg.textContent = 'Opening your email…'; msg.classList.add('shown'); }
+    };
+    var submitWithEmail = function (email) {
+      if (input) input.style.borderColor = '';
       if (window.MAM_API && window.MAM_API.subscribeNewsletter) {
         window.MAM_API.subscribeNewsletter(email, 'footer-' + location.pathname)
           .then(function () {
@@ -488,11 +507,25 @@
             mailtoSubscribe(email);
           });
       } else { mailtoSubscribe(email); }
-      function mailtoSubscribe(em) {
-        var fallback = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'connect@mamcentre.org';
-        window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Newsletter subscribe') + '&body=' + encodeURIComponent('Please subscribe ' + em);
-        if (msg) { msg.textContent = 'Opening your email…'; msg.classList.add('shown'); }
+    };
+
+    // Prefer JustValidate when reachable — accessible errors, aria-live, clean
+    // focus management. Fall back to a permissive submit if the CDN fails.
+    loadJustValidate().then(function (JV) {
+      if (!JV) {
+        on(form, 'submit', function (e) {
+          e.preventDefault();
+          var em = (input.value || '').trim();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { input.style.borderColor = 'var(--red-hot)'; return; }
+          submitWithEmail(em);
+        });
+        return;
       }
+      var v = new JV(form, { errorFieldCssClass: 'jv-error', errorLabelCssClass: 'jv-error-label', focusInvalidField: true });
+      v.addField('#newsletterEmail', [
+        { rule: 'required', errorMessage: 'Email is required' },
+        { rule: 'email',    errorMessage: 'Enter a valid email' }
+      ]).onSuccess(function (e) { e.preventDefault(); submitWithEmail((input.value || '').trim()); });
     });
   }
 
