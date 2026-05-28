@@ -70,7 +70,7 @@ try {
         $provision = mam_ensure_student_user((int)$app['customer_id']);
         if ($provision['password']) {
             $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
-            $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login.html';
+            $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
             $name = htmlspecialchars(trim($customer['first_name'] . ' ' . $customer['last_name']));
             $body = "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>"
                   . "<table style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>"

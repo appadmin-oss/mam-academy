@@ -826,8 +826,8 @@
         '    We just emailed you your student portal credentials — sign in to track your application, see your classes once you\'re placed, and view your MAM Auditer report.' +
         '  </div>' +
         '  <div class="success-actions">' +
-        '    <a href="portal/login.html" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket"></i> Open Student Portal</a>' +
-        '    <a href="index.html" class="btn btn-secondary"><i class="fa-solid fa-house"></i> Back to Home</a>' +
+        '    <a href="portal/login" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket"></i> Open Student Portal</a>' +
+        '    <a href="/" class="btn btn-secondary"><i class="fa-solid fa-house"></i> Back to Home</a>' +
         '  </div>' +
         '</div>';
       window.scrollTo({ top: main.offsetTop - 100, behavior: 'smooth' });

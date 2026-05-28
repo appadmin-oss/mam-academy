@@ -221,13 +221,19 @@
       on(dd, 'keydown', function (e) { if (e.key === 'Escape') { item.classList.remove('js-hover', 'open'); trigger.focus(); } });
     });
 
-    // Highlight current page in nav
-    var path = location.pathname.split('/').pop() || 'index.html';
+    // Highlight current page in nav. Normalise so it matches whether the
+    // site is served with clean URLs (/apply) or legacy .html (/apply.html),
+    // and treats /, /index and /index.html all as "home".
+    var norm = function (p) {
+      p = (p || '').split('#')[0].split('?')[0].split('/').pop();
+      p = p.replace(/\.html$/, '');
+      return p === '' || p === 'index' ? 'home' : p;
+    };
+    var path = norm(location.pathname);
     $$('.nav-link, .mobile-nav-link, .mobile-nav-sub-link').forEach(function (a) {
       var href = a.getAttribute('href');
       if (!href) return;
-      var hrefPath = href.split('/').pop().split('#')[0];
-      if (hrefPath && hrefPath === path) a.classList.add('active');
+      if (norm(href) === path) a.classList.add('active');
     });
   }
 

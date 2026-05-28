@@ -26,7 +26,7 @@ if ($email) {
             ]);
 
             $appUrl = rtrim((string)mam_env('APP_URL', ''), '/');
-            $link   = $appUrl . '/portal/reset.html?token=' . $token;
+            $link   = $appUrl . '/portal/reset?token=' . $token;
             $body   = mam_email_password_reset(
                 (string)($user['name'] ?? explode('@', $user['email'])[0]),
                 $link

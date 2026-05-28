@@ -7,8 +7,8 @@ $classId = (int)($in['class_id'] ?? 0);
 $applicationId = isset($in['application_id']) ? (int)$in['application_id'] : null;
 if (!$studentId || !$classId) mam_fail('validation', 422, ['fields' => ['student_id', 'class_id']]);
 
-$student = mam_db_row("SELECT id FROM users WHERE id = ? AND role = 'student'", [$studentId]);
-$class = mam_db_row('SELECT id FROM classes WHERE id = ?', [$classId]);
+$student = mam_db_row("SELECT id, name, email FROM users WHERE id = ? AND role = 'student'", [$studentId]);
+$class = mam_db_row('SELECT id, title, schedule FROM classes WHERE id = ?', [$classId]);
 if (!$student || !$class) mam_fail('not_found', 404);
 
 try {
@@ -23,6 +23,13 @@ try {
         mam_fail('already_enrolled', 409);
     }
     throw $e;
+}
+
+if (!empty($student['email'])) {
+    $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
+    mam_send($student['email'], 'You\'ve been enrolled — MAM Academy',
+        mam_email_enrolled((string)($student['name'] ?? ''), (string)($class['title'] ?? ''), (string)($class['schedule'] ?? ''), $loginUrl),
+        'student_enrolled', true);
 }
 
 mam_audit('enroll', 'student', $studentId, ['class_id' => $classId]);

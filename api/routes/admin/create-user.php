@@ -31,5 +31,10 @@ if ($role === 'instructor') {
     mam_db_insert('instructor_profiles', ['user_id' => $id]);
 }
 
+$loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
+mam_send($email, 'Your MAM Academy account is ready',
+    mam_email_account_created($name, $email, $password, $role, $loginUrl),
+    'account_created', true);
+
 mam_audit('create', 'user', $id, ['role' => $role, 'email' => $email]);
 mam_ok(['user_id' => $id]);

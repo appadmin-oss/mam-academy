@@ -42,7 +42,7 @@
     requireAuth: function (allowedRoles) {
       return window.MAM_API.request('auth/me', { method: 'GET' }).then(function (r) {
         if (!r.authenticated || (allowedRoles && allowedRoles.indexOf(r.user.role) < 0)) {
-          window.location.href = '/portal/login.html?next=' + encodeURIComponent(window.location.pathname);
+          window.location.href = '/portal/login?next=' + encodeURIComponent(window.location.pathname);
           throw new Error('unauthenticated');
         }
         return r.user;
@@ -52,7 +52,7 @@
     logout: function () {
       return window.MAM_API.request('auth/logout', { method: 'POST' })
         .catch(function () {}) // ignore — we still redirect
-        .then(function () { window.location.href = '/portal/login.html'; });
+        .then(function () { window.location.href = '/portal/login'; });
     },
 
     mountUserCard: function (user) {

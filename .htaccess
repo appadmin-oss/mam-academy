@@ -24,7 +24,10 @@ DirectoryIndex index.html index.htm
   # Never touch /api/* — the api directory has its own .htaccess router.
   RewriteRule ^api(/|$) - [L]
 
-  # 1. External redirect: strip .html (and a trailing index) from the URL.
+  # 1. External redirect: strip .html from the URL. Skips /partials/*,
+  #    which are fetched directly as .html by the front-end loader, so we
+  #    don't add a redirect hop to every page's header/footer fetch.
+  RewriteCond %{REQUEST_URI} !^/partials/ [NC]
   RewriteCond %{THE_REQUEST} \s/+([^?\s]+)\.html[\s?] [NC]
   RewriteRule ^ /%1 [R=301,L,NE]
 

@@ -51,7 +51,7 @@
           '<strong>Next intake is open.</strong>' +
           '<span>Five-step application, auto-saved on this device.</span>' +
         '</div>' +
-        '<a href="apply.html" class="mam-cta-bar-btn">' +
+        '<a href="apply" class="mam-cta-bar-btn">' +
           '<i class="fa-solid fa-bolt" aria-hidden="true"></i>Apply now' +
         '</a>' +
         '<button type="button" class="mam-cta-bar-close" aria-label="Dismiss">&times;</button>' +
@@ -97,7 +97,7 @@
           '<button type="submit" class="mam-exit-submit">Send me the notes <i class="fa-solid fa-arrow-right"></i></button>' +
         '</form>' +
         '<div class="mam-exit-msg" id="mamExitMsg" hidden></div>' +
-        '<p class="mam-exit-foot">Or skip ahead and <a href="apply.html">start your application</a> in five steps.</p>' +
+        '<p class="mam-exit-foot">Or skip ahead and <a href="apply">start your application</a> in five steps.</p>' +
       '</div>';
     document.body.appendChild(modal);
     document.body.style.overflow = 'hidden';

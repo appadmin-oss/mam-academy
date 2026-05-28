@@ -46,5 +46,12 @@ mam_db_update('password_resets',
 // Kill any existing sessions for this user — force a fresh sign-in.
 mam_db()->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([(int)$reset['user_id']]);
 
+// Security confirmation that the password just changed.
+$who = mam_db_row('SELECT name, email FROM users WHERE id = ?', [(int)$reset['user_id']]);
+if ($who && !empty($who['email'])) {
+    mam_send($who['email'], 'Your MAM Academy password was changed',
+        mam_email_password_changed((string)($who['name'] ?? ''), 'reset'), 'password_changed', true);
+}
+
 mam_audit('reset_password', 'user', (int)$reset['user_id']);
 mam_ok(['reset' => true]);
