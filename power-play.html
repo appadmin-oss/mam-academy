@@ -104,15 +104,16 @@
       <aside class="pp-aside">
         <div class="pp-aside-card">
           <div class="pp-next">
-            <div class="pp-next-cal"><b>—</b><span>Next</span></div>
+            <div class="pp-next-cal" id="ppCal"><b>—</b><span>—</span></div>
             <div>
               <div class="pp-next-label">Next Session</div>
-              <div class="pp-next-when">New date announced monthly</div>
+              <div class="pp-next-when" id="ppWhen">Calculating…</div>
+              <div class="pp-next-countdown" id="ppCountdown" style="margin-top:6px;font-size:0.8rem;color:var(--gold-bright);font-weight:700;letter-spacing:0.04em"></div>
             </div>
           </div>
           <h3>What to expect</h3>
           <div class="pp-aside-row"><span>Format</span><span>Free · Google Meet</span></div>
-          <div class="pp-aside-row"><span>Frequency</span><span>Monthly</span></div>
+          <div class="pp-aside-row"><span>Frequency</span><span>First Wednesday, monthly</span></div>
           <div class="pp-aside-row"><span>Duration</span><span>90 minutes</span></div>
           <div class="pp-aside-row"><span>Audience</span><span>Global · Online</span></div>
           <div class="pp-aside-row"><span>Host</span><span>Van. BOJA</span></div>
@@ -216,6 +217,86 @@
 <script src="assets/js/config.js"></script>
 <script src="assets/js/main.js"></script>
 <script>
+// ── Power Play scheduling: compute the next first-Wednesday from MAM_CONFIG ──
+// Pure date math — no library. Honours the configured time/timezone and
+// auto-rolls to next month once that Wednesday has passed.
+(function () {
+  function parseRule(s) {
+    var m = /^(first|second|third|fourth|last)-(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/i.exec(s || '');
+    if (!m) return { ord: 'first', day: 3 }; // default first-Wednesday
+    var dayMap = { sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6 };
+    return { ord: m[1].toLowerCase(), day: dayMap[m[2].toLowerCase()] };
+  }
+  function nthWeekday(year, month, weekday, ord) {
+    if (ord === 'last') {
+      var lastDay = new Date(year, month + 1, 0).getDate();
+      var d = new Date(year, month, lastDay);
+      d.setDate(lastDay - ((d.getDay() - weekday + 7) % 7));
+      return d;
+    }
+    var ordMap = { first:1, second:2, third:3, fourth:4 };
+    var n = ordMap[ord] || 1;
+    var first = new Date(year, month, 1);
+    var offset = (weekday - first.getDay() + 7) % 7;
+    return new Date(year, month, 1 + offset + (n - 1) * 7);
+  }
+  function nextOccurrence(rule, time) {
+    var parts = (time || '19:00').split(':');
+    var hh = parseInt(parts[0], 10) || 19, mm = parseInt(parts[1], 10) || 0;
+    var now = new Date();
+    var candidate = nthWeekday(now.getFullYear(), now.getMonth(), rule.day, rule.ord);
+    candidate.setHours(hh, mm, 0, 0);
+    if (candidate < now) {
+      candidate = nthWeekday(now.getFullYear(), now.getMonth() + 1, rule.day, rule.ord);
+      candidate.setHours(hh, mm, 0, 0);
+    }
+    return candidate;
+  }
+  function fmtParts(d, tz) {
+    var dayFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', timeZone: tz });
+    var monFmt = new Intl.DateTimeFormat(undefined, { month: 'short', timeZone: tz });
+    var dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: tz });
+    var timeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: tz });
+    return { day: dayFmt.format(d), month: monFmt.format(d), date: dateFmt.format(d), time: timeFmt.format(d) };
+  }
+  function diffStr(d) {
+    var s = Math.max(0, Math.floor((d - Date.now()) / 1000));
+    var days = Math.floor(s / 86400); s -= days * 86400;
+    var hrs  = Math.floor(s / 3600);  s -= hrs * 3600;
+    var mins = Math.floor(s / 60);
+    if (days > 0)  return days + (days === 1 ? ' day ' : ' days ') + hrs + 'h to go';
+    if (hrs  > 0)  return hrs  + 'h ' + mins + 'm to go';
+    if (mins > 0)  return mins + ' minutes to go — almost live';
+    return 'Live now';
+  }
+  function render() {
+    var cfg = (window.MAM_CONFIG && window.MAM_CONFIG.powerPlay) || {};
+    var rule = parseRule(cfg.rrule || 'first-wednesday');
+    var when = nextOccurrence(rule, cfg.time);
+    var tz   = cfg.timezone || undefined;
+    var parts = fmtParts(when, tz);
+
+    var cal      = document.getElementById('ppCal');
+    var whenEl   = document.getElementById('ppWhen');
+    var countEl  = document.getElementById('ppCountdown');
+    if (cal)     cal.innerHTML = '<b>' + parts.day + '</b><span>' + parts.month + '</span>';
+    if (whenEl)  whenEl.textContent = parts.date + ' · ' + parts.time;
+    if (countEl) countEl.textContent = diffStr(when);
+
+    // Update the countdown every minute so it stays fresh while the tab's open.
+    if (countEl) setTimeout(function tick(){ countEl.textContent = diffStr(when); setTimeout(tick, 60000); }, 60000);
+
+    // If a Meet URL is configured, hook the CTAs to open it for the next session.
+    if (cfg.meetUrl) {
+      document.querySelectorAll('a[href="#register"]').forEach(function (a) {
+        a.href = cfg.meetUrl; a.target = '_blank'; a.rel = 'noopener';
+      });
+    }
+  }
+  if (window.MAM_CONFIG) render();
+  else document.addEventListener('mam:ready', render, { once: true });
+})();
+
 document.addEventListener('mam:ready', function () {
   var form = document.getElementById('ppForm'); if (!form) return;
   form.addEventListener('submit', function (e) {

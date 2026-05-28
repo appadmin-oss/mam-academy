@@ -286,7 +286,9 @@
   .apply-main{padding:28px 20px}
   .step-actions{flex-direction:column-reverse}
   .step-actions .btn-step{width:100%;justify-content:center}
-  .field-row,.field-row-3{grid-template-columns:1fr;gap:0}
+  /* On a single column, gap:0 removes visual separation between stacked
+     inputs. Keep a real vertical gap so the form breathes on mobile. */
+  .field-row,.field-row-3{grid-template-columns:1fr;gap:18px}
   .choice-grid{grid-template-columns:1fr}
   .payment-methods{grid-template-columns:1fr}
   .review-grid{grid-template-columns:1fr}

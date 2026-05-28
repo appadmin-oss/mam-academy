@@ -107,34 +107,38 @@ try {
     mam_fail('save_failed', 500);
 }
 
-// Send confirmation (non-blocking on failure)
+// Send confirmation (non-blocking on failure — but every send is logged
+// with a context tag via mam_send so we can spot silent delivery problems).
 $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [$customerId]);
 $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$appId]);
-@mam_send_mail(
+mam_send(
     $v['email'],
     'MAM Academy — Application received (' . $reference . ')',
     mam_email_application_confirmation($app, $customer),
+    'application_confirmation',
     true
 );
 // Send the full class policy the applicant agreed to (online vs onsite),
 // stamped with their electronic signature — keep for their records.
 if (!empty($v['policyMode'])) {
-    @mam_send_mail(
+    mam_send(
         $v['email'],
         'MAM Academy — Your ' . ($v['policyMode'] === 'onsite' ? 'Onsite' : 'Online/Home') . ' Class Policy',
         mam_email_policy($v['policyMode'], (string)$v['policySignedName'], $reference),
+        'application_policy',
         true
     );
 }
 $notify = mam_env('NOTIFY_EMAIL');
 if ($notify) {
-    @mam_send_mail(
+    mam_send(
         $notify,
         'New MAM Academy application — ' . $reference,
         '<p><strong>' . htmlspecialchars($v['firstName'] . ' ' . $v['lastName']) . '</strong> applied.</p>'
         . '<p>Email: ' . htmlspecialchars($v['email']) . ' · Phone: ' . htmlspecialchars($v['phone']) . '</p>'
         . '<p>Pathway: ' . htmlspecialchars($v['pathway']) . ' · Mode: ' . htmlspecialchars($v['mode']) . ' · Discipline: ' . htmlspecialchars($v['discipline']) . '</p>'
         . '<p>Total: USD $' . number_format($total, 2) . '</p>',
+        'application_admin_notice',
         true,
         ['reply_to' => $v['email']]
     );

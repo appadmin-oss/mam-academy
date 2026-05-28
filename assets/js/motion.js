@@ -359,13 +359,9 @@
     if (document.querySelector('iconify-icon') && !window.customElements.get('iconify-icon')) {
       loadScript('https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js');
     }
-    if (document.querySelector('dotlottie-wc') && !window.customElements.get('dotlottie-wc')) {
-      var s = document.createElement('script');
-      s.type = 'module'; s.async = true;
-      s.src = 'https://unpkg.com/@lottiefiles/dotlottie-wc@0.6.2/dist/dotlottie-wc.js';
-      s.onerror = function () {};
-      document.head.appendChild(s);
-    }
+    // dotlottie-wc deliberately omitted — its WASM loader uses eval() which
+    // our CSP forbids. Lingering <dotlottie-wc> tags degrade to invisible
+    // (no display rule), so callers should swap them for native emoji.
   }
 
   /* ─────────────  Entry  ───────────── */

@@ -793,7 +793,7 @@
       var main = $('.apply-main'); if (!main) return;
       main.innerHTML = '' +
         '<div class="apply-success">' +
-        '  <div class="success-emoji" aria-hidden="true" style="background:transparent;border:none"><dotlottie-wc src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f389/lottie.json" speed="1" autoplay loop class="fx-lottie fx-xl" aria-hidden="true"></dotlottie-wc></div>' +
+        '  <div class="success-emoji" aria-hidden="true"><span class="emoji-pop" role="img" aria-label="Confetti">🎉</span></div>' +
         '  <h2 class="success-h">You\'re In!</h2>' +
         '  <p class="success-p">Thank you for enrolling in MAM Academy. Our team will reach you within <strong>24 hours</strong> to confirm your schedule and book your <strong>MAM Auditer</strong> entry assessment.</p>' +
         '  <div class="success-ref">Reference: ' + ref + '</div>' +

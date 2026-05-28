@@ -81,6 +81,22 @@ window.MAM_CONFIG = {
   registrationFeeUsd: 5,
   certificationFeeUsd: 22,
 
+  /* -------- Power Play series (free monthly broadcast) --------
+     Held on the first Wednesday of every month. Admin-tunable:
+       - time/timezone format the displayed start
+       - meetUrl is the persistent Google Meet room link
+       - rrule overrides the default "first-wednesday" if you ever
+         need to move the cadence (e.g. 'last-friday'). Supported:
+         first-monday … first-sunday, last-monday … last-sunday.    */
+  powerPlay: {
+    rrule:    'first-wednesday',
+    time:     '19:00',           // 24-hour clock in the local `timezone`
+    timezone: 'Africa/Lagos',
+    durationMinutes: 90,
+    meetUrl:  '',                // paste your persistent meet link here
+    host:     'Van. BOJA'
+  },
+
   /* -------- Next intake (for the homepage countdown) -------- */
   intake: {
     startDate: '2026-05-05T00:00:00Z',

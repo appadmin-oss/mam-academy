@@ -27,21 +27,12 @@ if ($email) {
 
             $appUrl = rtrim((string)mam_env('APP_URL', ''), '/');
             $link   = $appUrl . '/portal/reset.html?token=' . $token;
-            $name   = htmlspecialchars($user['name'] ?: explode('@', $user['email'])[0], ENT_QUOTES);
-            $linkE  = htmlspecialchars($link, ENT_QUOTES);
-            $body   = "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>"
-                    . "<table style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>"
-                    . "<tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:24px;text-align:center'>"
-                    . "<div style='font-family:Impact,sans-serif;font-size:24px;color:#1A120B;font-weight:900;letter-spacing:.08em'>MAM ACADEMY</div></td></tr>"
-                    . "<tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>"
-                    . "<h2 style='font-family:Georgia,serif;margin:0 0 12px;color:#fff'>Reset your password, $name</h2>"
-                    . "<p style='color:rgba(255,255,255,0.86)'>Click below to set a new password. The link works once and expires in <strong>60 minutes</strong>.</p>"
-                    . "<p style='text-align:center;margin:28px 0'><a href='$linkE' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none'>Set new password</a></p>"
-                    . "<p style='font-size:13px;color:rgba(255,255,255,0.6)'>If the button doesn't work, paste this link into your browser:<br><span style='word-break:break-all;color:#FBBF24'>$linkE</span></p>"
-                    . "<p style='font-size:13px;color:rgba(255,255,255,0.5);margin-top:24px'>Didn't request this? You can ignore this email — your password stays the same.</p>"
-                    . "</td></tr></table></body></html>";
+            $body   = mam_email_password_reset(
+                (string)($user['name'] ?? explode('@', $user['email'])[0]),
+                $link
+            );
 
-            @mam_send_mail($user['email'], 'Reset your MAM Academy password', $body, true);
+            mam_send($user['email'], 'Reset your MAM Academy password', $body, 'password_reset', true);
             mam_audit('request_reset', 'user', (int)$user['id']);
         } catch (Throwable $e) {
             mam_log('warn', 'reset_request_failed', ['err' => $e->getMessage()]);

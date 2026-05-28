@@ -27,7 +27,7 @@ $body = "<h3>New contact message</h3>"
       . "<p><strong>Phone:</strong> " . htmlspecialchars($phone ?: '—') . "</p>"
       . "<p><strong>Topic:</strong> " . htmlspecialchars($topic) . "</p>"
       . "<p>" . nl2br(htmlspecialchars($message)) . "</p>";
-@mam_send_mail($notify, '[MAM Contact] ' . $topic, $body, true, ['reply_to' => $email]);
+mam_send($notify, '[MAM Contact] ' . $topic, $body, 'contact_message', true, ['reply_to' => $email]);
 
 mam_audit('create', 'message', $id, ['email' => $email, 'topic' => $topic]);
 mam_ok(['received' => true, 'id' => $id]);

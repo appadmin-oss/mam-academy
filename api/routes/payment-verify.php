@@ -86,7 +86,7 @@ try {
                   . "<p style='color:rgba(255,255,255,0.86)'>Please change this password on first sign-in.</p>"
                   . "<p><a href='$loginUrl' style='display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none'>Open student portal →</a></p>"
                   . "</td></tr></table></body></html>";
-            @mam_send_mail($customer['email'], 'Your MAM Academy student portal is ready', $body, true);
+            mam_send($customer['email'], 'Your MAM Academy student portal is ready', $body, 'portal_welcome', true);
             $portalNotice = 'portal_credentials_emailed';
         } else {
             $portalNotice = 'portal_already_provisioned';

@@ -5,17 +5,32 @@
 (function () {
   'use strict';
 
-  // dotLottie web component — for genuinely-animated 3D emoji.
-  // Sourced from Google's Noto Animated Emoji set (Lottie JSON
-  // hosted on fonts.gstatic.com — Google's font CDN, bulletproof).
-  // Docs: https://developers.lottiefiles.com/docs/dotlottie-player/dotlottie-web/
-  if (typeof document !== 'undefined' && !document.querySelector('script[data-mam-lottie]')) {
-    var __lp = document.createElement('script');
-    __lp.type = 'module';
-    __lp.src = 'https://unpkg.com/@lottiefiles/dotlottie-wc@0.6.0/dist/dotlottie-wc.js';
-    __lp.async = true;
-    __lp.dataset.mamLottie = '1';
-    (document.head || document.documentElement).appendChild(__lp);
+  // dotLottie web component was previously loaded here for animated emoji,
+  // but its WASM loader uses eval() which our CSP (correctly) forbids.
+  // Replace every <dotlottie-wc src="…notoemoji/<codepoint>/lottie.json"…>
+  // we find in the DOM with the matching native emoji glyph in a span the
+  // CSS bounces. Same vibe, zero external script, zero CSP grief.
+  function replaceDotLottie(root) {
+    var nodes = (root || document).querySelectorAll('dotlottie-wc[src*="notoemoji"]');
+    nodes.forEach(function (el) {
+      var m = (el.getAttribute('src') || '').match(/notoemoji\/(?:latest\/)?([0-9a-f_]+)/i);
+      if (!m) { el.remove(); return; }
+      var glyph = m[1].split('_').map(function (h) {
+        var cp = parseInt(h, 16); if (!cp || cp === 0xFE0F) return '';
+        return String.fromCodePoint(cp);
+      }).join('');
+      var span = document.createElement('span');
+      span.className = 'emoji-pop ' + (el.className || '');
+      span.setAttribute('role', 'img'); span.setAttribute('aria-hidden', 'true');
+      span.textContent = glyph || '🎵';
+      el.replaceWith(span);
+    });
+  }
+  if (typeof document !== 'undefined') {
+    if (document.readyState !== 'loading') replaceDotLottie();
+    else document.addEventListener('DOMContentLoaded', function () { replaceDotLottie(); });
+    // Re-scan after partials inject — header/footer may carry dotlottie tags.
+    document.addEventListener('mam:ready', function () { replaceDotLottie(); });
   }
   // Iconify — Microsoft Fluent 3D emoji (static) + line-md animated icons.
   // Used for inline decorations where a Lottie player would be overkill.

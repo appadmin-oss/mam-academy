@@ -52,7 +52,7 @@
 
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{font-size:16px;scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;-webkit-tap-highlight-color:transparent;scroll-padding-top:calc(var(--nav-h) + 16px)}
-body{font-family:var(--font-body);background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;min-height:100vh;min-height:100dvh}
+body{font-family:var(--font-body),"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;min-height:100vh;min-height:100dvh}
 /* Warm, soft ambient light so the page reads candlelit rather than black */
 body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:
   radial-gradient(1100px 620px at 78% -8%, rgba(245,168,35,0.10), transparent 60%),
@@ -256,7 +256,28 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 .section-eyebrow .line{width:32px;height:2px;background:linear-gradient(90deg,var(--gold-bright),transparent)}
 .section-title{font-family:var(--font-serif);font-size:clamp(2rem,5vw,3.4rem);font-weight:700;line-height:1.1;letter-spacing:-0.02em;margin-bottom:18px;color:var(--text)}
 .section-desc{font-size:1.05rem;color:var(--text-soft);line-height:1.75;max-width:680px}
-.highlight-gold{background:linear-gradient(135deg,var(--gold),var(--gold-bright));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+/* Gradient text. The fallback `color:var(--gold-bright)` covers browsers
+   that don't support background-clip:text (older Edge, certain mobile
+   embedded views) and Safari for a brief flash before paint — so the
+   text is never invisible. @supports promotes the gradient when paint is
+   actually supported. */
+.highlight-gold{color:var(--gold-bright)}
+@supports ((-webkit-background-clip:text) or (background-clip:text)){
+  .highlight-gold{background:linear-gradient(135deg,var(--gold),var(--gold-bright));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+}
+
+/* Native emoji with a CSS-driven bounce — replaces the dotlottie-wc nodes.
+   Forces the colour-emoji font stack so the glyph never falls back to a
+   monochrome outline. */
+.emoji-pop{display:inline-flex;align-items:center;justify-content:center;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color","Android Emoji",sans-serif;font-style:normal;line-height:1;animation:emojiPop 0.6s var(--ease-bounce) both,emojiFloat 4.5s ease-in-out infinite 0.6s}
+.emoji-pop.fx-sm{font-size:1.4rem}
+.emoji-pop.fx-md{font-size:2rem}
+.emoji-pop.fx-lg{font-size:2.8rem}
+.emoji-pop.fx-xl{font-size:4.2rem}
+.emoji-pop:not([class*="fx-"]){font-size:2rem}
+@keyframes emojiPop{0%{transform:scale(0.4);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
+@keyframes emojiFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){.emoji-pop{animation:none}}
 .highlight-red{background:linear-gradient(135deg,#DC2626,#F05A28);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .highlight-purple{background:linear-gradient(135deg,#6366F1,#A5B4FC);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 

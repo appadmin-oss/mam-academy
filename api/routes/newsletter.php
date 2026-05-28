@@ -21,6 +21,6 @@ try {
 }
 
 $notify = mam_env('NOTIFY_EMAIL');
-if ($notify) @mam_send_mail($notify, 'New newsletter subscriber', "$email subscribed via $source", false);
+if ($notify) mam_send($notify, 'New newsletter subscriber', "$email subscribed via $source", 'newsletter_notice', false);
 mam_audit('subscribe', 'newsletter', null, ['email' => $email, 'source' => $source]);
 mam_ok(['subscribed' => true, 'email' => $email]);

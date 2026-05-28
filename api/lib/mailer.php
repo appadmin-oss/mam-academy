@@ -8,12 +8,21 @@ declare(strict_types=1);
 /**
  * Convert an HTML email body to a serviceable plain-text alternative.
  * No DOM parsing — fast, dependency-free, "good enough" for transactional
- * mail. Keeps line breaks at <br> / </p> / </div>, decodes entities,
- * strips everything else.
+ * mail. Preserves <a href> URLs inline (strip_tags would drop them
+ * silently), keeps line breaks at block boundaries, decodes entities.
  */
 function mam_html_to_text(string $html): string {
+    // Preserve link URLs BEFORE strip_tags wipes them out. If the link text
+    // is the URL itself (or empty), just keep the URL once; otherwise emit
+    // "text (https://…)".
+    $h = preg_replace_callback('#<a\s+[^>]*href=(["\'])([^"\']+)\1[^>]*>(.*?)</a>#is', function ($m) {
+        $url  = trim($m[2]);
+        $text = trim(strip_tags($m[3]));
+        if ($text === '' || strcasecmp($text, $url) === 0) return $url;
+        return $text . ' (' . $url . ')';
+    }, $html);
     // Inject newlines at block boundaries before strip_tags so paragraphs survive
-    $h = preg_replace('#<br\s*/?>#i', "\n", $html);
+    $h = preg_replace('#<br\s*/?>#i', "\n", (string)$h);
     $h = preg_replace('#</(p|div|tr|li|h[1-6])>#i', "\n\n", (string)$h);
     $h = preg_replace('#<li[^>]*>#i', '• ', (string)$h);
     $text = strip_tags((string)$h);
@@ -22,6 +31,40 @@ function mam_html_to_text(string $html): string {
     $text = preg_replace("/[ \t]+/", ' ', $text);
     $text = preg_replace("/\n{3,}/", "\n\n", $text);
     return trim($text);
+}
+
+/**
+ * fwrite can return fewer bytes than requested on slow or congested
+ * sockets; without a retry loop the SMTP DATA payload silently truncates
+ * and the server then sees a malformed message. Always use this.
+ */
+function mam_socket_write_all($sock, string $data): bool {
+    $len = strlen($data);
+    $off = 0;
+    while ($off < $len) {
+        $n = @fwrite($sock, substr($data, $off));
+        if ($n === false || $n === 0) return false;
+        $off += $n;
+    }
+    return true;
+}
+
+/**
+ * Resolve the EHLO hostname the server should see. Prefers the explicit
+ * MAIL_EHLO_HOST env (rare but useful when running behind NAT), falls
+ * back to the request's SERVER_NAME, then APP_URL's host, then PHP's
+ * gethostname() — never a hardcoded marketing domain.
+ */
+function mam_resolve_ehlo_host(): string {
+    $explicit = (string)mam_env('MAIL_EHLO_HOST', '');
+    if ($explicit !== '') return $explicit;
+    if (!empty($_SERVER['SERVER_NAME']) && filter_var('http://' . $_SERVER['SERVER_NAME'], FILTER_VALIDATE_URL)) {
+        return $_SERVER['SERVER_NAME'];
+    }
+    $appHost = parse_url((string)mam_env('APP_URL', ''), PHP_URL_HOST);
+    if ($appHost) return $appHost;
+    $hn = gethostname();
+    return $hn !== false && $hn !== '' ? $hn : 'localhost';
 }
 
 function mam_send_mail(string $to, string $subject, string $body, bool $html = false, array $opts = []): bool {
@@ -39,6 +82,22 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
     $fromName  = $opts['from_name'] ?? mam_env('MAIL_FROM_NAME', 'MAM Academy');
     $replyTo   = $opts['reply_to']  ?? null;
     $host      = mam_env('MAIL_HOST', '');
+    $forceSmtp = in_array(strtolower((string)mam_env('MAIL_FORCE_SMTP', '0')), ['1','true','yes','on'], true);
+
+    // Operators can pin the mailer to SMTP only by setting MAIL_FORCE_SMTP=1
+    // in api/.env. Useful in production where the host's mail() function
+    // delivers to a black hole — we'd rather hard-fail (and log) than
+    // silently pretend an email was sent.
+    if ($forceSmtp && !$host) {
+        mam_log('error', 'mail_force_smtp_no_host', [
+            'hint' => 'MAIL_FORCE_SMTP=1 in api/.env but MAIL_HOST is empty. Set MAIL_HOST or unset MAIL_FORCE_SMTP.',
+            'to' => $to, 'subject' => $subject,
+        ]);
+        return [
+            'ok' => false, 'transport' => null, 'host' => null,
+            'error' => 'MAIL_FORCE_SMTP is set but MAIL_HOST is empty', 'steps' => [],
+        ];
+    }
 
     if ($host) {
         // Retry-once-on-transient: 4xx replies are usually rate-limit or
@@ -133,7 +192,9 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
         }
         return $resp;
     };
-    $send = function ($cmd) use ($sock, $get) { fwrite($sock, $cmd . "\r\n"); return $get(); };
+    // Use the byte-safe writer so a partial fwrite() can't truncate a
+    // 4 KB EHLO payload (or the multi-KB DATA payload further down).
+    $send = function ($cmd) use ($sock, $get) { mam_socket_write_all($sock, $cmd . "\r\n"); return $get(); };
     // Verify a response code; on mismatch log the exact server reply and bail.
     $expect = function ($resp, array $codes, string $step) use ($sock, &$transcript) {
         $reply = trim((string)$resp);
@@ -141,7 +202,7 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
         $transcript[] = ['step' => $step, 'ok' => $ok, 'reply' => $reply];
         if (!$ok) {
             mam_log('error', 'smtp_step_failed', ['step' => $step, 'reply' => $reply]);
-            @fwrite($sock, "QUIT\r\n"); fclose($sock);
+            mam_socket_write_all($sock, "QUIT\r\n"); fclose($sock);
             return false;
         }
         return true;
@@ -149,8 +210,12 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
 
     if (!$expect($get(), ['220'], 'banner')) return false;
 
-    $ehloName = $_SERVER['SERVER_NAME'] ?? 'mamcentre.org';
-    if (!$expect($send('EHLO ' . $ehloName), ['250'], 'ehlo')) return false;
+    $ehloName = mam_resolve_ehlo_host();
+    // Capture the FULL EHLO reply (multi-line, 250-EXT) so we can detect
+    // server-advertised extensions like 8BITMIME and PIPELINING.
+    $ehloResp = $send('EHLO ' . $ehloName);
+    if (!$expect($ehloResp, ['250'], 'ehlo')) return false;
+    $has8bitmime = stripos($ehloResp, '8BITMIME') !== false;
 
     if ($encryption === 'tls') {
         if (!$expect($send('STARTTLS'), ['220'], 'starttls')) return false;
@@ -161,7 +226,10 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
             return false;
         }
         $transcript[] = ['step' => 'tls_handshake', 'ok' => true, 'reply' => 'TLS negotiated'];
-        if (!$expect($send('EHLO ' . $ehloName), ['250'], 'ehlo_tls')) return false;
+        // Extensions must be re-advertised after STARTTLS — re-detect 8BITMIME.
+        $ehloResp = $send('EHLO ' . $ehloName);
+        if (!$expect($ehloResp, ['250'], 'ehlo_tls')) return false;
+        $has8bitmime = stripos($ehloResp, '8BITMIME') !== false;
     }
 
     if ($user !== '') {
@@ -185,39 +253,108 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
     $head[] = 'MIME-Version: 1.0';
     $head[] = 'X-Mailer: MAM-Academy';
 
+    // Pick a Content-Transfer-Encoding that the server can actually accept.
+    // If the relay advertises 8BITMIME we can send raw UTF-8 as 8bit;
+    // otherwise fall back to base64 so multi-byte glyphs (₦, €, em-dashes
+    // and any emoji in the templates) survive 7-bit-only relays intact.
+    // quoted-printable would also work but base64 is bulletproof and the
+    // size hit is irrelevant at email scale.
+    $encode = function (string $s) use ($has8bitmime): array {
+        if ($has8bitmime) return ['8bit', $s];
+        return ['base64', chunk_split(base64_encode($s), 76, "\r\n")];
+    };
+
     // Build a multipart/alternative body when we have HTML: include a
     // plain-text fallback. Most spam filters score multipart messages
     // higher than HTML-only, and screen readers fall back gracefully.
     if ($html) {
         $boundary = 'mam_' . bin2hex(random_bytes(8));
         $head[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
-        $text = mam_html_to_text($body);
+        [$cteText, $partText] = $encode(mam_html_to_text($body));
+        [$cteHtml, $partHtml] = $encode($body);
         $bodyOut = "--$boundary\r\n"
                  . "Content-Type: text/plain; charset=UTF-8\r\n"
-                 . "Content-Transfer-Encoding: 8bit\r\n\r\n"
-                 . $text . "\r\n"
+                 . "Content-Transfer-Encoding: $cteText\r\n\r\n"
+                 . $partText . "\r\n"
                  . "--$boundary\r\n"
                  . "Content-Type: text/html; charset=UTF-8\r\n"
-                 . "Content-Transfer-Encoding: 8bit\r\n\r\n"
-                 . $body . "\r\n"
+                 . "Content-Transfer-Encoding: $cteHtml\r\n\r\n"
+                 . $partHtml . "\r\n"
                  . "--$boundary--\r\n";
     } else {
+        [$cte, $partBody] = $encode($body);
         $head[] = 'Content-Type: text/plain; charset=UTF-8';
-        $head[] = 'Content-Transfer-Encoding: 8bit';
-        $bodyOut = $body;
+        $head[] = "Content-Transfer-Encoding: $cte";
+        $bodyOut = $partBody;
     }
 
-    $bodyEsc = preg_replace('/^\./m', '..', $bodyOut);       // dot-stuffing
-    $bodyEsc = preg_replace('/\r\n|\r|\n/', "\r\n", $bodyEsc); // normalise CRLF
-    $payload = implode("\r\n", $head) . "\r\n\r\n" . $bodyEsc . "\r\n.";
-    $ok = $expect($send($payload), ['250'], 'body');
-    if ($ok) { @fwrite($sock, "QUIT\r\n"); fclose($sock); }
+    // Order matters: NORMALISE line endings to CRLF first, THEN dot-stuff.
+    // If you dot-stuff before normalising, "\n.foo" never matches the
+    // ^\. regex (because ^ only sees the start of the buffer) and the
+    // server treats the bare-dot line as end-of-DATA. Subtle data loss.
+    $bodyEsc = preg_replace('/\r\n|\r|\n/', "\r\n", $bodyOut);
+    $bodyEsc = preg_replace('/^\./m', '..', $bodyEsc);
+    $payload = implode("\r\n", $head) . "\r\n\r\n" . $bodyEsc . "\r\n.\r\n";
+    // Use the byte-safe writer for the multi-KB payload so a partial
+    // fwrite never silently truncates the message.
+    if (!mam_socket_write_all($sock, $payload)) {
+        mam_log('error', 'smtp_write_failed', ['bytes' => strlen($payload)]);
+        $transcript[] = ['step' => 'body', 'ok' => false, 'reply' => 'partial socket write'];
+        fclose($sock);
+        return false;
+    }
+    $ok = $expect($get(), ['250'], 'body');
+    if ($ok) { mam_socket_write_all($sock, "QUIT\r\n"); fclose($sock); }
     return $ok;
 }
 
 /**
  * Pre-rendered HTML templates for transactional emails.
  */
+function mam_email_password_reset(string $name, string $resetUrl): string {
+    $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);
+    $u = htmlspecialchars($resetUrl, ENT_QUOTES);
+    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
+    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
+    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:22px;text-align:center'>
+      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
+    </td></tr>
+    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
+      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Reset your password, $n</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px'>Click the button below to set a new password. The link works once and expires in <strong>60 minutes</strong>.</p>
+      <p style='text-align:center;margin:28px 0'><a href='$u' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Set new password</a></p>
+      <p style='font-size:13px;color:rgba(255,255,255,0.6);line-height:1.65'>If the button doesn't work, copy and paste this link into your browser:<br><span style='word-break:break-all;color:#FBBF24'>$u</span></p>
+      <p style='font-size:13px;color:rgba(255,255,255,0.5);margin-top:24px'>Didn't request this? You can ignore this email — your password stays the same. The link expires automatically.</p>
+      <p style='margin-top:28px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a></p>
+    </td></tr></table>
+    </body></html>";
+}
+
+/**
+ * Centralised, logged wrapper around mam_send_mail. Every caller passes
+ * a short `context` string so failures surface in the logs with enough
+ * information to debug — no more silent @ suppression.
+ */
+function mam_send(string $to, string $subject, string $body, string $context, bool $html = true, array $opts = []): bool {
+    $result = mam_send_mail_verbose($to, $subject, $body, $html, $opts);
+    if (!$result['ok']) {
+        mam_log('warn', 'mail_delivery_failed', [
+            'context'   => $context,
+            'to'        => $to,
+            'subject'   => $subject,
+            'transport' => $result['transport'] ?? null,
+            'error'     => $result['error']     ?? null,
+        ]);
+    } else {
+        mam_log('info', 'mail_delivered', [
+            'context' => $context, 'to' => $to,
+            'transport' => $result['transport'] ?? null,
+            'attempts'  => $result['attempts']  ?? 1,
+        ]);
+    }
+    return (bool)$result['ok'];
+}
+
 function mam_email_application_confirmation(array $app, array $customer): string {
     $tot = number_format((float)$app['total_usd'], 2);
     $ref = htmlspecialchars($app['reference'], ENT_QUOTES);
