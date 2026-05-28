@@ -100,11 +100,36 @@
     }
   }
 
-  /* ---- AOS: scroll-triggered fades / rises on opted-in elements ---- */
+  /* ---- AOS: scroll-triggered fades / rises ----
+     Auto-tags a curated set of homepage/section elements so we get a
+     consistent reveal cadence sitewide without editing every HTML file.
+     Anything already carrying data-aos is left untouched. Cards within a
+     grid get a stagger via data-aos-delay. */
+  function autoTagAos() {
+    // Section intros rise first.
+    document.querySelectorAll('.section-eyebrow, .section-title, .section-desc, .testimonials-head, .page-hero-inner').forEach(function (el) {
+      if (!el.hasAttribute('data-aos')) { el.setAttribute('data-aos', 'fade-up'); el.setAttribute('data-aos-duration', '650'); }
+    });
+    // Card grids: stagger children for a gentle cascade.
+    var groups = ['#how', '#modes', '#schools', '#faculty-preview', '#stats', '#about'];
+    groups.forEach(function (sel) {
+      var scope = document.querySelector(sel); if (!scope) return;
+      var cards = scope.querySelectorAll('.method-step, .mode-card, .school-card, .team-card, .stat-card, .stat, .extra-card, .next-step-card, .about-card');
+      Array.prototype.forEach.call(cards, function (el, i) {
+        if (el.hasAttribute('data-aos')) return;
+        el.setAttribute('data-aos', 'fade-up');
+        el.setAttribute('data-aos-delay', String((i % 4) * 90));
+        el.setAttribute('data-aos-duration', '650');
+      });
+    });
+  }
   function initAos() {
     if (RM || !window.AOS) return;
     try {
-      window.AOS.init({ duration: 700, easing: 'ease-out-quart', once: true, offset: 70, disable: 'phone' });
+      autoTagAos();
+      window.AOS.init({ duration: 700, easing: 'ease-out-quart', once: true, offset: 60, disableMutationObserver: false });
+      // Partials/content injected after first paint — refresh so late nodes animate.
+      document.addEventListener('mam:ready', function () { try { autoTagAos(); window.AOS.refreshHard(); } catch (e) {} });
     } catch (e) {}
   }
 

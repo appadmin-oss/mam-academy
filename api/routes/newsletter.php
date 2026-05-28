@@ -20,10 +20,14 @@ try {
     mam_fail('save_failed', 500);
 }
 
-// Welcome the new subscriber with a branded confirmation — sets
-// expectations, gives them an immediate next step (apply), and acts
-// as a delivery test (if this doesn't arrive, nothing else will).
-mam_send($email, 'Welcome to the MAM Academy circle', mam_email_newsletter_welcome($source), 'newsletter_welcome', true);
+// Confirm to the subscriber. Power Play registrations get a session-
+// specific confirmation (next first-Wednesday date + Meet link); every
+// other source gets the general welcome. Both double as a delivery test.
+if (strpos($source, 'power-play') === 0) {
+    mam_send($email, '⚡ You\'re in — next Power Play details', mam_email_powerplay_confirmation(), 'powerplay_confirmation', true);
+} else {
+    mam_send($email, 'Welcome to the MAM Academy circle', mam_email_newsletter_welcome($source), 'newsletter_welcome', true);
+}
 
 $notify = mam_env('NOTIFY_EMAIL');
 if ($notify) mam_send($notify, 'New newsletter subscriber', "$email subscribed via $source", 'newsletter_notice', false);

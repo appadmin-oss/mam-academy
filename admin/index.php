@@ -486,21 +486,39 @@ button.tiny:hover{border-color:var(--gold)}
   </header>
   <div class="card">
     <table>
-      <thead><tr><th>Reference</th><th>Student</th><th>Pathway · Mode</th><th>Discipline</th><th>Age</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
+      <thead><tr><th>Photo</th><th>Reference</th><th>Student</th><th>Programme</th><th>Pathway · Mode</th><th>Course</th><th>Session</th><th>Age</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
       <tbody>
-      <?php $rows = mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email, c.phone, c.country, c.age_range FROM applications a LEFT JOIN customers c ON c.id=a.customer_id ORDER BY a.created_at DESC LIMIT 200');
+      <?php $rows = mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email, c.phone, c.sex, c.address, c.lga, c.state, c.country, c.age_range FROM applications a LEFT JOIN customers c ON c.id=a.customer_id ORDER BY a.created_at DESC LIMIT 200');
       if (!$rows): ?>
-        <tr><td colspan="9" class="empty">No applications yet</td></tr>
+        <tr><td colspan="12" class="empty">No applications yet</td></tr>
       <?php endif;
-      foreach ($rows as $r): ?>
+      $sessionLabels = ['toni' => 'TONI', 'medi' => 'MEDI', 'summer' => 'SUMMER', 'domi' => 'DOMI'];
+      foreach ($rows as $r):
+        $loc = implode(', ', array_filter([$r['lga'] ?? '', $r['state'] ?? '', $r['country'] ?? ''])); ?>
         <tr>
+          <td>
+            <?php if (!empty($r['headshot_url'])): ?>
+              <a href="<?= htmlspecialchars($r['headshot_url']) ?>" target="_blank" rel="noopener"><img src="<?= htmlspecialchars($r['headshot_url']) ?>" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid var(--border-gold,#5a4327)"></a>
+            <?php else: ?>
+              <span class="muted" title="No headshot uploaded" style="display:inline-flex;width:40px;height:40px;border-radius:50%;align-items:center;justify-content:center;background:var(--panel);border:1px dashed var(--border)"><i class="fa-solid fa-user" aria-hidden="true"></i></span>
+            <?php endif; ?>
+          </td>
           <td class="mono"><?= htmlspecialchars($r['reference']) ?></td>
-          <td><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong><br><span class="muted"><?= htmlspecialchars((string)($r['email'] ?? '')) ?></span><br><span class="muted"><?= htmlspecialchars((string)($r['phone'] ?? '')) ?> · <?= htmlspecialchars((string)($r['country'] ?? '')) ?></span></td>
+          <td><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong>
+            <?php if (!empty($r['sex'])): ?><span class="muted">· <?= htmlspecialchars(ucfirst((string)$r['sex'])) ?></span><?php endif; ?>
+            <br><span class="muted"><?= htmlspecialchars((string)($r['email'] ?? '')) ?></span>
+            <br><span class="muted"><?= htmlspecialchars((string)($r['phone'] ?? '')) ?></span>
+            <?php if ($loc): ?><br><span class="muted"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <?= htmlspecialchars($loc) ?></span><?php endif; ?>
+          </td>
+          <td class="muted"><?= htmlspecialchars((string)($r['program'] ?? '—')) ?></td>
           <td><?= htmlspecialchars($r['pathway']) ?> · <span class="muted"><?= htmlspecialchars($r['mode']) ?></span></td>
           <td><?= htmlspecialchars($r['discipline']) ?></td>
+          <td><?php $s = strtolower((string)($r['session'] ?? '')); echo $s ? '<span class="pill">' . htmlspecialchars($sessionLabels[$s] ?? strtoupper($s)) . '</span>' : '<span class="muted">—</span>'; ?></td>
           <td class="muted"><?= htmlspecialchars((string)($r['age_range'] ?? '')) ?></td>
           <td>$<?= number_format((float)$r['total_usd'], 2) ?></td>
-          <td><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
+          <td><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span>
+            <?php if (!empty($r['recovery_sent_at'])): ?><br><span class="muted" title="Recovery email sent" style="font-size:0.66rem"><i class="fa-solid fa-envelope-circle-check"></i> nudged</span><?php endif; ?>
+          </td>
           <td class="muted"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
           <td>
             <form class="inline" method="post">

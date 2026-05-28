@@ -665,18 +665,35 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 
 /* ===== Testimonials ===== */
 .testimonials-head{text-align:center;max-width:720px;margin:0 auto 48px;padding:0 24px}
-.testimonials-track-wrap{overflow:hidden;mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+/* Legacy marquee (kept as graceful fallback before JS upgrades the rail) */
+.testimonials-track-wrap{overflow:hidden}
 .testimonials-track{display:flex;gap:24px;width:max-content;animation:marquee 36s linear infinite;padding:8px 24px}
 .testimonials-track:hover{animation-play-state:paused}
 @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(calc(-50% - 12px))}}
-.testimonial-card{width:min(340px,82vw);flex-shrink:0;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;transition:border-color 0.3s}
+
+/* Real rotator (JS adds .is-rotator + swaps the rail class) */
+.testimonials-track-wrap.is-rotator{overflow:visible;mask-image:none;-webkit-mask-image:none;max-width:680px;margin:0 auto;padding:0 16px}
+.testimonials-rail{display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:8px 2px}
+.testimonials-rail::-webkit-scrollbar{display:none}
+.testimonials-rail .testimonial-card{scroll-snap-align:center;flex:0 0 100%;width:100%}
+.testimonial-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:32px;transition:border-color 0.3s,transform 0.3s;margin:0}
+.is-rotator .testimonial-card{min-height:230px;display:flex;flex-direction:column;justify-content:space-between}
 .testimonial-card:hover{border-color:var(--border-gold)}
-.testimonial-stars{color:var(--gold-bright);font-size:0.95rem;margin-bottom:14px;letter-spacing:2px}
-.testimonial-quote{font-family:var(--font-serif);font-size:1.02rem;font-style:italic;color:var(--text);line-height:1.65;margin-bottom:20px}
+.testimonial-stars{color:var(--gold-bright);font-size:1rem;margin-bottom:16px;letter-spacing:2px}
+.testimonial-quote{font-family:var(--font-serif);font-size:1.1rem;font-style:italic;color:var(--text);line-height:1.7;margin:0 0 22px;border:0;padding:0}
 .testimonial-author{display:flex;align-items:center;gap:14px}
-.testimonial-avatar{width:46px;height:46px;border-radius:50%;border:2px solid var(--border-gold);background:linear-gradient(135deg,var(--gold),var(--gold-light));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.1rem;color:#1A120B;flex-shrink:0}
-.testimonial-name{font-size:0.92rem;font-weight:700;color:var(--text)}
-.testimonial-role{font-size:0.78rem;color:var(--text-muted);margin-top:1px}
+.testimonial-avatar{width:48px;height:48px;border-radius:50%;border:2px solid var(--border-gold);background:linear-gradient(135deg,var(--gold),var(--gold-light));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.1rem;color:#1A120B;flex-shrink:0;overflow:hidden}
+.testimonial-avatar img{width:100%;height:100%;object-fit:cover}
+.testimonial-name{font-size:0.95rem;font-weight:700;color:var(--text)}
+.testimonial-role{font-size:0.8rem;color:var(--text-muted);margin-top:1px}
+
+/* Rotator controls */
+.testimonials-controls{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:24px}
+.t-arrow{width:44px;height:44px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border-strong);color:var(--text-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;flex-shrink:0}
+.t-arrow:hover{border-color:var(--gold-bright);color:var(--gold-bright);transform:translateY(-1px)}
+.t-dots{display:flex;align-items:center;gap:9px}
+.t-dot{width:9px;height:9px;padding:0;border-radius:50%;border:0;background:var(--border-strong);cursor:pointer;transition:all 0.25s}
+.t-dot.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));transform:scale(1.35);box-shadow:0 0 0 3px rgba(224,138,26,0.18)}
 
 /* ===== FAQ ===== */
 .faq-list{display:flex;flex-direction:column;gap:10px;max-width:880px;margin:0 auto}

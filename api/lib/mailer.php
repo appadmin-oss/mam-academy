@@ -309,8 +309,99 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
 }
 
 /**
+ * Compute the next "first Wednesday of the month" occurrence for Power Play,
+ * mirroring the client-side logic in power-play.html. Returns an array with
+ * a DateTimeImmutable plus pre-formatted display strings. Reads schedule
+ * knobs from env so it stays in lockstep with admin configuration:
+ *   POWERPLAY_TIME      (24h "HH:MM", default 19:00)
+ *   POWERPLAY_TIMEZONE  (IANA tz,   default Africa/Lagos)
+ *   POWERPLAY_MEET_URL  (Google Meet room link, optional)
+ */
+function mam_powerplay_next(): array {
+    $tz   = new DateTimeZone((string)mam_env('POWERPLAY_TIMEZONE', 'Africa/Lagos'));
+    $time = (string)mam_env('POWERPLAY_TIME', '19:00');
+    [$hh, $mm] = array_pad(array_map('intval', explode(':', $time)), 2, 0);
+
+    $now = new DateTimeImmutable('now', $tz);
+    $firstWed = function (int $year, int $month) use ($tz, $hh, $mm): DateTimeImmutable {
+        $d = new DateTimeImmutable(sprintf('%04d-%02d-01', $year, $month), $tz);
+        // 3 = Wednesday (ISO-8601: Mon=1 … Sun=7)
+        $offset = (3 - (int)$d->format('N') + 7) % 7;
+        return $d->modify("+{$offset} days")->setTime($hh, $mm);
+    };
+    $candidate = $firstWed((int)$now->format('Y'), (int)$now->format('n'));
+    if ($candidate < $now) {
+        $next = $now->modify('first day of next month');
+        $candidate = $firstWed((int)$next->format('Y'), (int)$next->format('n'));
+    }
+    return [
+        'dt'      => $candidate,
+        'date'    => $candidate->format('l, F j, Y'),
+        'time'    => $candidate->format('g:i A T'),
+        'meetUrl' => (string)mam_env('POWERPLAY_MEET_URL', ''),
+    ];
+}
+
+/**
  * Pre-rendered HTML templates for transactional emails.
  */
+function mam_email_powerplay_confirmation(): string {
+    $pp   = mam_powerplay_next();
+    $date = htmlspecialchars($pp['date'], ENT_QUOTES);
+    $time = htmlspecialchars($pp['time'], ENT_QUOTES);
+    $meet = $pp['meetUrl'];
+    $cta  = $meet
+        ? "<p style='text-align:center;margin:26px 0'><a href='" . htmlspecialchars($meet, ENT_QUOTES) . "' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Join the Google Meet</a></p>"
+        : "<p style='color:rgba(255,255,255,0.7);font-size:14px;text-align:center;margin:24px 0'>We'll email you the Google Meet link 24 hours before the session.</p>";
+    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
+    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
+    <tr><td style='background:linear-gradient(135deg,#6366F1,#A5B4FC);padding:22px;text-align:center'>
+      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#120D08;font-weight:900'>⚡ POWER PLAY</div>
+    </td></tr>
+    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
+      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're registered for Power Play.</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px'>A free, raw, 90-minute session with <strong>Van. BOJA</strong> for musicians, artists and culture-shapers. Here's the next one:</p>
+      <div style='background:#251A10;border:1px dashed #A5B4FC;border-radius:10px;padding:18px;text-align:center;margin:18px 0'>
+        <div style='font-size:13px;color:#A5B4FC;text-transform:uppercase;letter-spacing:0.1em;font-weight:800'>Next Session</div>
+        <div style='font-size:18px;color:#fff;font-weight:700;margin-top:6px'>$date</div>
+        <div style='font-size:15px;color:#FBBF24;margin-top:2px'>$time</div>
+      </div>
+      $cta
+      <p style='color:rgba(255,255,255,0.7);font-size:14px'>Power Play runs the <strong>first Wednesday of every month</strong> — add it to your calendar so you never miss it.</p>
+      <p style='font-size:13px;color:rgba(255,255,255,0.55);margin-top:24px'>Want the full structured path — certification, instructors, ensemble &amp; stage time? <a href='https://academy.mamcentre.org/apply.html' style='color:#FBBF24'>Apply to MAM Academy</a>.</p>
+      <p style='margin-top:20px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a></p>
+    </td></tr></table>
+    </body></html>";
+}
+
+/**
+ * Recovery email for an application that was submitted but never paid.
+ * Sent by the api/tools/recovery-email.php cron a day after abandonment.
+ */
+function mam_email_application_recovery(array $app, array $customer): string {
+    $name = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')) ?: 'there', ENT_QUOTES);
+    $ref  = htmlspecialchars((string)($app['reference'] ?? ''), ENT_QUOTES);
+    $tot  = number_format((float)($app['total_usd'] ?? 0), 2);
+    $resumeUrl = 'https://academy.mamcentre.org/apply.html?ref=' . rawurlencode((string)($app['reference'] ?? ''));
+    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
+    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
+    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:22px;text-align:center'>
+      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
+    </td></tr>
+    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
+      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're one step away, $name.</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px'>We saved your MAM Academy application (<strong style='color:#FBBF24'>$ref</strong>) but it looks like checkout didn't finish. Your seat for the next intake isn't confirmed until payment is complete.</p>
+      <div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;text-align:center;margin:18px 0'>
+        <span style='color:rgba(255,255,255,0.7);font-size:13px'>Balance to confirm your seat</span><br>
+        <strong style='color:#FBBF24;font-size:20px'>USD \${$tot}</strong>
+      </div>
+      <p style='text-align:center;margin:26px 0'><a href='" . htmlspecialchars($resumeUrl, ENT_QUOTES) . "' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Complete my enrolment</a></p>
+      <p style='color:rgba(255,255,255,0.7);font-size:14px'>Intakes fill on a first-paid basis. If you have a question or want to pay by bank transfer, just reply to this email or call <strong>+234 704 444 6517</strong> — a real person will help.</p>
+      <p style='font-size:13px;color:rgba(255,255,255,0.5);margin-top:24px'>If you've changed your mind, no worries — you can ignore this and we won't email you about it again.</p>
+    </td></tr></table>
+    </body></html>";
+}
+
 function mam_email_password_reset(string $name, string $resetUrl): string {
     $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);
     $u = htmlspecialchars($resetUrl, ENT_QUOTES);

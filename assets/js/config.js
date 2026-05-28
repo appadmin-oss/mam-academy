@@ -81,6 +81,20 @@ window.MAM_CONFIG = {
   registrationFeeUsd: 5,
   certificationFeeUsd: 22,
 
+  /* -------- Testimonials (edit here; the homepage rotator reads this) --------
+     `photo` is optional — when set it shows a real headshot (routed through
+     Cloudinary if configured); otherwise we render the initials avatar. Keep
+     these to genuine, attributable student/parent stories. */
+  testimonials: [
+    { stars: 5, quote: "MAM Academy didn't just teach my son piano — they taught him discipline, consistency and excellence. He's a completely different child.", name: 'Mrs. Adaeze Mba', role: 'Parent · Lagos', initials: 'AM', photo: '' },
+    { stars: 5, quote: 'I started with zero knowledge. Within one year I was playing in our worship team. The instructors are incredibly patient and gifted.', name: 'Tunde Nwosu', role: 'Piano · 2024', initials: 'TN', photo: '' },
+    { stars: 5, quote: 'MAM cares about who you become, not just what you can play. Music is the vehicle — character is the destination.', name: 'Chisom Ike', role: 'Violin · 2023', initials: 'CI', photo: '' },
+    { stars: 5, quote: 'My daughter was shy and introverted. MAM has transformed her — she now performs with complete confidence.', name: 'Mr. Patrick Obi', role: 'Parent · Abuja', initials: 'PO', photo: '' },
+    { stars: 5, quote: 'The MAM Auditer placed me exactly where I needed to be. No guessing. The growth has been measurable from week one.', name: 'Kemi Aluko', role: 'Voice · 2025', initials: 'KA', photo: '' },
+    { stars: 5, quote: 'MetaMusic changed how I think about sound — not just how I play. This place is special.', name: 'Emmanuel Effiong', role: 'Drums · 2024', initials: 'EE', photo: '' },
+    { stars: 5, quote: 'Power Play with Van. BOJA reset my entire vision as a musician. I now think like a builder, not just a performer.', name: 'Nneka Abosi', role: 'Power Play · 2025', initials: 'NA', photo: '' }
+  ],
+
   /* -------- Power Play series (free monthly broadcast) --------
      Held on the first Wednesday of every month. Admin-tunable:
        - time/timezone format the displayed start

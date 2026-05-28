@@ -277,6 +277,11 @@ function mam_db_migrate(PDO $db): void {
         5 => "
             ALTER TABLE applications ADD COLUMN session TEXT;
         ",
+        // Abandonment-recovery tracking: stamped when the cron sends a
+        // "complete your enrolment" nudge so we never email twice.
+        6 => "
+            ALTER TABLE applications ADD COLUMN recovery_sent_at TEXT;
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

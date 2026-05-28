@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS applications (
   policy_signed_at       DATETIME NULL,
   total_usd              DECIMAL(10,2),
   status                 VARCHAR(24) DEFAULT 'submitted',
+  recovery_sent_at       DATETIME NULL,
   source                 VARCHAR(200),
   ip                     VARCHAR(64),
   user_agent             VARCHAR(255),

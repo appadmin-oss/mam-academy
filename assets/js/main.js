@@ -410,25 +410,88 @@
   // ============================================================
   function initTestimonials() {
     var track = $('#testimonialsTrack'); if (!track) return;
-    var data = [
-      { stars: 5, q: 'MAM Academy didn\'t just teach my son piano — they taught him discipline, consistency and excellence. He\'s a completely different child.', i: 'AM', n: 'Mrs. Adaeze Mba', r: 'Parent · Lagos' },
-      { stars: 5, q: 'I started with zero knowledge. Within one year, I was playing in our worship team. The instructors are incredibly patient and gifted.', i: 'TN', n: 'Tunde Nwosu', r: 'Piano · 2024' },
-      { stars: 5, q: 'MAM cares about who you become, not just what you can play. Music is the vehicle — character is the destination.', i: 'CI', n: 'Chisom Ike', r: 'Violin · 2023' },
-      { stars: 5, q: 'My daughter was shy and introverted. MAM has transformed her — she now performs with complete confidence.', i: 'PO', n: 'Mr. Patrick Obi', r: 'Parent · Abuja' },
-      { stars: 5, q: 'The MAM Auditer placed me right where I needed to be. No guessing. The growth has been measurable from week one.', i: 'KA', n: 'Kemi Aluko', r: 'Voice · 2025' },
-      { stars: 5, q: 'MetaMusic changed how I think about sound — not just how I play. This place is special.', i: 'EE', n: 'Emmanuel Effiong', r: 'Drums · 2024' },
-      { stars: 5, q: 'Power Play with Van. BOJA reset my entire vision as a musician. I now think like a builder, not just a performer.', i: 'NA', n: 'Nneka Abosi', r: 'Power Play · 2025' }
-    ];
-    var html = data.map(function (t) {
-      return '<div class="testimonial-card">' +
-        '<div class="testimonial-stars" aria-label="' + t.stars + ' of 5">' + '★'.repeat(t.stars) + '</div>' +
-        '<p class="testimonial-quote">&ldquo;' + t.q + '&rdquo;</p>' +
-        '<div class="testimonial-author">' +
-        '<div class="testimonial-avatar" aria-hidden="true">' + t.i + '</div>' +
-        '<div><div class="testimonial-name">' + t.n + '</div><div class="testimonial-role">' + t.r + '</div></div>' +
-        '</div></div>';
-    }).join('');
-    track.innerHTML = html + html;
+    // Source from config so the academy can edit/extend without touching JS.
+    var data = (window.MAM_CONFIG && window.MAM_CONFIG.testimonials) || [];
+    if (!data.length) { track.parentNode && (track.parentNode.style.display = 'none'); return; }
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function avatar(t) {
+      var photo = t.photo && window.MAM_CDN ? window.MAM_CDN.image(t.photo, { width: 120 }) : t.photo;
+      return photo
+        ? '<div class="testimonial-avatar"><img src="' + esc(photo) + '" alt="' + esc(t.name) + '" loading="lazy"></div>'
+        : '<div class="testimonial-avatar" aria-hidden="true">' + esc(t.initials || (t.name || '?').slice(0, 2).toUpperCase()) + '</div>';
+    }
+    function card(t) {
+      var stars = Math.max(0, Math.min(5, t.stars || 5));
+      return '<figure class="testimonial-card" role="group" aria-roledescription="testimonial">' +
+        '<div class="testimonial-stars" aria-label="' + stars + ' out of 5 stars">' + '★'.repeat(stars) + '<span style="opacity:.25">' + '★'.repeat(5 - stars) + '</span></div>' +
+        '<blockquote class="testimonial-quote">&ldquo;' + esc(t.quote) + '&rdquo;</blockquote>' +
+        '<figcaption class="testimonial-author">' + avatar(t) +
+        '<div><div class="testimonial-name">' + esc(t.name) + '</div><div class="testimonial-role">' + esc(t.role) + '</div></div>' +
+        '</figcaption></figure>';
+    }
+
+    // Build a proper rotator: a viewport that scrolls one card at a time,
+    // with dots, prev/next, autoplay (paused on hover/focus/visibility),
+    // and native touch-swipe via scroll-snap.
+    var wrap = track.parentNode; // .testimonials-track-wrap
+    wrap.classList.add('is-rotator');
+    track.classList.remove('testimonials-track');
+    track.classList.add('testimonials-rail');
+    track.innerHTML = data.map(card).join('');
+
+    var controls = document.createElement('div');
+    controls.className = 'testimonials-controls';
+    controls.innerHTML =
+      '<button type="button" class="t-arrow t-prev" aria-label="Previous testimonial"><i class="fa-solid fa-chevron-left"></i></button>' +
+      '<div class="t-dots" role="tablist" aria-label="Choose testimonial"></div>' +
+      '<button type="button" class="t-arrow t-next" aria-label="Next testimonial"><i class="fa-solid fa-chevron-right"></i></button>';
+    wrap.appendChild(controls);
+
+    var dotsWrap = controls.querySelector('.t-dots');
+    data.forEach(function (_, i) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 't-dot'; b.setAttribute('role', 'tab');
+      b.setAttribute('aria-label', 'Testimonial ' + (i + 1));
+      b.addEventListener('click', function () { go(i, true); });
+      dotsWrap.appendChild(b);
+    });
+    var dots = Array.prototype.slice.call(dotsWrap.children);
+    var cards = Array.prototype.slice.call(track.children);
+    var index = 0, timer = null, userPaused = false;
+
+    function go(i, fromUser) {
+      index = (i + cards.length) % cards.length;
+      var el = cards[index];
+      track.scrollTo({ left: el.offsetLeft - track.offsetLeft, behavior: 'smooth' });
+      dots.forEach(function (d, di) { d.classList.toggle('active', di === index); d.setAttribute('aria-selected', di === index ? 'true' : 'false'); });
+      if (fromUser) restart();
+    }
+    function next() { go(index + 1); }
+    function prev() { go(index - 1); }
+    function start() { if (!userPaused) { stop(); timer = setInterval(next, 6000); } }
+    function stop() { if (timer) { clearInterval(timer); timer = null; } }
+    function restart() { stop(); start(); }
+
+    controls.querySelector('.t-next').addEventListener('click', function () { next(); restart(); });
+    controls.querySelector('.t-prev').addEventListener('click', function () { prev(); restart(); });
+    ['mouseenter', 'focusin', 'touchstart'].forEach(function (ev) { wrap.addEventListener(ev, function () { userPaused = true; stop(); }, { passive: true }); });
+    ['mouseleave', 'focusout'].forEach(function (ev) { wrap.addEventListener(ev, function () { userPaused = false; start(); }); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) stop(); else start(); });
+    // Keep dots in sync if the user free-scrolls/swipes the rail.
+    var st;
+    track.addEventListener('scroll', function () {
+      clearTimeout(st);
+      st = setTimeout(function () {
+        var nearest = 0, best = Infinity;
+        cards.forEach(function (c, ci) { var d = Math.abs(c.offsetLeft - track.offsetLeft - track.scrollLeft); if (d < best) { best = d; nearest = ci; } });
+        index = nearest;
+        dots.forEach(function (d, di) { d.classList.toggle('active', di === index); });
+      }, 120);
+    }, { passive: true });
+
+    go(0);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) start();
   }
 
   // ============================================================
