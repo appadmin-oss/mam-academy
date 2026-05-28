@@ -36,15 +36,19 @@
 }
 .compare-table{width:100%;min-width:900px;border-collapse:separate;border-spacing:0;font-size:0.9rem}
 .compare-table th,.compare-table td{padding:14px 16px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
-.compare-table th.row-head{background:var(--bg-raised);font-size:0.75rem;font-weight:800;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;width:200px;position:sticky;left:0;z-index:2;box-shadow:6px 0 14px -8px rgba(0,0,0,0.6)}
+.compare-table th.row-head{background:var(--bg-raised);font-size:0.75rem;font-weight:800;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;width:200px;position:sticky;left:0;z-index:2;box-shadow:8px 0 18px -10px rgba(0,0,0,0.7)}
 .compare-table thead th{background:var(--bg-raised);padding:18px 16px;vertical-align:bottom}
 .compare-table thead th.row-head{z-index:4}
 .compare-table thead th.col-head{position:relative;border-left:1px solid var(--border);scroll-snap-align:start}
-/* Zebra striping + row hover for readability across many rows */
-.compare-table tbody tr:nth-child(even) td{background:rgba(255,255,255,0.018)}
-.compare-table tbody tr:hover td{background:rgba(224,138,26,0.06)}
-.compare-table tbody tr:hover td.featured-col{background:rgba(224,138,26,0.1)}
-.compare-table thead th.col-head.featured{background:linear-gradient(180deg,rgba(224,138,26,0.12),var(--bg-raised))}
+/* Zebra striping + row hover for readability across many rows. The sticky
+   row-head column needs the SAME treatment as the body cells, otherwise it
+   visually detaches from its row when zebra/hover paints the rest. */
+.compare-table tbody tr:nth-child(even) td,
+.compare-table tbody tr:nth-child(even) th.row-head{background:rgba(255,255,255,0.025)}
+.compare-table tbody tr:hover td,
+.compare-table tbody tr:hover th.row-head{background:rgba(224,138,26,0.08)}
+.compare-table tbody tr:hover td.featured-col{background:rgba(224,138,26,0.12)}
+.compare-table thead th.col-head.featured{background:linear-gradient(180deg,rgba(224,138,26,0.12),var(--bg-raised));border-left:1px solid var(--border-gold);border-right:1px solid var(--border-gold)}
 .compare-table thead th.col-head.premium{background:linear-gradient(180deg,rgba(225,29,72,0.12),var(--bg-raised))}
 .col-label{font-size:0.7rem;font-weight:800;color:var(--gold-bright);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px}
 .col-name{font-family:var(--font-serif);font-size:1.15rem;font-weight:700;color:var(--text);line-height:1.2;margin-bottom:4px}

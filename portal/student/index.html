@@ -103,14 +103,14 @@
     var apps = data.applications || [];
     if (!apps.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('file-pen', 'No applications yet.') + '</div></section>'; return; }
     var rows = apps.map(function (a) {
-      return '<tr><td class="mono">' + P.escapeHtml(a.reference) + '</td>'
-        + '<td>' + P.escapeHtml(a.pathway) + ' · ' + P.escapeHtml(a.mode || '—') + '</td>'
-        + '<td>' + P.escapeHtml(a.discipline || '—') + '</td>'
-        + '<td>' + P.fmtMoney(a.total_usd, 'USD') + '</td>'
-        + '<td><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
-        + '<td>' + P.fmtDateTime(a.created_at) + '</td></tr>';
+      return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(a.reference) + '</td>'
+        + '<td data-label="Pathway · Mode">' + P.escapeHtml(a.pathway) + ' · ' + P.escapeHtml(a.mode || '—') + '</td>'
+        + '<td data-label="Discipline">' + P.escapeHtml(a.discipline || '—') + '</td>'
+        + '<td data-label="Total">' + P.fmtMoney(a.total_usd, 'USD') + '</td>'
+        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
+        + '<td data-label="Submitted">' + P.fmtDateTime(a.created_at) + '</td></tr>';
     }).join('');
-    content.innerHTML = '<section class="panel"><table class="ptable"><thead><tr><th>Reference</th><th>Pathway · Mode</th><th>Discipline</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead><tbody>' + rows + '</tbody></table></section>';
+    content.innerHTML = '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Pathway · Mode</th><th>Discipline</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
   }
 
   function renderClasses() {
@@ -120,27 +120,27 @@
   }
   function renderClassTable(enr) {
     var rows = enr.map(function (e) {
-      return '<tr><td><strong>' + P.escapeHtml(e.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(e.discipline || '') + ' · ' + P.escapeHtml(e.pathway || '') + '</span></td>'
-        + '<td>' + P.escapeHtml(e.instructor_name || 'TBA') + '</td>'
-        + '<td>' + P.escapeHtml(e.schedule || '—') + '</td>'
-        + '<td>' + P.escapeHtml(e.mode || '—') + '</td>'
-        + '<td><span class="pill ' + P.escapeHtml(e.enrollment_status) + '">' + P.escapeHtml(e.enrollment_status) + '</span></td></tr>';
+      return '<tr><td data-label="Class"><strong>' + P.escapeHtml(e.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(e.discipline || '') + ' · ' + P.escapeHtml(e.pathway || '') + '</span></td>'
+        + '<td data-label="Instructor">' + P.escapeHtml(e.instructor_name || 'TBA') + '</td>'
+        + '<td data-label="Schedule">' + P.escapeHtml(e.schedule || '—') + '</td>'
+        + '<td data-label="Mode">' + P.escapeHtml(e.mode || '—') + '</td>'
+        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(e.enrollment_status) + '">' + P.escapeHtml(e.enrollment_status) + '</span></td></tr>';
     }).join('');
-    return '<table class="ptable"><thead><tr><th>Class</th><th>Instructor</th><th>Schedule</th><th>Mode</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    return '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Class</th><th>Instructor</th><th>Schedule</th><th>Mode</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 
   function renderPayments() {
     var pays = data.payments || [];
     if (!pays.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('credit-card', 'No payments on file.') + '</div></section>'; return; }
     var rows = pays.map(function (p) {
-      return '<tr><td class="mono">' + P.escapeHtml(p.reference) + '</td>'
-        + '<td>' + P.escapeHtml(p.provider) + '</td>'
-        + '<td>' + P.fmtMoney(p.amount, p.currency) + '</td>'
-        + '<td><span class="pill ' + P.escapeHtml(p.status) + '">' + P.escapeHtml(p.status) + '</span></td>'
-        + '<td>' + (p.verified_at ? P.fmtDateTime(p.verified_at) : '—') + '</td>'
-        + '<td>' + P.fmtDateTime(p.created_at) + '</td></tr>';
+      return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(p.reference) + '</td>'
+        + '<td data-label="Provider">' + P.escapeHtml(p.provider) + '</td>'
+        + '<td data-label="Amount">' + P.fmtMoney(p.amount, p.currency) + '</td>'
+        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(p.status) + '">' + P.escapeHtml(p.status) + '</span></td>'
+        + '<td data-label="Verified">' + (p.verified_at ? P.fmtDateTime(p.verified_at) : '—') + '</td>'
+        + '<td data-label="Created">' + P.fmtDateTime(p.created_at) + '</td></tr>';
     }).join('');
-    content.innerHTML = '<section class="panel"><table class="ptable"><thead><tr><th>Reference</th><th>Provider</th><th>Amount</th><th>Status</th><th>Verified</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table></section>';
+    content.innerHTML = '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Provider</th><th>Amount</th><th>Status</th><th>Verified</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
   }
 
   function renderAuditer() {

@@ -47,12 +47,49 @@
 .panel-head .panel-action{font-size:0.82rem;font-weight:700;color:var(--gold-bright)}
 .panel-body{padding:0}
 
+.ptable-wrap{
+  position:relative;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  /* Edge-fade indicators — show only when there's more to scroll (Lea Verou) */
+  background-image:
+    linear-gradient(to right,var(--bg-surface) 30%,rgba(26,18,11,0)),
+    linear-gradient(to right,rgba(26,18,11,0),var(--bg-surface) 70%),
+    linear-gradient(to right,rgba(0,0,0,0.35),rgba(0,0,0,0)),
+    linear-gradient(to left,rgba(0,0,0,0.35),rgba(0,0,0,0));
+  background-position:0 0,100% 0,0 0,100% 0;
+  background-repeat:no-repeat;
+  background-size:42px 100%,42px 100%,14px 100%,14px 100%;
+  background-attachment:local,local,scroll,scroll;
+}
 .ptable{width:100%;border-collapse:collapse;font-size:0.88rem}
-.ptable th{background:var(--bg);color:var(--text-muted);text-align:left;padding:10px 22px;font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;font-weight:800;border-bottom:1px solid var(--border)}
+.ptable th{background:var(--bg);color:var(--text-muted);text-align:left;padding:10px 22px;font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;font-weight:800;border-bottom:1px solid var(--border);white-space:nowrap}
 .ptable td{padding:14px 22px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text-soft)}
 .ptable tr:last-child td{border-bottom:none}
 .ptable tr:hover td{background:rgba(255,255,255,0.02)}
-.ptable .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.82rem}
+.ptable .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.82rem;word-break:break-all}
+
+/* Phone: stack each row into a card with label:value pairs (data-label-driven).
+   This is the gold-standard mobile pattern for data tables — no horizontal
+   scroll, no truncation, every field clearly labeled. */
+@media (max-width:640px){
+  .ptable-wrap{overflow-x:visible;background:none}
+  .ptable{font-size:0.92rem}
+  .ptable thead{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+  .ptable,.ptable tbody,.ptable tr,.ptable td{display:block;width:100%}
+  .ptable tr{padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg-surface)}
+  .ptable tr:nth-child(even){background:rgba(255,255,255,0.012)}
+  .ptable tr:last-child{border-bottom:none}
+  .ptable td{padding:6px 0;border:none;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;text-align:right}
+  .ptable td::before{
+    content:attr(data-label);color:var(--text-muted);
+    font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:800;
+    flex-shrink:0;align-self:center;text-align:left;
+  }
+  .ptable td:first-child{padding-top:0;padding-bottom:10px;margin-bottom:6px;border-bottom:1px dashed var(--border);font-size:0.98rem}
+  .ptable td:first-child:not([data-label])::before,
+  .ptable td:first-child[data-label=""]::before{display:none}
+  .ptable td:first-child{justify-content:flex-start;text-align:left}
+  .ptable td .pill{flex-shrink:0}
+}
 
 .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:100px;font-size:0.7rem;font-weight:800;letter-spacing:0.04em;text-transform:lowercase}
 .pill.submitted{background:rgba(99,102,241,0.18);color:#A5B4FC}

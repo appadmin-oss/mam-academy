@@ -327,11 +327,25 @@ header.top h1{font-size:1.4rem;font-weight:700;letter-spacing:-0.01em}
 .kpi-label{font-size:0.72rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;font-weight:600}
 .kpi-value{font-size:1.7rem;font-weight:800;letter-spacing:-0.01em}
 .kpi-value.gold{background:linear-gradient(135deg,var(--gold),var(--gold-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.card{background:var(--raised);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:22px}
-.card h3{padding:16px 20px;font-size:0.95rem;font-weight:700;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+/* Tables can be wide (9+ columns). The card is the horizontal scroll
+   container; the h3 header is pinned via sticky so it doesn't pan with
+   the table. Edge-fade backgrounds appear only when there's more to scroll. */
+.card{background:var(--raised);border:1px solid var(--border);border-radius:14px;margin-bottom:22px;overflow:hidden;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  background-image:
+    linear-gradient(to right,var(--raised) 30%,rgba(0,0,0,0)),
+    linear-gradient(to right,rgba(0,0,0,0),var(--raised) 70%),
+    linear-gradient(to right,rgba(0,0,0,0.4),rgba(0,0,0,0)),
+    linear-gradient(to left,rgba(0,0,0,0.4),rgba(0,0,0,0));
+  background-position:0 0,100% 0,0 0,100% 0;
+  background-repeat:no-repeat;
+  background-size:42px 100%,42px 100%,14px 100%,14px 100%;
+  background-attachment:local,local,scroll,scroll;
+}
+.card h3{padding:16px 20px;font-size:0.95rem;font-weight:700;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;left:0;width:max-content;min-width:100%;background:var(--raised);z-index:2}
+.card > table{min-width:720px}
 table{width:100%;border-collapse:collapse;font-size:0.86rem}
 th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
-th{color:var(--muted);font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;background:var(--panel)}
+th{color:var(--muted);font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;background:var(--panel);white-space:nowrap}
 tr:hover td{background:rgba(255,255,255,0.02)}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:lowercase}
 .pill.submitted,.pill.received{background:rgba(99,102,241,0.18);color:#A5B4FC}
@@ -365,15 +379,13 @@ button.tiny:hover{border-color:var(--gold)}
   body{grid-template-columns:1fr}
   aside{position:static;height:auto}
   main{padding:20px 16px}
-  /* Let wide data tables scroll horizontally instead of being clipped by the card */
-  .card{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .card>table{min-width:620px}
   .top{flex-wrap:wrap;gap:10px}
   .form-grid{grid-template-columns:1fr}
 }
 @media(max-width:520px){
   .kpi-grid{grid-template-columns:1fr 1fr}
-  th,td{padding:9px 12px}
+  th,td{padding:9px 12px;font-size:0.82rem}
+  .card > table > tbody,.card > table > thead{min-width:560px}
 }
 </style>
 </head>
