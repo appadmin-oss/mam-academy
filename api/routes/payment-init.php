@@ -39,17 +39,27 @@ if ($purpose === 'tuition' && ($app['status'] ?? '') === 'paid') {
     mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
 }
 
-// Pricing: booking_fee is the single source of truth, $5 flat. Tuition reads
-// the server-side total previously computed for the application.
+// Pricing source-of-truth: booking_fee reads the regional tier (server is
+// authoritative — never trust client-side price). Tuition continues to read
+// the server-computed total. We always settle to NGN on Paystack/Flutterwave
+// (Paystack supports only a few currencies), and surface BOTH the "local"
+// display amount and the NGN settlement amount so the UI can disclose it.
+$ngnRate = (float)mam_env('USD_TO_NGN', '1500');
 if ($purpose === 'booking_fee') {
-    $totalUsd = 5.00;
+    $tier = mam_booking_tier();
+    $totalUsd      = (float)$tier['amount_usd'];
+    $amountNgn     = (int)$tier['amount_ngn'];
+    $displayLabel  = (string)$tier['label'];
+    $displayCur    = (string)$tier['currency'];
+    $displayAmount = (float)$tier['amount'];
 } else {
     $totalUsd = (float)$app['total_usd'];
+    $amountNgn = (int)round($totalUsd * $ngnRate);
+    $displayLabel = '$' . number_format($totalUsd, 2);
+    $displayCur = 'USD';
+    $displayAmount = $totalUsd;
 }
 if ($totalUsd <= 0) mam_fail('zero_amount', 400);
-
-$ngnRate = (float)mam_env('USD_TO_NGN', '1500');
-$amountNgn = (int)round($totalUsd * $ngnRate);
 $amountKobo = $amountNgn * 100;
 
 // Persist a payment row (idempotent via the per-purpose reference)
@@ -88,8 +98,11 @@ try {
         mam_ok([
             'provider' => 'paystack',
             'reference' => $ref,
-            'amount_ngn' => $amountNgn,
-            'amount_usd' => $totalUsd,
+            'amount_ngn'   => $amountNgn,
+            'amount_usd'   => $totalUsd,
+            'display_label'    => $displayLabel,
+            'display_currency' => $displayCur,
+            'display_amount'   => $displayAmount,
             'public_key' => mam_env('PAYSTACK_PUBLIC_KEY'),
             'access_code' => $body['data']['access_code'] ?? null,
             'authorization_url' => $body['data']['authorization_url'] ?? null,
@@ -102,8 +115,11 @@ try {
         mam_ok([
             'provider' => 'flutterwave',
             'reference' => $ref,
-            'amount_ngn' => $amountNgn,
-            'amount_usd' => $totalUsd,
+            'amount_ngn'   => $amountNgn,
+            'amount_usd'   => $totalUsd,
+            'display_label'    => $displayLabel,
+            'display_currency' => $displayCur,
+            'display_amount'   => $displayAmount,
             'public_key' => mam_env('FLW_PUBLIC_KEY'),
             'payload' => [
                 'tx_ref'       => $ref,
@@ -128,8 +144,11 @@ try {
         mam_ok([
             'provider' => 'bank',
             'reference' => $ref,
-            'amount_ngn' => $amountNgn,
-            'amount_usd' => $totalUsd,
+            'amount_ngn'   => $amountNgn,
+            'amount_usd'   => $totalUsd,
+            'display_label'    => $displayLabel,
+            'display_currency' => $displayCur,
+            'display_amount'   => $displayAmount,
             'instructions' => 'Email proof of payment to ' . mam_env('NOTIFY_EMAIL', 'connect@mamcentre.org') . ' with reference ' . $ref,
         ]);
     } else {

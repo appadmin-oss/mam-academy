@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260529d">
+<link rel="stylesheet" href="assets/css/main.css?v=20260529e">
 <style>
 .book-shell{max-width:1040px;margin:0 auto;padding:40px 22px 96px}
 .book-eyebrow{display:inline-flex;align-items:center;gap:9px;padding:7px 16px;background:rgba(224,138,26,0.15);border:1px solid var(--border-gold);border-radius:100px;font-size:0.74rem;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:18px}
@@ -87,8 +87,8 @@
     <div class="page-hero-inner">
       <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><a href="apply">Apply</a><i class="fa-solid fa-chevron-right"></i><span>Book a Session</span></nav>
       <div class="book-eyebrow"><span class="dot" aria-hidden="true"></span>Next step · seat confirmation</div>
-      <h1 class="book-h1">Book a Session with the <span class="accent">Admin Officer &amp; MAM Auditer Judges</span></h1>
-      <p class="book-lede">You've applied — beautifully done. The final step is a short conversation: we listen, place you accurately, and reserve your spot. A one-time <strong>$5</strong> confirms your seat and unlocks the calendar.</p>
+      <h1 class="book-h1">Book a <span class="accent">Session</span></h1>
+      <p class="book-lede">You've applied — beautifully done. The final step is a short conversation: we listen, place you accurately, and reserve your spot. A one-time confirmation locks in your seat and unlocks the calendar.</p>
     </div>
   </header>
 
@@ -112,15 +112,15 @@
         <h2 class="gate-title" id="gateTitle">Reserve your seat</h2>
         <p class="gate-sub" id="gateSub">A one-time confirmation to lock in your meeting and your placement assessment.</p>
 
-        <div class="gate-price" aria-label="Five US dollars">
-          <span class="currency">$</span><b>5</b><span class="unit">USD &middot; one-time</span>
+        <div class="gate-price" id="gatePrice" aria-label="Booking fee">
+          <span class="currency">$</span><b>5</b><span class="unit">one-time</span>
         </div>
 
         <ul class="gate-covers" id="gateCovers"></ul>
 
         <div class="gate-methods">
           <button type="button" class="gate-pay" id="payPaystack">
-            <i class="fa-solid fa-lock"></i><span>Pay $5 with Card / Bank</span>
+            <i class="fa-solid fa-lock"></i><span id="payPaystackLabel">Pay $5 with Card / Bank</span>
           </button>
           <button type="button" class="gate-alt" id="payBank">
             <i class="fa-solid fa-building-columns"></i> I'd rather bank-transfer
@@ -169,8 +169,8 @@
 </main>
 
 <div id="include-footer"></div>
-<script src="assets/js/config.js?v=20260529d"></script>
-<script src="assets/js/main.js?v=20260529d"></script>
+<script src="assets/js/config.js?v=20260529e"></script>
+<script src="assets/js/main.js?v=20260529e"></script>
 <script>
 (function(){
   'use strict';
@@ -183,6 +183,23 @@
   function status(text, kind){ msg.textContent = text; msg.className = 'gate-msg show ' + (kind||''); }
 
   if (!ref) { show(noRef); return; }
+
+  // Pull the regional booking-fee tier so we render the right currency/amount.
+  // Server is authoritative at charge time; this is display-only.
+  var feeTier = null;
+  function paintFee() {
+    if (!feeTier) return;
+    var price = document.getElementById('gatePrice');
+    if (price) {
+      var sym = ({USD:'$',NGN:'₦',GBP:'£',EUR:'€',CAD:'CA$',AUD:'AU$',GHS:'GH₵',KES:'KSh ',ZAR:'R'})[feeTier.currency] || '';
+      var amount = (feeTier.currency === 'NGN') ? (feeTier.amount).toLocaleString() : feeTier.amount;
+      price.innerHTML = '<span class="currency">' + sym + '</span><b>' + amount + '</b><span class="unit">' + feeTier.currency + ' &middot; one-time</span>';
+    }
+    var lbl = document.getElementById('payPaystackLabel');
+    if (lbl) lbl.textContent = 'Pay ' + feeTier.label + ' with Card / Bank';
+  }
+  fetch('/api/booking/pricing', { credentials: 'same-origin' }).then(function(r){ return r.json(); })
+    .then(function(j){ if (j && j.ok) { feeTier = j; paintFee(); } }).catch(function(){});
 
   // Build the "covers" list from config (so admin can tweak the value statement).
   function paintCovers(){

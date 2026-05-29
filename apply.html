@@ -14,8 +14,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
-<link rel="stylesheet" href="assets/css/main.css?v=20260529d">
-<link rel="stylesheet" href="assets/css/apply.css?v=20260529d">
+<link rel="stylesheet" href="assets/css/main.css?v=20260529e">
+<link rel="stylesheet" href="assets/css/apply.css?v=20260529e">
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
@@ -51,6 +51,7 @@
       <button type="button" class="apply-progress-step" data-step="1"><span class="step-dot"><span>2</span></span><span class="step-name">Profile</span></button>
       <button type="button" class="apply-progress-step" data-step="2"><span class="step-dot"><span>3</span></span><span class="step-name">Background</span></button>
       <button type="button" class="apply-progress-step" data-step="3"><span class="step-dot"><span>4</span></span><span class="step-name">Review</span></button>
+      <button type="button" class="apply-progress-step" data-step="4"><span class="step-dot"><span>5</span></span><span class="step-name">Payment</span></button>
     </nav>
 
     <!-- Collapsible order summary — always one tap away -->
@@ -81,7 +82,7 @@
       <!-- STEP 1: Programme — split into 3 sub-sections for clarity -->
       <div class="step active" data-step="0">
         <div class="step-head">
-          <div class="step-num">Step 1 of 4 · Programme</div>
+          <div class="step-num">Step 1 of 5 · Programme</div>
           <h2 class="step-title">Choose Your Programme</h2>
           <p class="step-desc">Three quick decisions. Don't overthink — you can change anything before payment, and <a href="auditer" style="color:var(--gold-bright)">MAM Auditer</a> will fine-tune your placement.</p>
         </div>
@@ -243,7 +244,7 @@
       <!-- STEP 2: Student Profile -->
       <div class="step" data-step="1">
         <div class="step-head">
-          <div class="step-num">Step 2 of 4</div>
+          <div class="step-num">Step 2 of 5</div>
           <h2 class="step-title">Student Profile</h2>
           <p class="step-desc">Tell us about the student. We use this only to onboard and contact you about your enrollment.</p>
           <div class="track-badge" id="trackBadge" hidden>
@@ -359,7 +360,7 @@
       <!-- STEP 3: Background -->
       <div class="step" data-step="2">
         <div class="step-head">
-          <div class="step-num">Step 3 of 4</div>
+          <div class="step-num">Step 3 of 5</div>
           <h2 class="step-title">Background &amp; Goals</h2>
           <p class="step-desc">Helps us prepare your MAM Auditer placement and recommend the right instructor.</p>
         </div>
@@ -417,9 +418,9 @@
       <!-- STEP 4: Review -->
       <div class="step" data-step="3">
         <div class="step-head">
-          <div class="step-num">Step 4 of 4 · Review</div>
-          <h2 class="step-title">Review &amp; Submit</h2>
-          <p class="step-desc">Take a final look. After you submit, we'll guide you to book your session with our Admin Officer and the MAM Auditer Judges (one-time <strong>$5</strong> seat confirmation).</p>
+          <div class="step-num">Step 4 of 5 · Review</div>
+          <h2 class="step-title">Review &amp; Confirm</h2>
+          <p class="step-desc">Take a final look. When you submit, we'll email you a copy of your application and your invoice — then you'll confirm your seat with a one-time <strong id="reviewFeeLabel">$5</strong> payment.</p>
         </div>
 
         <div id="reviewBody"></div>
@@ -468,18 +469,98 @@
 
         <div class="step-actions">
           <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" id="btnNext4">Submit &amp; Book My Session <i class="fa-solid fa-arrow-right"></i></button>
+          <button type="button" class="btn-step btn-step-next" id="btnNext4">Submit &amp; Continue to Payment <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- STEP 5: Payment — booking fee only. The price is regional and the
+           server is authoritative; we just render what /api/booking/pricing
+           returned at page-load. The confirmation email + invoice were
+           already sent on Step-4 submit, so the applicant has those in hand
+           whether or not they finish this step now (they can always pay
+           later via the link in the email which lands on /book?ref=…). -->
+      <div class="step" data-step="4">
+        <div class="step-head">
+          <div class="step-num">Step 5 of 5 · Confirm your seat</div>
+          <h2 class="step-title">Pay <span id="payHeroLabel">$5</span> &mdash; secure your session</h2>
+          <p class="step-desc">A one-time confirmation. Covers registration, your MAM Academy student ID card, your student file and a 30-minute MAM Auditer assessment. Tuition is <strong>not</strong> charged here &mdash; it's discussed only after the Auditer Judges have placed you.</p>
+        </div>
+
+        <div class="pay-card">
+          <div class="pay-card-price">
+            <div class="pay-card-amount" id="payAmount">$5</div>
+            <div class="pay-card-meta"><span id="payCountryFlag">🌍</span> <span id="payCountryName">your region</span> · one-time</div>
+          </div>
+          <ul class="pay-card-covers">
+            <li><i class="fa-solid fa-check"></i>Registration &amp; admission processing</li>
+            <li><i class="fa-solid fa-check"></i>MAM Academy student ID card</li>
+            <li><i class="fa-solid fa-check"></i>Student file (kept on record)</li>
+            <li><i class="fa-solid fa-check"></i>30-minute MAM Auditer assessment</li>
+          </ul>
+          <div class="pay-card-disclose" id="payDisclose"></div>
+        </div>
+
+        <div class="payment-secure">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Encrypted &amp; PCI-DSS compliant. Verified by Paystack &amp; Flutterwave. We never store card details.</span>
+        </div>
+
+        <div class="payment-methods">
+          <label class="payment-method"><input type="radio" name="payment" value="paystack" checked>
+            <div class="payment-logo paystack">PAY<br>STACK</div>
+            <div class="payment-method-info"><div class="payment-method-name">Card / Bank / USSD</div><div class="payment-method-desc">Paystack &middot; instant confirmation</div></div>
+            <div class="payment-method-check"></div>
+          </label>
+          <label class="payment-method"><input type="radio" name="payment" value="flutterwave">
+            <div class="payment-logo flutterwave">Flutter<br>wave</div>
+            <div class="payment-method-info"><div class="payment-method-name">Card · Bank · M-Pesa · Apple/Google Pay</div><div class="payment-method-desc">Flutterwave &middot; international friendly</div></div>
+            <div class="payment-method-check"></div>
+          </label>
+          <label class="payment-method"><input type="radio" name="payment" value="bank">
+            <div class="payment-logo bank"><i class="fa-solid fa-building-columns"></i></div>
+            <div class="payment-method-info"><div class="payment-method-name">Bank Transfer</div><div class="payment-method-desc">Manual confirmation &middot; ~24h</div></div>
+            <div class="payment-method-check"></div>
+          </label>
+        </div>
+        <div class="field-error" id="err-payment"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a payment method</span></div>
+
+        <div class="bank-details" id="bankDetails">
+          <h4><i class="fa-solid fa-building-columns" style="margin-right:8px"></i>Bank Transfer Instructions</h4>
+          <div class="bank-row"><span>Bank</span><span><span id="bankName">—</span><button type="button" class="bank-copy" data-copy="bankName">copy</button></span></div>
+          <div class="bank-row"><span>Account Name</span><span><span id="bankAccountName">—</span><button type="button" class="bank-copy" data-copy="bankAccountName">copy</button></span></div>
+          <div class="bank-row"><span>Account Number</span><span><span id="bankAccountNumber">—</span><button type="button" class="bank-copy" data-copy="bankAccountNumber">copy</button></span></div>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:12px;line-height:1.6">After transfer, email proof of payment to <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> with your application reference (issued on submit).</p>
+        </div>
+
+        <div class="step-actions" style="flex-direction:column;align-items:stretch">
+          <button type="button" class="btn-pay" id="btnPay"><span id="btnPayLabel">Pay $5</span> <i class="fa-solid fa-lock"></i></button>
+          <p style="text-align:center;font-size:0.78rem;color:var(--text-muted);margin:10px 0 0;line-height:1.55">We already emailed your invoice. You can pay later via the link in that email &mdash; this step never has to happen now.</p>
         </div>
       </div>
 
     </div>
   </section>
 
+  <!-- Step-5 regional-fee + payment-card styles. Scoped to .pay-card / .pay-* so
+       they don't bleed into other pages. -->
+  <style>
+    .pay-card{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;padding:22px;margin:0 0 22px;background:linear-gradient(160deg,rgba(224,138,26,0.10),var(--bg-surface));border:1px solid var(--border-gold);border-radius:18px}
+    @media (max-width:560px){.pay-card{grid-template-columns:1fr;text-align:center}.pay-card-covers{text-align:left}}
+    .pay-card-amount{font-family:var(--font-display);font-size:3.4rem;line-height:1;color:var(--text);letter-spacing:0.02em}
+    .pay-card-meta{font-size:0.84rem;color:var(--text-muted);margin-top:6px;letter-spacing:0.02em}
+    .pay-card-covers{list-style:none;padding:0;margin:0;display:grid;gap:7px;font-size:0.92rem;color:var(--text-soft);line-height:1.5}
+    .pay-card-covers li{display:flex;gap:9px;align-items:flex-start}
+    .pay-card-covers li i{flex:0 0 18px;height:18px;border-radius:50%;background:rgba(52,211,153,0.18);color:#34D399;display:inline-flex;align-items:center;justify-content:center;font-size:0.66rem;margin-top:3px}
+    .pay-card-disclose{grid-column:1/-1;padding-top:14px;border-top:1px dashed var(--border);font-size:0.8rem;color:var(--text-muted);line-height:1.55;display:none}
+    .pay-card-disclose.show{display:block}
+    .pay-card-disclose i{color:var(--gold-bright);margin-right:4px}
+  </style>
+
   <div class="apply-mobilebar" id="applyMobileBar">
     <div class="amb-meta">
-      <span class="amb-label">Next</span>
-      <span class="amb-total" id="ambTotal">Book session</span>
-      <span class="amb-step" id="ambStep">Step 1 of 4</span>
+      <span class="amb-label">Booking fee</span>
+      <span class="amb-total" id="ambTotal">$5</span>
+      <span class="amb-step" id="ambStep">Step 1 of 5</span>
     </div>
     <button type="button" class="amb-view" id="ambView">View summary</button>
   </div>
@@ -488,10 +569,10 @@
 <div id="include-footer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/js/intlTelInputWithUtils.min.js"></script>
-<script src="assets/js/config.js?v=20260529d"></script>
-<script src="assets/js/main.js?v=20260529d"></script>
-<script src="assets/js/validate.js?v=20260529d"></script>
-<script src="assets/js/headshot.js?v=20260529d"></script>
-<script src="assets/js/apply.js?v=20260529d"></script>
+<script src="assets/js/config.js?v=20260529e"></script>
+<script src="assets/js/main.js?v=20260529e"></script>
+<script src="assets/js/validate.js?v=20260529e"></script>
+<script src="assets/js/headshot.js?v=20260529e"></script>
+<script src="assets/js/apply.js?v=20260529e"></script>
 </body>
 </html>

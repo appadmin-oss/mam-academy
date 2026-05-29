@@ -26,7 +26,8 @@ $r->get('/health',  $f('health.php'));
 $r->get('/csrf',    $f('csrf-token.php'));
 // Booking-fee status — public (no PII surfaced). /book polls this to decide
 // whether to show the $5 CTA or the unlocked Google appointment embed.
-$r->get('/booking/status', $f('booking-status.php'), [mw_rate_limit('booking_status', 60, 60)]);
+$r->get('/booking/status',  $f('booking-status.php'),  [mw_rate_limit('booking_status', 60, 60)]);
+$r->get('/booking/pricing', $f('booking-pricing.php'), [mw_rate_limit('booking_pricing', 60, 60)]);
 
 /* ─── Public forms (CSRF + rate-limited) ─── */
 $r->post('/application', $f('application.php'), [mw_csrf(), mw_rate_limit('apply',       10, 600)]);

@@ -123,12 +123,27 @@ try {
 // with a context tag via mam_send so we can spot silent delivery problems).
 $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [$customerId]);
 $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$appId]);
+
+// Build & attach the booking-fee invoice. The invoice is produced from the
+// applicant's selections + their regional tier (server is authoritative).
+// We send the confirmation email BEFORE the $5 payment so the applicant has
+// the invoice in hand whether they pay inside the form or via the /book link.
+$tier = mam_booking_tier();
+$invoiceNumber = 'INV-MAM-' . date('y') . '-' . str_pad((string)$appId, 4, '0', STR_PAD_LEFT);
+$invoiceHtml = mam_invoice_print_html($app, $customer, $tier, $invoiceNumber);
 mam_send(
     $v['email'],
     'MAM Academy — Application received (' . $reference . ')',
-    mam_email_application_confirmation($app, $customer),
+    mam_email_application_confirmation($app, $customer, $tier, $invoiceNumber),
     'application_confirmation',
-    true
+    true,
+    // Attach the invoice as a print-friendly HTML doc. Opens in any browser,
+    // prints to PDF with a single shortcut. No PDF dependency on the server.
+    ['attachments' => [[
+        'content' => $invoiceHtml,
+        'name'    => 'MAM-Academy-Invoice-' . $invoiceNumber . '.html',
+        'mime'    => 'text/html; charset=utf-8',
+    ]]]
 );
 // Send the full class policy the applicant agreed to (online vs onsite),
 // stamped with their electronic signature — keep for their records.

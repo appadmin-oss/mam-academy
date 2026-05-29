@@ -795,25 +795,231 @@ function mam_email_contact_autoresponse(string $name, string $topic): string {
     ]);
 }
 
-function mam_email_application_confirmation(array $app, array $customer): string {
+function mam_email_application_confirmation(array $app, array $customer, ?array $tier = null, string $invoiceNumber = ''): string {
     $ref  = htmlspecialchars($app['reference'], ENT_QUOTES);
     $name = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')), ENT_QUOTES);
     $bookUrl = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/book?ref=' . rawurlencode($app['reference']), ENT_QUOTES);
+    $label   = htmlspecialchars($tier['label'] ?? '$5', ENT_QUOTES);
+    $invLine = $invoiceNumber ? "<p style='color:rgba(255,255,255,0.6);font-size:12px;margin:6px 0 0'>Invoice <strong style='color:#FBBF24'>" . htmlspecialchars($invoiceNumber) . "</strong> is attached to this email — open it in any browser, then print or save as PDF for your records.</p>" : '';
     $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Application received, $name.</h2>
       <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Thank you for applying to MAM Academy. Your application reference is:</p>
       <div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;color:#FBBF24;font-size:16px;text-align:center;margin:16px 0'>$ref</div>
       <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Programme: <strong style='color:#fff'>" . htmlspecialchars($app['pathway']) . "</strong> &middot; Mode: <strong style='color:#fff'>" . htmlspecialchars($app['mode']) . "</strong></p>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:20px 0 0'><strong style='color:#fff'>Next step &mdash; book your session.</strong> A one-time <strong style='color:#FBBF24'>\$5 confirmation</strong> secures your slot with our Admin Officer and the MAM Auditer Judges. It covers your <strong>registration</strong>, <strong>student ID card</strong>, <strong>student file</strong> and a <strong>30-minute MAM Auditer assessment</strong>. No tuition is charged yet &mdash; we only ask for tuition after we have placed you correctly.</p>
-      " . mam_email_button($bookUrl, 'Book my session &mdash; \$5') . "
-      <p style='color:rgba(255,255,255,0.7);font-size:13px;margin:0'>Slots are limited each week. Bookings without payment will be held for 48 hours, then released.</p>
-      " . mam_email_promo_block(['pathways']);
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:20px 0 0'><strong style='color:#fff'>Next step &mdash; book your session.</strong> A one-time <strong style='color:#FBBF24'>$label confirmation</strong> secures your slot with our Admin Officer and the MAM Auditer Judges. It covers your <strong>registration</strong>, <strong>student ID card</strong>, <strong>student file</strong> and a <strong>30-minute MAM Auditer assessment</strong>. No tuition is charged yet &mdash; we only ask for tuition after we have placed you correctly.</p>
+      " . mam_email_button($bookUrl, 'Book my session &mdash; ' . $label) . "
+      <p style='color:rgba(255,255,255,0.7);font-size:13px;margin:0'>Slots are limited each week. Bookings without payment will be held for 48 hours, then released.</p>"
+      . $invLine
+      . mam_email_promo_block(['pathways']);
     return mam_email_layout([
         'header' => 'MAM ACADEMY',
-        'preheader' => 'Your application is in. Reserve your $5 session with our Admin Officer + MAM Auditer Judges.',
+        'preheader' => 'Your application is in. Invoice attached — reserve your seat with our Admin Officer + MAM Auditer Judges.',
         'reason' => 'You received this because you submitted an application to MAM Academy.',
         'unsubscribe' => true,
         'body' => $inner,
     ]);
+}
+
+/**
+ * MAM Academy invoice (HTML, self-contained, print-friendly).
+ *
+ * Mirrors the studio's printed invoice layout: black header with address +
+ * logo, a giant orange "INVOICE" word, customer block, item table with orange
+ * header, T&C + totals row, GTCO bank tile + Finance Manager signature line,
+ * black footer. Self-contained inline CSS so it renders identically when
+ * attached to email, opened in a browser, or printed to PDF.
+ *
+ * Generated from the applicant's selections so the invoice always summarises
+ * exactly what they chose. The TOTAL is what they owe NOW (the regional
+ * booking fee). Tuition is listed as an estimate due after Auditer placement
+ * — transparent, no surprises.
+ *
+ * $app + $customer come from the DB; $tier is the result of mam_booking_tier().
+ */
+function mam_invoice_print_html(array $app, array $customer, array $tier, string $invoiceNumber): string {
+    $name  = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')), ENT_QUOTES);
+    $phone = htmlspecialchars((string)($customer['phone'] ?? ''), ENT_QUOTES);
+    $email = htmlspecialchars((string)($customer['email'] ?? ''), ENT_QUOTES);
+    $loc   = htmlspecialchars(trim(implode(', ', array_filter([$customer['lga'] ?? '', $customer['state'] ?? '', $customer['country'] ?? '']))) ?: 'Nigeria', ENT_QUOTES);
+    $ref   = htmlspecialchars((string)$app['reference'], ENT_QUOTES);
+    $dateLong = date('l, jS \\of F, Y');
+
+    $pathwayMap = [
+        'pre-cert'   => ['Pre-Certification (Foundation)',    'Online · 12 weeks'],
+        'cert'       => ['Certification (KTAMS / MAM)',       'Online · 12 weeks'],
+        'pre-dip'    => ['Pre-Diploma',                       'Online · 12 weeks'],
+        'diploma'    => ['Diploma',                           'Online · 12 weeks'],
+        'crash'      => ['Crash Programme',                   'Intensive · short-form'],
+        'meta-order' => ['The MetaMusic Order',               'Premium track'],
+    ];
+    $pathwayKey = (string)($app['pathway'] ?? '');
+    $pathwayName = $pathwayMap[$pathwayKey][0] ?? ucfirst($pathwayKey);
+    $pathwaySub  = $pathwayMap[$pathwayKey][1] ?? '';
+    $mode = htmlspecialchars((string)($app['mode'] ?? '—'), ENT_QUOTES);
+    $disc = htmlspecialchars((string)($app['discipline'] ?? '—'), ENT_QUOTES);
+    $track = htmlspecialchars((string)($app['program_track'] ?? 'MAM'), ENT_QUOTES);
+
+    $prices = mam_prices();
+    $tuitionUsd = (float)($prices[$pathwayKey] ?? 0);
+
+    $cur = (string)$tier['currency'];
+    $label = (string)$tier['label'];
+    // Per-line allocation of the regional booking fee. Splits the total into
+    // four equal items for clean display; rounded so the sum still equals.
+    $total = (float)$tier['amount'];
+    $each  = $cur === 'NGN' ? floor($total / 4) : round($total / 4, 2);
+    $remainder = $total - ($each * 3); // last line absorbs rounding
+    $fmt = function($n) use ($cur) {
+        $sym = ['NGN'=>'₦','USD'=>'$','GBP'=>'£','EUR'=>'€','CAD'=>'CA$','AUD'=>'AU$','GHS'=>'GH₵','KES'=>'KSh ','ZAR'=>'R'][$cur] ?? ($cur.' ');
+        return $sym . number_format($n, $cur === 'NGN' ? 0 : 2);
+    };
+
+    $logoUrl = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/mam-academy-logo.svg', ENT_QUOTES);
+    $invNo   = htmlspecialchars($invoiceNumber, ENT_QUOTES);
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+      . '<title>Invoice ' . $invNo . ' — MAM Academy</title>'
+      . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+      . '<style>'
+      . '@page{size:A4;margin:0}'
+      . 'body{margin:0;font-family:Inter,Arial,Helvetica,sans-serif;color:#1A120B;background:#F4F4F4;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+      . '.sheet{max-width:820px;margin:24px auto;background:#fff;box-shadow:0 6px 28px rgba(0,0,0,0.12)}'
+      . '.bar-top{background:#0E0A06;color:#fff;padding:30px 44px;display:flex;justify-content:space-between;align-items:center;gap:22px}'
+      . '.bar-top .addr{font-size:12.5px;line-height:1.6;color:#fff;border-bottom:2px solid #E08A1A;padding-bottom:8px;display:inline-block;max-width:320px}'
+      . '.bar-top .tax{font-size:11.5px;color:#cdcdcd;margin-top:8px;display:block;letter-spacing:0.04em}'
+      . '.bar-top .logo{width:96px;height:96px;border:1.5px solid #fff;display:flex;align-items:center;justify-content:center;background:#0E0A06}'
+      . '.bar-top .logo img{width:78%;height:auto;display:block}'
+      . '.body{padding:32px 44px 24px;background:#fff}'
+      . '.titlerow{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding-bottom:18px;border-bottom:1px solid #e0e0e0;margin-bottom:24px}'
+      . '.title{font-family:"Bebas Neue",Impact,sans-serif;font-size:88px;line-height:0.85;color:#E04A1A;letter-spacing:0.02em;margin:0;text-transform:uppercase}'
+      . '.meta{font-size:13px;color:#3a2a1a;line-height:1.7;padding-left:18px;border-left:2px solid #E04A1A;min-width:230px}'
+      . '.meta b{color:#1A120B}'
+      . '.who{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:26px}'
+      . '.who .col{padding-left:16px;border-left:2px solid #E04A1A}'
+      . '.who .col p{margin:6px 0;font-size:13.5px;color:#1A120B;line-height:1.55}'
+      . '.who .col p.label{font-size:11.5px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px}'
+      . '.summary{padding:14px 16px;background:#FFF6EF;border:1px solid #FBE3CC;border-radius:8px;margin-bottom:22px;font-size:12.5px;color:#3a2a1a;line-height:1.65}'
+      . '.summary b{color:#1A120B}'
+      . 'table.items{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px}'
+      . 'table.items thead th{background:#F2F2F2;color:#E04A1A;text-align:left;font-weight:800;font-size:13px;padding:14px 16px;border-bottom:2px solid #E04A1A}'
+      . 'table.items thead th.r{text-align:right}'
+      . 'table.items tbody td{padding:14px 16px;border-bottom:1px solid #ECECEC;vertical-align:top;color:#1A120B}'
+      . 'table.items tbody td.r{text-align:right;font-variant-numeric:tabular-nums}'
+      . 'table.items tbody td .desc{display:block;color:#7a7a7a;font-size:12px;font-style:italic;margin-top:3px}'
+      . '.bottom{display:grid;grid-template-columns:1.2fr 1fr;gap:32px;margin-top:18px;margin-bottom:24px}'
+      . '.tcs h4{color:#E04A1A;font-size:13.5px;margin:0 0 8px;letter-spacing:0.02em}'
+      . '.tcs p{margin:0;font-size:12px;color:#3a2a1a;line-height:1.6}'
+      . '.totals{font-size:13.5px}'
+      . '.totals .row{display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px dotted #cdcdcd}'
+      . '.totals .row b{font-variant-numeric:tabular-nums}'
+      . '.totals .grand{margin-top:14px;background:#E04A1A;color:#fff;padding:18px 22px;border-radius:100px;display:flex;justify-content:space-between;align-items:center}'
+      . '.totals .grand span{font-family:"Bebas Neue",Impact,sans-serif;letter-spacing:0.06em;font-size:22px}'
+      . '.totals .grand b{font-family:"Bebas Neue",Impact,sans-serif;font-size:24px;letter-spacing:0.04em}'
+      . '.tuition-note{margin:6px 4px 0;font-size:11.5px;color:#7a7a7a;text-align:right}'
+      . '.sign{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:flex-end;padding-top:16px;border-top:1px solid #e0e0e0;margin-bottom:24px}'
+      . '.bank{display:flex;align-items:center;gap:12px}'
+      . '.bank .gtco{background:#E04A1A;color:#fff;font-weight:800;font-size:11px;letter-spacing:0.05em;padding:14px 14px;border-radius:4px;text-align:center;line-height:1}'
+      . '.bank .gtco div{font-size:18px;margin-top:4px}'
+      . '.bank .bk{font-family:"Bebas Neue",Impact,sans-serif;font-size:24px;color:#1A120B;letter-spacing:0.02em;line-height:1}'
+      . '.bank .bk b{display:block;font-size:18px;color:#E04A1A;margin-top:4px;font-family:Inter,Arial,sans-serif;font-weight:800;letter-spacing:0}'
+      . '.sig{text-align:right;border-bottom:1px solid #1A120B;padding-bottom:6px}'
+      . '.sig .nm{font-size:13.5px;color:#1A120B;font-weight:600}'
+      . '.sig .role{font-size:12px;color:#E04A1A;font-weight:800;margin-top:3px}'
+      . '.bar-bottom{background:#0E0A06;color:#cdcdcd;text-align:center;padding:14px 22px;font-size:12px;letter-spacing:0.02em}'
+      . '@media print{body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none}}'
+      . '</style></head><body>'
+      . '<div class="sheet">'
+
+      // Black top bar
+      . '<div class="bar-top">'
+      .   '<div>'
+      .     '<span class="addr">2, Abolude / Oremeji Street,<br>Bakery B/S, Egbeda, Lagos</span>'
+      .     '<span class="tax">TAX ID: 119 491 230001</span>'
+      .   '</div>'
+      .   '<div class="logo"><img src="' . $logoUrl . '" alt="MAM Academy"></div>'
+      . '</div>'
+
+      // Title row
+      . '<div class="body">'
+      .   '<div class="titlerow">'
+      .     '<h1 class="title">Invoice</h1>'
+      .     '<div class="meta">'
+      .       'Invoice: <b>' . $invNo . '</b><br>'
+      .       'Date: <b>' . $dateLong . '</b>'
+      .     '</div>'
+      .   '</div>'
+
+      // Customer block
+      .   '<div class="who">'
+      .     '<div class="col">'
+      .       '<p class="label">Billed to</p>'
+      .       '<p style="font-size:15px;font-weight:700;margin:2px 0">' . $name . '</p>'
+      .       '<p>' . $loc . '</p>'
+      .       '<p style="font-size:11.5px;color:#7a7a7a">Application reference: <b style="color:#E04A1A">' . $ref . '</b></p>'
+      .     '</div>'
+      .     '<div class="col">'
+      .       '<p class="label">Contact</p>'
+      .       '<p>' . ($phone ?: '—') . '</p>'
+      .       '<p>' . ($email ?: '—') . '</p>'
+      .     '</div>'
+      .   '</div>'
+
+      // Programme summary (their choices)
+      .   '<div class="summary">'
+      .     '<b>Programme summary:</b> ' . htmlspecialchars($pathwayName) . ($pathwaySub ? ' &middot; <span style="color:#7a7a7a">' . htmlspecialchars($pathwaySub) . '</span>' : '')
+      .     '<br><b>Track:</b> ' . $track . ' &middot; <b>Mode:</b> ' . $mode . ' &middot; <b>Discipline:</b> ' . $disc
+      .   '</div>'
+
+      // Items table — booking-fee components
+      .   '<table class="items" cellspacing="0" cellpadding="0">'
+      .     '<thead><tr>'
+      .       '<th>Item / Description</th>'
+      .       '<th class="r" style="width:60px">QTY</th>'
+      .       '<th class="r" style="width:110px">Unit Price</th>'
+      .       '<th class="r" style="width:110px">Total</th>'
+      .     '</tr></thead>'
+      .     '<tbody>'
+      .       '<tr><td><b>REGISTRATION &amp; ADMISSION</b><span class="desc">Application processing &amp; admission</span></td>'
+      .         '<td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
+      .       '<tr><td><b>MAM ACADEMY STUDENT ID CARD</b><span class="desc">Physical ID issued at the Centre</span></td>'
+      .         '<td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
+      .       '<tr><td><b>STUDENT FILE</b><span class="desc">Onboarding documentation kept on record</span></td>'
+      .         '<td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
+      .       '<tr><td><b>MAM AUDITER ASSESSMENT</b><span class="desc">30-minute placement session with our judges</span></td>'
+      .         '<td class="r">1</td><td class="r">' . $fmt($remainder) . '</td><td class="r">' . $fmt($remainder) . '</td></tr>'
+      .     '</tbody>'
+      .   '</table>'
+
+      // T&C + Totals
+      .   '<div class="bottom">'
+      .     '<div class="tcs">'
+      .       '<h4>Term and Conditions</h4>'
+      .       '<p>Our booking-confirmation fee is due before the scheduled session and is final once paid. Tuition is a separate charge, billed only after the MAM Auditer Judges have placed you accurately. Payment terms otherwise per the academy class policy.</p>'
+      .     '</div>'
+      .     '<div class="totals">'
+      .       '<div class="row"><span>Subtotal</span><b>' . $label . '</b></div>'
+      .       '<div class="row"><span>Discount (NIL)</span><b>' . $label . '</b></div>'
+      .       '<div class="grand"><span>TOTAL</span><b>' . $label . '</b></div>'
+      .       ($tuitionUsd > 0 ? '<div class="tuition-note">Estimated tuition (due after placement): <b>$' . number_format($tuitionUsd, 2) . '</b></div>' : '')
+      .     '</div>'
+      .   '</div>'
+
+      // Signature row
+      .   '<div class="sign">'
+      .     '<div class="bank">'
+      .       '<div class="gtco">GTCO<div>&nbsp;</div></div>'
+      .       '<div class="bk">The Just Folks Limited<b>0117579643</b></div>'
+      .     '</div>'
+      .     '<div class="sig">'
+      .       '<div class="nm">Anuoluwapo O. Ogunbanjo</div>'
+      .       '<div class="role">Finance Manager</div>'
+      .     '</div>'
+      .   '</div>'
+      . '</div>' // .body
+
+      // Black bottom bar
+      . '<div class="bar-bottom">academy@mamcentre.org &nbsp;|&nbsp; academy.mamcentre.org &nbsp;|&nbsp; +234 704 444 6517</div>'
+      . '</div>' // .sheet
+      . '</body></html>';
 }
 
 /**

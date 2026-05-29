@@ -650,11 +650,12 @@
           data.applicationId = resp.application_id;
           data.serverTotalUsd = resp.total_usd;
           saveDraft();
-          // Application is now free — the next step is /book, which gates the
-          // Google appointment embed behind the one-time $5 confirmation fee.
-          // Clear the draft so a returning visitor doesn't see a stale form.
-          try { localStorage.removeItem('mam.apply.draft'); } catch (e) {}
-          window.location.href = '/book?ref=' + encodeURIComponent(resp.reference);
+          // The server has just emailed the confirmation + invoice. Now advance
+          // to Step 5 (Payment) where the applicant pays the regional booking
+          // fee. They can also bail and pay later via the link in the email.
+          setBusy('btnNext4', false);
+          submitting = false;
+          showStep(current + 1);
         })
         .catch(function (err) {
           setBusy('btnNext4', false);
@@ -797,9 +798,107 @@
       notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    // Payment from inside the apply form has moved to /book — see book.html.
-    // Submission now redirects there directly (see attemptNext above).
+    // ---------- Regional booking-fee pricing ----------
+    // Pulled from /api/booking/pricing on page load. The server picks the tier
+    // based on the visitor's country (CDN header) and is authoritative at
+    // charge time — the values here are display-only. We refresh the visible
+    // amount whenever the tier resolves so Step 5, the mobile bar and the
+    // Review note are all in sync.
+    var feeTier = null;
+    function paintFee() {
+      if (!feeTier) return;
+      var label = feeTier.label || '$5';
+      [$('#payAmount'), $('#payHeroLabel'), $('#reviewFeeLabel'), $('#ambTotal')].forEach(function (el) { if (el) el.textContent = label; });
+      var bp = $('#btnPayLabel'); if (bp) bp.textContent = 'Pay ' + label;
+      var cn = $('#payCountryName'); if (cn) cn.textContent = (feeTier.country && feeTier.country !== 'DEFAULT') ? feeTier.country : 'your region';
+      var flag = $('#payCountryFlag'); if (flag) {
+        var c = (feeTier.country || '').toUpperCase();
+        flag.textContent = (c.length === 2 && c !== 'DE' && c !== 'EU')
+          ? String.fromCodePoint(0x1F1A5 + c.charCodeAt(0), 0x1F1A5 + c.charCodeAt(1))
+          : (c === 'EU' ? '🇪🇺' : '🌍');
+      }
+      // For non-NGN tiers we disclose that settlement happens in NGN via Paystack.
+      var disc = $('#payDisclose');
+      if (disc) {
+        if (feeTier.currency && feeTier.currency !== 'NGN') {
+          disc.classList.add('show');
+          disc.innerHTML = '<i class="fa-solid fa-circle-info"></i> Your card will be charged in <strong>' + feeTier.currency + '</strong> at <strong>' + label + '</strong>. Bank transfer settles in NGN (₦' + (feeTier.amount_ngn || 0).toLocaleString() + ').';
+        } else { disc.classList.remove('show'); }
+      }
+    }
+    (function loadFee() {
+      try {
+        fetch('/api/booking/pricing', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { if (j && j.ok) { feeTier = j; paintFee(); } })
+          .catch(function () {});
+      } catch (e) {}
+    })();
+
+    // ---------- Pay ----------
+    on($('#btnPay'), 'click', function (e) {
+      e.preventDefault();
+      if (!data.reference) { apiError('Please complete the previous step first.'); return; }
+      if (!data.payment) { showFieldError('payment'); return; }
+      setBusy('btnPay', true, 'Opening secure checkout…');
+      api.initializePayment({ reference: data.reference, provider: data.payment, purpose: 'booking_fee' })
+        .then(function (init) {
+          if (init.already_paid) { showSuccess(data.reference, 'Already confirmed.'); return; }
+          if (data.payment === 'paystack')      return openPaystack(init);
+          if (data.payment === 'flutterwave')   return openFlutterwave(init);
+          if (data.payment === 'bank')          return handleBank(init);
+          throw new Error('unsupported_provider');
+        })
+        .catch(function (err) {
+          setBusy('btnPay', false);
+          apiError(err && err.message ? err.message : 'Could not start payment. Try another method, or pay later via the link we just emailed you.');
+        });
+    });
+
+    function loadScript(src) {
+      return new Promise(function (resolve, reject) {
+        if (document.querySelector('script[src="' + src + '"]')) return resolve();
+        var s = document.createElement('script'); s.src = src; s.async = true;
+        s.onload = resolve; s.onerror = function () { reject(new Error('script_load_failed')); };
+        document.head.appendChild(s);
+      });
+    }
+    function openPaystack(init) {
+      return loadScript('https://js.paystack.co/v1/inline.js').then(function () {
+        setBusy('btnPay', false);
+        var handler = window.PaystackPop.setup({
+          key: init.public_key,
+          email: data.email,
+          amount: init.amount_ngn * 100,
+          currency: 'NGN',
+          ref: init.reference,
+          metadata: { reference: init.reference, application_id: data.applicationId, purpose: 'booking_fee' },
+          callback: function (response) { afterProviderCharge('paystack', response.reference || init.reference); },
+          onClose: function () { setBusy('btnPay', false); }
+        });
+        handler.openIframe();
+      });
+    }
+    function openFlutterwave(init) {
+      return loadScript('https://checkout.flutterwave.com/v3.js').then(function () {
+        setBusy('btnPay', false);
+        var payload = init.payload || {};
+        payload.public_key = init.public_key;
+        payload.payment_options = 'card, banktransfer, ussd, mobilemoneyghana, mobilemoneyfranco';
+        payload.callback = function (response) {
+          afterProviderCharge('flutterwave', response.tx_ref || init.reference, response.transaction_id);
+        };
+        payload.onclose = function () { setBusy('btnPay', false); };
+        window.FlutterwaveCheckout(payload);
+      });
+    }
+    function handleBank(init) {
+      setBusy('btnPay', false);
+      showSuccess(init.reference, 'Bank transfer initiated. ' + (init.instructions || 'See your email for instructions.'));
+    }
+
     function afterProviderCharge(provider, reference, transactionId) {
+      setBusy('btnPay', true, 'Verifying…');
       api.verifyPayment({ provider: provider, reference: reference, transaction_id: transactionId || 0 })
         .then(function (res) {
           if (res.status === 'succeeded') showSuccess(reference, 'Paid via ' + capitalize(provider));
