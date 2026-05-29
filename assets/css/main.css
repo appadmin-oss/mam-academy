@@ -285,6 +285,20 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
   .highlight-red{-webkit-text-fill-color:currentColor!important;color:var(--red-hot,#E11D48)!important;background:none!important}
   .highlight-purple{-webkit-text-fill-color:currentColor!important;color:#A78BFA!important;background:none!important}
 }
+/* JS-driven twin of the @supports fallback above. Opera Mini and some in-app
+   browsers don't understand @supports, so that block never runs for them and
+   the inline gradient-text spans render invisible. main.js sets .no-textclip
+   on <html> when background-clip:text isn't actually supported; these plain
+   class selectors (no @supports) then force a solid, on-brand colour. */
+.no-textclip [style*="-webkit-text-fill-color:transparent"],
+.no-textclip .highlight-gold,.no-textclip .preloader-name,.no-textclip .nav-brand-name,
+.no-textclip .footer-logo-name,.no-textclip .stat-number,.no-textclip .countdown-num,
+.no-textclip .mam-exit-glow,.no-textclip .portal-brand-name,.no-textclip .kpi-value.gold,
+.no-textclip .pp-title .accent,.no-textclip .match-result-name,.no-textclip .col-price{
+  -webkit-text-fill-color:currentColor!important;color:var(--gold-bright)!important;background:none!important;
+}
+.no-textclip .highlight-red{-webkit-text-fill-color:currentColor!important;color:var(--red-hot,#E11D48)!important;background:none!important}
+.no-textclip .highlight-purple{-webkit-text-fill-color:currentColor!important;color:#A78BFA!important;background:none!important}
 
 /* Native emoji with a CSS-driven bounce — replaces the dotlottie-wc nodes.
    Forces the colour-emoji font stack so the glyph never falls back to a

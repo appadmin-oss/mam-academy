@@ -12,9 +12,10 @@ if (!$email) mam_fail('invalid_email', 422);
 $source = mam_str($in, 'source', 64) ?: 'site';
 
 try {
-    mam_db()->prepare('INSERT INTO newsletter (email, source) VALUES (?,?)
-        ON CONFLICT(email) DO UPDATE SET status = "subscribed", source = excluded.source')
-        ->execute([$email, $source]);
+    mam_db_upsert('newsletter',
+        ['email' => $email, 'source' => $source],
+        ['email'],
+        ['status' => 'subscribed', 'source' => $source]);
 } catch (Throwable $e) {
     mam_log('error', 'newsletter_failed', ['err' => $e->getMessage()]);
     mam_fail('save_failed', 500);

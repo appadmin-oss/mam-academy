@@ -27,7 +27,12 @@
   var SMALL = matchMedia('(max-width: 768px)').matches;
 
   var MOTION_URL = 'https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.min.js';
-  var THREE_URL  = 'https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js';
+  // Pinned to r149 — the last release before the r150+ "build/three.min.js is
+  // deprecated" console warning. The hero wireframe uses only long-stable core
+  // APIs (Scene, PerspectiveCamera, IcosahedronGeometry, WireframeGeometry,
+  // LineBasicMaterial, LineSegments, WebGLRenderer), so this is a no-op switch
+  // that simply silences the deprecation notice without an ESM refactor.
+  var THREE_URL  = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js';
 
   function $(s, c)  { return (c || document).querySelector(s); }
   function $$(s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); }

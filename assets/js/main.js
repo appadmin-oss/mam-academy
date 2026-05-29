@@ -5,6 +5,27 @@
 (function () {
   'use strict';
 
+  // ---- Gradient-text capability probe ----------------------------------
+  // Gold/coloured headings paint a gradient onto the text via
+  // background-clip:text + transparent fill. When an engine can't paint that
+  // (older Android WebViews, Opera Mini, some in-app browsers — common on this
+  // audience's devices) the text turns invisible. The CSS @supports fallback
+  // rescues engines that understand @supports, but Opera Mini and friends
+  // ignore @supports entirely, so the inline-styled spans still vanish. This
+  // probe flags the real capability with a plain class the CSS can target
+  // WITHOUT @supports, guaranteeing the text is never transparent. Runs first,
+  // before paint, to avoid a flash.
+  (function () {
+    try {
+      var s = document.createElement('span').style;
+      s.cssText = '-webkit-background-clip:text;background-clip:text';
+      var ok = s.backgroundClip === 'text' || s.webkitBackgroundClip === 'text';
+      if (!ok) document.documentElement.className += ' no-textclip';
+    } catch (e) {
+      document.documentElement.className += ' no-textclip';
+    }
+  })();
+
   // dotLottie web component was previously loaded here for animated emoji,
   // but its WASM loader uses eval() which our CSP (correctly) forbids.
   // Replace every <dotlottie-wc src="…notoemoji/<codepoint>/lottie.json"…>

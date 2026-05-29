@@ -313,6 +313,38 @@ function mam_db_insert(string $table, array $data): int {
     return (int)mam_db()->lastInsertId();
 }
 
+/**
+ * Cross-driver "upsert" (insert-or-update-on-duplicate-key).
+ *
+ * SQLite/Postgres speak `ON CONFLICT(col) DO UPDATE SET ...` while MySQL
+ * speaks `ON DUPLICATE KEY UPDATE ...`. Hardcoding either one breaks the
+ * other; since this app runs on SQLite (default) AND MySQL (production via
+ * DB_DSN), every upsert must adapt to the live driver. The on-conflict SET
+ * values are bound as parameters (not `excluded.`/`VALUES()`), so the caller
+ * just passes the values it already has — portable and injection-safe.
+ *
+ *   $insert   column => value to insert
+ *   $conflict unique/PK column(s) (named for SQLite; ignored by MySQL)
+ *   $update   column => value to SET when the row already exists
+ */
+function mam_db_upsert(string $table, array $insert, array $conflict, array $update): void {
+    $cols = array_keys($insert);
+    $ph   = implode(',', array_fill(0, count($cols), '?'));
+    $vals = array_values($insert);
+
+    $set = [];
+    foreach ($update as $k => $v) { $set[] = "$k = ?"; $vals[] = $v; }
+    $setSql = implode(', ', $set);
+
+    $head = 'INSERT INTO ' . $table . ' (' . implode(',', $cols) . ') VALUES (' . $ph . ') ';
+    if (mam_db_driver() === 'mysql') {
+        $sql = $head . 'ON DUPLICATE KEY UPDATE ' . $setSql;
+    } else {
+        $sql = $head . 'ON CONFLICT(' . implode(',', $conflict) . ') DO UPDATE SET ' . $setSql;
+    }
+    mam_db()->prepare($sql)->execute($vals);
+}
+
 function mam_db_update(string $table, array $data, array $where): int {
     $set = []; $vals = [];
     foreach ($data as $k => $v) { $set[] = "$k = ?"; $vals[] = $v; }
