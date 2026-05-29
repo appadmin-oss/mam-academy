@@ -160,6 +160,9 @@
 .hs-status i{font-size:0.95rem;margin-top:2px;flex-shrink:0}
 .hs-status-working{background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.32);color:#C7D2FE}
 .hs-status-ok{background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.32);color:#A7F3D0}
+/* Inline confidence / framing / tilt details from the headshot validator —
+   intentionally muted so they don't compete with the ✓ icon + 'Looks great'. */
+.hs-detail{color:rgba(255,255,255,0.55);font-size:0.85em;font-weight:500;letter-spacing:0.01em;margin-left:4px}
 .hs-status-warn{background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.32);color:#FDE68A}
 .hs-status-error{background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.32);color:#FECDD3}
 .headshot-required-pulse .hs-dropzone{border-color:var(--red-hot,#E11D48)!important;animation:hsRequiredPulse 0.7s var(--ease) 2}
