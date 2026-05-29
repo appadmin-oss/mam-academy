@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Store &amp; Library — MAM Academy</title>
+<meta name="description" content="The MAM Academy Store — sheet music, handouts, fakebooks, recordings and learning bundles, plus instructor add-ons and physical merch. Region-aware delivery.">
+<link rel="canonical" href="https://academy.mamcentre.org/store">
+<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
+<meta property="og:title" content="MAM Academy Store">
+<meta property="og:description" content="Sheet music, handouts, recordings and add-ons from the MAM Centre.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="assets/css/main.css?v=20260529f">
+<style>
+.store-shell{max-width:1240px;margin:0 auto;padding:36px 22px 96px}
+.store-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px 18px;margin:24px 0 28px;padding:14px 16px;background:var(--bg-surface);border:1px solid var(--border);border-radius:14px}
+.st-label{font-size:0.78rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted)}
+.st-tabs{display:inline-flex;gap:4px;padding:4px;background:var(--bg-raised);border:1px solid var(--border);border-radius:100px;flex-wrap:wrap}
+.st-tabs button{padding:8px 14px;border-radius:100px;font-size:0.84rem;font-weight:700;color:var(--text-muted);background:transparent;border:0;cursor:pointer}
+.st-tabs button.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
+.st-region{flex:1 1 200px;font-size:0.82rem;color:var(--text-muted);text-align:right}
+.st-region b{color:var(--text)}
+
+.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:22px}
+.item-card{position:relative;background:var(--bg-surface);border:1px solid var(--border);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;transition:transform .2s var(--ease),border-color .2s var(--ease),box-shadow .2s var(--ease)}
+.item-card:hover{transform:translateY(-3px);border-color:var(--border-gold);box-shadow:0 14px 36px rgba(0,0,0,0.35)}
+.item-card.unavailable{opacity:0.55;filter:saturate(0.6)}
+.item-thumb{aspect-ratio:4/3;background:linear-gradient(135deg,rgba(252,198,71,0.16),var(--bg-raised));display:flex;align-items:center;justify-content:center;color:var(--gold-bright);font-size:2.2rem}
+.item-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.item-body{padding:16px 18px;display:flex;flex-direction:column;gap:8px;flex:1}
+.item-cat{font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold-bright);font-weight:800}
+.item-name{font-family:var(--font-serif);font-size:1.12rem;font-weight:700;color:var(--text);line-height:1.25;margin:0}
+.item-desc{font-size:0.86rem;color:var(--text-soft);line-height:1.55;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.item-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.item-meta span{font-size:0.7rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;padding:3px 9px;border-radius:100px;background:var(--bg-raised);color:var(--text-muted);border:1px solid var(--border)}
+.item-meta span.gd-digital{color:#A5B4FC;background:rgba(99,102,241,0.12);border-color:rgba(165,180,252,0.35)}
+.item-meta span.gd-physical{color:#34D399;background:rgba(52,211,153,0.12);border-color:rgba(52,211,153,0.35)}
+.item-meta span.gd-service{color:#FBBF24;background:rgba(251,191,36,0.12);border-color:rgba(251,191,36,0.35)}
+.item-meta span.avail-sold_out{color:#FCA5A5;background:rgba(244,63,94,0.10);border-color:rgba(244,63,94,0.35)}
+.item-meta span.avail-preorder{color:#FDE68A;background:rgba(252,198,71,0.10);border-color:rgba(252,198,71,0.35)}
+.item-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;border-top:1px solid var(--border)}
+.item-price{font-family:var(--font-display);font-size:1.55rem;color:var(--text);line-height:1;letter-spacing:0.02em}
+.item-buy{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:10px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;font-size:0.84rem;letter-spacing:0.04em;text-transform:uppercase;border:0;cursor:pointer;min-height:40px}
+.item-buy:hover{transform:translateY(-1px)}
+.item-buy:disabled{opacity:0.5;cursor:not-allowed}
+
+.store-empty{padding:64px 24px;text-align:center;color:var(--text-soft);background:var(--bg-surface);border:1px dashed var(--border);border-radius:18px}
+.store-empty h3{font-family:var(--font-serif);color:var(--text);font-size:1.4rem;margin:0 0 8px}
+.store-loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:40px;color:var(--text-muted)}
+.spinner-sm{display:inline-block;width:18px;height:18px;border:2.5px solid var(--border-gold);border-top-color:transparent;border-radius:50%;animation:spinSm 0.7s linear infinite}
+@keyframes spinSm{to{transform:rotate(360deg)}}
+
+/* Modal — checkout */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.72);backdrop-filter:blur(6px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px;animation:fade .2s}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{background:var(--bg-surface);border:1px solid var(--border-gold);border-radius:20px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;padding:28px;box-shadow:0 24px 60px rgba(0,0,0,0.5)}
+.modal h2{font-family:var(--font-serif);font-size:1.3rem;margin:0 0 4px}
+.modal .sub{color:var(--text-muted);font-size:0.88rem;margin:0 0 18px}
+.modal label{display:block;font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:700;margin:14px 0 6px}
+.modal label.req::after{content:" *";color:#FCA5A5}
+.modal input,.modal textarea{width:100%;padding:11px 13px;background:var(--bg-raised);border:1px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.94rem;font-family:inherit;min-height:44px}
+.modal textarea{min-height:80px;resize:vertical}
+.modal .totals{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--border);margin-top:14px;font-size:0.92rem}
+.modal .totals b{font-family:var(--font-display);font-size:1.4rem;color:var(--gold-bright);letter-spacing:0.02em}
+.modal .actions{display:flex;gap:10px;margin-top:18px}
+.modal .actions button{flex:1;padding:13px 14px;border-radius:10px;font-weight:800;font-size:0.92rem;cursor:pointer;min-height:48px}
+.modal .actions .cancel{background:transparent;border:1px solid var(--border-strong);color:var(--text-muted)}
+.modal .actions .buy{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border:0}
+.modal .actions .buy:disabled{opacity:0.5;cursor:wait}
+.modal .err{display:none;margin-top:10px;padding:10px 12px;border-radius:8px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.35);color:#FECDD3;font-size:0.86rem;line-height:1.5}
+.modal .err.show{display:block}
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to main content</a>
+<div id="include-header"></div>
+
+<main id="main">
+  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=1920&q=80');padding:84px 22px 44px">
+    <div class="page-hero-inner">
+      <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Store</span></nav>
+      <div class="page-hero-eyebrow"><i class="fa-solid fa-bag-shopping"></i>The MAM Library</div>
+      <h1 class="page-hero-title">Store &amp; <span class="highlight-gold">Library</span></h1>
+      <p class="page-hero-lede">Curated handouts, sheet music, recordings, learning bundles and physical merch from the MAM Centre. Built for our students &mdash; open to everyone.</p>
+    </div>
+  </header>
+
+  <section class="store-shell" aria-label="Store catalogue">
+    <div class="store-toolbar" id="storeToolbar">
+      <span class="st-label"><i class="fa-solid fa-filter"></i> Category</span>
+      <div class="st-tabs" id="catTabs" role="tablist">
+        <button class="active" data-cat="" type="button">All</button>
+      </div>
+      <span class="st-region"><i class="fa-solid fa-earth-africa"></i> Shipping to <b id="regionName">your region</b></span>
+    </div>
+
+    <div id="storeBody">
+      <div class="store-loading"><span class="spinner-sm"></span> Loading the library…</div>
+    </div>
+  </section>
+</main>
+
+<!-- Checkout modal -->
+<div class="modal-backdrop" id="checkoutModal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="checkoutTitle" aria-modal="true">
+    <h2 id="checkoutTitle">Checkout</h2>
+    <p class="sub" id="checkoutSub">Quick — almost done.</p>
+    <form id="checkoutForm" autocomplete="on" novalidate>
+      <label class="req" for="coName">Full name</label>
+      <input type="text" id="coName" name="name" required autocomplete="name">
+      <label class="req" for="coEmail">Email</label>
+      <input type="email" id="coEmail" name="email" required autocomplete="email">
+      <label for="coPhone">Phone (optional)</label>
+      <input type="tel" id="coPhone" name="phone" autocomplete="tel">
+      <div id="shipBlock" hidden>
+        <label class="req" for="coShip">Shipping address</label>
+        <textarea id="coShip" name="shipping_address" placeholder="Street, City, State, Country, Postcode"></textarea>
+      </div>
+      <div class="totals"><span id="coLine">—</span><b id="coTotal">$0</b></div>
+      <div class="err" id="coErr"></div>
+      <div class="actions">
+        <button type="button" class="cancel" id="coCancel">Back</button>
+        <button type="submit" class="buy" id="coBuy"><i class="fa-solid fa-lock"></i> Pay now</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="include-footer"></div>
+<script src="assets/js/config.js?v=20260529f"></script>
+<script src="assets/js/main.js?v=20260529f"></script>
+<script>
+(function(){
+  'use strict';
+  var GOODS = { digital:'Digital', physical:'Physical', service:'Service' };
+  var $ = function(s){ return document.querySelector(s); };
+
+  // ---------- Load catalogue ----------
+  function load(category) {
+    var body = $('#storeBody');
+    body.innerHTML = '<div class="store-loading"><span class="spinner-sm"></span> Loading…</div>';
+    var url = '/api/store/items' + (category ? '?category=' + encodeURIComponent(category) : '');
+    fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!j || !j.ok) throw new Error('bad response');
+        $('#regionName').textContent = (j.country && j.country !== 'DEFAULT') ? j.country : 'your region';
+        paintCategories(j.items);
+        paint(j.items);
+      })
+      .catch(function(){
+        body.innerHTML = '<div class="store-empty"><h3>We can\'t load the store right now</h3><p>Please refresh, or email <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> if it persists.</p></div>';
+      });
+  }
+
+  function paintCategories(items) {
+    var tabs = $('#catTabs');
+    if (tabs.children.length > 1) return; // only paint once
+    var cats = {};
+    items.forEach(function(i){ if (i.category) cats[i.category] = true; });
+    Object.keys(cats).sort().forEach(function(c){
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = c; b.setAttribute('data-cat', c);
+      tabs.appendChild(b);
+    });
+    tabs.addEventListener('click', function(e){
+      if (e.target.tagName !== 'BUTTON') return;
+      tabs.querySelectorAll('button').forEach(function(x){ x.classList.toggle('active', x === e.target); });
+      load(e.target.getAttribute('data-cat'));
+    });
+  }
+
+  function fmt(n){ return '$' + Number(n).toFixed(2); }
+
+  function paint(items) {
+    var body = $('#storeBody');
+    if (!items.length) {
+      body.innerHTML = '<div class="store-empty"><h3>Nothing here yet</h3><p>We\'re still curating the library. Check back soon.</p></div>';
+      return;
+    }
+    body.innerHTML = '<div class="store-grid"></div>';
+    var grid = body.querySelector('.store-grid');
+    items.forEach(function(item){
+      var card = document.createElement('article');
+      card.className = 'item-card' + (item.available_here ? '' : ' unavailable');
+      var firstImg = (item.images && item.images.length) ? item.images[0] : '';
+      var thumb = firstImg
+        ? '<div class="item-thumb"><img src="' + firstImg.replace(/"/g,'&quot;') + '" alt="' + (item.name||'').replace(/"/g,'&quot;') + '" loading="lazy"></div>'
+        : '<div class="item-thumb"><i class="fa-solid fa-music"></i></div>';
+      var meta = '';
+      if (item.goods_type) meta += '<span class="gd-' + item.goods_type + '">' + (GOODS[item.goods_type] || item.goods_type) + '</span>';
+      if (item.availability && item.availability !== 'in_stock') meta += '<span class="avail-' + item.availability + '">' + item.availability.replace('_',' ') + '</span>';
+      if (!item.available_here) meta += '<span>Not in your region</span>';
+      card.innerHTML = thumb
+        + '<div class="item-body">'
+        + (item.category ? '<span class="item-cat">' + item.category + '</span>' : '')
+        + '<h3 class="item-name">' + escapeHtml(item.name) + '</h3>'
+        + '<p class="item-desc">' + escapeHtml(item.description || '').slice(0, 180) + '</p>'
+        + '<div class="item-meta">' + meta + '</div>'
+        + '</div>'
+        + '<div class="item-foot">'
+        + '<span class="item-price">' + fmt(item.price_usd) + '</span>'
+        + '<button type="button" class="item-buy" ' + (item.available_here && item.availability !== 'sold_out' ? '' : 'disabled') + '><i class="fa-solid fa-cart-plus"></i> ' + (item.available_here && item.availability !== 'sold_out' ? 'Buy' : 'Unavailable') + '</button>'
+        + '</div>';
+      var btn = card.querySelector('.item-buy');
+      if (!btn.disabled) btn.addEventListener('click', function(){ openCheckout(item); });
+      grid.appendChild(card);
+    });
+  }
+
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+
+  // ---------- Checkout ----------
+  var currentItem = null;
+  function openCheckout(item) {
+    currentItem = item;
+    $('#checkoutTitle').textContent = item.name;
+    $('#checkoutSub').textContent = (item.goods_type === 'digital') ? 'Delivered to your inbox the moment payment clears.' : (item.goods_type === 'physical' ? 'We\'ll ship from Lagos within 2 business days.' : 'A team member will follow up to schedule.');
+    $('#coLine').textContent = item.name + ' × 1';
+    $('#coTotal').textContent = fmt(item.price_usd + (item.goods_type === 'physical' ? 5 : 0));
+    $('#shipBlock').hidden = (item.goods_type !== 'physical');
+    $('#coShip').required = (item.goods_type === 'physical');
+    $('#coErr').classList.remove('show');
+    $('#checkoutModal').hidden = false;
+    document.body.style.overflow = 'hidden';
+    setTimeout(function(){ $('#coName').focus(); }, 60);
+  }
+  function closeCheckout(){ $('#checkoutModal').hidden = true; document.body.style.overflow = ''; }
+
+  $('#coCancel').addEventListener('click', closeCheckout);
+  $('#checkoutModal').addEventListener('click', function(e){ if (e.target.id === 'checkoutModal') closeCheckout(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !$('#checkoutModal').hidden) closeCheckout(); });
+
+  $('#checkoutForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var btn = $('#coBuy'); var err = $('#coErr'); err.classList.remove('show');
+    var payload = {
+      items: [{ sku: currentItem.sku, qty: 1 }],
+      name:  $('#coName').value.trim(),
+      email: $('#coEmail').value.trim(),
+      phone: $('#coPhone').value.trim(),
+      shipping_address: $('#coShip').value.trim()
+    };
+    if (!payload.name || !payload.email) { err.textContent = 'Name and email are required.'; err.classList.add('show'); return; }
+    if (currentItem.goods_type === 'physical' && !payload.shipping_address) { err.textContent = 'Please add your shipping address.'; err.classList.add('show'); return; }
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Creating order…';
+    if (!window.MAM_API) { err.textContent = 'API unavailable.'; err.classList.add('show'); btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-lock"></i> Pay now'; return; }
+    window.MAM_API.storeCheckout(payload)
+      .then(function(order){
+        return window.MAM_API.initializePayment({ reference: order.reference, provider: 'paystack', purpose: 'store' })
+          .then(function(init){ openPaystack(init, order.reference); });
+      })
+      .catch(function(e){
+        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-lock"></i> Pay now';
+        err.textContent = (e && e.body && e.body.message) || 'Could not start payment. Please try again.';
+        err.classList.add('show');
+      });
+  });
+
+  function loadScript(src){ return new Promise(function(res, rej){ if (document.querySelector('script[src="'+src+'"]')) return res(); var s = document.createElement('script'); s.src = src; s.async = true; s.onload = res; s.onerror = function(){ rej(new Error('script')); }; document.head.appendChild(s); }); }
+  function openPaystack(init, orderRef){
+    return loadScript('https://js.paystack.co/v1/inline.js').then(function(){
+      var btn = $('#coBuy'); btn.innerHTML = '<i class="fa-solid fa-lock"></i> Pay now'; btn.disabled = false;
+      var handler = window.PaystackPop.setup({
+        key: init.public_key,
+        email: $('#coEmail').value.trim(),
+        amount: init.amount_ngn * 100,
+        currency: 'NGN',
+        ref: init.reference,
+        metadata: { reference: init.reference, purpose: 'store' },
+        callback: function(response){
+          $('#coErr').classList.remove('show');
+          $('#coBuy').innerHTML = '<span class="spinner-sm"></span> Verifying…';
+          window.MAM_API.verifyPayment({ provider: 'paystack', reference: response.reference || init.reference })
+            .then(function(){
+              $('#checkoutTitle').textContent = 'Thank you!';
+              $('#checkoutSub').textContent = 'Order ' + orderRef + ' is confirmed. Check your email — your receipt and any download links are on the way.';
+              $('#checkoutForm').style.display = 'none';
+            })
+            .catch(function(){ $('#coErr').textContent = 'Payment received but verification is pending — refresh your email in a minute.'; $('#coErr').classList.add('show'); });
+        },
+        onClose: function(){}
+      });
+      handler.openIframe();
+    });
+  }
+
+  load('');
+})();
+</script>
+</body>
+</html>

@@ -277,7 +277,11 @@ window.MAM_API = (function () {
     verifyPayment:     function (data) { return request(cfg.paymentVerifyPath, { method: 'POST', body: data }); },
     subscribeNewsletter: function (email, source) { return request(cfg.newsletterPath, { method: 'POST', body: { email: email, source: source || 'site' } }); },
     sendContact:       function (data) { return request(cfg.contactPath, { method: 'POST', body: data }); },
-    url: url
+    // Store: list/detail are public GETs (use fetch directly); checkout is a
+    // CSRF-protected POST so it routes through the existing request() helper.
+    storeCheckout: function (data) { return request('/api/store/checkout', { method: 'POST', body: data }); },
+    url:     url,
+    request: function (method, path, body) { return request(path.indexOf('/api/') === 0 ? path : '/api' + path, { method: method, body: body }); }
   };
 })();
 

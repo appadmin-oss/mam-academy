@@ -14,8 +14,20 @@ $txId = isset($in['transaction_id']) ? (int)$in['transaction_id'] : 0;
 
 $payment = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$ref]);
 if (!$payment) mam_fail('payment_not_found', 404);
-$app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$payment['application_id']]);
-if (!$app) mam_fail('application_not_found', 404);
+
+// Resolve the "subject" of this payment based on its purpose. Store payments
+// have no application_id — they're tied to a store_orders row, looked up by
+// the same payment reference.
+$purpose = $payment['purpose'] ?? 'tuition';
+$app = null;
+$order = null;
+if ($purpose === 'store') {
+    $order = mam_db_row('SELECT * FROM store_orders WHERE reference = ?', [$ref]);
+    if (!$order) mam_fail('order_not_found', 404);
+} else {
+    $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$payment['application_id']]);
+    if (!$app) mam_fail('application_not_found', 404);
+}
 
 if ($payment['status'] === 'succeeded') {
     mam_ok(['status' => 'succeeded', 'reference' => $ref, 'already_verified' => true]);
@@ -80,13 +92,39 @@ mam_db_update('payments', [
 // pay tuition or enroll the student. We stamp booking_fee_paid_at so /book
 // can unlock the Google appointment embed, but leave application.status alone
 // (the admin marks it 'paid' / 'enrolled' after the Auditer session).
-$purpose = $payment['purpose'] ?? 'tuition';
-if ($purpose === 'booking_fee') {
+if ($purpose === 'store') {
+    // Mark the order paid + ship/deliver. For digital items we email the
+    // file URLs immediately (instant delivery). Physical orders are flipped
+    // to 'paid' (admin fulfils + flips to 'shipped' from the dashboard).
+    $items = json_decode((string)$order['items_json'], true) ?: [];
+    $hasPhysical = false;
+    foreach ($items as $i) if (($i['goods_type'] ?? '') === 'physical') { $hasPhysical = true; break; }
+    mam_db_update('store_orders', [
+        'status'       => $hasPhysical ? 'paid' : 'delivered',
+        'delivered_at' => $hasPhysical ? null : date('Y-m-d H:i:s'),
+        'updated_at'   => date('Y-m-d H:i:s'),
+    ], ['id' => (int)$order['id']]);
+    // Resolve digital file_urls server-side (the public endpoints strip them).
+    $links = [];
+    foreach ($items as $i) {
+        if (($i['goods_type'] ?? '') !== 'digital') continue;
+        $r = mam_db_row('SELECT name, file_url FROM store_items WHERE sku = ?', [(string)$i['sku']]);
+        if ($r && !empty($r['file_url'])) $links[] = ['name' => $r['name'], 'url' => (string)$r['file_url']];
+    }
+    try {
+        mam_send(
+            (string)$order['customer_email'],
+            'MAM Academy Store — Order ' . $order['reference'] . ' confirmed',
+            mam_email_store_receipt($order, $items, $links),
+            'store_order_confirmed',
+            true
+        );
+    } catch (Throwable $e) { mam_log('warn', 'store_email_failed', ['err' => $e->getMessage()]); }
+} elseif ($purpose === 'booking_fee') {
     mam_db_update('applications', [
         'booking_fee_paid_at' => date('Y-m-d H:i:s'),
         'updated_at'          => date('Y-m-d H:i:s'),
     ], ['id' => $payment['application_id']]);
-    // Email the applicant the unlock + direct booking link.
     try {
         $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
         if ($customer && !empty($customer['email'])) {

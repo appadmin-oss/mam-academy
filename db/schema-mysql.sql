@@ -306,3 +306,60 @@ ALTER TABLE applications
 ALTER TABLE payments
   ADD COLUMN IF NOT EXISTS purpose VARCHAR(24) DEFAULT 'tuition';
 INSERT INTO schema_version (version) VALUES (8) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v9 — Store / Library. Public catalogue of digital,
+-- physical and service items sold alongside the academy. Orders
+-- settle via the existing payments table with purpose='store'.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS store_items (
+  id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  sku                 VARCHAR(64)   NOT NULL UNIQUE,
+  slug                VARCHAR(140)  NOT NULL UNIQUE,
+  name                VARCHAR(200)  NOT NULL,
+  description         TEXT,
+  goods_type          VARCHAR(16)   NOT NULL DEFAULT 'digital',
+  delivery_type       VARCHAR(24)   NOT NULL DEFAULT 'instant',
+  availability        VARCHAR(16)   NOT NULL DEFAULT 'in_stock',
+  stock               INT           DEFAULT -1,
+  available_locations TEXT          DEFAULT '*',
+  price_usd           DECIMAL(10,2) NOT NULL,
+  currency            VARCHAR(8)    DEFAULT 'USD',
+  images              TEXT,
+  category            VARCHAR(80),
+  file_url            VARCHAR(500),
+  weight_grams        INT,
+  tax_rate            DECIMAL(5,4)  DEFAULT 0,
+  sort_order          INT           DEFAULT 0,
+  active              TINYINT(1)    DEFAULT 1,
+  created_at          DATETIME      DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_active   (active),
+  INDEX idx_category (category),
+  INDEX idx_sort     (sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS store_orders (
+  id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  reference        VARCHAR(64)    NOT NULL UNIQUE,
+  customer_id      BIGINT UNSIGNED NULL,
+  customer_email   VARCHAR(190),
+  customer_name    VARCHAR(200),
+  customer_country VARCHAR(8),
+  customer_phone   VARCHAR(32),
+  shipping_address TEXT,
+  items_json       LONGTEXT       NOT NULL,
+  subtotal_usd     DECIMAL(10,2)  DEFAULT 0,
+  tax_usd          DECIMAL(10,2)  DEFAULT 0,
+  shipping_usd     DECIMAL(10,2)  DEFAULT 0,
+  total_usd        DECIMAL(10,2)  DEFAULT 0,
+  status           VARCHAR(24)    NOT NULL DEFAULT 'pending',
+  notes            TEXT,
+  delivered_at     DATETIME       NULL,
+  created_at       DATETIME       DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_status (status),
+  INDEX idx_email  (customer_email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO schema_version (version) VALUES (9) ON DUPLICATE KEY UPDATE version = version;

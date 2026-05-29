@@ -77,7 +77,7 @@ $mam_vendor = MAM_API_ROOT . '/vendor/autoload.php';
 if (is_file($mam_vendor)) require_once $mam_vendor;
 
 // ---------- Library autoload (manual; no Composer needed) ----------
-$mam_libs = ['log', 'response', 'validation', 'db', 'session', 'auth', 'mailer', 'csrf', 'rate-limit', 'paystack', 'flutterwave', 'booking-pricing'];
+$mam_libs = ['log', 'response', 'validation', 'db', 'session', 'auth', 'mailer', 'csrf', 'rate-limit', 'paystack', 'flutterwave', 'booking-pricing', 'store'];
 foreach ($mam_libs as $lib) {
     require_once __DIR__ . '/' . $lib . '.php';
 }

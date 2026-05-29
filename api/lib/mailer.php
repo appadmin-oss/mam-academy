@@ -1023,6 +1023,55 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
 }
 
 /**
+ * Store order receipt — sent on successful payment of a store_orders row.
+ * Digital items get their file URLs inline (instant delivery). Physical
+ * items get an "we'll ship it" line and the order reference for tracking.
+ */
+function mam_email_store_receipt(array $order, array $items, array $digitalLinks): string {
+    $name  = htmlspecialchars((string)($order['customer_name'] ?? 'there'), ENT_QUOTES);
+    $ref   = htmlspecialchars((string)$order['reference'], ENT_QUOTES);
+    $total = '$' . number_format((float)$order['total_usd'], 2);
+
+    $rows = '';
+    foreach ($items as $i) {
+        $rows .= "<tr><td style='padding:10px 0;color:rgba(255,255,255,0.86);font-size:14px'>"
+              . htmlspecialchars((string)$i['name']) . " &times; " . (int)$i['qty']
+              . "</td><td style='padding:10px 0;text-align:right;color:#fff;font-weight:600;font-variant-numeric:tabular-nums'>$"
+              . number_format((float)$i['line_total'], 2) . "</td></tr>";
+    }
+
+    $links = '';
+    if (!empty($digitalLinks)) {
+        $links = "<p style='color:rgba(255,255,255,0.86);font-size:15px;margin:20px 0 8px'><strong style='color:#fff'>Your downloads</strong></p><ul style='padding-left:18px;margin:0;color:rgba(255,255,255,0.86);font-size:14px;line-height:1.95'>";
+        foreach ($digitalLinks as $d) {
+            $u = htmlspecialchars((string)$d['url'], ENT_QUOTES);
+            $n = htmlspecialchars((string)$d['name'], ENT_QUOTES);
+            $links .= "<li>$n &mdash; <a href='$u' style='color:#FBBF24'>download</a></li>";
+        }
+        $links .= "</ul><p style='color:rgba(255,255,255,0.55);font-size:12px;margin:8px 0 0'>Links are valid for repeated download. Save your files locally.</p>";
+    }
+
+    $hasPhysical = false; foreach ($items as $i) if (($i['goods_type'] ?? '') === 'physical') { $hasPhysical = true; break; }
+    $ship = $hasPhysical
+        ? "<p style='color:rgba(255,255,255,0.86);font-size:15px;margin:18px 0 0'><i class='fa-solid fa-truck-fast'></i> We'll ship your physical items within 2 business days. You'll get a tracking email when they leave the Centre.</p>"
+        : '';
+
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Order confirmed, $name.</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Reference: <strong style='color:#FBBF24'>$ref</strong></p>
+      <table style='width:100%;border-collapse:collapse;margin-top:16px'>$rows
+        <tr><td style='padding:14px 0 4px;color:#fff;font-weight:800;border-top:1px solid rgba(255,255,255,0.18)'>Total</td>
+        <td style='padding:14px 0 4px;text-align:right;color:#FBBF24;font-weight:800;font-size:18px;border-top:1px solid rgba(255,255,255,0.18)'>$total</td></tr></table>
+      $links $ship";
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY STORE',
+        'preheader' => 'Order ' . $ref . ' confirmed.',
+        'reason' => 'You received this because you purchased from the MAM Academy Store.',
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
+}
+
+/**
  * Booking-fee paid confirmation — sent once the $5 clears, with the direct
  * link to the Google appointment embed and a friendly reminder of what the
  * fee covers (and what it deliberately does not).

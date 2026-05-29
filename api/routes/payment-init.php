@@ -23,20 +23,39 @@ $in = mam_json_input();
 $ref = preg_replace('/[^A-Za-z0-9\-]/', '', (string)($in['reference'] ?? ''));
 $provider = strtolower(trim((string)($in['provider'] ?? '')));
 $purpose  = strtolower(trim((string)($in['purpose']  ?? 'booking_fee')));
-if (!in_array($purpose, ['booking_fee', 'tuition'], true)) $purpose = 'booking_fee';
+if (!in_array($purpose, ['booking_fee', 'tuition', 'store'], true)) $purpose = 'booking_fee';
 
-$app = mam_db_row('SELECT a.*, c.email AS email, c.first_name, c.last_name, c.phone
-                    FROM applications a JOIN customers c ON c.id = a.customer_id
-                    WHERE a.reference = ?', [$ref]);
-if (!$app) mam_fail('application_not_found', 404);
-
-// Don't restart a charge that's already settled for THIS purpose.
-$payRef = $purpose === 'booking_fee' ? ($ref . '-BK') : $ref;
-if ($purpose === 'booking_fee' && !empty($app['booking_fee_paid_at'])) {
-    mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
-}
-if ($purpose === 'tuition' && ($app['status'] ?? '') === 'paid') {
-    mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
+// Resolve the "subject" record (application OR store order) based on purpose.
+// Each purpose uses a distinct payment reference so multiple charges (booking
+// + tuition + store) can coexist for the same customer/application without
+// colliding on the payments.reference UNIQUE.
+if ($purpose === 'store') {
+    $order = mam_db_row('SELECT * FROM store_orders WHERE reference = ?', [$ref]);
+    if (!$order) mam_fail('order_not_found', 404);
+    if (($order['status'] ?? '') === 'paid') {
+        mam_ok(['already_paid' => true, 'purpose' => 'store', 'reference' => $ref]);
+    }
+    $payRef = $ref;
+    $app = null; // not academy-bound
+    // Customer details for the provider payload come from the order row.
+    $customerEmail = (string)$order['customer_email'];
+    $customerPhone = (string)$order['customer_phone'];
+    $customerName  = (string)$order['customer_name'];
+} else {
+    $app = mam_db_row('SELECT a.*, c.email AS email, c.first_name, c.last_name, c.phone
+                        FROM applications a JOIN customers c ON c.id = a.customer_id
+                        WHERE a.reference = ?', [$ref]);
+    if (!$app) mam_fail('application_not_found', 404);
+    $payRef = $purpose === 'booking_fee' ? ($ref . '-BK') : $ref;
+    if ($purpose === 'booking_fee' && !empty($app['booking_fee_paid_at'])) {
+        mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
+    }
+    if ($purpose === 'tuition' && ($app['status'] ?? '') === 'paid') {
+        mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
+    }
+    $customerEmail = (string)$app['email'];
+    $customerPhone = (string)$app['phone'];
+    $customerName  = trim($app['first_name'] . ' ' . $app['last_name']);
 }
 
 // Pricing source-of-truth: booking_fee reads the regional tier (server is
@@ -52,6 +71,12 @@ if ($purpose === 'booking_fee') {
     $displayLabel  = (string)$tier['label'];
     $displayCur    = (string)$tier['currency'];
     $displayAmount = (float)$tier['amount'];
+} elseif ($purpose === 'store') {
+    $totalUsd = (float)$order['total_usd'];
+    $amountNgn = (int)round($totalUsd * $ngnRate);
+    $displayLabel = '$' . number_format($totalUsd, 2);
+    $displayCur = 'USD';
+    $displayAmount = $totalUsd;
 } else {
     $totalUsd = (float)$app['total_usd'];
     $amountNgn = (int)round($totalUsd * $ngnRate);
@@ -62,11 +87,12 @@ if ($purpose === 'booking_fee') {
 if ($totalUsd <= 0) mam_fail('zero_amount', 400);
 $amountKobo = $amountNgn * 100;
 
-// Persist a payment row (idempotent via the per-purpose reference)
+// Persist a payment row (idempotent via the per-purpose reference). Store
+// orders aren't tied to an application, so application_id stays NULL there.
 $existing = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$payRef]);
 if (!$existing) {
     mam_db_insert('payments', [
-        'application_id' => (int)$app['id'],
+        'application_id' => $app ? (int)$app['id'] : null,
         'reference'      => $payRef,
         'idempotency_key'=> $_SERVER['HTTP_X_IDEMPOTENCY_KEY'] ?? null,
         'provider'       => $provider,
@@ -78,20 +104,25 @@ if (!$existing) {
 } else {
     mam_db_update('payments', ['provider' => $provider, 'updated_at' => date('Y-m-d H:i:s')], ['reference' => $payRef]);
 }
-// From here on the rest of the file treats $payRef as the payment reference.
 $ref = $payRef;
 
-$metadata = [
-    'application_id' => (int)$app['id'],
-    'reference'      => $ref,
-    'pathway'        => $app['pathway'],
-    'mode'           => $app['mode'],
-    'discipline'     => $app['discipline'],
-];
+$metadata = $app
+    ? [
+        'application_id' => (int)$app['id'],
+        'reference'      => $ref,
+        'pathway'        => $app['pathway'],
+        'mode'           => $app['mode'],
+        'discipline'     => $app['discipline'],
+    ]
+    : [
+        'order_id'  => (int)$order['id'],
+        'reference' => $ref,
+        'purpose'   => 'store',
+    ];
 
 try {
     if ($provider === 'paystack') {
-        $resp = mam_paystack_initialize($app['email'], $amountKobo, $ref, $metadata);
+        $resp = mam_paystack_initialize($customerEmail, $amountKobo, $ref, $metadata);
         $body = $resp['data'];
         if (!($body['status'] ?? false)) mam_fail('paystack_init_failed', 502, ['provider' => $body]);
         mam_audit('init', 'payment', null, ['ref' => $ref, 'provider' => $provider]);
@@ -126,9 +157,9 @@ try {
                 'amount'       => $amountNgn,
                 'currency'     => 'NGN',
                 'customer'     => [
-                    'email'        => $app['email'],
-                    'phone_number' => $app['phone'],
-                    'name'         => trim($app['first_name'] . ' ' . $app['last_name']),
+                    'email'        => $customerEmail,
+                    'phone_number' => $customerPhone,
+                    'name'         => $customerName,
                 ],
                 'customizations' => [
                     'title'       => 'MAM Academy',

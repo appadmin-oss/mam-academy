@@ -29,6 +29,11 @@ $r->get('/csrf',    $f('csrf-token.php'));
 $r->get('/booking/status',  $f('booking-status.php'),  [mw_rate_limit('booking_status', 60, 60)]);
 $r->get('/booking/pricing', $f('booking-pricing.php'), [mw_rate_limit('booking_pricing', 60, 60)]);
 
+/* ─── Store / Library (public catalogue) ─── */
+$r->get ('/store/items',       $f('store-list.php'),     [mw_rate_limit('store_list', 60, 60)]);
+$r->get ('/store/item/:slug',  $f('store-detail.php'),   [mw_rate_limit('store_detail', 60, 60)]);
+$r->post('/store/checkout',    $f('store-checkout.php'), [mw_csrf(), mw_rate_limit('store_checkout', 10, 60)]);
+
 /* ─── Public forms (CSRF + rate-limited) ─── */
 $r->post('/application', $f('application.php'), [mw_csrf(), mw_rate_limit('apply',       10, 600)]);
 $r->post('/newsletter',  $f('newsletter.php'),  [mw_csrf(), mw_rate_limit('newsletter',  5,  600)]);
@@ -78,6 +83,9 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->post('/create-class',    $f('admin/create-class.php'),   [mw_csrf(), mw_admin()]);
     $r->post('/enroll-student',  $f('admin/enroll-student.php'), [mw_csrf(), mw_admin()]);
     $r->post('/mail-test',       $f('admin/mail-test.php'),      [mw_csrf(), mw_admin(), mw_rate_limit('mail_test', 10, 600)]);
+    // Store catalogue admin CRUD (one file dispatches by method).
+    $r->get ('/store/items',     $f('admin/store-items.php'),    [mw_admin()]);
+    $r->post('/store/items',     $f('admin/store-items.php'),    [mw_csrf(), mw_admin()]);
 });
 
 /* ─── Dispatch ─── */

@@ -297,6 +297,61 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE applications ADD COLUMN booking_fee_paid_at TEXT;
             ALTER TABLE payments     ADD COLUMN purpose TEXT DEFAULT 'tuition';
         ",
+        // Store / Library — a public catalogue of digital + physical + service
+        // items (sheet music, handouts, courses, instruments, accessories,
+        // tutoring add-ons). The same payments table serves store orders via
+        // purpose='store'; each order's reference is used as the payment ref.
+        // Designed subdomain-ready: nothing here references academy tables.
+        9 => "
+            CREATE TABLE store_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sku TEXT UNIQUE NOT NULL,
+                slug TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                goods_type TEXT NOT NULL DEFAULT 'digital',
+                delivery_type TEXT NOT NULL DEFAULT 'instant',
+                availability TEXT NOT NULL DEFAULT 'in_stock',
+                stock INTEGER DEFAULT -1,
+                available_locations TEXT DEFAULT '*',
+                price_usd REAL NOT NULL,
+                currency TEXT DEFAULT 'USD',
+                images TEXT,
+                category TEXT,
+                file_url TEXT,
+                weight_grams INTEGER,
+                tax_rate REAL DEFAULT 0,
+                sort_order INTEGER DEFAULT 0,
+                active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX idx_store_items_active   ON store_items(active);
+            CREATE INDEX idx_store_items_category ON store_items(category);
+            CREATE INDEX idx_store_items_sort     ON store_items(sort_order);
+            CREATE TABLE store_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reference TEXT UNIQUE NOT NULL,
+                customer_id INTEGER,
+                customer_email TEXT,
+                customer_name TEXT,
+                customer_country TEXT,
+                customer_phone TEXT,
+                shipping_address TEXT,
+                items_json TEXT NOT NULL,
+                subtotal_usd REAL DEFAULT 0,
+                tax_usd REAL DEFAULT 0,
+                shipping_usd REAL DEFAULT 0,
+                total_usd REAL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'pending',
+                notes TEXT,
+                delivered_at TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX idx_store_orders_status ON store_orders(status);
+            CREATE INDEX idx_store_orders_email  ON store_orders(customer_email);
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

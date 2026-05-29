@@ -11,8 +11,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/main.css?v=20260529e">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260529e">
+<link rel="stylesheet" href="/assets/css/main.css?v=20260529f">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260529f">
 </head>
 <body>
 <div class="portal-shell">
@@ -56,9 +56,9 @@
   </main>
 </div>
 
-<script src="/assets/js/config.js?v=20260529e"></script>
-<script src="/assets/js/portal.js?v=20260529e"></script>
-<script src="/assets/js/libs.js?v=20260529e" async></script>
+<script src="/assets/js/config.js?v=20260529f"></script>
+<script src="/assets/js/portal.js?v=20260529f"></script>
+<script src="/assets/js/libs.js?v=20260529f" async></script>
 <script>
 (function () {
   var P = window.MAM_PORTAL, API = window.MAM_API;
@@ -132,16 +132,88 @@
 
   function renderPayments() {
     var pays = data.payments || [];
-    if (!pays.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('credit-card', 'No payments on file.') + '</div></section>'; return; }
-    var rows = pays.map(function (p) {
-      return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(p.reference) + '</td>'
-        + '<td data-label="Provider">' + P.escapeHtml(p.provider) + '</td>'
-        + '<td data-label="Amount">' + P.fmtMoney(p.amount, p.currency) + '</td>'
-        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(p.status) + '">' + P.escapeHtml(p.status) + '</span></td>'
-        + '<td data-label="Verified">' + (p.verified_at ? P.fmtDateTime(p.verified_at) : '—') + '</td>'
-        + '<td data-label="Created">' + P.fmtDateTime(p.created_at) + '</td></tr>';
-    }).join('');
-    content.innerHTML = '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Provider</th><th>Amount</th><th>Status</th><th>Verified</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    // Build a "Pay Tuition" tile at the top — surfaces any unpaid application
+    // tuition so the student can settle it from inside the portal. The actual
+    // charge runs through /api/payment/initialize with purpose='tuition'
+    // (server-authoritative amount from applications.total_usd).
+    var apps = data.applications || [];
+    var outstanding = apps.filter(function (a) { return a.status !== 'paid' && parseFloat(a.total_usd || 0) > 0; });
+    var tile = '';
+    if (outstanding.length) {
+      tile = '<section class="panel" style="border-color:var(--border-gold);background:linear-gradient(160deg,rgba(224,138,26,0.10),var(--bg-surface))">'
+        + '<div class="panel-head"><h2><i class="fa-solid fa-coins" style="color:var(--gold-bright);margin-right:8px"></i>Pay Tuition</h2></div>'
+        + '<div class="panel-body" style="display:grid;gap:12px">'
+        + outstanding.map(function (a) {
+            return '<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:var(--bg-raised);border:1px solid var(--border);border-radius:10px">'
+              + '<div><div style="font-weight:700;color:var(--text)">' + P.escapeHtml(a.pathway || 'Tuition') + ' &middot; ' + P.escapeHtml(a.mode || '') + '</div>'
+              + '<div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px">Ref ' + P.escapeHtml(a.reference) + '</div></div>'
+              + '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
+              + '<div style="font-family:var(--font-display);font-size:1.6rem;color:var(--gold-bright);letter-spacing:0.02em">$' + parseFloat(a.total_usd).toFixed(2) + '</div>'
+              + '<button type="button" class="btn btn-primary" data-action="pay-tuition" data-ref="' + P.escapeHtml(a.reference) + '"><i class="fa-solid fa-lock"></i> Pay now</button>'
+              + '</div></div>';
+          }).join('')
+        + '<p style="font-size:0.82rem;color:var(--text-muted);margin:6px 4px 0;line-height:1.55"><i class="fa-solid fa-shield-halved" style="color:var(--gold-bright);margin-right:4px"></i> Tuition is final once paid. A formal receipt is emailed within minutes; refunds follow the published class policy.</p>'
+        + '</div></section>';
+    }
+    var history = '';
+    if (pays.length) {
+      var rows = pays.map(function (p) {
+        return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(p.reference) + '</td>'
+          + '<td data-label="Purpose">' + P.escapeHtml(p.purpose || 'tuition') + '</td>'
+          + '<td data-label="Provider">' + P.escapeHtml(p.provider) + '</td>'
+          + '<td data-label="Amount">' + P.fmtMoney(p.amount, p.currency) + '</td>'
+          + '<td data-label="Status"><span class="pill ' + P.escapeHtml(p.status) + '">' + P.escapeHtml(p.status) + '</span></td>'
+          + '<td data-label="Verified">' + (p.verified_at ? P.fmtDateTime(p.verified_at) : '—') + '</td>'
+          + '<td data-label="Created">' + P.fmtDateTime(p.created_at) + '</td></tr>';
+      }).join('');
+      history = '<section class="panel"><div class="panel-head"><h2>Payment History</h2></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Verified</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    } else {
+      history = '<section class="panel"><div class="panel-body">' + empty('credit-card', 'No payments on file yet.') + '</div></section>';
+    }
+    content.innerHTML = tile + history;
+    // Wire the "Pay now" buttons. Opens Paystack inline against the tuition
+    // payment-init path. Verification fires on callback; on success we reload
+    // the dashboard data so the row flips to paid + the receipt appears.
+    content.querySelectorAll('[data-action="pay-tuition"]').forEach(function (b) {
+      b.addEventListener('click', function () { payTuition(b.getAttribute('data-ref'), b); });
+    });
+  }
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      if (document.querySelector('script[src="' + src + '"]')) return resolve();
+      var s = document.createElement('script'); s.src = src; s.async = true;
+      s.onload = resolve; s.onerror = function () { reject(new Error('script')); };
+      document.head.appendChild(s);
+    });
+  }
+  function payTuition(ref, btn) {
+    var orig = btn.innerHTML; btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-sm" style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span> Opening…';
+    window.MAM_API.initializePayment({ reference: ref, provider: 'paystack', purpose: 'tuition' })
+      .then(function (init) {
+        if (init.already_paid) { btn.innerHTML = '✓ Paid'; return; }
+        return loadScript('https://js.paystack.co/v1/inline.js').then(function () {
+          btn.innerHTML = orig; btn.disabled = false;
+          var handler = window.PaystackPop.setup({
+            key: init.public_key,
+            email: (data.user && data.user.email) || '',
+            amount: init.amount_ngn * 100,
+            currency: 'NGN',
+            ref: init.reference,
+            metadata: { reference: init.reference, purpose: 'tuition' },
+            callback: function (response) {
+              btn.disabled = true; btn.innerHTML = 'Verifying…';
+              window.MAM_API.verifyPayment({ provider: 'paystack', reference: response.reference || init.reference })
+                .then(function () { btn.innerHTML = '✓ Paid'; setTimeout(function () { location.reload(); }, 900); })
+                .catch(function () { btn.disabled = false; btn.innerHTML = orig; alert('Payment received but verification is still pending. Refresh in a minute.'); });
+            },
+            onClose: function () { btn.disabled = false; btn.innerHTML = orig; }
+          });
+          handler.openIframe();
+        });
+      })
+      .catch(function () { btn.disabled = false; btn.innerHTML = orig; alert('Could not start payment. Please try again or email connect@mamcentre.org.'); });
   }
 
   function renderAuditer() {
