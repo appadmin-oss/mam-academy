@@ -13,6 +13,16 @@
  */
 declare(strict_types=1);
 
+// ---------- Output buffer ----------
+// Start an output buffer IMMEDIATELY so nothing — not a PHP notice, not a
+// deprecation warning from PHP 8.x, not a stray `echo`, not a BOM in an
+// included file — can prefix the JSON response and break JSON.parse on
+// the client (the "couldn't reach our server" symptom users hit when the
+// response body is `<br>Warning: ... {ok:true,...}`). The buffer is
+// drained in mam_json() just before the response is written, so the wire
+// body is ALWAYS strictly the JSON envelope.
+if (!ob_get_level()) ob_start();
+
 // ---------- Constants ----------
 define('MAM_API_ROOT', __DIR__ . '/..');
 define('MAM_STORAGE',  MAM_API_ROOT . '/storage');
@@ -22,7 +32,10 @@ define('MAM_LOGS',     MAM_API_ROOT . '/logs');
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 ini_set('error_log', MAM_LOGS . '/php-error.log');
-error_reporting(E_ALL);
+// Production: silence E_DEPRECATED (PHP 8.x noise from third-party libs)
+// while still capturing E_WARNING / E_ERROR. The buffer is the last line
+// of defence; this is the first.
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
 
 set_exception_handler(function (Throwable $e) {
     // Defensive: mam_log/mam_env may not be loaded if the failure was in
