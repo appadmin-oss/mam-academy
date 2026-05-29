@@ -26,6 +26,32 @@
     }
   })();
 
+  // ---- Gradient-clip repaint after web fonts load -----------------------
+  // WebKit/Blink (Chrome, Safari) drop the `background-clip:text` clip when a
+  // web font swaps in AFTER first paint — the (transparent) text-fill then
+  // shows nothing, so gold/coloured headings "go transparent once load
+  // completes". Forcing a one-frame reflow on each gradient element after
+  // document.fonts.ready re-establishes the clip. Runs once; negligible cost.
+  function repaintGradientText() {
+    var sel = '.highlight-gold,.highlight-red,.highlight-purple,.nav-brand-name,'
+            + '.footer-logo-name,.preloader-name,.stat-number,.countdown-num,'
+            + '.pp-title .accent,[style*="-webkit-text-fill-color:transparent"]';
+    var els = document.querySelectorAll(sel);
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i], d = el.style.display;
+      el.style.display = 'none';
+      void el.offsetHeight;           // force reflow → re-rasterise the clip
+      el.style.display = d;
+    }
+  }
+  try {
+    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+      document.fonts.ready.then(function () { repaintGradientText(); });
+    }
+  } catch (e) {}
+  // Belt-and-braces: also after full load, in case fonts.ready isn't supported.
+  window.addEventListener('load', function () { setTimeout(repaintGradientText, 80); });
+
   // dotLottie web component was previously loaded here for animated emoji,
   // but its WASM loader uses eval() which our CSP (correctly) forbids.
   // Replace every <dotlottie-wc src="…notoemoji/<codepoint>/lottie.json"…>
@@ -123,6 +149,7 @@
     var hamburger = $('#hamburgerBtn');
     var mobileMenu = $('#mobileMenu');
     var floatingEnroll = $('#floatingEnroll');
+    var footerEl = null;
 
     on(window, 'scroll', function () {
       var y = window.scrollY;
@@ -133,6 +160,23 @@
         var visible = y > threshold;
         floatingEnroll.classList.toggle('visible', visible);
         floatingEnroll.setAttribute('aria-hidden', !visible);
+
+        // Dock above the footer on large screens so the button never covers
+        // the footer links. Below 1024px it stays a normal fixed pill.
+        if (!footerEl) footerEl = document.querySelector('footer[role="contentinfo"]') || document.querySelector('footer');
+        if (footerEl && window.innerWidth > 1024) {
+          var fTop = footerEl.getBoundingClientRect().top;
+          if (fTop < window.innerHeight - 24) {
+            floatingEnroll.classList.add('docked');
+            floatingEnroll.style.top = Math.max(0, y + fTop - floatingEnroll.offsetHeight - 20) + 'px';
+          } else {
+            floatingEnroll.classList.remove('docked');
+            floatingEnroll.style.top = '';
+          }
+        } else if (floatingEnroll.classList.contains('docked')) {
+          floatingEnroll.classList.remove('docked');
+          floatingEnroll.style.top = '';
+        }
       }
     }, { passive: true });
 
@@ -560,26 +604,67 @@
   // ============================================================
   function initCurrency() {
     var btns = $$('.currency-btn'); if (!btns.length) return;
-    var rates = window.MAM_CONFIG && window.MAM_CONFIG.currency ? window.MAM_CONFIG.currency.rates : { USD: 1, NGN: 1500 };
-    function setCur(cur) {
+    var cfgCur = (window.MAM_CONFIG && window.MAM_CONFIG.currency) || {};
+    var symbols = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' };
+    var SUPPORTED = btns.map(function (b) { return b.getAttribute('data-currency'); });
+    // Live rates (USD base). Start from the config fallback; replace with live
+    // data once fetched so prices are always up to date even if the API is down.
+    var rates = Object.assign({ USD: 1 }, cfgCur.rates || { USD: 1, NGN: 1500, GBP: 0.79, EUR: 0.92 });
+    var current = 'USD';
+
+    function setCur(cur, persist) {
+      current = cur;
       btns.forEach(function (b) {
         var active = b.getAttribute('data-currency') === cur;
         b.classList.toggle('active', active); b.setAttribute('aria-selected', String(active));
       });
-      var symbol = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' }[cur] || '$';
+      var symbol = symbols[cur] || '$';
       $$('[data-cur-sym]').forEach(function (s) { s.textContent = symbol; });
       $$('[data-price]').forEach(function (p) {
-        var usd = parseInt(p.getAttribute('data-price'), 10);
-        var converted = Math.round(usd * (rates[cur] || 1));
-        if (cur === 'USD') p.textContent = usd;
+        var usd = parseFloat(p.getAttribute('data-price')) || 0;
+        var converted = usd * (rates[cur] || 1);
+        if (cur === 'USD') p.textContent = (Math.round(usd * 100) / 100).toString().replace(/\.00$/, '');
         else if (cur === 'NGN' && converted >= 1000) p.textContent = Math.round(converted / 1000) + 'k';
-        else p.textContent = converted;
+        else p.textContent = Math.round(converted).toLocaleString();
       });
-      Storage.setItem('mam.currency', cur);
+      if (persist !== false) Storage.setItem('mam.currency', cur);
     }
     btns.forEach(function (b) { on(b, 'click', function () { setCur(b.getAttribute('data-currency')); }); });
+
+    // 1) Live, auto-updating rates — free, key-less, cached 24h in localStorage.
+    (function loadRates() {
+      try {
+        var c = JSON.parse(Storage.getItem('mam.fx') || 'null');
+        if (c && c.rates && (Date.now() - c.t) < 864e5) { rates = Object.assign(rates, c.rates); return setCur(current, false); }
+      } catch (e) {}
+      fetch('https://open.er-api.com/v6/latest/USD', { mode: 'cors' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.rates && j.rates.USD === 1) {
+            rates = Object.assign(rates, j.rates);
+            try { Storage.setItem('mam.fx', JSON.stringify({ t: Date.now(), rates: j.rates })); } catch (e) {}
+            setCur(current, false);
+          }
+        }).catch(function () { /* keep fallback rates */ });
+    })();
+
+    // 2) Location-aware default (only when the visitor hasn't chosen before).
     var saved = Storage.getItem('mam.currency');
-    if (saved && saved !== 'USD') setCur(saved);
+    if (saved) { setCur(saved, false); return; }
+    function applyDetected(cur) {
+      if (Storage.getItem('mam.currency')) return;       // user clicked meanwhile
+      if (cur && SUPPORTED.indexOf(cur) >= 0) setCur(cur, false);
+    }
+    // Cheap, instant guess from locale + timezone…
+    var region = (navigator.language || '').split('-')[1];
+    var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    var byRegion = { NG: 'NGN', GB: 'GBP', US: 'USD', IE: 'EUR', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR', NL: 'EUR' };
+    applyDetected(byRegion[region] || (tz.indexOf('Lagos') >= 0 ? 'NGN' : ''));
+    // …then refine with a free, key-less geo-IP lookup (best effort).
+    fetch('https://ipapi.co/currency/', { mode: 'cors' })
+      .then(function (r) { return r.text(); })
+      .then(function (c) { c = (c || '').trim(); if (/^[A-Z]{3}$/.test(c)) applyDetected(c); })
+      .catch(function () {});
   }
 
   // ============================================================

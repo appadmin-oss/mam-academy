@@ -78,7 +78,7 @@ function mam_phpmailer_available(): bool {
  * so callers (mam_send, the CLI tester, the admin endpoint) don't care which
  * transport ran.
  */
-function mam_send_via_phpmailer(string $to, string $subject, string $body, bool $html, string $from, string $fromName, ?string $replyTo, array $extraHeaders = []): array {
+function mam_send_via_phpmailer(string $to, string $subject, string $body, bool $html, string $from, string $fromName, ?string $replyTo, array $extraHeaders = [], array $attachments = []): array {
     $host = (string)mam_env('MAIL_HOST', '');
     $user = (string)mam_env('MAIL_USERNAME', '');
     $pass = (string)mam_env('MAIL_PASSWORD', '');
@@ -107,6 +107,11 @@ function mam_send_via_phpmailer(string $to, string $subject, string $body, bool 
         $mail->addAddress($to);
         if ($replyTo) $mail->addReplyTo($replyTo);
         foreach ($extraHeaders as $hk => $hv) { $mail->addCustomHeader($hk, $hv); }
+        foreach ($attachments as $a) {
+            if (!empty($a['content']) && !empty($a['name'])) {
+                $mail->addStringAttachment($a['content'], $a['name'], 'base64', $a['mime'] ?? 'application/octet-stream');
+            }
+        }
         $mail->Subject = $subject;
         if ($html) {
             $mail->isHTML(true);
@@ -142,6 +147,7 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
     $host      = mam_env('MAIL_HOST', '');
     $forceSmtp = in_array(strtolower((string)mam_env('MAIL_FORCE_SMTP', '0')), ['1','true','yes','on'], true);
     $extraHeaders = is_array($opts['headers'] ?? null) ? $opts['headers'] : [];
+    $attachments  = is_array($opts['attachments'] ?? null) ? $opts['attachments'] : [];
 
     // Operators can pin the mailer to SMTP only by setting MAIL_FORCE_SMTP=1
     // in api/.env. Useful in production where the host's mail() function
@@ -163,7 +169,7 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
         // install / bundled vendor), otherwise the built-in SMTP client.
         // Both honour the same MAIL_* env and produce the same result shape.
         if (mam_phpmailer_available()) {
-            return mam_send_via_phpmailer($to, $subject, $body, $html, $from, $fromName, $replyTo, $extraHeaders);
+            return mam_send_via_phpmailer($to, $subject, $body, $html, $from, $fromName, $replyTo, $extraHeaders, $attachments);
         }
         // Retry-once-on-transient: 4xx replies are usually rate-limit or
         // greylisting and clear on a second attempt. 5xx is permanent —
@@ -175,7 +181,7 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
             $ok = mam_smtp_send($host, (int)mam_env('MAIL_PORT', '587'),
                 mam_env('MAIL_USERNAME', ''), mam_env('MAIL_PASSWORD', ''),
                 strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls')),
-                $from, $fromName, $replyTo, $to, $subject, $body, $html, $extraHeaders, $transcript);
+                $from, $fromName, $replyTo, $to, $subject, $body, $html, $extraHeaders, $attachments, $transcript);
             $failedStep = null;
             foreach ($transcript as $s) {
                 if (!($s['ok'] ?? true)) { $failedStep = $s; break; }
@@ -231,7 +237,7 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
 function mam_smtp_send(string $host, int $port, string $user, string $pass, string $encryption,
                        string $from, string $fromName, ?string $replyTo,
                        string $to, string $subject, string $body, bool $html,
-                       array $extraHeaders = [], array &$transcript = null): bool {
+                       array $extraHeaders = [], array $attachments = [], array &$transcript = null): bool {
     if ($transcript === null) $transcript = [];
     // Most authenticated relays (Gmail, Office365, SES, …) reject a MAIL FROM
     // envelope that differs from the authenticated account. Use the auth user
@@ -331,28 +337,47 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
         return ['base64', chunk_split(base64_encode($s), 76, "\r\n")];
     };
 
-    // Build a multipart/alternative body when we have HTML: include a
-    // plain-text fallback. Most spam filters score multipart messages
-    // higher than HTML-only, and screen readers fall back gracefully.
+    // Build the message "content" as a self-contained MIME part (its own
+    // headers + body) so it can stand alone OR be nested inside
+    // multipart/mixed when attachments are present. HTML gets a
+    // multipart/alternative (plain + html) for deliverability + a11y.
     if ($html) {
-        $boundary = 'mam_' . bin2hex(random_bytes(8));
-        $head[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
+        $altB = 'alt_' . bin2hex(random_bytes(8));
         [$cteText, $partText] = $encode(mam_html_to_text($body));
         [$cteHtml, $partHtml] = $encode($body);
-        $bodyOut = "--$boundary\r\n"
-                 . "Content-Type: text/plain; charset=UTF-8\r\n"
-                 . "Content-Transfer-Encoding: $cteText\r\n\r\n"
-                 . $partText . "\r\n"
-                 . "--$boundary\r\n"
-                 . "Content-Type: text/html; charset=UTF-8\r\n"
-                 . "Content-Transfer-Encoding: $cteHtml\r\n\r\n"
-                 . $partHtml . "\r\n"
-                 . "--$boundary--\r\n";
+        $contentHeaders = ['Content-Type: multipart/alternative; boundary="' . $altB . '"'];
+        $contentBody = "--$altB\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: $cteText\r\n\r\n$partText\r\n"
+                     . "--$altB\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: $cteHtml\r\n\r\n$partHtml\r\n"
+                     . "--$altB--\r\n";
     } else {
         [$cte, $partBody] = $encode($body);
-        $head[] = 'Content-Type: text/plain; charset=UTF-8';
-        $head[] = "Content-Transfer-Encoding: $cte";
-        $bodyOut = $partBody;
+        $contentHeaders = ['Content-Type: text/plain; charset=UTF-8', "Content-Transfer-Encoding: $cte"];
+        $contentBody = $partBody . "\r\n";
+    }
+
+    // Keep only well-formed attachments.
+    $atts = [];
+    foreach ($attachments as $a) { if (!empty($a['content']) && !empty($a['name'])) $atts[] = $a; }
+
+    if ($atts) {
+        // Wrap content + attachments in multipart/mixed.
+        $mixB = 'mix_' . bin2hex(random_bytes(8));
+        $head[] = 'Content-Type: multipart/mixed; boundary="' . $mixB . '"';
+        $bodyOut = "--$mixB\r\n" . implode("\r\n", $contentHeaders) . "\r\n\r\n" . $contentBody;
+        foreach ($atts as $a) {
+            $name = preg_replace('/[\r\n"\\\\]/', '', (string)$a['name']);
+            $mime = preg_replace('/[\r\n]/', '', (string)($a['mime'] ?? 'application/octet-stream'));
+            $bodyOut .= "--$mixB\r\n"
+                      . "Content-Type: $mime; name=\"$name\"\r\n"
+                      . "Content-Transfer-Encoding: base64\r\n"
+                      . "Content-Disposition: attachment; filename=\"$name\"\r\n\r\n"
+                      . chunk_split(base64_encode((string)$a['content']), 76, "\r\n");
+        }
+        $bodyOut .= "--$mixB--\r\n";
+    } else {
+        // No attachments — the content part's headers become the message headers.
+        foreach ($contentHeaders as $h) $head[] = $h;
+        $bodyOut = $contentBody;
     }
 
     // Order matters: NORMALISE line endings to CRLF first, THEN dot-stuff.
@@ -791,13 +816,11 @@ function mam_email_application_confirmation(array $app, array $customer): string
 }
 
 /**
- * Full class-policy email (online/home vs onsite), stamped with the
- * applicant's typed signature and the date they agreed.
+ * Single source of truth for the class-policy clauses (mirrors the signed
+ * PDFs). Shared by the policy email and the printable attachment so they
+ * can never diverge.
  */
-function mam_email_policy(string $mode, string $signedName, string $reference): string {
-    $isOnsite = ($mode === 'onsite');
-    $title = $isOnsite ? 'MAM Academy Policy — Onsite Classes' : 'MAM Academy Policy — Online / Home Classes';
-
+function mam_policy_points(bool $isOnsite): array {
     $online = [
         ['Conducive Learning Environment', 'Your space must be conducive for teaching and learning — minimal noise and distractions during class.'],
         ['No Picking Calls', 'Phones must be on silent; calls are not to be answered during class.'],
@@ -820,7 +843,76 @@ function mam_email_policy(string $mode, string $signedName, string $reference): 
         ['Non-Refundable Payments', 'All payments are strictly non-refundable.'],
         ['Daily Practice Assessments', 'Allocate free time daily to review concepts taught; consistent practice is essential.'],
     ];
-    $points = $isOnsite ? $onsite : $online;
+    return $isOnsite ? $onsite : $online;
+}
+
+/**
+ * Standalone, print-optimised HTML of the policy — attached to the policy
+ * email so the applicant keeps a clean, signed, printable copy. Light
+ * (ink-friendly) theme, self-contained, opens in any browser then
+ * Print / "Save as PDF". No server-side PDF dependency required.
+ */
+function mam_policy_print_html(string $mode, string $signedName, string $reference): string {
+    $isOnsite = ($mode === 'onsite');
+    $title  = $isOnsite ? 'MAM Academy — Policy for Onsite Classes' : 'MAM Academy — Policy for Online / Home Classes';
+    $points = mam_policy_points($isOnsite);
+    $sig  = htmlspecialchars($signedName ?: '—', ENT_QUOTES);
+    $ref  = htmlspecialchars($reference, ENT_QUOTES);
+    $date = date('F j, Y');
+    $rows = '';
+    foreach ($points as $p) {
+        $rows .= '<li><strong>' . htmlspecialchars($p[0]) . '</strong><span>' . htmlspecialchars($p[1]) . '</span></li>';
+    }
+    return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>" . htmlspecialchars($title) . "</title>
+<style>
+  @page{margin:18mm}
+  *{box-sizing:border-box}
+  body{font-family:Georgia,'Times New Roman',serif;color:#1a1a1a;background:#fff;margin:0 auto;padding:32px;line-height:1.6;max-width:780px}
+  .head{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:2px solid #C8901A;padding-bottom:14px;flex-wrap:wrap;gap:10px}
+  .brand{font-family:Arial,Helvetica,sans-serif;font-weight:800;letter-spacing:.12em;color:#9a6a12;font-size:18px}
+  .meta{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#666;text-align:right;line-height:1.5}
+  h1{font-size:20px;margin:18px 0 2px}
+  .slogan{font-style:italic;color:#9a6a12;margin:0 0 16px}
+  p.intro{font-size:14px;color:#333}
+  ol{padding:0;list-style:none;counter-reset:c}
+  li{counter-increment:c;position:relative;padding:10px 0 10px 36px;border-bottom:1px solid #eee;font-family:Arial,Helvetica,sans-serif;font-size:13px}
+  li::before{content:counter(c);position:absolute;left:0;top:10px;width:25px;height:25px;border-radius:6px;background:#F6E5C0;color:#9a6a12;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:12px}
+  li strong{display:block;color:#111;font-size:13.5px;margin-bottom:1px}
+  li span{color:#444}
+  .sign{margin-top:26px;padding:16px 18px;border:1px dashed #C8901A;border-radius:8px;font-family:Arial,Helvetica,sans-serif}
+  .sign .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#888}
+  .sign .name{font-size:18px;font-family:Georgia,serif;margin-top:3px;color:#111}
+  .foot{margin-top:22px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#666;border-top:1px solid #eee;padding-top:12px}
+  .print-btn{margin:16px 0;font-family:Arial,Helvetica,sans-serif}
+  .print-btn button{padding:10px 18px;background:#C8901A;color:#1a120b;border:0;border-radius:6px;font-weight:700;cursor:pointer}
+  @media print{.print-btn{display:none}body{padding:0}}
+</style></head>
+<body>
+  <div class='head'><div class='brand'>MAM ACADEMY</div>
+    <div class='meta'>+234&nbsp;704&nbsp;444&nbsp;6517<br>2 Oremeji Street, Egbeda, Lagos<br>connect@mamcentre.org</div></div>
+  <h1>" . htmlspecialchars($title) . "</h1>
+  <p class='slogan'>&ldquo;Crafting the Timeless in Time.&rdquo;</p>
+  <p class='intro'>Welcome to MAM Academy. The following policies ensure a seamless and rewarding learning experience. Please keep this signed copy for your records.</p>
+  <div class='print-btn'><button onclick='window.print()'>Print / Save as PDF</button></div>
+  <ol>" . $rows . "</ol>
+  <p style='font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#333'>By enrolling you join us in crafting a timeless legacy of growth, excellence and achievement.</p>
+  <div class='sign'><div class='lbl'>Agreed &amp; electronically signed</div>
+    <div class='name'>" . $sig . "</div>
+    <div style='font-size:12px;color:#666;margin-top:2px'>" . $date . " &middot; Application " . $ref . "</div></div>
+  <div class='foot'>ACADEMIC DIRECTOR &middot; MAM Centre, 2 Oremeji Street, Egbeda, Lagos &middot; connect@mamcentre.org &middot; +234 704 444 6517</div>
+</body></html>";
+}
+
+/**
+ * Full class-policy email (online/home vs onsite), stamped with the
+ * applicant's typed signature and the date they agreed.
+ */
+function mam_email_policy(string $mode, string $signedName, string $reference): string {
+    $isOnsite = ($mode === 'onsite');
+    $title = $isOnsite ? 'MAM Academy Policy — Onsite Classes' : 'MAM Academy Policy — Online / Home Classes';
+
+    $points = mam_policy_points($isOnsite);
 
     $rows = '';
     $i = 1;

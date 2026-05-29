@@ -138,7 +138,14 @@ if (!empty($v['policyMode'])) {
         'MAM Academy — Your ' . ($v['policyMode'] === 'onsite' ? 'Onsite' : 'Online/Home') . ' Class Policy',
         mam_email_policy($v['policyMode'], (string)$v['policySignedName'], $reference),
         'application_policy',
-        true
+        true,
+        // Attach a clean, printable signed copy of the policy (open → Print /
+        // Save as PDF). No server-side PDF dependency required.
+        ['attachments' => [[
+            'content' => mam_policy_print_html($v['policyMode'], (string)$v['policySignedName'], $reference),
+            'name'    => 'MAM-Academy-Policy-' . preg_replace('/[^A-Za-z0-9_-]/', '', $reference) . '.html',
+            'mime'    => 'text/html; charset=utf-8',
+        ]]]
     );
 }
 $notify = mam_env('NOTIFY_EMAIL');

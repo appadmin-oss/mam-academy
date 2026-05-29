@@ -18,7 +18,7 @@ window.MAM_CONFIG = {
 
   /* -------- API -------- */
   api: {
-    base: 'api',                  // relative; auto-resolves to /api on the same origin
+    base: '/api',                 // root-absolute so portal/ & admin/ pages resolve correctly (never /portal/api → 404)
     healthPath: 'health',
     csrfPath: 'csrf',
     applicationPath: 'application',
@@ -168,7 +168,14 @@ window.MAM_API = (function () {
   var cfg = window.MAM_CONFIG.api;
   var csrfToken = null, csrfFetchedAt = 0;
 
-  function url(path) { return cfg.base.replace(/\/$/, '') + '/' + path.replace(/^\//, ''); }
+  function url(path) {
+    // Always resolve from the site root, never the current directory — a
+    // relative base would make /portal/* and /admin/* pages hit
+    // /portal/api/… and 404. Force a leading slash for non-absolute bases.
+    var base = cfg.base || '/api';
+    if (!/^https?:\/\//.test(base) && base.charAt(0) !== '/') base = '/' + base;
+    return base.replace(/\/$/, '') + '/' + path.replace(/^\//, '');
+  }
 
   function getCsrf(force) {
     if (!force && csrfToken && (Date.now() - csrfFetchedAt) < 6000 * 1000) return Promise.resolve(csrfToken);
