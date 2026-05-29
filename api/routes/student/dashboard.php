@@ -10,9 +10,28 @@ $apps = $customer ? mam_db_all(
     [(int)$customer['id']]
 ) : [];
 
+// Student-visible payments span BOTH academy (joined via the application) and
+// store orders (joined by the customer's email — store orders aren't tied to
+// the academy customer record). A LEFT JOIN keeps the row even when neither
+// match (e.g. an admin-attached manual payment), so nothing disappears.
 $payments = $customer ? mam_db_all(
-    'SELECT p.id, p.reference, p.provider, p.status, p.amount, p.currency, p.verified_at, p.created_at FROM payments p JOIN applications a ON a.id = p.application_id WHERE a.customer_id = ? ORDER BY p.created_at DESC',
-    [(int)$customer['id']]
+    "SELECT DISTINCT p.id, p.reference, p.provider, p.status, p.amount, p.currency, p.verified_at, p.created_at,
+            COALESCE(p.purpose, 'tuition') AS purpose,
+            a.id AS application_id
+       FROM payments p
+       LEFT JOIN applications a  ON a.id = p.application_id
+       LEFT JOIN store_orders so ON so.reference = p.reference
+      WHERE (a.customer_id = ?) OR (so.customer_email = ?)
+      ORDER BY p.created_at DESC",
+    [(int)$customer['id'], (string)$customer['email']]
+) : [];
+
+// Store orders placed by this customer (matched on email — public store
+// doesn't require an account so the email is the only stable link).
+$storeOrders = $customer ? mam_db_all(
+    'SELECT id, reference, status, items_json, subtotal_usd, tax_usd, shipping_usd, total_usd, delivered_at, created_at
+       FROM store_orders WHERE customer_email = ? ORDER BY id DESC',
+    [(string)$customer['email']]
 ) : [];
 
 $enrollments = mam_db_all(
@@ -42,4 +61,5 @@ mam_ok([
     'enrollments' => $enrollments,
     'attendance' => $attendance,
     'auditer' => $auditer,
+    'store_orders' => $storeOrders,
 ]);

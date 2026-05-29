@@ -388,6 +388,117 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=applications&ok=1'); exit;
     }
 
+    // ─── User editing (beyond suspend + reset-password) ──────────────
+    // We update users + the linked customers row in lockstep so the data the
+    // student sees in their portal matches what admin sees here. Email changes
+    // are guarded against collisions; role changes only allow valid values.
+    if ($action === 'user_edit') {
+        $uid = (int)($_POST['user_id'] ?? 0);
+        if (!$uid) { header('Location: ?v=users&err=' . urlencode('Missing user_id')); exit; }
+        $email = trim((string)($_POST['email'] ?? ''));
+        $name = trim((string)($_POST['name'] ?? ''));
+        $phone = trim((string)($_POST['phone'] ?? ''));
+        $role = (string)($_POST['role'] ?? '');
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) { header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Valid email required')); exit; }
+        if (!in_array($role, ['student','instructor','admin'], true)) { header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Invalid role')); exit; }
+        if (mam_db_row('SELECT id FROM users WHERE email = ? AND id != ?', [$email, $uid])) {
+            header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('That email is already taken by another user.')); exit;
+        }
+        mam_db_update('users', ['email' => $email, 'name' => $name, 'phone' => $phone, 'role' => $role, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $uid]);
+        // Sync the linked customer row so applications + emails stay consistent.
+        $u = mam_db_row('SELECT customer_id FROM users WHERE id = ?', [$uid]);
+        if (!empty($u['customer_id'])) {
+            $names = explode(' ', $name, 2);
+            mam_db_update('customers', [
+                'email' => $email,
+                'first_name' => $names[0] ?? '',
+                'last_name'  => $names[1] ?? '',
+                'phone' => $phone,
+            ], ['id' => (int)$u['customer_id']]);
+        }
+        mam_audit('user_edit', 'user', $uid, ['email' => $email, 'role' => $role]);
+        header('Location: ?v=users&ok=1'); exit;
+    }
+
+    // ─── Class editing (beyond status toggle) ────────────────────────
+    if ($action === 'class_edit') {
+        $cid = (int)($_POST['class_id'] ?? 0);
+        if (!$cid) { header('Location: ?v=classes&err=' . urlencode('Missing class_id')); exit; }
+        $upd = [
+            'title'         => trim((string)($_POST['title'] ?? '')),
+            'discipline'    => trim((string)($_POST['discipline'] ?? '')),
+            'pathway'       => trim((string)($_POST['pathway'] ?? '')) ?: null,
+            'instructor_id' => $_POST['instructor_id'] === '' ? null : (int)($_POST['instructor_id'] ?? 0),
+            'mode'          => trim((string)($_POST['mode'] ?? '')) ?: null,
+            'capacity'      => (int)($_POST['capacity'] ?? 0),
+            'starts_on'     => trim((string)($_POST['starts_on'] ?? '')) ?: null,
+            'schedule'      => trim((string)($_POST['schedule'] ?? '')) ?: null,
+        ];
+        if ($upd['title'] === '' || $upd['discipline'] === '') {
+            header('Location: ?v=classes&edit=' . $cid . '&err=' . urlencode('Title and discipline are required.')); exit;
+        }
+        mam_db_update('classes', $upd, ['id' => $cid]);
+        mam_audit('class_edit', 'class', $cid);
+        header('Location: ?v=classes&ok=1'); exit;
+    }
+
+    // ─── Payment refund (operational marker) ─────────────────────────
+    // We don't push the refund through the provider API — most refunds at MAM
+    // are handled manually with finance, then logged here. The reversal flips
+    // the payment row to 'refunded' AND the linked application/order back to
+    // a non-terminal state so it doesn't show as paid on the customer portal.
+    if ($action === 'payment_refund') {
+        $pid = (int)($_POST['payment_id'] ?? 0);
+        $note = trim((string)($_POST['note'] ?? ''));
+        if (!$pid) { header('Location: ?v=payments&err=' . urlencode('Missing payment_id')); exit; }
+        $p = mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid]);
+        if (!$p) { header('Location: ?v=payments&err=' . urlencode('Payment not found')); exit; }
+        mam_db_update('payments', [
+            'status' => 'refunded',
+            'provider_response' => trim(((string)$p['provider_response']) . "\nREFUNDED: " . $note),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], ['id' => $pid]);
+        // Reverse the related subject so the customer portal reflects reality.
+        $purpose = (string)($p['purpose'] ?? 'tuition');
+        if ($purpose === 'store') {
+            $o = mam_db_row('SELECT id FROM store_orders WHERE reference = ?', [$p['reference']]);
+            if ($o) mam_db_update('store_orders', ['status' => 'refunded', 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$o['id']]);
+        } elseif ($purpose === 'booking_fee' && !empty($p['application_id'])) {
+            mam_db_update('applications', ['booking_fee_paid_at' => null], ['id' => (int)$p['application_id']]);
+        } elseif (!empty($p['application_id'])) {
+            mam_db_update('applications', ['status' => 'in_review'], ['id' => (int)$p['application_id']]);
+        }
+        mam_audit('payment_refund', 'payment', $pid, ['note' => $note, 'purpose' => $purpose]);
+        header('Location: ?v=payments&ok=1'); exit;
+    }
+
+    // ─── Resend application confirmation + invoice ───────────────────
+    // Useful when an applicant says the email never arrived. We rebuild the
+    // confirmation using the current tier (so the regional price is fresh)
+    // and re-attach a freshly-rendered invoice.
+    if ($action === 'resend_confirmation') {
+        $aid = (int)($_POST['app_id'] ?? 0);
+        if (!$aid) { header('Location: ?v=applications&err=' . urlencode('Missing app_id')); exit; }
+        $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$aid]);
+        $cust = $app && $app['customer_id'] ? mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]) : null;
+        if (!$app || !$cust || empty($cust['email'])) {
+            header('Location: ?v=applications&err=' . urlencode('Cannot find application or customer email')); exit;
+        }
+        $tier = mam_booking_tier();
+        $invNo = 'INV-MAM-' . date('y', strtotime((string)$app['created_at'])) . '-' . str_pad((string)$aid, 4, '0', STR_PAD_LEFT);
+        $html = mam_invoice_print_html($app, $cust, $tier, $invNo);
+        mam_send(
+            (string)$cust['email'],
+            'MAM Academy — Application copy (' . $app['reference'] . ')',
+            mam_email_application_confirmation($app, $cust, $tier, $invNo),
+            'application_confirmation_resend',
+            true,
+            ['attachments' => [[ 'content' => $html, 'name' => 'MAM-Academy-Invoice-' . $invNo . '.html', 'mime' => 'text/html; charset=utf-8' ]]]
+        );
+        mam_audit('resend_confirmation', 'application', $aid, ['to' => $cust['email']]);
+        header('Location: ?v=applications&ok=1'); exit;
+    }
+
     // Unknown action — bounce back
     header('Location: ?v=' . urlencode($view));
     exit;
@@ -639,8 +750,8 @@ button.tiny:hover{border-color:var(--gold)}
             <?php if (!empty($r['recovery_sent_at'])): ?><br><span class="muted" title="Recovery email sent" style="font-size:0.66rem"><i class="fa-solid fa-envelope-circle-check"></i> nudged</span><?php endif; ?>
           </td>
           <td class="muted"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
-          <td>
-            <form class="inline" method="post">
+          <td style="white-space:nowrap">
+            <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="app_status">
               <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
@@ -650,6 +761,12 @@ button.tiny:hover{border-color:var(--gold)}
                 <?php endforeach; ?>
               </select>
               <button class="tiny" type="submit">Save</button>
+            </form>
+            <form method="post" style="display:inline" onsubmit="return confirm('Re-send the confirmation email and invoice to <?= htmlspecialchars((string)($r['email'] ?? '')) ?>?');">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <input type="hidden" name="action" value="resend_confirmation">
+              <input type="hidden" name="app_id" value="<?= (int)$r['id'] ?>">
+              <button class="tiny btn ghost" type="submit" title="Resend confirmation email + invoice">✉ Resend</button>
             </form>
           </td>
         </tr>
@@ -663,21 +780,35 @@ button.tiny:hover{border-color:var(--gold)}
     <h1>Payments</h1>
     <a class="btn ghost" href="?v=export&type=payments.csv">⬇ Export CSV</a>
   </header>
+  <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Done.</strong></div><?php endif; ?>
+  <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
   <div class="card">
     <table>
-      <thead><tr><th>Reference</th><th>Provider</th><th>Amount</th><th>Status</th><th>Provider Ref</th><th>Verified</th><th>Created</th></tr></thead>
+      <thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Provider Ref</th><th>Verified</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
       <?php $rows = mam_db_all('SELECT * FROM payments ORDER BY created_at DESC LIMIT 200');
-      if (!$rows): ?><tr><td colspan="7" class="empty">No payments yet</td></tr><?php endif;
+      if (!$rows): ?><tr><td colspan="9" class="empty">No payments yet</td></tr><?php endif;
       foreach ($rows as $r): ?>
         <tr>
           <td class="mono"><?= htmlspecialchars($r['reference']) ?></td>
+          <td><span class="pill"><?= htmlspecialchars((string)($r['purpose'] ?? 'tuition')) ?></span></td>
           <td><?= htmlspecialchars($r['provider']) ?></td>
           <td><?= number_format((float)$r['amount']) ?> <?= htmlspecialchars($r['currency']) ?></td>
           <td><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
           <td class="mono muted"><?= htmlspecialchars((string)$r['provider_reference']) ?></td>
           <td class="muted"><?= htmlspecialchars(substr((string)$r['verified_at'], 0, 16)) ?></td>
           <td class="muted"><?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?></td>
+          <td>
+            <?php if ($r['status'] === 'succeeded'): ?>
+              <form method="post" onsubmit="return confirm('Mark this payment as REFUNDED? The customer\'s record (application or order) will be reversed accordingly. Process the actual refund with the provider separately.');" style="display:inline-flex;gap:6px;align-items:center">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <input type="hidden" name="action" value="payment_refund">
+                <input type="hidden" name="payment_id" value="<?= (int)$r['id'] ?>">
+                <input type="text" name="note" class="tiny" placeholder="reason / ticket id" maxlength="120">
+                <button class="tiny btn ghost" style="border-color:#FCA5A5;color:#FCA5A5" type="submit">Refund</button>
+              </form>
+            <?php else: ?><span class="muted">—</span><?php endif; ?>
+          </td>
         </tr>
       <?php endforeach; ?>
       </tbody>
@@ -689,23 +820,38 @@ button.tiny:hover{border-color:var(--gold)}
     <h1>Users</h1>
     <a class="btn ghost" href="?v=export&type=users.csv">⬇ Export CSV</a>
   </header>
+  <?php
+    // Edit user — if ?edit=N is set we render this card hydrated with the row,
+    // otherwise we render the blank "Create user" card. Keeps the markup tidy.
+    $editUid = (int)($_GET['edit'] ?? 0);
+    $editUser = $editUid ? mam_db_row('SELECT id, email, name, phone, role FROM users WHERE id = ?', [$editUid]) : null;
+  ?>
+  <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Saved.</strong></div><?php endif; ?>
+  <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
+
   <div class="card">
-    <h3>Create user</h3>
+    <h3><?= $editUser ? 'Edit user #' . (int)$editUser['id'] : 'Create user' ?></h3>
     <form method="post" class="form-grid">
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-      <input type="hidden" name="action" value="user_create">
-      <label>Email<input type="email" name="email" required></label>
-      <label>Full name<input type="text" name="name" required></label>
-      <label>Phone<input type="text" name="phone"></label>
+      <input type="hidden" name="action" value="<?= $editUser ? 'user_edit' : 'user_create' ?>">
+      <?php if ($editUser): ?><input type="hidden" name="user_id" value="<?= (int)$editUser['id'] ?>"><?php endif; ?>
+      <label>Email<input type="email" name="email" required value="<?= htmlspecialchars((string)($editUser['email'] ?? '')) ?>"></label>
+      <label>Full name<input type="text" name="name" required value="<?= htmlspecialchars((string)($editUser['name'] ?? '')) ?>"></label>
+      <label>Phone<input type="text" name="phone" value="<?= htmlspecialchars((string)($editUser['phone'] ?? '')) ?>"></label>
       <label>Role
         <select name="role" required>
-          <option value="student">Student</option>
-          <option value="instructor">Instructor</option>
-          <option value="admin">Admin</option>
+          <?php foreach (['student','instructor','admin'] as $r): ?>
+            <option value="<?= $r ?>" <?= ($editUser['role'] ?? 'student') === $r ? 'selected' : '' ?>><?= ucfirst($r) ?></option>
+          <?php endforeach; ?>
         </select>
       </label>
-      <label>Temporary password<input type="text" name="password" minlength="8" required placeholder="≥ 8 chars"></label>
-      <div class="actions"><button class="btn" type="submit">Create user</button></div>
+      <?php if (!$editUser): ?>
+        <label>Temporary password<input type="text" name="password" minlength="8" required placeholder="≥ 8 chars"></label>
+      <?php endif; ?>
+      <div class="actions">
+        <button class="btn" type="submit"><?= $editUser ? 'Save changes' : 'Create user' ?></button>
+        <?php if ($editUser): ?><a class="btn ghost" href="?v=users">Cancel</a><?php endif; ?>
+      </div>
     </form>
   </div>
   <div class="card">
@@ -737,7 +883,7 @@ button.tiny:hover{border-color:var(--gold)}
             </form>
           </td>
           <td>
-            <form class="inline" method="post">
+            <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_status">
               <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
@@ -747,6 +893,7 @@ button.tiny:hover{border-color:var(--gold)}
               </select>
               <button class="tiny" type="submit">Save</button>
             </form>
+            <a class="tiny btn ghost" style="margin-left:6px;padding:6px 10px" href="?v=users&edit=<?= (int)$u['id'] ?>">Edit</a>
           </td>
         </tr>
       <?php endforeach; ?>
@@ -756,42 +903,51 @@ button.tiny:hover{border-color:var(--gold)}
 
 <?php elseif ($view === 'classes'): ?>
   <header class="top"><h1>Classes</h1></header>
-  <?php $instructors = mam_db_all("SELECT id, name, email FROM users WHERE role='instructor' AND status='active' ORDER BY name"); ?>
+  <?php
+    $instructors = mam_db_all("SELECT id, name, email FROM users WHERE role='instructor' AND status='active' ORDER BY name");
+    $editCid = (int)($_GET['edit'] ?? 0);
+    $editClass = $editCid ? mam_db_row('SELECT * FROM classes WHERE id = ?', [$editCid]) : null;
+  ?>
+  <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Saved.</strong></div><?php endif; ?>
+  <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
+
   <div class="card">
-    <h3>Create class</h3>
+    <h3><?= $editClass ? 'Edit class #' . (int)$editClass['id'] : 'Create class' ?></h3>
     <form method="post" class="form-grid">
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-      <input type="hidden" name="action" value="class_create">
-      <label class="full">Title<input type="text" name="title" required maxlength="120"></label>
-      <label>Discipline<input type="text" name="discipline" required maxlength="32" placeholder="piano · voice · …"></label>
+      <input type="hidden" name="action" value="<?= $editClass ? 'class_edit' : 'class_create' ?>">
+      <?php if ($editClass): ?><input type="hidden" name="class_id" value="<?= (int)$editClass['id'] ?>"><?php endif; ?>
+      <label class="full">Title<input type="text" name="title" required maxlength="120" value="<?= htmlspecialchars((string)($editClass['title'] ?? '')) ?>"></label>
+      <label>Discipline<input type="text" name="discipline" required maxlength="32" placeholder="piano · voice · …" value="<?= htmlspecialchars((string)($editClass['discipline'] ?? '')) ?>"></label>
       <label>Pathway
         <select name="pathway">
-          <option value="">—</option>
-          <option value="metamusic">MetaMusic Order</option>
-          <option value="powerplay">Power Play</option>
-          <option value="auditer">MAM Auditer</option>
+          <?php $pw = (string)($editClass['pathway'] ?? ''); foreach (['' => '—', 'metamusic' => 'MetaMusic Order', 'powerplay' => 'Power Play', 'auditer' => 'MAM Auditer'] as $v => $lbl): ?>
+            <option value="<?= htmlspecialchars($v) ?>" <?= $pw === $v ? 'selected' : '' ?>><?= htmlspecialchars($lbl) ?></option>
+          <?php endforeach; ?>
         </select>
       </label>
       <label>Instructor
         <select name="instructor_id">
           <option value="">— unassigned —</option>
-          <?php foreach ($instructors as $i): ?>
-            <option value="<?= (int)$i['id'] ?>"><?= htmlspecialchars($i['name'] ?: $i['email']) ?></option>
+          <?php $in = (int)($editClass['instructor_id'] ?? 0); foreach ($instructors as $i): ?>
+            <option value="<?= (int)$i['id'] ?>" <?= $in === (int)$i['id'] ? 'selected' : '' ?>><?= htmlspecialchars($i['name'] ?: $i['email']) ?></option>
           <?php endforeach; ?>
         </select>
       </label>
       <label>Mode
         <select name="mode">
-          <option value="">—</option>
-          <option value="online">Online</option>
-          <option value="onsite">On-site</option>
-          <option value="hybrid">Hybrid</option>
+          <?php $md = (string)($editClass['mode'] ?? ''); foreach (['' => '—', 'online' => 'Online', 'onsite' => 'On-site', 'hybrid' => 'Hybrid'] as $v => $lbl): ?>
+            <option value="<?= htmlspecialchars($v) ?>" <?= $md === $v ? 'selected' : '' ?>><?= htmlspecialchars($lbl) ?></option>
+          <?php endforeach; ?>
         </select>
       </label>
-      <label>Capacity<input type="number" name="capacity" value="12" min="1" max="500"></label>
-      <label>Starts on<input type="date" name="starts_on"></label>
-      <label class="full">Schedule<input type="text" name="schedule" placeholder="Sat 10:00–11:30, Wed 18:00–19:00"></label>
-      <div class="actions"><button class="btn" type="submit">Create class</button></div>
+      <label>Capacity<input type="number" name="capacity" value="<?= htmlspecialchars((string)($editClass['capacity'] ?? 12)) ?>" min="1" max="500"></label>
+      <label>Starts on<input type="date" name="starts_on" value="<?= htmlspecialchars(substr((string)($editClass['starts_on'] ?? ''), 0, 10)) ?>"></label>
+      <label class="full">Schedule<input type="text" name="schedule" placeholder="Sat 10:00–11:30, Wed 18:00–19:00" value="<?= htmlspecialchars((string)($editClass['schedule'] ?? '')) ?>"></label>
+      <div class="actions">
+        <button class="btn" type="submit"><?= $editClass ? 'Save changes' : 'Create class' ?></button>
+        <?php if ($editClass): ?><a class="btn ghost" href="?v=classes">Cancel</a><?php endif; ?>
+      </div>
     </form>
   </div>
   <div class="card">
@@ -815,8 +971,8 @@ button.tiny:hover{border-color:var(--gold)}
           <td><?= (int)$c['capacity'] ?></td>
           <td><?= (int)$c['enrolled_count'] ?></td>
           <td class="muted"><?= htmlspecialchars((string)($c['starts_on'] ?? '')) ?></td>
-          <td>
-            <form class="inline" method="post">
+          <td style="white-space:nowrap">
+            <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="class_status">
               <input type="hidden" name="class_id" value="<?= (int)$c['id'] ?>">
@@ -827,6 +983,7 @@ button.tiny:hover{border-color:var(--gold)}
               </select>
               <button class="tiny" type="submit">Save</button>
             </form>
+            <a class="tiny btn ghost" style="margin-left:6px;padding:6px 10px" href="?v=classes&edit=<?= (int)$c['id'] ?>">Edit</a>
           </td>
         </tr>
       <?php endforeach; ?>

@@ -11,8 +11,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/main.css?v=20260529g">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260529g">
+<link rel="stylesheet" href="/assets/css/main.css?v=20260529h">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260529h">
 </head>
 <body>
 <div class="portal-shell">
@@ -30,6 +30,7 @@
       <a class="portal-nav-link" href="#applications" data-tab="applications"><i class="fa-solid fa-file-pen"></i>My Applications</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
       <a class="portal-nav-link" href="#payments" data-tab="payments"><i class="fa-solid fa-credit-card"></i>Payments</a>
+      <a class="portal-nav-link" href="#orders" data-tab="orders"><i class="fa-solid fa-bag-shopping"></i>Store Orders</a>
       <a class="portal-nav-link" href="#auditer" data-tab="auditer"><i class="fa-solid fa-clipboard-check"></i>MAM Auditer</a>
       <a class="portal-nav-link" href="#profile" data-tab="profile"><i class="fa-solid fa-user"></i>Profile</a>
     </nav>
@@ -56,16 +57,16 @@
   </main>
 </div>
 
-<script src="/assets/js/config.js?v=20260529g"></script>
-<script src="/assets/js/portal.js?v=20260529g"></script>
-<script src="/assets/js/libs.js?v=20260529g" async></script>
+<script src="/assets/js/config.js?v=20260529h"></script>
+<script src="/assets/js/portal.js?v=20260529h"></script>
+<script src="/assets/js/libs.js?v=20260529h" async></script>
 <script>
 (function () {
   var P = window.MAM_PORTAL, API = window.MAM_API;
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], payments: ['Payments', 'Your billing history'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
   var data = null;
 
   function show(tab) {
@@ -78,6 +79,7 @@
     if (tab === 'applications') return renderApplications();
     if (tab === 'classes') return renderClasses();
     if (tab === 'payments') return renderPayments();
+    if (tab === 'orders') return renderOrders();
     if (tab === 'auditer') return renderAuditer();
     if (tab === 'profile') return renderProfile();
   }
@@ -214,6 +216,32 @@
         });
       })
       .catch(function () { btn.disabled = false; btn.innerHTML = orig; alert('Could not start payment. Please try again or email connect@mamcentre.org.'); });
+  }
+
+  function renderOrders() {
+    var orders = data.store_orders || [];
+    if (!orders.length) {
+      content.innerHTML = '<section class="panel"><div class="panel-body">'
+        + empty('bag-shopping', 'No store orders yet. <a href="/store" style="color:var(--gold-bright)">Browse the library →</a>')
+        + '</div></section>';
+      return;
+    }
+    var rows = orders.map(function (o) {
+      var items = []; try { items = JSON.parse(o.items_json || '[]'); } catch (e) {}
+      var summary = items.map(function (i) { return P.escapeHtml(i.name) + ' × ' + i.qty; }).join(', ');
+      var statusPill = '<span class="pill ' + P.escapeHtml(o.status) + '">' + P.escapeHtml(o.status) + '</span>';
+      return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(o.reference) + '</td>'
+        + '<td data-label="Items" style="max-width:340px"><span style="color:var(--text-soft);font-size:0.88rem">' + summary + '</span></td>'
+        + '<td data-label="Total">$' + parseFloat(o.total_usd).toFixed(2) + '</td>'
+        + '<td data-label="Status">' + statusPill + '</td>'
+        + '<td data-label="Delivered">' + (o.delivered_at ? P.fmtDateTime(o.delivered_at) : '<span style="color:var(--text-muted)">—</span>') + '</td>'
+        + '<td data-label="Placed">' + P.fmtDateTime(o.created_at) + '</td></tr>';
+    }).join('');
+    content.innerHTML = '<section class="panel">'
+      + '<div class="panel-head"><h2>Your store orders</h2><a class="panel-action" href="/store">Browse the library →</a></div>'
+      + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Items</th><th>Total</th><th>Status</th><th>Delivered</th><th>Placed</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      + '</section>'
+      + '<p style="margin:16px 4px 0;font-size:0.84rem;color:var(--text-muted);line-height:1.6"><i class="fa-solid fa-circle-info" style="color:var(--gold-bright);margin-right:4px"></i> Digital downloads are emailed to <strong style="color:var(--text)">' + P.escapeHtml((data.customer && data.customer.email) || data.user.email) + '</strong> when payment clears. Re-send a link by emailing <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> with the order reference.</p>';
   }
 
   function renderAuditer() {
