@@ -271,6 +271,123 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         exit;
     }
 
+    // ─── Store / Library CRUD ────────────────────────────────────────
+    // Single dispatch covers create (id=0), update (id>0), soft-delete (delete=1).
+    // We slug-ify the name client-side, but normalise + de-dupe here so two
+    // items with the same name don't collide. Images / available_locations are
+    // free-text in the form for ease — comma-separated, normalised to JSON.
+    if ($action === 'store_item_save') {
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim((string)($_POST['name'] ?? ''));
+        $sku = strtoupper(trim((string)($_POST['sku'] ?? '')));
+        $slug = strtolower(trim((string)($_POST['slug'] ?? '')));
+        if ($slug === '') $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower($name));
+        $slug = trim((string)$slug, '-');
+
+        $images_csv = trim((string)($_POST['images'] ?? ''));
+        $images = $images_csv === '' ? [] : array_values(array_filter(array_map('trim', explode("\n", str_replace([',',';'], "\n", $images_csv)))));
+        $locs_csv = trim((string)($_POST['available_locations'] ?? '*'));
+        if ($locs_csv === '' || $locs_csv === '*') $locations = '*';
+        else {
+            $arr = array_values(array_filter(array_map(function($x){ return strtoupper(trim($x)); }, explode(',', $locs_csv))));
+            $locations = json_encode($arr);
+        }
+
+        $row = [
+            'sku'                 => $sku,
+            'slug'                => $slug,
+            'name'                => $name,
+            'description'         => trim((string)($_POST['description'] ?? '')),
+            'goods_type'          => (string)($_POST['goods_type'] ?? 'digital'),
+            'delivery_type'       => (string)($_POST['delivery_type'] ?? 'instant'),
+            'availability'        => (string)($_POST['availability'] ?? 'in_stock'),
+            'stock'               => $_POST['stock'] === '' ? -1 : (int)($_POST['stock'] ?? -1),
+            'available_locations' => $locations,
+            'price_usd'           => (float)($_POST['price_usd'] ?? 0),
+            'currency'            => (string)($_POST['currency'] ?? 'USD'),
+            'images'              => $images ? json_encode($images) : null,
+            'category'            => trim((string)($_POST['category'] ?? '')),
+            'file_url'            => trim((string)($_POST['file_url'] ?? '')) ?: null,
+            'weight_grams'        => $_POST['weight_grams'] === '' ? null : (int)($_POST['weight_grams'] ?? 0),
+            'tax_rate'            => (float)($_POST['tax_rate'] ?? 0),
+            'sort_order'          => (int)($_POST['sort_order'] ?? 0),
+            'active'              => isset($_POST['active']) ? 1 : 0,
+        ];
+
+        if ($id === 0) {
+            if ($name === '' || $sku === '' || $row['price_usd'] <= 0) {
+                header('Location: ?v=storeitems&err=' . urlencode('Name, SKU and a positive price are required.')); exit;
+            }
+            if (mam_db_row('SELECT id FROM store_items WHERE sku = ? OR slug = ?', [$sku, $slug])) {
+                header('Location: ?v=storeitems&err=' . urlencode('That SKU or slug is already taken.')); exit;
+            }
+            $newId = mam_db_insert('store_items', $row);
+            mam_audit('store_item_create', 'store_item', (int)$newId, ['sku' => $sku]);
+            header('Location: ?v=storeitems&ok=1'); exit;
+        }
+        $row['updated_at'] = date('Y-m-d H:i:s');
+        mam_db_update('store_items', $row, ['id' => $id]);
+        mam_audit('store_item_update', 'store_item', $id, ['sku' => $sku]);
+        header('Location: ?v=storeitems&ok=1'); exit;
+    }
+
+    if ($action === 'store_item_delete') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id) {
+            mam_db_update('store_items', ['active' => 0, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $id]);
+            mam_audit('store_item_delete', 'store_item', $id);
+        }
+        header('Location: ?v=storeitems&ok=1'); exit;
+    }
+
+    if ($action === 'store_order_status') {
+        $oid = (int)($_POST['order_id'] ?? 0);
+        $status = (string)($_POST['status'] ?? '');
+        if ($oid && in_array($status, ['pending', 'paid', 'shipped', 'delivered', 'refunded', 'cancelled'], true)) {
+            $upd = ['status' => $status, 'updated_at' => date('Y-m-d H:i:s')];
+            if (in_array($status, ['delivered', 'shipped'], true)) $upd['delivered_at'] = date('Y-m-d H:i:s');
+            mam_db_update('store_orders', $upd, ['id' => $oid]);
+            mam_audit('update_status', 'store_order', $oid, ['status' => $status]);
+        }
+        header('Location: ?v=storeorders&ok=1'); exit;
+    }
+
+    // ─── Soft-delete / deactivation across core entities ─────────────
+    // We never hard-delete user-visible records (audit + finance integrity);
+    // these flip a status column instead so the row stays for history.
+    if ($action === 'user_delete') {
+        $uid = (int)($_POST['user_id'] ?? 0);
+        if ($uid) {
+            mam_db_update('users', ['status' => 'suspended', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $uid]);
+            mam_audit('user_suspend', 'user', $uid);
+        }
+        header('Location: ?v=users&ok=1'); exit;
+    }
+    if ($action === 'class_delete') {
+        $cid = (int)($_POST['class_id'] ?? 0);
+        if ($cid) {
+            mam_db_update('classes', ['status' => 'archived'], ['id' => $cid]);
+            mam_audit('class_archive', 'class', $cid);
+        }
+        header('Location: ?v=classes&ok=1'); exit;
+    }
+    if ($action === 'enrollment_delete') {
+        $eid = (int)($_POST['enrollment_id'] ?? 0);
+        if ($eid) {
+            mam_db_update('enrollments', ['status' => 'withdrawn'], ['id' => $eid]);
+            mam_audit('enrollment_withdraw', 'enrollment', $eid);
+        }
+        header('Location: ?v=enrollments&ok=1'); exit;
+    }
+    if ($action === 'app_delete') {
+        $aid = (int)($_POST['app_id'] ?? 0);
+        if ($aid) {
+            mam_db_update('applications', ['status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $aid]);
+            mam_audit('application_cancel', 'application', $aid);
+        }
+        header('Location: ?v=applications&ok=1'); exit;
+    }
+
     // Unknown action — bounce back
     header('Location: ?v=' . urlencode($view));
     exit;
@@ -404,6 +521,8 @@ button.tiny:hover{border-color:var(--gold)}
       'users'        => 'Users',
       'classes'      => 'Classes',
       'enrollments'  => 'Enrollments',
+      'storeitems'   => 'Store / Library',
+      'storeorders'  => 'Store Orders',
       'messages'     => 'Messages',
       'webhooks'     => 'Webhook Events',
       'newsletter'   => 'Newsletter',
@@ -874,6 +993,144 @@ button.tiny:hover{border-color:var(--gold)}
       </tbody>
     </table>
   </div>
+
+<?php elseif ($view === 'storeitems'):
+    // List + create/edit form for store items. The form is the same one for
+    // BOTH create and update — when ?edit=N is present we hydrate with that
+    // row, otherwise the form starts blank for a new item.
+    $editId = (int)($_GET['edit'] ?? 0);
+    $edit = $editId ? mam_db_row('SELECT * FROM store_items WHERE id = ?', [$editId]) : null;
+    $items = mam_db_all('SELECT id, sku, slug, name, goods_type, price_usd, currency, category, availability, stock, active, sort_order FROM store_items ORDER BY sort_order ASC, id DESC');
+?>
+  <h1>Store / Library</h1>
+  <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Saved.</strong></div><?php endif; ?>
+  <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
+
+  <div class="card">
+    <h2 style="font-family:Georgia,serif;color:var(--gold);font-size:1.2rem;margin-bottom:14px"><?= $edit ? 'Edit item · #'.(int)$edit['id'] : 'Add a new item' ?></h2>
+    <form method="POST" action="" style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">
+      <?= mam_csrf_field() ?>
+      <input type="hidden" name="action" value="store_item_save">
+      <input type="hidden" name="id" value="<?= (int)($edit['id'] ?? 0) ?>">
+
+      <div><label>Name *<br><input type="text" name="name" required value="<?= htmlspecialchars((string)($edit['name'] ?? '')) ?>" placeholder="Theory Handout — Grade 4"></label></div>
+      <div><label>SKU *<br><input type="text" name="sku" required value="<?= htmlspecialchars((string)($edit['sku'] ?? '')) ?>" placeholder="MAM-THEORY-G4" style="text-transform:uppercase"></label></div>
+      <div><label>Slug<br><input type="text" name="slug" value="<?= htmlspecialchars((string)($edit['slug'] ?? '')) ?>" placeholder="auto-generated from name"></label></div>
+      <div><label>Category<br><input type="text" name="category" value="<?= htmlspecialchars((string)($edit['category'] ?? '')) ?>" placeholder="Theory · Sheet Music · Coaching"></label></div>
+
+      <div style="grid-column:1/-1"><label>Description<br><textarea name="description" rows="3" style="width:100%;font-family:inherit"><?= htmlspecialchars((string)($edit['description'] ?? '')) ?></textarea></label></div>
+
+      <div><label>Goods type<br>
+        <select name="goods_type">
+          <?php foreach (['digital','physical','service'] as $g): ?>
+            <option value="<?= $g ?>" <?= ($edit['goods_type'] ?? 'digital') === $g ? 'selected' : '' ?>><?= ucfirst($g) ?></option>
+          <?php endforeach; ?>
+        </select></label></div>
+      <div><label>Delivery type<br>
+        <select name="delivery_type">
+          <?php foreach (['instant','courier','in_person','scheduled'] as $d): ?>
+            <option value="<?= $d ?>" <?= ($edit['delivery_type'] ?? 'instant') === $d ? 'selected' : '' ?>><?= str_replace('_',' ', ucfirst($d)) ?></option>
+          <?php endforeach; ?>
+        </select></label></div>
+      <div><label>Availability<br>
+        <select name="availability">
+          <?php foreach (['in_stock','preorder','sold_out'] as $a): ?>
+            <option value="<?= $a ?>" <?= ($edit['availability'] ?? 'in_stock') === $a ? 'selected' : '' ?>><?= str_replace('_',' ', ucfirst($a)) ?></option>
+          <?php endforeach; ?>
+        </select></label></div>
+      <div><label>Stock (-1 = unlimited)<br><input type="number" name="stock" value="<?= htmlspecialchars((string)($edit['stock'] ?? -1)) ?>"></label></div>
+
+      <div><label>Price (USD) *<br><input type="number" step="0.01" min="0" name="price_usd" required value="<?= htmlspecialchars((string)($edit['price_usd'] ?? '')) ?>"></label></div>
+      <div><label>Currency<br><input type="text" name="currency" value="<?= htmlspecialchars((string)($edit['currency'] ?? 'USD')) ?>"></label></div>
+      <div><label>Weight (g, physical only)<br><input type="number" name="weight_grams" value="<?= htmlspecialchars((string)($edit['weight_grams'] ?? '')) ?>"></label></div>
+      <div><label>Tax rate (e.g. 0.075)<br><input type="number" step="0.001" min="0" name="tax_rate" value="<?= htmlspecialchars((string)($edit['tax_rate'] ?? 0)) ?>"></label></div>
+
+      <div style="grid-column:1/-1"><label>Image URLs <small style="color:var(--muted)">(one per line, or comma-separated)</small><br><textarea name="images" rows="2" style="width:100%;font-family:inherit"><?php
+        $imgs = $edit && !empty($edit['images']) ? (json_decode((string)$edit['images'], true) ?: []) : [];
+        echo htmlspecialchars(implode("\n", $imgs));
+      ?></textarea></label></div>
+
+      <div style="grid-column:1/-1"><label>Available locations <small style="color:var(--muted)">(ISO-2 codes, comma-separated. <code>*</code> = anywhere.)</small><br><input type="text" name="available_locations" value="<?php
+        $loc = $edit['available_locations'] ?? '*';
+        if ($loc !== '*' && $loc) { $arr = json_decode((string)$loc, true); echo htmlspecialchars(is_array($arr) ? implode(', ', $arr) : '*'); }
+        else echo '*';
+      ?>"></label></div>
+
+      <div style="grid-column:1/-1"><label>Digital file URL <small style="color:var(--muted)">(private — only paid customers receive it by email)</small><br><input type="url" name="file_url" value="<?= htmlspecialchars((string)($edit['file_url'] ?? '')) ?>" placeholder="https://cdn.example.com/handout.pdf"></label></div>
+
+      <div><label>Sort order<br><input type="number" name="sort_order" value="<?= htmlspecialchars((string)($edit['sort_order'] ?? 0)) ?>"></label></div>
+      <div><label style="display:flex;align-items:center;gap:8px;margin-top:24px"><input type="checkbox" name="active" value="1" <?= ($edit['active'] ?? 1) ? 'checked' : '' ?>>Active (visible in store)</label></div>
+
+      <div style="grid-column:1/-1;display:flex;gap:10px"><button class="btn" type="submit"><?= $edit ? 'Save changes' : 'Create item' ?></button>
+      <?php if ($edit): ?><a class="btn" style="background:transparent;border:1px solid var(--border);color:var(--muted)" href="?v=storeitems">Cancel edit</a><?php endif; ?></div>
+    </form>
+  </div>
+
+  <table>
+    <thead><tr><th>SKU</th><th>Name</th><th>Type</th><th>Price</th><th>Category</th><th>Stock</th><th>Availability</th><th>Active</th><th>Actions</th></tr></thead>
+    <tbody>
+    <?php foreach ($items as $i): ?>
+      <tr>
+        <td class="mono"><?= htmlspecialchars($i['sku']) ?></td>
+        <td><?= htmlspecialchars($i['name']) ?></td>
+        <td><?= htmlspecialchars($i['goods_type']) ?></td>
+        <td>$<?= number_format((float)$i['price_usd'], 2) ?> <?= htmlspecialchars($i['currency'] ?? '') ?></td>
+        <td><?= htmlspecialchars($i['category'] ?? '') ?></td>
+        <td><?= (int)$i['stock'] === -1 ? '∞' : (int)$i['stock'] ?></td>
+        <td><?= htmlspecialchars(str_replace('_',' ', $i['availability'])) ?></td>
+        <td><?= (int)$i['active'] ? '<span style="color:#34D399">●</span>' : '<span style="color:#FCA5A5">●</span>' ?></td>
+        <td style="display:flex;gap:6px">
+          <a class="btn" style="padding:6px 10px;font-size:0.78rem" href="?v=storeitems&edit=<?= (int)$i['id'] ?>">Edit</a>
+          <form method="POST" action="" onsubmit="return confirm('Deactivate this item? It will hide from the store immediately.');" style="display:inline">
+            <?= mam_csrf_field() ?>
+            <input type="hidden" name="action" value="store_item_delete">
+            <input type="hidden" name="id" value="<?= (int)$i['id'] ?>">
+            <button class="btn" style="padding:6px 10px;font-size:0.78rem;background:transparent;border:1px solid #FCA5A5;color:#FCA5A5">Delete</button>
+          </form>
+        </td>
+      </tr>
+    <?php endforeach; if (!$items): ?><tr><td colspan="9" class="empty">No items yet — create your first one above.</td></tr><?php endif; ?>
+    </tbody>
+  </table>
+
+<?php elseif ($view === 'storeorders'):
+    $orders = mam_db_all('SELECT * FROM store_orders ORDER BY id DESC LIMIT 200');
+?>
+  <h1>Store Orders</h1>
+  <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Updated.</strong></div><?php endif; ?>
+  <table>
+    <thead><tr><th>Reference</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+    <tbody>
+    <?php foreach ($orders as $o):
+      $its = json_decode((string)$o['items_json'], true) ?: [];
+      $summary = implode(', ', array_map(function($i){ return $i['name'] . '×' . $i['qty']; }, array_slice($its, 0, 3)));
+    ?>
+      <tr>
+        <td class="mono"><?= htmlspecialchars($o['reference']) ?></td>
+        <td>
+          <strong><?= htmlspecialchars($o['customer_name']) ?></strong><br>
+          <small style="color:var(--muted)"><?= htmlspecialchars($o['customer_email']) ?> <?= $o['customer_country'] ? '· ' . htmlspecialchars($o['customer_country']) : '' ?></small>
+        </td>
+        <td><small><?= htmlspecialchars($summary) ?><?= count($its) > 3 ? '…' : '' ?></small></td>
+        <td>$<?= number_format((float)$o['total_usd'], 2) ?></td>
+        <td>
+          <form method="POST" action="" style="display:flex;gap:6px">
+            <?= mam_csrf_field() ?>
+            <input type="hidden" name="action" value="store_order_status">
+            <input type="hidden" name="order_id" value="<?= (int)$o['id'] ?>">
+            <select name="status" onchange="this.form.submit()">
+              <?php foreach (['pending','paid','shipped','delivered','refunded','cancelled'] as $s): ?>
+                <option value="<?= $s ?>" <?= $o['status'] === $s ? 'selected' : '' ?>><?= ucfirst($s) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </form>
+        </td>
+        <td><small><?= htmlspecialchars((string)$o['created_at']) ?></small></td>
+        <td><a class="btn" style="padding:6px 10px;font-size:0.78rem" href="#" onclick="alert(<?= htmlspecialchars(json_encode(json_encode($its, JSON_PRETTY_PRINT))) ?>);return false">View items</a></td>
+      </tr>
+    <?php endforeach; if (!$orders): ?><tr><td colspan="7" class="empty">No store orders yet.</td></tr><?php endif; ?>
+    </tbody>
+  </table>
 
 <?php else: ?>
   <p>Unknown view.</p>

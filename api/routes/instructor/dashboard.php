@@ -10,7 +10,7 @@ $classes = mam_db_all(
 );
 
 $students = mam_db_all(
-    "SELECT DISTINCT u.id, u.name, u.email, u.phone, e.class_id, c.title AS class_title FROM enrollments e JOIN classes c ON c.id = e.class_id JOIN users u ON u.id = e.student_id WHERE c.instructor_id = ? AND e.status = 'active' ORDER BY u.name",
+    "SELECT u.id, u.name, u.email, u.phone, e.id AS enrollment_id, e.class_id, c.title AS class_title FROM enrollments e JOIN classes c ON c.id = e.class_id JOIN users u ON u.id = e.student_id WHERE c.instructor_id = ? AND e.status = 'active' ORDER BY c.title, u.name",
     [$instructorId]
 );
 

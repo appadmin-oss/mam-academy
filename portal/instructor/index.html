@@ -11,8 +11,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/main.css?v=20260529f">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260529f">
+<link rel="stylesheet" href="/assets/css/main.css?v=20260529g">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260529g">
 </head>
 <body>
 <div class="portal-shell">
@@ -46,9 +46,9 @@
   </main>
 </div>
 
-<script src="/assets/js/config.js?v=20260529f"></script>
-<script src="/assets/js/portal.js?v=20260529f"></script>
-<script src="/assets/js/libs.js?v=20260529f" async></script>
+<script src="/assets/js/config.js?v=20260529g"></script>
+<script src="/assets/js/portal.js?v=20260529g"></script>
+<script src="/assets/js/libs.js?v=20260529g" async></script>
 <script>
 (function () {
   var P = window.MAM_PORTAL, API = window.MAM_API;
@@ -110,36 +110,73 @@
 
   function renderAttendance() {
     var students = data.students || [], att = data.recent_attendance || [];
-    // Form to mark new attendance
-    var classGroups = {};
-    students.forEach(function (st) { classGroups[st.class_id] = classGroups[st.class_id] || { title: st.class_title, items: [] }; classGroups[st.class_id].items.push(st); });
-
+    // Group students by class so the student picker filters when a class is
+    // selected. Each student row carries its enrollment_id (from dashboard.php),
+    // so a single click sets both the visible student + the form field the
+    // backend actually uses.
+    var byClass = {};
+    students.forEach(function (st) { (byClass[st.class_id] = byClass[st.class_id] || []).push(st); });
     var classes = (data.classes || []).filter(function (c) { return c.status === 'active'; });
     var classOpts = classes.map(function (c) { return '<option value="' + c.id + '">' + P.escapeHtml(c.title) + '</option>'; }).join('');
 
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Mark attendance</h2></div>'
-      + '<form id="attForm" class="profile-form">'
-      + '<div class="field"><label>Class</label><select id="att-class" required>' + classOpts + '</select></div>'
-      + '<div class="field"><label>Date</label><input id="att-date" type="date" value="' + new Date().toISOString().slice(0,10) + '" required></div>'
-      + '<div class="field full"><label>Enrollment ID</label><input id="att-enrollment" type="number" required placeholder="Select student below first"></div>'
-      + '<div class="field"><label>Status</label><select id="att-status" required><option value="present">Present</option><option value="late">Late</option><option value="absent">Absent</option><option value="excused">Excused</option></select></div>'
-      + '<div class="field"><label>Notes</label><input id="att-notes" placeholder="Optional"></div>'
-      + '<div class="actions"><button type="submit" class="btn btn-primary">Save attendance</button></div>'
+      + '<form id="attForm" class="profile-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">'
+      + '<div class="field"><label for="att-class">Class</label><select id="att-class" required>' + classOpts + '</select></div>'
+      + '<div class="field"><label for="att-date">Date</label><input id="att-date" type="date" value="' + new Date().toISOString().slice(0,10) + '" required></div>'
+      + '<div class="field"><label for="att-status">Status</label><select id="att-status" required><option value="present">Present</option><option value="late">Late</option><option value="absent">Absent</option><option value="excused">Excused</option></select></div>'
+      + '<div class="field" style="grid-column:1/-1"><label for="att-notes">Notes</label><input id="att-notes" placeholder="Optional"></div>'
+      + '<div class="field" style="grid-column:1/-1"><label>Student in class <small style="color:var(--text-muted);font-weight:400">— click a row to select</small></label>'
+      +   '<div id="att-students" style="display:grid;gap:8px;max-height:300px;overflow:auto;padding:10px;background:var(--bg-raised);border:1px solid var(--border);border-radius:10px"></div>'
+      + '</div>'
+      + '<input type="hidden" id="att-enrollment" name="enrollment_id" required>'
+      + '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary" id="att-submit" disabled><i class="fa-solid fa-check"></i> Save attendance</button>'
+      +   '<span id="att-selected-label" style="margin-left:14px;color:var(--text-muted);font-size:0.88rem">No student selected</span></div>'
       + '</form></section>'
       + '<section class="panel"><div class="panel-head"><h2>Recent attendance</h2></div>'
       + (att.length ? attendanceTable(att) : '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded yet.') + '</div>') + '</section>';
 
+    function paintStudents() {
+      var cls = document.getElementById('att-class').value;
+      var box = document.getElementById('att-students');
+      var list = byClass[cls] || [];
+      if (!list.length) { box.innerHTML = '<p style="margin:6px 4px;color:var(--text-muted);font-size:0.88rem">No students enrolled in this class yet.</p>'; return; }
+      box.innerHTML = list.map(function (st) {
+        return '<button type="button" class="att-student-row" data-eid="' + st.enrollment_id + '" data-name="' + P.escapeHtml(st.name || '—') + '" '
+          + 'style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;text-align:left;cursor:pointer;min-height:48px;color:var(--text);font-size:0.92rem">'
+          + '<i class="fa-solid fa-user-graduate" style="color:var(--gold-bright)" aria-hidden="true"></i>'
+          + '<span style="flex:1"><strong>' + P.escapeHtml(st.name || '—') + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(st.email || '') + '</span></span>'
+          + '<span style="color:var(--text-muted);font-size:0.76rem;font-family:monospace">#' + st.enrollment_id + '</span>'
+          + '</button>';
+      }).join('');
+      box.querySelectorAll('.att-student-row').forEach(function (b) {
+        b.addEventListener('click', function () {
+          box.querySelectorAll('.att-student-row').forEach(function (x) { x.style.borderColor = 'var(--border)'; x.style.background = 'var(--bg-surface)'; });
+          b.style.borderColor = 'var(--gold-bright)';
+          b.style.background = 'rgba(252,198,71,0.10)';
+          document.getElementById('att-enrollment').value = b.getAttribute('data-eid');
+          document.getElementById('att-selected-label').textContent = 'Selected: ' + b.getAttribute('data-name') + ' (enrolment #' + b.getAttribute('data-eid') + ')';
+          document.getElementById('att-submit').disabled = false;
+        });
+      });
+    }
+    document.getElementById('att-class').addEventListener('change', paintStudents);
+    paintStudents();
+
     document.getElementById('attForm').addEventListener('submit', function (e) {
       e.preventDefault();
+      var eid = parseInt(document.getElementById('att-enrollment').value, 10);
+      if (!eid) { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Please pick a student first', 'error') : alert('Please pick a student first')); return; }
       var payload = {
-        enrollment_id: parseInt(document.getElementById('att-enrollment').value, 10),
+        enrollment_id: eid,
         session_date: document.getElementById('att-date').value,
         status: document.getElementById('att-status').value,
         notes: document.getElementById('att-notes').value,
       };
+      var btn = document.getElementById('att-submit'); var orig = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving…';
       API.request('instructor/mark-attendance', { method: 'POST', body: payload })
         .then(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Attendance saved', 'success') : alert('Attendance saved.')); load(); })
-        .catch(function (err) { var msg = 'Could not save: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not save', msg, 'error') : alert(msg)); });
+        .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var msg = 'Could not save: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not save', msg, 'error') : alert(msg)); });
     });
   }
   function attendanceTable(att) {
