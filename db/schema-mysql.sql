@@ -363,3 +363,24 @@ CREATE TABLE IF NOT EXISTS store_orders (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (9) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v10 — store-flow fix. Store orders are NOT tied to an
+-- application, so a store payment row needs application_id = NULL.
+-- The original schema declared application_id NOT NULL with a CASCADE
+-- foreign key, which made every store INSERT 500. Drop the FK, relax
+-- to NULL, re-add an indexed reference that allows NULL.
+-- ─────────────────────────────────────────────────────────────
+SET @fk := (SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_NAME = 'payments' AND COLUMN_NAME = 'application_id'
+              AND CONSTRAINT_NAME <> 'PRIMARY' AND REFERENCED_TABLE_NAME IS NOT NULL
+            LIMIT 1);
+SET @sql := IF(@fk IS NOT NULL, CONCAT('ALTER TABLE payments DROP FOREIGN KEY ', @fk), 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+ALTER TABLE payments MODIFY application_id INT NULL;
+ALTER TABLE payments
+  ADD CONSTRAINT fk_pay_app_v10
+  FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE SET NULL;
+
+INSERT INTO schema_version (version) VALUES (10) ON DUPLICATE KEY UPDATE version = version;

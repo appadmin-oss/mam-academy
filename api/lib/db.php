@@ -352,6 +352,10 @@ function mam_db_migrate(PDO $db): void {
             CREATE INDEX idx_store_orders_status ON store_orders(status);
             CREATE INDEX idx_store_orders_email  ON store_orders(customer_email);
         ",
+        // v10 — no-op on SQLite (CREATE TABLE for payments doesn't declare
+        // application_id NOT NULL there, so store rows already insert fine).
+        // Bumping schema_version keeps SQLite + MySQL in lockstep.
+        10 => "SELECT 1;",
     ];
 
     foreach ($migrations as $version => $sql) {

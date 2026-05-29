@@ -660,12 +660,20 @@
         .catch(function (err) {
           setBusy('btnNext4', false);
           submitting = false;
+          // Always log the raw error to the console so the operator can see
+          // exactly what the server returned (status, body, message). The
+          // friendly user-facing message is chosen below.
+          try { console.error('[MAM_APPLY] submit failed', { status: err && err.status, body: err && err.body, message: err && err.message, raw: err }); } catch (e) {}
           if (err && err.body && err.body.fields) {
             showServerErrors(err.body.fields);
           } else if (err && err.status === 429) {
             apiError('Too many attempts. Please try again in a few minutes.');
           } else if (err && (err.apiDown || err.message === 'api_unavailable' || err.message === 'Failed to fetch')) {
             apiUnavailableFallback();
+          } else if (err && err.body && err.body.error) {
+            // Surface the server's machine-readable error code so support can
+            // help quickly. Operator already sees the full body in the console.
+            apiError('Submission failed: ' + err.body.error + (err.body.message ? ' — ' + err.body.message : ''));
           } else {
             apiError(err && err.message ? err.message : 'Submission failed. Please try again.');
           }

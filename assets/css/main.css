@@ -266,9 +266,17 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
    embedded views) and Safari for a brief flash before paint — so the
    text is never invisible. @supports promotes the gradient when paint is
    actually supported. */
-.highlight-gold{color:var(--gold-bright)}
+/* Gradient-text accent. Crucial: NEVER set color:transparent here. Keep the
+   solid gold colour as a visible fallback — if the gradient image fails to
+   compute or paint (CSS-var override, hardware-accel quirks, certain Android
+   WebViews), the text still shows in solid gold instead of disappearing. */
+.highlight-gold{color:var(--gold-bright,#FCC647)}
 @supports ((-webkit-background-clip:text) or (background-clip:text)){
-  .highlight-gold{background:linear-gradient(135deg,var(--gold),var(--gold-bright));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+  .highlight-gold{
+    background-image:linear-gradient(135deg,var(--gold,#E8961F),var(--gold-bright,#FCC647));
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
 }
 /* Gradient-text safety net. On any engine WITHOUT background-clip:text
    support (older Android WebViews, some in-app browsers, Firefox <49), the

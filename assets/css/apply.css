@@ -181,7 +181,12 @@
 .choice-grid-1{grid-template-columns:1fr}
 /* Reserve bottom-right space for the check indicator so it never overlaps
    the gold-coloured price in the head row. */
-.choice-card{position:relative;padding:18px 20px 36px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-md);cursor:pointer;transition:all 0.2s var(--ease)}
+/* Choice cards used to reserve a 36px bottom strip for an absolutely-positioned
+   checkmark icon, which collided with multi-line descriptions (visible on the
+   Optional Add-ons block of the Review step). The card's border + background
+   change already communicates selection, so the icon is hidden and the
+   reserved bottom padding is dropped. */
+.choice-card{position:relative;padding:18px 20px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-md);cursor:pointer;transition:all 0.2s var(--ease);display:block}
 .choice-card:hover{border-color:var(--border-gold);background:rgba(224,138,26,0.04)}
 .choice-card input[type="radio"],.choice-card input[type="checkbox"]{position:absolute;opacity:0;pointer-events:none}
 .choice-card:has(input:checked){border-color:var(--gold-bright);background:rgba(224,138,26,0.1);box-shadow:0 0 0 3px rgba(224,138,26,0.12)}
@@ -192,7 +197,7 @@
 .choice-card-title{font-size:0.97rem;font-weight:700;color:var(--text);line-height:1.3}
 .choice-card-price{font-family:var(--font-display);font-size:1.35rem;color:var(--gold-bright);line-height:1;flex-shrink:0;letter-spacing:0.02em}
 .choice-card-desc{font-size:0.84rem;color:var(--text-muted);line-height:1.55}
-.choice-card-icon{position:absolute;bottom:12px;right:14px;width:22px;height:22px;border-radius:50%;border:2px solid var(--border-strong);background:transparent;display:flex;align-items:center;justify-content:center;color:transparent;transition:all 0.2s var(--ease);opacity:0.55}
+.choice-card-icon{display:none}
 .choice-card:hover .choice-card-icon{opacity:1;border-color:var(--border-gold)}
 .choice-card:has(input:checked) .choice-card-icon{background:var(--gold-bright);border-color:var(--gold-bright);color:#1A120B;opacity:1}
 .choice-card:has(input:checked) .choice-card-icon::before{content:'✓';font-weight:900;font-size:0.72rem}
