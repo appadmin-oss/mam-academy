@@ -796,20 +796,51 @@ function mam_email_contact_autoresponse(string $name, string $topic): string {
 }
 
 function mam_email_application_confirmation(array $app, array $customer): string {
-    $tot = number_format((float)$app['total_usd'], 2);
-    $ref = htmlspecialchars($app['reference'], ENT_QUOTES);
+    $ref  = htmlspecialchars($app['reference'], ENT_QUOTES);
     $name = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')), ENT_QUOTES);
-    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're in, $name!</h2>
+    $bookUrl = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/book?ref=' . rawurlencode($app['reference']), ENT_QUOTES);
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Application received, $name.</h2>
       <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Thank you for applying to MAM Academy. Your application reference is:</p>
       <div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;color:#FBBF24;font-size:16px;text-align:center;margin:16px 0'>$ref</div>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Programme: <strong style='color:#fff'>" . htmlspecialchars($app['pathway']) . "</strong> · Mode: <strong style='color:#fff'>" . htmlspecialchars($app['mode']) . "</strong></p>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:6px 0 0'>Total: <strong style='color:#FBBF24'>USD \${$tot}</strong></p>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:20px 0 0'>Our team will be in touch within <strong>24 hours</strong> to confirm your schedule and book your MAM Auditer entry assessment.</p>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Programme: <strong style='color:#fff'>" . htmlspecialchars($app['pathway']) . "</strong> &middot; Mode: <strong style='color:#fff'>" . htmlspecialchars($app['mode']) . "</strong></p>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:20px 0 0'><strong style='color:#fff'>Next step &mdash; book your session.</strong> A one-time <strong style='color:#FBBF24'>\$5 confirmation</strong> secures your slot with our Admin Officer and the MAM Auditer Judges. It covers your <strong>registration</strong>, <strong>student ID card</strong>, <strong>student file</strong> and a <strong>30-minute MAM Auditer assessment</strong>. No tuition is charged yet &mdash; we only ask for tuition after we have placed you correctly.</p>
+      " . mam_email_button($bookUrl, 'Book my session &mdash; \$5') . "
+      <p style='color:rgba(255,255,255,0.7);font-size:13px;margin:0'>Slots are limited each week. Bookings without payment will be held for 48 hours, then released.</p>
       " . mam_email_promo_block(['pathways']);
     return mam_email_layout([
         'header' => 'MAM ACADEMY',
-        'preheader' => 'We received your application — your reference and next steps inside.',
+        'preheader' => 'Your application is in. Reserve your $5 session with our Admin Officer + MAM Auditer Judges.',
         'reason' => 'You received this because you submitted an application to MAM Academy.',
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
+}
+
+/**
+ * Booking-fee paid confirmation — sent once the $5 clears, with the direct
+ * link to the Google appointment embed and a friendly reminder of what the
+ * fee covers (and what it deliberately does not).
+ */
+function mam_email_booking_confirmed(array $app, array $customer): string {
+    $name = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')) ?: 'there', ENT_QUOTES);
+    $ref  = htmlspecialchars($app['reference'], ENT_QUOTES);
+    $bookUrl = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/book?ref=' . rawurlencode($app['reference']), ENT_QUOTES);
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Your seat is reserved, $name.</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>We received your \$5 confirmation for application <strong style='color:#FBBF24'>$ref</strong>. Pick a time on the booking page to lock in your meeting with our Admin Officer and the MAM Auditer Judges.</p>
+      " . mam_email_button($bookUrl, 'Pick my time') . "
+      <p style='color:rgba(255,255,255,0.78);font-size:14px;margin:0'>Your \$5 covers:</p>
+      <ul style='color:rgba(255,255,255,0.78);font-size:14px;line-height:1.85;padding-left:18px;margin:8px 0 0'>
+        <li>Registration &amp; admission processing</li>
+        <li>Your MAM Academy student ID card</li>
+        <li>Your student file (kept on record at the Centre)</li>
+        <li>A 30-minute MAM Auditer assessment with our judges</li>
+      </ul>
+      <p style='color:rgba(255,255,255,0.6);font-size:13px;margin:16px 0 0'>Note: tuition is separate and only charged after we have placed you. The \$5 is final &mdash; payment terms apply per our published policy.</p>
+      " . mam_email_promo_block(['pathways']);
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'Your $5 cleared — pick a time with our Admin Officer & MAM Auditer Judges.',
+        'reason' => 'You received this because you confirmed your MAM Academy application with the $5 booking fee.',
         'unsubscribe' => true,
         'body' => $inner,
     ]);

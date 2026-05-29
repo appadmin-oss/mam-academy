@@ -288,6 +288,15 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE applications ADD COLUMN idempotency_key TEXT;
             CREATE INDEX idx_apps_idem ON applications(idempotency_key);
         ",
+        // Booking-fee flow: the application is now free; a flat \$5 booking
+        // fee unlocks the Book-a-Session page (registration + ID card +
+        // student file + 30-min MAM Auditer assessment). `purpose` tags
+        // each payment ('booking_fee' | 'tuition' | 'store') so the same
+        // payment infrastructure can serve all three flows safely.
+        8 => "
+            ALTER TABLE applications ADD COLUMN booking_fee_paid_at TEXT;
+            ALTER TABLE payments     ADD COLUMN purpose TEXT DEFAULT 'tuition';
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

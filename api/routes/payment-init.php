@@ -3,55 +3,73 @@
  * POST /api/payment/initialize
  *
  * Body JSON:
- *   { reference: "MAM-…", provider: "paystack" | "flutterwave" | "bank" }
+ *   { reference: "MAM-…", provider: "paystack" | "flutterwave" | "bank",
+ *     purpose: "booking_fee" | "tuition"   (default: "booking_fee") }
  *
- * For Paystack: returns the authorization_url + access_code (recommended)
- *   AND/OR keeps the existing inline-popup flow (the frontend can choose).
+ * purpose=booking_fee — the public flow used by /book. Charges a flat $5 that
+ *   covers registration, ID card, student file and the 30-minute MAM Auditer
+ *   session. On success, payment-verify.php stamps booking_fee_paid_at and
+ *   unlocks the Google appointment embed for the applicant.
+ * purpose=tuition   — legacy / future portal use. Charges the application's
+ *   computed total. Untouched here so the portal tuition flow stays trivial.
  *
- * For Flutterwave: returns the FlutterwaveCheckout payload (the frontend
- *   opens the SDK; we record the tx_ref server-side for verification).
- *
- * For bank: records intent + returns bank instructions.
+ * Each purpose uses a distinct payment reference (App-ref vs App-ref + "-BK")
+ * so the payments table's UNIQUE(reference) lets booking + tuition coexist for
+ * the same application without colliding.
  */
 declare(strict_types=1);
 
 $in = mam_json_input();
 $ref = preg_replace('/[^A-Za-z0-9\-]/', '', (string)($in['reference'] ?? ''));
 $provider = strtolower(trim((string)($in['provider'] ?? '')));
+$purpose  = strtolower(trim((string)($in['purpose']  ?? 'booking_fee')));
+if (!in_array($purpose, ['booking_fee', 'tuition'], true)) $purpose = 'booking_fee';
 
 $app = mam_db_row('SELECT a.*, c.email AS email, c.first_name, c.last_name, c.phone
                     FROM applications a JOIN customers c ON c.id = a.customer_id
                     WHERE a.reference = ?', [$ref]);
 if (!$app) mam_fail('application_not_found', 404);
 
-// Don't let an already-paid application start another charge.
-if (($app['status'] ?? '') === 'paid') {
-    mam_ok(['already_paid' => true, 'reference' => $ref, 'status' => 'paid']);
+// Don't restart a charge that's already settled for THIS purpose.
+$payRef = $purpose === 'booking_fee' ? ($ref . '-BK') : $ref;
+if ($purpose === 'booking_fee' && !empty($app['booking_fee_paid_at'])) {
+    mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
+}
+if ($purpose === 'tuition' && ($app['status'] ?? '') === 'paid') {
+    mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
 }
 
-$totalUsd = (float)$app['total_usd'];
+// Pricing: booking_fee is the single source of truth, $5 flat. Tuition reads
+// the server-side total previously computed for the application.
+if ($purpose === 'booking_fee') {
+    $totalUsd = 5.00;
+} else {
+    $totalUsd = (float)$app['total_usd'];
+}
 if ($totalUsd <= 0) mam_fail('zero_amount', 400);
 
 $ngnRate = (float)mam_env('USD_TO_NGN', '1500');
 $amountNgn = (int)round($totalUsd * $ngnRate);
 $amountKobo = $amountNgn * 100;
 
-// Persist a payment row (idempotent via reference)
-$existing = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$ref]);
+// Persist a payment row (idempotent via the per-purpose reference)
+$existing = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$payRef]);
 if (!$existing) {
     mam_db_insert('payments', [
         'application_id' => (int)$app['id'],
-        'reference'      => $ref,
+        'reference'      => $payRef,
         'idempotency_key'=> $_SERVER['HTTP_X_IDEMPOTENCY_KEY'] ?? null,
         'provider'       => $provider,
+        'purpose'        => $purpose,
         'status'         => 'pending',
         'amount'         => $amountNgn,
         'currency'       => 'NGN',
     ]);
 } else {
-    // Update provider in case it changed (e.g. user picked Flutterwave then switched to Paystack)
-    mam_db_update('payments', ['provider' => $provider, 'updated_at' => date('Y-m-d H:i:s')], ['reference' => $ref]);
+    mam_db_update('payments', ['provider' => $provider, 'updated_at' => date('Y-m-d H:i:s')], ['reference' => $payRef]);
 }
+// From here on the rest of the file treats $payRef as the payment reference.
+$ref = $payRef;
 
 $metadata = [
     'application_id' => (int)$app['id'],

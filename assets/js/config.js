@@ -111,6 +111,26 @@ window.MAM_CONFIG = {
     host:     'Van. BOJA'
   },
 
+  /* -------- Book a Session (post-application appointment) --------
+     /book embeds your Google Appointment Schedule as an iframe so visitors
+     never leave the site. Paste the share URL from Google Calendar →
+     "Appointment schedules" → Share. Falls back to a "open in new tab"
+     button if the iframe is blocked by your share settings. The same URL
+     is read server-side from BOOKING_EMBED_URL in api/.env (so the API can
+     also surface it). The booking page is gated behind a one-time $5 fee
+     that covers registration, ID card, student file and a 30-minute MAM
+     Auditer assessment. */
+  booking: {
+    feeUsd:    5,
+    embedUrl:  '',               // paste your Google Appointment share link
+    covers:    [
+      'Registration & admission processing',
+      'Your MAM Academy student ID card',
+      'Your student file (kept on record at the Centre)',
+      'A 30-minute MAM Auditer assessment with our judges'
+    ]
+  },
+
   /* -------- Next intake (for the homepage countdown) -------- */
   intake: {
     startDate: '2026-05-05T00:00:00Z',

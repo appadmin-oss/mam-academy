@@ -14,8 +14,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
-<link rel="stylesheet" href="assets/css/main.css?v=20260529c">
-<link rel="stylesheet" href="assets/css/apply.css?v=20260529c">
+<link rel="stylesheet" href="assets/css/main.css?v=20260529d">
+<link rel="stylesheet" href="assets/css/apply.css?v=20260529d">
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
@@ -51,7 +51,6 @@
       <button type="button" class="apply-progress-step" data-step="1"><span class="step-dot"><span>2</span></span><span class="step-name">Profile</span></button>
       <button type="button" class="apply-progress-step" data-step="2"><span class="step-dot"><span>3</span></span><span class="step-name">Background</span></button>
       <button type="button" class="apply-progress-step" data-step="3"><span class="step-dot"><span>4</span></span><span class="step-name">Review</span></button>
-      <button type="button" class="apply-progress-step" data-step="4"><span class="step-dot"><span>5</span></span><span class="step-name">Payment</span></button>
     </nav>
 
     <!-- Collapsible order summary — always one tap away -->
@@ -82,7 +81,7 @@
       <!-- STEP 1: Programme — split into 3 sub-sections for clarity -->
       <div class="step active" data-step="0">
         <div class="step-head">
-          <div class="step-num">Step 1 of 5 · Programme</div>
+          <div class="step-num">Step 1 of 4 · Programme</div>
           <h2 class="step-title">Choose Your Programme</h2>
           <p class="step-desc">Three quick decisions. Don't overthink — you can change anything before payment, and <a href="auditer" style="color:var(--gold-bright)">MAM Auditer</a> will fine-tune your placement.</p>
         </div>
@@ -244,7 +243,7 @@
       <!-- STEP 2: Student Profile -->
       <div class="step" data-step="1">
         <div class="step-head">
-          <div class="step-num">Step 2 of 5</div>
+          <div class="step-num">Step 2 of 4</div>
           <h2 class="step-title">Student Profile</h2>
           <p class="step-desc">Tell us about the student. We use this only to onboard and contact you about your enrollment.</p>
           <div class="track-badge" id="trackBadge" hidden>
@@ -360,7 +359,7 @@
       <!-- STEP 3: Background -->
       <div class="step" data-step="2">
         <div class="step-head">
-          <div class="step-num">Step 3 of 5</div>
+          <div class="step-num">Step 3 of 4</div>
           <h2 class="step-title">Background &amp; Goals</h2>
           <p class="step-desc">Helps us prepare your MAM Auditer placement and recommend the right instructor.</p>
         </div>
@@ -418,9 +417,9 @@
       <!-- STEP 4: Review -->
       <div class="step" data-step="3">
         <div class="step-head">
-          <div class="step-num">Step 4 of 5</div>
-          <h2 class="step-title">Review &amp; Confirm</h2>
-          <p class="step-desc">Take a final look. You can edit any section before payment.</p>
+          <div class="step-num">Step 4 of 4 · Review</div>
+          <h2 class="step-title">Review &amp; Submit</h2>
+          <p class="step-desc">Take a final look. After you submit, we'll guide you to book your session with our Admin Officer and the MAM Auditer Judges (one-time <strong>$5</strong> seat confirmation).</p>
         </div>
 
         <div id="reviewBody"></div>
@@ -469,68 +468,18 @@
 
         <div class="step-actions">
           <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" id="btnNext4">Continue to Payment <i class="fa-solid fa-arrow-right"></i></button>
+          <button type="button" class="btn-step btn-step-next" id="btnNext4">Submit &amp; Book My Session <i class="fa-solid fa-arrow-right"></i></button>
         </div>
       </div>
 
-      <!-- STEP 5: Payment -->
-      <div class="step" data-step="4">
-        <div class="step-head">
-          <div class="step-num">Step 5 of 5</div>
-          <h2 class="step-title">Secure Payment</h2>
-          <p class="step-desc">Choose your preferred payment method. Your details are sent directly to the provider — we never store card information.</p>
-        </div>
-
-        <div class="payment-secure">
-          <i class="fa-solid fa-shield-halved"></i>
-          <span>All transactions are encrypted &amp; PCI-DSS compliant. Verified by Paystack &amp; Flutterwave.</span>
-        </div>
-
-        <div class="payment-methods">
-          <label class="payment-method"><input type="radio" name="payment" value="paystack">
-            <div class="payment-logo paystack">PAY<br>STACK</div>
-            <div class="payment-method-info"><div class="payment-method-name">Paystack</div><div class="payment-method-desc">Cards · Bank · USSD · QR · Mobile money</div></div>
-            <div class="payment-method-check"></div>
-          </label>
-          <label class="payment-method"><input type="radio" name="payment" value="flutterwave">
-            <div class="payment-logo flutterwave">Flutter<br>wave</div>
-            <div class="payment-method-info"><div class="payment-method-name">Flutterwave</div><div class="payment-method-desc">Cards · Bank · M-Pesa · Apple/Google Pay</div></div>
-            <div class="payment-method-check"></div>
-          </label>
-          <label class="payment-method"><input type="radio" name="payment" value="stripe">
-            <div class="payment-logo stripe">stripe</div>
-            <div class="payment-method-info"><div class="payment-method-name">Stripe</div><div class="payment-method-desc">International cards · Apple/Google Pay</div></div>
-            <div class="payment-method-check"></div>
-          </label>
-          <label class="payment-method"><input type="radio" name="payment" value="bank">
-            <div class="payment-logo bank"><i class="fa-solid fa-building-columns"></i></div>
-            <div class="payment-method-info"><div class="payment-method-name">Bank Transfer</div><div class="payment-method-desc">Direct transfer · Manual confirmation</div></div>
-            <div class="payment-method-check"></div>
-          </label>
-        </div>
-        <div class="field-error" id="err-payment"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a payment method</span></div>
-
-        <div class="bank-details" id="bankDetails">
-          <h4><i class="fa-solid fa-building-columns" style="margin-right:8px"></i>Bank Transfer Instructions</h4>
-          <div class="bank-row"><span>Bank</span><span><span id="bankName">—</span><button type="button" class="bank-copy" data-copy="bankName">copy</button></span></div>
-          <div class="bank-row"><span>Account Name</span><span><span id="bankAccountName">—</span><button type="button" class="bank-copy" data-copy="bankAccountName">copy</button></span></div>
-          <div class="bank-row"><span>Account Number</span><span><span id="bankAccountNumber">—</span><button type="button" class="bank-copy" data-copy="bankAccountNumber">copy</button></span></div>
-          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:12px;line-height:1.55">After transfer, email your proof of payment to <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> using your application reference (issued on submit).</p>
-        </div>
-
-        <div class="step-actions" style="flex-direction:column;align-items:stretch">
-          <button type="button" class="btn-pay" id="btnPay"><span>Pay $0</span><i class="fa-solid fa-lock"></i></button>
-          <button type="button" class="btn-step btn-step-back" data-back style="margin-top:12px;align-self:flex-start"><i class="fa-solid fa-arrow-left"></i> Back to review</button>
-        </div>
-      </div>
     </div>
   </section>
 
   <div class="apply-mobilebar" id="applyMobileBar">
     <div class="amb-meta">
-      <span class="amb-label">Total</span>
-      <span class="amb-total" id="ambTotal">$0</span>
-      <span class="amb-step" id="ambStep">Step 1 of 5</span>
+      <span class="amb-label">Next</span>
+      <span class="amb-total" id="ambTotal">Book session</span>
+      <span class="amb-step" id="ambStep">Step 1 of 4</span>
     </div>
     <button type="button" class="amb-view" id="ambView">View summary</button>
   </div>
@@ -539,10 +488,10 @@
 <div id="include-footer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/js/intlTelInputWithUtils.min.js"></script>
-<script src="assets/js/config.js?v=20260529c"></script>
-<script src="assets/js/main.js?v=20260529c"></script>
-<script src="assets/js/validate.js?v=20260529c"></script>
-<script src="assets/js/headshot.js?v=20260529c"></script>
-<script src="assets/js/apply.js?v=20260529c"></script>
+<script src="assets/js/config.js?v=20260529d"></script>
+<script src="assets/js/main.js?v=20260529d"></script>
+<script src="assets/js/validate.js?v=20260529d"></script>
+<script src="assets/js/headshot.js?v=20260529d"></script>
+<script src="assets/js/apply.js?v=20260529d"></script>
 </body>
 </html>

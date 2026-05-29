@@ -75,13 +75,41 @@ mam_db_update('payments', [
     'updated_at'         => date('Y-m-d H:i:s'),
 ], ['reference' => $ref]);
 
-mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $payment['application_id']]);
-mam_audit('verify_succeeded', 'payment', (int)$payment['id'], ['ref' => $ref, 'provider' => $provider]);
+// Booking-fee path: this is now the default flow. The $5 is a confirmation of
+// intent + registration / ID card / file / 30-min Auditer slot — it does NOT
+// pay tuition or enroll the student. We stamp booking_fee_paid_at so /book
+// can unlock the Google appointment embed, but leave application.status alone
+// (the admin marks it 'paid' / 'enrolled' after the Auditer session).
+$purpose = $payment['purpose'] ?? 'tuition';
+if ($purpose === 'booking_fee') {
+    mam_db_update('applications', [
+        'booking_fee_paid_at' => date('Y-m-d H:i:s'),
+        'updated_at'          => date('Y-m-d H:i:s'),
+    ], ['id' => $payment['application_id']]);
+    // Email the applicant the unlock + direct booking link.
+    try {
+        $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
+        if ($customer && !empty($customer['email'])) {
+            mam_send(
+                $customer['email'],
+                'Your MAM Academy seat is reserved — pick your time',
+                mam_email_booking_confirmed($app, $customer),
+                'booking_confirmed',
+                true
+            );
+        }
+    } catch (Throwable $e) { mam_log('warn', 'booking_email_failed', ['err' => $e->getMessage()]); }
+} else {
+    mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $payment['application_id']]);
+}
+mam_audit('verify_succeeded', 'payment', (int)$payment['id'], ['ref' => $ref, 'provider' => $provider, 'purpose' => $purpose]);
 
-// Auto-provision a student portal account once payment clears.
+// Auto-provision a student portal account once TUITION payment clears. The
+// $5 booking fee deliberately does NOT yet create a portal account — admin
+// confirms enrolment after the Auditer session.
 $portalNotice = null;
 try {
-    if ($app['customer_id']) {
+    if ($purpose === 'tuition' && $app['customer_id']) {
         $provision = mam_ensure_student_user((int)$app['customer_id']);
         if ($provision['password']) {
             $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);

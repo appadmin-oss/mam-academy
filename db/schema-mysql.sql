@@ -275,3 +275,34 @@ ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS policy_signed_name VARCHAR(120)               AFTER policy_agreed,
   ADD COLUMN IF NOT EXISTS policy_signed_at   DATETIME     NULL          AFTER policy_signed_name;
 INSERT INTO schema_version (version) VALUES (3) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v4–v7 — additive applicant fields, intake session,
+-- abandonment-recovery timestamp, idempotency key.
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE customers
+  ADD COLUMN IF NOT EXISTS sex     VARCHAR(16)  NULL,
+  ADD COLUMN IF NOT EXISTS address VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS lga     VARCHAR(64)  NULL,
+  ADD COLUMN IF NOT EXISTS state   VARCHAR(64)  NULL;
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS program          VARCHAR(64)  NULL,
+  ADD COLUMN IF NOT EXISTS headshot_url     VARCHAR(500) NULL,
+  ADD COLUMN IF NOT EXISTS session          VARCHAR(16)  NULL,
+  ADD COLUMN IF NOT EXISTS recovery_sent_at DATETIME     NULL,
+  ADD COLUMN IF NOT EXISTS idempotency_key  VARCHAR(64)  NULL,
+  ADD INDEX  IF NOT EXISTS idx_apps_idem (idempotency_key);
+INSERT INTO schema_version (version) VALUES (4), (5), (6), (7) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v8 — Booking-fee flow. The application is now free; a flat
+-- $5 booking fee unlocks the Book-a-Session page (registration + ID card
+-- + student file + 30-min MAM Auditer assessment). `payments.purpose`
+-- tags each charge so booking-fee, future tuition and store orders can
+-- safely share the same payments table.
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS booking_fee_paid_at DATETIME NULL;
+ALTER TABLE payments
+  ADD COLUMN IF NOT EXISTS purpose VARCHAR(24) DEFAULT 'tuition';
+INSERT INTO schema_version (version) VALUES (8) ON DUPLICATE KEY UPDATE version = version;

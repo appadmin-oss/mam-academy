@@ -649,10 +649,12 @@
           data.reference = resp.reference;
           data.applicationId = resp.application_id;
           data.serverTotalUsd = resp.total_usd;
-          saveDraft(); updateSummary();
-          setBusy('btnNext4', false);
-          submitting = false;
-          showStep(current + 1);
+          saveDraft();
+          // Application is now free — the next step is /book, which gates the
+          // Google appointment embed behind the one-time $5 confirmation fee.
+          // Clear the draft so a returning visitor doesn't see a stale form.
+          try { localStorage.removeItem('mam.apply.draft'); } catch (e) {}
+          window.location.href = '/book?ref=' + encodeURIComponent(resp.reference);
         })
         .catch(function (err) {
           setBusy('btnNext4', false);
@@ -795,70 +797,9 @@
       notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    // ---------- Pay ----------
-    on($('#btnPay'), 'click', function (e) {
-      e.preventDefault();
-      if (!validateStep(current)) return;
-      if (!data.reference) { apiError('Application not submitted yet. Please go back and complete review.'); return; }
-      setBusy('btnPay', true, 'Opening secure checkout…');
-
-      api.initializePayment({ reference: data.reference, provider: data.payment })
-        .then(function (init) {
-          if (data.payment === 'paystack')      return openPaystack(init);
-          if (data.payment === 'flutterwave')   return openFlutterwave(init);
-          if (data.payment === 'stripe')        return openStripe(init);
-          if (data.payment === 'bank')          return handleBank(init);
-          throw new Error('unsupported_provider');
-        })
-        .catch(function (err) {
-          setBusy('btnPay', false);
-          apiError(err && err.message ? err.message : 'Could not start payment. Please try another method.');
-        });
-    });
-
-    function openPaystack(init) {
-      return loadScript('https://js.paystack.co/v1/inline.js').then(function () {
-        setBusy('btnPay', false);
-        var handler = window.PaystackPop.setup({
-          key: init.public_key,
-          email: data.email,
-          amount: init.amount_ngn * 100,
-          currency: 'NGN',
-          ref: init.reference,
-          metadata: { reference: init.reference, application_id: data.applicationId },
-          callback: function (response) { afterProviderCharge('paystack', response.reference || init.reference); },
-          onClose: function () { setBusy('btnPay', false); }
-        });
-        handler.openIframe();
-      });
-    }
-    function openFlutterwave(init) {
-      return loadScript('https://checkout.flutterwave.com/v3.js').then(function () {
-        setBusy('btnPay', false);
-        var payload = init.payload;
-        payload.public_key = init.public_key;
-        payload.payment_options = 'card, banktransfer, ussd, mobilemoneyghana, mobilemoneyfranco';
-        payload.callback = function (response) {
-          afterProviderCharge('flutterwave', response.tx_ref || init.reference, response.transaction_id);
-        };
-        payload.onclose = function () { setBusy('btnPay', false); };
-        window.FlutterwaveCheckout(payload);
-      });
-    }
-    function openStripe(init) {
-      // For shared-host PHP, Stripe full Checkout requires a server session.
-      // We support that via init.checkout_url when configured.
-      if (init.checkout_url) { window.location.href = init.checkout_url; return; }
-      setBusy('btnPay', false);
-      apiError('Stripe Checkout is not configured for this site yet.');
-    }
-    function handleBank(init) {
-      setBusy('btnPay', false);
-      showSuccess(init.reference, 'Bank transfer initiated. ' + init.instructions);
-    }
-
+    // Payment from inside the apply form has moved to /book — see book.html.
+    // Submission now redirects there directly (see attemptNext above).
     function afterProviderCharge(provider, reference, transactionId) {
-      setBusy('btnPay', true, 'Verifying…');
       api.verifyPayment({ provider: provider, reference: reference, transaction_id: transactionId || 0 })
         .then(function (res) {
           if (res.status === 'succeeded') showSuccess(reference, 'Paid via ' + capitalize(provider));
