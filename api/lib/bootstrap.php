@@ -14,13 +14,10 @@
 declare(strict_types=1);
 
 // ---------- Output buffer ----------
-// Start an output buffer IMMEDIATELY so nothing — not a PHP notice, not a
-// deprecation warning from PHP 8.x, not a stray `echo`, not a BOM in an
-// included file — can prefix the JSON response and break JSON.parse on
-// the client (the "couldn't reach our server" symptom users hit when the
-// response body is `<br>Warning: ... {ok:true,...}`). The buffer is
-// drained in mam_json() just before the response is written, so the wire
-// body is ALWAYS strictly the JSON envelope.
+// Open a buffer IMMEDIATELY. The shutdown handler below converts any
+// uncaught fatal error, exception, or premature exit into a JSON 500 so
+// the client NEVER sees a non-JSON body. Status 200 + non-JSON body has
+// caused real production outages here — this is the structural fix.
 if (!ob_get_level()) ob_start();
 
 // ---------- Constants ----------
@@ -28,39 +25,76 @@ define('MAM_API_ROOT', __DIR__ . '/..');
 define('MAM_STORAGE',  MAM_API_ROOT . '/storage');
 define('MAM_LOGS',     MAM_API_ROOT . '/logs');
 
+// Make absolutely sure the logs + storage dirs exist. If they don't, PHP
+// error_log() silently fails and "no log being written" reports become
+// undiagnosable. Created with 0775 so the shared-host user can read them
+// via FTP/SFTP without an SSH chmod dance.
+foreach ([MAM_LOGS, MAM_STORAGE] as $d) {
+    if (!is_dir($d)) @mkdir($d, 0775, true);
+}
+
 // ---------- Error handling ----------
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 ini_set('error_log', MAM_LOGS . '/php-error.log');
-// Production: silence E_DEPRECATED (PHP 8.x noise from third-party libs)
-// while still capturing E_WARNING / E_ERROR. The buffer is the last line
-// of defence; this is the first.
+// Mask deprecations (PHP 8.x noise) but keep warnings + errors.
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
 
-set_exception_handler(function (Throwable $e) {
-    // Defensive: mam_log/mam_env may not be loaded if the failure was in
-    // the autoload step itself — fall back to error_log + plain output.
-    if (function_exists('mam_log')) {
-        mam_log('error', 'unhandled', [
-            'message' => $e->getMessage(),
-            'file' => $e->getFile() . ':' . $e->getLine(),
-            'trace' => substr($e->getTraceAsString(), 0, 1500),
-        ]);
-    } else {
-        error_log('[mam] unhandled: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+// ---------- Last-resort JSON guarantee ----------
+// Three layers — exception, fatal, shutdown. ANY of them can fire; each
+// drains every buffer level and writes a clean JSON envelope. The client
+// is guaranteed to receive parseable JSON or nothing.
+function mam_emit_failure_json(int $status, string $error, string $message): void {
+    if (function_exists('ob_get_level')) {
+        while (ob_get_level() > 0) {
+            $leaked = ob_get_clean();
+            if (is_string($leaked) && $leaked !== '') {
+                @file_put_contents(MAM_LOGS . '/buffer-leak.log',
+                    '[' . date('c') . '] FATAL ' . ($_SERVER['REQUEST_URI'] ?? '?') . ' ' . strlen($leaked) . "b: " . mb_substr($leaked, 0, 400) . "\n",
+                    FILE_APPEND);
+            }
+        }
     }
     if (!headers_sent()) {
-        http_response_code(500);
+        http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');
+        header('X-MAM-API-Response: ' . $status);
+    }
+    echo json_encode(['ok' => false, 'error' => $error, 'message' => $message]);
+}
+
+set_exception_handler(function (Throwable $e) {
+    $msg = $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine();
+    @error_log('[mam-api unhandled] ' . $msg);
+    if (function_exists('mam_log')) {
+        try { mam_log('error', 'unhandled', ['message' => $e->getMessage(), 'file' => $e->getFile() . ':' . $e->getLine(), 'trace' => substr($e->getTraceAsString(), 0, 1500)]); } catch (Throwable $x) {}
     }
     $env = function_exists('mam_env') ? mam_env('APP_ENV', 'production') : 'production';
-    echo json_encode([
-        'ok' => false,
-        'error' => 'server_error',
-        'message' => $env === 'production' ? 'Server error' : $e->getMessage(),
-    ]);
+    mam_emit_failure_json(500, 'server_error', $env === 'production' ? 'Server error' : $msg);
     exit;
 });
+
+// Fatal errors (parse errors, OOM, max execution time) bypass the
+// exception handler. register_shutdown_function + error_get_last is the
+// only way to convert them into a clean JSON response.
+register_shutdown_function(function () {
+    $err = error_get_last();
+    $fatal = $err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR], true);
+    if ($fatal) {
+        @error_log('[mam-api fatal] ' . $err['message'] . ' at ' . $err['file'] . ':' . $err['line']);
+        $env = function_exists('mam_env') ? mam_env('APP_ENV', 'production') : 'production';
+        mam_emit_failure_json(500, 'fatal_error', $env === 'production' ? 'Server crashed handling this request' : ($err['message'] . ' at ' . $err['file'] . ':' . $err['line']));
+        return;
+    }
+    // Defensive: if a route handler returned WITHOUT calling mam_ok/mam_fail,
+    // we'd otherwise send a 200 OK with the buffer contents (garbage). Force
+    // a JSON envelope so the client always sees valid JSON.
+    if (!defined('MAM_RESPONSE_SENT')) {
+        mam_emit_failure_json(500, 'no_response', 'Route handler returned without writing a response');
+    }
+});
+
+// (Old exception handler replaced by the three-layer safety net above.)
 
 // ---------- Tiny .env loader ----------
 function mam_load_env(string $path): array {

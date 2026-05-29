@@ -24,6 +24,7 @@ $r = new MamRouter();
 /* ─── Public ─── */
 $r->get('/health',  $f('health.php'));
 $r->get('/csrf',    $f('csrf-token.php'));
+$r->get('/diag',    $f('diag.php'));
 // Booking-fee status — public (no PII surfaced). /book polls this to decide
 // whether to show the $5 CTA or the unlocked Google appointment embed.
 $r->get('/booking/status',  $f('booking-status.php'),  [mw_rate_limit('booking_status', 60, 60)]);

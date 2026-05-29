@@ -17,21 +17,32 @@
 declare(strict_types=1);
 
 function mam_json($data, int $status = 200): void {
-    // Drain anything that snuck into the output buffer (notices, BOMs, echo)
-    // so the response body is strictly JSON. If there's leaked content we
-    // log it once so the cause stays diagnosable.
-    if (function_exists('ob_get_level') && ob_get_level() > 0) {
-        $leaked = ob_get_clean();
-        if (is_string($leaked) && $leaked !== '' && function_exists('mam_log')) {
-            // Trim to a sane length; this is for forensic logs only.
-            try { mam_log('warn', 'response_buffer_leak', ['bytes' => strlen($leaked), 'sample' => mb_substr($leaked, 0, 200)]); } catch (Throwable $e) {}
+    // Drain EVERY level of output buffer — PHP can nest them (php.ini
+    // output_buffering + our ob_start() = level 2 minimum). Anything we
+    // catch is appended to a forensic log so the operator can see what
+    // leaked, but it never reaches the wire.
+    if (function_exists('ob_get_level')) {
+        while (ob_get_level() > 0) {
+            $leaked = ob_get_clean();
+            if (is_string($leaked) && $leaked !== '') {
+                @file_put_contents(MAM_LOGS . '/buffer-leak.log',
+                    '[' . date('c') . '] ' . ($_SERVER['REQUEST_URI'] ?? '?') . ' ' . strlen($leaked) . "b: " . mb_substr($leaked, 0, 400) . "\n",
+                    FILE_APPEND);
+            }
         }
     }
     http_response_code($status);
     if (!headers_sent()) {
         header('Content-Type: application/json; charset=utf-8');
+        // X-MAM-API-Response: <status> — useful for confirming via DevTools
+        // that the response actually came from mam_json (vs Apache/Cloudflare
+        // intercepting).
+        header('X-MAM-API-Response: ' . $status);
     }
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    // Mark this response as handled so the shutdown safety net knows it
+    // doesn't need to step in.
+    if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
     exit;
 }
 
