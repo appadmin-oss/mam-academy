@@ -28,6 +28,11 @@ $r->get('/csrf',    $f('csrf-token.php'));
 /* ─── Public forms (CSRF + rate-limited) ─── */
 $r->post('/application', $f('application.php'), [mw_csrf(), mw_rate_limit('apply',       10, 600)]);
 $r->post('/newsletter',  $f('newsletter.php'),  [mw_csrf(), mw_rate_limit('newsletter',  5,  600)]);
+// Unsubscribe is reached from email links / mail-client one-click — no CSRF
+// cookie available, so it relies on a signed token instead. Both verbs map
+// to the same handler (GET = human click page, POST = RFC 8058 one-click).
+$r->get ('/newsletter/unsubscribe', $f('newsletter-unsubscribe.php'), [mw_rate_limit('unsubscribe', 60, 600)]);
+$r->post('/newsletter/unsubscribe', $f('newsletter-unsubscribe.php'), [mw_rate_limit('unsubscribe', 60, 600)]);
 $r->post('/contact',     $f('contact.php'),     [mw_csrf(), mw_rate_limit('contact',     5,  600)]);
 
 /* ─── Payments ─── */

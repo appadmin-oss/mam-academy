@@ -78,7 +78,7 @@ function mam_phpmailer_available(): bool {
  * so callers (mam_send, the CLI tester, the admin endpoint) don't care which
  * transport ran.
  */
-function mam_send_via_phpmailer(string $to, string $subject, string $body, bool $html, string $from, string $fromName, ?string $replyTo): array {
+function mam_send_via_phpmailer(string $to, string $subject, string $body, bool $html, string $from, string $fromName, ?string $replyTo, array $extraHeaders = []): array {
     $host = (string)mam_env('MAIL_HOST', '');
     $user = (string)mam_env('MAIL_USERNAME', '');
     $pass = (string)mam_env('MAIL_PASSWORD', '');
@@ -106,6 +106,7 @@ function mam_send_via_phpmailer(string $to, string $subject, string $body, bool 
         if ($user !== '' && strpos($user, '@') !== false) $mail->Sender = $user;
         $mail->addAddress($to);
         if ($replyTo) $mail->addReplyTo($replyTo);
+        foreach ($extraHeaders as $hk => $hv) { $mail->addCustomHeader($hk, $hv); }
         $mail->Subject = $subject;
         if ($html) {
             $mail->isHTML(true);
@@ -140,6 +141,7 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
     $replyTo   = $opts['reply_to']  ?? null;
     $host      = mam_env('MAIL_HOST', '');
     $forceSmtp = in_array(strtolower((string)mam_env('MAIL_FORCE_SMTP', '0')), ['1','true','yes','on'], true);
+    $extraHeaders = is_array($opts['headers'] ?? null) ? $opts['headers'] : [];
 
     // Operators can pin the mailer to SMTP only by setting MAIL_FORCE_SMTP=1
     // in api/.env. Useful in production where the host's mail() function
@@ -161,7 +163,7 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
         // install / bundled vendor), otherwise the built-in SMTP client.
         // Both honour the same MAIL_* env and produce the same result shape.
         if (mam_phpmailer_available()) {
-            return mam_send_via_phpmailer($to, $subject, $body, $html, $from, $fromName, $replyTo);
+            return mam_send_via_phpmailer($to, $subject, $body, $html, $from, $fromName, $replyTo, $extraHeaders);
         }
         // Retry-once-on-transient: 4xx replies are usually rate-limit or
         // greylisting and clear on a second attempt. 5xx is permanent —
@@ -173,7 +175,7 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
             $ok = mam_smtp_send($host, (int)mam_env('MAIL_PORT', '587'),
                 mam_env('MAIL_USERNAME', ''), mam_env('MAIL_PASSWORD', ''),
                 strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls')),
-                $from, $fromName, $replyTo, $to, $subject, $body, $html, $transcript);
+                $from, $fromName, $replyTo, $to, $subject, $body, $html, $extraHeaders, $transcript);
             $failedStep = null;
             foreach ($transcript as $s) {
                 if (!($s['ok'] ?? true)) { $failedStep = $s; break; }
@@ -208,6 +210,7 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
     $headers[] = 'MIME-Version: 1.0';
     $headers[] = $html ? 'Content-Type: text/html; charset=UTF-8' : 'Content-Type: text/plain; charset=UTF-8';
     $headers[] = 'X-Mailer: MAM-Academy';
+    foreach ($extraHeaders as $hk => $hv) { $headers[] = $hk . ': ' . $hv; }
     $params = (strpos($from, '@') !== false) ? ('-f' . $from) : '';
     $ok = @mail($to, $subject, $body, implode("\r\n", $headers), $params);
     if (!$ok) mam_log('warn', 'mail_failed_phpmail', ['to' => $to, 'subject' => $subject, 'hint' => 'Set MAIL_HOST + SMTP creds in api/.env; PHP mail() is unreliable/disabled on most hosts']);
@@ -228,7 +231,7 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
 function mam_smtp_send(string $host, int $port, string $user, string $pass, string $encryption,
                        string $from, string $fromName, ?string $replyTo,
                        string $to, string $subject, string $body, bool $html,
-                       array &$transcript = null): bool {
+                       array $extraHeaders = [], array &$transcript = null): bool {
     if ($transcript === null) $transcript = [];
     // Most authenticated relays (Gmail, Office365, SES, …) reject a MAIL FROM
     // envelope that differs from the authenticated account. Use the auth user
@@ -315,6 +318,7 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
     $head[] = 'Message-ID: <' . bin2hex(random_bytes(8)) . '@' . substr(strrchr($envelopeFrom, '@') ?: '@mam.local', 1) . '>';
     $head[] = 'MIME-Version: 1.0';
     $head[] = 'X-Mailer: MAM-Academy';
+    foreach ($extraHeaders as $hk => $hv) { $head[] = $hk . ': ' . $hv; }
 
     // Pick a Content-Transfer-Encoding that the server can actually accept.
     // If the relay advertises 8BITMIME we can send raw UTF-8 as 8bit;
@@ -443,7 +447,95 @@ function mam_email_promo_block(array $exclude = []): string {
 }
 
 /**
- * Pre-rendered HTML templates for transactional emails.
+ * Bulletproof CTA button. Renders VML for Outlook (which ignores padding and
+ * border-radius on <a>) and a normal padded anchor everywhere else, so the
+ * button looks right across Gmail, Apple Mail, Outlook desktop and mobile.
+ */
+function mam_email_button(string $url, string $label, string $accent = '#E08A1A,#FBBF24'): string {
+    $u = htmlspecialchars($url, ENT_QUOTES);
+    $l = htmlspecialchars($label, ENT_QUOTES);
+    $solid = trim(explode(',', $accent)[0]);
+    return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:26px auto"><tr>'
+      . '<td align="center" bgcolor="' . $solid . '" style="border-radius:8px">'
+      . '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="' . $u . '" style="height:46px;v-text-anchor:middle;width:300px;" arcsize="18%" strokecolor="' . $solid . '" fillcolor="' . $solid . '"><w:anchorlock/><center style="color:#1A120B;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;letter-spacing:0.04em">' . $l . '</center></v:roundrect><![endif]-->'
+      . '<!--[if !mso]><!--><a href="' . $u . '" style="display:inline-block;padding:14px 30px;background:linear-gradient(135deg,' . $accent . ');background-color:' . $solid . ';color:#1A120B;border-radius:8px;font-family:Arial,Helvetica,sans-serif;font-weight:bold;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px">' . $l . '</a><!--<![endif]-->'
+      . '</td></tr></table>';
+}
+
+/**
+ * Responsive, Outlook-compatible, legally-compliant email layout used by every
+ * template. Provides: viewport + dark/light color-scheme meta, a fluid
+ * max-width:600px container, a hidden preheader, MSO ghost-table wrapping, and
+ * a footer carrying the sender's legal name + physical postal address, contact
+ * details and the "why you're receiving this" line (CAN-SPAM, GDPR, NDPR/NDPA).
+ * Marketing emails (unsubscribe=true) additionally emit a visible unsubscribe
+ * link via the {{UNSUB_URL}} placeholder, which mam_send fills in and pairs
+ * with RFC 8058 one-click List-Unsubscribe headers.
+ *
+ *   header      short banner label                (default 'MAM ACADEMY')
+ *   accent      'c1,c2' gradient (solid = c1)      (default gold)
+ *   preheader   inbox preview text
+ *   body        inner HTML (content only)
+ *   reason      one-line "why you got this"
+ *   unsubscribe bool — render unsubscribe + one-click headers
+ */
+function mam_email_layout(array $o): string {
+    $accent    = $o['accent'] ?? '#E08A1A,#FBBF24';
+    $label     = htmlspecialchars($o['header'] ?? 'MAM ACADEMY', ENT_QUOTES);
+    $inner     = $o['body'] ?? '';
+    $preheader = htmlspecialchars($o['preheader'] ?? '', ENT_QUOTES);
+    $reason    = htmlspecialchars($o['reason'] ?? 'You received this email from MAM Academy.', ENT_QUOTES);
+    $marketing = !empty($o['unsubscribe']);
+    $solid     = trim(explode(',', $accent)[0]);
+    $year      = date('Y');
+
+    $address = 'MAM Centre · 2 Oremeji Street, Egbeda, Lagos, Nigeria';
+    $privacy = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/privacy';
+    $contact = "<a href='mailto:connect@mamcentre.org' style='color:#FBBF24;text-decoration:none'>connect@mamcentre.org</a> &middot; +234 704 444 6517 &middot; <a href='" . htmlspecialchars($privacy, ENT_QUOTES) . "' style='color:#FBBF24;text-decoration:none'>Privacy</a>";
+
+    $unsubLine = $marketing
+        ? "<p style='margin:12px 0 0;font-size:12px;color:rgba(255,255,255,0.55);line-height:1.7'>" . $reason
+          . " <a href='{{UNSUB_URL}}' style='color:#FBBF24'>Unsubscribe</a> from marketing emails at any time — we honour every request promptly. Transactional messages (security, applications) are unaffected.</p>"
+        : "<p style='margin:12px 0 0;font-size:12px;color:rgba(255,255,255,0.5);line-height:1.7'>" . $reason . "</p>";
+
+    return '<!doctype html><html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">'
+      . '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+      . '<meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="x-apple-disable-message-reformatting">'
+      . '<meta name="color-scheme" content="dark light"><meta name="supported-color-schemes" content="dark light">'
+      . '<title>' . $label . '</title>'
+      . '<!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->'
+      . '<style>'
+      . 'body{margin:0;padding:0;width:100%!important;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}'
+      . 'table{border-collapse:collapse}td{mso-line-height-rule:exactly}'
+      . 'img{border:0;line-height:100%;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic}'
+      . 'a{color:#FBBF24}'
+      . '@media only screen and (max-width:600px){.email-container{width:100%!important;border-radius:0!important}.px{padding-left:20px!important;padding-right:20px!important}.h1{font-size:20px!important}}'
+      . '</style></head>'
+      . '<body style="margin:0;padding:0;background:#120D08">'
+      . '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#120D08">' . $preheader . '&#8203;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;</div>'
+      . '<center style="width:100%;background:#120D08">'
+      . '<!--[if mso]><table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600"><tr><td><![endif]-->'
+      . '<table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="100%" class="email-container" style="max-width:600px;margin:0 auto;background:#1A120B;border-radius:16px;overflow:hidden">'
+      . '<tr><td class="px" align="center" bgcolor="' . $solid . '" style="background:linear-gradient(135deg,' . $accent . ');background-color:' . $solid . ';padding:24px;text-align:center">'
+      .   '<div style="font-family:Georgia,\'Times New Roman\',serif;font-size:23px;letter-spacing:0.08em;color:#1A120B;font-weight:bold">' . $label . '</div>'
+      . '</td></tr>'
+      . '<tr><td class="px" style="background:#1A120B;padding:32px 28px;color:#FBF7F3;font-family:Arial,Helvetica,sans-serif;line-height:1.7;font-size:15px">'
+      .   $inner
+      . '</td></tr>'
+      . '<tr><td class="px" style="background:#160F09;padding:22px 28px;border-top:1px solid #251A10;font-family:Arial,Helvetica,sans-serif">'
+      .   "<p style='margin:0;font-size:12px;color:rgba(255,255,255,0.65);line-height:1.7'><strong style='color:rgba(255,255,255,0.85)'>MAM Academy</strong> — a programme of MAM Centre.<br>" . $address . "<br>" . $contact . "</p>"
+      .   $unsubLine
+      .   "<p style='margin:12px 0 0;font-size:11px;color:rgba(255,255,255,0.4)'>&copy; " . $year . " MAM Centre &middot; &ldquo;Crafting the Timeless in Time.&rdquo;</p>"
+      . '</td></tr>'
+      . '</table>'
+      . '<!--[if mso]></td></tr></table><![endif]-->'
+      . '</center></body></html>';
+}
+
+/**
+ * Pre-rendered HTML templates for transactional emails. Each builds its inner
+ * content and routes through mam_email_layout for one compliant, responsive,
+ * cross-client shell.
  */
 function mam_email_powerplay_confirmation(): string {
     $pp   = mam_powerplay_next();
@@ -451,40 +543,30 @@ function mam_email_powerplay_confirmation(): string {
     $time = htmlspecialchars($pp['time'], ENT_QUOTES);
     $meet = $pp['meetUrl'];
     $cta  = $meet
-        ? "<p style='text-align:center;margin:26px 0'><a href='" . htmlspecialchars($meet, ENT_QUOTES) . "' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Join the Google Meet</a></p>"
+        ? mam_email_button($meet, 'Join the Google Meet', '#6366F1,#A5B4FC')
         : "<p style='color:rgba(255,255,255,0.7);font-size:14px;text-align:center;margin:24px 0'>We'll email you the Google Meet link 24 hours before the session.</p>";
-    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
-    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
-    <tr><td style='background:linear-gradient(135deg,#6366F1,#A5B4FC);padding:22px;text-align:center'>
-      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#120D08;font-weight:900'>⚡ POWER PLAY</div>
-    </td></tr>
-    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
-      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're registered for Power Play.</h2>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px'>A free, raw, 90-minute session with <strong>Van. BOJA</strong> for musicians, artists and culture-shapers. Here's the next one:</p>
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're registered for Power Play.</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>A free, raw, 90-minute session with <strong>Van. BOJA</strong> for musicians, artists and culture-shapers. Here's the next one:</p>
       <div style='background:#251A10;border:1px dashed #A5B4FC;border-radius:10px;padding:18px;text-align:center;margin:18px 0'>
         <div style='font-size:13px;color:#A5B4FC;text-transform:uppercase;letter-spacing:0.1em;font-weight:800'>Next Session</div>
         <div style='font-size:18px;color:#fff;font-weight:700;margin-top:6px'>$date</div>
         <div style='font-size:15px;color:#FBBF24;margin-top:2px'>$time</div>
       </div>
       $cta
-      <p style='color:rgba(255,255,255,0.7);font-size:14px'>Power Play runs the <strong>first Wednesday of every month</strong> — add it to your calendar so you never miss it.</p>
-      <p style='font-size:13px;color:rgba(255,255,255,0.55);margin-top:24px'>Want the full structured path — certification, instructors, ensemble &amp; stage time? <a href='https://academy.mamcentre.org/apply' style='color:#FBBF24'>Apply to MAM Academy</a>.</p>
-      " . mam_email_promo_block(['powerplay']) . "
-      <p style='margin-top:20px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a></p>
-    </td></tr></table>
-    </body></html>";
+      <p style='color:rgba(255,255,255,0.7);font-size:14px;margin:0'>Power Play runs the <strong>first Wednesday of every month</strong> — add it to your calendar so you never miss it.</p>
+      <p style='font-size:13px;color:rgba(255,255,255,0.55);margin:18px 0 0'>Want the full structured path — certification, instructors, ensemble &amp; stage time? <a href='https://academy.mamcentre.org/apply' style='color:#FBBF24'>Apply to MAM Academy</a>.</p>
+      " . mam_email_promo_block(['powerplay']);
+    return mam_email_layout([
+        'header' => '⚡ POWER PLAY', 'accent' => '#6366F1,#A5B4FC',
+        'preheader' => 'You are registered — here is the date for the next free Power Play with Van. BOJA.',
+        'reason' => 'You received this because you registered for Power Play on academy.mamcentre.org.',
+        'unsubscribe' => true, 'body' => $inner,
+    ]);
 }
 
-/** Shared shell so every transactional email keeps one consistent look. */
+/** Backward-compatible thin wrapper over mam_email_layout (transactional). */
 function mam_email_shell(string $headerLabel, string $innerHtml, string $accent = '#E08A1A,#FBBF24'): string {
-    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
-    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
-    <tr><td style='background:linear-gradient(135deg,$accent);padding:22px;text-align:center'>
-      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>$headerLabel</div>
-    </td></tr>
-    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>$innerHtml
-      <p style='margin-top:24px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a></p>
-    </td></tr></table></body></html>";
+    return mam_email_layout(['header' => $headerLabel, 'accent' => $accent, 'body' => $innerHtml]);
 }
 
 /** New portal account created by an admin — sends the temporary credentials. */
@@ -498,9 +580,14 @@ function mam_email_account_created(string $name, string $email, string $tempPass
       <p style='color:rgba(255,255,255,0.86);font-size:15px'>An administrator created a portal account for you. Sign in with these temporary credentials and you'll be asked to set your own password right away.</p>
       <div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:14px;color:#FBBF24;margin:16px 0'>
         <div>Email: <strong>$e</strong></div><div>Temporary password: <strong>$p</strong></div></div>
-      <p style='text-align:center;margin:24px 0'><a href='$u' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Sign in to your portal</a></p>
-      <p style='font-size:13px;color:rgba(255,255,255,0.55)'>If you weren't expecting this, please contact us — don't share these credentials.</p>";
-    return mam_email_shell('MAM ACADEMY', $inner);
+      " . mam_email_button($loginUrl, 'Sign in to your portal') . "
+      <p style='font-size:13px;color:rgba(255,255,255,0.55);margin:0'>If you weren't expecting this, please contact us — don't share these credentials.</p>";
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'Your MAM Academy portal account and temporary password.',
+        'reason' => 'You received this because an administrator created a MAM Academy portal account for you.',
+        'body' => $inner,
+    ]);
 }
 
 /** Security notice: password was changed (admin reset, self-service, or token reset). */
@@ -512,8 +599,13 @@ function mam_email_password_changed(string $name, string $context = 'changed'): 
         : "If this was you, no action is needed.";
     $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Your password was $how</h2>
       <p style='color:rgba(255,255,255,0.86);font-size:15px'>Hi $n — this is a security notice that the password on your MAM Academy account was just $how. $extra</p>
-      <p style='font-size:13px;color:rgba(255,255,255,0.7);margin-top:14px'><strong>Didn't do this?</strong> Contact us immediately at <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a> so we can secure your account.</p>";
-    return mam_email_shell('MAM ACADEMY', $inner);
+      <p style='font-size:13px;color:rgba(255,255,255,0.7);margin:14px 0 0'><strong>Didn't do this?</strong> Contact us immediately at <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a> so we can secure your account.</p>";
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'Security notice: your MAM Academy password was changed.',
+        'reason' => 'You received this security notice because the password on your MAM Academy account was changed.',
+        'body' => $inner,
+    ]);
 }
 
 /** Enrolment confirmation when an admin places a student into a class. */
@@ -525,9 +617,15 @@ function mam_email_enrolled(string $name, string $className, string $schedule, s
     $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're enrolled, $n!</h2>
       <p style='color:rgba(255,255,255,0.86);font-size:15px'>You've been placed into <strong style='color:#FBBF24'>$c</strong>. Here's what we have on the schedule:</p>
       <div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;color:#FBBF24;margin:16px 0'>$s</div>
-      <p style='text-align:center;margin:24px 0'><a href='$u' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>View my classes</a></p>";
+      " . mam_email_button($loginUrl, 'View my classes') . "";
     $inner .= mam_email_promo_block(['pathways']);
-    return mam_email_shell('MAM ACADEMY', $inner);
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'You have been enrolled in a MAM Academy class.',
+        'reason' => 'You received this because you were enrolled in a class at MAM Academy.',
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
 }
 
 /**
@@ -539,43 +637,38 @@ function mam_email_application_recovery(array $app, array $customer): string {
     $ref  = htmlspecialchars((string)($app['reference'] ?? ''), ENT_QUOTES);
     $tot  = number_format((float)($app['total_usd'] ?? 0), 2);
     $resumeUrl = 'https://academy.mamcentre.org/apply?ref=' . rawurlencode((string)($app['reference'] ?? ''));
-    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
-    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
-    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:22px;text-align:center'>
-      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
-    </td></tr>
-    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
-      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're one step away, $name.</h2>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px'>We saved your MAM Academy application (<strong style='color:#FBBF24'>$ref</strong>) but it looks like checkout didn't finish. Your seat for the next intake isn't confirmed until payment is complete.</p>
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're one step away, $name.</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>We saved your MAM Academy application (<strong style='color:#FBBF24'>$ref</strong>) but it looks like checkout didn't finish. Your seat for the next intake isn't confirmed until payment is complete.</p>
       <div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;text-align:center;margin:18px 0'>
         <span style='color:rgba(255,255,255,0.7);font-size:13px'>Balance to confirm your seat</span><br>
         <strong style='color:#FBBF24;font-size:20px'>USD \${$tot}</strong>
       </div>
-      <p style='text-align:center;margin:26px 0'><a href='" . htmlspecialchars($resumeUrl, ENT_QUOTES) . "' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Complete my enrolment</a></p>
-      <p style='color:rgba(255,255,255,0.7);font-size:14px'>Intakes fill on a first-paid basis. If you have a question or want to pay by bank transfer, just reply to this email or call <strong>+234 704 444 6517</strong> — a real person will help.</p>
-      " . mam_email_promo_block(['pathways']) . "
-      <p style='font-size:13px;color:rgba(255,255,255,0.5);margin-top:24px'>If you've changed your mind, no worries — you can ignore this and we won't email you about it again.</p>
-    </td></tr></table>
-    </body></html>";
+      " . mam_email_button($resumeUrl, 'Complete my enrolment') . "
+      <p style='color:rgba(255,255,255,0.7);font-size:14px;margin:0'>Intakes fill on a first-paid basis. If you have a question or want to pay by bank transfer, just reply to this email or call <strong>+234 704 444 6517</strong> — a real person will help.</p>
+      " . mam_email_promo_block(['pathways']);
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'Your application is saved — complete checkout to confirm your seat.',
+        'reason' => 'You received this because you started an application with MAM Academy.',
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
 }
 
 function mam_email_password_reset(string $name, string $resetUrl): string {
     $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);
     $u = htmlspecialchars($resetUrl, ENT_QUOTES);
-    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
-    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
-    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:22px;text-align:center'>
-      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
-    </td></tr>
-    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
-      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Reset your password, $n</h2>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px'>Click the button below to set a new password. The link works once and expires in <strong>60 minutes</strong>.</p>
-      <p style='text-align:center;margin:28px 0'><a href='$u' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Set new password</a></p>
-      <p style='font-size:13px;color:rgba(255,255,255,0.6);line-height:1.65'>If the button doesn't work, copy and paste this link into your browser:<br><span style='word-break:break-all;color:#FBBF24'>$u</span></p>
-      <p style='font-size:13px;color:rgba(255,255,255,0.5);margin-top:24px'>Didn't request this? You can ignore this email — your password stays the same. The link expires automatically.</p>
-      <p style='margin-top:28px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a></p>
-    </td></tr></table>
-    </body></html>";
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Reset your password, $n</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Click the button below to set a new password. The link works once and expires in <strong>60 minutes</strong>.</p>
+      " . mam_email_button($resetUrl, 'Set new password') . "
+      <p style='font-size:13px;color:rgba(255,255,255,0.6);line-height:1.65;margin:0'>If the button doesn't work, copy and paste this link into your browser:<br><span style='word-break:break-all;color:#FBBF24'>$u</span></p>
+      <p style='font-size:13px;color:rgba(255,255,255,0.5);margin:24px 0 0'>Didn't request this? You can ignore this email — your password stays the same. The link expires automatically.</p>";
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'Reset your MAM Academy password — link valid for 60 minutes.',
+        'reason' => 'You received this because a password reset was requested for your MAM Academy account.',
+        'body' => $inner,
+    ]);
 }
 
 /**
@@ -583,7 +676,30 @@ function mam_email_password_reset(string $name, string $resetUrl): string {
  * a short `context` string so failures surface in the logs with enough
  * information to debug — no more silent @ suppression.
  */
+/** Stable, signed unsubscribe token for an email (HMAC over the app key). */
+function mam_unsubscribe_token(string $email): string {
+    return substr(hash_hmac('sha256', strtolower(trim($email)), mam_app_key()), 0, 32);
+}
+/** One-click unsubscribe URL (handled by routes/newsletter-unsubscribe.php). */
+function mam_unsubscribe_url(string $email): string {
+    $base = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
+    return $base . '/api/newsletter/unsubscribe?e=' . rawurlencode(strtolower(trim($email))) . '&t=' . mam_unsubscribe_token($email);
+}
+
 function mam_send(string $to, string $subject, string $body, string $context, bool $html = true, array $opts = []): bool {
+    // Marketing emails embed {{UNSUB_URL}} via the layout. When present, fill
+    // the visible link AND attach RFC 8058 one-click List-Unsubscribe headers,
+    // keyed to the recipient — so every promotional email is CAN-SPAM / GDPR /
+    // NDPA compliant automatically, with no work for the calling route.
+    if (strpos($body, '{{UNSUB_URL}}') !== false) {
+        $url = mam_unsubscribe_url($to);
+        $body = str_replace('{{UNSUB_URL}}', htmlspecialchars($url, ENT_QUOTES), $body);
+        $mailto = 'mailto:' . mam_env('NOTIFY_EMAIL', 'connect@mamcentre.org') . '?subject=unsubscribe';
+        $opts['headers'] = array_merge($opts['headers'] ?? [], [
+            'List-Unsubscribe'      => '<' . $url . '>, <' . $mailto . '>',
+            'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
+        ]);
+    }
     $result = mam_send_mail_verbose($to, $subject, $body, $html, $opts);
     if (!$result['ok']) {
         mam_log('warn', 'mail_delivery_failed', [
@@ -608,26 +724,23 @@ function mam_send(string $to, string $subject, string $body, string $context, bo
  */
 function mam_email_newsletter_welcome(string $source = 'site'): string {
     $site = htmlspecialchars($source, ENT_QUOTES);
-    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
-    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
-    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:22px;text-align:center'>
-      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
-    </td></tr>
-    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
-      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're on the inside.</h2>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px'>Thanks for joining the MAM Academy circle. Once a month you'll get:</p>
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're on the inside.</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Thanks for joining the MAM Academy circle. Once a month you'll get:</p>
       <ul style='color:rgba(255,255,255,0.86);font-size:15px;line-height:1.85;padding-left:18px;margin:14px 0'>
         <li>The date &amp; theme of the next free <strong style='color:#FBBF24'>Power Play with Van. BOJA</strong></li>
         <li>Open intake dates &amp; new programme launches</li>
         <li>Student showcases, faculty essays &amp; long-form notes on the MAM Method</li>
       </ul>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px'>If you're ready to enrol, you can start your application in five guided steps:</p>
-      <p style='text-align:center;margin:24px 0'><a href='https://academy.mamcentre.org/apply' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Begin your application</a></p>
-      <p style='font-size:13px;color:rgba(255,255,255,0.5);margin-top:24px'>You'll only ever get these monthly notes — no daily noise. Reply with \"unsubscribe\" any time and we'll take you off the list immediately.</p>
-      " . mam_email_promo_block(['powerplay']) . "
-      <p style='margin-top:24px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · subscribed via <code style='color:#FBBF24'>$site</code></p>
-    </td></tr></table>
-    </body></html>";
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>If you're ready to enrol, you can start your application in five guided steps:</p>
+      " . mam_email_button('https://academy.mamcentre.org/apply', 'Begin your application') . "
+      " . mam_email_promo_block(['powerplay']);
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'Welcome to the MAM Academy circle — here is what to expect.',
+        'reason' => "You received this because you subscribed to MAM Academy updates (via $site).",
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
 }
 
 /**
@@ -638,46 +751,43 @@ function mam_email_newsletter_welcome(string $source = 'site'): string {
 function mam_email_contact_autoresponse(string $name, string $topic): string {
     $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);
     $t = htmlspecialchars($topic ?: 'your message', ENT_QUOTES);
-    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
-    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
-    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:22px;text-align:center'>
-      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
-    </td></tr>
-    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
-      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Got it, $n.</h2>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px'>Your message about <strong>$t</strong> is with our team. We reply to every contact-form message within <strong>24 hours</strong> (often much sooner during Lagos working hours).</p>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin-top:18px'>If your question is time-sensitive, these are the fastest routes:</p>
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Got it, $n.</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Your message about <strong>$t</strong> is with our team. We reply to every contact-form message within <strong>24 hours</strong> (often much sooner during Lagos working hours).</p>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:18px 0 0'>If your question is time-sensitive, these are the fastest routes:</p>
       <div style='margin:16px 0;padding:16px 18px;background:#251A10;border:1px solid #3A2A1A;border-radius:10px'>
         <p style='margin:0 0 8px;font-size:14px'>📞 <strong style='color:#FBBF24'>+234 704 444 6517</strong> · Mon–Fri 9 am – 6 pm WAT</p>
         <p style='margin:0 0 8px;font-size:14px'>✉️ <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a> · WhatsApp on the same number</p>
         <p style='margin:0;font-size:14px'>🎓 Ready to apply? <a href='https://academy.mamcentre.org/apply' style='color:#FBBF24'>apply</a> · 5 steps, auto-saved on this device</p>
       </div>
       " . mam_email_promo_block() . "
-      <p style='font-size:13px;color:rgba(255,255,255,0.55);margin-top:24px'>You're getting this once — it's our acknowledgement that we received your note. A real human will reply from this same address shortly.</p>
-    </td></tr></table>
-    </body></html>";
+      <p style='font-size:13px;color:rgba(255,255,255,0.55);margin:24px 0 0'>You're getting this once — it's our acknowledgement that we received your note. A real human will reply from this same address shortly.</p>";
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'We received your message — here is how to reach us faster.',
+        'reason' => 'You received this because you contacted MAM Academy through our website.',
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
 }
 
 function mam_email_application_confirmation(array $app, array $customer): string {
     $tot = number_format((float)$app['total_usd'], 2);
     $ref = htmlspecialchars($app['reference'], ENT_QUOTES);
     $name = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')), ENT_QUOTES);
-    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
-    <table cellpadding='0' cellspacing='0' style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
-    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:24px;text-align:center'>
-      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:26px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
-    </td></tr>
-    <tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>
-      <h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're in, $name!</h2>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px'>Thank you for applying to MAM Academy. Your application reference is:</p>
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>You're in, $name!</h2>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Thank you for applying to MAM Academy. Your application reference is:</p>
       <div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;color:#FBBF24;font-size:16px;text-align:center;margin:16px 0'>$ref</div>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px'>Programme: <strong style='color:#fff'>" . htmlspecialchars($app['pathway']) . "</strong> · Mode: <strong style='color:#fff'>" . htmlspecialchars($app['mode']) . "</strong></p>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px'>Total: <strong style='color:#FBBF24'>USD \${$tot}</strong></p>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin-top:20px'>Our team will be in touch within <strong>24 hours</strong> to confirm your schedule and book your MAM Auditer entry assessment.</p>
-      " . mam_email_promo_block(['pathways']) . "
-      <p style='margin-top:28px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a></p>
-    </td></tr></table>
-    </body></html>";
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Programme: <strong style='color:#fff'>" . htmlspecialchars($app['pathway']) . "</strong> · Mode: <strong style='color:#fff'>" . htmlspecialchars($app['mode']) . "</strong></p>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:6px 0 0'>Total: <strong style='color:#FBBF24'>USD \${$tot}</strong></p>
+      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:20px 0 0'>Our team will be in touch within <strong>24 hours</strong> to confirm your schedule and book your MAM Auditer entry assessment.</p>
+      " . mam_email_promo_block(['pathways']);
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'We received your application — your reference and next steps inside.',
+        'reason' => 'You received this because you submitted an application to MAM Academy.',
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
 }
 
 /**
@@ -724,21 +834,19 @@ function mam_email_policy(string $mode, string $signedName, string $reference): 
     $ref = htmlspecialchars($reference, ENT_QUOTES);
     $date = date('F j, Y');
 
-    return "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>
-    <table cellpadding='0' cellspacing='0' style='max-width:600px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>
-    <tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:22px;text-align:center'>
-      <div style='font-family:\"Bebas Neue\",Impact,sans-serif;font-size:24px;letter-spacing:.08em;color:#1A120B;font-weight:900'>MAM ACADEMY</div>
-    </td></tr>
-    <tr><td style='padding:30px 28px;color:#FBF7F3;line-height:1.6'>
-      <h2 style='font-family:Georgia,serif;margin:0 0 6px;font-size:20px;color:#fff'>" . htmlspecialchars($title) . "</h2>
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 6px;font-size:20px;color:#fff'>" . htmlspecialchars($title) . "</h2>
       <p style='color:rgba(255,255,255,0.7);font-size:13px;margin:0 0 18px'>Welcome to MAM Academy — \"Crafting the Timeless in Time.\" Please keep this policy for your records.</p>
-      <table cellpadding='0' cellspacing='0' style='width:100%'>{$rows}</table>
+      <table role='presentation' cellpadding='0' cellspacing='0' style='width:100%'>{$rows}</table>
       <div style='margin-top:22px;padding:16px 18px;background:#251A10;border:1px dashed #FBBF24;border-radius:10px'>
         <div style='color:rgba(255,255,255,0.7);font-size:12px;text-transform:uppercase;letter-spacing:.08em'>Agreed &amp; electronically signed</div>
         <div style='color:#fff;font-size:16px;margin-top:4px'><strong>{$sig}</strong></div>
         <div style='color:rgba(255,255,255,0.7);font-size:13px;margin-top:2px'>{$date} · Application {$ref}</div>
       </div>
-      <p style='margin-top:24px;color:rgba(255,255,255,0.6);font-size:13px'>ACADEMIC DIRECTOR · MAM Centre, 2 Oremeji Street, Egbeda, Lagos · <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a> · +234-704-444-6517</p>
-    </td></tr></table>
-    </body></html>";
+      <p style='margin:24px 0 0;color:rgba(255,255,255,0.6);font-size:13px'>ACADEMIC DIRECTOR · MAM Centre</p>";
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'Your MAM Academy class policy agreement — please keep for your records.',
+        'reason' => 'You received this because you agreed to the class policy when applying to MAM Academy.',
+        'body' => $inner,
+    ]);
 }

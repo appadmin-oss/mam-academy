@@ -87,20 +87,20 @@ try {
             $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
             $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
             $name = htmlspecialchars(trim($customer['first_name'] . ' ' . $customer['last_name']));
-            $body = "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>"
-                  . "<table style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>"
-                  . "<tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:24px;text-align:center'>"
-                  . "<div style='font-family:Impact,sans-serif;font-size:24px;color:#1A120B;font-weight:900;letter-spacing:.08em'>MAM ACADEMY</div></td></tr>"
-                  . "<tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>"
-                  . "<h2 style='font-family:Georgia,serif;margin:0 0 12px;color:#fff'>Welcome, $name</h2>"
-                  . "<p style='color:rgba(255,255,255,0.86)'>Your student portal is now active. Sign in to view your applications, classes and MAM Auditer placement.</p>"
+            $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Welcome, $name</h2>"
+                  . "<p style='color:rgba(255,255,255,0.86);margin:0'>Your student portal is now active. Sign in to view your applications, classes and MAM Auditer placement.</p>"
                   . "<div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:14px;color:#FBBF24;margin:16px 0'>"
                   . "<div>Email: <strong>" . htmlspecialchars($customer['email']) . "</strong></div>"
                   . "<div>Temporary password: <strong>" . htmlspecialchars($provision['password']) . "</strong></div>"
                   . "</div>"
-                  . "<p style='color:rgba(255,255,255,0.86)'>Please change this password on first sign-in.</p>"
-                  . "<p><a href='$loginUrl' style='display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none'>Open student portal →</a></p>"
-                  . "</td></tr></table></body></html>";
+                  . "<p style='color:rgba(255,255,255,0.86);margin:0'>Please change this password on first sign-in.</p>"
+                  . mam_email_button($loginUrl, 'Open student portal');
+            $body = mam_email_layout([
+                'header' => 'MAM ACADEMY',
+                'preheader' => 'Your MAM Academy student portal is ready — sign-in details inside.',
+                'reason' => 'You received this because your payment activated a MAM Academy student portal account.',
+                'body' => $inner,
+            ]);
             mam_send($customer['email'], 'Your MAM Academy student portal is ready', $body, 'portal_welcome', true);
             $portalNotice = 'portal_credentials_emailed';
         } else {
