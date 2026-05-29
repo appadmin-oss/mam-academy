@@ -178,7 +178,16 @@ window.MAM_API = (function () {
         return r.text().then(function (t) {
           var j = {};
           try { j = JSON.parse(t); } catch (e) { throw apiUnavailable(r.status); }
-          if (!r.ok || !j.token) throw apiUnavailable(r.status);
+          if (!r.ok || !j.token) {
+            // The server answered with valid JSON but couldn't mint a token
+            // (e.g. csrf_not_configured when APP_KEY is unset). Surface the real
+            // reason to the console so an operator sees a config problem instead
+            // of a vague "server unreachable", while users still get friendly copy.
+            if (j && j.error) {
+              try { console.warn('[MAM_API] CSRF unavailable (HTTP ' + r.status + '): ' + j.error); } catch (e) {}
+            }
+            throw apiUnavailable(r.status);
+          }
           return j;
         });
       })
