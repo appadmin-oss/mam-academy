@@ -674,6 +674,23 @@ button.tiny:hover{border-color:var(--gold)}
       'smtp'     => !!mam_env('MAIL_HOST'),
       'key'      => strlen((string)mam_env('APP_KEY')) >= 32,
     ];
+    // Schema-version check — surfaces the #1 production gotcha: a MySQL DB
+    // that's behind on migrations because schema-mysql.sql wasn't run after
+    // a deploy. The button POSTs /admin/migrate which runs the idempotent
+    // schema file. Safe to click repeatedly.
+    $schemaVersion = 0; $schemaTarget = 10;
+    try {
+      $schemaVersion = (int)mam_db()->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn();
+    } catch (Throwable $e) {}
+    if ($schemaVersion < $schemaTarget) {
+      echo '<div class="banner warn">⚠️ Database is at <strong>schema version ' . $schemaVersion . '</strong>, target is <strong>' . $schemaTarget . '</strong>. Submissions that touch the missing columns will 500 until you migrate.';
+      echo ' <form method="post" action="/api/admin/migrate" style="display:inline;margin-left:12px" id="migrateForm">'
+         . '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($csrf) . '">'
+         . '<button type="button" class="btn" onclick="mamRunMigrate()">Run migrations now</button>'
+         . '</form>';
+      echo '<script>function mamRunMigrate(){fetch("/api/admin/migrate",{method:"POST",headers:{"X-CSRF-Token":"'.htmlspecialchars($csrf,ENT_QUOTES).'","Content-Type":"application/json"},credentials:"same-origin"}).then(r=>r.json()).then(j=>{alert("Migration "+(j.ok?"succeeded":"failed")+": schema "+j.before+" → "+j.after);location.reload();}).catch(e=>alert("Failed: "+e.message));}</script>';
+      echo '</div>';
+    }
     if (!$health['key']) echo '<div class="banner warn">⚠️ APP_KEY is missing or too short — CSRF tokens and admin forms will fail. Set <code>APP_KEY</code> in <code>api/.env</code> (hex, ≥32 chars).</div>';
     if (!$health['paystack'] && !$health['flw']) echo '<div class="banner warn">⚠️ No payment provider configured. Set <code>PAYSTACK_SECRET_KEY</code> or <code>FLW_SECRET_KEY</code>.</div>';
     if (!$health['smtp']) echo '<div class="banner">ℹ️ SMTP not configured — outgoing mail falls back to PHP <code>mail()</code>.</div>';

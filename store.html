@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260529i">
+<link rel="stylesheet" href="assets/css/main.css?v=20260529j">
 <style>
 .store-shell{max-width:1240px;margin:0 auto;padding:36px 22px 96px}
 .store-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px 18px;margin:24px 0 28px;padding:14px 16px;background:var(--bg-surface);border:1px solid var(--border);border-radius:14px}
@@ -131,8 +131,8 @@
 </div>
 
 <div id="include-footer"></div>
-<script src="assets/js/config.js?v=20260529i"></script>
-<script src="assets/js/main.js?v=20260529i"></script>
+<script src="assets/js/config.js?v=20260529j"></script>
+<script src="assets/js/main.js?v=20260529j"></script>
 <script>
 (function(){
   'use strict';
@@ -142,18 +142,34 @@
   // ---------- Load catalogue ----------
   function load(category) {
     var body = $('#storeBody');
-    body.innerHTML = '<div class="store-loading"><span class="spinner-sm"></span> Loading…</div>';
+    body.innerHTML = '<div class="store-loading"><span class="spinner-sm"></span> Loading the library…</div>';
     var url = '/api/store/items' + (category ? '?category=' + encodeURIComponent(category) : '');
     fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
-      .then(function(r){ return r.json(); })
+      .then(function(r){
+        // If the API returns a non-2xx OR a non-JSON body (e.g. an Apache HTML
+        // 500 page after a schema-migration miss), fall through into the
+        // friendly empty state instead of crashing on JSON.parse.
+        return r.text().then(function(t){
+          if (!r.ok) throw Object.assign(new Error('http_' + r.status), { status: r.status, body: t });
+          try { return JSON.parse(t); } catch (e) { throw Object.assign(new Error('non_json'), { body: t }); }
+        });
+      })
       .then(function(j){
-        if (!j || !j.ok) throw new Error('bad response');
+        if (!j || !j.ok) throw new Error('bad_response');
         $('#regionName').textContent = (j.country && j.country !== 'DEFAULT') ? j.country : 'your region';
         paintCategories(j.items);
         paint(j.items);
       })
-      .catch(function(){
-        body.innerHTML = '<div class="store-empty"><h3>We can\'t load the store right now</h3><p>Please refresh, or email <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> if it persists.</p></div>';
+      .catch(function(err){
+        // Log the actual server payload to the console so the operator can
+        // diagnose the issue (schema gap, route mis-wired, etc.).
+        try { console.error('[MAM_STORE] failed to load', err); } catch (e) {}
+        body.innerHTML = '<div class="store-empty">'
+          + '<h3>The library can\'t open right now</h3>'
+          + '<p>This usually means the server is being updated. Please refresh in a moment.</p>'
+          + '<p style="font-size:0.82rem;margin-top:8px">If it persists, email <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> — your details are safe.</p>'
+          + '<a href="/" class="btn btn-primary" style="margin-top:14px"><i class="fa-solid fa-arrow-left"></i> Back to the academy</a>'
+          + '</div>';
       });
   }
 
@@ -187,9 +203,12 @@
     items.forEach(function(item){
       var card = document.createElement('article');
       card.className = 'item-card' + (item.available_here ? '' : ' unavailable');
+      // Build the thumbnail attribute-safe — escapeHtml on the src + alt
+      // prevents broken cards if a URL contains <, > or & (was just
+      // quote-escaped before, which left other chars through).
       var firstImg = (item.images && item.images.length) ? item.images[0] : '';
       var thumb = firstImg
-        ? '<div class="item-thumb"><img src="' + firstImg.replace(/"/g,'&quot;') + '" alt="' + (item.name||'').replace(/"/g,'&quot;') + '" loading="lazy"></div>'
+        ? '<div class="item-thumb"><img src="' + escapeHtml(firstImg) + '" alt="' + escapeHtml(item.name || '') + '" loading="lazy" onerror="this.closest(\'.item-thumb\').innerHTML=\'<i class=&quot;fa-solid fa-music&quot;></i>\'"></div>'
         : '<div class="item-thumb"><i class="fa-solid fa-music"></i></div>';
       var meta = '';
       if (item.goods_type) meta += '<span class="gd-' + item.goods_type + '">' + (GOODS[item.goods_type] || item.goods_type) + '</span>';

@@ -83,6 +83,7 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->post('/create-class',    $f('admin/create-class.php'),   [mw_csrf(), mw_admin()]);
     $r->post('/enroll-student',  $f('admin/enroll-student.php'), [mw_csrf(), mw_admin()]);
     $r->post('/mail-test',       $f('admin/mail-test.php'),      [mw_csrf(), mw_admin(), mw_rate_limit('mail_test', 10, 600)]);
+    $r->post('/migrate',         $f('admin/migrate.php'),        [mw_csrf(), mw_admin(), mw_rate_limit('migrate', 5, 300)]);
     // Store catalogue admin CRUD (one file dispatches by method).
     $r->get ('/store/items',     $f('admin/store-items.php'),    [mw_admin()]);
     $r->post('/store/items',     $f('admin/store-items.php'),    [mw_csrf(), mw_admin()]);

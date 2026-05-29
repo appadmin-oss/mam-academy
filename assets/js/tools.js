@@ -14,12 +14,23 @@
   var $$ = function (s, root) { return Array.prototype.slice.call((root || document).querySelectorAll(s)); };
 
   // ── Shared AudioContext (autoplay-policy safe) ─────────────────────
+  // We let Tone.js own the AudioContext when it's available so its Transport
+  // scheduling stays in lockstep with our raw WebAudio paths. Tone exposes
+  // its underlying context via Tone.getContext().rawContext — same instance
+  // we'd otherwise create. If Tone isn't loaded (CDN blocked, slow network),
+  // we fall back to a plain AudioContext so nothing is gated on the library.
   var ctx = null;
   function audio() {
+    if (window.Tone && Tone.context) {
+      ctx = Tone.context.rawContext || Tone.getContext().rawContext || ctx;
+      if (Tone.context.state === 'suspended') Tone.start();
+    }
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') ctx.resume();
     return ctx;
   }
+  function hasTone()   { return typeof window.Tone !== 'undefined'; }
+  function hasPitchy() { return !!window.MAM_PITCHY; }
 
   // ── Tab switching ──────────────────────────────────────────────────
   $$('.tools-tabs button').forEach(function (b) {
@@ -215,10 +226,21 @@
         $('#tunerStatus').innerHTML = "Couldn't access the microphone: " + e.message + '. <br>Check permissions in your browser settings.';
       });
   }
+  // Pitchy detector — lazily-constructed when the module loads. Provides
+  // sub-cent accuracy vs the autocorrelation we ship as fallback.
+  var pitchyDetector = null;
   function loopTuner() {
     if (!tunerListening) return;
     tunerAnalyser.getFloatTimeDomainData(tunerBuf);
-    var f = detectPitch(tunerBuf, audio().sampleRate);
+    var f = -1;
+    if (hasPitchy()) {
+      if (!pitchyDetector) pitchyDetector = window.MAM_PITCHY.PitchDetector.forFloat32Array(tunerAnalyser.fftSize);
+      var res = pitchyDetector.findPitch(tunerBuf, audio().sampleRate);
+      // res = [pitchHz, clarity 0..1]. Only trust strong-clarity readings.
+      if (res && res[1] > 0.85) f = res[0];
+    } else {
+      f = detectPitch(tunerBuf, audio().sampleRate);
+    }
     if (f > 50 && f < 4500) {
       var n = freqToNote(f);
       $('#tunerNote').textContent = n.name;
@@ -385,7 +407,38 @@
   var earScore = { correct: 0, total: 0, streak: 0, current: null };
 
   function midiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  // Lazily-built Tone polyphonic sampler-ish synth — sounds far more
+  // pleasant than raw triangle oscillators because of the soft attack/release
+  // envelope and the harmonic content of Tone's AMSynth. Created once and
+  // re-used. If Tone isn't loaded we fall back to the bare-oscillator path
+  // that was here before so the ear-training drills keep working.
+  var earSynth = null;
+  function ensureEarSynth() {
+    if (!hasTone()) return null;
+    if (earSynth) return earSynth;
+    audio(); // start Tone's context (autoplay-policy gate)
+    earSynth = new Tone.PolySynth(Tone.AMSynth, {
+      harmonicity: 1.4,
+      oscillator: { type: 'sine' },
+      modulation: { type: 'square' },
+      envelope: { attack: 0.02, decay: 0.18, sustain: 0.35, release: 0.55 },
+      volume: -8,
+    }).toDestination();
+    return earSynth;
+  }
   function playNotes(midis, mode) {
+    var synth = ensureEarSynth();
+    if (synth) {
+      var now = Tone.now();
+      var dur = mode === 'harmonic' ? 1.0 : 0.5;
+      var gap = 0.55;
+      midis.forEach(function (m, i) {
+        var t = now + (mode === 'harmonic' ? 0 : i * gap);
+        synth.triggerAttackRelease(Tone.Frequency(m, 'midi').toFrequency(), dur, t);
+      });
+      return;
+    }
+    // Fallback: bare WebAudio path.
     var a = audio();
     var dur = 0.55, gap = 0.5;
     midis.forEach(function (m, i) {

@@ -51,11 +51,87 @@ function mam_db(): PDO {
     return $pdo;
 }
 
+/**
+ * MySQL-specific migrator. We don't try to replicate the SQLite migrations
+ * in MySQL syntax — that would inevitably drift. Instead we treat
+ * `db/schema-mysql.sql` as the canonical schema and execute it whenever
+ * schema_version is behind the target. The file is intentionally idempotent
+ * (every DDL guarded by IF NOT EXISTS or ON DUPLICATE KEY) so re-running is
+ * cheap and safe.
+ *
+ * Statements are split conservatively on semicolons-at-end-of-line; lines
+ * inside block comments are stripped. The dynamic FK-drop in v10 (PREPARE /
+ * EXECUTE / DEALLOCATE) is handled as a single chunk to keep its variables
+ * scoped together within one PDO::exec call.
+ */
+function mam_db_migrate_mysql(PDO $db): void {
+    try { $db->exec("CREATE TABLE IF NOT EXISTS schema_version (version INT PRIMARY KEY)"); } catch (Throwable $e) {}
+    $current = 0;
+    try { $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0); } catch (Throwable $e) {}
+
+    $target = 10;
+    if ($current >= $target) return;
+
+    $path = realpath(__DIR__ . '/../../db/schema-mysql.sql');
+    if (!$path || !is_readable($path)) {
+        mam_log('warn', 'mysql_schema_missing', ['path' => $path]);
+        return;
+    }
+    $sql = file_get_contents($path);
+    // Strip `--` line comments AND `/* ... */` block comments so the splitter
+    // doesn't choke on inline semicolons in comment text.
+    $sql = preg_replace('!/\*.*?\*/!s', '', $sql);
+    $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+
+    // Group prepared-statement triples into one statement (PREPARE … DEALLOCATE).
+    // Easiest approach: any block between SET @… and the matching DEALLOCATE is
+    // joined and exec'd together. We do this by replacing newlines with spaces
+    // within those blocks before splitting.
+    $sql = preg_replace_callback('/(SET\s+@[\s\S]*?DEALLOCATE\s+PREPARE\s+\w+\s*;)/i', function ($m) {
+        return str_replace("\n", " ", $m[1]);
+    }, $sql);
+
+    // Split on `;` followed by a newline (so `;` inside a string literal won't
+    // wrongly split — there are none in our schema, but the regex is defensive).
+    $statements = preg_split('/;\s*\n/', $sql);
+
+    $ran = 0; $failed = 0;
+    foreach ($statements as $stmt) {
+        $stmt = trim($stmt);
+        if ($stmt === '') continue;
+        try { $db->exec($stmt); $ran++; }
+        catch (PDOException $e) {
+            $failed++;
+            // 1050 = table exists, 1060 = duplicate column, 1061 = duplicate
+            // key, 1091 = can't DROP — all expected when re-running idempotently.
+            $expected = [1050, 1060, 1061, 1091, 1146];
+            $code = (int)$e->errorInfo[1] ?? 0;
+            if (!in_array($code, $expected, true)) {
+                mam_log('warn', 'mysql_migration_stmt_failed', ['code' => $code, 'msg' => $e->getMessage(), 'stmt' => mb_substr($stmt, 0, 200)]);
+            }
+        }
+    }
+    $newVersion = 0;
+    try { $newVersion = (int)$db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn(); } catch (Throwable $e) {}
+    mam_log('info', 'mysql_migration_complete', ['from' => $current, 'to' => $newVersion, 'ran' => $ran, 'failed' => $failed]);
+}
+
 function mam_db_driver(): string {
     return mam_db()->getAttribute(PDO::ATTR_DRIVER_NAME);
 }
 
 function mam_db_migrate(PDO $db): void {
+    // ── Driver-aware migration ────────────────────────────────────────
+    // The inline migrations below use SQLite syntax (AUTOINCREMENT, datetime('now'),
+    // etc). Running them against MySQL silently fails — which is why production
+    // installs hit "couldn't reach our server" errors after switching DBs.
+    // For MySQL we instead exec the canonical schema-mysql.sql file, which is
+    // idempotent (every ALTER guarded by IF NOT EXISTS, every INSERT by ON
+    // DUPLICATE KEY). We only run it when schema_version is behind, so the
+    // cold-start overhead is minimal.
+    $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+    if ($driver === 'mysql') { mam_db_migrate_mysql($db); return; }
+
     $db->exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)");
     $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0);
 
