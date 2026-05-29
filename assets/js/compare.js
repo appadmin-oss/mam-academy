@@ -32,7 +32,7 @@
     { id: 'crash', label: 'Crash', name: 'Intensive', trinity: '6 weeks · any school', price: 40, unit: '/course',
       tag: '', accent: 'gold', levels: ['none', 'some', 'intermediate', 'advanced'], goals: ['perform', 'produce', 'worship'], pace: 'intensive', budget: 1,
       f: { bestFor: 'Quick wins · summer · busy pros', length: '6 weeks fixed', modes: 'Both', auditer: 'Recommended', trinityEq: '—', instrumental: 'Per chosen course', performance: 'Per chosen course', rhythm: 'Per chosen course', metamusic: 'Per chosen course', certificate: 'Certificate of completion', registration: 'Once', graduation: '—' } },
-    { id: 'meta-order', label: 'MetaMusic Order', name: 'Civilization Architect', trinity: '12 weeks · post-graduate', price: 240, unit: '/12wk',
+    { id: 'meta-order', label: 'MetaMusic Order', name: 'Civilization Architect', trinity: '12 weeks · post-graduate', price: 60, unit: '/12wk',
       tag: 'Premium', accent: 'red', premium: true, levels: ['advanced'], goals: ['culture', 'produce', 'lead'], pace: 'intensive', budget: 3,
       f: { bestFor: 'Producers, performers, cultural leaders', length: '12 weeks fixed', modes: 'Online focus', auditer: '✓ + interview', trinityEq: 'Post-Diploma', instrumental: '—', performance: '✓✓✓', rhythm: 'Applied', metamusic: 'Core focus', certificate: 'Order commission', registration: 'Included', graduation: 'Included' } }
   ];
@@ -57,9 +57,9 @@
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function fmtValue(v) {
-    if (v === '—') return '<span class="cmp-dash" aria-label="not included">—</span>';
-    if (/^✓/.test(v)) return '<span class="cmp-yes"><i class="fa-solid fa-check" aria-hidden="true"></i>' + esc(v.replace(/^✓+\s?/, '') || '') + '</span>';
-    if (v === 'Both') return '<span class="cmp-yes"><i class="fa-solid fa-check" aria-hidden="true"></i>Both modes</span>';
+    if (v === '—') return '<span class="pc-dash" aria-label="not included">—</span>';
+    if (/^✓/.test(v)) return '<span class="pc-yes"><i class="fa-solid fa-check" aria-hidden="true"></i>' + esc(v.replace(/^✓+\s?/, '') || '') + '</span>';
+    if (v === 'Both') return '<span class="pc-yes"><i class="fa-solid fa-check" aria-hidden="true"></i>Both modes</span>';
     return esc(v);
   }
   function applyHref(id) { return 'apply?pathway=' + id; }
@@ -151,7 +151,7 @@
         if (back) back.addEventListener('click', function () { step--; render(); });
       } else {
         var ranked = recommend(answers);
-        var top = ranked[0].p, alt = ranked[1].p;
+        var top = ranked[0].p;
         mount.innerHTML =
           '<div class="match-head"><div class="match-eyebrow"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> MAM Match · your result</div></div>' +
           '<div class="match-result">' +
@@ -161,7 +161,7 @@
             '<p class="match-result-why">' + esc(reasonText(top, answers)) + '</p>' +
             '<div class="match-result-actions">' +
               '<a class="match-cta" href="' + applyHref(top.id) + '"><i class="fa-solid fa-bolt" aria-hidden="true"></i> Apply for ' + esc(top.label) + '</a>' +
-              '<button type="button" class="match-secondary" data-compare="' + esc(top.id) + ',' + esc(alt.id) + '">Compare with ' + esc(alt.label) + '</button>' +
+              '<button type="button" class="match-secondary" data-compare="' + esc(top.id) + '">See all programmes</button>' +
             '</div>' +
             '<button type="button" class="match-restart" data-restart><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Start over</button>' +
           '</div>';
@@ -169,79 +169,80 @@
         if (restart) restart.addEventListener('click', function () { answers = {}; step = 0; render(); });
         var cmp = mount.querySelector('[data-compare]');
         if (cmp) cmp.addEventListener('click', function () {
-          var pair = cmp.getAttribute('data-compare').split(',');
-          var ev = new CustomEvent('mam:compare-set', { detail: { a: pair[0], b: pair[1] } });
-          document.dispatchEvent(ev);
+          var pick = cmp.getAttribute('data-compare');
           var mc = document.getElementById('mobileCompare');
-          (document.querySelector('.cmp-mobile') || mc || mount).scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // On mobile the stacked cards are visible — flash + scroll to the pick.
+          // On desktop they're display:none, so fall back to the full table.
+          if (mc && getComputedStyle(mc).display !== 'none') {
+            document.dispatchEvent(new CustomEvent('mam:compare-set', { detail: { a: pick } }));
+          } else {
+            var tbl = document.querySelector('.compare-table-wrap');
+            (tbl || mount).scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
         });
       }
     }
     render();
   }
 
-  /* ─────────────────────── Mobile head-to-head compare ─────────────────────── */
-  function buildMobileCompare(mount) {
-    var aId = 'cert', bId = 'crash';
+  /* ─────────────────────── Mobile programme cards ─────────────────────── */
+  // Four headline features shown up front; the rest live behind a disclosure
+  // so each card stays clean and scannable instead of a wall of rows.
+  var HEADLINE = ['bestFor', 'length', 'modes', 'certificate'];
 
-    function selectHtml(which, sel) {
-      return '<label class="cmp-pick"><span class="cmp-pick-label">' + (which === 'a' ? 'Programme A' : 'Programme B') + '</span>' +
-        '<select class="cmp-select" data-side="' + which + '">' +
-        PROGRAMMES.map(function (p) { return '<option value="' + p.id + '"' + (p.id === sel ? ' selected' : '') + '>' + esc(p.label) + ' · ' + esc(p.name) + '</option>'; }).join('') +
-        '</select></label>';
+  function buildMobileCards(mount) {
+    function rowsHtml(p, keys) {
+      return '<dl class="pc-rows">' + keys.map(function (k) {
+        var ft = FEATURES.filter(function (f) { return f.key === k; })[0];
+        if (!ft) return '';
+        return '<div class="pc-row"><dt>' + esc(ft.label) + '</dt><dd>' + fmtValue(p.f[ft.key]) + '</dd></div>';
+      }).join('') + '</dl>';
     }
-    function headCard(p) {
-      return '<div class="cmp-card ' + (p.premium ? 'is-premium' : p.featured ? 'is-featured' : '') + '">' +
-        (p.tag ? '<span class="cmp-card-tag">' + esc(p.tag) + '</span>' : '') +
-        '<div class="cmp-card-name">' + esc(p.name) + '</div>' +
-        '<div class="cmp-card-label">' + esc(p.label) + '</div>' +
-        '<div class="cmp-card-price">$' + p.price + '<small>' + esc(p.unit) + '</small></div>' +
-        '<a class="cmp-card-cta" href="' + applyHref(p.id) + '">Apply</a>' +
-      '</div>';
+    function card(p) {
+      var cls = p.premium ? 'is-premium' : p.featured ? 'is-featured' : '';
+      var rest = FEATURES.map(function (f) { return f.key; }).filter(function (k) { return HEADLINE.indexOf(k) < 0; });
+      return '<article class="pcard ' + cls + '" id="pc-' + p.id + '">' +
+        (p.tag ? '<span class="pcard-tag">' + esc(p.tag) + '</span>' : '') +
+        '<div class="pcard-label">' + esc(p.label) + '</div>' +
+        '<h3 class="pcard-name">' + esc(p.name) + '</h3>' +
+        '<div class="pcard-trinity">' + esc(p.trinity) + '</div>' +
+        '<div class="pcard-price">$' + p.price + '<small>' + esc(p.unit) + '</small></div>' +
+        rowsHtml(p, HEADLINE) +
+        '<div class="pc-more" hidden>' + rowsHtml(p, rest) + '</div>' +
+        '<button type="button" class="pc-toggle" aria-expanded="false">See full breakdown <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>' +
+        '<a class="pcard-cta" href="' + applyHref(p.id) + '"><i class="fa-solid fa-bolt" aria-hidden="true"></i> Apply for ' + esc(p.label) + '</a>' +
+      '</article>';
     }
-    function render() {
-      var A = byId[aId], B = byId[bId];
-      mount.innerHTML =
-        '<div class="cmp-pickers">' + selectHtml('a', aId) +
-          '<button type="button" class="cmp-swap" aria-label="Swap A and B"><i class="fa-solid fa-right-left" aria-hidden="true"></i></button>' +
-          selectHtml('b', bId) + '</div>' +
-        '<div class="cmp-cards">' + headCard(A) + headCard(B) + '</div>' +
-        '<dl class="cmp-rows">' +
-          FEATURES.map(function (ft) {
-            var av = A.f[ft.key], bv = B.f[ft.key];
-            var diff = av !== bv ? ' is-diff' : '';
-            return '<div class="cmp-row' + diff + '">' +
-              '<dt class="cmp-row-label">' + esc(ft.label) + '</dt>' +
-              '<dd class="cmp-row-a">' + fmtValue(av) + '</dd>' +
-              '<dd class="cmp-row-b">' + fmtValue(bv) + '</dd>' +
-            '</div>';
-          }).join('') +
-        '</dl>' +
-        '<p class="cmp-foot"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Highlighted rows differ between the two. Still unsure? <a href="auditer">Book MAM Auditer</a>.</p>';
 
-      mount.querySelectorAll('.cmp-select').forEach(function (sel) {
-        sel.addEventListener('change', function () {
-          if (sel.getAttribute('data-side') === 'a') aId = sel.value; else bId = sel.value;
-          if (aId === bId) { // avoid comparing a plan with itself — nudge B
-            var other = PROGRAMMES.filter(function (p) { return p.id !== aId; })[0];
-            if (sel.getAttribute('data-side') === 'a') bId = other.id; else aId = other.id;
-          }
-          render();
-        });
+    mount.innerHTML =
+      '<div class="pcards">' + PROGRAMMES.map(card).join('') + '</div>' +
+      '<p class="cmp-foot"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Not sure which fits? Use <strong>MAM Match</strong> above, or <a href="auditer">book the MAM Auditer</a> for an accurate placement.</p>';
+
+    mount.querySelectorAll('.pc-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var c = btn.parentNode, more = c.querySelector('.pc-more');
+        var willOpen = more.hidden;
+        more.hidden = !willOpen;
+        btn.setAttribute('aria-expanded', String(willOpen));
+        btn.innerHTML = (willOpen ? 'Hide breakdown' : 'See full breakdown') +
+          ' <i class="fa-solid fa-chevron-' + (willOpen ? 'up' : 'down') + '" aria-hidden="true"></i>';
       });
-      mount.querySelector('.cmp-swap').addEventListener('click', function () { var t = aId; aId = bId; bId = t; render(); });
-    }
-
-    // Let the recommender deep-link a pair into the compare widget.
-    document.addEventListener('mam:compare-set', function (e) {
-      if (e.detail && byId[e.detail.a] && byId[e.detail.b]) { aId = e.detail.a; bId = e.detail.b; render(); }
     });
-    render();
+
+    // Recommender deep-link: flash + scroll to the recommended programme card.
+    document.addEventListener('mam:compare-set', function (e) {
+      var id = e.detail && e.detail.a;
+      var el = id && document.getElementById('pc-' + id);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('pc-flash');
+      setTimeout(function () { el.classList.remove('pc-flash'); }, 1800);
+    });
   }
 
   function init() {
     var rec = document.getElementById('mamMatch'); if (rec) buildRecommender(rec);
-    var mc = document.getElementById('mobileCompare'); if (mc) buildMobileCompare(mc);
+    var mc = document.getElementById('mobileCompare'); if (mc) buildMobileCards(mc);
   }
   if (document.readyState !== 'loading') init();
   else document.addEventListener('DOMContentLoaded', init);

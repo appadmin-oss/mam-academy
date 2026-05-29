@@ -1074,3 +1074,12 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
 .mam-exit-msg-error{color:#FECDD3;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.35)}
 .mam-exit-foot{font-size:0.82rem;color:var(--text-muted,#A89682);margin:18px 0 0;text-align:center}
 .mam-exit-foot a{color:#FBBF24;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+
+/* ── Mobile UX hardening ───────────────────────────────────────────────
+   iOS Safari/Chrome zoom the whole page when a focused form control's
+   font-size is below 16px, causing a jarring zoom-and-reflow on every tap
+   into a field. Pinning controls to 16px on small screens removes that —
+   one of the biggest "this feels broken/generic" tells on mobile. */
+@media (max-width:600px){
+  input,select,textarea{font-size:16px!important}
+}

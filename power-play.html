@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260529">
+<link rel="stylesheet" href="assets/css/main.css?v=20260529b">
 <style>
 .pp-hero{position:relative;padding:clamp(96px,12vw,148px) clamp(16px,4vw,24px) clamp(72px,9vw,108px);background:radial-gradient(ellipse 70% 60% at 85% 0%,rgba(99,102,241,0.34),transparent 60%),radial-gradient(ellipse 60% 60% at 0% 100%,rgba(251,191,36,0.20),transparent 62%),var(--bg-surface);overflow:hidden;border-bottom:1px solid var(--border)}
 /* faint electric grid texture for depth */
@@ -23,7 +23,10 @@
 @keyframes ppPulse{0%{box-shadow:0 0 0 0 rgba(165,180,252,0.55)}70%{box-shadow:0 0 0 9px rgba(165,180,252,0)}100%{box-shadow:0 0 0 0 rgba(165,180,252,0)}}
 .pp-title{font-family:var(--font-display);font-size:clamp(2.8rem,10vw,6rem);line-height:0.92;letter-spacing:0.02em;color:#fff;margin-bottom:18px;text-shadow:0 0 48px rgba(99,102,241,0.35)}
 .pp-title .accent{background:linear-gradient(135deg,#FBBF24,#F59E0B);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.pp-lede{font-size:clamp(1.02rem,2.2vw,1.18rem);color:rgba(255,255,255,0.9);line-height:1.65;margin-bottom:22px;max-width:560px}
+.pp-withhost{display:block;font-family:var(--font-body);font-size:clamp(0.92rem,2.4vw,1.15rem);font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:#C7D2FE;margin-top:10px}
+.pp-tagline{font-family:var(--font-serif);font-style:italic;font-size:clamp(1.3rem,4.2vw,1.95rem);font-weight:600;color:#fff;line-height:1.2;margin:6px 0 16px;max-width:560px}
+.pp-lede{font-size:clamp(1.02rem,2.2vw,1.18rem);color:rgba(255,255,255,0.9);line-height:1.65;margin-bottom:18px;max-width:560px}
+.pp-motto{display:inline-block;font-family:var(--font-serif);font-style:italic;font-size:clamp(0.96rem,2.4vw,1.12rem);color:#FBBF24;line-height:1.5;padding:12px 18px;margin-bottom:24px;border-left:3px solid rgba(251,191,36,0.6);background:rgba(251,191,36,0.06);border-radius:0 var(--radius-sm) var(--radius-sm) 0}
 .pp-host{display:flex;align-items:center;gap:16px;padding:14px 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:22px;max-width:480px}
 .pp-host-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6366F1,#A5B4FC);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.4rem;color:#fff;flex-shrink:0;box-shadow:0 6px 18px rgba(99,102,241,0.4)}
 .pp-host-name{font-size:1.02rem;font-weight:700;color:var(--text)}
@@ -64,6 +67,12 @@
   .pp-stat{min-width:0;flex:1 1 30%;padding:12px}
   .pp-stat b{font-size:1.4rem}
 }
+@media (max-width:600px){
+  #register{padding:64px 18px!important}
+  #ppForm{flex-direction:column;gap:10px}
+  #ppForm .btn{width:100%;justify-content:center;min-height:52px}
+  .pp-motto{display:block}
+}
 @media (prefers-reduced-motion:reduce){
   .pp-eyebrow .pp-live{animation:none}
 }
@@ -81,8 +90,10 @@
       <div>
         <nav class="breadcrumb" style="justify-content:flex-start"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Power Play</span></nav>
         <div class="pp-eyebrow"><span class="pp-live" aria-hidden="true"></span>Free Monthly Series</div>
-        <h1 class="pp-title">POWER <span class="accent">PLAY</span></h1>
+        <h1 class="pp-title">POWER <span class="accent">PLAY</span><span class="pp-withhost">with Van. BOJA</span></h1>
+        <p class="pp-tagline">The War Room for Cultural Architects</p>
         <p class="pp-lede">A monthly gathering for musicians, creatives and culture shapers — built to forge presence, mastery and intentional influence.</p>
+        <p class="pp-motto">"Building Men Who Can Move Nations."</p>
         <div class="pp-host">
           <div class="pp-host-avatar">VB</div>
           <div>
@@ -214,8 +225,8 @@
 </main>
 
 <div id="include-footer"></div>
-<script src="assets/js/config.js?v=20260529"></script>
-<script src="assets/js/main.js?v=20260529"></script>
+<script src="assets/js/config.js?v=20260529b"></script>
+<script src="assets/js/main.js?v=20260529b"></script>
 <script>
 // ── Power Play scheduling: compute the next first-Wednesday from MAM_CONFIG ──
 // Pure date math — no library. Honours the configured time/timezone and
@@ -299,27 +310,45 @@
 
 document.addEventListener('mam:ready', function () {
   var form = document.getElementById('ppForm'); if (!form) return;
+  var emailEl = document.getElementById('ppEmail');
+  var msg = document.getElementById('ppMsg');
+  var btn = form.querySelector('button[type="submit"]');
+  var btnHtml = btn ? btn.innerHTML : '';
+  var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  function show(html, kind) {
+    msg.innerHTML = html;
+    msg.style.display = 'block';
+    msg.style.color = kind === 'error' ? 'var(--red-hot)' : kind === 'ok' ? 'var(--emerald)' : 'var(--text-muted)';
+  }
+  function busy(on) { if (btn) { btn.disabled = on; btn.innerHTML = on ? 'Reserving…' : btnHtml; } }
+  function mailtoLink(email) {
+    var fb = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'connect@mamcentre.org';
+    return 'mailto:' + fb + '?subject=' + encodeURIComponent('Power Play — register me') +
+      '&body=' + encodeURIComponent('Please send me the link for the next Power Play session.\nEmail: ' + email);
+  }
+  var GOLD = 'style="color:var(--gold-bright);font-weight:700;text-decoration:underline"';
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
-    var emailEl = document.getElementById('ppEmail');
     var email = emailEl.value.trim();
-    var msg = document.getElementById('ppMsg');
-    var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!re.test(email)) { emailEl.style.borderColor = 'var(--red-hot)'; return; }
+    if (!re.test(email)) { emailEl.style.borderColor = 'var(--red-hot)'; emailEl.focus(); show('Please enter a valid email address.', 'error'); return; }
     emailEl.style.borderColor = '';
-    if (window.MAM_API) {
-      window.MAM_API.subscribeNewsletter(email, 'power-play')
-        .then(function () { msg.textContent = 'Thanks — check your inbox for the link.'; msg.style.display='block'; emailEl.value=''; })
-        .catch(function (err) {
-          if (err && err.status === 429) { msg.textContent = 'Too many requests — please try later.'; msg.style.color='var(--red-hot)'; msg.style.display='block'; return; }
-          mailto();
-        });
-    } else { mailto(); }
-    function mailto() {
-      var fallback = window.MAM_CONFIG.forms.fallbackEmail;
-      window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Power Play — register me') + '&body=' + encodeURIComponent('Please send me the link for the next Power Play session.\nEmail: ' + email);
-      msg.textContent = 'Opening your email…'; msg.style.display='block';
+
+    // No email-client hijack: the API delivers the confirmation. We only ever
+    // surface a mailto as an explicit, optional link if the API is unreachable.
+    if (!window.MAM_API || !window.MAM_API.subscribeNewsletter) {
+      show('Registration is briefly unavailable. <a href="' + mailtoLink(email) + '" ' + GOLD + '>Email us your seat request</a> and we\'ll send the Meet link.', 'error');
+      return;
     }
+    busy(true);
+    window.MAM_API.subscribeNewsletter(email, 'power-play')
+      .then(function () { busy(false); emailEl.value = ''; show('🎉 You\'re in — check your inbox for the Google Meet link.', 'ok'); })
+      .catch(function (err) {
+        busy(false);
+        if (err && err.status === 429) { show('You\'ve tried a few times — please wait a minute, then try again.', 'error'); return; }
+        show('Couldn\'t reserve your seat just now. Please try again — or <a href="' + mailtoLink(email) + '" ' + GOLD + '>email us your request</a>.', 'error');
+      });
   });
 });
 </script>

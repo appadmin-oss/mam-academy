@@ -76,7 +76,7 @@ window.MAM_CONFIG = {
     'pre-dip':    { name: 'Pre-Diploma (Grade 5–6)',         usd: 160 },
     'diploma':    { name: 'Diploma (Grade 7–8)',             usd: 180 },
     'crash':      { name: 'Crash Programme (6 weeks)',       usd: 40  },
-    'meta-order': { name: 'The MetaMusic Order (12 weeks)',  usd: 240 }
+    'meta-order': { name: 'The MetaMusic Order (12 weeks)',  usd: 60  }
   },
   registrationFeeUsd: 5,
   certificationFeeUsd: 22,
