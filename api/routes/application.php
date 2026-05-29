@@ -36,14 +36,7 @@ if ($idemKey !== '') {
 $v = mam_validate_application($input);
 
 // Pricing — server is the source of truth, never trust client total
-$prices = [
-    'pre-cert'   => 120,
-    'cert'       => 150,
-    'pre-dip'    => 160,
-    'diploma'    => 180,
-    'crash'      => 40,
-    'meta-order' => 240,
-];
+$prices = mam_prices();
 $total = $prices[$v['pathway']] ?? 0;
 if ($v['includeRegistration'])  $total += 5;
 if ($v['includeCertification']) $total += 22;

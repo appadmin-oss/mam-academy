@@ -4,6 +4,23 @@
  */
 declare(strict_types=1);
 
+/**
+ * Single source of truth for programme pricing (USD). Used both to charge
+ * the correct amount server-side (application.php) and to advertise accurate
+ * prices in transactional emails — so the two can never drift apart. Keep in
+ * sync with the display values in assets/js/config.js.
+ */
+function mam_prices(): array {
+    return [
+        'pre-cert'   => 120,
+        'cert'       => 150,
+        'pre-dip'    => 160,
+        'diploma'    => 180,
+        'crash'      => 40,
+        'meta-order' => 60,
+    ];
+}
+
 function mam_str(array $src, string $key, int $max = 255): string {
     $v = $src[$key] ?? '';
     if (!is_string($v)) $v = '';

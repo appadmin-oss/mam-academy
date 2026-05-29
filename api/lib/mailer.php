@@ -406,6 +406,43 @@ function mam_powerplay_next(): array {
 }
 
 /**
+ * Cross-promotion block appended to transactional emails so every message
+ * tastefully advertises the rest of the catalogue. Prices come from the
+ * single server-side source (mam_prices) so they never drift. Pass keys to
+ * $exclude to drop programmes the recipient is already engaged with
+ * (e.g. 'powerplay' in the Power Play confirmation). Email-client-safe:
+ * tables + inline styles only.
+ */
+function mam_email_promo_block(array $exclude = []): string {
+    $p = mam_prices();
+    $base = 'https://academy.mamcentre.org/';
+    $items = [
+        'powerplay' => ['⚡ Power Play with Van. BOJA', 'Free monthly online session for musicians & culture-shapers.', 'Free', 'power-play'],
+        'crash'     => ['Crash Programme', 'A focused 6-week intensive — quick, real wins.', '$' . $p['crash'], 'crash'],
+        'pathways'  => ['Certification Pathways', 'Trinity-equivalent grades, online or onsite.', 'from $' . $p['pre-cert'], 'pathways'],
+        'metamusic' => ['The MetaMusic Order', '12-week post-graduate cultural-architecture track.', '$' . $p['meta-order'], 'metamusic-order'],
+    ];
+    $rows = '';
+    foreach ($items as $key => $it) {
+        if (in_array($key, $exclude, true)) continue;
+        [$name, $desc, $price, $slug] = $it;
+        $rows .= "<tr>
+          <td style='padding:12px 0;border-bottom:1px solid #251A10;vertical-align:top'>
+            <a href='" . $base . $slug . "' style='color:#FBBF24;font-weight:700;font-size:15px;text-decoration:none'>" . htmlspecialchars($name, ENT_QUOTES) . " &rarr;</a>
+            <div style='color:rgba(255,255,255,0.7);font-size:13px;margin-top:3px;line-height:1.5'>" . htmlspecialchars($desc, ENT_QUOTES) . "</div>
+          </td>
+          <td style='padding:12px 0 12px 14px;border-bottom:1px solid #251A10;text-align:right;vertical-align:top;white-space:nowrap'>
+            <span style='color:#fff;font-size:14px;font-weight:700'>" . htmlspecialchars($price, ENT_QUOTES) . "</span>
+          </td></tr>";
+    }
+    if ($rows === '') return '';
+    return "<div style='margin-top:28px;padding:18px 18px 6px;background:#160F09;border:1px solid #251A10;border-radius:12px'>
+      <div style='font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#A89682;font-weight:800;margin-bottom:2px'>More ways to grow with MAM</div>
+      <table cellpadding='0' cellspacing='0' style='width:100%'>" . $rows . "</table>
+    </div>";
+}
+
+/**
  * Pre-rendered HTML templates for transactional emails.
  */
 function mam_email_powerplay_confirmation(): string {
@@ -432,6 +469,7 @@ function mam_email_powerplay_confirmation(): string {
       $cta
       <p style='color:rgba(255,255,255,0.7);font-size:14px'>Power Play runs the <strong>first Wednesday of every month</strong> — add it to your calendar so you never miss it.</p>
       <p style='font-size:13px;color:rgba(255,255,255,0.55);margin-top:24px'>Want the full structured path — certification, instructors, ensemble &amp; stage time? <a href='https://academy.mamcentre.org/apply' style='color:#FBBF24'>Apply to MAM Academy</a>.</p>
+      " . mam_email_promo_block(['powerplay']) . "
       <p style='margin-top:20px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a></p>
     </td></tr></table>
     </body></html>";
@@ -488,6 +526,7 @@ function mam_email_enrolled(string $name, string $className, string $schedule, s
       <p style='color:rgba(255,255,255,0.86);font-size:15px'>You've been placed into <strong style='color:#FBBF24'>$c</strong>. Here's what we have on the schedule:</p>
       <div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;color:#FBBF24;margin:16px 0'>$s</div>
       <p style='text-align:center;margin:24px 0'><a href='$u' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>View my classes</a></p>";
+    $inner .= mam_email_promo_block(['pathways']);
     return mam_email_shell('MAM ACADEMY', $inner);
 }
 
@@ -514,6 +553,7 @@ function mam_email_application_recovery(array $app, array $customer): string {
       </div>
       <p style='text-align:center;margin:26px 0'><a href='" . htmlspecialchars($resumeUrl, ENT_QUOTES) . "' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Complete my enrolment</a></p>
       <p style='color:rgba(255,255,255,0.7);font-size:14px'>Intakes fill on a first-paid basis. If you have a question or want to pay by bank transfer, just reply to this email or call <strong>+234 704 444 6517</strong> — a real person will help.</p>
+      " . mam_email_promo_block(['pathways']) . "
       <p style='font-size:13px;color:rgba(255,255,255,0.5);margin-top:24px'>If you've changed your mind, no worries — you can ignore this and we won't email you about it again.</p>
     </td></tr></table>
     </body></html>";
@@ -584,6 +624,7 @@ function mam_email_newsletter_welcome(string $source = 'site'): string {
       <p style='color:rgba(255,255,255,0.86);font-size:15px'>If you're ready to enrol, you can start your application in five guided steps:</p>
       <p style='text-align:center;margin:24px 0'><a href='https://academy.mamcentre.org/apply' style='display:inline-block;padding:14px 28px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none;letter-spacing:0.04em;text-transform:uppercase;font-size:14px'>Begin your application</a></p>
       <p style='font-size:13px;color:rgba(255,255,255,0.5);margin-top:24px'>You'll only ever get these monthly notes — no daily noise. Reply with \"unsubscribe\" any time and we'll take you off the list immediately.</p>
+      " . mam_email_promo_block(['powerplay']) . "
       <p style='margin-top:24px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · subscribed via <code style='color:#FBBF24'>$site</code></p>
     </td></tr></table>
     </body></html>";
@@ -611,6 +652,7 @@ function mam_email_contact_autoresponse(string $name, string $topic): string {
         <p style='margin:0 0 8px;font-size:14px'>✉️ <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a> · WhatsApp on the same number</p>
         <p style='margin:0;font-size:14px'>🎓 Ready to apply? <a href='https://academy.mamcentre.org/apply' style='color:#FBBF24'>apply</a> · 5 steps, auto-saved on this device</p>
       </div>
+      " . mam_email_promo_block() . "
       <p style='font-size:13px;color:rgba(255,255,255,0.55);margin-top:24px'>You're getting this once — it's our acknowledgement that we received your note. A real human will reply from this same address shortly.</p>
     </td></tr></table>
     </body></html>";
@@ -632,6 +674,7 @@ function mam_email_application_confirmation(array $app, array $customer): string
       <p style='color:rgba(255,255,255,0.86);font-size:15px'>Programme: <strong style='color:#fff'>" . htmlspecialchars($app['pathway']) . "</strong> · Mode: <strong style='color:#fff'>" . htmlspecialchars($app['mode']) . "</strong></p>
       <p style='color:rgba(255,255,255,0.86);font-size:15px'>Total: <strong style='color:#FBBF24'>USD \${$tot}</strong></p>
       <p style='color:rgba(255,255,255,0.86);font-size:15px;margin-top:20px'>Our team will be in touch within <strong>24 hours</strong> to confirm your schedule and book your MAM Auditer entry assessment.</p>
+      " . mam_email_promo_block(['pathways']) . "
       <p style='margin-top:28px;color:rgba(255,255,255,0.6);font-size:13px'>— MAM Centre, Lagos · <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a></p>
     </td></tr></table>
     </body></html>";
