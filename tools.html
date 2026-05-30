@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Practice Studio — MAM Academy</title>
+<meta name="description" content="The MAM Academy Practice Studio — metronome, chromatic tuner, focus timer, ear training, and speed/pitch trainer. Premium musician tools, free for everyone.">
+<link rel="canonical" href="https://academy.mamcentre.org/studio">
+<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
+<meta property="og:title" content="MAM Academy — Practice Studio">
+<meta property="og:description" content="Metronome, tuner, focus timer, ear training, speed-and-pitch trainer. Free.">
+<!-- Permissions-Policy: the host injects a default policy that disallows
+     microphone; without explicit allow, the tuner's getUserMedia errors with
+     'Permissions policy violation'. The meta is a hint to the browser; the
+     authoritative version is the matching .htaccess Header set rule.       -->
+<meta http-equiv="Permissions-Policy" content="microphone=(self), camera=(), geolocation=(), interest-cohort=()">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="assets/css/main.css?v=20260530a">
+<style>
+.tools-shell{max-width:1180px;margin:0 auto;padding:32px 22px 96px}
+.tools-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:6px;background:var(--bg-surface);border:1px solid var(--border);border-radius:100px;margin:18px 0 28px;width:fit-content}
+.tools-tabs button{padding:10px 18px;border-radius:100px;font-size:0.88rem;font-weight:700;color:var(--text-muted);background:transparent;border:0;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:42px}
+.tools-tabs button.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
+.tool-panel{display:none;background:var(--bg-surface);border:1px solid var(--border);border-radius:18px;padding:clamp(20px,3vw,36px);box-shadow:0 14px 36px rgba(0,0,0,0.25)}
+.tool-panel.active{display:block;animation:fadeUp .3s var(--ease)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.tool-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:22px}
+.tool-head h2{font-family:var(--font-serif);font-size:clamp(1.4rem,3vw,1.9rem);font-weight:700;color:var(--text);margin:0 0 4px}
+.tool-head p{margin:0;color:var(--text-soft);font-size:0.94rem;line-height:1.6}
+
+/* ── Metronome ─────────────────────────────────────────────────── */
+.met-display{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;margin-bottom:24px;padding:24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px}
+.met-bpm{font-family:var(--font-display);font-size:clamp(4rem,12vw,7rem);line-height:1;color:var(--gold-bright,#FCC647);letter-spacing:0.02em;text-align:center;min-width:160px}
+.met-bpm small{display:block;font-family:var(--font-body);font-size:0.78rem;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;font-weight:700;margin-top:8px;letter-spacing:0.14em}
+.met-beats{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;min-height:36px}
+.met-beat{width:32px;height:32px;border-radius:50%;background:var(--bg-elevated);border:2px solid var(--border-strong);transition:background .08s linear,transform .08s linear}
+.met-beat.beat-active{background:var(--gold-bright,#FCC647);transform:scale(1.18);border-color:var(--gold-bright,#FCC647);box-shadow:0 0 18px rgba(252,198,71,0.6)}
+.met-beat.beat-accent{border-color:var(--gold-bright,#FCC647)}
+.met-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:18px}
+.met-controls label{display:block;font-size:0.74rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.met-controls input[type=range]{width:100%}
+.met-controls select,.met-controls input[type=number]{width:100%;padding:10px 12px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.96rem;min-height:44px}
+.met-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.met-start{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.05em;font-size:1rem;border-radius:12px;border:0;cursor:pointer;min-height:52px;box-shadow:0 8px 22px rgba(224,138,26,0.4)}
+.met-start.playing{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;box-shadow:0 8px 22px rgba(244,66,59,0.45)}
+.met-tap{padding:14px 22px;background:transparent;border:1px solid var(--border-gold);color:var(--gold-bright);font-weight:700;border-radius:12px;min-height:52px;cursor:pointer}
+.met-tap:hover{background:rgba(224,138,26,0.06)}
+
+/* ── Tuner ─────────────────────────────────────────────────────── */
+.tuner-display{padding:30px 24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;text-align:center;margin-bottom:18px}
+.tuner-note{font-family:var(--font-display);font-size:clamp(5rem,14vw,8rem);line-height:1;color:var(--gold-bright,#FCC647);letter-spacing:0.02em;min-height:1em}
+.tuner-octave{font-family:var(--font-body);font-size:0.5em;color:var(--text-muted);vertical-align:super;margin-left:6px}
+.tuner-freq{font-size:0.95rem;color:var(--text-soft);margin-top:8px;font-variant-numeric:tabular-nums}
+.tuner-cents{margin:20px auto 0;width:min(440px,90%);height:64px;position:relative;background:var(--bg-elevated);border-radius:8px;border:1px solid var(--border)}
+.tuner-cents-center{position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--gold-bright,#FCC647);transform:translateX(-50%)}
+.tuner-cents-tick{position:absolute;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#fff;border-radius:50%;left:50%;transition:left .12s ease-out;box-shadow:0 0 14px rgba(255,255,255,0.45)}
+.tuner-cents-tick.in-tune{background:#34D399;box-shadow:0 0 18px rgba(52,211,153,0.65)}
+.tuner-cents-tick.flat{background:#7CC3F0;box-shadow:0 0 18px rgba(124,195,240,0.65)}
+.tuner-cents-tick.sharp{background:#F89B8A;box-shadow:0 0 18px rgba(248,155,138,0.65)}
+.tuner-cents-labels{display:flex;justify-content:space-between;padding:6px 12px 0;font-size:0.74rem;color:var(--text-muted)}
+.tuner-status{margin:14px 0 0;font-size:0.94rem;color:var(--text-muted);line-height:1.55}
+.tuner-start{display:inline-flex;align-items:center;gap:10px;padding:13px 24px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.04em;border-radius:12px;border:0;cursor:pointer;min-height:48px;font-size:0.96rem}
+.tuner-start.listening{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff}
+
+/* ── Pomodoro ──────────────────────────────────────────────────── */
+.pomo-display{text-align:center;padding:36px 24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
+.pomo-time{font-family:var(--font-display);font-size:clamp(5rem,16vw,9rem);line-height:1;color:var(--gold-bright,#FCC647);letter-spacing:0.02em;font-variant-numeric:tabular-nums}
+.pomo-mode{font-size:0.84rem;color:var(--text-muted);letter-spacing:0.14em;text-transform:uppercase;font-weight:800;margin-top:8px}
+.pomo-mode.break{color:#7CC3F0}
+.pomo-mode.long-break{color:#A5B4FC}
+.pomo-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:18px 0 4px}
+.pomo-start{padding:14px 32px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.05em;border-radius:12px;border:0;cursor:pointer;min-height:52px;font-size:1rem;display:inline-flex;align-items:center;gap:10px}
+.pomo-start.running{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff}
+.pomo-reset{padding:14px 22px;background:transparent;border:1px solid var(--border-strong);color:var(--text-muted);font-weight:700;border-radius:12px;min-height:52px;cursor:pointer}
+.pomo-cfg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;padding:16px;background:var(--bg-elevated);border:1px dashed var(--border);border-radius:12px;margin-top:12px}
+.pomo-cfg label{display:block;font-size:0.74rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.pomo-cfg input{width:100%;padding:10px 12px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.96rem;min-height:42px}
+.pomo-log{margin-top:18px;padding:16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px}
+.pomo-log h4{font-size:0.84rem;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;font-weight:800;margin:0 0 8px}
+.pomo-log ul{list-style:none;padding:0;margin:0;display:grid;gap:6px;max-height:160px;overflow:auto}
+.pomo-log li{display:flex;justify-content:space-between;font-size:0.88rem;padding:6px 10px;background:var(--bg-raised);border-radius:8px}
+.pomo-log .when{color:var(--text-muted);font-size:0.78rem}
+.pomo-log .clear{margin-top:10px;font-size:0.78rem;color:#FCA5A5;background:none;border:0;cursor:pointer;padding:4px 0;text-decoration:underline}
+
+/* ── Ear training ──────────────────────────────────────────────── */
+.ear-display{padding:24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
+.ear-score{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;font-size:0.92rem;color:var(--text-muted)}
+.ear-score b{color:var(--text);font-family:var(--font-display);font-size:1.3rem;letter-spacing:0.02em}
+.ear-question{text-align:center;padding:30px 14px;border-radius:12px;background:var(--bg-elevated);border:1px solid var(--border)}
+.ear-replay{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.04em;border-radius:12px;border:0;cursor:pointer;min-height:52px;font-size:0.98rem}
+.ear-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:18px}
+.ear-options button{padding:14px 16px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-weight:700;cursor:pointer;min-height:48px;transition:all .15s var(--ease)}
+.ear-options button:hover{border-color:var(--border-gold);background:rgba(224,138,26,0.06)}
+.ear-options button.correct{border-color:#34D399;background:rgba(52,211,153,0.12);color:#A7F3D0}
+.ear-options button.wrong{border-color:#F4423B;background:rgba(244,66,59,0.12);color:#FCA5A5}
+.ear-feedback{margin-top:14px;text-align:center;font-size:0.94rem;color:var(--text-soft);min-height:1.5em}
+.ear-mode{display:inline-flex;gap:4px;padding:4px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:100px;margin-bottom:14px}
+.ear-mode button{padding:8px 14px;border-radius:100px;font-size:0.82rem;font-weight:700;color:var(--text-muted);background:transparent;border:0;cursor:pointer}
+.ear-mode button.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
+
+/* ── Speed & Pitch trainer (premium) ──────────────────────────── */
+.sp-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:48px 22px;border:2px dashed var(--border-gold);border-radius:14px;background:linear-gradient(180deg,rgba(252,198,71,0.05),var(--bg-raised));text-align:center;cursor:pointer;transition:all .2s var(--ease)}
+.sp-drop:hover,.sp-drop.is-drag{background:linear-gradient(180deg,rgba(252,198,71,0.12),var(--bg-raised));border-color:var(--gold-bright);transform:translateY(-2px)}
+.sp-drop i{font-size:2rem;color:var(--gold-bright)}
+.sp-drop strong{font-size:1rem;color:var(--text);font-weight:700}
+.sp-drop span{font-size:0.84rem;color:var(--text-muted)}
+
+.sp-player{display:grid;gap:22px}
+.sp-track{background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+.sp-meta{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.sp-meta i{flex-shrink:0;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;display:flex;align-items:center;justify-content:center;font-size:1.1rem}
+.sp-meta-text{flex:1;min-width:0}
+.sp-meta-text strong{display:block;color:var(--text);font-size:0.96rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp-meta-text span{font-size:0.78rem;color:var(--text-muted)}
+.sp-clear{flex-shrink:0;width:34px;height:34px;border-radius:50%;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.sp-clear:hover{background:var(--bg-surface);color:var(--text)}
+
+.sp-timeline{position:relative;height:36px;background:var(--bg-elevated);border-radius:10px;border:1px solid var(--border);cursor:pointer;overflow:hidden;user-select:none}
+.sp-progress{position:absolute;inset:0 auto 0 0;width:0%;background:linear-gradient(90deg,var(--gold),var(--gold-bright));transition:width .08s linear;border-radius:10px 0 0 10px}
+.sp-loop{position:absolute;top:0;bottom:0;background:rgba(99,102,241,0.32);border-left:2px solid #A5B4FC;border-right:2px solid #A5B4FC;pointer-events:none}
+.sp-time-cur,.sp-time-dur{position:absolute;top:50%;transform:translateY(-50%);font-family:'SF Mono',Menlo,Consolas,monospace;font-size:0.78rem;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.7);pointer-events:none;letter-spacing:0.02em}
+.sp-time-cur{left:10px}
+.sp-time-dur{right:10px;color:rgba(255,255,255,0.65)}
+
+.sp-transport{display:flex;align-items:center;gap:10px;margin-top:16px}
+.sp-tx-btn{width:46px;height:46px;border-radius:50%;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:1rem;transition:all .15s var(--ease)}
+.sp-tx-btn:hover{background:var(--bg-surface);border-color:var(--border-gold)}
+.sp-tx-play{width:58px;height:58px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent;font-size:1.15rem;box-shadow:0 8px 22px rgba(224,138,26,0.35)}
+.sp-tx-play:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(224,138,26,0.45)}
+.sp-tx-sep{flex:1}
+.sp-tx-loop{padding:0 16px;width:auto;min-width:90px;font-size:0.78rem;letter-spacing:0.04em;font-weight:700}
+.sp-tx-loop.is-armed{background:rgba(99,102,241,0.18);border-color:#A5B4FC;color:#C7D2FE}
+.sp-tx-loop.is-active{background:#A5B4FC;color:#0E0A06;border-color:transparent}
+
+.sp-knobs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.sp-knob{padding:14px 16px;background:var(--bg-raised);border:1px solid var(--border);border-radius:12px}
+.sp-knob label{display:flex;justify-content:space-between;align-items:baseline;font-size:0.72rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+.sp-knob label b{font-family:var(--font-display);font-size:1.15rem;color:var(--gold-bright);letter-spacing:0.02em;font-weight:normal}
+.sp-knob input[type=range]{width:100%;margin:0;accent-color:var(--gold-bright)}
+.sp-knob-marks{display:flex;justify-content:space-between;margin-top:4px;font-size:0.7rem;color:var(--text-muted);font-variant-numeric:tabular-nums}
+
+.sp-presets{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start}
+.sp-presets button{padding:10px 16px;background:var(--bg-raised);border:1px solid var(--border);border-radius:10px;color:var(--text-soft);font-size:0.86rem;font-weight:700;cursor:pointer;transition:all .15s var(--ease)}
+.sp-presets button:hover{border-color:var(--border-gold);color:var(--text)}
+.sp-preset-reset{margin-left:auto;border-color:#FCA5A5 !important;color:#FCA5A5 !important;background:rgba(244,63,94,0.05) !important}
+.sp-preset-reset:hover{background:rgba(244,63,94,0.12) !important}
+
+@media (max-width:600px){
+  .sp-drop{padding:36px 18px}
+  .sp-tx-btn{width:42px;height:42px}
+  .sp-tx-play{width:54px;height:54px}
+}
+
+@media (max-width:600px){
+  .met-display{grid-template-columns:1fr;text-align:center}
+  .met-bpm{margin-bottom:8px}
+}
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to main content</a>
+<div id="include-header"></div>
+
+<main id="main">
+  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1465225314224-587cd83d322b?w=1920&q=80');padding:84px 22px 44px">
+    <div class="page-hero-inner">
+      <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Practice Studio</span></nav>
+      <div class="page-hero-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i>The Practice Studio</div>
+      <h1 class="page-hero-title">The Practice <span class="highlight-gold">Studio</span></h1>
+      <p class="page-hero-lede">Metronome, chromatic tuner, focus timer, ear-training drills and the speed-and-pitch trainer. Premium musician tools — free for everyone, sharpened for MAM students.</p>
+    </div>
+  </header>
+
+  <section class="tools-shell">
+    <nav class="tools-tabs" role="tablist" aria-label="Practice tools">
+      <button class="active" data-tool="metronome" role="tab" aria-selected="true"><i class="fa-solid fa-stopwatch-20"></i> Metronome</button>
+      <button data-tool="tuner" role="tab" aria-selected="false"><i class="fa-solid fa-tower-broadcast"></i> Tuner</button>
+      <button data-tool="pomodoro" role="tab" aria-selected="false"><i class="fa-solid fa-hourglass-half"></i> Pomodoro</button>
+      <button data-tool="ear" role="tab" aria-selected="false"><i class="fa-solid fa-headphones"></i> Ear Training</button>
+      <button data-tool="speed" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">PREMIUM</span></button>
+    </nav>
+
+    <!-- ─── Metronome ─── -->
+    <section class="tool-panel active" data-tool="metronome" role="tabpanel">
+      <div class="tool-head">
+        <div><h2>Metronome</h2><p>Steady time, accented downbeats, time-signature aware. Press space to start &amp; stop.</p></div>
+      </div>
+      <div class="met-display">
+        <div class="met-bpm" aria-live="polite"><span id="metBpmVal">100</span><small>BPM</small></div>
+        <div class="met-beats" id="metBeats"></div>
+      </div>
+      <div class="met-controls">
+        <div><label for="metBpmRange">Tempo</label><input type="range" id="metBpmRange" min="30" max="240" value="100"></div>
+        <div><label for="metBeatsCount">Beats per bar</label>
+          <select id="metBeatsCount">
+            <option value="2">2 / 4</option><option value="3">3 / 4</option>
+            <option value="4" selected>4 / 4</option><option value="5">5 / 4</option>
+            <option value="6">6 / 8</option><option value="7">7 / 8</option>
+          </select>
+        </div>
+        <div><label for="metSubdivision">Subdivision</label>
+          <select id="metSubdivision">
+            <option value="1" selected>Quarter</option>
+            <option value="2">Eighth</option>
+            <option value="3">Triplet</option>
+            <option value="4">Sixteenth</option>
+          </select>
+        </div>
+        <div><label for="metVolume">Volume</label><input type="range" id="metVolume" min="0" max="100" value="60"></div>
+      </div>
+      <div class="met-actions">
+        <button class="met-start" id="metStart" type="button"><i class="fa-solid fa-play"></i> <span>Start</span></button>
+        <button class="met-tap" id="metTap" type="button"><i class="fa-solid fa-hand-pointer"></i> Tap tempo</button>
+      </div>
+    </section>
+
+    <!-- ─── Tuner ─── -->
+    <section class="tool-panel" data-tool="tuner" role="tabpanel">
+      <div class="tool-head">
+        <div><h2>Chromatic tuner</h2><p>A=440 Hz reference. Click the mic icon to grant access — your audio stays on your device, nothing is recorded.</p></div>
+      </div>
+      <div class="tuner-display">
+        <div class="tuner-note"><span id="tunerNote">—</span><span class="tuner-octave" id="tunerOctave"></span></div>
+        <div class="tuner-freq"><span id="tunerFreq">—</span></div>
+        <div class="tuner-cents" aria-hidden="true">
+          <div class="tuner-cents-center"></div>
+          <div class="tuner-cents-tick" id="tunerTick" style="left:50%"></div>
+        </div>
+        <div class="tuner-cents-labels"><span>−50¢ flat</span><span>0¢ in tune</span><span>+50¢ sharp</span></div>
+        <p class="tuner-status" id="tunerStatus">Click "Listen" to start.</p>
+      </div>
+      <button class="tuner-start" id="tunerStart" type="button"><i class="fa-solid fa-microphone"></i> <span>Listen</span></button>
+    </section>
+
+    <!-- ─── Pomodoro ─── -->
+    <section class="tool-panel" data-tool="pomodoro" role="tabpanel">
+      <div class="tool-head">
+        <div><h2>Practice timer</h2><p>Focused 25-minute practice blocks with short + long breaks. Saves your last 7 sessions on this device.</p></div>
+      </div>
+      <div class="pomo-display">
+        <div class="pomo-time" id="pomoTime">25:00</div>
+        <div class="pomo-mode" id="pomoMode">Focus · Block 1 of 4</div>
+      </div>
+      <div class="pomo-actions">
+        <button class="pomo-start" id="pomoStart" type="button"><i class="fa-solid fa-play"></i> <span>Start focus</span></button>
+        <button class="pomo-reset" id="pomoReset" type="button"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+      </div>
+      <div class="pomo-cfg">
+        <div><label for="pomoFocus">Focus (min)</label><input type="number" id="pomoFocus" min="5" max="90" value="25"></div>
+        <div><label for="pomoShort">Short break</label><input type="number" id="pomoShort" min="2" max="30" value="5"></div>
+        <div><label for="pomoLong">Long break</label><input type="number" id="pomoLong" min="5" max="60" value="20"></div>
+        <div><label for="pomoBlocks">Blocks → long break</label><input type="number" id="pomoBlocks" min="2" max="8" value="4"></div>
+      </div>
+      <div class="pomo-log">
+        <h4><i class="fa-solid fa-list-check"></i> Today's sessions</h4>
+        <ul id="pomoSessions"><li style="justify-content:center;color:var(--text-muted)">No sessions logged yet.</li></ul>
+        <button class="clear" id="pomoClear" type="button">Clear history</button>
+      </div>
+    </section>
+
+    <!-- ─── Ear Training ─── -->
+    <section class="tool-panel" data-tool="ear" role="tabpanel">
+      <div class="tool-head">
+        <div><h2>Ear training</h2><p>Practice intervals, chords and pitch direction. Score updates live; difficulty adjusts to your accuracy.</p></div>
+      </div>
+      <div class="ear-mode" role="tablist">
+        <button class="active" data-ear-mode="intervals" type="button">Intervals</button>
+        <button data-ear-mode="chords" type="button">Chord quality</button>
+        <button data-ear-mode="direction" type="button">Pitch direction</button>
+      </div>
+      <div class="ear-display">
+        <div class="ear-score">
+          <span>Correct: <b id="earCorrect">0</b> / <b id="earTotal">0</b></span>
+          <span>Streak: <b id="earStreak">0</b></span>
+        </div>
+        <div class="ear-question" id="earQuestion">
+          <button class="ear-replay" id="earPlay" type="button"><i class="fa-solid fa-play"></i> <span>Play interval</span></button>
+        </div>
+        <div class="ear-options" id="earOptions"></div>
+        <div class="ear-feedback" id="earFeedback">Pick a mode above, then press Play.</div>
+      </div>
+    </section>
+
+    <!-- ─── Speed & Pitch Trainer (premium) ─── -->
+    <section class="tool-panel" data-tool="speed" role="tabpanel">
+      <div class="tool-head">
+        <div>
+          <h2>Speed &amp; Pitch Trainer</h2>
+          <p>Load a track, slow it down to learn it, transpose it to your key — independently. Audio never leaves your device.</p>
+        </div>
+      </div>
+
+      <!-- Drop-zone / file picker -->
+      <div class="sp-drop" id="spDrop" tabindex="0" role="button" aria-label="Upload audio file">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+        <strong id="spDropTitle">Drop an audio file, or click to choose</strong>
+        <span>MP3, WAV, M4A, FLAC, OGG &middot; up to 50 MB &middot; stays on your device</span>
+        <input type="file" id="spFile" accept="audio/*" hidden>
+      </div>
+
+      <!-- Player + controls (hidden until a file is loaded) -->
+      <div class="sp-player" id="spPlayer" hidden>
+        <div class="sp-track">
+          <div class="sp-meta">
+            <i class="fa-solid fa-music"></i>
+            <div class="sp-meta-text">
+              <strong id="spName">—</strong>
+              <span id="spDuration">—</span>
+            </div>
+            <button type="button" class="sp-clear" id="spClear" title="Load a different track" aria-label="Clear track">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <!-- Timeline + A/B loop markers -->
+          <div class="sp-timeline" id="spTimeline" tabindex="0" role="slider" aria-label="Seek">
+            <div class="sp-progress" id="spProgress"></div>
+            <div class="sp-loop" id="spLoopBand" hidden></div>
+            <div class="sp-time-cur" id="spCurTime">0:00</div>
+            <div class="sp-time-dur" id="spDurTime">0:00</div>
+          </div>
+
+          <!-- Transport -->
+          <div class="sp-transport">
+            <button type="button" class="sp-tx-btn" id="spRew" title="Rewind 10s"><i class="fa-solid fa-backward"></i></button>
+            <button type="button" class="sp-tx-btn sp-tx-play" id="spPlay" title="Play / pause">
+              <i class="fa-solid fa-play" id="spPlayIcon"></i>
+            </button>
+            <button type="button" class="sp-tx-btn" id="spFwd" title="Forward 10s"><i class="fa-solid fa-forward"></i></button>
+            <span class="sp-tx-sep"></span>
+            <button type="button" class="sp-tx-btn sp-tx-loop" id="spLoopBtn" title="Set A/B loop points">
+              <i class="fa-solid fa-repeat"></i> <span id="spLoopLabel">A–B</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sliders: speed + pitch + volume -->
+        <div class="sp-knobs">
+          <div class="sp-knob">
+            <label for="spSpeed">Speed <b id="spSpeedVal">1.00×</b></label>
+            <input type="range" id="spSpeed" min="0.25" max="2" step="0.05" value="1">
+            <div class="sp-knob-marks"><span>0.25×</span><span>1×</span><span>2×</span></div>
+          </div>
+          <div class="sp-knob">
+            <label for="spPitch">Pitch <b id="spPitchVal">±0 st</b></label>
+            <input type="range" id="spPitch" min="-12" max="12" step="1" value="0">
+            <div class="sp-knob-marks"><span>−12</span><span>0</span><span>+12</span></div>
+          </div>
+          <div class="sp-knob">
+            <label for="spVol">Volume <b id="spVolVal">100%</b></label>
+            <input type="range" id="spVol" min="0" max="100" step="1" value="90">
+            <div class="sp-knob-marks"><span>0</span><span>50</span><span>100</span></div>
+          </div>
+        </div>
+
+        <!-- Quick presets -->
+        <div class="sp-presets">
+          <button type="button" data-preset="0.5">½× speed</button>
+          <button type="button" data-preset="0.75">¾× speed</button>
+          <button type="button" data-preset="1">Original</button>
+          <button type="button" class="sp-preset-reset" data-preset="reset">Reset all</button>
+        </div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<div id="include-footer"></div>
+<script src="assets/js/config.js?v=20260530c"></script>
+<script src="assets/js/main.js?v=20260530c"></script>
+<!--
+  Audio libraries are DEFERRED until the first user interaction with the
+  studio. Tone.js performs capability probes at script-evaluation time
+  (creates a transient AudioContext to test ConstantSourceNode and
+  ScheduledSource), which trips Chrome's autoplay-policy warning. Loading
+  Tone after a gesture means the warning never fires and the context starts
+  cleanly. Pitchy is ES-module — imported the same way.
+-->
+<script>
+  (function () {
+    var loaded = false;
+    function loadAudioLibs() {
+      if (loaded) return; loaded = true;
+      var t = document.createElement('script');
+      t.src = 'https://cdn.jsdelivr.net/npm/tone@15.0.4/build/Tone.js';
+      t.async = true;
+      t.onload = function () { window.dispatchEvent(new CustomEvent('mam:tone-ready')); };
+      document.head.appendChild(t);
+      var p = document.createElement('script');
+      p.type = 'module';
+      p.textContent = "import('https://cdn.jsdelivr.net/npm/pitchy@4.1.0/+esm').then(m=>{window.MAM_PITCHY=m;window.dispatchEvent(new CustomEvent('mam:pitchy-ready'))}).catch(e=>console.warn('[MAM_STUDIO] pitchy load failed',e));";
+      document.head.appendChild(p);
+    }
+    var attach = function () {
+      var shell = document.querySelector('.tools-shell') || document.body;
+      var fire = function () { loadAudioLibs(); };
+      shell.addEventListener('pointerdown', fire, { once: true });
+      document.addEventListener('keydown', fire, { once: true });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
+    else attach();
+  })();
+</script>
+<script src="assets/js/tools.js?v=20260530c" defer></script>
+</body>
+</html>

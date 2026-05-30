@@ -52,7 +52,7 @@
 
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 html{font-size:16px;scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;-webkit-tap-highlight-color:transparent;scroll-padding-top:calc(var(--nav-h) + 16px)}
-body{font-family:var(--font-body);background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;min-height:100vh;min-height:100dvh}
+body{font-family:var(--font-body),"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;min-height:100vh;min-height:100dvh}
 /* Warm, soft ambient light so the page reads candlelit rather than black */
 body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:
   radial-gradient(1100px 620px at 78% -8%, rgba(245,168,35,0.10), transparent 60%),
@@ -73,7 +73,12 @@ ul,ol{list-style:none}
 ::-webkit-scrollbar-track{background:var(--bg-surface)}
 ::-webkit-scrollbar-thumb{background:var(--border-gold);border-radius:4px}
 ::-webkit-scrollbar-thumb:hover{background:var(--gold)}
-*:focus-visible{outline:3px solid var(--gold-bright);outline-offset:3px;border-radius:6px}
+/* Stronger focus ring — gold core + dark halo underneath gives high contrast
+   on both dark backgrounds and the rare light section (WCAG 2.4.7 + 2.4.13). */
+*:focus-visible{outline:3px solid var(--gold-bright);outline-offset:3px;border-radius:6px;box-shadow:0 0 0 6px rgba(0,0,0,0.55)}
+/* 44px minimum touch target on primary interactive controls at ALL breakpoints
+   (was previously only enforced at the mobile MQ). WCAG 2.5.5 / Apple HIG. */
+.btn,button.btn,a.btn,.btn-primary,.btn-ghost,.btn-gold,.btn-step,.btn-pay,.cookie-btn{min-height:44px}
 
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .skip-link{position:absolute;top:-100px;left:16px;background:var(--gold-bright);color:var(--bg);padding:10px 18px;border-radius:8px;font-weight:700;z-index:99999;transition:top 0.2s}
@@ -256,7 +261,70 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 .section-eyebrow .line{width:32px;height:2px;background:linear-gradient(90deg,var(--gold-bright),transparent)}
 .section-title{font-family:var(--font-serif);font-size:clamp(2rem,5vw,3.4rem);font-weight:700;line-height:1.1;letter-spacing:-0.02em;margin-bottom:18px;color:var(--text)}
 .section-desc{font-size:1.05rem;color:var(--text-soft);line-height:1.75;max-width:680px}
-.highlight-gold{background:linear-gradient(135deg,var(--gold),var(--gold-bright));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+/* Gradient text. The fallback `color:var(--gold-bright)` covers browsers
+   that don't support background-clip:text (older Edge, certain mobile
+   embedded views) and Safari for a brief flash before paint — so the
+   text is never invisible. @supports promotes the gradient when paint is
+   actually supported. */
+/* Gradient-text accent. Crucial: NEVER set color:transparent here. Keep the
+   solid gold colour as a visible fallback — if the gradient image fails to
+   compute or paint (CSS-var override, hardware-accel quirks, certain Android
+   WebViews), the text still shows in solid gold instead of disappearing. */
+.highlight-gold{color:var(--gold-bright,#FCC647)}
+@supports ((-webkit-background-clip:text) or (background-clip:text)){
+  .highlight-gold{
+    background-image:linear-gradient(135deg,var(--gold,#E8961F),var(--gold-bright,#FCC647));
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+}
+/* Gradient-text safety net. On any engine WITHOUT background-clip:text
+   support (older Android WebViews, some in-app browsers, Firefox <49), the
+   `-webkit-text-fill-color:transparent` used for gradient text would render
+   the text invisible. This forces it back to a solid, on-brand colour so
+   text is never transparent. Covers every gradient-text class on the site
+   AND any inline `-webkit-text-fill-color:transparent` (the 18 inline spots
+   across compare/metamusic/power-play/schools/404). Active ONLY where the
+   gradient can't paint — supported browsers keep the gradient. */
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  [style*="-webkit-text-fill-color:transparent"],
+  .highlight-gold,.preloader-name,.nav-brand-name,.footer-logo-name,
+  .stat-number,.countdown-num,.mam-exit-glow,.portal-brand-name,
+  .kpi-value.gold,.pp-title .accent,.match-result-name,.col-price{
+    -webkit-text-fill-color:currentColor!important;
+    color:var(--gold-bright)!important;
+    background:none!important;
+  }
+  .highlight-red{-webkit-text-fill-color:currentColor!important;color:var(--red-hot,#E11D48)!important;background:none!important}
+  .highlight-purple{-webkit-text-fill-color:currentColor!important;color:#A78BFA!important;background:none!important}
+}
+/* JS-driven twin of the @supports fallback above. Opera Mini and some in-app
+   browsers don't understand @supports, so that block never runs for them and
+   the inline gradient-text spans render invisible. main.js sets .no-textclip
+   on <html> when background-clip:text isn't actually supported; these plain
+   class selectors (no @supports) then force a solid, on-brand colour. */
+.no-textclip [style*="-webkit-text-fill-color:transparent"],
+.no-textclip .highlight-gold,.no-textclip .preloader-name,.no-textclip .nav-brand-name,
+.no-textclip .footer-logo-name,.no-textclip .stat-number,.no-textclip .countdown-num,
+.no-textclip .mam-exit-glow,.no-textclip .portal-brand-name,.no-textclip .kpi-value.gold,
+.no-textclip .pp-title .accent,.no-textclip .match-result-name,.no-textclip .col-price{
+  -webkit-text-fill-color:currentColor!important;color:var(--gold-bright)!important;background:none!important;
+}
+.no-textclip .highlight-red{-webkit-text-fill-color:currentColor!important;color:var(--red-hot,#E11D48)!important;background:none!important}
+.no-textclip .highlight-purple{-webkit-text-fill-color:currentColor!important;color:#A78BFA!important;background:none!important}
+
+/* Native emoji with a CSS-driven bounce — replaces the dotlottie-wc nodes.
+   Forces the colour-emoji font stack so the glyph never falls back to a
+   monochrome outline. */
+.emoji-pop{display:inline-flex;align-items:center;justify-content:center;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color","Android Emoji",sans-serif;font-style:normal;line-height:1;animation:emojiPop 0.6s var(--ease-bounce) both,emojiFloat 4.5s ease-in-out infinite 0.6s}
+.emoji-pop.fx-sm{font-size:1.4rem}
+.emoji-pop.fx-md{font-size:2rem}
+.emoji-pop.fx-lg{font-size:2.8rem}
+.emoji-pop.fx-xl{font-size:4.2rem}
+.emoji-pop:not([class*="fx-"]){font-size:2rem}
+@keyframes emojiPop{0%{transform:scale(0.4);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
+@keyframes emojiFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){.emoji-pop{animation:none}}
 .highlight-red{background:linear-gradient(135deg,#DC2626,#F05A28);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .highlight-purple{background:linear-gradient(135deg,#6366F1,#A5B4FC);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 
@@ -644,18 +712,35 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 
 /* ===== Testimonials ===== */
 .testimonials-head{text-align:center;max-width:720px;margin:0 auto 48px;padding:0 24px}
-.testimonials-track-wrap{overflow:hidden;mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+/* Legacy marquee (kept as graceful fallback before JS upgrades the rail) */
+.testimonials-track-wrap{overflow:hidden}
 .testimonials-track{display:flex;gap:24px;width:max-content;animation:marquee 36s linear infinite;padding:8px 24px}
 .testimonials-track:hover{animation-play-state:paused}
 @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(calc(-50% - 12px))}}
-.testimonial-card{width:min(340px,82vw);flex-shrink:0;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;transition:border-color 0.3s}
+
+/* Real rotator (JS adds .is-rotator + swaps the rail class) */
+.testimonials-track-wrap.is-rotator{overflow:visible;mask-image:none;-webkit-mask-image:none;max-width:680px;margin:0 auto;padding:0 16px}
+.testimonials-rail{display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:8px 2px}
+.testimonials-rail::-webkit-scrollbar{display:none}
+.testimonials-rail .testimonial-card{scroll-snap-align:center;flex:0 0 100%;width:100%}
+.testimonial-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:32px;transition:border-color 0.3s,transform 0.3s;margin:0}
+.is-rotator .testimonial-card{min-height:230px;display:flex;flex-direction:column;justify-content:space-between}
 .testimonial-card:hover{border-color:var(--border-gold)}
-.testimonial-stars{color:var(--gold-bright);font-size:0.95rem;margin-bottom:14px;letter-spacing:2px}
-.testimonial-quote{font-family:var(--font-serif);font-size:1.02rem;font-style:italic;color:var(--text);line-height:1.65;margin-bottom:20px}
+.testimonial-stars{color:var(--gold-bright);font-size:1rem;margin-bottom:16px;letter-spacing:2px}
+.testimonial-quote{font-family:var(--font-serif);font-size:1.1rem;font-style:italic;color:var(--text);line-height:1.7;margin:0 0 22px;border:0;padding:0}
 .testimonial-author{display:flex;align-items:center;gap:14px}
-.testimonial-avatar{width:46px;height:46px;border-radius:50%;border:2px solid var(--border-gold);background:linear-gradient(135deg,var(--gold),var(--gold-light));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.1rem;color:#1A120B;flex-shrink:0}
-.testimonial-name{font-size:0.92rem;font-weight:700;color:var(--text)}
-.testimonial-role{font-size:0.78rem;color:var(--text-muted);margin-top:1px}
+.testimonial-avatar{width:48px;height:48px;border-radius:50%;border:2px solid var(--border-gold);background:linear-gradient(135deg,var(--gold),var(--gold-light));display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.1rem;color:#1A120B;flex-shrink:0;overflow:hidden}
+.testimonial-avatar img{width:100%;height:100%;object-fit:cover}
+.testimonial-name{font-size:0.95rem;font-weight:700;color:var(--text)}
+.testimonial-role{font-size:0.8rem;color:var(--text-muted);margin-top:1px}
+
+/* Rotator controls */
+.testimonials-controls{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:24px}
+.t-arrow{width:44px;height:44px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border-strong);color:var(--text-soft);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s;flex-shrink:0}
+.t-arrow:hover{border-color:var(--gold-bright);color:var(--gold-bright);transform:translateY(-1px)}
+.t-dots{display:flex;align-items:center;gap:9px}
+.t-dot{width:9px;height:9px;padding:0;border-radius:50%;border:0;background:var(--border-strong);cursor:pointer;transition:all 0.25s}
+.t-dot.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));transform:scale(1.35);box-shadow:0 0 0 3px rgba(224,138,26,0.18)}
 
 /* ===== FAQ ===== */
 .faq-list{display:flex;flex-direction:column;gap:10px;max-width:880px;margin:0 auto}
@@ -696,15 +781,25 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
 .footer-newsletter-btn{padding:11px 16px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:var(--radius-sm);font-weight:800;font-size:0.85rem}
 .footer-newsletter-msg{font-size:0.78rem;color:var(--emerald);margin-top:4px;display:none}
 .footer-newsletter-msg.shown{display:block}
-.footer-bottom{padding-top:28px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.footer-bottom{margin-top:8px;padding-top:26px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:14px 26px;flex-wrap:wrap}
 .footer-copy{font-size:0.82rem;color:var(--text-muted)}
-.footer-bottom-links{display:flex;gap:22px;flex-wrap:wrap}
-.footer-bottom-link{font-size:0.82rem;color:var(--text-muted);transition:color 0.2s}
-.footer-bottom-link:hover{color:var(--gold-bright)}
+.footer-bottom-links{display:flex;align-items:center;gap:10px 20px;flex-wrap:wrap}
+.footer-bottom-link{position:relative;font-size:0.82rem;color:var(--text-muted);font-weight:500;transition:color 0.2s;padding:4px 0}
+.footer-bottom-link:hover,.footer-bottom-link:focus-visible{color:var(--gold-bright)}
+/* hairline middot separators between the legal links */
+.footer-bottom-link:not(:last-child)::after{content:'';position:absolute;right:-10px;top:50%;width:3px;height:3px;border-radius:50%;background:var(--border-strong);transform:translateY(-50%)}
+@media (max-width:640px){
+  .footer-bottom{flex-direction:column;align-items:center;text-align:center;gap:16px}
+  .footer-bottom-links{justify-content:center}
+}
 
 /* ===== Floating + cookie + toolbar ===== */
 .floating-enroll{position:fixed;bottom:28px;right:24px;z-index:800;opacity:0;transform:translateY(20px);pointer-events:none;transition:all 0.35s var(--ease-bounce)}
 .floating-enroll.visible{opacity:1;transform:translateY(0);pointer-events:auto}
+/* When the footer scrolls into view (large screens), JS docks the pill just
+   above the footer so it never overlaps the footer links. No top-transition
+   here, or it would lag behind the scroll. */
+.floating-enroll.docked{position:absolute;bottom:auto;right:24px;transition:opacity 0.3s var(--ease),transform 0.3s var(--ease)}
 .floating-enroll-btn{display:flex;align-items:center;gap:10px;padding:14px 24px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:100px;font-size:0.88rem;font-weight:800;letter-spacing:0.05em;box-shadow:0 8px 32px rgba(224,138,26,0.5);transition:all 0.25s var(--ease)}
 .floating-enroll-btn:hover{transform:translateY(-3px);box-shadow:0 16px 48px rgba(224,138,26,0.65)}
 
@@ -926,4 +1021,88 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
   .next-step-title{font-size:1.4rem}
   .mode-title,.school-name{font-size:1.5rem}
   .testimonials-track{animation-duration:48s}
+}
+
+/* JustValidate error styling — matches our field-error palette so the
+   library's auto-rendered messages don't look bolted on. */
+.jv-error{border-color:var(--red-hot,#E11D48)!important;box-shadow:0 0 0 3px rgba(225,29,72,0.18)!important}
+.jv-error-label{color:#FB7185;font-size:0.78rem;margin-top:5px;display:flex;align-items:center;gap:6px;line-height:1.5}
+.jv-error-label::before{content:'\f06a';font-family:'Font Awesome 6 Free';font-weight:900;font-size:0.78rem}
+
+/* SweetAlert2 — themed via .mam-swal class set in libs.js */
+.mam-swal{border:1px solid var(--border-gold,rgba(224,138,26,0.4));border-radius:18px;box-shadow:0 32px 64px rgba(0,0,0,0.5)}
+.mam-swal-title{font-family:var(--font-serif);font-weight:700}
+.mam-swal-confirm{font-weight:800!important;letter-spacing:0.04em!important;text-transform:uppercase!important;font-size:0.85rem!important;padding:12px 24px!important;border-radius:8px!important;background:linear-gradient(135deg,#E08A1A,#FBBF24)!important;color:#1A120B!important;box-shadow:0 4px 14px rgba(224,138,26,0.35)!important}
+.mam-swal-cancel{font-weight:700!important;font-size:0.85rem!important;background:transparent!important;color:var(--text-soft,#E2D5C4)!important;border:1px solid var(--border-strong)!important;border-radius:8px!important;padding:12px 22px!important}
+
+/* Tom Select — themed dropdown to match our dark form inputs */
+.ts-wrapper{font-family:inherit}
+.ts-control{background:var(--bg-elevated)!important;border:1.5px solid var(--border-strong)!important;border-radius:var(--radius-sm)!important;min-height:48px!important;padding:11px 16px!important;color:var(--text)!important;font-size:1rem!important;box-shadow:none!important}
+.ts-control:focus,.ts-wrapper.focus .ts-control{border-color:var(--gold-bright)!important;box-shadow:0 0 0 4px rgba(224,138,26,0.15)!important;background:rgba(45,30,18,0.85)!important}
+.ts-control .ts-control input::placeholder,.ts-control input::placeholder{color:var(--text-faint)!important}
+.ts-wrapper.single .ts-control:after{border-top-color:var(--text-muted)!important}
+.ts-dropdown{background:var(--bg-surface)!important;border:1px solid var(--border-gold)!important;border-radius:var(--radius-sm)!important;box-shadow:var(--shadow-lg)!important;margin-top:6px!important;color:var(--text)!important}
+.ts-dropdown .option,.ts-dropdown .optgroup-header{color:var(--text)!important;padding:11px 16px!important}
+.ts-dropdown .optgroup-header{color:var(--gold-bright)!important;font-size:0.72rem!important;letter-spacing:0.12em!important;text-transform:uppercase!important;background:var(--bg)!important;font-weight:800!important}
+.ts-dropdown .active{background:rgba(224,138,26,0.14)!important;color:var(--gold-bright)!important}
+.ts-dropdown .option.selected{background:rgba(224,138,26,0.22)!important}
+/* When Tom Select enhances a .field-select-wrap, hide our manual chevron —
+   Tom Select renders its own caret, so the two would overlap. */
+.field-select-wrap:has(.ts-wrapper) .field-select-arrow{display:none}
+
+/* AOS: prevent FOUC if AOS fails to init by letting elements still display */
+[data-aos]:not(.aos-init){opacity:1;transform:none}
+
+/* ──────────────────────────────────────────────────────────────────
+   Lead-generation surfaces (mam-cta-bar + mam-exit-modal)
+   Mobile-first; both are dismissible and remember the dismissal.
+   ────────────────────────────────────────────────────────────────── */
+.mam-cta-bar{position:fixed;left:50%;bottom:14px;transform:translate(-50%,calc(100% + 24px));z-index:9000;width:calc(100% - 24px);max-width:780px;background:linear-gradient(135deg,#1A120B,#251A10);border:1px solid var(--border-gold,rgba(224,138,26,0.4));border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,0.55);transition:transform 0.45s cubic-bezier(0.2,0.9,0.3,1.1),opacity 0.3s ease;opacity:0;backdrop-filter:blur(6px)}
+.mam-cta-bar.is-in{transform:translate(-50%,0);opacity:1}
+.mam-cta-bar-inner{display:flex;align-items:center;gap:14px;padding:14px 18px}
+.mam-cta-bar-text{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.35;color:var(--text-soft,#E2D5C4)}
+.mam-cta-bar-text strong{font-size:0.95rem;color:#fff;font-weight:800;letter-spacing:0.01em}
+.mam-cta-bar-text span{font-size:0.78rem;color:var(--text-muted,#A89682);margin-top:2px}
+.mam-cta-bar-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;font-weight:800;font-size:0.85rem;letter-spacing:0.04em;text-transform:uppercase;border-radius:100px;text-decoration:none;box-shadow:0 4px 14px rgba(224,138,26,0.4);flex-shrink:0}
+.mam-cta-bar-btn:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(224,138,26,0.55)}
+.mam-cta-bar-close{background:transparent;border:0;color:var(--text-muted,#A89682);font-size:1.6rem;line-height:1;cursor:pointer;padding:4px 8px;border-radius:8px;flex-shrink:0}
+.mam-cta-bar-close:hover{color:#fff;background:rgba(255,255,255,0.06)}
+@media (max-width:520px){
+  .mam-cta-bar{bottom:10px;width:calc(100% - 16px)}
+  .mam-cta-bar-text span{display:none}
+  .mam-cta-bar-btn{padding:11px 14px;font-size:0.8rem}
+}
+
+.mam-exit-modal{position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;padding:18px;opacity:0;pointer-events:none;transition:opacity 0.28s ease}
+.mam-exit-modal.is-in{opacity:1;pointer-events:auto}
+.mam-exit-backdrop{position:absolute;inset:0;background:rgba(8,5,2,0.72);backdrop-filter:blur(4px)}
+.mam-exit-card{position:relative;width:100%;max-width:520px;background:linear-gradient(160deg,#1A120B,#120D08);border:1px solid var(--border-gold,rgba(224,138,26,0.4));border-radius:20px;padding:36px 28px 26px;box-shadow:0 30px 80px rgba(0,0,0,0.7);transform:translateY(20px) scale(0.96);transition:transform 0.35s cubic-bezier(0.2,0.9,0.3,1.05)}
+.mam-exit-modal.is-in .mam-exit-card{transform:translateY(0) scale(1)}
+.mam-exit-close{position:absolute;top:14px;right:16px;background:transparent;border:0;color:var(--text-muted,#A89682);font-size:1.6rem;cursor:pointer;line-height:1;padding:6px 10px;border-radius:50%}
+.mam-exit-close:hover{color:#fff;background:rgba(255,255,255,0.06)}
+.mam-exit-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:0.72rem;letter-spacing:0.18em;text-transform:uppercase;color:#FBBF24;font-weight:800;margin-bottom:14px}
+.mam-exit-title{font-family:var(--font-serif,Georgia),serif;font-size:clamp(1.5rem,4vw,1.95rem);font-weight:700;color:#fff;line-height:1.2;margin:0 0 12px}
+.mam-exit-glow{background:linear-gradient(135deg,#E08A1A,#FBBF24);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#FBBF24}
+.mam-exit-lede{color:rgba(255,255,255,0.78);font-size:0.95rem;line-height:1.6;margin:0 0 22px}
+.mam-exit-form{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:8px}
+@media (min-width:520px){.mam-exit-form{grid-template-columns:1fr auto}}
+.mam-exit-input{padding:14px 16px;background:rgba(45,30,18,0.65);border:1.5px solid var(--border-strong,#3A2A1A);border-radius:10px;color:#fff;font-size:1rem;outline:none;min-height:48px;-webkit-appearance:none}
+.mam-exit-input:focus{border-color:#FBBF24;box-shadow:0 0 0 4px rgba(224,138,26,0.18);background:rgba(45,30,18,0.85)}
+.mam-exit-input::placeholder{color:#7d6b56}
+.mam-exit-submit{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 22px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;font-weight:800;letter-spacing:0.04em;font-size:0.92rem;text-transform:uppercase;border:0;border-radius:10px;cursor:pointer;box-shadow:0 6px 18px rgba(224,138,26,0.4);min-height:48px;white-space:nowrap}
+.mam-exit-submit:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 10px 26px rgba(224,138,26,0.55)}
+.mam-exit-submit:disabled{opacity:0.7;cursor:not-allowed}
+.mam-exit-msg{font-size:0.88rem;margin:8px 0 0;padding:10px 14px;border-radius:10px;line-height:1.5}
+.mam-exit-msg-ok{color:#A7F3D0;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.35)}
+.mam-exit-msg-error{color:#FECDD3;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.35)}
+.mam-exit-foot{font-size:0.82rem;color:var(--text-muted,#A89682);margin:18px 0 0;text-align:center}
+.mam-exit-foot a{color:#FBBF24;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+
+/* ── Mobile UX hardening ───────────────────────────────────────────────
+   iOS Safari/Chrome zoom the whole page when a focused form control's
+   font-size is below 16px, causing a jarring zoom-and-reflow on every tap
+   into a field. Pinning controls to 16px on small screens removes that —
+   one of the biggest "this feels broken/generic" tells on mobile. */
+@media (max-width:600px){
+  input,select,textarea{font-size:16px!important}
 }

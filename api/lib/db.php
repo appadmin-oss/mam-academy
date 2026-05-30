@@ -51,11 +51,87 @@ function mam_db(): PDO {
     return $pdo;
 }
 
+/**
+ * MySQL-specific migrator. We don't try to replicate the SQLite migrations
+ * in MySQL syntax — that would inevitably drift. Instead we treat
+ * `db/schema-mysql.sql` as the canonical schema and execute it whenever
+ * schema_version is behind the target. The file is intentionally idempotent
+ * (every DDL guarded by IF NOT EXISTS or ON DUPLICATE KEY) so re-running is
+ * cheap and safe.
+ *
+ * Statements are split conservatively on semicolons-at-end-of-line; lines
+ * inside block comments are stripped. The dynamic FK-drop in v10 (PREPARE /
+ * EXECUTE / DEALLOCATE) is handled as a single chunk to keep its variables
+ * scoped together within one PDO::exec call.
+ */
+function mam_db_migrate_mysql(PDO $db): void {
+    try { $db->exec("CREATE TABLE IF NOT EXISTS schema_version (version INT PRIMARY KEY)"); } catch (Throwable $e) {}
+    $current = 0;
+    try { $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0); } catch (Throwable $e) {}
+
+    $target = 10;
+    if ($current >= $target) return;
+
+    $path = realpath(__DIR__ . '/../../db/schema-mysql.sql');
+    if (!$path || !is_readable($path)) {
+        mam_log('warn', 'mysql_schema_missing', ['path' => $path]);
+        return;
+    }
+    $sql = file_get_contents($path);
+    // Strip `--` line comments AND `/* ... */` block comments so the splitter
+    // doesn't choke on inline semicolons in comment text.
+    $sql = preg_replace('!/\*.*?\*/!s', '', $sql);
+    $sql = preg_replace('/^\s*--.*$/m', '', $sql);
+
+    // Group prepared-statement triples into one statement (PREPARE … DEALLOCATE).
+    // Easiest approach: any block between SET @… and the matching DEALLOCATE is
+    // joined and exec'd together. We do this by replacing newlines with spaces
+    // within those blocks before splitting.
+    $sql = preg_replace_callback('/(SET\s+@[\s\S]*?DEALLOCATE\s+PREPARE\s+\w+\s*;)/i', function ($m) {
+        return str_replace("\n", " ", $m[1]);
+    }, $sql);
+
+    // Split on `;` followed by a newline (so `;` inside a string literal won't
+    // wrongly split — there are none in our schema, but the regex is defensive).
+    $statements = preg_split('/;\s*\n/', $sql);
+
+    $ran = 0; $failed = 0;
+    foreach ($statements as $stmt) {
+        $stmt = trim($stmt);
+        if ($stmt === '') continue;
+        try { $db->exec($stmt); $ran++; }
+        catch (PDOException $e) {
+            $failed++;
+            // 1050 = table exists, 1060 = duplicate column, 1061 = duplicate
+            // key, 1091 = can't DROP — all expected when re-running idempotently.
+            $expected = [1050, 1060, 1061, 1091, 1146];
+            $code = (int)$e->errorInfo[1] ?? 0;
+            if (!in_array($code, $expected, true)) {
+                mam_log('warn', 'mysql_migration_stmt_failed', ['code' => $code, 'msg' => $e->getMessage(), 'stmt' => mb_substr($stmt, 0, 200)]);
+            }
+        }
+    }
+    $newVersion = 0;
+    try { $newVersion = (int)$db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn(); } catch (Throwable $e) {}
+    mam_log('info', 'mysql_migration_complete', ['from' => $current, 'to' => $newVersion, 'ran' => $ran, 'failed' => $failed]);
+}
+
 function mam_db_driver(): string {
     return mam_db()->getAttribute(PDO::ATTR_DRIVER_NAME);
 }
 
 function mam_db_migrate(PDO $db): void {
+    // ── Driver-aware migration ────────────────────────────────────────
+    // The inline migrations below use SQLite syntax (AUTOINCREMENT, datetime('now'),
+    // etc). Running them against MySQL silently fails — which is why production
+    // installs hit "couldn't reach our server" errors after switching DBs.
+    // For MySQL we instead exec the canonical schema-mysql.sql file, which is
+    // idempotent (every ALTER guarded by IF NOT EXISTS, every INSERT by ON
+    // DUPLICATE KEY). We only run it when schema_version is behind, so the
+    // cold-start overhead is minimal.
+    $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
+    if ($driver === 'mysql') { mam_db_migrate_mysql($db); return; }
+
     $db->exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)");
     $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0);
 
@@ -261,6 +337,101 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE applications ADD COLUMN policy_signed_name TEXT;
             ALTER TABLE applications ADD COLUMN policy_signed_at TEXT;
         ",
+        // Expanded applicant profile to match the published Google Form:
+        // sex/address/LGA/state on customers, programme + headshot URL on
+        // applications. All additive, all nullable for backwards compat.
+        4 => "
+            ALTER TABLE customers    ADD COLUMN sex TEXT;
+            ALTER TABLE customers    ADD COLUMN address TEXT;
+            ALTER TABLE customers    ADD COLUMN lga TEXT;
+            ALTER TABLE customers    ADD COLUMN state TEXT;
+            ALTER TABLE applications ADD COLUMN program TEXT;
+            ALTER TABLE applications ADD COLUMN headshot_url TEXT;
+        ",
+        // Preferred intake session (TONI / MEDI / SUMMER / DOMI — named for
+        // scale degrees) so we can route applicants to the matching cohort.
+        5 => "
+            ALTER TABLE applications ADD COLUMN session TEXT;
+        ",
+        // Abandonment-recovery tracking: stamped when the cron sends a
+        // "complete your enrolment" nudge so we never email twice.
+        6 => "
+            ALTER TABLE applications ADD COLUMN recovery_sent_at TEXT;
+        ",
+        // Idempotency key so a retried submission returns the original
+        // application instead of creating a duplicate.
+        7 => "
+            ALTER TABLE applications ADD COLUMN idempotency_key TEXT;
+            CREATE INDEX idx_apps_idem ON applications(idempotency_key);
+        ",
+        // Booking-fee flow: the application is now free; a flat \$5 booking
+        // fee unlocks the Book-a-Session page (registration + ID card +
+        // student file + 30-min MAM Auditer assessment). `purpose` tags
+        // each payment ('booking_fee' | 'tuition' | 'store') so the same
+        // payment infrastructure can serve all three flows safely.
+        8 => "
+            ALTER TABLE applications ADD COLUMN booking_fee_paid_at TEXT;
+            ALTER TABLE payments     ADD COLUMN purpose TEXT DEFAULT 'tuition';
+        ",
+        // Store / Library — a public catalogue of digital + physical + service
+        // items (sheet music, handouts, courses, instruments, accessories,
+        // tutoring add-ons). The same payments table serves store orders via
+        // purpose='store'; each order's reference is used as the payment ref.
+        // Designed subdomain-ready: nothing here references academy tables.
+        9 => "
+            CREATE TABLE store_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sku TEXT UNIQUE NOT NULL,
+                slug TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                goods_type TEXT NOT NULL DEFAULT 'digital',
+                delivery_type TEXT NOT NULL DEFAULT 'instant',
+                availability TEXT NOT NULL DEFAULT 'in_stock',
+                stock INTEGER DEFAULT -1,
+                available_locations TEXT DEFAULT '*',
+                price_usd REAL NOT NULL,
+                currency TEXT DEFAULT 'USD',
+                images TEXT,
+                category TEXT,
+                file_url TEXT,
+                weight_grams INTEGER,
+                tax_rate REAL DEFAULT 0,
+                sort_order INTEGER DEFAULT 0,
+                active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX idx_store_items_active   ON store_items(active);
+            CREATE INDEX idx_store_items_category ON store_items(category);
+            CREATE INDEX idx_store_items_sort     ON store_items(sort_order);
+            CREATE TABLE store_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reference TEXT UNIQUE NOT NULL,
+                customer_id INTEGER,
+                customer_email TEXT,
+                customer_name TEXT,
+                customer_country TEXT,
+                customer_phone TEXT,
+                shipping_address TEXT,
+                items_json TEXT NOT NULL,
+                subtotal_usd REAL DEFAULT 0,
+                tax_usd REAL DEFAULT 0,
+                shipping_usd REAL DEFAULT 0,
+                total_usd REAL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'pending',
+                notes TEXT,
+                delivered_at TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX idx_store_orders_status ON store_orders(status);
+            CREATE INDEX idx_store_orders_email  ON store_orders(customer_email);
+        ",
+        // v10 — no-op on SQLite (CREATE TABLE for payments doesn't declare
+        // application_id NOT NULL there, so store rows already insert fine).
+        // Bumping schema_version keeps SQLite + MySQL in lockstep.
+        10 => "SELECT 1;",
     ];
 
     foreach ($migrations as $version => $sql) {
@@ -284,6 +455,38 @@ function mam_db_insert(string $table, array $data): int {
     $stmt = mam_db()->prepare($sql);
     $stmt->execute(array_values($data));
     return (int)mam_db()->lastInsertId();
+}
+
+/**
+ * Cross-driver "upsert" (insert-or-update-on-duplicate-key).
+ *
+ * SQLite/Postgres speak `ON CONFLICT(col) DO UPDATE SET ...` while MySQL
+ * speaks `ON DUPLICATE KEY UPDATE ...`. Hardcoding either one breaks the
+ * other; since this app runs on SQLite (default) AND MySQL (production via
+ * DB_DSN), every upsert must adapt to the live driver. The on-conflict SET
+ * values are bound as parameters (not `excluded.`/`VALUES()`), so the caller
+ * just passes the values it already has — portable and injection-safe.
+ *
+ *   $insert   column => value to insert
+ *   $conflict unique/PK column(s) (named for SQLite; ignored by MySQL)
+ *   $update   column => value to SET when the row already exists
+ */
+function mam_db_upsert(string $table, array $insert, array $conflict, array $update): void {
+    $cols = array_keys($insert);
+    $ph   = implode(',', array_fill(0, count($cols), '?'));
+    $vals = array_values($insert);
+
+    $set = [];
+    foreach ($update as $k => $v) { $set[] = "$k = ?"; $vals[] = $v; }
+    $setSql = implode(', ', $set);
+
+    $head = 'INSERT INTO ' . $table . ' (' . implode(',', $cols) . ') VALUES (' . $ph . ') ';
+    if (mam_db_driver() === 'mysql') {
+        $sql = $head . 'ON DUPLICATE KEY UPDATE ' . $setSql;
+    } else {
+        $sql = $head . 'ON CONFLICT(' . implode(',', $conflict) . ') DO UPDATE SET ' . $setSql;
+    }
+    mam_db()->prepare($sql)->execute($vals);
 }
 
 function mam_db_update(string $table, array $data, array $where): int {

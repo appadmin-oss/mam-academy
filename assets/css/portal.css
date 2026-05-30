@@ -2,6 +2,92 @@
    MAM Portal — shared dashboard styles
    ============================================================ */
 
+/* ── Priority Improvements: portal-wide UX polish ──
+   Applied here so every portal page (student, instructor, admin-lite) picks
+   it up without per-file edits. Mirrors the public-site polish from main.css. */
+
+/* Typography & readability: bump portal body line-height to 1.6 (WCAG 1.4.8).
+   Cap reading width on long panels so prose doesn't sprawl on widescreens. */
+.portal-main{line-height:1.6}
+.portal-main p,.portal-main li,.portal-main td,.portal-main label{line-height:1.6}
+.panel-body p{max-width:68ch}
+
+/* Forms: real labels (already in the markup), inline-validation-friendly inputs,
+   44px+ touch targets, visible focus ring. Browsers strip the native invalid
+   ring on dark backgrounds, so we draw our own that meets WCAG 2.4.11. */
+.portal-main .field label,
+.portal-main label{display:block;font-size:0.78rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.portal-main .field input,
+.portal-main .field select,
+.portal-main .field textarea,
+.portal-main input[type=text],
+.portal-main input[type=email],
+.portal-main input[type=tel],
+.portal-main input[type=number],
+.portal-main input[type=password],
+.portal-main input[type=date],
+.portal-main input[type=url],
+.portal-main select,
+.portal-main textarea{width:100%;padding:12px 14px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.96rem;font-family:inherit;min-height:44px;outline:none;-webkit-appearance:none;appearance:none}
+.portal-main input:focus-visible,
+.portal-main select:focus-visible,
+.portal-main textarea:focus-visible{border-color:var(--gold-bright);box-shadow:0 0 0 4px rgba(252,198,71,0.22)}
+.portal-main input[aria-invalid="true"],
+.portal-main input.invalid,
+.portal-main select[aria-invalid="true"]{border-color:#FCA5A5;box-shadow:0 0 0 4px rgba(244,63,94,0.18)}
+.portal-main .field-help,
+.portal-main .help{display:block;margin-top:6px;font-size:0.78rem;color:var(--text-muted);line-height:1.5}
+.portal-main .field-error,
+.portal-main .err-msg{display:none;align-items:center;gap:6px;margin-top:6px;font-size:0.82rem;color:#FCA5A5;line-height:1.45}
+.portal-main .field-error.show,
+.portal-main .err-msg.show{display:flex}
+
+/* Buttons: 44px floor, contrast-AA palette, consistent across portals. The
+   primary CTA uses the same gold gradient as the public site so the brand
+   stays unified across surfaces (priority 9 — Consistency). */
+.portal-main .btn,
+.portal-main button[type=submit],
+.portal-main .panel-action{min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;font-weight:700;font-size:0.92rem;letter-spacing:0.02em;border:0;cursor:pointer;line-height:1}
+.portal-main .btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
+.portal-main .btn-primary:hover{transform:translateY(-1px)}
+.portal-main .btn-ghost{background:transparent;border:1px solid var(--border-gold);color:var(--gold-bright)}
+.portal-main .btn-ghost:hover{background:rgba(224,138,26,0.08)}
+.portal-main .btn-danger{background:transparent;border:1px solid #FCA5A5;color:#FCA5A5}
+.portal-main .btn-danger:hover{background:rgba(244,63,94,0.08)}
+.portal-main .btn:focus-visible{outline:3px solid var(--gold-bright);outline-offset:3px}
+
+/* Skip link visibility — keyboard users hit it as the first focusable element. */
+.portal-main a.skip-link:focus{outline:3px solid var(--gold-bright);outline-offset:3px}
+
+/* Loading skeleton — replaces the harder-to-read "spinning circle" with a
+   skeleton placeholder so users see structure first (LCP / CLS friendly). */
+.skeleton{display:block;background:linear-gradient(90deg,var(--bg-raised) 25%,rgba(255,255,255,0.06) 50%,var(--bg-raised) 75%);background-size:200% 100%;animation:skel 1.4s linear infinite;border-radius:8px}
+@keyframes skel{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* Toast micro-component used by MAM_DIALOG (action confirmations).
+   Polite live region for screen readers. */
+.mam-toast{position:fixed;bottom:24px;right:24px;z-index:9999;padding:14px 18px;background:var(--bg-surface);border:1px solid var(--border-gold);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,0.4);color:var(--text);font-size:0.94rem;display:flex;align-items:center;gap:10px;max-width:320px;animation:tIn .2s ease-out}
+.mam-toast.success{border-color:#34D399;color:#A7F3D0}
+.mam-toast.error{border-color:#FCA5A5;color:#FECDD3}
+@keyframes tIn{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* Mobile: keep the sidebar usable on smaller screens. Above the 880px MQ the
+   sidebar is a fixed-width column; below it slides in. */
+@media (max-width:880px){
+  .portal-shell{grid-template-columns:1fr}
+  .portal-side{position:fixed;inset:0 auto 0 0;width:80%;max-width:300px;transform:translateX(-100%);transition:transform .25s ease;z-index:50}
+  .portal-side.open{transform:translateX(0)}
+  .portal-side-toggle{display:inline-flex !important;align-items:center;gap:8px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;color:var(--text);min-height:44px;margin-bottom:18px}
+}
+.portal-side-toggle{display:none}
+
+/* Reduced motion: respect the user's preference. */
+@media (prefers-reduced-motion:reduce){
+  .skeleton,.mam-toast,.portal-side{animation:none !important;transition:none !important}
+}
+
+/* ── End of priority-improvements block ── */
+
 .portal-shell{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
 .portal-side{background:var(--bg-surface);border-right:1px solid var(--border);padding:24px 16px;position:sticky;top:0;height:100vh;overflow:auto}
 .portal-brand{display:flex;align-items:center;gap:12px;padding:6px 10px 18px;border-bottom:1px solid var(--border);margin-bottom:14px}
@@ -47,12 +133,49 @@
 .panel-head .panel-action{font-size:0.82rem;font-weight:700;color:var(--gold-bright)}
 .panel-body{padding:0}
 
+.ptable-wrap{
+  position:relative;overflow-x:auto;-webkit-overflow-scrolling:touch;
+  /* Edge-fade indicators — show only when there's more to scroll (Lea Verou) */
+  background-image:
+    linear-gradient(to right,var(--bg-surface) 30%,rgba(26,18,11,0)),
+    linear-gradient(to right,rgba(26,18,11,0),var(--bg-surface) 70%),
+    linear-gradient(to right,rgba(0,0,0,0.35),rgba(0,0,0,0)),
+    linear-gradient(to left,rgba(0,0,0,0.35),rgba(0,0,0,0));
+  background-position:0 0,100% 0,0 0,100% 0;
+  background-repeat:no-repeat;
+  background-size:42px 100%,42px 100%,14px 100%,14px 100%;
+  background-attachment:local,local,scroll,scroll;
+}
 .ptable{width:100%;border-collapse:collapse;font-size:0.88rem}
-.ptable th{background:var(--bg);color:var(--text-muted);text-align:left;padding:10px 22px;font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;font-weight:800;border-bottom:1px solid var(--border)}
+.ptable th{background:var(--bg);color:var(--text-muted);text-align:left;padding:10px 22px;font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;font-weight:800;border-bottom:1px solid var(--border);white-space:nowrap}
 .ptable td{padding:14px 22px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text-soft)}
 .ptable tr:last-child td{border-bottom:none}
 .ptable tr:hover td{background:rgba(255,255,255,0.02)}
-.ptable .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.82rem}
+.ptable .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.82rem;word-break:break-all}
+
+/* Phone: stack each row into a card with label:value pairs (data-label-driven).
+   This is the gold-standard mobile pattern for data tables — no horizontal
+   scroll, no truncation, every field clearly labeled. */
+@media (max-width:640px){
+  .ptable-wrap{overflow-x:visible;background:none}
+  .ptable{font-size:0.92rem}
+  .ptable thead{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+  .ptable,.ptable tbody,.ptable tr,.ptable td{display:block;width:100%}
+  .ptable tr{padding:14px 18px;border-bottom:1px solid var(--border);background:var(--bg-surface)}
+  .ptable tr:nth-child(even){background:rgba(255,255,255,0.012)}
+  .ptable tr:last-child{border-bottom:none}
+  .ptable td{padding:6px 0;border:none;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;text-align:right}
+  .ptable td::before{
+    content:attr(data-label);color:var(--text-muted);
+    font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:800;
+    flex-shrink:0;align-self:center;text-align:left;
+  }
+  .ptable td:first-child{padding-top:0;padding-bottom:10px;margin-bottom:6px;border-bottom:1px dashed var(--border);font-size:0.98rem}
+  .ptable td:first-child:not([data-label])::before,
+  .ptable td:first-child[data-label=""]::before{display:none}
+  .ptable td:first-child{justify-content:flex-start;text-align:left}
+  .ptable td .pill{flex-shrink:0}
+}
 
 .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:100px;font-size:0.7rem;font-weight:800;letter-spacing:0.04em;text-transform:lowercase}
 .pill.submitted{background:rgba(99,102,241,0.18);color:#A5B4FC}
@@ -101,14 +224,19 @@
 .login-side .quote{font-family:var(--font-serif);font-style:italic;font-size:1.05rem;line-height:1.6;color:rgba(255,255,255,0.85);margin-bottom:14px}
 .login-side .quote-cite{font-size:0.75rem;color:var(--gold-bright);letter-spacing:0.1em;text-transform:uppercase;font-weight:700}
 
-.login-main{display:flex;align-items:center;justify-content:center;padding:48px 32px;background:var(--bg)}
+/* Mobile-first: comfortable padding on phones, expanded on desktop.
+   The grid above collapses to single-column at 880px (login-side hides). */
+.login-main{display:flex;align-items:center;justify-content:center;padding:32px 18px;background:var(--bg)}
+@media (min-width:560px){.login-main{padding:48px 32px}}
 .login-card{width:100%;max-width:440px}
-.login-card h1{font-family:var(--font-serif);font-size:2rem;font-weight:700;margin-bottom:8px;color:var(--text)}
+.login-card h1{font-family:var(--font-serif);font-size:clamp(1.6rem,5vw,2rem);font-weight:700;margin-bottom:8px;color:var(--text)}
 .login-card p.lede{font-size:0.95rem;color:var(--text-muted);margin-bottom:28px}
 .login-form{display:flex;flex-direction:column;gap:14px}
 .login-form .field{display:flex;flex-direction:column;gap:6px}
 .login-form label{font-size:0.74rem;font-weight:700;color:var(--text-soft);letter-spacing:0.08em;text-transform:uppercase}
-.login-form input{width:100%;padding:13px 16px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);color:var(--text);font-size:0.95rem;outline:none}
+/* Mobile-first inputs: minimum 16px font-size prevents iOS auto-zoom on
+   focus; tap target ≥ 44px tall (Apple HIG / Material). */
+.login-form input{width:100%;padding:14px 16px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);color:var(--text);font-size:1rem;outline:none;min-height:48px;-webkit-appearance:none;appearance:none}
 .login-form input:focus{border-color:var(--gold-bright);box-shadow:0 0 0 3px rgba(224,138,26,0.12)}
 .login-form button[type=submit]{padding:14px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:var(--radius-sm);font-weight:800;letter-spacing:0.05em;text-transform:uppercase;font-size:0.92rem;display:flex;justify-content:center;align-items:center;gap:10px;cursor:pointer;transition:all 0.2s var(--ease)}
 .login-form button[type=submit]:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(224,138,26,0.4)}

@@ -45,7 +45,7 @@ function mam_paystack_initialize(string $email, int $amountKobo, string $referen
         'reference' => $reference,
         'currency' => 'NGN',
         'metadata' => $metadata,
-        'callback_url' => rtrim((string)mam_env('APP_URL', ''), '/') . '/thank-you.html?ref=' . urlencode($reference),
+        'callback_url' => rtrim((string)mam_env('APP_URL', ''), '/') . '/thank-you?ref=' . urlencode($reference),
     ]);
 }
 

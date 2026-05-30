@@ -7,14 +7,15 @@
 <title>Apply Now — MAM Academy | Smart Onboarding &amp; Secure Payment</title>
 <meta name="description" content="Complete your MAM Academy enrollment in five guided steps. Pay securely with Paystack, Flutterwave, Stripe or bank transfer.">
 <meta name="robots" content="noindex, follow">
-<link rel="canonical" href="https://academy.mamcentre.org/apply.html">
+<link rel="canonical" href="https://academy.mamcentre.org/apply">
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css">
-<link rel="stylesheet" href="assets/css/apply.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
+<link rel="stylesheet" href="assets/css/main.css?v=20260530a">
+<link rel="stylesheet" href="assets/css/apply.css?v=20260530a">
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
@@ -31,10 +32,10 @@
 <div id="include-header"></div>
 
 <main id="main">
-  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&q=80');padding:80px 24px 60px">
+  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&q=80');padding:clamp(64px,9vw,112px) 24px clamp(52px,7vw,84px)">
     <div class="page-hero-inner">
       <nav class="breadcrumb" aria-label="Breadcrumb">
-        <a href="index.html">Home</a><i class="fa-solid fa-chevron-right"></i>
+        <a href="/">Home</a><i class="fa-solid fa-chevron-right"></i>
         <span>Apply</span>
       </nav>
       <div class="page-hero-eyebrow"><i class="fa-solid fa-music"></i>Application &amp; Enrollment</div>
@@ -83,7 +84,7 @@
         <div class="step-head">
           <div class="step-num">Step 1 of 5 · Programme</div>
           <h2 class="step-title">Choose Your Programme</h2>
-          <p class="step-desc">Three quick decisions. Don't overthink — you can change anything before payment, and <a href="auditer.html" style="color:var(--gold-bright)">MAM Auditer</a> will fine-tune your placement.</p>
+          <p class="step-desc">Three quick decisions. Don't overthink — you can change anything before payment, and <a href="auditer" style="color:var(--gold-bright)">MAM Auditer</a> will fine-tune your placement.</p>
         </div>
 
         <div class="substep-head">
@@ -115,7 +116,7 @@
               <span class="choice-card-desc">6-week intensive — fast track</span>
               <span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="pathway" value="meta-order">
-              <div class="choice-card-head"><span class="choice-card-title" style="display:inline-flex;align-items:center;gap:6px"><iconify-icon icon="fluent-emoji:fire" width="20" aria-hidden="true"></iconify-icon>MetaMusic Order</span><span class="choice-card-price">$240</span></div>
+              <div class="choice-card-head"><span class="choice-card-title" style="display:inline-flex;align-items:center;gap:6px"><iconify-icon icon="fluent-emoji:fire" width="20" aria-hidden="true"></iconify-icon>MetaMusic Order</span><span class="choice-card-price">$60</span></div>
               <span class="choice-card-desc">12-week civilization-engineering intensive</span>
               <span class="choice-card-icon"></span></label>
           </div>
@@ -144,24 +145,94 @@
 
         <div class="substep-head">
           <span class="substep-num">1.3</span>
-          <span class="substep-title">Pick your primary discipline</span>
+          <span class="substep-title">Choose your programme focus</span>
+          <span class="substep-meta">The discipline area that frames your studies</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="program">Programme <span class="req">*</span></label>
+          <div class="field-select-wrap">
+            <select id="program" class="field-select" data-enhance="select">
+              <option value="">Select a programme</option>
+              <optgroup label="Performance">
+                <option value="classical">Classical Musician / Artist</option>
+                <option value="contemporary">Contemporary Musician / Artist</option>
+                <option value="african">African Musician / Artist</option>
+                <option value="grand">Grand Musician / Artist</option>
+              </optgroup>
+              <optgroup label="Creation & Production">
+                <option value="songwriting">Songwriting / Composition (SCP)</option>
+                <option value="audio-engineering">Audio Engineering</option>
+                <option value="music-production">Music Production</option>
+                <option value="orchestration">Orchestration</option>
+                <option value="arranging">Music Arranging</option>
+                <option value="film-scoring">Film Scoring</option>
+              </optgroup>
+              <optgroup label="Leadership">
+                <option value="music-education">Music Education</option>
+                <option value="music-direction">Music Direction</option>
+                <option value="artistic-direction">Artistic Direction</option>
+                <option value="conducting">Conducting &amp; Arranging</option>
+                <option value="music-business">Music Business</option>
+              </optgroup>
+            </select>
+            <i class="fa-solid fa-chevron-down field-select-arrow"></i>
+          </div>
+          <div class="field-error" id="err-program"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a programme</span></div>
+        </div>
+
+        <div class="substep-head">
+          <span class="substep-num">1.4</span>
+          <span class="substep-title">Pick your primary course</span>
           <span class="substep-meta">You can study more than one — choose the main focus first</span>
         </div>
         <div class="field">
-          <label class="field-label sr-only">Primary Discipline <span class="req">*</span></label>
+          <label class="field-label sr-only">Primary Course <span class="req">*</span></label>
           <div class="choice-grid">
             <label class="choice-card"><input type="radio" name="discipline" value="piano"><div class="choice-card-head"><span class="choice-card-title">Piano &amp; Keyboard</span></div><span class="choice-card-desc">Classical, gospel &amp; contemporary</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="violin"><div class="choice-card-head"><span class="choice-card-title">Violin / Strings</span></div><span class="choice-card-desc">Bow technique &amp; ensemble</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="guitar"><div class="choice-card-head"><span class="choice-card-title">Guitar</span></div><span class="choice-card-desc">Classical &amp; contemporary</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="drums"><div class="choice-card-head"><span class="choice-card-title">Drums &amp; Percussion</span></div><span class="choice-card-desc">Kit, djembe, afro-rhythms</span><span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="discipline" value="voice"><div class="choice-card-head"><span class="choice-card-title">Voice &amp; Choir</span></div><span class="choice-card-desc">Breath, tone &amp; performance</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="wind"><div class="choice-card-head"><span class="choice-card-title">Wind / Brass</span></div><span class="choice-card-desc">Saxophone, trumpet, flute</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="guitar"><div class="choice-card-head"><span class="choice-card-title">Guitar</span></div><span class="choice-card-desc">Classical &amp; contemporary</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="bass"><div class="choice-card-head"><span class="choice-card-title">Bass</span></div><span class="choice-card-desc">Electric &amp; double bass</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="violin"><div class="choice-card-head"><span class="choice-card-title">Violin / Strings</span></div><span class="choice-card-desc">Bow technique &amp; ensemble</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="saxophone"><div class="choice-card-head"><span class="choice-card-title">Saxophone</span></div><span class="choice-card-desc">Jazz, classical &amp; afro</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="trumpet"><div class="choice-card-head"><span class="choice-card-title">Trumpet</span></div><span class="choice-card-desc">Brass technique &amp; ensemble</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="flute"><div class="choice-card-head"><span class="choice-card-title">Flute</span></div><span class="choice-card-desc">Tone, breath &amp; repertoire</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="clarinet"><div class="choice-card-head"><span class="choice-card-title">Clarinet</span></div><span class="choice-card-desc">Reed mastery &amp; ensemble</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="drums"><div class="choice-card-head"><span class="choice-card-title">Drums &amp; Percussion</span></div><span class="choice-card-desc">Kit, djembe, afro-rhythms</span><span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="discipline" value="robotics"><div class="choice-card-head"><span class="choice-card-title">Robotics</span></div><span class="choice-card-desc">Music tech &amp; physical computing</span><span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="discipline" value="theory"><div class="choice-card-head"><span class="choice-card-title">Music Theory &amp; Ear</span></div><span class="choice-card-desc">Notation &amp; aural skills</span><span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="discipline" value="performance"><div class="choice-card-head"><span class="choice-card-title">Performance Intelligence</span></div><span class="choice-card-desc">Stagecraft &amp; psychology</span><span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="discipline" value="rhythm"><div class="choice-card-head"><span class="choice-card-title">Rhythm Intelligence</span></div><span class="choice-card-desc">MAM Rapid System</span><span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="discipline" value="metamusic"><div class="choice-card-head"><span class="choice-card-title">MetaMusic &amp; Consciousness</span></div><span class="choice-card-desc">Philosophy of sound</span><span class="choice-card-icon"></span></label>
           </div>
-          <div class="field-error" id="err-discipline"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a discipline</span></div>
+          <div class="field-error" id="err-discipline"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a course</span></div>
+        </div>
+
+        <div class="substep-head">
+          <span class="substep-num">1.5</span>
+          <span class="substep-title">Preferred session</span>
+          <span class="substep-meta">Intake periods named after scale degrees — pick the one that fits your calendar</span>
+        </div>
+        <div class="field">
+          <label class="field-label sr-only">Session <span class="req">*</span></label>
+          <div class="choice-grid">
+            <label class="choice-card"><input type="radio" name="session" value="toni">
+              <div class="choice-card-head"><span class="choice-card-title">TONI</span></div>
+              <span class="choice-card-desc">Tonic · first session of the academic cycle (Jan – Mar).</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="session" value="medi">
+              <div class="choice-card-head"><span class="choice-card-title">MEDI</span></div>
+              <span class="choice-card-desc">Mediant · mid-year session (Apr – Jun).</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="session" value="summer">
+              <div class="choice-card-head"><span class="choice-card-title">SUMMER</span></div>
+              <span class="choice-card-desc">Summer intensive (Jul – Aug) — for crash &amp; holiday tracks.</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="session" value="domi">
+              <div class="choice-card-head"><span class="choice-card-title">DOMI</span></div>
+              <span class="choice-card-desc">Dominant · year-closing session (Sep – Dec).</span>
+              <span class="choice-card-icon"></span></label>
+          </div>
+          <div class="field-error" id="err-session"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a session</span></div>
         </div>
 
         <div class="step-actions">
@@ -202,17 +273,32 @@
             <div class="field-error" id="err-email"><i class="fa-solid fa-circle-exclamation"></i><span>Valid email required</span></div>
           </div>
           <div class="field">
-            <label class="field-label" for="phone">Phone <span class="req">*</span></label>
+            <label class="field-label" for="phone">Mobile Number <span class="req">*</span></label>
             <input type="tel" id="phone" class="field-input" placeholder="+234 800 000 0000" autocomplete="tel">
             <div class="field-error" id="err-phone"><i class="fa-solid fa-circle-exclamation"></i><span>Valid phone required</span></div>
           </div>
         </div>
 
+        <div class="field">
+          <label class="field-label">Sex <span class="req">*</span></label>
+          <div class="sex-row">
+            <label class="sex-pill"><input type="radio" name="sex" value="female"><i class="fa-solid fa-venus"></i>Female</label>
+            <label class="sex-pill"><input type="radio" name="sex" value="male"><i class="fa-solid fa-mars"></i>Male</label>
+          </div>
+          <div class="field-error" id="err-sex"><i class="fa-solid fa-circle-exclamation"></i><span>Please select</span></div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="address">Address <span class="req">*</span></label>
+          <input type="text" id="address" class="field-input" placeholder="Street address" autocomplete="street-address" maxlength="200">
+          <div class="field-error" id="err-address"><i class="fa-solid fa-circle-exclamation"></i><span>Enter your address</span></div>
+        </div>
+
         <div class="field-row">
           <div class="field">
-            <label class="field-label" for="country">Country <span class="req">*</span></label>
-            <input type="text" id="country" class="field-input" placeholder="Nigeria" autocomplete="country-name">
-            <div class="field-error" id="err-country"><i class="fa-solid fa-circle-exclamation"></i><span>Enter country</span></div>
+            <label class="field-label" for="lga">Local Government (County) <span class="req">*</span></label>
+            <input type="text" id="lga" class="field-input" placeholder="e.g. Alimosho" autocomplete="address-level3" maxlength="80">
+            <div class="field-error" id="err-lga"><i class="fa-solid fa-circle-exclamation"></i><span>Enter LGA / county</span></div>
           </div>
           <div class="field">
             <label class="field-label" for="city">City</label>
@@ -222,44 +308,47 @@
 
         <div class="field-row">
           <div class="field">
-            <label class="field-label" for="age">Age Range <span class="req">*</span></label>
-            <div class="field-select-wrap">
-              <select id="age" class="field-select">
-                <option value="">Select age range</option>
-                <optgroup label="KTAMS — Kids @ MAM (under 16)">
-                  <option value="under-6">Under 6 years</option>
-                  <option value="6-9">6 – 9 years</option>
-                  <option value="10-12">10 – 12 years</option>
-                  <option value="13-15">13 – 15 years</option>
-                </optgroup>
-                <optgroup label="MAM Academy (16 and above)">
-                  <option value="16-17">16 – 17 years</option>
-                  <option value="18-25">18 – 25 years</option>
-                  <option value="26+">26 years &amp; above</option>
-                </optgroup>
-              </select>
-              <i class="fa-solid fa-chevron-down field-select-arrow"></i>
-            </div>
-            <div class="field-error" id="err-age"><i class="fa-solid fa-circle-exclamation"></i><span>Select age range</span></div>
+            <label class="field-label" for="state">State (Province) <span class="req">*</span></label>
+            <input type="text" id="state" class="field-input" placeholder="e.g. Lagos State" autocomplete="address-level1" maxlength="80">
+            <div class="field-error" id="err-state"><i class="fa-solid fa-circle-exclamation"></i><span>Enter state / province</span></div>
           </div>
           <div class="field">
-            <label class="field-label" for="dob">Date of Birth <span style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:normal">(optional)</span></label>
-            <input type="date" id="dob" class="field-input">
+            <label class="field-label" for="country">Country <span class="req">*</span></label>
+            <input type="text" id="country" class="field-input" placeholder="Nigeria" autocomplete="country-name">
+            <div class="field-error" id="err-country"><i class="fa-solid fa-circle-exclamation"></i><span>Enter country</span></div>
           </div>
         </div>
 
-        <div class="field" id="guardianField">
-          <label class="field-label" for="parentName">Parent / Guardian <span class="req" id="guardianReq" hidden>*</span><span id="guardianOpt" style="color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:normal">(for under 16)</span></label>
+        <div class="field">
+          <label class="field-label" for="dob">Date of Birth <span class="req">*</span></label>
+          <div class="dob-row">
+            <input type="date" id="dob" class="field-input" required autocomplete="bday">
+            <div class="dob-readout" id="dobReadout" hidden>
+              <i class="fa-solid fa-cake-candles"></i>
+              <div>
+                <strong id="dobAge">—</strong>
+                <span id="dobBand"></span>
+              </div>
+            </div>
+          </div>
+          <div class="field-help">We use your date of birth to place you on the right track. The age band is calculated automatically.</div>
+          <div class="field-error" id="err-dob"><i class="fa-solid fa-circle-exclamation"></i><span>A valid date of birth is required</span></div>
+        </div>
+
+        <div class="field" id="guardianField" hidden>
+          <label class="field-label" for="parentName">Parent / Guardian <span class="req">*</span></label>
           <div class="field-row">
             <input type="text" id="parentName" class="field-input" placeholder="Guardian name" autocomplete="name">
             <input type="tel" id="parentPhone" class="field-input" placeholder="Guardian phone" autocomplete="tel">
           </div>
-          <div class="field-error" id="err-parentName"><i class="fa-solid fa-circle-exclamation"></i><span>A parent/guardian is required for under-16 (KTAMS) students</span></div>
+          <div class="field-help">Required for under-16 (KTAMS) students — this is the contact we use for scheduling and updates.</div>
+          <div class="field-error" id="err-parentName"><i class="fa-solid fa-circle-exclamation"></i><span>A parent/guardian is required for under-16 students</span></div>
         </div>
 
         <div class="field">
-          <label class="field-label" for="emergencyContact">Emergency Contact</label>
-          <input type="text" id="emergencyContact" class="field-input" placeholder="Name &amp; phone (optional)">
+          <label class="field-label">Headshot <span class="req">*</span></label>
+          <div id="headshotMount"></div>
+          <div class="field-help">We use this for your student tag and class roster. Our AI checks that the photo is clear, front-facing and shows only you — nothing is sent to a server before you confirm.</div>
         </div>
 
         <div class="step-actions">
@@ -329,9 +418,9 @@
       <!-- STEP 4: Review -->
       <div class="step" data-step="3">
         <div class="step-head">
-          <div class="step-num">Step 4 of 5</div>
+          <div class="step-num">Step 4 of 5 · Review</div>
           <h2 class="step-title">Review &amp; Confirm</h2>
-          <p class="step-desc">Take a final look. You can edit any section before payment.</p>
+          <p class="step-desc">Take a final look. When you submit, we'll email you a copy of your application and your invoice — then you'll confirm your seat with a one-time <strong id="reviewFeeLabel">$5</strong> payment.</p>
         </div>
 
         <div id="reviewBody"></div>
@@ -374,48 +463,62 @@
 
         <label class="consent" style="margin-top:14px">
           <input type="checkbox" id="consent">
-          <span class="consent-text">I confirm the information above is accurate and I agree to MAM Academy's <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+          <span class="consent-text">I confirm the information above is accurate and I agree to MAM Academy's <a href="terms" target="_blank" rel="noopener">Terms of Service</a> and <a href="privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
         </label>
         <div class="field-error" id="err-consent"><i class="fa-solid fa-circle-exclamation"></i><span>Please confirm to continue</span></div>
 
         <div class="step-actions">
           <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" id="btnNext4">Continue to Payment <i class="fa-solid fa-arrow-right"></i></button>
+          <button type="button" class="btn-step btn-step-next" id="btnNext4">Submit &amp; Continue to Payment <i class="fa-solid fa-arrow-right"></i></button>
         </div>
       </div>
 
-      <!-- STEP 5: Payment -->
+      <!-- STEP 5: Payment — booking fee only. The price is regional and the
+           server is authoritative; we just render what /api/booking/pricing
+           returned at page-load. The confirmation email + invoice were
+           already sent on Step-4 submit, so the applicant has those in hand
+           whether or not they finish this step now (they can always pay
+           later via the link in the email which lands on /book?ref=…). -->
       <div class="step" data-step="4">
         <div class="step-head">
-          <div class="step-num">Step 5 of 5</div>
-          <h2 class="step-title">Secure Payment</h2>
-          <p class="step-desc">Choose your preferred payment method. Your details are sent directly to the provider — we never store card information.</p>
+          <div class="step-num">Step 5 of 5 · Confirm your seat</div>
+          <h2 class="step-title">Pay <span id="payHeroLabel">$5</span> &mdash; secure your session</h2>
+          <p class="step-desc">A one-time confirmation. Covers registration, your MAM Academy student ID card, your student file and a 30-minute MAM Auditer assessment. Tuition is <strong>not</strong> charged here &mdash; it's discussed only after the Auditer Judges have placed you.</p>
+        </div>
+
+        <div class="pay-card">
+          <div class="pay-card-price">
+            <div class="pay-card-amount" id="payAmount">$5</div>
+            <div class="pay-card-meta"><span id="payCountryFlag">🌍</span> <span id="payCountryName">your region</span> · one-time</div>
+          </div>
+          <ul class="pay-card-covers">
+            <li><i class="fa-solid fa-check"></i>Registration &amp; admission processing</li>
+            <li><i class="fa-solid fa-check"></i>MAM Academy student ID card</li>
+            <li><i class="fa-solid fa-check"></i>Student file (kept on record)</li>
+            <li><i class="fa-solid fa-check"></i>30-minute MAM Auditer assessment</li>
+          </ul>
+          <div class="pay-card-disclose" id="payDisclose"></div>
         </div>
 
         <div class="payment-secure">
           <i class="fa-solid fa-shield-halved"></i>
-          <span>All transactions are encrypted &amp; PCI-DSS compliant. Verified by Paystack &amp; Flutterwave.</span>
+          <span>Encrypted &amp; PCI-DSS compliant. Verified by Paystack &amp; Flutterwave. We never store card details.</span>
         </div>
 
         <div class="payment-methods">
-          <label class="payment-method"><input type="radio" name="payment" value="paystack">
+          <label class="payment-method"><input type="radio" name="payment" value="paystack" checked>
             <div class="payment-logo paystack">PAY<br>STACK</div>
-            <div class="payment-method-info"><div class="payment-method-name">Paystack</div><div class="payment-method-desc">Cards · Bank · USSD · QR · Mobile money</div></div>
+            <div class="payment-method-info"><div class="payment-method-name">Card / Bank / USSD</div><div class="payment-method-desc">Paystack &middot; instant confirmation</div></div>
             <div class="payment-method-check"></div>
           </label>
           <label class="payment-method"><input type="radio" name="payment" value="flutterwave">
             <div class="payment-logo flutterwave">Flutter<br>wave</div>
-            <div class="payment-method-info"><div class="payment-method-name">Flutterwave</div><div class="payment-method-desc">Cards · Bank · M-Pesa · Apple/Google Pay</div></div>
-            <div class="payment-method-check"></div>
-          </label>
-          <label class="payment-method"><input type="radio" name="payment" value="stripe">
-            <div class="payment-logo stripe">stripe</div>
-            <div class="payment-method-info"><div class="payment-method-name">Stripe</div><div class="payment-method-desc">International cards · Apple/Google Pay</div></div>
+            <div class="payment-method-info"><div class="payment-method-name">Card · Bank · M-Pesa · Apple/Google Pay</div><div class="payment-method-desc">Flutterwave &middot; international friendly</div></div>
             <div class="payment-method-check"></div>
           </label>
           <label class="payment-method"><input type="radio" name="payment" value="bank">
             <div class="payment-logo bank"><i class="fa-solid fa-building-columns"></i></div>
-            <div class="payment-method-info"><div class="payment-method-name">Bank Transfer</div><div class="payment-method-desc">Direct transfer · Manual confirmation</div></div>
+            <div class="payment-method-info"><div class="payment-method-name">Bank Transfer</div><div class="payment-method-desc">Manual confirmation &middot; ~24h</div></div>
             <div class="payment-method-check"></div>
           </label>
         </div>
@@ -426,21 +529,37 @@
           <div class="bank-row"><span>Bank</span><span><span id="bankName">—</span><button type="button" class="bank-copy" data-copy="bankName">copy</button></span></div>
           <div class="bank-row"><span>Account Name</span><span><span id="bankAccountName">—</span><button type="button" class="bank-copy" data-copy="bankAccountName">copy</button></span></div>
           <div class="bank-row"><span>Account Number</span><span><span id="bankAccountNumber">—</span><button type="button" class="bank-copy" data-copy="bankAccountNumber">copy</button></span></div>
-          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:12px;line-height:1.55">After transfer, email your proof of payment to <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> using your application reference (issued on submit).</p>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:12px;line-height:1.6">After transfer, email proof of payment to <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> with your application reference (issued on submit).</p>
         </div>
 
         <div class="step-actions" style="flex-direction:column;align-items:stretch">
-          <button type="button" class="btn-pay" id="btnPay"><span>Pay $0</span><i class="fa-solid fa-lock"></i></button>
-          <button type="button" class="btn-step btn-step-back" data-back style="margin-top:12px;align-self:flex-start"><i class="fa-solid fa-arrow-left"></i> Back to review</button>
+          <button type="button" class="btn-pay" id="btnPay"><span id="btnPayLabel">Pay $5</span> <i class="fa-solid fa-lock"></i></button>
+          <p style="text-align:center;font-size:0.78rem;color:var(--text-muted);margin:10px 0 0;line-height:1.55">We already emailed your invoice. You can pay later via the link in that email &mdash; this step never has to happen now.</p>
         </div>
       </div>
+
     </div>
   </section>
 
+  <!-- Step-5 regional-fee + payment-card styles. Scoped to .pay-card / .pay-* so
+       they don't bleed into other pages. -->
+  <style>
+    .pay-card{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;padding:22px;margin:0 0 22px;background:linear-gradient(160deg,rgba(224,138,26,0.10),var(--bg-surface));border:1px solid var(--border-gold);border-radius:18px}
+    @media (max-width:560px){.pay-card{grid-template-columns:1fr;text-align:center}.pay-card-covers{text-align:left}}
+    .pay-card-amount{font-family:var(--font-display);font-size:3.4rem;line-height:1;color:var(--text);letter-spacing:0.02em}
+    .pay-card-meta{font-size:0.84rem;color:var(--text-muted);margin-top:6px;letter-spacing:0.02em}
+    .pay-card-covers{list-style:none;padding:0;margin:0;display:grid;gap:7px;font-size:0.92rem;color:var(--text-soft);line-height:1.5}
+    .pay-card-covers li{display:flex;gap:9px;align-items:flex-start}
+    .pay-card-covers li i{flex:0 0 18px;height:18px;border-radius:50%;background:rgba(52,211,153,0.18);color:#34D399;display:inline-flex;align-items:center;justify-content:center;font-size:0.66rem;margin-top:3px}
+    .pay-card-disclose{grid-column:1/-1;padding-top:14px;border-top:1px dashed var(--border);font-size:0.8rem;color:var(--text-muted);line-height:1.55;display:none}
+    .pay-card-disclose.show{display:block}
+    .pay-card-disclose i{color:var(--gold-bright);margin-right:4px}
+  </style>
+
   <div class="apply-mobilebar" id="applyMobileBar">
     <div class="amb-meta">
-      <span class="amb-label">Total</span>
-      <span class="amb-total" id="ambTotal">$0</span>
+      <span class="amb-label">Booking fee</span>
+      <span class="amb-total" id="ambTotal">$5</span>
       <span class="amb-step" id="ambStep">Step 1 of 5</span>
     </div>
     <button type="button" class="amb-view" id="ambView">View summary</button>
@@ -449,8 +568,11 @@
 
 <div id="include-footer"></div>
 
-<script src="assets/js/config.js"></script>
-<script src="assets/js/main.js"></script>
-<script src="assets/js/apply.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/js/intlTelInputWithUtils.min.js"></script>
+<script src="assets/js/config.js?v=20260530a"></script>
+<script src="assets/js/main.js?v=20260530a"></script>
+<script src="assets/js/validate.js?v=20260530a"></script>
+<script src="assets/js/headshot.js?v=20260530a"></script>
+<script src="assets/js/apply.js?v=20260530a"></script>
 </body>
 </html>

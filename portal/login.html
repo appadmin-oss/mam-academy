@@ -12,8 +12,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/main.css">
-<link rel="stylesheet" href="/assets/css/portal.css">
+<link rel="stylesheet" href="/assets/css/main.css?v=20260529g">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260529g">
 <style>
   /* Login-page additions for show-hide pw, caps-lock warning, remember row, forgot panel */
   .input-pw{position:relative}
@@ -134,7 +134,7 @@
   </section>
 </main>
 
-<script src="/assets/js/config.js"></script>
+<script src="/assets/js/config.js?v=20260529g"></script>
 <script>
 (function () {
   'use strict';
@@ -193,8 +193,9 @@
   }
   function hideError() { err.classList.remove('shown'); err.style.display = ''; }
 
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
+  // Submit logic factored out so JustValidate (when reachable) can call it
+  // on .onSuccess(); the same function backs the no-JS-library fallback.
+  function doLogin() {
     hideError();
     var email = $('#email').value.trim();
     var password = pwField.value;
@@ -204,7 +205,6 @@
       showError('Email and password are required.');
       return;
     }
-    // Remember email for next visit (only the email, never the password)
     try { localStorage.setItem('mam.lastEmail', email); } catch (e) {}
 
     setLoading(true);
@@ -229,7 +229,22 @@
         else                                 msg = 'Could not sign you in. Please try again.';
         showError(msg);
       });
-  });
+  }
+
+  // Hand validation to JustValidate when reachable — gets us aria-live
+  // errors, focus on the first invalid field, and consistent styling.
+  // Falls back to the same submit if the library can't load.
+  if (typeof window.MAM_LOAD_JUSTVALIDATE === 'function') {
+    window.MAM_LOAD_JUSTVALIDATE().then(function (JV) {
+      if (!JV) { form.addEventListener('submit', function (e) { e.preventDefault(); doLogin(); }); return; }
+      var v = new JV(form, { errorFieldCssClass: 'jv-error', errorLabelCssClass: 'jv-error-label', focusInvalidField: true });
+      v.addField('#email',    [{ rule: 'required', errorMessage: 'Email required' }, { rule: 'email' }])
+       .addField('#password', [{ rule: 'required', errorMessage: 'Password required' }, { rule: 'minLength', value: 6 }])
+       .onSuccess(function (e) { e.preventDefault(); doLogin(); });
+    });
+  } else {
+    form.addEventListener('submit', function (e) { e.preventDefault(); doLogin(); });
+  }
 
   // ─── Forgot password flow ───
   var signinPanel = $('#signinPanel');

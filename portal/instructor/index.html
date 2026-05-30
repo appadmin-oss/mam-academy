@@ -11,8 +11,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/main.css">
-<link rel="stylesheet" href="/assets/css/portal.css">
+<link rel="stylesheet" href="/assets/css/main.css?v=20260530a">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260530a">
 </head>
 <body>
 <div class="portal-shell">
@@ -30,6 +30,7 @@
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-chalkboard-user"></i>My Classes</a>
       <a class="portal-nav-link" href="#students" data-tab="students"><i class="fa-solid fa-users"></i>Students</a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
+      <a class="portal-nav-link" href="/studio" target="_blank" rel="noopener" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:18px"><i class="fa-solid fa-wand-magic-sparkles"></i>Practice Studio <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;margin-left:auto;opacity:0.7"></i></a>
     </nav>
     <div class="portal-side-foot">
       <a href="/"><i class="fa-solid fa-house"></i>Back to site</a>
@@ -46,8 +47,9 @@
   </main>
 </div>
 
-<script src="/assets/js/config.js"></script>
-<script src="/assets/js/portal.js"></script>
+<script src="/assets/js/config.js?v=20260530a"></script>
+<script src="/assets/js/portal.js?v=20260530a"></script>
+<script src="/assets/js/libs.js?v=20260530a" async></script>
 <script>
 (function () {
   var P = window.MAM_PORTAL, API = window.MAM_API;
@@ -86,70 +88,145 @@
     var classes = data.classes || [];
     if (!classes.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('chalkboard-user', 'No classes assigned. Ask the admin to assign you.') + '</div></section>'; return; }
     var rows = classes.map(function (c) {
-      return '<tr><td><strong>' + P.escapeHtml(c.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(c.discipline || '') + ' · ' + P.escapeHtml(c.pathway || '') + '</span></td>'
-        + '<td>' + P.escapeHtml(c.mode || '—') + '</td>'
-        + '<td>' + P.escapeHtml(c.schedule || '—') + '</td>'
-        + '<td>' + (c.enrolled_count || 0) + ' / ' + (c.capacity || '—') + '</td>'
-        + '<td><span class="pill ' + P.escapeHtml(c.status) + '">' + P.escapeHtml(c.status) + '</span></td></tr>';
+      return '<tr><td data-label="Class"><strong>' + P.escapeHtml(c.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(c.discipline || '') + ' · ' + P.escapeHtml(c.pathway || '') + '</span></td>'
+        + '<td data-label="Mode">' + P.escapeHtml(c.mode || '—') + '</td>'
+        + '<td data-label="Schedule">' + P.escapeHtml(c.schedule || '—') + '</td>'
+        + '<td data-label="Enrolled">' + (c.enrolled_count || 0) + ' / ' + (c.capacity || '—') + '</td>'
+        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(c.status) + '">' + P.escapeHtml(c.status) + '</span></td></tr>';
     }).join('');
-    content.innerHTML = '<section class="panel"><table class="ptable"><thead><tr><th>Class</th><th>Mode</th><th>Schedule</th><th>Enrolled</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></section>';
+    content.innerHTML = '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Class</th><th>Mode</th><th>Schedule</th><th>Enrolled</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
   }
 
   function renderStudents() {
     var s = data.students || [];
     if (!s.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('users', 'No students enrolled in your classes.') + '</div></section>'; return; }
     var rows = s.map(function (st) {
-      return '<tr><td><strong>' + P.escapeHtml(st.name || '—') + '</strong></td>'
-        + '<td><a href="mailto:' + P.escapeHtml(st.email) + '" style="color:var(--gold-bright)">' + P.escapeHtml(st.email) + '</a></td>'
-        + '<td>' + P.escapeHtml(st.phone || '—') + '</td>'
-        + '<td>' + P.escapeHtml(st.class_title || '—') + '</td></tr>';
+      return '<tr><td data-label="Student"><strong>' + P.escapeHtml(st.name || '—') + '</strong></td>'
+        + '<td data-label="Email"><a href="mailto:' + P.escapeHtml(st.email) + '" style="color:var(--gold-bright)">' + P.escapeHtml(st.email) + '</a></td>'
+        + '<td data-label="Phone">' + P.escapeHtml(st.phone || '—') + '</td>'
+        + '<td data-label="Class">' + P.escapeHtml(st.class_title || '—') + '</td></tr>';
     }).join('');
-    content.innerHTML = '<section class="panel"><table class="ptable"><thead><tr><th>Student</th><th>Email</th><th>Phone</th><th>Class</th></tr></thead><tbody>' + rows + '</tbody></table></section>';
+    content.innerHTML = '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Student</th><th>Email</th><th>Phone</th><th>Class</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
   }
 
   function renderAttendance() {
     var students = data.students || [], att = data.recent_attendance || [];
-    // Form to mark new attendance
-    var classGroups = {};
-    students.forEach(function (st) { classGroups[st.class_id] = classGroups[st.class_id] || { title: st.class_title, items: [] }; classGroups[st.class_id].items.push(st); });
-
+    // Group students by class so the student picker filters when a class is
+    // selected. Each student row carries its enrollment_id (from dashboard.php),
+    // so a single click sets both the visible student + the form field the
+    // backend actually uses.
+    var byClass = {};
+    students.forEach(function (st) { (byClass[st.class_id] = byClass[st.class_id] || []).push(st); });
     var classes = (data.classes || []).filter(function (c) { return c.status === 'active'; });
     var classOpts = classes.map(function (c) { return '<option value="' + c.id + '">' + P.escapeHtml(c.title) + '</option>'; }).join('');
 
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Mark attendance</h2></div>'
-      + '<form id="attForm" class="profile-form">'
-      + '<div class="field"><label>Class</label><select id="att-class" required>' + classOpts + '</select></div>'
-      + '<div class="field"><label>Date</label><input id="att-date" type="date" value="' + new Date().toISOString().slice(0,10) + '" required></div>'
-      + '<div class="field full"><label>Enrollment ID</label><input id="att-enrollment" type="number" required placeholder="Select student below first"></div>'
-      + '<div class="field"><label>Status</label><select id="att-status" required><option value="present">Present</option><option value="late">Late</option><option value="absent">Absent</option><option value="excused">Excused</option></select></div>'
-      + '<div class="field"><label>Notes</label><input id="att-notes" placeholder="Optional"></div>'
-      + '<div class="actions"><button type="submit" class="btn btn-primary">Save attendance</button></div>'
+      + '<form id="attForm" class="profile-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">'
+      + '<div class="field"><label for="att-class">Class</label><select id="att-class" required>' + classOpts + '</select></div>'
+      + '<div class="field"><label for="att-date">Date</label><input id="att-date" type="date" value="' + new Date().toISOString().slice(0,10) + '" required></div>'
+      + '<div class="field"><label for="att-status">Status</label><select id="att-status" required><option value="present">Present</option><option value="late">Late</option><option value="absent">Absent</option><option value="excused">Excused</option></select></div>'
+      + '<div class="field" style="grid-column:1/-1"><label for="att-notes">Notes</label><input id="att-notes" placeholder="Optional"></div>'
+      + '<div class="field" style="grid-column:1/-1"><label>Student in class <small style="color:var(--text-muted);font-weight:400">— click a row to select, or use the bulk buttons below</small></label>'
+      +   '<div id="att-students" style="display:grid;gap:8px;max-height:300px;overflow:auto;padding:10px;background:var(--bg-raised);border:1px solid var(--border);border-radius:10px"></div>'
+      + '</div>'
+      // Bulk-mark row. One tap → POSTs to /api/instructor/mark-attendance
+      // with { class_id, default_status, session_date } so the entire
+      // enrolled class gets a row for that date in one call.
+      + '<div class="field" style="grid-column:1/-1;padding:14px 16px;background:rgba(252,198,71,0.06);border:1px dashed var(--border-gold);border-radius:10px">'
+      +   '<label style="color:var(--gold-bright);font-size:0.82rem;letter-spacing:0.06em;text-transform:uppercase;font-weight:800;margin-bottom:8px;display:block"><i class="fa-solid fa-bolt"></i> Bulk-mark whole class</label>'
+      +   '<div style="display:flex;flex-wrap:wrap;gap:8px">'
+      +     '<button type="button" class="btn" data-bulk="present" style="background:rgba(52,211,153,0.18);color:#A7F3D0;border:1px solid rgba(52,211,153,0.4)"><i class="fa-solid fa-check"></i> All present</button>'
+      +     '<button type="button" class="btn" data-bulk="late" style="background:rgba(252,198,71,0.18);color:#FDE68A;border:1px solid rgba(252,198,71,0.4)"><i class="fa-solid fa-clock"></i> All late</button>'
+      +     '<button type="button" class="btn" data-bulk="absent" style="background:rgba(244,63,94,0.14);color:#FCA5A5;border:1px solid rgba(244,63,94,0.4)"><i class="fa-solid fa-xmark"></i> All absent</button>'
+      +     '<button type="button" class="btn" data-bulk="excused" style="background:rgba(165,180,252,0.14);color:#C7D2FE;border:1px solid rgba(165,180,252,0.4)"><i class="fa-solid fa-circle-info"></i> All excused</button>'
+      +   '</div>'
+      +   '<p style="margin:8px 4px 0;color:var(--text-muted);font-size:0.78rem;line-height:1.5">Uses the selected class &amp; date. Re-running on the same date safely updates existing rows.</p>'
+      + '</div>'
+      + '<input type="hidden" id="att-enrollment" name="enrollment_id" required>'
+      + '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary" id="att-submit" disabled><i class="fa-solid fa-check"></i> Save attendance</button>'
+      +   '<span id="att-selected-label" style="margin-left:14px;color:var(--text-muted);font-size:0.88rem">No student selected</span></div>'
       + '</form></section>'
       + '<section class="panel"><div class="panel-head"><h2>Recent attendance</h2></div>'
       + (att.length ? attendanceTable(att) : '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded yet.') + '</div>') + '</section>';
 
+    function paintStudents() {
+      var cls = document.getElementById('att-class').value;
+      var box = document.getElementById('att-students');
+      var list = byClass[cls] || [];
+      if (!list.length) { box.innerHTML = '<p style="margin:6px 4px;color:var(--text-muted);font-size:0.88rem">No students enrolled in this class yet.</p>'; return; }
+      box.innerHTML = list.map(function (st) {
+        return '<button type="button" class="att-student-row" data-eid="' + st.enrollment_id + '" data-name="' + P.escapeHtml(st.name || '—') + '" '
+          + 'style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;text-align:left;cursor:pointer;min-height:48px;color:var(--text);font-size:0.92rem">'
+          + '<i class="fa-solid fa-user-graduate" style="color:var(--gold-bright)" aria-hidden="true"></i>'
+          + '<span style="flex:1"><strong>' + P.escapeHtml(st.name || '—') + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(st.email || '') + '</span></span>'
+          + '<span style="color:var(--text-muted);font-size:0.76rem;font-family:monospace">#' + st.enrollment_id + '</span>'
+          + '</button>';
+      }).join('');
+      box.querySelectorAll('.att-student-row').forEach(function (b) {
+        b.addEventListener('click', function () {
+          box.querySelectorAll('.att-student-row').forEach(function (x) { x.style.borderColor = 'var(--border)'; x.style.background = 'var(--bg-surface)'; });
+          b.style.borderColor = 'var(--gold-bright)';
+          b.style.background = 'rgba(252,198,71,0.10)';
+          document.getElementById('att-enrollment').value = b.getAttribute('data-eid');
+          document.getElementById('att-selected-label').textContent = 'Selected: ' + b.getAttribute('data-name') + ' (enrolment #' + b.getAttribute('data-eid') + ')';
+          document.getElementById('att-submit').disabled = false;
+        });
+      });
+    }
+    document.getElementById('att-class').addEventListener('change', paintStudents);
+    paintStudents();
+
+    // Bulk-mark whole class. One click → POST { class_id, default_status, date }.
+    document.querySelectorAll('[data-bulk]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var classId = parseInt(document.getElementById('att-class').value, 10);
+        var date = document.getElementById('att-date').value;
+        var defaultStatus = b.getAttribute('data-bulk');
+        var className = document.getElementById('att-class').options[document.getElementById('att-class').selectedIndex].text;
+        if (!classId || !date) {
+          (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Pick a class and date first', 'error') : alert('Pick a class and date first'));
+          return;
+        }
+        var confirmed = confirm('Mark EVERY active student in "' + className + '" as ' + defaultStatus.toUpperCase() + ' for ' + date + '? You can edit individual students after.');
+        if (!confirmed) return;
+        var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving…';
+        API.request('instructor/mark-attendance', { method: 'POST', body: { class_id: classId, session_date: date, default_status: defaultStatus, notes: document.getElementById('att-notes').value } })
+          .then(function (res) {
+            b.disabled = false; b.innerHTML = orig;
+            var msg = (res.count || 0) + ' student' + ((res.count || 0) === 1 ? '' : 's') + ' marked ' + defaultStatus + '.';
+            (window.MAM_DIALOG ? window.MAM_DIALOG.toast(msg, 'success') : alert(msg));
+            load();
+          })
+          .catch(function (err) { b.disabled = false; b.innerHTML = orig; var msg = 'Could not save: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not save', msg, 'error') : alert(msg)); });
+      });
+    });
+
     document.getElementById('attForm').addEventListener('submit', function (e) {
       e.preventDefault();
+      var eid = parseInt(document.getElementById('att-enrollment').value, 10);
+      if (!eid) { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Please pick a student first', 'error') : alert('Please pick a student first')); return; }
       var payload = {
-        enrollment_id: parseInt(document.getElementById('att-enrollment').value, 10),
+        enrollment_id: eid,
         session_date: document.getElementById('att-date').value,
         status: document.getElementById('att-status').value,
         notes: document.getElementById('att-notes').value,
       };
+      var btn = document.getElementById('att-submit'); var orig = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving…';
       API.request('instructor/mark-attendance', { method: 'POST', body: payload })
-        .then(function () { alert('Attendance saved.'); load(); })
-        .catch(function (err) { alert('Could not save: ' + (err.body && err.body.error || 'unknown')); });
+        .then(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Attendance saved', 'success') : alert('Attendance saved.')); load(); })
+        .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var msg = 'Could not save: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not save', msg, 'error') : alert(msg)); });
     });
   }
   function attendanceTable(att) {
     var rows = att.map(function (a) {
-      return '<tr><td>' + P.fmtDate(a.session_date) + '</td>'
-        + '<td><strong>' + P.escapeHtml(a.student_name || '—') + '</strong></td>'
-        + '<td>' + P.escapeHtml(a.class_title || '—') + '</td>'
-        + '<td><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
-        + '<td style="color:var(--text-muted);font-size:0.82rem">' + P.escapeHtml(a.notes || '') + '</td></tr>';
+      return '<tr><td data-label="Date">' + P.fmtDate(a.session_date) + '</td>'
+        + '<td data-label="Student"><strong>' + P.escapeHtml(a.student_name || '—') + '</strong></td>'
+        + '<td data-label="Class">' + P.escapeHtml(a.class_title || '—') + '</td>'
+        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
+        + '<td data-label="Notes" style="color:var(--text-muted);font-size:0.82rem">' + P.escapeHtml(a.notes || '') + '</td></tr>';
     }).join('');
-    return '<table class="ptable"><thead><tr><th>Date</th><th>Student</th><th>Class</th><th>Status</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    return '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Student</th><th>Class</th><th>Status</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 
   function kpi(label, value, sub, cls) {

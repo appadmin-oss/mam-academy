@@ -1,24 +1,41 @@
-# /api/.htaccess
-# Routes /api/<anything> through /api/index.php, which then dispatches.
+# =============================================================
+# /api/.htaccess — MAM Academy API
+# =============================================================
+
 DirectoryIndex index.php
+Options -Indexes -MultiViews
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /api/
 
-  # Don't rewrite if the request is for an actual existing file (e.g. verify-payment.php legacy)
+  # CRITICAL: forward the Authorization header to PHP. cPanel / LiteSpeed
+  # / many shared FastCGI setups strip `Authorization` before PHP sees
+  # it, which empties $_SERVER['PHP_AUTH_USER'] / $_SERVER['PHP_AUTH_PW']
+  # even when the browser is sending valid Basic-Auth credentials. The
+  # admin login then re-prompts forever. This rule re-injects it as
+  # HTTP_AUTHORIZATION so auth.php can decode it.
+  RewriteCond %{HTTP:Authorization} ^(.+)$
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
+  # If the request hits an actual file, serve it directly.
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
-  # Health is reachable at /api/health → routes to index.php?route=health
-  RewriteRule ^(.+)$ index.php?route=$1 [QSA,L]
+  # Empty path → health probe.
   RewriteRule ^$ index.php?route=health [L]
+
+  # Everything else → router.
+  RewriteRule ^(.+)$ index.php?route=$1 [QSA,L]
 </IfModule>
 
-# Hide library and storage directories from direct browsing
-<FilesMatch "\.(env|sqlite|sqlite3|db|log|bak)$">
+# Some hosts ignore the rewrite-based forwarding above; SetEnvIf is the
+# belt-and-braces alternative. One of the two will land.
+<IfModule mod_setenvif.c>
+  SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
+<FilesMatch "\.(env|sqlite|sqlite3|db|log|bak|ini|json|md|sh|sql)$">
   Require all denied
 </FilesMatch>
-
-# Make sure PHP is parsed
-AddHandler application/x-httpd-php .php
+RedirectMatch 403 ^/api/(lib|routes)/.*$

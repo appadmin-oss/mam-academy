@@ -11,8 +11,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/main.css">
-<link rel="stylesheet" href="/assets/css/portal.css">
+<link rel="stylesheet" href="/assets/css/main.css?v=20260530a">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260530a">
 </head>
 <body>
 <div class="portal-shell">
@@ -30,8 +30,10 @@
       <a class="portal-nav-link" href="#applications" data-tab="applications"><i class="fa-solid fa-file-pen"></i>My Applications</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
       <a class="portal-nav-link" href="#payments" data-tab="payments"><i class="fa-solid fa-credit-card"></i>Payments</a>
+      <a class="portal-nav-link" href="#orders" data-tab="orders"><i class="fa-solid fa-bag-shopping"></i>Store Orders</a>
       <a class="portal-nav-link" href="#auditer" data-tab="auditer"><i class="fa-solid fa-clipboard-check"></i>MAM Auditer</a>
       <a class="portal-nav-link" href="#profile" data-tab="profile"><i class="fa-solid fa-user"></i>Profile</a>
+      <a class="portal-nav-link" href="/studio" target="_blank" rel="noopener" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:18px"><i class="fa-solid fa-wand-magic-sparkles"></i>Practice Studio <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;margin-left:auto;opacity:0.7"></i></a>
     </nav>
     <div class="portal-side-foot">
       <a href="/"><i class="fa-solid fa-house"></i>Back to site</a>
@@ -56,15 +58,16 @@
   </main>
 </div>
 
-<script src="/assets/js/config.js"></script>
-<script src="/assets/js/portal.js"></script>
+<script src="/assets/js/config.js?v=20260530a"></script>
+<script src="/assets/js/portal.js?v=20260530a"></script>
+<script src="/assets/js/libs.js?v=20260530a" async></script>
 <script>
 (function () {
   var P = window.MAM_PORTAL, API = window.MAM_API;
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], payments: ['Payments', 'Your billing history'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
   var data = null;
 
   function show(tab) {
@@ -77,6 +80,7 @@
     if (tab === 'applications') return renderApplications();
     if (tab === 'classes') return renderClasses();
     if (tab === 'payments') return renderPayments();
+    if (tab === 'orders') return renderOrders();
     if (tab === 'auditer') return renderAuditer();
     if (tab === 'profile') return renderProfile();
   }
@@ -103,14 +107,14 @@
     var apps = data.applications || [];
     if (!apps.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('file-pen', 'No applications yet.') + '</div></section>'; return; }
     var rows = apps.map(function (a) {
-      return '<tr><td class="mono">' + P.escapeHtml(a.reference) + '</td>'
-        + '<td>' + P.escapeHtml(a.pathway) + ' · ' + P.escapeHtml(a.mode || '—') + '</td>'
-        + '<td>' + P.escapeHtml(a.discipline || '—') + '</td>'
-        + '<td>' + P.fmtMoney(a.total_usd, 'USD') + '</td>'
-        + '<td><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
-        + '<td>' + P.fmtDateTime(a.created_at) + '</td></tr>';
+      return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(a.reference) + '</td>'
+        + '<td data-label="Pathway · Mode">' + P.escapeHtml(a.pathway) + ' · ' + P.escapeHtml(a.mode || '—') + '</td>'
+        + '<td data-label="Discipline">' + P.escapeHtml(a.discipline || '—') + '</td>'
+        + '<td data-label="Total">' + P.fmtMoney(a.total_usd, 'USD') + '</td>'
+        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
+        + '<td data-label="Submitted">' + P.fmtDateTime(a.created_at) + '</td></tr>';
     }).join('');
-    content.innerHTML = '<section class="panel"><table class="ptable"><thead><tr><th>Reference</th><th>Pathway · Mode</th><th>Discipline</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead><tbody>' + rows + '</tbody></table></section>';
+    content.innerHTML = '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Pathway · Mode</th><th>Discipline</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
   }
 
   function renderClasses() {
@@ -120,27 +124,125 @@
   }
   function renderClassTable(enr) {
     var rows = enr.map(function (e) {
-      return '<tr><td><strong>' + P.escapeHtml(e.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(e.discipline || '') + ' · ' + P.escapeHtml(e.pathway || '') + '</span></td>'
-        + '<td>' + P.escapeHtml(e.instructor_name || 'TBA') + '</td>'
-        + '<td>' + P.escapeHtml(e.schedule || '—') + '</td>'
-        + '<td>' + P.escapeHtml(e.mode || '—') + '</td>'
-        + '<td><span class="pill ' + P.escapeHtml(e.enrollment_status) + '">' + P.escapeHtml(e.enrollment_status) + '</span></td></tr>';
+      return '<tr><td data-label="Class"><strong>' + P.escapeHtml(e.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(e.discipline || '') + ' · ' + P.escapeHtml(e.pathway || '') + '</span></td>'
+        + '<td data-label="Instructor">' + P.escapeHtml(e.instructor_name || 'TBA') + '</td>'
+        + '<td data-label="Schedule">' + P.escapeHtml(e.schedule || '—') + '</td>'
+        + '<td data-label="Mode">' + P.escapeHtml(e.mode || '—') + '</td>'
+        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(e.enrollment_status) + '">' + P.escapeHtml(e.enrollment_status) + '</span></td></tr>';
     }).join('');
-    return '<table class="ptable"><thead><tr><th>Class</th><th>Instructor</th><th>Schedule</th><th>Mode</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    return '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Class</th><th>Instructor</th><th>Schedule</th><th>Mode</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 
   function renderPayments() {
     var pays = data.payments || [];
-    if (!pays.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('credit-card', 'No payments on file.') + '</div></section>'; return; }
-    var rows = pays.map(function (p) {
-      return '<tr><td class="mono">' + P.escapeHtml(p.reference) + '</td>'
-        + '<td>' + P.escapeHtml(p.provider) + '</td>'
-        + '<td>' + P.fmtMoney(p.amount, p.currency) + '</td>'
-        + '<td><span class="pill ' + P.escapeHtml(p.status) + '">' + P.escapeHtml(p.status) + '</span></td>'
-        + '<td>' + (p.verified_at ? P.fmtDateTime(p.verified_at) : '—') + '</td>'
-        + '<td>' + P.fmtDateTime(p.created_at) + '</td></tr>';
+    // Build a "Pay Tuition" tile at the top — surfaces any unpaid application
+    // tuition so the student can settle it from inside the portal. The actual
+    // charge runs through /api/payment/initialize with purpose='tuition'
+    // (server-authoritative amount from applications.total_usd).
+    var apps = data.applications || [];
+    var outstanding = apps.filter(function (a) { return a.status !== 'paid' && parseFloat(a.total_usd || 0) > 0; });
+    var tile = '';
+    if (outstanding.length) {
+      tile = '<section class="panel" style="border-color:var(--border-gold);background:linear-gradient(160deg,rgba(224,138,26,0.10),var(--bg-surface))">'
+        + '<div class="panel-head"><h2><i class="fa-solid fa-coins" style="color:var(--gold-bright);margin-right:8px"></i>Pay Tuition</h2></div>'
+        + '<div class="panel-body" style="display:grid;gap:12px">'
+        + outstanding.map(function (a) {
+            return '<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:var(--bg-raised);border:1px solid var(--border);border-radius:10px">'
+              + '<div><div style="font-weight:700;color:var(--text)">' + P.escapeHtml(a.pathway || 'Tuition') + ' &middot; ' + P.escapeHtml(a.mode || '') + '</div>'
+              + '<div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px">Ref ' + P.escapeHtml(a.reference) + '</div></div>'
+              + '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
+              + '<div style="font-family:var(--font-display);font-size:1.6rem;color:var(--gold-bright);letter-spacing:0.02em">$' + parseFloat(a.total_usd).toFixed(2) + '</div>'
+              + '<button type="button" class="btn btn-primary" data-action="pay-tuition" data-ref="' + P.escapeHtml(a.reference) + '"><i class="fa-solid fa-lock"></i> Pay now</button>'
+              + '</div></div>';
+          }).join('')
+        + '<p style="font-size:0.82rem;color:var(--text-muted);margin:6px 4px 0;line-height:1.55"><i class="fa-solid fa-shield-halved" style="color:var(--gold-bright);margin-right:4px"></i> Tuition is final once paid. A formal receipt is emailed within minutes; refunds follow the published class policy.</p>'
+        + '</div></section>';
+    }
+    var history = '';
+    if (pays.length) {
+      var rows = pays.map(function (p) {
+        return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(p.reference) + '</td>'
+          + '<td data-label="Purpose">' + P.escapeHtml(p.purpose || 'tuition') + '</td>'
+          + '<td data-label="Provider">' + P.escapeHtml(p.provider) + '</td>'
+          + '<td data-label="Amount">' + P.fmtMoney(p.amount, p.currency) + '</td>'
+          + '<td data-label="Status"><span class="pill ' + P.escapeHtml(p.status) + '">' + P.escapeHtml(p.status) + '</span></td>'
+          + '<td data-label="Verified">' + (p.verified_at ? P.fmtDateTime(p.verified_at) : '—') + '</td>'
+          + '<td data-label="Created">' + P.fmtDateTime(p.created_at) + '</td></tr>';
+      }).join('');
+      history = '<section class="panel"><div class="panel-head"><h2>Payment History</h2></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Verified</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    } else {
+      history = '<section class="panel"><div class="panel-body">' + empty('credit-card', 'No payments on file yet.') + '</div></section>';
+    }
+    content.innerHTML = tile + history;
+    // Wire the "Pay now" buttons. Opens Paystack inline against the tuition
+    // payment-init path. Verification fires on callback; on success we reload
+    // the dashboard data so the row flips to paid + the receipt appears.
+    content.querySelectorAll('[data-action="pay-tuition"]').forEach(function (b) {
+      b.addEventListener('click', function () { payTuition(b.getAttribute('data-ref'), b); });
+    });
+  }
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      if (document.querySelector('script[src="' + src + '"]')) return resolve();
+      var s = document.createElement('script'); s.src = src; s.async = true;
+      s.onload = resolve; s.onerror = function () { reject(new Error('script')); };
+      document.head.appendChild(s);
+    });
+  }
+  function payTuition(ref, btn) {
+    var orig = btn.innerHTML; btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-sm" style="display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></span> Opening…';
+    window.MAM_API.initializePayment({ reference: ref, provider: 'paystack', purpose: 'tuition' })
+      .then(function (init) {
+        if (init.already_paid) { btn.innerHTML = '✓ Paid'; return; }
+        return loadScript('https://js.paystack.co/v1/inline.js').then(function () {
+          btn.innerHTML = orig; btn.disabled = false;
+          var handler = window.PaystackPop.setup({
+            key: init.public_key,
+            email: (data.user && data.user.email) || '',
+            amount: init.amount_ngn * 100,
+            currency: 'NGN',
+            ref: init.reference,
+            metadata: { reference: init.reference, purpose: 'tuition' },
+            callback: function (response) {
+              btn.disabled = true; btn.innerHTML = 'Verifying…';
+              window.MAM_API.verifyPayment({ provider: 'paystack', reference: response.reference || init.reference })
+                .then(function () { btn.innerHTML = '✓ Paid'; setTimeout(function () { location.reload(); }, 900); })
+                .catch(function () { btn.disabled = false; btn.innerHTML = orig; alert('Payment received but verification is still pending. Refresh in a minute.'); });
+            },
+            onClose: function () { btn.disabled = false; btn.innerHTML = orig; }
+          });
+          handler.openIframe();
+        });
+      })
+      .catch(function () { btn.disabled = false; btn.innerHTML = orig; alert('Could not start payment. Please try again or email connect@mamcentre.org.'); });
+  }
+
+  function renderOrders() {
+    var orders = data.store_orders || [];
+    if (!orders.length) {
+      content.innerHTML = '<section class="panel"><div class="panel-body">'
+        + empty('bag-shopping', 'No store orders yet. <a href="/store" style="color:var(--gold-bright)">Browse the library →</a>')
+        + '</div></section>';
+      return;
+    }
+    var rows = orders.map(function (o) {
+      var items = []; try { items = JSON.parse(o.items_json || '[]'); } catch (e) {}
+      var summary = items.map(function (i) { return P.escapeHtml(i.name) + ' × ' + i.qty; }).join(', ');
+      var statusPill = '<span class="pill ' + P.escapeHtml(o.status) + '">' + P.escapeHtml(o.status) + '</span>';
+      return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(o.reference) + '</td>'
+        + '<td data-label="Items" style="max-width:340px"><span style="color:var(--text-soft);font-size:0.88rem">' + summary + '</span></td>'
+        + '<td data-label="Total">$' + parseFloat(o.total_usd).toFixed(2) + '</td>'
+        + '<td data-label="Status">' + statusPill + '</td>'
+        + '<td data-label="Delivered">' + (o.delivered_at ? P.fmtDateTime(o.delivered_at) : '<span style="color:var(--text-muted)">—</span>') + '</td>'
+        + '<td data-label="Placed">' + P.fmtDateTime(o.created_at) + '</td></tr>';
     }).join('');
-    content.innerHTML = '<section class="panel"><table class="ptable"><thead><tr><th>Reference</th><th>Provider</th><th>Amount</th><th>Status</th><th>Verified</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table></section>';
+    content.innerHTML = '<section class="panel">'
+      + '<div class="panel-head"><h2>Your store orders</h2><a class="panel-action" href="/store">Browse the library →</a></div>'
+      + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Items</th><th>Total</th><th>Status</th><th>Delivered</th><th>Placed</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+      + '</section>'
+      + '<p style="margin:16px 4px 0;font-size:0.84rem;color:var(--text-muted);line-height:1.6"><i class="fa-solid fa-circle-info" style="color:var(--gold-bright);margin-right:4px"></i> Digital downloads are emailed to <strong style="color:var(--text)">' + P.escapeHtml((data.customer && data.customer.email) || data.user.email) + '</strong> when payment clears. Re-send a link by emailing <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> with the order reference.</p>';
   }
 
   function renderAuditer() {
@@ -174,16 +276,16 @@
       var name = document.getElementById('pf-name').value.trim();
       var phone = document.getElementById('pf-phone').value.trim();
       API.request('student/update-profile', { method: 'POST', body: { name: name, phone: phone } })
-        .then(function () { alert('Profile updated.'); load(); })
-        .catch(function () { alert('Could not update profile.'); });
+        .then(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Profile updated.', 'success') : alert('Profile updated.')); load(); })
+        .catch(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not update profile', 'Please try again in a moment.', 'error') : alert('Could not update profile.')); });
     });
     document.getElementById('pwForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var current = document.getElementById('pw-current').value;
       var next = document.getElementById('pw-next').value;
       API.request('auth/change-password', { method: 'POST', body: { current: current, next: next } })
-        .then(function () { alert('Password changed. Please sign in again next time.'); load(); })
-        .catch(function (err) { alert('Could not change password: ' + (err.body && err.body.error || 'unknown')); });
+        .then(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Password changed', 'success') : alert('Password changed.')); load(); })
+        .catch(function (err) { var msg = 'Could not change password: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Password change failed', msg, 'error') : alert(msg)); });
     });
   }
 

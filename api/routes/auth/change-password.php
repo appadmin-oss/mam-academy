@@ -15,5 +15,9 @@ mam_db_update('users', [
     'must_change_password' => 0,
     'updated_at' => date('Y-m-d H:i:s'),
 ], ['id' => (int)$u['id']]);
+if (!empty($u['email'])) {
+    mam_send($u['email'], 'Your MAM Academy password was changed',
+        mam_email_password_changed((string)($u['name'] ?? ''), 'self'), 'password_changed', true);
+}
 mam_audit('change_password', 'user', (int)$u['id']);
 mam_ok(['changed' => true]);

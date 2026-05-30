@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>MAM Academy — API Diagnostics</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,Segoe UI,Inter,sans-serif;background:#0e0a06;color:#e8d9c4;line-height:1.55;padding:32px 22px;min-height:100vh}
+  .wrap{max-width:880px;margin:0 auto}
+  h1{font-size:1.6rem;color:#FCC647;margin-bottom:6px}
+  .lede{color:rgba(232,217,196,0.7);margin-bottom:24px;font-size:0.96rem}
+  .row{padding:14px 16px;margin-bottom:10px;background:#1A120B;border:1px solid #3A2A1A;border-radius:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .row .name{font-weight:700;color:#fff;min-width:200px;flex:0 0 auto}
+  .row .val{font-family:ui-monospace,SF Mono,Menlo,monospace;font-size:0.86rem;color:rgba(232,217,196,0.85);word-break:break-all;flex:1 1 auto}
+  .row.ok{border-color:#34D399}
+  .row.ok .name{color:#A7F3D0}
+  .row.warn{border-color:#FBBF24}
+  .row.warn .name{color:#FCD34D}
+  .row.fail{border-color:#F4423B}
+  .row.fail .name{color:#FCA5A5}
+  .row .pill{display:inline-flex;align-items:center;padding:3px 9px;border-radius:100px;background:#251A10;border:1px solid #5a4327;color:#FCC647;font-size:0.74rem;font-weight:700;letter-spacing:0.05em;text-transform:uppercase}
+  .pre{background:#0a0703;border:1px solid #3A2A1A;border-radius:10px;padding:14px;margin-top:18px;font-family:ui-monospace,SF Mono,Menlo,monospace;font-size:0.78rem;line-height:1.55;color:#cbb38f;white-space:pre-wrap;word-break:break-all;max-height:520px;overflow:auto}
+  button{padding:11px 18px;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B;border:0;border-radius:10px;font-weight:800;cursor:pointer;font-size:0.92rem;min-height:42px;margin:6px 6px 0 0}
+  .section{margin-top:28px}
+  .section h2{font-size:1.1rem;color:#FCC647;margin-bottom:10px}
+  .hint{margin-top:8px;font-size:0.84rem;color:rgba(232,217,196,0.55)}
+  code{background:#251A10;padding:2px 6px;border-radius:4px;color:#FCC647;font-size:0.86em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>API Diagnostics</h1>
+  <p class="lede">Fires each layer of the stack so you can see <em>exactly</em> where /api breaks. No special access needed.</p>
+
+  <div class="section">
+    <h2>Probes</h2>
+    <div id="probes">
+      <div class="row"><span class="name">Loading…</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Raw /api/diag response</h2>
+    <button id="rerun" type="button">Re-run all probes</button>
+    <button id="opendiag" type="button">Open /api/diag in a new tab</button>
+    <pre class="pre" id="diagOut">Click "Re-run all probes" to populate.</pre>
+    <p class="hint">If "Raw response" shows PHP source instead of JSON, your Apache PHP handler isn't active for the /api/ directory. The updated <code>api/.htaccess</code> tries every common handler name — re-upload it and refresh.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var probesEl = document.getElementById('probes');
+  var diagOut  = document.getElementById('diagOut');
+
+  function row(name, status, val) {
+    var d = document.createElement('div');
+    d.className = 'row ' + status;
+    d.innerHTML = '<span class="name">' + name + '</span>'
+      + '<span class="pill">' + status.toUpperCase() + '</span>'
+      + '<span class="val">' + (val == null ? '' : String(val).replace(/[<>&]/g, function (c) { return ({ '<':'&lt;','>':'&gt;','&':'&amp;' })[c]; })) + '</span>';
+    probesEl.appendChild(d);
+  }
+
+  function fetchText(url) {
+    return fetch(url, { credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.text().then(function (t) { return { status: r.status, ok: r.ok, body: t, headers: r.headers, type: r.headers.get('content-type') || '' }; }); });
+  }
+  function looksLikePhp(s) {
+    return /<\?php|<\?=/.test(s) || /^\s*<\?/.test(s);
+  }
+  function looksLikeJson(s) {
+    if (!s) return false;
+    s = s.trim();
+    return (s[0] === '{' || s[0] === '[') && (s[s.length - 1] === '}' || s[s.length - 1] === ']');
+  }
+
+  function run() {
+    probesEl.innerHTML = '';
+    diagOut.textContent = 'Running…';
+
+    var checks = [
+      { url: '/api/health',  name: '/api/health (router + bootstrap)' },
+      { url: '/api/csrf',    name: '/api/csrf (CSRF + DB connect)' },
+      { url: '/api/diag',    name: '/api/diag (full schema introspection)' },
+      { url: '/api/booking/pricing', name: '/api/booking/pricing (env load)' },
+    ];
+
+    var diagText = null;
+
+    checks.reduce(function (p, c) {
+      return p.then(function () {
+        return fetchText(c.url).then(function (r) {
+          if (c.url === '/api/diag') diagText = r;
+          var status;
+          if (r.status === 0) status = 'fail';
+          else if (looksLikePhp(r.body))         status = 'fail';
+          else if (!looksLikeJson(r.body))       status = (r.status >= 200 && r.status < 300) ? 'warn' : 'fail';
+          else if (r.status >= 200 && r.status < 300) status = 'ok';
+          else status = 'warn';
+
+          var detail = 'HTTP ' + r.status + ' · ' + (r.type || 'no content-type');
+          if (looksLikePhp(r.body))    detail += ' · ⚠ PHP SOURCE LEAKED — handler not active';
+          else if (!looksLikeJson(r.body)) detail += ' · body is not JSON (first 100b: ' + r.body.slice(0, 100) + ')';
+          else {
+            // Surface the actual JSON error code + message — that's the
+            // smoking gun for any 4xx/5xx. Otherwise just note the size.
+            try {
+              var j = JSON.parse(r.body);
+              if (j.error)        detail += ' · error=' + j.error + (j.message ? ' (' + j.message + ')' : '');
+              else if (j.ok)      detail += ' · ' + r.body.length + 'b JSON';
+              else                detail += ' · ' + r.body.length + 'b JSON';
+            } catch (e) { detail += ' · ' + r.body.length + 'b JSON'; }
+          }
+          row(c.name, status, detail);
+        }).catch(function (e) {
+          row(c.name, 'fail', 'fetch failed: ' + e.message);
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      // Pretty-print the diag response.
+      if (!diagText) { diagOut.textContent = 'No /api/diag response.'; return; }
+      if (looksLikePhp(diagText.body)) {
+        diagOut.textContent = '⚠ PHP source returned instead of JSON. Apache is NOT parsing /api/*.php on this host.\n\n--- first 800 chars of the response ---\n\n' + diagText.body.slice(0, 800);
+        return;
+      }
+      try {
+        var j = JSON.parse(diagText.body);
+        diagOut.textContent = JSON.stringify(j, null, 2);
+      } catch (e) {
+        diagOut.textContent = 'Could not parse /api/diag as JSON.\n\n--- raw body (first 1200 chars) ---\n\n' + diagText.body.slice(0, 1200);
+      }
+    });
+  }
+
+  document.getElementById('rerun').addEventListener('click', run);
+  document.getElementById('opendiag').addEventListener('click', function () { window.open('/api/diag', '_blank'); });
+  run();
+})();
+</script>
+</body>
+</html>

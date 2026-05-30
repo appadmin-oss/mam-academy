@@ -16,7 +16,11 @@ $features = [
     'stripe' => mam_env('STRIPE_SECRET_KEY') ? true : false,
     'smtp' => mam_env('MAIL_HOST') ? true : false,
     'admin' => (mam_env('ADMIN_USER') && mam_env('ADMIN_PASSWORD_HASH')) ? true : false,
-    'csrf' => strlen((string)mam_env('APP_KEY', '')) >= 32,
+    // CSRF is functional whenever a signing key resolves — either APP_KEY from
+    // .env, or the persistent auto-generated fallback. app_key_source tells the
+    // operator which one is live so an unset APP_KEY is still visible.
+    'csrf' => strlen(mam_app_key()) >= 32,
+    'app_key_source' => strlen(trim((string)mam_env('APP_KEY', ''))) >= 32 ? 'env' : 'auto',
 ];
 
 mam_ok([
@@ -25,6 +29,7 @@ mam_ok([
     'time' => date('c'),
     'env' => mam_env('APP_ENV', 'production'),
     'db' => $dbOk ? 'ok' : 'down',
-    'db_error' => $dbErr,
+    // Don't leak the raw DB error (file path / DSN) to the public in prod.
+    'db_error' => (mam_env('APP_ENV', 'production') === 'production') ? ($dbErr ? 'see logs' : null) : $dbErr,
     'features' => $features,
 ]);

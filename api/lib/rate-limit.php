@@ -1,6 +1,6 @@
 <?php
 /**
- * SQLite-backed rate limiter.
+ * DB-backed rate limiter (SQLite or MySQL via mam_db_upsert).
  * mam_rate_limit('apply', mam_client_ip(), 10, 600) → throws 429 if
  * more than 10 requests in the past 600 seconds.
  */
@@ -15,9 +15,10 @@ function mam_rate_limit(string $name, string $key, int $limit, int $windowSec): 
     try {
         $row = mam_db_row('SELECT count, reset_at FROM rate_limits WHERE bucket = ?', [$bucket]);
         if (!$row || (int)$row['reset_at'] <= $now) {
-            $db->prepare('INSERT INTO rate_limits (bucket, count, reset_at) VALUES (?,?,?)
-                          ON CONFLICT(bucket) DO UPDATE SET count = 1, reset_at = excluded.reset_at')
-                ->execute([$bucket, 1, $reset]);
+            mam_db_upsert('rate_limits',
+                ['bucket' => $bucket, 'count' => 1, 'reset_at' => $reset],
+                ['bucket'],
+                ['count' => 1, 'reset_at' => $reset]);
             $db->commit();
             return;
         }

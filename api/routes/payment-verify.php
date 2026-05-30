@@ -14,8 +14,20 @@ $txId = isset($in['transaction_id']) ? (int)$in['transaction_id'] : 0;
 
 $payment = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$ref]);
 if (!$payment) mam_fail('payment_not_found', 404);
-$app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$payment['application_id']]);
-if (!$app) mam_fail('application_not_found', 404);
+
+// Resolve the "subject" of this payment based on its purpose. Store payments
+// have no application_id — they're tied to a store_orders row, looked up by
+// the same payment reference.
+$purpose = $payment['purpose'] ?? 'tuition';
+$app = null;
+$order = null;
+if ($purpose === 'store') {
+    $order = mam_db_row('SELECT * FROM store_orders WHERE reference = ?', [$ref]);
+    if (!$order) mam_fail('order_not_found', 404);
+} else {
+    $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$payment['application_id']]);
+    if (!$app) mam_fail('application_not_found', 404);
+}
 
 if ($payment['status'] === 'succeeded') {
     mam_ok(['status' => 'succeeded', 'reference' => $ref, 'already_verified' => true]);
@@ -26,13 +38,28 @@ try {
         $resp = mam_paystack_verify($ref);
         $data = $resp['data']['data'] ?? null;
         $status = $data['status'] ?? null;
-        $ok = ($status === 'success');
+        // CRITICAL: the inline popup sets the charge amount client-side, so we
+        // MUST confirm the amount actually paid (kobo) is at least what's owed
+        // and in the right currency. Without this, a tampered popup could pay
+        // a token amount and still be marked "paid".
+        $paidKobo     = (float)($data['amount'] ?? 0);
+        $expectedKobo = (float)$payment['amount'] * 100;
+        $currencyOk   = strtoupper((string)($data['currency'] ?? 'NGN')) === 'NGN';
+        $ok = ($status === 'success' && $currencyOk && $paidKobo >= $expectedKobo);
+        if ($status === 'success' && !$ok) {
+            mam_log('warn', 'paystack_amount_or_currency_mismatch', ['ref' => $ref, 'paid_kobo' => $paidKobo, 'expected_kobo' => $expectedKobo, 'currency' => $data['currency'] ?? '']);
+        }
         $providerRef = $data['reference'] ?? $ref;
     } elseif ($provider === 'flutterwave') {
         $resp = $txId > 0 ? mam_flw_verify_by_id($txId) : mam_flw_verify_by_tx_ref($ref);
         $data = $resp['data']['data'] ?? null;
         $status = $data['status'] ?? null;
-        $ok = ($status === 'successful' && (float)($data['amount'] ?? 0) >= (float)$payment['amount']);
+        // Confirm amount AND currency — guard against a tampered inline amount.
+        $currencyOk = strtoupper((string)($data['currency'] ?? 'NGN')) === 'NGN';
+        $ok = ($status === 'successful' && $currencyOk && (float)($data['amount'] ?? 0) >= (float)$payment['amount']);
+        if ($status === 'successful' && !$ok) {
+            mam_log('warn', 'flw_amount_or_currency_mismatch', ['ref' => $ref, 'paid' => $data['amount'] ?? 0, 'expected' => $payment['amount'], 'currency' => $data['currency'] ?? '']);
+        }
         $providerRef = $data['tx_ref'] ?? ($data['flw_ref'] ?? $ref);
     } else {
         mam_fail('unsupported_provider', 400);
@@ -60,33 +87,87 @@ mam_db_update('payments', [
     'updated_at'         => date('Y-m-d H:i:s'),
 ], ['reference' => $ref]);
 
-mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $payment['application_id']]);
-mam_audit('verify_succeeded', 'payment', (int)$payment['id'], ['ref' => $ref, 'provider' => $provider]);
+// Booking-fee path: this is now the default flow. The $5 is a confirmation of
+// intent + registration / ID card / file / 30-min Auditer slot — it does NOT
+// pay tuition or enroll the student. We stamp booking_fee_paid_at so /book
+// can unlock the Google appointment embed, but leave application.status alone
+// (the admin marks it 'paid' / 'enrolled' after the Auditer session).
+if ($purpose === 'store') {
+    // Mark the order paid + ship/deliver. For digital items we email the
+    // file URLs immediately (instant delivery). Physical orders are flipped
+    // to 'paid' (admin fulfils + flips to 'shipped' from the dashboard).
+    $items = json_decode((string)$order['items_json'], true) ?: [];
+    $hasPhysical = false;
+    foreach ($items as $i) if (($i['goods_type'] ?? '') === 'physical') { $hasPhysical = true; break; }
+    mam_db_update('store_orders', [
+        'status'       => $hasPhysical ? 'paid' : 'delivered',
+        'delivered_at' => $hasPhysical ? null : date('Y-m-d H:i:s'),
+        'updated_at'   => date('Y-m-d H:i:s'),
+    ], ['id' => (int)$order['id']]);
+    // Resolve digital file_urls server-side (the public endpoints strip them).
+    $links = [];
+    foreach ($items as $i) {
+        if (($i['goods_type'] ?? '') !== 'digital') continue;
+        $r = mam_db_row('SELECT name, file_url FROM store_items WHERE sku = ?', [(string)$i['sku']]);
+        if ($r && !empty($r['file_url'])) $links[] = ['name' => $r['name'], 'url' => (string)$r['file_url']];
+    }
+    try {
+        mam_send(
+            (string)$order['customer_email'],
+            'MAM Academy Store — Order ' . $order['reference'] . ' confirmed',
+            mam_email_store_receipt($order, $items, $links),
+            'store_order_confirmed',
+            true
+        );
+    } catch (Throwable $e) { mam_log('warn', 'store_email_failed', ['err' => $e->getMessage()]); }
+} elseif ($purpose === 'booking_fee') {
+    mam_db_update('applications', [
+        'booking_fee_paid_at' => date('Y-m-d H:i:s'),
+        'updated_at'          => date('Y-m-d H:i:s'),
+    ], ['id' => $payment['application_id']]);
+    try {
+        $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
+        if ($customer && !empty($customer['email'])) {
+            mam_send(
+                $customer['email'],
+                'Your MAM Academy seat is reserved — pick your time',
+                mam_email_booking_confirmed($app, $customer),
+                'booking_confirmed',
+                true
+            );
+        }
+    } catch (Throwable $e) { mam_log('warn', 'booking_email_failed', ['err' => $e->getMessage()]); }
+} else {
+    mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $payment['application_id']]);
+}
+mam_audit('verify_succeeded', 'payment', (int)$payment['id'], ['ref' => $ref, 'provider' => $provider, 'purpose' => $purpose]);
 
-// Auto-provision a student portal account once payment clears.
+// Auto-provision a student portal account once TUITION payment clears. The
+// $5 booking fee deliberately does NOT yet create a portal account — admin
+// confirms enrolment after the Auditer session.
 $portalNotice = null;
 try {
-    if ($app['customer_id']) {
+    if ($purpose === 'tuition' && $app['customer_id']) {
         $provision = mam_ensure_student_user((int)$app['customer_id']);
         if ($provision['password']) {
             $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
-            $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login.html';
+            $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
             $name = htmlspecialchars(trim($customer['first_name'] . ' ' . $customer['last_name']));
-            $body = "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>"
-                  . "<table style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>"
-                  . "<tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:24px;text-align:center'>"
-                  . "<div style='font-family:Impact,sans-serif;font-size:24px;color:#1A120B;font-weight:900;letter-spacing:.08em'>MAM ACADEMY</div></td></tr>"
-                  . "<tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>"
-                  . "<h2 style='font-family:Georgia,serif;margin:0 0 12px;color:#fff'>Welcome, $name</h2>"
-                  . "<p style='color:rgba(255,255,255,0.86)'>Your student portal is now active. Sign in to view your applications, classes and MAM Auditer placement.</p>"
+            $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Welcome, $name</h2>"
+                  . "<p style='color:rgba(255,255,255,0.86);margin:0'>Your student portal is now active. Sign in to view your applications, classes and MAM Auditer placement.</p>"
                   . "<div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:14px;color:#FBBF24;margin:16px 0'>"
                   . "<div>Email: <strong>" . htmlspecialchars($customer['email']) . "</strong></div>"
                   . "<div>Temporary password: <strong>" . htmlspecialchars($provision['password']) . "</strong></div>"
                   . "</div>"
-                  . "<p style='color:rgba(255,255,255,0.86)'>Please change this password on first sign-in.</p>"
-                  . "<p><a href='$loginUrl' style='display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none'>Open student portal →</a></p>"
-                  . "</td></tr></table></body></html>";
-            @mam_send_mail($customer['email'], 'Your MAM Academy student portal is ready', $body, true);
+                  . "<p style='color:rgba(255,255,255,0.86);margin:0'>Please change this password on first sign-in.</p>"
+                  . mam_email_button($loginUrl, 'Open student portal');
+            $body = mam_email_layout([
+                'header' => 'MAM ACADEMY',
+                'preheader' => 'Your MAM Academy student portal is ready — sign-in details inside.',
+                'reason' => 'You received this because your payment activated a MAM Academy student portal account.',
+                'body' => $inner,
+            ]);
+            mam_send($customer['email'], 'Your MAM Academy student portal is ready', $body, 'portal_welcome', true);
             $portalNotice = 'portal_credentials_emailed';
         } else {
             $portalNotice = 'portal_already_provisioned';

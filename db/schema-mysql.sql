@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS customers (
   first_name   VARCHAR(120),
   last_name    VARCHAR(120),
   phone        VARCHAR(32),
+  sex          VARCHAR(12),
+  address      VARCHAR(255),
+  lga          VARCHAR(80),
+  state        VARCHAR(80),
   country      VARCHAR(80),
   city         VARCHAR(80),
   age_range    VARCHAR(16),
@@ -38,7 +42,10 @@ CREATE TABLE IF NOT EXISTS applications (
   customer_id            INT NULL,
   pathway                VARCHAR(32) NOT NULL,
   mode                   VARCHAR(16),
+  program                VARCHAR(40),
   discipline             VARCHAR(32),
+  session                VARCHAR(12),
+  headshot_url           VARCHAR(500),
   experience             VARCHAR(32),
   goals                  TEXT,
   referrer               VARCHAR(40),
@@ -55,6 +62,8 @@ CREATE TABLE IF NOT EXISTS applications (
   policy_signed_at       DATETIME NULL,
   total_usd              DECIMAL(10,2),
   status                 VARCHAR(24) DEFAULT 'submitted',
+  recovery_sent_at       DATETIME NULL,
+  idempotency_key        VARCHAR(80) NULL,
   source                 VARCHAR(200),
   ip                     VARCHAR(64),
   user_agent             VARCHAR(255),
@@ -62,6 +71,7 @@ CREATE TABLE IF NOT EXISTS applications (
   updated_at             DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_apps_status  (status),
   KEY idx_apps_created (created_at),
+  KEY idx_apps_idem    (idempotency_key),
   CONSTRAINT fk_apps_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -265,3 +275,112 @@ ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS policy_signed_name VARCHAR(120)               AFTER policy_agreed,
   ADD COLUMN IF NOT EXISTS policy_signed_at   DATETIME     NULL          AFTER policy_signed_name;
 INSERT INTO schema_version (version) VALUES (3) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v4–v7 — additive applicant fields, intake session,
+-- abandonment-recovery timestamp, idempotency key.
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE customers
+  ADD COLUMN IF NOT EXISTS sex     VARCHAR(16)  NULL,
+  ADD COLUMN IF NOT EXISTS address VARCHAR(255) NULL,
+  ADD COLUMN IF NOT EXISTS lga     VARCHAR(64)  NULL,
+  ADD COLUMN IF NOT EXISTS state   VARCHAR(64)  NULL;
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS program          VARCHAR(64)  NULL,
+  ADD COLUMN IF NOT EXISTS headshot_url     VARCHAR(500) NULL,
+  ADD COLUMN IF NOT EXISTS session          VARCHAR(16)  NULL,
+  ADD COLUMN IF NOT EXISTS recovery_sent_at DATETIME     NULL,
+  ADD COLUMN IF NOT EXISTS idempotency_key  VARCHAR(64)  NULL,
+  ADD INDEX  IF NOT EXISTS idx_apps_idem (idempotency_key);
+INSERT INTO schema_version (version) VALUES (4), (5), (6), (7) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v8 — Booking-fee flow. The application is now free; a flat
+-- $5 booking fee unlocks the Book-a-Session page (registration + ID card
+-- + student file + 30-min MAM Auditer assessment). `payments.purpose`
+-- tags each charge so booking-fee, future tuition and store orders can
+-- safely share the same payments table.
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS booking_fee_paid_at DATETIME NULL;
+ALTER TABLE payments
+  ADD COLUMN IF NOT EXISTS purpose VARCHAR(24) DEFAULT 'tuition';
+INSERT INTO schema_version (version) VALUES (8) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v9 — Store / Library. Public catalogue of digital,
+-- physical and service items sold alongside the academy. Orders
+-- settle via the existing payments table with purpose='store'.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS store_items (
+  id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  sku                 VARCHAR(64)   NOT NULL UNIQUE,
+  slug                VARCHAR(140)  NOT NULL UNIQUE,
+  name                VARCHAR(200)  NOT NULL,
+  description         TEXT,
+  goods_type          VARCHAR(16)   NOT NULL DEFAULT 'digital',
+  delivery_type       VARCHAR(24)   NOT NULL DEFAULT 'instant',
+  availability        VARCHAR(16)   NOT NULL DEFAULT 'in_stock',
+  stock               INT           DEFAULT -1,
+  available_locations TEXT          DEFAULT '*',
+  price_usd           DECIMAL(10,2) NOT NULL,
+  currency            VARCHAR(8)    DEFAULT 'USD',
+  images              TEXT,
+  category            VARCHAR(80),
+  file_url            VARCHAR(500),
+  weight_grams        INT,
+  tax_rate            DECIMAL(5,4)  DEFAULT 0,
+  sort_order          INT           DEFAULT 0,
+  active              TINYINT(1)    DEFAULT 1,
+  created_at          DATETIME      DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME      DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_active   (active),
+  INDEX idx_category (category),
+  INDEX idx_sort     (sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS store_orders (
+  id               BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  reference        VARCHAR(64)    NOT NULL UNIQUE,
+  customer_id      BIGINT UNSIGNED NULL,
+  customer_email   VARCHAR(190),
+  customer_name    VARCHAR(200),
+  customer_country VARCHAR(8),
+  customer_phone   VARCHAR(32),
+  shipping_address TEXT,
+  items_json       LONGTEXT       NOT NULL,
+  subtotal_usd     DECIMAL(10,2)  DEFAULT 0,
+  tax_usd          DECIMAL(10,2)  DEFAULT 0,
+  shipping_usd     DECIMAL(10,2)  DEFAULT 0,
+  total_usd        DECIMAL(10,2)  DEFAULT 0,
+  status           VARCHAR(24)    NOT NULL DEFAULT 'pending',
+  notes            TEXT,
+  delivered_at     DATETIME       NULL,
+  created_at       DATETIME       DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME       DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_status (status),
+  INDEX idx_email  (customer_email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO schema_version (version) VALUES (9) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v10 — store-flow fix. Store orders are NOT tied to an
+-- application, so a store payment row needs application_id = NULL.
+-- The original schema declared application_id NOT NULL with a CASCADE
+-- foreign key, which made every store INSERT 500. Drop the FK, relax
+-- to NULL, re-add an indexed reference that allows NULL.
+-- ─────────────────────────────────────────────────────────────
+SET @fk := (SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_NAME = 'payments' AND COLUMN_NAME = 'application_id'
+              AND CONSTRAINT_NAME <> 'PRIMARY' AND REFERENCED_TABLE_NAME IS NOT NULL
+            LIMIT 1);
+SET @sql := IF(@fk IS NOT NULL, CONCAT('ALTER TABLE payments DROP FOREIGN KEY ', @fk), 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+ALTER TABLE payments MODIFY application_id INT NULL;
+ALTER TABLE payments
+  ADD CONSTRAINT fk_pay_app_v10
+  FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE SET NULL;
+
+INSERT INTO schema_version (version) VALUES (10) ON DUPLICATE KEY UPDATE version = version;

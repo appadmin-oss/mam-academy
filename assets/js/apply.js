@@ -42,24 +42,81 @@
     var current = 0;
     var totalSteps = stepsEls.length;
 
-    var data = loadDraft() || {
-      pathway: '', mode: '', discipline: '', firstName: '', lastName: '', email: '', phone: '',
-      country: 'Nigeria', city: '', age: '', dob: '', experience: '', goals: '', referrer: '',
-      auditer: true, parentName: '', parentPhone: '', emergencyContact: '',
+    var savedDraft = loadDraft();
+    var resuming = !!savedDraft;
+    var data = savedDraft || {
+      pathway: '', mode: '', program: '', discipline: '', session: '',
+      firstName: '', lastName: '', email: '', phone: '',
+      sex: '', address: '', lga: '', state: '',
+      country: 'Nigeria', city: '', dob: '',
+      experience: '', goals: '', referrer: '',
+      auditer: true, parentName: '', parentPhone: '',
+      headshotUrl: '',
       includeRegistration: true, includeCertification: false, payment: '', currency: 'USD',
       programTrack: '', policyAgree: false, policySignName: '',
       reference: null, applicationId: null, serverTotalUsd: null
     };
+    // Clean up legacy draft shape — early-2026 drafts had `age` and `emergencyContact`.
+    if ('age' in data) delete data.age;
+    if ('emergencyContact' in data) delete data.emergencyContact;
+    if (typeof data.dob !== 'string') data.dob = '';
+    // Default the new required fields to empty so legacy drafts don't write "undefined"
+    ['program','sex','address','lga','state','headshotUrl','session'].forEach(function (k) {
+      if (typeof data[k] !== 'string') data[k] = '';
+    });
+    // Stable idempotency key per draft — lets a retried submit be de-duped
+    // server-side instead of creating a second application for one applicant.
+    if (!data.idempotencyKey) {
+      data.idempotencyKey = 'MAMK-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+      saveDraft();
+    }
+    // The legacy "wind" discipline was split into saxophone/trumpet/flute/clarinet —
+    // any draft that still carries it needs the user to re-pick a specific instrument.
+    if (data.discipline === 'wind') data.discipline = '';
 
-    // KTAMS (Kids @ MAM) = under 16; MAM = 16 and above. Derived from age.
-    var KTAMS_AGES = ['under-6', '6-9', '10-12', '13-15'];
-    function deriveTrack(age) { return age ? (KTAMS_AGES.indexOf(age) >= 0 ? 'KTAMS' : 'MAM') : ''; }
+    // KTAMS (Kids @ MAM) = under 16; MAM = 16 and above. Derived entirely from DOB.
+    function ageFromDob(dob) {
+      if (!dob) return null;
+      var d = new Date(dob); if (isNaN(d)) return null;
+      var t = new Date();
+      var a = t.getFullYear() - d.getFullYear();
+      var m = t.getMonth() - d.getMonth();
+      if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
+      if (a < 0 || a > 120) return null;
+      return a;
+    }
+    function ageBandFromDob(dob) {
+      var a = ageFromDob(dob); if (a === null) return '';
+      if (a < 6)  return 'under-6';
+      if (a <= 9) return '6-9';
+      if (a <= 12) return '10-12';
+      if (a <= 15) return '13-15';
+      if (a <= 17) return '16-17';
+      if (a <= 25) return '18-25';
+      return '26+';
+    }
+    function deriveTrack(dob) {
+      var a = ageFromDob(dob); if (a === null) return '';
+      return a < 16 ? 'KTAMS' : 'MAM';
+    }
+    var BAND_LABELS = {
+      'under-6':'Under 6','6-9':'6–9 years','10-12':'10–12 years','13-15':'13–15 years',
+      '16-17':'16–17 years','18-25':'18–25 years','26+':'26 & above'
+    };
 
-    // Pre-fill from URL ?pathway=cert&mode=online&discipline=piano
+    // Pre-fill from URL ?pathway=cert&mode=online&discipline=piano.
+    // SECURITY: only accept a value that matches a real radio option for that
+    // field. Without this allowlist, an arbitrary ?discipline=<img onerror…>
+    // is reflected unescaped into #reviewBody/#applySummary innerHTML at boot
+    // (titleCase() does not neutralise HTML) — a reflected DOM XSS. Matching
+    // against the rendered inputs makes only known-safe tokens enter `data`.
     try {
       var qs = new URLSearchParams(location.search);
       ['pathway', 'mode', 'discipline'].forEach(function (k) {
-        if (qs.get(k)) data[k] = qs.get(k);
+        var val = qs.get(k);
+        if (val && document.querySelector('input[name="' + k + '"][value="' + (window.CSS && CSS.escape ? CSS.escape(val) : val.replace(/["\\\]]/g, '')) + '"]')) {
+          data[k] = val;
+        }
       });
     } catch (e) {}
 
@@ -69,6 +126,11 @@
       progressSteps.forEach(function (p, idx) {
         p.classList.toggle('active', idx === current);
         p.classList.toggle('done', idx < current);
+        // Future steps require validation — make that visible so the buttons
+        // don't look broken when nothing happens on click.
+        var isFuture = idx > current;
+        p.setAttribute('aria-disabled', isFuture ? 'true' : 'false');
+        if (isFuture) p.setAttribute('tabindex', '-1'); else p.removeAttribute('tabindex');
       });
       var main = $('.apply-main');
       if (main) window.scrollTo({ top: main.offsetTop - 100, behavior: 'smooth' });
@@ -78,6 +140,8 @@
       progressSteps.forEach(function (p, idx) { p.setAttribute('aria-current', idx === current ? 'step' : 'false'); });
       var ambStep = $('#ambStep'); if (ambStep) ambStep.textContent = 'Step ' + (current + 1) + ' of ' + totalSteps;
       var bar = $('#applyMobileBar'); if (bar) bar.style.display = current === totalSteps - 1 ? 'none' : '';
+      // Remember where the applicant is so a return visit resumes here.
+      data.currentStep = current; saveDraft();
     }
     function saveDraft() { try { localStorage.setItem('mam.apply.draft', JSON.stringify(data)); } catch (e) {} }
     function loadDraft() { try { var r = localStorage.getItem('mam.apply.draft'); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
@@ -90,6 +154,8 @@
         data[key] = el.type === 'checkbox' ? el.checked : el.value;
         if (el.classList.contains('error')) el.classList.remove('error');
         var errEl = document.getElementById('err-' + id); if (errEl) errEl.classList.remove('shown');
+        // Drop any smart-validation note the moment the user edits again
+        var note = document.getElementById('note-' + id); if (note) note.remove();
         saveDraft(); updateSummary();
       };
       on(el, 'input', set); on(el, 'change', set);
@@ -104,6 +170,28 @@
       var input = document.getElementById(id); if (input) input.classList.add('error');
       var err = document.getElementById('err-' + id); if (err) err.classList.add('shown');
     }
+    // Inline coloured note attached underneath a field. Used by smart
+    // validation to surface the *specific* reason ("That looks like a
+    // temporary email service…") below the matching input. One note per
+    // field; replacing it removes any prior note.
+    function setFieldHelp(id, text, kind) {
+      var input = document.getElementById(id); if (!input) return;
+      var parent = input.parentNode; if (!parent) return;
+      var noteId = 'note-' + id;
+      var note = document.getElementById(noteId);
+      if (!note) {
+        note = document.createElement('div');
+        note.id = noteId;
+        note.className = 'field-note';
+        parent.appendChild(note);
+      }
+      note.className = 'field-note field-note-' + (kind || 'info');
+      note.textContent = text;
+    }
+    function setFieldHelpError(id, text) { setFieldHelp(id, text, 'error'); }
+    function setFieldHelpWarn(id, text)  { setFieldHelp(id, text, 'warn');  }
+    function setFieldHelpOk(id, text)    { setFieldHelp(id, text, 'ok');    }
+    function clearFieldHelp(id) { var n = document.getElementById('note-' + id); if (n) n.remove(); }
     function clearError(id) {
       var input = document.getElementById(id); if (input) input.classList.remove('error');
       var err = document.getElementById('err-' + id); if (err) err.classList.remove('shown');
@@ -118,18 +206,74 @@
       if (idx === 0) {
         if (!data.pathway)    { var p = $('#err-pathway');    if (p) p.classList.add('shown');    ok = false; }
         if (!data.mode)       { var m = $('#err-mode');       if (m) m.classList.add('shown');       ok = false; }
+        check('program',  !!data.program);
         if (!data.discipline) { var d = $('#err-discipline'); if (d) d.classList.add('shown'); ok = false; }
+        if (!data.session)    { var se = $('#err-session');   if (se) se.classList.add('shown');     ok = false; }
       }
       if (idx === 1) {
-        var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/, phoneRe = /^[+0-9\s\-()]{7,}$/;
-        check('firstName', (data.firstName || '').trim().length > 1);
-        check('lastName',  (data.lastName  || '').trim().length > 1);
-        check('email',     emailRe.test((data.email || '').trim()));
-        check('phone',     phoneRe.test((data.phone || '').trim()));
+        var SV = window.MAM_VALIDATE;
+        // Smart name validation: gibberish/placeholder detection beats a
+        // bare length check ("asdf" was passing the old `length > 1` rule).
+        var fn = SV ? SV.name(data.firstName || '') : { ok: (data.firstName || '').trim().length > 1 };
+        var ln = SV ? SV.name(data.lastName  || '') : { ok: (data.lastName  || '').trim().length > 1 };
+        check('firstName', fn.ok); if (!fn.ok && fn.reason) setFieldHelpError('firstName', fn.reason);
+        check('lastName',  ln.ok); if (!ln.ok && ln.reason) setFieldHelpError('lastName',  ln.reason);
+        // Email: disposable-domain check + typo detection. A 'warn' lets us
+        // surface a message but still allow submission — the user can click
+        // through if they really mean it.
+        var em = SV ? SV.email(data.email || '') : { ok: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((data.email || '').trim()) };
+        if (em.ok || em.severity === 'warn') {
+          clearError('email');
+          if (em.severity === 'warn' && em.reason) setFieldHelpWarn('email', em.reason);
+        } else {
+          setError('email'); if (em.reason) setFieldHelpError('email', em.reason); ok = false;
+        }
+        // Phone: trust intl-tel-input's libphonenumber-utils when available,
+        // fall back to permissive regex if the country-picker didn't initialise.
+        var phoneOk;
+        if (phoneIti) {
+          try { phoneOk = phoneIti.isValidNumber(); } catch (e) { phoneOk = false; }
+          if (phoneOk) { data.phone = phoneIti.getNumber(); saveDraft(); setFieldHelpOk('phone', 'Looks valid · ' + phoneIti.getNumber('international')); }
+          else if ((data.phone || '').trim()) setFieldHelpError('phone', 'That number isn\'t valid for the selected country.');
+        } else {
+          phoneOk = /^[+0-9\s\-()]{7,}$/.test((data.phone || '').trim());
+        }
+        check('phone', phoneOk);
+        if (!data.sex) { var sxe = $('#err-sex'); if (sxe) sxe.classList.add('shown'); ok = false; }
+        check('address',   (data.address || '').trim().length > 2);
+        check('lga',       (data.lga     || '').trim().length > 1);
+        check('state',     (data.state   || '').trim().length > 1);
         check('country',   (data.country || '').trim().length > 1);
-        check('age',       !!data.age);
-        // Under-16 (KTAMS) applicants must provide a parent/guardian
-        if (deriveTrack(data.age) === 'KTAMS') check('parentName', (data.parentName || '').trim().length > 1);
+        check('dob',       ageFromDob(data.dob) !== null);
+        // Under-16 (KTAMS) applicants must provide a parent/guardian; if the
+        // intl-tel-input is wired on parentPhone, also validate it.
+        if (deriveTrack(data.dob) === 'KTAMS') {
+          check('parentName', (data.parentName || '').trim().length > 1);
+          if (parentPhoneIti) {
+            var ppOk = false;
+            try { ppOk = parentPhoneIti.isValidNumber(); } catch (e) {}
+            if (ppOk) data.parentPhone = parentPhoneIti.getNumber();
+          }
+        }
+        // Headshot is mandatory — every student gets a class roster photo
+        // and the AI check stops us collecting blurry/multi-face/no-face
+        // shots that we'd otherwise have to chase manually.
+        var hsOk = !!(headshotState && headshotState.validation && headshotState.validation.ok && (headshotState.uploaded || !hasCloudinaryConfigured()));
+        if (!hsOk) {
+          ok = false;
+          var hsHost = document.getElementById('headshotMount');
+          if (hsHost) {
+            hsHost.classList.add('headshot-required-pulse');
+            if (!first) first = hsHost;
+            // Persistent inline status nudge under the dropzone
+            var status = hsHost.parentNode && hsHost.parentNode.querySelector('.hs-status');
+            if (status) {
+              status.hidden = false;
+              status.className = 'hs-status hs-status-error';
+              status.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> A clear headshot is required to continue. Upload a front-facing photo.';
+            }
+          }
+        }
       }
       if (idx === 3) {
         var pa = $('#policyAgree');
@@ -177,12 +321,12 @@
       var amb = $('#ambTotal'); if (amb) amb.textContent = fmtMoney(total);
       var sp = $('#spTotal'); if (sp) sp.textContent = fmtMoney(total);
     }
-    function row(k, v) { return '<div class="summary-row"><span>' + k + '</span><span>' + v + '</span></div>'; }
+    function row(k, v) { return '<div class="summary-row"><span>' + k + '</span><span>' + escapeHtml(v) + '</span></div>'; }
     function titleCase(s) { return String(s || '').replace(/[-_]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
 
     // ---------- Track (KTAMS vs MAM) ----------
     function updateTrackUI() {
-      data.programTrack = deriveTrack(data.age);
+      data.programTrack = deriveTrack(data.dob);
       var tracks = cfg.tracks || {};
       var badge = $('#trackBadge');
       if (badge) {
@@ -194,12 +338,26 @@
           var nt = $('#trackBadgeNote'); if (nt) nt.textContent = t.note;
         } else { badge.hidden = true; }
       }
-      // Guardian is required for KTAMS (under-16) applicants
+      // Guardian section is only shown for KTAMS (under-16) — no need to
+      // collect parent details for an adult applicant.
       var isKid = data.programTrack === 'KTAMS';
-      var req = $('#guardianReq'), opt = $('#guardianOpt');
-      if (req) req.hidden = !isKid;
-      if (opt) opt.textContent = isKid ? '(required for under-16)' : '(for under 16)';
+      var gf = $('#guardianField'); if (gf) gf.hidden = !isKid;
       if (!isKid) clearError('parentName');
+
+      // Live age-band readout under the DOB picker — gives the applicant
+      // immediate, visible confirmation that the date they entered places
+      // them on the right track.
+      var readout = $('#dobReadout');
+      var ageEl = $('#dobAge'), bandEl = $('#dobBand');
+      var a = ageFromDob(data.dob);
+      if (a === null) {
+        if (readout) readout.hidden = true;
+      } else {
+        if (readout) readout.hidden = false;
+        if (ageEl) ageEl.textContent = a + (a === 1 ? ' year' : ' years');
+        var band = ageBandFromDob(data.dob);
+        if (bandEl) bandEl.textContent = (BAND_LABELS[band] || '') + ' · ' + (isKid ? 'KTAMS — Kids @ MAM' : 'MAM Academy');
+      }
     }
 
     // ---------- Policy summary (online vs onsite) ----------
@@ -225,24 +383,31 @@
 
     function renderReview() {
       var price = cfg.pricing[data.pathway];
-      function item(l, v) { return '<div class="review-item"><span class="review-label">' + l + '</span><span class="review-value">' + (v || '—') + '</span></div>'; }
+      function item(l, v) { return '<div class="review-item"><span class="review-label">' + l + '</span><span class="review-value">' + escapeHtml(v || '—') + '</span></div>'; }
       var html = '';
       html += '<div class="review-section"><div class="review-section-head"><h4>Programme</h4><button type="button" data-jump="0">Edit</button></div><div class="review-grid">';
-      var trk = deriveTrack(data.age);
+      var trk = deriveTrack(data.dob);
       html += item('Track', trk && cfg.tracks[trk] ? cfg.tracks[trk].name : '—');
       html += item('Pathway', price ? price.name : '—');
       html += item('Mode',    data.mode === 'online' ? 'Online' : (data.mode === 'onsite' ? 'Onsite Lagos' : '—'));
-      html += item('Discipline', titleCase(data.discipline));
+      html += item('Programme', titleCase(data.program));
+      html += item('Course', titleCase(data.discipline));
       html += item('MAM Auditer', data.auditer ? 'Yes — book session' : 'No');
       html += '</div></div>';
+      var ageDisp = ageFromDob(data.dob);
+      var dobDisp = data.dob ? new Date(data.dob).toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' }) : '';
+      var ageLine = (ageDisp !== null ? (ageDisp + ' yrs') : '') + (dobDisp ? ' · ' + dobDisp : '');
+      var locLine = [data.address, data.lga, data.state, data.country].filter(function (v) { return v && v.trim(); }).join(', ');
       html += '<div class="review-section"><div class="review-section-head"><h4>Student Profile</h4><button type="button" data-jump="1">Edit</button></div><div class="review-grid">';
       html += item('Name',    (data.firstName + ' ' + data.lastName).trim());
+      html += item('Sex',     titleCase(data.sex));
       html += item('Email',   data.email);
       html += item('Phone',   data.phone);
-      html += item('Country', data.country);
-      html += item('City',    data.city);
-      html += item('Age',     data.age);
-      html += '</div></div>';
+      html += item('Age',     ageLine || '—');
+      html += '</div>';
+      if (locLine) html += '<div class="review-item" style="margin-top:14px"><span class="review-label">Address</span><span class="review-value">' + escapeHtml(locLine) + '</span></div>';
+      if (data.headshotUrl) html += '<div class="review-item" style="margin-top:14px"><span class="review-label">Headshot</span><span class="review-value"><img src="' + escapeHtml(data.headshotUrl) + '" alt="Headshot" style="width:56px;height:56px;object-fit:cover;border-radius:50%;border:2px solid var(--border-gold);vertical-align:middle"></span></div>';
+      html += '</div>';
       if (data.experience || data.goals || data.referrer) {
         html += '<div class="review-section"><div class="review-section-head"><h4>Background</h4><button type="button" data-jump="2">Edit</button></div><div class="review-grid">';
         html += item('Experience', titleCase(data.experience));
@@ -288,45 +453,148 @@
     bindRadioGroup('pathway', 'pathway');
     bindRadioGroup('mode', 'mode');
     bindRadioGroup('discipline', 'discipline');
-    ['firstName','lastName','email','phone','country','city','age','dob','experience','goals','referrer','parentName','parentPhone','emergencyContact'].forEach(function (id) { bindField(id, id); });
+    bindRadioGroup('session', 'session');
+    bindRadioGroup('sex', 'sex');
+    // phone + parentPhone are owned by intl-tel-input below; binding them here
+    // would race with the country picker's setNumber().
+    ['firstName','lastName','email','address','lga','state','country','city','dob','program','experience','goals','referrer','parentName'].forEach(function (id) { bindField(id, id); });
+
+    // ---------- Headshot widget (AI-validated; upload required when Cloudinary is configured) ----------
+    var headshotState = null;
+    function hasCloudinaryConfigured() {
+      var c = (window.MAM_CONFIG && window.MAM_CONFIG.cdn) || {};
+      return !!(c.cloudName && c.uploadPreset);
+    }
+    var hsMount = document.getElementById('headshotMount');
+    if (hsMount && window.MAM_HEADSHOT) {
+      window.MAM_HEADSHOT.mount(hsMount, {
+        onChange: function (s) {
+          headshotState = s;
+          data.headshotUrl = (s.uploaded && s.uploaded.url) || '';
+          saveDraft();
+        }
+      });
+    }
+
+    // ---------- intl-tel-input: international phone with country flag/picker ----------
+    // Initialises on #phone and #parentPhone. On every change we write the
+    // E.164 form back into data.phone / data.parentPhone so the payload and
+    // draft always carry a canonical, dial-anywhere number.
+    function initIti(inputId, key) {
+      var el = document.getElementById(inputId);
+      if (!el || typeof window.intlTelInput !== 'function') return null;
+      var iti = window.intlTelInput(el, {
+        initialCountry: 'ng',
+        preferredCountries: ['ng', 'gb', 'us', 'ca', 'za'],
+        separateDialCode: true,
+        utilsScript: 'https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/js/utils.js'
+      });
+      // Hydrate from existing draft value (E.164 → flag auto-picks)
+      if (data[key]) try { iti.setNumber(data[key]); } catch (e) {}
+      var sync = function () {
+        var raw = el.value.trim();
+        // Persist E.164 when valid; otherwise persist whatever the user typed
+        // so the draft round-trips losslessly even mid-edit.
+        var num = '';
+        try { num = iti.isValidNumber() ? iti.getNumber() : raw; } catch (e) { num = raw; }
+        data[key] = num;
+        if (el.classList.contains('error')) el.classList.remove('error');
+        var errEl = document.getElementById('err-' + inputId); if (errEl) errEl.classList.remove('shown');
+        var note = document.getElementById('note-' + inputId); if (note) note.remove();
+        saveDraft();
+      };
+      on(el, 'blur',            sync);
+      on(el, 'countrychange',   sync);
+      on(el, 'input',           function () { data[key] = el.value.trim(); saveDraft(); });
+      return iti;
+    }
+    var phoneIti       = initIti('phone',       'phone');
+    var parentPhoneIti = initIti('parentPhone', 'parentPhone');
+
+    // ---------- Live per-field validation (instant feedback on blur) ----------
+    // One validator per field id; returns {ok, msg?, warn?}. Reused by the
+    // on-blur affordance below. Step-level validateStep() still gates Next.
+    var SV = window.MAM_VALIDATE;
+    function validateField(id) {
+      var v = String(data[id] == null ? '' : data[id]).trim();
+      switch (id) {
+        case 'firstName':
+        case 'lastName':  return SV ? SV.name(v) : { ok: v.length > 1 };
+        case 'email':     return SV ? SV.email(v) : { ok: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) };
+        case 'address':   return { ok: v.length > 2, msg: 'Enter your address' };
+        case 'lga':       return { ok: v.length > 1, msg: 'Enter LGA / county' };
+        case 'state':     return { ok: v.length > 1, msg: 'Enter state / province' };
+        case 'country':   return { ok: v.length > 1, msg: 'Enter country' };
+        case 'dob':       return { ok: ageFromDob(v) !== null, msg: 'A valid date of birth is required' };
+        default:          return { ok: true };
+      }
+    }
+    function markField(id) {
+      var el = document.getElementById(id); if (!el || (el.value || '') === '') { setValid(id, false); return; }
+      var r = validateField(id);
+      if (r.ok) {
+        clearError(id);
+        if (r.warn && r.reason) setFieldHelpWarn(id, r.reason); else clearFieldHelp(id);
+        setValid(id, !r.warn);
+      } else {
+        setValid(id, false);
+        setError(id);
+        if (r.reason || r.msg) setFieldHelpError(id, r.reason || r.msg);
+      }
+    }
+    function setValid(id, on) {
+      var el = document.getElementById(id); if (!el) return;
+      el.classList.toggle('valid', !!on);
+    }
+    // Wire blur validation + Enter-to-advance on the Step-2 text inputs.
+    ['firstName', 'lastName', 'email', 'address', 'lga', 'state', 'country', 'dob'].forEach(function (id) {
+      var el = document.getElementById(id); if (!el) return;
+      on(el, 'blur', function () { markField(id); });
+      on(el, 'keydown', function (e) {
+        if (e.key === 'Enter' && el.tagName !== 'TEXTAREA') { e.preventDefault(); attemptNext(); }
+      });
+    });
+
     bindField('auditerOptIn', 'auditer');
     bindField('includeRegistration', 'includeRegistration');
     bindField('includeCertification', 'includeCertification');
     bindField('policySignName', 'policySignName');
     bindField('policyAgree', 'policyAgree');
-    // Live feedback: age drives the KTAMS/MAM track + guardian requirement; mode drives the policy shown
-    $$('input[name="mode"]').forEach(function (i) { on(i, 'change', renderPolicy); });
-    var ageEl = document.getElementById('age'); if (ageEl) { on(ageEl, 'change', updateTrackUI); }
-
-    // Date of birth is age-range aware: picking a DOB auto-selects the matching
-    // age band (and therefore the KTAMS/MAM track), and we cap it to today.
+    // Live feedback: age drives the KTAMS/MAM track + guardian requirement; mode drives the policy shown.
+    // Changing mode after the user already signed/agreed must revoke that agreement —
+    // an online-policy signature is not valid consent for the onsite policy.
+    $$('input[name="mode"]').forEach(function (i) {
+      on(i, 'change', function () {
+        if (data.policyAgree || (data.policySignName || '').trim() !== '') {
+          data.policyAgree = false;
+          data.policySignName = '';
+          var pa = $('#policyAgree'); if (pa) pa.checked = false;
+          var pn = $('#policySignName'); if (pn) pn.value = '';
+          // Editing the mode also invalidates the server-issued reference — the
+          // next "Continue to Payment" will resubmit with the new policy mode.
+          data.reference = null; data.applicationId = null; data.serverTotalUsd = null;
+          saveDraft();
+        }
+        renderPolicy();
+      });
+    });
+    // DOB is the single source of truth — every age-dependent UI (track
+    // badge, KTAMS guardian fields, age-band readout, KTAMS copy in Step 2)
+    // listens to DOB changes through updateTrackUI() and applyKtamsCopy().
     var dobEl = document.getElementById('dob');
     if (dobEl) {
-      dobEl.setAttribute('max', new Date().toISOString().slice(0, 10));
+      // Cap to today so future-dated DOBs can't be picked; also enforce a
+      // sensible lower bound matching the server's age <= 120 check.
+      var today = new Date().toISOString().slice(0, 10);
+      var minDate = new Date(); minDate.setFullYear(minDate.getFullYear() - 120);
+      dobEl.setAttribute('max', today);
+      dobEl.setAttribute('min', minDate.toISOString().slice(0, 10));
       on(dobEl, 'change', function () {
-        var band = ageBandFromDob(dobEl.value);
-        if (band && ageEl) {
-          ageEl.value = band; data.age = band;
-          saveDraft(); updateTrackUI(); updateSummary();
-          var ae = document.getElementById('err-age'); if (ae) ae.classList.remove('shown');
-          ageEl.classList.remove('error');
-        }
+        clearError('dob');
+        updateTrackUI();
+        updateSummary();
+        if (typeof applyKtamsCopy === 'function') applyKtamsCopy();
       });
-    }
-    function ageBandFromDob(dob) {
-      if (!dob) return '';
-      var d = new Date(dob); if (isNaN(d)) return '';
-      var t = new Date(), age = t.getFullYear() - d.getFullYear();
-      var m = t.getMonth() - d.getMonth();
-      if (m < 0 || (m === 0 && t.getDate() < d.getDate())) age--;
-      if (age < 0 || age > 120) return '';
-      if (age < 6)  return 'under-6';
-      if (age <= 9) return '6-9';
-      if (age <= 12) return '10-12';
-      if (age <= 15) return '13-15';
-      if (age <= 17) return '16-17';
-      if (age <= 25) return '18-25';
-      return '26+';
     }
 
     bindRadioGroup('payment', 'payment');
@@ -369,26 +637,43 @@
     });
 
     // ---------- Submit application ----------
+    var submitting = false;
     function submitApplicationToServer() {
+      // Re-entrancy guard: a fast double-click or a stray keypress must never
+      // fire two submits and create duplicate applications for one applicant.
+      if (submitting) return;
+      submitting = true;
       setBusy('btnNext4', true, 'Submitting…');
-      api.submitApplication(buildPayload())
+      api.submitApplication(buildPayload(), data.idempotencyKey)
         .then(function (resp) {
           data.reference = resp.reference;
           data.applicationId = resp.application_id;
           data.serverTotalUsd = resp.total_usd;
-          saveDraft(); updateSummary();
+          saveDraft();
+          // The server has just emailed the confirmation + invoice. Now advance
+          // to Step 5 (Payment) where the applicant pays the regional booking
+          // fee. They can also bail and pay later via the link in the email.
           setBusy('btnNext4', false);
+          submitting = false;
           showStep(current + 1);
         })
         .catch(function (err) {
           setBusy('btnNext4', false);
+          submitting = false;
+          // Always log the raw error to the console so the operator can see
+          // exactly what the server returned (status, body, message). The
+          // friendly user-facing message is chosen below.
+          try { console.error('[MAM_APPLY] submit failed', { status: err && err.status, body: err && err.body, message: err && err.message, raw: err }); } catch (e) {}
           if (err && err.body && err.body.fields) {
             showServerErrors(err.body.fields);
-            showStep(1); // jump back to profile section
           } else if (err && err.status === 429) {
             apiError('Too many attempts. Please try again in a few minutes.');
           } else if (err && (err.apiDown || err.message === 'api_unavailable' || err.message === 'Failed to fetch')) {
             apiUnavailableFallback();
+          } else if (err && err.body && err.body.error) {
+            // Surface the server's machine-readable error code so support can
+            // help quickly. Operator already sees the full body in the console.
+            apiError('Submission failed: ' + err.body.error + (err.body.message ? ' — ' + err.body.message : ''));
           } else {
             apiError(err && err.message ? err.message : 'Submission failed. Please try again.');
           }
@@ -404,7 +689,7 @@
         '', 'Name: ' + data.firstName + ' ' + data.lastName,
         'Email: ' + data.email, 'Phone: ' + data.phone,
         'Country/City: ' + (data.country || '') + ' ' + (data.city || ''),
-        'Age band: ' + data.age + ' (' + (deriveTrack(data.age) || '') + ')',
+        'Date of birth: ' + (data.dob || '') + ' (' + (deriveTrack(data.dob) || '') + ')',
         'Pathway: ' + (p.name || data.pathway), 'Mode: ' + data.mode, 'Discipline: ' + data.discipline,
         'Add-ons: ' + (data.includeRegistration ? 'Registration ' : '') + (data.includeCertification ? 'Certification' : ''),
         'Policy agreed: ' + (data.policyAgree ? 'Yes — ' + (data.policySignName || '') : 'No'),
@@ -421,23 +706,77 @@
       return {
         firstName: data.firstName, lastName: data.lastName,
         email: data.email, phone: data.phone,
-        pathway: data.pathway, mode: data.mode, discipline: data.discipline,
-        country: data.country, city: data.city, age: data.age, dob: data.dob,
+        sex: data.sex,
+        pathway: data.pathway, mode: data.mode, program: data.program, discipline: data.discipline, session: data.session,
+        address: data.address, lga: data.lga, state: data.state,
+        country: data.country, city: data.city, dob: data.dob,
         experience: data.experience, goals: data.goals, referrer: data.referrer,
-        parentName: data.parentName, parentPhone: data.parentPhone, emergencyContact: data.emergencyContact,
+        parentName: data.parentName, parentPhone: data.parentPhone,
+        headshotUrl: data.headshotUrl,
         auditer: !!data.auditer,
         includeRegistration: !!data.includeRegistration,
         includeCertification: !!data.includeCertification,
-        programTrack: deriveTrack(data.age),
+        programTrack: deriveTrack(data.dob),
         policyMode: data.mode,
         policyAgreed: !!data.policyAgree,
         policySignedName: data.policySignName
       };
     }
+    // Server field name -> (input id used by setError, owning step index).
+    // Used both to surface inline errors and to send the user to the lowest
+    // step that contains a failing field instead of always jumping to Profile.
+    var SERVER_FIELDS = {
+      pathway:          { id: null,              step: 0 },
+      mode:             { id: null,              step: 0 },
+      program:          { id: 'program',         step: 0 },
+      discipline:       { id: null,              step: 0 },
+      session:          { id: null,              step: 0 },
+      firstName:        { id: 'firstName',       step: 1 },
+      lastName:         { id: 'lastName',        step: 1 },
+      email:            { id: 'email',           step: 1 },
+      phone:            { id: 'phone',           step: 1 },
+      sex:              { id: null,              step: 1 },
+      address:          { id: 'address',         step: 1 },
+      lga:              { id: 'lga',             step: 1 },
+      state:            { id: 'state',           step: 1 },
+      country:          { id: 'country',         step: 1 },
+      dob:              { id: 'dob',             step: 1 },
+      parentName:       { id: 'parentName',      step: 1 },
+      policyAgreed:     { id: 'policyAgree',     step: 3 },
+      policySignedName: { id: 'policySignName',  step: 3 }
+    };
+    var FIELD_LABELS = {
+      pathway: 'pathway', mode: 'learning mode', program: 'programme', discipline: 'course', session: 'session',
+      firstName: 'first name', lastName: 'last name', email: 'email',
+      phone: 'mobile number', sex: 'sex',
+      address: 'address', lga: 'local government', state: 'state', country: 'country',
+      dob: 'date of birth',
+      parentName: 'parent/guardian (under-16 students)',
+      policyAgreed: 'class policy agreement',
+      policySignedName: 'policy signature'
+    };
     function showServerErrors(fields) {
-      var map = { firstName: 'firstName', lastName: 'lastName', email: 'email', phone: 'phone',
-                  pathway: 'pathway', mode: 'mode', discipline: 'discipline', age: 'age' };
-      fields.forEach(function (f) { if (map[f]) setError(map[f]); });
+      var target = null;
+      var labels = [];
+      fields.forEach(function (f) {
+        var spec = SERVER_FIELDS[f]; if (!spec) return;
+        if (spec.id) {
+          setError(spec.id);
+        } else {
+          // Grouped fields (pathway/mode/discipline) live in radio cards; the
+          // matching .field-error has id err-<field>.
+          var ge = document.getElementById('err-' + f);
+          if (ge) ge.classList.add('shown');
+        }
+        if (target === null || spec.step < target) target = spec.step;
+        if (FIELD_LABELS[f]) labels.push(FIELD_LABELS[f]);
+      });
+      if (target !== null) showStep(target);
+      if (labels.length) {
+        var notice = ensureNotice();
+        notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Please fix the highlighted '
+          + (labels.length === 1 ? 'field' : 'fields') + ': <strong>' + labels.join(', ') + '</strong>.';
+      }
     }
     function setBusy(btnId, busy, label) {
       var btn = document.getElementById(btnId); if (!btn) return;
@@ -467,27 +806,71 @@
       notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
+    // ---------- Regional booking-fee pricing ----------
+    // Pulled from /api/booking/pricing on page load. The server picks the tier
+    // based on the visitor's country (CDN header) and is authoritative at
+    // charge time — the values here are display-only. We refresh the visible
+    // amount whenever the tier resolves so Step 5, the mobile bar and the
+    // Review note are all in sync.
+    var feeTier = null;
+    function paintFee() {
+      if (!feeTier) return;
+      var label = feeTier.label || '$5';
+      [$('#payAmount'), $('#payHeroLabel'), $('#reviewFeeLabel'), $('#ambTotal')].forEach(function (el) { if (el) el.textContent = label; });
+      var bp = $('#btnPayLabel'); if (bp) bp.textContent = 'Pay ' + label;
+      var cn = $('#payCountryName'); if (cn) cn.textContent = (feeTier.country && feeTier.country !== 'DEFAULT') ? feeTier.country : 'your region';
+      var flag = $('#payCountryFlag'); if (flag) {
+        var c = (feeTier.country || '').toUpperCase();
+        flag.textContent = (c.length === 2 && c !== 'DE' && c !== 'EU')
+          ? String.fromCodePoint(0x1F1A5 + c.charCodeAt(0), 0x1F1A5 + c.charCodeAt(1))
+          : (c === 'EU' ? '🇪🇺' : '🌍');
+      }
+      // For non-NGN tiers we disclose that settlement happens in NGN via Paystack.
+      var disc = $('#payDisclose');
+      if (disc) {
+        if (feeTier.currency && feeTier.currency !== 'NGN') {
+          disc.classList.add('show');
+          disc.innerHTML = '<i class="fa-solid fa-circle-info"></i> Your card will be charged in <strong>' + feeTier.currency + '</strong> at <strong>' + label + '</strong>. Bank transfer settles in NGN (₦' + (feeTier.amount_ngn || 0).toLocaleString() + ').';
+        } else { disc.classList.remove('show'); }
+      }
+    }
+    (function loadFee() {
+      try {
+        fetch('/api/booking/pricing', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { if (j && j.ok) { feeTier = j; paintFee(); } })
+          .catch(function () {});
+      } catch (e) {}
+    })();
+
     // ---------- Pay ----------
     on($('#btnPay'), 'click', function (e) {
       e.preventDefault();
-      if (!validateStep(current)) return;
-      if (!data.reference) { apiError('Application not submitted yet. Please go back and complete review.'); return; }
+      if (!data.reference) { apiError('Please complete the previous step first.'); return; }
+      if (!data.payment) { showFieldError('payment'); return; }
       setBusy('btnPay', true, 'Opening secure checkout…');
-
-      api.initializePayment({ reference: data.reference, provider: data.payment })
+      api.initializePayment({ reference: data.reference, provider: data.payment, purpose: 'booking_fee' })
         .then(function (init) {
+          if (init.already_paid) { showSuccess(data.reference, 'Already confirmed.'); return; }
           if (data.payment === 'paystack')      return openPaystack(init);
           if (data.payment === 'flutterwave')   return openFlutterwave(init);
-          if (data.payment === 'stripe')        return openStripe(init);
           if (data.payment === 'bank')          return handleBank(init);
           throw new Error('unsupported_provider');
         })
         .catch(function (err) {
           setBusy('btnPay', false);
-          apiError(err && err.message ? err.message : 'Could not start payment. Please try another method.');
+          apiError(err && err.message ? err.message : 'Could not start payment. Try another method, or pay later via the link we just emailed you.');
         });
     });
 
+    function loadScript(src) {
+      return new Promise(function (resolve, reject) {
+        if (document.querySelector('script[src="' + src + '"]')) return resolve();
+        var s = document.createElement('script'); s.src = src; s.async = true;
+        s.onload = resolve; s.onerror = function () { reject(new Error('script_load_failed')); };
+        document.head.appendChild(s);
+      });
+    }
     function openPaystack(init) {
       return loadScript('https://js.paystack.co/v1/inline.js').then(function () {
         setBusy('btnPay', false);
@@ -497,7 +880,7 @@
           amount: init.amount_ngn * 100,
           currency: 'NGN',
           ref: init.reference,
-          metadata: { reference: init.reference, application_id: data.applicationId },
+          metadata: { reference: init.reference, application_id: data.applicationId, purpose: 'booking_fee' },
           callback: function (response) { afterProviderCharge('paystack', response.reference || init.reference); },
           onClose: function () { setBusy('btnPay', false); }
         });
@@ -507,7 +890,7 @@
     function openFlutterwave(init) {
       return loadScript('https://checkout.flutterwave.com/v3.js').then(function () {
         setBusy('btnPay', false);
-        var payload = init.payload;
+        var payload = init.payload || {};
         payload.public_key = init.public_key;
         payload.payment_options = 'card, banktransfer, ussd, mobilemoneyghana, mobilemoneyfranco';
         payload.callback = function (response) {
@@ -517,16 +900,9 @@
         window.FlutterwaveCheckout(payload);
       });
     }
-    function openStripe(init) {
-      // For shared-host PHP, Stripe full Checkout requires a server session.
-      // We support that via init.checkout_url when configured.
-      if (init.checkout_url) { window.location.href = init.checkout_url; return; }
-      setBusy('btnPay', false);
-      apiError('Stripe Checkout is not configured for this site yet.');
-    }
     function handleBank(init) {
       setBusy('btnPay', false);
-      showSuccess(init.reference, 'Bank transfer initiated. ' + init.instructions);
+      showSuccess(init.reference, 'Bank transfer initiated. ' + (init.instructions || 'See your email for instructions.'));
     }
 
     function afterProviderCharge(provider, reference, transactionId) {
@@ -537,9 +913,18 @@
           else apiError('Payment not confirmed yet. Please refresh, or email us your reference.');
         })
         .catch(function (err) {
-          // Even if frontend verify fails, the webhook will reconcile shortly. Show a soft success.
-          showSuccess(reference, 'Payment received. Our system will confirm shortly.');
           console.warn('verify_error', err);
+          // A 402 is a DEFINITIVE rejection (e.g. amount/currency mismatch) —
+          // never show success for it. Only a transient/network/5xx error gets
+          // the soft "webhook will reconcile" message, since a genuine payment
+          // will be confirmed by the signed webhook shortly.
+          var status = err && err.status;
+          if (status === 402 || (err && err.body && err.body.error === 'verification_failed')) {
+            apiError('We could not confirm your payment amount. If you were charged, email ' +
+              cfg.site.contactEmail + ' with reference ' + reference + ' and we will sort it out.');
+          } else {
+            showSuccess(reference, 'Payment received. Our system will confirm shortly.');
+          }
         });
     }
     function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
@@ -558,7 +943,7 @@
       var main = $('.apply-main'); if (!main) return;
       main.innerHTML = '' +
         '<div class="apply-success">' +
-        '  <div class="success-emoji" aria-hidden="true" style="background:transparent;border:none"><dotlottie-wc src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f389/lottie.json" speed="1" autoplay loop class="fx-lottie fx-xl" aria-hidden="true"></dotlottie-wc></div>' +
+        '  <div class="success-emoji" aria-hidden="true"><span class="emoji-pop" role="img" aria-label="Confetti">🎉</span></div>' +
         '  <h2 class="success-h">You\'re In!</h2>' +
         '  <p class="success-p">Thank you for enrolling in MAM Academy. Our team will reach you within <strong>24 hours</strong> to confirm your schedule and book your <strong>MAM Auditer</strong> entry assessment.</p>' +
         '  <div class="success-ref">Reference: ' + ref + '</div>' +
@@ -568,15 +953,237 @@
         '    We just emailed you your student portal credentials — sign in to track your application, see your classes once you\'re placed, and view your MAM Auditer report.' +
         '  </div>' +
         '  <div class="success-actions">' +
-        '    <a href="portal/login.html" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket"></i> Open Student Portal</a>' +
-        '    <a href="index.html" class="btn btn-secondary"><i class="fa-solid fa-house"></i> Back to Home</a>' +
+        '    <a href="portal/login" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket"></i> Open Student Portal</a>' +
+        '    <a href="/" class="btn btn-secondary"><i class="fa-solid fa-house"></i> Back to Home</a>' +
         '  </div>' +
         '</div>';
       window.scrollTo({ top: main.offsetTop - 100, behavior: 'smooth' });
     }
 
+    // ──────────────────────────────────────────────────────────
+    // Smart, context-aware behaviours
+    // ──────────────────────────────────────────────────────────
+
+    // 1) Pathway → Discipline coupling. The MetaMusic Order intensive IS the
+    //    MetaMusic discipline — auto-select it unless the user picked one
+    //    already, and surface a contextual tip.
+    function reactToPathwayChange() {
+      // Auto-pick metamusic discipline for the MetaMusic Order pathway
+      if (data.pathway === 'meta-order' && !data.discipline) {
+        var radio = document.querySelector('input[name="discipline"][value="metamusic"]');
+        if (radio) {
+          radio.checked = true;
+          data.discipline = 'metamusic';
+          saveDraft(); updateSummary();
+          var err = $('#err-discipline'); if (err) err.classList.remove('shown');
+        }
+      }
+      renderPathwayHint();
+      renderAddonContext();
+    }
+    $$('input[name="pathway"]').forEach(function (i) { on(i, 'change', reactToPathwayChange); });
+
+    // 2) Pathway → Add-on relevance. The 6-week Crash Programme is not part of
+    //    the certification track, so the +$22 graduation add-on is hidden and
+    //    silently disabled. Returning to a different pathway brings it back.
+    function renderAddonContext() {
+      var certEl = $('#includeCertification');
+      var certCard = certEl ? certEl.closest('.choice-card') : null;
+      if (!certCard) return;
+      var hideCert = data.pathway === 'crash';
+      certCard.style.display = hideCert ? 'none' : '';
+      if (hideCert && data.includeCertification) {
+        data.includeCertification = false;
+        certEl.checked = false;
+        saveDraft(); updateSummary();
+      }
+    }
+
+    function renderPathwayHint() {
+      var anchor = document.querySelector('.field [id="err-pathway"]');
+      if (!anchor) return;
+      var hintId = 'pathway-context-tip';
+      var tip = document.getElementById(hintId);
+      var msg = '';
+      if (data.pathway === 'meta-order') {
+        msg = 'The MetaMusic Order is our 12-week civilization-engineering intensive — discipline is pre-set to MetaMusic & Consciousness.';
+      } else if (data.pathway === 'crash') {
+        msg = "6-week intensive — fast-track. Graduation certification doesn't apply, so we've hidden that add-on for you.";
+      } else if (data.pathway === 'diploma') {
+        msg = 'Top tier. We pair Diploma students with a senior instructor and an end-of-term recital opportunity.';
+      } else if (data.pathway === 'pre-cert') {
+        msg = 'Foundations track. No prior experience expected — your MAM Auditer placement will pace it for you.';
+      }
+      if (!msg) { if (tip) tip.remove(); return; }
+      if (!tip) {
+        tip = document.createElement('div');
+        tip.id = hintId;
+        tip.className = 'context-tip';
+        anchor.parentNode.appendChild(tip);
+      }
+      tip.innerHTML = '<i class="fa-solid fa-circle-info"></i><span>' + msg + '</span>';
+    }
+
+    // 3) Mode → contextual callout. Online students learn what kit they'll
+    //    need without scrolling; onsite students see the actual address.
+    function renderModeHint() {
+      var anchor = document.querySelector('.field [id="err-mode"]');
+      if (!anchor) return;
+      var hintId = 'mode-context-tip';
+      var tip = document.getElementById(hintId);
+      var msg = '';
+      if (data.mode === 'online') {
+        msg = "You'll need <strong>two internet-connected devices</strong> (one on your instrument, one on your face) and a quiet space. We hold live video classes plus daily practice review.";
+      } else if (data.mode === 'onsite') {
+        msg = 'Onsite classes are at <strong>MAM Centre, 2 Oremeji Street, Egbeda, Lagos</strong>. Arrive 30 minutes early; ensemble &amp; stagecraft are baked in.';
+      }
+      if (!msg) { if (tip) tip.remove(); return; }
+      if (!tip) {
+        tip = document.createElement('div');
+        tip.id = hintId;
+        tip.className = 'context-tip';
+        anchor.parentNode.appendChild(tip);
+      }
+      tip.innerHTML = '<i class="fa-solid fa-' + (data.mode === 'online' ? 'wifi' : 'location-dot') + '"></i><span>' + msg + '</span>';
+    }
+    $$('input[name="mode"]').forEach(function (i) { on(i, 'change', renderModeHint); });
+
+    // 4) Email typo detection. Catches the half-dozen domain typos that
+    //    silently swallow our confirmation emails ("gmial.com", "yahooo.com",
+    //    etc.) and offers a one-tap correction.
+    var EMAIL_TYPOS = {
+      'gmial.com':'gmail.com','gmal.com':'gmail.com','gmai.com':'gmail.com',
+      'gnail.com':'gmail.com','gmail.con':'gmail.com','gmail.co':'gmail.com',
+      'gmaill.com':'gmail.com','gmail.cm':'gmail.com',
+      'yahooo.com':'yahoo.com','yaho.com':'yahoo.com','yhoo.com':'yahoo.com',
+      'yahoo.con':'yahoo.com','yahoo.co':'yahoo.com',
+      'hotnail.com':'hotmail.com','hotmial.com':'hotmail.com','hotmal.com':'hotmail.com',
+      'hotmail.con':'hotmail.com','hotmai.com':'hotmail.com',
+      'outlok.com':'outlook.com','outloook.com':'outlook.com','outlook.con':'outlook.com',
+      'icoud.com':'icloud.com','iclod.com':'icloud.com','icloud.con':'icloud.com',
+      'ymai.com':'ymail.com','live.con':'live.com','aol.con':'aol.com'
+    };
+    function suggestEmailFix(value) {
+      var at = value.lastIndexOf('@');
+      if (at < 1) return null;
+      var local = value.slice(0, at);
+      var domain = value.slice(at + 1).toLowerCase().trim();
+      if (!domain) return null;
+      if (EMAIL_TYPOS[domain]) return local + '@' + EMAIL_TYPOS[domain];
+      // Missing dot or single-char TLD ("gmail.c", "gmailcom")
+      if (domain.indexOf('.') === -1) {
+        if (domain === 'gmailcom') return local + '@gmail.com';
+        if (domain === 'yahoocom') return local + '@yahoo.com';
+      }
+      return null;
+    }
+    var emailEl = document.getElementById('email');
+    if (emailEl) {
+      var emailTipId = 'email-typo-tip';
+      var renderEmailTip = function () {
+        var existing = document.getElementById(emailTipId);
+        var s = suggestEmailFix((emailEl.value || '').trim());
+        if (!s) { if (existing) existing.remove(); return; }
+        if (!existing) {
+          existing = document.createElement('div');
+          existing.id = emailTipId;
+          existing.className = 'context-tip context-tip-suggest';
+          emailEl.parentNode.appendChild(existing);
+        }
+        existing.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>'
+          + '<span>Did you mean <button type="button" class="suggest-apply">' + escapeHtml(s) + '</button>?</span>';
+        var btn = existing.querySelector('.suggest-apply');
+        if (btn) on(btn, 'click', function () {
+          emailEl.value = s; data.email = s; saveDraft();
+          existing.remove();
+          clearError('email');
+          emailEl.focus();
+        });
+      };
+      on(emailEl, 'blur', renderEmailTip);
+      on(emailEl, 'input', function () {
+        // Live-clear the tip the moment the user starts editing again
+        var t = document.getElementById(emailTipId); if (t) t.remove();
+      });
+    }
+
+    // 5) KTAMS-aware copy. Under-16 enrolments are usually completed by a
+    //    parent — the form copy should match that mental model.
+    function applyKtamsCopy() {
+      var isKid = deriveTrack(data.dob) === 'KTAMS';
+      var titleEl = document.querySelector('.step[data-step="1"] .step-title');
+      var descEl  = document.querySelector('.step[data-step="1"] .step-desc');
+      if (titleEl) titleEl.textContent = isKid ? "Child's Profile" : 'Student Profile';
+      if (descEl)  descEl.textContent  = isKid
+        ? 'Tell us about the young musician. The contact details below are the parent or guardian we should reach.'
+        : 'Tell us about the student. We use this only to onboard and contact you about your enrollment.';
+      var firstName = document.getElementById('firstName');
+      var lastName  = document.getElementById('lastName');
+      if (firstName) firstName.placeholder = isKid ? "Child's first name" : 'e.g. Tunde';
+      if (lastName)  lastName.placeholder  = isKid ? "Child's last name"  : 'e.g. Adeyemi';
+    }
+    // DOB drives KTAMS copy; the change listener above on #dob already calls applyKtamsCopy.
+
+    // 6) Currency auto-default by locale. First-time visitors land on the
+    //    currency that matches their browser locale instead of always USD.
+    function detectCurrencyFromLocale() {
+      try {
+        var lang = (navigator.language || 'en-US');
+        var country = (lang.split('-')[1] || '').toUpperCase();
+        if (country === 'NG') return 'NGN';
+        if (country === 'GB' || country === 'UK') return 'GBP';
+        if (['IE','DE','FR','IT','ES','NL','BE','AT','PT','FI','GR','LU','SK','SI','LT','LV','EE','CY','MT'].indexOf(country) >= 0) return 'EUR';
+      } catch (e) {}
+      return 'USD';
+    }
+    if (!data.currency || data.currency === 'USD') {
+      var draftRaw = null;
+      try { draftRaw = localStorage.getItem('mam.apply.draft'); } catch (e) {}
+      // Only auto-default if the user has never touched the selector before
+      if (!draftRaw || draftRaw.indexOf('"currency"') === -1) {
+        var detected = detectCurrencyFromLocale();
+        if (detected !== data.currency) {
+          data.currency = detected;
+          var sel = $('#applyCurrency'); if (sel) sel.value = detected;
+          saveDraft();
+        }
+      }
+    }
+
+    // Returning visitor: resume where they left off (never auto-land on the
+    // payment step — they must re-confirm review → submit), and offer a
+    // one-tap "start over".
+    function showResumeBanner() {
+      var main = $('.apply-main'); if (!main || document.getElementById('resumeBanner')) return;
+      var b = document.createElement('div');
+      b.id = 'resumeBanner';
+      b.className = 'resume-banner';
+      b.setAttribute('role', 'status');
+      b.innerHTML = '<span><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Welcome back — we saved your progress on this device.</span>' +
+        '<button type="button" id="resumeStartOver">Start over</button>';
+      main.insertBefore(b, main.firstChild);
+      var btn = document.getElementById('resumeStartOver');
+      if (btn) on(btn, 'click', function () {
+        var go = function () { clearDraft(); location.href = location.pathname; };
+        if (window.MAM_DIALOG && window.MAM_DIALOG.confirm) {
+          window.MAM_DIALOG.confirm('Start a new application?', 'This clears the details saved on this device.', 'Start over').then(function (ok) { if (ok) go(); });
+        } else if (confirm('Start over? This clears your saved details.')) { go(); }
+      });
+    }
+
     // ---------- Boot ----------
     updateSummary();
-    showStep(0);
+    renderPathwayHint();
+    renderModeHint();
+    renderAddonContext();
+    applyKtamsCopy();
+
+    var restoreTo = 0;
+    if (resuming && typeof data.currentStep === 'number') {
+      // Cap at Review (3); the payment step always needs a fresh submit.
+      restoreTo = Math.max(0, Math.min(3, data.currentStep));
+    }
+    showStep(restoreTo);
+    if (resuming && restoreTo > 0) showResumeBanner();
   }
 })();

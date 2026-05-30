@@ -12,13 +12,39 @@ DirectoryIndex index.html index.htm
 # RewriteCond %{HTTPS} !=on
 # RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
 
-# ---------- Pretty URLs (optional) ----------
-# Lets you write `/about` instead of `/about.html`.
+# ---------- Clean (extensionless) URLs ----------
+# Canonical form is /about, not /about.html. Two rules:
+#   1. 301 any direct request for /foo.html → /foo (one canonical URL,
+#      good for SEO and avoids duplicate-content). The %{THE_REQUEST}
+#      guard means it only fires on the *original* browser request, so
+#      it never loops with the internal rewrite below.
+#   2. Internally serve /foo by mapping to /foo.html when that file exists.
 <IfModule mod_rewrite.c>
   RewriteEngine On
+
+  # Forward the Authorization header to PHP. cPanel / LiteSpeed / many
+  # shared FastCGI setups strip `Authorization` before PHP sees it,
+  # which empties $_SERVER['PHP_AUTH_USER'] / $_SERVER['PHP_AUTH_PW']
+  # and makes /admin re-prompt forever for Basic-Auth credentials.
+  RewriteCond %{HTTP:Authorization} ^(.+)$
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
   # Never touch /api/* — the api directory has its own .htaccess router.
   RewriteRule ^api(/|$) - [L]
-  # Skip if file or dir actually exists
+
+  # /studio is the renamed user-facing URL for the Practice Studio. Internally
+  # both /studio and /tools serve tools.html — the old URL keeps working so
+  # existing email links / bookmarks / sitemaps don't 404.
+  RewriteRule ^studio/?$ tools.html [L]
+
+  # 1. External redirect: strip .html from the URL. Skips /partials/*,
+  #    which are fetched directly as .html by the front-end loader, so we
+  #    don't add a redirect hop to every page's header/footer fetch.
+  RewriteCond %{REQUEST_URI} !^/partials/ [NC]
+  RewriteCond %{THE_REQUEST} \s/+([^?\s]+)\.html[\s?] [NC]
+  RewriteRule ^ /%1 [R=301,L,NE]
+
+  # 2. Internal rewrite: serve the .html file for the clean URL.
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteCond %{REQUEST_FILENAME}.html -f
@@ -63,11 +89,14 @@ ErrorDocument 404 /404.html
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "SAMEORIGIN"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
-  Header set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  # microphone=(self) lets /studio (the Practice Studio tuner) access mic
+  # only when the page is served from this origin. camera + geolocation
+  # remain blocked site-wide.
+  Header set Permissions-Policy "camera=(), microphone=(self), geolocation=(), interest-cohort=()"
   # HSTS — enable after HTTPS is live
   # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
   # CSP — keep relaxed for inline styles/scripts; tighten as you wish
-  Header set Content-Security-Policy "default-src 'self' https:; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.paystack.co https://checkout.flutterwave.com https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://code.iconify.design https://api.iconify.design; frame-src https://checkout.flutterwave.com https://standard.paystack.co https://js.stripe.com; connect-src 'self' https:; manifest-src 'self';"
+  Header set Content-Security-Policy "default-src 'self' https:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://js.paystack.co https://checkout.flutterwave.com https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://code.iconify.design https://api.iconify.design; frame-src https://checkout.flutterwave.com https://standard.paystack.co https://js.stripe.com; connect-src 'self' https: blob:; worker-src 'self' blob:; manifest-src 'self';"
 
   # ----- Cache-control fine-tuning -----
   <FilesMatch "\.(html)$">
@@ -100,3 +129,10 @@ ErrorDocument 404 /404.html
 
 # Disable directory listing
 Options -Indexes
+
+# Authorization-header forwarding via SetEnvIf — belt-and-braces partner
+# to the RewriteRule above. One of them will land on whichever host
+# stripping behaviour your shared environment has.
+<IfModule mod_setenvif.c>
+  SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>

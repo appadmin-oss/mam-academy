@@ -24,10 +24,32 @@ $r = new MamRouter();
 /* ─── Public ─── */
 $r->get('/health',  $f('health.php'));
 $r->get('/csrf',    $f('csrf-token.php'));
+$r->get('/diag',    $f('diag.php'));
+// Booking-fee status — public (no PII surfaced). /book polls this to decide
+// whether to show the $5 CTA or the unlocked Google appointment embed.
+$r->get('/booking/status',  $f('booking-status.php'),  [mw_rate_limit('booking_status', 60, 60)]);
+$r->get('/booking/pricing', $f('booking-pricing.php'), [mw_rate_limit('booking_pricing', 60, 60)]);
+
+// Web-viewable invoice + signed policy. Replace the .html attachments that
+// most mail clients render as source code with proper standalone pages
+// (applicants click the link in the email and view in their browser, where
+// "Save as PDF" + Print just work).
+$r->get('/invoice/:ref', $f('invoice.php'), [mw_rate_limit('invoice', 30, 60)]);
+$r->get('/policy/:ref',  $f('policy.php'),  [mw_rate_limit('policy',  30, 60)]);
+
+/* ─── Store / Library (public catalogue) ─── */
+$r->get ('/store/items',       $f('store-list.php'),     [mw_rate_limit('store_list', 60, 60)]);
+$r->get ('/store/item/:slug',  $f('store-detail.php'),   [mw_rate_limit('store_detail', 60, 60)]);
+$r->post('/store/checkout',    $f('store-checkout.php'), [mw_csrf(), mw_rate_limit('store_checkout', 10, 60)]);
 
 /* ─── Public forms (CSRF + rate-limited) ─── */
 $r->post('/application', $f('application.php'), [mw_csrf(), mw_rate_limit('apply',       10, 600)]);
 $r->post('/newsletter',  $f('newsletter.php'),  [mw_csrf(), mw_rate_limit('newsletter',  5,  600)]);
+// Unsubscribe is reached from email links / mail-client one-click — no CSRF
+// cookie available, so it relies on a signed token instead. Both verbs map
+// to the same handler (GET = human click page, POST = RFC 8058 one-click).
+$r->get ('/newsletter/unsubscribe', $f('newsletter-unsubscribe.php'), [mw_rate_limit('unsubscribe', 60, 600)]);
+$r->post('/newsletter/unsubscribe', $f('newsletter-unsubscribe.php'), [mw_rate_limit('unsubscribe', 60, 600)]);
 $r->post('/contact',     $f('contact.php'),     [mw_csrf(), mw_rate_limit('contact',     5,  600)]);
 
 /* ─── Payments ─── */
@@ -68,6 +90,11 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->post('/reset-password',  $f('admin/reset-password.php'), [mw_csrf(), mw_admin()]);
     $r->post('/create-class',    $f('admin/create-class.php'),   [mw_csrf(), mw_admin()]);
     $r->post('/enroll-student',  $f('admin/enroll-student.php'), [mw_csrf(), mw_admin()]);
+    $r->post('/mail-test',       $f('admin/mail-test.php'),      [mw_csrf(), mw_admin(), mw_rate_limit('mail_test', 10, 600)]);
+    $r->post('/migrate',         $f('admin/migrate.php'),        [mw_csrf(), mw_admin(), mw_rate_limit('migrate', 5, 300)]);
+    // Store catalogue admin CRUD (one file dispatches by method).
+    $r->get ('/store/items',     $f('admin/store-items.php'),    [mw_admin()]);
+    $r->post('/store/items',     $f('admin/store-items.php'),    [mw_csrf(), mw_admin()]);
 });
 
 /* ─── Dispatch ─── */

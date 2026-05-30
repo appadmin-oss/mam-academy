@@ -18,5 +18,14 @@ mam_db_update('users', [
 // Invalidate any existing sessions for that user
 mam_db()->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$userId]);
 
+// Email the affected user their new temporary credentials.
+$full = mam_db_row('SELECT name, email FROM users WHERE id = ?', [$userId]);
+if ($full && !empty($full['email'])) {
+    $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
+    mam_send($full['email'], 'Your MAM Academy password was reset',
+        mam_email_account_created((string)($full['name'] ?? ''), (string)$full['email'], $password, 'portal', $loginUrl),
+        'admin_password_reset', true);
+}
+
 mam_audit('admin_reset_password', 'user', $userId);
 mam_ok(['reset' => true]);

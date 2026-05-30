@@ -12,15 +12,32 @@ if (!$email) mam_fail('invalid_email', 422);
 $source = mam_str($in, 'source', 64) ?: 'site';
 
 try {
-    mam_db()->prepare('INSERT INTO newsletter (email, source) VALUES (?,?)
-        ON CONFLICT(email) DO UPDATE SET status = "subscribed", source = excluded.source')
-        ->execute([$email, $source]);
+    mam_db_upsert('newsletter',
+        ['email' => $email, 'source' => $source],
+        ['email'],
+        ['status' => 'subscribed', 'source' => $source]);
 } catch (Throwable $e) {
-    mam_log('error', 'newsletter_failed', ['err' => $e->getMessage()]);
-    mam_fail('save_failed', 500);
+    // Surface the actual error in dev — production stays opaque, but the
+    // detail goes to api/logs/php-error.log either way so support has it.
+    @error_log('[mam-api newsletter] ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+    if (function_exists('mam_log')) mam_log('error', 'newsletter_failed', ['err' => $e->getMessage()]);
+    $envName = strtolower((string)mam_env('APP_ENV', 'production'));
+    mam_fail('save_failed', 500, [
+        'message' => $envName === 'production' ? 'Could not save the subscription' : ($e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine()),
+    ]);
 }
 
+// Defer email sends until after the response — keeps the PowerPlay /
+// newsletter form snappy. The DB upsert above is what actually records
+// the subscription; the emails are confirmations, fine to flush async.
 $notify = mam_env('NOTIFY_EMAIL');
-if ($notify) @mam_send_mail($notify, 'New newsletter subscriber', "$email subscribed via $source", false);
+mam_after_response(function () use ($email, $source, $notify) {
+    if (strpos($source, 'power-play') === 0) {
+        mam_send($email, "⚡ You're in — next Power Play details", mam_email_powerplay_confirmation(), 'powerplay_confirmation', true);
+    } else {
+        mam_send($email, 'Welcome to the MAM Academy circle', mam_email_newsletter_welcome($source), 'newsletter_welcome', true);
+    }
+    if ($notify) mam_send($notify, 'New newsletter subscriber', "$email subscribed via $source", 'newsletter_notice', false);
+});
 mam_audit('subscribe', 'newsletter', null, ['email' => $email, 'source' => $source]);
 mam_ok(['subscribed' => true, 'email' => $email]);

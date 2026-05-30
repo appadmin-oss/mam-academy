@@ -1,0 +1,26 @@
+{
+    "name": "mam-academy/api",
+    "description": "MAM Academy backend API — applications, payments (Paystack/Flutterwave), transactional email, and the student/instructor portals.",
+    "type": "project",
+    "license": "proprietary",
+    "keywords": ["mam-academy", "music-academy", "paystack", "flutterwave"],
+    "require": {
+        "php": ">=8.0",
+        "ext-pdo": "*",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "phpmailer/phpmailer": "^6.9"
+    },
+    "_comment_mailer": "PHPMailer is the preferred SMTP transport. If vendor/ is absent (no composer install), the mailer falls back to its built-in SMTP client automatically — email works either way.",
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "lint": "find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l",
+        "mail-test": "php tools/mail-test.php",
+        "recovery": "php tools/recovery-email.php"
+    }
+}

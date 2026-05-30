@@ -41,7 +41,12 @@ try {
         if ($d && ($d['status'] ?? '') === 'successful') {
             $ref = $d['tx_ref'] ?? '';
             $payment = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$ref]);
-            if ($payment && $payment['status'] !== 'succeeded') {
+            $currency = strtoupper((string)($d['currency'] ?? 'NGN'));
+            $amountOk = $payment && $currency === 'NGN' && (float)($d['amount'] ?? 0) >= (float)$payment['amount'];
+            if ($payment && !$amountOk) {
+                mam_log('warn', 'flw_webhook_amount_mismatch', ['ref' => $ref, 'paid' => $d['amount'] ?? 0, 'expected' => $payment['amount'], 'currency' => $currency]);
+            }
+            if ($payment && $amountOk && $payment['status'] !== 'succeeded') {
                 mam_db_update('payments', [
                     'status' => 'succeeded',
                     'provider_reference' => $d['flw_ref'] ?? null,

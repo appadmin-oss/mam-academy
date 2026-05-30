@@ -5,17 +5,79 @@
 (function () {
   'use strict';
 
-  // dotLottie web component — for genuinely-animated 3D emoji.
-  // Sourced from Google's Noto Animated Emoji set (Lottie JSON
-  // hosted on fonts.gstatic.com — Google's font CDN, bulletproof).
-  // Docs: https://developers.lottiefiles.com/docs/dotlottie-player/dotlottie-web/
-  if (typeof document !== 'undefined' && !document.querySelector('script[data-mam-lottie]')) {
-    var __lp = document.createElement('script');
-    __lp.type = 'module';
-    __lp.src = 'https://unpkg.com/@lottiefiles/dotlottie-wc@0.6.0/dist/dotlottie-wc.js';
-    __lp.async = true;
-    __lp.dataset.mamLottie = '1';
-    (document.head || document.documentElement).appendChild(__lp);
+  // ---- Gradient-text capability probe ----------------------------------
+  // Gold/coloured headings paint a gradient onto the text via
+  // background-clip:text + transparent fill. When an engine can't paint that
+  // (older Android WebViews, Opera Mini, some in-app browsers — common on this
+  // audience's devices) the text turns invisible. The CSS @supports fallback
+  // rescues engines that understand @supports, but Opera Mini and friends
+  // ignore @supports entirely, so the inline-styled spans still vanish. This
+  // probe flags the real capability with a plain class the CSS can target
+  // WITHOUT @supports, guaranteeing the text is never transparent. Runs first,
+  // before paint, to avoid a flash.
+  (function () {
+    try {
+      var s = document.createElement('span').style;
+      s.cssText = '-webkit-background-clip:text;background-clip:text';
+      var ok = s.backgroundClip === 'text' || s.webkitBackgroundClip === 'text';
+      if (!ok) document.documentElement.className += ' no-textclip';
+    } catch (e) {
+      document.documentElement.className += ' no-textclip';
+    }
+  })();
+
+  // ---- Gradient-clip repaint after web fonts load -----------------------
+  // WebKit/Blink (Chrome, Safari) drop the `background-clip:text` clip when a
+  // web font swaps in AFTER first paint — the (transparent) text-fill then
+  // shows nothing, so gold/coloured headings "go transparent once load
+  // completes". Forcing a one-frame reflow on each gradient element after
+  // document.fonts.ready re-establishes the clip. Runs once; negligible cost.
+  function repaintGradientText() {
+    var sel = '.highlight-gold,.highlight-red,.highlight-purple,.nav-brand-name,'
+            + '.footer-logo-name,.preloader-name,.stat-number,.countdown-num,'
+            + '.pp-title .accent,[style*="-webkit-text-fill-color:transparent"]';
+    var els = document.querySelectorAll(sel);
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i], d = el.style.display;
+      el.style.display = 'none';
+      void el.offsetHeight;           // force reflow → re-rasterise the clip
+      el.style.display = d;
+    }
+  }
+  try {
+    if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+      document.fonts.ready.then(function () { repaintGradientText(); });
+    }
+  } catch (e) {}
+  // Belt-and-braces: also after full load, in case fonts.ready isn't supported.
+  window.addEventListener('load', function () { setTimeout(repaintGradientText, 80); });
+
+  // dotLottie web component was previously loaded here for animated emoji,
+  // but its WASM loader uses eval() which our CSP (correctly) forbids.
+  // Replace every <dotlottie-wc src="…notoemoji/<codepoint>/lottie.json"…>
+  // we find in the DOM with the matching native emoji glyph in a span the
+  // CSS bounces. Same vibe, zero external script, zero CSP grief.
+  function replaceDotLottie(root) {
+    var nodes = (root || document).querySelectorAll('dotlottie-wc[src*="notoemoji"]');
+    nodes.forEach(function (el) {
+      var m = (el.getAttribute('src') || '').match(/notoemoji\/(?:latest\/)?([0-9a-f_]+)/i);
+      if (!m) { el.remove(); return; }
+      var glyph = m[1].split('_').map(function (h) {
+        var cp = parseInt(h, 16); if (!cp || cp === 0xFE0F) return '';
+        return String.fromCodePoint(cp);
+      }).join('');
+      var span = document.createElement('span');
+      span.className = 'emoji-pop ' + (el.className || '');
+      span.setAttribute('role', 'img'); span.setAttribute('aria-hidden', 'true');
+      span.textContent = glyph || '🎵';
+      el.replaceWith(span);
+    });
+  }
+  if (typeof document !== 'undefined') {
+    if (document.readyState !== 'loading') replaceDotLottie();
+    else document.addEventListener('DOMContentLoaded', function () { replaceDotLottie(); });
+    // Re-scan after partials inject — header/footer may carry dotlottie tags.
+    document.addEventListener('mam:ready', function () { replaceDotLottie(); });
   }
   // Iconify — Microsoft Fluent 3D emoji (static) + line-md animated icons.
   // Used for inline decorations where a Lottie player would be overkill.
@@ -25,6 +87,24 @@
     __ic.async = true;
     __ic.dataset.mamIconify = '1';
     (document.head || document.documentElement).appendChild(__ic);
+  }
+
+  // libs.js + lead.js progressive enhancement modules. libs.js pulls in
+  // SweetAlert2/Tom Select/AOS/GSAP/etc; lead.js mounts the sticky
+  // apply-now bar and the exit-intent capture modal. Both are optional
+  // — the site degrades cleanly if either CDN/script is blocked.
+  if (typeof document !== 'undefined') {
+    var __base = (document.currentScript && document.currentScript.getAttribute('src')) || '';
+    var __idx  = __base.indexOf('main.js');
+    var __dir  = __idx >= 0 ? __base.slice(0, __idx) : 'assets/js/';
+    [['libs.js', 'mamLibs'], ['lead.js', 'mamLead']].forEach(function (pair) {
+      if (document.querySelector('script[data-' + pair[1] + ']')) return;
+      var s = document.createElement('script');
+      s.src = __dir + pair[0];
+      s.async = true;
+      s.dataset[pair[1]] = '1';
+      (document.head || document.documentElement).appendChild(s);
+    });
   }
 
   var $  = function (s, c) { return (c || document).querySelector(s); };
@@ -69,6 +149,7 @@
     var hamburger = $('#hamburgerBtn');
     var mobileMenu = $('#mobileMenu');
     var floatingEnroll = $('#floatingEnroll');
+    var footerEl = null;
 
     on(window, 'scroll', function () {
       var y = window.scrollY;
@@ -79,6 +160,23 @@
         var visible = y > threshold;
         floatingEnroll.classList.toggle('visible', visible);
         floatingEnroll.setAttribute('aria-hidden', !visible);
+
+        // Dock above the footer on large screens so the button never covers
+        // the footer links. Below 1024px it stays a normal fixed pill.
+        if (!footerEl) footerEl = document.querySelector('footer[role="contentinfo"]') || document.querySelector('footer');
+        if (footerEl && window.innerWidth > 1024) {
+          var fTop = footerEl.getBoundingClientRect().top;
+          if (fTop < window.innerHeight - 24) {
+            floatingEnroll.classList.add('docked');
+            floatingEnroll.style.top = Math.max(0, y + fTop - floatingEnroll.offsetHeight - 20) + 'px';
+          } else {
+            floatingEnroll.classList.remove('docked');
+            floatingEnroll.style.top = '';
+          }
+        } else if (floatingEnroll.classList.contains('docked')) {
+          floatingEnroll.classList.remove('docked');
+          floatingEnroll.style.top = '';
+        }
       }
     }, { passive: true });
 
@@ -188,13 +286,19 @@
       on(dd, 'keydown', function (e) { if (e.key === 'Escape') { item.classList.remove('js-hover', 'open'); trigger.focus(); } });
     });
 
-    // Highlight current page in nav
-    var path = location.pathname.split('/').pop() || 'index.html';
+    // Highlight current page in nav. Normalise so it matches whether the
+    // site is served with clean URLs (/apply) or legacy .html (/apply.html),
+    // and treats /, /index and /index.html all as "home".
+    var norm = function (p) {
+      p = (p || '').split('#')[0].split('?')[0].split('/').pop();
+      p = p.replace(/\.html$/, '');
+      return p === '' || p === 'index' ? 'home' : p;
+    };
+    var path = norm(location.pathname);
     $$('.nav-link, .mobile-nav-link, .mobile-nav-sub-link').forEach(function (a) {
       var href = a.getAttribute('href');
       if (!href) return;
-      var hrefPath = href.split('/').pop().split('#')[0];
-      if (hrefPath && hrefPath === path) a.classList.add('active');
+      if (norm(href) === path) a.classList.add('active');
     });
   }
 
@@ -377,25 +481,88 @@
   // ============================================================
   function initTestimonials() {
     var track = $('#testimonialsTrack'); if (!track) return;
-    var data = [
-      { stars: 5, q: 'MAM Academy didn\'t just teach my son piano — they taught him discipline, consistency and excellence. He\'s a completely different child.', i: 'AM', n: 'Mrs. Adaeze Mba', r: 'Parent · Lagos' },
-      { stars: 5, q: 'I started with zero knowledge. Within one year, I was playing in our worship team. The instructors are incredibly patient and gifted.', i: 'TN', n: 'Tunde Nwosu', r: 'Piano · 2024' },
-      { stars: 5, q: 'MAM cares about who you become, not just what you can play. Music is the vehicle — character is the destination.', i: 'CI', n: 'Chisom Ike', r: 'Violin · 2023' },
-      { stars: 5, q: 'My daughter was shy and introverted. MAM has transformed her — she now performs with complete confidence.', i: 'PO', n: 'Mr. Patrick Obi', r: 'Parent · Abuja' },
-      { stars: 5, q: 'The MAM Auditer placed me right where I needed to be. No guessing. The growth has been measurable from week one.', i: 'KA', n: 'Kemi Aluko', r: 'Voice · 2025' },
-      { stars: 5, q: 'MetaMusic changed how I think about sound — not just how I play. This place is special.', i: 'EE', n: 'Emmanuel Effiong', r: 'Drums · 2024' },
-      { stars: 5, q: 'Power Play with Van. BOJA reset my entire vision as a musician. I now think like a builder, not just a performer.', i: 'NA', n: 'Nneka Abosi', r: 'Power Play · 2025' }
-    ];
-    var html = data.map(function (t) {
-      return '<div class="testimonial-card">' +
-        '<div class="testimonial-stars" aria-label="' + t.stars + ' of 5">' + '★'.repeat(t.stars) + '</div>' +
-        '<p class="testimonial-quote">&ldquo;' + t.q + '&rdquo;</p>' +
-        '<div class="testimonial-author">' +
-        '<div class="testimonial-avatar" aria-hidden="true">' + t.i + '</div>' +
-        '<div><div class="testimonial-name">' + t.n + '</div><div class="testimonial-role">' + t.r + '</div></div>' +
-        '</div></div>';
-    }).join('');
-    track.innerHTML = html + html;
+    // Source from config so the academy can edit/extend without touching JS.
+    var data = (window.MAM_CONFIG && window.MAM_CONFIG.testimonials) || [];
+    if (!data.length) { track.parentNode && (track.parentNode.style.display = 'none'); return; }
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function avatar(t) {
+      var photo = t.photo && window.MAM_CDN ? window.MAM_CDN.image(t.photo, { width: 120 }) : t.photo;
+      return photo
+        ? '<div class="testimonial-avatar"><img src="' + esc(photo) + '" alt="' + esc(t.name) + '" loading="lazy"></div>'
+        : '<div class="testimonial-avatar" aria-hidden="true">' + esc(t.initials || (t.name || '?').slice(0, 2).toUpperCase()) + '</div>';
+    }
+    function card(t) {
+      var stars = Math.max(0, Math.min(5, t.stars || 5));
+      return '<figure class="testimonial-card" role="group" aria-roledescription="testimonial">' +
+        '<div class="testimonial-stars" aria-label="' + stars + ' out of 5 stars">' + '★'.repeat(stars) + '<span style="opacity:.25">' + '★'.repeat(5 - stars) + '</span></div>' +
+        '<blockquote class="testimonial-quote">&ldquo;' + esc(t.quote) + '&rdquo;</blockquote>' +
+        '<figcaption class="testimonial-author">' + avatar(t) +
+        '<div><div class="testimonial-name">' + esc(t.name) + '</div><div class="testimonial-role">' + esc(t.role) + '</div></div>' +
+        '</figcaption></figure>';
+    }
+
+    // Build a proper rotator: a viewport that scrolls one card at a time,
+    // with dots, prev/next, autoplay (paused on hover/focus/visibility),
+    // and native touch-swipe via scroll-snap.
+    var wrap = track.parentNode; // .testimonials-track-wrap
+    wrap.classList.add('is-rotator');
+    track.classList.remove('testimonials-track');
+    track.classList.add('testimonials-rail');
+    track.innerHTML = data.map(card).join('');
+
+    var controls = document.createElement('div');
+    controls.className = 'testimonials-controls';
+    controls.innerHTML =
+      '<button type="button" class="t-arrow t-prev" aria-label="Previous testimonial"><i class="fa-solid fa-chevron-left"></i></button>' +
+      '<div class="t-dots" role="tablist" aria-label="Choose testimonial"></div>' +
+      '<button type="button" class="t-arrow t-next" aria-label="Next testimonial"><i class="fa-solid fa-chevron-right"></i></button>';
+    wrap.appendChild(controls);
+
+    var dotsWrap = controls.querySelector('.t-dots');
+    data.forEach(function (_, i) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 't-dot'; b.setAttribute('role', 'tab');
+      b.setAttribute('aria-label', 'Testimonial ' + (i + 1));
+      b.addEventListener('click', function () { go(i, true); });
+      dotsWrap.appendChild(b);
+    });
+    var dots = Array.prototype.slice.call(dotsWrap.children);
+    var cards = Array.prototype.slice.call(track.children);
+    var index = 0, timer = null, userPaused = false;
+
+    function go(i, fromUser) {
+      index = (i + cards.length) % cards.length;
+      var el = cards[index];
+      track.scrollTo({ left: el.offsetLeft - track.offsetLeft, behavior: 'smooth' });
+      dots.forEach(function (d, di) { d.classList.toggle('active', di === index); d.setAttribute('aria-selected', di === index ? 'true' : 'false'); });
+      if (fromUser) restart();
+    }
+    function next() { go(index + 1); }
+    function prev() { go(index - 1); }
+    function start() { if (!userPaused) { stop(); timer = setInterval(next, 6000); } }
+    function stop() { if (timer) { clearInterval(timer); timer = null; } }
+    function restart() { stop(); start(); }
+
+    controls.querySelector('.t-next').addEventListener('click', function () { next(); restart(); });
+    controls.querySelector('.t-prev').addEventListener('click', function () { prev(); restart(); });
+    ['mouseenter', 'focusin', 'touchstart'].forEach(function (ev) { wrap.addEventListener(ev, function () { userPaused = true; stop(); }, { passive: true }); });
+    ['mouseleave', 'focusout'].forEach(function (ev) { wrap.addEventListener(ev, function () { userPaused = false; start(); }); });
+    document.addEventListener('visibilitychange', function () { if (document.hidden) stop(); else start(); });
+    // Keep dots in sync if the user free-scrolls/swipes the rail.
+    var st;
+    track.addEventListener('scroll', function () {
+      clearTimeout(st);
+      st = setTimeout(function () {
+        var nearest = 0, best = Infinity;
+        cards.forEach(function (c, ci) { var d = Math.abs(c.offsetLeft - track.offsetLeft - track.scrollLeft); if (d < best) { best = d; nearest = ci; } });
+        index = nearest;
+        dots.forEach(function (d, di) { d.classList.toggle('active', di === index); });
+      }, 120);
+    }, { passive: true });
+
+    go(0);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) start();
   }
 
   // ============================================================
@@ -437,43 +604,104 @@
   // ============================================================
   function initCurrency() {
     var btns = $$('.currency-btn'); if (!btns.length) return;
-    var rates = window.MAM_CONFIG && window.MAM_CONFIG.currency ? window.MAM_CONFIG.currency.rates : { USD: 1, NGN: 1500 };
-    function setCur(cur) {
+    var cfgCur = (window.MAM_CONFIG && window.MAM_CONFIG.currency) || {};
+    var symbols = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' };
+    var SUPPORTED = btns.map(function (b) { return b.getAttribute('data-currency'); });
+    // Live rates (USD base). Start from the config fallback; replace with live
+    // data once fetched so prices are always up to date even if the API is down.
+    var rates = Object.assign({ USD: 1 }, cfgCur.rates || { USD: 1, NGN: 1500, GBP: 0.79, EUR: 0.92 });
+    var current = 'USD';
+
+    function setCur(cur, persist) {
+      current = cur;
       btns.forEach(function (b) {
         var active = b.getAttribute('data-currency') === cur;
         b.classList.toggle('active', active); b.setAttribute('aria-selected', String(active));
       });
-      var symbol = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' }[cur] || '$';
+      var symbol = symbols[cur] || '$';
       $$('[data-cur-sym]').forEach(function (s) { s.textContent = symbol; });
       $$('[data-price]').forEach(function (p) {
-        var usd = parseInt(p.getAttribute('data-price'), 10);
-        var converted = Math.round(usd * (rates[cur] || 1));
-        if (cur === 'USD') p.textContent = usd;
+        var usd = parseFloat(p.getAttribute('data-price')) || 0;
+        var converted = usd * (rates[cur] || 1);
+        if (cur === 'USD') p.textContent = (Math.round(usd * 100) / 100).toString().replace(/\.00$/, '');
         else if (cur === 'NGN' && converted >= 1000) p.textContent = Math.round(converted / 1000) + 'k';
-        else p.textContent = converted;
+        else p.textContent = Math.round(converted).toLocaleString();
       });
-      Storage.setItem('mam.currency', cur);
+      if (persist !== false) Storage.setItem('mam.currency', cur);
     }
     btns.forEach(function (b) { on(b, 'click', function () { setCur(b.getAttribute('data-currency')); }); });
+
+    // 1) Live, auto-updating rates — free, key-less, cached 24h in localStorage.
+    (function loadRates() {
+      try {
+        var c = JSON.parse(Storage.getItem('mam.fx') || 'null');
+        if (c && c.rates && (Date.now() - c.t) < 864e5) { rates = Object.assign(rates, c.rates); return setCur(current, false); }
+      } catch (e) {}
+      fetch('https://open.er-api.com/v6/latest/USD', { mode: 'cors' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.rates && j.rates.USD === 1) {
+            rates = Object.assign(rates, j.rates);
+            try { Storage.setItem('mam.fx', JSON.stringify({ t: Date.now(), rates: j.rates })); } catch (e) {}
+            setCur(current, false);
+          }
+        }).catch(function () { /* keep fallback rates */ });
+    })();
+
+    // 2) Location-aware default (only when the visitor hasn't chosen before).
     var saved = Storage.getItem('mam.currency');
-    if (saved && saved !== 'USD') setCur(saved);
+    if (saved) { setCur(saved, false); return; }
+    function applyDetected(cur) {
+      if (Storage.getItem('mam.currency')) return;       // user clicked meanwhile
+      if (cur && SUPPORTED.indexOf(cur) >= 0) setCur(cur, false);
+    }
+    // Cheap, instant guess from locale + timezone…
+    var region = (navigator.language || '').split('-')[1];
+    var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    var byRegion = { NG: 'NGN', GB: 'GBP', US: 'USD', IE: 'EUR', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR', NL: 'EUR' };
+    applyDetected(byRegion[region] || (tz.indexOf('Lagos') >= 0 ? 'NGN' : ''));
+    // …then refine with a free, key-less geo-IP lookup (best effort).
+    fetch('https://ipapi.co/currency/', { mode: 'cors' })
+      .then(function (r) { return r.text(); })
+      .then(function (c) { c = (c || '').trim(); if (/^[A-Z]{3}$/.test(c)) applyDetected(c); })
+      .catch(function () {});
   }
 
   // ============================================================
   // Newsletter — uses backend API; mailto only if API unreachable
   // ============================================================
+  // Lazy-loads JustValidate once and resolves with the constructor.
+  // Returns a Promise<JustValidate|null> — null if the CDN is unreachable
+  // so the caller can fall back to a permissive submit.
+  var justValidatePromise = null;
+  function loadJustValidate() {
+    if (justValidatePromise) return justValidatePromise;
+    justValidatePromise = new Promise(function (resolve) {
+      if (window.JustValidate) return resolve(window.JustValidate);
+      var s = document.createElement('script');
+      // 4.5.0 was a 404 on jsDelivr — pinned to the highest published v4.
+      s.src = 'https://cdn.jsdelivr.net/npm/just-validate@4.3.0/dist/just-validate.production.min.js';
+      s.async = true;
+      s.onload  = function () { resolve(window.JustValidate || null); };
+      s.onerror = function () { resolve(null); };
+      document.head.appendChild(s);
+    });
+    return justValidatePromise;
+  }
+  window.MAM_LOAD_JUSTVALIDATE = loadJustValidate;
+
   function initNewsletter() {
     var form = $('#newsletterForm'); if (!form) return;
-    on(form, 'submit', function (e) {
-      e.preventDefault();
-      var input = $('#newsletterEmail');
-      var msg = $('#newsletterMsg');
-      var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!input || !re.test(input.value.trim())) {
-        if (input) input.style.borderColor = 'var(--red-hot)'; return;
-      }
-      input.style.borderColor = '';
-      var email = input.value.trim();
+    var input = $('#newsletterEmail');
+    var msg = $('#newsletterMsg');
+
+    var mailtoSubscribe = function (em) {
+      var fallback = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'connect@mamcentre.org';
+      window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Newsletter subscribe') + '&body=' + encodeURIComponent('Please subscribe ' + em);
+      if (msg) { msg.textContent = 'Opening your email…'; msg.classList.add('shown'); }
+    };
+    var submitWithEmail = function (email) {
+      if (input) input.style.borderColor = '';
       if (window.MAM_API && window.MAM_API.subscribeNewsletter) {
         window.MAM_API.subscribeNewsletter(email, 'footer-' + location.pathname)
           .then(function () {
@@ -488,11 +716,25 @@
             mailtoSubscribe(email);
           });
       } else { mailtoSubscribe(email); }
-      function mailtoSubscribe(em) {
-        var fallback = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'connect@mamcentre.org';
-        window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Newsletter subscribe') + '&body=' + encodeURIComponent('Please subscribe ' + em);
-        if (msg) { msg.textContent = 'Opening your email…'; msg.classList.add('shown'); }
+    };
+
+    // Prefer JustValidate when reachable — accessible errors, aria-live, clean
+    // focus management. Fall back to a permissive submit if the CDN fails.
+    loadJustValidate().then(function (JV) {
+      if (!JV) {
+        on(form, 'submit', function (e) {
+          e.preventDefault();
+          var em = (input.value || '').trim();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { input.style.borderColor = 'var(--red-hot)'; return; }
+          submitWithEmail(em);
+        });
+        return;
       }
+      var v = new JV(form, { errorFieldCssClass: 'jv-error', errorLabelCssClass: 'jv-error-label', focusInvalidField: true });
+      v.addField('#newsletterEmail', [
+        { rule: 'required', errorMessage: 'Email is required' },
+        { rule: 'email',    errorMessage: 'Enter a valid email' }
+      ]).onSuccess(function (e) { e.preventDefault(); submitWithEmail((input.value || '').trim()); });
     });
   }
 
@@ -556,6 +798,11 @@
     initFilters();
     initImageFallback();
     initYear();
+    // Route all <img> and hero backgrounds through Cloudinary fetch once
+    // partials are in place. Safe no-op until MAM_CONFIG.cdn.cloudName is set.
+    if (window.MAM_CDN && typeof window.MAM_CDN.rewriteAll === 'function') {
+      try { window.MAM_CDN.rewriteAll(document); } catch (e) {}
+    }
 
     if (window.console && console.log) {
       console.log('%c🎵 MAM Academy', 'background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#120D08;padding:12px 24px;font-size:18px;font-weight:900;border-radius:8px;letter-spacing:2px');

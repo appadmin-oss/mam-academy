@@ -18,7 +18,7 @@ window.MAM_CONFIG = {
 
   /* -------- API -------- */
   api: {
-    base: 'api',                  // relative; auto-resolves to /api on the same origin
+    base: '/api',                 // root-absolute so portal/ & admin/ pages resolve correctly (never /portal/api → 404)
     healthPath: 'health',
     csrfPath: 'csrf',
     applicationPath: 'application',
@@ -31,6 +31,25 @@ window.MAM_CONFIG = {
   /* -------- Mailto fallback (used only if API unreachable) -------- */
   forms: {
     fallbackEmail: 'connect@mamcentre.org'
+  },
+
+  /* -------- Image CDN (Cloudinary fetch) --------
+     Set `cloudName` to your Cloudinary cloud name to route every <img>
+     and inline page-hero background through Cloudinary, with q_auto and
+     f_auto applied so each browser gets the smallest right-sized variant.
+     Leaving cloudName empty is a safe no-op — the site keeps using the
+     original URLs. Opt an asset out with the `data-no-cdn` attribute. */
+  cdn: {
+    provider: 'cloudinary',
+    cloudName: '',          // e.g. 'mam-academy' — set this once and every image is served via the CDN
+    defaultWidth: 1920,     // hero/full-bleed cap
+    contentWidth: 1200,     // in-content image cap
+    // Unsigned upload preset for applicant-supplied images (headshots).
+    // Create one in Cloudinary → Settings → Upload → "Upload presets" with
+    // signing mode = Unsigned, and folder restriction = mam-academy/.
+    // Leaving this empty disables in-browser uploads — applicants can still
+    // submit and we'll request the headshot manually.
+    uploadPreset: ''
   },
 
   /* -------- Optional payment methods --------
@@ -57,10 +76,60 @@ window.MAM_CONFIG = {
     'pre-dip':    { name: 'Pre-Diploma (Grade 5–6)',         usd: 160 },
     'diploma':    { name: 'Diploma (Grade 7–8)',             usd: 180 },
     'crash':      { name: 'Crash Programme (6 weeks)',       usd: 40  },
-    'meta-order': { name: 'The MetaMusic Order (12 weeks)',  usd: 240 }
+    'meta-order': { name: 'The MetaMusic Order (12 weeks)',  usd: 60  }
   },
   registrationFeeUsd: 5,
   certificationFeeUsd: 22,
+
+  /* -------- Testimonials (edit here; the homepage rotator reads this) --------
+     `photo` is optional — when set it shows a real headshot (routed through
+     Cloudinary if configured); otherwise we render the initials avatar. Keep
+     these to genuine, attributable student/parent stories. */
+  testimonials: [
+    { stars: 5, quote: "MAM Academy didn't just teach my son piano — they taught him discipline, consistency and excellence. He's a completely different child.", name: 'Mrs. Adaeze Mba', role: 'Parent · Lagos', initials: 'AM', photo: '' },
+    { stars: 5, quote: 'I started with zero knowledge. Within one year I was playing in our worship team. The instructors are incredibly patient and gifted.', name: 'Tunde Nwosu', role: 'Piano · 2024', initials: 'TN', photo: '' },
+    { stars: 5, quote: 'MAM cares about who you become, not just what you can play. Music is the vehicle — character is the destination.', name: 'Chisom Ike', role: 'Violin · 2023', initials: 'CI', photo: '' },
+    { stars: 5, quote: 'My daughter was shy and introverted. MAM has transformed her — she now performs with complete confidence.', name: 'Mr. Patrick Obi', role: 'Parent · Abuja', initials: 'PO', photo: '' },
+    { stars: 5, quote: 'The MAM Auditer placed me exactly where I needed to be. No guessing. The growth has been measurable from week one.', name: 'Kemi Aluko', role: 'Voice · 2025', initials: 'KA', photo: '' },
+    { stars: 5, quote: 'MetaMusic changed how I think about sound — not just how I play. This place is special.', name: 'Emmanuel Effiong', role: 'Drums · 2024', initials: 'EE', photo: '' },
+    { stars: 5, quote: 'Power Play with Van. BOJA reset my entire vision as a musician. I now think like a builder, not just a performer.', name: 'Nneka Abosi', role: 'Power Play · 2025', initials: 'NA', photo: '' }
+  ],
+
+  /* -------- Power Play series (free monthly broadcast) --------
+     Held on the first Wednesday of every month. Admin-tunable:
+       - time/timezone format the displayed start
+       - meetUrl is the persistent Google Meet room link
+       - rrule overrides the default "first-wednesday" if you ever
+         need to move the cadence (e.g. 'last-friday'). Supported:
+         first-monday … first-sunday, last-monday … last-sunday.    */
+  powerPlay: {
+    rrule:    'first-wednesday',
+    time:     '19:00',           // 24-hour clock in the local `timezone`
+    timezone: 'Africa/Lagos',
+    durationMinutes: 90,
+    meetUrl:  '',                // paste your persistent meet link here
+    host:     'Van. BOJA'
+  },
+
+  /* -------- Book a Session (post-application appointment) --------
+     /book embeds your Google Appointment Schedule as an iframe so visitors
+     never leave the site. Paste the share URL from Google Calendar →
+     "Appointment schedules" → Share. Falls back to a "open in new tab"
+     button if the iframe is blocked by your share settings. The same URL
+     is read server-side from BOOKING_EMBED_URL in api/.env (so the API can
+     also surface it). The booking page is gated behind a one-time $5 fee
+     that covers registration, ID card, student file and a 30-minute MAM
+     Auditer assessment. */
+  booking: {
+    feeUsd:    5,
+    embedUrl:  '',               // paste your Google Appointment share link
+    covers:    [
+      'Registration & admission processing',
+      'Your MAM Academy student ID card',
+      'Your student file (kept on record at the Centre)',
+      'A 30-minute MAM Auditer assessment with our judges'
+    ]
+  },
 
   /* -------- Next intake (for the homepage countdown) -------- */
   intake: {
@@ -119,7 +188,14 @@ window.MAM_API = (function () {
   var cfg = window.MAM_CONFIG.api;
   var csrfToken = null, csrfFetchedAt = 0;
 
-  function url(path) { return cfg.base.replace(/\/$/, '') + '/' + path.replace(/^\//, ''); }
+  function url(path) {
+    // Always resolve from the site root, never the current directory — a
+    // relative base would make /portal/* and /admin/* pages hit
+    // /portal/api/… and 404. Force a leading slash for non-absolute bases.
+    var base = cfg.base || '/api';
+    if (!/^https?:\/\//.test(base) && base.charAt(0) !== '/') base = '/' + base;
+    return base.replace(/\/$/, '') + '/' + path.replace(/^\//, '');
+  }
 
   function getCsrf(force) {
     if (!force && csrfToken && (Date.now() - csrfFetchedAt) < 6000 * 1000) return Promise.resolve(csrfToken);
@@ -129,7 +205,16 @@ window.MAM_API = (function () {
         return r.text().then(function (t) {
           var j = {};
           try { j = JSON.parse(t); } catch (e) { throw apiUnavailable(r.status); }
-          if (!r.ok || !j.token) throw apiUnavailable(r.status);
+          if (!r.ok || !j.token) {
+            // The server answered with valid JSON but couldn't mint a token
+            // (e.g. csrf_not_configured when APP_KEY is unset). Surface the real
+            // reason to the console so an operator sees a config problem instead
+            // of a vague "server unreachable", while users still get friendly copy.
+            if (j && j.error) {
+              try { console.warn('[MAM_API] CSRF unavailable (HTTP ' + r.status + '): ' + j.error); } catch (e) {}
+            }
+            throw apiUnavailable(r.status);
+          }
           return j;
         });
       })
@@ -183,11 +268,80 @@ window.MAM_API = (function () {
 
   return {
     health:           function ()      { return request(cfg.healthPath); },
-    submitApplication: function (data) { return request(cfg.applicationPath, { method: 'POST', body: data }); },
+    submitApplication: function (data, idempotencyKey) {
+      var opts = { method: 'POST', body: data };
+      if (idempotencyKey) opts.headers = { 'X-Idempotency-Key': idempotencyKey };
+      return request(cfg.applicationPath, opts);
+    },
     initializePayment: function (data) { return request(cfg.paymentInitPath, { method: 'POST', body: data }); },
     verifyPayment:     function (data) { return request(cfg.paymentVerifyPath, { method: 'POST', body: data }); },
     subscribeNewsletter: function (email, source) { return request(cfg.newsletterPath, { method: 'POST', body: { email: email, source: source || 'site' } }); },
     sendContact:       function (data) { return request(cfg.contactPath, { method: 'POST', body: data }); },
-    url: url
+    // Store: list/detail are public GETs (use fetch directly); checkout is a
+    // CSRF-protected POST so it routes through the existing request() helper.
+    storeCheckout: function (data) { return request('/api/store/checkout', { method: 'POST', body: data }); },
+    url:     url,
+    // Generic API caller used by the portal pages: request(path, opts).
+    // Accepts either '/api/auth/login' (absolute) or 'auth/login' (relative)
+    // and routes through the same CSRF + JSON pipeline as the named helpers.
+    request: function (path, opts) {
+      var p = String(path || '');
+      if (p.indexOf('/api/') !== 0) p = '/api/' + p.replace(/^\//, '');
+      return request(p, opts || {});
+    }
   };
+})();
+
+/* -------- Cloudinary fetch helper --------
+   Wraps any absolute image URL in a Cloudinary fetch URL so we get q_auto,
+   f_auto, the right width and DPR variant — without uploading anything.
+   Returns the original URL when no cloud name is configured. */
+window.MAM_CDN = (function () {
+  var cdn = (window.MAM_CONFIG && window.MAM_CONFIG.cdn) || {};
+
+  function isHttp(u) { return /^https?:\/\//i.test(u || ''); }
+
+  function image(src, opts) {
+    if (!cdn.cloudName || !isHttp(src)) return src;
+    opts = opts || {};
+    var dpr = Math.min(3, Math.round(window.devicePixelRatio || 1));
+    var w   = opts.width || cdn.contentWidth || 1200;
+    var transforms = ['q_auto', 'f_auto', 'w_' + w, 'dpr_' + dpr];
+    if (opts.crop)    transforms.push('c_' + opts.crop);
+    if (opts.gravity) transforms.push('g_' + opts.gravity);
+    return 'https://res.cloudinary.com/' + cdn.cloudName + '/image/fetch/' + transforms.join(',') + '/' + encodeURIComponent(src);
+  }
+
+  /**
+   * Rewrite every <img> and inline page-hero background on the page to go
+   * through Cloudinary. Run once partials/header/footer have loaded.
+   * Opt-out per element with `data-no-cdn`.
+   */
+  function rewriteAll(root) {
+    if (!cdn.cloudName) return; // no-op until cloud name is configured
+    root = root || document;
+
+    // Heroes use `--page-hero-img:url(...)` inline; route those through CDN at hero width
+    root.querySelectorAll('[style*="--page-hero-img"]').forEach(function (el) {
+      if (el.hasAttribute('data-no-cdn') || el.hasAttribute('data-cdn-done')) return;
+      var s = el.getAttribute('style') || '';
+      var m = s.match(/--page-hero-img\s*:\s*url\(['"]?([^'")]+)['"]?\)/);
+      if (!m || !isHttp(m[1])) return;
+      var cdnUrl = image(m[1], { width: cdn.defaultWidth || 1920 });
+      el.setAttribute('style', s.replace(m[0], "--page-hero-img:url('" + cdnUrl + "')"));
+      el.setAttribute('data-cdn-done', '1');
+    });
+
+    // <img src="https://..."> — skip same-origin, data:, blob:, the logo, and explicit opt-outs
+    root.querySelectorAll('img[src]').forEach(function (img) {
+      if (img.hasAttribute('data-no-cdn') || img.hasAttribute('data-cdn-done')) return;
+      var src = img.getAttribute('src') || '';
+      if (!isHttp(src)) return;
+      var width = parseInt(img.getAttribute('width') || '0', 10) || undefined;
+      img.setAttribute('src', image(src, { width: width }));
+      img.setAttribute('data-cdn-done', '1');
+    });
+  }
+
+  return { image: image, rewriteAll: rewriteAll };
 })();
