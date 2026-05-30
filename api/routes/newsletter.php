@@ -17,8 +17,14 @@ try {
         ['email'],
         ['status' => 'subscribed', 'source' => $source]);
 } catch (Throwable $e) {
-    mam_log('error', 'newsletter_failed', ['err' => $e->getMessage()]);
-    mam_fail('save_failed', 500);
+    // Surface the actual error in dev — production stays opaque, but the
+    // detail goes to api/logs/php-error.log either way so support has it.
+    @error_log('[mam-api newsletter] ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+    if (function_exists('mam_log')) mam_log('error', 'newsletter_failed', ['err' => $e->getMessage()]);
+    $envName = strtolower((string)mam_env('APP_ENV', 'production'));
+    mam_fail('save_failed', 500, [
+        'message' => $envName === 'production' ? 'Could not save the subscription' : ($e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine()),
+    ]);
 }
 
 // Defer email sends until after the response — keeps the PowerPlay /

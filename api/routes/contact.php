@@ -16,10 +16,19 @@ if (!$topic)   $errors[] = 'topic';
 if (!$message) $errors[] = 'message';
 if ($errors) mam_fail('validation', 422, ['fields' => $errors]);
 
-$id = mam_db_insert('messages', [
-    'name' => $name, 'email' => $email, 'phone' => $phone,
-    'topic' => $topic, 'message' => $message, 'ip' => mam_client_ip(),
-]);
+try {
+    $id = mam_db_insert('messages', [
+        'name' => $name, 'email' => $email, 'phone' => $phone,
+        'topic' => $topic, 'message' => $message, 'ip' => mam_client_ip(),
+    ]);
+} catch (Throwable $e) {
+    @error_log('[mam-api contact] ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+    if (function_exists('mam_log')) mam_log('error', 'contact_failed', ['err' => $e->getMessage()]);
+    $envName = strtolower((string)mam_env('APP_ENV', 'production'));
+    mam_fail('save_failed', 500, [
+        'message' => $envName === 'production' ? 'Could not save the message' : ($e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine()),
+    ]);
+}
 
 // Defer both emails (admin notice + auto-responder) so the contact form
 // returns instantly. The DB insert above is what actually records the

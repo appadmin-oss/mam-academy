@@ -812,27 +812,119 @@ function mam_email_contact_autoresponse(string $name, string $topic): string {
 }
 
 function mam_email_application_confirmation(array $app, array $customer, ?array $tier = null, string $invoiceNumber = ''): string {
-    $ref  = htmlspecialchars($app['reference'], ENT_QUOTES);
-    $name = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')), ENT_QUOTES);
-    $bookUrl = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/book?ref=' . rawurlencode($app['reference']), ENT_QUOTES);
-    $label   = htmlspecialchars($tier['label'] ?? '$5', ENT_QUOTES);
-    $invLine = $invoiceNumber ? "<p style='color:rgba(255,255,255,0.6);font-size:12px;margin:6px 0 0'>Invoice <strong style='color:#FBBF24'>" . htmlspecialchars($invoiceNumber) . "</strong> is attached to this email — open it in any browser, then print or save as PDF for your records.</p>" : '';
-    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Application received, $name.</h2>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Thank you for applying to MAM Academy. Your application reference is:</p>
-      <div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;color:#FBBF24;font-size:16px;text-align:center;margin:16px 0'>$ref</div>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:0'>Programme: <strong style='color:#fff'>" . htmlspecialchars($app['pathway']) . "</strong> &middot; Mode: <strong style='color:#fff'>" . htmlspecialchars($app['mode']) . "</strong></p>
-      <p style='color:rgba(255,255,255,0.86);font-size:15px;margin:20px 0 0'><strong style='color:#fff'>Next step &mdash; book your session.</strong> A one-time <strong style='color:#FBBF24'>$label confirmation</strong> secures your slot with our Admin Officer and the MAM Auditer Judges. It covers your <strong>registration</strong>, <strong>student ID card</strong>, <strong>student file</strong> and a <strong>30-minute MAM Auditer assessment</strong>. No tuition is charged yet &mdash; we only ask for tuition after we have placed you correctly.</p>
-      " . mam_email_button($bookUrl, 'Book my session &mdash; ' . $label) . "
-      <p style='color:rgba(255,255,255,0.7);font-size:13px;margin:0'>Slots are limited each week. Bookings without payment will be held for 48 hours, then released.</p>"
-      . $invLine
-      . mam_email_promo_block(['pathways']);
-    return mam_email_layout([
-        'header' => 'MAM ACADEMY',
-        'preheader' => 'Your application is in. Invoice attached — reserve your seat with our Admin Officer + MAM Auditer Judges.',
-        'reason' => 'You received this because you submitted an application to MAM Academy.',
-        'unsubscribe' => true,
-        'body' => $inner,
-    ]);
+    // CLEAN, modern application confirmation. Light card on a dark frame
+    // for brand consistency, but the inside reads like a proper email —
+    // generous whitespace, real typography, table-based layout that
+    // survives Outlook 2007+ and Gmail dark mode without falling apart.
+    // Transactional → no unsubscribe (this is essential service email).
+    $ref      = htmlspecialchars($app['reference'], ENT_QUOTES);
+    $name     = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')) ?: 'there', ENT_QUOTES);
+    $first    = htmlspecialchars(($customer['first_name'] ?? '') ?: 'there', ENT_QUOTES);
+    $appUrl   = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
+    $bookUrl  = htmlspecialchars($appUrl . '/book?ref=' . rawurlencode($app['reference']), ENT_QUOTES);
+    $label    = htmlspecialchars($tier['label'] ?? '$5', ENT_QUOTES);
+    $pathway  = htmlspecialchars((string)($app['pathway'] ?? '—'), ENT_QUOTES);
+    $mode     = htmlspecialchars((string)($app['mode'] ?? '—'), ENT_QUOTES);
+    $invNo    = $invoiceNumber ? htmlspecialchars($invoiceNumber, ENT_QUOTES) : '';
+    $year     = date('Y');
+
+    // Map pathway codes to friendly labels so the email doesn't say "cert".
+    $pathwayMap = [
+        'pre-cert' => 'Pre-Certification', 'cert' => 'Certification',
+        'pre-dip' => 'Pre-Diploma', 'diploma' => 'Diploma',
+        'crash' => 'Crash Programme', 'meta-order' => 'The MetaMusic Order',
+    ];
+    $pathwayLabel = htmlspecialchars($pathwayMap[$app['pathway'] ?? ''] ?? (string)($app['pathway'] ?? '—'), ENT_QUOTES);
+    $modeLabel = htmlspecialchars(ucfirst((string)($app['mode'] ?? '—')), ENT_QUOTES);
+
+    $html = '<!doctype html><html lang="en"><head>'
+      . '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+      . '<meta name="x-apple-disable-message-reformatting"><meta name="color-scheme" content="light dark">'
+      . '<title>Application received — MAM Academy</title>'
+      . '<!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->'
+      . '<style>'
+      . 'body{margin:0;padding:0;background:#F4EFE7;-webkit-text-size-adjust:100%}'
+      . 'table{border-collapse:collapse}td{mso-line-height-rule:exactly}'
+      . 'a{color:#B8721B;text-decoration:none}'
+      . '.btn:hover{background:#9C5E12!important}'
+      . '@media only screen and (max-width:600px){'
+      . '  .container{width:100%!important;border-radius:0!important}'
+      . '  .px{padding-left:24px!important;padding-right:24px!important}'
+      . '  .py{padding-top:28px!important;padding-bottom:28px!important}'
+      . '  .h1{font-size:26px!important;line-height:1.25!important}'
+      . '  .btn{display:block!important;width:auto!important;padding:18px!important}'
+      . '}'
+      . '</style></head>'
+      . '<body style="margin:0;padding:24px 0;background:#F4EFE7;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif">'
+      // Preheader (hidden, shows in inbox preview)
+      . '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#F4EFE7">Application received. Reserve your seat with a one-time ' . $label . '.</div>'
+      . '<center>'
+      . '<!--[if mso]><table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600"><tr><td><![endif]-->'
+      . '<table role="presentation" class="container" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;margin:0 auto;background:#FFFFFF;border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(26,18,11,0.08)">'
+
+      // ── Top brand strip
+      . '<tr><td style="background:#1A120B;padding:18px 28px;text-align:center;border-radius:14px 14px 0 0">'
+      .   '<span style="font-family:Georgia,\'Times New Roman\',serif;font-size:18px;letter-spacing:0.16em;color:#FBBF24;font-weight:bold">MAM ACADEMY</span>'
+      . '</td></tr>'
+
+      // ── Hero
+      . '<tr><td class="px py" style="padding:40px 36px 24px;text-align:left">'
+      .   '<p style="margin:0 0 10px;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;color:#B8721B;font-weight:700">Application received</p>'
+      .   '<h1 class="h1" style="margin:0 0 14px;font-family:Georgia,\'Times New Roman\',serif;font-size:30px;line-height:1.2;color:#1A120B;font-weight:700">Welcome, ' . $first . '.</h1>'
+      .   '<p style="margin:0;color:#4A3624;font-size:16px;line-height:1.65">Thank you for applying to MAM Academy. We received everything — your application is now in the queue for our Admin Officer and MAM Auditer Judges.</p>'
+      . '</td></tr>'
+
+      // ── Reference + programme card
+      . '<tr><td class="px" style="padding:0 36px">'
+      .   '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#FBF4E8;border:1px solid #ECDFC4;border-radius:10px;margin-bottom:24px">'
+      .     '<tr><td style="padding:18px 22px">'
+      .       '<p style="margin:0 0 4px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Application reference</p>'
+      .       '<p style="margin:0;font-family:\'SF Mono\',Menlo,Consolas,monospace;font-size:18px;color:#1A120B;font-weight:600;letter-spacing:0.04em">' . $ref . '</p>'
+      .     '</td></tr>'
+      .     '<tr><td style="padding:0 22px 18px">'
+      .       '<table role="presentation" width="100%"><tr>'
+      .         '<td style="padding-right:14px;width:50%;border-top:1px solid #E5D5B1;padding-top:14px">'
+      .           '<p style="margin:0 0 4px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Programme</p>'
+      .           '<p style="margin:0;color:#1A120B;font-size:15px;font-weight:600">' . $pathwayLabel . '</p>'
+      .         '</td>'
+      .         '<td style="width:50%;border-top:1px solid #E5D5B1;padding-top:14px">'
+      .           '<p style="margin:0 0 4px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Mode</p>'
+      .           '<p style="margin:0;color:#1A120B;font-size:15px;font-weight:600">' . $modeLabel . '</p>'
+      .         '</td>'
+      .       '</tr></table>'
+      .     '</td></tr>'
+      .   '</table>'
+      . '</td></tr>'
+
+      // ── Next-step section
+      . '<tr><td class="px" style="padding:0 36px 8px">'
+      .   '<h2 style="margin:0 0 10px;font-family:Georgia,serif;font-size:20px;color:#1A120B;font-weight:700">Next step — reserve your seat</h2>'
+      .   '<p style="margin:0 0 18px;color:#4A3624;font-size:15px;line-height:1.7">A one-time <strong style="color:#1A120B">' . $label . '</strong> confirms your slot with our Admin Officer and the MAM Auditer Judges. It covers your <strong>registration</strong>, <strong>student ID card</strong>, <strong>student file</strong>, and a <strong>30-minute Auditer assessment</strong>. Tuition isn&rsquo;t charged here — we only discuss tuition after we&rsquo;ve placed you accurately.</p>'
+      . '</td></tr>'
+
+      // ── CTA button (MSO + standards)
+      . '<tr><td class="px" style="padding:8px 36px 16px" align="left">'
+      .   '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="' . $bookUrl . '" style="height:54px;v-text-anchor:middle;width:280px" arcsize="14%" stroke="f" fillcolor="#B8721B"><w:anchorlock/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:bold">Book my session — ' . $label . '</center></v:roundrect><![endif]-->'
+      .   '<!--[if !mso]><!-- -->'
+      .   '<a href="' . $bookUrl . '" class="btn" style="display:inline-block;background:#B8721B;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:16px 32px;border-radius:10px;letter-spacing:0.02em;mso-padding-alt:0">Book my session — ' . $label . '</a>'
+      .   '<!--<![endif]-->'
+      .   '<p style="margin:14px 0 0;color:#7A5C3D;font-size:13px;line-height:1.6">Slots fill up — bookings without payment are released after 48 hours.</p>'
+      . '</td></tr>'
+
+      // ── Invoice attached note
+      . ($invNo ? '<tr><td class="px" style="padding:16px 36px 0"><table role="presentation" width="100%" style="background:#F4EFE7;border-radius:8px"><tr><td style="padding:14px 18px;font-size:13px;color:#4A3624;line-height:1.6"><strong style="color:#1A120B">Invoice ' . $invNo . '</strong> is attached to this email — open it in any browser, then print or save as PDF for your records.</td></tr></table></td></tr>' : '')
+
+      // ── Footer
+      . '<tr><td class="px" style="padding:32px 36px 28px;border-top:1px solid #ECE0CC;margin-top:24px">'
+      .   '<p style="margin:0 0 8px;color:#4A3624;font-size:14px;line-height:1.7">Questions? Reply to this email or write to <a href="mailto:connect@mamcentre.org" style="color:#B8721B">connect@mamcentre.org</a>.</p>'
+      .   '<p style="margin:14px 0 0;color:#9A8264;font-size:12px;line-height:1.65">MAM Academy · MAM Centre · 2 Oremeji Street, Egbeda, Lagos, Nigeria<br>+234 704 444 6517 &middot; <a href="' . $appUrl . '/privacy" style="color:#B8721B">Privacy</a> &middot; <a href="' . $appUrl . '" style="color:#B8721B">academy.mamcentre.org</a></p>'
+      .   '<p style="margin:10px 0 0;color:#BAA787;font-size:11px">&copy; ' . $year . ' MAM Centre &middot; Crafting the Timeless in Time</p>'
+      . '</td></tr>'
+
+      . '</table>'
+      . '<!--[if mso]></td></tr></table><![endif]-->'
+      . '</center></body></html>';
+    return $html;
 }
 
 /**

@@ -58,3 +58,26 @@ function mam_require_method(string $method): void {
         mam_fail('method_not_allowed', 405);
     }
 }
+
+/**
+ * Emit a raw text/html (or other content-type) response and mark the
+ * response sent so the shutdown safety net doesn't eat it.
+ *
+ * Without this, any route that does `header('Content-Type:text/html'); echo $html; exit;`
+ * gets its body drained by mam_json/mam_emit_failure_json — which is
+ * exactly what was happening to the unsubscribe confirmation page.
+ */
+function mam_raw_response(string $body, int $status = 200, string $contentType = 'text/html; charset=utf-8'): void {
+    if (defined('MAM_RESPONSE_SENT')) return;
+    define('MAM_RESPONSE_SENT', true);
+    if (function_exists('ob_get_level')) {
+        while (ob_get_level() > 0) @ob_end_clean();
+    }
+    http_response_code($status);
+    if (!headers_sent()) {
+        header('Content-Type: ' . $contentType);
+        header('X-MAM-API-Response: ' . $status);
+    }
+    echo $body;
+    exit;
+}

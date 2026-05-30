@@ -33,19 +33,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 }
 
 // Human click: render a small, self-contained confirmation page.
-header('Content-Type: text/html; charset=utf-8');
+// IMPORTANT: route via mam_raw_response so the bootstrap's output-buffer
+// safety net doesn't eat the HTML and replace it with a no_response JSON.
 $home = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/'), ENT_QUOTES);
 $title = $valid ? 'Unsubscribed' : 'Link not recognised';
 $body  = $valid
     ? "You've been removed from MAM Academy marketing emails. You won't receive further promotional messages. Account and transactional emails (like password resets) are unaffected."
-    : "We couldn't verify that unsubscribe link. Please email <a href='mailto:connect@mamcentre.org' style='color:#FBBF24'>connect@mamcentre.org</a> and we'll remove you right away.";
-echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    : "We couldn't verify that unsubscribe link. Please email <a href='mailto:connect@mamcentre.org' style='color:#B8721B'>connect@mamcentre.org</a> and we'll remove you right away.";
+$html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
    . '<title>' . $title . ' — MAM Academy</title>'
    . '<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;'
-   . 'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#120D08;color:#FBF7F3}'
-   . '.card{max-width:460px;text-align:center;background:#1A120B;border:1px solid #251A10;border-radius:18px;padding:40px 30px}'
-   . 'h1{font-size:20px;margin:0 0 12px;font-family:Georgia,serif}p{color:rgba(255,255,255,0.8);line-height:1.65;font-size:15px;margin:0}'
-   . 'a.home{display:inline-block;margin-top:22px;color:#FBBF24;text-decoration:none;font-weight:700}</style></head>'
+   . 'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:#F4EFE7;color:#1A120B}'
+   . '.card{max-width:460px;text-align:center;background:#FFFFFF;border:1px solid #ECDFC4;border-radius:18px;padding:40px 30px;box-shadow:0 6px 24px rgba(26,18,11,0.08)}'
+   . 'h1{font-size:22px;margin:0 0 14px;font-family:Georgia,serif;color:#1A120B}p{color:#4A3624;line-height:1.7;font-size:15px;margin:0}'
+   . 'a.home{display:inline-block;margin-top:22px;color:#B8721B;text-decoration:none;font-weight:700}</style></head>'
    . '<body><div class="card"><h1>' . $title . '</h1><p>' . $body . '</p>'
    . '<a class="home" href="' . $home . '/">Return to MAM Academy →</a></div></body></html>';
-exit;
+mam_raw_response($html);
