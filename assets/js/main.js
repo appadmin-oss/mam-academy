@@ -679,7 +679,8 @@
     justValidatePromise = new Promise(function (resolve) {
       if (window.JustValidate) return resolve(window.JustValidate);
       var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/just-validate@4.5.0/dist/just-validate.production.min.js';
+      // 4.5.0 was a 404 on jsDelivr — pinned to the highest published v4.
+      s.src = 'https://cdn.jsdelivr.net/npm/just-validate@4.3.0/dist/just-validate.production.min.js';
       s.async = true;
       s.onload  = function () { resolve(window.JustValidate || null); };
       s.onerror = function () { resolve(null); };

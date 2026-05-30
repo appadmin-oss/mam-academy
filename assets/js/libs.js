@@ -27,7 +27,11 @@
     tomJs:    'https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js',
     tomCss:   'https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.min.css',
     aosJs:    'https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js',
-    aosCss:   'https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css'
+    aosCss:   'https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css',
+    // just-validate@4.5.0 was 404 on jsDelivr — the highest published v4 is
+    // 4.3.0. Pin to that. If you upgrade, verify the published version
+    // exists with `npm view just-validate versions` first.
+    justValidate: 'https://cdn.jsdelivr.net/npm/just-validate@4.3.0/dist/just-validate.production.min.js'
   };
 
   function loadJs(src) {
@@ -63,17 +67,26 @@
     var gsap = window.gsap;
     if (window.ScrollTrigger) gsap.registerPlugin(window.ScrollTrigger);
 
-    // Heading word-rise using SplitText (or SplitType fallback).
+    // Heading word-rise using SplitType. CRITICAL: skip headings that
+    // contain a gradient span (.highlight-gold). Splitting them into word
+    // spans makes the words inherit -webkit-text-fill-color:transparent
+    // from the parent but NOT the background-image — result is fully
+    // transparent text with no gradient to clip to. The whole heading
+    // still fades in as one unit, so the visual still reads as animated.
     document.querySelectorAll('.section-title, .page-hero-title').forEach(function (el) {
       if (el.dataset.gsapDone) return; el.dataset.gsapDone = '1';
+      var hasGradient = el.querySelector('.highlight-gold');
       var targets = null;
-      try {
-        if (window.SplitText) targets = new window.SplitText(el, { type: 'words' }).words;
-        else if (window.SplitType) targets = new window.SplitType(el, { types: 'words' }).words;
-      } catch (e) { targets = null; }
+      if (!hasGradient) {
+        try {
+          if (window.SplitType) targets = new window.SplitType(el, { types: 'words' }).words;
+        } catch (e) { targets = null; }
+      }
       if (!targets || !targets.length) targets = [el];
       gsap.from(targets, {
-        yPercent: 60, opacity: 0, duration: 0.7, ease: 'power3.out', stagger: 0.04,
+        yPercent: hasGradient ? 0 : 60,
+        y: hasGradient ? 24 : 0,
+        opacity: 0, duration: 0.7, ease: 'power3.out', stagger: 0.04,
         scrollTrigger: window.ScrollTrigger ? { trigger: el, start: 'top 85%', once: true } : undefined
       });
     });

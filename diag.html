@@ -106,7 +106,16 @@
           var detail = 'HTTP ' + r.status + ' · ' + (r.type || 'no content-type');
           if (looksLikePhp(r.body))    detail += ' · ⚠ PHP SOURCE LEAKED — handler not active';
           else if (!looksLikeJson(r.body)) detail += ' · body is not JSON (first 100b: ' + r.body.slice(0, 100) + ')';
-          else detail += ' · ' + r.body.length + 'b JSON';
+          else {
+            // Surface the actual JSON error code + message — that's the
+            // smoking gun for any 4xx/5xx. Otherwise just note the size.
+            try {
+              var j = JSON.parse(r.body);
+              if (j.error)        detail += ' · error=' + j.error + (j.message ? ' (' + j.message + ')' : '');
+              else if (j.ok)      detail += ' · ' + r.body.length + 'b JSON';
+              else                detail += ' · ' + r.body.length + 'b JSON';
+            } catch (e) { detail += ' · ' + r.body.length + 'b JSON'; }
+          }
           row(c.name, status, detail);
         }).catch(function (e) {
           row(c.name, 'fail', 'fetch failed: ' + e.message);
