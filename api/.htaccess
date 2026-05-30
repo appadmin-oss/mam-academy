@@ -1,24 +1,89 @@
-# /api/.htaccess
-# Routes /api/<anything> through /api/index.php, which then dispatches.
+# =============================================================
+# /api/.htaccess — MAM Academy API
+# Goal: force PHP parsing on shared hosts that don't honour the
+# default handler, and route /api/<anything> through index.php.
+# =============================================================
+
 DirectoryIndex index.php
 
+# Disable directory listings + MultiViews (which can silently rewrite
+# /api/diag → /api/diag.php and bypass our intended router).
+Options -Indexes -MultiViews
+
+# -------------------------------------------------------------
+# Force PHP processing. Hosts vary wildly in which handler name
+# their PHP build is registered under — try the most common ones
+# in order. SetHandler wins over AddHandler when both apply, so
+# the FilesMatch block at the top is the canonical version; the
+# AddType/AddHandler fallbacks below catch hosts that ignore
+# SetHandler. Wrap each in IfModule where applicable so older
+# Apache configs don't error.
+# -------------------------------------------------------------
+<FilesMatch "\.php$">
+  SetHandler application/x-httpd-php
+</FilesMatch>
+
+# Fallbacks — harmless to set even when the SetHandler above worked.
+AddType  application/x-httpd-php .php
+AddHandler application/x-httpd-php .php
+
+# cPanel / EasyApache / CloudLinux: handler names embed the PHP
+# version. We can't know which version the user is on, so we set
+# them all — Apache silently ignores ones that don't exist.
+<IfModule mod_mime.c>
+  AddHandler application/x-httpd-php74 .php
+  AddHandler application/x-httpd-php80 .php
+  AddHandler application/x-httpd-php81 .php
+  AddHandler application/x-httpd-php82 .php
+  AddHandler application/x-httpd-php83 .php
+  AddHandler application/x-httpd-ea-php74 .php
+  AddHandler application/x-httpd-ea-php80 .php
+  AddHandler application/x-httpd-ea-php81 .php
+  AddHandler application/x-httpd-ea-php82 .php
+  AddHandler application/x-httpd-ea-php83 .php
+</IfModule>
+
+# LiteSpeed servers use their own handler name. The directive is a
+# no-op on plain Apache.
+<IfModule lsapi_module>
+  AddHandler application/x-httpd-lsphp .php
+</IfModule>
+
+# -------------------------------------------------------------
+# URL routing — /api/<anything> → index.php?route=<anything>
+# -------------------------------------------------------------
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /api/
 
-  # Don't rewrite if the request is for an actual existing file (e.g. verify-payment.php legacy)
+  # If the request is for an actual existing PHP/asset file, serve
+  # it directly (and let the handlers above process it).
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
-  # Health is reachable at /api/health → routes to index.php?route=health
-  RewriteRule ^(.+)$ index.php?route=$1 [QSA,L]
+  # Empty path → health probe.
   RewriteRule ^$ index.php?route=health [L]
+
+  # Everything else → router.
+  RewriteRule ^(.+)$ index.php?route=$1 [QSA,L]
 </IfModule>
 
-# Hide library and storage directories from direct browsing
-<FilesMatch "\.(env|sqlite|sqlite3|db|log|bak)$">
+# -------------------------------------------------------------
+# Hide secrets, db files, logs and the route files themselves
+# from direct browsing. The router controls all access.
+# -------------------------------------------------------------
+<FilesMatch "\.(env|sqlite|sqlite3|db|log|bak|ini|json|md|sh|sql)$">
   Require all denied
 </FilesMatch>
 
-# Make sure PHP is parsed
-AddHandler application/x-httpd-php .php
+# Block direct access to the lib/ and routes/ subdirectories.
+# Requests should always reach them via index.php's require, never
+# via the URL. (If the PHP handler ever fails, this denies source
+# disclosure to the public.)
+RedirectMatch 403 ^/api/(lib|routes)/.*$
+
+# CORS / security headers consistent with the rest of the site.
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
