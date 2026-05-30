@@ -334,4 +334,25 @@
   .apply-stepper::before{left:12%;right:12%}
   .apply-stepper{margin-bottom:18px}
   .policy-block{padding:18px 16px}
+  /* Make the stepper dots themselves bigger touch targets so users can
+     jump back to earlier steps with a thumb. WCAG 2.5.5 minimum is 44px. */
+  .apply-progress-step{min-width:44px;min-height:44px;padding:4px}
+  /* Step heading + description ergonomics — tightened type, more breathing room
+     between the field rows on small screens, larger tap area on inputs. */
+  .step-head{margin-bottom:22px}
+  .step-title{font-size:1.45rem;line-height:1.22}
+  .step-desc{font-size:0.95rem;line-height:1.6}
+  .field{margin-bottom:18px}
+  .field-input,.field-select,.field-textarea{padding:14px 14px;font-size:16px}
+  /* iOS won't zoom on focus when font-size >= 16px, which keeps the layout
+     from shifting beneath the keyboard. */
+  .step-actions{margin-top:32px;gap:10px}
+  .btn-step{flex:1;padding:14px 18px;font-size:0.92rem}
+  /* The mobile bottom bar is sticky — give it a comfortable safe-area inset
+     so it never gets eaten by the iPhone home indicator. */
+  .apply-mobilebar{padding-bottom:max(14px, env(safe-area-inset-bottom))}
+  /* Optional add-ons + summary cards have padding that's right at the edge
+     on phones — bring them in a touch. */
+  .summary-panel,.payment-method{padding:14px 14px}
+  .summary-panel-head{padding:14px 14px}
 }
