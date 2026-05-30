@@ -530,14 +530,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
         $tier = mam_booking_tier();
         $invNo = 'INV-MAM-' . date('y', strtotime((string)$app['created_at'])) . '-' . str_pad((string)$aid, 4, '0', STR_PAD_LEFT);
-        $html = mam_invoice_print_html($app, $cust, $tier, $invNo);
+        // No .html attachment — the email body links to /api/invoice/{ref}
+        // (renders properly in any browser, prints clean as PDF).
         mam_send(
             (string)$cust['email'],
             'MAM Academy — Application copy (' . $app['reference'] . ')',
             mam_email_application_confirmation($app, $cust, $tier, $invNo),
             'application_confirmation_resend',
-            true,
-            ['attachments' => [[ 'content' => $html, 'name' => 'MAM-Academy-Invoice-' . $invNo . '.html', 'mime' => 'text/html; charset=utf-8' ]]]
+            true
         );
         mam_audit('resend_confirmation', 'application', $aid, ['to' => $cust['email']]);
         header('Location: ?v=applications&ok=1'); exit;

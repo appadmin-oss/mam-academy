@@ -30,6 +30,13 @@ $r->get('/diag',    $f('diag.php'));
 $r->get('/booking/status',  $f('booking-status.php'),  [mw_rate_limit('booking_status', 60, 60)]);
 $r->get('/booking/pricing', $f('booking-pricing.php'), [mw_rate_limit('booking_pricing', 60, 60)]);
 
+// Web-viewable invoice + signed policy. Replace the .html attachments that
+// most mail clients render as source code with proper standalone pages
+// (applicants click the link in the email and view in their browser, where
+// "Save as PDF" + Print just work).
+$r->get('/invoice/:ref', $f('invoice.php'), [mw_rate_limit('invoice', 30, 60)]);
+$r->get('/policy/:ref',  $f('policy.php'),  [mw_rate_limit('policy',  30, 60)]);
+
 /* ─── Store / Library (public catalogue) ─── */
 $r->get ('/store/items',       $f('store-list.php'),     [mw_rate_limit('store_list', 60, 60)]);
 $r->get ('/store/item/:slug',  $f('store-detail.php'),   [mw_rate_limit('store_detail', 60, 60)]);

@@ -812,23 +812,23 @@ function mam_email_contact_autoresponse(string $name, string $topic): string {
 }
 
 function mam_email_application_confirmation(array $app, array $customer, ?array $tier = null, string $invoiceNumber = ''): string {
-    // CLEAN, modern application confirmation. Light card on a dark frame
-    // for brand consistency, but the inside reads like a proper email —
-    // generous whitespace, real typography, table-based layout that
-    // survives Outlook 2007+ and Gmail dark mode without falling apart.
-    // Transactional → no unsubscribe (this is essential service email).
+    // Editorial-grade transactional email — premium feel without leaving
+    // Outlook 2007 behind. Light ground, generous whitespace, single
+    // accent column, real typographic hierarchy. The invoice + signed
+    // policy used to be .html attachments that mail clients rendered as
+    // source code; they're now standalone web pages linked from here so
+    // recipients view + Save-as-PDF directly from their browser.
     $ref      = htmlspecialchars($app['reference'], ENT_QUOTES);
-    $name     = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')) ?: 'there', ENT_QUOTES);
     $first    = htmlspecialchars(($customer['first_name'] ?? '') ?: 'there', ENT_QUOTES);
     $appUrl   = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
     $bookUrl  = htmlspecialchars($appUrl . '/book?ref=' . rawurlencode($app['reference']), ENT_QUOTES);
+    $invUrl   = htmlspecialchars($appUrl . '/api/invoice/' . rawurlencode($app['reference']), ENT_QUOTES);
+    $polUrl   = htmlspecialchars($appUrl . '/api/policy/'  . rawurlencode($app['reference']), ENT_QUOTES);
     $label    = htmlspecialchars($tier['label'] ?? '$5', ENT_QUOTES);
-    $pathway  = htmlspecialchars((string)($app['pathway'] ?? '—'), ENT_QUOTES);
-    $mode     = htmlspecialchars((string)($app['mode'] ?? '—'), ENT_QUOTES);
     $invNo    = $invoiceNumber ? htmlspecialchars($invoiceNumber, ENT_QUOTES) : '';
     $year     = date('Y');
+    $hasPolicy = !empty($app['policy_mode']);
 
-    // Map pathway codes to friendly labels so the email doesn't say "cert".
     $pathwayMap = [
         'pre-cert' => 'Pre-Certification', 'cert' => 'Certification',
         'pre-dip' => 'Pre-Diploma', 'diploma' => 'Diploma',
@@ -836,6 +836,7 @@ function mam_email_application_confirmation(array $app, array $customer, ?array 
     ];
     $pathwayLabel = htmlspecialchars($pathwayMap[$app['pathway'] ?? ''] ?? (string)($app['pathway'] ?? '—'), ENT_QUOTES);
     $modeLabel = htmlspecialchars(ucfirst((string)($app['mode'] ?? '—')), ENT_QUOTES);
+    $discLabel = htmlspecialchars(ucwords((string)($app['discipline'] ?? '')), ENT_QUOTES);
 
     $html = '<!doctype html><html lang="en"><head>'
       . '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -843,82 +844,123 @@ function mam_email_application_confirmation(array $app, array $customer, ?array 
       . '<title>Application received — MAM Academy</title>'
       . '<!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->'
       . '<style>'
-      . 'body{margin:0;padding:0;background:#F4EFE7;-webkit-text-size-adjust:100%}'
+      . 'body{margin:0;padding:0;background:#F6F1E8;-webkit-text-size-adjust:100%}'
       . 'table{border-collapse:collapse}td{mso-line-height-rule:exactly}'
       . 'a{color:#B8721B;text-decoration:none}'
-      . '.btn:hover{background:#9C5E12!important}'
+      . 'a.btn-primary:hover{background:#9C5E12!important}'
+      . '.link:hover{color:#1A120B!important;border-color:#1A120B!important}'
       . '@media only screen and (max-width:600px){'
       . '  .container{width:100%!important;border-radius:0!important}'
-      . '  .px{padding-left:24px!important;padding-right:24px!important}'
-      . '  .py{padding-top:28px!important;padding-bottom:28px!important}'
-      . '  .h1{font-size:26px!important;line-height:1.25!important}'
-      . '  .btn{display:block!important;width:auto!important;padding:18px!important}'
+      . '  .px{padding-left:26px!important;padding-right:26px!important}'
+      . '  .py{padding-top:32px!important;padding-bottom:32px!important}'
+      . '  .h1{font-size:28px!important;line-height:1.22!important}'
+      . '  .btn-primary{display:block!important;padding:18px!important}'
+      . '  .grid-half{display:block!important;width:100%!important;padding:0!important}'
+      . '  .grid-divider{display:block!important;height:1px!important;background:#ECDFC4!important;margin:18px 0!important}'
       . '}'
       . '</style></head>'
-      . '<body style="margin:0;padding:24px 0;background:#F4EFE7;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif">'
-      // Preheader (hidden, shows in inbox preview)
-      . '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#F4EFE7">Application received. Reserve your seat with a one-time ' . $label . '.</div>'
+      . '<body style="margin:0;padding:28px 0;background:#F6F1E8;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif">'
+      // Preheader (inbox preview text)
+      . '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#F6F1E8">Application ' . $ref . ' — reserve your seat with a one-time ' . $label . '. View invoice + policy inside.</div>'
       . '<center>'
-      . '<!--[if mso]><table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="600"><tr><td><![endif]-->'
-      . '<table role="presentation" class="container" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;margin:0 auto;background:#FFFFFF;border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(26,18,11,0.08)">'
+      . '<!--[if mso]><table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="620"><tr><td><![endif]-->'
+      . '<table role="presentation" class="container" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:620px;margin:0 auto;background:#FFFFFF;border-radius:18px;overflow:hidden;box-shadow:0 12px 36px rgba(26,18,11,0.10)">'
 
-      // ── Top brand strip
-      . '<tr><td style="background:#1A120B;padding:18px 28px;text-align:center;border-radius:14px 14px 0 0">'
-      .   '<span style="font-family:Georgia,\'Times New Roman\',serif;font-size:18px;letter-spacing:0.16em;color:#FBBF24;font-weight:bold">MAM ACADEMY</span>'
+      // ── Hairline gold accent strip (single thin bar) — sets the tone without
+      //    being heavy. Real designers use this; gradients break in Outlook.
+      . '<tr><td style="background:#B8721B;height:5px;line-height:5px;font-size:0">&nbsp;</td></tr>'
+
+      // ── Editorial header: wordmark + small uppercase eyebrow above
+      . '<tr><td class="px" style="padding:32px 44px 0;text-align:center">'
+      .   '<p style="margin:0;font-size:10.5px;letter-spacing:0.32em;text-transform:uppercase;color:#B8721B;font-weight:700">A Creative Intelligence &amp; Performance Academy</p>'
+      .   '<p style="margin:8px 0 0;font-family:Georgia,\'Times New Roman\',serif;font-size:22px;letter-spacing:0.18em;color:#1A120B;font-weight:bold">MAM ACADEMY</p>'
+      .   '<table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" style="margin:18px auto 0"><tr><td style="height:1px;background:#ECDFC4;width:60px;line-height:1px;font-size:0">&nbsp;</td></tr></table>'
       . '</td></tr>'
 
-      // ── Hero
-      . '<tr><td class="px py" style="padding:40px 36px 24px;text-align:left">'
-      .   '<p style="margin:0 0 10px;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;color:#B8721B;font-weight:700">Application received</p>'
-      .   '<h1 class="h1" style="margin:0 0 14px;font-family:Georgia,\'Times New Roman\',serif;font-size:30px;line-height:1.2;color:#1A120B;font-weight:700">Welcome, ' . $first . '.</h1>'
-      .   '<p style="margin:0;color:#4A3624;font-size:16px;line-height:1.65">Thank you for applying to MAM Academy. We received everything — your application is now in the queue for our Admin Officer and MAM Auditer Judges.</p>'
+      // ── Hero block — large, editorial-style serif headline
+      . '<tr><td class="px py" style="padding:32px 44px 4px;text-align:left">'
+      .   '<p style="margin:0 0 14px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Application received</p>'
+      .   '<h1 class="h1" style="margin:0 0 16px;font-family:Georgia,\'Times New Roman\',serif;font-size:32px;line-height:1.18;color:#1A120B;font-weight:700;letter-spacing:-0.005em">Welcome aboard,<br>' . $first . '.</h1>'
+      .   '<p style="margin:0;color:#4A3624;font-size:16px;line-height:1.7">We have your application. Our Admin Officer and the MAM Auditer Judges will review it shortly — the next step is to lock in your seat.</p>'
       . '</td></tr>'
 
-      // ── Reference + programme card
-      . '<tr><td class="px" style="padding:0 36px">'
-      .   '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#FBF4E8;border:1px solid #ECDFC4;border-radius:10px;margin-bottom:24px">'
-      .     '<tr><td style="padding:18px 22px">'
-      .       '<p style="margin:0 0 4px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Application reference</p>'
-      .       '<p style="margin:0;font-family:\'SF Mono\',Menlo,Consolas,monospace;font-size:18px;color:#1A120B;font-weight:600;letter-spacing:0.04em">' . $ref . '</p>'
+      // ── Reference (large, prominent) and meta in a clean stacked card
+      . '<tr><td class="px" style="padding:28px 44px 4px">'
+      .   '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #ECDFC4;border-radius:12px">'
+      .     '<tr><td style="padding:22px 24px 18px;background:#FBF4E8;border-radius:12px 12px 0 0">'
+      .       '<p style="margin:0 0 6px;font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Reference</p>'
+      .       '<p style="margin:0;font-family:\'SF Mono\',Menlo,Consolas,monospace;font-size:20px;color:#1A120B;font-weight:700;letter-spacing:0.04em">' . $ref . '</p>'
       .     '</td></tr>'
-      .     '<tr><td style="padding:0 22px 18px">'
+      .     '<tr><td style="padding:20px 24px 22px;background:#FFFFFF;border-radius:0 0 12px 12px">'
       .       '<table role="presentation" width="100%"><tr>'
-      .         '<td style="padding-right:14px;width:50%;border-top:1px solid #E5D5B1;padding-top:14px">'
-      .           '<p style="margin:0 0 4px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Programme</p>'
-      .           '<p style="margin:0;color:#1A120B;font-size:15px;font-weight:600">' . $pathwayLabel . '</p>'
+      .         '<td class="grid-half" style="width:50%;padding-right:16px;vertical-align:top">'
+      .           '<p style="margin:0 0 4px;font-size:10.5px;letter-spacing:0.12em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Programme</p>'
+      .           '<p style="margin:0;color:#1A120B;font-size:15px;font-weight:600;line-height:1.4">' . $pathwayLabel . '</p>'
       .         '</td>'
-      .         '<td style="width:50%;border-top:1px solid #E5D5B1;padding-top:14px">'
-      .           '<p style="margin:0 0 4px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Mode</p>'
-      .           '<p style="margin:0;color:#1A120B;font-size:15px;font-weight:600">' . $modeLabel . '</p>'
+      .         '<td class="grid-half" style="width:50%;padding-left:16px;border-left:1px solid #ECE0CC;vertical-align:top">'
+      .           '<p style="margin:0 0 4px;font-size:10.5px;letter-spacing:0.12em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Mode &middot; Discipline</p>'
+      .           '<p style="margin:0;color:#1A120B;font-size:15px;font-weight:600;line-height:1.4">' . $modeLabel . ($discLabel ? ' &middot; <span style="color:#4A3624;font-weight:500">' . $discLabel . '</span>' : '') . '</p>'
       .         '</td>'
       .       '</tr></table>'
       .     '</td></tr>'
       .   '</table>'
       . '</td></tr>'
 
-      // ── Next-step section
-      . '<tr><td class="px" style="padding:0 36px 8px">'
-      .   '<h2 style="margin:0 0 10px;font-family:Georgia,serif;font-size:20px;color:#1A120B;font-weight:700">Next step — reserve your seat</h2>'
-      .   '<p style="margin:0 0 18px;color:#4A3624;font-size:15px;line-height:1.7">A one-time <strong style="color:#1A120B">' . $label . '</strong> confirms your slot with our Admin Officer and the MAM Auditer Judges. It covers your <strong>registration</strong>, <strong>student ID card</strong>, <strong>student file</strong>, and a <strong>30-minute Auditer assessment</strong>. Tuition isn&rsquo;t charged here — we only discuss tuition after we&rsquo;ve placed you accurately.</p>'
-      . '</td></tr>'
-
-      // ── CTA button (MSO + standards)
-      . '<tr><td class="px" style="padding:8px 36px 16px" align="left">'
-      .   '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="' . $bookUrl . '" style="height:54px;v-text-anchor:middle;width:280px" arcsize="14%" stroke="f" fillcolor="#B8721B"><w:anchorlock/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:bold">Book my session — ' . $label . '</center></v:roundrect><![endif]-->'
+      // ── Next step — section with a thicker headline and the primary CTA
+      . '<tr><td class="px" style="padding:36px 44px 0">'
+      .   '<table role="presentation" align="left" border="0" cellpadding="0" cellspacing="0" style="margin:0 0 18px"><tr><td style="height:1px;background:#1A120B;width:32px;line-height:1px;font-size:0">&nbsp;</td></tr></table>'
+      .   '<p style="margin:0 0 8px;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#1A120B;font-weight:700">Next step</p>'
+      .   '<h2 style="margin:0 0 12px;font-family:Georgia,serif;font-size:22px;color:#1A120B;font-weight:700;line-height:1.3">Reserve your seat — <span style="color:#B8721B">' . $label . '</span> &middot; one-time</h2>'
+      .   '<p style="margin:0 0 24px;color:#4A3624;font-size:15px;line-height:1.75">Confirms your slot with our Admin Officer and the MAM Auditer Judges. Covers registration, your <strong style="color:#1A120B">MAM Academy student ID card</strong>, your <strong style="color:#1A120B">student file</strong>, and a <strong style="color:#1A120B">30-minute Auditer assessment</strong>. Tuition is discussed afterwards — never at this step.</p>'
+      // CTA button
+      .   '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="' . $bookUrl . '" style="height:56px;v-text-anchor:middle;width:300px" arcsize="14%" stroke="f" fillcolor="#1A120B"><w:anchorlock/><center style="color:#FBBF24;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;letter-spacing:0.04em">RESERVE MY SEAT &nbsp;→</center></v:roundrect><![endif]-->'
       .   '<!--[if !mso]><!-- -->'
-      .   '<a href="' . $bookUrl . '" class="btn" style="display:inline-block;background:#B8721B;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:16px 32px;border-radius:10px;letter-spacing:0.02em;mso-padding-alt:0">Book my session — ' . $label . '</a>'
+      .   '<a href="' . $bookUrl . '" class="btn-primary" style="display:inline-block;background:#1A120B;color:#FBBF24;font-size:14px;font-weight:700;text-decoration:none;padding:18px 36px;border-radius:12px;letter-spacing:0.12em;text-transform:uppercase;mso-padding-alt:0">Reserve my seat &nbsp;→</a>'
       .   '<!--<![endif]-->'
-      .   '<p style="margin:14px 0 0;color:#7A5C3D;font-size:13px;line-height:1.6">Slots fill up — bookings without payment are released after 48 hours.</p>'
+      .   '<p style="margin:14px 0 0;color:#7A5C3D;font-size:12.5px;line-height:1.6;letter-spacing:0.02em">Slots fill weekly. Bookings without payment release after 48 hours.</p>'
       . '</td></tr>'
 
-      // ── Invoice attached note
-      . ($invNo ? '<tr><td class="px" style="padding:16px 36px 0"><table role="presentation" width="100%" style="background:#F4EFE7;border-radius:8px"><tr><td style="padding:14px 18px;font-size:13px;color:#4A3624;line-height:1.6"><strong style="color:#1A120B">Invoice ' . $invNo . '</strong> is attached to this email — open it in any browser, then print or save as PDF for your records.</td></tr></table></td></tr>' : '')
+      // ── Documents: links to the web-viewable invoice + policy (NOT attached
+      //    as .html which most mail clients render as source code).
+      . '<tr><td class="px" style="padding:36px 44px 0">'
+      .   '<p style="margin:0 0 14px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Your documents</p>'
+      .   '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #ECDFC4;border-radius:10px;background:#FBF4E8">'
+      .     '<tr><td style="padding:16px 20px">'
+      .       '<table role="presentation" width="100%"><tr>'
+      .         '<td style="vertical-align:middle">'
+      .           '<p style="margin:0;color:#1A120B;font-size:14px;font-weight:600">Invoice ' . ($invNo ?: $ref) . '</p>'
+      .           '<p style="margin:2px 0 0;color:#7A5C3D;font-size:12.5px;line-height:1.5">View in your browser &middot; Print or Save as PDF</p>'
+      .         '</td>'
+      .         '<td align="right" style="vertical-align:middle;white-space:nowrap">'
+      .           '<a href="' . $invUrl . '" class="link" style="display:inline-block;padding:9px 16px;border:1px solid #B8721B;border-radius:8px;color:#B8721B;font-size:12.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase">View →</a>'
+      .         '</td>'
+      .       '</tr></table>'
+      .     '</td></tr>'
+      .     ($hasPolicy ? '<tr><td style="padding:0 20px"><div style="height:1px;background:#ECE0CC"></div></td></tr>'
+      .     '<tr><td style="padding:16px 20px">'
+      .       '<table role="presentation" width="100%"><tr>'
+      .         '<td style="vertical-align:middle">'
+      .           '<p style="margin:0;color:#1A120B;font-size:14px;font-weight:600">Signed class policy</p>'
+      .           '<p style="margin:2px 0 0;color:#7A5C3D;font-size:12.5px;line-height:1.5">' . htmlspecialchars(ucfirst((string)$app['policy_mode'])) . ' &middot; e-signed on submission</p>'
+      .         '</td>'
+      .         '<td align="right" style="vertical-align:middle;white-space:nowrap">'
+      .           '<a href="' . $polUrl . '" class="link" style="display:inline-block;padding:9px 16px;border:1px solid #B8721B;border-radius:8px;color:#B8721B;font-size:12.5px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase">View →</a>'
+      .         '</td>'
+      .       '</tr></table>'
+      .     '</td></tr>' : '')
+      .   '</table>'
+      . '</td></tr>'
 
-      // ── Footer
-      . '<tr><td class="px" style="padding:32px 36px 28px;border-top:1px solid #ECE0CC;margin-top:24px">'
-      .   '<p style="margin:0 0 8px;color:#4A3624;font-size:14px;line-height:1.7">Questions? Reply to this email or write to <a href="mailto:connect@mamcentre.org" style="color:#B8721B">connect@mamcentre.org</a>.</p>'
-      .   '<p style="margin:14px 0 0;color:#9A8264;font-size:12px;line-height:1.65">MAM Academy · MAM Centre · 2 Oremeji Street, Egbeda, Lagos, Nigeria<br>+234 704 444 6517 &middot; <a href="' . $appUrl . '/privacy" style="color:#B8721B">Privacy</a> &middot; <a href="' . $appUrl . '" style="color:#B8721B">academy.mamcentre.org</a></p>'
-      .   '<p style="margin:10px 0 0;color:#BAA787;font-size:11px">&copy; ' . $year . ' MAM Centre &middot; Crafting the Timeless in Time</p>'
+      // ── Quiet pull-quote / brand note
+      . '<tr><td class="px" style="padding:36px 44px 0">'
+      .   '<p style="margin:0;font-family:Georgia,serif;font-style:italic;font-size:15px;color:#7A5C3D;line-height:1.7;text-align:center;border-top:1px solid #ECE0CC;padding-top:24px">Crafting the Timeless in Time.</p>'
+      . '</td></tr>'
+
+      // ── Footer (transactional — no unsubscribe noise)
+      . '<tr><td class="px" style="padding:28px 44px 36px">'
+      .   '<p style="margin:0 0 12px;color:#4A3624;font-size:13.5px;line-height:1.7">Questions? Reply directly to this email, or write to <a href="mailto:connect@mamcentre.org" style="color:#B8721B;font-weight:600">connect@mamcentre.org</a>.</p>'
+      .   '<p style="margin:18px 0 0;color:#9A8264;font-size:11.5px;line-height:1.7">MAM Academy &middot; MAM Centre &middot; 2 Oremeji Street, Egbeda, Lagos, Nigeria<br>+234 704 444 6517 &middot; <a href="' . $appUrl . '/privacy" style="color:#B8721B">Privacy</a> &middot; <a href="' . $appUrl . '" style="color:#B8721B">academy.mamcentre.org</a></p>'
+      .   '<p style="margin:10px 0 0;color:#C2AC85;font-size:10.5px;letter-spacing:0.06em">&copy; ' . $year . ' MAM Centre</p>'
       . '</td></tr>'
 
       . '</table>'

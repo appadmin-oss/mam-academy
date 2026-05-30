@@ -131,18 +131,17 @@ $invoiceNumber = 'INV-MAM-' . date('y') . '-' . str_pad((string)$appId, 4, '0', 
 $notifyEmail = mam_env('NOTIFY_EMAIL');
 
 mam_after_response(function () use ($v, $app, $customer, $tier, $invoiceNumber, $reference, $total, $notifyEmail) {
-    $invoiceHtml = mam_invoice_print_html($app, $customer, $tier, $invoiceNumber);
+    // No more .html attachments — the email body now links to web-viewable
+    // /api/invoice/{ref} and /api/policy/{ref} pages. Both open in any
+    // browser, print clean, save-as-PDF in one shortcut. The previous
+    // approach attached .html which most mail clients (Gmail mobile in
+    // particular) render as source code.
     mam_send(
         $v['email'],
         'MAM Academy — Application received (' . $reference . ')',
         mam_email_application_confirmation($app, $customer, $tier, $invoiceNumber),
         'application_confirmation',
-        true,
-        ['attachments' => [[
-            'content' => $invoiceHtml,
-            'name'    => 'MAM-Academy-Invoice-' . $invoiceNumber . '.html',
-            'mime'    => 'text/html; charset=utf-8',
-        ]]]
+        true
     );
     if (!empty($v['policyMode'])) {
         mam_send(
@@ -150,12 +149,7 @@ mam_after_response(function () use ($v, $app, $customer, $tier, $invoiceNumber, 
             'MAM Academy — Your ' . ($v['policyMode'] === 'onsite' ? 'Onsite' : 'Online/Home') . ' Class Policy',
             mam_email_policy($v['policyMode'], (string)$v['policySignedName'], $reference),
             'application_policy',
-            true,
-            ['attachments' => [[
-                'content' => mam_policy_print_html($v['policyMode'], (string)$v['policySignedName'], $reference),
-                'name'    => 'MAM-Academy-Policy-' . preg_replace('/[^A-Za-z0-9_-]/', '', $reference) . '.html',
-                'mime'    => 'text/html; charset=utf-8',
-            ]]]
+            true
         );
     }
     if ($notifyEmail) {
