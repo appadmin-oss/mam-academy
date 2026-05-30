@@ -21,16 +21,17 @@ try {
     mam_fail('save_failed', 500);
 }
 
-// Confirm to the subscriber. Power Play registrations get a session-
-// specific confirmation (next first-Wednesday date + Meet link); every
-// other source gets the general welcome. Both double as a delivery test.
-if (strpos($source, 'power-play') === 0) {
-    mam_send($email, '⚡ You\'re in — next Power Play details', mam_email_powerplay_confirmation(), 'powerplay_confirmation', true);
-} else {
-    mam_send($email, 'Welcome to the MAM Academy circle', mam_email_newsletter_welcome($source), 'newsletter_welcome', true);
-}
-
+// Defer email sends until after the response — keeps the PowerPlay /
+// newsletter form snappy. The DB upsert above is what actually records
+// the subscription; the emails are confirmations, fine to flush async.
 $notify = mam_env('NOTIFY_EMAIL');
-if ($notify) mam_send($notify, 'New newsletter subscriber', "$email subscribed via $source", 'newsletter_notice', false);
+mam_after_response(function () use ($email, $source, $notify) {
+    if (strpos($source, 'power-play') === 0) {
+        mam_send($email, "⚡ You're in — next Power Play details", mam_email_powerplay_confirmation(), 'powerplay_confirmation', true);
+    } else {
+        mam_send($email, 'Welcome to the MAM Academy circle', mam_email_newsletter_welcome($source), 'newsletter_welcome', true);
+    }
+    if ($notify) mam_send($notify, 'New newsletter subscriber', "$email subscribed via $source", 'newsletter_notice', false);
+});
 mam_audit('subscribe', 'newsletter', null, ['email' => $email, 'source' => $source]);
 mam_ok(['subscribed' => true, 'email' => $email]);

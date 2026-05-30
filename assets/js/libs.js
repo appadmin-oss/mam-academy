@@ -13,7 +13,9 @@
     jquery:   'https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js',
     gsap:     'https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js',
     strigger: 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js',
-    splittext:'https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/SplitText.min.js',
+    // SplitText is a Club GreenSock paid plugin — it 404s on the npm CDN.
+    // We use the free SplitType library below to achieve the same effect,
+    // and the loader (Promise.all) skips the splittext slot below.
     splittype:'https://cdn.jsdelivr.net/npm/split-type@0.3.4/umd/index.min.js',
     swiperJs: 'https://cdn.jsdelivr.net/npm/swiper@8/swiper-bundle.min.js',
     swiperCss:'https://cdn.jsdelivr.net/npm/swiper@8/swiper-bundle.min.css',
@@ -207,7 +209,7 @@
     // GSAP core then plugins, then run reveals.
     loadJs(CDN.gsap).then(function (ok) {
       if (!ok) return;
-      Promise.all([loadJs(CDN.strigger), loadJs(CDN.splittext), loadJs(CDN.splittype)]).then(initGsap);
+      Promise.all([loadJs(CDN.strigger), loadJs(CDN.splittype)]).then(initGsap);
     });
 
     Promise.all([loadJs(CDN.swiperJs), loadJs(CDN.splideJs)]).then(initCarousels);

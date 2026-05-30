@@ -96,6 +96,36 @@ register_shutdown_function(function () {
 
 // (Old exception handler replaced by the three-layer safety net above.)
 
+/**
+ * Run $fn AFTER the client response has been fully delivered. Anything
+ * the route handler doesn't strictly need to block on — chiefly SMTP
+ * email sends, which can take 1-8 s each — should be wrapped in this.
+ *
+ * Under PHP-FPM (`fastcgi_finish_request` available) the client
+ * connection is closed before $fn runs, so the user perceives the
+ * response as instant regardless of how long the deferred work takes.
+ *
+ * Under Apache mod_php the connection stays open until PHP shuts down,
+ * but the response body is already written via mam_json()'s `exit`, so
+ * the browser has already rendered success — only the underlying TCP
+ * connection lingers, which is invisible to the user.
+ */
+function mam_after_response(callable $fn): void {
+    register_shutdown_function(function () use ($fn) {
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        } else {
+            // Best-effort flush for mod_php — close any remaining buffer
+            // and force the response out so the browser can render.
+            while (ob_get_level() > 0) @ob_end_flush();
+            @flush();
+        }
+        try { $fn(); } catch (Throwable $e) {
+            @error_log('[mam after_response] ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+        }
+    });
+}
+
 // ---------- Tiny .env loader ----------
 function mam_load_env(string $path): array {
     static $cache = null;

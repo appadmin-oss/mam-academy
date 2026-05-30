@@ -119,64 +119,59 @@ try {
     mam_fail('save_failed', 500);
 }
 
-// Send confirmation (non-blocking on failure — but every send is logged
-// with a context tag via mam_send so we can spot silent delivery problems).
+// Send confirmation + policy + admin notice AFTER the client has its JSON
+// response. Three SMTP round-trips at ~1-3 s each used to block the apply
+// submit for up to 10 s; deferring them via mam_after_response means the
+// applicant sees the success page instantly while the emails flush behind
+// the scenes (PHP-FPM closes the client connection via fastcgi_finish_request).
 $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [$customerId]);
 $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$appId]);
-
-// Build & attach the booking-fee invoice. The invoice is produced from the
-// applicant's selections + their regional tier (server is authoritative).
-// We send the confirmation email BEFORE the $5 payment so the applicant has
-// the invoice in hand whether they pay inside the form or via the /book link.
 $tier = mam_booking_tier();
 $invoiceNumber = 'INV-MAM-' . date('y') . '-' . str_pad((string)$appId, 4, '0', STR_PAD_LEFT);
-$invoiceHtml = mam_invoice_print_html($app, $customer, $tier, $invoiceNumber);
-mam_send(
-    $v['email'],
-    'MAM Academy — Application received (' . $reference . ')',
-    mam_email_application_confirmation($app, $customer, $tier, $invoiceNumber),
-    'application_confirmation',
-    true,
-    // Attach the invoice as a print-friendly HTML doc. Opens in any browser,
-    // prints to PDF with a single shortcut. No PDF dependency on the server.
-    ['attachments' => [[
-        'content' => $invoiceHtml,
-        'name'    => 'MAM-Academy-Invoice-' . $invoiceNumber . '.html',
-        'mime'    => 'text/html; charset=utf-8',
-    ]]]
-);
-// Send the full class policy the applicant agreed to (online vs onsite),
-// stamped with their electronic signature — keep for their records.
-if (!empty($v['policyMode'])) {
+$notifyEmail = mam_env('NOTIFY_EMAIL');
+
+mam_after_response(function () use ($v, $app, $customer, $tier, $invoiceNumber, $reference, $total, $notifyEmail) {
+    $invoiceHtml = mam_invoice_print_html($app, $customer, $tier, $invoiceNumber);
     mam_send(
         $v['email'],
-        'MAM Academy — Your ' . ($v['policyMode'] === 'onsite' ? 'Onsite' : 'Online/Home') . ' Class Policy',
-        mam_email_policy($v['policyMode'], (string)$v['policySignedName'], $reference),
-        'application_policy',
+        'MAM Academy — Application received (' . $reference . ')',
+        mam_email_application_confirmation($app, $customer, $tier, $invoiceNumber),
+        'application_confirmation',
         true,
-        // Attach a clean, printable signed copy of the policy (open → Print /
-        // Save as PDF). No server-side PDF dependency required.
         ['attachments' => [[
-            'content' => mam_policy_print_html($v['policyMode'], (string)$v['policySignedName'], $reference),
-            'name'    => 'MAM-Academy-Policy-' . preg_replace('/[^A-Za-z0-9_-]/', '', $reference) . '.html',
+            'content' => $invoiceHtml,
+            'name'    => 'MAM-Academy-Invoice-' . $invoiceNumber . '.html',
             'mime'    => 'text/html; charset=utf-8',
         ]]]
     );
-}
-$notify = mam_env('NOTIFY_EMAIL');
-if ($notify) {
-    mam_send(
-        $notify,
-        'New MAM Academy application — ' . $reference,
-        '<p><strong>' . htmlspecialchars($v['firstName'] . ' ' . $v['lastName']) . '</strong> applied.</p>'
-        . '<p>Email: ' . htmlspecialchars($v['email']) . ' · Phone: ' . htmlspecialchars($v['phone']) . '</p>'
-        . '<p>Pathway: ' . htmlspecialchars($v['pathway']) . ' · Mode: ' . htmlspecialchars($v['mode']) . ' · Discipline: ' . htmlspecialchars($v['discipline']) . '</p>'
-        . '<p>Total: USD $' . number_format($total, 2) . '</p>',
-        'application_admin_notice',
-        true,
-        ['reply_to' => $v['email']]
-    );
-}
+    if (!empty($v['policyMode'])) {
+        mam_send(
+            $v['email'],
+            'MAM Academy — Your ' . ($v['policyMode'] === 'onsite' ? 'Onsite' : 'Online/Home') . ' Class Policy',
+            mam_email_policy($v['policyMode'], (string)$v['policySignedName'], $reference),
+            'application_policy',
+            true,
+            ['attachments' => [[
+                'content' => mam_policy_print_html($v['policyMode'], (string)$v['policySignedName'], $reference),
+                'name'    => 'MAM-Academy-Policy-' . preg_replace('/[^A-Za-z0-9_-]/', '', $reference) . '.html',
+                'mime'    => 'text/html; charset=utf-8',
+            ]]]
+        );
+    }
+    if ($notifyEmail) {
+        mam_send(
+            $notifyEmail,
+            'New MAM Academy application — ' . $reference,
+            '<p><strong>' . htmlspecialchars($v['firstName'] . ' ' . $v['lastName']) . '</strong> applied.</p>'
+            . '<p>Email: ' . htmlspecialchars($v['email']) . ' · Phone: ' . htmlspecialchars($v['phone']) . '</p>'
+            . '<p>Pathway: ' . htmlspecialchars($v['pathway']) . ' · Mode: ' . htmlspecialchars($v['mode']) . ' · Discipline: ' . htmlspecialchars($v['discipline']) . '</p>'
+            . '<p>Total: USD $' . number_format($total, 2) . '</p>',
+            'application_admin_notice',
+            true,
+            ['reply_to' => $v['email']]
+        );
+    }
+});
 
 mam_ok([
     'reference' => $reference,

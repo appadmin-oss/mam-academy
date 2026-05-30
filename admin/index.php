@@ -472,6 +472,50 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=payments&ok=1'); exit;
     }
 
+    // ─── Confirm bank transfer ───────────────────────────────────────
+    // The bank-transfer flow leaves payments stuck at 'pending_bank_transfer'
+    // until finance verifies the deposit. This action is what flips that row
+    // to 'succeeded' and propagates the success to the linked subject
+    // (booking_fee_paid_at, application 'paid', or store_orders 'delivered')
+    // exactly as the auto-verify code path would have.
+    if ($action === 'payment_confirm_bank') {
+        $pid = (int)($_POST['payment_id'] ?? 0);
+        $note = trim((string)($_POST['note'] ?? ''));
+        if (!$pid) { header('Location: ?v=payments&err=' . urlencode('Missing payment_id')); exit; }
+        $p = mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid]);
+        if (!$p) { header('Location: ?v=payments&err=' . urlencode('Payment not found')); exit; }
+        if ($p['status'] === 'succeeded') { header('Location: ?v=payments&ok=1'); exit; }
+
+        mam_db_update('payments', [
+            'status'            => 'succeeded',
+            'provider_response' => trim(((string)$p['provider_response']) . "\nCONFIRMED BY ADMIN: " . $note . ' on ' . date('c')),
+            'verified_at'       => date('Y-m-d H:i:s'),
+            'updated_at'        => date('Y-m-d H:i:s'),
+        ], ['id' => $pid]);
+
+        // Mirror the success effects of an automatic provider verify.
+        $purpose = (string)($p['purpose'] ?? 'tuition');
+        if ($purpose === 'store') {
+            $o = mam_db_row('SELECT id, items_json, customer_email, reference FROM store_orders WHERE reference = ?', [$p['reference']]);
+            if ($o) {
+                $items = json_decode((string)$o['items_json'], true) ?: [];
+                $hasPhysical = false;
+                foreach ($items as $i) if (($i['goods_type'] ?? '') === 'physical') { $hasPhysical = true; break; }
+                mam_db_update('store_orders', [
+                    'status' => $hasPhysical ? 'paid' : 'delivered',
+                    'delivered_at' => $hasPhysical ? null : date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ], ['id' => (int)$o['id']]);
+            }
+        } elseif ($purpose === 'booking_fee' && !empty($p['application_id'])) {
+            mam_db_update('applications', ['booking_fee_paid_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$p['application_id']]);
+        } elseif (!empty($p['application_id'])) {
+            mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$p['application_id']]);
+        }
+        mam_audit('payment_confirm_bank', 'payment', $pid, ['note' => $note, 'purpose' => $purpose]);
+        header('Location: ?v=payments&ok=1'); exit;
+    }
+
     // ─── Resend application confirmation + invoice ───────────────────
     // Useful when an applicant says the email never arrived. We rebuild the
     // confirmation using the current tier (so the regional price is fresh)
@@ -823,6 +867,14 @@ button.tiny:hover{border-color:var(--gold)}
                 <input type="hidden" name="payment_id" value="<?= (int)$r['id'] ?>">
                 <input type="text" name="note" class="tiny" placeholder="reason / ticket id" maxlength="120">
                 <button class="tiny btn ghost" style="border-color:#FCA5A5;color:#FCA5A5" type="submit">Refund</button>
+              </form>
+            <?php elseif ($r['status'] === 'pending_bank_transfer'): ?>
+              <form method="post" onsubmit="return confirm('Confirm you have received this bank transfer? The customer will be marked as paid and (for store orders) delivered.');" style="display:inline-flex;gap:6px;align-items:center">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <input type="hidden" name="action" value="payment_confirm_bank">
+                <input type="hidden" name="payment_id" value="<?= (int)$r['id'] ?>">
+                <input type="text" name="note" class="tiny" placeholder="bank ref / depositor" maxlength="120">
+                <button class="tiny btn" style="background:linear-gradient(135deg,#34D399,#10B981);color:#0a3022" type="submit">✓ Confirm</button>
               </form>
             <?php else: ?><span class="muted">—</span><?php endif; ?>
           </td>

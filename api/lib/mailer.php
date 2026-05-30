@@ -83,13 +83,23 @@ function mam_send_via_phpmailer(string $to, string $subject, string $body, bool 
     $user = (string)mam_env('MAIL_USERNAME', '');
     $pass = (string)mam_env('MAIL_PASSWORD', '');
     $enc  = strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls'));
+    // SMTP encryption auto-correct. Port 465 = implicit SSL (SMTPS),
+    // port 587 = STARTTLS. Misconfiguring this (e.g. port 465 + 'tls')
+    // makes PHPMailer hang 20s waiting for STARTTLS that never comes —
+    // a single application submit fires 3 emails so a misconfigured
+    // host can take 60s per request. Auto-correct based on port so a
+    // mismatched .env still works.
+    $port = (int)mam_env('MAIL_PORT', '587');
+    if ($port === 465) $enc = 'ssl';
+    elseif ($port === 587 && $enc === 'ssl') $enc = 'tls';
+
     $mailClass = 'PHPMailer\\PHPMailer\\PHPMailer';
-    $mail = new $mailClass(true); // exceptions on
+    $mail = new $mailClass(true);
     try {
         $mail->isSMTP();
         $mail->Host        = $host;
-        $mail->Port        = (int)mam_env('MAIL_PORT', '587');
-        $mail->Timeout     = 20;
+        $mail->Port        = $port;
+        $mail->Timeout     = 8;
         $mail->CharSet     = 'UTF-8';
         $mail->Hostname    = mam_resolve_ehlo_host();
         if ($user !== '') {
@@ -178,9 +188,15 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
         while ($attempts < $maxAttempts) {
             $attempts++;
             $transcript = [];
-            $ok = mam_smtp_send($host, (int)mam_env('MAIL_PORT', '587'),
+            // Same encryption-by-port auto-correct as the PHPMailer path —
+            // STARTTLS to a 465-port server hangs the connection.
+            $port = (int)mam_env('MAIL_PORT', '587');
+            $enc  = strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls'));
+            if ($port === 465) $enc = 'ssl';
+            elseif ($port === 587 && $enc === 'ssl') $enc = 'tls';
+            $ok = mam_smtp_send($host, $port,
                 mam_env('MAIL_USERNAME', ''), mam_env('MAIL_PASSWORD', ''),
-                strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls')),
+                $enc,
                 $from, $fromName, $replyTo, $to, $subject, $body, $html, $extraHeaders, $attachments, $transcript);
             $failedStep = null;
             foreach ($transcript as $s) {
