@@ -21,6 +21,14 @@ DirectoryIndex index.html index.htm
 #   2. Internally serve /foo by mapping to /foo.html when that file exists.
 <IfModule mod_rewrite.c>
   RewriteEngine On
+
+  # Forward the Authorization header to PHP. cPanel / LiteSpeed / many
+  # shared FastCGI setups strip `Authorization` before PHP sees it,
+  # which empties $_SERVER['PHP_AUTH_USER'] / $_SERVER['PHP_AUTH_PW']
+  # and makes /admin re-prompt forever for Basic-Auth credentials.
+  RewriteCond %{HTTP:Authorization} ^(.+)$
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
   # Never touch /api/* — the api directory has its own .htaccess router.
   RewriteRule ^api(/|$) - [L]
 
@@ -113,3 +121,10 @@ ErrorDocument 404 /404.html
 
 # Disable directory listing
 Options -Indexes
+
+# Authorization-header forwarding via SetEnvIf — belt-and-braces partner
+# to the RewriteRule above. One of them will land on whichever host
+# stripping behaviour your shared environment has.
+<IfModule mod_setenvif.c>
+  SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>

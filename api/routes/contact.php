@@ -21,17 +21,19 @@ $id = mam_db_insert('messages', [
     'topic' => $topic, 'message' => $message, 'ip' => mam_client_ip(),
 ]);
 
+// Defer both emails (admin notice + auto-responder) so the contact form
+// returns instantly. The DB insert above is what actually records the
+// message; the emails are courtesy notifications, safe to flush async.
 $notify = mam_env('NOTIFY_EMAIL', 'connect@mamcentre.org');
-$body = "<h3>New contact message</h3>"
-      . "<p><strong>From:</strong> " . htmlspecialchars($name) . " &lt;" . htmlspecialchars($email) . "&gt;</p>"
-      . "<p><strong>Phone:</strong> " . htmlspecialchars($phone ?: '—') . "</p>"
-      . "<p><strong>Topic:</strong> " . htmlspecialchars($topic) . "</p>"
-      . "<p>" . nl2br(htmlspecialchars($message)) . "</p>";
-mam_send($notify, '[MAM Contact] ' . $topic, $body, 'contact_message', true, ['reply_to' => $email]);
-
-// Auto-responder to the sender so they're never left wondering whether
-// their message got through. Surfaces apply/phone as faster routes.
-mam_send($email, 'Got your message — MAM Academy', mam_email_contact_autoresponse($name, $topic), 'contact_autoresponse', true);
+mam_after_response(function () use ($notify, $name, $email, $phone, $topic, $message) {
+    $body = "<h3>New contact message</h3>"
+          . "<p><strong>From:</strong> " . htmlspecialchars($name) . " &lt;" . htmlspecialchars($email) . "&gt;</p>"
+          . "<p><strong>Phone:</strong> " . htmlspecialchars($phone ?: '—') . "</p>"
+          . "<p><strong>Topic:</strong> " . htmlspecialchars($topic) . "</p>"
+          . "<p>" . nl2br(htmlspecialchars($message)) . "</p>";
+    mam_send($notify, '[MAM Contact] ' . $topic, $body, 'contact_message', true, ['reply_to' => $email]);
+    mam_send($email, 'Got your message — MAM Academy', mam_email_contact_autoresponse($name, $topic), 'contact_autoresponse', true);
+});
 
 mam_audit('create', 'message', $id, ['email' => $email, 'topic' => $topic]);
 mam_ok(['received' => true, 'id' => $id]);

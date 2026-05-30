@@ -52,9 +52,29 @@ function mam_require_admin(): void {
     $u = mam_current_user();
     if ($u && $u['role'] === 'admin') return;
 
-    // Fallback: HTTP Basic Auth
+    // Fallback: HTTP Basic Auth. On cPanel / LiteSpeed / many shared
+    // hosts the `Authorization` header is stripped before PHP sees it
+    // (PHP-FPM behind FastCGI strips it for security), so PHP_AUTH_USER
+    // / PHP_AUTH_PW arrive empty even when the browser is sending
+    // correct credentials. We probe every variant the host may use,
+    // and as a last resort decode the raw `Authorization: Basic …` header
+    // ourselves (the .htaccess RewriteRule below forwards it as
+    // HTTP_AUTHORIZATION). One of these MUST work — without it, the
+    // browser re-prompts forever.
     $user = $_SERVER['PHP_AUTH_USER'] ?? '';
     $pass = $_SERVER['PHP_AUTH_PW']   ?? '';
+    if ($user === '') {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION']
+                  ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+                  ?? $_SERVER['REMOTE_USER']
+                  ?? '';
+        if (is_string($authHeader) && stripos($authHeader, 'basic ') === 0) {
+            $decoded = base64_decode(substr($authHeader, 6), true);
+            if (is_string($decoded) && strpos($decoded, ':') !== false) {
+                [$user, $pass] = explode(':', $decoded, 2);
+            }
+        }
+    }
     $expectedUser = mam_env('ADMIN_USER', '');
     $expectedHash = mam_env('ADMIN_PASSWORD_HASH', '');
 
@@ -65,8 +85,6 @@ function mam_require_admin(): void {
     }
 
     if (!$expectedUser || !$expectedHash) {
-        // No admin configured anywhere — return 503 so a misconfigured
-        // server doesn't silently allow access.
         mam_fail('admin_not_configured', 503);
     }
 

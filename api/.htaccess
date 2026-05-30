@@ -1,21 +1,24 @@
 # =============================================================
-# /api/.htaccess — MAM Academy API (minimal)
-# Routes /api/<anything> through index.php. Deliberately does NOT
-# set any PHP handler directives — those are controlled by your
-# host's cPanel/MultiPHP config, and any AddHandler/AddType here
-# was conflicting with that, causing PHP source to leak.
+# /api/.htaccess — MAM Academy API
 # =============================================================
 
 DirectoryIndex index.php
-
-# Disable MultiViews + directory listings.
 Options -Indexes -MultiViews
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /api/
 
-  # If the request hits an actual file (e.g. index.php), let it serve.
+  # CRITICAL: forward the Authorization header to PHP. cPanel / LiteSpeed
+  # / many shared FastCGI setups strip `Authorization` before PHP sees
+  # it, which empties $_SERVER['PHP_AUTH_USER'] / $_SERVER['PHP_AUTH_PW']
+  # even when the browser is sending valid Basic-Auth credentials. The
+  # admin login then re-prompts forever. This rule re-injects it as
+  # HTTP_AUTHORIZATION so auth.php can decode it.
+  RewriteCond %{HTTP:Authorization} ^(.+)$
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
+  # If the request hits an actual file, serve it directly.
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
@@ -26,8 +29,12 @@ Options -Indexes -MultiViews
   RewriteRule ^(.+)$ index.php?route=$1 [QSA,L]
 </IfModule>
 
-# Block direct access to secrets, db files, logs, and the route /
-# lib subdirectories. The router controls all access.
+# Some hosts ignore the rewrite-based forwarding above; SetEnvIf is the
+# belt-and-braces alternative. One of the two will land.
+<IfModule mod_setenvif.c>
+  SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
 <FilesMatch "\.(env|sqlite|sqlite3|db|log|bak|ini|json|md|sh|sql)$">
   Require all denied
 </FilesMatch>
