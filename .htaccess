@@ -32,6 +32,11 @@ DirectoryIndex index.html index.htm
   # Never touch /api/* — the api directory has its own .htaccess router.
   RewriteRule ^api(/|$) - [L]
 
+  # /studio is the renamed user-facing URL for the Practice Studio. Internally
+  # both /studio and /tools serve tools.html — the old URL keeps working so
+  # existing email links / bookmarks / sitemaps don't 404.
+  RewriteRule ^studio/?$ tools.html [L]
+
   # 1. External redirect: strip .html from the URL. Skips /partials/*,
   #    which are fetched directly as .html by the front-end loader, so we
   #    don't add a redirect hop to every page's header/footer fetch.
@@ -84,7 +89,10 @@ ErrorDocument 404 /404.html
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "SAMEORIGIN"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
-  Header set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  # microphone=(self) lets /studio (the Practice Studio tuner) access mic
+  # only when the page is served from this origin. camera + geolocation
+  # remain blocked site-wide.
+  Header set Permissions-Policy "camera=(), microphone=(self), geolocation=(), interest-cohort=()"
   # HSTS — enable after HTTPS is live
   # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
   # CSP — keep relaxed for inline styles/scripts; tighten as you wish

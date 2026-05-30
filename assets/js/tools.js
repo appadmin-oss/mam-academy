@@ -326,8 +326,17 @@
     }).join('');
   }
   paintPomoLog();
+  // Drift-free Pomodoro: tick based on real-world elapsed time, not setInterval
+  // counting. setInterval can drift by minutes over a long session (tab
+  // throttled, sleep, etc). Recomputing from a start timestamp keeps the
+  // clock accurate to within one tick (~1 s) over any duration.
   function tickPomo() {
-    pomoState.secs--;
+    if (pomoState.startedAt) {
+      var elapsed = Math.round((Date.now() - pomoState.startedAt) / 1000);
+      pomoState.secs = Math.max(0, pomoState.targetSecs - elapsed);
+    } else {
+      pomoState.secs--;
+    }
     if (pomoState.secs < 0) {
       var cfg = pomoCfg();
       var completedKind = pomoState.mode;
@@ -338,6 +347,10 @@
         if (pomoState.block >= cfg.blocks) { pomoState.mode = 'long'; pomoState.secs = cfg.long; pomoState.block = 1; }
         else { pomoState.mode = 'short'; pomoState.secs = cfg.short; }
       } else { pomoState.mode = 'focus'; pomoState.secs = cfg.focus; if (completedKind === 'short') pomoState.block++; }
+      // Re-anchor wall clock for the new phase so the drift-free tick stays
+      // accurate after auto-transition.
+      pomoState.startedAt = Date.now();
+      pomoState.targetSecs = pomoState.secs;
       paintPomoStart();
     }
     paintPomo();
@@ -351,14 +364,20 @@
   $('#pomoStart').addEventListener('click', function () {
     pomoState.running = !pomoState.running;
     if (pomoState.running) {
-      audio(); // warm up so chime is unblocked
-      pomoState.intervalId = setInterval(tickPomo, 1000);
-    } else clearInterval(pomoState.intervalId);
+      audio();
+      // Anchor the timer to real wall-clock time so it can't drift.
+      pomoState.startedAt = Date.now();
+      pomoState.targetSecs = pomoState.secs;
+      pomoState.intervalId = setInterval(tickPomo, 500);
+    } else {
+      clearInterval(pomoState.intervalId);
+      pomoState.startedAt = null;
+    }
     paintPomoStart();
   });
   $('#pomoReset').addEventListener('click', function () {
     if (pomoState.intervalId) clearInterval(pomoState.intervalId);
-    pomoState = { running: false, mode: 'focus', secs: pomoCfg().focus, block: 1, intervalId: null };
+    pomoState = { running: false, mode: 'focus', secs: pomoCfg().focus, block: 1, intervalId: null, startedAt: null, targetSecs: pomoCfg().focus };
     paintPomo(); paintPomoStart();
   });
   $$('#pomoFocus, #pomoShort, #pomoLong, #pomoBlocks').forEach(function (el) {
@@ -515,6 +534,314 @@
     });
   });
   paintEarOptions();
+
+  // ──────────────────────────────────────────────────────────────────
+  // SPEED & PITCH TRAINER (premium tool)
+  //
+  // Loads an audio file (kept entirely on-device — never uploaded), then
+  // lets the user change SPEED and PITCH independently. This is the
+  // headline feature of paid practice apps (Anytune, AmazingSlowDowner,
+  // Capo) and we get it free via Tone.js:
+  //
+  //   GrainPlayer    — granular synthesis, time-stretches the buffer
+  //                    without affecting pitch (controlled by .playbackRate)
+  //   PitchShift     — phase-vocoder, shifts pitch ±12 semitones without
+  //                    affecting playback speed
+  //
+  // Chained: source → PitchShift → destination. The decoupling of speed
+  // from pitch is what makes this a 'premium' tool — a regular HTML5
+  // <audio>.playbackRate change distorts pitch in lockstep.
+  //
+  // A/B loop, 10-second skips, accurate seeking, and three speed presets
+  // round it out. Saves nothing to disk; loading a new file is the reset.
+  // ──────────────────────────────────────────────────────────────────
+  (function initSpeedPitch() {
+    var dz = $('#spDrop'), input = $('#spFile'), player = $('#spPlayer');
+    if (!dz || !input || !player) return;
+
+    // ── State ────────────────────────────────────────────────
+    var state = {
+      buffer: null,        // decoded AudioBuffer
+      grain: null,         // Tone.GrainPlayer
+      shift: null,         // Tone.PitchShift
+      vol: null,           // Tone.Volume (output stage)
+      playing: false,
+      startedAt: 0,        // Tone.context.now() when play started
+      offsetAt: 0,         // playback offset at the moment of play
+      speed: 1, pitch: 0, volume: 0.9,
+      loopArmed: false, loopA: null, loopB: null,
+      rafId: null,
+    };
+
+    function fmtTime(s) {
+      if (!isFinite(s) || s < 0) s = 0;
+      var m = Math.floor(s / 60), sec = Math.floor(s % 60);
+      return m + ':' + (sec < 10 ? '0' + sec : sec);
+    }
+
+    // ── File picker + drag-drop ──────────────────────────────
+    dz.addEventListener('click', function () { input.click(); });
+    dz.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
+    ['dragenter','dragover'].forEach(function (k) {
+      dz.addEventListener(k, function (e) { e.preventDefault(); dz.classList.add('is-drag'); });
+    });
+    ['dragleave','drop'].forEach(function (k) {
+      dz.addEventListener(k, function (e) { e.preventDefault(); dz.classList.remove('is-drag'); });
+    });
+    dz.addEventListener('drop', function (e) {
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) loadFile(f);
+    });
+    input.addEventListener('change', function () { if (input.files && input.files[0]) loadFile(input.files[0]); });
+
+    function loadFile(file) {
+      if (!/^audio\//.test(file.type) && !/\.(mp3|wav|m4a|flac|ogg|aac)$/i.test(file.name)) {
+        return alert('Please choose an audio file (MP3, WAV, M4A, FLAC, OGG).');
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        return alert('That file is over 50 MB. Please pick something smaller.');
+      }
+      if (!hasTone()) {
+        return alert("The audio engine is still loading. Try again in a second.");
+      }
+
+      dz.querySelector('#spDropTitle').textContent = 'Decoding ' + file.name + '…';
+      // Tone.context.decodeAudioData accepts an ArrayBuffer
+      file.arrayBuffer().then(function (ab) {
+        var ctx = Tone.getContext().rawContext;
+        return ctx.decodeAudioData(ab);
+      }).then(function (buf) {
+        teardown();
+        state.buffer = buf;
+
+        // Build the Tone graph: GrainPlayer → PitchShift → Volume → out
+        state.grain = new Tone.GrainPlayer(buf).set({
+          grainSize: 0.2, overlap: 0.05, detune: 0, playbackRate: state.speed,
+        });
+        state.shift = new Tone.PitchShift({ pitch: state.pitch, windowSize: 0.1, delayTime: 0, feedback: 0 });
+        state.vol = new Tone.Volume(Tone.gainToDb(state.volume));
+        state.grain.chain(state.shift, state.vol, Tone.getDestination());
+
+        // Reveal player UI
+        $('#spName').textContent = file.name.replace(/\.[^.]+$/, '');
+        $('#spDuration').textContent = fmtTime(buf.duration) + ' · ' + Math.round(buf.sampleRate / 1000) + ' kHz · ' + (buf.numberOfChannels === 2 ? 'stereo' : 'mono');
+        $('#spDurTime').textContent = fmtTime(buf.duration);
+        $('#spCurTime').textContent = '0:00';
+        $('#spProgress').style.width = '0%';
+        player.hidden = false;
+        dz.hidden = true;
+      }).catch(function (e) {
+        dz.querySelector('#spDropTitle').textContent = 'Drop an audio file, or click to choose';
+        alert("Couldn't decode that file — try a different format. (" + (e && e.message || e) + ')');
+      });
+    }
+
+    function teardown() {
+      if (state.rafId) cancelAnimationFrame(state.rafId);
+      state.rafId = null; state.playing = false;
+      if (state.grain) { try { state.grain.stop(); state.grain.dispose(); } catch (e) {} }
+      if (state.shift) { try { state.shift.dispose(); } catch (e) {} }
+      if (state.vol)   { try { state.vol.dispose();   } catch (e) {} }
+      state.grain = state.shift = state.vol = null;
+    }
+
+    function getOffset() {
+      if (!state.buffer) return 0;
+      if (!state.playing) return state.offsetAt;
+      // Real-time current offset: where we started + (elapsed × playbackRate)
+      var elapsed = Tone.now() - state.startedAt;
+      var off = state.offsetAt + elapsed * state.speed;
+      return Math.min(state.buffer.duration, Math.max(0, off));
+    }
+
+    function play(fromOffset) {
+      if (!state.grain || !state.buffer) return;
+      if (state.playing) stop();
+      var off = (typeof fromOffset === 'number') ? fromOffset : state.offsetAt;
+      state.grain.playbackRate = state.speed;
+      state.shift.pitch = state.pitch;
+      state.grain.start(undefined, off);
+      state.startedAt = Tone.now();
+      state.offsetAt = off;
+      state.playing = true;
+      $('#spPlayIcon').className = 'fa-solid fa-pause';
+      tickProgress();
+    }
+
+    function pause() {
+      if (!state.playing) return;
+      state.offsetAt = getOffset();
+      state.playing = false;
+      try { state.grain.stop(); } catch (e) {}
+      $('#spPlayIcon').className = 'fa-solid fa-play';
+      if (state.rafId) cancelAnimationFrame(state.rafId);
+    }
+
+    function stop() { pause(); }
+
+    function tickProgress() {
+      var off = getOffset();
+      var dur = state.buffer ? state.buffer.duration : 1;
+      $('#spProgress').style.width = ((off / dur) * 100) + '%';
+      $('#spCurTime').textContent = fmtTime(off);
+
+      // A/B loop enforcement
+      if (state.loopArmed && state.loopA != null && state.loopB != null && state.loopB > state.loopA) {
+        if (off >= state.loopB) {
+          // Jump back to A without a click
+          state.offsetAt = state.loopA;
+          state.startedAt = Tone.now();
+          state.grain.stop();
+          state.grain.start(undefined, state.loopA);
+        }
+      } else if (off >= dur - 0.05) {
+        // End of track
+        pause();
+        state.offsetAt = 0;
+        $('#spProgress').style.width = '0%';
+        $('#spCurTime').textContent = '0:00';
+        return;
+      }
+      if (state.playing) state.rafId = requestAnimationFrame(tickProgress);
+    }
+
+    // ── Transport ────────────────────────────────────────────
+    $('#spPlay').addEventListener('click', function () {
+      if (!state.buffer) return;
+      audio(); // ensure context is running
+      state.playing ? pause() : play();
+    });
+    $('#spRew').addEventListener('click', function () { seekBy(-10); });
+    $('#spFwd').addEventListener('click', function () { seekBy(10); });
+    function seekBy(delta) {
+      if (!state.buffer) return;
+      var to = Math.max(0, Math.min(state.buffer.duration - 0.1, getOffset() + delta));
+      var wasPlaying = state.playing;
+      pause();
+      state.offsetAt = to;
+      $('#spProgress').style.width = ((to / state.buffer.duration) * 100) + '%';
+      $('#spCurTime').textContent = fmtTime(to);
+      if (wasPlaying) play(to);
+    }
+
+    // Seek by clicking the timeline
+    $('#spTimeline').addEventListener('click', function (e) {
+      if (!state.buffer) return;
+      var r = e.currentTarget.getBoundingClientRect();
+      var pct = (e.clientX - r.left) / r.width;
+      var to = Math.max(0, Math.min(state.buffer.duration, pct * state.buffer.duration));
+      var wasPlaying = state.playing;
+      pause();
+      state.offsetAt = to;
+      $('#spProgress').style.width = ((to / state.buffer.duration) * 100) + '%';
+      $('#spCurTime').textContent = fmtTime(to);
+      if (wasPlaying) play(to);
+    });
+
+    // ── Sliders ──────────────────────────────────────────────
+    $('#spSpeed').addEventListener('input', function (e) {
+      state.speed = parseFloat(e.target.value);
+      $('#spSpeedVal').textContent = state.speed.toFixed(2) + '×';
+      if (state.grain) {
+        // Re-anchor offset so the on-the-fly speed change doesn't jump the playhead
+        if (state.playing) {
+          var cur = getOffset();
+          state.offsetAt = cur;
+          state.startedAt = Tone.now();
+        }
+        state.grain.playbackRate = state.speed;
+      }
+    });
+    $('#spPitch').addEventListener('input', function (e) {
+      state.pitch = parseInt(e.target.value, 10);
+      var s = state.pitch === 0 ? '±0' : (state.pitch > 0 ? '+' + state.pitch : state.pitch);
+      $('#spPitchVal').textContent = s + ' st';
+      if (state.shift) state.shift.pitch = state.pitch;
+    });
+    $('#spVol').addEventListener('input', function (e) {
+      var v = parseInt(e.target.value, 10) / 100;
+      state.volume = v;
+      $('#spVolVal').textContent = Math.round(v * 100) + '%';
+      if (state.vol) state.vol.volume.value = Tone.gainToDb(Math.max(0.0001, v));
+    });
+
+    // ── Presets ─────────────────────────────────────────────
+    $$('.sp-presets button[data-preset]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var v = b.getAttribute('data-preset');
+        if (v === 'reset') {
+          state.speed = 1; state.pitch = 0;
+          $('#spSpeed').value = '1'; $('#spSpeedVal').textContent = '1.00×';
+          $('#spPitch').value = '0'; $('#spPitchVal').textContent = '±0 st';
+          if (state.grain) state.grain.playbackRate = 1;
+          if (state.shift) state.shift.pitch = 0;
+          // Also clear A/B loop
+          state.loopArmed = false; state.loopA = state.loopB = null;
+          $('#spLoopBand').hidden = true;
+          $('#spLoopBtn').classList.remove('is-armed', 'is-active');
+          $('#spLoopLabel').textContent = 'A–B';
+        } else {
+          var f = parseFloat(v);
+          state.speed = f;
+          $('#spSpeed').value = String(f);
+          $('#spSpeedVal').textContent = f.toFixed(2) + '×';
+          if (state.grain) {
+            if (state.playing) { state.offsetAt = getOffset(); state.startedAt = Tone.now(); }
+            state.grain.playbackRate = f;
+          }
+        }
+      });
+    });
+
+    // ── A/B loop ─────────────────────────────────────────────
+    // 1st click sets A at current position, 2nd sets B and arms the loop,
+    // 3rd disables. Visual band on the timeline.
+    $('#spLoopBtn').addEventListener('click', function () {
+      if (!state.buffer) return;
+      var cur = getOffset();
+      if (state.loopA == null) {
+        state.loopA = cur;
+        $('#spLoopBtn').classList.add('is-armed');
+        $('#spLoopLabel').textContent = 'B at ' + fmtTime(cur);
+      } else if (state.loopB == null) {
+        if (cur <= state.loopA) state.loopA = Math.max(0, cur - 0.5);  // ensure B>A
+        state.loopB = cur;
+        state.loopArmed = true;
+        $('#spLoopBtn').classList.remove('is-armed');
+        $('#spLoopBtn').classList.add('is-active');
+        $('#spLoopLabel').textContent = 'Loop on';
+        // Render the band
+        var dur = state.buffer.duration;
+        var band = $('#spLoopBand');
+        band.style.left = ((state.loopA / dur) * 100) + '%';
+        band.style.right = ((1 - state.loopB / dur) * 100) + '%';
+        band.hidden = false;
+      } else {
+        state.loopArmed = false;
+        state.loopA = state.loopB = null;
+        $('#spLoopBand').hidden = true;
+        $('#spLoopBtn').classList.remove('is-armed', 'is-active');
+        $('#spLoopLabel').textContent = 'A–B';
+      }
+    });
+
+    // ── Clear (load a different track) ───────────────────────
+    $('#spClear').addEventListener('click', function () {
+      teardown();
+      state.buffer = null;
+      state.offsetAt = 0; state.speed = 1; state.pitch = 0;
+      state.loopA = state.loopB = null; state.loopArmed = false;
+      player.hidden = true;
+      dz.hidden = false;
+      dz.querySelector('#spDropTitle').textContent = 'Drop an audio file, or click to choose';
+      input.value = '';
+      $('#spSpeed').value = '1'; $('#spSpeedVal').textContent = '1.00×';
+      $('#spPitch').value = '0'; $('#spPitchVal').textContent = '±0 st';
+      $('#spLoopBand').hidden = true;
+      $('#spLoopBtn').classList.remove('is-armed', 'is-active');
+      $('#spLoopLabel').textContent = 'A–B';
+    });
+  })();
 
   // Expose for debugging.
   window.MAM_TOOLS = { audio: audio, metronome: { start: startMetronome, stop: stopMetronome }, tuner: { start: startTuner, stop: stopTuner } };

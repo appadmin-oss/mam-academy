@@ -281,7 +281,14 @@ window.MAM_API = (function () {
     // CSRF-protected POST so it routes through the existing request() helper.
     storeCheckout: function (data) { return request('/api/store/checkout', { method: 'POST', body: data }); },
     url:     url,
-    request: function (method, path, body) { return request(path.indexOf('/api/') === 0 ? path : '/api' + path, { method: method, body: body }); }
+    // Generic API caller used by the portal pages: request(path, opts).
+    // Accepts either '/api/auth/login' (absolute) or 'auth/login' (relative)
+    // and routes through the same CSRF + JSON pipeline as the named helpers.
+    request: function (path, opts) {
+      var p = String(path || '');
+      if (p.indexOf('/api/') !== 0) p = '/api/' + p.replace(/^\//, '');
+      return request(p, opts || {});
+    }
   };
 })();
 
