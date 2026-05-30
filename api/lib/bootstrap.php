@@ -45,6 +45,13 @@ error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
 // drains every buffer level and writes a clean JSON envelope. The client
 // is guaranteed to receive parseable JSON or nothing.
 function mam_emit_failure_json(int $status, string $error, string $message): void {
+    // Short-circuit if a response was already written. Without this, an
+    // exception handler that called us and the shutdown safety-net that
+    // ALSO calls us both write JSON envelopes — the client receives the
+    // concatenation, JSON.parse fails, and the user sees "couldn't reach
+    // our server" with a status:200 + non-JSON body (sometimes 500).
+    if (defined('MAM_RESPONSE_SENT')) return;
+    define('MAM_RESPONSE_SENT', true);
     if (function_exists('ob_get_level')) {
         while (ob_get_level() > 0) {
             $leaked = ob_get_clean();

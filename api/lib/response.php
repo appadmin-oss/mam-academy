@@ -17,10 +17,15 @@
 declare(strict_types=1);
 
 function mam_json($data, int $status = 200): void {
-    // Drain EVERY level of output buffer — PHP can nest them (php.ini
-    // output_buffering + our ob_start() = level 2 minimum). Anything we
-    // catch is appended to a forensic log so the operator can see what
-    // leaked, but it never reaches the wire.
+    // Set the response-sent guard BEFORE writing anything. If the response
+    // is in flight and a fatal error fires the shutdown handler, the guard
+    // is already set so the safety net doesn't write a second JSON body
+    // that would corrupt the client's view of the response.
+    if (defined('MAM_RESPONSE_SENT')) return;
+    define('MAM_RESPONSE_SENT', true);
+
+    // Drain EVERY level of output buffer — PHP can nest them. Anything
+    // we catch is appended to a forensic log; never reaches the wire.
     if (function_exists('ob_get_level')) {
         while (ob_get_level() > 0) {
             $leaked = ob_get_clean();
@@ -34,15 +39,9 @@ function mam_json($data, int $status = 200): void {
     http_response_code($status);
     if (!headers_sent()) {
         header('Content-Type: application/json; charset=utf-8');
-        // X-MAM-API-Response: <status> — useful for confirming via DevTools
-        // that the response actually came from mam_json (vs Apache/Cloudflare
-        // intercepting).
         header('X-MAM-API-Response: ' . $status);
     }
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-    // Mark this response as handled so the shutdown safety net knows it
-    // doesn't need to step in.
-    if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
     exit;
 }
 
