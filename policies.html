@@ -32,6 +32,12 @@
 .policy-foot a{color:var(--gold-bright);text-decoration:underline}
 /* fine pill — emphasises the live amount and reads cleanly inside paragraphs */
 .fine{display:inline-flex;align-items:center;padding:1px 8px;border-radius:7px;background:rgba(252,198,71,0.1);border:1px solid rgba(252,198,71,0.25);color:var(--gold-bright);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Fee amount pill — same look as .fine but NOT touched by the fine FX converter */
+.amt{display:inline-flex;align-items:center;padding:1px 8px;border-radius:7px;background:rgba(252,198,71,0.1);border:1px solid rgba(252,198,71,0.25);color:var(--gold-bright);font-weight:700;white-space:nowrap}
+/* Always-visible (non-tabbed) policy block — fees & certification */
+.policy-static{display:block;margin:4px 0 8px;padding:24px 26px;background:linear-gradient(160deg,rgba(224,138,26,0.08),var(--bg-surface));border:1px solid var(--border-gold);border-radius:var(--radius-md)}
+.policy-static h2{font-family:var(--font-serif);font-size:1.7rem;margin:0 0 6px;color:var(--text)}
+.policy-static .sub{color:var(--gold-bright);font-style:italic;font-family:var(--font-serif);font-size:1.05rem;margin-bottom:14px}
 /* currency switcher */
 .policy-currency{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;margin:18px 0 22px;padding:14px 16px;background:var(--bg-surface);border:1px solid var(--border);border-radius:14px}
 .pc-label{font-size:0.78rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted)}
@@ -57,6 +63,20 @@
 
   <section class="legal">
     <p class="legal-intro">Welcome to MAM Academy, where we strive to inspire excellence and nurture brilliance in every learner. The following policies are designed to ensure a seamless and rewarding learning experience. Choose the one that matches how you learn.</p>
+
+    <article class="policy-static" aria-label="Fees, registration and certification">
+      <h2>Fees, Registration &amp; Certification</h2>
+      <div class="sub">Applies to every student — online and onsite</div>
+      <div class="rule"><div class="rule-n">1</div><div class="rule-b"><strong>Registration</strong><span>A one-time registration fee of <span class="amt">$5</span> opens your student file and begins onboarding.</span></div></div>
+      <div class="rule"><div class="rule-n">2</div><div class="rule-b"><strong>Mode of Learning</strong><span>Every student is first classified as an <strong>Onsite</strong> or <strong>Online</strong> student. Onsite is charged the standard fee; online is the standard fee <span class="amt">+20%</span>.</span></div></div>
+      <div class="rule"><div class="rule-n">3</div><div class="rule-b"><strong>Certification Levels</strong><span>The Academy operates a four-tier progression: <strong>Level 1 — Pre-Certification</strong> (foundation), <strong>Level 2 — Certification I</strong> (intermediate), <strong>Level 3 — Pre-Diploma</strong> (advanced) and <strong>Level 4 — Diploma</strong> (professional mastery). You progress through all four tiers; your starting placement is set by the MAM Auditer assessment.</span></div></div>
+      <div class="rule"><div class="rule-n">4</div><div class="rule-b"><strong>Programmes</strong><span><strong>Certified Musician</strong> (<span class="amt">$230</span>): one major specialization — Contemporary, Classical or African — at 1 hour weekly over 12 weeks; available online or onsite. <strong>Grand Musician</strong> (<span class="amt">$310</span>): all three majors at 1 hour each weekly over 12 weeks — <strong>onsite only</strong>.</span></div></div>
+      <div class="rule"><div class="rule-n">5</div><div class="rule-b"><strong>Supporting Courses</strong><span>All candidates take four supporting courses — Rhythm, APE (Art of Performance Excellence), Meta Music and Theory of Music (Trinity College London curriculum). Any <strong>2 are paid</strong> and any <strong>2 are complimentary</strong>.</span></div></div>
+      <div class="rule"><div class="rule-n">6</div><div class="rule-b"><strong>Duration &amp; Additional Courses</strong><span>The standard programme runs 12 weeks at 1 hour per major course weekly. Additional courses are 30 minutes each and cost 50% of a major-course fee. The Crash programme is a 6-week accelerated version of the curriculum.</span></div></div>
+      <div class="rule"><div class="rule-n">7</div><div class="rule-b"><strong>Learning Resources</strong><span>Manuscripts are <span class="amt">$5</span> each; handouts carry a minimum fee; books are sold separately. Resources are not included in programme fees.</span></div></div>
+      <div class="rule"><div class="rule-n">8</div><div class="rule-b"><strong>One-Time Events</strong><span>Stand-alone sessions — Power Play with Van. BOJA, masterclasses, Cultural Architecture sessions and music intensives — typically run 1–2 days and are booked separately.</span></div></div>
+      <div class="rule"><div class="rule-n">9</div><div class="rule-b"><strong>Non-Refundable Payments</strong><span>All payments — including registration, programme and supporting-course fees — are final and strictly non-refundable.</span></div></div>
+    </article>
 
     <div class="policy-tabs" role="tablist" aria-label="Policy type">
       <button class="policy-tab active" data-doc="online" role="tab" aria-selected="true"><i class="fa-solid fa-globe"></i> Online / Home</button>
