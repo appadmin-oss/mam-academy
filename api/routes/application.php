@@ -35,6 +35,14 @@ if ($idemKey !== '') {
 
 $v = mam_validate_application($input);
 
+// Grand Musician is an onsite-only programme — its three traditions are taught
+// in studio. Enforce server-side so a bypassed client can't book it online (and
+// thereby dodge/incur the online surcharge against a mode we don't offer).
+if ($v['pathway'] === 'grand-musician') {
+    $v['mode'] = 'onsite';
+    if (($v['policyMode'] ?? '') === 'online') { $v['policyMode'] = 'onsite'; }
+}
+
 // Pricing — server is the source of truth, never trust client total.
 //   programme fee → +20% for online learners → + $5 one-time registration.
 // (The standalone $22 certification add-on was retired: certification is now

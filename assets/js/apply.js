@@ -983,10 +983,30 @@
           var err = $('#err-discipline'); if (err) err.classList.remove('shown');
         }
       }
+      enforceGrandOnsite();
       renderPathwayHint();
       renderAddonContext();
     }
+
+    // Grand Musician is an onsite-only programme: disable the Online mode while
+    // it's selected and snap any existing Online choice back to Onsite (which
+    // re-runs the normal policy/side-effects via a real change event).
+    function enforceGrandOnsite() {
+      var online = document.querySelector('input[name="mode"][value="online"]');
+      var onsite = document.querySelector('input[name="mode"][value="onsite"]');
+      if (!online || !onsite) return;
+      var grand = data.pathway === 'grand-musician';
+      var card = online.closest('.choice-card');
+      online.disabled = grand;
+      if (card) { card.classList.toggle('is-disabled', grand); card.setAttribute('aria-disabled', String(grand)); }
+      if (grand && (data.mode === 'online' || online.checked)) {
+        online.checked = false;
+        onsite.checked = true;
+        onsite.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
     $$('input[name="pathway"]').forEach(function (i) { on(i, 'change', reactToPathwayChange); });
+    enforceGrandOnsite(); // honour deep-links like ?pathway=grand-musician on load
 
     // 2) Pathway → Add-on relevance. The standalone $22 graduation add-on was
     //    retired (certification is now baked into the programme fee), leaving

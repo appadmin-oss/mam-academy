@@ -195,6 +195,9 @@
 .choice-card:has(input:checked){border-color:var(--gold-bright);background:rgba(224,138,26,0.1);box-shadow:0 0 0 3px rgba(224,138,26,0.12)}
 /* The radio/checkbox is visually hidden, so surface keyboard focus on the card. */
 .choice-card:has(input:focus-visible){outline:2px solid var(--gold-bright);outline-offset:2px}
+/* Disabled option (e.g. Online mode while Grand Musician — onsite only — is chosen) */
+.choice-card.is-disabled{opacity:0.42;pointer-events:none;filter:grayscale(0.5)}
+.choice-card.is-disabled::after{content:'Onsite only';position:absolute;top:10px;right:12px;font-size:0.62rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--gold-bright)}
 .sex-pill:has(input:focus-visible){outline:2px solid var(--gold-bright);outline-offset:2px}
 .choice-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:8px}
 .choice-card-title{font-size:0.97rem;font-weight:700;color:var(--text);line-height:1.3}
