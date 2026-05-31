@@ -579,6 +579,32 @@ $kpi = [
     'classes'      => (int)mam_db()->query("SELECT COUNT(*) FROM classes WHERE status='active'")->fetchColumn(),
 ];
 
+/* ─── 14-day trend series (bucketed in PHP so it works identically on
+   SQLite + MySQL without date-function differences) ─── */
+$trendDays = 14;
+$buckets = [];                                  // 'YYYY-MM-DD' => ['apps'=>0,'rev'=>0]
+for ($i = $trendDays - 1; $i >= 0; $i--) {
+    $d = date('Y-m-d', strtotime("-$i day"));
+    $buckets[$d] = ['apps' => 0, 'rev' => 0.0];
+}
+$since = date('Y-m-d 00:00:00', strtotime('-' . ($trendDays - 1) . ' day'));
+foreach (mam_db_all('SELECT created_at FROM applications WHERE created_at >= ?', [$since]) as $r) {
+    $d = substr((string)$r['created_at'], 0, 10);
+    if (isset($buckets[$d])) $buckets[$d]['apps']++;
+}
+foreach (mam_db_all("SELECT amount, COALESCE(verified_at, created_at) AS paid_at FROM payments WHERE status='succeeded' AND COALESCE(verified_at, created_at) >= ?", [$since]) as $r) {
+    $d = substr((string)$r['paid_at'], 0, 10);
+    if (isset($buckets[$d])) $buckets[$d]['rev'] += (float)$r['amount'];
+}
+$trendLabels = array_map(function ($d) { return date('M j', strtotime($d)); }, array_keys($buckets));
+$trendApps   = array_map(function ($b) { return $b['apps']; }, array_values($buckets));
+$trendRev    = array_map(function ($b) { return round($b['rev']); }, array_values($buckets));
+// Payment status mix (all-time) for the doughnut.
+$payMix = [];
+foreach (mam_db_all('SELECT status, COUNT(*) AS n FROM payments GROUP BY status') as $r) {
+    $payMix[(string)$r['status']] = (int)$r['n'];
+}
+
 $csrf = mam_csrf_token();
 $flashOk  = isset($_GET['ok']);
 $flashErr = $_GET['err'] ?? '';
@@ -589,6 +615,7 @@ $flashErr = $_GET['err'] ?? '';
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>MAM Admin — <?= htmlspecialchars($view) ?></title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -678,7 +705,12 @@ button.tiny:hover{border-color:var(--gold)}
   th,td{padding:9px 12px;font-size:0.82rem}
   .card > table > tbody,.card > table > thead{min-width:560px}
 }
+.chart-row{display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-bottom:22px}
+.chart-row .card{margin:0}
+.chart-row canvas{max-height:260px}
+@media(max-width:860px){.chart-row{grid-template-columns:1fr}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
 <aside>
@@ -769,6 +801,55 @@ button.tiny:hover{border-color:var(--gold)}
     <div class="kpi"><div class="kpi-label">Newsletter</div><div class="kpi-value"><?= number_format($kpi['newsletter']) ?></div></div>
     <div class="kpi"><div class="kpi-label">Webhook Events</div><div class="kpi-value"><?= number_format($kpi['webhooks']) ?></div></div>
   </div>
+
+  <div class="chart-row">
+    <div class="card">
+      <h3>Last 14 days — applications &amp; revenue</h3>
+      <canvas id="trendChart" height="120" aria-label="Applications and revenue over the last 14 days"></canvas>
+    </div>
+    <div class="card">
+      <h3>Payment status</h3>
+      <canvas id="payChart" height="120" aria-label="Payment status breakdown"></canvas>
+    </div>
+  </div>
+  <script>
+  (function () {
+    function draw() {
+      if (typeof Chart === 'undefined') { return setTimeout(draw, 120); } // wait for deferred CDN
+      var gold = '#E08A1A', green = '#34D399';
+      var tc = document.getElementById('trendChart');
+      if (tc) new Chart(tc.getContext('2d'), {
+        data: {
+          labels: <?= json_encode($trendLabels) ?>,
+          datasets: [
+            { type: 'bar',  label: 'Applications', data: <?= json_encode($trendApps) ?>, backgroundColor: 'rgba(224,138,26,0.55)', borderRadius: 5, yAxisID: 'y' },
+            { type: 'line', label: 'Revenue (₦)', data: <?= json_encode($trendRev) ?>, borderColor: green, backgroundColor: 'rgba(52,211,153,0.15)', tension: 0.35, fill: true, yAxisID: 'y1' }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { labels: { color: '#9A8A78' } } },
+          scales: {
+            x:  { grid: { display: false }, ticks: { color: '#9A8A78', maxRotation: 0, autoSkip: true } },
+            y:  { position: 'left',  beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#9A8A78', precision: 0 }, title: { display: true, text: 'Applications', color: '#9A8A78' } },
+            y1: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: '#9A8A78' }, title: { display: true, text: '₦', color: '#9A8A78' } }
+          } }
+      });
+      var pc = document.getElementById('payChart');
+      var mix = <?= json_encode($payMix) ?>;
+      var labels = Object.keys(mix), vals = labels.map(function (k) { return mix[k]; });
+      var palette = { succeeded: green, pending: '#FBBF24', failed: '#FB7185' };
+      if (pc) {
+        if (!labels.length) { pc.parentNode.innerHTML += '<p class="muted" style="text-align:center">No payments yet.</p>'; return; }
+        new Chart(pc.getContext('2d'), {
+          type: 'doughnut',
+          data: { labels: labels, datasets: [{ data: vals, backgroundColor: labels.map(function (k) { return palette[k] || '#A5B4FC'; }), borderColor: 'rgba(0,0,0,0.25)', borderWidth: 2 }] },
+          options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { color: '#9A8A78', padding: 12 } } } }
+        });
+      }
+    }
+    draw();
+  })();
+  </script>
 
   <div class="card">
     <h3>Recent Applications</h3>

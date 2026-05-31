@@ -9,10 +9,13 @@
 <link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260530a">
 <link rel="stylesheet" href="/assets/css/portal.css?v=20260530a">
+<link rel="stylesheet" href="/assets/css/studio.css?v=20260531a">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
 <div class="portal-shell">
@@ -71,17 +74,80 @@
     if (tab === 'attendance') return renderAttendance();
   }
 
+  function greeting() { var h = new Date().getHours(); return h < 12 ? 'Good morning' : (h < 18 ? 'Good afternoon' : 'Good evening'); }
+
   function renderOverview() {
     var classes = data.classes || [], students = data.students || [], att = data.recent_attendance || [];
+    var firstName = ((data.user && data.user.name) || '').split(' ')[0] || 'there';
+    // Attendance breakdown across recent entries
+    var counts = { present: 0, late: 0, absent: 0, excused: 0 };
+    att.forEach(function (a) { if (counts[a.status] != null) counts[a.status]++; });
+    var attended = counts.present + counts.late;
+    var rate = att.length ? Math.round(attended / att.length * 100) : null;
+    // Capacity fill across active classes
+    var totalSeats = 0, takenSeats = 0;
+    classes.forEach(function (c) { if (c.capacity) { totalSeats += parseInt(c.capacity,10)||0; takenSeats += parseInt(c.enrolled_count,10)||0; } });
+
     content.innerHTML = ''
+      + '<div class="portal-hello"><h2>' + greeting() + ', ' + P.escapeHtml(firstName) + ' <span aria-hidden="true">🎼</span></h2>'
+      +   '<p>You teach <strong>' + classes.length + '</strong> active class' + (classes.length===1?'':'es') + ' and <strong>' + students.length + '</strong> student' + (students.length===1?'':'s') + ' right now.</p></div>'
       + '<section class="kpi-row">'
-      + kpi('Active Classes', classes.filter(function(c){return c.status==='active';}).length)
-      + kpi('Students', students.length, 'Across all classes', 'gold')
-      + kpi('Attendance entries', att.length, att[0] ? 'Last: ' + P.fmtDate(att[0].session_date) : 'No records')
+      + kpi('Active Classes', classes.length, 'You\'re teaching now', 'gold')
+      + kpi('Students', students.length, 'Across all classes')
+      + kpi('Attendance rate', rate === null ? '—' : (rate + '%'), rate === null ? 'No records yet' : 'present over ' + att.length + ' entries')
+      + kpi('Seats filled', totalSeats ? (takenSeats + ' / ' + totalSeats) : '—', totalSeats ? Math.round(takenSeats/totalSeats*100) + '% capacity' : 'No capacity set')
       + '</section>'
+      + '<div style="display:grid;grid-template-columns:1fr;gap:22px">'
+      +   '<section class="panel"><div class="panel-head"><h2>Attendance breakdown</h2><span style="font-size:0.78rem;color:var(--text-muted)">last ' + att.length + ' entries</span></div>'
+      +     '<div style="padding:18px 22px">'
+      +       (att.length
+        ? '<div style="max-width:280px;margin:0 auto"><canvas id="attChart" height="220" aria-label="Attendance status breakdown"></canvas></div><div id="attChartFallback"></div>'
+        : empty('clipboard-list', 'No attendance recorded yet — mark some on the Attendance tab.'))
+      +     '</div></section>'
+      +   '<section class="panel"><div class="panel-head"><h2>Class fill</h2><a class="panel-action" href="#classes" data-tab="classes">All →</a></div>'
+      +     '<div style="padding:10px 22px 18px">' + (classes.length ? classFillBars(classes) : empty('chalkboard-user', 'No classes assigned yet.')) + '</div></section>'
+      + '</div>'
       + '<section class="panel"><div class="panel-head"><h2>Recent attendance</h2><a class="panel-action" href="#attendance" data-tab="attendance">All →</a></div>'
       + (att.length ? attendanceTable(att.slice(0,8)) : '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded yet.') + '</div>') + '</section>';
     bindTabLinks();
+    drawAttChart(counts);
+  }
+
+  function classFillBars(classes) {
+    return classes.map(function (c) {
+      var cap = parseInt(c.capacity,10)||0, en = parseInt(c.enrolled_count,10)||0;
+      var pct = cap ? Math.min(100, Math.round(en/cap*100)) : 0;
+      return '<div style="margin:12px 0">'
+        + '<div style="display:flex;justify-content:space-between;font-size:0.86rem;margin-bottom:6px"><strong style="color:var(--text)">' + P.escapeHtml(c.title) + '</strong>'
+        + '<span style="color:var(--text-muted)">' + en + (cap ? ' / ' + cap : '') + '</span></div>'
+        + '<div class="studio-progress"><div class="studio-progress-fill" style="width:' + pct + '%"></div></div></div>';
+    }).join('');
+  }
+
+  var _attChart = null;
+  function drawAttChart(counts) {
+    var canvas = document.getElementById('attChart'); if (!canvas) return;
+    var labels = ['Present', 'Late', 'Absent', 'Excused'];
+    var values = [counts.present, counts.late, counts.absent, counts.excused];
+    var colors = ['#34D399', '#FBBF24', '#FB7185', '#A5B4FC'];
+    if (typeof window.Chart === 'undefined') {
+      canvas.style.display = 'none';
+      var total = values.reduce(function(a,b){return a+b;},0) || 1;
+      document.getElementById('attChartFallback').innerHTML = labels.map(function(l,i){
+        return '<div style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:90px;color:var(--text-muted);font-size:0.84rem">' + l + '</span>'
+          + '<div class="studio-progress" style="flex:1"><div class="studio-progress-fill" style="width:' + Math.round(values[i]/total*100) + '%;background:' + colors[i] + '"></div></div>'
+          + '<strong style="width:30px;text-align:right">' + values[i] + '</strong></div>';
+      }).join('');
+      return;
+    }
+    try {
+      if (_attChart) { _attChart.destroy(); _attChart = null; }
+      _attChart = new window.Chart(canvas.getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderColor: 'rgba(0,0,0,0.2)', borderWidth: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom', labels: { color: '#9A8264', padding: 14, font: { size: 12 } } } } }
+      });
+    } catch (e) { canvas.style.display = 'none'; }
   }
 
   function renderClasses() {
@@ -234,13 +300,17 @@
   }
   function empty(icon, text) { return '<div class="empty-state"><i class="fa-solid fa-' + icon + '"></i>' + text + '</div>'; }
 
+  // Single delegated handler (bound once) for every [data-tab] link, including
+  // ones rendered later — replaces the old per-render re-binding that leaked
+  // duplicate listeners on each overview paint.
+  var _navBound = false;
   function bindTabLinks() {
-    document.querySelectorAll('[data-tab]').forEach(function (a) {
-      a.addEventListener('click', function (e) {
-        var t = a.getAttribute('data-tab'); if (!t) return;
-        e.preventDefault(); show(t);
-        try { history.replaceState(null, '', '#' + t); } catch (e2) {}
-      });
+    if (_navBound) return; _navBound = true;
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('[data-tab]'); if (!a) return;
+      var t = a.getAttribute('data-tab'); if (!t) return;
+      e.preventDefault(); show(t);
+      try { history.replaceState(null, '', '#' + t); } catch (e2) {}
     });
   }
 

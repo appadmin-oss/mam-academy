@@ -9,6 +9,7 @@
 <link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260530a">
@@ -332,13 +333,17 @@
       + '<span class="pill ' + P.escapeHtml(a.status) + '" style="margin-top:4px">' + P.escapeHtml(a.status) + '</span></div></div></div>';
   }
 
+  // Single delegated handler (bound once) for every [data-tab] link — sidebar
+  // nav AND in-content "All →" shortcuts, including ones rendered later. This
+  // replaces the old per-render re-binding that leaked duplicate listeners.
+  var _navBound = false;
   function bindTabLinks() {
-    document.querySelectorAll('[data-tab]').forEach(function (a) {
-      a.addEventListener('click', function (e) {
-        var t = a.getAttribute('data-tab'); if (!t) return;
-        e.preventDefault(); show(t);
-        try { history.replaceState(null, '', '#' + t); } catch (e2) {}
-      });
+    if (_navBound) return; _navBound = true;
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('[data-tab]'); if (!a) return;
+      var t = a.getAttribute('data-tab'); if (!t) return;
+      e.preventDefault(); show(t);
+      try { history.replaceState(null, '', '#' + t); } catch (e2) {}
     });
   }
 
