@@ -196,7 +196,16 @@ window.MAM_API = (function () {
     // /portal/api/… and 404. Force a leading slash for non-absolute bases.
     var base = cfg.base || '/api';
     if (!/^https?:\/\//.test(base) && base.charAt(0) !== '/') base = '/' + base;
-    return base.replace(/\/$/, '') + '/' + path.replace(/^\//, '');
+    base = base.replace(/\/$/, '');
+    var p = String(path || '');
+    if (/^https?:\/\//.test(p)) return p;            // caller passed a full URL
+    p = '/' + p.replace(/^\/+/, '');                 // exactly one leading slash
+    // Idempotent: if the caller already included the base prefix (e.g.
+    // '/api/auth/login'), don't prepend it again — otherwise '/api' + that
+    // yields '/api/api/auth/login' → 404. Accepts both 'auth/login' and
+    // '/api/auth/login' and resolves to a single, correct path.
+    if (base && (p === base || p.indexOf(base + '/') === 0)) return p;
+    return base + p;
   }
 
   function getCsrf(force) {

@@ -21,6 +21,9 @@
   .pw-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:8px;background:transparent;color:var(--text-muted);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.2s var(--ease)}
   .pw-toggle:hover{color:var(--gold-bright);background:rgba(224,138,26,0.08)}
   .caps-warn{margin-top:8px;padding:8px 12px;background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.35);border-radius:8px;color:#FBBF24;font-size:0.82rem;display:flex;align-items:center;gap:8px}
+  /* Author display:flex above overrides the UA [hidden] rule, so the warning
+     would never hide. Re-assert hidden at higher specificity to fix the toggle. */
+  .caps-warn[hidden]{display:none}
   .caps-warn i{font-size:0.75rem}
 
   .remember-row{display:flex;align-items:center;gap:10px;padding:6px 0;color:var(--text-soft);font-size:0.88rem;cursor:pointer;user-select:none}
@@ -134,7 +137,7 @@
   </section>
 </main>
 
-<script src="/assets/js/config.js?v=20260529g"></script>
+<script src="/assets/js/config.js?v=20260531d"></script>
 <script>
 (function () {
   'use strict';
