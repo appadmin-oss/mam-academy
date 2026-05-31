@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260530a">
 <link rel="stylesheet" href="/assets/css/portal.css?v=20260530a">
-<link rel="stylesheet" href="/assets/css/studio.css?v=20260531a">
+<link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
@@ -124,30 +124,41 @@
     }).join('');
   }
 
+  // Wait for the deferred Chart.js CDN; give up after ~3s and keep the fallback.
+  function whenChart(cb, tries) {
+    if (typeof window.Chart !== 'undefined') return cb(true);
+    if ((tries || 0) >= 25) return cb(false);
+    setTimeout(function () { whenChart(cb, (tries || 0) + 1); }, 120);
+  }
   var _attChart = null;
   function drawAttChart(counts) {
-    var canvas = document.getElementById('attChart'); if (!canvas) return;
+    var canvas = document.getElementById('attChart'), fb = document.getElementById('attChartFallback');
+    if (!canvas || !fb) return;
     var labels = ['Present', 'Late', 'Absent', 'Excused'];
     var values = [counts.present, counts.late, counts.absent, counts.excused];
     var colors = ['#34D399', '#FBBF24', '#FB7185', '#A5B4FC'];
-    if (typeof window.Chart === 'undefined') {
+    function cssFallback() {
       canvas.style.display = 'none';
-      var total = values.reduce(function(a,b){return a+b;},0) || 1;
-      document.getElementById('attChartFallback').innerHTML = labels.map(function(l,i){
+      var total = values.reduce(function (a, b) { return a + b; }, 0) || 1;
+      fb.innerHTML = labels.map(function (l, i) {
         return '<div style="display:flex;align-items:center;gap:10px;margin:8px 0"><span style="width:90px;color:var(--text-muted);font-size:0.84rem">' + l + '</span>'
-          + '<div class="studio-progress" style="flex:1"><div class="studio-progress-fill" style="width:' + Math.round(values[i]/total*100) + '%;background:' + colors[i] + '"></div></div>'
+          + '<div class="studio-progress" style="flex:1"><div class="studio-progress-fill" style="width:' + Math.round(values[i] / total * 100) + '%;background:' + colors[i] + '"></div></div>'
           + '<strong style="width:30px;text-align:right">' + values[i] + '</strong></div>';
       }).join('');
-      return;
     }
-    try {
-      if (_attChart) { _attChart.destroy(); _attChart = null; }
-      _attChart = new window.Chart(canvas.getContext('2d'), {
-        type: 'doughnut',
-        data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderColor: 'rgba(0,0,0,0.2)', borderWidth: 2 }] },
-        options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom', labels: { color: '#9A8264', padding: 14, font: { size: 12 } } } } }
-      });
-    } catch (e) { canvas.style.display = 'none'; }
+    cssFallback(); // paint immediately
+    whenChart(function (ok) {
+      if (!ok || !document.body.contains(canvas)) return;
+      try {
+        if (_attChart) { _attChart.destroy(); _attChart = null; }
+        fb.innerHTML = ''; canvas.style.display = '';
+        _attChart = new window.Chart(canvas.getContext('2d'), {
+          type: 'doughnut',
+          data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderColor: 'rgba(0,0,0,0.2)', borderWidth: 2 }] },
+          options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom', labels: { color: '#9A8264', padding: 14, font: { size: 12 } } } } }
+        });
+      } catch (e) { cssFallback(); }
+    });
   }
 
   function renderClasses() {

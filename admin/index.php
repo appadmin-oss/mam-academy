@@ -814,8 +814,11 @@ button.tiny:hover{border-color:var(--gold)}
   </div>
   <script>
   (function () {
+    var tries = 0;
     function draw() {
-      if (typeof Chart === 'undefined') { return setTimeout(draw, 120); } // wait for deferred CDN
+      // Wait for the deferred Chart.js CDN, but give up after ~3s so a blocked
+      // CDN just leaves the (already-rendered) KPI cards rather than looping.
+      if (typeof Chart === 'undefined') { if (tries++ < 25) setTimeout(draw, 120); return; }
       var gold = '#E08A1A', green = '#34D399';
       var tc = document.getElementById('trendChart');
       if (tc) new Chart(tc.getContext('2d'), {

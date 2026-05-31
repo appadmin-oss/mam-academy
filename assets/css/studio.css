@@ -17,26 +17,14 @@
 .studio-bar-fill{width:100%;max-width:44px;min-height:3px;border-radius:6px 6px 0 0;background:rgba(252,198,71,0.65)}
 .studio-bar span{font-size:0.72rem;color:var(--text-muted)}
 
-/* Metronome */
-.studio-beats{display:flex;gap:12px;justify-content:center;margin-bottom:18px;min-height:20px}
-.studio-beat-dot{width:16px;height:16px;border-radius:50%;background:var(--bg-raised);border:1px solid var(--border-strong);transition:transform .06s,background .06s}
-.studio-beat-dot.accent{border-color:var(--border-gold)}
-.studio-beat-dot.on{background:var(--gold-bright);transform:scale(1.35);box-shadow:0 0 14px rgba(252,198,71,0.6)}
-.studio-beat-dot.on.accent{background:#fff;box-shadow:0 0 18px rgba(255,255,255,0.7)}
-.studio-bpm{display:flex;align-items:center;justify-content:center;gap:22px}
-.studio-bpm-val{font-family:var(--font-display);font-size:3.4rem;line-height:1;color:var(--gold-bright);letter-spacing:0.02em}
-.studio-step{width:46px;height:46px;border-radius:50%;border:1px solid var(--border-strong);background:var(--bg-raised);color:var(--text);font-size:1.5rem;line-height:1;cursor:pointer;transition:all .15s}
-.studio-step:hover{border-color:var(--border-gold);color:var(--gold-bright)}
-#metroToggle.is-running{background:linear-gradient(135deg,#F43F5E,#E11D48);color:#fff}
+/* Inline practice timer (feeds the log) */
+.studio-timer-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 16px;background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--radius-sm)}
+.studio-timer-mini{font-family:var(--font-display);font-size:1.9rem;line-height:1;color:var(--gold-bright);letter-spacing:0.03em;font-variant-numeric:tabular-nums}
 
-/* Reference tuner notes */
-.studio-notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:8px;max-width:560px;margin:0 auto}
-.studio-note{padding:16px 0;border-radius:12px;border:1px solid var(--border-strong);background:var(--bg-raised);color:var(--text);font-weight:700;font-size:1.05rem;cursor:pointer;transition:all .12s}
-.studio-note:hover{border-color:var(--border-gold);color:var(--gold-bright)}
-.studio-note.on{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent;box-shadow:0 6px 18px rgba(224,138,26,0.4)}
-
-/* Practice timer */
-.studio-timer{font-family:var(--font-display);font-size:4rem;line-height:1;color:var(--text);letter-spacing:0.04em;margin-bottom:6px;font-variant-numeric:tabular-nums}
+/* "Open Practice Studio" call-to-action */
+.studio-cta{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:20px 22px;border-radius:var(--radius-md);background:linear-gradient(135deg,rgba(224,138,26,0.14),rgba(251,191,36,0.05));border:1px solid var(--border-gold);margin-bottom:22px}
+.studio-cta strong{display:block;color:var(--text);font-size:0.98rem}
+.studio-cta span{display:block;color:var(--text-muted);font-size:0.85rem;margin-top:3px}
 
 /* Repertoire list */
 .studio-piece{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border)}
@@ -53,6 +41,5 @@
 .studio-del:hover{border-color:rgba(244,63,94,0.5);color:#FB7185;background:rgba(244,63,94,0.08)}
 
 @media (max-width:600px){
-  .studio-bpm-val{font-size:2.6rem}
-  .studio-timer{font-size:3rem}
+  .studio-timer-bar{justify-content:center;text-align:center}
 }

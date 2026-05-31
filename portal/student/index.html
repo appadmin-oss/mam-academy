@@ -14,7 +14,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260530a">
 <link rel="stylesheet" href="/assets/css/portal.css?v=20260530a">
-<link rel="stylesheet" href="/assets/css/studio.css?v=20260531a">
+<link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
@@ -33,7 +33,6 @@
       <a class="portal-nav-link" href="#applications" data-tab="applications"><i class="fa-solid fa-file-pen"></i>My Applications</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
       <a class="portal-nav-link" href="#practice" data-tab="practice"><i class="fa-solid fa-chart-line"></i>Practice</a>
-      <a class="portal-nav-link" href="#tools" data-tab="tools"><i class="fa-solid fa-drum"></i>Studio Tools</a>
       <a class="portal-nav-link" href="#repertoire" data-tab="repertoire"><i class="fa-solid fa-book-open"></i>Repertoire</a>
       <a class="portal-nav-link" href="#payments" data-tab="payments"><i class="fa-solid fa-credit-card"></i>Payments</a>
       <a class="portal-nav-link" href="#orders" data-tab="orders"><i class="fa-solid fa-bag-shopping"></i>Store Orders</a>
@@ -66,7 +65,7 @@
 
 <script src="/assets/js/config.js?v=20260530a"></script>
 <script src="/assets/js/portal.js?v=20260530a"></script>
-<script src="/assets/js/studio-tools.js?v=20260531a"></script>
+<script src="/assets/js/studio-tools.js?v=20260531b"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <script>
 (function () {
@@ -74,7 +73,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], practice: ['Practice', 'Track your sessions, streaks and goals'], tools: ['Studio Tools', 'Metronome, tuner and practice timer'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
 
@@ -83,11 +82,8 @@
     var t = tabs[tab] || tabs.overview;
     pageTitle.firstChild.textContent = t[0] + ' ';
     pageSub.textContent = t[1];
-    // Silence any running metronome/tone when navigating away from the tools.
-    if (STUDIO && tab !== 'tools') STUDIO.stopAudio();
-    // The studio tools are client-side and don't need the dashboard payload.
+    // The practice tools are client-side and don't need the dashboard payload.
     if (STUDIO && tab === 'practice') return STUDIO.renderPractice(content);
-    if (STUDIO && tab === 'tools') return STUDIO.renderTools(content);
     if (STUDIO && tab === 'repertoire') return STUDIO.renderRepertoire(content);
     if (!data) return;
     if (tab === 'overview') return renderOverview();
