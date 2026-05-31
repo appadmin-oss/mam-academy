@@ -293,8 +293,11 @@
     function computeTotalUsd() {
       if (data.serverTotalUsd != null) return data.serverTotalUsd;
       var p = cfg.pricing[data.pathway]; var sum = p ? p.usd : 0;
+      // Online learners pay a programme-fee premium (server is authoritative).
+      if (p && data.mode === 'online' && cfg.onlineSurchargePct) {
+        sum = Math.round(sum * (1 + cfg.onlineSurchargePct / 100) * 100) / 100;
+      }
       if (data.includeRegistration) sum += cfg.registrationFeeUsd || 0;
-      if (data.includeCertification) sum += cfg.certificationFeeUsd || 0;
       return sum;
     }
     function fmtMoney(usd, cur) {
@@ -306,11 +309,13 @@
     function updateSummary() {
       var summary = $('#applySummary'); if (!summary) return;
       var price = cfg.pricing[data.pathway]; var rows = '';
-      if (price) rows += row('Pathway', price.name) + row('Tuition', fmtMoney(price.usd));
+      if (price) rows += row('Programme', price.name) + row('Tuition', fmtMoney(price.usd));
       if (data.mode)       rows += row('Mode', data.mode === 'online' ? 'Online' : 'Onsite');
       if (data.discipline) rows += row('Discipline', titleCase(data.discipline));
+      if (price && data.mode === 'online' && cfg.onlineSurchargePct) {
+        rows += row('Online (+' + cfg.onlineSurchargePct + '%)', fmtMoney(price.usd * cfg.onlineSurchargePct / 100));
+      }
       if (data.includeRegistration && cfg.registrationFeeUsd) rows += row('Registration', fmtMoney(cfg.registrationFeeUsd));
-      if (data.includeCertification && cfg.certificationFeeUsd) rows += row('Certification', fmtMoney(cfg.certificationFeeUsd));
       var total = computeTotalUsd();
       rows += '<div class="summary-total"><span>Total</span><span>' + fmtMoney(total) + '</span></div>';
       if (data.reference) rows += '<div style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);text-align:center">Ref: <span class="mono" style="color:var(--gold-bright)">' + data.reference + '</span></div>';
@@ -691,7 +696,7 @@
         'Country/City: ' + (data.country || '') + ' ' + (data.city || ''),
         'Date of birth: ' + (data.dob || '') + ' (' + (deriveTrack(data.dob) || '') + ')',
         'Pathway: ' + (p.name || data.pathway), 'Mode: ' + data.mode, 'Discipline: ' + data.discipline,
-        'Add-ons: ' + (data.includeRegistration ? 'Registration ' : '') + (data.includeCertification ? 'Certification' : ''),
+        'Add-ons: ' + (data.includeRegistration ? 'Registration' : 'None'),
         'Policy agreed: ' + (data.policyAgree ? 'Yes — ' + (data.policySignName || '') : 'No'),
         '', 'Please confirm next steps. Thank you.'
       ];
@@ -983,21 +988,11 @@
     }
     $$('input[name="pathway"]').forEach(function (i) { on(i, 'change', reactToPathwayChange); });
 
-    // 2) Pathway → Add-on relevance. The 6-week Crash Programme is not part of
-    //    the certification track, so the +$22 graduation add-on is hidden and
-    //    silently disabled. Returning to a different pathway brings it back.
-    function renderAddonContext() {
-      var certEl = $('#includeCertification');
-      var certCard = certEl ? certEl.closest('.choice-card') : null;
-      if (!certCard) return;
-      var hideCert = data.pathway === 'crash';
-      certCard.style.display = hideCert ? 'none' : '';
-      if (hideCert && data.includeCertification) {
-        data.includeCertification = false;
-        certEl.checked = false;
-        saveDraft(); updateSummary();
-      }
-    }
+    // 2) Pathway → Add-on relevance. The standalone $22 graduation add-on was
+    //    retired (certification is now baked into the programme fee), leaving
+    //    only the always-relevant $5 registration. Kept as a no-op so callers
+    //    stay stable if a future add-on becomes pathway-specific again.
+    function renderAddonContext() { /* no pathway-specific add-ons remain */ }
 
     function renderPathwayHint() {
       var anchor = document.querySelector('.field [id="err-pathway"]');
@@ -1008,11 +1003,11 @@
       if (data.pathway === 'meta-order') {
         msg = 'The MetaMusic Order is our 12-week civilization-engineering intensive — discipline is pre-set to MetaMusic & Consciousness.';
       } else if (data.pathway === 'crash') {
-        msg = "6-week intensive — fast-track. Graduation certification doesn't apply, so we've hidden that add-on for you.";
-      } else if (data.pathway === 'diploma') {
-        msg = 'Top tier. We pair Diploma students with a senior instructor and an end-of-term recital opportunity.';
-      } else if (data.pathway === 'pre-cert') {
-        msg = 'Foundations track. No prior experience expected — your MAM Auditer placement will pace it for you.';
+        msg = '6-week accelerated intensive — a fast-track version of the standard curriculum.';
+      } else if (data.pathway === 'grand-musician') {
+        msg = 'Our flagship: you train across all three traditions — African, Classical & Contemporary — plus the supporting courses. Runs across all four certification levels.';
+      } else if (data.pathway === 'certified-musician') {
+        msg = 'Pick one major tradition (Contemporary, Classical or African) plus your supporting courses. Your MAM Auditer placement sets your starting level.';
       }
       if (!msg) { if (tip) tip.remove(); return; }
       if (!tip) {

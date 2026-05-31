@@ -12,13 +12,22 @@ declare(strict_types=1);
  */
 function mam_prices(): array {
     return [
-        'pre-cert'   => 120,
-        'cert'       => 150,
-        'pre-dip'    => 160,
-        'diploma'    => 180,
-        'crash'      => 40,
-        'meta-order' => 60,
+        // Flagship programmes. Both run across all four certification levels
+        // (Pre-Certification → Diploma) — the level is a progression journey,
+        // not a separate purchase. Certified Musician = one major specialization;
+        // Grand Musician = all three major traditions.
+        'certified-musician' => 230,
+        'grand-musician'     => 310,
+        // Standalone intensives, kept alongside the two programmes.
+        'crash'              => 40,
+        'meta-order'         => 60,
     ];
+}
+
+/** Online learners pay the programme fee + this percentage premium. Onsite is
+ *  the standard fee. Server-authoritative so it can't be bypassed client-side. */
+function mam_online_surcharge_pct(): float {
+    return (float)mam_env('ONLINE_SURCHARGE_PCT', '20');
 }
 
 function mam_str(array $src, string $key, int $max = 255): string {
@@ -67,7 +76,7 @@ function mam_validate_application(array $in): array {
     $out['phone'] = mam_phone(mam_str($in, 'phone', 24));
     if (!$out['phone']) $errors[] = 'phone';
 
-    $allowedPathways = ['pre-cert','cert','pre-dip','diploma','crash','meta-order'];
+    $allowedPathways = ['certified-musician','grand-musician','crash','meta-order'];
     $out['pathway'] = mam_str($in, 'pathway', 32);
     if (!mam_in($out['pathway'], $allowedPathways)) $errors[] = 'pathway';
 

@@ -69,17 +69,19 @@ window.MAM_CONFIG = {
     rates: { USD: 1, NGN: 1500, GBP: 0.79, EUR: 0.92 }
   },
 
-  /* -------- Pricing (display only — server enforces real total) -------- */
+  /* -------- Pricing (display only — server enforces real total) --------
+     Two flagship programmes (available across all four certification levels)
+     plus two standalone intensives. Online learners pay +onlineSurchargePct%
+     on the programme fee; onsite is the standard fee. Keep in sync with
+     mam_prices() in api/lib/validation.php. */
   pricing: {
-    'pre-cert':   { name: 'Pre-Certification (Grade 1–2)', usd: 120 },
-    'cert':       { name: 'Certification (Grade 3–4)',      usd: 150 },
-    'pre-dip':    { name: 'Pre-Diploma (Grade 5–6)',         usd: 160 },
-    'diploma':    { name: 'Diploma (Grade 7–8)',             usd: 180 },
-    'crash':      { name: 'Crash Programme (6 weeks)',       usd: 40  },
-    'meta-order': { name: 'The MetaMusic Order (12 weeks)',  usd: 60  }
+    'certified-musician': { name: 'Certified Musician', usd: 230 },
+    'grand-musician':     { name: 'Grand Musician',     usd: 310 },
+    'crash':              { name: 'Crash Programme (6 weeks)',      usd: 40 },
+    'meta-order':         { name: 'The MetaMusic Order (12 weeks)', usd: 60 }
   },
   registrationFeeUsd: 5,
-  certificationFeeUsd: 22,
+  onlineSurchargePct: 20,
 
   /* -------- Testimonials (edit here; the homepage rotator reads this) --------
      `photo` is optional — when set it shows a real headshot (routed through

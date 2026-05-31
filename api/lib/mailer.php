@@ -463,8 +463,8 @@ function mam_email_promo_block(array $exclude = []): string {
     $base = 'https://academy.mamcentre.org/';
     $items = [
         'powerplay' => ['⚡ Power Play with Van. BOJA', 'Free monthly online session for musicians & culture-shapers.', 'Free', 'power-play'],
-        'crash'     => ['Crash Programme', 'A focused 6-week intensive — quick, real wins.', '$' . $p['crash'], 'crash'],
-        'pathways'  => ['Certification Pathways', 'Trinity-equivalent grades, online or onsite.', 'from $' . $p['pre-cert'], 'pathways'],
+        'crash'     => ['Crash Programme', 'A focused 6-week accelerated intensive — quick, real wins.', '$' . $p['crash'], 'crash'],
+        'pathways'  => ['Certified &amp; Grand Musician', 'Train across all four levels, online or onsite.', 'from $' . $p['certified-musician'], 'pathways'],
         'metamusic' => ['The MetaMusic Order', '12-week post-graduate cultural-architecture track.', '$' . $p['meta-order'], 'metamusic-order'],
     ];
     $rows = '';
@@ -853,9 +853,11 @@ function mam_email_application_confirmation(array $app, array $customer, ?array 
     $hasPolicy = !empty($app['policy_mode']);
 
     $pathwayMap = [
+        'certified-musician' => 'Certified Musician', 'grand-musician' => 'Grand Musician',
+        'crash' => 'Crash Programme', 'meta-order' => 'The MetaMusic Order',
+        // Legacy keys retained for historical applications.
         'pre-cert' => 'Pre-Certification', 'cert' => 'Certification',
         'pre-dip' => 'Pre-Diploma', 'diploma' => 'Diploma',
-        'crash' => 'Crash Programme', 'meta-order' => 'The MetaMusic Order',
     ];
     $pathwayLabel = htmlspecialchars($pathwayMap[$app['pathway'] ?? ''] ?? (string)($app['pathway'] ?? '—'), ENT_QUOTES);
     $modeLabel = htmlspecialchars(ucfirst((string)($app['mode'] ?? '—')), ENT_QUOTES);
@@ -1017,12 +1019,16 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
     $dateLong = date('l, jS \\of F, Y');
 
     $pathwayMap = [
+        // Current programmes.
+        'certified-musician' => ['Certified Musician',            'One major tradition · 12 weeks'],
+        'grand-musician'     => ['Grand Musician',                'All three traditions · 12 weeks'],
+        'crash'              => ['Crash Programme',               '6-week accelerated intensive'],
+        'meta-order'         => ['The MetaMusic Order',           'Premium track'],
+        // Legacy keys kept so historical invoices still render their names.
         'pre-cert'   => ['Pre-Certification (Foundation)',    'Online · 12 weeks'],
         'cert'       => ['Certification (KTAMS / MAM)',       'Online · 12 weeks'],
         'pre-dip'    => ['Pre-Diploma',                       'Online · 12 weeks'],
         'diploma'    => ['Diploma',                           'Online · 12 weeks'],
-        'crash'      => ['Crash Programme',                   'Intensive · short-form'],
-        'meta-order' => ['The MetaMusic Order',               'Premium track'],
     ];
     $pathwayKey = (string)($app['pathway'] ?? '');
     $pathwayName = $pathwayMap[$pathwayKey][0] ?? ucfirst($pathwayKey);

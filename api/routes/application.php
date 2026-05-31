@@ -35,11 +35,16 @@ if ($idemKey !== '') {
 
 $v = mam_validate_application($input);
 
-// Pricing — server is the source of truth, never trust client total
+// Pricing — server is the source of truth, never trust client total.
+//   programme fee → +20% for online learners → + $5 one-time registration.
+// (The standalone $22 certification add-on was retired: certification is now
+//  baked into the Certified/Grand Musician programme fee.)
 $prices = mam_prices();
-$total = $prices[$v['pathway']] ?? 0;
-if ($v['includeRegistration'])  $total += 5;
-if ($v['includeCertification']) $total += 22;
+$total  = (float)($prices[$v['pathway']] ?? 0);
+if ($v['mode'] === 'online') {
+    $total = round($total * (1 + mam_online_surcharge_pct() / 100), 2);
+}
+if ($v['includeRegistration']) $total += 5;
 
 $db = mam_db();
 $db->beginTransaction();

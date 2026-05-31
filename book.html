@@ -273,7 +273,20 @@
       })
       .catch(function(err){
         btn.disabled = false; btn.innerHTML = orig;
-        status("Couldn't start checkout. Please try again, or email connect@mamcentre.org with reference " + ref + ".", 'err');
+        // Log the real cause so an operator can diagnose from the console.
+        try { console.error('[MAM_BOOK] checkout failed', { status: err && err.status, body: err && err.body, message: err && err.message }); } catch (e) {}
+        var code = (err && err.body && err.body.error) || (err && err.message) || '';
+        if (err && (err.status === 404 || code === 'application_not_found')) {
+          // The reference isn't on file — retrying will never help. Send them
+          // back to the application instead of looping on a transient message.
+          status("We couldn't find an application for reference " + ref + ". If you just applied, use the link in your confirmation email — or re-apply at /apply. Need a hand? Email connect@mamcentre.org with that reference.", 'err');
+        } else if (err && (err.apiDown || code === 'api_unavailable' || code === 'Failed to fetch')) {
+          status("We couldn't reach our secure server just now. Please check your connection and try again in a moment.", 'err');
+        } else if (err && err.status === 429) {
+          status("That's a few too many attempts in a row. Please wait a minute and try again.", 'err');
+        } else {
+          status("Couldn't start checkout (" + (code || 'unknown error') + "). Please try again, or email connect@mamcentre.org with reference " + ref + ".", 'err');
+        }
       });
   }
 

@@ -17,21 +17,15 @@
   'use strict';
 
   var PROGRAMMES = [
-    { id: 'pre-cert', label: 'Pre-Certification', name: 'Foundations', trinity: 'Grade 1–2 equivalent', price: 120, unit: '/term',
-      tag: '', accent: 'gold', levels: ['none', 'some'], goals: ['worship', 'exam'], pace: 'ongoing', budget: 1,
-      f: { bestFor: 'Beginners, children', length: 'Flexible term', modes: 'Both', auditer: '✓', trinityEq: 'Grade 1–2', instrumental: '✓', performance: 'Introductory', rhythm: 'Foundations', metamusic: 'Exposure', certificate: '✓', registration: 'Once', graduation: 'At completion' } },
-    { id: 'cert', label: 'Certification', name: 'Developing', trinity: 'Grade 3–4 equivalent', price: 150, unit: '/term',
-      tag: 'Most chosen', accent: 'gold', featured: true, levels: ['some', 'intermediate'], goals: ['perform', 'worship', 'exam'], pace: 'ongoing', budget: 2,
-      f: { bestFor: 'Building maturity', length: 'Flexible term', modes: 'Both', auditer: '✓', trinityEq: 'Grade 3–4', instrumental: '✓', performance: '✓', rhythm: 'Intermediate', metamusic: 'Exposure', certificate: '✓', registration: 'Once', graduation: 'At completion' } },
-    { id: 'pre-dip', label: 'Pre-Diploma', name: 'Advanced', trinity: 'Grade 5–6 equivalent', price: 160, unit: '/term',
-      tag: '', accent: 'gold', levels: ['intermediate'], goals: ['worship', 'perform', 'exam'], pace: 'ongoing', budget: 2,
-      f: { bestFor: 'Worship leaders', length: 'Flexible term', modes: 'Both', auditer: '✓', trinityEq: 'Grade 5–6', instrumental: '✓', performance: '✓✓', rhythm: 'Advanced', metamusic: 'Depth', certificate: '✓', registration: 'Once', graduation: 'At completion' } },
-    { id: 'diploma', label: 'Diploma', name: 'Professional', trinity: 'Grade 7–8 equivalent', price: 180, unit: '/term',
-      tag: '', accent: 'gold', levels: ['advanced'], goals: ['perform', 'lead', 'exam', 'produce'], pace: 'ongoing', budget: 3,
-      f: { bestFor: 'Pro performers, music directors', length: 'Flexible term', modes: 'Both', auditer: '✓', trinityEq: 'Grade 7–8', instrumental: '✓', performance: '✓✓✓', rhythm: 'Professional', metamusic: 'Mastery', certificate: '✓ Diploma', registration: 'Once', graduation: 'At completion' } },
+    { id: 'certified-musician', label: 'Certified Musician', name: 'One tradition', trinity: 'All levels · Pre-Cert → Diploma', price: 230, unit: '/programme',
+      tag: 'Most chosen', accent: 'gold', featured: true, levels: ['none', 'some', 'intermediate', 'advanced'], goals: ['perform', 'worship', 'exam'], pace: 'ongoing', budget: 2,
+      f: { bestFor: 'Focused mastery in one tradition', length: '12 weeks · 1hr/wk major', modes: 'Both', auditer: '✓', trinityEq: 'All four levels', instrumental: '✓', performance: '✓✓', rhythm: '✓', metamusic: '✓', certificate: '✓ Certified Musician', registration: '+$5', graduation: 'Included' } },
+    { id: 'grand-musician', label: 'Grand Musician', name: 'All three traditions', trinity: 'All levels · flagship', price: 310, unit: '/programme',
+      tag: 'Flagship', accent: 'red', premium: true, levels: ['some', 'intermediate', 'advanced'], goals: ['perform', 'lead', 'exam', 'produce', 'culture'], pace: 'ongoing', budget: 3,
+      f: { bestFor: 'African + Classical + Contemporary mastery', length: '12 weeks · three majors', modes: 'Both', auditer: '✓', trinityEq: 'All four levels', instrumental: '✓', performance: '✓✓✓', rhythm: '✓', metamusic: '✓', certificate: '✓ Grand Musician', registration: '+$5', graduation: 'Included' } },
     { id: 'crash', label: 'Crash', name: 'Intensive', trinity: '6 weeks · any school', price: 40, unit: '/course',
       tag: '', accent: 'gold', levels: ['none', 'some', 'intermediate', 'advanced'], goals: ['perform', 'produce', 'worship'], pace: 'intensive', budget: 1,
-      f: { bestFor: 'Quick wins · summer · busy pros', length: '6 weeks fixed', modes: 'Both', auditer: 'Recommended', trinityEq: '—', instrumental: 'Per chosen course', performance: 'Per chosen course', rhythm: 'Per chosen course', metamusic: 'Per chosen course', certificate: 'Certificate of completion', registration: 'Once', graduation: '—' } },
+      f: { bestFor: 'Quick wins · summer · busy pros', length: '6 weeks accelerated', modes: 'Both', auditer: 'Recommended', trinityEq: '—', instrumental: 'Per chosen course', performance: 'Per chosen course', rhythm: 'Per chosen course', metamusic: 'Per chosen course', certificate: 'Certificate of completion', registration: '+$5', graduation: '—' } },
     { id: 'meta-order', label: 'MetaMusic Order', name: 'Civilization Architect', trinity: '12 weeks · post-graduate', price: 60, unit: '/12wk',
       tag: 'Premium', accent: 'red', premium: true, levels: ['advanced'], goals: ['culture', 'produce', 'lead'], pace: 'intensive', budget: 3,
       f: { bestFor: 'Producers, performers, cultural leaders', length: '12 weeks fixed', modes: 'Online focus', auditer: '✓ + interview', trinityEq: 'Post-Diploma', instrumental: '—', performance: '✓✓✓', rhythm: 'Applied', metamusic: 'Core focus', certificate: 'Order commission', registration: 'Included', graduation: 'Included' } }
@@ -42,14 +36,14 @@
     { key: 'length', label: 'Length' },
     { key: 'modes', label: 'Online & Onsite' },
     { key: 'auditer', label: 'MAM Auditer' },
-    { key: 'trinityEq', label: 'Trinity equivalent' },
+    { key: 'trinityEq', label: 'Certification levels' },
     { key: 'instrumental', label: 'Instrumental Intelligence' },
     { key: 'performance', label: 'Performance Intelligence' },
     { key: 'rhythm', label: 'Rhythm Intelligence' },
     { key: 'metamusic', label: 'MetaMusic & Consciousness' },
     { key: 'certificate', label: 'Certificate' },
     { key: 'registration', label: 'Registration (+$5)' },
-    { key: 'graduation', label: 'Graduation (+$22)' }
+    { key: 'graduation', label: 'Graduation' }
   ];
 
   var byId = {};
