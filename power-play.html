@@ -323,7 +323,7 @@ document.addEventListener('mam:ready', function () {
   }
   function busy(on) { if (btn) { btn.disabled = on; btn.innerHTML = on ? 'Reserving…' : btnHtml; } }
   function mailtoLink(email) {
-    var fb = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'connect@mamcentre.org';
+    var fb = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'academy@mamcentre.org';
     return 'mailto:' + fb + '?subject=' + encodeURIComponent('Power Play — register me') +
       '&body=' + encodeURIComponent('Please send me the link for the next Power Play session.\nEmail: ' + email);
   }

@@ -147,7 +147,7 @@
           .catch(function (err) { deliver(false, err && err.status === 429 ? 'Too many requests — try later.' : null); });
       } else {
         // No API on this page (rare). Open mailto so the lead isn't lost.
-        var fb = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'connect@mamcentre.org';
+        var fb = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'academy@mamcentre.org';
         window.location.href = 'mailto:' + fb + '?subject=' + encodeURIComponent('Subscribe me') + '&body=' + encodeURIComponent('Please add ' + email);
         deliver(true);
       }

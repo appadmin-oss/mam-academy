@@ -13,6 +13,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260530a">
 <link rel="stylesheet" href="/assets/css/portal.css?v=20260530a">
+<link rel="stylesheet" href="/assets/css/studio.css?v=20260531a">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
 <div class="portal-shell">
@@ -29,6 +31,9 @@
       <a class="portal-nav-link active" href="#overview" data-tab="overview"><i class="fa-solid fa-gauge"></i>Overview</a>
       <a class="portal-nav-link" href="#applications" data-tab="applications"><i class="fa-solid fa-file-pen"></i>My Applications</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
+      <a class="portal-nav-link" href="#practice" data-tab="practice"><i class="fa-solid fa-chart-line"></i>Practice</a>
+      <a class="portal-nav-link" href="#tools" data-tab="tools"><i class="fa-solid fa-drum"></i>Studio Tools</a>
+      <a class="portal-nav-link" href="#repertoire" data-tab="repertoire"><i class="fa-solid fa-book-open"></i>Repertoire</a>
       <a class="portal-nav-link" href="#payments" data-tab="payments"><i class="fa-solid fa-credit-card"></i>Payments</a>
       <a class="portal-nav-link" href="#orders" data-tab="orders"><i class="fa-solid fa-bag-shopping"></i>Store Orders</a>
       <a class="portal-nav-link" href="#auditer" data-tab="auditer"><i class="fa-solid fa-clipboard-check"></i>MAM Auditer</a>
@@ -60,6 +65,7 @@
 
 <script src="/assets/js/config.js?v=20260530a"></script>
 <script src="/assets/js/portal.js?v=20260530a"></script>
+<script src="/assets/js/studio-tools.js?v=20260531a"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <script>
 (function () {
@@ -67,14 +73,21 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], practice: ['Practice', 'Track your sessions, streaks and goals'], tools: ['Studio Tools', 'Metronome, tuner and practice timer'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
   var data = null;
+  var STUDIO = window.MAM_STUDIO;
 
   function show(tab) {
     document.querySelectorAll('[data-tab]').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-tab') === tab); });
     var t = tabs[tab] || tabs.overview;
     pageTitle.firstChild.textContent = t[0] + ' ';
     pageSub.textContent = t[1];
+    // Silence any running metronome/tone when navigating away from the tools.
+    if (STUDIO && tab !== 'tools') STUDIO.stopAudio();
+    // The studio tools are client-side and don't need the dashboard payload.
+    if (STUDIO && tab === 'practice') return STUDIO.renderPractice(content);
+    if (STUDIO && tab === 'tools') return STUDIO.renderTools(content);
+    if (STUDIO && tab === 'repertoire') return STUDIO.renderRepertoire(content);
     if (!data) return;
     if (tab === 'overview') return renderOverview();
     if (tab === 'applications') return renderApplications();
@@ -85,15 +98,32 @@
     if (tab === 'profile') return renderProfile();
   }
 
+  function greeting() {
+    var h = new Date().getHours();
+    return h < 12 ? 'Good morning' : (h < 18 ? 'Good afternoon' : 'Good evening');
+  }
+  function attendanceRate(att) {
+    if (!att.length) return null;
+    var attended = att.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
+    return Math.round(attended / att.length * 100);
+  }
+
   function renderOverview() {
     var apps = data.applications || [], pays = data.payments || [], enr = data.enrollments || [], att = data.attendance || [];
     var paid = pays.filter(function (p) { return p.status === 'succeeded'; }).length;
+    var firstName = ((data.user && data.user.name) || '').split(' ')[0] || 'there';
+    var ps = (STUDIO ? STUDIO.practiceStats() : { streak: 0, weekMin: 0, goalPct: 0 });
+    var rate = attendanceRate(att);
     var html = ''
+      + '<div class="portal-hello"><h2>' + greeting() + ', ' + P.escapeHtml(firstName) + ' <span aria-hidden="true">👋</span></h2>'
+      +   '<p>' + (ps.streak ? 'You\'re on a <strong>' + ps.streak + '-day</strong> practice streak — keep the momentum going.' : 'Ready to practise? Log a session to start a streak.') + '</p></div>'
       + '<section class="kpi-row">'
-      + kpi('Applications', apps.length, apps.length ? '+ ' + apps[0].pathway : 'None yet')
-      + kpi('Paid', paid, 'of ' + pays.length + ' transactions', 'gold')
-      + kpi('Active Classes', enr.filter(function (e){return e.enrollment_status==='active';}).length)
-      + kpi('Attendance', att.length, att[0] ? 'Last: ' + P.fmtDate(att[0].session_date) : 'No records')
+      + kpi('Practice streak', ps.streak + (ps.streak === 1 ? ' day' : ' days'), ps.streak ? 'On fire 🔥' : 'Start today', 'gold')
+      + kpi('This week', (ps.weekMin >= 60 ? (Math.floor(ps.weekMin/60) + 'h ' + (ps.weekMin%60) + 'm') : ps.weekMin + ' min'), 'Goal progress ' + ps.goalPct + '%')
+      + kpi('Active Classes', enr.filter(function (e){return e.enrollment_status==='active';}).length, 'Enrolled now')
+      + kpi('Attendance', rate === null ? '—' : (rate + '%'), rate === null ? 'No sessions yet' : 'present across ' + att.length + ' sessions')
+      + kpi('Applications', apps.length, apps.length ? apps[0].pathway : 'None yet')
+      + kpi('Paid', paid, 'of ' + pays.length + ' transactions')
       + '</section>'
       + '<section class="panel"><div class="panel-head"><h2>Latest application</h2><a class="panel-action" href="#applications" data-tab="applications">All →</a></div>'
       + '<div class="panel-body">' + (apps[0] ? appRowFull(apps[0]) : empty('file-pen', 'No applications yet — start one.')) + '</div></section>'
@@ -216,7 +246,7 @@
           handler.openIframe();
         });
       })
-      .catch(function () { btn.disabled = false; btn.innerHTML = orig; alert('Could not start payment. Please try again or email connect@mamcentre.org.'); });
+      .catch(function () { btn.disabled = false; btn.innerHTML = orig; alert('Could not start payment. Please try again or email academy@mamcentre.org.'); });
   }
 
   function renderOrders() {
@@ -242,7 +272,7 @@
       + '<div class="panel-head"><h2>Your store orders</h2><a class="panel-action" href="/store">Browse the library →</a></div>'
       + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Items</th><th>Total</th><th>Status</th><th>Delivered</th><th>Placed</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
       + '</section>'
-      + '<p style="margin:16px 4px 0;font-size:0.84rem;color:var(--text-muted);line-height:1.6"><i class="fa-solid fa-circle-info" style="color:var(--gold-bright);margin-right:4px"></i> Digital downloads are emailed to <strong style="color:var(--text)">' + P.escapeHtml((data.customer && data.customer.email) || data.user.email) + '</strong> when payment clears. Re-send a link by emailing <a href="mailto:connect@mamcentre.org" style="color:var(--gold-bright)">connect@mamcentre.org</a> with the order reference.</p>';
+      + '<p style="margin:16px 4px 0;font-size:0.84rem;color:var(--text-muted);line-height:1.6"><i class="fa-solid fa-circle-info" style="color:var(--gold-bright);margin-right:4px"></i> Digital downloads are emailed to <strong style="color:var(--text)">' + P.escapeHtml((data.customer && data.customer.email) || data.user.email) + '</strong> when payment clears. Re-send a link by emailing <a href="mailto:academy@mamcentre.org" style="color:var(--gold-bright)">academy@mamcentre.org</a> with the order reference.</p>';
   }
 
   function renderAuditer() {
@@ -315,6 +345,7 @@
   function load() {
     return API.request('student/dashboard').then(function (r) {
       data = r; data.user = r.user;
+      if (STUDIO) STUDIO.setUser(r.user.email);   // namespace local practice/repertoire per student
       P.mountUserCard({ name: r.user.name, email: r.user.email, role: 'student', avatar_url: r.user.avatar_url });
       if (r.user.must_change_password) document.getElementById('pwBanner').style.display = 'flex';
       var tab = (location.hash || '#overview').slice(1);

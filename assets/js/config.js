@@ -11,7 +11,7 @@ window.MAM_CONFIG = {
   site: {
     name: 'MAM Academy',
     url: 'https://academy.mamcentre.org',
-    contactEmail: 'connect@mamcentre.org',
+    contactEmail: 'academy@mamcentre.org',
     supportPhone: '+234 800 000 0000',
     address: 'MAM Centre, Lagos, Nigeria'
   },
@@ -30,7 +30,7 @@ window.MAM_CONFIG = {
 
   /* -------- Mailto fallback (used only if API unreachable) -------- */
   forms: {
-    fallbackEmail: 'connect@mamcentre.org'
+    fallbackEmail: 'academy@mamcentre.org'
   },
 
   /* -------- Image CDN (Cloudinary fetch) --------

@@ -39,7 +39,7 @@ $home = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamce
 $title = $valid ? 'Unsubscribed' : 'Link not recognised';
 $body  = $valid
     ? "You've been removed from MAM Academy marketing emails. You won't receive further promotional messages. Account and transactional emails (like password resets) are unaffected."
-    : "We couldn't verify that unsubscribe link. Please email <a href='mailto:connect@mamcentre.org' style='color:#B8721B'>connect@mamcentre.org</a> and we'll remove you right away.";
+    : "We couldn't verify that unsubscribe link. Please email <a href='mailto:academy@mamcentre.org' style='color:#B8721B'>academy@mamcentre.org</a> and we'll remove you right away.";
 $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
    . '<title>' . $title . ' — MAM Academy</title>'
    . '<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;'

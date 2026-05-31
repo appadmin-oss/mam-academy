@@ -180,7 +180,7 @@ try {
             'display_label'    => $displayLabel,
             'display_currency' => $displayCur,
             'display_amount'   => $displayAmount,
-            'instructions' => 'Email proof of payment to ' . mam_env('NOTIFY_EMAIL', 'connect@mamcentre.org') . ' with reference ' . $ref,
+            'instructions' => 'Email proof of payment to ' . mam_env('NOTIFY_EMAIL', 'academy@mamcentre.org') . ' with reference ' . $ref,
         ]);
     } else {
         mam_fail('unsupported_provider', 400, ['provider' => $provider]);

@@ -696,7 +696,7 @@
     var msg = $('#newsletterMsg');
 
     var mailtoSubscribe = function (em) {
-      var fallback = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'connect@mamcentre.org';
+      var fallback = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'academy@mamcentre.org';
       window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent('Newsletter subscribe') + '&body=' + encodeURIComponent('Please subscribe ' + em);
       if (msg) { msg.textContent = 'Opening your email…'; msg.classList.add('shown'); }
     };

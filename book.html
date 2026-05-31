@@ -279,13 +279,13 @@
         if (err && (err.status === 404 || code === 'application_not_found')) {
           // The reference isn't on file — retrying will never help. Send them
           // back to the application instead of looping on a transient message.
-          status("We couldn't find an application for reference " + ref + ". If you just applied, use the link in your confirmation email — or re-apply at /apply. Need a hand? Email connect@mamcentre.org with that reference.", 'err');
+          status("We couldn't find an application for reference " + ref + ". If you just applied, use the link in your confirmation email — or re-apply at /apply. Need a hand? Email academy@mamcentre.org with that reference.", 'err');
         } else if (err && (err.apiDown || code === 'api_unavailable' || code === 'Failed to fetch')) {
           status("We couldn't reach our secure server just now. Please check your connection and try again in a moment.", 'err');
         } else if (err && err.status === 429) {
           status("That's a few too many attempts in a row. Please wait a minute and try again.", 'err');
         } else {
-          status("Couldn't start checkout (" + (code || 'unknown error') + "). Please try again, or email connect@mamcentre.org with reference " + ref + ".", 'err');
+          status("Couldn't start checkout (" + (code || 'unknown error') + "). Please try again, or email academy@mamcentre.org with reference " + ref + ".", 'err');
         }
       });
   }
@@ -323,7 +323,7 @@
 
   function showBank(init, btn, orig){
     btn.disabled = false; btn.innerHTML = orig;
-    status('Bank transfer: send ₦' + (init.amount_ngn || '').toLocaleString() + ' to MAM Centre, then email proof to connect@mamcentre.org with reference ' + init.reference + '. We confirm within 24h.', 'ok');
+    status('Bank transfer: send ₦' + (init.amount_ngn || '').toLocaleString() + ' to MAM Centre, then email proof to academy@mamcentre.org with reference ' + init.reference + '. We confirm within 24h.', 'ok');
   }
 
   document.getElementById('payPaystack').addEventListener('click', function(){ pay('paystack'); });

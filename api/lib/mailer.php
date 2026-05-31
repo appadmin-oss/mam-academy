@@ -585,7 +585,7 @@ function mam_email_layout(array $o): string {
       // Footer (warm-paper tint, restrained)
       . '<tr><td class="px" style="padding:20px 44px 32px;background:#FBF7F0;border-top:1px solid #ECE0CC">'
       .   '<p style="margin:0;font-size:11.5px;color:#9A8264;line-height:1.7"><strong style="color:#4A3624">MAM Academy</strong> &mdash; a programme of MAM Centre.<br>2 Oremeji Street, Egbeda, Lagos, Nigeria<br>'
-      .   '<a href="mailto:connect@mamcentre.org" style="color:#B8721B">connect@mamcentre.org</a> &middot; +234 704 444 6517 &middot; '
+      .   '<a href="mailto:academy@mamcentre.org" style="color:#B8721B">academy@mamcentre.org</a> &middot; +234 704 444 6517 &middot; '
       .   '<a href="' . htmlspecialchars($appUrl, ENT_QUOTES) . '/privacy" style="color:#B8721B">Privacy</a> &middot; '
       .   '<a href="' . htmlspecialchars($appUrl, ENT_QUOTES) . '" style="color:#B8721B">academy.mamcentre.org</a></p>'
       .   $unsubLine
@@ -663,7 +663,7 @@ function mam_email_password_changed(string $name, string $context = 'changed'): 
         : "If this was you, no action is needed.";
     $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>Your password was $how</h2>
       <p style='color:#4A3624;font-size:15px'>Hi $n — this is a security notice that the password on your MAM Academy account was just $how. $extra</p>
-      <p style='font-size:13px;color:#7A5C3D;margin:14px 0 0'><strong>Didn't do this?</strong> Contact us immediately at <a href='mailto:connect@mamcentre.org' style='color:#B8721B'>connect@mamcentre.org</a> so we can secure your account.</p>";
+      <p style='font-size:13px;color:#7A5C3D;margin:14px 0 0'><strong>Didn't do this?</strong> Contact us immediately at <a href='mailto:academy@mamcentre.org' style='color:#B8721B'>academy@mamcentre.org</a> so we can secure your account.</p>";
     return mam_email_layout([
         'header' => 'MAM ACADEMY',
         'preheader' => 'Security notice: your MAM Academy password was changed.',
@@ -758,7 +758,7 @@ function mam_send(string $to, string $subject, string $body, string $context, bo
     if (strpos($body, '{{UNSUB_URL}}') !== false) {
         $url = mam_unsubscribe_url($to);
         $body = str_replace('{{UNSUB_URL}}', htmlspecialchars($url, ENT_QUOTES), $body);
-        $mailto = 'mailto:' . mam_env('NOTIFY_EMAIL', 'connect@mamcentre.org') . '?subject=unsubscribe';
+        $mailto = 'mailto:' . mam_env('NOTIFY_EMAIL', 'academy@mamcentre.org') . '?subject=unsubscribe';
         $opts['headers'] = array_merge($opts['headers'] ?? [], [
             'List-Unsubscribe'      => '<' . $url . '>, <' . $mailto . '>',
             'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
@@ -820,7 +820,7 @@ function mam_email_contact_autoresponse(string $name, string $topic): string {
       <p style='color:#4A3624;font-size:15px;margin:18px 0 0'>If your question is time-sensitive, these are the fastest routes:</p>
       <div style='margin:16px 0;padding:16px 18px;background:#FBF4E8;border:1px solid #3A2A1A;border-radius:10px'>
         <p style='margin:0 0 8px;font-size:14px'>📞 <strong style='color:#B8721B'>+234 704 444 6517</strong> · Mon–Fri 9 am – 6 pm WAT</p>
-        <p style='margin:0 0 8px;font-size:14px'>✉️ <a href='mailto:connect@mamcentre.org' style='color:#B8721B'>connect@mamcentre.org</a> · WhatsApp on the same number</p>
+        <p style='margin:0 0 8px;font-size:14px'>✉️ <a href='mailto:academy@mamcentre.org' style='color:#B8721B'>academy@mamcentre.org</a> · WhatsApp on the same number</p>
         <p style='margin:0;font-size:14px'>🎓 Ready to apply? <a href='https://academy.mamcentre.org/apply' style='color:#B8721B'>apply</a> · 5 steps, auto-saved on this device</p>
       </div>
       " . mam_email_promo_block() . "
@@ -983,7 +983,7 @@ function mam_email_application_confirmation(array $app, array $customer, ?array 
 
       // ── Footer (transactional — no unsubscribe noise)
       . '<tr><td class="px" style="padding:28px 44px 36px">'
-      .   '<p style="margin:0 0 12px;color:#4A3624;font-size:13.5px;line-height:1.7">Questions? Reply directly to this email, or write to <a href="mailto:connect@mamcentre.org" style="color:#B8721B;font-weight:600">connect@mamcentre.org</a>.</p>'
+      .   '<p style="margin:0 0 12px;color:#4A3624;font-size:13.5px;line-height:1.7">Questions? Reply directly to this email, or write to <a href="mailto:academy@mamcentre.org" style="color:#B8721B;font-weight:600">academy@mamcentre.org</a>.</p>'
       .   '<p style="margin:18px 0 0;color:#9A8264;font-size:11.5px;line-height:1.7">MAM Academy &middot; MAM Centre &middot; 2 Oremeji Street, Egbeda, Lagos, Nigeria<br>+234 704 444 6517 &middot; <a href="' . $appUrl . '/privacy" style="color:#B8721B">Privacy</a> &middot; <a href="' . $appUrl . '" style="color:#B8721B">academy.mamcentre.org</a></p>'
       .   '<p style="margin:10px 0 0;color:#C2AC85;font-size:10.5px;letter-spacing:0.06em">&copy; ' . $year . ' MAM Centre</p>'
       . '</td></tr>'
@@ -1355,7 +1355,7 @@ function mam_policy_print_html(string $mode, string $signedName, string $referen
 </style></head>
 <body>
   <div class='head'><div class='brand'>MAM ACADEMY</div>
-    <div class='meta'>+234&nbsp;704&nbsp;444&nbsp;6517<br>2 Oremeji Street, Egbeda, Lagos<br>connect@mamcentre.org</div></div>
+    <div class='meta'>+234&nbsp;704&nbsp;444&nbsp;6517<br>2 Oremeji Street, Egbeda, Lagos<br>academy@mamcentre.org</div></div>
   <h1>" . htmlspecialchars($title) . "</h1>
   <p class='slogan'>&ldquo;Crafting the Timeless in Time.&rdquo;</p>
   <p class='intro'>Welcome to MAM Academy. The following policies ensure a seamless and rewarding learning experience. Please keep this signed copy for your records.</p>
@@ -1365,7 +1365,7 @@ function mam_policy_print_html(string $mode, string $signedName, string $referen
   <div class='sign'><div class='lbl'>Agreed &amp; electronically signed</div>
     <div class='name'>" . $sig . "</div>
     <div style='font-size:12px;color:#666;margin-top:2px'>" . $date . " &middot; Application " . $ref . "</div></div>
-  <div class='foot'>ACADEMIC DIRECTOR &middot; MAM Centre, 2 Oremeji Street, Egbeda, Lagos &middot; connect@mamcentre.org &middot; +234 704 444 6517</div>
+  <div class='foot'>ACADEMIC DIRECTOR &middot; MAM Centre, 2 Oremeji Street, Egbeda, Lagos &middot; academy@mamcentre.org &middot; +234 704 444 6517</div>
 </body></html>";
 }
 

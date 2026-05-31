@@ -33,7 +33,7 @@ try {
 // Defer both emails (admin notice + auto-responder) so the contact form
 // returns instantly. The DB insert above is what actually records the
 // message; the emails are courtesy notifications, safe to flush async.
-$notify = mam_env('NOTIFY_EMAIL', 'connect@mamcentre.org');
+$notify = mam_env('NOTIFY_EMAIL', 'academy@mamcentre.org');
 mam_after_response(function () use ($notify, $name, $email, $phone, $topic, $message) {
     $body = "<h3>New contact message</h3>"
           . "<p><strong>From:</strong> " . htmlspecialchars($name) . " &lt;" . htmlspecialchars($email) . "&gt;</p>"
