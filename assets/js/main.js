@@ -182,6 +182,14 @@
 
     var menuOpen = false;
     var menuOpenerEl = null;
+    // Align the menu's top edge to the navbar's REAL bottom. The announce bar
+    // sits above the (sticky) navbar in normal flow, so near the top of the
+    // page the navbar isn't at viewport y=0 — without this the menu would
+    // overlap the navbar. Body scroll is locked while open, so this stays put.
+    function positionMenu() {
+      if (!mobileMenu || !navbar) return;
+      mobileMenu.style.top = Math.max(0, Math.round(navbar.getBoundingClientRect().bottom)) + 'px';
+    }
     function setMenu(open) {
       menuOpen = open;
       if (hamburger) {
@@ -189,6 +197,7 @@
         hamburger.setAttribute('aria-expanded', String(open));
       }
       if (mobileMenu) {
+        if (open) positionMenu();
         mobileMenu.classList.toggle('open', open);
         mobileMenu.setAttribute('aria-hidden', String(!open));
         if (open) {
@@ -214,6 +223,14 @@
     on(hamburger, 'click', function () { setMenu(!menuOpen); });
     $$('#mobileMenu a').forEach(function (a) { on(a, 'click', function () { setMenu(false); }); });
     on(document, 'keydown', function (e) { if (e.key === 'Escape' && menuOpen) setMenu(false); });
+
+    // On rotate/resize: never strand the menu open when we cross to the
+    // desktop layout (where the hamburger is hidden), and keep it aligned.
+    on(window, 'resize', function () {
+      if (!menuOpen) return;
+      if (window.innerWidth > 1024) setMenu(false);
+      else positionMenu();
+    });
 
     // Focus trap inside open mobile menu — Tab cycles within
     on(document, 'keydown', function (e) {
@@ -862,8 +879,8 @@
   // Wait for partials to load before binding nav/hero events
   document.addEventListener('DOMContentLoaded', function () {
     Promise.all([
-      loadPartial('include-header', 'partials/header.html'),
-      loadPartial('include-footer', 'partials/footer.html')
+      loadPartial('include-header', 'partials/header.html?v=20260531a'),
+      loadPartial('include-footer', 'partials/footer.html?v=20260531a')
     ]).then(boot);
   });
 })();

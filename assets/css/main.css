@@ -219,8 +219,17 @@ ul,ol{list-style:none}
 .nav-hamburger.open .hamburger-line:nth-child(2){opacity:0;transform:scaleX(0)}
 .nav-hamburger.open .hamburger-line:nth-child(3){transform:rotate(-45deg) translate(5px,-5px)}
 
-.mobile-menu{position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;background:rgba(18,13,8,0.98);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);z-index:999;padding:24px 20px 100px;overflow-y:auto;transform:translateY(-12px);opacity:0;visibility:hidden;transition:all 0.3s var(--ease)}
+.mobile-menu{position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;background:rgba(18,13,8,0.98);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);z-index:999;padding:22px max(20px,env(safe-area-inset-left)) calc(96px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-right));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;transform:translateY(-12px);opacity:0;visibility:hidden;transition:opacity 0.3s var(--ease),transform 0.3s var(--ease),visibility 0.3s}
 .mobile-menu.open{transform:translateY(0);opacity:1;visibility:visible}
+
+/* Mobile quick actions — fast access to the highest-intent destinations */
+.mobile-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px}
+.mobile-quick-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:14px 4px;min-height:74px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--glass-light);color:var(--text-soft);font-size:0.72rem;font-weight:700;letter-spacing:0.01em;text-align:center;line-height:1.1;transition:transform 0.15s var(--ease),border-color 0.2s var(--ease),background 0.2s var(--ease),color 0.2s var(--ease)}
+.mobile-quick-tile i,.mobile-quick-tile iconify-icon{font-size:1.2rem;color:var(--gold-bright)}
+.mobile-quick-tile:hover,.mobile-quick-tile:focus-visible{border-color:var(--border-gold);background:rgba(224,138,26,0.12);color:var(--gold-bright)}
+.mobile-quick-tile:active{transform:scale(0.96)}
+.mobile-quick-tile.primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent;box-shadow:0 6px 18px rgba(224,138,26,0.35)}
+.mobile-quick-tile.primary i,.mobile-quick-tile.primary iconify-icon{color:#1A120B}
 .mobile-nav-section{margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:8px}
 .mobile-nav-section:last-of-type{border-bottom:none}
 .mobile-nav-head{width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;font-size:1rem;font-weight:700;color:var(--text);border-radius:var(--radius-sm);border:1px solid transparent;transition:all 0.2s var(--ease)}
@@ -896,8 +905,11 @@ footer{background:var(--bg-surface);border-top:1px solid var(--border);padding:7
   .school-card{padding:28px 22px}
   .unique-card{padding:28px 22px}
   .hero-content{padding:0 14px 48px}
-  /* Keep brand + CTA + hamburger on one line without overflow */
-  .nav-inner{padding:0 14px;gap:8px}
+  /* Keep brand + CTA + hamburger on one line without overflow, and clear
+     the notch / rounded corners on landscape phones via safe-area insets */
+  .nav-inner{padding:0 max(14px,env(safe-area-inset-right)) 0 max(14px,env(safe-area-inset-left));gap:8px}
+  .mobile-quick-tile{font-size:0.68rem;min-height:68px;padding:12px 3px}
+  .mobile-quick-tile i,.mobile-quick-tile iconify-icon{font-size:1.05rem}
   .nav-brand{gap:8px}
   .nav-brand img{width:38px;height:38px}
   .nav-brand-name{font-size:1.18rem}
