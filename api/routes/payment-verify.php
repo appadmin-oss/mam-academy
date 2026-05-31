@@ -104,6 +104,24 @@ if ($purpose === 'store') {
         'delivered_at' => $hasPhysical ? null : date('Y-m-d H:i:s'),
         'updated_at'   => date('Y-m-d H:i:s'),
     ], ['id' => (int)$order['id']]);
+    // Decrement inventory for tracked items (stock >= 0; -1 means unlimited).
+    // Runs exactly once thanks to the already-succeeded short-circuit above.
+    // The WHERE stock >= qty guard means a race can never push stock negative,
+    // and auto-flips an item to sold_out when it hits zero.
+    foreach ($items as $i) {
+        $sku = (string)($i['sku'] ?? '');
+        $qty = max(1, (int)($i['qty'] ?? 1));
+        if ($sku === '') continue;
+        try {
+            mam_db()->prepare(
+                "UPDATE store_items
+                    SET stock = stock - ?,
+                        availability = CASE WHEN stock - ? <= 0 THEN 'sold_out' ELSE availability END,
+                        updated_at = ?
+                  WHERE sku = ? AND stock >= 0 AND stock >= ?"
+            )->execute([$qty, $qty, date('Y-m-d H:i:s'), $sku, $qty]);
+        } catch (Throwable $e) { mam_log('warn', 'store_stock_decrement_failed', ['sku' => $sku, 'err' => $e->getMessage()]); }
+    }
     // Resolve digital file_urls server-side (the public endpoints strip them).
     $links = [];
     foreach ($items as $i) {

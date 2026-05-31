@@ -375,6 +375,7 @@ window.MAM_CDN = (function () {
         }
         if (typeof j.registration_fee_usd === 'number') C.registrationFeeUsd = j.registration_fee_usd;
         if (typeof j.online_surcharge_pct === 'number') C.onlineSurchargePct = j.online_surcharge_pct;
+        if (typeof j.store_shipping_flat_usd === 'number') C.storeShippingUsd = j.store_shipping_flat_usd;
         if (typeof j.usd_to_ngn === 'number' && C.currency && C.currency.rates) C.currency.rates.NGN = j.usd_to_ngn;
         try { document.dispatchEvent(new CustomEvent('mam:config', { detail: j })); } catch (e) {}
       })

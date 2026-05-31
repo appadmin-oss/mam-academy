@@ -169,6 +169,51 @@
 .spinner-sm{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:-3px}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* ── Cart: floating button, slide-in drawer, toast ───────────── */
+.cart-fab{position:fixed;right:20px;bottom:20px;z-index:980;display:inline-flex;align-items:center;gap:9px;padding:13px 18px;border-radius:100px;border:0;cursor:pointer;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;font-size:0.9rem;letter-spacing:0.03em;box-shadow:0 10px 30px rgba(224,138,26,0.42);transition:transform .18s var(--ease-bounce),box-shadow .2s var(--ease)}
+.cart-fab:hover{transform:translateY(-2px)}
+.cart-fab .cart-count{background:#1A120B;color:var(--gold-bright);min-width:22px;height:22px;border-radius:100px;display:inline-flex;align-items:center;justify-content:center;font-size:0.78rem;padding:0 6px}
+.cart-fab[hidden]{display:none}
+.cart-fab.bump{animation:cartBump .42s var(--ease-bounce)}
+@keyframes cartBump{0%{transform:scale(1)}40%{transform:scale(1.13)}100%{transform:scale(1)}}
+
+.cart-drawer{position:fixed;inset:0;z-index:1001;display:flex;justify-content:flex-end;opacity:0;visibility:hidden;transition:opacity .22s var(--ease),visibility .22s var(--ease)}
+.cart-drawer.is-open{opacity:1;visibility:visible}
+.cart-drawer .cd-backdrop{position:absolute;inset:0;background:rgba(10,7,4,0.7);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.cart-panel{position:relative;width:min(420px,100%);background:var(--bg-surface);border-left:1px solid var(--border-gold);display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,0.5);transform:translateX(28px);transition:transform .26s var(--ease)}
+.cart-drawer.is-open .cart-panel{transform:translateX(0)}
+.cart-panel-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid var(--border)}
+.cart-panel-head h2{font-family:var(--font-serif);font-size:1.3rem;margin:0;color:var(--text)}
+.cart-panel-body{flex:1;overflow-y:auto;padding:4px 24px}
+.cart-line{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--border)}
+.cart-line-thumb{width:58px;height:58px;border-radius:12px;flex-shrink:0;background:linear-gradient(135deg,rgba(252,198,71,0.16),var(--bg-raised));display:flex;align-items:center;justify-content:center;color:var(--gold-bright);overflow:hidden}
+.cart-line-thumb img{width:100%;height:100%;object-fit:cover}
+.cart-line-main{flex:1;min-width:0}
+.cart-line-name{font-weight:700;color:var(--text);font-size:0.94rem;margin:0 0 2px;line-height:1.3}
+.cart-line-price{color:var(--text-muted);font-size:0.82rem}
+.cart-line-foot{display:flex;align-items:center;justify-content:space-between;margin-top:9px}
+.qty{display:inline-flex;align-items:center;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden}
+.qty button{width:30px;height:30px;background:var(--bg-raised);border:0;color:var(--text);cursor:pointer;font-size:1rem;line-height:1;transition:background .12s var(--ease)}
+.qty button:hover{background:var(--bg-card);color:var(--gold-bright)}
+.qty span{min-width:34px;text-align:center;font-weight:700;color:var(--text);font-size:0.9rem}
+.cart-line-rm{background:none;border:0;color:var(--text-muted);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:5px}
+.cart-line-rm:hover{color:#FCA5A5}
+.cart-panel-foot{padding:18px 24px 24px;border-top:1px solid var(--border);background:rgba(0,0,0,0.14)}
+.cart-panel-foot .sub{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:0.88rem;color:var(--text-soft)}
+.cart-panel-foot .sub.grand{margin:8px 0 14px;font-size:1rem;color:var(--text);font-weight:700}
+.cart-panel-foot .sub.grand b{font-family:var(--font-display);font-size:1.5rem;color:var(--gold-bright);font-weight:normal;letter-spacing:0.02em}
+.cart-checkout{width:100%;padding:15px;border-radius:12px;border:0;cursor:pointer;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;font-size:0.96rem;letter-spacing:0.04em;text-transform:uppercase;transition:transform .15s var(--ease),box-shadow .2s var(--ease)}
+.cart-checkout:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(224,138,26,0.4)}
+.cart-empty{text-align:center;color:var(--text-muted);padding:54px 16px;line-height:1.6}
+.cart-empty i{font-size:2.1rem;color:var(--gold-bright);opacity:0.6;display:block;margin-bottom:12px}
+
+.toast{position:fixed;left:50%;bottom:92px;transform:translate(-50%,16px);z-index:1002;background:var(--bg-card);border:1px solid var(--border-gold);color:var(--text);padding:12px 18px;border-radius:100px;font-size:0.88rem;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,0.45);opacity:0;visibility:hidden;transition:all .25s var(--ease);display:inline-flex;align-items:center;gap:12px}
+.toast.show{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.toast i{color:#34D399}
+.toast button{background:none;border:0;color:var(--gold-bright);font-weight:800;cursor:pointer;font-size:0.86rem;white-space:nowrap}
+
+.item-buy.added{background:#10B981;color:#fff}
+
 @media (max-width:600px){
   .store-shell{padding:24px 16px 80px}
   .modal-head{padding:20px 22px 14px}
@@ -180,6 +225,7 @@
   .item-name{font-size:1.05rem}
   .item-foot{padding:12px 16px}
   .item-body{padding:14px 16px 12px}
+  .cart-fab{right:14px;bottom:14px}
 }
 </style>
 </head>
@@ -213,6 +259,37 @@
     <div id="storeBody" aria-live="polite"></div>
   </section>
 </main>
+
+<!-- Floating cart button — hidden while the basket is empty -->
+<button type="button" class="cart-fab" id="cartFab" hidden aria-label="Open cart">
+  <i class="fa-solid fa-bag-shopping" aria-hidden="true"></i>
+  <span>Cart</span>
+  <span class="cart-count" id="cartCount">0</span>
+</button>
+
+<!-- Cart drawer -->
+<div class="cart-drawer" id="cartDrawer" aria-hidden="true">
+  <div class="cd-backdrop" id="cartBackdrop"></div>
+  <aside class="cart-panel" role="dialog" aria-modal="true" aria-labelledby="cartTitle">
+    <div class="cart-panel-head">
+      <h2 id="cartTitle">Your cart</h2>
+      <button type="button" class="modal-close" id="cartClose" aria-label="Close cart"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    </div>
+    <div class="cart-panel-body" id="cartBody"></div>
+    <div class="cart-panel-foot" id="cartFoot" hidden>
+      <div class="sub"><span>Subtotal</span><span id="cartSubtotal">$0</span></div>
+      <div class="sub" id="cartShipRow" hidden><span>Shipping (physical goods)</span><span id="cartShip">$0</span></div>
+      <div class="sub grand"><span>Total</span><b id="cartTotal">$0</b></div>
+      <button type="button" class="cart-checkout" id="cartCheckout">Checkout &rarr;</button>
+    </div>
+  </aside>
+</div>
+
+<!-- Add-to-cart toast -->
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <i class="fa-solid fa-check" aria-hidden="true"></i><span id="toastMsg">Added to cart</span>
+  <button type="button" id="toastView">View cart</button>
+</div>
 
 <!-- Checkout modal — starts hidden (CSS + attribute both enforce). Don't
      remove the [hidden] attribute below; the !important rule in CSS uses
@@ -250,11 +327,7 @@
           <textarea id="coShip" name="shipping_address" placeholder="Street, City, State, Country, Postcode"></textarea>
         </div>
 
-        <div class="modal-summary">
-          <div class="row"><span id="coLine">—</span><span id="coLineAmt">$0</span></div>
-          <div class="row" id="coShipRow" hidden><span>Shipping</span><span>$5</span></div>
-          <div class="row total"><span>Total</span><b id="coTotal">$0</b></div>
-        </div>
+        <div class="modal-summary" id="coSummary"></div>
       </div>
 
       <div class="modal-err" id="coErr" role="alert"></div>
@@ -294,6 +367,21 @@
   var activeSearch = '';      // current search term
   var lastFocus = null;       // for restoring focus when modal closes
 
+  // ── Cart (localStorage-persisted) ──────────────────────────
+  // Each line snapshots display fields so the drawer renders without a
+  // refetch; at checkout we send only {sku, qty} and the server recomputes
+  // the authoritative total. Lines are reconciled against the live catalogue
+  // on load (drop vanished/sold-out items, refresh names/prices).
+  var CART_KEY = 'mam.store.cart';
+  var cart = loadCart();
+  function loadCart(){ try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch(e){ return []; } }
+  function saveCart(){ try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch(e){} }
+  function cartCount(){ return cart.reduce(function(n,l){ return n + l.qty; }, 0); }
+  function cartHasPhysical(){ return cart.some(function(l){ return l.goods_type === 'physical'; }); }
+  function cartSubtotal(){ return cart.reduce(function(s,l){ return s + (Number(l.price_usd)||0) * l.qty; }, 0); }
+  function shippingFlat(){ var c = window.MAM_CONFIG || {}; return (typeof c.storeShippingUsd === 'number') ? c.storeShippingUsd : 5; }
+  function findInCart(sku){ for (var i=0;i<cart.length;i++) if (cart[i].sku === sku) return cart[i]; return null; }
+
   // ── Catalogue load ─────────────────────────────────────────
   function load() {
     paintSkeleton();
@@ -308,8 +396,10 @@
         if (!j || !j.ok) throw new Error('bad_response');
         $('#regionName').textContent = (j.country && j.country !== 'DEFAULT') ? j.country : 'your region';
         allItems = j.items || [];
+        reconcileCart();
         paintCategories();
         render();
+        updateCartUI();
       })
       .catch(function(err){
         try { console.error('[MAM_STORE] failed to load', err); } catch (e) {}
@@ -428,12 +518,19 @@
       + '<div class="item-foot">'
       +   '<span class="item-price">' + fmtPrice(item.price_usd) + '<small>USD</small></span>'
       +   '<button type="button" class="item-buy"' + (canBuy ? '' : ' disabled') + '>'
-      +     (canBuy ? '<i class="fa-solid fa-cart-plus"></i> Buy' : 'Unavailable')
+      +     (canBuy ? '<i class="fa-solid fa-cart-plus"></i> Add' : 'Unavailable')
       +   '</button>'
       + '</div>';
 
     if (canBuy) {
-      card.querySelector('.item-buy').addEventListener('click', function(){ openCheckout(item); });
+      var btn = card.querySelector('.item-buy');
+      btn.addEventListener('click', function(){
+        addToCart(item);
+        // Tasteful confirmation: button flips to "Added" briefly, badge bumps.
+        btn.classList.add('added');
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Added';
+        setTimeout(function(){ btn.classList.remove('added'); btn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> Add'; }, 1100);
+      });
     }
     return card;
   }
@@ -446,12 +543,111 @@
   function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
   function escAttr(s){ return escapeHtml(s).replace(/`/g, '&#96;'); }
 
+  // ── Cart operations + UI ───────────────────────────────────
+  function addToCart(item){
+    var line = findInCart(item.sku);
+    if (line) { line.qty += 1; }
+    else cart.push({ sku:item.sku, name:item.name, price_usd:Number(item.price_usd)||0, goods_type:item.goods_type, image:(item.images && item.images[0]) || '' });
+    saveCart(); updateCartUI(); bumpFab(); showToast('Added to cart');
+  }
+  function setQty(sku, qty){
+    var line = findInCart(sku); if (!line) return;
+    line.qty = Math.max(0, qty);
+    if (line.qty === 0) cart = cart.filter(function(l){ return l.sku !== sku; });
+    saveCart(); updateCartUI();
+  }
+  function removeFromCart(sku){ cart = cart.filter(function(l){ return l.sku !== sku; }); saveCart(); updateCartUI(); }
+  function clearCart(){ cart = []; saveCart(); updateCartUI(); }
+
+  // Drop lines that no longer exist / aren't sellable here; refresh names+prices.
+  function reconcileCart(){
+    if (!cart.length || !allItems.length) return;
+    var bySku = {}; allItems.forEach(function(i){ bySku[i.sku] = i; });
+    cart = cart.filter(function(l){
+      var it = bySku[l.sku];
+      if (!it || !it.available_here || it.availability === 'sold_out') return false;
+      l.name = it.name; l.price_usd = Number(it.price_usd) || 0; l.goods_type = it.goods_type;
+      l.image = (it.images && it.images[0]) || '';
+      return true;
+    });
+    saveCart();
+  }
+
+  function bumpFab(){ var f = $('#cartFab'); if (!f) return; f.classList.remove('bump'); void f.offsetWidth; f.classList.add('bump'); }
+
+  var toastTimer = null;
+  function showToast(msg){
+    var t = $('#toast'); if (!t) return;
+    $('#toastMsg').textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 3200);
+  }
+  $('#toastView').addEventListener('click', function(){ $('#toast').classList.remove('show'); openCart(); });
+
+  function updateCartUI(){
+    var count = cartCount();
+    $('#cartCount').textContent = count;
+    $('#cartFab').hidden = (count === 0);
+    var body = $('#cartBody'), foot = $('#cartFoot');
+    if (!cart.length) {
+      body.innerHTML = '<div class="cart-empty"><i class="fa-solid fa-bag-shopping"></i>Your cart is empty.<br>Browse the library and add something you love.</div>';
+      foot.hidden = true; return;
+    }
+    foot.hidden = false;
+    body.innerHTML = cart.map(function(l){
+      var thumb = l.image ? '<img src="' + escAttr(l.image) + '" alt="">' : '<i class="fa-solid fa-music"></i>';
+      return '<div class="cart-line" data-sku="' + escAttr(l.sku) + '">'
+        + '<div class="cart-line-thumb">' + thumb + '</div>'
+        + '<div class="cart-line-main">'
+        +   '<p class="cart-line-name">' + escapeHtml(l.name) + '</p>'
+        +   '<div class="cart-line-price">' + fmt(l.price_usd) + ' each · ' + fmt(l.price_usd * l.qty) + '</div>'
+        +   '<div class="cart-line-foot">'
+        +     '<div class="qty"><button type="button" data-act="dec" aria-label="Decrease quantity">&minus;</button><span>' + l.qty + '</span><button type="button" data-act="inc" aria-label="Increase quantity">+</button></div>'
+        +     '<button type="button" class="cart-line-rm" data-act="rm"><i class="fa-solid fa-trash-can" aria-hidden="true"></i> Remove</button>'
+        +   '</div>'
+        + '</div></div>';
+    }).join('');
+    var sub = cartSubtotal();
+    var ship = cartHasPhysical() ? shippingFlat() : 0;
+    $('#cartSubtotal').textContent = fmt(sub);
+    $('#cartShipRow').hidden = (ship === 0);
+    $('#cartShip').textContent = fmt(ship);
+    $('#cartTotal').textContent = fmt(sub + ship);
+  }
+
+  // Delegated qty / remove controls (survives re-render)
+  $('#cartBody').addEventListener('click', function(e){
+    var btn = e.target.closest('[data-act]'); if (!btn) return;
+    var lineEl = btn.closest('.cart-line'); if (!lineEl) return;
+    var sku = lineEl.getAttribute('data-sku');
+    var line = findInCart(sku); if (!line) return;
+    var act = btn.getAttribute('data-act');
+    if (act === 'inc') setQty(sku, line.qty + 1);
+    else if (act === 'dec') setQty(sku, line.qty - 1);
+    else if (act === 'rm') removeFromCart(sku);
+  });
+
+  // Drawer open/close
+  var drawer = $('#cartDrawer');
+  function openCart(){ updateCartUI(); drawer.classList.add('is-open'); drawer.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
+  function closeCart(){ drawer.classList.remove('is-open'); drawer.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
+  $('#cartFab').addEventListener('click', openCart);
+  $('#cartClose').addEventListener('click', closeCart);
+  $('#cartBackdrop').addEventListener('click', closeCart);
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && drawer.classList.contains('is-open')) closeCart(); });
+
+  // Checkout from the drawer → open the checkout modal (summarises the cart)
+  $('#cartCheckout').addEventListener('click', function(){ if (!cart.length) return; closeCart(); openCheckout(); });
+
+  // Live pricing/shipping can arrive after first paint — re-render everything.
+  // Guard on a loaded catalogue so a config event can't flash an empty grid
+  // before /api/store/items has resolved.
+  document.addEventListener('mam:config', function(){ if (!allItems.length) { updateCartUI(); return; } reconcileCart(); render(); updateCartUI(); });
+
   // ── Checkout modal ─────────────────────────────────────────
-  var currentItem = null;
   var modalEl = $('#checkoutModal');
 
-  function openCheckout(item) {
-    currentItem = item;
+  function openCheckout() {
+    if (!cart.length) return;
     lastFocus = document.activeElement;
 
     // Reset state every open
@@ -463,21 +659,25 @@
     $('#coPhone').value = '';
     $('#coShip').value = '';
 
-    // Populate
-    $('#checkoutTitle').textContent = item.name;
-    $('#checkoutSub').textContent = (item.goods_type === 'digital')
-      ? 'Delivered to your inbox the moment payment clears.'
-      : (item.goods_type === 'physical' ? 'We\'ll ship from Lagos within 2 business days.' : 'A team member will follow up to schedule.');
+    var hasPhysical = cartHasPhysical();
+    $('#checkoutTitle').textContent = 'Checkout';
+    $('#checkoutSub').textContent = hasPhysical
+      ? 'We\'ll ship physical items from Lagos within 2 business days.'
+      : 'Digital items land in your inbox the moment payment clears.';
 
-    var subtotal = Number(item.price_usd) || 0;
-    var shipping = (item.goods_type === 'physical') ? 5 : 0;
-    $('#coLine').textContent = item.name + ' × 1';
-    $('#coLineAmt').textContent = fmt(subtotal);
-    $('#coShipRow').hidden = (shipping === 0);
-    $('#coTotal').textContent = fmt(subtotal + shipping);
+    // Summary: one row per cart line, then shipping (if any), then total.
+    var sub = cartSubtotal();
+    var shipping = hasPhysical ? shippingFlat() : 0;
+    var rows = cart.map(function(l){
+      return '<div class="row"><span>' + escapeHtml(l.name) + ' × ' + l.qty + '</span><span>' + fmt(l.price_usd * l.qty) + '</span></div>';
+    }).join('');
+    if (shipping > 0) rows += '<div class="row"><span>Shipping</span><span>' + fmt(shipping) + '</span></div>';
+    rows += '<div class="row total"><span>Total</span><b>' + fmt(sub + shipping) + '</b></div>';
+    $('#coSummary').innerHTML = rows;
 
-    $('#shipBlock').hidden = (item.goods_type !== 'physical');
-    $('#coShip').required = (item.goods_type === 'physical');
+    $('#shipBlock').hidden = !hasPhysical;
+    $('#coShip').required = hasPhysical;
+    var buy = $('#coBuy'); buy.disabled = false; buy.innerHTML = '<i class="fa-solid fa-lock"></i> Pay ' + fmt(sub + shipping);
 
     // Open (use BOTH the attribute toggle AND the class toggle so we're
     // bulletproof against the [hidden]/display:flex specificity gotcha)
@@ -512,8 +712,9 @@
   $('#checkoutForm').addEventListener('submit', function(e){
     e.preventDefault();
     var btn = $('#coBuy'); var err = $('#coErr'); err.classList.remove('show');
+    if (!cart.length) { err.textContent = 'Your cart is empty.'; err.classList.add('show'); return; }
     var payload = {
-      items: [{ sku: currentItem.sku, qty: 1 }],
+      items: cart.map(function(l){ return { sku: l.sku, qty: l.qty }; }),
       name:  $('#coName').value.trim(),
       email: $('#coEmail').value.trim(),
       phone: $('#coPhone').value.trim(),
@@ -522,7 +723,7 @@
     if (!payload.name || !payload.email) {
       err.textContent = 'Please add your name and email.'; err.classList.add('show'); return;
     }
-    if (currentItem.goods_type === 'physical' && !payload.shipping_address) {
+    if (cartHasPhysical() && !payload.shipping_address) {
       err.textContent = 'A shipping address is required for physical items.'; err.classList.add('show'); return;
     }
 
@@ -583,12 +784,14 @@
   }
 
   function showSuccess(ref) {
+    var wasDigitalOnly = !cartHasPhysical();
+    clearCart();
     $('#checkoutForm').style.display = 'none';
     $('#coSuccess').classList.add('show');
     $('#coSuccessRef').textContent = 'Order ' + ref;
-    if (currentItem && currentItem.goods_type === 'digital') {
-      $('#coSuccessMsg').textContent = 'Your download links are on the way — check your inbox in the next minute.';
-    }
+    $('#coSuccessMsg').textContent = wasDigitalOnly
+      ? 'Your download links are on the way — check your inbox in the next minute.'
+      : 'Check your email for your receipt. We\'ll ship your items from Lagos within 2 business days.';
   }
 
   load();
