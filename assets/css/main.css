@@ -76,6 +76,52 @@ ul,ol{list-style:none}
 /* Stronger focus ring — gold core + dark halo underneath gives high contrast
    on both dark backgrounds and the rare light section (WCAG 2.4.7 + 2.4.13). */
 *:focus-visible{outline:3px solid var(--gold-bright);outline-offset:3px;border-radius:6px;box-shadow:0 0 0 6px rgba(0,0,0,0.55)}
+
+/* ===== Custom checkbox & radio — polished gold checked state =====
+   Native controls are repainted with appearance:none so the checked state is
+   on-brand and identical across browsers: a gold fill with an animated tick
+   (checkbox) or dot (radio). Add class "native" to any input to opt out.
+   Inputs deliberately hidden for bespoke UI (choice-card, sex-pill,
+   payment-method) keep their own position:absolute;opacity:0 rules and stay
+   invisible — this only upgrades the visible ones (e.g. consent). */
+input[type="checkbox"]:not(.native),
+input[type="radio"]:not(.native){
+  -webkit-appearance:none;-moz-appearance:none;appearance:none;
+  width:21px;height:21px;flex:0 0 21px;margin:0;padding:0;
+  border:2px solid var(--border-strong);background:var(--bg-raised);
+  cursor:pointer;display:inline-grid;place-content:center;vertical-align:middle;
+  transition:border-color .18s var(--ease),background .18s var(--ease),box-shadow .18s var(--ease);
+}
+input[type="checkbox"]:not(.native){border-radius:6px}
+input[type="radio"]:not(.native){border-radius:50%}
+input[type="checkbox"]:not(.native):hover,
+input[type="radio"]:not(.native):hover{border-color:var(--border-gold);background:rgba(224,138,26,0.10)}
+/* Tick (checkbox) — drawn with two borders, springs in on check */
+input[type="checkbox"]:not(.native)::before{
+  content:"";width:10px;height:6px;margin-top:-2px;
+  border-left:2.5px solid #1A120B;border-bottom:2.5px solid #1A120B;
+  transform:rotate(-45deg) scale(0);transform-origin:center;
+  transition:transform .18s var(--ease-bounce);
+}
+input[type="checkbox"]:not(.native):checked::before{transform:rotate(-45deg) scale(1)}
+/* Dot (radio) */
+input[type="radio"]:not(.native)::before{
+  content:"";width:9px;height:9px;border-radius:50%;background:#1A120B;
+  transform:scale(0);transition:transform .18s var(--ease-bounce);
+}
+input[type="radio"]:not(.native):checked::before{transform:scale(1)}
+/* Checked fill — warm gold, soft glow */
+input[type="checkbox"]:not(.native):checked,
+input[type="radio"]:not(.native):checked{
+  background:linear-gradient(135deg,var(--gold),var(--gold-light));
+  border-color:transparent;box-shadow:0 2px 12px rgba(224,138,26,0.45);
+}
+input[type="checkbox"]:not(.native):disabled,
+input[type="radio"]:not(.native):disabled{opacity:.5;cursor:not-allowed}
+@media (prefers-reduced-motion:reduce){
+  input[type="checkbox"]:not(.native)::before,input[type="radio"]:not(.native)::before{transition:none}
+}
+
 /* 44px minimum touch target on primary interactive controls at ALL breakpoints
    (was previously only enforced at the mobile MQ). WCAG 2.5.5 / Apple HIG. */
 .btn,button.btn,a.btn,.btn-primary,.btn-ghost,.btn-gold,.btn-step,.btn-pay,.cookie-btn{min-height:44px}
@@ -269,6 +315,17 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 .section-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:0.78rem;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:18px}
 .section-eyebrow .line{width:32px;height:2px;background:linear-gradient(90deg,var(--gold-bright),transparent)}
 .section-title{font-family:var(--font-serif);font-size:clamp(2rem,5vw,3.4rem);font-weight:700;line-height:1.1;letter-spacing:-0.02em;margin-bottom:18px;color:var(--text)}
+
+/* Programme-structure detail cards (pathways "How the programmes work") */
+.struct-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.struct-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:26px 24px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),var(--shadow-sm)}
+.struct-card-title{display:flex;align-items:center;gap:10px;font-family:var(--font-serif);font-size:1.28rem;font-weight:700;color:var(--text);margin:0 0 8px}
+.struct-card-title i{font-size:1rem;color:var(--gold-bright);width:22px;text-align:center}
+.struct-card-lede{color:var(--text-muted);font-size:0.9rem;line-height:1.6;margin:0 0 14px}
+.struct-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.struct-list li{position:relative;padding-left:18px;color:var(--text-soft);font-size:0.9rem;line-height:1.55}
+.struct-list li::before{content:"";position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--gold)}
+.struct-list strong{color:var(--gold-bright);font-weight:700}
 .section-desc{font-size:1.05rem;color:var(--text-soft);line-height:1.75;max-width:680px}
 /* Gradient text. The fallback `color:var(--gold-bright)` covers browsers
    that don't support background-clip:text (older Edge, certain mobile

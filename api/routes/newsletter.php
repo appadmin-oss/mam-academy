@@ -37,7 +37,13 @@ mam_after_response(function () use ($email, $source, $notify) {
     } else {
         mam_send($email, 'Welcome to the MAM Academy circle', mam_email_newsletter_welcome($source), 'newsletter_welcome', true);
     }
-    if ($notify) mam_send($notify, 'New newsletter subscriber', "$email subscribed via $source", 'newsletter_notice', false);
+    if ($notify) {
+        mam_send($notify, 'New newsletter subscriber', mam_email_admin_notice(
+            'New newsletter subscriber',
+            ['Email' => $email, 'Source' => $source ?: 'site'],
+            ['lede' => 'Someone just joined the MAM Academy mailing list.']
+        ), 'newsletter_notice', true);
+    }
 });
 mam_audit('subscribe', 'newsletter', null, ['email' => $email, 'source' => $source]);
 mam_ok(['subscribed' => true, 'email' => $email]);

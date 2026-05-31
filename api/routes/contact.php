@@ -35,11 +35,21 @@ try {
 // message; the emails are courtesy notifications, safe to flush async.
 $notify = mam_env('NOTIFY_EMAIL', 'academy@mamcentre.org');
 mam_after_response(function () use ($notify, $name, $email, $phone, $topic, $message) {
-    $body = "<h3>New contact message</h3>"
-          . "<p><strong>From:</strong> " . htmlspecialchars($name) . " &lt;" . htmlspecialchars($email) . "&gt;</p>"
-          . "<p><strong>Phone:</strong> " . htmlspecialchars($phone ?: '—') . "</p>"
-          . "<p><strong>Topic:</strong> " . htmlspecialchars($topic) . "</p>"
-          . "<p>" . nl2br(htmlspecialchars($message)) . "</p>";
+    $adminUrl = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/admin/?v=messages';
+    $body = mam_email_admin_notice(
+        'New contact message',
+        [
+            'From'  => $name,
+            'Email' => $email,
+            'Phone' => $phone ?: '—',
+            'Topic' => $topic,
+        ],
+        [
+            'lede' => 'A new message arrived through the website contact form. Reply directly to this email to respond.',
+            'note' => $message,
+            'cta'  => ['url' => $adminUrl, 'label' => 'Open in admin'],
+        ]
+    );
     mam_send($notify, '[MAM Contact] ' . $topic, $body, 'contact_message', true, ['reply_to' => $email]);
     mam_send($email, 'Got your message — MAM Academy', mam_email_contact_autoresponse($name, $topic), 'contact_autoresponse', true);
 });

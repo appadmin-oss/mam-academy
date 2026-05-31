@@ -633,6 +633,62 @@ function mam_email_shell(string $headerLabel, string $innerHtml, string $accent 
     return mam_email_layout(['header' => $headerLabel, 'accent' => $accent, 'body' => $innerHtml]);
 }
 
+/**
+ * Internal team alert (new application, contact message, subscriber, …).
+ * Renders a polished, scannable card through the shared layout: an "Internal
+ * notification" eyebrow, a title, an optional lede, a clean key/value detail
+ * table, an optional free-text block (e.g. a contact message), and an optional
+ * CTA into the admin panel. Values are HTML-escaped here, so callers pass plain
+ * strings.
+ *
+ * @param string $title  e.g. "New application"
+ * @param array  $rows   ordered ['Label' => 'value', …] (values escaped here)
+ * @param array  $opts   lede:string, note:string (free text, nl2br'd),
+ *                        cta:['url'=>, 'label'=>], badge:string
+ */
+function mam_email_admin_notice(string $title, array $rows, array $opts = []): string {
+    $t     = htmlspecialchars($title, ENT_QUOTES);
+    $badge = htmlspecialchars($opts['badge'] ?? 'Internal notification', ENT_QUOTES);
+    $inner = "<p style='margin:0 0 6px;font-size:10.5px;letter-spacing:0.22em;text-transform:uppercase;color:#B8721B;font-weight:700'>$badge</p>"
+           . "<h2 class='h2' style='font-family:Georgia,\"Times New Roman\",serif;margin:0 0 14px;font-size:22px;color:#1A120B'>$t</h2>";
+
+    if (!empty($opts['lede'])) {
+        $inner .= "<p style='margin:0 0 18px;font-size:15px;color:#4A3624'>" . htmlspecialchars($opts['lede'], ENT_QUOTES) . "</p>";
+    }
+
+    // Detail table — label/value rows, hairline dividers, reads in every client.
+    if ($rows) {
+        $inner .= "<table role='presentation' width='100%' border='0' cellpadding='0' cellspacing='0' style='border:1px solid #ECE0CC;border-radius:12px;overflow:hidden;margin:0 0 20px'>";
+        $i = 0;
+        foreach ($rows as $label => $value) {
+            $bg = ($i % 2 === 0) ? '#FBF7F0' : '#FFFFFF';
+            $inner .= "<tr>"
+                . "<td style='background:$bg;padding:11px 16px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#9A8264;font-weight:700;white-space:nowrap;border-bottom:1px solid #F0E7D6;vertical-align:top;width:38%'>" . htmlspecialchars((string)$label, ENT_QUOTES) . "</td>"
+                . "<td style='background:$bg;padding:11px 16px;font-size:14px;color:#1A120B;font-weight:600;border-bottom:1px solid #F0E7D6'>" . htmlspecialchars((string)$value, ENT_QUOTES) . "</td>"
+                . "</tr>";
+            $i++;
+        }
+        $inner .= "</table>";
+    }
+
+    if (!empty($opts['note'])) {
+        $inner .= "<p style='margin:0 0 6px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#9A8264;font-weight:700'>Message</p>"
+               . "<div style='padding:14px 16px;background:#FBF7F0;border:1px solid #ECE0CC;border-radius:12px;font-size:14px;color:#4A3624;line-height:1.7;margin:0 0 20px'>"
+               . nl2br(htmlspecialchars($opts['note'], ENT_QUOTES)) . "</div>";
+    }
+
+    if (!empty($opts['cta']['url'])) {
+        $inner .= mam_email_button($opts['cta']['url'], $opts['cta']['label'] ?? 'Open in admin');
+    }
+
+    return mam_email_layout([
+        'header'    => 'MAM ACADEMY',
+        'preheader' => $title,
+        'reason'    => 'You received this internal notification because your address is set as the MAM Academy NOTIFY_EMAIL recipient.',
+        'body'      => $inner,
+    ]);
+}
+
 /** New portal account created by an admin — sends the temporary credentials. */
 function mam_email_account_created(string $name, string $email, string $tempPassword, string $role, string $loginUrl): string {
     $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);

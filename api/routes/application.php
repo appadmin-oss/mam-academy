@@ -166,13 +166,27 @@ mam_after_response(function () use ($v, $app, $customer, $tier, $invoiceNumber, 
         );
     }
     if ($notifyEmail) {
+        $adminUrl = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/admin/?v=applications';
         mam_send(
             $notifyEmail,
             'New MAM Academy application — ' . $reference,
-            '<p><strong>' . htmlspecialchars($v['firstName'] . ' ' . $v['lastName']) . '</strong> applied.</p>'
-            . '<p>Email: ' . htmlspecialchars($v['email']) . ' · Phone: ' . htmlspecialchars($v['phone']) . '</p>'
-            . '<p>Pathway: ' . htmlspecialchars($v['pathway']) . ' · Mode: ' . htmlspecialchars($v['mode']) . ' · Discipline: ' . htmlspecialchars($v['discipline']) . '</p>'
-            . '<p>Total: USD $' . number_format($total, 2) . '</p>',
+            mam_email_admin_notice(
+                'New application received',
+                [
+                    'Reference'  => $reference,
+                    'Applicant'  => $v['firstName'] . ' ' . $v['lastName'],
+                    'Email'      => $v['email'],
+                    'Phone'      => $v['phone'] ?: '—',
+                    'Programme'  => $v['pathway'],
+                    'Mode'       => $v['mode'] === 'online' ? 'Online' : 'Onsite',
+                    'Discipline' => $v['discipline'] ?: '—',
+                    'Total'      => 'USD $' . number_format($total, 2),
+                ],
+                [
+                    'lede' => $v['firstName'] . ' ' . $v['lastName'] . ' just submitted an application. Details below.',
+                    'cta'  => ['url' => $adminUrl, 'label' => 'Review in admin'],
+                ]
+            ),
             'application_admin_notice',
             true,
             ['reply_to' => $v['email']]
