@@ -384,3 +384,31 @@ ALTER TABLE payments
   FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE SET NULL;
 
 INSERT INTO schema_version (version) VALUES (10) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v11 — admin-editable settings (key/value). Programme
+-- prices, the online surcharge, the registration fee, the store
+-- shipping flat-rate and the USD→NGN charge rate move out of code
+-- into this table so an admin can change them at /admin/?v=settings.
+-- Columns are skey/svalue because `key`/`value` are MySQL reserved
+-- words. Seeded with the shipped defaults; ON DUPLICATE KEY keeps an
+-- admin's edited value on re-run.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS settings (
+  skey        VARCHAR(120) PRIMARY KEY,
+  svalue      TEXT,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO settings (skey, svalue) VALUES
+  ('price_certified_musician','230'),
+  ('price_grand_musician','310'),
+  ('price_crash','40'),
+  ('price_meta_order','60'),
+  ('online_surcharge_pct','20'),
+  ('registration_fee_usd','5'),
+  ('store_shipping_flat_usd','5'),
+  ('usd_to_ngn','1500')
+ON DUPLICATE KEY UPDATE skey = skey;
+
+INSERT INTO schema_version (version) VALUES (11) ON DUPLICATE KEY UPDATE version = version;

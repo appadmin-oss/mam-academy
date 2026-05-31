@@ -44,7 +44,7 @@ $total  = (float)($prices[$v['pathway']] ?? 0);
 if ($v['mode'] === 'online') {
     $total = round($total * (1 + mam_online_surcharge_pct() / 100), 2);
 }
-if ($v['includeRegistration']) $total += 5;
+if ($v['includeRegistration']) $total += mam_registration_fee();
 
 $db = mam_db();
 $db->beginTransaction();

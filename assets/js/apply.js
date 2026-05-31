@@ -1166,6 +1166,11 @@
       });
     }
 
+    // Live pricing can arrive after first paint (config.js fetches it from
+    // /api/config/public). Re-render the summary when it lands so the displayed
+    // tuition matches the admin's current prices.
+    document.addEventListener('mam:config', function () { updateSummary(); });
+
     // ---------- Boot ----------
     updateSummary();
     renderPathwayHint();

@@ -11,23 +11,30 @@ declare(strict_types=1);
  * sync with the display values in assets/js/config.js.
  */
 function mam_prices(): array {
+    // Admin-editable (settings table) with the shipped defaults as fallback.
+    // Both flagship programmes run across all four certification levels
+    // (Pre-Certification → Diploma) — the level is a progression journey, not a
+    // separate purchase. Certified Musician = one major specialization;
+    // Grand Musician = all three major traditions. Crash + MetaMusic are
+    // standalone intensives.
     return [
-        // Flagship programmes. Both run across all four certification levels
-        // (Pre-Certification → Diploma) — the level is a progression journey,
-        // not a separate purchase. Certified Musician = one major specialization;
-        // Grand Musician = all three major traditions.
-        'certified-musician' => 230,
-        'grand-musician'     => 310,
-        // Standalone intensives, kept alongside the two programmes.
-        'crash'              => 40,
-        'meta-order'         => 60,
+        'certified-musician' => mam_setting_num('price_certified_musician', 230),
+        'grand-musician'     => mam_setting_num('price_grand_musician',     310),
+        'crash'              => mam_setting_num('price_crash',               40),
+        'meta-order'         => mam_setting_num('price_meta_order',          60),
     ];
 }
 
 /** Online learners pay the programme fee + this percentage premium. Onsite is
- *  the standard fee. Server-authoritative so it can't be bypassed client-side. */
+ *  the standard fee. Server-authoritative so it can't be bypassed client-side.
+ *  Admin-editable; legacy ONLINE_SURCHARGE_PCT env still honoured as fallback. */
 function mam_online_surcharge_pct(): float {
-    return (float)mam_env('ONLINE_SURCHARGE_PCT', '20');
+    return mam_setting_num('online_surcharge_pct', (float)mam_env('ONLINE_SURCHARGE_PCT', '20'));
+}
+
+/** One-time registration / student-file fee added at checkout. Admin-editable. */
+function mam_registration_fee(): float {
+    return mam_setting_num('registration_fee_usd', 5);
 }
 
 function mam_str(array $src, string $key, int $max = 255): string {

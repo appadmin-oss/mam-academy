@@ -347,3 +347,37 @@ window.MAM_CDN = (function () {
 
   return { image: image, rewriteAll: rewriteAll };
 })();
+
+/* -------- Live pricing hydration --------
+   The values above are safe defaults so the page renders instantly (and works
+   if the API is unreachable). On load we fetch the admin-editable prices from
+   /api/config/public and patch MAM_CONFIG IN PLACE — the same object reference
+   the form/store already read — then fire `mam:config` so any view that has
+   already painted (the apply summary, the store) can refresh. The server is
+   always authoritative at charge time; this just keeps the displayed numbers in
+   sync with the admin without a redeploy. */
+(function hydratePricing() {
+  try {
+    var base = (window.MAM_CONFIG && window.MAM_CONFIG.api && window.MAM_CONFIG.api.base) || '/api';
+    fetch(base + '/config/public', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.ok) return;
+        var C = window.MAM_CONFIG;
+        if (j.pricing) {
+          Object.keys(j.pricing).forEach(function (k) {
+            var p = j.pricing[k];
+            if (!p) return;
+            if (!C.pricing[k]) C.pricing[k] = {};
+            C.pricing[k].name = p.name || C.pricing[k].name;
+            C.pricing[k].usd  = (typeof p.usd === 'number') ? p.usd : C.pricing[k].usd;
+          });
+        }
+        if (typeof j.registration_fee_usd === 'number') C.registrationFeeUsd = j.registration_fee_usd;
+        if (typeof j.online_surcharge_pct === 'number') C.onlineSurchargePct = j.online_surcharge_pct;
+        if (typeof j.usd_to_ngn === 'number' && C.currency && C.currency.rates) C.currency.rates.NGN = j.usd_to_ngn;
+        try { document.dispatchEvent(new CustomEvent('mam:config', { detail: j })); } catch (e) {}
+      })
+      .catch(function () { /* defaults already in place */ });
+  } catch (e) {}
+})();

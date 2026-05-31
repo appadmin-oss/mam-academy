@@ -69,7 +69,7 @@ function mam_db_migrate_mysql(PDO $db): void {
     $current = 0;
     try { $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0); } catch (Throwable $e) {}
 
-    $target = 10;
+    $target = 11;
     if ($current >= $target) return;
 
     $path = realpath(__DIR__ . '/../../db/schema-mysql.sql');
@@ -432,6 +432,26 @@ function mam_db_migrate(PDO $db): void {
         // application_id NOT NULL there, so store rows already insert fine).
         // Bumping schema_version keeps SQLite + MySQL in lockstep.
         10 => "SELECT 1;",
+        // v11 — admin-editable settings (key/value). Columns are skey/svalue
+        // because `key`/`value` are reserved words in MySQL. Seeded with the
+        // shipped pricing defaults so a fresh install behaves identically to
+        // the old hardcoded values until an admin changes them.
+        11 => "
+            CREATE TABLE settings (
+              skey TEXT PRIMARY KEY,
+              svalue TEXT,
+              updated_at TEXT DEFAULT (datetime('now'))
+            );
+            INSERT INTO settings (skey, svalue) VALUES
+              ('price_certified_musician','230'),
+              ('price_grand_musician','310'),
+              ('price_crash','40'),
+              ('price_meta_order','60'),
+              ('online_surcharge_pct','20'),
+              ('registration_fee_usd','5'),
+              ('store_shipping_flat_usd','5'),
+              ('usd_to_ngn','1500');
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

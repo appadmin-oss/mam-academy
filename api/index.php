@@ -29,6 +29,9 @@ $r->get('/diag',    $f('diag.php'));
 // whether to show the $5 CTA or the unlocked Google appointment embed.
 $r->get('/booking/status',  $f('booking-status.php'),  [mw_rate_limit('booking_status', 60, 60)]);
 $r->get('/booking/pricing', $f('booking-pricing.php'), [mw_rate_limit('booking_pricing', 60, 60)]);
+// Public, admin-driven pricing/config — lets the front-end show live programme
+// prices & fees without a redeploy (server stays authoritative at charge time).
+$r->get('/config/public',   $f('config-public.php'),   [mw_rate_limit('config_public', 120, 60)]);
 
 // Web-viewable invoice + signed policy. Replace the .html attachments that
 // most mail clients render as source code with proper standalone pages

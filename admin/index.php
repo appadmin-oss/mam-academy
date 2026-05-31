@@ -340,6 +340,25 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=storeitems&ok=1'); exit;
     }
 
+    if ($action === 'save_settings') {
+        // Persist every key declared in the settings schema. Non-negative
+        // numbers only; blanks fall back to the shipped default so a cleared
+        // field can never zero out a price by accident.
+        $saved = [];
+        foreach (mam_settings_schema() as $row) {
+            [$group, $key, $label, $default, $suffix] = $row;
+            $raw = $_POST[$key] ?? null;
+            if ($raw === null || $raw === '') { $val = (float)$default; }
+            else { $val = max(0, (float)$raw); }
+            // Store whole numbers without a trailing .0 for clean display.
+            $val = ($val == (int)$val) ? (string)(int)$val : (string)$val;
+            mam_setting_set($key, $val);
+            $saved[$key] = $val;
+        }
+        mam_audit('update_settings', 'settings', null, $saved);
+        header('Location: ?v=settings&ok=1'); exit;
+    }
+
     if ($action === 'store_order_status') {
         $oid = (int)($_POST['order_id'] ?? 0);
         $status = (string)($_POST['status'] ?? '');
@@ -681,6 +700,7 @@ button.tiny:hover{border-color:var(--gold)}
       'messages'     => 'Messages',
       'webhooks'     => 'Webhook Events',
       'newsletter'   => 'Newsletter',
+      'settings'     => 'Pricing & Settings',
       'audit'        => 'Audit Log',
     ];
     foreach ($links as $k => $label) {
@@ -722,7 +742,7 @@ button.tiny:hover{border-color:var(--gold)}
     // that's behind on migrations because schema-mysql.sql wasn't run after
     // a deploy. The button POSTs /admin/migrate which runs the idempotent
     // schema file. Safe to click repeatedly.
-    $schemaVersion = 0; $schemaTarget = 10;
+    $schemaVersion = 0; $schemaTarget = 11;
     try {
       $schemaVersion = (int)mam_db()->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn();
     } catch (Throwable $e) {}
@@ -1357,6 +1377,49 @@ button.tiny:hover{border-color:var(--gold)}
     <?php endforeach; if (!$orders): ?><tr><td colspan="7" class="empty">No store orders yet.</td></tr><?php endif; ?>
     </tbody>
   </table>
+
+<?php elseif ($view === 'settings'):
+    $cur = mam_settings_all();
+    $groups = [];
+    foreach (mam_settings_schema() as $row) {
+        [$group, $key, $label, $default, $suffix] = $row;
+        $groups[$group][] = ['key' => $key, 'label' => $label, 'default' => $default, 'suffix' => $suffix];
+    }
+?>
+  <header class="top"><h1>Pricing &amp; Settings</h1></header>
+  <?php if (isset($_GET['ok'])): ?><div class="banner ok">Saved. New prices apply to every new application, booking and store order immediately.</div><?php endif; ?>
+
+  <div class="card" style="max-width:760px">
+    <p class="muted" style="margin:0 0 18px;line-height:1.6">
+      These values are the live source of truth. The server charges from them at checkout, and the
+      public site reads them via <code>/api/config/public</code> — so a change here takes effect everywhere
+      without a redeploy. Store product prices are managed per-item under <a href="?v=storeitems" style="color:var(--gold)">Store / Library</a>.
+    </p>
+    <form method="POST" action="">
+      <?= mam_csrf_field() ?>
+      <input type="hidden" name="action" value="save_settings">
+      <?php foreach ($groups as $groupName => $fields): ?>
+        <h3 style="margin:22px 0 12px;color:var(--gold);font-size:0.92rem;letter-spacing:0.04em;text-transform:uppercase"><?= htmlspecialchars($groupName) ?></h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+          <?php foreach ($fields as $f):
+            $val = $cur[$f['key']] ?? $f['default'];
+          ?>
+            <label style="display:block">
+              <span style="display:block;font-size:0.82rem;color:var(--muted);margin-bottom:5px"><?= htmlspecialchars($f['label']) ?></span>
+              <span style="display:flex;align-items:center;gap:6px">
+                <span class="mono" style="color:var(--gold);min-width:14px"><?= htmlspecialchars($f['suffix']) ?></span>
+                <input type="number" step="0.01" min="0" name="<?= htmlspecialchars($f['key']) ?>" value="<?= htmlspecialchars((string)$val) ?>" style="flex:1" required>
+              </span>
+            </label>
+          <?php endforeach; ?>
+        </div>
+      <?php endforeach; ?>
+      <div style="margin-top:24px;display:flex;gap:10px;align-items:center">
+        <button class="btn" type="submit">Save settings</button>
+        <span class="muted" style="font-size:0.8rem">Blank fields revert to the shipped default.</span>
+      </div>
+    </form>
+  </div>
 
 <?php else: ?>
   <p>Unknown view.</p>

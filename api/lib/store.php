@@ -70,10 +70,11 @@ function mam_store_compute_totals(array $cart, string $country): array {
         $subtotal += $line_total;
         $tax      += $line_tax;
     }
-    // Shipping: physical goods only. Flat $5/order until weight tiers are wired.
+    // Shipping: physical goods only. Flat per-order rate (admin-editable) until
+    // weight tiers are wired.
     $hasPhysical = false;
     foreach ($items as $i) if (($i['goods_type'] ?? '') === 'physical') { $hasPhysical = true; break; }
-    $shipping = $hasPhysical ? 5.00 : 0.00;
+    $shipping = $hasPhysical ? mam_setting_num('store_shipping_flat_usd', 5) : 0.00;
     $total = round($subtotal + $tax + $shipping, 2);
     return [
         'items'        => $items,
