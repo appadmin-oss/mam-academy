@@ -364,7 +364,10 @@
       on(a, 'click', function (e) {
         var href = a.getAttribute('href');
         if (!href || href === '#' || href.length < 2) return;
-        var target = document.querySelector(href);
+        // Resolve by id; querySelector on a fragment like "#2-modes" (id
+        // starting with a digit) is an invalid selector and would throw.
+        var target = null;
+        try { target = document.getElementById(decodeURIComponent(href.slice(1))) || document.querySelector(href); } catch (e2) { return; }
         if (!target) return;
         e.preventDefault();
         var offset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--nav-h'), 10) || 80;
@@ -800,21 +803,29 @@
   // Boot
   // ============================================================
   function boot() {
-    initPreloader();
-    initNav();
-    initHero();
-    initSmoothScroll();
-    initFaq();
-    initAnimations();
-    initCountdown();
-    initTestimonials();
-    initCookie();
-    initToolbar();
-    initCurrency();
-    initNewsletter();
-    initFilters();
-    initImageFallback();
-    initYear();
+    // Each init is isolated: a throw in one (e.g. the nav) must never stop the
+    // others from running — otherwise a single failure could, for example,
+    // leave the scroll-reveal section headers stuck at opacity:0.
+    [initPreloader, initNav, initHero, initSmoothScroll, initFaq, initAnimations,
+     initCountdown, initTestimonials, initCookie, initToolbar, initCurrency,
+     initNewsletter, initFilters, initImageFallback, initYear].forEach(function (fn) {
+      try { fn(); } catch (e) { if (window.console) console.error('[MAM] init failed:', fn.name, e); }
+    });
+
+    // Failsafe: any scroll-reveal element that is already in the viewport must
+    // be visible. If the IntersectionObserver never armed (an init threw) or
+    // misfired, this un-sticks on-screen content (section headers etc.) without
+    // touching below-the-fold elements, so their scroll animation is preserved.
+    function revealInView() {
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      $$('.fade-in-up:not(.visible), .fade-in:not(.visible)').forEach(function (el) {
+        var r = el.getBoundingClientRect();
+        if (r.top < vh && r.bottom > 0) el.classList.add('visible');
+      });
+    }
+    setTimeout(revealInView, 1200);
+    on(window, 'load', function () { setTimeout(revealInView, 200); });
+
     // Route all <img> and hero backgrounds through Cloudinary fetch once
     // partials are in place. Safe no-op until MAM_CONFIG.cdn.cloudName is set.
     if (window.MAM_CDN && typeof window.MAM_CDN.rewriteAll === 'function') {
