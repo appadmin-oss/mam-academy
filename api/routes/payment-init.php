@@ -63,7 +63,7 @@ if ($purpose === 'store') {
 // the server-computed total. We always settle to NGN on Paystack/Flutterwave
 // (Paystack supports only a few currencies), and surface BOTH the "local"
 // display amount and the NGN settlement amount so the UI can disclose it.
-$ngnRate = mam_setting_num('usd_to_ngn', (float)mam_env('USD_TO_NGN', '1500'));
+$ngnRate = mam_usd_to_ngn_rate();
 if ($purpose === 'booking_fee') {
     $tier = mam_booking_tier();
     $totalUsd      = (float)$tier['amount_usd'];

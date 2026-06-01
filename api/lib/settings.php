@@ -79,17 +79,18 @@ function mam_settings_schema(): array {
         ['Level base prices (USD)', 'price_level_cert',         'Certificate base',      130, '$'],
         ['Level base prices (USD)', 'price_level_prediploma',   'Pre-Diploma base',      160, '$'],
         ['Level base prices (USD)', 'price_level_diploma',      'Diploma base',          180, '$'],
-        // Standalone intensive — not level-based.
+        // Standalone / flat programmes — not level-based.
+        ['Programme pricing (USD)', 'price_crash',              'Crash Programme (flat)', 70, '$'],
         ['Programme pricing (USD)', 'price_meta_order',         'MetaMusic Order',        60, '$'],
         ['Programme adjustments',   'grand_discount_pct',       'Grand Musician discount', 13, '%'],
         // Legacy flat programme prices — drive the current form/charging until
         // the level-based form rebuild lands; then these can be retired.
         ['Programme pricing (legacy)', 'price_certified_musician', 'Certified Musician (legacy flat)', 230, '$'],
         ['Programme pricing (legacy)', 'price_grand_musician',     'Grand Musician (legacy flat)',     310, '$'],
-        ['Programme pricing (legacy)', 'price_crash',              'Crash Programme (legacy flat)',     40, '$'],
         ['Fees & surcharges',       'online_surcharge_pct',     'Online surcharge',       20, '%'],
         ['Fees & surcharges',       'registration_fee_usd',     'Registration fee',        5, '$'],
         ['Store',                   'store_shipping_flat_usd',  'Store shipping (flat, physical goods)', 5, '$'],
-        ['Currency',                'usd_to_ngn',               'USD → NGN rate (charge conversion)', 1500, '₦'],
+        ['Currency',                'fx_auto',                  'Auto-update USD→NGN from live rate API (1=on, 0=off)', 1, ''],
+        ['Currency',                'usd_to_ngn',               'USD → NGN fallback rate (used when live FX is off/unreachable)', 1500, '₦'],
     ];
 }

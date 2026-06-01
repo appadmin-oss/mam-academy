@@ -74,7 +74,7 @@ function mam_booking_tier(?string $country = null): array {
     $tier['country'] = $country;
     // Carry the equivalent NGN so the payment provider (which charges in NGN
     // via Paystack) and the email/invoice can show "approx ₦7,500" disclosure.
-    $usdRate = mam_setting_num('usd_to_ngn', (float)mam_env('USD_TO_NGN', '1500'));
+    $usdRate = mam_usd_to_ngn_rate();
     // Quick conversion: amount in tier currency → USD → NGN.
     // For NGN, amount IS already NGN.
     $cur = $tier['currency'];

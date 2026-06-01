@@ -46,7 +46,7 @@ function mam_grand_discount_pct(): float {
  *          includeRegistration (bool)
  *
  * Programme rules (B = level base price):
- *   crash              → B               (no online adjustment)
+ *   crash              → flat price_crash ($70), level-independent, no online adj.
  *   standard           → B
  *   certified-musician → 2B + 0.5B·extra
  *   grand-musician     → (3B + 0.5B·extra) · (1 − discount)
@@ -73,7 +73,8 @@ function mam_compute_application_price(array $args): array {
 
     switch ($programme) {
         case 'crash':
-            $subtotal = $B; $onlineApplies = false; break;
+            // Flat fee, level-independent — Crash has no levels (spec/review).
+            $subtotal = mam_setting_num('price_crash', 70); $onlineApplies = false; break;
         case 'standard':
             $subtotal = $B; break;
         case 'certified-musician':
@@ -122,7 +123,7 @@ function mam_prices(): array {
     return [
         'certified-musician' => mam_setting_num('price_certified_musician', 230),
         'grand-musician'     => mam_setting_num('price_grand_musician',     310),
-        'crash'              => mam_setting_num('price_crash',               40),
+        'crash'              => mam_setting_num('price_crash',               70),
         'meta-order'         => mam_setting_num('price_meta_order',          60),
     ];
 }
@@ -139,7 +140,7 @@ function mam_programme_from_prices(): array {
         'standard'           => round($base, 2),
         'certified-musician' => round(2 * $base, 2),
         'grand-musician'     => round(3 * $base * (1 - $disc / 100), 2),
-        'crash'              => round($base, 2),
+        'crash'              => mam_setting_num('price_crash', 70),
         'meta-order'         => mam_setting_num('price_meta_order', 60),
     ];
 }

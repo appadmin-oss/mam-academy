@@ -146,19 +146,28 @@ Admin dates (`sessions` table) take precedence. Endpoint `GET /api/session/curre
 
 ---
 
-## 5. Pricing engine (`api/lib/booking-pricing.php` / `mam_prices`)
+## 5. Pricing engine — ✅ IMPLEMENTED (`mam_compute_application_price`)
 
-Course-based, computed server-side:
+Level-based, computed server-side (B = level base price):
 
 ```
-total = primary_price
-      + 0.5 * primary_price * (num_compulsory + num_additional)
-online: total *= online_factor   (backend only; default 1.20; Crash exempt)
+crash              → flat $70   (price_crash; NO levels, online exempt)
+standard           → B
+certified-musician → 2B + 0.5B·extra
+grand-musician     → (3B + 0.5B·extra) · (1 − 13%)
+online: subtotal *= (1 + surcharge%)  (backend only, silent; Crash exempt)
 + $5 registration (one-time)
 ```
 
-- **Crash / Standard**: 1 course, 0 compulsory → total = primary_price
-  (Crash: no online factor; Standard: online factor applies).
+### Currency / FX — ✅ live rate API (`api/lib/fx.php`)
+USD→NGN is fetched live from a key-less provider (`open.er-api.com`, override
+via `FX_RATE_URL`), cached ~6h in `settings`, sanity-bounded, and falls back to
+the admin `usd_to_ngn` rate when off (`fx_auto=0`) or unreachable — so a charge
+never fails on an FX outage. Used by payment-init, booking tier conversion, and
+the public config endpoint (read-only there, never blocks a page load).
+
+- **Crash**: flat $70, no levels, 1 course, no online factor.
+- **Standard**: 1 course, 0 compulsory → total = B (online factor applies).
 - **Certified**: primary + 4 compulsory (each 50%) [+ optional additionals @50%]
   → 3× primary baseline.
 - **Grand**: primary + 2 other majors (50%) + 4 compulsory (50%) [+ optionals]

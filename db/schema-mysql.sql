@@ -403,7 +403,7 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT INTO settings (skey, svalue) VALUES
   ('price_certified_musician','230'),
   ('price_grand_musician','310'),
-  ('price_crash','40'),
+  ('price_crash','70'),
   ('price_meta_order','60'),
   ('online_surcharge_pct','20'),
   ('registration_fee_usd','5'),
@@ -412,3 +412,8 @@ INSERT INTO settings (skey, svalue) VALUES
 ON DUPLICATE KEY UPDATE skey = skey;
 
 INSERT INTO schema_version (version) VALUES (11) ON DUPLICATE KEY UPDATE version = version;
+
+-- v12: Crash is a flat $70 with no levels (spec/review). Lift the old $40 seed
+-- for existing installs; conditional so a deliberately-changed price is kept.
+UPDATE settings SET svalue='70' WHERE skey='price_crash' AND svalue='40';
+INSERT INTO schema_version (version) VALUES (12) ON DUPLICATE KEY UPDATE version = version;
