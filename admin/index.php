@@ -800,6 +800,11 @@ button.tiny:hover{border-color:var(--gold)}
     }
     ?>
   </nav>
+  <form method="get" action="" style="margin-top:16px;display:flex;gap:6px">
+    <input type="hidden" name="v" value="search">
+    <input type="search" name="q" value="<?= htmlspecialchars((string)($_GET['q'] ?? '')) ?>" placeholder="Search ref, email, name…" style="flex:1;min-width:0;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:0.82rem">
+    <button class="btn" type="submit" style="padding:9px 12px" aria-label="Search">🔍</button>
+  </form>
   <div style="margin-top:24px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:0.78rem;color:var(--muted);line-height:1.5">
     <strong style="color:var(--gold)">Signed in:</strong>
     <?php
@@ -1599,6 +1604,79 @@ button.tiny:hover{border-color:var(--gold)}
           <input type="password" name="next" minlength="8" autocomplete="new-password"></label>
         <button class="btn" type="submit">Save changes</button>
       </form>
+    </div>
+  <?php endif; ?>
+
+<?php elseif ($view === 'search'):
+  $q = trim((string)($_GET['q'] ?? ''));
+  $like = '%' . $q . '%';
+  $apps = $users = $pays = $orders = [];
+  if ($q !== '') {
+    try { $apps = mam_db_all("SELECT a.reference, a.pathway, a.status, a.total_usd, a.created_at, c.email, c.first_name, c.last_name
+        FROM applications a JOIN customers c ON c.id = a.customer_id
+        WHERE a.reference LIKE ? OR c.email LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ?
+        ORDER BY a.created_at DESC LIMIT 25", [$like, $like, $like, $like]); } catch (Throwable $e) {}
+    try { $users = mam_db_all("SELECT id, email, name, role, status FROM users WHERE email LIKE ? OR name LIKE ? ORDER BY created_at DESC LIMIT 25", [$like, $like]); } catch (Throwable $e) {}
+    try { $pays = mam_db_all("SELECT reference, provider, status, amount, currency, created_at FROM payments WHERE reference LIKE ? ORDER BY created_at DESC LIMIT 25", [$like]); } catch (Throwable $e) {}
+    try { $orders = mam_db_all("SELECT reference, customer_email, status, total_usd, created_at FROM store_orders WHERE reference LIKE ? OR customer_email LIKE ? ORDER BY id DESC LIMIT 25", [$like, $like]); } catch (Throwable $e) {}
+  }
+  $hits = count($apps) + count($users) + count($pays) + count($orders);
+?>
+  <header class="top"><h1>Search</h1></header>
+  <form method="get" action="" style="margin-bottom:18px;display:flex;gap:8px;max-width:520px">
+    <input type="hidden" name="v" value="search">
+    <input type="search" name="q" value="<?= htmlspecialchars($q) ?>" placeholder="Reference, email or name…" autofocus style="flex:1;padding:11px 14px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+    <button class="btn" type="submit">Search</button>
+  </form>
+  <?php if ($q === ''): ?>
+    <div class="card">Type a reference (e.g. <code>MAM-…</code>), an email, or a name to search applications, users, payments and store orders.</div>
+  <?php else: ?>
+    <p class="muted" style="margin:0 0 16px"><?= $hits ?> result<?= $hits === 1 ? '' : 's' ?> for “<strong><?= htmlspecialchars($q) ?></strong>”.</p>
+
+    <div class="card"><h3>Applications (<?= count($apps) ?>)</h3>
+      <?php if ($apps): ?><table><thead><tr><th>Reference</th><th>Applicant</th><th>Pathway</th><th>Status</th><th></th></tr></thead><tbody>
+        <?php foreach ($apps as $a): ?><tr>
+          <td class="mono"><?= htmlspecialchars($a['reference']) ?></td>
+          <td><?= htmlspecialchars(mam_name($a['first_name'], $a['last_name'])) ?><br><small class="muted"><?= htmlspecialchars((string)$a['email']) ?></small></td>
+          <td><?= htmlspecialchars((string)$a['pathway']) ?></td>
+          <td><span class="pill"><?= htmlspecialchars((string)$a['status']) ?></span></td>
+          <td><a class="btn ghost" style="padding:5px 10px" href="?v=applications">Open</a> <a class="btn ghost" style="padding:5px 10px" href="/api/invoice/<?= rawurlencode($a['reference']) ?>" target="_blank">Invoice</a></td>
+        </tr><?php endforeach; ?></tbody></table>
+      <?php else: ?><p class="muted">No matching applications.</p><?php endif; ?>
+    </div>
+
+    <div class="card"><h3>Users (<?= count($users) ?>)</h3>
+      <?php if ($users): ?><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
+        <?php foreach ($users as $usr): ?><tr>
+          <td><?= htmlspecialchars((string)($usr['name'] ?? '—')) ?></td>
+          <td class="mono"><?= htmlspecialchars((string)$usr['email']) ?></td>
+          <td><?= htmlspecialchars((string)$usr['role']) ?></td>
+          <td><span class="pill"><?= htmlspecialchars((string)$usr['status']) ?></span></td>
+          <td><a class="btn ghost" style="padding:5px 10px" href="?v=users&edit=<?= (int)$usr['id'] ?>">Edit</a></td>
+        </tr><?php endforeach; ?></tbody></table>
+      <?php else: ?><p class="muted">No matching users.</p><?php endif; ?>
+    </div>
+
+    <div class="card"><h3>Payments (<?= count($pays) ?>)</h3>
+      <?php if ($pays): ?><table><thead><tr><th>Reference</th><th>Provider</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+        <?php foreach ($pays as $p): ?><tr>
+          <td class="mono"><?= htmlspecialchars((string)$p['reference']) ?></td>
+          <td><?= htmlspecialchars((string)$p['provider']) ?></td>
+          <td><?= htmlspecialchars((string)$p['currency']) ?> <?= number_format((float)$p['amount'], 0) ?></td>
+          <td><span class="pill"><?= htmlspecialchars((string)$p['status']) ?></span></td>
+        </tr><?php endforeach; ?></tbody></table>
+      <?php else: ?><p class="muted">No matching payments.</p><?php endif; ?>
+    </div>
+
+    <div class="card"><h3>Store orders (<?= count($orders) ?>)</h3>
+      <?php if ($orders): ?><table><thead><tr><th>Reference</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead><tbody>
+        <?php foreach ($orders as $o): ?><tr>
+          <td class="mono"><?= htmlspecialchars((string)$o['reference']) ?></td>
+          <td class="mono"><?= htmlspecialchars((string)$o['customer_email']) ?></td>
+          <td>$<?= number_format((float)$o['total_usd'], 0) ?></td>
+          <td><span class="pill"><?= htmlspecialchars((string)$o['status']) ?></span></td>
+        </tr><?php endforeach; ?></tbody></table>
+      <?php else: ?><p class="muted">No matching store orders.</p><?php endif; ?>
     </div>
   <?php endif; ?>
 

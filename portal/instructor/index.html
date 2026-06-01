@@ -233,12 +233,35 @@
         + '<td data-label="Class">' + P.escapeHtml(st.class_title || '—') + '</td>'
         + '<td data-label=""><span style="color:var(--gold-bright);font-size:0.8rem">View <i class="fa-solid fa-arrow-right"></i></span></td></tr>';
     }).join('');
-    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Roster <small style="color:var(--text-muted);font-weight:400">— click a student for their attendance history</small></h2></div>'
+    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Roster <small style="color:var(--text-muted);font-weight:400">— click a student for their attendance history</small></h2>'
+      + '<button type="button" class="panel-action" id="rosterCsv"><i class="fa-solid fa-download"></i> Roster CSV</button></div>'
       + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Student</th><th>Email</th><th>Phone</th><th>Class</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>'
       + '<div id="studentDetail"></div>';
     content.querySelectorAll('[data-student]').forEach(function (tr) {
       tr.addEventListener('click', function () { openStudent(tr.getAttribute('data-student'), tr.querySelector('strong').textContent); });
     });
+    var csvBtn = document.getElementById('rosterCsv');
+    if (csvBtn) csvBtn.addEventListener('click', function () {
+      // Full roster (one row per enrolment) so a student in two classes appears twice.
+      var rowsCsv = [['Name', 'Email', 'Phone', 'Class']];
+      s.forEach(function (st) { rowsCsv.push([st.name || '', st.email || '', st.phone || '', st.class_title || '']); });
+      downloadCsv('mam-roster-' + new Date().toISOString().slice(0, 10) + '.csv', rowsCsv);
+    });
+  }
+
+  // Build + download a CSV client-side (RFC-4180 quoting) — no server round-trip.
+  function downloadCsv(filename, rows) {
+    var csv = rows.map(function (r) {
+      return r.map(function (cell) {
+        var s = String(cell == null ? '' : cell);
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',');
+    }).join('\r\n');
+    var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
   function openStudent(id, name) {

@@ -206,16 +206,25 @@
     }
     var history = '';
     if (pays.length) {
+      // Map application_id -> reference so paid academy payments can link to a
+      // printable invoice/receipt (/api/invoice/{ref}).
+      var appById = {};
+      apps.forEach(function (a) { if (a.id != null) appById[a.id] = a.reference; });
       var rows = pays.map(function (p) {
+        var paid = p.status === 'succeeded' || p.status === 'paid';
+        var ref = p.application_id != null ? appById[p.application_id] : null;
+        var receipt = (paid && ref)
+          ? '<a class="btn btn-ghost" style="padding:5px 12px;font-size:0.78rem" href="/api/invoice/' + encodeURIComponent(ref) + '" target="_blank" rel="noopener"><i class="fa-solid fa-receipt"></i> Receipt</a>'
+          : '<span style="color:var(--text-muted)">—</span>';
         return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(p.reference) + '</td>'
           + '<td data-label="Purpose">' + P.escapeHtml(p.purpose || 'tuition') + '</td>'
           + '<td data-label="Provider">' + P.escapeHtml(p.provider) + '</td>'
           + '<td data-label="Amount">' + P.fmtMoney(p.amount, p.currency) + '</td>'
           + '<td data-label="Status"><span class="pill ' + P.escapeHtml(p.status) + '">' + P.escapeHtml(p.status) + '</span></td>'
           + '<td data-label="Verified">' + (p.verified_at ? P.fmtDateTime(p.verified_at) : '—') + '</td>'
-          + '<td data-label="Created">' + P.fmtDateTime(p.created_at) + '</td></tr>';
+          + '<td data-label="Receipt">' + receipt + '</td></tr>';
       }).join('');
-      history = '<section class="panel"><div class="panel-head"><h2>Payment History</h2></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Verified</th><th>Created</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+      history = '<section class="panel"><div class="panel-head"><h2>Payment History</h2></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Verified</th><th>Receipt</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
     } else {
       history = '<section class="panel"><div class="panel-body">' + empty('credit-card', 'No payments on file yet.') + '</div></section>';
     }
