@@ -45,7 +45,8 @@
     var savedDraft = loadDraft();
     var resuming = !!savedDraft;
     var data = savedDraft || {
-      pathway: '', mode: '', program: '', discipline: '', session: '',
+      pathway: '', mode: '', level: '', expression: '', minors: [],
+      program: '', discipline: '', session: '',
       firstName: '', lastName: '', email: '', phone: '',
       sex: '', address: '', lga: '', state: '',
       country: 'Nigeria', city: '', dob: '',
@@ -61,9 +62,10 @@
     if ('emergencyContact' in data) delete data.emergencyContact;
     if (typeof data.dob !== 'string') data.dob = '';
     // Default the new required fields to empty so legacy drafts don't write "undefined"
-    ['program','sex','address','lga','state','headshotUrl','session'].forEach(function (k) {
+    ['program','sex','address','lga','state','headshotUrl','session','level','expression'].forEach(function (k) {
       if (typeof data[k] !== 'string') data[k] = '';
     });
+    if (!Array.isArray(data.minors)) data.minors = [];
     // Stable idempotency key per draft — lets a retried submit be de-duped
     // server-side instead of creating a second application for one applicant.
     if (!data.idempotencyKey) {
@@ -112,7 +114,11 @@
     // against the rendered inputs makes only known-safe tokens enter `data`.
     try {
       var qs = new URLSearchParams(location.search);
-      ['pathway', 'mode', 'discipline'].forEach(function (k) {
+      // `?programme=` is the public-facing alias for the internal `pathway`.
+      if (!qs.get('pathway') && qs.get('programme')) {
+        try { qs.set('pathway', qs.get('programme')); } catch (e) {}
+      }
+      ['pathway', 'mode', 'discipline', 'level', 'expression'].forEach(function (k) {
         var val = qs.get(k);
         if (val && document.querySelector('input[name="' + k + '"][value="' + (window.CSS && CSS.escape ? CSS.escape(val) : val.replace(/["\\\]]/g, '')) + '"]')) {
           data[k] = val;
@@ -204,11 +210,20 @@
         if (!condition) { setError(id); ok = false; if (!first) first = el; } else clearError(id);
       }
       if (idx === 0) {
-        if (!data.pathway)    { var p = $('#err-pathway');    if (p) p.classList.add('shown');    ok = false; }
-        if (!data.mode)       { var m = $('#err-mode');       if (m) m.classList.add('shown');       ok = false; }
+        function need(cond, errId) { if (!cond) { var e = $('#' + errId); if (e) e.classList.add('shown'); ok = false; } else { var e2 = $('#' + errId); if (e2) e2.classList.remove('shown'); } }
+        var prog = data.pathway;
+        need(!!prog, 'err-pathway');
+        need(!!data.mode, 'err-mode');
+        // Level required for the level-priced programmes only.
+        var levelled = prog === 'standard' || prog === 'certified-musician' || prog === 'grand-musician';
+        if (levelled) need(!!data.level, 'err-level');
+        // Expression required for crash/standard/certified (Grand is all three;
+        // MetaMusic Order has none).
+        var needsExpr = prog === 'crash' || prog === 'standard' || prog === 'certified-musician';
+        if (needsExpr) need(!!data.expression, 'err-expression');
         check('program',  !!data.program);
-        if (!data.discipline) { var d = $('#err-discipline'); if (d) d.classList.add('shown'); ok = false; }
-        if (!data.session)    { var se = $('#err-session');   if (se) se.classList.add('shown');     ok = false; }
+        need(!!data.discipline, 'err-discipline');
+        // Session is resolved silently — never validated.
       }
       if (idx === 1) {
         var SV = window.MAM_VALIDATE;
@@ -293,18 +308,46 @@
     // The programme fee already folds in any mode-based adjustment. We surface
     // only the FINAL figure to the applicant — the adjustment is never shown as
     // a separate line (it stays a backend pricing concern).
-    function programmeFeeUsd() {
-      var p = cfg.pricing[data.pathway]; var fee = p ? p.usd : 0;
-      if (p && data.mode === 'online' && cfg.onlineSurchargePct) {
-        fee = Math.round(fee * (1 + cfg.onlineSurchargePct / 100) * 100) / 100;
+    // Display-only mirror of the server engine (mam_compute_application_price).
+    // B = the chosen level's base price; the online adjustment is folded in
+    // silently (never shown as a line); the Grand discount IS surfaced.
+    function priceBreakdown() {
+      var prog = data.pathway;
+      var B = (cfg.levelPrices && cfg.levelPrices[data.level]) || 0;
+      var half = B / 2;
+      var extra = (data.minors || []).length;
+      var discPct = cfg.grandDiscountPct || 0;
+      var subtotal = 0, onlineApplies = true, preDiscount = null, discountAmount = 0;
+      if (prog === 'crash') {
+        subtotal = (cfg.pricing.crash && cfg.pricing.crash.usd) || 70; onlineApplies = false;
+      } else if (prog === 'standard') {
+        subtotal = B;
+      } else if (prog === 'certified-musician') {
+        subtotal = 2 * B + half * extra;
+      } else if (prog === 'grand-musician') {
+        preDiscount = 3 * B + half * extra;
+        subtotal = preDiscount * (1 - discPct / 100);
+        discountAmount = preDiscount - subtotal;
+      } else if (prog === 'meta-order') {
+        subtotal = (cfg.pricing['meta-order'] && cfg.pricing['meta-order'].usd) || 60; onlineApplies = false;
       }
-      return fee;
+      var adjusted = subtotal;
+      if (onlineApplies && data.mode === 'online' && cfg.onlineSurchargePct) {
+        adjusted = subtotal * (1 + cfg.onlineSurchargePct / 100);
+      }
+      var registration = data.includeRegistration ? (cfg.registrationFeeUsd || 0) : 0;
+      var r2 = function (n) { return Math.round(n * 100) / 100; };
+      return {
+        base: r2(B), extra: extra, discountPct: discPct,
+        preDiscount: preDiscount === null ? null : r2(preDiscount),
+        discountAmount: r2(discountAmount),
+        subtotal: r2(adjusted), registration: r2(registration), total: r2(adjusted + registration)
+      };
     }
+    function programmeFeeUsd() { return priceBreakdown().subtotal; }
     function computeTotalUsd() {
       if (data.serverTotalUsd != null) return data.serverTotalUsd;
-      var sum = programmeFeeUsd();
-      if (data.includeRegistration) sum += cfg.registrationFeeUsd || 0;
-      return sum;
+      return priceBreakdown().total;
     }
     function fmtMoney(usd, cur) {
       cur = cur || data.currency || 'USD';
@@ -313,12 +356,25 @@
       return sym + Math.round(usd * rate).toLocaleString('en-US');
     }
     function updateSummary() {
+      updateProgrammeUI();
       var summary = $('#applySummary'); if (!summary) return;
-      var price = cfg.pricing[data.pathway]; var rows = '';
-      if (price) rows += row('Programme', price.name) + row('Tuition', fmtMoney(programmeFeeUsd()));
+      var price = cfg.pricing[data.pathway];
+      var b = priceBreakdown();
+      var rows = '';
+      if (price) rows += row('Programme', price.name);
       if (data.mode)       rows += row('Mode', data.mode === 'online' ? 'Online' : 'Onsite');
-      if (data.discipline) rows += row('Discipline', titleCase(data.discipline));
-      if (data.includeRegistration && cfg.registrationFeeUsd) rows += row('Registration', fmtMoney(cfg.registrationFeeUsd));
+      if (data.level && cfg.levels && cfg.levels[data.level]) rows += row('Level', cfg.levels[data.level]);
+      if (data.expression) rows += row('Expression', data.pathway === 'grand-musician' ? 'All three' : titleCase(data.expression));
+      if (data.program)    rows += row('Focus', titleCase(data.program));
+      if (data.discipline) rows += row('Course', titleCase(data.discipline));
+      if ((data.minors || []).length) rows += row('Extra courses', data.minors.map(titleCase).join(', '));
+      if (price) {
+        if (b.preDiscount != null && b.discountAmount > 0) {
+          rows += '<div class="summary-row summary-discount"><span>Grand discount (' + b.discountPct + '%)</span><span>− ' + fmtMoney(b.discountAmount) + '</span></div>';
+        }
+        rows += row('Tuition', fmtMoney(b.subtotal));
+      }
+      if (data.includeRegistration && cfg.registrationFeeUsd) rows += row('Registration', fmtMoney(b.registration));
       var total = computeTotalUsd();
       rows += '<div class="summary-total"><span>Total</span><span>' + fmtMoney(total) + '</span></div>';
       if (data.reference) rows += '<div style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);text-align:center">Ref: <span class="mono" style="color:var(--gold-bright)">' + data.reference + '</span></div>';
@@ -328,6 +384,94 @@
       if (pb) { var l = pb.querySelector('span:first-child'); if (l) l.textContent = 'Pay ' + fmtMoney(total); }
       var amb = $('#ambTotal'); if (amb) amb.textContent = fmtMoney(total);
       var sp = $('#spTotal'); if (sp) sp.textContent = fmtMoney(total);
+    }
+
+    // Conditional Step-1 substeps + live price labels. Idempotent; called from
+    // updateSummary (which fires on every change) and on showStep. Crash & the
+    // MetaMusic Order have no level; Grand spans all expressions (so the
+    // expression step is hidden and set to 'all'); minors apply to Certified &
+    // Grand only.
+    function toggleHidden(sel, hide) { var el = $(sel); if (el) el.hidden = !!hide; }
+    function uncheck(name) { $$('input[name="' + name + '"]').forEach(function (i) { i.checked = false; }); }
+    function updateProgrammeUI() {
+      var prog = data.pathway;
+      var lows = (cfg.levelPrices && Object.keys(cfg.levelPrices).map(function (k) { return cfg.levelPrices[k]; })) || [120];
+      var lowB = lows.length ? Math.min.apply(null, lows) : 120;
+      var B = (cfg.levelPrices && cfg.levelPrices[data.level]) || 0;
+      var bCalc = B || lowB;
+      var pre = B ? '' : 'from ';
+      var discPct = cfg.grandDiscountPct || 0;
+      function setP(p, txt) { var el = document.querySelector('[data-prog-price="' + p + '"]'); if (el) el.textContent = txt; }
+      setP('crash', fmtMoney((cfg.pricing.crash && cfg.pricing.crash.usd) || 70));
+      setP('meta-order', fmtMoney((cfg.pricing['meta-order'] && cfg.pricing['meta-order'].usd) || 60));
+      setP('standard', pre + fmtMoney(bCalc));
+      setP('certified-musician', pre + fmtMoney(2 * bCalc));
+      setP('grand-musician', pre + fmtMoney(Math.round(3 * bCalc * (1 - discPct / 100) * 100) / 100));
+      if (cfg.levelPrices) Object.keys(cfg.levelPrices).forEach(function (k) {
+        var el = document.querySelector('[data-level-price="' + k + '"]'); if (el) el.textContent = fmtMoney(cfg.levelPrices[k]);
+      });
+      var badge = $('#grandSaveBadge');
+      if (badge) { if (discPct > 0) { badge.hidden = false; badge.textContent = 'Save ' + discPct + '%'; } else badge.hidden = true; }
+
+      var levelled  = prog === 'standard' || prog === 'certified-musician' || prog === 'grand-musician';
+      var needsExpr = prog === 'crash' || prog === 'standard' || prog === 'certified-musician';
+      var hasMinors = prog === 'certified-musician' || prog === 'grand-musician';
+      toggleHidden('#substepLevel', !levelled);
+      toggleHidden('#substepExpression', !needsExpr);
+      toggleHidden('#substepMinors', !hasMinors);
+      // Clear now-irrelevant selections so a stale value never prices or submits.
+      if (!levelled && data.level) { data.level = ''; uncheck('level'); }
+      if (prog === 'grand-musician') { data.expression = 'all'; }
+      else if (!needsExpr && data.expression) { data.expression = ''; uncheck('expression'); }
+      if (!hasMinors && (data.minors || []).length) { data.minors = []; }
+      if (hasMinors) renderMinors();
+      var sn = $('#sessionNote'); if (sn) sn.hidden = !data.session;
+      // Renumber only the *visible* substeps so hiding Level/Expression/Minors
+      // never leaves a confusing gap (e.g. "1, 2, 5, 6").
+      var step0 = $('.step[data-step="0"]');
+      if (step0) {
+        var n = 0;
+        $$('.substep-head', step0).forEach(function (h) {
+          var wrap = h.closest ? h.closest('.substep') : null;
+          if (wrap && wrap.hidden) return;
+          n++;
+          var num = h.querySelector('.substep-num'); if (num) num.textContent = n;
+        });
+      }
+    }
+
+    // Additional ("minor") courses — instruments/courses beyond the major, each
+    // at half the base. Rendered from a catalog, excluding the chosen major.
+    var MINOR_CATALOG = [
+      ['piano', 'Piano & Keyboard'], ['voice', 'Voice & Choir'], ['guitar', 'Guitar'],
+      ['bass', 'Bass'], ['violin', 'Violin / Strings'], ['saxophone', 'Saxophone'],
+      ['trumpet', 'Trumpet'], ['flute', 'Flute'], ['clarinet', 'Clarinet'],
+      ['drums', 'Drums & Percussion'], ['robotics', 'Robotics']
+    ];
+    var minorsRenderKey = null;
+    function renderMinors() {
+      var grid = $('#minorsGrid'); if (!grid) return;
+      var key = (data.discipline || '') + '|' + (data.level || '');
+      if (minorsRenderKey === key && grid.children.length) return;
+      minorsRenderKey = key;
+      // A minor can never equal the major.
+      data.minors = (data.minors || []).filter(function (m) { return m !== data.discipline; });
+      var half = ((cfg.levelPrices && cfg.levelPrices[data.level]) || 0) / 2;
+      grid.innerHTML = MINOR_CATALOG.filter(function (c) { return c[0] !== data.discipline; }).map(function (c) {
+        var on = data.minors.indexOf(c[0]) >= 0 ? ' checked' : '';
+        var price = half ? ('+' + fmtMoney(half)) : '+½ base';
+        return '<label class="choice-card"><input type="checkbox" name="minor" value="' + c[0] + '"' + on + '>'
+          + '<div class="choice-card-head"><span class="choice-card-title">' + escapeHtml(c[1]) + '</span><span class="choice-card-price">' + price + '</span></div>'
+          + '<span class="choice-card-icon"></span></label>';
+      }).join('');
+      $$('#minorsGrid input[name="minor"]').forEach(function (inp) {
+        on(inp, 'change', function () {
+          var i = data.minors.indexOf(inp.value);
+          if (inp.checked && i < 0) data.minors.push(inp.value);
+          else if (!inp.checked && i >= 0) data.minors.splice(i, 1);
+          saveDraft(); updateSummary();
+        });
+      });
     }
     function row(k, v) { return '<div class="summary-row"><span>' + k + '</span><span>' + escapeHtml(v) + '</span></div>'; }
     function titleCase(s) { return String(s || '').replace(/[-_]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }); }
@@ -396,10 +540,14 @@
       html += '<div class="review-section"><div class="review-section-head"><h4>Programme</h4><button type="button" data-jump="0">Edit</button></div><div class="review-grid">';
       var trk = deriveTrack(data.dob);
       html += item('Track', trk && cfg.tracks[trk] ? cfg.tracks[trk].name : '—');
-      html += item('Pathway', price ? price.name : '—');
+      html += item('Programme', price ? price.name : '—');
       html += item('Mode',    data.mode === 'online' ? 'Online' : (data.mode === 'onsite' ? 'Onsite Lagos' : '—'));
-      html += item('Programme', titleCase(data.program));
-      html += item('Course', titleCase(data.discipline));
+      if (data.level && cfg.levels && cfg.levels[data.level]) html += item('Level', cfg.levels[data.level]);
+      if (data.expression) html += item('Expression', data.pathway === 'grand-musician' ? 'All three' : titleCase(data.expression));
+      html += item('Focus', titleCase(data.program));
+      html += item('Primary course', titleCase(data.discipline));
+      if ((data.minors || []).length) html += item('Additional courses', data.minors.map(titleCase).join(', '));
+      if (data.session) html += item('Session', data.sessionLabel || titleCase(data.session));
       html += item('MAM Auditer', data.auditer ? 'Yes — book session' : 'No');
       html += '</div></div>';
       var ageDisp = ageFromDob(data.dob);
@@ -460,8 +608,9 @@
     // ---------- Field bindings ----------
     bindRadioGroup('pathway', 'pathway');
     bindRadioGroup('mode', 'mode');
+    bindRadioGroup('level', 'level');
+    bindRadioGroup('expression', 'expression');
     bindRadioGroup('discipline', 'discipline');
-    bindRadioGroup('session', 'session');
     bindRadioGroup('sex', 'sex');
     // phone + parentPhone are owned by intl-tel-input below; binding them here
     // would race with the country picker's setNumber().
@@ -715,7 +864,12 @@
         firstName: data.firstName, lastName: data.lastName,
         email: data.email, phone: data.phone,
         sex: data.sex,
-        pathway: data.pathway, mode: data.mode, program: data.program, discipline: data.discipline, session: data.session,
+        pathway: data.pathway, mode: data.mode,
+        level: data.level, expression: data.expression,
+        program: data.program, discipline: data.discipline,
+        extraCourses: (data.minors || []).length,
+        coursesLabel: (data.minors || []).map(titleCase).join(', '),
+        session: data.session,
         address: data.address, lga: data.lga, state: data.state,
         country: data.country, city: data.city, dob: data.dob,
         experience: data.experience, goals: data.goals, referrer: data.referrer,
@@ -736,6 +890,8 @@
     var SERVER_FIELDS = {
       pathway:          { id: null,              step: 0 },
       mode:             { id: null,              step: 0 },
+      level:            { id: null,              step: 0 },
+      expression:       { id: null,              step: 0 },
       program:          { id: 'program',         step: 0 },
       discipline:       { id: null,              step: 0 },
       session:          { id: null,              step: 0 },
@@ -754,7 +910,7 @@
       policySignedName: { id: 'policySignName',  step: 3 }
     };
     var FIELD_LABELS = {
-      pathway: 'pathway', mode: 'learning mode', program: 'programme', discipline: 'course', session: 'session',
+      pathway: 'programme', mode: 'learning mode', level: 'level', expression: 'expression', program: 'focus area', discipline: 'primary course', session: 'session',
       firstName: 'first name', lastName: 'last name', email: 'email',
       phone: 'mobile number', sex: 'sex',
       address: 'address', lga: 'local government', state: 'state', country: 'country',
@@ -847,6 +1003,33 @@
         fetch('/api/booking/pricing', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
           .then(function (r) { return r.json(); })
           .then(function (j) { if (j && j.ok) { feeTier = j; paintFee(); } })
+          .catch(function () {});
+      } catch (e) {}
+    })();
+
+    // ---------- Silent session ----------
+    // The academic session is NEVER a form step. It's resolved from the calendar
+    // server-side and shown read-only here; the server re-resolves at submit, so
+    // a stale client value can never be trusted.
+    (function loadSession() {
+      try {
+        fetch('/api/session/current', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (!j || !j.ok || !j.code) return;
+            data.session = j.code;
+            data.sessionLabel = (j.label || j.code) + (j.year ? ' ' + j.year : '');
+            saveDraft();
+            var lab = $('#sessionNoteLabel'); if (lab) lab.textContent = data.sessionLabel;
+            var sub = $('#sessionNoteSub');
+            if (sub) {
+              var s = '';
+              if (j.status === 'upcoming' && j.starts_on) s = ' · starts ' + j.starts_on;
+              else if (j.status === 'active') s = ' · enrolling now';
+              sub.textContent = s;
+            }
+            updateSummary();
+          })
           .catch(function () {});
       } catch (e) {}
     })();

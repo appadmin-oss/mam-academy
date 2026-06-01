@@ -42,12 +42,27 @@ $v = mam_validate_application($input);
 //   applicant as a separate line item.
 // (The standalone $22 certification add-on was retired: certification is now
 //  baked into the Certified/Grand Musician programme fee.)
-$prices = mam_prices();
-$total  = (float)($prices[$v['pathway']] ?? 0);
-if ($v['mode'] === 'online') {
-    $total = round($total * (1 + mam_online_surcharge_pct() / 100), 2);
+// Level-based engine (spec §2): Crash flat $70 · Standard B · Certified
+// 2B+0.5B·extra · Grand (3B+0.5B·extra)·(1−discount). The online adjustment is
+// folded in silently; the Grand discount IS surfaced. Server is authoritative.
+$priceInfo = mam_compute_application_price([
+    'programme'           => $v['pathway'],
+    'level'               => $v['level'],
+    'mode'                => $v['mode'],
+    'extraCourses'        => $v['extraCourses'],
+    'includeRegistration' => $v['includeRegistration'],
+]);
+// MetaMusic Order isn't level-priced — its flat fee comes from mam_prices().
+if ($v['pathway'] === 'meta-order') {
+    $flat  = (float)(mam_prices()['meta-order'] ?? 0);
+    $total = $flat + ($v['includeRegistration'] ? mam_registration_fee() : 0);
+} else {
+    $total = (float)$priceInfo['total'];
 }
-if ($v['includeRegistration']) $total += mam_registration_fee();
+
+// Session is resolved authoritatively from the academic calendar — never the
+// client. The form applies it silently; here we stamp the operative code.
+$v['session'] = (string)(mam_session_current()['code'] ?? $v['session']);
 
 $db = mam_db();
 $db->beginTransaction();
@@ -95,8 +110,12 @@ try {
         'customer_id'            => $customerId,
         'pathway'                => $v['pathway'],
         'mode'                   => $v['mode'],
+        'level'                  => $v['level'] ?: null,
+        'expression'             => $v['expression'] ?: null,
         'program'                => $v['program'],
         'discipline'             => $v['discipline'],
+        'extra_courses'          => $v['extraCourses'],
+        'courses_label'          => $v['coursesLabel'],
         'session'                => $v['session'],
         'headshot_url'           => $v['headshotUrl'],
         'experience'             => $v['experience'],

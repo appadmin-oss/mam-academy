@@ -203,16 +203,41 @@ function mam_validate_application(array $in): array {
     $out['phone'] = mam_phone(mam_str($in, 'phone', 24));
     if (!$out['phone']) $errors[] = 'phone';
 
-    $allowedPathways = ['certified-musician','grand-musician','crash','meta-order'];
+    $allowedPathways = ['standard','certified-musician','grand-musician','crash','meta-order'];
     $out['pathway'] = mam_str($in, 'pathway', 32);
     if (!mam_in($out['pathway'], $allowedPathways)) $errors[] = 'pathway';
 
     $out['mode'] = mam_str($in, 'mode', 16);
     if (!mam_in($out['mode'], ['online','onsite'])) $errors[] = 'mode';
 
-    // Session names are mapped to scale degrees: tonic/mediant/dominant + summer.
-    $out['session'] = mam_str($in, 'session', 12);
-    if (!mam_in($out['session'], ['toni','medi','summer','domi'])) $errors[] = 'session';
+    // Academic level (spec §2). Required for the level-priced programmes
+    // (standard/certified/grand); Crash is a flat fee with no level, and the
+    // MetaMusic Order is a standalone intensive — both leave it blank.
+    $levelled = in_array($out['pathway'], ['standard','certified-musician','grand-musician'], true);
+    $out['level'] = mam_str($in, 'level', 16);
+    if ($levelled) {
+        if (!mam_in($out['level'], array_keys(MAM_LEVELS))) $errors[] = 'level';
+    } else {
+        $out['level'] = ''; // ignored by pricing for crash/meta-order
+    }
+
+    // Performance expression. Asked for crash/standard/certified (exactly one);
+    // Grand spans all three (stored as 'all'); the MetaMusic Order has none.
+    $out['expression'] = mam_str($in, 'expression', 16);
+    if ($out['pathway'] === 'grand-musician') {
+        $out['expression'] = 'all';
+    } elseif ($out['pathway'] === 'meta-order') {
+        $out['expression'] = '';
+    } else {
+        if (!mam_in($out['expression'], ['classical','contemporary','african'])) $errors[] = 'expression';
+    }
+
+    // Session is NEVER user-chosen — it's resolved from the academic calendar
+    // server-side (see application.php / mam_session_current). Accept a client
+    // hint if it happens to be a valid code, but it is authoritatively
+    // overwritten before persistence, so it is never a validation error.
+    $sessHint = mam_str($in, 'session', 12);
+    $out['session'] = mam_in($sessHint, ['toni','medi','summer','domi']) ? $sessHint : '';
 
     $allowedPrograms = [
         'music-business','songwriting','audio-engineering',
@@ -286,6 +311,13 @@ function mam_validate_application(array $in): array {
     $out['auditer']               = mam_bool($in, 'auditer');
     $out['includeRegistration']   = mam_bool($in, 'includeRegistration');
     $out['includeCertification']  = mam_bool($in, 'includeCertification');
+
+    // Additional ("minor") courses beyond the primary one — each adds 0.5×base
+    // to Certified/Grand (spec §6). Only those two programmes carry minors; the
+    // count drives pricing, the label is a human-readable list for the record.
+    $minorsCarry = in_array($out['pathway'], ['certified-musician','grand-musician'], true);
+    $out['extraCourses'] = $minorsCarry ? max(0, min(12, (int)($in['extraCourses'] ?? 0))) : 0;
+    $out['coursesLabel'] = $minorsCarry ? (mam_str($in, 'coursesLabel', 400) ?: null) : null;
 
     // Under-16 (KTAMS) students must have a parent/guardian on record.
     if ($out['programTrack'] === 'KTAMS' && ($out['parentName'] === null || $out['parentName'] === '')) {

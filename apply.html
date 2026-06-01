@@ -84,39 +84,12 @@
         <div class="step-head">
           <div class="step-num">Step 1 of 5 · Programme</div>
           <h2 class="step-title">Choose Your Programme</h2>
-          <p class="step-desc">Three quick decisions. Don't overthink — you can change anything before payment, and <a href="auditer" style="color:var(--gold-bright)">MAM Auditer</a> will fine-tune your placement.</p>
+          <p class="step-desc">A few quick choices — the form adapts as you go. Don't overthink it: you can change anything before payment, and <a href="auditer" style="color:var(--gold-bright)">MAM Auditer</a> will fine-tune your placement.</p>
         </div>
 
+        <!-- 1 · Mode -->
         <div class="substep-head">
-          <span class="substep-num">1.1</span>
-          <span class="substep-title">Pick a programme</span>
-          <span class="substep-meta">Available across all four certification levels &amp; intensives</span>
-        </div>
-        <div class="field">
-          <label class="field-label sr-only">Programme <span class="req">*</span></label>
-          <div class="choice-grid">
-            <label class="choice-card"><input type="radio" name="pathway" value="crash">
-              <div class="choice-card-head"><span class="choice-card-title">Crash Programme</span><span class="choice-card-price">$40</span></div>
-              <span class="choice-card-desc">6-week accelerated intensive — fast track</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="pathway" value="meta-order">
-              <div class="choice-card-head"><span class="choice-card-title" style="display:inline-flex;align-items:center;gap:6px"><iconify-icon icon="fluent-emoji:fire" width="20" aria-hidden="true"></iconify-icon>MetaMusic Order</span><span class="choice-card-price">$60</span></div>
-              <span class="choice-card-desc">12-week civilization-engineering intensive</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="pathway" value="certified-musician">
-              <div class="choice-card-head"><span class="choice-card-title">Certified Musician</span><span class="choice-card-price">$230</span></div>
-              <span class="choice-card-desc">One major tradition + supporting courses · 12 weeks · all levels (Pre-Cert → Diploma)</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="pathway" value="grand-musician">
-              <div class="choice-card-head"><span class="choice-card-title">Grand Musician</span><span class="choice-card-price">$310</span></div>
-              <span class="choice-card-desc">All three traditions — African, Classical &amp; Contemporary + supporting courses · flagship · online or onsite</span>
-              <span class="choice-card-icon"></span></label>
-          </div>
-          <div class="field-error" id="err-pathway"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a programme</span></div>
-        </div>
-
-        <div class="substep-head">
-          <span class="substep-num">1.2</span>
+          <span class="substep-num">1</span>
           <span class="substep-title">How will you learn?</span>
           <span class="substep-meta">Online from anywhere · onsite in Lagos</span>
         </div>
@@ -135,22 +108,98 @@
           <div class="field-error" id="err-mode"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a learning mode</span></div>
         </div>
 
+        <!-- 2 · Programme -->
         <div class="substep-head">
-          <span class="substep-num">1.3</span>
-          <span class="substep-title">Choose your programme focus</span>
-          <span class="substep-meta">The discipline area that frames your studies</span>
+          <span class="substep-num">2</span>
+          <span class="substep-title">Pick a programme</span>
+          <span class="substep-meta">From a single crash course to the full Grand Musician path</span>
         </div>
         <div class="field">
-          <label class="field-label" for="program">Programme <span class="req">*</span></label>
+          <label class="field-label sr-only">Programme <span class="req">*</span></label>
+          <div class="choice-grid" id="programmeGrid">
+            <label class="choice-card"><input type="radio" name="pathway" value="crash">
+              <div class="choice-card-head"><span class="choice-card-title">Crash Programme</span><span class="choice-card-price" data-prog-price="crash">$70</span></div>
+              <span class="choice-card-desc">6-week accelerated intensive — one course, flat fee, no levels.</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="pathway" value="standard">
+              <div class="choice-card-head"><span class="choice-card-title">Standard</span><span class="choice-card-price" data-prog-price="standard">from $120</span></div>
+              <span class="choice-card-desc">One course at your chosen level — the core single-discipline path.</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="pathway" value="certified-musician">
+              <div class="choice-card-head"><span class="choice-card-title">Certified Musician</span><span class="choice-card-price" data-prog-price="certified-musician">from $240</span></div>
+              <span class="choice-card-desc">A major course + the four compulsory MAM courses · add more at half price.</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="pathway" value="grand-musician">
+              <div class="choice-card-head"><span class="choice-card-title">Grand Musician <span class="prog-badge" id="grandSaveBadge" hidden></span></span><span class="choice-card-price" data-prog-price="grand-musician">from $313</span></div>
+              <span class="choice-card-desc">All three expressions — African, Classical &amp; Contemporary — plus compulsory courses. Flagship path.</span>
+              <span class="choice-card-icon"></span></label>
+            <label class="choice-card"><input type="radio" name="pathway" value="meta-order">
+              <div class="choice-card-head"><span class="choice-card-title" style="display:inline-flex;align-items:center;gap:6px"><iconify-icon icon="fluent-emoji:fire" width="20" aria-hidden="true"></iconify-icon>MetaMusic Order</span><span class="choice-card-price" data-prog-price="meta-order">$60</span></div>
+              <span class="choice-card-desc">12-week civilization-engineering intensive — standalone.</span>
+              <span class="choice-card-icon"></span></label>
+          </div>
+          <div class="field-error" id="err-pathway"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a programme</span></div>
+        </div>
+
+        <!-- 3 · Level (hidden for crash & meta-order) -->
+        <div class="substep" id="substepLevel" hidden>
+          <div class="substep-head">
+            <span class="substep-num">3</span>
+            <span class="substep-title">Choose your level</span>
+            <span class="substep-meta">Your academic tier — it sets the base price</span>
+          </div>
+          <div class="field">
+            <label class="field-label sr-only">Level <span class="req">*</span></label>
+            <div class="choice-grid">
+              <label class="choice-card"><input type="radio" name="level" value="precert">
+                <div class="choice-card-head"><span class="choice-card-title">Pre-Certificate</span><span class="choice-card-price" data-level-price="precert">$120</span></div>
+                <span class="choice-card-desc">Foundations — for new &amp; returning students.</span><span class="choice-card-icon"></span></label>
+              <label class="choice-card"><input type="radio" name="level" value="cert">
+                <div class="choice-card-head"><span class="choice-card-title">Certificate</span><span class="choice-card-price" data-level-price="cert">$130</span></div>
+                <span class="choice-card-desc">Working-musician competencies.</span><span class="choice-card-icon"></span></label>
+              <label class="choice-card"><input type="radio" name="level" value="prediploma">
+                <div class="choice-card-head"><span class="choice-card-title">Pre-Diploma</span><span class="choice-card-price" data-level-price="prediploma">$160</span></div>
+                <span class="choice-card-desc">Advanced performance &amp; theory.</span><span class="choice-card-icon"></span></label>
+              <label class="choice-card"><input type="radio" name="level" value="diploma">
+                <div class="choice-card-head"><span class="choice-card-title">Diploma</span><span class="choice-card-price" data-level-price="diploma">$180</span></div>
+                <span class="choice-card-desc">Professional mastery &amp; capstone.</span><span class="choice-card-icon"></span></label>
+            </div>
+            <div class="field-error" id="err-level"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose your level</span></div>
+          </div>
+        </div>
+
+        <!-- 4 · Expression (hidden for grand &amp; meta-order) -->
+        <div class="substep" id="substepExpression" hidden>
+          <div class="substep-head">
+            <span class="substep-num">4</span>
+            <span class="substep-title">Choose your expression</span>
+            <span class="substep-meta">The tradition you'll specialise in</span>
+          </div>
+          <div class="field">
+            <label class="field-label sr-only">Expression <span class="req">*</span></label>
+            <div class="choice-grid">
+              <label class="choice-card"><input type="radio" name="expression" value="classical">
+                <div class="choice-card-head"><span class="choice-card-title">Classical</span></div><span class="choice-card-desc">Western art-music tradition.</span><span class="choice-card-icon"></span></label>
+              <label class="choice-card"><input type="radio" name="expression" value="contemporary">
+                <div class="choice-card-head"><span class="choice-card-title">Contemporary</span></div><span class="choice-card-desc">Pop, gospel, jazz &amp; modern styles.</span><span class="choice-card-icon"></span></label>
+              <label class="choice-card"><input type="radio" name="expression" value="african">
+                <div class="choice-card-head"><span class="choice-card-title">African</span></div><span class="choice-card-desc">Indigenous &amp; afro traditions.</span><span class="choice-card-icon"></span></label>
+            </div>
+            <div class="field-error" id="err-expression"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose an expression</span></div>
+          </div>
+        </div>
+
+        <!-- 5 · Focus area -->
+        <div class="substep-head">
+          <span class="substep-num">5</span>
+          <span class="substep-title">Choose your focus area</span>
+          <span class="substep-meta">The discipline that frames your studies</span>
+        </div>
+        <div class="field">
+          <label class="field-label" for="program">Focus area <span class="req">*</span></label>
           <div class="field-select-wrap">
             <select id="program" class="field-select" data-enhance="select">
-              <option value="">Select a programme</option>
-              <optgroup label="Performance">
-                <option value="classical">Classical Musician / Artist</option>
-                <option value="contemporary">Contemporary Musician / Artist</option>
-                <option value="african">African Musician / Artist</option>
-                <option value="grand">Grand Musician / Artist</option>
-              </optgroup>
+              <option value="">Select a focus area</option>
               <optgroup label="Creation & Production">
                 <option value="songwriting">Songwriting / Composition (SCP)</option>
                 <option value="audio-engineering">Audio Engineering</option>
@@ -169,13 +218,14 @@
             </select>
             <i class="fa-solid fa-chevron-down field-select-arrow"></i>
           </div>
-          <div class="field-error" id="err-program"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a programme</span></div>
+          <div class="field-error" id="err-program"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a focus area</span></div>
         </div>
 
+        <!-- 6 · Primary course -->
         <div class="substep-head">
-          <span class="substep-num">1.4</span>
+          <span class="substep-num">6</span>
           <span class="substep-title">Pick your primary course</span>
-          <span class="substep-meta">You can study more than one — choose the main focus first</span>
+          <span class="substep-meta">Your major — the main discipline you'll study</span>
         </div>
         <div class="field">
           <label class="field-label sr-only">Primary Course <span class="req">*</span></label>
@@ -199,32 +249,26 @@
           <div class="field-error" id="err-discipline"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a course</span></div>
         </div>
 
-        <div class="substep-head">
-          <span class="substep-num">1.5</span>
-          <span class="substep-title">Preferred session</span>
-          <span class="substep-meta">Intake periods named after scale degrees — pick the one that fits your calendar</span>
-        </div>
-        <div class="field">
-          <label class="field-label sr-only">Session <span class="req">*</span></label>
-          <div class="choice-grid">
-            <label class="choice-card"><input type="radio" name="session" value="toni">
-              <div class="choice-card-head"><span class="choice-card-title">TONI</span></div>
-              <span class="choice-card-desc">Tonic · first session of the academic cycle (Jan – Mar).</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="session" value="medi">
-              <div class="choice-card-head"><span class="choice-card-title">MEDI</span></div>
-              <span class="choice-card-desc">Mediant · mid-year session (Apr – Jun).</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="session" value="summer">
-              <div class="choice-card-head"><span class="choice-card-title">SUMMER</span></div>
-              <span class="choice-card-desc">Summer intensive (Jul – Aug) — for crash &amp; holiday tracks.</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="session" value="domi">
-              <div class="choice-card-head"><span class="choice-card-title">DOMI</span></div>
-              <span class="choice-card-desc">Dominant · year-closing session (Sep – Dec).</span>
-              <span class="choice-card-icon"></span></label>
+        <!-- 7 · Additional courses (minors) — shown for Certified &amp; Grand only -->
+        <div class="substep" id="substepMinors" hidden>
+          <div class="substep-head">
+            <span class="substep-num">7</span>
+            <span class="substep-title">Add more courses</span>
+            <span class="substep-meta">Optional — each additional course is half the base price</span>
           </div>
-          <div class="field-error" id="err-session"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a session</span></div>
+          <div class="compulsory-note">
+            <i class="fa-solid fa-circle-check"></i>
+            <div><strong>Already included in your programme:</strong> Music Theory, MetaMusic, APE &amp; Rhythm Intelligence are built in — at no extra charge.</div>
+          </div>
+          <div class="field">
+            <div class="choice-grid" id="minorsGrid"><!-- rendered by JS; excludes your chosen major --></div>
+          </div>
+        </div>
+
+        <!-- Session is resolved silently from the academic calendar (no step). -->
+        <div class="session-note" id="sessionNote" hidden>
+          <i class="fa-solid fa-calendar-day"></i>
+          <div>Your intake: <strong id="sessionNoteLabel">—</strong><span id="sessionNoteSub"></span></div>
         </div>
 
         <div class="step-actions">
@@ -530,6 +574,18 @@
   <!-- Step-5 regional-fee + payment-card styles. Scoped to .pay-card / .pay-* so
        they don't bleed into other pages. -->
   <style>
+    /* Step-1 additions: conditional substeps, save badge, included-courses note,
+       silent-session note. Scoped to apply-specific classes. */
+    .substep{margin-top:6px}
+    .prog-badge{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:#34D399;color:#062b1e;font-size:0.66rem;font-weight:800;letter-spacing:0.03em;vertical-align:middle}
+    .substep-note{display:flex;gap:8px;align-items:flex-start;font-size:0.84rem;color:var(--text-muted);margin:10px 2px 0;line-height:1.5}
+    .substep-note i{color:var(--gold-bright);margin-top:2px}
+    .compulsory-note{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin:0 0 14px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.28);border-radius:12px;font-size:0.86rem;color:var(--text-soft);line-height:1.5}
+    .compulsory-note i{color:#34D399;margin-top:2px;font-size:1rem}
+    .session-note{display:flex;gap:10px;align-items:center;padding:12px 14px;margin:16px 0 0;background:var(--bg-surface);border:1px dashed var(--border-gold);border-radius:12px;font-size:0.88rem;color:var(--text-soft)}
+    .session-note i{color:var(--gold-bright);font-size:1.05rem}
+    .session-note span{display:block;font-size:0.78rem;color:var(--text-muted);margin-top:2px}
+    .summary-discount span:last-child{color:#34D399;font-weight:700}
     .pay-card{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;padding:22px;margin:0 0 22px;background:linear-gradient(160deg,rgba(224,138,26,0.10),var(--bg-surface));border:1px solid var(--border-gold);border-radius:18px}
     @media (max-width:560px){.pay-card{grid-template-columns:1fr;text-align:center}.pay-card-covers{text-align:left}}
     .pay-card-amount{font-family:var(--font-display);font-size:3.4rem;line-height:1;color:var(--text);letter-spacing:0.02em}
@@ -555,10 +611,10 @@
 <div id="include-footer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/js/intlTelInputWithUtils.min.js"></script>
-<script src="assets/js/config.js?v=20260531d"></script>
+<script src="assets/js/config.js?v=20260601a"></script>
 <script src="assets/js/main.js?v=20260531b"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
 <script src="assets/js/headshot.js?v=20260530a"></script>
-<script src="assets/js/apply.js?v=20260531b"></script>
+<script src="assets/js/apply.js?v=20260601a"></script>
 </body>
 </html>

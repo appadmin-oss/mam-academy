@@ -69,7 +69,7 @@ function mam_db_migrate_mysql(PDO $db): void {
     $current = 0;
     try { $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0); } catch (Throwable $e) {}
 
-    $target = 12;
+    $target = 13;
     if ($current >= $target) return;
 
     $path = realpath(__DIR__ . '/../../db/schema-mysql.sql');
@@ -457,6 +457,15 @@ function mam_db_migrate(PDO $db): void {
         // so an admin who deliberately set a different Crash price is untouched.
         12 => "UPDATE settings SET svalue='70', updated_at=datetime('now')
                  WHERE skey='price_crash' AND svalue='40';",
+        // v13 — level-based application model (spec §2). The rebuilt form
+        // captures the academic level, the performance expression, and the
+        // count/label of additional ("minor") courses beyond the primary one.
+        13 => "
+            ALTER TABLE applications ADD COLUMN level TEXT;
+            ALTER TABLE applications ADD COLUMN expression TEXT;
+            ALTER TABLE applications ADD COLUMN extra_courses INTEGER DEFAULT 0;
+            ALTER TABLE applications ADD COLUMN courses_label TEXT;
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

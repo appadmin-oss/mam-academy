@@ -84,7 +84,24 @@ compatibility alias mapped from `programme`.
 
 ---
 
-## 3. Application Form rebuild (`apply.html` + `apply.js`) — NEXT (Phase 2)
+## 3. Application Form rebuild (`apply.html` + `apply.js`) — ✅ DONE (Phase 2)
+
+Shipped: Step-1 substeps reordered to Mode → Programme → Level → Expression →
+Focus → Course → Add-courses, all inside the existing 5-step top stepper (so
+deep-links, server-field mapping and submit-on-review stayed intact). Level &
+Expression substeps render conditionally (hidden + cleared for Crash/Meta and
+Grand respectively); visible substeps renumber dynamically. Minors render from a
+catalog excluding the chosen major; Grand discount surfaced (badge + summary
+line). Session is fetched from `/api/session/current`, shown read-only, and
+re-resolved server-side at submit. Client pricing mirrors the engine; the server
+recomputes authoritatively. Verified end-to-end: Grand+diploma+2-minors online =
+$756.68, Crash = $75 flat, Standard-missing-level rejected. Backend: validation
+extended (level/expression/extraCourses/coursesLabel, session optional),
+`application.php` switched to `mam_compute_application_price()` +
+`mam_session_current()`, DB migration v13 adds level/expression/extra_courses/
+courses_label.
+
+### Original plan (for reference)
 
 New linear, logic-driven flow — each step's options derive from the previous:
 

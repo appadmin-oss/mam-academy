@@ -417,3 +417,11 @@ INSERT INTO schema_version (version) VALUES (11) ON DUPLICATE KEY UPDATE version
 -- for existing installs; conditional so a deliberately-changed price is kept.
 UPDATE settings SET svalue='70' WHERE skey='price_crash' AND svalue='40';
 INSERT INTO schema_version (version) VALUES (12) ON DUPLICATE KEY UPDATE version = version;
+
+-- v13: level-based application model (spec §2). 1060 (duplicate column) is in
+-- the migrator's expected-error list, so re-running is safe.
+ALTER TABLE applications ADD COLUMN level VARCHAR(16) NULL;
+ALTER TABLE applications ADD COLUMN expression VARCHAR(16) NULL;
+ALTER TABLE applications ADD COLUMN extra_courses INT NOT NULL DEFAULT 0;
+ALTER TABLE applications ADD COLUMN courses_label TEXT NULL;
+INSERT INTO schema_version (version) VALUES (13) ON DUPLICATE KEY UPDATE version = version;
