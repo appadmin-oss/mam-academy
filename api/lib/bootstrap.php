@@ -85,6 +85,7 @@ set_exception_handler(function (Throwable $e) {
 // exception handler. register_shutdown_function + error_get_last is the
 // only way to convert them into a clean JSON response.
 register_shutdown_function(function () {
+    if (PHP_SAPI === 'cli') return; // CLI scripts (bin/*) manage their own output
     $err = error_get_last();
     $fatal = $err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR, E_RECOVERABLE_ERROR], true);
     if ($fatal) {

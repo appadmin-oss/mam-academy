@@ -8,6 +8,10 @@ $remember = isset($in['remember']) ? (bool)$in['remember'] : true;
 
 if (!$email || !$password) mam_fail('validation', 422, ['fields' => ['email', 'password']]);
 
+// On a fresh install, provision the env-configured admin so the very first
+// sign-in works with zero manual steps. No-op once any user exists.
+mam_maybe_seed_admin_from_env();
+
 $user = mam_login($email, $password, $remember);
 if (!$user) mam_fail('invalid_credentials', 401);
 

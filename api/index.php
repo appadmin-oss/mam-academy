@@ -25,6 +25,10 @@ $r = new MamRouter();
 $r->get('/health',  $f('health.php'));
 $r->get('/csrf',    $f('csrf-token.php'));
 $r->get('/diag',    $f('diag.php'));
+// First-run installer (self-disables once any user exists). Token-guarded via
+// SETUP_TOKEN env when set. No CSRF: it's a one-time bootstrap before any login.
+$r->get ('/setup', $f('setup.php'), [mw_rate_limit('setup', 30, 600)]);
+$r->post('/setup', $f('setup.php'), [mw_rate_limit('setup', 10, 600)]);
 // Booking-fee status — public (no PII surfaced). /book polls this to decide
 // whether to show the $5 CTA or the unlocked Google appointment embed.
 $r->get('/booking/status',  $f('booking-status.php'),  [mw_rate_limit('booking_status', 60, 60)]);

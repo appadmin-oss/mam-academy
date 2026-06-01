@@ -10,6 +10,67 @@
  */
 declare(strict_types=1);
 
+/** How many user accounts exist (0 ⇒ fresh install, setup not yet run). */
+function mam_user_count(): int {
+    try {
+        $r = mam_db_row('SELECT COUNT(*) AS c FROM users');
+        return (int)($r['c'] ?? 0);
+    } catch (Throwable $e) { return 0; }
+}
+
+/**
+ * Create or update an administrator account (idempotent by email). Used by the
+ * first-run installer (/api/setup), the CLI (api/bin/create-admin.php) and the
+ * env auto-provisioner. Returns ['id','email','created'].
+ * Throws InvalidArgumentException on a bad email or a password under 8 chars.
+ */
+function mam_create_admin(string $email, string $password, string $name = 'Administrator'): array {
+    $email = strtolower(trim($email));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new InvalidArgumentException('invalid_email');
+    if (strlen($password) < 8)                      throw new InvalidArgumentException('weak_password');
+    $hash = password_hash($password, PASSWORD_BCRYPT);
+    $now  = date('Y-m-d H:i:s');
+    $existing = mam_db_row('SELECT id FROM users WHERE email = ?', [$email]);
+    if ($existing) {
+        mam_db_update('users', [
+            'password_hash' => $hash, 'role' => 'admin', 'status' => 'active',
+            'name' => $name, 'must_change_password' => 0, 'updated_at' => $now,
+        ], ['id' => (int)$existing['id']]);
+        return ['id' => (int)$existing['id'], 'email' => $email, 'created' => false];
+    }
+    $id = mam_db_insert('users', [
+        'email' => $email, 'password_hash' => $hash, 'role' => 'admin',
+        'name' => $name, 'status' => 'active', 'must_change_password' => 0,
+    ]);
+    return ['id' => $id, 'email' => $email, 'created' => true];
+}
+
+/**
+ * Auto-provision the first admin from env on a fresh install, so a correctly
+ * configured deploy can log in immediately. No-op once any user exists. Needs
+ * ADMIN_EMAIL plus ADMIN_PASSWORD or ADMIN_PASSWORD_HASH.
+ */
+function mam_maybe_seed_admin_from_env(): void {
+    if (mam_user_count() > 0) return;
+    $email = (string)mam_env('ADMIN_EMAIL', '');
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+    $hash  = (string)mam_env('ADMIN_PASSWORD_HASH', '');
+    $plain = (string)mam_env('ADMIN_PASSWORD', '');
+    try {
+        if ($hash !== '') {
+            mam_db_insert('users', [
+                'email' => strtolower($email), 'password_hash' => $hash, 'role' => 'admin',
+                'name' => (string)mam_env('ADMIN_NAME', 'Administrator'), 'status' => 'active',
+            ]);
+        } elseif (strlen($plain) >= 8) {
+            mam_create_admin($email, $plain, (string)mam_env('ADMIN_NAME', 'Administrator'));
+        } else { return; }
+        mam_log('info', 'admin_seeded_from_env', ['email' => strtolower($email)]);
+    } catch (Throwable $e) {
+        mam_log('warn', 'admin_seed_failed', ['err' => $e->getMessage()]);
+    }
+}
+
 function mam_login(string $email, string $password, bool $remember = true): ?array {
     $email = strtolower(trim($email));
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
