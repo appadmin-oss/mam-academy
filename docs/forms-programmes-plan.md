@@ -84,7 +84,7 @@ compatibility alias mapped from `programme`.
 
 ---
 
-## 3. Application Form rebuild (`apply.html` + `apply.js`)
+## 3. Application Form rebuild (`apply.html` + `apply.js`) — NEXT (Phase 2)
 
 New linear, logic-driven flow — each step's options derive from the previous:
 
@@ -92,26 +92,35 @@ New linear, logic-driven flow — each step's options derive from the previous:
 Mode → Level → Programme → Expression → Discipline → Course → (Profile → Review → Pay)
 ```
 
-1. **Mode** — onsite | online. (Drives backend price only; no fee shown.)
-2. **Level** — Pre-Certification | Certification I | Pre-Diploma | Diploma.
-3. **Programme** — Crash | Standard | Certified | Grand (low→high).
-4. **Expression** — Classical | Contemporary | African.
-   - **Skipped entirely for Grand** (all three applied silently).
-   - Crash/Standard/Certified: exactly one.
-5. **Discipline** — programme focus (→ proposed: this becomes the *primary
-   course*; needs catalog, §9).
-6. **Course** — selection rules per programme (§6). Compulsory courses
-   pre-checked & locked for Certified/Grand.
+Confirmed taxonomy (from review):
+- **Level** — Pre-Certificate · Certificate · Pre-Diploma · Diploma. Drives price.
+- **Programme** — Crash · Standard · Certified · Grand (low→high).
+- **Expression** — Classical / Contemporary / African. **Conditionally rendered**
+  (removed from the DOM, not just hidden) and the stepper renumbers 6→5 for
+  **Grand** (all three auto-applied).
+- **Discipline = a separate focus area** (Songwriting, Production, Music
+  Education, Direction, Orchestration, Arranging, Film Scoring, Conducting,
+  Music Business…) — the current `program` dropdown minus the expression
+  entries and minus "Music Theory". It is metadata, NOT the priced course.
+- **Course** — pick **one major** (primary course, full price) **+ optional
+  minors** (each 50% of base). Catalog: Theory, MetaMusic, APE, Rhythm,
+  Instruments (current list) + a free-text "Other". For Certified/Grand the 4
+  compulsory (Theory/MetaMusic/APE/Rhythm) render in a locked "Included in your
+  programme" group; minors live under "Add more courses (50% each)".
+- **Session** — never a step; resolved from `/api/session/current` and shown
+  read-only in the summary as a timeline (§8.1/§8.2).
+- **Grand 13% discount** surfaced (strikethrough + "Save 13%"/"You save $X").
 
-Implementation notes:
-- Replace the current `pathway/mode/discipline` radio model with a step machine
-  driven by a `PROGRAMME_RULES` config object (mirrors the server rules).
-- **Session**: never rendered. On load, `GET /api/session/current` returns the
-  active `{code, year}`; stored in `data.session` and submitted; server
-  re-resolves authoritatively (never trusts client).
-- Deep-link prefill (`?programme=…`) still supported, validated against rules.
-- Live summary shows only the **final price** (post-adjustment), itemised by
-  course at the adjusted rate — no mode line.
+Implementation surface: rebuild Step-1 substeps in `apply.html`; rework
+`apply.js` (data model, conditional Expression + stepper renumber, level-driven
+price cards, course grid with locked compulsory + major + minors, discount line,
+silent session fetch, submit payload, deep-links, XSS allowlist for new fields);
+add `apply.css` for the locked-course group; backend: extend
+`mam_validate_application` (level, programme incl. `standard`, expression(s),
+discipline, major, minors[]; session optional → server-resolved), switch
+`application.php` to `mam_compute_application_price()` + `mam_session_current()`,
+a small DB migration for the new columns (level, expressions, primary_course,
+extra_courses), and confirmation/invoice emails showing only the final total.
 
 ---
 
@@ -206,7 +215,13 @@ price**; mismatch → 422.
 
 ---
 
-## 9. OPEN DATA — needed before §3/§5/§6 code
+## 9. OPEN DATA — ✅ RESOLVED (see spec + review answers)
+
+Base prices per level (120/130/160/180), online adjustment kept (silent),
+Grand 13% discount, Discipline = separate focus area, Course = one major +
+minors. Pricing engine (Phase 1) implemented & tested against these.
+
+### (original asks, for reference)
 
 1. **Primary course price** (the base everything derives from). Is ~\$77 right,
    or give the exact figure? Does it **vary by Level** (Pre-Cert→Diploma) and/or
@@ -233,8 +248,10 @@ price**; mismatch → 422.
 ## 11. Suggested sequence
 
 1. **Phase 0** — ✅ DONE. Cleanups (§10) + **Sessions engine** (§4).
-2. **Phase 1** — Pricing engine (§5) + per-programme rules (§6) — needs §9.
-3. **Phase 2** — Application Form rebuild (§3).
+2. **Phase 1** — ✅ DONE. Pricing engine (§5) + per-programme rules (§6),
+   backend-only & tested; live charging still on legacy prices until Phase 2.
+3. **Phase 2** — NEXT. Application Form rebuild (§3) — flips charging to the
+   new engine. Also adds SEO structured data (done as a separate pass).
 4. **Phase 3** — Sessions admin + Promotions (§7).
 5. **Phase 4** — One-Time Programme builder (§8).
 
