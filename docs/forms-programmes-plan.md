@@ -115,10 +115,16 @@ Implementation notes:
 
 ---
 
-## 4. Sessions engine (`api/lib/session.php`) — Phase 1, fully specified
+## 4. Sessions engine (`api/lib/academic-session.php`) — ✅ DONE (Phase 0)
 
-`mam_session_current(DateTime $now = today): array` → `{code, year, starts_on,
-ends_on, source: 'admin'|'default'}`.
+> Named `academic-session.php` to avoid colliding with the existing auth
+> `api/lib/session.php`. Shipped with no DB migration — admin overrides ride on
+> the existing key/value settings store (`academic_session_overrides`).
+
+`mam_session_current(?DateTimeInterface $now = null, ?array $overrides = null): array`
+→ `{code, label, year, starts_on, ends_on, status, source, next:{…}}`. Endpoint
+`GET /api/session/current` is live. Verified against a year of dates + the live
+bootstrap.
 
 Default fallback (when no admin dates set):
 - **TONI**: first Monday ≥ 2 weeks after Jan 1 → 12 weeks + 1 week break.
@@ -226,7 +232,7 @@ price**; mismatch → 422.
 
 ## 11. Suggested sequence
 
-1. **Phase 0** — Cleanups (§10) + **Sessions engine** (§4) — no blockers.
+1. **Phase 0** — ✅ DONE. Cleanups (§10) + **Sessions engine** (§4).
 2. **Phase 1** — Pricing engine (§5) + per-programme rules (§6) — needs §9.
 3. **Phase 2** — Application Form rebuild (§3).
 4. **Phase 3** — Sessions admin + Promotions (§7).

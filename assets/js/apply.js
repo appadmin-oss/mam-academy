@@ -290,13 +290,19 @@
     }
 
     // ---------- Pricing & summary (display only; server enforces) ----------
+    // The programme fee already folds in any mode-based adjustment. We surface
+    // only the FINAL figure to the applicant — the adjustment is never shown as
+    // a separate line (it stays a backend pricing concern).
+    function programmeFeeUsd() {
+      var p = cfg.pricing[data.pathway]; var fee = p ? p.usd : 0;
+      if (p && data.mode === 'online' && cfg.onlineSurchargePct) {
+        fee = Math.round(fee * (1 + cfg.onlineSurchargePct / 100) * 100) / 100;
+      }
+      return fee;
+    }
     function computeTotalUsd() {
       if (data.serverTotalUsd != null) return data.serverTotalUsd;
-      var p = cfg.pricing[data.pathway]; var sum = p ? p.usd : 0;
-      // Online learners pay a programme-fee premium (server is authoritative).
-      if (p && data.mode === 'online' && cfg.onlineSurchargePct) {
-        sum = Math.round(sum * (1 + cfg.onlineSurchargePct / 100) * 100) / 100;
-      }
+      var sum = programmeFeeUsd();
       if (data.includeRegistration) sum += cfg.registrationFeeUsd || 0;
       return sum;
     }
@@ -309,12 +315,9 @@
     function updateSummary() {
       var summary = $('#applySummary'); if (!summary) return;
       var price = cfg.pricing[data.pathway]; var rows = '';
-      if (price) rows += row('Programme', price.name) + row('Tuition', fmtMoney(price.usd));
+      if (price) rows += row('Programme', price.name) + row('Tuition', fmtMoney(programmeFeeUsd()));
       if (data.mode)       rows += row('Mode', data.mode === 'online' ? 'Online' : 'Onsite');
       if (data.discipline) rows += row('Discipline', titleCase(data.discipline));
-      if (price && data.mode === 'online' && cfg.onlineSurchargePct) {
-        rows += row('Online (+' + cfg.onlineSurchargePct + '%)', fmtMoney(price.usd * cfg.onlineSurchargePct / 100));
-      }
       if (data.includeRegistration && cfg.registrationFeeUsd) rows += row('Registration', fmtMoney(cfg.registrationFeeUsd));
       var total = computeTotalUsd();
       rows += '<div class="summary-total"><span>Total</span><span>' + fmtMoney(total) + '</span></div>';
@@ -983,30 +986,14 @@
           var err = $('#err-discipline'); if (err) err.classList.remove('shown');
         }
       }
-      enforceGrandOnsite();
       renderPathwayHint();
       renderAddonContext();
     }
 
-    // Grand Musician is an onsite-only programme: disable the Online mode while
-    // it's selected and snap any existing Online choice back to Onsite (which
-    // re-runs the normal policy/side-effects via a real change event).
-    function enforceGrandOnsite() {
-      var online = document.querySelector('input[name="mode"][value="online"]');
-      var onsite = document.querySelector('input[name="mode"][value="onsite"]');
-      if (!online || !onsite) return;
-      var grand = data.pathway === 'grand-musician';
-      var card = online.closest('.choice-card');
-      online.disabled = grand;
-      if (card) { card.classList.toggle('is-disabled', grand); card.setAttribute('aria-disabled', String(grand)); }
-      if (grand && (data.mode === 'online' || online.checked)) {
-        online.checked = false;
-        onsite.checked = true;
-        onsite.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    }
+    // Every programme — Grand Musician included — can be taken online or onsite.
+    // The mode-based price difference is handled entirely on the server, so the
+    // form imposes no mode restriction per programme.
     $$('input[name="pathway"]').forEach(function (i) { on(i, 'change', reactToPathwayChange); });
-    enforceGrandOnsite(); // honour deep-links like ?pathway=grand-musician on load
 
     // 2) Pathway → Add-on relevance. The standalone $22 graduation add-on was
     //    retired (certification is now baked into the programme fee), leaving
