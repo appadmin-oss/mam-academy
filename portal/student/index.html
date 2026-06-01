@@ -141,9 +141,10 @@
         + '<td data-label="Discipline">' + P.escapeHtml(a.discipline || '—') + '</td>'
         + '<td data-label="Total">' + P.fmtMoney(a.total_usd, 'USD') + '</td>'
         + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
-        + '<td data-label="Submitted">' + P.fmtDateTime(a.created_at) + '</td></tr>';
+        + '<td data-label="Submitted">' + P.fmtDateTime(a.created_at) + '</td>'
+        + '<td data-label="Invoice"><a class="btn btn-ghost" style="padding:5px 12px;font-size:0.78rem" href="/api/invoice/' + encodeURIComponent(a.reference) + '" target="_blank" rel="noopener"><i class="fa-solid fa-file-invoice"></i> View</a></td></tr>';
     }).join('');
-    content.innerHTML = '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Pathway · Mode</th><th>Discipline</th><th>Total</th><th>Status</th><th>Submitted</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    content.innerHTML = '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Pathway · Mode</th><th>Discipline</th><th>Total</th><th>Status</th><th>Submitted</th><th>Invoice</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
   }
 
   function renderClasses() {

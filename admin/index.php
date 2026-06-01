@@ -833,7 +833,7 @@ button.tiny:hover{border-color:var(--gold)}
     // that's behind on migrations because schema-mysql.sql wasn't run after
     // a deploy. The button POSTs /admin/migrate which runs the idempotent
     // schema file. Safe to click repeatedly.
-    $schemaVersion = 0; $schemaTarget = 11;
+    $schemaVersion = 0; $schemaTarget = 13;
     try {
       $schemaVersion = (int)mam_db()->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn();
     } catch (Throwable $e) {}

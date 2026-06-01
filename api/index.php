@@ -90,6 +90,7 @@ $r->group('/student', function (MamRouter $r) use ($f) {
 /* ─── Instructor portal ─── */
 $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->get ('/dashboard',        $f('instructor/dashboard.php'),       [mw_role('instructor', 'admin')]);
+    $r->get ('/student',          $f('instructor/student.php'),         [mw_role('instructor', 'admin')]);
     $r->post('/mark-attendance',  $f('instructor/mark-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
 });
