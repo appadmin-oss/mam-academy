@@ -28,6 +28,7 @@ mam_ok([
         'email' => $u['email'],
         'phone' => $u['phone'],
         'avatar_url' => $u['avatar_url'],
+        'must_change_password' => (int)($u['must_change_password'] ?? 0) === 1,
     ],
     'profile' => $profile,
     'classes' => $classes,

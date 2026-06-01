@@ -32,6 +32,7 @@
       <a class="portal-nav-link active" href="#overview" data-tab="overview"><i class="fa-solid fa-gauge"></i>Overview</a>
       <a class="portal-nav-link" href="#applications" data-tab="applications"><i class="fa-solid fa-file-pen"></i>My Applications</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
+      <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-calendar-check"></i>Attendance</a>
       <a class="portal-nav-link" href="#practice" data-tab="practice"><i class="fa-solid fa-chart-line"></i>Practice</a>
       <a class="portal-nav-link" href="#repertoire" data-tab="repertoire"><i class="fa-solid fa-book-open"></i>Repertoire</a>
       <a class="portal-nav-link" href="#payments" data-tab="payments"><i class="fa-solid fa-credit-card"></i>Payments</a>
@@ -73,7 +74,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], attendance: ['Attendance', 'Your session-by-session record'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
 
@@ -89,6 +90,7 @@
     if (tab === 'overview') return renderOverview();
     if (tab === 'applications') return renderApplications();
     if (tab === 'classes') return renderClasses();
+    if (tab === 'attendance') return renderAttendance();
     if (tab === 'payments') return renderPayments();
     if (tab === 'orders') return renderOrders();
     if (tab === 'auditer') return renderAuditer();
@@ -148,6 +150,22 @@
     var enr = data.enrollments || [];
     if (!enr.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('music', 'No active enrollments yet. Your instructor will add you to a class soon.') + '</div></section>'; return; }
     content.innerHTML = '<section class="panel">' + renderClassTable(enr) + '</section>';
+  }
+  function renderAttendance() {
+    var att = data.attendance || [];
+    if (!att.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('calendar-check', 'No attendance recorded yet. Once your classes begin, every session shows here.') + '</div></section>'; return; }
+    var present = att.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
+    var rate = Math.round(present / att.length * 100);
+    var rows = att.map(function (a) {
+      return '<tr><td data-label="Date">' + P.fmtDate(a.session_date) + '</td>'
+        + '<td data-label="Class"><strong>' + P.escapeHtml(a.title || '—') + '</strong></td>'
+        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
+    }).join('');
+    content.innerHTML = '<section class="kpi-row">'
+      + '<div class="kpi"><div class="kpi-label">Attendance rate</div><div class="kpi-value gold">' + rate + '%</div><div class="kpi-sub">across ' + att.length + ' session' + (att.length === 1 ? '' : 's') + '</div></div>'
+      + '<div class="kpi"><div class="kpi-label">Present / Late</div><div class="kpi-value">' + present + '</div><div class="kpi-sub">of ' + att.length + ' recorded</div></div>'
+      + '</section>'
+      + '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
   }
   function renderClassTable(enr) {
     var rows = enr.map(function (e) {

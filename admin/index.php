@@ -43,6 +43,13 @@ header_remove('Content-Type');
 $view  = $_GET['v'] ?? 'overview';
 $flash = null;
 
+// A session admin on a temporary password must set a new one before using the
+// dashboard. Sends them to My Account (GET only, so the change POST still runs).
+if (isset($adminUser) && $adminUser && (int)($adminUser['must_change_password'] ?? 0) === 1
+    && $view !== 'account' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+    header('Location: ?v=account'); exit;
+}
+
 /** Compose a name out of customer first/last (portable across SQLite + MySQL). */
 function mam_name(?string $first, ?string $last): string {
     $n = trim((string)$first . ' ' . (string)$last);
@@ -93,6 +100,28 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     $action = $_POST['action'] ?? '';
+
+    // Self-service account: a session admin updates their own name/phone and,
+    // optionally, their password. (Basic-Auth admins have no DB row — guarded.)
+    if ($action === 'change_own_account') {
+        $me = mam_current_user();
+        if (!$me) { header('Location: ?v=account&err=' . urlencode('Sign in with a user account to manage it.')); exit; }
+        $name  = trim((string)($_POST['name'] ?? ''));
+        $phone = trim((string)($_POST['phone'] ?? ''));
+        $cur   = (string)($_POST['current'] ?? '');
+        $next  = (string)($_POST['next'] ?? '');
+        $upd = ['updated_at' => date('Y-m-d H:i:s'), 'phone' => $phone ?: null];
+        if ($name !== '') $upd['name'] = $name;
+        if ($next !== '' || $cur !== '') {
+            if (strlen($next) < 8) { header('Location: ?v=account&err=' . urlencode('New password must be at least 8 characters.')); exit; }
+            if (!password_verify($cur, (string)$me['password_hash'])) { header('Location: ?v=account&err=' . urlencode('Current password is incorrect.')); exit; }
+            $upd['password_hash'] = password_hash($next, PASSWORD_BCRYPT);
+            $upd['must_change_password'] = 0;
+        }
+        mam_db_update('users', $upd, ['id' => (int)$me['id']]);
+        mam_audit('update', 'user', (int)$me['id'], ['self_account' => true, 'password_changed' => isset($upd['password_hash'])]);
+        header('Location: ?v=account&ok=1'); exit;
+    }
 
     if ($action === 'app_status') {
         $id = (int)($_POST['id'] ?? 0);
@@ -758,6 +787,7 @@ button.tiny:hover{border-color:var(--gold)}
       'newsletter'   => 'Newsletter',
       'settings'     => 'Pricing & Settings',
       'audit'        => 'Audit Log',
+      'account'      => 'My Account',
     ];
     foreach ($links as $k => $label) {
         $cls = $view === $k ? 'active' : '';
@@ -1533,6 +1563,39 @@ button.tiny:hover{border-color:var(--gold)}
       </div>
     </form>
   </div>
+
+<?php elseif ($view === 'account'):
+  $me = mam_current_user();
+?>
+  <header class="top"><h1>My Account</h1></header>
+  <?php if (isset($_GET['ok'])): ?><div class="banner ok">Saved.</div><?php endif; ?>
+  <?php if (isset($_GET['err'])): ?><div class="banner err"><?= htmlspecialchars($_GET['err']) ?></div><?php endif; ?>
+  <?php if (!$me): ?>
+    <div class="card">You're signed in via HTTP Basic Auth (environment credentials), which has no editable account. To get a personal admin login, create a user account at <code>/api/setup</code> or via <code>php api/bin/create-admin.php</code>.</div>
+  <?php else: ?>
+    <?php if ((int)($me['must_change_password'] ?? 0) === 1): ?>
+      <div class="banner err" style="background:rgba(251,191,36,.12);border-color:#FBBF24;color:#FBBF24">You're using a temporary password — please set a new one below.</div>
+    <?php endif; ?>
+    <div class="card" style="max-width:620px">
+      <form method="POST" action="">
+        <?= mam_csrf_field() ?>
+        <input type="hidden" name="action" value="change_own_account">
+        <h3 style="margin:0 0 14px;color:var(--gold);font-size:0.92rem;letter-spacing:.04em;text-transform:uppercase">Profile</h3>
+        <label style="display:block;margin-bottom:14px">Full name
+          <input type="text" name="name" value="<?= htmlspecialchars((string)($me['name'] ?? '')) ?>" required></label>
+        <label style="display:block;margin-bottom:14px">Phone
+          <input type="text" name="phone" value="<?= htmlspecialchars((string)($me['phone'] ?? '')) ?>"></label>
+        <label style="display:block;margin-bottom:6px">Email
+          <input type="email" value="<?= htmlspecialchars((string)($me['email'] ?? '')) ?>" disabled></label>
+        <h3 style="margin:24px 0 14px;color:var(--gold);font-size:0.92rem;letter-spacing:.04em;text-transform:uppercase">Change password <span style="text-transform:none;color:var(--muted);font-weight:400">(leave blank to keep current)</span></h3>
+        <label style="display:block;margin-bottom:14px">Current password
+          <input type="password" name="current" autocomplete="current-password"></label>
+        <label style="display:block;margin-bottom:18px">New password (min 8)
+          <input type="password" name="next" minlength="8" autocomplete="new-password"></label>
+        <button class="btn" type="submit">Save changes</button>
+      </form>
+    </div>
+  <?php endif; ?>
 
 <?php else: ?>
   <p>Unknown view.</p>

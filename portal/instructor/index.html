@@ -33,6 +33,7 @@
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-chalkboard-user"></i>My Classes</a>
       <a class="portal-nav-link" href="#students" data-tab="students"><i class="fa-solid fa-users"></i>Students</a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
+      <a class="portal-nav-link" href="#account" data-tab="account"><i class="fa-solid fa-user-gear"></i>Account</a>
       <a class="portal-nav-link" href="/studio" target="_blank" rel="noopener" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:18px"><i class="fa-solid fa-wand-magic-sparkles"></i>Practice Studio <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;margin-left:auto;opacity:0.7"></i></a>
     </nav>
     <div class="portal-side-foot">
@@ -59,7 +60,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], attendance: ['Attendance', 'Mark and review attendance'] };
+  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], attendance: ['Attendance', 'Mark and review attendance'], account: ['Account', 'Your profile & password'] };
   var data = null;
 
   function show(tab) {
@@ -72,6 +73,50 @@
     if (tab === 'classes') return renderClasses();
     if (tab === 'students') return renderStudents();
     if (tab === 'attendance') return renderAttendance();
+    if (tab === 'account') return renderAccount();
+  }
+
+  function renderAccount() {
+    var u = data.user || {}, pr = data.profile || {};
+    var mustChange = u.must_change_password;
+    content.innerHTML = ''
+      + (mustChange ? '<div class="portal-banner" style="display:flex;margin-bottom:18px"><i class="fa-solid fa-key"></i><span>You\'re using a temporary password. Please set a new one below.</span></div>' : '')
+      + '<section class="panel"><div class="panel-head"><h2>Public profile</h2></div><form class="profile-form" id="profileForm" style="padding:18px 22px">'
+      +   '<div class="field"><label for="pf-name">Full name</label><input id="pf-name" value="' + P.escapeHtml(u.name || '') + '" required></div>'
+      +   '<div class="field"><label for="pf-phone">Phone</label><input id="pf-phone" type="tel" value="' + P.escapeHtml(u.phone || '') + '"></div>'
+      +   '<div class="field"><label>Email</label><input value="' + P.escapeHtml(u.email || '') + '" disabled></div>'
+      +   '<div class="field"><label for="pf-spec">Specialties</label><input id="pf-spec" placeholder="e.g. Piano, Theory, Choral" value="' + P.escapeHtml(pr.specialties || '') + '"></div>'
+      +   '<div class="field"><label for="pf-years">Years of experience</label><input id="pf-years" type="number" min="0" max="80" value="' + P.escapeHtml(pr.years_experience == null ? '' : pr.years_experience) + '"></div>'
+      +   '<div class="field"><label for="pf-bio">Bio</label><textarea id="pf-bio" rows="4" placeholder="A short bio shown on faculty listings.">' + P.escapeHtml(pr.bio || '') + '</textarea></div>'
+      +   '<div class="actions"><button type="submit" class="btn btn-primary">Save profile</button></div>'
+      + '</form></section>'
+      + '<section class="panel" style="margin-top:22px"><div class="panel-head"><h2>Change password</h2></div><form class="profile-form" id="pwForm" style="padding:18px 22px">'
+      +   '<div class="field"><label for="pw-current">Current password</label><input id="pw-current" type="password" autocomplete="current-password" required></div>'
+      +   '<div class="field"><label for="pw-next">New password</label><input id="pw-next" type="password" autocomplete="new-password" minlength="8" required></div>'
+      +   '<div class="actions"><button type="submit" class="btn btn-primary">Change password</button></div>'
+      + '</form></section>';
+    var toast = function (m, t) { return window.MAM_DIALOG ? window.MAM_DIALOG.toast(m, t) : alert(m); };
+    document.getElementById('profileForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      API.request('instructor/update-profile', { method: 'POST', body: {
+        name: document.getElementById('pf-name').value.trim(),
+        phone: document.getElementById('pf-phone').value.trim(),
+        specialties: document.getElementById('pf-spec').value.trim(),
+        years_experience: document.getElementById('pf-years').value,
+        bio: document.getElementById('pf-bio').value.trim()
+      } }).then(function () { toast('Profile saved.', 'success'); return load(); })
+        .catch(function (err) { toast('Could not save: ' + ((err.body && err.body.error) || 'try again'), 'error'); });
+    });
+    document.getElementById('pwForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      API.request('auth/change-password', { method: 'POST', body: {
+        current: document.getElementById('pw-current').value, next: document.getElementById('pw-next').value
+      } }).then(function () { toast('Password changed.', 'success'); return load(); })
+        .catch(function (err) {
+          var c = err.body && err.body.error;
+          toast(c === 'invalid_current_password' ? 'Current password is incorrect.' : (c === 'weak_password' ? 'Use at least 8 characters.' : 'Could not change password.'), 'error');
+        });
+    });
   }
 
   function greeting() { var h = new Date().getHours(); return h < 12 ? 'Good morning' : (h < 18 ? 'Good afternoon' : 'Good evening'); }
@@ -331,6 +376,8 @@
       P.mountUserCard({ name: r.user.name, email: r.user.email, role: 'instructor', avatar_url: r.user.avatar_url });
       var tab = (location.hash || '#overview').slice(1);
       if (!tabs[tab]) tab = 'overview';
+      // A temporary password must be changed first — land on Account.
+      if (r.user && r.user.must_change_password) tab = 'account';
       show(tab);
     });
   }
