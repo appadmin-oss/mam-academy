@@ -39,6 +39,11 @@ if (!($adminUser && ($adminUser['role'] ?? '') === 'admin')) {
 
 // Stop the JSON content type set by bootstrap and serve HTML for views
 header_remove('Content-Type');
+header('Content-Type: text/html; charset=utf-8');
+// This is a server-rendered HTML page, not a JSON route — tell the bootstrap
+// shutdown handler so it doesn't append a {"error":"no_response"} envelope
+// after our markup (which also truncated some views under output buffering).
+if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
 
 $view  = $_GET['v'] ?? 'overview';
 $flash = null;
