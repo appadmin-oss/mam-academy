@@ -33,6 +33,7 @@
       <a class="portal-nav-link" href="#applications" data-tab="applications"><i class="fa-solid fa-file-pen"></i>My Applications</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-calendar-check"></i>Attendance</a>
+      <a class="portal-nav-link" href="#announcements" data-tab="announcements"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#practice" data-tab="practice"><i class="fa-solid fa-chart-line"></i>Practice</a>
       <a class="portal-nav-link" href="#repertoire" data-tab="repertoire"><i class="fa-solid fa-book-open"></i>Repertoire</a>
       <a class="portal-nav-link" href="#payments" data-tab="payments"><i class="fa-solid fa-credit-card"></i>Payments</a>
@@ -74,7 +75,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], attendance: ['Attendance', 'Your session-by-session record'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
 
@@ -83,14 +84,15 @@
     var t = tabs[tab] || tabs.overview;
     pageTitle.firstChild.textContent = t[0] + ' ';
     pageSub.textContent = t[1];
-    // The practice tools are client-side and don't need the dashboard payload.
-    if (STUDIO && tab === 'practice') return STUDIO.renderPractice(content);
+    // Repertoire stays a client-side studio tool; Practice is now server-backed.
     if (STUDIO && tab === 'repertoire') return STUDIO.renderRepertoire(content);
     if (!data) return;
+    if (tab === 'practice') return renderPractice();
     if (tab === 'overview') return renderOverview();
     if (tab === 'applications') return renderApplications();
     if (tab === 'classes') return renderClasses();
     if (tab === 'attendance') return renderAttendance();
+    if (tab === 'announcements') return renderAnnouncements();
     if (tab === 'payments') return renderPayments();
     if (tab === 'orders') return renderOrders();
     if (tab === 'auditer') return renderAuditer();
@@ -111,7 +113,8 @@
     var apps = data.applications || [], pays = data.payments || [], enr = data.enrollments || [], att = data.attendance || [];
     var paid = pays.filter(function (p) { return p.status === 'succeeded'; }).length;
     var firstName = ((data.user && data.user.name) || '').split(' ')[0] || 'there';
-    var ps = (STUDIO ? STUDIO.practiceStats() : { streak: 0, weekMin: 0, goalPct: 0 });
+    var ps = data.practice_stats || (STUDIO ? STUDIO.practiceStats() : { streak: 0, weekMin: 0 });
+    ps.goalPct = Math.min(100, Math.round((ps.weekMin || 0) / 150 * 100)); // 150 min/week target
     var rate = attendanceRate(att);
     var html = ''
       + '<div class="portal-hello"><h2>' + greeting() + ', ' + P.escapeHtml(firstName) + ' <span aria-hidden="true">👋</span></h2>'
@@ -151,6 +154,63 @@
     var enr = data.enrollments || [];
     if (!enr.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('music', 'No active enrollments yet. Your instructor will add you to a class soon.') + '</div></section>'; return; }
     content.innerHTML = '<section class="panel">' + renderClassTable(enr) + '</section>';
+  }
+  function renderPractice() {
+    var ps = data.practice_stats || { streak: 0, weekMin: 0, total: 0, sessions: 0 };
+    var logs = data.practice || [];
+    var wk = ps.weekMin >= 60 ? (Math.floor(ps.weekMin / 60) + 'h ' + (ps.weekMin % 60) + 'm') : (ps.weekMin || 0) + ' min';
+    var rows = logs.length ? logs.map(function (l) {
+      return '<tr><td data-label="Date">' + P.fmtDate(l.logged_on) + '</td>'
+        + '<td data-label="Minutes">' + (l.minutes || 0) + '</td>'
+        + '<td data-label="Focus">' + P.escapeHtml(l.focus || '—') + '</td>'
+        + '<td data-label="Notes" style="color:var(--text-muted);font-size:0.82rem">' + P.escapeHtml(l.notes || '') + '</td></tr>';
+    }).join('') : '';
+    content.innerHTML = '<section class="kpi-row">'
+      + kpi('Practice streak', (ps.streak || 0) + (ps.streak === 1 ? ' day' : ' days'), ps.streak ? 'Keep it up 🔥' : 'Log today to start', 'gold')
+      + kpi('This week', wk, Math.min(100, Math.round((ps.weekMin || 0) / 150 * 100)) + '% of 150-min goal')
+      + kpi('Total logged', (ps.total || 0) + ' min', (ps.sessions || 0) + ' session' + (ps.sessions === 1 ? '' : 's'))
+      + '</section>'
+      + '<section class="panel"><div class="panel-head"><h2>Log a practice session</h2></div>'
+      + '<form id="pracForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">'
+      +   '<div class="field"><label for="pr-min">Minutes</label><input id="pr-min" type="number" min="1" max="1440" value="30" required></div>'
+      +   '<div class="field"><label for="pr-focus">Focus</label><input id="pr-focus" placeholder="e.g. Scales, repertoire"></div>'
+      +   '<div class="field"><label for="pr-date">Date</label><input id="pr-date" type="date" value="' + new Date().toISOString().slice(0,10) + '"></div>'
+      +   '<div class="field" style="grid-column:1/-1"><label for="pr-notes">Notes</label><input id="pr-notes" placeholder="Optional"></div>'
+      +   '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Log session</button> '
+      +     '<a class="btn btn-ghost" href="/studio" target="_blank" rel="noopener" style="margin-left:8px"><i class="fa-solid fa-wand-magic-sparkles"></i> Open Practice Studio</a></div>'
+      + '</form></section>'
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Recent sessions</h2></div>'
+      + (logs.length ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Minutes</th><th>Focus</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="panel-body">' + empty('chart-line', 'No sessions logged yet — log your first above.') + '</div>')
+      + '</section>';
+    document.getElementById('pracForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = e.target.querySelector('button[type=submit]'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
+      API.request('student/practice-log', { method: 'POST', body: {
+        minutes: parseInt(document.getElementById('pr-min').value, 10) || 0,
+        focus: document.getElementById('pr-focus').value.trim(),
+        notes: document.getElementById('pr-notes').value.trim(),
+        logged_on: document.getElementById('pr-date').value
+      } }).then(function () {
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Practice logged.', 'success') : alert('Logged.'));
+        return load();
+      }).catch(function (err) {
+        btn.disabled = false; btn.innerHTML = orig;
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not log: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not log.'));
+      });
+    });
+  }
+  function renderAnnouncements() {
+    var anns = data.announcements || [];
+    if (!anns.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('bullhorn', 'No announcements yet. Updates from your instructors will appear here.') + '</div></section>'; return; }
+    content.innerHTML = '<section class="panel"><div style="padding:14px 18px;display:grid;gap:12px">' + anns.map(function (a) {
+      return '<div style="padding:16px 18px;border:1px solid var(--border);border-radius:12px;background:var(--bg-raised)">'
+        + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
+        +   '<strong style="color:var(--gold-bright);font-size:1.02rem">' + P.escapeHtml(a.title || 'Announcement') + '</strong>'
+        +   '<span style="font-size:0.78rem;color:var(--text-muted)">' + P.escapeHtml(a.class_title || '') + ' · ' + P.fmtDateTime(a.created_at) + '</span></div>'
+        + '<p style="margin:8px 0 0;color:var(--text-soft);line-height:1.6;white-space:pre-wrap">' + P.escapeHtml(a.body) + '</p>'
+        + (a.author ? '<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted)">— ' + P.escapeHtml(a.author) + '</div>' : '')
+        + '</div>';
+    }).join('') + '</div></section>';
   }
   function renderAttendance() {
     var att = data.attendance || [];

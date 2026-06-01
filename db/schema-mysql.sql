@@ -426,3 +426,29 @@ ALTER TABLE applications ADD COLUMN IF NOT EXISTS expression    VARCHAR(16) NULL
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS extra_courses INT NOT NULL DEFAULT 0;
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS courses_label TEXT NULL;
 INSERT INTO schema_version (version) VALUES (13) ON DUPLICATE KEY UPDATE version = version;
+
+-- v14: class announcements (instructor → enrolled students) + server-persisted
+-- student practice logs (previously localStorage-only). CREATE … IF NOT EXISTS
+-- keeps this idempotent across re-runs.
+CREATE TABLE IF NOT EXISTS announcements (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  class_id    INT NULL,
+  author_id   INT NULL,
+  title       VARCHAR(160) NULL,
+  body        TEXT NOT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_announcements_class (class_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS practice_logs (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  student_id  INT NOT NULL,
+  minutes     INT NOT NULL DEFAULT 0,
+  focus       VARCHAR(120) NULL,
+  notes       TEXT NULL,
+  logged_on   DATE NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_practice_student (student_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (14) ON DUPLICATE KEY UPDATE version = version;

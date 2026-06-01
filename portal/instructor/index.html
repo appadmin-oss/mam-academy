@@ -33,6 +33,7 @@
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-chalkboard-user"></i>My Classes</a>
       <a class="portal-nav-link" href="#students" data-tab="students"><i class="fa-solid fa-users"></i>Students</a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
+      <a class="portal-nav-link" href="#announce" data-tab="announce"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#account" data-tab="account"><i class="fa-solid fa-user-gear"></i>Account</a>
       <a class="portal-nav-link" href="/studio" target="_blank" rel="noopener" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:18px"><i class="fa-solid fa-wand-magic-sparkles"></i>Practice Studio <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;margin-left:auto;opacity:0.7"></i></a>
     </nav>
@@ -60,7 +61,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], attendance: ['Attendance', 'Mark and review attendance'], account: ['Account', 'Your profile & password'] };
+  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], attendance: ['Attendance', 'Mark and review attendance'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
   var data = null;
 
   function show(tab) {
@@ -73,7 +74,47 @@
     if (tab === 'classes') return renderClasses();
     if (tab === 'students') return renderStudents();
     if (tab === 'attendance') return renderAttendance();
+    if (tab === 'announce') return renderAnnounce();
     if (tab === 'account') return renderAccount();
+  }
+
+  function renderAnnounce() {
+    var classes = (data.classes || []).filter(function (c) { return c.status === 'active'; });
+    var anns = data.announcements || [];
+    if (!classes.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('bullhorn', 'You need an active class before you can post an announcement.') + '</div></section>'; return; }
+    var opts = classes.map(function (c) { return '<option value="' + c.id + '">' + P.escapeHtml(c.title) + '</option>'; }).join('');
+    var list = anns.length ? anns.map(function (a) {
+      return '<div style="padding:14px 16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised);margin-bottom:10px">'
+        + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong style="color:var(--text)">' + P.escapeHtml(a.title || 'Announcement') + '</strong>'
+        + '<span style="font-size:0.78rem;color:var(--text-muted)">' + P.escapeHtml(a.class_title || '') + ' · ' + P.fmtDateTime(a.created_at) + '</span></div>'
+        + '<p style="margin:6px 0 0;color:var(--text-soft);font-size:0.9rem;line-height:1.55;white-space:pre-wrap">' + P.escapeHtml(a.body) + '</p></div>';
+    }).join('') : '<div class="panel-body">' + empty('bullhorn', 'No announcements yet. Post your first above.') + '</div>';
+
+    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Post an announcement</h2></div>'
+      + '<form id="annForm" class="profile-form" style="padding:18px 22px;display:grid;gap:14px">'
+      +   '<div class="field"><label for="ann-class">Class</label><select id="ann-class" required>' + opts + '</select></div>'
+      +   '<div class="field"><label for="ann-title">Title</label><input id="ann-title" maxlength="160" placeholder="e.g. Recital this Friday"></div>'
+      +   '<div class="field"><label for="ann-body">Message</label><textarea id="ann-body" rows="4" required placeholder="What should your students know?"></textarea></div>'
+      +   '<div class="actions"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Post to class</button></div>'
+      + '</form></section>'
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Posted</h2></div><div style="padding:14px 18px">' + list + '</div></section>';
+    document.getElementById('annForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var body = document.getElementById('ann-body').value.trim();
+      if (!body) return;
+      var btn = e.target.querySelector('button'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Posting…';
+      API.request('instructor/announce', { method: 'POST', body: {
+        class_id: document.getElementById('ann-class').value,
+        title: document.getElementById('ann-title').value.trim(),
+        body: body
+      } }).then(function () {
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Announcement posted.', 'success') : alert('Posted.'));
+        return load();
+      }).catch(function (err) {
+        btn.disabled = false; btn.innerHTML = orig;
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not post: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not post.'));
+      });
+    });
   }
 
   function renderAccount() {

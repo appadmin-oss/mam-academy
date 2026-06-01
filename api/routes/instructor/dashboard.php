@@ -21,6 +21,13 @@ $recent_attendance = mam_db_all(
 
 $profile = mam_db_row('SELECT * FROM instructor_profiles WHERE user_id = ?', [$instructorId]);
 
+$announcements = mam_db_all(
+    "SELECT an.id, an.title, an.body, an.created_at, an.class_id, c.title AS class_title
+       FROM announcements an JOIN classes c ON c.id = an.class_id
+      WHERE c.instructor_id = ? ORDER BY an.created_at DESC LIMIT 30",
+    [$instructorId]
+);
+
 mam_ok([
     'user' => [
         'id' => $instructorId,
@@ -34,4 +41,5 @@ mam_ok([
     'classes' => $classes,
     'students' => $students,
     'recent_attendance' => $recent_attendance,
+    'announcements' => $announcements,
 ]);

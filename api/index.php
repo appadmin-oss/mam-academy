@@ -85,6 +85,7 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
 $r->group('/student', function (MamRouter $r) use ($f) {
     $r->get ('/dashboard',       $f('student/dashboard.php'),       [mw_role('student')]);
     $r->post('/update-profile',  $f('student/update-profile.php'),  [mw_csrf(), mw_role('student')]);
+    $r->post('/practice-log',    $f('student/practice-log.php'),    [mw_csrf(), mw_role('student')]);
 });
 
 /* ─── Instructor portal ─── */
@@ -93,6 +94,7 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->get ('/student',          $f('instructor/student.php'),         [mw_role('instructor', 'admin')]);
     $r->post('/mark-attendance',  $f('instructor/mark-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
+    $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
 });
 
 /* ─── Admin (JSON endpoints; the HTML dashboard is at /admin/) ─── */

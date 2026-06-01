@@ -46,6 +46,20 @@ $attendance = mam_db_all(
 
 $auditer = mam_db_row('SELECT * FROM auditer_results WHERE student_id = ? ORDER BY audited_at DESC LIMIT 1', [(int)$u['id']]);
 
+// Announcements from any class the student is enrolled in.
+$announcements = mam_db_all(
+    "SELECT an.id, an.title, an.body, an.created_at, c.title AS class_title, usr.name AS author
+       FROM announcements an
+       JOIN classes c ON c.id = an.class_id
+       JOIN enrollments e ON e.class_id = c.id
+       LEFT JOIN users usr ON usr.id = an.author_id
+      WHERE e.student_id = ? ORDER BY an.created_at DESC LIMIT 20",
+    [(int)$u['id']]
+);
+
+// Server-persisted practice stats (cross-device).
+$practice = mam_practice_stats((int)$u['id']);
+
 mam_ok([
     'user' => [
         'id' => (int)$u['id'],
@@ -62,4 +76,7 @@ mam_ok([
     'attendance' => $attendance,
     'auditer' => $auditer,
     'store_orders' => $storeOrders,
+    'announcements' => $announcements,
+    'practice' => $practice['practice'],
+    'practice_stats' => $practice['practiceStats'],
 ]);

@@ -69,7 +69,7 @@ function mam_db_migrate_mysql(PDO $db): void {
     $current = 0;
     try { $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0); } catch (Throwable $e) {}
 
-    $target = 13;
+    $target = 14;
     if ($current >= $target) return;
 
     $path = realpath(__DIR__ . '/../../db/schema-mysql.sql');
@@ -465,6 +465,29 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE applications ADD COLUMN expression TEXT;
             ALTER TABLE applications ADD COLUMN extra_courses INTEGER DEFAULT 0;
             ALTER TABLE applications ADD COLUMN courses_label TEXT;
+        ",
+        // v14 — class announcements (instructor → enrolled students) and
+        // server-persisted student practice logs (was localStorage-only).
+        14 => "
+            CREATE TABLE announcements (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              class_id INTEGER REFERENCES classes(id) ON DELETE CASCADE,
+              author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              title TEXT,
+              body TEXT NOT NULL,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_announcements_class ON announcements(class_id);
+            CREATE TABLE practice_logs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              minutes INTEGER NOT NULL DEFAULT 0,
+              focus TEXT,
+              notes TEXT,
+              logged_on TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_practice_student ON practice_logs(student_id);
         ",
     ];
 
