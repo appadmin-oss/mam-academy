@@ -226,7 +226,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 'updated_at' => date('Y-m-d H:i:s'),
             ], ['id' => $uid]);
             mam_db()->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$uid]);
-            mam_audit('admin_reset_password', 'user', $uid);
+            // Email the new credentials so the reset actually reaches the user.
+            $urow = mam_db_row('SELECT email, name, role FROM users WHERE id = ?', [$uid]);
+            if ($urow && !empty($urow['email'])) {
+                $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
+                try {
+                    mam_send((string)$urow['email'], 'Your MAM Academy password was reset',
+                        mam_email_account_created((string)($urow['name'] ?? ''), (string)$urow['email'], $pass, (string)$urow['role'], $loginUrl),
+                        'account_reset', true);
+                } catch (Throwable $e) { mam_log('warn', 'reset_email_failed', ['err' => $e->getMessage()]); }
+            }
+            mam_audit('admin_reset_password', 'user', $uid, ['emailed' => !empty($urow['email'])]);
             header('Location: ?v=users&ok=1');
         } else {
             header('Location: ?v=users&err=' . urlencode('Password must be at least 8 characters.'));

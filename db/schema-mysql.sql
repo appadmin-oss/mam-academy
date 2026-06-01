@@ -418,10 +418,11 @@ INSERT INTO schema_version (version) VALUES (11) ON DUPLICATE KEY UPDATE version
 UPDATE settings SET svalue='70' WHERE skey='price_crash' AND svalue='40';
 INSERT INTO schema_version (version) VALUES (12) ON DUPLICATE KEY UPDATE version = version;
 
--- v13: level-based application model (spec §2). 1060 (duplicate column) is in
--- the migrator's expected-error list, so re-running is safe.
-ALTER TABLE applications ADD COLUMN level VARCHAR(16) NULL;
-ALTER TABLE applications ADD COLUMN expression VARCHAR(16) NULL;
-ALTER TABLE applications ADD COLUMN extra_courses INT NOT NULL DEFAULT 0;
-ALTER TABLE applications ADD COLUMN courses_label TEXT NULL;
+-- v13: level-based application model (spec §2). IF NOT EXISTS (MariaDB) makes
+-- this idempotent; 1060 (duplicate column) is also in the migrator's
+-- expected-error list as a belt-and-braces fallback on stock MySQL.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS level         VARCHAR(16) NULL;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS expression    VARCHAR(16) NULL;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS extra_courses INT NOT NULL DEFAULT 0;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS courses_label TEXT NULL;
 INSERT INTO schema_version (version) VALUES (13) ON DUPLICATE KEY UPDATE version = version;
