@@ -336,12 +336,14 @@
         adjusted = subtotal * (1 + cfg.onlineSurchargePct / 100);
       }
       var registration = data.includeRegistration ? (cfg.registrationFeeUsd || 0) : 0;
-      var r2 = function (n) { return Math.round(n * 100) / 100; };
+      // Prices are flat whole-dollar amounts (no decimals) — mirror the server.
+      var r0 = function (n) { return Math.round(n); };
+      adjusted = r0(adjusted); registration = r0(registration);
       return {
-        base: r2(B), extra: extra, discountPct: discPct,
-        preDiscount: preDiscount === null ? null : r2(preDiscount),
-        discountAmount: r2(discountAmount),
-        subtotal: r2(adjusted), registration: r2(registration), total: r2(adjusted + registration)
+        base: r0(B), extra: extra, discountPct: discPct,
+        preDiscount: preDiscount === null ? null : r0(preDiscount),
+        discountAmount: r0(discountAmount),
+        subtotal: adjusted, registration: registration, total: adjusted + registration
       };
     }
     function programmeFeeUsd() { return priceBreakdown().subtotal; }

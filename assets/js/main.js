@@ -643,7 +643,7 @@
       $$('[data-price]').forEach(function (p) {
         var usd = parseFloat(p.getAttribute('data-price')) || 0;
         var converted = usd * (rates[cur] || 1);
-        if (cur === 'USD') p.textContent = (Math.round(usd * 100) / 100).toString().replace(/\.00$/, '');
+        if (cur === 'USD') p.textContent = Math.round(usd).toLocaleString();
         else if (cur === 'NGN' && converted >= 1000) p.textContent = Math.round(converted / 1000) + 'k';
         else p.textContent = Math.round(converted).toLocaleString();
       });
@@ -802,13 +802,77 @@
   // ============================================================
   // Boot
   // ============================================================
+  // ============================================================
+  // Scholarship — config-driven CTAs injected site-wide
+  // Reads MAM_CONFIG.scholarship and fills every [data-scholarship-banner]
+  // placeholder + any [data-scholarship-link]. Change copy/URL in config.js
+  // (one place) and it updates everywhere; set enabled:false to remove it all.
+  // ============================================================
+  function initScholarship() {
+    var s = (window.MAM_CONFIG && window.MAM_CONFIG.scholarship) || {};
+    var banners = $$('[data-scholarship-banner]');
+    var links = $$('[data-scholarship-link]');
+    if (!s.enabled) {
+      banners.forEach(function (el) { el.remove(); });
+      links.forEach(function (el) { var host = (el.closest && el.closest('[data-scholarship-host]')) || el; host.style.display = 'none'; });
+      return;
+    }
+    var url = s.url || '#';
+    var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+    injectScholarshipStyles();
+    banners.forEach(function (el) {
+      var v = el.getAttribute('data-scholarship-banner') || 'full';
+      if (v === 'compact') {
+        el.innerHTML = '<a class="scholar-compact" href="' + url + '">'
+          + '<span class="scholar-compact-ic"><i class="fa-solid fa-hand-holding-heart"></i></span>'
+          + '<span class="scholar-compact-tx"><strong>' + esc(s.cta) + '</strong><span>' + esc(s.short) + '</span></span>'
+          + '<i class="fa-solid fa-arrow-right scholar-compact-arr"></i></a>';
+      } else {
+        el.innerHTML = '<div class="scholar-band">'
+          + '<div class="scholar-band-glow" aria-hidden="true"></div>'
+          + '<div class="scholar-band-inner">'
+          + '<div class="scholar-band-ic"><i class="fa-solid fa-hand-holding-heart"></i></div>'
+          + '<div class="scholar-band-body">'
+          + (s.eyebrow ? '<div class="scholar-band-eyebrow">' + esc(s.eyebrow) + '</div>' : '')
+          + '<h2 class="scholar-band-title">' + esc(s.title) + '</h2>'
+          + '<p class="scholar-band-blurb">' + esc(s.blurb) + '</p></div>'
+          + '<div class="scholar-band-act"><a class="btn btn-primary btn-large" href="' + url + '"><i class="fa-solid fa-graduation-cap"></i>' + esc(s.cta) + '</a></div>'
+          + '</div></div>';
+      }
+    });
+    links.forEach(function (el) {
+      if (el.tagName === 'A') el.href = url;
+      if (el.getAttribute('data-scholarship-link') === 'text') el.textContent = s.cta;
+    });
+  }
+  function injectScholarshipStyles() {
+    if (document.getElementById('scholar-css')) return;
+    var css = '.scholar-band{position:relative;overflow:hidden;border-radius:22px;background:linear-gradient(135deg,rgba(224,138,26,0.16),rgba(123,58,237,0.12));border:1px solid var(--border-gold,rgba(224,138,26,0.4));padding:clamp(22px,4vw,40px)}'
+      + '.scholar-band-glow{position:absolute;inset:-40% -10% auto auto;width:380px;height:380px;background:radial-gradient(circle,rgba(251,191,36,0.22),transparent 70%);pointer-events:none}'
+      + '.scholar-band-inner{position:relative;display:grid;grid-template-columns:auto 1fr auto;gap:clamp(16px,3vw,28px);align-items:center}'
+      + '.scholar-band-ic{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#120D08;font-size:1.6rem;flex:0 0 auto;box-shadow:0 8px 24px rgba(224,138,26,0.35)}'
+      + '.scholar-band-eyebrow{font-size:0.76rem;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-bright,#FBBF24);margin-bottom:8px}'
+      + '.scholar-band-title{font-family:var(--font-display,inherit);font-size:clamp(1.4rem,3vw,2rem);line-height:1.15;margin:0 0 8px;color:var(--text,#fff)}'
+      + '.scholar-band-blurb{margin:0;color:var(--text-soft,#cbd5e1);font-size:0.98rem;line-height:1.6;max-width:60ch}'
+      + '.scholar-band-act{flex:0 0 auto}.scholar-band-act .btn{white-space:nowrap}'
+      + '@media(max-width:860px){.scholar-band-inner{grid-template-columns:auto 1fr}.scholar-band-act{grid-column:1/-1}.scholar-band-act .btn{width:100%;justify-content:center}}'
+      + '@media(max-width:520px){.scholar-band-inner{grid-template-columns:1fr;text-align:center}.scholar-band-ic{margin:0 auto}.scholar-band-blurb{margin-inline:auto}}'
+      + '.scholar-compact{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:14px;background:var(--bg-surface,#1a1410);border:1px solid var(--border-gold,rgba(224,138,26,0.4));text-decoration:none;transition:transform .2s,border-color .2s}'
+      + '.scholar-compact:hover{transform:translateY(-2px);border-color:var(--gold-bright,#FBBF24)}'
+      + '.scholar-compact-ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#120D08;font-size:1.1rem;flex:0 0 auto}'
+      + '.scholar-compact-tx{display:flex;flex-direction:column;line-height:1.3;flex:1}'
+      + '.scholar-compact-tx strong{color:var(--text,#fff);font-size:0.98rem}.scholar-compact-tx span{color:var(--text-muted,#94a3b8);font-size:0.85rem}'
+      + '.scholar-compact-arr{color:var(--gold-bright,#FBBF24);flex:0 0 auto}';
+    var st = document.createElement('style'); st.id = 'scholar-css'; st.textContent = css; document.head.appendChild(st);
+  }
+
   function boot() {
     // Each init is isolated: a throw in one (e.g. the nav) must never stop the
     // others from running — otherwise a single failure could, for example,
     // leave the scroll-reveal section headers stuck at opacity:0.
     [initPreloader, initNav, initHero, initSmoothScroll, initFaq, initAnimations,
      initCountdown, initTestimonials, initCookie, initToolbar, initCurrency,
-     initNewsletter, initFilters, initImageFallback, initYear].forEach(function (fn) {
+     initNewsletter, initFilters, initImageFallback, initYear, initScholarship].forEach(function (fn) {
       try { fn(); } catch (e) { if (window.console) console.error('[MAM] init failed:', fn.name, e); }
     });
 
@@ -924,8 +988,8 @@
   document.addEventListener('DOMContentLoaded', function () {
     injectBreadcrumb();
     Promise.all([
-      loadPartial('include-header', 'partials/header.html?v=20260531a'),
-      loadPartial('include-footer', 'partials/footer.html?v=20260531a')
+      loadPartial('include-header', 'partials/header.html?v=20260601a'),
+      loadPartial('include-footer', 'partials/footer.html?v=20260601a')
     ]).then(boot);
   });
 })();

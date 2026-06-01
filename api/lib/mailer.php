@@ -459,13 +459,15 @@ function mam_powerplay_next(): array {
  * tables + inline styles only.
  */
 function mam_email_promo_block(array $exclude = []): string {
-    $p = mam_prices();
+    // Prices are whole-dollar (no decimals); "from" prices reflect the
+    // level-based model (lowest level), the crash flat fee, and the intensive.
+    $fp = mam_programme_from_prices();
     $base = 'https://academy.mamcentre.org/';
     $items = [
         'powerplay' => ['⚡ Power Play with Van. BOJA', 'Free monthly online session for musicians & culture-shapers.', 'Free', 'power-play'],
-        'crash'     => ['Crash Programme', 'A focused 6-week accelerated intensive — quick, real wins.', '$' . $p['crash'], 'crash'],
-        'pathways'  => ['Certified &amp; Grand Musician', 'Train across all four levels, online or onsite.', 'from $' . $p['certified-musician'], 'pathways'],
-        'metamusic' => ['The MetaMusic Order', '12-week post-graduate cultural-architecture track.', '$' . $p['meta-order'], 'metamusic-order'],
+        'crash'     => ['Crash Programme', 'A focused 6-week accelerated intensive — quick, real wins.', '$' . (int)round($fp['crash']), 'crash'],
+        'pathways'  => ['Certified &amp; Grand Musician', 'Train across all four levels, online or onsite.', 'from $' . (int)round($fp['certified-musician']), 'pathways'],
+        'metamusic' => ['The MetaMusic Order', '12-week post-graduate cultural-architecture track.', '$' . (int)round($fp['meta-order']), 'metamusic-order'],
     ];
     $rows = '';
     foreach ($items as $key => $it) {
@@ -484,6 +486,38 @@ function mam_email_promo_block(array $exclude = []): string {
     return "<div style='margin-top:28px;padding:18px 18px 6px;background:#160F09;border:1px solid #ECDFC4;border-radius:12px'>
       <div style='font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#A89682;font-weight:800;margin-bottom:2px'>More ways to grow with MAM</div>
       <table cellpadding='0' cellspacing='0' style='width:100%'>" . $rows . "</table>
+    </div>";
+}
+
+/**
+ * Scholarship details — single source for the email side (mirrors the frontend
+ * MAM_CONFIG.scholarship). Admin-overridable via the scholarship_enabled /
+ * scholarship_url settings (or the SCHOLARSHIP_URL env); copy lives here so a
+ * change is one edit. Returns enabled flag + url + copy.
+ */
+function mam_scholarship(): array {
+    return [
+        'enabled' => (int)mam_setting_num('scholarship_enabled', 1) === 1,
+        'url'     => (string)mam_setting('scholarship_url', mam_env('SCHOLARSHIP_URL', 'https://mamcentre.org/scholarships/ngv')),
+        'name'    => 'NGV Scholarship',
+        'cta'     => 'Apply for a Scholarship',
+        'blurb'   => 'Can’t afford the fees? The NGV Scholarship helps talented students who genuinely cannot afford tuition study at MAM Academy. If money is the only thing standing in your way, apply — we want to hear from you.',
+    ];
+}
+
+/**
+ * Reusable scholarship promo block for emails. Empty string when disabled, so
+ * callers can concatenate it unconditionally.
+ */
+function mam_email_scholarship_block(): string {
+    $s = mam_scholarship();
+    if (empty($s['enabled']) || $s['url'] === '') return '';
+    $url = htmlspecialchars($s['url'], ENT_QUOTES);
+    return "<div style='margin-top:24px;padding:20px;background:#FBF6EA;border:1px solid #E7C77A;border-radius:12px'>
+      <div style='font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:#A8730F;font-weight:800;margin-bottom:6px'>Cost should never be the barrier</div>
+      <div style='font-size:16px;font-weight:800;color:#1A120B;margin-bottom:6px'>Can&rsquo;t afford the fees? Apply for a scholarship.</div>
+      <div style='font-size:13.5px;color:#5C4326;line-height:1.6;margin-bottom:10px'>" . htmlspecialchars($s['blurb'], ENT_QUOTES) . "</div>
+      <a href='" . $url . "' style='display:inline-block;color:#A8730F;font-weight:800;text-decoration:none;font-size:14px'>" . htmlspecialchars($s['cta'], ENT_QUOTES) . " &rarr;</a>
     </div>";
 }
 
@@ -755,7 +789,7 @@ function mam_email_enrolled(string $name, string $className, string $schedule, s
 function mam_email_application_recovery(array $app, array $customer): string {
     $name = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')) ?: 'there', ENT_QUOTES);
     $ref  = htmlspecialchars((string)($app['reference'] ?? ''), ENT_QUOTES);
-    $tot  = number_format((float)($app['total_usd'] ?? 0), 2);
+    $tot  = number_format((float)($app['total_usd'] ?? 0), 0);
     $resumeUrl = 'https://academy.mamcentre.org/apply?ref=' . rawurlencode((string)($app['reference'] ?? ''));
     $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>You're one step away, $name.</h2>
       <p style='color:#4A3624;font-size:15px;margin:0'>We saved your MAM Academy application (<strong style='color:#B8721B'>$ref</strong>) but it looks like checkout didn't finish. Your seat for the next intake isn't confirmed until payment is complete.</p>
@@ -1032,6 +1066,9 @@ function mam_email_application_confirmation(array $app, array $customer, ?array 
       .   '</table>'
       . '</td></tr>'
 
+      // ── Scholarship — for applicants who may need financial help
+      . '<tr><td class="px" style="padding:28px 44px 0">' . mam_email_scholarship_block() . '</td></tr>'
+
       // ── Quiet pull-quote / brand note
       . '<tr><td class="px" style="padding:36px 44px 0">'
       .   '<p style="margin:0;font-family:Georgia,serif;font-style:italic;font-size:15px;color:#7A5C3D;line-height:1.7;text-align:center;border-top:1px solid #ECE0CC;padding-top:24px">Crafting the Timeless in Time.</p>'
@@ -1100,12 +1137,15 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
     $label = (string)$tier['label'];
     // Per-line allocation of the regional booking fee. Splits the total into
     // four equal items for clean display; rounded so the sum still equals.
+    // Prices are presented as flat, whole-number amounts (no decimals). The
+    // booking fee is split into four whole-number line items; the last absorbs
+    // any rounding so the displayed lines still sum to the exact total.
     $total = (float)$tier['amount'];
-    $each  = $cur === 'NGN' ? floor($total / 4) : round($total / 4, 2);
+    $each  = floor($total / 4);
     $remainder = $total - ($each * 3); // last line absorbs rounding
     $fmt = function($n) use ($cur) {
         $sym = ['NGN'=>'₦','USD'=>'$','GBP'=>'£','EUR'=>'€','CAD'=>'CA$','AUD'=>'AU$','GHS'=>'GH₵','KES'=>'KSh ','ZAR'=>'R'][$cur] ?? ($cur.' ');
-        return $sym . number_format($n, $cur === 'NGN' ? 0 : 2);
+        return $sym . number_format($n, 0);
     };
 
     $logoUrl = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/mam-academy-logo.svg', ENT_QUOTES);
@@ -1234,7 +1274,7 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
       .       '<div class="row"><span>Subtotal</span><b>' . $label . '</b></div>'
       .       '<div class="row"><span>Discount (NIL)</span><b>' . $label . '</b></div>'
       .       '<div class="grand"><span>TOTAL</span><b>' . $label . '</b></div>'
-      .       ($tuitionUsd > 0 ? '<div class="tuition-note">Estimated tuition (due after placement): <b>$' . number_format($tuitionUsd, 2) . '</b></div>' : '')
+      .       ($tuitionUsd > 0 ? '<div class="tuition-note">Estimated tuition (due after placement): <b>$' . number_format($tuitionUsd, 0) . '</b></div>' : '')
       .     '</div>'
       .   '</div>'
 
@@ -1249,6 +1289,9 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
       .       '<div class="role">Finance Manager</div>'
       .     '</div>'
       .   '</div>'
+
+      // Scholarship — shown for applicants who may need financial help
+      .   mam_email_scholarship_block()
       . '</div>' // .body
 
       // Black bottom bar

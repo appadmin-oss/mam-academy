@@ -16,6 +16,35 @@ window.MAM_CONFIG = {
     address: 'MAM Centre, Lagos, Nigeria'
   },
 
+  /* ============================================================
+     SCHOLARSHIP — single source of truth (EDIT HERE, applies everywhere)
+     ------------------------------------------------------------
+     main.js reads this block and injects the banner/CTAs into every
+     [data-scholarship-banner] placeholder and the global footer link.
+     • To change the copy or destination, edit the fields below.
+     • To turn the scholarship off site-wide, set enabled:false — every
+       banner and link disappears automatically (no page edits needed).
+     ============================================================ */
+  scholarship: {
+    enabled: true,
+    url: 'https://mamcentre.org/scholarships/ngv',
+    name: 'NGV Scholarship',
+    eyebrow: 'Cost should never be the barrier',
+    title: 'Can’t afford the fees? Apply for a scholarship.',
+    blurb: 'The NGV Scholarship exists for talented students who genuinely cannot afford tuition. If money is the only thing standing between you and your training at MAM Academy, we want to hear from you — apply today.',
+    cta: 'Apply for a Scholarship',
+    short: 'Can’t afford it? A scholarship can cover your tuition.',
+    note: 'Need financial help? The NGV Scholarship can cover your fees.'
+  },
+
+  /* -------- Frequently-changed marketing content (edit freely) --------
+     Centralised so copy tweaks never mean hunting through page markup.
+     Consumed by main.js where the matching [data-content="…"] hooks exist. */
+  content: {
+    registrationFeeNote: 'Registration is a one-time $5. Additional 30-minute courses are 50% of a major-course fee.',
+    placementNote: 'You don’t buy a level — you choose a programme and progress through all four tiers. Your starting placement is set by the MAM Auditer assessment.'
+  },
+
   /* -------- API -------- */
   api: {
     base: '/api',                 // root-absolute so portal/ & admin/ pages resolve correctly (never /portal/api → 404)

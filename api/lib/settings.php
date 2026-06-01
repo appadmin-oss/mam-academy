@@ -92,5 +92,9 @@ function mam_settings_schema(): array {
         ['Store',                   'store_shipping_flat_usd',  'Store shipping (flat, physical goods)', 5, '$'],
         ['Currency',                'fx_auto',                  'Auto-update USD→NGN from live rate API (1=on, 0=off)', 1, ''],
         ['Currency',                'usd_to_ngn',               'USD → NGN fallback rate (used when live FX is off/unreachable)', 1500, '₦'],
+        // Scholarship CTA shown in emails (the website reads its own copy from
+        // assets/js/config.js → scholarship). Set enabled to 0 to hide it.
+        ['Scholarship',             'scholarship_enabled',      'Show scholarship CTA in emails (1=on, 0=off)', 1, ''],
+        ['Scholarship',             'scholarship_url',          'Scholarship application URL', 'https://mamcentre.org/scholarships/ngv', ''],
     ];
 }

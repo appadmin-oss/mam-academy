@@ -96,20 +96,25 @@ function mam_compute_application_price(array $args): array {
         $adjusted = $subtotal * (1 + mam_online_surcharge_pct() / 100);
     }
     $registration = $reg ? mam_registration_fee() : 0.0;
-    $total = $adjusted + $registration;
 
-    $r2 = static function ($n) { return round((float)$n, 2); };
+    // Prices are always presented as flat, whole-dollar amounts (no decimals).
+    // Round each money field to the nearest dollar; the client mirrors this so
+    // the displayed and charged totals match exactly.
+    $r0 = static function ($n) { return round((float)$n, 0); };
+    $adjusted      = $r0($adjusted);
+    $registration  = $r0($registration);
+    $total         = $adjusted + $registration;
     return [
         'programme'       => $programme,
         'level'           => $level,
         'currency'        => 'USD',
-        'base'            => $r2($B),
-        'pre_discount'    => $preDiscount === null ? null : $r2($preDiscount),
-        'discount_pct'    => $r2($discountPct),
-        'discount_amount' => $r2($discountAmount),
-        'subtotal'        => $r2($subtotal),
-        'registration'    => $r2($registration),
-        'total'           => $r2($total),
+        'base'            => $r0($B),
+        'pre_discount'    => $preDiscount === null ? null : $r0($preDiscount),
+        'discount_pct'    => $r0($discountPct),
+        'discount_amount' => $r0($discountAmount),
+        'subtotal'        => $adjusted,
+        'registration'    => $registration,
+        'total'           => $total,
     ];
 }
 
@@ -137,11 +142,11 @@ function mam_programme_from_prices(): array {
     $base = mam_level_base_price('precert');
     $disc = mam_grand_discount_pct();
     return [
-        'standard'           => round($base, 2),
-        'certified-musician' => round(2 * $base, 2),
-        'grand-musician'     => round(3 * $base * (1 - $disc / 100), 2),
-        'crash'              => mam_setting_num('price_crash', 70),
-        'meta-order'         => mam_setting_num('price_meta_order', 60),
+        'standard'           => round($base, 0),
+        'certified-musician' => round(2 * $base, 0),
+        'grand-musician'     => round(3 * $base * (1 - $disc / 100), 0),
+        'crash'              => round(mam_setting_num('price_crash', 70), 0),
+        'meta-order'         => round(mam_setting_num('price_meta_order', 60), 0),
     ];
 }
 

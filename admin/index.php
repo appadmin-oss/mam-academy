@@ -348,10 +348,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         foreach (mam_settings_schema() as $row) {
             [$group, $key, $label, $default, $suffix] = $row;
             $raw = $_POST[$key] ?? null;
-            if ($raw === null || $raw === '') { $val = (float)$default; }
-            else { $val = max(0, (float)$raw); }
-            // Store whole numbers without a trailing .0 for clean display.
-            $val = ($val == (int)$val) ? (string)(int)$val : (string)$val;
+            if (is_numeric($default)) {
+                // Numeric setting — non-negative; blank falls back to the
+                // shipped default so a cleared field can't zero out a price.
+                if ($raw === null || $raw === '') { $val = (float)$default; }
+                else { $val = max(0, (float)$raw); }
+                // Store whole numbers without a trailing .0 for clean display.
+                $val = ($val == (int)$val) ? (string)(int)$val : (string)$val;
+            } else {
+                // Text setting (e.g. a URL) — store trimmed; blank → default.
+                $val = trim((string)($raw ?? ''));
+                if ($val === '') $val = (string)$default;
+                $val = mb_substr($val, 0, 300);
+            }
             mam_setting_set($key, $val);
             $saved[$key] = $val;
         }
@@ -1487,12 +1496,17 @@ button.tiny:hover{border-color:var(--gold)}
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
           <?php foreach ($fields as $f):
             $val = $cur[$f['key']] ?? $f['default'];
+            $isNum = is_numeric($f['default']);
           ?>
-            <label style="display:block">
+            <label style="display:block<?= $isNum ? '' : ';grid-column:1/-1' ?>">
               <span style="display:block;font-size:0.82rem;color:var(--muted);margin-bottom:5px"><?= htmlspecialchars($f['label']) ?></span>
               <span style="display:flex;align-items:center;gap:6px">
-                <span class="mono" style="color:var(--gold);min-width:14px"><?= htmlspecialchars($f['suffix']) ?></span>
+                <?php if ($f['suffix'] !== ''): ?><span class="mono" style="color:var(--gold);min-width:14px"><?= htmlspecialchars($f['suffix']) ?></span><?php endif; ?>
+                <?php if ($isNum): ?>
                 <input type="number" step="0.01" min="0" name="<?= htmlspecialchars($f['key']) ?>" value="<?= htmlspecialchars((string)$val) ?>" style="flex:1" required>
+                <?php else: ?>
+                <input type="text" name="<?= htmlspecialchars($f['key']) ?>" value="<?= htmlspecialchars((string)$val) ?>" style="flex:1" placeholder="<?= htmlspecialchars((string)$f['default']) ?>">
+                <?php endif; ?>
               </span>
             </label>
           <?php endforeach; ?>
