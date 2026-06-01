@@ -180,7 +180,10 @@
 .iti--separate-dial-code .iti__selected-flag{background:var(--bg-elevated)}
 .iti--separate-dial-code input.field-input{padding-left:96px}
 
-.choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* Fluid: cards size themselves and wrap, so the 2-card Mode step, the 4-card
+   Level step and the 5-card Programme step all lay out cleanly at any width.
+   min(220px,100%) prevents horizontal overflow on the narrowest phones. */
+.choice-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:12px}
 .choice-grid-1{grid-template-columns:1fr}
 /* Reserve bottom-right space for the check indicator so it never overlaps
    the gold-coloured price in the head row. */

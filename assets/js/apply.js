@@ -670,6 +670,106 @@
     var phoneIti       = initIti('phone',       'phone');
     var parentPhoneIti = initIti('parentPhone', 'parentPhone');
 
+    // ---------- Location-aware address labels ----------
+    // Administrative-division terminology differs by country (an "LGA" in
+    // Nigeria is a "County" in the US, a "District" in Ghana…). We relabel the
+    // address block to read naturally for the applicant's country while the
+    // underlying data keys (lga/state/city) never change — so the payload,
+    // validation and DB are untouched. Driven by the phone field's country
+    // picker plus a best-effort locale guess on first load. EDIT HERE to tune
+    // wording for a country, or add a new ISO2 entry.
+    var LOCALE_LABELS = {
+      _default: { l1: 'State / Province', l1eg: 'State / region',          l2: 'Local Government / County', l2eg: 'District / county',        city: 'City / Town', cityEg: 'City',         addr: 'Street address' },
+      NG: { l1: 'State',            l1eg: 'e.g. Lagos State',        l2: 'Local Government (LGA)', l2eg: 'e.g. Alimosho',            city: 'City / Town', cityEg: 'Lagos',        addr: 'House no. & street' },
+      US: { l1: 'State',            l1eg: 'e.g. California',         l2: 'County',                 l2eg: 'e.g. Los Angeles County',  city: 'City',        cityEg: 'Los Angeles',  addr: 'Street address' },
+      GB: { l1: 'County',           l1eg: 'e.g. Greater London',     l2: 'Town / District',        l2eg: 'e.g. Camden',              city: 'City / Town', cityEg: 'London',       addr: 'House no. & street' },
+      CA: { l1: 'Province',         l1eg: 'e.g. Ontario',            l2: 'Municipality',           l2eg: 'e.g. Ottawa',              city: 'City',        cityEg: 'Toronto',      addr: 'Street address' },
+      ZA: { l1: 'Province',         l1eg: 'e.g. Gauteng',            l2: 'Municipality',           l2eg: 'e.g. Johannesburg Metro',  city: 'City / Town', cityEg: 'Johannesburg', addr: 'Street address' },
+      GH: { l1: 'Region',           l1eg: 'e.g. Greater Accra',      l2: 'District',               l2eg: 'e.g. Accra Metropolitan',  city: 'City / Town', cityEg: 'Accra',        addr: 'House no. & street' },
+      KE: { l1: 'County',           l1eg: 'e.g. Nairobi',            l2: 'Sub-county',             l2eg: 'e.g. Westlands',           city: 'Town',        cityEg: 'Nairobi',      addr: 'Street address' },
+      IN: { l1: 'State',            l1eg: 'e.g. Maharashtra',        l2: 'District',               l2eg: 'e.g. Mumbai Suburban',     city: 'City',        cityEg: 'Mumbai',       addr: 'House no. & street' },
+      AU: { l1: 'State / Territory',l1eg: 'e.g. New South Wales',    l2: 'Local Government Area',  l2eg: 'e.g. City of Sydney',      city: 'Suburb / City',cityEg: 'Sydney',      addr: 'Street address' }
+    };
+    // Minimal country-name → ISO2 map so typing the country also adapts labels.
+    var NAME2ISO = {
+      nigeria: 'NG', 'united states': 'US', usa: 'US', 'united states of america': 'US', america: 'US',
+      'united kingdom': 'GB', uk: 'GB', england: 'GB', britain: 'GB', 'great britain': 'GB',
+      canada: 'CA', 'south africa': 'ZA', ghana: 'GH', kenya: 'KE', india: 'IN', australia: 'AU'
+    };
+    var currentLocaleIso = '';
+    function setLabel(id, text, required) {
+      var lab = document.querySelector('label[for="' + id + '"]'); if (!lab) return;
+      lab.innerHTML = escapeHtml(text) + (required ? ' <span class="req">*</span>' : '');
+    }
+    function setPlaceholder(id, text) { var el = document.getElementById(id); if (el) el.setAttribute('placeholder', text); }
+    function setErrMsg(id, text) { var s = document.querySelector('#err-' + id + ' span'); if (s) s.textContent = text; }
+    function applyLocale(iso2) {
+      iso2 = (iso2 || '').toUpperCase();
+      var loc = LOCALE_LABELS[iso2] || LOCALE_LABELS._default;
+      if (currentLocaleIso === iso2) return;
+      currentLocaleIso = iso2;
+      setLabel('state', loc.l1, true);  setPlaceholder('state', loc.l1eg); setErrMsg('state', 'Enter your ' + loc.l1.toLowerCase());
+      setLabel('lga',   loc.l2, true);  setPlaceholder('lga',   loc.l2eg); setErrMsg('lga',   'Enter your ' + loc.l2.toLowerCase());
+      setLabel('city',  loc.city, false); setPlaceholder('city', loc.cityEg);
+      setPlaceholder('address', loc.addr);
+    }
+    // Best-effort country guess from the browser locale (offline, instant).
+    function guessCountryIso() {
+      try {
+        var langs = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || ''];
+        for (var i = 0; i < langs.length; i++) {
+          var m = String(langs[i]).match(/-([A-Za-z]{2})\b/);
+          if (m) return m[1].toUpperCase();
+        }
+      } catch (e) {}
+      return '';
+    }
+    // Initial: prefer a country already in the draft, else the phone picker,
+    // else the locale guess, else Nigeria (the academy's home market).
+    (function initLocale() {
+      var fromDraft = data.country ? NAME2ISO[String(data.country).trim().toLowerCase()] : '';
+      var iso = fromDraft || guessCountryIso() || 'NG';
+      // If the visitor isn't Nigerian and hasn't typed a country yet, reflect
+      // the guess in the phone picker too (only when no phone draft exists).
+      if (phoneIti && !data.phone && iso && iso !== 'NG' && LOCALE_LABELS[iso]) {
+        try { phoneIti.setCountry(iso.toLowerCase()); } catch (e) {}
+      }
+      applyLocale(iso);
+      // Location-aware display currency — default to the visitor's likely
+      // currency among the ones we display, on a FRESH visit only (a returning
+      // applicant's chosen currency in their draft is always respected).
+      if (!resuming) {
+        var EU = 'AT BE CY EE FI FR DE GR IE IT LV LT LU MT NL PT SK SI ES'.split(' ');
+        var cur = iso === 'NG' ? 'NGN' : iso === 'GB' ? 'GBP' : (EU.indexOf(iso) >= 0 ? 'EUR' : 'USD');
+        if (cur !== data.currency && cfg.currency && cfg.currency.rates && cfg.currency.rates[cur]) {
+          data.currency = cur;
+          var sel = $('#applyCurrency'); if (sel) sel.value = cur;
+          saveDraft();
+        }
+      }
+    })();
+    // Phone country picker drives the labels; also autofill the country field.
+    if (phoneIti) {
+      on(document.getElementById('phone'), 'countrychange', function () {
+        try {
+          var cd = phoneIti.getSelectedCountryData();
+          if (cd && cd.iso2) {
+            applyLocale(cd.iso2);
+            var cEl = document.getElementById('country');
+            if (cEl && !(data.country || '').trim() && cd.name) {
+              var nm = cd.name.replace(/\s*\(.*\)$/, ''); // strip "(+234)" suffix
+              cEl.value = nm; data.country = nm; saveDraft(); updateSummary();
+            }
+          }
+        } catch (e) {}
+      });
+    }
+    // Typing a recognised country name also adapts the labels.
+    on(document.getElementById('country'), 'input', function () {
+      var iso = NAME2ISO[String(this.value || '').trim().toLowerCase()];
+      if (iso) applyLocale(iso);
+    });
+
     // ---------- Live per-field validation (instant feedback on blur) ----------
     // One validator per field id; returns {ok, msg?, warn?}. Reused by the
     // on-blur affordance below. Step-level validateStep() still gates Next.
@@ -681,8 +781,8 @@
         case 'lastName':  return SV ? SV.name(v) : { ok: v.length > 1 };
         case 'email':     return SV ? SV.email(v) : { ok: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) };
         case 'address':   return { ok: v.length > 2, msg: 'Enter your address' };
-        case 'lga':       return { ok: v.length > 1, msg: 'Enter LGA / county' };
-        case 'state':     return { ok: v.length > 1, msg: 'Enter state / province' };
+        case 'lga':       return { ok: v.length > 1, msg: 'Enter your ' + (LOCALE_LABELS[currentLocaleIso] || LOCALE_LABELS._default).l2.toLowerCase() };
+        case 'state':     return { ok: v.length > 1, msg: 'Enter your ' + (LOCALE_LABELS[currentLocaleIso] || LOCALE_LABELS._default).l1.toLowerCase() };
         case 'country':   return { ok: v.length > 1, msg: 'Enter country' };
         case 'dob':       return { ok: ageFromDob(v) !== null, msg: 'A valid date of birth is required' };
         default:          return { ok: true };
