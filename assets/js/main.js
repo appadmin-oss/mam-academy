@@ -887,8 +887,42 @@
     }
   }
 
+  // ---- BreadcrumbList structured data (sitewide) -----------------------
+  // Emits a Home › Page breadcrumb as JSON-LD so search engines can render the
+  // breadcrumb trail in results (and to reinforce site structure for sitelinks).
+  // Google executes page JS before indexing, so an injected node is honoured.
+  function injectBreadcrumb() {
+    try {
+      var canon = document.querySelector('link[rel="canonical"]');
+      var here = canon ? canon.href : location.href;
+      var origin = (function () { try { return new URL(here).origin; } catch (e) { return location.origin; } })();
+      // Slug from the path: strip leading/trailing slashes and a .html suffix.
+      var slug = location.pathname.replace(/^\/+|\/+$/g, '').replace(/\.html$/i, '').toLowerCase();
+      if (!slug || slug === 'index') return; // home needs no breadcrumb
+      var NAMES = {
+        about: 'About', schools: 'Schools', pathways: 'Pathways', compare: 'Compare',
+        faculty: 'Faculty', crash: 'Crash Programmes', 'metamusic-order': 'The MetaMusic Order',
+        'power-play': 'Power Play', auditer: 'MAM Auditer', faq: 'FAQ', studio: 'Studio',
+        tools: 'Tools', store: 'Store', contact: 'Contact', privacy: 'Privacy', terms: 'Terms', policies: 'Policies'
+      };
+      var name = NAMES[slug] || slug.replace(/[-_]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+      var data = {
+        '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home', item: origin + '/' },
+          { '@type': 'ListItem', position: 2, name: name, item: here }
+        ]
+      };
+      var s = document.createElement('script');
+      s.type = 'application/ld+json';
+      s.textContent = JSON.stringify(data);
+      document.head.appendChild(s);
+    } catch (e) { /* structured data is best-effort; never block the page */ }
+  }
+
   // Wait for partials to load before binding nav/hero events
   document.addEventListener('DOMContentLoaded', function () {
+    injectBreadcrumb();
     Promise.all([
       loadPartial('include-header', 'partials/header.html?v=20260531a'),
       loadPartial('include-footer', 'partials/footer.html?v=20260531a')

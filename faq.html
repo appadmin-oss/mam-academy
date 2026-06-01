@@ -84,5 +84,27 @@
 <div id="include-footer"></div>
 <script src="assets/js/config.js?v=20260531d"></script>
 <script src="assets/js/main.js?v=20260531b"></script>
+<script>
+/* FAQPage structured data — built from the rendered Q&A items so it can never
+   drift from the visible content. Eligible for FAQ rich results in search. */
+(function () {
+  try {
+    var items = [];
+    document.querySelectorAll('.faq-item').forEach(function (el) {
+      var q = el.querySelector('.faq-question span');
+      var a = el.querySelector('.faq-answer-inner');
+      if (!q || !a) return;
+      var qt = (q.textContent || '').trim();
+      var at = (a.textContent || '').replace(/\s+/g, ' ').trim();
+      if (qt && at) items.push({ '@type': 'Question', name: qt, acceptedAnswer: { '@type': 'Answer', text: at } });
+    });
+    if (!items.length) return;
+    var s = document.createElement('script');
+    s.type = 'application/ld+json';
+    s.textContent = JSON.stringify({ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: items });
+    document.head.appendChild(s);
+  } catch (e) { /* best-effort */ }
+})();
+</script>
 </body>
 </html>

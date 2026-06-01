@@ -1,7 +1,13 @@
 User-agent: *
 Allow: /
+
+# Private / transactional / non-content paths
 Disallow: /api/
+Disallow: /admin/
+Disallow: /portal/
 Disallow: /apply.html
+Disallow: /book.html
 Disallow: /thank-you.html
+Disallow: /diag.html
 
 Sitemap: https://academy.mamcentre.org/sitemap.xml
