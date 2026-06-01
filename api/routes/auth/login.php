@@ -12,6 +12,12 @@ if (!$email || !$password) mam_fail('validation', 422, ['fields' => ['email', 'p
 // sign-in works with zero manual steps. No-op once any user exists.
 mam_maybe_seed_admin_from_env();
 
+// Fresh install with no accounts → point the operator at the installer instead
+// of a confusing "invalid credentials". The UI turns this into a setup link.
+if (mam_user_count() === 0) {
+    mam_fail('setup_required', 409, ['setup_url' => '/api/setup']);
+}
+
 $user = mam_login($email, $password, $remember);
 if (!$user) mam_fail('invalid_credentials', 401);
 

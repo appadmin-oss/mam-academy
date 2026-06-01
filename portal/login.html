@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/main.css?v=20260531c">
+<link rel="stylesheet" href="/assets/css/main.css?v=20260601a">
 <link rel="stylesheet" href="/assets/css/portal.css?v=20260529g">
 <style>
   /* Login-page additions for show-hide pw, caps-lock warning, remember row, forgot panel */
@@ -137,7 +137,7 @@
   </section>
 </main>
 
-<script src="/assets/js/config.js?v=20260531d"></script>
+<script src="/assets/js/config.js?v=20260601a"></script>
 <script>
 (function () {
   'use strict';
@@ -224,6 +224,13 @@
         setLoading(false);
         var status = e && e.status;
         var code = e && e.body && e.body.error;
+        // Fresh install: no accounts exist yet → guide to the installer.
+        if (code === 'setup_required') {
+          var url = (e.body && e.body.setup_url) || '/api/setup';
+          err.querySelector('span').innerHTML = "No account exists yet. <a href='" + url + "' style='color:var(--gold-bright);font-weight:700;text-decoration:underline'>Set up your administrator &rarr;</a>";
+          err.classList.add('shown'); err.style.display = 'flex';
+          return;
+        }
         var msg;
         if (code === 'invalid_credentials')  msg = "We couldn't sign you in with that email & password.";
         else if (status === 429)             msg = 'Too many attempts. Please try again in a few minutes.';
