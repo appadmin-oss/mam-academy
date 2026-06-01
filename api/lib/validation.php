@@ -5,23 +5,142 @@
 declare(strict_types=1);
 
 /**
- * Single source of truth for programme pricing (USD). Used both to charge
- * the correct amount server-side (application.php) and to advertise accurate
- * prices in transactional emails — so the two can never drift apart. Keep in
- * sync with the display values in assets/js/config.js.
+ * Academic levels — the progression tiers a student moves through. The base
+ * price is set per level; every programme price derives from it (spec §1–2).
+ */
+const MAM_LEVELS = [
+    'precert'    => 'Pre-Certificate',
+    'cert'       => 'Certificate',
+    'prediploma' => 'Pre-Diploma',
+    'diploma'    => 'Diploma',
+];
+
+/** Standard base price for a level (admin-editable). 0 for an unknown level. */
+function mam_level_base_price(string $level): float {
+    static $map = [
+        'precert'    => ['price_level_precert',    120],
+        'cert'       => ['price_level_cert',       130],
+        'prediploma' => ['price_level_prediploma', 160],
+        'diploma'    => ['price_level_diploma',    180],
+    ];
+    if (!isset($map[$level])) return 0.0;
+    return mam_setting_num($map[$level][0], (float)$map[$level][1]);
+}
+
+/** All level base prices, keyed by level code. */
+function mam_level_base_prices(): array {
+    $out = [];
+    foreach (array_keys(MAM_LEVELS) as $lv) $out[$lv] = mam_level_base_price($lv);
+    return $out;
+}
+
+/** Grand Musician promotional discount (percent). Admin-editable. */
+function mam_grand_discount_pct(): float {
+    return mam_setting_num('grand_discount_pct', 13);
+}
+
+/**
+ * Compute an application's price from the level-based model (spec §2).
+ *
+ *   $args: programme, level, mode ('online'|'onsite'), extraCourses (int),
+ *          includeRegistration (bool)
+ *
+ * Programme rules (B = level base price):
+ *   crash              → B               (no online adjustment)
+ *   standard           → B
+ *   certified-musician → 2B + 0.5B·extra
+ *   grand-musician     → (3B + 0.5B·extra) · (1 − discount)
+ *   meta-order         → flat price (not level-based)
+ *
+ * The online adjustment is folded silently into `total` and is NEVER returned
+ * as its own field — callers (incl. the public price endpoint) must not be able
+ * to surface it. The Grand discount IS surfaced (it's a promoted selling point).
+ */
+function mam_compute_application_price(array $args): array {
+    $programme = (string)($args['programme'] ?? '');
+    $level     = (string)($args['level'] ?? '');
+    $mode      = (($args['mode'] ?? 'onsite') === 'online') ? 'online' : 'onsite';
+    $extra     = max(0, (int)($args['extraCourses'] ?? 0));
+    $reg       = !empty($args['includeRegistration']);
+
+    $B    = mam_level_base_price($level);
+    $half = $B / 2;
+
+    $onlineApplies  = true;
+    $preDiscount    = null;
+    $discountPct    = 0.0;
+    $discountAmount = 0.0;
+
+    switch ($programme) {
+        case 'crash':
+            $subtotal = $B; $onlineApplies = false; break;
+        case 'standard':
+            $subtotal = $B; break;
+        case 'certified-musician':
+            $subtotal = 2 * $B + $half * $extra; break;
+        case 'grand-musician':
+            $preDiscount    = 3 * $B + $half * $extra;
+            $discountPct    = mam_grand_discount_pct();
+            $subtotal       = $preDiscount * (1 - $discountPct / 100);
+            $discountAmount = $preDiscount - $subtotal;
+            break;
+        case 'meta-order':
+            $subtotal = mam_setting_num('price_meta_order', 60); $onlineApplies = false; break;
+        default:
+            $subtotal = 0.0;
+    }
+
+    $adjusted = $subtotal;
+    if ($onlineApplies && $mode === 'online') {
+        $adjusted = $subtotal * (1 + mam_online_surcharge_pct() / 100);
+    }
+    $registration = $reg ? mam_registration_fee() : 0.0;
+    $total = $adjusted + $registration;
+
+    $r2 = static function ($n) { return round((float)$n, 2); };
+    return [
+        'programme'       => $programme,
+        'level'           => $level,
+        'currency'        => 'USD',
+        'base'            => $r2($B),
+        'pre_discount'    => $preDiscount === null ? null : $r2($preDiscount),
+        'discount_pct'    => $r2($discountPct),
+        'discount_amount' => $r2($discountAmount),
+        'subtotal'        => $r2($subtotal),
+        'registration'    => $r2($registration),
+        'total'           => $r2($total),
+    ];
+}
+
+/**
+ * Legacy flat programme prices (USD) — still the source of truth for the
+ * CURRENT application form and application.php charging, until the level-based
+ * form rebuild flips charging over to mam_compute_application_price(). Kept
+ * admin-editable so live prices stay controllable during the transition.
  */
 function mam_prices(): array {
-    // Admin-editable (settings table) with the shipped defaults as fallback.
-    // Both flagship programmes run across all four certification levels
-    // (Pre-Certification → Diploma) — the level is a progression journey, not a
-    // separate purchase. Certified Musician = one major specialization;
-    // Grand Musician = all three major traditions. Crash + MetaMusic are
-    // standalone intensives.
     return [
         'certified-musician' => mam_setting_num('price_certified_musician', 230),
         'grand-musician'     => mam_setting_num('price_grand_musician',     310),
         'crash'              => mam_setting_num('price_crash',               40),
         'meta-order'         => mam_setting_num('price_meta_order',          60),
+    ];
+}
+
+/**
+ * Programme "from" prices (USD) under the new level model — the lowest-level
+ * (Pre-Certificate) price for each programme. Display-only ("from $X"); the
+ * server charges the exact level/course total via mam_compute_application_price().
+ */
+function mam_programme_from_prices(): array {
+    $base = mam_level_base_price('precert');
+    $disc = mam_grand_discount_pct();
+    return [
+        'standard'           => round($base, 2),
+        'certified-musician' => round(2 * $base, 2),
+        'grand-musician'     => round(3 * $base * (1 - $disc / 100), 2),
+        'crash'              => round($base, 2),
+        'meta-order'         => mam_setting_num('price_meta_order', 60),
     ];
 }
 

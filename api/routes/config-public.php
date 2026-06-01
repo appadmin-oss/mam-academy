@@ -39,4 +39,11 @@ mam_ok([
     'online_surcharge_pct'    => mam_online_surcharge_pct(),
     'store_shipping_flat_usd' => mam_setting_num('store_shipping_flat_usd', 5),
     'usd_to_ngn'              => mam_setting_num('usd_to_ngn', (float)mam_env('USD_TO_NGN', '1500')),
+    // Level-based pricing model (spec §2). The new application form computes
+    // display prices from the level base + these rules; the server stays
+    // authoritative at charge time via mam_compute_application_price().
+    'levels'                  => MAM_LEVELS,                 // code => label
+    'level_prices'            => mam_level_base_prices(),    // code => base USD
+    'grand_discount_pct'      => mam_grand_discount_pct(),
+    'programme_from_prices'   => mam_programme_from_prices(),// "from $X" display
 ]);
