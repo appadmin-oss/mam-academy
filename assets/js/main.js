@@ -951,42 +951,69 @@
     }
   }
 
-  // ---- BreadcrumbList structured data (sitewide) -----------------------
-  // Emits a Home › Page breadcrumb as JSON-LD so search engines can render the
-  // breadcrumb trail in results (and to reinforce site structure for sitelinks).
-  // Google executes page JS before indexing, so an injected node is honoured.
-  function injectBreadcrumb() {
+  // ---- Sitewide structured-data graph ---------------------------------
+  // Every non-home page emits a linked JSON-LD @graph: a typed WebPage node
+  // (AboutPage / ContactPage / CollectionPage / FAQPage / WebPage by slug),
+  // a BreadcrumbList, and compact Organization + WebSite nodes carrying the
+  // SAME @ids the homepage declares — so the whole site resolves to one
+  // Organization/WebSite entity. The homepage keeps its own fuller markup, so
+  // it's skipped here. One place updates structured data across all pages.
+  function injectSiteSchema() {
     try {
       var canon = document.querySelector('link[rel="canonical"]');
-      var here = canon ? canon.href : location.href;
+      var here = (canon ? canon.href : location.href).split('#')[0].split('?')[0];
       var origin = (function () { try { return new URL(here).origin; } catch (e) { return location.origin; } })();
-      // Slug from the path: strip leading/trailing slashes and a .html suffix.
       var slug = location.pathname.replace(/^\/+|\/+$/g, '').replace(/\.html$/i, '').toLowerCase();
-      if (!slug || slug === 'index') return; // home needs no breadcrumb
+      if (!slug || slug === 'index') return; // home carries its own graph
+
+      var cfg = window.MAM_CONFIG || {};
+      var siteName = (cfg.site && cfg.site.name) || 'MAM Academy';
+      var orgId = origin + '/#organization', siteId = origin + '/#website';
       var NAMES = {
         about: 'About', schools: 'Schools', pathways: 'Pathways', compare: 'Compare',
         faculty: 'Faculty', crash: 'Crash Programmes', 'metamusic-order': 'The MetaMusic Order',
         'power-play': 'Power Play', auditer: 'MAM Auditer', faq: 'FAQ', studio: 'Studio',
-        tools: 'Tools', store: 'Store', contact: 'Contact', privacy: 'Privacy', terms: 'Terms', policies: 'Policies'
+        tools: 'Tools', store: 'Store', contact: 'Contact', privacy: 'Privacy',
+        terms: 'Terms', policies: 'Policies', apply: 'Apply', book: 'Book a Session', 'thank-you': 'Thank You'
+      };
+      var TYPE = {
+        about: 'AboutPage', contact: 'ContactPage',
+        schools: 'CollectionPage', pathways: 'CollectionPage', compare: 'CollectionPage',
+        store: 'CollectionPage', faculty: 'CollectionPage'
+        // faq → plain WebPage here; a full FAQPage is emitted by the FAQ rotator
       };
       var name = NAMES[slug] || slug.replace(/[-_]/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
-      var data = {
-        '@context': 'https://schema.org', '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home', item: origin + '/' },
-          { '@type': 'ListItem', position: 2, name: name, item: here }
-        ]
+      var title = (document.title || siteName).replace(/\s*[—|].*$/, '').trim() || (name + ' — ' + siteName);
+
+      var webpage = {
+        '@type': TYPE[slug] || 'WebPage', '@id': here + '#webpage', url: here, name: title,
+        isPartOf: { '@id': siteId }, about: { '@id': orgId }, breadcrumb: { '@id': here + '#breadcrumb' }, inLanguage: 'en'
       };
+      var desc = document.querySelector('meta[name="description"]');
+      if (desc && desc.content) webpage.description = desc.content;
+
+      var graph = [
+        { '@type': 'Organization', '@id': orgId, name: siteName, url: origin + '/', logo: origin + '/mam-academy-logo.svg' },
+        { '@type': 'WebSite', '@id': siteId, url: origin + '/', name: siteName, publisher: { '@id': orgId } },
+        webpage,
+        {
+          '@type': 'BreadcrumbList', '@id': here + '#breadcrumb',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: origin + '/' },
+            { '@type': 'ListItem', position: 2, name: name, item: here }
+          ]
+        }
+      ];
       var s = document.createElement('script');
       s.type = 'application/ld+json';
-      s.textContent = JSON.stringify(data);
+      s.textContent = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph });
       document.head.appendChild(s);
     } catch (e) { /* structured data is best-effort; never block the page */ }
   }
 
   // Wait for partials to load before binding nav/hero events
   document.addEventListener('DOMContentLoaded', function () {
-    injectBreadcrumb();
+    injectSiteSchema();
     Promise.all([
       loadPartial('include-header', 'partials/header.html?v=20260601a'),
       loadPartial('include-footer', 'partials/footer.html?v=20260601a')
