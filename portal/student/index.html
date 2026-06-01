@@ -63,7 +63,7 @@
   </main>
 </div>
 
-<script src="/assets/js/config.js?v=20260531d"></script>
+<script src="/assets/js/config.js?v=20260601a"></script>
 <script src="/assets/js/portal.js?v=20260530a"></script>
 <script src="/assets/js/studio-tools.js?v=20260531b"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
@@ -178,7 +178,7 @@
               + '<div><div style="font-weight:700;color:var(--text)">' + P.escapeHtml(a.pathway || 'Tuition') + ' &middot; ' + P.escapeHtml(a.mode || '') + '</div>'
               + '<div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px">Ref ' + P.escapeHtml(a.reference) + '</div></div>'
               + '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
-              + '<div style="font-family:var(--font-display);font-size:1.6rem;color:var(--gold-bright);letter-spacing:0.02em">$' + parseFloat(a.total_usd).toFixed(2) + '</div>'
+              + '<div style="font-family:var(--font-display);font-size:1.6rem;color:var(--gold-bright);letter-spacing:0.02em">' + P.fmtMoney(a.total_usd, 'USD') + '</div>'
               + '<button type="button" class="btn btn-primary" data-action="pay-tuition" data-ref="' + P.escapeHtml(a.reference) + '"><i class="fa-solid fa-lock"></i> Pay now</button>'
               + '</div></div>';
           }).join('')
@@ -260,7 +260,7 @@
       var statusPill = '<span class="pill ' + P.escapeHtml(o.status) + '">' + P.escapeHtml(o.status) + '</span>';
       return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(o.reference) + '</td>'
         + '<td data-label="Items" style="max-width:340px"><span style="color:var(--text-soft);font-size:0.88rem">' + summary + '</span></td>'
-        + '<td data-label="Total">$' + parseFloat(o.total_usd).toFixed(2) + '</td>'
+        + '<td data-label="Total">' + P.fmtMoney(o.total_usd, 'USD') + '</td>'
         + '<td data-label="Status">' + statusPill + '</td>'
         + '<td data-label="Delivered">' + (o.delivered_at ? P.fmtDateTime(o.delivered_at) : '<span style="color:var(--text-muted)">—</span>') + '</td>'
         + '<td data-label="Placed">' + P.fmtDateTime(o.created_at) + '</td></tr>';

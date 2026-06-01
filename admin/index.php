@@ -20,7 +20,22 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../api/lib/bootstrap.php';
-mam_require_admin();
+
+// Auth for the HTML dashboard. A logged-in admin (session) passes straight
+// through. Otherwise fall back to env Basic Auth (break-glass) when configured;
+// if neither is available, send the visitor to the portal login rather than
+// dumping a raw JSON error — a far friendlier first-run experience.
+$adminUser = mam_current_user();
+if (!($adminUser && ($adminUser['role'] ?? '') === 'admin')) {
+    if (mam_env('ADMIN_USER', '') !== '' && mam_env('ADMIN_PASSWORD_HASH', '') !== '') {
+        mam_require_admin(); // HTTP Basic Auth challenge/verify
+    } else {
+        $next = rawurlencode('/admin/');
+        header('Location: /portal/login?next=' . $next);
+        if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
+        exit;
+    }
+}
 
 // Stop the JSON content type set by bootstrap and serve HTML for views
 header_remove('Content-Type');
