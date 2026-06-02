@@ -16,14 +16,22 @@
   // WITHOUT @supports, guaranteeing the text is never transparent. Runs first,
   // before paint, to avoid a flash.
   (function () {
+    var ok = false;
     try {
-      var s = document.createElement('span').style;
-      s.cssText = '-webkit-background-clip:text;background-clip:text';
-      var ok = s.backgroundClip === 'text' || s.webkitBackgroundClip === 'text';
-      if (!ok) document.documentElement.className += ' no-textclip';
-    } catch (e) {
-      document.documentElement.className += ' no-textclip';
-    }
+      if (window.CSS && CSS.supports) {
+        ok = CSS.supports('-webkit-background-clip', 'text') || CSS.supports('background-clip', 'text');
+      }
+      if (!ok) {
+        var s = document.createElement('span').style;
+        s.cssText = '-webkit-background-clip:text;background-clip:text';
+        ok = s.backgroundClip === 'text' || s.webkitBackgroundClip === 'text';
+      }
+    } catch (e) { ok = false; }
+    // Positive opt-in: gradient text renders as a solid, on-brand colour by
+    // DEFAULT (so it can never be invisible — covers no-JS, forced-colors,
+    // engines that accept background-clip:text but don't actually paint it),
+    // and is upgraded to the clipped gradient only once support is confirmed.
+    document.documentElement.className += ok ? ' textclip' : ' no-textclip';
   })();
 
   // ---- Gradient-clip repaint after web fonts load -----------------------
