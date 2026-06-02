@@ -46,7 +46,7 @@ mam_ok([
     // authoritative at charge time via mam_compute_application_price().
     'levels'                  => MAM_LEVELS,                 // code => label
     'level_prices'            => mam_level_base_prices(),    // code => base USD
-    'compulsory_fee_usd'      => mam_compulsory_fee(),       // Certified/Grand flat add-on
-    'grand_discount_pct'      => 0,                          // retired by the definitive spec
+    'compulsory_fee_usd'      => mam_compulsory_fee(),       // Certified flat add-on
+    'grand_discount_pct'      => mam_grand_discount_pct(),   // Grand = 3×base − this
     'programme_from_prices'   => mam_programme_from_prices(),// "from $X" display
 ]);

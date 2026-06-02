@@ -317,18 +317,22 @@
       var half = B / 2;
       var extra = (data.minors || []).length;
       var comp = (cfg.compulsoryFeeUsd != null ? cfg.compulsoryFeeUsd : 120);
-      var subtotal = 0, onlineApplies = true, compulsory = 0;
+      var discPct = (cfg.grandDiscountPct != null ? cfg.grandDiscountPct : 13);
+      var subtotal = 0, onlineApplies = true, compulsory = 0, preDiscount = null, discountAmount = 0;
       if (prog === 'crash') {
         subtotal = (cfg.pricing.crash && cfg.pricing.crash.usd) || 70; onlineApplies = false;
       } else if (prog === 'standard') {
         subtotal = B + half * extra;
-      } else if (prog === 'certified-musician' || prog === 'grand-musician') {
+      } else if (prog === 'certified-musician') {
         compulsory = comp;
         subtotal = B + compulsory + half * extra;
+      } else if (prog === 'grand-musician') {
+        preDiscount = 3 * B + half * extra;
+        subtotal = preDiscount * (1 - discPct / 100);
+        discountAmount = preDiscount - subtotal;
       } else if (prog === 'meta-order') {
         subtotal = (cfg.pricing['meta-order'] && cfg.pricing['meta-order'].usd) || 60; onlineApplies = false;
       }
-      var discountAmount = 0, preDiscount = null; // discount retired
       var adjusted = subtotal;
       if (onlineApplies && data.mode === 'online' && cfg.onlineSurchargePct) {
         adjusted = subtotal * (1 + cfg.onlineSurchargePct / 100);
@@ -338,8 +342,8 @@
       var r0 = function (n) { return Math.round(n); };
       adjusted = r0(adjusted); registration = r0(registration);
       return {
-        base: r0(B), extra: extra, compulsory: r0(compulsory), discountPct: 0,
-        preDiscount: null, discountAmount: 0,
+        base: r0(B), extra: extra, compulsory: r0(compulsory), discountPct: discPct,
+        preDiscount: preDiscount === null ? null : r0(preDiscount), discountAmount: r0(discountAmount),
         subtotal: adjusted, registration: registration, total: adjusted + registration
       };
     }
@@ -369,6 +373,9 @@
       if (b.compulsory > 0) rows += row('Compulsory courses', fmtMoney(b.compulsory));
       if ((data.minors || []).length) rows += row('Extra courses', data.minors.map(titleCase).join(', '));
       if (price) {
+        if (b.preDiscount != null && b.discountAmount > 0) {
+          rows += '<div class="summary-row summary-discount"><span>Grand discount (' + b.discountPct + '%)</span><span>− ' + fmtMoney(b.discountAmount) + '</span></div>';
+        }
         rows += row('Tuition', fmtMoney(b.subtotal));
       }
       if (data.includeRegistration && cfg.registrationFeeUsd) rows += row('Registration', fmtMoney(b.registration));
@@ -398,17 +405,18 @@
       var bCalc = B || lowB;
       var pre = B ? '' : 'from ';
       var comp = (cfg.compulsoryFeeUsd != null ? cfg.compulsoryFeeUsd : 120);
+      var discPct = (cfg.grandDiscountPct != null ? cfg.grandDiscountPct : 13);
       function setP(p, txt) { var el = document.querySelector('[data-prog-price="' + p + '"]'); if (el) el.textContent = txt; }
       setP('crash', fmtMoney((cfg.pricing.crash && cfg.pricing.crash.usd) || 70));
       setP('meta-order', fmtMoney((cfg.pricing['meta-order'] && cfg.pricing['meta-order'].usd) || 60));
       setP('standard', pre + fmtMoney(bCalc));
       setP('certified-musician', pre + fmtMoney(bCalc + comp));
-      setP('grand-musician', pre + fmtMoney(bCalc + comp));
+      setP('grand-musician', pre + fmtMoney(Math.round(3 * bCalc * (1 - discPct / 100))));
       if (cfg.levelPrices) Object.keys(cfg.levelPrices).forEach(function (k) {
         var el = document.querySelector('[data-level-price="' + k + '"]'); if (el) el.textContent = fmtMoney(cfg.levelPrices[k]);
       });
       var badge = $('#grandSaveBadge');
-      if (badge) badge.hidden = true; // promotional discount retired
+      if (badge) { if (discPct > 0) { badge.hidden = false; badge.textContent = 'Save ' + discPct + '%'; } else badge.hidden = true; }
 
       var levelled  = prog === 'standard' || prog === 'certified-musician' || prog === 'grand-musician';
       var needsExpr = prog === 'crash' || prog === 'standard' || prog === 'certified-musician';

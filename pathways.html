@@ -16,7 +16,7 @@
 {"@context":"https://schema.org","@type":"ItemList","name":"MAM Academy Programmes &amp; Tuition","itemListElement":[
  {"@type":"ListItem","position":1,"item":{"@type":"Course","name":"Standard Programme","url":"https://academy.mamcentre.org/pathways#standard","description":"One course at your chosen level, with optional additional courses at 50% of the base fee.","provider":{"@type":"EducationalOrganization","name":"MAM Academy","sameAs":"https://academy.mamcentre.org/"},"offers":{"@type":"AggregateOffer","lowPrice":"120","priceCurrency":"USD","category":"Tuition"},"hasCourseInstance":[{"@type":"CourseInstance","courseMode":["online","onsite"]}]}},
  {"@type":"ListItem","position":2,"item":{"@type":"Course","name":"Certified Programme","url":"https://academy.mamcentre.org/pathways#certified-musician","description":"Up to 5 courses including the four compulsory courses (Rhythm & Pitch, Theory of Music, Performance, Meta Music). One expression: African, Contemporary or Classical.","provider":{"@type":"EducationalOrganization","name":"MAM Academy","sameAs":"https://academy.mamcentre.org/"},"offers":{"@type":"AggregateOffer","lowPrice":"240","priceCurrency":"USD","category":"Tuition"},"hasCourseInstance":[{"@type":"CourseInstance","courseMode":["online","onsite"]}]}},
- {"@type":"ListItem","position":3,"item":{"@type":"Course","name":"Grand Certified Programme","url":"https://academy.mamcentre.org/pathways#grand-musician","description":"Up to 7 courses including the four compulsory courses, across all expressions.","provider":{"@type":"EducationalOrganization","name":"MAM Academy","sameAs":"https://academy.mamcentre.org/"},"offers":{"@type":"AggregateOffer","lowPrice":"240","priceCurrency":"USD","category":"Tuition"},"hasCourseInstance":[{"@type":"CourseInstance","courseMode":["online","onsite"]}]}},
+ {"@type":"ListItem","position":3,"item":{"@type":"Course","name":"Grand Certified Programme","url":"https://academy.mamcentre.org/pathways#grand-musician","description":"Up to 7 courses including the four compulsory courses, across all expressions.","provider":{"@type":"EducationalOrganization","name":"MAM Academy","sameAs":"https://academy.mamcentre.org/"},"offers":{"@type":"AggregateOffer","lowPrice":"313","priceCurrency":"USD","category":"Tuition"},"hasCourseInstance":[{"@type":"CourseInstance","courseMode":["online","onsite"]}]}},
  {"@type":"ListItem","position":4,"item":{"@type":"Course","name":"MAM Crash Programme","url":"https://academy.mamcentre.org/crash","description":"6-week accelerated intensive — flat fee, no levels.","provider":{"@type":"EducationalOrganization","name":"MAM Academy","sameAs":"https://academy.mamcentre.org/"},"offers":{"@type":"Offer","price":"70","priceCurrency":"USD","category":"Tuition"}}},
  {"@type":"ListItem","position":5,"item":{"@type":"Course","name":"The MetaMusic Order","url":"https://academy.mamcentre.org/metamusic-order","description":"12-week post-diploma cultural-architecture intensive.","provider":{"@type":"EducationalOrganization","name":"MAM Academy","sameAs":"https://academy.mamcentre.org/"},"offers":{"@type":"Offer","price":"60","priceCurrency":"USD","category":"Tuition"}}}
 ]}
@@ -151,7 +151,7 @@
       <div class="pw-head">
         <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Choose a programme<span class="line" style="transform:scaleX(-1)"></span></div>
         <h2 class="section-title" style="margin:0 auto 12px">Three ways to study</h2>
-        <p class="section-desc">Every programme runs across all four levels. The base fee is set by your level; Certified &amp; Grand add a flat <strong>$120</strong> compulsory-courses fee. Prices below start at the Pre-Certificate level.</p>
+        <p class="section-desc">Every programme runs across all four levels, and your level sets the base fee. <strong>Certified</strong> adds a flat <strong>$120</strong> for its four compulsory courses; <strong>Grand</strong> covers all three expressions at 3× the base with <strong>13% off</strong>. Prices below start at the Pre-Certificate level — use the estimator for your exact figure.</p>
         <div class="currency-toggle" role="tablist" aria-label="Display currency" style="margin-top:18px">
           <button class="currency-btn active" data-currency="USD">USD</button>
           <button class="currency-btn" data-currency="NGN">NGN</button>
@@ -196,16 +196,17 @@
 
         <!-- Grand -->
         <article class="prog-card" id="grand-musician">
+          <span class="prog-badge" style="background:linear-gradient(135deg,#34D399,#10B981);color:#062b1e">Save 13%</span>
           <div class="prog-eyebrow">Flagship</div>
           <h3 class="prog-name">Grand Certified</h3>
-          <p class="prog-tag">The complete musician — every expression, up to 7 courses at a time.</p>
-          <div class="prog-price"><span class="from">from</span><span class="cur" data-cur-sym>$</span><span data-price="240">240</span></div>
-          <div class="prog-note">$120 base + $120 compulsory · Pre-Certificate</div>
+          <p class="prog-tag">The complete musician — all three expressions, up to 7 courses at a time.</p>
+          <div class="prog-price"><span class="from">from</span><span class="cur" data-cur-sym>$</span><span data-price="313">313</span></div>
+          <div class="prog-note">3× the level base, 13% off · Pre-Certificate</div>
           <ul class="prog-feats">
             <li><i class="fa-solid fa-check"></i>Up to <strong>7 courses</strong> at a time</li>
-            <li><i class="fa-solid fa-check"></i>Includes 4 compulsory courses (the $120 fee)</li>
-            <li><i class="fa-solid fa-check"></i>All expressions — African, Contemporary &amp; Classical</li>
-            <li><i class="fa-solid fa-check"></i>No separate expression step — you study them all</li>
+            <li><i class="fa-solid fa-check"></i><strong>All three expressions</strong> — African, Contemporary &amp; Classical</li>
+            <li><i class="fa-solid fa-check"></i>All four compulsory courses included</li>
+            <li><i class="fa-solid fa-check"></i><strong>13% discount</strong> baked into the price</li>
           </ul>
           <a href="apply?pathway=grand-musician" class="btn btn-secondary btn-block">Apply — Grand</a>
         </article>
@@ -316,7 +317,7 @@
       </div>
       <div class="fsteps">
         <div class="fstep"><h4><i class="fa-solid fa-globe"></i> Mode</h4><p>Onsite is the base fee. Online adds <strong>20%</strong>.</p></div>
-        <div class="fstep"><h4><i class="fa-solid fa-diagram-project"></i> Programme</h4><p>Standard, Certified (+$120) or Grand (+$120). Crash is a flat $70.</p></div>
+        <div class="fstep"><h4><i class="fa-solid fa-diagram-project"></i> Programme</h4><p>Standard (base) · Certified (+$120) · Grand (3× base, −13%) · Crash flat $70.</p></div>
         <div class="fstep"><h4><i class="fa-solid fa-layer-group"></i> Level</h4><p>Pre-Cert $120 · Cert $130 · Pre-Dip $160 · Diploma $180 — your base.</p></div>
         <div class="fstep"><h4><i class="fa-solid fa-compass-drafting"></i> Expression</h4><p>African, Contemporary or Classical. (Grand covers all three.)</p></div>
         <div class="fstep"><h4><i class="fa-solid fa-guitar"></i> Discipline</h4><p>Music Instrument (piano, voice, guitar…) or Music Education.</p></div>
@@ -325,7 +326,7 @@
 
       <div style="margin-top:40px">
         <h3 class="struct-card-title" style="justify-content:flex-start"><i class="fa-solid fa-star"></i>The four compulsory courses</h3>
-        <p class="section-desc" style="margin:6px 0 0">Included with Certified &amp; Grand for the flat $120 fee — the backbone of a complete musician.</p>
+        <p class="section-desc" style="margin:6px 0 0">Included with Certified (the flat $120 fee) and Grand (within its 3× tuition) — the backbone of a complete musician.</p>
         <div class="cc-grid">
           <div class="cc-chip"><i class="fa-solid fa-drum"></i><div><b>Rhythm &amp; Pitch</b><small>The MAM Rapid System</small></div></div>
           <div class="cc-chip"><i class="fa-solid fa-book"></i><div><b>Theory of Music</b><small>Trinity College London</small></div></div>
@@ -374,7 +375,7 @@
 </main>
 
 <div id="include-footer"></div>
-<script src="assets/js/config.js?v=20260602c"></script>
+<script src="assets/js/config.js?v=20260602d"></script>
 <script src="assets/js/main.js?v=20260602c"></script>
 <script>
 /* Live tuition estimator — mirrors mam_compute_application_price() exactly,
@@ -403,28 +404,34 @@
     return sym + Math.round(usd * (rates[cur] || 1)).toLocaleString('en-US');
   }
 
+  function grandDisc() { return cfg().grandDiscountPct != null ? cfg().grandDiscountPct : 13; }
   function extraCap() { return state.prog === 'grand-musician' ? 6 : 4; }
   function isFlat() { return state.prog === 'crash' || state.prog === 'meta-order'; }
-  function hasCompulsory() { return state.prog === 'certified-musician' || state.prog === 'grand-musician'; }
 
   function compute() {
     var lines = [];
     if (isFlat()) {
-      var flat = flatPrice(state.prog);
-      lines.push(['Programme fee', flat]);
-      var t = flat + (state.reg ? regFee() : 0);
+      lines.push(['Programme fee', flatPrice(state.prog)]);
       if (state.reg) lines.push(['Registration', regFee()]);
-      return { lines: lines, total: t };
+      return { lines: lines, total: flatPrice(state.prog) + (state.reg ? regFee() : 0) };
     }
-    var B = levelPrices()[state.level] || 0;
-    var sub = B; lines.push(['Base tuition (level)', B]);
-    if (hasCompulsory()) { sub += compFee(); lines.push(['Compulsory courses', compFee()]); }
-    if (state.extra > 0) { var add = Math.round(0.5 * B * state.extra); sub += 0.5 * B * state.extra; lines.push([state.extra + ' additional course' + (state.extra === 1 ? '' : 's') + ' (50% each)', add]); }
-    if (state.mode === 'online') { var onl = Math.round(sub * onlinePct() / 100); lines.push(['Online (+' + onlinePct() + '%)', onl]); sub = sub * (1 + onlinePct() / 100); }
+    var B = levelPrices()[state.level] || 0, sub, ex = state.extra;
+    if (state.prog === 'grand-musician') {
+      // All three expressions: 3× base, then the promotional discount.
+      var disc = grandDisc(), pre = 3 * B + 0.5 * B * ex;
+      lines.push(['Three expressions (3× base)', 3 * B]);
+      if (ex > 0) lines.push([ex + ' additional course' + (ex === 1 ? '' : 's') + ' (50% each)', Math.round(0.5 * B * ex)]);
+      lines.push(['Grand discount (' + disc + '%)', -Math.round(pre * disc / 100)]);
+      sub = pre * (1 - disc / 100);
+    } else {
+      sub = B; lines.push(['Base tuition (level)', B]);
+      if (state.prog === 'certified-musician') { sub += compFee(); lines.push(['Compulsory courses', compFee()]); }
+      if (ex > 0) { sub += 0.5 * B * ex; lines.push([ex + ' additional course' + (ex === 1 ? '' : 's') + ' (50% each)', Math.round(0.5 * B * ex)]); }
+    }
+    if (state.mode === 'online') { lines.push(['Online (+' + onlinePct() + '%)', Math.round(sub * onlinePct() / 100)]); sub = sub * (1 + onlinePct() / 100); }
     sub = Math.round(sub);
-    var total = sub + (state.reg ? regFee() : 0);
     if (state.reg) lines.push(['Registration', regFee()]);
-    return { lines: lines, total: total };
+    return { lines: lines, total: sub + (state.reg ? regFee() : 0) };
   }
 
   function render() {
@@ -435,12 +442,13 @@
     // clamp extra to the programme cap
     if (state.extra > extraCap()) state.extra = extraCap();
     $('#calcExtraVal').textContent = state.extra;
-    $('#calcExtraHint').textContent = state.prog === 'standard'
-      ? 'Beyond your primary course' : (hasCompulsory() ? 'Beyond your primary + 4 compulsory' : 'Not available');
+    $('#calcExtraHint').textContent = flat ? 'Not available'
+      : (state.prog === 'standard' ? 'Beyond your primary course' : 'Beyond your primary + 4 compulsory');
 
     var r = compute();
     var html = r.lines.map(function (l) {
-      return '<div class="calc-line"><span>' + l[0] + '</span><span>' + fmt(l[1]) + '</span></div>';
+      var neg = l[1] < 0;
+      return '<div class="calc-line' + (neg ? ' muted' : '') + '"><span>' + l[0] + '</span><span>' + (neg ? '− ' + fmt(-l[1]) : fmt(l[1])) + '</span></div>';
     }).join('');
     $('#calcLines').innerHTML = html;
     $('#calcTotal').textContent = fmt(r.total);

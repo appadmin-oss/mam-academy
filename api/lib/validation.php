@@ -40,10 +40,9 @@ function mam_compulsory_fee(): float {
     return mam_setting_num('compulsory_fee_usd', 120);
 }
 
-/** Legacy: Grand promotional discount — retired by the definitive tuition spec
- *  (kept returning 0 so any old caller is a no-op). */
+/** Grand promotional discount (percent) on the 3×base tuition. Admin-editable. */
 function mam_grand_discount_pct(): float {
-    return mam_setting_num('grand_discount_pct', 0);
+    return mam_setting_num('grand_discount_pct', 13);
 }
 
 /**
@@ -54,9 +53,9 @@ function mam_grand_discount_pct(): float {
  *
  * Programme rules (B = level base price, C = compulsory fee $120):
  *   crash              → flat price_crash ($70), level-independent, no online adj.
- *   standard           → B
- *   certified-musician → B + C + 0.5B·extra   (up to 5 courses)
- *   grand-musician     → B + C + 0.5B·extra   (up to 7 courses; same price)
+ *   standard           → B + 0.5B·extra
+ *   certified-musician → B + C + 0.5B·extra              (up to 5 courses)
+ *   grand-musician     → (3B + 0.5B·extra)·(1 − discount) (up to 7 courses)
  *   meta-order         → flat price (not level-based)
  *
  * Online adds +online_surcharge_pct% (20) to the subtotal; it is folded
@@ -75,6 +74,9 @@ function mam_compute_application_price(array $args): array {
 
     $onlineApplies  = true;
     $compulsory     = 0.0;
+    $preDiscount    = null;
+    $discountPct    = 0.0;
+    $discountAmount = 0.0;
 
     switch ($programme) {
         case 'crash':
@@ -85,13 +87,18 @@ function mam_compute_application_price(array $args): array {
             // but additional courses (+50%·base each) are still allowed.
             $subtotal = $B + $half * $extra; break;
         case 'certified-musician':
-        case 'grand-musician':
-            // Base (by level) + flat compulsory-courses fee + 50%·base per
-            // additional course. Identical pricing for both; they differ only
-            // in how many courses you may take (Certified up to 5, Grand up to
-            // 7). No promotional discount (per the definitive tuition spec).
+            // Base (by level) + flat compulsory-courses fee ($120) + 50%·base
+            // per additional course. Up to 5 courses.
             $compulsory = mam_compulsory_fee();
             $subtotal   = $B + $compulsory + $half * $extra;
+            break;
+        case 'grand-musician':
+            // Flagship — all three expressions: 3× the level base + 50%·base per
+            // additional course, with a promotional discount. Up to 7 courses.
+            $preDiscount    = 3 * $B + $half * $extra;
+            $discountPct    = mam_grand_discount_pct();
+            $subtotal       = $preDiscount * (1 - $discountPct / 100);
+            $discountAmount = $preDiscount - $subtotal;
             break;
         case 'meta-order':
             $subtotal = mam_setting_num('price_meta_order', 60); $onlineApplies = false; break;
@@ -118,9 +125,9 @@ function mam_compute_application_price(array $args): array {
         'currency'        => 'USD',
         'base'            => $r0($B),
         'compulsory'      => $r0($compulsory),
-        'pre_discount'    => null,
-        'discount_pct'    => 0,
-        'discount_amount' => 0,
+        'pre_discount'    => $preDiscount === null ? null : $r0($preDiscount),
+        'discount_pct'    => $r0($discountPct),
+        'discount_amount' => $r0($discountAmount),
         'subtotal'        => $adjusted,
         'registration'    => $registration,
         'total'           => $total,
@@ -150,10 +157,11 @@ function mam_prices(): array {
 function mam_programme_from_prices(): array {
     $base = mam_level_base_price('precert');
     $comp = mam_compulsory_fee();
+    $disc = mam_grand_discount_pct();
     return [
         'standard'           => round($base, 0),
         'certified-musician' => round($base + $comp, 0),
-        'grand-musician'     => round($base + $comp, 0),
+        'grand-musician'     => round(3 * $base * (1 - $disc / 100), 0),
         'crash'              => round(mam_setting_num('price_crash', 70), 0),
         'meta-order'         => round(mam_setting_num('price_meta_order', 60), 0),
     ];
