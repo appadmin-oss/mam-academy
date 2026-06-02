@@ -21,6 +21,9 @@
   // we fall back to a plain AudioContext so nothing is gated on the library.
   var ctx = null;
   function audio() {
+    // Use the shared studio context (window.MAM) so every tool — metronome,
+    // tuner, ear-trainer, beat maker — runs on one engine.
+    if (window.MAM && typeof window.MAM.audio === 'function') { ctx = window.MAM.audio(); return ctx; }
     if (window.Tone && Tone.context) {
       ctx = Tone.context.rawContext || Tone.getContext().rawContext || ctx;
       if (Tone.context.state === 'suspended') Tone.start();
@@ -54,6 +57,19 @@
   var metPlaying = false, metInterval = null, metNextTime = 0, metBeatIndex = 0;
   var bpmVal = $('#metBpmVal'), bpmRange = $('#metBpmRange');
   var beatsBox = $('#metBeats');
+
+  // Shared tempo: adopt the studio bus value and follow it so the Metronome
+  // and the Beat Maker always agree on the tempo.
+  function setMetBpm(v, fromBus) {
+    metBpm = Math.max(30, Math.min(240, Math.round(v) || 100));
+    bpmRange.value = metBpm; bpmVal.textContent = metBpm;
+    if (!fromBus && window.MAM && window.MAM.tempo) window.MAM.tempo.set(metBpm);
+  }
+  if (window.MAM && window.MAM.tempo) {
+    metBpm = Math.min(240, window.MAM.tempo.get());
+    bpmRange.value = metBpm; bpmVal.textContent = metBpm;
+    window.MAM.tempo.subscribe(function (v) { if (v !== metBpm) setMetBpm(v, true); });
+  }
 
   function paintBeatDots() {
     beatsBox.innerHTML = '';
@@ -126,8 +142,7 @@
   $('#metStart').addEventListener('click', function () { metPlaying ? stopMetronome() : startMetronome(); });
 
   bpmRange.addEventListener('input', function () {
-    metBpm = parseInt(bpmRange.value, 10) || 100;
-    bpmVal.textContent = metBpm;
+    setMetBpm(parseInt(bpmRange.value, 10) || 100);
   });
   $('#metBeatsCount').addEventListener('change', function (e) {
     metBeats = parseInt(e.target.value, 10) || 4; paintBeatDots(); metBeatIndex = 0;
@@ -146,9 +161,7 @@
       for (var i = 1; i < tapTimes.length; i++) diffs.push(tapTimes[i] - tapTimes[i - 1]);
       var avg = diffs.reduce(function (a, b) { return a + b; }, 0) / diffs.length;
       var bpm = Math.round(60000 / avg);
-      if (bpm >= 30 && bpm <= 240) {
-        metBpm = bpm; bpmRange.value = bpm; bpmVal.textContent = bpm;
-      }
+      if (bpm >= 30 && bpm <= 240) setMetBpm(bpm);
     }
   });
   // Spacebar toggles when the metronome panel is active.
@@ -167,13 +180,30 @@
   // ──────────────────────────────────────────────────────────────────
   var NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   var tunerStream = null, tunerSrc = null, tunerAnalyser = null, tunerBuf = null, tunerRaf = null, tunerListening = false;
+  var tunerA4 = 440; // adjustable concert-pitch reference
 
   function freqToNote(freq) {
-    var n = 12 * Math.log2(freq / 440) + 69; // MIDI note number
+    var n = 12 * Math.log2(freq / tunerA4) + 69; // MIDI note number, relative to A4
     var midi = Math.round(n);
     var cents = Math.round((n - midi) * 100);
     return { name: NOTE_NAMES[midi % 12], octave: Math.floor(midi / 12) - 1, cents: cents };
   }
+  // A4 calibration + a clean reference tone (sine with soft attack/release).
+  (function initTunerExtras() {
+    var a4El = $('#tunerA4'), refBtn = $('#tunerRef');
+    if (a4El) a4El.addEventListener('input', function () {
+      tunerA4 = Math.max(415, Math.min(466, parseInt(a4El.value, 10) || 440));
+    });
+    if (refBtn) refBtn.addEventListener('click', function () {
+      var a = audio(), now = a.currentTime, o = a.createOscillator(), g = a.createGain();
+      o.type = 'sine'; o.frequency.value = tunerA4;
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
+      g.gain.setValueAtTime(0.25, now + 1.1);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
+      o.connect(g).connect(a.destination); o.start(now); o.stop(now + 1.55);
+    });
+  })();
   // Autocorrelation with the classic "find the first peak after the first valley" heuristic.
   function detectPitch(buf, sampleRate) {
     var SIZE = buf.length;
@@ -298,6 +328,26 @@
     if (pomoState.mode === 'focus') mode.textContent = 'Focus · Block ' + pomoState.block + ' of ' + pomoCfg().blocks;
     else if (pomoState.mode === 'short') { mode.textContent = 'Short break'; mode.classList.add('break'); }
     else if (pomoState.mode === 'long') { mode.textContent = 'Long break — well earned'; mode.classList.add('long-break'); }
+    paintPomoRing();
+  }
+  // Circular progress ring drawn on canvas (DPR-aware), coloured by phase.
+  function paintPomoRing() {
+    var cv = $('#pomoRing'); if (!cv || !cv.getContext) return;
+    var cfg = pomoCfg();
+    var total = pomoState.mode === 'focus' ? cfg.focus : (pomoState.mode === 'short' ? cfg.short : cfg.long);
+    var frac = total > 0 ? Math.max(0, Math.min(1, pomoState.secs / total)) : 0;
+    var dpr = window.devicePixelRatio || 1, size = 180;
+    if (cv.width !== size * dpr) { cv.width = size * dpr; cv.height = size * dpr; cv.style.width = size + 'px'; cv.style.height = size + 'px'; }
+    var g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, size, size);
+    var cx = size / 2, cy = size / 2, r = size / 2 - 12, lw = 12;
+    g.lineWidth = lw; g.lineCap = 'round';
+    g.strokeStyle = 'rgba(255,255,255,0.08)';
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+    var col = pomoState.mode === 'focus' ? '#FCC647' : (pomoState.mode === 'short' ? '#7CC3F0' : '#A5B4FC');
+    var start = -Math.PI / 2, end = start + Math.PI * 2 * frac;
+    g.strokeStyle = col;
+    g.beginPath(); g.arc(cx, cy, r, start, end); g.stroke();
   }
   function logPomoSession(kind, mins) {
     var raw = localStorage.getItem(POMO_KEY);
@@ -476,7 +526,8 @@
     var root = 57 + Math.floor(Math.random() * 12); // A3..G#4
     if (earMode === 'intervals') {
       var iv = INTERVALS[Math.floor(Math.random() * INTERVALS.length)];
-      earScore.current = { kind: 'intervals', answer: iv.name, notes: [root, root + iv.semis], mode: 'melodic' };
+      var harm = $('#earHarmonic') && $('#earHarmonic').checked;
+      earScore.current = { kind: 'intervals', answer: iv.name, notes: [root, root + iv.semis], mode: harm ? 'harmonic' : 'melodic' };
     } else if (earMode === 'chords') {
       var c = CHORDS[Math.floor(Math.random() * CHORDS.length)];
       earScore.current = { kind: 'chords', answer: c.name, notes: c.semis.map(function (s) { return root + s; }), mode: 'harmonic' };
