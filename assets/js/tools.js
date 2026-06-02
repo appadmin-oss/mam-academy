@@ -560,50 +560,73 @@
   }
 
   function midiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
-  // Lazily-built Tone polyphonic sampler-ish synth — sounds far more
-  // pleasant than raw triangle oscillators because of the soft attack/release
-  // envelope and the harmonic content of Tone's AMSynth. Created once and
-  // re-used. If Tone isn't loaded we fall back to the bare-oscillator path
-  // that was here before so the ear-training drills keep working.
-  var earSynth = null;
-  function ensureEarSynth() {
+  // Real instrument sound: a SAMPLED acoustic grand piano (Tone.Sampler with
+  // the Salamander samples on the Tone.js CDN) — a genuine, musical timbre
+  // rather than a beep. Until the samples are warm (or if the CDN is blocked)
+  // we use a piano-like FM synth; with no Tone at all, a richer additive
+  // Web-Audio piano. Whatever the environment, the drills make a pleasant,
+  // clearly-pitched note.
+  var earPiano = null, earFallbackSynth = null;
+  function ensureEarInstrument() {
     if (!hasTone()) return null;
-    if (earSynth) return earSynth;
-    audio(); // start Tone's context (autoplay-policy gate)
-    earSynth = new Tone.PolySynth(Tone.AMSynth, {
-      harmonicity: 1.4,
-      oscillator: { type: 'sine' },
-      modulation: { type: 'square' },
-      envelope: { attack: 0.02, decay: 0.18, sustain: 0.35, release: 0.55 },
-      volume: -8,
-    }).toDestination();
-    return earSynth;
+    audio(); // unlock Tone's context (autoplay-policy gate)
+    if (!earFallbackSynth) {
+      earFallbackSynth = new Tone.PolySynth(Tone.FMSynth, {
+        harmonicity: 2, modulationIndex: 6,
+        oscillator: { type: 'sine' }, modulation: { type: 'triangle' },
+        envelope: { attack: 0.006, decay: 1.1, sustain: 0.06, release: 0.9 },
+        modulationEnvelope: { attack: 0.004, decay: 0.3, sustain: 0.02, release: 0.2 },
+        volume: -11,
+      }).toDestination();
+    }
+    if (!earPiano) {
+      try {
+        earPiano = new Tone.Sampler({
+          urls: {
+            A2: 'A2.mp3', C3: 'C3.mp3', 'D#3': 'Ds3.mp3', 'F#3': 'Fs3.mp3',
+            A3: 'A3.mp3', C4: 'C4.mp3', 'D#4': 'Ds4.mp3', 'F#4': 'Fs4.mp3',
+            A4: 'A4.mp3', C5: 'C5.mp3', 'D#5': 'Ds5.mp3', 'F#5': 'Fs5.mp3', A5: 'A5.mp3',
+          },
+          baseUrl: 'https://tonejs.github.io/audio/salamander/',
+          release: 1, volume: -6,
+        }).toDestination();
+      } catch (e) { earPiano = null; }
+    }
+    return (earPiano && earPiano.loaded) ? earPiano : earFallbackSynth;
+  }
+  // Warm the piano as soon as Tone is ready so it's loaded before the first drill.
+  window.addEventListener('mam:tone-ready', function () { try { ensureEarInstrument(); } catch (e) {} });
+
+  // Richer Web-Audio piano fallback: three decaying partials + a soft
+  // percussive attack — far more musical than a bare triangle.
+  function pianoVoiceWA(a, midi, when, dur) {
+    var f0 = midiToFreq(midi);
+    [[1, 0.5], [2, 0.18], [3, 0.08]].forEach(function (p) {
+      var o = a.createOscillator(), g = a.createGain();
+      o.type = 'sine'; o.frequency.value = f0 * p[0] * (1 + 0.0008 * p[0]); // slight inharmonicity
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(p[1], when + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + dur);
+      o.connect(g).connect(a.destination);
+      o.start(when); o.stop(when + dur + 0.05);
+    });
   }
   function playNotes(midis, mode) {
-    var synth = ensureEarSynth();
-    if (synth) {
-      var now = Tone.now();
-      var dur = mode === 'harmonic' ? 1.0 : 0.5;
-      var gap = 0.55;
+    var inst = ensureEarInstrument();
+    if (inst) {
+      var now = Tone.now() + 0.05;
+      var dur = mode === 'harmonic' ? 1.4 : 0.6, gap = 0.6;
       midis.forEach(function (m, i) {
         var t = now + (mode === 'harmonic' ? 0 : i * gap);
-        synth.triggerAttackRelease(Tone.Frequency(m, 'midi').toFrequency(), dur, t);
+        inst.triggerAttackRelease(Tone.Frequency(m, 'midi').toFrequency(), dur, t);
       });
       return;
     }
-    // Fallback: bare WebAudio path.
+    // No Tone at all → richer additive Web-Audio piano.
     var a = audio();
-    var dur = 0.55, gap = 0.5;
+    var dur2 = mode === 'harmonic' ? 1.3 : 0.7, gap2 = 0.6;
     midis.forEach(function (m, i) {
-      var t = a.currentTime + (mode === 'harmonic' ? 0 : i * gap);
-      var o = a.createOscillator(), g = a.createGain();
-      o.type = 'triangle';
-      o.frequency.value = midiToFreq(m);
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g).connect(a.destination);
-      o.start(t); o.stop(t + dur + 0.05);
+      pianoVoiceWA(a, m, a.currentTime + (mode === 'harmonic' ? 0 : i * gap2), dur2);
     });
   }
   function newEarRound() {
