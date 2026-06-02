@@ -34,6 +34,35 @@
     document.documentElement.className += ok ? ' textclip' : ' no-textclip';
   })();
 
+  // ---- Scroll-reveal safety net ----------------------------------------
+  // Section headers/cards use .fade-in-up/.fade-in (opacity:0 until JS adds
+  // .visible). If the IntersectionObserver never armed (an init threw, boot
+  // didn't run, observer unsupported) those would stay INVISIBLE forever. This
+  // independent net — outside boot() — guarantees content is shown regardless:
+  // reduced-motion shows it at once, and a hard timer reveals anything still
+  // hidden so nothing can be stuck transparent.
+  (function () {
+    function revealAll() {
+      try {
+        var els = document.querySelectorAll('.fade-in-up:not(.visible), .fade-in:not(.visible)');
+        for (var i = 0; i < els.length; i++) els[i].classList.add('visible');
+      } catch (e) {
+        try { document.documentElement.className += ' reveal-fallback'; } catch (_) {}
+      }
+    }
+    try {
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce) {
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', revealAll);
+        else revealAll();
+      }
+      window.addEventListener('load', function () { setTimeout(revealAll, 1200); });
+      setTimeout(revealAll, 4000); // last-resort guarantee
+    } catch (e) {
+      try { document.documentElement.className += ' reveal-fallback'; } catch (_) {}
+    }
+  })();
+
   // ---- Gradient-clip repaint after web fonts load -----------------------
   // WebKit/Blink (Chrome, Safari) drop the `background-clip:text` clip when a
   // web font swaps in AFTER first paint — the (transparent) text-fill then
