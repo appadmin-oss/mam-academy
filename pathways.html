@@ -251,7 +251,7 @@
       <div class="pw-head">
         <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Estimate your tuition<span class="line" style="transform:scaleX(-1)"></span></div>
         <h2 class="section-title" style="margin:0 auto 12px">Build it, see the price</h2>
-        <p class="section-desc">Live, transparent and exactly how we charge. Change anything and the total updates instantly.</p>
+        <p class="section-desc">Pick your options and your estimated tuition updates instantly. The exact figure is confirmed at checkout.</p>
       </div>
 
       <div class="calc" id="calc">
@@ -303,37 +303,6 @@
             <a class="btn btn-secondary btn-block" href="auditer">Not sure? Book the MAM Auditer</a>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ HOW TUITION WORKS ============ -->
-  <section class="pw-section" id="how-fees" style="background:var(--bg-surface)">
-    <div class="container">
-      <div class="pw-head">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>How tuition is calculated<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title" style="margin:0 auto 12px">Six simple choices</h2>
-        <p class="section-desc">No surprises. Your fee is built from your choices, in order.</p>
-      </div>
-      <div class="fsteps">
-        <div class="fstep"><h4><i class="fa-solid fa-globe"></i> Mode</h4><p>Onsite is the base fee. Online adds <strong>20%</strong>.</p></div>
-        <div class="fstep"><h4><i class="fa-solid fa-diagram-project"></i> Programme</h4><p>Standard (base) · Certified (+$120) · Grand (3× base, −13%) · Crash flat $70.</p></div>
-        <div class="fstep"><h4><i class="fa-solid fa-layer-group"></i> Level</h4><p>Pre-Cert $120 · Cert $130 · Pre-Dip $160 · Diploma $180 — your base.</p></div>
-        <div class="fstep"><h4><i class="fa-solid fa-compass-drafting"></i> Expression</h4><p>African, Contemporary or Classical. (Grand covers all three.)</p></div>
-        <div class="fstep"><h4><i class="fa-solid fa-guitar"></i> Discipline</h4><p>Music Instrument (piano, voice, guitar…) or Music Education.</p></div>
-        <div class="fstep"><h4><i class="fa-solid fa-plus"></i> Courses</h4><p>Your primary course is included; each additional is <strong>+50%</strong> of base.</p></div>
-      </div>
-
-      <div style="margin-top:40px">
-        <h3 class="struct-card-title" style="justify-content:flex-start"><i class="fa-solid fa-star"></i>The four compulsory courses</h3>
-        <p class="section-desc" style="margin:6px 0 0">Included with Certified (the flat $120 fee) and Grand (within its 3× tuition) — the backbone of a complete musician.</p>
-        <div class="cc-grid">
-          <div class="cc-chip"><i class="fa-solid fa-drum"></i><div><b>Rhythm &amp; Pitch</b><small>The MAM Rapid System</small></div></div>
-          <div class="cc-chip"><i class="fa-solid fa-book"></i><div><b>Theory of Music</b><small>Trinity College London</small></div></div>
-          <div class="cc-chip"><i class="fa-solid fa-masks-theater"></i><div><b>Performance</b><small>Art of Performance Excellence</small></div></div>
-          <div class="cc-chip"><i class="fa-solid fa-brain"></i><div><b>Meta Music</b><small>Consciousness &amp; culture</small></div></div>
-        </div>
-        <p class="section-desc" style="margin:22px 0 0;font-size:0.92rem">A one-time <strong><span data-cur-sym>$</span><span data-price="5">5</span></strong> registration covers your student file, ID card and Auditer session. Manuscripts <span data-cur-sym>$</span><span data-price="5">5</span> each; handouts &amp; books sold separately.</p>
       </div>
     </div>
   </section>
@@ -408,30 +377,19 @@
   function extraCap() { return state.prog === 'grand-musician' ? 6 : 4; }
   function isFlat() { return state.prog === 'crash' || state.prog === 'meta-order'; }
 
+  // Returns the estimated total only (mirrors the server engine). No itemised
+  // breakdown is surfaced — the pricing methodology isn't public.
   function compute() {
-    var lines = [];
-    if (isFlat()) {
-      lines.push(['Programme fee', flatPrice(state.prog)]);
-      if (state.reg) lines.push(['Registration', regFee()]);
-      return { lines: lines, total: flatPrice(state.prog) + (state.reg ? regFee() : 0) };
-    }
+    var reg = state.reg ? regFee() : 0;
+    if (isFlat()) return flatPrice(state.prog) + reg;
     var B = levelPrices()[state.level] || 0, sub, ex = state.extra;
     if (state.prog === 'grand-musician') {
-      // All three expressions: 3× base, then the promotional discount.
-      var disc = grandDisc(), pre = 3 * B + 0.5 * B * ex;
-      lines.push(['Three expressions (3× base)', 3 * B]);
-      if (ex > 0) lines.push([ex + ' additional course' + (ex === 1 ? '' : 's') + ' (50% each)', Math.round(0.5 * B * ex)]);
-      lines.push(['Grand discount (' + disc + '%)', -Math.round(pre * disc / 100)]);
-      sub = pre * (1 - disc / 100);
+      sub = (3 * B + 0.5 * B * ex) * (1 - grandDisc() / 100);
     } else {
-      sub = B; lines.push(['Base tuition (level)', B]);
-      if (state.prog === 'certified-musician') { sub += compFee(); lines.push(['Compulsory courses', compFee()]); }
-      if (ex > 0) { sub += 0.5 * B * ex; lines.push([ex + ' additional course' + (ex === 1 ? '' : 's') + ' (50% each)', Math.round(0.5 * B * ex)]); }
+      sub = B + (state.prog === 'certified-musician' ? compFee() : 0) + 0.5 * B * ex;
     }
-    if (state.mode === 'online') { lines.push(['Online (+' + onlinePct() + '%)', Math.round(sub * onlinePct() / 100)]); sub = sub * (1 + onlinePct() / 100); }
-    sub = Math.round(sub);
-    if (state.reg) lines.push(['Registration', regFee()]);
-    return { lines: lines, total: sub + (state.reg ? regFee() : 0) };
+    if (state.mode === 'online') sub = sub * (1 + onlinePct() / 100);
+    return Math.round(sub) + reg;
   }
 
   function render() {
@@ -445,13 +403,19 @@
     $('#calcExtraHint').textContent = flat ? 'Not available'
       : (state.prog === 'standard' ? 'Beyond your primary course' : 'Beyond your primary + 4 compulsory');
 
-    var r = compute();
-    var html = r.lines.map(function (l) {
-      var neg = l[1] < 0;
-      return '<div class="calc-line' + (neg ? ' muted' : '') + '"><span>' + l[0] + '</span><span>' + (neg ? '− ' + fmt(-l[1]) : fmt(l[1])) + '</span></div>';
+    var total = compute();
+    // Plain selection summary — NOT a breakdown of how the fee is computed.
+    var names = { 'standard': 'Standard', 'certified-musician': 'Certified', 'grand-musician': 'Grand', 'crash': 'Crash', 'meta-order': 'MetaMusic Order' };
+    var lvls = { precert: 'Pre-Certificate', cert: 'Certificate', prediploma: 'Pre-Diploma', diploma: 'Diploma' };
+    var bits = [names[state.prog] || state.prog];
+    if (!flat) bits.push(lvls[state.level] || state.level);
+    bits.push(state.mode === 'online' ? 'Online' : 'Onsite');
+    if (!flat && state.extra > 0) bits.push(state.extra + ' extra course' + (state.extra === 1 ? '' : 's'));
+    if (state.reg) bits.push('registration included');
+    $('#calcLines').innerHTML = bits.map(function (b) {
+      return '<div class="calc-line"><span><i class="fa-solid fa-check" style="color:#34D399;margin-right:8px"></i>' + b + '</span></div>';
     }).join('');
-    $('#calcLines').innerHTML = html;
-    $('#calcTotal').textContent = fmt(r.total);
+    $('#calcTotal').textContent = fmt(total);
 
     // deep-link the Apply button
     var q = 'apply?pathway=' + encodeURIComponent(state.prog) + '&mode=' + encodeURIComponent(state.mode);
@@ -460,9 +424,9 @@
 
     var fine = $('#calcFine');
     if (flat) fine.textContent = state.prog === 'crash'
-      ? 'The Crash Programme is a flat fee with no levels and no online surcharge.'
+      ? 'The Crash Programme is a flat fee with no levels.'
       : 'The MetaMusic Order is a standalone 12-week intensive.';
-    else fine.textContent = 'Tuition is confirmed at checkout. Online adds ' + onlinePct() + '%. Registration covers your student file, ID card & a 30-minute MAM Auditer assessment.';
+    else fine.textContent = 'Estimated total — confirmed at checkout. Registration covers your student file, ID card & a 30-minute MAM Auditer assessment.';
   }
 
   function bindSeg(id, key) {
