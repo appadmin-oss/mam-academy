@@ -201,8 +201,9 @@
   }
   function renderAnnouncements() {
     var anns = data.announcements || [];
-    if (!anns.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('bullhorn', 'No announcements yet. Updates from your instructors will appear here.') + '</div></section>'; return; }
-    content.innerHTML = '<section class="panel"><div style="padding:14px 18px;display:grid;gap:12px">' + anns.map(function (a) {
+    var res = data.resources || [];
+    if (!anns.length && !res.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('bullhorn', 'Nothing here yet. Announcements and resources from your instructors will appear here.') + '</div></section>'; return; }
+    var annHtml = anns.length ? anns.map(function (a) {
       return '<div style="padding:16px 18px;border:1px solid var(--border);border-radius:12px;background:var(--bg-raised)">'
         + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">'
         +   '<strong style="color:var(--gold-bright);font-size:1.02rem">' + P.escapeHtml(a.title || 'Announcement') + '</strong>'
@@ -210,7 +211,17 @@
         + '<p style="margin:8px 0 0;color:var(--text-soft);line-height:1.6;white-space:pre-wrap">' + P.escapeHtml(a.body) + '</p>'
         + (a.author ? '<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted)">— ' + P.escapeHtml(a.author) + '</div>' : '')
         + '</div>';
-    }).join('') + '</div></section>';
+    }).join('') : empty('bullhorn', 'No announcements yet.');
+    var resIcon = { link: 'link', sheet: 'file-lines', video: 'video', doc: 'file' };
+    var resHtml = res.length ? res.map(function (r) {
+      return '<a href="' + P.escapeHtml(r.url) + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:12px;padding:13px 16px;border:1px solid var(--border);border-radius:12px;background:var(--bg-raised);text-decoration:none">'
+        + '<i class="fa-solid fa-' + (resIcon[r.type] || 'link') + '" style="color:var(--gold-bright);font-size:1.1rem"></i>'
+        + '<div style="flex:1;min-width:0"><div style="color:var(--text);font-weight:600">' + P.escapeHtml(r.title) + '</div>'
+        + '<div style="font-size:0.76rem;color:var(--text-muted)">' + P.escapeHtml(r.class_title || '') + ' · ' + P.fmtDate(r.created_at) + '</div></div>'
+        + '<i class="fa-solid fa-arrow-up-right-from-square" style="color:var(--text-muted)"></i></a>';
+    }).join('') : empty('folder-open', 'No resources yet.');
+    content.innerHTML = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-bullhorn" style="margin-right:8px;color:var(--gold-bright)"></i>Announcements</h2></div><div style="padding:14px 18px;display:grid;gap:12px">' + annHtml + '</div></section>'
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-folder-open" style="margin-right:8px;color:var(--gold-bright)"></i>Resources &amp; materials</h2></div><div style="padding:14px 18px;display:grid;gap:10px">' + resHtml + '</div></section>';
   }
   function renderAttendance() {
     var att = data.attendance || [];

@@ -90,6 +90,16 @@
         + '<p style="margin:6px 0 0;color:var(--text-soft);font-size:0.9rem;line-height:1.55;white-space:pre-wrap">' + P.escapeHtml(a.body) + '</p></div>';
     }).join('') : '<div class="panel-body">' + empty('bullhorn', 'No announcements yet. Post your first above.') + '</div>';
 
+    var res = data.resources || [];
+    var resIcon = { link: 'link', sheet: 'file-lines', video: 'video', doc: 'file' };
+    var resList = res.length ? res.map(function (r) {
+      return '<div style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised);margin-bottom:8px">'
+        + '<i class="fa-solid fa-' + (resIcon[r.type] || 'link') + '" style="color:var(--gold-bright)"></i>'
+        + '<div style="flex:1;min-width:0"><a href="' + P.escapeHtml(r.url) + '" target="_blank" rel="noopener" style="color:var(--text);font-weight:600;text-decoration:none">' + P.escapeHtml(r.title) + '</a>'
+        + '<div style="font-size:0.76rem;color:var(--text-muted)">' + P.escapeHtml(r.class_title || '') + ' · ' + P.fmtDate(r.created_at) + '</div></div>'
+        + '<a href="' + P.escapeHtml(r.url) + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.8rem">Open <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>';
+    }).join('') : '<div class="panel-body">' + empty('folder-open', 'No resources yet. Share a link, sheet or video above.') + '</div>';
+
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Post an announcement</h2></div>'
       + '<form id="annForm" class="profile-form" style="padding:18px 22px;display:grid;gap:14px">'
       +   '<div class="field"><label for="ann-class">Class</label><select id="ann-class" required>' + opts + '</select></div>'
@@ -97,7 +107,16 @@
       +   '<div class="field"><label for="ann-body">Message</label><textarea id="ann-body" rows="4" required placeholder="What should your students know?"></textarea></div>'
       +   '<div class="actions"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Post to class</button></div>'
       + '</form></section>'
-      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Posted</h2></div><div style="padding:14px 18px">' + list + '</div></section>';
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Posted announcements</h2></div><div style="padding:14px 18px">' + list + '</div></section>'
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Share a resource</h2></div>'
+      + '<form id="resForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">'
+      +   '<div class="field"><label for="res-class">Class</label><select id="res-class" required>' + opts + '</select></div>'
+      +   '<div class="field"><label for="res-type">Type</label><select id="res-type"><option value="link">Link</option><option value="sheet">Sheet music</option><option value="video">Video</option><option value="doc">Document</option></select></div>'
+      +   '<div class="field" style="grid-column:1/-1"><label for="res-title">Title</label><input id="res-title" maxlength="200" required placeholder="e.g. Week 3 scales sheet"></div>'
+      +   '<div class="field" style="grid-column:1/-1"><label for="res-url">URL (https://…)</label><input id="res-url" type="url" required placeholder="https://…"></div>'
+      +   '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paperclip"></i> Add resource</button></div>'
+      + '</form></section>'
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Shared resources</h2></div><div style="padding:14px 18px">' + resList + '</div></section>';
     document.getElementById('annForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var body = document.getElementById('ann-body').value.trim();
@@ -113,6 +132,25 @@
       }).catch(function (err) {
         btn.disabled = false; btn.innerHTML = orig;
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not post: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not post.'));
+      });
+    });
+    document.getElementById('resForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var url = document.getElementById('res-url').value.trim();
+      var title = document.getElementById('res-title').value.trim();
+      if (!url || !title) return;
+      var btn = e.target.querySelector('button'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Adding…';
+      API.request('instructor/resource', { method: 'POST', body: {
+        class_id: document.getElementById('res-class').value,
+        type: document.getElementById('res-type').value,
+        title: title, url: url
+      } }).then(function () {
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Resource added.', 'success') : alert('Added.'));
+        return load();
+      }).catch(function (err) {
+        btn.disabled = false; btn.innerHTML = orig;
+        var c = err.body && err.body.error;
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast(c === 'validation' ? 'Check the title and a valid https URL.' : 'Could not add resource.', 'error') : alert('Could not add.'));
       });
     });
   }

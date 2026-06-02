@@ -57,6 +57,16 @@ $announcements = mam_db_all(
     [(int)$u['id']]
 );
 
+// Learning resources for any class the student is enrolled in.
+$resources = mam_db_all(
+    "SELECT r.id, r.title, r.url, r.type, r.created_at, c.title AS class_title
+       FROM class_resources r
+       JOIN classes c ON c.id = r.class_id
+       JOIN enrollments e ON e.class_id = c.id
+      WHERE e.student_id = ? ORDER BY r.created_at DESC LIMIT 50",
+    [(int)$u['id']]
+);
+
 // Server-persisted practice stats (cross-device).
 $practice = mam_practice_stats((int)$u['id']);
 
@@ -77,6 +87,7 @@ mam_ok([
     'auditer' => $auditer,
     'store_orders' => $storeOrders,
     'announcements' => $announcements,
+    'resources' => $resources,
     'practice' => $practice['practice'],
     'practice_stats' => $practice['practiceStats'],
 ]);

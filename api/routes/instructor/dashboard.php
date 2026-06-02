@@ -28,6 +28,13 @@ $announcements = mam_db_all(
     [$instructorId]
 );
 
+$resources = mam_db_all(
+    "SELECT r.id, r.title, r.url, r.type, r.created_at, r.class_id, c.title AS class_title
+       FROM class_resources r JOIN classes c ON c.id = r.class_id
+      WHERE c.instructor_id = ? ORDER BY r.created_at DESC LIMIT 50",
+    [$instructorId]
+);
+
 mam_ok([
     'user' => [
         'id' => $instructorId,
@@ -42,4 +49,5 @@ mam_ok([
     'students' => $students,
     'recent_attendance' => $recent_attendance,
     'announcements' => $announcements,
+    'resources' => $resources,
 ]);

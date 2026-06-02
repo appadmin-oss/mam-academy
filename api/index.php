@@ -95,6 +95,7 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/mark-attendance',  $f('instructor/mark-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
+    $r->post('/resource',         $f('instructor/resource.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
 });
 
 /* ─── Admin (JSON endpoints; the HTML dashboard is at /admin/) ─── */
