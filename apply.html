@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
 <link rel="stylesheet" href="assets/css/main.css?v=20260602c">
-<link rel="stylesheet" href="assets/css/apply.css?v=20260601a">
+<link rel="stylesheet" href="assets/css/apply.css?v=20260602e">
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
@@ -63,8 +63,8 @@
       </summary>
       <div class="summary-panel-body">
         <div id="applySummary">
-          <div class="summary-row"><span>Pathway</span><span>—</span></div>
-          <div class="summary-total"><span>Total</span><span>$0</span></div>
+          <div class="summary-row"><span>Programme</span><span>—</span></div>
+          <div class="summary-note"><i class="fa-solid fa-circle-info"></i> Make your selections to build your application. Tuition is discussed after your MAM Auditer assessment.</div>
         </div>
         <div class="summary-currency">
           <label class="field-label" for="applyCurrency">Display currency</label>
@@ -119,23 +119,23 @@
           <label class="field-label sr-only">Programme <span class="req">*</span></label>
           <div class="choice-grid" id="programmeGrid">
             <label class="choice-card"><input type="radio" name="pathway" value="crash">
-              <div class="choice-card-head"><span class="choice-card-title">Crash Programme</span><span class="choice-card-price" data-prog-price="crash">$70</span></div>
+              <div class="choice-card-head"><span class="choice-card-title">Crash Programme</span><span class="choice-card-tag">6 weeks</span></div>
               <span class="choice-card-desc">6-week accelerated intensive — one course, flat fee, no levels.</span>
               <span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="pathway" value="standard">
-              <div class="choice-card-head"><span class="choice-card-title">Standard</span><span class="choice-card-price" data-prog-price="standard">from $120</span></div>
+              <div class="choice-card-head"><span class="choice-card-title">Standard</span><span class="choice-card-tag">1 course</span></div>
               <span class="choice-card-desc">One course at your chosen level — the core single-discipline path.</span>
               <span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="pathway" value="certified-musician">
-              <div class="choice-card-head"><span class="choice-card-title">Certified Musician</span><span class="choice-card-price" data-prog-price="certified-musician">from $240</span></div>
+              <div class="choice-card-head"><span class="choice-card-title">Certified Musician</span><span class="choice-card-tag">up to 5 courses</span></div>
               <span class="choice-card-desc">A major course + the four compulsory MAM courses · add more at half price.</span>
               <span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="pathway" value="grand-musician">
-              <div class="choice-card-head"><span class="choice-card-title">Grand Musician <span class="prog-badge" id="grandSaveBadge" hidden></span></span><span class="choice-card-price" data-prog-price="grand-musician">from $313</span></div>
+              <div class="choice-card-head"><span class="choice-card-title">Grand Musician</span><span class="choice-card-tag">all 3 expressions</span></div>
               <span class="choice-card-desc">All three expressions — African, Classical &amp; Contemporary — plus compulsory courses. Flagship path.</span>
               <span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="pathway" value="meta-order">
-              <div class="choice-card-head"><span class="choice-card-title" style="display:inline-flex;align-items:center;gap:6px"><iconify-icon icon="fluent-emoji:fire" width="20" aria-hidden="true"></iconify-icon>MetaMusic Order</span><span class="choice-card-price" data-prog-price="meta-order">$60</span></div>
+              <div class="choice-card-head"><span class="choice-card-title" style="display:inline-flex;align-items:center;gap:6px"><iconify-icon icon="fluent-emoji:fire" width="20" aria-hidden="true"></iconify-icon>MetaMusic Order</span><span class="choice-card-tag">12 weeks</span></div>
               <span class="choice-card-desc">12-week civilization-engineering intensive — standalone.</span>
               <span class="choice-card-icon"></span></label>
           </div>
@@ -153,16 +153,16 @@
             <label class="field-label sr-only">Level <span class="req">*</span></label>
             <div class="choice-grid">
               <label class="choice-card"><input type="radio" name="level" value="precert">
-                <div class="choice-card-head"><span class="choice-card-title">Pre-Certificate</span><span class="choice-card-price" data-level-price="precert">$120</span></div>
+                <div class="choice-card-head"><span class="choice-card-title">Pre-Certificate</span><span class="choice-card-tag">Grade 1–2</span></div>
                 <span class="choice-card-desc">Foundations — for new &amp; returning students.</span><span class="choice-card-icon"></span></label>
               <label class="choice-card"><input type="radio" name="level" value="cert">
-                <div class="choice-card-head"><span class="choice-card-title">Certificate</span><span class="choice-card-price" data-level-price="cert">$130</span></div>
+                <div class="choice-card-head"><span class="choice-card-title">Certificate</span><span class="choice-card-tag">Grade 3–4</span></div>
                 <span class="choice-card-desc">Working-musician competencies.</span><span class="choice-card-icon"></span></label>
               <label class="choice-card"><input type="radio" name="level" value="prediploma">
-                <div class="choice-card-head"><span class="choice-card-title">Pre-Diploma</span><span class="choice-card-price" data-level-price="prediploma">$160</span></div>
+                <div class="choice-card-head"><span class="choice-card-title">Pre-Diploma</span><span class="choice-card-tag">Grade 5–6</span></div>
                 <span class="choice-card-desc">Advanced performance &amp; theory.</span><span class="choice-card-icon"></span></label>
               <label class="choice-card"><input type="radio" name="level" value="diploma">
-                <div class="choice-card-head"><span class="choice-card-title">Diploma</span><span class="choice-card-price" data-level-price="diploma">$180</span></div>
+                <div class="choice-card-head"><span class="choice-card-title">Diploma</span><span class="choice-card-tag">Grade 7–8</span></div>
                 <span class="choice-card-desc">Professional mastery &amp; capstone.</span><span class="choice-card-icon"></span></label>
             </div>
             <div class="field-error" id="err-level"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose your level</span></div>
@@ -255,11 +255,11 @@
           <div class="substep-head">
             <span class="substep-num">7</span>
             <span class="substep-title">Add more courses</span>
-            <span class="substep-meta">Optional — each additional course is half the base price</span>
+            <span class="substep-meta">Optional — pick any extra courses you'd like to study</span>
           </div>
           <div class="compulsory-note" id="compulsoryNote">
             <i class="fa-solid fa-circle-check"></i>
-            <div><strong>Already included in your programme:</strong> Music Theory, MetaMusic, APE &amp; Rhythm Intelligence are built in for the $120 compulsory fee.</div>
+            <div><strong>Already included in your programme:</strong> Rhythm &amp; Pitch, Theory of Music, Performance &amp; Meta Music are built in.</div>
           </div>
           <div class="field">
             <div class="choice-grid" id="minorsGrid"><!-- rendered by JS; excludes your chosen major --></div>
@@ -616,6 +616,6 @@
 <script src="assets/js/main.js?v=20260602c"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
 <script src="assets/js/headshot.js?v=20260530a"></script>
-<script src="assets/js/apply.js?v=20260602d"></script>
+<script src="assets/js/apply.js?v=20260602e"></script>
 </body>
 </html>

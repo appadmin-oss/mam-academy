@@ -1274,7 +1274,7 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
       .       '<div class="row"><span>Subtotal</span><b>' . $label . '</b></div>'
       .       '<div class="row"><span>Discount (NIL)</span><b>' . $label . '</b></div>'
       .       '<div class="grand"><span>TOTAL</span><b>' . $label . '</b></div>'
-      .       ($tuitionUsd > 0 ? '<div class="tuition-note">Estimated tuition (due after placement): <b>$' . number_format($tuitionUsd, 0) . '</b></div>' : '')
+      .       '<div class="tuition-note">Tuition is discussed after your MAM Auditer assessment and is flexible.</div>'
       .     '</div>'
       .   '</div>'
 

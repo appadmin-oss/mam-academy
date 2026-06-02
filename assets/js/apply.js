@@ -362,32 +362,22 @@
       updateProgrammeUI();
       var summary = $('#applySummary'); if (!summary) return;
       var price = cfg.pricing[data.pathway];
-      var b = priceBreakdown();
       var rows = '';
       if (price) rows += row('Programme', price.name);
       if (data.mode)       rows += row('Mode', data.mode === 'online' ? 'Online' : 'Onsite');
       if (data.level && cfg.levels && cfg.levels[data.level]) rows += row('Level', cfg.levels[data.level]);
       if (data.expression) rows += row('Expression', data.pathway === 'grand-musician' ? 'All three' : titleCase(data.expression));
       if (data.program)    rows += row('Focus', titleCase(data.program));
-      if (data.discipline) rows += row('Course', titleCase(data.discipline));
-      if (b.compulsory > 0) rows += row('Compulsory courses', fmtMoney(b.compulsory));
-      if ((data.minors || []).length) rows += row('Extra courses', data.minors.map(titleCase).join(', '));
-      if (price) {
-        if (b.preDiscount != null && b.discountAmount > 0) {
-          rows += '<div class="summary-row summary-discount"><span>Grand discount (' + b.discountPct + '%)</span><span>− ' + fmtMoney(b.discountAmount) + '</span></div>';
-        }
-        rows += row('Tuition', fmtMoney(b.subtotal));
-      }
-      if (data.includeRegistration && cfg.registrationFeeUsd) rows += row('Registration', fmtMoney(b.registration));
-      var total = computeTotalUsd();
-      rows += '<div class="summary-total"><span>Total</span><span>' + fmtMoney(total) + '</span></div>';
+      if (data.discipline) rows += row('Primary course', titleCase(data.discipline));
+      if ((data.minors || []).length) rows += row('Additional courses', data.minors.map(titleCase).join(', '));
+      if (data.session) rows += row('Session', data.sessionLabel || titleCase(data.session));
+      // No tuition figure anywhere — fees are discussed after MAM Auditer
+      // placement and are negotiable. Today the applicant only confirms a seat
+      // with the one-time booking fee shown on the payment step.
+      rows += '<div class="summary-note"><i class="fa-solid fa-circle-info"></i> Tuition is discussed after your MAM Auditer assessment and is flexible. Today you only confirm your seat with a one-time booking fee.</div>';
       if (data.reference) rows += '<div style="margin-top:10px;font-size:0.78rem;color:var(--text-muted);text-align:center">Ref: <span class="mono" style="color:var(--gold-bright)">' + data.reference + '</span></div>';
       summary.innerHTML = rows;
       var review = $('#reviewBody'); if (review) review.innerHTML = renderReview();
-      var pb = $('#btnPay');
-      if (pb) { var l = pb.querySelector('span:first-child'); if (l) l.textContent = 'Pay ' + fmtMoney(total); }
-      var amb = $('#ambTotal'); if (amb) amb.textContent = fmtMoney(total);
-      var sp = $('#spTotal'); if (sp) sp.textContent = fmtMoney(total);
     }
 
     // Conditional Step-1 substeps + live price labels. Idempotent; called from
@@ -399,25 +389,9 @@
     function uncheck(name) { $$('input[name="' + name + '"]').forEach(function (i) { i.checked = false; }); }
     function updateProgrammeUI() {
       var prog = data.pathway;
-      var lows = (cfg.levelPrices && Object.keys(cfg.levelPrices).map(function (k) { return cfg.levelPrices[k]; })) || [120];
-      var lowB = lows.length ? Math.min.apply(null, lows) : 120;
-      var B = (cfg.levelPrices && cfg.levelPrices[data.level]) || 0;
-      var bCalc = B || lowB;
-      var pre = B ? '' : 'from ';
-      var comp = (cfg.compulsoryFeeUsd != null ? cfg.compulsoryFeeUsd : 120);
-      var discPct = (cfg.grandDiscountPct != null ? cfg.grandDiscountPct : 13);
-      function setP(p, txt) { var el = document.querySelector('[data-prog-price="' + p + '"]'); if (el) el.textContent = txt; }
-      setP('crash', fmtMoney((cfg.pricing.crash && cfg.pricing.crash.usd) || 70));
-      setP('meta-order', fmtMoney((cfg.pricing['meta-order'] && cfg.pricing['meta-order'].usd) || 60));
-      setP('standard', pre + fmtMoney(bCalc));
-      setP('certified-musician', pre + fmtMoney(bCalc + comp));
-      setP('grand-musician', pre + fmtMoney(Math.round(3 * bCalc * (1 - discPct / 100))));
-      if (cfg.levelPrices) Object.keys(cfg.levelPrices).forEach(function (k) {
-        var el = document.querySelector('[data-level-price="' + k + '"]'); if (el) el.textContent = fmtMoney(cfg.levelPrices[k]);
-      });
-      var badge = $('#grandSaveBadge');
-      if (badge) { if (discPct > 0) { badge.hidden = false; badge.textContent = 'Save ' + discPct + '%'; } else badge.hidden = true; }
-
+      // NB: no prices are shown anywhere in the form — tuition is discussed
+      // after the MAM Auditer assessment and is negotiable. We only drive the
+      // conditional sub-step flow here.
       var levelled  = prog === 'standard' || prog === 'certified-musician' || prog === 'grand-musician';
       var needsExpr = prog === 'crash' || prog === 'standard' || prog === 'certified-musician';
       // Additional courses (+50%·base each) are allowed on Standard, Certified
@@ -466,12 +440,10 @@
       minorsRenderKey = key;
       // A minor can never equal the major.
       data.minors = (data.minors || []).filter(function (m) { return m !== data.discipline; });
-      var half = ((cfg.levelPrices && cfg.levelPrices[data.level]) || 0) / 2;
       grid.innerHTML = MINOR_CATALOG.filter(function (c) { return c[0] !== data.discipline; }).map(function (c) {
         var on = data.minors.indexOf(c[0]) >= 0 ? ' checked' : '';
-        var price = half ? ('+' + fmtMoney(half)) : '+½ base';
         return '<label class="choice-card"><input type="checkbox" name="minor" value="' + c[0] + '"' + on + '>'
-          + '<div class="choice-card-head"><span class="choice-card-title">' + escapeHtml(c[1]) + '</span><span class="choice-card-price">' + price + '</span></div>'
+          + '<div class="choice-card-head"><span class="choice-card-title">' + escapeHtml(c[1]) + '</span></div>'
           + '<span class="choice-card-icon"></span></label>';
       }).join('');
       $$('#minorsGrid input[name="minor"]').forEach(function (inp) {
@@ -556,6 +528,9 @@
       if (data.expression) html += item('Expression', data.pathway === 'grand-musician' ? 'All three' : titleCase(data.expression));
       html += item('Focus', titleCase(data.program));
       html += item('Primary course', titleCase(data.discipline));
+      if (data.pathway === 'certified-musician' || data.pathway === 'grand-musician') {
+        html += item('Compulsory courses', 'Rhythm & Pitch · Theory of Music · Performance · Meta Music');
+      }
       if ((data.minors || []).length) html += item('Additional courses', data.minors.map(titleCase).join(', '));
       if (data.session) html += item('Session', data.sessionLabel || titleCase(data.session));
       html += item('MAM Auditer', data.auditer ? 'Yes — book session' : 'No');
@@ -1090,7 +1065,9 @@
     function paintFee() {
       if (!feeTier) return;
       var label = feeTier.label || '$5';
-      [$('#payAmount'), $('#payHeroLabel'), $('#reviewFeeLabel'), $('#ambTotal')].forEach(function (el) { if (el) el.textContent = label; });
+      // The ONLY price shown in the form is the seat-confirmation booking fee
+      // (not tuition). Mirror it into the summary header + mobile bar too.
+      [$('#payAmount'), $('#payHeroLabel'), $('#reviewFeeLabel'), $('#ambTotal'), $('#spTotal')].forEach(function (el) { if (el) el.textContent = label; });
       var bp = $('#btnPayLabel'); if (bp) bp.textContent = 'Pay ' + label;
       var cn = $('#payCountryName'); if (cn) cn.textContent = (feeTier.country && feeTier.country !== 'DEFAULT') ? feeTier.country : 'your region';
       var flag = $('#payCountryFlag'); if (flag) {
