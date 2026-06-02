@@ -34,27 +34,34 @@ function mam_level_base_prices(): array {
     return $out;
 }
 
-/** Grand Musician promotional discount (percent). Admin-editable. */
+/** Grand/Certified compulsory-courses fee (USD). Admin-editable. Covers Rhythm
+ *  & Pitch, Theory of Music, Performance and Meta Music. */
+function mam_compulsory_fee(): float {
+    return mam_setting_num('compulsory_fee_usd', 120);
+}
+
+/** Legacy: Grand promotional discount — retired by the definitive tuition spec
+ *  (kept returning 0 so any old caller is a no-op). */
 function mam_grand_discount_pct(): float {
-    return mam_setting_num('grand_discount_pct', 13);
+    return mam_setting_num('grand_discount_pct', 0);
 }
 
 /**
- * Compute an application's price from the level-based model (spec §2).
+ * Compute an application's price from the level-based model.
  *
  *   $args: programme, level, mode ('online'|'onsite'), extraCourses (int),
  *          includeRegistration (bool)
  *
- * Programme rules (B = level base price):
+ * Programme rules (B = level base price, C = compulsory fee $120):
  *   crash              → flat price_crash ($70), level-independent, no online adj.
  *   standard           → B
- *   certified-musician → 2B + 0.5B·extra
- *   grand-musician     → (3B + 0.5B·extra) · (1 − discount)
+ *   certified-musician → B + C + 0.5B·extra   (up to 5 courses)
+ *   grand-musician     → B + C + 0.5B·extra   (up to 7 courses; same price)
  *   meta-order         → flat price (not level-based)
  *
- * The online adjustment is folded silently into `total` and is NEVER returned
- * as its own field — callers (incl. the public price endpoint) must not be able
- * to surface it. The Grand discount IS surfaced (it's a promoted selling point).
+ * Online adds +online_surcharge_pct% (20) to the subtotal; it is folded
+ * silently into `total` and never returned as its own field. Registration ($5)
+ * is added separately at checkout, not part of the tuition formula.
  */
 function mam_compute_application_price(array $args): array {
     $programme = (string)($args['programme'] ?? '');
@@ -67,23 +74,24 @@ function mam_compute_application_price(array $args): array {
     $half = $B / 2;
 
     $onlineApplies  = true;
-    $preDiscount    = null;
-    $discountPct    = 0.0;
-    $discountAmount = 0.0;
+    $compulsory     = 0.0;
 
     switch ($programme) {
         case 'crash':
             // Flat fee, level-independent — Crash has no levels (spec/review).
             $subtotal = mam_setting_num('price_crash', 70); $onlineApplies = false; break;
         case 'standard':
-            $subtotal = $B; break;
+            // One primary course at the chosen level; no compulsory courses,
+            // but additional courses (+50%·base each) are still allowed.
+            $subtotal = $B + $half * $extra; break;
         case 'certified-musician':
-            $subtotal = 2 * $B + $half * $extra; break;
         case 'grand-musician':
-            $preDiscount    = 3 * $B + $half * $extra;
-            $discountPct    = mam_grand_discount_pct();
-            $subtotal       = $preDiscount * (1 - $discountPct / 100);
-            $discountAmount = $preDiscount - $subtotal;
+            // Base (by level) + flat compulsory-courses fee + 50%·base per
+            // additional course. Identical pricing for both; they differ only
+            // in how many courses you may take (Certified up to 5, Grand up to
+            // 7). No promotional discount (per the definitive tuition spec).
+            $compulsory = mam_compulsory_fee();
+            $subtotal   = $B + $compulsory + $half * $extra;
             break;
         case 'meta-order':
             $subtotal = mam_setting_num('price_meta_order', 60); $onlineApplies = false; break;
@@ -109,9 +117,10 @@ function mam_compute_application_price(array $args): array {
         'level'           => $level,
         'currency'        => 'USD',
         'base'            => $r0($B),
-        'pre_discount'    => $preDiscount === null ? null : $r0($preDiscount),
-        'discount_pct'    => $r0($discountPct),
-        'discount_amount' => $r0($discountAmount),
+        'compulsory'      => $r0($compulsory),
+        'pre_discount'    => null,
+        'discount_pct'    => 0,
+        'discount_amount' => 0,
         'subtotal'        => $adjusted,
         'registration'    => $registration,
         'total'           => $total,
@@ -140,11 +149,11 @@ function mam_prices(): array {
  */
 function mam_programme_from_prices(): array {
     $base = mam_level_base_price('precert');
-    $disc = mam_grand_discount_pct();
+    $comp = mam_compulsory_fee();
     return [
         'standard'           => round($base, 0),
-        'certified-musician' => round(2 * $base, 0),
-        'grand-musician'     => round(3 * $base * (1 - $disc / 100), 0),
+        'certified-musician' => round($base + $comp, 0),
+        'grand-musician'     => round($base + $comp, 0),
         'crash'              => round(mam_setting_num('price_crash', 70), 0),
         'meta-order'         => round(mam_setting_num('price_meta_order', 60), 0),
     ];
@@ -320,7 +329,7 @@ function mam_validate_application(array $in): array {
     // Additional ("minor") courses beyond the primary one — each adds 0.5×base
     // to Certified/Grand (spec §6). Only those two programmes carry minors; the
     // count drives pricing, the label is a human-readable list for the record.
-    $minorsCarry = in_array($out['pathway'], ['certified-musician','grand-musician'], true);
+    $minorsCarry = in_array($out['pathway'], ['standard','certified-musician','grand-musician'], true);
     $out['extraCourses'] = $minorsCarry ? max(0, min(12, (int)($in['extraCourses'] ?? 0))) : 0;
     $out['coursesLabel'] = $minorsCarry ? (mam_str($in, 'coursesLabel', 400) ?: null) : null;
 

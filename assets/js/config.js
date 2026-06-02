@@ -106,21 +106,21 @@ window.MAM_CONFIG = {
   pricing: {
     'standard':           { name: 'Standard',           usd: 120 },
     'certified-musician': { name: 'Certified Musician', usd: 240 },
-    'grand-musician':     { name: 'Grand Musician',     usd: 313 },
+    'grand-musician':     { name: 'Grand Musician',     usd: 240 },
     'crash':              { name: 'Crash Programme (6 weeks)',      usd: 70 },
     'meta-order':         { name: 'The MetaMusic Order (12 weeks)', usd: 60 }
   },
   registrationFeeUsd: 5,
   onlineSurchargePct: 20,
 
-  /* -------- Level-based pricing model (spec §2) --------
-     B = the chosen level's base price. Standard = B · Certified = 2B+0.5B·extra
-     · Grand = (3B+0.5B·extra)·(1−discount). Crash is a flat fee (no level).
-     Hydrated live from /api/config/public; server stays authoritative. Keep in
-     sync with mam_compute_application_price() in api/lib/validation.php. */
+  /* -------- Level-based pricing model --------
+     B = chosen level's base price; C = compulsory fee ($120, Certified/Grand).
+     Standard = B · Certified/Grand = B + C + 0.5B·extra · Crash = flat (no level).
+     Online adds +onlineSurchargePct%. Hydrated live from /api/config/public;
+     server stays authoritative. Keep in sync with mam_compute_application_price. */
   levels: { precert: 'Pre-Certificate', cert: 'Certificate', prediploma: 'Pre-Diploma', diploma: 'Diploma' },
   levelPrices: { precert: 120, cert: 130, prediploma: 160, diploma: 180 },
-  grandDiscountPct: 13,
+  compulsoryFeeUsd: 120,
 
   /* -------- Testimonials (edit here; the homepage rotator reads this) --------
      `photo` is optional — when set it shows a real headshot (routed through
@@ -426,7 +426,7 @@ window.MAM_CDN = (function () {
         // Level-based model — keep the form's price preview in sync with admin.
         if (j.levels && typeof j.levels === 'object') C.levels = j.levels;
         if (j.level_prices && typeof j.level_prices === 'object') C.levelPrices = j.level_prices;
-        if (typeof j.grand_discount_pct === 'number') C.grandDiscountPct = j.grand_discount_pct;
+        if (typeof j.compulsory_fee_usd === 'number') C.compulsoryFeeUsd = j.compulsory_fee_usd;
         if (typeof j.store_shipping_flat_usd === 'number') C.storeShippingUsd = j.store_shipping_flat_usd;
         if (typeof j.usd_to_ngn === 'number' && C.currency && C.currency.rates) C.currency.rates.NGN = j.usd_to_ngn;
         try { document.dispatchEvent(new CustomEvent('mam:config', { detail: j })); } catch (e) {}

@@ -82,7 +82,9 @@ function mam_settings_schema(): array {
         // Standalone / flat programmes — not level-based.
         ['Programme pricing (USD)', 'price_crash',              'Crash Programme (flat)', 70, '$'],
         ['Programme pricing (USD)', 'price_meta_order',         'MetaMusic Order',        60, '$'],
-        ['Programme adjustments',   'grand_discount_pct',       'Grand Musician discount', 13, '%'],
+        // Certified & Grand compulsory-courses fee (Rhythm&Pitch, Theory,
+        // Performance, Meta Music) — added on top of the level base.
+        ['Programme pricing (USD)', 'compulsory_fee_usd',       'Compulsory courses fee (Certified/Grand)', 120, '$'],
         // Legacy flat programme prices — drive the current form/charging until
         // the level-based form rebuild lands; then these can be retired.
         ['Programme pricing (legacy)', 'price_certified_musician', 'Certified Musician (legacy flat)', 230, '$'],

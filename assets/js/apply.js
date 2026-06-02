@@ -309,28 +309,26 @@
     // only the FINAL figure to the applicant — the adjustment is never shown as
     // a separate line (it stays a backend pricing concern).
     // Display-only mirror of the server engine (mam_compute_application_price).
-    // B = the chosen level's base price; the online adjustment is folded in
-    // silently (never shown as a line); the Grand discount IS surfaced.
+    // B = the chosen level's base price; C = compulsory fee ($120, Certified/
+    // Grand only). Online (+20%) is folded into the total silently.
     function priceBreakdown() {
       var prog = data.pathway;
       var B = (cfg.levelPrices && cfg.levelPrices[data.level]) || 0;
       var half = B / 2;
       var extra = (data.minors || []).length;
-      var discPct = cfg.grandDiscountPct || 0;
-      var subtotal = 0, onlineApplies = true, preDiscount = null, discountAmount = 0;
+      var comp = (cfg.compulsoryFeeUsd != null ? cfg.compulsoryFeeUsd : 120);
+      var subtotal = 0, onlineApplies = true, compulsory = 0;
       if (prog === 'crash') {
         subtotal = (cfg.pricing.crash && cfg.pricing.crash.usd) || 70; onlineApplies = false;
       } else if (prog === 'standard') {
-        subtotal = B;
-      } else if (prog === 'certified-musician') {
-        subtotal = 2 * B + half * extra;
-      } else if (prog === 'grand-musician') {
-        preDiscount = 3 * B + half * extra;
-        subtotal = preDiscount * (1 - discPct / 100);
-        discountAmount = preDiscount - subtotal;
+        subtotal = B + half * extra;
+      } else if (prog === 'certified-musician' || prog === 'grand-musician') {
+        compulsory = comp;
+        subtotal = B + compulsory + half * extra;
       } else if (prog === 'meta-order') {
         subtotal = (cfg.pricing['meta-order'] && cfg.pricing['meta-order'].usd) || 60; onlineApplies = false;
       }
+      var discountAmount = 0, preDiscount = null; // discount retired
       var adjusted = subtotal;
       if (onlineApplies && data.mode === 'online' && cfg.onlineSurchargePct) {
         adjusted = subtotal * (1 + cfg.onlineSurchargePct / 100);
@@ -340,9 +338,8 @@
       var r0 = function (n) { return Math.round(n); };
       adjusted = r0(adjusted); registration = r0(registration);
       return {
-        base: r0(B), extra: extra, discountPct: discPct,
-        preDiscount: preDiscount === null ? null : r0(preDiscount),
-        discountAmount: r0(discountAmount),
+        base: r0(B), extra: extra, compulsory: r0(compulsory), discountPct: 0,
+        preDiscount: null, discountAmount: 0,
         subtotal: adjusted, registration: registration, total: adjusted + registration
       };
     }
@@ -369,11 +366,9 @@
       if (data.expression) rows += row('Expression', data.pathway === 'grand-musician' ? 'All three' : titleCase(data.expression));
       if (data.program)    rows += row('Focus', titleCase(data.program));
       if (data.discipline) rows += row('Course', titleCase(data.discipline));
+      if (b.compulsory > 0) rows += row('Compulsory courses', fmtMoney(b.compulsory));
       if ((data.minors || []).length) rows += row('Extra courses', data.minors.map(titleCase).join(', '));
       if (price) {
-        if (b.preDiscount != null && b.discountAmount > 0) {
-          rows += '<div class="summary-row summary-discount"><span>Grand discount (' + b.discountPct + '%)</span><span>− ' + fmtMoney(b.discountAmount) + '</span></div>';
-        }
         rows += row('Tuition', fmtMoney(b.subtotal));
       }
       if (data.includeRegistration && cfg.registrationFeeUsd) rows += row('Registration', fmtMoney(b.registration));
@@ -402,22 +397,24 @@
       var B = (cfg.levelPrices && cfg.levelPrices[data.level]) || 0;
       var bCalc = B || lowB;
       var pre = B ? '' : 'from ';
-      var discPct = cfg.grandDiscountPct || 0;
+      var comp = (cfg.compulsoryFeeUsd != null ? cfg.compulsoryFeeUsd : 120);
       function setP(p, txt) { var el = document.querySelector('[data-prog-price="' + p + '"]'); if (el) el.textContent = txt; }
       setP('crash', fmtMoney((cfg.pricing.crash && cfg.pricing.crash.usd) || 70));
       setP('meta-order', fmtMoney((cfg.pricing['meta-order'] && cfg.pricing['meta-order'].usd) || 60));
       setP('standard', pre + fmtMoney(bCalc));
-      setP('certified-musician', pre + fmtMoney(2 * bCalc));
-      setP('grand-musician', pre + fmtMoney(Math.round(3 * bCalc * (1 - discPct / 100) * 100) / 100));
+      setP('certified-musician', pre + fmtMoney(bCalc + comp));
+      setP('grand-musician', pre + fmtMoney(bCalc + comp));
       if (cfg.levelPrices) Object.keys(cfg.levelPrices).forEach(function (k) {
         var el = document.querySelector('[data-level-price="' + k + '"]'); if (el) el.textContent = fmtMoney(cfg.levelPrices[k]);
       });
       var badge = $('#grandSaveBadge');
-      if (badge) { if (discPct > 0) { badge.hidden = false; badge.textContent = 'Save ' + discPct + '%'; } else badge.hidden = true; }
+      if (badge) badge.hidden = true; // promotional discount retired
 
       var levelled  = prog === 'standard' || prog === 'certified-musician' || prog === 'grand-musician';
       var needsExpr = prog === 'crash' || prog === 'standard' || prog === 'certified-musician';
-      var hasMinors = prog === 'certified-musician' || prog === 'grand-musician';
+      // Additional courses (+50%·base each) are allowed on Standard, Certified
+      // and Grand — only Crash & the MetaMusic Order have none.
+      var hasMinors = prog === 'standard' || prog === 'certified-musician' || prog === 'grand-musician';
       toggleHidden('#substepLevel', !levelled);
       toggleHidden('#substepExpression', !needsExpr);
       toggleHidden('#substepMinors', !hasMinors);
@@ -426,6 +423,9 @@
       if (prog === 'grand-musician') { data.expression = 'all'; }
       else if (!needsExpr && data.expression) { data.expression = ''; uncheck('expression'); }
       if (!hasMinors && (data.minors || []).length) { data.minors = []; }
+      // The "compulsory courses included" note applies to Certified/Grand only.
+      var compNote = $('#compulsoryNote');
+      if (compNote) compNote.hidden = !(prog === 'certified-musician' || prog === 'grand-musician');
       if (hasMinors) renderMinors();
       var sn = $('#sessionNote'); if (sn) sn.hidden = !data.session;
       // Renumber only the *visible* substeps so hiding Level/Expression/Minors
