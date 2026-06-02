@@ -151,7 +151,16 @@ function mam_load_env(string $path): array {
 }
 function mam_env(string $key, $default = null) {
     $env = mam_load_env(MAM_API_ROOT . '/.env');
-    return $env[$key] ?? $default;
+    // A value in api/.env wins (explicit per-install config). Otherwise fall
+    // back to a real process environment variable so deployments that inject
+    // config as env vars (PaaS, Docker, cPanel SetEnv, CI) work without a
+    // .env file — covers DB_DSN, ADMIN_*, SETUP_TOKEN, mail/payment keys, etc.
+    if (array_key_exists($key, $env) && $env[$key] !== '') return $env[$key];
+    $v = getenv($key);
+    if ($v !== false && $v !== '') return $v;
+    if (isset($_ENV[$key]) && $_ENV[$key] !== '') return $_ENV[$key];
+    if (isset($_SERVER[$key]) && is_string($_SERVER[$key]) && $_SERVER[$key] !== '') return $_SERVER[$key];
+    return $default;
 }
 
 // ---------- Composer autoload (OPTIONAL) ----------

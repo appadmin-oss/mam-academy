@@ -28,9 +28,17 @@ $alreadyUp = mam_user_count() > 0;
 $tokenOk = $setupTok === '' || hash_equals($setupTok, $provided);
 $tokenQS = $setupTok !== '' ? ('?token=' . rawurlencode($provided)) : '';
 
+// Normally the installer self-disables once a user exists. But when a valid
+// SETUP_TOKEN is supplied it doubles as a no-shell RECOVERY tool: it can
+// (re)set the administrator even if accounts already exist — gated entirely by
+// the secret token. mam_create_admin() is idempotent by email, so this resets
+// an existing admin's password or creates one.
+$canManage = !$alreadyUp || ($setupTok !== '' && $tokenOk);
+$isReset   = $alreadyUp && $canManage;
+
 $error = null; $created = false;
 
-if ($method === 'POST' && !$alreadyUp && $tokenOk) {
+if ($method === 'POST' && $canManage && $tokenOk) {
     $email = trim((string)($_POST['email'] ?? ''));
     $pass  = (string)($_POST['password'] ?? '');
     $pass2 = (string)($_POST['password_confirm'] ?? '');
@@ -47,7 +55,7 @@ if ($method === 'POST' && !$alreadyUp && $tokenOk) {
                 : 'Please enter a valid email address.';
         } catch (Throwable $e) {
             mam_log('error', 'setup_failed', ['err' => $e->getMessage()]);
-            $error = 'Could not create the account. Check the server logs.';
+            $error = 'Could not save the account. Check the server logs.';
         }
     }
 }
@@ -57,20 +65,20 @@ $esc = static fn ($s) => htmlspecialchars((string)$s, ENT_QUOTES);
 // ---- Decide which screen to show -------------------------------------------
 $state = 'form';
 if ($created)                          $state = 'success';
-elseif ($alreadyUp)                    $state = 'done';
 elseif ($setupTok !== '' && !$tokenOk) $state = 'locked';
+elseif (!$canManage)                   $state = 'done';
 
 // ---- Shared shell ----------------------------------------------------------
 $body = '';
 if ($state === 'success') {
     $body = '<div class="ic ok"><i class="fa-solid fa-circle-check"></i></div>'
-        . '<h1>You\'re all set</h1>'
+        . '<h1>' . ($isReset ? 'Account updated' : 'You\'re all set') . '</h1>'
         . '<p>Your administrator account is ready. Sign in to reach your dashboard.</p>'
         . '<a class="btn" href="' . $esc($loginUrl) . '">Go to sign in <i class="fa-solid fa-arrow-right"></i></a>';
 } elseif ($state === 'done') {
     $body = '<div class="ic"><i class="fa-solid fa-lock"></i></div>'
         . '<h1>Already set up</h1>'
-        . '<p>An account already exists, so the installer is closed. Forgot your password? Use “Reset” on the sign-in page.</p>'
+        . '<p>An account already exists, so the installer is closed. Locked out? Set a <code>SETUP_TOKEN</code> in your server environment, then reopen this page as <code>/api/setup?token=YOUR_TOKEN</code> to reset the administrator — or run <code>php api/bin/create-admin.php</code> from a shell.</p>'
         . '<a class="btn" href="' . $esc($loginUrl) . '">Go to sign in <i class="fa-solid fa-arrow-right"></i></a>';
 } elseif ($state === 'locked') {
     $body = '<div class="ic"><i class="fa-solid fa-key"></i></div>'
@@ -79,15 +87,17 @@ if ($state === 'success') {
 } else {
     $errHtml = $error ? '<div class="err"><i class="fa-solid fa-circle-exclamation"></i> ' . $esc($error) . '</div>' : '';
     $body = '<div class="ic"><i class="fa-solid fa-graduation-cap"></i></div>'
-        . '<h1>Create your administrator</h1>'
-        . '<p>One quick step to activate sign-in for your academy.</p>'
+        . '<h1>' . ($isReset ? 'Reset administrator' : 'Create your administrator') . '</h1>'
+        . '<p>' . ($isReset
+            ? 'Enter the admin email to (re)set its password. This recovers access without touching anything else.'
+            : 'One quick step to activate sign-in for your academy.') . '</p>'
         . $errHtml
         . '<form method="POST" action="/api/setup' . $esc($tokenQS) . '" autocomplete="on">'
         . '<label>Full name<input type="text" name="name" value="' . $esc($_POST['name'] ?? '') . '" placeholder="Administrator" autocomplete="name"></label>'
         . '<label>Email<input type="email" name="email" value="' . $esc($_POST['email'] ?? '') . '" required placeholder="you@academy.org" autocomplete="username"></label>'
         . '<label>Password<input type="password" name="password" required minlength="8" placeholder="At least 8 characters" autocomplete="new-password"></label>'
         . '<label>Confirm password<input type="password" name="password_confirm" required minlength="8" autocomplete="new-password"></label>'
-        . '<button class="btn" type="submit">Create account &amp; activate login</button>'
+        . '<button class="btn" type="submit">' . ($isReset ? 'Reset password &amp; sign in' : 'Create account &amp; activate login') . '</button>'
         . '</form>';
 }
 
