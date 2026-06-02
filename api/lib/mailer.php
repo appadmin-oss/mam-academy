@@ -151,6 +151,7 @@ function mam_send_mail(string $to, string $subject, string $body, bool $html = f
  * Useful for diagnostics (CLI tester, /api/admin/mail-test).
  */
 function mam_send_mail_verbose(string $to, string $subject, string $body, bool $html = false, array $opts = []): array {
+  try {
     $from      = $opts['from']      ?? mam_env('MAIL_FROM_EMAIL', 'no-reply@mamcentre.org');
     $fromName  = $opts['from_name'] ?? mam_env('MAIL_FROM_NAME', 'MAM Academy');
     $replyTo   = $opts['reply_to']  ?? null;
@@ -243,6 +244,14 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
         'error'     => $ok ? null : 'PHP mail() returned false (host likely has no MTA or sendmail is disabled)',
         'steps'     => [],
     ];
+  } catch (\Throwable $e) {
+    // Mail must NEVER break a request. Any unexpected error (transport bug,
+    // bad attachment, malformed header, library quirk) is swallowed + logged;
+    // the caller just sees a failed delivery, never an exception.
+    @error_log('[mam mail] exception: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    if (function_exists('mam_log')) mam_log('error', 'mail_exception', ['err' => $e->getMessage(), 'to' => $to, 'subject' => $subject]);
+    return ['ok' => false, 'transport' => 'exception', 'host' => null, 'error' => 'exception: ' . $e->getMessage(), 'steps' => []];
+  }
 }
 
 /**
@@ -841,6 +850,7 @@ function mam_unsubscribe_url(string $email): string {
 }
 
 function mam_send(string $to, string $subject, string $body, string $context, bool $html = true, array $opts = []): bool {
+  try {
     // Marketing emails embed {{UNSUB_URL}} via the layout. When present, fill
     // the visible link AND attach RFC 8058 one-click List-Unsubscribe headers,
     // keyed to the recipient — so every promotional email is CAN-SPAM / GDPR /
@@ -871,6 +881,11 @@ function mam_send(string $to, string $subject, string $body, string $context, bo
         ]);
     }
     return (bool)$result['ok'];
+  } catch (\Throwable $e) {
+    @error_log('[mam mail] mam_send exception: ' . $e->getMessage());
+    if (function_exists('mam_log')) mam_log('error', 'mail_exception', ['context' => $context, 'err' => $e->getMessage(), 'to' => $to]);
+    return false;
+  }
 }
 
 /**

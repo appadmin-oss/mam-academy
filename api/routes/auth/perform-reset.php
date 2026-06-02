@@ -49,8 +49,10 @@ mam_db()->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([(int)$rese
 // Security confirmation that the password just changed.
 $who = mam_db_row('SELECT name, email FROM users WHERE id = ?', [(int)$reset['user_id']]);
 if ($who && !empty($who['email'])) {
-    mam_send($who['email'], 'Your MAM Academy password was changed',
-        mam_email_password_changed((string)($who['name'] ?? ''), 'reset'), 'password_changed', true);
+    try {
+        mam_send($who['email'], 'Your MAM Academy password was changed',
+            mam_email_password_changed((string)($who['name'] ?? ''), 'reset'), 'password_changed', true);
+    } catch (Throwable $e) { mam_log('warn', 'mail_build_failed', ['context' => 'password_changed', 'err' => $e->getMessage()]); }
 }
 
 mam_audit('reset_password', 'user', (int)$reset['user_id']);

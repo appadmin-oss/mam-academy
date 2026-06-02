@@ -27,9 +27,11 @@ try {
 
 if (!empty($student['email'])) {
     $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
-    mam_send($student['email'], 'You\'ve been enrolled — MAM Academy',
-        mam_email_enrolled((string)($student['name'] ?? ''), (string)($class['title'] ?? ''), (string)($class['schedule'] ?? ''), $loginUrl),
-        'student_enrolled', true);
+    try {
+        mam_send($student['email'], 'You\'ve been enrolled — MAM Academy',
+            mam_email_enrolled((string)($student['name'] ?? ''), (string)($class['title'] ?? ''), (string)($class['schedule'] ?? ''), $loginUrl),
+            'student_enrolled', true);
+    } catch (Throwable $e) { mam_log('warn', 'mail_build_failed', ['context' => 'student_enrolled', 'err' => $e->getMessage()]); }
 }
 
 mam_audit('enroll', 'student', $studentId, ['class_id' => $classId]);

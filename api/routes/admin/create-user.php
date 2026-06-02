@@ -32,9 +32,12 @@ if ($role === 'instructor') {
 }
 
 $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
-mam_send($email, 'Your MAM Academy account is ready',
-    mam_email_account_created($name, $email, $password, $role, $loginUrl),
-    'account_created', true);
+// The user already exists; a mail issue must not fail the admin action.
+try {
+    mam_send($email, 'Your MAM Academy account is ready',
+        mam_email_account_created($name, $email, $password, $role, $loginUrl),
+        'account_created', true);
+} catch (Throwable $e) { mam_log('warn', 'mail_build_failed', ['context' => 'account_created', 'err' => $e->getMessage()]); }
 
 mam_audit('create', 'user', $id, ['role' => $role, 'email' => $email]);
 mam_ok(['user_id' => $id]);

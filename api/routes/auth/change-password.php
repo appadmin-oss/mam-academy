@@ -16,8 +16,11 @@ mam_db_update('users', [
     'updated_at' => date('Y-m-d H:i:s'),
 ], ['id' => (int)$u['id']]);
 if (!empty($u['email'])) {
-    mam_send($u['email'], 'Your MAM Academy password was changed',
-        mam_email_password_changed((string)($u['name'] ?? ''), 'self'), 'password_changed', true);
+    // The password is already changed; a mail hiccup must never fail the action.
+    try {
+        mam_send($u['email'], 'Your MAM Academy password was changed',
+            mam_email_password_changed((string)($u['name'] ?? ''), 'self'), 'password_changed', true);
+    } catch (Throwable $e) { mam_log('warn', 'mail_build_failed', ['context' => 'password_changed', 'err' => $e->getMessage()]); }
 }
 mam_audit('change_password', 'user', (int)$u['id']);
 mam_ok(['changed' => true]);

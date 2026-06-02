@@ -22,9 +22,11 @@ mam_db()->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$userId]);
 $full = mam_db_row('SELECT name, email FROM users WHERE id = ?', [$userId]);
 if ($full && !empty($full['email'])) {
     $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
-    mam_send($full['email'], 'Your MAM Academy password was reset',
-        mam_email_account_created((string)($full['name'] ?? ''), (string)$full['email'], $password, 'portal', $loginUrl),
-        'admin_password_reset', true);
+    try {
+        mam_send($full['email'], 'Your MAM Academy password was reset',
+            mam_email_account_created((string)($full['name'] ?? ''), (string)$full['email'], $password, 'portal', $loginUrl),
+            'admin_password_reset', true);
+    } catch (Throwable $e) { mam_log('warn', 'mail_build_failed', ['context' => 'admin_password_reset', 'err' => $e->getMessage()]); }
 }
 
 mam_audit('admin_reset_password', 'user', $userId);
