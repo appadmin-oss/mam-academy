@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
 <title>Practice Studio — MAM Academy</title>
-<meta name="description" content="The MAM Academy Practice Studio — metronome, chromatic tuner, focus timer, ear training, and speed/pitch trainer. Premium musician tools, free for everyone.">
+<meta name="description" content="The MAM Academy Practice Studio — metronome, chromatic tuner, focus timer, ear training, speed/pitch trainer, and a browser beat maker. Premium musician tools, free for everyone.">
 <link rel="canonical" href="https://academy.mamcentre.org/studio">
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <meta property="og:title" content="MAM Academy — Practice Studio">
-<meta property="og:description" content="Metronome, tuner, focus timer, ear training, speed-and-pitch trainer. Free.">
+<meta property="og:description" content="Metronome, tuner, focus timer, ear training, speed-and-pitch trainer, beat maker. Free.">
 <!-- Permissions-Policy: the host injects a default policy that disallows
      microphone; without explicit allow, the tuner's getUserMedia errors with
      'Permissions policy violation'. The meta is a hint to the browser; the
@@ -159,6 +159,44 @@
   .met-display{grid-template-columns:1fr;text-align:center}
   .met-bpm{margin-bottom:8px}
 }
+
+/* ── Beat Maker (step sequencer) ───────────────────────────────── */
+.seq-transport{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;padding:18px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
+.seq-play{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.05em;font-size:1rem;border-radius:12px;border:0;cursor:pointer;min-height:54px;box-shadow:0 8px 22px rgba(224,138,26,0.4)}
+.seq-play.playing{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;box-shadow:0 8px 22px rgba(244,66,59,0.45)}
+.seq-field{flex:1;min-width:150px}
+.seq-field label{display:flex;justify-content:space-between;align-items:baseline;font-size:0.72rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+.seq-field label b{font-family:var(--font-display);font-size:1.1rem;color:var(--gold-bright,#FCC647);letter-spacing:0.02em;font-weight:normal}
+.seq-field input[type=range]{width:100%;margin:0;accent-color:var(--gold-bright,#FCC647)}
+
+.seq-grid{display:flex;gap:10px;align-items:flex-start;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:18px}
+.seq-tracks{flex-shrink:0;width:172px}
+.seq-track-row{display:flex;align-items:center;gap:6px;height:46px;box-sizing:border-box}
+.seq-track-name{flex:1;min-width:0;font-size:0.82rem;font-weight:700;color:var(--text-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seq-chip{width:26px;height:26px;flex-shrink:0;border-radius:7px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text-muted);font-size:0.72rem;font-weight:800;cursor:pointer;line-height:1;padding:0}
+.seq-chip.seq-mute.on{background:#F4423B;border-color:#F4423B;color:#fff}
+.seq-chip.seq-solo.on{background:#34D399;border-color:#34D399;color:#0E0A06}
+.seq-tvol{width:48px;flex-shrink:0;accent-color:var(--gold-bright,#FCC647)}
+.seq-canvas-wrap{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden}
+#seqCanvas{display:block;touch-action:pan-x;cursor:pointer}
+
+.seq-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.seq-tsep{flex:1}
+.seq-preset-select{padding:11px 14px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.9rem;font-weight:600;min-height:46px;cursor:pointer}
+.seq-tbtn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;background:var(--bg-raised);border:1px solid var(--border-strong);border-radius:10px;color:var(--text-soft);font-size:0.88rem;font-weight:700;cursor:pointer;min-height:46px;transition:all .15s var(--ease)}
+.seq-tbtn:hover{border-color:var(--border-gold);color:var(--text)}
+.seq-tbtn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent;font-weight:800;box-shadow:0 6px 16px rgba(224,138,26,0.3)}
+.seq-tbtn-gold:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(224,138,26,0.4);color:#1A120B}
+.seq-status{margin:0;font-size:0.88rem;color:var(--text-muted);line-height:1.55;min-height:1.4em}
+
+@media (max-width:640px){
+  .seq-grid{gap:6px;padding:10px}
+  .seq-tracks{width:128px}
+  .seq-track-name{font-size:0.74rem}
+  .seq-tvol{width:36px}
+  .seq-transport{gap:14px}
+  .seq-toolbar .seq-tsep{flex-basis:100%;height:0}
+}
 </style>
 </head>
 <body>
@@ -171,7 +209,7 @@
       <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Practice Studio</span></nav>
       <div class="page-hero-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i>The Practice Studio</div>
       <h1 class="page-hero-title">The Practice <span class="highlight-gold">Studio</span></h1>
-      <p class="page-hero-lede">Metronome, chromatic tuner, focus timer, ear-training drills and the speed-and-pitch trainer. Premium musician tools — free for everyone, sharpened for MAM students.</p>
+      <p class="page-hero-lede">Metronome, chromatic tuner, focus timer, ear-training drills, the speed-and-pitch trainer and a 16-step beat maker. Premium musician tools — free for everyone, sharpened for MAM students.</p>
     </div>
   </header>
 
@@ -182,6 +220,7 @@
       <button data-tool="pomodoro" role="tab" aria-selected="false"><i class="fa-solid fa-hourglass-half"></i> Pomodoro</button>
       <button data-tool="ear" role="tab" aria-selected="false"><i class="fa-solid fa-headphones"></i> Ear Training</button>
       <button data-tool="speed" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">PREMIUM</span></button>
+      <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
     </nav>
 
     <!-- ─── Metronome ─── -->
@@ -366,6 +405,58 @@
         </div>
       </div>
     </section>
+
+    <!-- ─── Beat Maker (step sequencer) ─── -->
+    <section class="tool-panel" data-tool="seq" role="tabpanel">
+      <div class="tool-head">
+        <div>
+          <h2>Beat Maker</h2>
+          <p>A 16-step drum machine. Tap the grid to build a groove, press <b>space</b> to play, then bounce it to a WAV. Every sound is generated live in your browser — nothing to download, works offline.</p>
+        </div>
+      </div>
+
+      <!-- Transport -->
+      <div class="seq-transport">
+        <button class="seq-play" id="seqPlay" type="button"><i class="fa-solid fa-play"></i> <span>Play</span></button>
+        <div class="seq-field">
+          <label for="seqBpm">Tempo <b id="seqBpmVal">100</b> BPM</label>
+          <input type="range" id="seqBpm" min="60" max="200" value="100">
+        </div>
+        <div class="seq-field">
+          <label for="seqSwing">Swing <b id="seqSwingVal">0%</b></label>
+          <input type="range" id="seqSwing" min="0" max="60" value="0">
+        </div>
+        <div class="seq-field">
+          <label for="seqMaster">Volume <b id="seqMasterVal">85%</b></label>
+          <input type="range" id="seqMaster" min="0" max="100" value="85">
+        </div>
+      </div>
+
+      <!-- Grid: track controls + canvas -->
+      <div class="seq-grid">
+        <div class="seq-tracks" id="seqTracks"></div>
+        <div class="seq-canvas-wrap" id="seqCanvasWrap">
+          <canvas id="seqCanvas" aria-label="Step sequencer grid — tap a cell to toggle a beat"></canvas>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="seq-toolbar">
+        <select id="seqPresets" class="seq-preset-select" aria-label="Load a preset groove">
+          <option value="">Load a groove…</option>
+          <option value="Four on the floor">Four on the floor</option>
+          <option value="Boom bap">Boom bap</option>
+          <option value="Afrobeat">Afrobeat</option>
+          <option value="Highlife">Highlife</option>
+          <option value="One drop">One drop</option>
+        </select>
+        <button class="seq-tbtn" id="seqRandom" type="button"><i class="fa-solid fa-shuffle"></i> Randomise</button>
+        <button class="seq-tbtn" id="seqClear" type="button"><i class="fa-solid fa-eraser"></i> Clear</button>
+        <span class="seq-tsep"></span>
+        <button class="seq-tbtn seq-tbtn-gold" id="seqExport" type="button"><i class="fa-solid fa-download"></i> Export WAV</button>
+      </div>
+      <p class="seq-status" id="seqStatus">Tip: hit a few cells, press play, and reach for swing to make it groove.</p>
+    </section>
   </section>
 </main>
 
@@ -406,5 +497,6 @@
   })();
 </script>
 <script src="assets/js/tools.js?v=20260530c" defer></script>
+<script src="assets/js/sequencer.js?v=20260602a" defer></script>
 </body>
 </html>
