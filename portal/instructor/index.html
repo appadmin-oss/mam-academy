@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260601a">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260530a">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260602b">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -32,6 +32,7 @@
       <a class="portal-nav-link active" href="#overview" data-tab="overview"><i class="fa-solid fa-gauge"></i>Overview</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-chalkboard-user"></i>My Classes</a>
       <a class="portal-nav-link" href="#students" data-tab="students"><i class="fa-solid fa-users"></i>Students</a>
+      <a class="portal-nav-link" href="#assignments" data-tab="assignments"><i class="fa-solid fa-list-check"></i>Assignments</a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
       <a class="portal-nav-link" href="#announce" data-tab="announce"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#account" data-tab="account"><i class="fa-solid fa-user-gear"></i>Account</a>
@@ -61,7 +62,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], attendance: ['Attendance', 'Mark and review attendance'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
+  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
   var data = null;
 
   function show(tab) {
@@ -73,9 +74,61 @@
     if (tab === 'overview') return renderOverview();
     if (tab === 'classes') return renderClasses();
     if (tab === 'students') return renderStudents();
+    if (tab === 'assignments') return renderAssignments();
     if (tab === 'attendance') return renderAttendance();
     if (tab === 'announce') return renderAnnounce();
     if (tab === 'account') return renderAccount();
+  }
+
+  function renderAssignments() {
+    var classes = (data.classes || []).filter(function (c) { return c.status === 'active'; });
+    var students = data.students || [];
+    var asg = data.assignments || [];
+    if (!classes.length && !students.length) {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('list-check', 'Add students to a class first — then you can set assignments.') + '</div></section>';
+      return;
+    }
+    var clsOpts = classes.map(function (c) { return '<option value="class:' + c.id + '">Whole class — ' + P.escapeHtml(c.title) + '</option>'; }).join('');
+    var stuOpts = students.map(function (s) { return '<option value="student:' + s.id + '">' + P.escapeHtml(s.name) + (s.class_title ? ' (' + P.escapeHtml(s.class_title) + ')' : '') + '</option>'; }).join('');
+    var targetSel = '<select id="asg-target" required>'
+      + (clsOpts ? '<optgroup label="Classes">' + clsOpts + '</optgroup>' : '')
+      + (stuOpts ? '<optgroup label="Students">' + stuOpts + '</optgroup>' : '')
+      + '</select>';
+    var list = asg.length ? asg.map(function (a) {
+      var done = a.status === 'done';
+      return '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised);margin-bottom:10px">'
+        + '<div style="min-width:200px;flex:1"><strong style="color:var(--text)">' + P.escapeHtml(a.title) + '</strong>'
+        + '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">' + P.escapeHtml(a.student_name || '') + (a.class_title ? ' · ' + P.escapeHtml(a.class_title) : '') + (a.due_on ? ' · due ' + P.fmtDate(a.due_on) : '') + '</div></div>'
+        + '<span class="pill ' + (done ? 'present' : 'pending') + '">' + (done ? 'done' : 'open') + '</span></div>';
+    }).join('') : '<div class="panel-body">' + empty('list-check', 'No assignments set yet. Create one above.') + '</div>';
+
+    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Set an assignment</h2></div>'
+      + '<form id="asgForm" class="profile-form" style="padding:18px 22px;display:grid;gap:14px">'
+      +   '<div class="field"><label for="asg-target">Assign to</label>' + targetSel + '</div>'
+      +   '<div class="field"><label for="asg-title">Title</label><input id="asg-title" maxlength="160" required placeholder="e.g. Prepare C major scale, hands together"></div>'
+      +   '<div class="field"><label for="asg-instr">Instructions</label><textarea id="asg-instr" rows="3" placeholder="What should they practise, and how?"></textarea></div>'
+      +   '<div class="field"><label for="asg-due">Due date (optional)</label><input id="asg-due" type="date"></div>'
+      +   '<div class="actions"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-list-check"></i> Set assignment</button></div>'
+      + '</form></section>'
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Assignments set</h2></div><div style="padding:14px 18px">' + list + '</div></section>';
+
+    document.getElementById('asgForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var title = document.getElementById('asg-title').value.trim();
+      if (!title) return;
+      var tgt = (document.getElementById('asg-target').value || '').split(':');
+      var body = { title: title, instructions: document.getElementById('asg-instr').value.trim(), due_on: document.getElementById('asg-due').value || null };
+      if (tgt[0] === 'class') body.class_id = parseInt(tgt[1], 10); else body.student_id = parseInt(tgt[1], 10);
+      var btn = e.target.querySelector('button'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
+      API.request('instructor/assignment', { method: 'POST', body: body }).then(function (r) {
+        var n = r.created || 1;
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Assignment set for ' + n + ' student' + (n === 1 ? '' : 's') + '.', 'success') : alert('Set.'));
+        return load();
+      }).catch(function (err) {
+        btn.disabled = false; btn.innerHTML = orig;
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not set: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not set.'));
+      });
+    });
   }
 
   function renderAnnounce() {

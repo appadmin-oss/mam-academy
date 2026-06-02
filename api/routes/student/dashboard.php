@@ -6,9 +6,14 @@ $u = mam_require_role('student');
 $customer = $u['customer_id'] ? mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$u['customer_id']]) : null;
 
 $apps = $customer ? mam_db_all(
-    'SELECT id, reference, pathway, mode, discipline, total_usd, status, created_at FROM applications WHERE customer_id = ? ORDER BY created_at DESC',
+    'SELECT id, reference, pathway, mode, discipline, total_usd, status, program_track, created_at FROM applications WHERE customer_id = ? ORDER BY created_at DESC',
     [(int)$customer['id']]
 ) : [];
+
+// Program track drives the child-friendly KTAMS portal variant. KTAMS = the
+// under-16 "Kids @ MAM" track; default to MAM (adult) when unknown.
+$programTrack = 'MAM';
+foreach ($apps as $a) { if (($a['program_track'] ?? 'MAM') === 'KTAMS') { $programTrack = 'KTAMS'; break; } }
 
 // Student-visible payments span BOTH academy (joined via the application) and
 // store orders (joined by the customer's email — store orders aren't tied to
@@ -67,8 +72,36 @@ $resources = mam_db_all(
     [(int)$u['id']]
 );
 
+// Assignments set by instructors (open first, then by due date).
+$assignments = mam_db_all(
+    "SELECT a.id, a.title, a.instructions, a.due_on, a.status, a.completed_at, a.created_at, a.class_id,
+            c.title AS class_title, usr.name AS author
+       FROM assignments a
+       LEFT JOIN classes c ON c.id = a.class_id
+       LEFT JOIN users usr ON usr.id = a.author_id
+      WHERE a.student_id = ?
+      ORDER BY (a.status = 'done'), COALESCE(a.due_on, a.created_at) ASC",
+    [(int)$u['id']]
+);
+
 // Server-persisted practice stats (cross-device).
 $practice = mam_practice_stats((int)$u['id']);
+
+// Progress roll-up for the overview card.
+$attCounts = mam_db_row(
+    "SELECT COUNT(*) AS total, SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS present
+       FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id WHERE e.student_id = ?",
+    [(int)$u['id']]
+) ?: ['total' => 0, 'present' => 0];
+$asgDone = 0; foreach ($assignments as $a) { if (($a['status'] ?? '') === 'done') $asgDone++; }
+$progress = [
+    'assignments_total'  => count($assignments),
+    'assignments_done'   => $asgDone,
+    'assignments_open'   => count($assignments) - $asgDone,
+    'attendance_total'   => (int)($attCounts['total'] ?? 0),
+    'attendance_present' => (int)($attCounts['present'] ?? 0),
+    'classes'            => count($enrollments),
+];
 
 mam_ok([
     'user' => [
@@ -90,4 +123,7 @@ mam_ok([
     'resources' => $resources,
     'practice' => $practice['practice'],
     'practice_stats' => $practice['practiceStats'],
+    'assignments' => $assignments,
+    'progress' => $progress,
+    'program_track' => $programTrack,
 ]);

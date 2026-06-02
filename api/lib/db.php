@@ -69,7 +69,7 @@ function mam_db_migrate_mysql(PDO $db): void {
     $current = 0;
     try { $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0); } catch (Throwable $e) {}
 
-    $target = 14;
+    $target = 15;
     if ($current >= $target) return;
 
     $path = realpath(__DIR__ . '/../../db/schema-mysql.sql');
@@ -488,6 +488,25 @@ function mam_db_migrate(PDO $db): void {
               created_at TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_practice_student ON practice_logs(student_id);
+        ",
+        // v15 — instructor → student assignments (practice tasks, pieces to
+        // prepare, theory worksheets). One row per student; class-wide
+        // assignments fan out to one row each so completion is tracked per pupil.
+        15 => "
+            CREATE TABLE assignments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              class_id INTEGER REFERENCES classes(id) ON DELETE SET NULL,
+              title TEXT NOT NULL,
+              instructions TEXT,
+              due_on TEXT,
+              status TEXT NOT NULL DEFAULT 'open',
+              completed_at TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_assignments_student ON assignments(student_id);
+            CREATE INDEX idx_assignments_author ON assignments(author_id);
         ",
     ];
 

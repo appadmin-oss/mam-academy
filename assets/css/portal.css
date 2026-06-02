@@ -250,3 +250,61 @@
   .login-shell{grid-template-columns:1fr}
   .login-side{display:none}
 }
+
+/* ── Sidebar open-assignments badge ── */
+.nav-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:100px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-size:0.72rem;font-weight:800;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+
+/* ── Assignments ── */
+.asg-list{display:grid;gap:12px;padding:16px 18px}
+.asg-card{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px 18px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;flex-wrap:wrap}
+.asg-card.done{opacity:0.72}
+.asg-card.done .asg-title{text-decoration:line-through;text-decoration-color:var(--text-faint)}
+.asg-main{flex:1;min-width:200px}
+.asg-title{font-size:1.02rem;font-weight:700;color:var(--text)}
+.asg-instr{margin:6px 0 0;color:var(--text-soft);font-size:0.9rem;line-height:1.6;white-space:pre-wrap;max-width:62ch}
+.asg-meta{margin-top:8px;font-size:0.78rem;color:var(--text-muted)}
+.asg-meta .asg-overdue{color:#FB7185;font-weight:700}
+.asg-toggle{flex-shrink:0;align-self:center}
+.asg-count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:100px;background:var(--bg-elevated);border:1px solid var(--border-gold);color:var(--gold-bright);font-size:0.76rem;font-weight:800;margin-left:8px}
+
+/* ── Progress bars (overview "Your progress" card) ── */
+.prog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;padding:20px 22px}
+.prog-head{display:flex;justify-content:space-between;align-items:baseline;font-size:0.84rem;color:var(--text-soft);margin-bottom:8px}
+.prog-head strong{font-family:var(--font-display);font-size:1.15rem;color:var(--gold-bright);letter-spacing:0.02em}
+.prog-bar{height:10px;border-radius:100px;background:var(--bg-elevated);overflow:hidden;border:1px solid var(--border)}
+.prog-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--gold),var(--gold-bright));transition:width .5s var(--ease)}
+.prog-sub{margin-top:7px;font-size:0.76rem;color:var(--text-muted)}
+
+/* ════════════════════════════════════════════════════════════════
+   KTAMS — child-friendly variant (under-16 "Kids @ MAM" students).
+   A brighter, rounder, larger-touch-target spin on the same dark theme
+   so it feels playful and easy for young learners without becoming a
+   different product. Applied via <body data-variant="ktams">.
+   ════════════════════════════════════════════════════════════════ */
+body[data-variant="ktams"]{
+  --gold:#FFB02E;--gold-light:#FFC94D;--gold-bright:#FFD84D;
+  --emerald:#36E0A6;--purple:#9B8CFF;
+}
+body[data-variant="ktams"] .portal-brand-sub{color:var(--gold-bright);font-weight:800}
+body[data-variant="ktams"] .portal-nav-link{font-size:0.98rem;padding:13px 16px;border-radius:14px}
+body[data-variant="ktams"] .portal-nav-link i{font-size:1.05rem}
+body[data-variant="ktams"] .portal-top h1{font-size:2.2rem}
+/* Cheerful gradient hello banner */
+body[data-variant="ktams"] .portal-hello{background:linear-gradient(135deg,rgba(255,176,46,0.18),rgba(155,140,255,0.14));border:1px solid var(--border-gold);border-radius:20px;padding:20px 24px;margin-bottom:22px}
+body[data-variant="ktams"] .portal-hello h2{font-size:1.6rem}
+/* Bigger, rounder, livelier KPI tiles */
+body[data-variant="ktams"] .kpi{border-radius:20px;border-width:2px;text-align:center}
+body[data-variant="ktams"] .kpi-value{font-size:2.4rem}
+body[data-variant="ktams"] .panel{border-radius:20px}
+/* Friendlier, bigger buttons + tap targets for young hands */
+body[data-variant="ktams"] .btn,
+body[data-variant="ktams"] button[type=submit],
+body[data-variant="ktams"] .asg-toggle{min-height:52px;font-size:1rem;border-radius:14px}
+body[data-variant="ktams"] .asg-card{border-radius:18px;border-width:2px}
+body[data-variant="ktams"] .asg-title{font-size:1.1rem}
+/* A little life on the streak number (respects reduced-motion below) */
+body[data-variant="ktams"] .kpi-value.gold{animation:ktamsPulse 2.4s ease-in-out infinite}
+@keyframes ktamsPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@media (prefers-reduced-motion:reduce){
+  body[data-variant="ktams"] .kpi-value.gold{animation:none}
+}

@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260601a">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260530a">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260602b">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -32,6 +32,7 @@
       <a class="portal-nav-link active" href="#overview" data-tab="overview"><i class="fa-solid fa-gauge"></i>Overview</a>
       <a class="portal-nav-link" href="#applications" data-tab="applications"><i class="fa-solid fa-file-pen"></i>My Applications</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
+      <a class="portal-nav-link" href="#assignments" data-tab="assignments"><i class="fa-solid fa-list-check"></i>Assignments <span class="nav-badge" id="asgBadge" hidden></span></a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-calendar-check"></i>Attendance</a>
       <a class="portal-nav-link" href="#announcements" data-tab="announcements"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#practice" data-tab="practice"><i class="fa-solid fa-chart-line"></i>Practice</a>
@@ -75,7 +76,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
 
@@ -91,6 +92,7 @@
     if (tab === 'overview') return renderOverview();
     if (tab === 'applications') return renderApplications();
     if (tab === 'classes') return renderClasses();
+    if (tab === 'assignments') return renderAssignments();
     if (tab === 'attendance') return renderAttendance();
     if (tab === 'announcements') return renderAnnouncements();
     if (tab === 'payments') return renderPayments();
@@ -116,17 +118,20 @@
     var ps = data.practice_stats || (STUDIO ? STUDIO.practiceStats() : { streak: 0, weekMin: 0 });
     ps.goalPct = Math.min(100, Math.round((ps.weekMin || 0) / 150 * 100)); // 150 min/week target
     var rate = attendanceRate(att);
+    var prog = data.progress || {};
+    var kid = (data.program_track === 'KTAMS');
     var html = ''
-      + '<div class="portal-hello"><h2>' + greeting() + ', ' + P.escapeHtml(firstName) + ' <span aria-hidden="true">👋</span></h2>'
-      +   '<p>' + (ps.streak ? 'You\'re on a <strong>' + ps.streak + '-day</strong> practice streak — keep the momentum going.' : 'Ready to practise? Log a session to start a streak.') + '</p></div>'
+      + '<div class="portal-hello"><h2>' + (kid ? 'Hi ' + P.escapeHtml(firstName) + '! ' : greeting() + ', ' + P.escapeHtml(firstName) + ' ') + '<span aria-hidden="true">' + (kid ? '🎵' : '👋') + '</span></h2>'
+      +   '<p>' + (ps.streak ? 'You\'re on a <strong>' + ps.streak + '-day</strong> practice streak — ' + (kid ? 'amazing, keep going! 🌟' : 'keep the momentum going.') : (kid ? 'Ready to make some music today? Tap Practice to begin! 🎹' : 'Ready to practise? Log a session to start a streak.')) + '</p></div>'
       + '<section class="kpi-row">'
       + kpi('Practice streak', ps.streak + (ps.streak === 1 ? ' day' : ' days'), ps.streak ? 'On fire 🔥' : 'Start today', 'gold')
       + kpi('This week', (ps.weekMin >= 60 ? (Math.floor(ps.weekMin/60) + 'h ' + (ps.weekMin%60) + 'm') : ps.weekMin + ' min'), 'Goal progress ' + ps.goalPct + '%')
       + kpi('Active Classes', enr.filter(function (e){return e.enrollment_status==='active';}).length, 'Enrolled now')
+      + kpi('Assignments', (prog.assignments_done || 0) + '/' + (prog.assignments_total || 0), prog.assignments_open ? prog.assignments_open + ' to do' : (prog.assignments_total ? 'All done 🎉' : 'None yet'))
       + kpi('Attendance', rate === null ? '—' : (rate + '%'), rate === null ? 'No sessions yet' : 'present across ' + att.length + ' sessions')
       + kpi('Applications', apps.length, apps.length ? apps[0].pathway : 'None yet')
-      + kpi('Paid', paid, 'of ' + pays.length + ' transactions')
       + '</section>'
+      + progressPanel(prog, ps)
       + '<section class="panel"><div class="panel-head"><h2>Latest application</h2><a class="panel-action" href="#applications" data-tab="applications">All →</a></div>'
       + '<div class="panel-body">' + (apps[0] ? appRowFull(apps[0]) : empty('file-pen', 'No applications yet — start one.')) + '</div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Upcoming &amp; active classes</h2><a class="panel-action" href="#classes" data-tab="classes">All →</a></div>'
@@ -199,6 +204,64 @@
       });
     });
   }
+  function progressPanel(prog, ps) {
+    function bar(label, val, sub) {
+      val = Math.max(0, Math.min(100, val || 0));
+      return '<div class="prog-row"><div class="prog-head"><span>' + label + '</span><strong>' + val + '%</strong></div>'
+        + '<div class="prog-bar"><div class="prog-fill" style="width:' + val + '%"></div></div>'
+        + '<div class="prog-sub">' + P.escapeHtml(sub || '') + '</div></div>';
+    }
+    var asgPct = prog.assignments_total ? Math.round(prog.assignments_done / prog.assignments_total * 100) : 0;
+    var attPct = prog.attendance_total ? Math.round(prog.attendance_present / prog.attendance_total * 100) : 0;
+    var goalPct = Math.min(100, Math.round((ps.weekMin || 0) / 150 * 100));
+    return '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-chart-simple" style="margin-right:8px;color:var(--gold-bright)"></i>Your progress</h2><a class="panel-action" href="#assignments" data-tab="assignments">Assignments →</a></div>'
+      + '<div class="prog-grid">'
+      + bar('Assignments done', asgPct, (prog.assignments_done || 0) + ' of ' + (prog.assignments_total || 0) + ' complete')
+      + bar('Attendance', attPct, (prog.attendance_present || 0) + ' of ' + (prog.attendance_total || 0) + ' sessions present')
+      + bar('Weekly practice', goalPct, (ps.weekMin || 0) + ' / 150 min goal')
+      + '</div></section>';
+  }
+
+  function renderAssignments() {
+    var asg = data.assignments || [];
+    var kid = (data.program_track === 'KTAMS');
+    if (!asg.length) {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('list-check', kid ? 'No homework yet! Your teacher will add fun things to practise here. 🎵' : 'No assignments yet. When your instructor sets practice tasks or pieces, they\'ll appear here.') + '</div></section>';
+      return;
+    }
+    var today = new Date().toISOString().slice(0, 10);
+    function card(a) {
+      var done = a.status === 'done';
+      var overdue = !done && a.due_on && a.due_on < today;
+      return '<div class="asg-card' + (done ? ' done' : '') + '">'
+        + '<div class="asg-main">'
+        +   '<div class="asg-title">' + P.escapeHtml(a.title) + (done ? ' <i class="fa-solid fa-circle-check" style="color:var(--emerald)"></i>' : '') + '</div>'
+        +   (a.instructions ? '<p class="asg-instr">' + P.escapeHtml(a.instructions) + '</p>' : '')
+        +   '<div class="asg-meta">' + (a.author ? 'Set by ' + P.escapeHtml(a.author) : '') + (a.class_title ? ' · ' + P.escapeHtml(a.class_title) : '')
+        +     (a.due_on ? ' · <span class="' + (overdue ? 'asg-overdue' : '') + '">Due ' + P.fmtDate(a.due_on) + (overdue ? ' (overdue)' : '') + '</span>' : '') + '</div>'
+        + '</div>'
+        + '<button type="button" class="btn ' + (done ? 'btn-ghost' : 'btn-primary') + ' asg-toggle" data-id="' + a.id + '" data-done="' + (done ? '1' : '0') + '">'
+        +   (done ? '<i class="fa-solid fa-rotate-left"></i> Reopen' : '<i class="fa-solid fa-check"></i> ' + (kid ? 'I did it!' : 'Mark done')) + '</button>'
+        + '</div>';
+    }
+    var open = asg.filter(function (a) { return a.status !== 'done'; });
+    var done = asg.filter(function (a) { return a.status === 'done'; });
+    var html = '<section class="panel"><div class="panel-head"><h2>' + (kid ? 'To practise' : 'To do') + ' <span class="asg-count">' + open.length + '</span></h2></div>'
+      + '<div class="asg-list">' + (open.length ? open.map(card).join('') : empty('circle-check', kid ? 'All done — you\'re a star! 🌟' : 'Nothing outstanding — great work! 🎉')) + '</div></section>';
+    if (done.length) html += '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Completed</h2></div><div class="asg-list">' + done.map(card).join('') + '</div></section>';
+    content.innerHTML = html;
+    content.querySelectorAll('.asg-toggle').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = parseInt(b.getAttribute('data-id'), 10);
+        var wasDone = b.getAttribute('data-done') === '1';
+        b.disabled = true;
+        API.request('student/assignment-complete', { method: 'POST', body: { assignment_id: id, done: !wasDone } })
+          .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast(wasDone ? 'Re-opened.' : (kid ? 'Awesome! 🎉' : 'Nice work! ✅'), 'success'); return load(); })
+          .catch(function () { b.disabled = false; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update — try again', 'error'); else alert('Could not update.'); });
+      });
+    });
+  }
+
   function renderAnnouncements() {
     var anns = data.announcements || [];
     var res = data.resources || [];
@@ -448,6 +511,14 @@
       if (STUDIO) STUDIO.setUser(r.user.email);   // namespace local practice/repertoire per student
       P.mountUserCard({ name: r.user.name, email: r.user.email, role: 'student', avatar_url: r.user.avatar_url });
       if (r.user.must_change_password) document.getElementById('pwBanner').style.display = 'flex';
+      // KTAMS (under-16 "Kids @ MAM") gets a brighter, friendlier portal variant.
+      var kid = (r.program_track === 'KTAMS');
+      document.body.setAttribute('data-variant', kid ? 'ktams' : '');
+      if (kid) { var sub = document.querySelector('.portal-brand-sub'); if (sub) sub.textContent = 'Kids @ MAM'; }
+      // Open-assignment count badge in the sidebar.
+      var openCount = (r.assignments || []).filter(function (a) { return a.status !== 'done'; }).length;
+      var badge = document.getElementById('asgBadge');
+      if (badge) { if (openCount) { badge.textContent = openCount; badge.hidden = false; } else { badge.hidden = true; } }
       var tab = (location.hash || '#overview').slice(1);
       if (!tabs[tab]) tab = 'overview';
       show(tab);

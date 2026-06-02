@@ -83,9 +83,10 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
 
 /* ─── Student portal ─── */
 $r->group('/student', function (MamRouter $r) use ($f) {
-    $r->get ('/dashboard',       $f('student/dashboard.php'),       [mw_role('student')]);
-    $r->post('/update-profile',  $f('student/update-profile.php'),  [mw_csrf(), mw_role('student')]);
-    $r->post('/practice-log',    $f('student/practice-log.php'),    [mw_csrf(), mw_role('student')]);
+    $r->get ('/dashboard',           $f('student/dashboard.php'),           [mw_role('student')]);
+    $r->post('/update-profile',      $f('student/update-profile.php'),      [mw_csrf(), mw_role('student')]);
+    $r->post('/practice-log',        $f('student/practice-log.php'),        [mw_csrf(), mw_role('student')]);
+    $r->post('/assignment-complete', $f('student/assignment-complete.php'), [mw_csrf(), mw_role('student')]);
 });
 
 /* ─── Instructor portal ─── */
@@ -96,6 +97,7 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/resource',         $f('instructor/resource.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
+    $r->post('/assignment',       $f('instructor/assignment.php'),      [mw_csrf(), mw_role('instructor', 'admin')]);
 });
 
 /* ─── Admin (JSON endpoints; the HTML dashboard is at /admin/) ─── */

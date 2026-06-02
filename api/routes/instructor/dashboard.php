@@ -35,6 +35,17 @@ $resources = mam_db_all(
     [$instructorId]
 );
 
+// Assignments this instructor has set (most recent first, with the pupil + state).
+$assignments = mam_db_all(
+    "SELECT a.id, a.title, a.due_on, a.status, a.completed_at, a.created_at, a.class_id,
+            u.name AS student_name, c.title AS class_title
+       FROM assignments a
+       JOIN users u ON u.id = a.student_id
+       LEFT JOIN classes c ON c.id = a.class_id
+      WHERE a.author_id = ? ORDER BY a.created_at DESC LIMIT 80",
+    [$instructorId]
+);
+
 mam_ok([
     'user' => [
         'id' => $instructorId,
@@ -50,4 +61,5 @@ mam_ok([
     'recent_attendance' => $recent_attendance,
     'announcements' => $announcements,
     'resources' => $resources,
+    'assignments' => $assignments,
 ]);

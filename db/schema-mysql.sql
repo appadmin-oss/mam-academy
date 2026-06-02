@@ -452,3 +452,23 @@ CREATE TABLE IF NOT EXISTS practice_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (14) ON DUPLICATE KEY UPDATE version = version;
+
+-- v15: instructor → student assignments (practice tasks, pieces to prepare,
+-- theory worksheets). One row per student; class-wide assignments fan out to a
+-- row per enrolled pupil so completion is tracked individually.
+CREATE TABLE IF NOT EXISTS assignments (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  student_id    INT NOT NULL,
+  author_id     INT NULL,
+  class_id      INT NULL,
+  title         VARCHAR(160) NOT NULL,
+  instructions  TEXT NULL,
+  due_on        DATE NULL,
+  status        VARCHAR(12) NOT NULL DEFAULT 'open',
+  completed_at  DATETIME NULL,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_assignments_student (student_id),
+  KEY idx_assignments_author (author_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (15) ON DUPLICATE KEY UPDATE version = version;
