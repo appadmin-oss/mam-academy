@@ -1,2 +1,10 @@
+# Serve the dashboard's index.php for /admin/ and /admin
 DirectoryIndex index.php
-AddHandler application/x-httpd-php .php
+
+# NOTE: do NOT add `AddHandler application/x-httpd-php .php` here. The site
+# root and /api execute PHP via the host's default handler (no AddHandler is
+# set there). Forcing the legacy `application/x-httpd-php` token on hosts that
+# use a different one (LiteSpeed / PHP-FPM / cPanel EA-PHP) leaves Apache with
+# no processor for .php, so it serves index.php as a *download* instead of
+# running it. /admin/ must inherit the same working handler as the rest of the
+# site — which it does when we stay silent here.
