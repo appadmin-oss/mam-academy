@@ -71,15 +71,34 @@
     window.MAM.tempo.subscribe(function (v) { if (v !== metBpm) setMetBpm(v, true); });
   }
 
+  // Per-beat accent map (editable): tap a beat dot to toggle its accent.
+  // Beat 1 is accented by default. Persisted only in-memory for the session.
+  var metAccents = [true], metBar = 0;
+  function ensureAccents() {
+    for (var i = 0; i < metBeats; i++) if (metAccents[i] === undefined) metAccents[i] = (i === 0);
+    metAccents.length = metBeats;
+  }
   function paintBeatDots() {
+    ensureAccents();
     beatsBox.innerHTML = '';
     for (var i = 0; i < metBeats; i++) {
       var d = document.createElement('div');
-      d.className = 'met-beat' + (i === 0 ? ' beat-accent' : '');
+      d.className = 'met-beat' + (metAccents[i] ? ' beat-accent' : '');
+      d.setAttribute('data-beat', i);
+      d.title = 'Click to toggle accent';
       beatsBox.appendChild(d);
     }
   }
   paintBeatDots();
+  // Click a dot to toggle its accent (event-delegated so it survives repaints).
+  beatsBox.addEventListener('click', function (e) {
+    var dot = e.target.closest ? e.target.closest('.met-beat') : null;
+    if (!dot) return;
+    var n = parseInt(dot.getAttribute('data-beat'), 10);
+    if (isNaN(n)) return;
+    metAccents[n] = !metAccents[n];
+    dot.classList.toggle('beat-accent', metAccents[n]);
+  });
 
   function clickAt(when, accent) {
     var a = audio();
@@ -93,6 +112,13 @@
     osc.start(when); osc.stop(when + 0.06);
   }
 
+  // Tempo trainer: nudge the BPM up by a step every N bars, up to a ceiling —
+  // the classic way to build speed cleanly. Controls are optional; absent = off.
+  function metTrainerOn()   { var e = $('#metTrainer'); return !!(e && e.checked); }
+  function metTrainerStep() { return Math.max(1, parseInt(($('#metTrainerStep') || {}).value, 10) || 4); }
+  function metTrainerBars() { return Math.max(1, parseInt(($('#metTrainerBars') || {}).value, 10) || 2); }
+  function metTrainerMax()  { return Math.max(metBpm, Math.min(240, parseInt(($('#metTrainerMax') || {}).value, 10) || 180)); }
+
   function scheduler() {
     var a = audio();
     var lookahead = 0.1; // schedule up to 100ms ahead
@@ -100,7 +126,15 @@
     while (metNextTime < a.currentTime + lookahead) {
       var onMainBeat = (metBeatIndex % metSub) === 0;
       var mainBeatNum = Math.floor(metBeatIndex / metSub) % metBeats;
-      var isAccent = (mainBeatNum === 0) && onMainBeat;
+      var isAccent = onMainBeat && !!metAccents[mainBeatNum];
+      // Bar boundary (downbeat after the first): advance the tempo trainer.
+      if (onMainBeat && mainBeatNum === 0 && metBeatIndex > 0) {
+        metBar++;
+        if (metTrainerOn() && metBar % metTrainerBars() === 0) {
+          var next = Math.min(metTrainerMax(), metBpm + metTrainerStep());
+          if (next !== metBpm) { setMetBpm(next); var st = $('#metTrainerStatus'); if (st) st.textContent = 'Tempo trainer: ' + next + ' BPM'; }
+        }
+      }
       clickAt(metNextTime, isAccent);
       // Flash the corresponding dot on the next frame.
       if (onMainBeat) (function (n) {
@@ -120,7 +154,7 @@
   }
   function startMetronome() {
     var a = audio();
-    metPlaying = true; metBeatIndex = 0; metNextTime = a.currentTime + 0.06;
+    metPlaying = true; metBeatIndex = 0; metBar = 0; metNextTime = a.currentTime + 0.06;
     metInterval = setInterval(scheduler, 25);
     var btn = $('#metStart');
     btn.classList.add('playing');
@@ -180,19 +214,25 @@
   // ──────────────────────────────────────────────────────────────────
   var NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   var tunerStream = null, tunerSrc = null, tunerAnalyser = null, tunerBuf = null, tunerRaf = null, tunerListening = false;
-  var tunerA4 = 440; // adjustable concert-pitch reference
+  var tunerA4 = 440;        // adjustable concert-pitch reference
+  var tunerTranspose = 0;   // semitones added to the DISPLAYED note (transposing instruments)
+  var tunerSmoothed = null; // smoothed cents for a calmer needle
 
   function freqToNote(freq) {
     var n = 12 * Math.log2(freq / tunerA4) + 69; // MIDI note number, relative to A4
-    var midi = Math.round(n);
-    var cents = Math.round((n - midi) * 100);
-    return { name: NOTE_NAMES[midi % 12], octave: Math.floor(midi / 12) - 1, cents: cents };
+    var raw = Math.round(n);
+    var cents = Math.round((n - raw) * 100);
+    var midi = raw + tunerTranspose; // shift the written note for transposing instruments
+    return { name: NOTE_NAMES[((midi % 12) + 12) % 12], octave: Math.floor(midi / 12) - 1, cents: cents };
   }
-  // A4 calibration + a clean reference tone (sine with soft attack/release).
+  // A4 calibration, instrument transposition + a clean reference tone.
   (function initTunerExtras() {
-    var a4El = $('#tunerA4'), refBtn = $('#tunerRef');
+    var a4El = $('#tunerA4'), refBtn = $('#tunerRef'), trEl = $('#tunerTranspose');
     if (a4El) a4El.addEventListener('input', function () {
       tunerA4 = Math.max(415, Math.min(466, parseInt(a4El.value, 10) || 440));
+    });
+    if (trEl) trEl.addEventListener('change', function () {
+      tunerTranspose = parseInt(trEl.value, 10) || 0;
     });
     if (refBtn) refBtn.addEventListener('click', function () {
       var a = audio(), now = a.currentTime, o = a.createOscillator(), g = a.createGain();
@@ -276,18 +316,23 @@
       $('#tunerNote').textContent = n.name;
       $('#tunerOctave').textContent = n.octave;
       $('#tunerFreq').textContent = f.toFixed(1) + ' Hz';
+      // Exponential smoothing of the cents reading → a calmer, less jittery
+      // needle. Snap (don't smooth) when the note itself changes.
+      if (tunerSmoothed === null || Math.abs(n.cents - tunerSmoothed) > 45) tunerSmoothed = n.cents;
+      else tunerSmoothed = tunerSmoothed * 0.7 + n.cents * 0.3;
       // Map -50..+50 cents to 0..100% horizontal position.
-      var pct = Math.max(0, Math.min(100, 50 + n.cents));
+      var pct = Math.max(0, Math.min(100, 50 + tunerSmoothed));
       var tick = $('#tunerTick');
       tick.style.left = pct + '%';
       tick.classList.remove('in-tune', 'flat', 'sharp');
-      if (Math.abs(n.cents) < 6) tick.classList.add('in-tune');
-      else if (n.cents < 0) tick.classList.add('flat');
+      if (Math.abs(tunerSmoothed) < 6) tick.classList.add('in-tune');
+      else if (tunerSmoothed < 0) tick.classList.add('flat');
       else tick.classList.add('sharp');
     } else {
       $('#tunerNote').textContent = '—';
       $('#tunerOctave').textContent = '';
       $('#tunerFreq').textContent = 'Listening…';
+      tunerSmoothed = null;
     }
     tunerRaf = requestAnimationFrame(loopTuner);
   }
@@ -366,6 +411,8 @@
     try { log = raw ? JSON.parse(raw) : []; } catch (e) {}
     var today = new Date().toISOString().slice(0, 10);
     log = log.filter(function (x) { return x.date === today; });
+    var focusMins = log.reduce(function (s, e) { return s + (e.kind === 'focus' ? (e.mins || 0) : 0); }, 0);
+    var tot = $('#pomoTotal'); if (tot) tot.textContent = focusMins ? (focusMins + ' min focused today') : '';
     var ul = $('#pomoSessions');
     if (!log.length) { ul.innerHTML = '<li style="justify-content:center;color:var(--text-muted)">No sessions logged yet.</li>'; return; }
     ul.innerHTML = log.map(function (e) {
@@ -376,6 +423,11 @@
     }).join('');
   }
   paintPomoLog();
+  // Auto-start the next phase by default; uncheck to pause at each boundary.
+  function pomoAutoOn() { var e = $('#pomoAuto'); return !e || e.checked; }
+  function pomoNotify(msg) {
+    try { if (window.Notification && Notification.permission === 'granted') new Notification('MAM Practice Studio', { body: msg, silent: true }); } catch (e) {}
+  }
   // Drift-free Pomodoro: tick based on real-world elapsed time, not setInterval
   // counting. setInterval can drift by minutes over a long session (tab
   // throttled, sleep, etc). Recomputing from a start timestamp keeps the
@@ -397,10 +449,17 @@
         if (pomoState.block >= cfg.blocks) { pomoState.mode = 'long'; pomoState.secs = cfg.long; pomoState.block = 1; }
         else { pomoState.mode = 'short'; pomoState.secs = cfg.short; }
       } else { pomoState.mode = 'focus'; pomoState.secs = cfg.focus; if (completedKind === 'short') pomoState.block++; }
+      pomoNotify(completedKind === 'focus' ? 'Focus block done — time for a break.' : 'Break over — back to focus. You’ve got this.');
       // Re-anchor wall clock for the new phase so the drift-free tick stays
-      // accurate after auto-transition.
+      // accurate after a transition.
       pomoState.startedAt = Date.now();
       pomoState.targetSecs = pomoState.secs;
+      // Auto-start the next phase, or pause at the boundary if the user opted out.
+      if (!pomoAutoOn()) {
+        pomoState.running = false;
+        if (pomoState.intervalId) clearInterval(pomoState.intervalId);
+        pomoState.intervalId = null; pomoState.startedAt = null;
+      }
       paintPomoStart();
     }
     paintPomo();
@@ -415,6 +474,8 @@
     pomoState.running = !pomoState.running;
     if (pomoState.running) {
       audio();
+      // Ask once for permission so we can ping you when a phase ends.
+      try { if (window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
       // Anchor the timer to real wall-clock time so it can't drift.
       pomoState.startedAt = Date.now();
       pomoState.targetSecs = pomoState.secs;
@@ -475,6 +536,29 @@
   var earMode = 'intervals';
   var earScore = { correct: 0, total: 0, streak: 0, current: null };
 
+  // Difficulty restricts the pool (and the answer buttons). All-time best
+  // streak + accuracy persist across sessions.
+  var EAR_KEY = 'mam.ear.stats';
+  var earBest = (function () { try { var r = localStorage.getItem(EAR_KEY); return r ? JSON.parse(r) : { best: 0, correct: 0, total: 0 }; } catch (e) { return { best: 0, correct: 0, total: 0 }; } })();
+  function earDifficulty() { var e = $('#earDifficulty'); return e ? e.value : 'all'; }
+  function activeIntervals() {
+    var d = earDifficulty();
+    if (d === 'easy')   return INTERVALS.filter(function (x) { return [3, 4, 5, 7, 12].indexOf(x.semis) >= 0; });
+    if (d === 'medium') return INTERVALS.filter(function (x) { return [1, 2, 3, 4, 5, 7, 8, 9, 12].indexOf(x.semis) >= 0; });
+    return INTERVALS;
+  }
+  function activeChords() {
+    var d = earDifficulty();
+    if (d === 'easy')   return CHORDS.filter(function (x) { return ['Major', 'Minor'].indexOf(x.name) >= 0; });
+    if (d === 'medium') return CHORDS.filter(function (x) { return ['Major', 'Minor', 'Diminished', 'Augmented'].indexOf(x.name) >= 0; });
+    return CHORDS;
+  }
+  function paintEarBest() {
+    var el = $('#earBest'); if (!el) return;
+    var acc = earBest.total ? Math.round(earBest.correct / earBest.total * 100) : 0;
+    el.textContent = 'Best streak ' + (earBest.best || 0) + ' · ' + acc + '% all-time';
+  }
+
   function midiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
   // Lazily-built Tone polyphonic sampler-ish synth — sounds far more
   // pleasant than raw triangle oscillators because of the soft attack/release
@@ -525,11 +609,11 @@
   function newEarRound() {
     var root = 57 + Math.floor(Math.random() * 12); // A3..G#4
     if (earMode === 'intervals') {
-      var iv = INTERVALS[Math.floor(Math.random() * INTERVALS.length)];
+      var ivs = activeIntervals(), iv = ivs[Math.floor(Math.random() * ivs.length)];
       var harm = $('#earHarmonic') && $('#earHarmonic').checked;
       earScore.current = { kind: 'intervals', answer: iv.name, notes: [root, root + iv.semis], mode: harm ? 'harmonic' : 'melodic' };
     } else if (earMode === 'chords') {
-      var c = CHORDS[Math.floor(Math.random() * CHORDS.length)];
+      var cs = activeChords(), c = cs[Math.floor(Math.random() * cs.length)];
       earScore.current = { kind: 'chords', answer: c.name, notes: c.semis.map(function (s) { return root + s; }), mode: 'harmonic' };
     } else {
       var step = (Math.random() < 0.5 ? 1 : -1) * (1 + Math.floor(Math.random() * 7));
@@ -542,8 +626,8 @@
   }
   function paintEarOptions() {
     var opts = [];
-    if (earMode === 'intervals') opts = INTERVALS.map(function (x) { return x.name; });
-    else if (earMode === 'chords') opts = CHORDS.map(function (x) { return x.name; });
+    if (earMode === 'intervals') opts = activeIntervals().map(function (x) { return x.name; });
+    else if (earMode === 'chords') opts = activeChords().map(function (x) { return x.name; });
     else opts = ['Up', 'Down'];
     var box = $('#earOptions');
     box.innerHTML = opts.map(function (o) { return '<button type="button" data-answer="' + o + '">' + o + '</button>'; }).join('');
@@ -554,8 +638,9 @@
   }
   function check(ans, btn) {
     if (!earScore.current) return;
+    var ok = ans === earScore.current.answer;
     earScore.total++;
-    if (ans === earScore.current.answer) {
+    if (ok) {
       earScore.correct++; earScore.streak++;
       btn.classList.add('correct');
       $('#earFeedback').textContent = '✓ Correct! ' + earScore.current.answer + '. New round in a moment…';
@@ -570,6 +655,12 @@
     $('#earCorrect').textContent = earScore.correct;
     $('#earTotal').textContent = earScore.total;
     $('#earStreak').textContent = earScore.streak;
+    // Persist all-time best streak + accuracy.
+    if (earScore.streak > (earBest.best || 0)) earBest.best = earScore.streak;
+    earBest.correct = (earBest.correct || 0) + (ok ? 1 : 0);
+    earBest.total = (earBest.total || 0) + 1;
+    try { localStorage.setItem(EAR_KEY, JSON.stringify(earBest)); } catch (e) {}
+    paintEarBest();
   }
   $('#earPlay').addEventListener('click', function () {
     if (earScore.current) playNotes(earScore.current.notes, earScore.current.mode);
@@ -584,7 +675,13 @@
       $('#earFeedback').textContent = 'Press Play to start a new round.';
     });
   });
+  if ($('#earDifficulty')) $('#earDifficulty').addEventListener('change', function () {
+    earScore.current = null;
+    paintEarOptions();
+    $('#earFeedback').textContent = 'Difficulty set. Press Play for a new round.';
+  });
   paintEarOptions();
+  paintEarBest();
 
   // ──────────────────────────────────────────────────────────────────
   // SPEED & PITCH TRAINER (premium tool)

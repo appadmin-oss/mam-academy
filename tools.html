@@ -49,6 +49,16 @@
 .met-start.playing{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;box-shadow:0 8px 22px rgba(244,66,59,0.45)}
 .met-tap{padding:14px 22px;background:transparent;border:1px solid var(--border-gold);color:var(--gold-bright);font-weight:700;border-radius:12px;min-height:52px;cursor:pointer}
 .met-tap:hover{background:rgba(224,138,26,0.06)}
+.met-hint{font-size:0.78rem;color:var(--text-muted)}
+.met-beat{cursor:pointer}
+.met-trainer{margin-top:16px;background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;padding:4px 16px}
+.met-trainer summary{cursor:pointer;padding:12px 0;font-size:0.84rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);display:flex;align-items:center;gap:8px}
+.met-trainer summary #metTrainerStatus{margin-left:auto;font-weight:700;letter-spacing:0;text-transform:none;color:var(--gold-bright,#FCC647)}
+.met-trainer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;padding:6px 0 16px}
+.met-trainer-grid label{display:block;font-size:0.72rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.met-trainer-grid input[type=number]{width:100%;padding:9px 12px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.94rem;min-height:42px}
+.met-trainer-toggle{display:flex;align-items:center;gap:8px;text-transform:none !important;letter-spacing:0 !important;font-size:0.9rem !important;color:var(--text-soft) !important;align-self:end}
+.met-trainer-toggle input{width:16px;height:16px;accent-color:var(--gold-bright,#FCC647)}
 
 /* ── Tuner ─────────────────────────────────────────────────────── */
 .tuner-display{padding:30px 24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;text-align:center;margin-bottom:18px}
@@ -95,6 +105,9 @@
 .pomo-log li{display:flex;justify-content:space-between;font-size:0.88rem;padding:6px 10px;background:var(--bg-raised);border-radius:8px}
 .pomo-log .when{color:var(--text-muted);font-size:0.78rem}
 .pomo-log .clear{margin-top:10px;font-size:0.78rem;color:#FCA5A5;background:none;border:0;cursor:pointer;padding:4px 0;text-decoration:underline}
+.pomo-total{float:right;text-transform:none;letter-spacing:0;font-weight:700;color:var(--gold-bright,#FCC647)}
+.pomo-auto{display:inline-flex;align-items:center;gap:8px;font-size:0.84rem;color:var(--text-soft);cursor:pointer}
+.pomo-auto input{width:16px;height:16px;accent-color:var(--gold-bright,#FCC647)}
 
 /* ── Ear training ──────────────────────────────────────────────── */
 .ear-display{padding:24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
@@ -113,6 +126,10 @@
 .ear-mode button.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
 .ear-playmode{display:inline-flex;align-items:center;gap:8px;margin:0 0 14px;font-size:0.86rem;color:var(--text-soft);cursor:pointer}
 .ear-playmode input{width:16px;height:16px;accent-color:var(--gold-bright,#FCC647)}
+.ear-settings{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 14px}
+.ear-diff{display:inline-flex;align-items:center;gap:8px;font-size:0.84rem;font-weight:700;color:var(--text-muted)}
+.ear-diff select{padding:9px 12px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.9rem;font-weight:600;min-height:42px;cursor:pointer}
+.ear-best{text-align:center;font-size:0.82rem;color:var(--gold-bright,#FCC647);font-weight:700;margin:-6px 0 14px}
 
 /* ── Speed & Pitch trainer (premium) ──────────────────────────── */
 .sp-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:48px 22px;border:2px dashed var(--border-gold);border-radius:14px;background:linear-gradient(180deg,rgba(252,198,71,0.05),var(--bg-raised));text-align:center;cursor:pointer;transition:all .2s var(--ease)}
@@ -200,6 +217,15 @@
 .seq-tbtn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent;font-weight:800;box-shadow:0 6px 16px rgba(224,138,26,0.3)}
 .seq-tbtn-gold:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(224,138,26,0.4);color:#1A120B}
 .seq-status{margin:0;font-size:0.88rem;color:var(--text-muted);line-height:1.55;min-height:1.4em}
+.seq-bank{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.seq-bank-label{font-size:0.72rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-right:2px}
+.seq-slot{width:42px;min-height:42px;border-radius:10px;border:1.5px solid var(--border-strong);background:var(--bg-raised);color:var(--text-muted);font-weight:800;font-size:0.95rem;cursor:pointer;position:relative;transition:all .15s var(--ease)}
+.seq-slot:hover{border-color:var(--border-gold);color:var(--text)}
+.seq-slot.filled{color:var(--text)}
+.seq-slot.filled::after{content:"";position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--gold-bright,#FCC647)}
+.seq-slot.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
+.seq-steps-field{display:inline-flex;align-items:center;gap:8px;font-size:0.78rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted)}
+.seq-steps-field select{padding:9px 12px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.9rem;font-weight:600;min-height:42px;cursor:pointer}
 
 @media (max-width:640px){
   .seq-grid{gap:6px;padding:10px}
@@ -266,7 +292,18 @@
       <div class="met-actions">
         <button class="met-start" id="metStart" type="button"><i class="fa-solid fa-play"></i> <span>Start</span></button>
         <button class="met-tap" id="metTap" type="button"><i class="fa-solid fa-hand-pointer"></i> Tap tempo</button>
+        <span class="met-hint">Click a beat dot to toggle its accent.</span>
       </div>
+
+      <details class="met-trainer">
+        <summary><i class="fa-solid fa-gauge-high"></i> Tempo trainer <span id="metTrainerStatus"></span></summary>
+        <div class="met-trainer-grid">
+          <label class="met-trainer-toggle"><input type="checkbox" id="metTrainer"> Speed up automatically</label>
+          <div><label for="metTrainerStep">Increase by (BPM)</label><input type="number" id="metTrainerStep" min="1" max="40" value="4"></div>
+          <div><label for="metTrainerBars">Every (bars)</label><input type="number" id="metTrainerBars" min="1" max="16" value="2"></div>
+          <div><label for="metTrainerMax">Up to (BPM)</label><input type="number" id="metTrainerMax" min="40" max="240" value="180"></div>
+        </div>
+      </details>
     </section>
 
     <!-- ─── Tuner ─── -->
@@ -287,6 +324,15 @@
       <div class="tuner-tools">
         <button class="tuner-start" id="tunerStart" type="button"><i class="fa-solid fa-microphone"></i> <span>Listen</span></button>
         <label class="tuner-a4" for="tunerA4">A4 <input type="number" id="tunerA4" min="415" max="466" value="440"> Hz</label>
+        <label class="tuner-a4" for="tunerTranspose">Instrument
+          <select id="tunerTranspose">
+            <option value="0">Concert (C)</option>
+            <option value="2">B♭ (trumpet, clarinet, tenor)</option>
+            <option value="9">E♭ (alto sax)</option>
+            <option value="7">F (horn)</option>
+            <option value="-12">Guitar / bass (8vb)</option>
+          </select>
+        </label>
         <button class="tuner-ref" id="tunerRef" type="button"><i class="fa-solid fa-volume-high"></i> Play A4</button>
       </div>
     </section>
@@ -308,6 +354,7 @@
       <div class="pomo-actions">
         <button class="pomo-start" id="pomoStart" type="button"><i class="fa-solid fa-play"></i> <span>Start focus</span></button>
         <button class="pomo-reset" id="pomoReset" type="button"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+        <label class="pomo-auto"><input type="checkbox" id="pomoAuto" checked> Auto-start next phase</label>
       </div>
       <div class="pomo-cfg">
         <div><label for="pomoFocus">Focus (min)</label><input type="number" id="pomoFocus" min="5" max="90" value="25"></div>
@@ -316,7 +363,7 @@
         <div><label for="pomoBlocks">Blocks → long break</label><input type="number" id="pomoBlocks" min="2" max="8" value="4"></div>
       </div>
       <div class="pomo-log">
-        <h4><i class="fa-solid fa-list-check"></i> Today's sessions</h4>
+        <h4><i class="fa-solid fa-list-check"></i> Today's sessions <span class="pomo-total" id="pomoTotal"></span></h4>
         <ul id="pomoSessions"><li style="justify-content:center;color:var(--text-muted)">No sessions logged yet.</li></ul>
         <button class="clear" id="pomoClear" type="button">Clear history</button>
       </div>
@@ -332,12 +379,22 @@
         <button data-ear-mode="chords" type="button">Chord quality</button>
         <button data-ear-mode="direction" type="button">Pitch direction</button>
       </div>
-      <label class="ear-playmode"><input type="checkbox" id="earHarmonic"> Play intervals harmonically (both notes together)</label>
+      <div class="ear-settings">
+        <label class="ear-playmode"><input type="checkbox" id="earHarmonic"> Play intervals harmonically (both notes together)</label>
+        <label class="ear-diff">Difficulty
+          <select id="earDifficulty">
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="all" selected>Hard (all)</option>
+          </select>
+        </label>
+      </div>
       <div class="ear-display">
         <div class="ear-score">
           <span>Correct: <b id="earCorrect">0</b> / <b id="earTotal">0</b></span>
           <span>Streak: <b id="earStreak">0</b></span>
         </div>
+        <div class="ear-best" id="earBest"></div>
         <div class="ear-question" id="earQuestion">
           <button class="ear-replay" id="earPlay" type="button"><i class="fa-solid fa-play"></i> <span>Play interval</span></button>
         </div>
@@ -458,8 +515,26 @@
       <div class="seq-grid">
         <div class="seq-tracks" id="seqTracks"></div>
         <div class="seq-canvas-wrap" id="seqCanvasWrap">
-          <canvas id="seqCanvas" aria-label="Step sequencer grid — tap a cell to toggle a beat"></canvas>
+          <canvas id="seqCanvas" aria-label="Step sequencer grid — tap a cell once for a hit, twice for an accent"></canvas>
         </div>
+      </div>
+
+      <!-- Pattern bank + length -->
+      <div class="seq-bank">
+        <span class="seq-bank-label">Patterns</span>
+        <button class="seq-slot active" data-slot="0" type="button" title="Pattern A">A</button>
+        <button class="seq-slot" data-slot="1" type="button" title="Pattern B">B</button>
+        <button class="seq-slot" data-slot="2" type="button" title="Pattern C">C</button>
+        <button class="seq-slot" data-slot="3" type="button" title="Pattern D">D</button>
+        <button class="seq-tbtn" id="seqStore" type="button" title="Store the current groove in the selected slot"><i class="fa-solid fa-floppy-disk"></i> Store</button>
+        <span class="seq-tsep"></span>
+        <label class="seq-steps-field" for="seqSteps">Steps
+          <select id="seqSteps" aria-label="Pattern length in steps">
+            <option value="8">8</option>
+            <option value="16" selected>16</option>
+            <option value="32">32</option>
+          </select>
+        </label>
       </div>
 
       <!-- Toolbar -->
@@ -477,7 +552,7 @@
         <span class="seq-tsep"></span>
         <button class="seq-tbtn seq-tbtn-gold" id="seqExport" type="button"><i class="fa-solid fa-download"></i> Export WAV</button>
       </div>
-      <p class="seq-status" id="seqStatus">Tip: hit a few cells, press play, and reach for swing to make it groove.</p>
+      <p class="seq-status" id="seqStatus">Tip: tap a cell once for a hit, twice for an accent. Press play, add swing, and store grooves in A–D.</p>
     </section>
   </section>
 </main>
@@ -519,7 +594,7 @@
   })();
 </script>
 <script src="assets/js/studio-core.js?v=20260602a" defer></script>
-<script src="assets/js/tools.js?v=20260602a" defer></script>
-<script src="assets/js/sequencer.js?v=20260602b" defer></script>
+<script src="assets/js/tools.js?v=20260602b" defer></script>
+<script src="assets/js/sequencer.js?v=20260602c" defer></script>
 </body>
 </html>

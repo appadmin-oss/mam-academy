@@ -223,7 +223,17 @@
   }
 
   // ── Pattern helpers + presets ──────────────────────────────────────
-  function blankPattern() { return TRACKS.map(function () { return new Array(STEPS).fill(0); }); }
+  var STEP_OPTIONS = [8, 16, 32];
+  var ACCENT_VEL = { 1: 0.85, 2: 1.15 };   // velocity multiplier per cell value (1 = hit, 2 = accent)
+  function slotName(i) { return ['A', 'B', 'C', 'D'][i] || '?'; }
+  function blankPattern(n) { n = n || STEPS; return TRACKS.map(function () { return new Array(n).fill(0); }); }
+  function resizePattern(pat, n) {
+    return pat.map(function (row) {
+      var out = new Array(n).fill(0);
+      for (var i = 0; i < n && i < row.length; i++) out[i] = row[i] | 0;
+      return out;
+    });
+  }
   function P(str) {
     var a = new Array(STEPS).fill(0);
     for (var i = 0; i < STEPS && i < str.length; i++) a[i] = str[i] === 'x' ? 1 : 0;
@@ -247,6 +257,7 @@
   function defaultState() {
     return {
       bpm: 100, swing: 0, master: 0.85, playing: false, step: -1, engine: '—',
+      steps: 16, slots: [null, null, null, null], activeSlot: 0,
       pattern: patternFromPreset('Afrobeat'),
       tracks: TRACKS.map(function (t) { return { vol: t.vol, mute: false, solo: false }; }),
     };
@@ -259,21 +270,28 @@
       if (typeof d.bpm === 'number') st.bpm = d.bpm;
       if (typeof d.swing === 'number') st.swing = d.swing;
       if (typeof d.master === 'number') st.master = d.master;
+      if (STEP_OPTIONS.indexOf(d.steps) >= 0) st.steps = d.steps;
       if (Array.isArray(d.pattern)) {
-        st.pattern = blankPattern();
-        d.pattern.forEach(function (rowArr, i) { if (st.pattern[i] && Array.isArray(rowArr)) for (var s = 0; s < STEPS; s++) st.pattern[i][s] = rowArr[s] ? 1 : 0; });
+        st.pattern = blankPattern(st.steps);
+        d.pattern.forEach(function (rowArr, i) { if (st.pattern[i] && Array.isArray(rowArr)) for (var s = 0; s < st.steps; s++) st.pattern[i][s] = (rowArr[s] | 0) % 3; });
       }
       if (Array.isArray(d.tracks)) d.tracks.forEach(function (s, i) {
         if (!st.tracks[i] || !s) return;
         if (typeof s.vol === 'number') st.tracks[i].vol = s.vol;
         st.tracks[i].mute = !!s.mute; st.tracks[i].solo = !!s.solo;
       });
+      if (Array.isArray(d.slots)) st.slots = [0, 1, 2, 3].map(function (i) {
+        var sl = d.slots[i];
+        if (sl && Array.isArray(sl.pattern)) return { steps: STEP_OPTIONS.indexOf(sl.steps) >= 0 ? sl.steps : 16, pattern: sl.pattern.map(function (r) { return (r || []).map(function (v) { return (v | 0) % 3; }); }) };
+        return null;
+      });
+      if (typeof d.activeSlot === 'number' && d.activeSlot >= 0 && d.activeSlot < 4) st.activeSlot = d.activeSlot;
       return st;
     } catch (e) { return null; }
   }
   function save(s) {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ bpm: s.bpm, swing: s.swing, master: s.master, pattern: s.pattern, tracks: s.tracks }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ bpm: s.bpm, swing: s.swing, master: s.master, steps: s.steps, pattern: s.pattern, tracks: s.tracks, slots: s.slots, activeSlot: s.activeSlot }));
     } catch (e) {}
   }
 
@@ -299,7 +317,7 @@
   }
   function exportWav() {
     var st = store.getState();
-    var bars = 2, sd = 60 / st.bpm / 4, totalSteps = bars * STEPS, tail = 0.6;
+    var steps = st.steps, bars = 2, sd = 60 / st.bpm / 4, totalSteps = bars * steps, tail = 0.6;
     var sr = (ctx && ctx.sampleRate) || audio().sampleRate || 44100;
     var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!OAC) { status('Your browser can’t render WAV files offline — try the latest Chrome, Edge or Safari.'); return; }
@@ -311,11 +329,13 @@
       var aud = anySolo ? !!st.tracks[i].solo : !st.tracks[i].mute;
       if (!aud) return;
       var tg = off.createGain(); tg.gain.value = st.tracks[i].vol; tg.connect(master);
-      for (var b = 0; b < bars; b++) for (var s = 0; s < STEPS; s++) {
-        if (!st.pattern[i][s]) continue;
-        var gridT = (b * STEPS + s) * sd;
+      for (var b = 0; b < bars; b++) for (var s = 0; s < steps; s++) {
+        var cell = st.pattern[i][s];
+        if (!cell) continue;
+        var gridT = (b * steps + s) * sd;
         var when = gridT + (s % 2 ? st.swing * sd : 0);
-        voices[t.voice](off, tg, when);
+        var hg = off.createGain(); hg.gain.value = ACCENT_VEL[cell] || 1; hg.connect(tg);
+        voices[t.voice](off, hg, when);
       }
     });
     off.startRendering().then(function (buf) {
@@ -345,16 +365,17 @@
       masterGain = ac.createGain(); masterGain.gain.value = store.getState().master; masterGain.connect(ac.destination);
       tgains = TRACKS.map(function (t, i) { var g = ac.createGain(); g.gain.value = store.getState().tracks[i].vol; g.connect(masterGain); return g; });
     }
-    function trig(i, when) {
-      var v = TRACKS[i].voice;
-      if (buffers[v]) { var s = ac.createBufferSource(); s.buffer = buffers[v]; s.connect(tgains[i]); s.start(when); }
-      else voices[v](ac, tgains[i], when);
+    function trig(i, when, vel) {
+      var v = TRACKS[i].voice, out = tgains[i];
+      if (vel && vel !== 1) { var gv = ac.createGain(); gv.gain.value = vel; gv.connect(tgains[i]); out = gv; }
+      if (buffers[v]) { var s = ac.createBufferSource(); s.buffer = buffers[v]; s.connect(out); s.start(when); }
+      else voices[v](ac, out, when);
     }
     function sched() {
-      var st = store.getState(), sd = 60 / st.bpm / 4;
+      var st = store.getState(), sd = 60 / st.bpm / 4, steps = st.steps;
       while (nextT < ac.currentTime + 0.12) {
-        var s = stp % STEPS, swung = nextT + (s % 2 ? st.swing * sd : 0);
-        for (var i = 0; i < TRACKS.length; i++) if (st.pattern[i][s] && trackAudible(i, st)) trig(i, swung);
+        var s = stp % steps, swung = nextT + (s % 2 ? st.swing * sd : 0);
+        for (var i = 0; i < TRACKS.length; i++) { var cell = st.pattern[i][s]; if (cell && trackAudible(i, st)) trig(i, swung, ACCENT_VEL[cell] || 1); }
         (function (ss, t) { var d = Math.max(0, (t - ac.currentTime) * 1000); setTimeout(function () { if (store.getState().playing) store.setState({ step: ss }); }, d); })(s, nextT);
         nextT += sd; stp++;
       }
@@ -366,7 +387,7 @@
       setBpm: function () {}, setSwing: function () {},  // read live from the store each tick
       setMaster: function (v) { if (masterGain) masterGain.gain.value = v; },
       syncTrack: function (i) { if (tgains[i]) tgains[i].gain.value = store.getState().tracks[i].vol; }, // mute/solo via trackAudible()
-      audition: function (i) { build(); trig(i, ac.currentTime + 0.01); },
+      audition: function (i, vel) { build(); trig(i, ac.currentTime + 0.01, vel); },
       dispose: function () { this.stop(); },
     };
   }
@@ -390,9 +411,11 @@
       Tone.getDestination().volume.value = Tone.gainToDb(Math.max(0.0001, st.master));
       ready = true;
     }
-    function trig(i, time) {
+    function trig(i, time, vel) {
       var p = players[i];
-      if (p && p.loaded !== false && p.buffer && p.buffer.loaded !== false) { try { p.start(time); return; } catch (e) {} }
+      if (p && p.loaded !== false && p.buffer && p.buffer.loaded !== false) {
+        try { if (p.volume) p.volume.value = Tone.gainToDb(Math.max(0.05, vel || 1)); p.start(time); return; } catch (e) {}
+      }
       // buffer not warm yet → live synth into the channel's native input
       var dest = channels[i] && channels[i].input ? channels[i].input : Tone.getDestination();
       voices[TRACKS[i].voice](Tone.context.rawContext || audio(), dest, time != null ? time : (Tone.now()));
@@ -407,8 +430,8 @@
         Tone.Transport.swingSubdivision = '16n';
         stp = 0;
         loopId = Tone.Transport.scheduleRepeat(function (time) {
-          var s = stp % STEPS, cur = store.getState();
-          for (var i = 0; i < TRACKS.length; i++) if (cur.pattern[i][s] && trackAudible(i, cur)) trig(i, time);
+          var cur = store.getState(), s = stp % cur.steps;
+          for (var i = 0; i < TRACKS.length; i++) { var cell = cur.pattern[i][s]; if (cell && trackAudible(i, cur)) trig(i, time, ACCENT_VEL[cell] || 1); }
           Tone.Draw.schedule(function () { if (store.getState().playing) store.setState({ step: s }); }, time);
           stp++;
         }, '16n');
@@ -423,7 +446,7 @@
         var t = store.getState().tracks[i];
         try { channels[i].volume.value = Tone.gainToDb(Math.max(0.0001, t.vol)); channels[i].mute = !!t.mute; channels[i].solo = !!t.solo; } catch (e) {}
       },
-      audition: function (i) { build(); trig(i); },
+      audition: function (i, vel) { build(); trig(i, undefined, vel); },
       dispose: function () {
         this.stop();
         try { players.forEach(function (p) { p.dispose(); }); channels.forEach(function (c) { c.dispose(); }); } catch (e) {}
@@ -468,6 +491,33 @@
     store.setState({ playing: false, step: -1 });
   }
 
+  // ── Pattern length + slots ─────────────────────────────────────────
+  function setSteps(n) {
+    if (STEP_OPTIONS.indexOf(n) < 0) n = 16;
+    var st = store.getState();
+    if (n === st.steps) return;
+    store.setState({ steps: n, pattern: resizePattern(st.pattern, n), step: -1 });
+    layout(); // cell width changed
+    status('Pattern length: ' + n + ' steps.');
+  }
+  function selectSlot(i) {
+    var st = store.getState(), slot = st.slots[i];
+    if (slot) {
+      store.setState({ activeSlot: i, steps: slot.steps, pattern: slot.pattern.map(function (r) { return r.slice(); }), step: -1 });
+      layout();
+      status('Recalled pattern ' + slotName(i) + '.');
+    } else {
+      store.setState({ activeSlot: i });
+      status('Pattern ' + slotName(i) + ' is empty — tap Store to save the current groove here.');
+    }
+  }
+  function storeSlot() {
+    var st = store.getState(), slots = st.slots.slice();
+    slots[st.activeSlot] = { steps: st.steps, pattern: st.pattern.map(function (r) { return r.slice(); }) };
+    store.setState({ slots: slots });
+    status('Stored the current groove in pattern ' + slotName(st.activeSlot) + '.');
+  }
+
   // ── Canvas view ────────────────────────────────────────────────────
   var cvs = $('#seqCanvas'), c = cvs.getContext('2d'), wrap = $('#seqCanvasWrap');
   var cssW = 0, cssH = TRACKS.length * ROW, cellW = 0;
@@ -481,29 +531,34 @@
   function layout() {
     var wrapW = wrap.clientWidth || 0;
     if (!wrapW) return;
-    var minW = STEPS * 30;
+    var steps = store ? store.getState().steps : STEPS;
+    var minW = steps * 28;
     cssW = Math.max(minW, wrapW); cssH = TRACKS.length * ROW;
     var dpr = window.devicePixelRatio || 1;
     cvs.style.width = cssW + 'px'; cvs.style.height = cssH + 'px';
     cvs.width = Math.round(cssW * dpr); cvs.height = Math.round(cssH * dpr);
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    cellW = cssW / STEPS;
+    cellW = cssW / steps;
     draw();
   }
   function draw() {
-    if (!cellW) return;
-    var st = store.getState();
+    if (!cellW || !store) return;
+    var st = store.getState(), steps = st.steps;
     c.clearRect(0, 0, cssW, cssH);
     for (var t = 0; t < TRACKS.length; t++) {
       var y = t * ROW;
-      for (var s = 0; s < STEPS; s++) {
+      for (var s = 0; s < steps; s++) {
         var x = s * cellW, group = Math.floor(s / 4);
-        var on = st.pattern[t][s], isCur = st.playing && s === st.step;
+        var cell = st.pattern[t][s], isCur = st.playing && s === st.step;
         roundRect(c, x + 3, y + 3, cellW - 6, ROW - 6, 6);
-        if (on) {
-          c.fillStyle = isCur ? '#FFD56B' : (group % 2 ? '#E89A2C' : '#F0A93A'); c.fill();
+        if (cell) {
+          c.fillStyle = isCur ? '#FFE6A0' : (cell === 2 ? '#FCC647' : (group % 2 ? '#D88A22' : '#EE9E2C')); c.fill();
           roundRect(c, x + 4, y + 4, cellW - 8, (ROW - 8) * 0.42, 5);
           c.fillStyle = 'rgba(255,255,255,0.22)'; c.fill();
+          if (cell === 2) { // accent marker
+            c.fillStyle = 'rgba(26,18,11,0.6)';
+            c.beginPath(); c.arc(x + cellW / 2, y + ROW / 2 + (ROW - 8) * 0.12, Math.min(4, cellW * 0.09), 0, Math.PI * 2); c.fill();
+          }
         } else {
           c.fillStyle = isCur ? '#33271699' : (group % 2 ? '#1b140d' : '#221910'); c.fill();
           c.strokeStyle = 'rgba(255,255,255,0.05)'; c.lineWidth = 1; c.stroke();
@@ -511,7 +566,7 @@
       }
     }
     c.strokeStyle = 'rgba(255,255,255,0.12)'; c.lineWidth = 1;
-    for (var g = 1; g < STEPS / 4; g++) { var gx = Math.round(g * 4 * cellW) + 0.5; c.beginPath(); c.moveTo(gx, 0); c.lineTo(gx, cssH); c.stroke(); }
+    for (var g = 1; g < steps / 4; g++) { var gx = Math.round(g * 4 * cellW) + 0.5; c.beginPath(); c.moveTo(gx, 0); c.lineTo(gx, cssH); c.stroke(); }
   }
 
   // Tap toggles a cell; a horizontal drag scrolls the grid on narrow screens
@@ -524,12 +579,13 @@
     var moved = Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y); down = null;
     if (moved > 10) return;
     var r = cvs.getBoundingClientRect();
+    var steps = store.getState().steps;
     var s = Math.floor((e.clientX - r.left) / cellW), t = Math.floor((e.clientY - r.top) / ROW);
-    if (s < 0 || s >= STEPS || t < 0 || t >= TRACKS.length) return;
+    if (s < 0 || s >= steps || t < 0 || t >= TRACKS.length) return;
     var pat = store.getState().pattern.map(function (row) { return row.slice(); });
-    pat[t][s] = pat[t][s] ? 0 : 1;
+    pat[t][s] = (pat[t][s] + 1) % 3; // off → hit → accent → off
     store.setState({ pattern: pat });
-    if (pat[t][s]) { try { ensureKernel().audition(t); } catch (err) {} } // audition on enable
+    if (pat[t][s]) { try { ensureKernel().audition(t, ACCENT_VEL[pat[t][s]] || 1); } catch (err) {} } // audition on enable
   });
 
   // ── Track controls (mute / solo / per-track volume) ────────────────
@@ -578,6 +634,14 @@
       btn.querySelector('span').textContent = s.playing ? 'Stop' : 'Play';
       btn.querySelector('i').className = s.playing ? 'fa-solid fa-stop' : 'fa-solid fa-play';
     }
+    if (!prev || s.steps !== prev.steps) { var sel = $('#seqSteps'); if (sel) sel.value = String(s.steps); }
+    if (!prev || s.slots !== prev.slots || s.activeSlot !== prev.activeSlot) {
+      $$('.seq-slot').forEach(function (b) {
+        var i = +b.getAttribute('data-slot');
+        b.classList.toggle('filled', !!s.slots[i]);
+        b.classList.toggle('active', i === s.activeSlot);
+      });
+    }
   }
   function status(msg) { var el = $('#seqStatus'); if (el) el.textContent = msg; }
 
@@ -591,21 +655,29 @@
     });
     $('#seqSwing').addEventListener('input', function (e) { store.setState({ swing: (parseInt(e.target.value, 10) || 0) / 100 }); });
     $('#seqMaster').addEventListener('input', function (e) { store.setState({ master: (parseInt(e.target.value, 10) || 0) / 100 }); });
-    $('#seqClear').addEventListener('click', function () { store.setState({ pattern: blankPattern() }); status('Cleared. A blank canvas — start tapping cells.'); });
+    $('#seqClear').addEventListener('click', function () { store.setState({ pattern: blankPattern(store.getState().steps) }); status('Cleared. A blank canvas — start tapping cells.'); });
     $('#seqRandom').addEventListener('click', function () {
       var prob = { kick: 0.28, snare: 0.12, clap: 0.12, hatClosed: 0.55, hatOpen: 0.12, tom: 0.1, rim: 0.18, shaker: 0.4 };
-      var pat = blankPattern();
-      TRACKS.forEach(function (t, i) { var p = prob[t.voice] || 0.2; for (var s = 0; s < STEPS; s++) pat[i][s] = Math.random() < p ? 1 : 0; });
-      var ki = voiceIndex('kick'); if (ki >= 0) pat[ki][0] = 1;
+      var steps = store.getState().steps, pat = blankPattern(steps);
+      TRACKS.forEach(function (t, i) { var p = prob[t.voice] || 0.2; for (var s = 0; s < steps; s++) pat[i][s] = Math.random() < p ? (Math.random() < 0.18 ? 2 : 1) : 0; });
+      var ki = voiceIndex('kick'); if (ki >= 0) pat[ki][0] = 2;
       store.setState({ pattern: pat }); status('Rolled a fresh groove. Not feeling it? Roll again.');
     });
     $('#seqPresets').addEventListener('change', function (e) {
       if (!e.target.value) return;
       var name = e.target.value; e.target.value = '';
-      store.setState({ pattern: patternFromPreset(name) });
+      store.setState({ steps: 16, pattern: patternFromPreset(name) }); layout();
       status('Loaded the “' + name + '” groove. Hit play, then make it yours.');
     });
     $('#seqExport').addEventListener('click', exportWav);
+
+    // Pattern length
+    var stepsSel = $('#seqSteps');
+    if (stepsSel) stepsSel.addEventListener('change', function (e) { setSteps(parseInt(e.target.value, 10) || 16); });
+    // Pattern slots (A–D): click recalls (or selects an empty slot); Store writes.
+    $$('.seq-slot').forEach(function (b) { b.addEventListener('click', function () { selectSlot(+b.getAttribute('data-slot')); }); });
+    var storeBtn = $('#seqStore');
+    if (storeBtn) storeBtn.addEventListener('click', storeSlot);
 
     // Tab integration: stop on leaving, (re)lay out when shown.
     Array.prototype.slice.call(document.querySelectorAll('.tools-tabs button')).forEach(function (b) {
@@ -642,7 +714,8 @@
     }
     draw();
     syncControls(s, prev);
-    if (!prev || s.bpm !== prev.bpm || s.swing !== prev.swing || s.master !== prev.master || s.pattern !== prev.pattern || s.tracks !== prev.tracks) save(s);
+    if (!prev || s.bpm !== prev.bpm || s.swing !== prev.swing || s.master !== prev.master || s.pattern !== prev.pattern
+        || s.tracks !== prev.tracks || s.steps !== prev.steps || s.slots !== prev.slots || s.activeSlot !== prev.activeSlot) save(s);
   }
 
   // ── Init (async: resolve the Zustand store, then wire everything) ──
