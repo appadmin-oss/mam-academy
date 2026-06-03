@@ -496,10 +496,13 @@
       meters.forEach(function (el) { mObs.observe(el); });
     }
 
-    var navLinks = $$('.nav-link');
     var sections = $$('main section[id]');
     if ('IntersectionObserver' in window && sections.length) {
       var spy = new IntersectionObserver(function (entries) {
+        // Looked up lazily on each fire: initAnimations() is now armed at
+        // DOMContentLoaded, before the header partial (which holds .nav-link)
+        // has been fetched and injected.
+        var navLinks = $$('.nav-link');
         entries.forEach(function (en) {
           if (!en.isIntersecting) return;
           var id = '#' + en.target.id;
@@ -907,7 +910,9 @@
     // Each init is isolated: a throw in one (e.g. the nav) must never stop the
     // others from running — otherwise a single failure could, for example,
     // leave the scroll-reveal section headers stuck at opacity:0.
-    [initPreloader, initNav, initHero, initSmoothScroll, initFaq, initAnimations,
+    // NOTE: initAnimations is intentionally NOT here — it's run earlier, on
+    // DOMContentLoaded, so scroll-reveal never waits on the partials fetch.
+    [initPreloader, initNav, initHero, initSmoothScroll, initFaq,
      initCountdown, initTestimonials, initCookie, initToolbar, initCurrency,
      initNewsletter, initFilters, initImageFallback, initYear, initScholarship].forEach(function (fn) {
       try { fn(); } catch (e) { if (window.console) console.error('[MAM] init failed:', fn.name, e); }
@@ -1051,9 +1056,19 @@
   // Wait for partials to load before binding nav/hero events
   document.addEventListener('DOMContentLoaded', function () {
     injectSiteSchema();
+    // Scroll-reveal, stat counters, meters and the section scrollspy all target
+    // THIS page's own sections — the header/footer partials carry no reveal
+    // elements — so arm them NOW. Waiting for the partial fetch (the old
+    // `.then(boot)`) left every .fade-in section (the section headers, the
+    // Schools block, etc.) stuck at opacity:0 until the 1.2s safety timer, which
+    // read as "loads extremely late". This makes them appear on first paint.
+    try { initAnimations(); } catch (e) { if (window.console) console.error('[MAM] initAnimations failed:', e); }
+    // boot() binds the nav/hero/footer, which DO need the partials. Run it on
+    // success OR failure (then(boot, boot) → exactly once) so a flaky partial
+    // fetch can never leave the rest of the page un-initialised.
     Promise.all([
       loadPartial('include-header', 'partials/header.html?v=20260601a'),
       loadPartial('include-footer', 'partials/footer.html?v=20260601a')
-    ]).then(boot);
+    ]).then(boot, boot);
   });
 })();
