@@ -629,6 +629,27 @@
       pianoVoiceWA(a, m, a.currentTime + (mode === 'harmonic' ? 0 : i * gap2), dur2);
     });
   }
+  // Shared high-quality piano for other studio tools (e.g. the Chord Explorer):
+  // the same warmed Salamander sampler the ear-trainer uses, with the FM-synth +
+  // additive Web-Audio fallbacks. gap=0 plays the notes together (a chord);
+  // gap>0 arpeggiates them gap-seconds apart.
+  function pianoPlay(midis, gap, dur) {
+    if (!midis || !midis.length) return false;
+    gap = gap || 0; dur = dur || 1.0;
+    var inst = ensureEarInstrument();
+    if (inst && window.Tone) {
+      try {
+        var now = Tone.now() + 0.03;
+        midis.forEach(function (m, i) { inst.triggerAttackRelease(Tone.Frequency(m, 'midi').toFrequency(), dur, now + i * gap); });
+        return true;
+      } catch (e) {}
+    }
+    var a = audio();
+    midis.forEach(function (m, i) { pianoVoiceWA(a, m, a.currentTime + i * gap, dur); });
+    return true;
+  }
+  window.MAM_PIANO = { play: pianoPlay };
+
   function newEarRound() {
     var root = 57 + Math.floor(Math.random() * 12); // A3..G#4
     if (earMode === 'intervals') {

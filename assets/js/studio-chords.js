@@ -68,6 +68,17 @@
     o.connect(g); h.connect(hg).connect(g); g.connect(a.destination);
     o.start(when); h.start(when); o.stop(when + dur + 0.05); h.stop(when + dur + 0.05);
   }
+  // Prefer the studio's shared SAMPLED piano (window.MAM_PIANO, from tools.js —
+  // the same warmed Salamander grand the ear-trainer uses) for a real timbre;
+  // fall back to the built-in synth above when it isn't available. gap=0 plays
+  // the notes together (a chord); gap>0 arpeggiates them.
+  function voicePlay(midis, gap, dur) {
+    if (window.MAM_PIANO && typeof window.MAM_PIANO.play === 'function') {
+      try { if (window.MAM_PIANO.play(midis, gap || 0, dur || 1)) return; } catch (e) {}
+    }
+    var a = audio(); if (!a) return;
+    midis.forEach(function (m, i) { playMidi(m, a.currentTime + (i * (gap || 0)), dur || 1); });
+  }
 
   // ── state ──
   var root = 0;            // pitch class 0..11
@@ -104,7 +115,7 @@
     kb.addEventListener('pointerdown', function (e) {
       var k = e.target.closest('.ch-key'); if (!k) return;
       e.preventDefault();
-      var m = +k.getAttribute('data-m'); playMidi(m);
+      var m = +k.getAttribute('data-m'); voicePlay([m], 0, 0.9);
       k.classList.add('ch-hit'); setTimeout(function () { k.classList.remove('ch-hit'); }, 140);
     });
   }
@@ -146,14 +157,14 @@
     var a = audio(); if (!a) return;
     var iv = currentIntervals(), base = 60 + root;   // C4 register
     if (mode === 'chord') {
-      iv.forEach(function (i, n) { playMidi(base + i, a.currentTime + n * 0.012, 1.6); });   // strum
+      voicePlay(iv.map(function (i) { return base + i; }), 0.02, 1.8);   // strum together
       var ks = panel.querySelectorAll('.ch-key.on'); Array.prototype.forEach.call(ks, function (k) { k.classList.add('ch-hit'); setTimeout(function () { k.classList.remove('ch-hit'); }, 400); });
     } else {
       var seq = iv.slice(); seq.push(12);              // up to the octave
-      seq.forEach(function (i, n) {
+      voicePlay(seq.map(function (i) { return base + i; }), 0.18, 0.55);  // audio, accurately scheduled
+      seq.forEach(function (i, n) {                                       // visuals, kept in step (0.18s = 180ms)
         arpTimers.push(setTimeout(function () {
           if (!panel.classList.contains('active')) return;
-          playMidi(base + i, 0, 0.5);
           var key = panel.querySelector('.ch-key[data-m="' + (base + i) + '"]');
           if (key) { key.classList.add('ch-hit'); setTimeout(function () { key.classList.remove('ch-hit'); }, 200); }
         }, n * 180));
