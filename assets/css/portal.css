@@ -378,3 +378,48 @@ body[data-variant="ktams"] .kpi-value.gold{animation:ktamsPulse 2.4s ease-in-out
 .ng-btn:hover{border-color:var(--border-gold)}
 .ng-btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
 @media (max-width:520px){ .ng-sum-grid{grid-template-columns:repeat(2,1fr)} }
+
+/* ── Note Rush · enterprise additions ─────────────────────────────── */
+.ng-section-title{display:flex;align-items:center;justify-content:space-between;font-size:0.74rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin:24px 0 12px}
+.ng-section-title span{font-size:0.72rem;color:var(--gold-bright);background:var(--bg-raised);border:1px solid var(--border);padding:2px 9px;border-radius:100px}
+.ng-spark-wrap{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.ng-spark-wrap span{font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;flex:none}
+.ng-spark{display:flex;align-items:flex-end;gap:3px;height:34px;flex:1}
+.ng-spark i{flex:1;background:linear-gradient(180deg,var(--gold-light),var(--gold-2,#E08A1A));border-radius:2px 2px 0 0;min-height:8px;opacity:0.85}
+/* daily challenge */
+.ng-daily{display:block;width:100%;text-align:left;margin:18px 0 4px;padding:18px 20px;border-radius:var(--radius-md);border:1px solid var(--border-gold);background:linear-gradient(135deg,rgba(224,138,26,0.16),var(--bg-surface));cursor:pointer;transition:all .16s var(--ease)}
+.ng-daily:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.ng-daily-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.ng-daily-eyebrow{font-size:0.72rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold-bright)}
+.ng-daily-streak{font-size:0.74rem;font-weight:700;color:var(--text-soft)}
+.ng-daily-streak i{color:#FB7185}
+.ng-daily-body{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ng-daily-body strong{display:block;color:var(--text);font-size:1.05rem}
+.ng-daily-body small{color:var(--text-muted);font-size:0.8rem}
+.ng-daily-cta{display:inline-flex;align-items:center;gap:8px;font-weight:800;color:#1A120B;background:linear-gradient(135deg,var(--gold),var(--gold-light));padding:9px 16px;border-radius:10px;white-space:nowrap}
+.ng-daily-banner{display:inline-flex;align-items:center;gap:8px;font-size:0.76rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:12px}
+/* mode best chip */
+.ng-mode-best{font-size:0.72rem;font-weight:700;color:var(--gold-bright);margin-top:4px}
+/* settings */
+.ng-settings{background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--radius-md);padding:6px 16px}
+.ng-set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);font-size:0.9rem;color:var(--text-soft);cursor:pointer}
+.ng-set-row:last-child{border-bottom:0}
+.ng-set-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--gold-bright,#FCC647);cursor:pointer}
+.ng-lens{display:inline-flex;gap:6px}
+.ng-len{padding:6px 12px;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text-muted);font-weight:700;font-size:0.8rem;cursor:pointer}
+.ng-len.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
+/* achievements */
+.ng-ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.ng-ach{background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;padding:14px 12px;text-align:center;transition:border-color .15s var(--ease)}
+.ng-ach .ng-ach-ico{width:42px;height:42px;margin:0 auto 8px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
+.ng-ach-name{font-size:0.82rem;font-weight:800;color:var(--text)}
+.ng-ach-desc{font-size:0.7rem;color:var(--text-muted);margin-top:3px;line-height:1.35}
+.ng-ach.locked{opacity:0.5;filter:grayscale(0.7)}
+.ng-ach.locked .ng-ach-ico{background:var(--bg-elevated);color:var(--text-muted)}
+/* HUD lives + daily-best */
+.ng-hud-lives b{color:#FB7185;letter-spacing:2px}
+.ng-daily-best{background:linear-gradient(135deg,#34D399,#10B981) !important;color:#06281C !important}
+/* newly-unlocked achievements (summary) */
+.ng-new-ach{margin:16px 0;padding:14px;border:1px dashed var(--border-gold);border-radius:12px;background:rgba(224,138,26,0.08)}
+.ng-new-ach-title{font-size:0.78rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:8px}
+.ng-new-ach-chip{display:inline-flex;align-items:center;gap:6px;margin:3px;padding:6px 11px;border-radius:100px;background:var(--bg-raised);border:1px solid var(--border-gold);color:var(--text);font-size:0.82rem;font-weight:700}
