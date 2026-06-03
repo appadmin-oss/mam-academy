@@ -94,13 +94,17 @@
       + (clsOpts ? '<optgroup label="Classes">' + clsOpts + '</optgroup>' : '')
       + (stuOpts ? '<optgroup label="Students">' + stuOpts + '</optgroup>' : '')
       + '</select>';
-    var list = asg.length ? asg.map(function (a) {
+    var doneCount = asg.filter(function (a) { return a.status === 'done'; }).length;
+    var pct = asg.length ? Math.round(doneCount / asg.length * 100) : 0;
+    var list = asg.map(function (a) {
       var done = a.status === 'done';
-      return '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised);margin-bottom:10px">'
+      var meta = (a.student_name || '') + (a.class_title ? ' · ' + a.class_title : '') + (a.due_on ? ' · due ' + P.fmtDate(a.due_on) : '');
+      return '<div class="asg-item" data-status="' + (done ? 'done' : 'open') + '" data-text="' + P.escapeHtml((a.title + ' ' + (a.student_name || '') + ' ' + (a.class_title || '')).toLowerCase()) + '" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised);margin-bottom:10px">'
         + '<div style="min-width:200px;flex:1"><strong style="color:var(--text)">' + P.escapeHtml(a.title) + '</strong>'
-        + '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">' + P.escapeHtml(a.student_name || '') + (a.class_title ? ' · ' + P.escapeHtml(a.class_title) : '') + (a.due_on ? ' · due ' + P.fmtDate(a.due_on) : '') + '</div></div>'
+        + '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">' + P.escapeHtml(meta) + '</div></div>'
         + '<span class="pill ' + (done ? 'present' : 'pending') + '">' + (done ? 'done' : 'open') + '</span></div>';
-    }).join('') : '<div class="panel-body">' + empty('list-check', 'No assignments set yet. Create one above.') + '</div>';
+    }).join('');
+    function chip(f) { var on = f === 'all'; return '<button type="button" class="asg-filter" data-filter="' + f + '" style="padding:6px 13px;border-radius:100px;border:1px solid var(--border-strong);background:' + (on ? 'linear-gradient(135deg,var(--gold),var(--gold-light))' : 'var(--bg-raised)') + ';color:' + (on ? '#1A120B' : 'var(--text-muted)') + ';font-weight:700;font-size:0.78rem;cursor:pointer;text-transform:capitalize">' + f + '</button>'; }
 
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Set an assignment</h2></div>'
       + '<form id="asgForm" class="profile-form" style="padding:18px 22px;display:grid;gap:14px">'
@@ -110,7 +114,12 @@
       +   '<div class="field"><label for="asg-due">Due date (optional)</label><input id="asg-due" type="date"></div>'
       +   '<div class="actions"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-list-check"></i> Set assignment</button></div>'
       + '</form></section>'
-      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Assignments set</h2></div><div style="padding:14px 18px">' + list + '</div></section>';
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Assignments set <small style="color:var(--text-muted);font-weight:400">— ' + doneCount + ' of ' + asg.length + ' completed</small></h2>'
+      +   (asg.length ? '<input id="asgSearch" type="search" placeholder="Search…" aria-label="Search assignments" style="padding:7px 11px;border-radius:9px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text);font-size:0.84rem;min-width:150px">' : '') + '</div>'
+      +   (asg.length ? '<div style="padding:0 18px"><div style="height:6px;border-radius:4px;background:var(--bg-elevated);overflow:hidden;margin-bottom:14px"><i style="display:block;height:100%;width:' + pct + '%;background:linear-gradient(90deg,#34D399,#10B981)"></i></div>'
+      +     '<div style="display:flex;gap:8px;margin-bottom:14px">' + chip('all') + chip('open') + chip('done') + '</div></div>' : '')
+      +   '<div style="padding:0 18px 14px" id="asgList">' + (asg.length ? list : '<div class="panel-body">' + empty('list-check', 'No assignments set yet. Create one above.') + '</div>') + '</div>'
+      +   '<div id="asgEmpty" class="panel-body" style="display:none">' + empty('magnifying-glass', 'No assignments match.') + '</div></section>';
 
     document.getElementById('asgForm').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -129,6 +138,28 @@
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not set: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not set.'));
       });
     });
+
+    // Filter (all/open/done) + search over the assignments-set list.
+    var asgEmpty = document.getElementById('asgEmpty'), asgSearch = document.getElementById('asgSearch'), asgFilter = 'all';
+    function applyAsgFilter() {
+      var q = (asgSearch && asgSearch.value.trim().toLowerCase()) || '', shown = 0;
+      Array.prototype.forEach.call(document.querySelectorAll('.asg-item'), function (it) {
+        var okF = asgFilter === 'all' || it.getAttribute('data-status') === asgFilter;
+        var okQ = !q || it.getAttribute('data-text').indexOf(q) >= 0;
+        var ok = okF && okQ; it.style.display = ok ? '' : 'none'; if (ok) shown++;
+      });
+      if (asgEmpty) asgEmpty.style.display = (asg.length && !shown) ? 'block' : 'none';
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.asg-filter'), function (b) {
+      b.addEventListener('click', function () {
+        asgFilter = b.getAttribute('data-filter');
+        Array.prototype.forEach.call(document.querySelectorAll('.asg-filter'), function (x) {
+          var on = x === b; x.style.background = on ? 'linear-gradient(135deg,var(--gold),var(--gold-light))' : 'var(--bg-raised)'; x.style.color = on ? '#1A120B' : 'var(--text-muted)';
+        });
+        applyAsgFilter();
+      });
+    });
+    if (asgSearch) asgSearch.addEventListener('input', applyAsgFilter);
   }
 
   function renderAnnounce() {
