@@ -227,7 +227,23 @@
 .seq-steps-field{display:inline-flex;align-items:center;gap:8px;font-size:0.78rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted)}
 .seq-steps-field select{padding:9px 12px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.9rem;font-weight:600;min-height:42px;cursor:pointer}
 
+/* Playable drum kit */
+.seq-kit{background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:18px}
+.seq-kit-label{display:inline-flex;align-items:center;gap:8px;font-size:0.72rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted)}
+.seq-kit-label i{color:var(--gold-bright,#FCC647)}
+.seq-pads{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:10px;margin:12px 0 10px}
+.seq-pad{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:74px;padding:12px 8px;border-radius:13px;border:1px solid var(--border-strong);background:linear-gradient(180deg,var(--bg-elevated),var(--bg-raised));color:var(--text-soft);font-weight:700;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation;transition:transform .05s var(--ease),border-color .15s var(--ease),box-shadow .12s var(--ease),background .12s var(--ease)}
+.seq-pad:hover{border-color:var(--border-gold);color:var(--text)}
+.seq-pad:active,.seq-pad.hit{transform:translateY(1px) scale(0.97);border-color:var(--gold-bright,#FCC647);background:linear-gradient(180deg,var(--gold),var(--gold-light));color:#1A120B;box-shadow:0 0 0 3px rgba(224,138,26,0.25),0 8px 20px rgba(224,138,26,0.35)}
+.seq-pad-name{font-size:0.82rem;letter-spacing:0.01em;text-align:center;line-height:1.1}
+.seq-pad-key{position:absolute;top:6px;right:8px;font-size:0.62rem;font-weight:800;color:var(--text-faint);font-family:var(--font-display,monospace)}
+.seq-pad.hit .seq-pad-key,.seq-pad:active .seq-pad-key{color:rgba(26,18,11,0.6)}
+.seq-kit-hint{display:block;font-size:0.78rem;color:var(--text-muted);line-height:1.5}
+.seq-kit-hint b{color:var(--gold-bright,#FCC647);font-family:var(--font-display,monospace);font-weight:normal;padding:0 1px}
+
 @media (max-width:640px){
+  .seq-pads{grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:8px}
+  .seq-pad{min-height:64px}
   .seq-grid{gap:6px;padding:10px}
   .seq-tracks{width:128px}
   .seq-track-name{font-size:0.74rem}
@@ -490,7 +506,7 @@
       <div class="tool-head">
         <div>
           <h2>Beat Maker</h2>
-          <p>A 16-step drum machine. Tap the grid to build a groove, press <b>space</b> to play, then bounce it to a WAV. Every sound is generated live in your browser — nothing to download, works offline.</p>
+          <p>A 16-step drum machine with a full playable kit — kick, snare, clap, hats, toms, rim, shaker, cowbell and crash. Tap the grid to build a groove (or play the pads live with your mouse or number keys), press <b>space</b> to play, then bounce it to a WAV. Every sound is generated live in your browser — nothing to download, works offline.</p>
         </div>
       </div>
 
@@ -517,6 +533,13 @@
         <div class="seq-canvas-wrap" id="seqCanvasWrap">
           <canvas id="seqCanvas" aria-label="Step sequencer grid — tap a cell once for a hit, twice for an accent"></canvas>
         </div>
+      </div>
+
+      <!-- Playable drum kit -->
+      <div class="seq-kit">
+        <span class="seq-kit-label"><i class="fa-solid fa-drum"></i> Drum kit · play it live</span>
+        <div class="seq-pads" id="seqPads" role="group" aria-label="Playable drum kit — click a pad or press its number key"></div>
+        <span class="seq-kit-hint">Click a pad or press <b>1</b>–<b>0</b> to play. Same sounds the grid uses.</span>
       </div>
 
       <!-- Pattern bank + length -->
@@ -595,6 +618,6 @@
 </script>
 <script src="assets/js/studio-core.js?v=20260602a" defer></script>
 <script src="assets/js/tools.js?v=20260602c" defer></script>
-<script src="assets/js/sequencer.js?v=20260602c" defer></script>
+<script src="assets/js/sequencer.js?v=20260603a" defer></script>
 </body>
 </html>

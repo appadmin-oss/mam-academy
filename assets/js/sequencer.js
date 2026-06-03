@@ -63,7 +63,13 @@
     { name: 'Low Tom',    voice: 'tom',       vol: 0.70 },
     { name: 'Rim',        voice: 'rim',       vol: 0.62 },
     { name: 'Shaker',     voice: 'shaker',    vol: 0.50 },
+    { name: 'Cowbell',    voice: 'cowbell',   vol: 0.50 },
+    { name: 'Crash',      voice: 'crash',     vol: 0.45 },
   ];
+
+  // Keyboard mapping for the playable drum kit — digit keys 1..0 trigger the
+  // first ten kit pieces. Active only while the Beat Maker panel is showing.
+  var PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 
   // ── Shared AudioContext (autoplay-policy safe) ─────────────────────
   // Borrow Tone's context when present so we share one AudioWorklet timeline
@@ -169,6 +175,26 @@
       g.gain.exponentialRampToValueAtTime(0.32, when + 0.012);
       g.gain.exponentialRampToValueAtTime(0.0001, when + 0.06);
       s.connect(hp).connect(g).connect(out); s.start(when); s.stop(when + 0.07);
+    },
+    cowbell: function (ac, out, when) {  // classic 808 cowbell — two detuned squares
+      var g = ac.createGain(); env(g, when, 0.42, 0.32, 0.002); g.connect(out);
+      [540, 800].forEach(function (f) { var o = ac.createOscillator(); o.type = 'square'; o.frequency.value = f; o.connect(g); o.start(when); o.stop(when + 0.34); });
+    },
+    crash: function (ac, out, when) {  // bright cymbal — filtered noise + metallic partials, long tail
+      var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
+      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 5200;
+      var g = ac.createGain();
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(0.5, when + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + 1.1);
+      s.connect(hp).connect(g).connect(out); s.start(when); s.stop(when + 1.2);
+      [3700, 5200, 6400].forEach(function (f) {
+        var o = ac.createOscillator(), og = ac.createGain(); o.type = 'square'; o.frequency.value = f;
+        og.gain.setValueAtTime(0.0001, when);
+        og.gain.exponentialRampToValueAtTime(0.055, when + 0.006);
+        og.gain.exponentialRampToValueAtTime(0.0001, when + 0.9);
+        o.connect(og).connect(out); o.start(when); o.stop(when + 0.95);
+      });
     },
   };
 
@@ -618,6 +644,36 @@
     });
   }
 
+  // ── Playable drum kit (pads) ───────────────────────────────────────
+  // A performable kit: click a pad — or press its number key — to play the
+  // sound live through the same audio kernel the sequencer uses. Every pad maps
+  // to a track, so the kit and the grid are one instrument.
+  function hitPad(i) {
+    if (i < 0 || i >= TRACKS.length) return;
+    try { ensureKernel().audition(i, 1.12); } catch (e) {}
+    var pad = $('.seq-pad[data-i="' + i + '"]');
+    if (pad) { pad.classList.add('hit'); setTimeout(function () { pad.classList.remove('hit'); }, 110); }
+  }
+  function buildPads() {
+    var host = $('#seqPads'); if (!host) return;
+    host.innerHTML = '';
+    TRACKS.forEach(function (t, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'seq-pad';
+      b.setAttribute('data-i', i);
+      b.setAttribute('aria-label', 'Play ' + t.name);
+      b.innerHTML = '<span class="seq-pad-name">' + t.name + '</span>' +
+        (PAD_KEYS[i] ? '<span class="seq-pad-key">' + PAD_KEYS[i] + '</span>' : '');
+      host.appendChild(b);
+    });
+    host.addEventListener('pointerdown', function (e) {
+      var p = e.target.closest('.seq-pad'); if (!p) return;
+      e.preventDefault();           // keep focus off the button so Space still controls transport
+      hitPad(+p.getAttribute('data-i'));
+    });
+  }
+
   // ── Controls ↔ store sync (view side of the reactive loop) ─────────
   function syncControls(s, prev) {
     if (!prev || s.bpm !== prev.bpm) { $('#seqBpm').value = s.bpm; $('#seqBpmVal').textContent = s.bpm; }
@@ -657,7 +713,7 @@
     $('#seqMaster').addEventListener('input', function (e) { store.setState({ master: (parseInt(e.target.value, 10) || 0) / 100 }); });
     $('#seqClear').addEventListener('click', function () { store.setState({ pattern: blankPattern(store.getState().steps) }); status('Cleared. A blank canvas — start tapping cells.'); });
     $('#seqRandom').addEventListener('click', function () {
-      var prob = { kick: 0.28, snare: 0.12, clap: 0.12, hatClosed: 0.55, hatOpen: 0.12, tom: 0.1, rim: 0.18, shaker: 0.4 };
+      var prob = { kick: 0.28, snare: 0.12, clap: 0.12, hatClosed: 0.55, hatOpen: 0.12, tom: 0.1, rim: 0.18, shaker: 0.4, cowbell: 0.06, crash: 0.03 };
       var steps = store.getState().steps, pat = blankPattern(steps);
       TRACKS.forEach(function (t, i) { var p = prob[t.voice] || 0.2; for (var s = 0; s < steps; s++) pat[i][s] = Math.random() < p ? (Math.random() < 0.18 ? 2 : 1) : 0; });
       var ki = voiceIndex('kick'); if (ki >= 0) pat[ki][0] = 2;
@@ -697,6 +753,18 @@
       e.preventDefault();
       store.getState().playing ? stop() : play();
     });
+    // Digit keys 1..0 play the drum kit live while the Beat Maker is active.
+    document.addEventListener('keydown', function (e) {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      var active = document.querySelector('.tool-panel.active');
+      if (!active || active.getAttribute('data-tool') !== 'seq') return;
+      var tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      var i = PAD_KEYS.indexOf(e.key);
+      if (i < 0) return;
+      e.preventDefault();
+      hitPad(i);
+    });
     window.addEventListener('resize', function () { if (panel.classList.contains('active') || wrap.clientWidth) layout(); });
     // Once Tone finishes loading, note that the upgraded kernel is available.
     window.addEventListener('mam:tone-ready', function () { if (!store.getState().playing) status('Tone.js kernel ready — press play for the upgraded engine.'); });
@@ -718,34 +786,37 @@
         || s.tracks !== prev.tracks || s.steps !== prev.steps || s.slots !== prev.slots || s.activeSlot !== prev.activeSlot) save(s);
   }
 
-  // ── Init (async: resolve the Zustand store, then wire everything) ──
-  var store = null;
-  loadCreateStore().then(function (createStore) {
-    var initial = loadSaved();
-    store = createStore(function () { return initial || defaultState(); });
-    buildTracks();
-    wireInputs();
-    store.subscribe(onState);
-    onState(store.getState(), null); // initial paint
-    layout();
-    if (!wrap.clientWidth && 'ResizeObserver' in window) {
-      var ro = new ResizeObserver(function () { if (wrap.clientWidth) { layout(); ro.disconnect(); } });
-      ro.observe(wrap);
-    }
-    if (!initial) status('Loaded a starter Afrobeat groove. Press play, then make it yours.');
+  // ── Init (synchronous) ─────────────────────────────────────────────
+  // The Beat Maker must be live the instant the panel exists — never gated
+  // behind a CDN module load. nativeCreateStore is a complete, API-identical
+  // store, so there is nothing to wait for. (The Tone.js kernel still upgrades
+  // the *audio clock* on play once Tone has loaded; that's independent of this.)
+  var initial = loadSaved();
+  var store = nativeCreateStore(function () { return initial || defaultState(); });
+  buildTracks();
+  buildPads();
+  wireInputs();
+  store.subscribe(onState);
+  onState(store.getState(), null); // initial paint
+  layout();
+  if (!wrap.clientWidth && 'ResizeObserver' in window) {
+    var ro = new ResizeObserver(function () { if (wrap.clientWidth) { layout(); ro.disconnect(); } });
+    ro.observe(wrap);
+  }
+  if (!initial) status('Loaded a starter Afrobeat groove. Press play — or tap the pads to play the kit live.');
 
-    // Share one tempo across the studio: adopt the bus value, and follow it.
-    if (window.MAM && window.MAM.tempo) {
-      store.setState({ bpm: window.MAM.tempo.get() });
-      window.MAM.tempo.subscribe(function (v) { if (v !== store.getState().bpm) store.setState({ bpm: v }); });
-    }
+  // Share one tempo across the studio: adopt the bus value, and follow it.
+  if (window.MAM && window.MAM.tempo) {
+    store.setState({ bpm: window.MAM.tempo.get() });
+    window.MAM.tempo.subscribe(function (v) { if (v !== store.getState().bpm) store.setState({ bpm: v }); });
+  }
 
-    window.MAM_SEQ = {
-      play: play, stop: stop, exportWav: exportWav,
-      store: store,
-      state: function () { return store.getState(); },
-      kernel: function () { return kernel && kernel.name; },
-    };
-    window.dispatchEvent(new CustomEvent('mam:seq-ready'));
-  });
+  window.MAM_SEQ = {
+    play: play, stop: stop, exportWav: exportWav,
+    store: store,
+    hit: function (i, vel) { try { ensureKernel().audition(i, vel || 1); } catch (e) {} },
+    state: function () { return store.getState(); },
+    kernel: function () { return kernel && kernel.name; },
+  };
+  window.dispatchEvent(new CustomEvent('mam:seq-ready'));
 })();
