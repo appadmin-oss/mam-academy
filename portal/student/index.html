@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260601a">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260602b">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260603a">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -36,6 +36,7 @@
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-calendar-check"></i>Attendance</a>
       <a class="portal-nav-link" href="#announcements" data-tab="announcements"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#practice" data-tab="practice"><i class="fa-solid fa-chart-line"></i>Practice</a>
+      <a class="portal-nav-link" href="#play" data-tab="play"><i class="fa-solid fa-gamepad"></i>Practice Arcade</a>
       <a class="portal-nav-link" href="#repertoire" data-tab="repertoire"><i class="fa-solid fa-book-open"></i>Repertoire</a>
       <a class="portal-nav-link" href="#payments" data-tab="payments"><i class="fa-solid fa-credit-card"></i>Payments</a>
       <a class="portal-nav-link" href="#orders" data-tab="orders"><i class="fa-solid fa-bag-shopping"></i>Store Orders</a>
@@ -69,6 +70,7 @@
 <script src="/assets/js/config.js?v=20260601a"></script>
 <script src="/assets/js/portal.js?v=20260530a"></script>
 <script src="/assets/js/studio-tools.js?v=20260531b"></script>
+<script src="/assets/js/student-game.js?v=20260603a" defer></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <script>
 (function () {
@@ -76,7 +78,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], play: ['Practice Arcade', 'Sharpen your sight-reading — Note Rush'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
 
@@ -85,8 +87,10 @@
     var t = tabs[tab] || tabs.overview;
     pageTitle.firstChild.textContent = t[0] + ' ';
     pageSub.textContent = t[1];
-    // Repertoire stays a client-side studio tool; Practice is now server-backed.
+    // Repertoire + Practice Arcade are client-side (no server data needed), so
+    // they render before the data guard.
     if (STUDIO && tab === 'repertoire') return STUDIO.renderRepertoire(content);
+    if (tab === 'play') return renderPlay();
     if (!data) return;
     if (tab === 'practice') return renderPractice();
     if (tab === 'overview') return renderOverview();
@@ -104,6 +108,10 @@
   function greeting() {
     var h = new Date().getHours();
     return h < 12 ? 'Good morning' : (h < 18 ? 'Good afternoon' : 'Good evening');
+  }
+  function renderPlay() {
+    if (window.MAM_GAME && typeof window.MAM_GAME.mount === 'function') window.MAM_GAME.mount(content);
+    else content.innerHTML = '<section class="panel"><div class="panel-body"><div class="empty-state"><i class="fa-solid fa-circle-notch fa-spin"></i>Loading the arcade…</div></div></section>';
   }
   function attendanceRate(att) {
     if (!att.length) return null;
