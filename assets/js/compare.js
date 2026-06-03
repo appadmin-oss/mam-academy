@@ -16,19 +16,21 @@
 (function () {
   'use strict';
 
+  // Ordered lowest → highest price (mirrors the desktop table). MetaMusic Order
+  // is intentionally not listed here. `from:true` renders a "from $X" price.
   var PROGRAMMES = [
-    { id: 'certified-musician', label: 'Certified Musician', name: 'One tradition', trinity: 'All levels · Pre-Cert → Diploma', price: 230, unit: '/programme',
-      tag: 'Most chosen', accent: 'gold', featured: true, levels: ['none', 'some', 'intermediate', 'advanced'], goals: ['perform', 'worship', 'exam'], pace: 'ongoing', budget: 2,
-      f: { bestFor: 'Focused mastery in one tradition', length: '12 weeks · 1hr/wk major', modes: 'Both', auditer: '✓', trinityEq: 'All four levels', instrumental: '✓', performance: '✓✓', rhythm: '✓', metamusic: '✓', certificate: '✓ Certified Musician', registration: '+$5', graduation: 'Included' } },
-    { id: 'grand-musician', label: 'Grand Musician', name: 'All three traditions', trinity: 'All levels · flagship', price: 310, unit: '/programme',
-      tag: 'Flagship', accent: 'red', premium: true, levels: ['some', 'intermediate', 'advanced'], goals: ['perform', 'lead', 'exam', 'produce', 'culture'], pace: 'ongoing', budget: 3,
-      f: { bestFor: 'African + Classical + Contemporary mastery', length: '12 weeks · three majors', modes: 'Both', auditer: '✓', trinityEq: 'All four levels', instrumental: '✓', performance: '✓✓✓', rhythm: '✓', metamusic: '✓', certificate: '✓ Grand Musician', registration: '+$5', graduation: 'Included' } },
-    { id: 'crash', label: 'Crash', name: 'Intensive', trinity: '6 weeks · any school', price: 40, unit: '/course',
+    { id: 'crash', label: 'Crash', name: 'Intensive', trinity: '6 weeks · any school', price: 70, unit: '/flat',
       tag: '', accent: 'gold', levels: ['none', 'some', 'intermediate', 'advanced'], goals: ['perform', 'produce', 'worship'], pace: 'intensive', budget: 1,
       f: { bestFor: 'Quick wins · summer · busy pros', length: '6 weeks accelerated', modes: 'Both', auditer: 'Recommended', trinityEq: '—', instrumental: 'Per chosen course', performance: 'Per chosen course', rhythm: 'Per chosen course', metamusic: 'Per chosen course', certificate: 'Certificate of completion', registration: '+$5', graduation: '—' } },
-    { id: 'meta-order', label: 'MetaMusic Order', name: 'Civilization Architect', trinity: '12 weeks · post-graduate', price: 60, unit: '/12wk',
-      tag: 'Premium', accent: 'red', premium: true, levels: ['advanced'], goals: ['culture', 'produce', 'lead'], pace: 'intensive', budget: 3,
-      f: { bestFor: 'Producers, performers, cultural leaders', length: '12 weeks fixed', modes: 'Online focus', auditer: '✓ + interview', trinityEq: 'Post-Diploma', instrumental: '—', performance: '✓✓✓', rhythm: 'Applied', metamusic: 'Core focus', certificate: 'Order commission', registration: 'Included', graduation: 'Included' } }
+    { id: 'standard', label: 'Standard', name: 'One course, done right', trinity: 'All levels · Pre-Cert → Diploma', price: 120, from: true, unit: '/programme',
+      tag: '', accent: 'gold', levels: ['none', 'some', 'intermediate'], goals: ['perform', 'worship', 'exam'], pace: 'ongoing', budget: 1,
+      f: { bestFor: 'One instrument or voice, done properly', length: '12 weeks · 1hr/wk', modes: 'Both', auditer: '✓', trinityEq: 'All four levels', instrumental: '✓', performance: '✓', rhythm: 'Optional', metamusic: 'Optional', certificate: '✓ Level certificate', registration: '+$5', graduation: 'Included' } },
+    { id: 'certified-musician', label: 'Certified Musician', name: 'One tradition', trinity: 'All levels · Pre-Cert → Diploma', price: 240, from: true, unit: '/programme',
+      tag: 'Most chosen', accent: 'gold', featured: true, levels: ['none', 'some', 'intermediate', 'advanced'], goals: ['perform', 'worship', 'exam'], pace: 'ongoing', budget: 2,
+      f: { bestFor: 'Focused mastery in one tradition', length: '12 weeks · 1hr/wk major', modes: 'Both', auditer: '✓', trinityEq: 'All four levels', instrumental: '✓', performance: '✓✓', rhythm: '✓', metamusic: '✓', certificate: '✓ Certified Musician', registration: '+$5', graduation: 'Included' } },
+    { id: 'grand-musician', label: 'Grand Musician', name: 'All three traditions', trinity: 'All levels · flagship', price: 313, from: true, unit: '/programme',
+      tag: 'Flagship', accent: 'red', premium: true, levels: ['some', 'intermediate', 'advanced'], goals: ['perform', 'lead', 'exam', 'produce', 'culture'], pace: 'ongoing', budget: 3,
+      f: { bestFor: 'African + Classical + Contemporary mastery', length: '12 weeks · three majors', modes: 'Both', auditer: '✓', trinityEq: 'All four levels', instrumental: '✓', performance: '✓✓✓', rhythm: '✓', metamusic: '✓', certificate: '✓ Grand Musician', registration: '+$5', graduation: 'Included' } }
   ];
 
   var FEATURES = [
@@ -151,7 +153,7 @@
           '<div class="match-result">' +
             '<div class="match-result-badge"><i class="fa-solid fa-trophy" aria-hidden="true"></i> Best fit</div>' +
             '<div class="match-result-name">' + esc(top.label) + ' <span>· ' + esc(top.name) + '</span></div>' +
-            '<div class="match-result-price">$' + top.price + '<small>' + esc(top.unit) + '</small></div>' +
+            '<div class="match-result-price">' + (top.from ? 'from ' : '') + '$' + top.price + '<small>' + esc(top.unit) + '</small></div>' +
             '<p class="match-result-why">' + esc(reasonText(top, answers)) + '</p>' +
             '<div class="match-result-actions">' +
               '<a class="match-cta" href="' + applyHref(top.id) + '"><i class="fa-solid fa-bolt" aria-hidden="true"></i> Apply for ' + esc(top.label) + '</a>' +
@@ -200,7 +202,7 @@
         '<div class="pcard-label">' + esc(p.label) + '</div>' +
         '<h3 class="pcard-name">' + esc(p.name) + '</h3>' +
         '<div class="pcard-trinity">' + esc(p.trinity) + '</div>' +
-        '<div class="pcard-price">$' + p.price + '<small>' + esc(p.unit) + '</small></div>' +
+        '<div class="pcard-price">' + (p.from ? 'from ' : '') + '$' + p.price + '<small>' + esc(p.unit) + '</small></div>' +
         rowsHtml(p, HEADLINE) +
         '<div class="pc-more" hidden>' + rowsHtml(p, rest) + '</div>' +
         '<button type="button" class="pc-toggle" aria-expanded="false">See full breakdown <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>' +
