@@ -6,7 +6,21 @@
  * application records and payment verification.
  * ---------------------------------------------------------------
  */
+
+/* Gated logger. debug()/warn() only emit when MAM_CONFIG.debug is true, so the
+   production console stays clean while an operator can flip one flag to trace
+   issues. Genuine fatal conditions still use console.error directly. Defined
+   before MAM_CONFIG and reads the flag lazily, so order never matters. */
+window.MAM_LOG = window.MAM_LOG || {
+  debug: function () { try { if (window.MAM_CONFIG && window.MAM_CONFIG.debug && window.console && console.log) console.log.apply(console, arguments); } catch (e) {} },
+  warn:  function () { try { if (window.MAM_CONFIG && window.MAM_CONFIG.debug && window.console && console.warn) console.warn.apply(console, arguments); } catch (e) {} }
+};
+
 window.MAM_CONFIG = {
+  /* Flip to true to surface diagnostic console output (debug logs, CSRF and
+     payment-verify warnings, the startup banner). Off in production. */
+  debug: false,
+
   /* -------- Site identity -------- */
   site: {
     name: 'MAM Academy',
@@ -262,7 +276,7 @@ window.MAM_API = (function () {
             // reason to the console so an operator sees a config problem instead
             // of a vague "server unreachable", while users still get friendly copy.
             if (j && j.error) {
-              try { console.warn('[MAM_API] CSRF unavailable (HTTP ' + r.status + '): ' + j.error); } catch (e) {}
+              MAM_LOG.warn('[MAM_API] CSRF unavailable (HTTP ' + r.status + '): ' + j.error);
             }
             throw apiUnavailable(r.status);
           }

@@ -196,7 +196,7 @@
         }, theme)).then(function (r) { return !!r.isConfirmed; });
       },
       toast: function (message, icon) {
-        if (!swal) { console.log('[toast]', message); return; }
+        if (!swal) { if (window.MAM_LOG) MAM_LOG.debug('[toast]', message); return; }
         swal.fire(merge({
           toast: true, position: 'top-end', timer: 3500, showConfirmButton: false,
           title: message, icon: icon || 'success'

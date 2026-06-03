@@ -6,7 +6,7 @@
  */
 declare(strict_types=1);
 
-function mam_rate_limit(string $name, string $key, int $limit, int $windowSec): void {
+function mam_rate_limit(string $name, string $key, int $limit, int $windowSec, bool $failClosed = false): void {
     $bucket = $name . ':' . sha1($key);
     $now = time();
     $reset = $now + $windowSec;
@@ -32,7 +32,17 @@ function mam_rate_limit(string $name, string $key, int $limit, int $windowSec): 
         $db->commit();
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
-        // Fail open: log but do not block legitimate users due to DB error
-        mam_log('warn', 'rate_limit_error', ['err' => $e->getMessage()]);
+        mam_log('warn', 'rate_limit_error', ['err' => $e->getMessage(), 'bucket' => $name, 'fail_closed' => $failClosed]);
+        // Two stances on a limiter-store failure:
+        //  • fail OPEN (default): a DB blip must never take the public site
+        //    (apply form, catalogue, contact) down — let the request through.
+        //  • fail CLOSED ($failClosed=true): for auth/payment buckets we'd
+        //    rather bounce with a retryable 503 than silently drop brute-force
+        //    protection. The handler would fail on the same dead DB anyway, so
+        //    the only behaviour change is a cleaner error + intact throttling.
+        if ($failClosed) {
+            header('Retry-After: 30');
+            mam_fail('rate_limit_unavailable', 503, ['retry_after' => 30]);
+        }
     }
 }

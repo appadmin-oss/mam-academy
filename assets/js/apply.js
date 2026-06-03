@@ -905,7 +905,7 @@
           // Always log the raw error to the console so the operator can see
           // exactly what the server returned (status, body, message). The
           // friendly user-facing message is chosen below.
-          try { console.error('[MAM_APPLY] submit failed', { status: err && err.status, body: err && err.body, message: err && err.message, raw: err }); } catch (e) {}
+          if (window.MAM_LOG) MAM_LOG.warn('[MAM_APPLY] submit failed', { status: err && err.status, body: err && err.body, message: err && err.message, raw: err });
           if (err && err.body && err.body.fields) {
             showServerErrors(err.body.fields);
           } else if (err && err.status === 429) {
@@ -1191,7 +1191,7 @@
           else apiError('Payment not confirmed yet. Please refresh, or email us your reference.');
         })
         .catch(function (err) {
-          console.warn('verify_error', err);
+          if (window.MAM_LOG) MAM_LOG.warn('verify_error', err);
           // A 402 is a DEFINITIVE rejection (e.g. amount/currency mismatch) —
           // never show success for it. Only a transient/network/5xx error gets
           // the soft "webhook will reconcile" message, since a genuine payment

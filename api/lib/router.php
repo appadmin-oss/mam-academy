@@ -123,9 +123,9 @@ class MamRouter
 function mw_csrf(): callable {
     return function (callable $next) { mam_csrf_require(); $next(); };
 }
-function mw_rate_limit(string $bucket, int $limit, int $windowSec): callable {
-    return function (callable $next) use ($bucket, $limit, $windowSec) {
-        mam_rate_limit($bucket, mam_client_ip(), $limit, $windowSec);
+function mw_rate_limit(string $bucket, int $limit, int $windowSec, bool $failClosed = false): callable {
+    return function (callable $next) use ($bucket, $limit, $windowSec, $failClosed) {
+        mam_rate_limit($bucket, mam_client_ip(), $limit, $windowSec, $failClosed);
         $next();
     };
 }

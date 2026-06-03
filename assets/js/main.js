@@ -933,9 +933,9 @@
       try { window.MAM_CDN.rewriteAll(document); } catch (e) {}
     }
 
-    if (window.console && console.log) {
-      console.log('%c🎵 MAM Academy', 'background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#120D08;padding:12px 24px;font-size:18px;font-weight:900;border-radius:8px;letter-spacing:2px');
-      console.log('%cA Creative Intelligence & Performance Academy', 'color:#FBBF24;font-size:13px;font-weight:600');
+    if (window.MAM_LOG) {
+      MAM_LOG.debug('%c🎵 MAM Academy', 'background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#120D08;padding:12px 24px;font-size:18px;font-weight:900;border-radius:8px;letter-spacing:2px');
+      MAM_LOG.debug('%cA Creative Intelligence & Performance Academy', 'color:#FBBF24;font-size:13px;font-weight:600');
     }
 
     document.dispatchEvent(new CustomEvent('mam:ready'));

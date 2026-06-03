@@ -28,7 +28,7 @@ $r->get('/diag',    $f('diag.php'));
 // First-run installer (self-disables once any user exists). Token-guarded via
 // SETUP_TOKEN env when set. No CSRF: it's a one-time bootstrap before any login.
 $r->get ('/setup', $f('setup.php'), [mw_rate_limit('setup', 30, 600)]);
-$r->post('/setup', $f('setup.php'), [mw_rate_limit('setup', 10, 600)]);
+$r->post('/setup', $f('setup.php'), [mw_rate_limit('setup', 10, 600, true)]);
 // Booking-fee status — public (no PII surfaced). /book polls this to decide
 // whether to show the $5 CTA or the unlocked Google appointment embed.
 $r->get('/booking/status',  $f('booking-status.php'),  [mw_rate_limit('booking_status', 60, 60)]);
@@ -50,7 +50,7 @@ $r->get('/policy/:ref',  $f('policy.php'),  [mw_rate_limit('policy',  30, 60)]);
 /* ─── Store / Library (public catalogue) ─── */
 $r->get ('/store/items',       $f('store-list.php'),     [mw_rate_limit('store_list', 60, 60)]);
 $r->get ('/store/item/:slug',  $f('store-detail.php'),   [mw_rate_limit('store_detail', 60, 60)]);
-$r->post('/store/checkout',    $f('store-checkout.php'), [mw_csrf(), mw_rate_limit('store_checkout', 10, 60)]);
+$r->post('/store/checkout',    $f('store-checkout.php'), [mw_csrf(), mw_rate_limit('store_checkout', 10, 60, true)]);
 
 /* ─── Public forms (CSRF + rate-limited) ─── */
 $r->post('/application', $f('application.php'), [mw_csrf(), mw_rate_limit('apply',       10, 600)]);
@@ -64,8 +64,8 @@ $r->post('/contact',     $f('contact.php'),     [mw_csrf(), mw_rate_limit('conta
 
 /* ─── Payments ─── */
 $r->group('/payment', function (MamRouter $r) use ($f) {
-    $r->post('/initialize', $f('payment-init.php'),   [mw_csrf(), mw_rate_limit('payment_init',   20, 600)]);
-    $r->post('/verify',     $f('payment-verify.php'), [mw_csrf(), mw_rate_limit('payment_verify', 30, 600)]);
+    $r->post('/initialize', $f('payment-init.php'),   [mw_csrf(), mw_rate_limit('payment_init',   20, 600, true)]);
+    $r->post('/verify',     $f('payment-verify.php'), [mw_csrf(), mw_rate_limit('payment_verify', 30, 600, true)]);
     // Webhooks rely on HMAC signatures, not CSRF cookies.
     $r->post('/webhook/paystack',    $f('webhook-paystack.php'));
     $r->post('/webhook/flutterwave', $f('webhook-flutterwave.php'));
@@ -74,11 +74,11 @@ $r->group('/payment', function (MamRouter $r) use ($f) {
 /* ─── Auth ─── */
 $r->group('/auth', function (MamRouter $r) use ($f) {
     $r->get ('/me',                $f('auth/me.php'));
-    $r->post('/login',             $f('auth/login.php'),            [mw_csrf(), mw_rate_limit('login',          8,  600)]);
+    $r->post('/login',             $f('auth/login.php'),            [mw_csrf(), mw_rate_limit('login',          8,  600, true)]);
     $r->post('/logout',            $f('auth/logout.php'),           [mw_csrf()]);
     $r->post('/change-password',   $f('auth/change-password.php'),  [mw_csrf(), mw_user()]);
-    $r->post('/request-reset',     $f('auth/request-reset.php'),    [mw_csrf(), mw_rate_limit('reset_request',  5,  600)]);
-    $r->post('/perform-reset',     $f('auth/perform-reset.php'),    [mw_csrf(), mw_rate_limit('reset_perform', 10, 600)]);
+    $r->post('/request-reset',     $f('auth/request-reset.php'),    [mw_csrf(), mw_rate_limit('reset_request',  5,  600, true)]);
+    $r->post('/perform-reset',     $f('auth/perform-reset.php'),    [mw_csrf(), mw_rate_limit('reset_perform', 10, 600, true)]);
 });
 
 /* ─── Student portal ─── */
