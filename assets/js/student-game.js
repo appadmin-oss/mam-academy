@@ -1,27 +1,27 @@
 /*! MAM Academy — Practice Arcade  ·  window.MAM_GAME
  * ---------------------------------------------------------------------------
- * "Note Rush" — an enterprise-grade sight-reading game for the student
- * dashboard. A note is drawn on a real musical staff (treble / bass / grand,
- * with ledger lines); name it before the clock (Timed) or before you run out of
- * lives (Survival). Correct answers build a combo + speed bonus; the pitch
- * plays back so eye and ear train together.
+ * "Note Rush" — a sight-reading game that actually teaches. Name the note on a
+ * real staff (treble / bass / grand, with ledger lines).
  *
- * SYSTEMS
- *  • Progress profile (localStorage): XP → player level, lifetime games/notes/
- *    best-score/best-combo, per-clef accuracy, per-mode best, score history,
- *    total play time. Backward-compatible with the v1 save shape.
- *  • Daily Challenge: a deterministic, seeded round (same for everyone each day)
- *    with its own best score + a consecutive-day streak.
- *  • Achievements: unlockable badges; newly-earned ones surface after a round.
- *  • Settings: round length, sound on/off, Survival mode — all persisted.
+ * LEARNING-FIRST
+ *  • Learn Mode: untimed. Every note is explained — where it sits (line/space)
+ *    plus the mnemonic (Every Good Boy Deserves Fudge / FACE / All Cows Eat
+ *    Grass …) — and the pitch plays. A "Reveal & learn" button shows the answer.
+ *  • Every miss in the scored modes shows the same mnemonic, so mistakes teach.
+ *  • Adaptive: the game tracks per-note accuracy and biases practice toward the
+ *    notes you find hardest; a "Tricky notes" panel surfaces them.
  *
- * Dependency-free: Canvas + DOM + Web Audio (audio guarded — a blocked/suspended
- * context never breaks the game).
+ * GAME SYSTEMS
+ *  • Timed + Survival rounds, combo + speed scoring, XP → level, achievements,
+ *    a deterministic Daily Challenge with a streak, per-mode bests, score
+ *    history. All persisted (localStorage), backward-compatible with v1 saves.
+ *
+ * Dependency-free: Canvas + DOM + Web Audio (guarded).
  */
 (function () {
   'use strict';
 
-  var SAVE = 'mam.game.noterush.v1';        // kept stable; shape is extended + migrated
+  var SAVE = 'mam.game.noterush.v1';
   var SET = 'mam.game.settings.v1';
   var LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
   var LETTER_STEP = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
@@ -45,7 +45,21 @@
   ];
   function modeById(id) { return MODES.filter(function (m) { return m.id === id; })[0] || MODES[0]; }
 
-  /* ── seeded RNG (for the Daily Challenge) ── */
+  // Teaching: turn each note into a "where it sits + mnemonic" micro-lesson.
+  function ordinal(n) { return n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n] || 'th'); }
+  function learnHint(note, clef) {
+    var steps = note - CLEFS[clef].bottomLine, L = letterOf(note), pos;
+    if (steps < 0) pos = Math.ceil(-steps / 2) + ' ledger below the staff';
+    else if (steps > 8) pos = Math.ceil((steps - 8) / 2) + ' ledger above the staff';
+    else if (steps % 2 === 0) pos = 'on the ' + ordinal(steps / 2 + 1) + ' line';
+    else pos = 'in the ' + ordinal((steps - 1) / 2 + 1) + ' space';
+    var onStaff = steps >= 0 && steps <= 8, line = steps % 2 === 0, mnem;
+    if (clef === 'treble') mnem = onStaff ? (line ? 'Treble lines: Every Good Boy Deserves Fudge (E G B D F)' : 'Treble spaces spell FACE (F A C E)') : 'Treble clef — count up/down from a line you know.';
+    else mnem = onStaff ? (line ? 'Bass lines: Good Boys Deserve Fudge Always (G B D F A)' : 'Bass spaces: All Cows Eat Grass (A C E G)') : 'Bass clef — count up/down from a line you know.';
+    return '<b>' + L + '</b> — ' + pos + '. ' + mnem;
+  }
+
+  /* ── seeded RNG (Daily Challenge) ── */
   function seedFromString(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
   function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   function dateKey() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
@@ -53,11 +67,10 @@
 
   /* ── settings ── */
   function loadSettings() {
-    var s = { roundSec: 60, sound: true, survival: false };
+    var s = { roundSec: 60, sound: true, survival: false, learn: false };
     try { var d = JSON.parse(localStorage.getItem(SET) || '{}');
       if ([30, 60, 90, 120].indexOf(d.roundSec) >= 0) s.roundSec = d.roundSec;
-      if (typeof d.sound === 'boolean') s.sound = d.sound;
-      if (typeof d.survival === 'boolean') s.survival = d.survival;
+      ['sound', 'survival', 'learn'].forEach(function (k) { if (typeof d[k] === 'boolean') s[k] = d[k]; });
     } catch (e) {}
     return s;
   }
@@ -69,9 +82,8 @@
       xp: 0, games: 0, notes: 0, bestScore: 0, bestCombo: 0, playSec: 0,
       clef: { treble: { right: 0, total: 0 }, bass: { right: 0, total: 0 } },
       modeBest: { treble: 0, bass: 0, 'treble-ledger': 0, grand: 0 },
-      history: [],                                   // recent round scores (newest last, max 14)
-      daily: { streak: 0, last: '', lastDay: 0, best: 0 },
-      ach: {}
+      history: [], daily: { streak: 0, last: '', lastDay: 0, best: 0 },
+      noteStats: {}, ach: {}
     };
   }
   function loadProg() {
@@ -83,6 +95,7 @@
       if (d.modeBest) Object.keys(p.modeBest).forEach(function (k) { if (typeof d.modeBest[k] === 'number') p.modeBest[k] = d.modeBest[k] | 0; });
       if (Array.isArray(d.history)) p.history = d.history.filter(function (n) { return typeof n === 'number'; }).slice(-14);
       if (d.daily) { p.daily.streak = d.daily.streak | 0; p.daily.last = String(d.daily.last || ''); p.daily.lastDay = d.daily.lastDay | 0; p.daily.best = d.daily.best | 0; }
+      if (d.noteStats && typeof d.noteStats === 'object') p.noteStats = d.noteStats;
       if (d.ach && typeof d.ach === 'object') p.ach = d.ach;
     } catch (e) {}
     return p;
@@ -91,6 +104,11 @@
   function levelFromXp(xp) { return Math.max(1, Math.floor(Math.sqrt(xp / 50)) + 1); }
   function xpForLevel(L) { return 50 * (L - 1) * (L - 1); }
   function accuracy(p) { var r = p.clef.treble.right + p.clef.bass.right, t = p.clef.treble.total + p.clef.bass.total; return t ? Math.round(r / t * 100) : 0; }
+  // Weakest attempted notes (lowest accuracy first), for the tricky-notes panel.
+  function weakNotes(ns, minTotal) {
+    var out = []; Object.keys(ns || {}).forEach(function (k) { var s = ns[k]; if (s.total >= (minTotal || 4)) out.push({ key: k, acc: s.right / s.total, total: s.total }); });
+    out.sort(function (a, b) { return a.acc - b.acc; }); return out;
+  }
 
   /* ── achievements ── */
   var ACH = [
@@ -105,12 +123,7 @@
     { id: 'daily7', name: 'Daily Devotee', desc: '7-day daily streak', icon: 'calendar-days', test: function (p) { return p.daily.streak >= 7; } },
     { id: 'level10', name: 'Virtuoso', desc: 'Reach level 10', icon: 'crown', test: function (p) { return levelFromXp(p.xp) >= 10; } }
   ];
-  // Returns the ids that became true now but weren't recorded as earned yet.
-  function applyAchievements(p) {
-    var fresh = [];
-    ACH.forEach(function (a) { if (a.test(p) && !p.ach[a.id]) { p.ach[a.id] = true; fresh.push(a); } });
-    return fresh;
-  }
+  function applyAchievements(p) { var fresh = []; ACH.forEach(function (a) { if (a.test(p) && !p.ach[a.id]) { p.ach[a.id] = true; fresh.push(a); } }); return fresh; }
 
   /* ── audio (guarded; respects the sound setting) ── */
   var actx = null, soundOn = true;
@@ -147,14 +160,18 @@
     soundOn = settings.sound;
 
     function stop() { loopAlive = false; if (ticker) clearInterval(ticker); ticker = null; }
+    function weakLetterInRange(clef, lo, hi) {
+      var seen = {}, best = null;
+      for (var dd = lo; dd <= hi; dd++) seen[letterOf(dd)] = 1;
+      Object.keys(seen).forEach(function (L) { var s = prog.noteStats[clef + ':' + L]; if (s && s.total >= 4) { var a = s.right / s.total; if (a < 0.85 && (!best || a < best.a)) best = { L: L, a: a }; } });
+      return best ? best.L : null;
+    }
 
     /* menu pieces */
     function sparkline(hist) {
       if (!hist.length) return '';
       var max = Math.max.apply(null, hist) || 1;
-      return '<div class="ng-spark" aria-hidden="true">' + hist.map(function (v) {
-        return '<i style="height:' + Math.max(8, Math.round(v / max * 100)) + '%"></i>';
-      }).join('') + '</div>';
+      return '<div class="ng-spark" aria-hidden="true">' + hist.map(function (v) { return '<i style="height:' + Math.max(8, Math.round(v / max * 100)) + '%"></i>'; }).join('') + '</div>';
     }
     function progressPanel() {
       var lvl = levelFromXp(prog.xp), base = xpForLevel(lvl), next = xpForLevel(lvl + 1);
@@ -176,6 +193,15 @@
         (prog.history.length ? '<div class="ng-spark-wrap"><span>Recent scores</span>' + sparkline(prog.history) + '</div>' : '') +
       '</div>';
     }
+    function trickyPanel() {
+      var w = weakNotes(prog.noteStats, 4).slice(0, 5);
+      if (!w.length) return '';
+      return '<div class="ng-section-title">Your tricky notes <span>practice targets these</span></div>' +
+        '<div class="ng-tricky">' + w.map(function (x) {
+          var p = x.key.split(':'), a = Math.round(x.acc * 100);
+          return '<div class="ng-tricky-chip"><b>' + esc(p[1]) + '</b><span>' + esc(p[0]) + ' · ' + a + '%</span></div>';
+        }).join('') + '</div>';
+    }
     function dailyCard() {
       var playedToday = prog.daily.last === dateKey();
       return '<button class="ng-daily" type="button" data-daily="1">' +
@@ -183,6 +209,13 @@
           '<span class="ng-daily-streak"><i class="fa-solid fa-fire"></i> ' + prog.daily.streak + '-day streak</span></div>' +
         '<div class="ng-daily-body"><div><strong>Today\'s set</strong><small>Same notes for everyone · 60s · grand staff</small></div>' +
           '<span class="ng-daily-cta">' + (playedToday ? 'Best ' + prog.daily.best + ' · replay' : 'Play') + ' <i class="fa-solid fa-arrow-right"></i></span></div>' +
+      '</button>';
+    }
+    function learnCard() {
+      return '<button class="ng-daily ng-learn" type="button" data-learn="1">' +
+        '<div class="ng-daily-head"><span class="ng-daily-eyebrow"><i class="fa-solid fa-graduation-cap"></i> Learn Mode</span><span class="ng-daily-streak">no clock</span></div>' +
+        '<div class="ng-daily-body"><div><strong>Learn the notes, step by step</strong><small>Every answer explained — where it sits + the mnemonic. Reveal any note.</small></div>' +
+          '<span class="ng-daily-cta">Start <i class="fa-solid fa-arrow-right"></i></span></div>' +
       '</button>';
     }
     function achPanel() {
@@ -199,6 +232,7 @@
       return '<div class="ng-section-title">Settings</div><div class="ng-settings">' +
         '<div class="ng-set-row"><span>Round length</span><div class="ng-lens">' + lens + '</div></div>' +
         sw('survival', 'Survival mode (3 lives, no clock)') +
+        sw('learn', 'Learn mode by default (untimed · every note explained)') +
         sw('sound', 'Sound') +
       '</div>';
     }
@@ -209,8 +243,9 @@
         '<div class="ng-wrap">' +
           '<div class="ng-hero"><div class="ng-hero-eyebrow"><i class="fa-solid fa-gamepad"></i> Practice Arcade</div>' +
             '<h2 class="ng-hero-title">Note Rush</h2>' +
-            '<p class="ng-hero-sub">Name the note before time (or lives) run out. Build combos, climb the levels, unlock achievements — the pitch plays back so your ear learns too.</p></div>' +
+            '<p class="ng-hero-sub">Learn to read music, then race the clock. New to the staff? Start with <strong>Learn Mode</strong> — every note is explained. Then build combos and climb the levels.</p></div>' +
           progressPanel() +
+          learnCard() +
           dailyCard() +
           '<div class="ng-section-title">Choose a level</div>' +
           '<div class="ng-modes">' + MODES.map(function (m) {
@@ -218,20 +253,16 @@
               (prog.modeBest[m.id] ? '<span class="ng-mode-best">Best ' + prog.modeBest[m.id] + '</span>' : '') +
               '<span class="ng-mode-go"><i class="fa-solid fa-play"></i> Play</span></button>';
           }).join('') + '</div>' +
+          trickyPanel() +
           settingsPanel() +
           achPanel() +
         '</div>';
 
-      Array.prototype.forEach.call(host.querySelectorAll('.ng-mode'), function (b) {
-        b.addEventListener('click', function () { actxGet(); startGame({ modeId: b.getAttribute('data-mode') }); });
-      });
+      Array.prototype.forEach.call(host.querySelectorAll('.ng-mode'), function (b) { b.addEventListener('click', function () { actxGet(); startGame({ modeId: b.getAttribute('data-mode') }); }); });
       var dc = host.querySelector('[data-daily]'); if (dc) dc.addEventListener('click', function () { actxGet(); startGame({ modeId: 'grand', daily: true }); });
-      Array.prototype.forEach.call(host.querySelectorAll('[data-set]'), function (cb) {
-        cb.addEventListener('change', function () { settings[cb.getAttribute('data-set')] = cb.checked; if (cb.getAttribute('data-set') === 'sound') soundOn = cb.checked; saveSettings(settings); });
-      });
-      Array.prototype.forEach.call(host.querySelectorAll('[data-len]'), function (b) {
-        b.addEventListener('click', function () { settings.roundSec = parseInt(b.getAttribute('data-len'), 10); saveSettings(settings); Array.prototype.forEach.call(host.querySelectorAll('[data-len]'), function (x) { x.classList.toggle('active', x === b); }); });
-      });
+      var lc = host.querySelector('[data-learn]'); if (lc) lc.addEventListener('click', function () { actxGet(); startGame({ modeId: 'treble-ledger', learn: true }); });
+      Array.prototype.forEach.call(host.querySelectorAll('[data-set]'), function (cb) { cb.addEventListener('change', function () { settings[cb.getAttribute('data-set')] = cb.checked; if (cb.getAttribute('data-set') === 'sound') soundOn = cb.checked; saveSettings(settings); }); });
+      Array.prototype.forEach.call(host.querySelectorAll('[data-len]'), function (b) { b.addEventListener('click', function () { settings.roundSec = parseInt(b.getAttribute('data-len'), 10); saveSettings(settings); Array.prototype.forEach.call(host.querySelectorAll('[data-len]'), function (x) { x.classList.toggle('active', x === b); }); }); });
     }
 
     /* gameplay */
@@ -239,41 +270,55 @@
       opts = opts || {};
       var mode = modeById(opts.modeId);
       var daily = !!opts.daily;
-      var survival = daily ? false : settings.survival;
+      var learn = !daily && (!!opts.learn || settings.learn);
+      var survival = (daily || learn) ? false : settings.survival;
       var roundSec = daily ? 60 : settings.roundSec;
       var rng = daily ? mulberry32(seedFromString('mam-noterush-' + dateKey())) : Math.random;
       var startedAt = Date.now();
       var state = {
-        score: 0, combo: 0, bestCombo: 0, right: 0, total: 0, lives: 3, daily: daily, survival: survival,
-        byClef: { treble: { right: 0, total: 0 }, bass: { right: 0, total: 0 } },
+        score: 0, combo: 0, bestCombo: 0, right: 0, total: 0, reviewed: 0, lives: 3,
+        daily: daily, survival: survival, learn: learn, awaiting: false,
+        byClef: { treble: { right: 0, total: 0 }, bass: { right: 0, total: 0 } }, noteStats: {},
         endAt: Date.now() + roundSec * 1000, note: null, clef: null, askAt: 0, flash: null, over: false
       };
 
-      var hudRight = survival
-        ? '<div class="ng-hud-item ng-hud-lives"><span>Lives</span><b id="ngLives">♥♥♥</b></div>'
-        : '<div class="ng-hud-item ng-hud-time"><span>Time</span><b id="ngTime">' + roundSec + '</b></div>';
+      var hudRight = learn
+        ? '<div class="ng-hud-item"><span>Reviewed</span><b id="ngReviewed">0</b></div>'
+        : survival
+          ? '<div class="ng-hud-item ng-hud-lives"><span>Lives</span><b id="ngLives">♥♥♥</b></div>'
+          : '<div class="ng-hud-item ng-hud-time"><span>Time</span><b id="ngTime">' + roundSec + '</b></div>';
       host.innerHTML =
         '<div class="ng-wrap ng-playing">' +
           (daily ? '<div class="ng-daily-banner"><i class="fa-solid fa-calendar-day"></i> Daily Challenge · ' + esc(dateKey()) + '</div>' : '') +
+          (learn ? '<div class="ng-daily-banner"><i class="fa-solid fa-graduation-cap"></i> Learn mode · no clock · every note explained</div>' : '') +
           '<div class="ng-hud">' +
-            '<div class="ng-hud-item"><span>Score</span><b id="ngScore">0</b></div>' +
-            '<div class="ng-hud-item"><span>Combo</span><b id="ngCombo">0×</b></div>' +
+            (learn
+              ? '<div class="ng-hud-item"><span>Correct</span><b id="ngScore">0</b></div>'
+              : '<div class="ng-hud-item"><span>Score</span><b id="ngScore">0</b></div><div class="ng-hud-item"><span>Combo</span><b id="ngCombo">0×</b></div>') +
             hudRight +
-            '<button class="ng-quit" id="ngQuit" type="button" title="End round"><i class="fa-solid fa-xmark"></i></button>' +
+            '<button class="ng-quit" id="ngQuit" type="button" title="' + (learn ? 'Finish' : 'End round') + '"><i class="fa-solid fa-xmark"></i></button>' +
           '</div>' +
-          (survival ? '' : '<div class="ng-timebar"><i id="ngTimeBar"></i></div>') +
+          ((survival || learn) ? '' : '<div class="ng-timebar"><i id="ngTimeBar"></i></div>') +
           '<div class="ng-stage"><canvas id="ngCanvas" aria-label="A note on the staff — name it below"></canvas><div class="ng-feedback" id="ngFeedback"></div></div>' +
           '<div class="ng-answers" id="ngAnswers" role="group" aria-label="Name the note">' +
             LETTERS.map(function (l) { return '<button class="ng-key" type="button" data-note="' + l + '">' + l + '</button>'; }).join('') +
           '</div>' +
-          '<p class="ng-tip">Tap a letter or press its key (C–B). ' + (survival ? '3 lives.' : roundSec + 's on the clock.') + '</p>' +
+          '<div class="ng-teach" id="ngTeach" hidden></div>' +
+          (learn ? '<button class="ng-reveal" id="ngReveal" type="button"><i class="fa-solid fa-eye"></i> Reveal &amp; learn</button>' : '') +
+          '<p class="ng-tip">Tap a letter or press its key (C–B). ' + (learn ? 'Take your time — each answer is explained.' : survival ? '3 lives.' : roundSec + 's on the clock.') + '</p>' +
         '</div>';
 
       var cvs = host.querySelector('#ngCanvas'), ctx = cvs.getContext('2d');
-      var elScore = host.querySelector('#ngScore'), elCombo = host.querySelector('#ngCombo'),
-          elTime = host.querySelector('#ngTime'), elBar = host.querySelector('#ngTimeBar'),
-          elLives = host.querySelector('#ngLives'), elFb = host.querySelector('#ngFeedback');
+      var elBar = host.querySelector('#ngTimeBar'), elFb = host.querySelector('#ngFeedback'), elTeach = host.querySelector('#ngTeach');
 
+      function updateHud() {
+        var e;
+        if ((e = host.querySelector('#ngScore'))) e.textContent = learn ? state.right : state.score;
+        if ((e = host.querySelector('#ngCombo'))) { e.textContent = state.combo + '×'; e.classList.toggle('hot', state.combo >= 5); }
+        if ((e = host.querySelector('#ngReviewed'))) e.textContent = state.reviewed;
+        if ((e = host.querySelector('#ngLives'))) e.textContent = state.lives > 0 ? Array(state.lives + 1).join('♥') : '—';
+      }
+      function disableKeys(on) { Array.prototype.forEach.call(host.querySelectorAll('.ng-key'), function (k) { k.disabled = !!on; }); }
       function sizeCanvas() {
         var w = cvs.parentNode.clientWidth || 600, h = Math.max(220, Math.min(300, Math.round(w * 0.42)));
         var dpr = window.devicePixelRatio || 1;
@@ -286,8 +331,12 @@
         var clef = mode.clef === 'both' ? (rng() < 0.5 ? 'treble' : 'bass') : mode.clef;
         var lo = mode.range[0], hi = mode.range[1], d;
         if (mode.clef === 'both') { if (clef === 'treble') { lo = dia('C', 4); hi = dia('C', 6); } else { lo = dia('C', 2); hi = dia('C', 4); } }
+        // Adaptive: outside the seeded daily, ~35% of notes target a weak letter.
+        var weakL = (!daily && rng() < 0.35) ? weakLetterInRange(clef, lo, hi) : null;
         var tries = 0;
-        do { d = lo + Math.floor(rng() * (hi - lo + 1)); tries++; } while (state.note != null && d === state.note && tries < 8);
+        do {
+          d = lo + Math.floor(rng() * (hi - lo + 1)); tries++;
+        } while (tries < 16 && ((weakL && letterOf(d) !== weakL) || (state.note != null && d === state.note)));
         state.note = d; state.clef = clef; state.askAt = Date.now(); state.flash = null;
         draw();
       }
@@ -321,32 +370,40 @@
         else if (kind === 'good') { elFb.textContent = '✓'; elFb.className = 'ng-feedback show good'; }
         setTimeout(function () { elFb.className = 'ng-feedback'; }, 520);
       }
+      function teach(kind) {                       // learn mode: explain, then wait for Next
+        state.awaiting = true; disableKeys(true);
+        var lead = kind === 'good' ? '<i class="fa-solid fa-circle-check"></i> Correct! ' : kind === 'reveal' ? '<i class="fa-solid fa-eye"></i> This note is ' : '<i class="fa-solid fa-circle-info"></i> Not quite — ';
+        elTeach.innerHTML = '<div class="ng-teach-row ' + (kind === 'good' ? 'good' : kind === 'reveal' ? 'rev' : 'bad') + '">' + lead + learnHint(state.note, state.clef) + '</div>' +
+          '<button class="ng-btn ng-btn-gold" id="ngNext" type="button">Next note <i class="fa-solid fa-arrow-right"></i></button>';
+        elTeach.hidden = false;
+        var nx = elTeach.querySelector('#ngNext'); if (nx) nx.addEventListener('click', function () { elTeach.hidden = true; state.awaiting = false; disableKeys(false); nextNote(); });
+      }
+      function miss() { elTeach.innerHTML = '<div class="ng-teach-row bad"><i class="fa-solid fa-circle-info"></i> ' + learnHint(state.note, state.clef) + '</div>'; elTeach.hidden = false; }
+
       function answer(letter) {
-        if (state.over || state.note == null) return;
+        if (state.over || state.note == null || state.awaiting) return;
         var correct = letterOf(state.note), clefKey = state.clef;
         state.total++; state.byClef[clefKey].total++;
-        if (letter === correct) {
-          var dt = (Date.now() - state.askAt) / 1000;
-          var speed = Math.max(0, Math.round((2.5 - Math.min(2.5, dt)) * 6));
-          state.score += 10 + state.combo * 2 + speed; state.combo++; state.right++; state.byClef[clefKey].right++;
+        var nk = clefKey + ':' + correct, ns = state.noteStats[nk] || (state.noteStats[nk] = { right: 0, total: 0 }); ns.total++;
+        var win = letter === correct;
+        if (win) {
+          var dt = (Date.now() - state.askAt) / 1000, speed = Math.max(0, Math.round((2.5 - Math.min(2.5, dt)) * 6));
+          state.score += 10 + state.combo * 2 + speed; state.combo++; state.right++; state.byClef[clefKey].right++; ns.right++;
           if (state.combo > state.bestCombo) state.bestCombo = state.combo;
           playNote(state.note, true); setFlash('good');
-          elScore.textContent = state.score; elCombo.textContent = state.combo + '×'; elCombo.classList.toggle('hot', state.combo >= 5);
-          nextNote();
-        } else {
-          state.combo = 0; elCombo.textContent = '0×'; elCombo.classList.remove('hot');
-          playNote(state.note, false); setFlash('bad', correct);
-          if (survival) {
-            state.lives--; if (elLives) elLives.textContent = state.lives > 0 ? Array(state.lives + 1).join('♥') : '—';
-            if (state.lives <= 0) { setTimeout(endGame, 560); return; }
-          }
-          var keys = host.querySelectorAll('.ng-key'); Array.prototype.forEach.call(keys, function (k) { k.disabled = true; });
-          setTimeout(function () { Array.prototype.forEach.call(keys, function (k) { k.disabled = false; }); nextNote(); }, 540);
-        }
+        } else { state.combo = 0; playNote(state.note, false); setFlash('bad', correct); }
+        if (state.learn) { if (win) state.reviewed++; updateHud(); teach(win ? 'good' : 'bad'); return; }
+        updateHud();
+        if (win) { nextNote(); return; }
+        if (survival) { state.lives--; updateHud(); if (state.lives <= 0) { miss(); setTimeout(endGame, 1100); return; } }
+        miss(); disableKeys(true);
+        setTimeout(function () { elTeach.hidden = true; disableKeys(false); nextNote(); }, 1200);
       }
 
       host.querySelector('#ngAnswers').addEventListener('click', function (e) { var b = e.target.closest('.ng-key'); if (b && !b.disabled) answer(b.getAttribute('data-note')); });
       host.querySelector('#ngQuit').addEventListener('click', endGame);
+      var revBtn = host.querySelector('#ngReveal');
+      if (revBtn) revBtn.addEventListener('click', function () { if (state.awaiting || state.note == null) return; state.flash = 'good'; draw(); playNote(state.note, true); state.reviewed++; updateHud(); teach('reveal'); });
       function onKey(e) {
         if (!document.contains(cvs)) { document.removeEventListener('keydown', onKey); return; }
         var L = (e.key || '').toUpperCase();
@@ -357,9 +414,9 @@
       loopAlive = true;
       ticker = setInterval(function () {
         if (!loopAlive || !document.contains(cvs)) { stop(); return; }
-        if (!survival) {
-          var left = Math.max(0, Math.ceil((state.endAt - Date.now()) / 1000));
-          if (elTime) elTime.textContent = left;
+        if (!survival && !learn) {
+          var left = Math.max(0, Math.ceil((state.endAt - Date.now()) / 1000)), te = host.querySelector('#ngTime');
+          if (te) te.textContent = left;
           if (elBar) elBar.style.width = Math.max(0, (state.endAt - Date.now()) / (roundSec * 1000) * 100) + '%';
           if (left <= 5) { var th = host.querySelector('.ng-hud-time'); if (th) th.classList.add('low'); }
           if (Date.now() >= state.endAt) endGame();
@@ -371,11 +428,26 @@
       function endGame() {
         if (state.over) return; state.over = true; stop();
         document.removeEventListener('keydown', onKey);
-        // commit progress
+        // Merge per-note stats (every mode) so adaptive targeting keeps learning.
+        Object.keys(state.noteStats).forEach(function (k) { var s = prog.noteStats[k] || (prog.noteStats[k] = { right: 0, total: 0 }); s.right += state.noteStats[k].right; s.total += state.noteStats[k].total; });
+        prog.playSec += Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+
+        if (learn) {   // practice: save learning data, no XP/score gaming
+          saveProg(prog);
+          host.innerHTML = '<div class="ng-wrap"><div class="ng-summary">' +
+            '<div class="ng-sum-eyebrow"><i class="fa-solid fa-graduation-cap"></i> Learn session</div>' +
+            '<div class="ng-sum-score">' + state.reviewed + '<span>notes reviewed</span></div>' +
+            '<p class="ng-hero-sub" style="margin:0 0 18px">Great practice. The game will now lean a little more on the notes you found tricky — try a timed round when you\'re ready.</p>' +
+            '<div class="ng-sum-actions"><button class="ng-btn ng-btn-gold" id="ngAgain" type="button"><i class="fa-solid fa-rotate-right"></i> Keep learning</button><button class="ng-btn" id="ngMenu" type="button">Menu</button></div>' +
+          '</div></div>';
+          host.querySelector('#ngAgain').addEventListener('click', function () { startGame({ modeId: mode.id, learn: true }); });
+          host.querySelector('#ngMenu').addEventListener('click', renderMenu);
+          return;
+        }
+
         var xpGain = Math.round(state.score / 5) + state.right;
         var beforeLvl = levelFromXp(prog.xp);
         prog.xp += xpGain; prog.games++; prog.notes += state.right;
-        prog.playSec += Math.max(0, Math.round((Date.now() - startedAt) / 1000));
         if (state.score > prog.bestScore) prog.bestScore = state.score;
         if (state.bestCombo > prog.bestCombo) prog.bestCombo = state.bestCombo;
         if (state.score > (prog.modeBest[mode.id] || 0)) prog.modeBest[mode.id] = state.score;
@@ -386,7 +458,6 @@
         if (daily) {
           var today = dateKey(), tDay = dayNumber();
           if (prog.daily.last !== today) { prog.daily.streak = (prog.daily.lastDay === tDay - 1) ? prog.daily.streak + 1 : 1; prog.daily.last = today; prog.daily.lastDay = tDay; }
-          if (state.score > prog.daily.best || prog.daily.last !== today) { /* best handled below */ }
           if (state.score > prog.daily.best) { prog.daily.best = state.score; newDailyBest = true; }
         }
         var fresh = applyAchievements(prog);

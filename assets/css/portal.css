@@ -423,3 +423,21 @@ body[data-variant="ktams"] .kpi-value.gold{animation:ktamsPulse 2.4s ease-in-out
 .ng-new-ach{margin:16px 0;padding:14px;border:1px dashed var(--border-gold);border-radius:12px;background:rgba(224,138,26,0.08)}
 .ng-new-ach-title{font-size:0.78rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:8px}
 .ng-new-ach-chip{display:inline-flex;align-items:center;gap:6px;margin:3px;padding:6px 11px;border-radius:100px;background:var(--bg-raised);border:1px solid var(--border-gold);color:var(--text);font-size:0.82rem;font-weight:700}
+
+/* ── Note Rush · learning features ────────────────────────────────── */
+.ng-learn{background:linear-gradient(135deg,rgba(52,211,153,0.16),var(--bg-surface));border-color:rgba(52,211,153,0.5)}
+.ng-learn .ng-daily-eyebrow{color:#34D399}
+.ng-learn .ng-daily-cta{background:linear-gradient(135deg,#34D399,#10B981);color:#06281C}
+.ng-tricky{display:flex;flex-wrap:wrap;gap:10px}
+.ng-tricky-chip{display:flex;flex-direction:column;align-items:center;min-width:64px;padding:10px 12px;background:var(--bg-raised);border:1px solid #FB7185;border-radius:11px}
+.ng-tricky-chip b{font-family:var(--font-display);font-size:1.4rem;color:#FB7185}
+.ng-tricky-chip span{font-size:0.66rem;color:var(--text-muted);text-transform:capitalize;margin-top:2px}
+.ng-teach{margin-top:14px;padding:14px 16px;border-radius:12px;background:var(--bg-raised);border:1px solid var(--border);display:flex;flex-direction:column;gap:12px}
+.ng-teach-row{font-size:0.95rem;color:var(--text-soft);line-height:1.5}
+.ng-teach-row b{color:var(--gold-bright);font-size:1.1em}
+.ng-teach-row.good{color:#A7F3D0}.ng-teach-row.good i{color:#34D399}
+.ng-teach-row.bad i{color:#FB7185}
+.ng-teach-row.rev i{color:var(--gold-bright)}
+.ng-teach .ng-btn{align-self:flex-start}
+.ng-reveal{display:block;margin:12px auto 0;padding:9px 18px;border-radius:10px;border:1px dashed var(--border-gold);background:transparent;color:var(--gold-bright);font-weight:700;font-size:0.85rem;cursor:pointer}
+.ng-reveal:hover{background:rgba(224,138,26,0.08)}
