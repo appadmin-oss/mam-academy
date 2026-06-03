@@ -65,6 +65,11 @@
     { name: 'Shaker',     voice: 'shaker',    vol: 0.50 },
     { name: 'Cowbell',    voice: 'cowbell',   vol: 0.50 },
     { name: 'Crash',      voice: 'crash',     vol: 0.45 },
+    // Pitched/harmonic voices — these don't play a fixed sample; their pitch is
+    // derived live from the Key + chord progression (see chordAt). `pitched`
+    // marks the role: 'bass' plays the chord root, 'chord' plays the triad.
+    { name: 'Bass',       voice: 'bass',      vol: 0.85, pitched: 'bass' },
+    { name: 'Keys',       voice: 'keys',      vol: 0.55, pitched: 'chord' },
   ];
 
   // Keyboard mapping for the playable drum kit — digit keys 1..0 trigger the
@@ -196,7 +201,67 @@
         o.connect(og).connect(out); o.start(when); o.stop(when + 0.95);
       });
     },
+    // ── Pitched voices (harmony). Receive an array of frequencies. ──
+    bass: function (ac, out, when, freqs) {   // round synth bass
+      var f = (freqs && freqs[0]) || 110;
+      var o = ac.createOscillator(), sub = ac.createOscillator(), g = ac.createGain();
+      var lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(Math.min(2600, f * 6), when); lp.Q.value = 7;
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(f, when);
+      sub.type = 'sine'; sub.frequency.setValueAtTime(f / 2, when);
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(0.6, when + 0.014);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + 0.34);
+      o.connect(lp); sub.connect(lp); lp.connect(g).connect(out);
+      o.start(when); sub.start(when); o.stop(when + 0.36); sub.stop(when + 0.36);
+    },
+    keys: function (ac, out, when, freqs) {   // soft electric-piano-ish chord
+      freqs = (freqs && freqs.length) ? freqs : [261.63];
+      var g = ac.createGain();
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(0.16, when + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + 0.7);
+      g.connect(out);
+      freqs.forEach(function (f) {
+        var o = ac.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+        var h = ac.createOscillator(); h.type = 'sine'; h.frequency.value = f * 2;
+        var hg = ac.createGain(); hg.gain.value = 0.45;
+        o.connect(g); h.connect(hg).connect(g);
+        o.start(when); h.start(when); o.stop(when + 0.72); h.stop(when + 0.72);
+      });
+    },
   };
+
+  // ── Harmony engine ─────────────────────────────────────────────────
+  // Pitched tracks have no fixed pitch — they follow a Key + a chord
+  // progression so the bass and keys are always in tune with each other.
+  var MAJOR = [0, 2, 4, 5, 7, 9, 11];
+  var KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  var PROGRESSIONS = {
+    'I–V–vi–IV': [1, 5, 6, 4], 'I–IV–V':     [1, 4, 5],   'ii–V–I':     [2, 5, 1],
+    'vi–IV–I–V': [6, 4, 1, 5], 'I–vi–IV–V':  [1, 6, 4, 5], 'I–IV (vamp)': [1, 4],
+    'I (drone)': [1]
+  };
+  function mtof(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function scaleMidi(idx, base) { var oct = Math.floor(idx / 7); return base + MAJOR[((idx % 7) + 7) % 7] + 12 * oct; }
+  // Returns { bass: midi, chord: [midi,midi,midi] } active at step s.
+  function chordAt(s, st) {
+    try {
+      var prog = PROGRESSIONS[st.prog] || [1];
+      var grp = st.group || 4;
+      var degree = prog[Math.floor(s / grp) % prog.length] || 1;
+      var key = (st.key | 0) % 12;
+      var chordBase = 60 + key;            // C4-ish register for the keys
+      var bassBase  = 36 + key;            // C2-ish register for the bass
+      return {
+        bass: scaleMidi(degree - 1, bassBase),
+        chord: [scaleMidi(degree - 1, chordBase), scaleMidi(degree + 1, chordBase), scaleMidi(degree + 3, chordBase)]
+      };
+    } catch (e) { return { bass: 36 + ((st.key | 0) % 12), chord: [60, 64, 67] }; }
+  }
+  function pitchedFreqs(track, s, st) {
+    var ch = chordAt(s, st);
+    return track.pitched === 'bass' ? [mtof(ch.bass)] : ch.chord.map(mtof);
+  }
 
   // ── Warm buffer cache ──────────────────────────────────────────────
   // Pre-render each voice once into a mono AudioBuffer so triggering is a warm
@@ -209,7 +274,7 @@
     var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!OAC) return;
     baking = true;
-    var names = {}; TRACKS.forEach(function (t) { names[t.voice] = 1; });
+    var names = {}; TRACKS.forEach(function (t) { if (!t.pitched) names[t.voice] = 1; }); // pitched voices vary in pitch — never cached
     Object.keys(names).forEach(function (v) {
       try {
         var dur = 0.8;
@@ -249,7 +314,16 @@
   }
 
   // ── Pattern helpers + presets ──────────────────────────────────────
-  var STEP_OPTIONS = [8, 16, 32];
+  // Time signatures → grid length + beat grouping. `group` = cells per pulse,
+  // used for the bar-line/colour grouping and for the harmonic rhythm.
+  var TIME_SIGS = {
+    '4/4': { steps: 16, group: 4 },
+    '3/4': { steps: 12, group: 4 },
+    '6/8': { steps: 12, group: 3 },
+    '5/4': { steps: 20, group: 4 },
+    '7/8': { steps: 14, group: 2 }
+  };
+  var STEP_OPTIONS = [12, 14, 16, 20];      // every step-count a meter can produce
   var ACCENT_VEL = { 1: 0.85, 2: 1.15 };   // velocity multiplier per cell value (1 = hit, 2 = accent)
   function slotName(i) { return ['A', 'B', 'C', 'D'][i] || '?'; }
   function blankPattern(n) { n = n || STEPS; return TRACKS.map(function () { return new Array(n).fill(0); }); }
@@ -265,13 +339,26 @@
     for (var i = 0; i < STEPS && i < str.length; i++) a[i] = str[i] === 'x' ? 1 : 0;
     return a;
   }
+  // Genres. Drum rows plus optional bass/keys rows (their PITCH comes from the
+  // key + prog, set here too). 'x' = hit on that 16th step. All presets are 4/4.
   var PRESETS = {
-    'Four on the floor': { kick: 'x...x...x...x...', clap: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.', hatOpen: '..x...x...x...x.' },
-    'Boom bap':          { kick: 'x.....x..x......', snare: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.' },
-    'Afrobeat':          { kick: 'x..x..x...x..x..', rim: '..x..x..x..x..x.', clap: '....x.......x...', hatClosed: 'x.xx.x.xx.x.xx.x', shaker: 'x.x.x.x.x.x.x.x.' },
-    'Highlife':          { kick: 'x...x..x.x..x...', rim: '..x.x..x..x.x..x', hatClosed: 'x.x.x.x.x.x.x.x.', shaker: '..x...x...x...x.' },
-    'One drop':          { kick: '........x.......', snare: '........x.......', rim: '..x...x...x...x.', hatClosed: 'x.x.x.x.x.x.x.x.' },
+    'Four on the floor': { kick: 'x...x...x...x...', clap: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.', hatOpen: '..x...x...x...x.', bass: 'x...x...x...x...', keys: '....x.......x...', key: 'A', prog: 'vi–IV–I–V' },
+    'House':             { kick: 'x...x...x...x...', clap: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.', hatOpen: '..x...x...x...x.', bass: '..x...x...x...x.', keys: 'x.......x.......', key: 'A', prog: 'vi–IV–I–V' },
+    'Disco':             { kick: 'x...x...x...x...', hatOpen: '..x.x.x.x.x.x.x.', clap: '....x.......x...', bass: 'x.x.x.x.x.x.x.x.', keys: '....x.......x...', key: 'D', prog: 'I–vi–IV–V' },
+    'Boom bap':          { kick: 'x.....x..x......', snare: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.', bass: 'x.....x..x......', key: 'C', prog: 'ii–V–I' },
+    'Trap':              { kick: 'x.....x.....x...', snare: '....x.......x...', hatClosed: 'xxxxxx.xxx.xxxxx', bass: 'x.....x.....x...', key: 'F', prog: 'I (drone)' },
+    'Afrobeat':          { kick: 'x..x..x...x..x..', rim: '..x..x..x..x..x.', clap: '....x.......x...', hatClosed: 'x.xx.x.xx.x.xx.x', shaker: 'x.x.x.x.x.x.x.x.', bass: 'x..x..x...x..x..', keys: '....x.......x...', key: 'E', prog: 'I–IV (vamp)' },
+    'Highlife':          { kick: 'x...x..x.x..x...', rim: '..x.x..x..x.x..x', hatClosed: 'x.x.x.x.x.x.x.x.', shaker: '..x...x...x...x.', bass: 'x...x..x.x..x...', keys: 'x.......x.......', key: 'G', prog: 'I–V–vi–IV' },
+    'Amapiano':          { kick: 'x.....x...x.....', shaker: 'x.x.x.x.x.x.x.x.', tom: '......x.....x..x', bass: '......x.....x..x', keys: 'x.......x.......', key: 'F', prog: 'I–V–vi–IV' },
+    'Reggaeton':         { kick: 'x.....x...x.....', snare: '...x..x...x..x..', hatClosed: 'x.x.x.x.x.x.x.x.', bass: 'x.....x...x.....', key: 'C', prog: 'vi–IV–I–V' },
+    'One drop':          { kick: '........x.......', snare: '........x.......', rim: '..x...x...x...x.', hatClosed: 'x.x.x.x.x.x.x.x.', bass: '........x.......', keys: '....x.x.....x.x.', key: 'A', prog: 'I–IV (vamp)' },
+    'Funk':              { kick: 'x..x...x..x.x...', snare: '....x.......x...', hatClosed: 'xxxxxxxxxxxxxxxx', rim: '..x..x..x..x..x.', bass: 'x..x...x..x.x...', key: 'E', prog: 'I–IV (vamp)' },
+    'Rock':              { kick: 'x.......x.x.....', snare: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.', crash: 'x...............', bass: 'x.......x.x.....', key: 'E', prog: 'I–IV–V' },
+    'Gospel':            { kick: 'x..x..x.x..x..x.', snare: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.', bass: 'x..x..x.x..x..x.', keys: 'x...x...x...x...', key: 'A', prog: 'I–IV–V' },
+    'Jazz swing':        { kick: '............x...', snare: '....x.......x...', hatClosed: 'x..x..x..x..x..x', rim: '..x..x..x..x..x.', bass: 'x.x.x.x.x.x.x.x.', key: 'F', prog: 'ii–V–I' },
+    'Bossa nova':        { rim: '..x.x..x.x..x.x.', kick: 'x..x..x.x..x..x.', shaker: 'x.x.x.x.x.x.x.x.', bass: 'x..x..x.x..x..x.', keys: '..x.....x.......', key: 'C', prog: 'ii–V–I' }
   };
+  function keyIndex(k) { if (typeof k === 'number') return ((k % 12) + 12) % 12; var i = KEYS.indexOf(k); return i < 0 ? 0 : i; }
   function voiceIndex(v) { for (var i = 0; i < TRACKS.length; i++) if (TRACKS[i].voice === v) return i; return -1; }
   function patternFromPreset(name) {
     var p = PRESETS[name]; var pat = blankPattern();
@@ -283,7 +370,8 @@
   function defaultState() {
     return {
       bpm: 100, swing: 0, master: 0.85, playing: false, step: -1, engine: '—',
-      steps: 16, slots: [null, null, null, null], activeSlot: 0,
+      steps: 16, group: 4, meter: '4/4', key: 0, prog: 'I–V–vi–IV',
+      slots: [null, null, null, null], activeSlot: 0,
       pattern: patternFromPreset('Afrobeat'),
       tracks: TRACKS.map(function (t) { return { vol: t.vol, mute: false, solo: false }; }),
     };
@@ -296,7 +384,10 @@
       if (typeof d.bpm === 'number') st.bpm = d.bpm;
       if (typeof d.swing === 'number') st.swing = d.swing;
       if (typeof d.master === 'number') st.master = d.master;
-      if (STEP_OPTIONS.indexOf(d.steps) >= 0) st.steps = d.steps;
+      if (d.meter && TIME_SIGS[d.meter]) { st.meter = d.meter; st.steps = TIME_SIGS[d.meter].steps; st.group = TIME_SIGS[d.meter].group; }
+      else if (STEP_OPTIONS.indexOf(d.steps) >= 0) { st.steps = d.steps; if (typeof d.group === 'number' && d.group > 0) st.group = d.group; }
+      if (typeof d.key === 'number' && d.key >= 0 && d.key < 12) st.key = d.key | 0;
+      if (d.prog && PROGRESSIONS[d.prog]) st.prog = d.prog;
       if (Array.isArray(d.pattern)) {
         st.pattern = blankPattern(st.steps);
         d.pattern.forEach(function (rowArr, i) { if (st.pattern[i] && Array.isArray(rowArr)) for (var s = 0; s < st.steps; s++) st.pattern[i][s] = (rowArr[s] | 0) % 3; });
@@ -308,7 +399,7 @@
       });
       if (Array.isArray(d.slots)) st.slots = [0, 1, 2, 3].map(function (i) {
         var sl = d.slots[i];
-        if (sl && Array.isArray(sl.pattern)) return { steps: STEP_OPTIONS.indexOf(sl.steps) >= 0 ? sl.steps : 16, pattern: sl.pattern.map(function (r) { return (r || []).map(function (v) { return (v | 0) % 3; }); }) };
+        if (sl && Array.isArray(sl.pattern)) return { steps: STEP_OPTIONS.indexOf(sl.steps) >= 0 ? sl.steps : 16, group: (typeof sl.group === 'number' && sl.group > 0) ? sl.group : 4, meter: TIME_SIGS[sl.meter] ? sl.meter : '4/4', pattern: sl.pattern.map(function (r) { return (r || []).map(function (v) { return (v | 0) % 3; }); }) };
         return null;
       });
       if (typeof d.activeSlot === 'number' && d.activeSlot >= 0 && d.activeSlot < 4) st.activeSlot = d.activeSlot;
@@ -317,7 +408,7 @@
   }
   function save(s) {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ bpm: s.bpm, swing: s.swing, master: s.master, steps: s.steps, pattern: s.pattern, tracks: s.tracks, slots: s.slots, activeSlot: s.activeSlot }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ bpm: s.bpm, swing: s.swing, master: s.master, steps: s.steps, group: s.group, meter: s.meter, key: s.key, prog: s.prog, pattern: s.pattern, tracks: s.tracks, slots: s.slots, activeSlot: s.activeSlot }));
     } catch (e) {}
   }
 
@@ -361,7 +452,8 @@
         var gridT = (b * steps + s) * sd;
         var when = gridT + (s % 2 ? st.swing * sd : 0);
         var hg = off.createGain(); hg.gain.value = ACCENT_VEL[cell] || 1; hg.connect(tg);
-        voices[t.voice](off, hg, when);
+        if (t.pitched) voices[t.voice](off, hg, when, pitchedFreqs(t, s, st));
+        else voices[t.voice](off, hg, when);
       }
     });
     off.startRendering().then(function (buf) {
@@ -391,9 +483,10 @@
       masterGain = ac.createGain(); masterGain.gain.value = store.getState().master; masterGain.connect(ac.destination);
       tgains = TRACKS.map(function (t, i) { var g = ac.createGain(); g.gain.value = store.getState().tracks[i].vol; g.connect(masterGain); return g; });
     }
-    function trig(i, when, vel) {
-      var v = TRACKS[i].voice, out = tgains[i];
+    function trig(i, when, vel, step) {
+      var t = TRACKS[i], v = t.voice, out = tgains[i];
       if (vel && vel !== 1) { var gv = ac.createGain(); gv.gain.value = vel; gv.connect(tgains[i]); out = gv; }
+      if (t.pitched) { voices[v](ac, out, when, pitchedFreqs(t, step || 0, store.getState())); return; }
       if (buffers[v]) { var s = ac.createBufferSource(); s.buffer = buffers[v]; s.connect(out); s.start(when); }
       else voices[v](ac, out, when);
     }
@@ -401,7 +494,7 @@
       var st = store.getState(), sd = 60 / st.bpm / 4, steps = st.steps;
       while (nextT < ac.currentTime + 0.12) {
         var s = stp % steps, swung = nextT + (s % 2 ? st.swing * sd : 0);
-        for (var i = 0; i < TRACKS.length; i++) { var cell = st.pattern[i][s]; if (cell && trackAudible(i, st)) trig(i, swung, ACCENT_VEL[cell] || 1); }
+        for (var i = 0; i < TRACKS.length; i++) { var cell = st.pattern[i][s]; if (cell && trackAudible(i, st)) trig(i, swung, ACCENT_VEL[cell] || 1, s); }
         (function (ss, t) { var d = Math.max(0, (t - ac.currentTime) * 1000); setTimeout(function () { if (store.getState().playing) store.setState({ step: ss }); }, d); })(s, nextT);
         nextT += sd; stp++;
       }
@@ -413,7 +506,7 @@
       setBpm: function () {}, setSwing: function () {},  // read live from the store each tick
       setMaster: function (v) { if (masterGain) masterGain.gain.value = v; },
       syncTrack: function (i) { if (tgains[i]) tgains[i].gain.value = store.getState().tracks[i].vol; }, // mute/solo via trackAudible()
-      audition: function (i, vel) { build(); trig(i, ac.currentTime + 0.01, vel); },
+      audition: function (i, vel) { build(); trig(i, ac.currentTime + 0.01, vel, 0); },
       dispose: function () { this.stop(); },
     };
   }
@@ -524,18 +617,18 @@
   }
 
   // ── Pattern length + slots ─────────────────────────────────────────
-  function setSteps(n) {
-    if (STEP_OPTIONS.indexOf(n) < 0) n = 16;
+  function setMeter(label) {
+    var m = TIME_SIGS[label]; if (!m) { label = '4/4'; m = TIME_SIGS['4/4']; }
     var st = store.getState();
-    if (n === st.steps) return;
-    store.setState({ steps: n, pattern: resizePattern(st.pattern, n), step: -1 });
-    layout(); // cell width changed
-    status('Pattern length: ' + n + ' steps.');
+    if (label === st.meter) return;
+    store.setState({ meter: label, steps: m.steps, group: m.group, pattern: resizePattern(st.pattern, m.steps), step: -1 });
+    layout(); // cell count changed
+    status('Time signature: ' + label + ' (' + m.steps + ' steps).');
   }
   function selectSlot(i) {
     var st = store.getState(), slot = st.slots[i];
     if (slot) {
-      store.setState({ activeSlot: i, steps: slot.steps, pattern: slot.pattern.map(function (r) { return r.slice(); }), step: -1 });
+      store.setState({ activeSlot: i, steps: slot.steps, group: slot.group || 4, meter: slot.meter || '4/4', pattern: slot.pattern.map(function (r) { return r.slice(); }), step: -1 });
       layout();
       status('Recalled pattern ' + slotName(i) + '.');
     } else {
@@ -545,7 +638,7 @@
   }
   function storeSlot() {
     var st = store.getState(), slots = st.slots.slice();
-    slots[st.activeSlot] = { steps: st.steps, pattern: st.pattern.map(function (r) { return r.slice(); }) };
+    slots[st.activeSlot] = { steps: st.steps, group: st.group, meter: st.meter, pattern: st.pattern.map(function (r) { return r.slice(); }) };
     store.setState({ slots: slots });
     status('Stored the current groove in pattern ' + slotName(st.activeSlot) + '.');
   }
@@ -575,12 +668,12 @@
   }
   function draw() {
     if (!cellW || !store) return;
-    var st = store.getState(), steps = st.steps;
+    var st = store.getState(), steps = st.steps, gsize = st.group || 4;
     c.clearRect(0, 0, cssW, cssH);
     for (var t = 0; t < TRACKS.length; t++) {
       var y = t * ROW;
       for (var s = 0; s < steps; s++) {
-        var x = s * cellW, group = Math.floor(s / 4);
+        var x = s * cellW, group = Math.floor(s / gsize);
         var cell = st.pattern[t][s], isCur = st.playing && s === st.step;
         roundRect(c, x + 3, y + 3, cellW - 6, ROW - 6, 6);
         if (cell) {
@@ -598,7 +691,7 @@
       }
     }
     c.strokeStyle = 'rgba(255,255,255,0.12)'; c.lineWidth = 1;
-    for (var g = 1; g < steps / 4; g++) { var gx = Math.round(g * 4 * cellW) + 0.5; c.beginPath(); c.moveTo(gx, 0); c.lineTo(gx, cssH); c.stroke(); }
+    for (var g = 1; g < steps / gsize; g++) { var gx = Math.round(g * gsize * cellW) + 0.5; c.beginPath(); c.moveTo(gx, 0); c.lineTo(gx, cssH); c.stroke(); }
   }
 
   // Tap toggles a cell; a horizontal drag scrolls the grid on narrow screens
@@ -696,7 +789,9 @@
       btn.querySelector('span').textContent = s.playing ? 'Stop' : 'Play';
       btn.querySelector('i').className = s.playing ? 'fa-solid fa-stop' : 'fa-solid fa-play';
     }
-    if (!prev || s.steps !== prev.steps) { var sel = $('#seqSteps'); if (sel) sel.value = String(s.steps); }
+    if (!prev || s.meter !== prev.meter) { var mSel = $('#seqMeter'); if (mSel) mSel.value = s.meter; }
+    if (!prev || s.key !== prev.key) { var kSel = $('#seqKey'); if (kSel) kSel.value = String(s.key); }
+    if (!prev || s.prog !== prev.prog) { var pSel = $('#seqProg'); if (pSel) pSel.value = s.prog; }
     if (!prev || s.slots !== prev.slots || s.activeSlot !== prev.activeSlot) {
       $$('.seq-slot').forEach(function (b) {
         var i = +b.getAttribute('data-slot');
@@ -719,23 +814,41 @@
     $('#seqMaster').addEventListener('input', function (e) { store.setState({ master: (parseInt(e.target.value, 10) || 0) / 100 }); });
     $('#seqClear').addEventListener('click', function () { store.setState({ pattern: blankPattern(store.getState().steps) }); status('Cleared. A blank canvas — start tapping cells.'); });
     $('#seqRandom').addEventListener('click', function () {
-      var prob = { kick: 0.28, snare: 0.12, clap: 0.12, hatClosed: 0.55, hatOpen: 0.12, tom: 0.1, rim: 0.18, shaker: 0.4, cowbell: 0.06, crash: 0.03 };
-      var steps = store.getState().steps, pat = blankPattern(steps);
-      TRACKS.forEach(function (t, i) { var p = prob[t.voice] || 0.2; for (var s = 0; s < steps; s++) pat[i][s] = Math.random() < p ? (Math.random() < 0.18 ? 2 : 1) : 0; });
+      var prob = { kick: 0.28, snare: 0.12, clap: 0.12, hatClosed: 0.55, hatOpen: 0.12, tom: 0.1, rim: 0.18, shaker: 0.4, cowbell: 0.06, crash: 0.03, bass: 0.3, keys: 0.14 };
+      var st = store.getState(), steps = st.steps, grp = st.group || 4, pat = blankPattern(steps);
+      TRACKS.forEach(function (t, i) {
+        var p = prob[t.voice] || 0.2;
+        for (var s = 0; s < steps; s++) {
+          // Land bass on beat starts so the harmony stays grounded.
+          if (t.pitched === 'bass') { pat[i][s] = (s % grp === 0 && Math.random() < 0.85) || Math.random() < 0.12 ? 1 : 0; }
+          else pat[i][s] = Math.random() < p ? (Math.random() < 0.18 ? 2 : 1) : 0;
+        }
+      });
       var ki = voiceIndex('kick'); if (ki >= 0) pat[ki][0] = 2;
       store.setState({ pattern: pat }); status('Rolled a fresh groove. Not feeling it? Roll again.');
     });
     $('#seqPresets').addEventListener('change', function (e) {
       if (!e.target.value) return;
       var name = e.target.value; e.target.value = '';
-      store.setState({ steps: 16, pattern: patternFromPreset(name) }); layout();
-      status('Loaded the “' + name + '” groove. Hit play, then make it yours.');
+      var pr = PRESETS[name] || {}, cur = store.getState();
+      store.setState({
+        meter: '4/4', steps: 16, group: 4, pattern: patternFromPreset(name),
+        key: pr.key != null ? keyIndex(pr.key) : cur.key,
+        prog: (pr.prog && PROGRESSIONS[pr.prog]) ? pr.prog : cur.prog
+      });
+      layout();
+      status('Loaded “' + name + '”' + (pr.key != null ? ' in ' + KEYS[keyIndex(pr.key)] + ' · ' + pr.prog : '') + '. Hit play, then make it yours.');
     });
     $('#seqExport').addEventListener('click', exportWav);
 
-    // Pattern length
-    var stepsSel = $('#seqSteps');
-    if (stepsSel) stepsSel.addEventListener('change', function (e) { setSteps(parseInt(e.target.value, 10) || 16); });
+    // Time signature
+    var meterSel = $('#seqMeter');
+    if (meterSel) meterSel.addEventListener('change', function (e) { setMeter(e.target.value); });
+    // Harmony — key + chord progression for the pitched (Bass / Keys) tracks
+    var keySel = $('#seqKey');
+    if (keySel) keySel.addEventListener('change', function (e) { store.setState({ key: keyIndex(parseInt(e.target.value, 10) || 0) }); status('Key: ' + KEYS[store.getState().key] + ' major.'); });
+    var progSel = $('#seqProg');
+    if (progSel) progSel.addEventListener('change', function (e) { if (PROGRESSIONS[e.target.value]) { store.setState({ prog: e.target.value }); status('Progression: ' + e.target.value + '.'); } });
     // Pattern slots (A–D): click recalls (or selects an empty slot); Store writes.
     $$('.seq-slot').forEach(function (b) { b.addEventListener('click', function () { selectSlot(+b.getAttribute('data-slot')); }); });
     var storeBtn = $('#seqStore');
@@ -788,7 +901,8 @@
     draw();
     syncControls(s, prev);
     if (!prev || s.bpm !== prev.bpm || s.swing !== prev.swing || s.master !== prev.master || s.pattern !== prev.pattern
-        || s.tracks !== prev.tracks || s.steps !== prev.steps || s.slots !== prev.slots || s.activeSlot !== prev.activeSlot) save(s);
+        || s.tracks !== prev.tracks || s.steps !== prev.steps || s.meter !== prev.meter || s.key !== prev.key || s.prog !== prev.prog
+        || s.slots !== prev.slots || s.activeSlot !== prev.activeSlot) save(s);
   }
 
   // ── Init (synchronous) ─────────────────────────────────────────────

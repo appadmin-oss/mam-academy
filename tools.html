@@ -506,7 +506,7 @@
       <div class="tool-head">
         <div>
           <h2>Beat Maker</h2>
-          <p>A 16-step drum machine with a full playable kit — kick, snare, clap, hats, toms, rim, shaker, cowbell and crash. Tap the grid to build a groove (or play the pads live with your mouse or number keys), press <b>space</b> to play, then bounce it to a WAV. Every sound is generated live in your browser — nothing to download, works offline.</p>
+          <p>A full beat workstation — a playable drum kit (kick, snare, clap, hats, toms, rim, shaker, cowbell, crash) plus a <b>Bass</b> and <b>Keys</b> that follow your chosen <b>key</b> and <b>chord progression</b>, so it's melody and harmony, not just drums. Switch <b>time signature</b> (4/4, 3/4, 6/8, 5/4, 7/8), load a genre (Afrobeat, Amapiano, House, Trap, Gospel, Jazz…), tap the grid or play the pads live, press <b>space</b> to play, then bounce a WAV. Everything is generated live in your browser — works offline.</p>
         </div>
       </div>
 
@@ -551,11 +551,29 @@
         <button class="seq-slot" data-slot="3" type="button" title="Pattern D">D</button>
         <button class="seq-tbtn" id="seqStore" type="button" title="Store the current groove in the selected slot"><i class="fa-solid fa-floppy-disk"></i> Store</button>
         <span class="seq-tsep"></span>
-        <label class="seq-steps-field" for="seqSteps">Steps
-          <select id="seqSteps" aria-label="Pattern length in steps">
-            <option value="8">8</option>
-            <option value="16" selected>16</option>
-            <option value="32">32</option>
+        <label class="seq-steps-field" for="seqMeter">Time
+          <select id="seqMeter" aria-label="Time signature">
+            <option value="4/4" selected>4/4</option>
+            <option value="3/4">3/4</option>
+            <option value="6/8">6/8</option>
+            <option value="5/4">5/4</option>
+            <option value="7/8">7/8</option>
+          </select>
+        </label>
+        <label class="seq-steps-field" for="seqKey">Key
+          <select id="seqKey" aria-label="Musical key for the Bass and Keys">
+            <option value="0">C</option><option value="1">C#</option><option value="2">D</option><option value="3">D#</option><option value="4">E</option><option value="5">F</option><option value="6">F#</option><option value="7">G</option><option value="8">G#</option><option value="9">A</option><option value="10">A#</option><option value="11">B</option>
+          </select>
+        </label>
+        <label class="seq-steps-field" for="seqProg">Chords
+          <select id="seqProg" aria-label="Chord progression for Bass and Keys">
+            <option value="I–V–vi–IV" selected>I–V–vi–IV</option>
+            <option value="I–IV–V">I–IV–V</option>
+            <option value="ii–V–I">ii–V–I</option>
+            <option value="vi–IV–I–V">vi–IV–I–V</option>
+            <option value="I–vi–IV–V">I–vi–IV–V</option>
+            <option value="I–IV (vamp)">I–IV (vamp)</option>
+            <option value="I (drone)">I (drone)</option>
           </select>
         </label>
       </div>
@@ -565,10 +583,20 @@
         <select id="seqPresets" class="seq-preset-select" aria-label="Load a preset groove">
           <option value="">Load a groove…</option>
           <option value="Four on the floor">Four on the floor</option>
-          <option value="Boom bap">Boom bap</option>
+          <option value="House">House</option>
+          <option value="Disco">Disco</option>
+          <option value="Boom bap">Boom bap (hip-hop)</option>
+          <option value="Trap">Trap</option>
           <option value="Afrobeat">Afrobeat</option>
           <option value="Highlife">Highlife</option>
-          <option value="One drop">One drop</option>
+          <option value="Amapiano">Amapiano</option>
+          <option value="Reggaeton">Reggaeton</option>
+          <option value="One drop">One drop (reggae)</option>
+          <option value="Funk">Funk</option>
+          <option value="Rock">Rock</option>
+          <option value="Gospel">Gospel</option>
+          <option value="Jazz swing">Jazz swing</option>
+          <option value="Bossa nova">Bossa nova</option>
         </select>
         <button class="seq-tbtn" id="seqRandom" type="button"><i class="fa-solid fa-shuffle"></i> Randomise</button>
         <button class="seq-tbtn" id="seqClear" type="button"><i class="fa-solid fa-eraser"></i> Clear</button>
@@ -618,6 +646,6 @@
 </script>
 <script src="assets/js/studio-core.js?v=20260602a" defer></script>
 <script src="assets/js/tools.js?v=20260602c" defer></script>
-<script src="assets/js/sequencer.js?v=20260603b" defer></script>
+<script src="assets/js/sequencer.js?v=20260603c" defer></script>
 </body>
 </html>
