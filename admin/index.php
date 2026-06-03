@@ -691,6 +691,39 @@ foreach (mam_db_all('SELECT status, COUNT(*) AS n FROM payments GROUP BY status'
 $csrf = mam_csrf_token();
 $flashOk  = isset($_GET['ok']);
 $flashErr = $_GET['err'] ?? '';
+
+/**
+ * Inline UI icon (Lucide-style, 24×24 stroke, currentColor). Rendered as SVG so
+ * the dashboard needs no icon font or CDN and works under our strict CSP.
+ * Unknown names fall back to a neutral circle.
+ */
+function mam_admin_icon(string $name): string {
+    static $paths = [
+      'home'         => '<path d="M3 10.7 12 3l9 7.7"/><path d="M5.5 9.5V20h13V9.5"/>',
+      'file-text'    => '<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3v5h5"/><path d="M8.5 13h7M8.5 17h5"/>',
+      'credit-card'  => '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/>',
+      'users'        => '<circle cx="9" cy="8" r="3.3"/><path d="M3.5 20v-1.2A4.8 4.8 0 0 1 8.3 14h1.4a4.8 4.8 0 0 1 4.8 4.8V20"/><path d="M16 4.2a3.3 3.3 0 0 1 0 7.6"/><path d="M18 14.2a4.8 4.8 0 0 1 2.5 4.2V20"/>',
+      'calendar'     => '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v3.5M16 3v3.5"/>',
+      'graduation'   => '<path d="M12 4 2.5 8.5 12 13l9.5-4.5L12 4Z"/><path d="M6.5 11v4.2c0 1.3 2.5 2.6 5.5 2.6s5.5-1.3 5.5-2.6V11"/>',
+      'shopping-bag' => '<path d="M6.5 8h11l.9 11.5a1 1 0 0 1-1 1H6.6a1 1 0 0 1-1-1L6.5 8Z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
+      'package'      => '<path d="M12 3.5 20 8v8l-8 4.5L4 16V8l8-4.5Z"/><path d="M4 8l8 4.5L20 8M12 12.5V21"/>',
+      'mail'         => '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7.5 8 5.5 8-5.5"/>',
+      'send'         => '<path d="M21.5 3 2.5 11.5l7.3 2.4M21.5 3l-6 18-3.2-7.6M21.5 3 9.8 13.9"/>',
+      'zap'          => '<path d="M13 3 4.5 13.5H11l-1 7.5L19.5 10.5H13l0-7.5Z"/>',
+      'sliders'      => '<path d="M4 8h8M16 8h4M4 16h4M12 16h8"/><circle cx="14" cy="8" r="2.2"/><circle cx="9" cy="16" r="2.2"/>',
+      'list'         => '<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
+      'user'         => '<circle cx="12" cy="8" r="3.5"/><path d="M5.5 20v-.8A5.2 5.2 0 0 1 10.7 14h2.6a5.2 5.2 0 0 1 5.2 5.2V20"/>',
+      'search'       => '<circle cx="11" cy="11" r="7"/><path d="m20.5 20.5-3.6-3.6"/>',
+      'menu'         => '<path d="M4 7h16M4 12h16M4 17h16"/>',
+      'external'     => '<path d="M14 4h6v6"/><path d="m20 4-9 9"/><path d="M19 13.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5.5"/>',
+      'logout'       => '<path d="M9.5 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4.5"/><path d="m16 16 5-4-5-4"/><path d="M21 12H9"/>',
+      'check-circle' => '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.4 2.4 4.6-4.8"/>',
+      'trending-up'  => '<path d="M3 17 9.5 10.5l3.5 3.5L21 6"/><path d="M15 6h6v6"/>',
+      'alert'        => '<path d="M10.3 4 2.5 17.5a1.8 1.8 0 0 0 1.6 2.7h15.8a1.8 1.8 0 0 0 1.6-2.7L13.7 4a1.8 1.8 0 0 0-3.4 0Z"/><path d="M12 9.5v4M12 17h.01"/>',
+    ];
+    $d = $paths[$name] ?? '<circle cx="12" cy="12" r="9"/>';
+    return '<svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . $d . '</svg>';
+}
 ?><!doctype html>
 <html lang="en">
 <head>
@@ -792,57 +825,191 @@ button.tiny:hover{border-color:var(--gold)}
 .chart-row .card{margin:0}
 .chart-row canvas{max-height:260px}
 @media(max-width:860px){.chart-row{grid-template-columns:1fr}}
+
+/* ════════════════════════════════════════════════════════════════════
+   UI/UX refresh — overrides + new components (cascade over the base above)
+   ════════════════════════════════════════════════════════════════════ */
+:root{
+  --border-strong:rgba(210,170,138,0.42);
+  --radius:14px;--radius-sm:9px;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 26px -16px rgba(0,0,0,.7);
+  --shadow-lg:0 24px 60px -18px rgba(0,0,0,.7);
+  --ring:0 0 0 3px rgba(251,191,36,.35);
+  --ease:.18s cubic-bezier(.4,0,.2,1);
+  --sidebar:248px;
+}
+html{scroll-behavior:smooth}
+body{grid-template-columns:var(--sidebar) 1fr;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+:focus-visible{outline:none;box-shadow:var(--ring);border-radius:8px}
+::selection{background:rgba(251,191,36,.25)}
+.ico{flex:none;vertical-align:middle}
+*{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:8px;border:2px solid var(--bg)}
+*::-webkit-scrollbar-thumb:hover{background:var(--gold-2)}
+
+/* Sidebar → flex column so the user chip pins to the bottom */
+aside{display:flex;flex-direction:column;background:linear-gradient(180deg,var(--panel),#150E08);padding:14px 12px;z-index:40}
+.brand{margin-bottom:6px;border-radius:10px;transition:background var(--ease)}
+.brand:hover{background:rgba(255,255,255,.03)}
+.brand .logo{box-shadow:0 4px 14px -4px rgba(251,191,36,.6)}
+.side-search{margin:8px 2px 6px}
+.side-search .sbox{display:flex;align-items:center;gap:8px;padding:0 11px;border-radius:10px;border:1px solid var(--border);background:var(--bg);transition:border-color var(--ease),box-shadow var(--ease)}
+.side-search .sbox:focus-within{border-color:var(--gold);box-shadow:var(--ring)}
+.side-search .sbox .ico{color:var(--faint)}
+.side-search input{flex:1;min-width:0;padding:9px 0;border:none;background:transparent;color:var(--text);font-size:.84rem}
+.side-search input:focus{outline:none}
+nav{flex:1 1 auto;min-height:0;overflow:auto;margin:0 -4px;padding:0 4px;display:flex;flex-direction:column;gap:1px}
+.nav-group-label{font-size:.64rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:13px 12px 5px}
+.nav-group:first-child .nav-group-label{padding-top:2px}
+nav a{gap:11px;font-weight:500;border:1px solid transparent;transition:background var(--ease),color var(--ease)}
+nav a .ico{opacity:.82;transition:transform var(--ease)}
+nav a:hover .ico{transform:translateX(1px)}
+nav a.active{font-weight:600}
+nav a.active .ico{opacity:1;color:var(--gold)}
+.user-chip{margin-top:8px;padding:10px 11px;background:var(--bg);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;gap:10px}
+.user-chip .av{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,rgba(224,138,26,.32),rgba(251,191,36,.1));border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:800;flex:none}
+.user-chip .who{min-width:0;flex:1;line-height:1.25}
+.user-chip .who b{display:block;font-size:.78rem;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-chip .who span{font-size:.7rem;color:var(--faint);text-transform:capitalize}
+.user-chip a,.user-chip button{color:var(--faint);background:none;border:none;cursor:pointer;padding:5px;border-radius:8px;display:flex;transition:color var(--ease),background var(--ease)}
+.user-chip a:hover,.user-chip button:hover{color:var(--gold);background:rgba(255,255,255,.06)}
+
+/* Main + headings */
+main{padding:26px 30px 60px}
+header.top h1{letter-spacing:-.02em}
+
+/* Buttons — lift + glow */
+.btn{padding:9px 15px;border:1px solid transparent;box-shadow:0 4px 14px -6px rgba(251,191,36,.5);transition:transform var(--ease),box-shadow var(--ease),filter var(--ease)}
+.btn:hover{filter:brightness(1.06);transform:translateY(-1px);box-shadow:0 9px 22px -8px rgba(251,191,36,.6)}
+.btn:active{transform:translateY(0)}
+.btn.ghost{box-shadow:none}
+.btn.ghost:hover{border-color:var(--gold);background:rgba(255,255,255,.04);filter:none;transform:none}
+
+/* KPI cards — hover lift, accent rail, corner icon */
+.kpi-grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+.kpi{position:relative;overflow:hidden;background:linear-gradient(160deg,var(--raised),var(--panel));transition:transform var(--ease),border-color var(--ease),box-shadow var(--ease)}
+.kpi:hover{transform:translateY(-2px);border-color:var(--border-strong);box-shadow:var(--shadow)}
+.kpi::before{content:"";position:absolute;top:0;bottom:0;left:0;width:3px;background:linear-gradient(180deg,var(--gold),var(--gold-2));opacity:0;transition:opacity var(--ease)}
+.kpi:hover::before{opacity:.9}
+.kpi-ico{position:absolute;top:13px;right:13px;color:var(--gold);opacity:.38;transition:opacity var(--ease)}
+.kpi-ico svg{width:22px;height:22px}
+.kpi:hover .kpi-ico{opacity:.7}
+
+/* Cards + tables (keeps the horizontal-scroll edge-fade defined above) */
+.card{box-shadow:var(--shadow)}
+th{position:sticky;top:0;z-index:1}
+tbody tr{transition:background var(--ease)}
+tr:hover td{background:rgba(251,191,36,.05)}
+tbody tr:last-child td{border-bottom:none}
+
+/* Banners — icon + dismiss, flex layout */
+.banner{display:flex;align-items:center;gap:10px}
+.banner .ico{flex:none}
+.banner span{flex:1}
+.banner code{background:rgba(0,0,0,.25);padding:1px 6px;border-radius:5px;font-size:.85em}
+.banner .x{margin-left:auto;background:none;border:none;color:inherit;opacity:.6;cursor:pointer;font-size:1.2rem;line-height:1;padding:0 4px;border-radius:6px;transition:opacity var(--ease),background var(--ease)}
+.banner .x:hover{opacity:1;background:rgba(255,255,255,.1)}
+
+/* ── Mobile top bar + off-canvas drawer (pure CSS, no JS) ── */
+.nav-cb,.nav-topbar,.nav-overlay{display:none}
+@media(max-width:920px){
+  body{display:block}
+  .nav-topbar{display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:45;padding:10px 16px;background:rgba(20,14,8,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+  .nav-topbar .menu{display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer}
+  .nav-topbar .menu:active{background:var(--raised)}
+  .nav-topbar .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--gold),var(--gold-2));display:flex;align-items:center;justify-content:center;color:#1A120B;font-weight:900}
+  .nav-topbar b{font-size:.95rem;letter-spacing:.04em}
+  aside{position:fixed;top:0;left:0;height:100dvh;width:284px;max-width:84vw;transform:translateX(-102%);transition:transform .26s cubic-bezier(.4,0,.2,1);box-shadow:var(--shadow-lg);z-index:50}
+  .nav-cb:checked ~ aside{transform:translateX(0)}
+  .nav-overlay{display:block;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:48;opacity:0;pointer-events:none;transition:opacity .26s}
+  .nav-cb:checked ~ .nav-overlay{opacity:1;pointer-events:auto}
+  main{padding:18px 16px 48px}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,aside{transition:none!important}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
+<?php
+  $sessUser = mam_current_user();
+  $whoLabel = $sessUser['email'] ?? ($_SERVER['PHP_AUTH_USER'] ?? 'admin');
+  $whoRole  = $sessUser['role'] ?? 'admin';
+?>
+<input class="nav-cb" id="navToggle" type="checkbox" hidden>
+
+<header class="nav-topbar">
+  <label class="menu" for="navToggle" aria-label="Open navigation"><?= mam_admin_icon('menu') ?></label>
+  <span class="logo">M</span>
+  <b>MAM Admin</b>
+</header>
+
 <aside>
-  <div class="brand">
+  <a class="brand" href="?v=overview">
     <div class="logo">M</div>
     <div><b>MAM Admin</b><small><?= htmlspecialchars(mam_env('APP_ENV', 'production')) ?></small></div>
-  </div>
+  </a>
+
+  <form class="side-search" method="get" action="">
+    <input type="hidden" name="v" value="search">
+    <span class="sbox"><?= mam_admin_icon('search') ?><input type="search" name="q" value="<?= htmlspecialchars((string)($_GET['q'] ?? '')) ?>" placeholder="Search ref, email, name…"></span>
+  </form>
+
   <nav>
     <?php
-    $links = [
-      'overview'     => 'Overview',
-      'applications' => 'Applications',
-      'payments'     => 'Payments',
-      'users'        => 'Users',
-      'classes'      => 'Classes',
-      'enrollments'  => 'Enrollments',
-      'storeitems'   => 'Store / Library',
-      'storeorders'  => 'Store Orders',
-      'messages'     => 'Messages',
-      'webhooks'     => 'Webhook Events',
-      'newsletter'   => 'Newsletter',
-      'settings'     => 'Pricing & Settings',
-      'audit'        => 'Audit Log',
-      'account'      => 'My Account',
+    $navGroups = [
+      'Dashboard' => ['overview' => ['Overview', 'home']],
+      'Academy'   => [
+        'applications' => ['Applications', 'file-text'],
+        'payments'     => ['Payments', 'credit-card'],
+        'users'        => ['Users', 'users'],
+        'classes'      => ['Classes', 'calendar'],
+        'enrollments'  => ['Enrollments', 'graduation'],
+      ],
+      'Store'     => [
+        'storeitems'  => ['Store / Library', 'shopping-bag'],
+        'storeorders' => ['Store Orders', 'package'],
+      ],
+      'Comms'     => [
+        'messages'   => ['Messages', 'mail'],
+        'newsletter' => ['Newsletter', 'send'],
+      ],
+      'System'    => [
+        'webhooks' => ['Webhook Events', 'zap'],
+        'settings' => ['Pricing & Settings', 'sliders'],
+        'audit'    => ['Audit Log', 'list'],
+        'account'  => ['My Account', 'user'],
+      ],
     ];
-    foreach ($links as $k => $label) {
-        $cls = $view === $k ? 'active' : '';
-        echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'>" . htmlspecialchars($label) . "</a>";
+    foreach ($navGroups as $group => $items) {
+        echo '<div class="nav-group"><div class="nav-group-label">' . htmlspecialchars($group) . '</div>';
+        foreach ($items as $k => [$label, $icon]) {
+            $active = $view === $k;
+            echo '<a href="?v=' . htmlspecialchars($k) . '"' . ($active ? ' class="active" aria-current="page"' : '') . '>'
+               . mam_admin_icon($icon) . '<span>' . htmlspecialchars($label) . '</span></a>';
+        }
+        echo '</div>';
     }
     ?>
   </nav>
-  <form method="get" action="" style="margin-top:16px;display:flex;gap:6px">
-    <input type="hidden" name="v" value="search">
-    <input type="search" name="q" value="<?= htmlspecialchars((string)($_GET['q'] ?? '')) ?>" placeholder="Search ref, email, name…" style="flex:1;min-width:0;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:0.82rem">
-    <button class="btn" type="submit" style="padding:9px 12px" aria-label="Search">🔍</button>
-  </form>
-  <div style="margin-top:24px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:0.78rem;color:var(--muted);line-height:1.5">
-    <strong style="color:var(--gold)">Signed in:</strong>
-    <?php
-    $sessUser = mam_current_user();
-    echo htmlspecialchars($sessUser['email'] ?? ($_SERVER['PHP_AUTH_USER'] ?? 'admin'));
-    ?><br>
-    <a href="/" style="color:var(--gold)" target="_blank">↗ View site</a>
+
+  <div class="user-chip">
+    <div class="av"><?= htmlspecialchars(strtoupper(substr((string)$whoLabel, 0, 1))) ?></div>
+    <div class="who"><b><?= htmlspecialchars($whoLabel) ?></b><span><?= htmlspecialchars($whoRole) ?></span></div>
+    <a href="/" target="_blank" rel="noopener" title="View site" aria-label="View site"><?= mam_admin_icon('external') ?></a>
+    <?php if ($sessUser): ?><button type="button" onclick="mamSignOut()" title="Sign out" aria-label="Sign out"><?= mam_admin_icon('logout') ?></button><?php endif; ?>
   </div>
 </aside>
 
+<label class="nav-overlay" for="navToggle" aria-hidden="true"></label>
+<?php if ($sessUser): ?><script>function mamSignOut(){fetch('/api/auth/logout',{method:'POST',headers:{'X-CSRF-Token':<?= json_encode($csrf) ?>},credentials:'same-origin'}).then(function(){location.href='/portal/login';}).catch(function(){location.href='/portal/login';});}</script><?php endif; ?>
+
 <main>
-<?php if ($flashOk): ?><div class="banner ok">Done.</div><?php endif; ?>
-<?php if ($flashErr !== ''): ?><div class="banner err"><?= htmlspecialchars($flashErr) ?></div><?php endif; ?>
+<?php if ($flashOk): ?><div class="banner ok"><?= mam_admin_icon('check-circle') ?><span>Saved successfully.</span><button class="x" type="button" onclick="this.closest('.banner').remove()" aria-label="Dismiss">&times;</button></div><?php endif; ?>
+<?php if ($flashErr !== ''): ?><div class="banner err"><?= mam_admin_icon('alert') ?><span><?= htmlspecialchars($flashErr) ?></span><button class="x" type="button" onclick="this.closest('.banner').remove()" aria-label="Dismiss">&times;</button></div><?php endif; ?>
 
 <?php if ($view === 'overview'): ?>
   <header class="top">
@@ -863,7 +1030,7 @@ button.tiny:hover{border-color:var(--gold)}
     // that's behind on migrations because schema-mysql.sql wasn't run after
     // a deploy. The button POSTs /admin/migrate which runs the idempotent
     // schema file. Safe to click repeatedly.
-    $schemaVersion = 0; $schemaTarget = 13;
+    $schemaVersion = 0; $schemaTarget = 15;
     try {
       $schemaVersion = (int)mam_db()->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn();
     } catch (Throwable $e) {}
@@ -881,14 +1048,14 @@ button.tiny:hover{border-color:var(--gold)}
     if (!$health['smtp']) echo '<div class="banner">ℹ️ SMTP not configured — outgoing mail falls back to PHP <code>mail()</code>.</div>';
   ?>
   <div class="kpi-grid">
-    <div class="kpi"><div class="kpi-label">Applications</div><div class="kpi-value"><?= number_format($kpi['applications']) ?></div></div>
-    <div class="kpi"><div class="kpi-label">Paid</div><div class="kpi-value gold"><?= number_format($kpi['paid']) ?></div></div>
-    <div class="kpi"><div class="kpi-label">Revenue</div><div class="kpi-value gold">₦<?= number_format($kpi['revenue']) ?></div></div>
-    <div class="kpi"><div class="kpi-label">Users</div><div class="kpi-value"><?= number_format($kpi['users']) ?></div></div>
-    <div class="kpi"><div class="kpi-label">Active Classes</div><div class="kpi-value"><?= number_format($kpi['classes']) ?></div></div>
-    <div class="kpi"><div class="kpi-label">Unread Messages</div><div class="kpi-value"><?= number_format($kpi['messages']) ?></div></div>
-    <div class="kpi"><div class="kpi-label">Newsletter</div><div class="kpi-value"><?= number_format($kpi['newsletter']) ?></div></div>
-    <div class="kpi"><div class="kpi-label">Webhook Events</div><div class="kpi-value"><?= number_format($kpi['webhooks']) ?></div></div>
+    <div class="kpi"><span class="kpi-ico"><?= mam_admin_icon('file-text') ?></span><div class="kpi-label">Applications</div><div class="kpi-value"><?= number_format($kpi['applications']) ?></div></div>
+    <div class="kpi"><span class="kpi-ico"><?= mam_admin_icon('check-circle') ?></span><div class="kpi-label">Paid</div><div class="kpi-value gold"><?= number_format($kpi['paid']) ?></div></div>
+    <div class="kpi"><span class="kpi-ico"><?= mam_admin_icon('trending-up') ?></span><div class="kpi-label">Revenue</div><div class="kpi-value gold">₦<?= number_format($kpi['revenue']) ?></div></div>
+    <div class="kpi"><span class="kpi-ico"><?= mam_admin_icon('users') ?></span><div class="kpi-label">Users</div><div class="kpi-value"><?= number_format($kpi['users']) ?></div></div>
+    <div class="kpi"><span class="kpi-ico"><?= mam_admin_icon('calendar') ?></span><div class="kpi-label">Active Classes</div><div class="kpi-value"><?= number_format($kpi['classes']) ?></div></div>
+    <div class="kpi"><span class="kpi-ico"><?= mam_admin_icon('mail') ?></span><div class="kpi-label">Unread Messages</div><div class="kpi-value"><?= number_format($kpi['messages']) ?></div></div>
+    <div class="kpi"><span class="kpi-ico"><?= mam_admin_icon('send') ?></span><div class="kpi-label">Newsletter</div><div class="kpi-value"><?= number_format($kpi['newsletter']) ?></div></div>
+    <div class="kpi"><span class="kpi-ico"><?= mam_admin_icon('zap') ?></span><div class="kpi-label">Webhook Events</div><div class="kpi-value"><?= number_format($kpi['webhooks']) ?></div></div>
   </div>
 
   <div class="chart-row">
