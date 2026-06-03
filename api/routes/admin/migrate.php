@@ -24,4 +24,4 @@ $after = 0;
 try { $after = (int)$db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn(); } catch (Throwable $e) {}
 
 mam_audit('db_migrate', 'system', null, ['driver' => $driver, 'from' => $before, 'to' => $after]);
-mam_ok(['driver' => $driver, 'before' => $before, 'after' => $after, 'target' => 10]);
+mam_ok(['driver' => $driver, 'before' => $before, 'after' => $after, 'target' => 15]);

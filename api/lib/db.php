@@ -575,6 +575,22 @@ function mam_db_update(string $table, array $data, array $where): int {
     return $stmt->rowCount();
 }
 
+/**
+ * True when a caught exception is a UNIQUE / duplicate-key violation, across
+ * both supported drivers. Lets callers distinguish "this row already exists"
+ * (safe to treat as idempotent) from a genuine DB failure they must not swallow.
+ *   MySQL : SQLSTATE 23000, driver code 1062 (ER_DUP_ENTRY)
+ *   SQLite: SQLSTATE 23000, driver code 19/2067 ("UNIQUE constraint failed")
+ */
+function mam_is_unique_violation(Throwable $e): bool {
+    if (!($e instanceof PDOException)) return false;
+    $sqlState   = (string)($e->errorInfo[0] ?? $e->getCode());
+    $driverCode = (int)($e->errorInfo[1] ?? 0);
+    if ($sqlState === '23000' && in_array($driverCode, [1062, 19, 2067], true)) return true;
+    $msg = strtolower($e->getMessage());
+    return strpos($msg, 'unique') !== false || strpos($msg, 'duplicate') !== false;
+}
+
 function mam_db_row(string $sql, array $params = []): ?array {
     $stmt = mam_db()->prepare($sql);
     $stmt->execute($params);

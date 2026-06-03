@@ -7,10 +7,10 @@
 # Default index
 DirectoryIndex index.html index.htm
 
-# ---------- HTTPS redirect (uncomment in production) ----------
-# RewriteEngine On
-# RewriteCond %{HTTPS} !=on
-# RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+# ---------- HTTPS redirect ----------
+# The active, proxy-aware redirect lives in the mod_rewrite block below (it
+# needs RewriteEngine On). It forces HTTPS while honouring X-Forwarded-Proto,
+# so it never loops behind a TLS-terminating CDN/proxy such as Cloudflare.
 
 # ---------- Clean (extensionless) URLs ----------
 # Canonical form is /about, not /about.html. Two rules:
@@ -28,6 +28,14 @@ DirectoryIndex index.html index.htm
   # and makes /admin re-prompt forever for Basic-Auth credentials.
   RewriteCond %{HTTP:Authorization} ^(.+)$
   RewriteRule .* - [E=HTTP_AUTHORIZATION:%1]
+
+  # Force HTTPS. The request counts as already-secure if EITHER Apache's HTTPS
+  # is on OR the edge forwarded it over TLS (X-Forwarded-Proto: https) — without
+  # that second condition this loops forever behind a TLS-terminating proxy like
+  # Cloudflare. 301 so browsers and search engines remember the canonical scheme.
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
 
   # Never touch /api/* — the api directory has its own .htaccess router.
   RewriteRule ^api(/|$) - [L]
@@ -93,16 +101,28 @@ ErrorDocument 404 /404.html
   # only when the page is served from this origin. camera + geolocation
   # remain blocked site-wide.
   Header set Permissions-Policy "camera=(), microphone=(self), geolocation=(), interest-cohort=()"
-  # HSTS — enable after HTTPS is live
-  # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
+  # HSTS. Browsers ignore this header when it arrives over plain HTTP, so it is
+  # safe to send unconditionally — only HTTPS clients act on it. `preload` is
+  # deliberately omitted: it's a hard-to-reverse commitment that also binds
+  # every subdomain. Add it (and submit to hstspreload.org) only once you're
+  # certain the whole domain is HTTPS-only.
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
   # CSP — relaxed for inline styles/scripts. Notes on the allow-list:
+  #  • script-src KEEPS 'unsafe-inline': the static .html pages use inline
+  #    <script> blocks and on* handlers (e.g. <img onerror>), and being static
+  #    files they can't carry a per-request nonce. Removing it needs a build/
+  #    render step to externalise every inline script first.
   #  • script-src includes blob: so Web-Audio AudioWorklet / blob-URL module
   #    scripts (Tone.js) load; cdn.jsdelivr.net covers Tone, Zustand (+esm),
   #    pitchy and the rest of the libs.
   #  • connect-src https: covers the sampled-piano fetch (tonejs.github.io),
   #    the FX/geo APIs and same-origin /api calls.
   #  • frame-src includes calendar.google.com for the /book appointment embed.
-  Header set Content-Security-Policy "default-src 'self' https:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://js.paystack.co https://checkout.flutterwave.com https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://code.iconify.design https://api.iconify.design; frame-src 'self' https://checkout.flutterwave.com https://standard.paystack.co https://js.stripe.com https://calendar.google.com; connect-src 'self' https: blob:; worker-src 'self' blob:; media-src 'self' https: blob: data:; manifest-src 'self';"
+  #  • object-src 'none' kills plugin/<embed> injection; base-uri 'self' blocks
+  #    <base>-tag hijacking of every relative URL; frame-ancestors 'self' is the
+  #    modern clickjacking guard (mirrors X-Frame-Options); form-action limits
+  #    where <form>s can post (same-origin + the hosted checkout redirects).
+  Header set Content-Security-Policy "default-src 'self' https:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://js.paystack.co https://checkout.flutterwave.com https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://code.iconify.design https://api.iconify.design; frame-src 'self' https://checkout.flutterwave.com https://standard.paystack.co https://js.stripe.com https://calendar.google.com; connect-src 'self' https: blob:; worker-src 'self' blob:; media-src 'self' https: blob: data:; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self' https://checkout.flutterwave.com https://standard.paystack.co;"
 
   # ----- Cache-control fine-tuning -----
   <FilesMatch "\.(html)$">

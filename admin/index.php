@@ -61,6 +61,21 @@ function mam_name(?string $first, ?string $last): string {
     return $n === '' ? '—' : $n;
 }
 
+/**
+ * Neutralise spreadsheet formula injection in CSV exports. Excel / Google
+ * Sheets / LibreOffice evaluate any cell whose first character is = + - @ (or a
+ * leading TAB/CR), so an applicant-supplied value like `=HYPERLINK(...)` or
+ * `=cmd|'/c calc'!A1` would execute when an admin opens the export. Prefixing a
+ * single quote forces the cell to be treated as literal text. Applied to every
+ * exported row below — all of which can contain attacker-controlled fields. */
+function mam_csv_row(array $row): array {
+    return array_map(function ($v) {
+        $s = (string)$v;
+        if ($s !== '' && strpbrk($s[0], "=+-@\t\r") !== false) $s = "'" . $s;
+        return $s;
+    }, $row);
+}
+
 /* ─── CSV export (no state change) ─── */
 if ($view === 'export') {
     $type = $_GET['type'] ?? 'applications.csv';
@@ -71,20 +86,20 @@ if ($view === 'export') {
     if (str_starts_with($filename, 'applications')) {
         fputcsv($out, ['reference', 'name', 'email', 'phone', 'country', 'pathway', 'mode', 'discipline', 'age', 'total_usd', 'status', 'created_at']);
         foreach (mam_db_all('SELECT a.reference, c.first_name, c.last_name, c.email, c.phone, c.country, a.pathway, a.mode, a.discipline, c.age_range AS age, a.total_usd, a.status, a.created_at FROM applications a LEFT JOIN customers c ON c.id = a.customer_id ORDER BY a.created_at DESC') as $r) {
-            fputcsv($out, [$r['reference'], mam_name($r['first_name'] ?? null, $r['last_name'] ?? null), $r['email'], $r['phone'], $r['country'], $r['pathway'], $r['mode'], $r['discipline'], $r['age'], $r['total_usd'], $r['status'], $r['created_at']]);
+            fputcsv($out, mam_csv_row([$r['reference'], mam_name($r['first_name'] ?? null, $r['last_name'] ?? null), $r['email'], $r['phone'], $r['country'], $r['pathway'], $r['mode'], $r['discipline'], $r['age'], $r['total_usd'], $r['status'], $r['created_at']]));
         }
     } elseif (str_starts_with($filename, 'payments')) {
         fputcsv($out, ['reference', 'provider', 'status', 'amount', 'currency', 'verified_at', 'created_at']);
-        foreach (mam_db_all('SELECT reference, provider, status, amount, currency, verified_at, created_at FROM payments ORDER BY created_at DESC') as $r) fputcsv($out, $r);
+        foreach (mam_db_all('SELECT reference, provider, status, amount, currency, verified_at, created_at FROM payments ORDER BY created_at DESC') as $r) fputcsv($out, mam_csv_row($r));
     } elseif (str_starts_with($filename, 'newsletter')) {
         fputcsv($out, ['email', 'source', 'status', 'created_at']);
-        foreach (mam_db_all('SELECT email, source, status, created_at FROM newsletter ORDER BY created_at DESC') as $r) fputcsv($out, $r);
+        foreach (mam_db_all('SELECT email, source, status, created_at FROM newsletter ORDER BY created_at DESC') as $r) fputcsv($out, mam_csv_row($r));
     } elseif (str_starts_with($filename, 'messages')) {
         fputcsv($out, ['id', 'name', 'email', 'phone', 'topic', 'message', 'status', 'created_at']);
-        foreach (mam_db_all('SELECT id, name, email, phone, topic, message, status, created_at FROM messages ORDER BY created_at DESC') as $r) fputcsv($out, $r);
+        foreach (mam_db_all('SELECT id, name, email, phone, topic, message, status, created_at FROM messages ORDER BY created_at DESC') as $r) fputcsv($out, mam_csv_row($r));
     } elseif (str_starts_with($filename, 'users')) {
         fputcsv($out, ['id', 'email', 'name', 'role', 'status', 'last_login', 'created_at']);
-        foreach (mam_db_all('SELECT id, email, name, role, status, last_login, created_at FROM users ORDER BY created_at DESC') as $r) fputcsv($out, $r);
+        foreach (mam_db_all('SELECT id, email, name, role, status, last_login, created_at FROM users ORDER BY created_at DESC') as $r) fputcsv($out, mam_csv_row($r));
     }
     fclose($out);
     exit;

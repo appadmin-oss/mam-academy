@@ -16,6 +16,19 @@
  */
 declare(strict_types=1);
 
+// ---------- Access gate ----------
+// This surfaces the tail of php-error.log + buffer-leak.log, env-presence flags
+// and DB internals — useful to the operator, but reconnaissance for anyone else.
+// Allow a logged-in admin, OR a request carrying ?token=<SETUP_TOKEN> (the same
+// break-glass secret the installer uses) so it still works on a fresh box with
+// no admin yet. The session lookup is wrapped so a DB outage — the very thing
+// you'd reach for diag to diagnose — can't 500 the token path. Otherwise 404.
+$diagAdmin = false;
+try { $u = mam_current_user(); $diagAdmin = $u && ($u['role'] ?? '') === 'admin'; } catch (Throwable $e) {}
+$diagTok = (string)mam_env('SETUP_TOKEN', '');
+$diagTokenOk = $diagTok !== '' && hash_equals($diagTok, (string)($_GET['token'] ?? ''));
+if (!$diagAdmin && !$diagTokenOk) mam_fail('not_found', 404);
+
 $out = [
     'php'    => PHP_VERSION,
     'sapi'   => PHP_SAPI,
@@ -39,7 +52,7 @@ try {
     $out['db'] = [
         'driver'           => $db->getAttribute(PDO::ATTR_DRIVER_NAME),
         'schema_version'   => (int)$db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn(),
-        'target'           => 10,
+        'target'           => 15,
     ];
     // Probe a few key tables so we know what's actually present.
     foreach (['customers', 'applications', 'payments', 'store_items', 'store_orders'] as $t) {

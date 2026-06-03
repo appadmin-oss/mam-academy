@@ -14,7 +14,15 @@ $signature = $_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] ?? '';
 $valid = $signature !== '' && mam_paystack_verify_signature($raw, $signature);
 
 $payload = json_decode($raw, true) ?: [];
-$eventId = (string)($payload['data']['id'] ?? $payload['event'] . '-' . ($payload['data']['reference'] ?? '') ?? '');
+// Stable, non-empty event id. Prefer Paystack's numeric data.id; otherwise
+// synthesise from event+reference. A random suffix guarantees uniqueness when
+// BOTH are absent, so a malformed/empty payload can't collide on the
+// UNIQUE(provider,event_id) index and wrongly drop later legitimate events.
+$eventId = (string)($payload['data']['id'] ?? '');
+if ($eventId === '') {
+    $ref = (string)($payload['data']['reference'] ?? '');
+    $eventId = (string)($payload['event'] ?? 'event') . '-' . ($ref !== '' ? $ref : bin2hex(random_bytes(6)));
+}
 $eventType = (string)($payload['event'] ?? '');
 
 try {
@@ -27,9 +35,15 @@ try {
         'status'          => $valid ? 'received' : 'invalid',
     ]);
 } catch (Throwable $e) {
-    // Likely a duplicate event id — record but don't reprocess.
-    mam_log('info', 'paystack_webhook_duplicate', ['event_id' => $eventId]);
-    mam_ok(['received' => true, 'duplicate' => true]);
+    // A UNIQUE-constraint violation means we've already recorded this event —
+    // ack as a duplicate and stop (idempotency). Any OTHER error (e.g. the DB
+    // is down) must NOT be silently reported as a duplicate; log it and fall
+    // through so a genuinely-verified charge still gets processed below.
+    if (mam_is_unique_violation($e)) {
+        mam_log('info', 'paystack_webhook_duplicate', ['event_id' => $eventId]);
+        mam_ok(['received' => true, 'duplicate' => true]);
+    }
+    mam_log('error', 'paystack_webhook_record_failed', ['event_id' => $eventId, 'err' => $e->getMessage()]);
 }
 
 if (!$valid) {

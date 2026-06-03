@@ -24,8 +24,14 @@ try {
         'status'          => $valid ? 'received' : 'invalid',
     ]);
 } catch (Throwable $e) {
-    mam_log('info', 'flw_webhook_duplicate', ['event_id' => $eventId]);
-    mam_ok(['received' => true, 'duplicate' => true]);
+    // Duplicate (already recorded) → ack idempotently. Any other failure must
+    // not masquerade as a duplicate: log it and fall through so a verified
+    // charge is still processed below.
+    if (mam_is_unique_violation($e)) {
+        mam_log('info', 'flw_webhook_duplicate', ['event_id' => $eventId]);
+        mam_ok(['received' => true, 'duplicate' => true]);
+    }
+    mam_log('error', 'flw_webhook_record_failed', ['event_id' => $eventId, 'err' => $e->getMessage()]);
 }
 
 if (!$valid) {

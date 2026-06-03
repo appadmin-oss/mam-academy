@@ -1,0 +1,4 @@
+# CLI maintenance scripts only — never servable over HTTP. The scripts here
+# also self-guard with `if (PHP_SAPI !== 'cli') exit`, but deny at the web
+# server too, matching api/lib, api/routes, api/tools and api/storage.
+Require all denied

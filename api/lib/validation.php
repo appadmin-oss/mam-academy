@@ -182,6 +182,11 @@ function mam_registration_fee(): float {
 function mam_str(array $src, string $key, int $max = 255): string {
     $v = $src[$key] ?? '';
     if (!is_string($v)) $v = '';
+    // Strip control characters — keep only TAB (\x09) and LF (\x0A) so multi-line
+    // textareas (goals, message, instructions, bio) survive intact. This removes
+    // CR (\x0D), NUL and the rest, killing the carriage-return half of any header
+    // /log-injection attempt before the value is ever stored or emailed.
+    $v = (string)preg_replace('/[\x00-\x08\x0B-\x1F\x7F]/', '', $v);
     $v = trim($v);
     if (strlen($v) > $max) $v = substr($v, 0, $max);
     return $v;

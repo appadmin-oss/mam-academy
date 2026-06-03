@@ -13,6 +13,38 @@
  * its own try/catch and reported separately.
  */
 declare(strict_types=1);
+
+// ---------- Access gate ----------
+// This endpoint deliberately bypasses bootstrap so it stays callable when the
+// app is broken — which also means it can't rely on the session/Basic-Auth
+// guards. Left open it leaks .env key names, the DB version, internal paths and
+// the tail of php-error.log to anyone. So it is gated by a secret: the request
+// must carry ?token=<SETUP_TOKEN>, matched in constant time. With no SETUP_TOKEN
+// configured it returns 404 (no oracle that the file even exists). Read the
+// token straight from the process env or api/.env, since bootstrap isn't loaded.
+(function () {
+    $token = getenv('SETUP_TOKEN');
+    if ($token === false || $token === '') $token = (string)($_ENV['SETUP_TOKEN'] ?? $_SERVER['SETUP_TOKEN'] ?? '');
+    if ($token === '') {
+        $envPath = __DIR__ . '/.env';
+        if (is_readable($envPath)) {
+            foreach (file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+                $line = trim($line);
+                if ($line === '' || $line[0] === '#' || strncmp($line, 'SETUP_TOKEN', 11) !== 0) continue;
+                $eq = strpos($line, '=');
+                if ($eq !== false) { $token = trim(substr($line, $eq + 1), " \t\"'"); break; }
+            }
+        }
+    }
+    $provided = (string)($_GET['token'] ?? '');
+    if ($token === '' || !hash_equals($token, $provided)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "Not found";
+        exit;
+    }
+})();
+
 header('Content-Type: application/json; charset=utf-8');
 header('X-MAM-Debug: raw');
 

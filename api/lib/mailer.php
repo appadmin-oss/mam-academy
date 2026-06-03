@@ -160,6 +160,20 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
     $extraHeaders = is_array($opts['headers'] ?? null) ? $opts['headers'] : [];
     $attachments  = is_array($opts['attachments'] ?? null) ? $opts['attachments'] : [];
 
+    // Header-injection hardening. A CR/LF in any value that ends up in an email
+    // header (subject, recipient, from, reply-to, a custom header) can inject
+    // extra headers — a smuggled `Bcc:` being the classic abuse. mb_encode_mimeheader
+    // neutralises the SMTP path, but the PHP mail() fallback passes $subject
+    // through unencoded, so we strip CR/LF here once and EVERY transport (PHPMailer,
+    // built-in SMTP, mail()) is safe at the source. Folds onto one line; bodies are
+    // never touched, so multi-line HTML/text emails are unaffected.
+    $subject  = trim((string)preg_replace('/[\r\n]+/', ' ', $subject));
+    $to       = (string)preg_replace('/[\r\n]/', '', $to);
+    $from     = (string)preg_replace('/[\r\n]/', '', (string)$from);
+    $fromName = (string)preg_replace('/[\r\n]+/', ' ', (string)$fromName);
+    if ($replyTo !== null) $replyTo = (string)preg_replace('/[\r\n]/', '', (string)$replyTo);
+    foreach ($extraHeaders as $hk => $hv) { $extraHeaders[$hk] = (string)preg_replace('/[\r\n]/', '', (string)$hv); }
+
     // Operators can pin the mailer to SMTP only by setting MAIL_FORCE_SMTP=1
     // in api/.env. Useful in production where the host's mail() function
     // delivers to a black hole — we'd rather hard-fail (and log) than
