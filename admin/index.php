@@ -810,10 +810,8 @@ button.tiny:hover{border-color:var(--gold)}
 .form-grid .full{grid-column:1/-1}
 .form-grid .actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;padding-top:6px}
 @media(max-width:920px){
-  body{grid-template-columns:1fr}
-  aside{position:static;height:auto}
-  main{padding:20px 16px}
-  .top{flex-wrap:wrap;gap:10px}
+  /* body / aside / main mobile rules live in the drawer block lower down */
+  header.top{gap:10px}
   .form-grid{grid-template-columns:1fr}
 }
 @media(max-width:520px){
@@ -831,6 +829,7 @@ button.tiny:hover{border-color:var(--gold)}
    ════════════════════════════════════════════════════════════════════ */
 :root{
   --border-strong:rgba(210,170,138,0.42);
+  --border-gold:rgba(224,138,26,0.5);
   --radius:14px;--radius-sm:9px;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 26px -16px rgba(0,0,0,.7);
   --shadow-lg:0 24px 60px -18px rgba(0,0,0,.7);
@@ -862,7 +861,7 @@ aside{display:flex;flex-direction:column;background:linear-gradient(180deg,var(-
 nav{flex:1 1 auto;min-height:0;overflow:auto;margin:0 -4px;padding:0 4px;display:flex;flex-direction:column;gap:1px}
 .nav-group-label{font-size:.64rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:13px 12px 5px}
 .nav-group:first-child .nav-group-label{padding-top:2px}
-nav a{gap:11px;font-weight:500;border:1px solid transparent;transition:background var(--ease),color var(--ease)}
+nav a{gap:11px;margin-bottom:0;font-weight:500;border:1px solid transparent;transition:background var(--ease),color var(--ease)}
 nav a .ico{opacity:.82;transition:transform var(--ease)}
 nav a:hover .ico{transform:translateX(1px)}
 nav a.active{font-weight:600}
@@ -895,6 +894,22 @@ header.top h1{letter-spacing:-.02em}
 .kpi-ico{position:absolute;top:13px;right:13px;color:var(--gold);opacity:.38;transition:opacity var(--ease)}
 .kpi-ico svg{width:22px;height:22px}
 .kpi:hover .kpi-ico{opacity:.7}
+
+/* Form controls — theme EVERY control in the content area, not just .form-grid.
+   The Settings and Store/Library forms use bespoke layouts; without this their
+   inputs/selects/textareas fell back to default white-on-light boxes that
+   clashed badly with the dark UI. Checkboxes/radios/buttons are excluded so
+   they keep their native look (just tinted gold). .tiny + .form-grid controls
+   keep their own sizing via higher specificity. */
+main input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button]):not([type=file]),
+main select, main textarea{
+  background:var(--panel);color:var(--text);border:1px solid var(--border);
+  border-radius:8px;font:inherit;padding:9px 12px;max-width:100%;transition:border-color var(--ease),box-shadow var(--ease)}
+main textarea{min-height:84px;resize:vertical;line-height:1.5}
+main input:not([type=checkbox]):not([type=radio]):focus,main select:focus,main textarea:focus{
+  outline:none;border-color:var(--gold);box-shadow:var(--ring)}
+main input[type=checkbox],main input[type=radio]{accent-color:var(--gold-2);width:16px;height:16px;cursor:pointer}
+main input::placeholder,main textarea::placeholder{color:var(--faint)}
 
 /* Cards + tables (keeps the horizontal-scroll edge-fade defined above) */
 .card{box-shadow:var(--shadow)}
@@ -1594,7 +1609,7 @@ tbody tr:last-child td{border-bottom:none}
 
   <div class="card">
     <h2 style="font-family:Georgia,serif;color:var(--gold);font-size:1.2rem;margin-bottom:14px"><?= $edit ? 'Edit item · #'.(int)$edit['id'] : 'Add a new item' ?></h2>
-    <form method="POST" action="" style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">
+    <form method="POST" action="" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
       <?= mam_csrf_field() ?>
       <input type="hidden" name="action" value="store_item_save">
       <input type="hidden" name="id" value="<?= (int)($edit['id'] ?? 0) ?>">
@@ -1817,7 +1832,7 @@ tbody tr:last-child td{border-bottom:none}
   <header class="top"><h1>Search</h1></header>
   <form method="get" action="" style="margin-bottom:18px;display:flex;gap:8px;max-width:520px">
     <input type="hidden" name="v" value="search">
-    <input type="search" name="q" value="<?= htmlspecialchars($q) ?>" placeholder="Reference, email or name…" autofocus style="flex:1;padding:11px 14px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+    <input type="search" name="q" value="<?= htmlspecialchars($q) ?>" placeholder="Reference, email or name…" autofocus style="flex:1;padding:11px 14px;border-radius:9px;border:1px solid var(--border);background:var(--bg);color:var(--text)">
     <button class="btn" type="submit">Search</button>
   </form>
   <?php if ($q === ''): ?>
