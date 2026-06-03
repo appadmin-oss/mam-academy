@@ -365,12 +365,25 @@
         + '<td data-label="Class">' + P.escapeHtml(st.class_title || '—') + '</td>'
         + '<td data-label=""><span style="color:var(--gold-bright);font-size:0.8rem">View <i class="fa-solid fa-arrow-right"></i></span></td></tr>';
     }).join('');
-    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Roster <small style="color:var(--text-muted);font-weight:400">— click a student for their attendance history</small></h2>'
-      + '<button type="button" class="panel-action" id="rosterCsv"><i class="fa-solid fa-download"></i> Roster CSV</button></div>'
-      + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Student</th><th>Email</th><th>Phone</th><th>Class</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>'
+    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Roster <small style="color:var(--text-muted);font-weight:400">— ' + uniq.length + ' student' + (uniq.length === 1 ? '' : 's') + ' · click for attendance history</small></h2>'
+      + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      +   '<input id="rosterSearch" type="search" placeholder="Search name, email, class…" aria-label="Search students" style="padding:8px 12px;border-radius:9px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text);font-size:0.85rem;min-width:170px">'
+      +   '<button type="button" class="panel-action" id="rosterCsv"><i class="fa-solid fa-download"></i> Roster CSV</button></div></div>'
+      + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Student</th><th>Email</th><th>Phone</th><th>Class</th><th></th></tr></thead><tbody id="rosterBody">' + rows + '</tbody></table></div>'
+      + '<div id="rosterEmpty" class="panel-body" style="display:none">' + empty('magnifying-glass', 'No students match your search.') + '</div></section>'
       + '<div id="studentDetail"></div>';
     content.querySelectorAll('[data-student]').forEach(function (tr) {
       tr.addEventListener('click', function () { openStudent(tr.getAttribute('data-student'), tr.querySelector('strong').textContent); });
+    });
+    // Instant client-side roster search (name / email / phone / class).
+    var rosterSearch = document.getElementById('rosterSearch'), rosterBody = document.getElementById('rosterBody'), rosterEmpty = document.getElementById('rosterEmpty');
+    if (rosterSearch) rosterSearch.addEventListener('input', function () {
+      var q = rosterSearch.value.trim().toLowerCase(), shown = 0;
+      rosterBody.querySelectorAll('[data-student]').forEach(function (tr) {
+        var hit = !q || tr.textContent.toLowerCase().indexOf(q) >= 0;
+        tr.style.display = hit ? '' : 'none'; if (hit) shown++;
+      });
+      rosterEmpty.style.display = shown ? 'none' : 'block';
     });
     var csvBtn = document.getElementById('rosterCsv');
     if (csvBtn) csvBtn.addEventListener('click', function () {
