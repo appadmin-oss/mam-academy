@@ -482,7 +482,13 @@
   }
 
   var kernel = null;
-  function wantKernel() { return window.Tone ? 'tone' : 'raw'; }
+  // Always use the dependency-free raw Web Audio kernel. The Tone.js kernel
+  // (kept below for reference) threw repeated "TickSource: A value with the
+  // given key could not be found" errors from Transport.scheduleRepeat /
+  // Tone.Draw.schedule, which silently killed playback. The raw look-ahead
+  // scheduler is sample-accurate enough for a step sequencer and never depends
+  // on a CDN, so the Beat Maker just works.
+  function wantKernel() { return 'raw'; }
   function ensureKernel() {
     if (!kernel) kernel = wantKernel() === 'tone' ? createToneKernel() : createRawKernel();
     return kernel;
@@ -767,7 +773,6 @@
     });
     window.addEventListener('resize', function () { if (panel.classList.contains('active') || wrap.clientWidth) layout(); });
     // Once Tone finishes loading, note that the upgraded kernel is available.
-    window.addEventListener('mam:tone-ready', function () { if (!store.getState().playing) status('Tone.js kernel ready — press play for the upgraded engine.'); });
   }
 
   // ── The reactive loop ──────────────────────────────────────────────
