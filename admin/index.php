@@ -775,7 +775,7 @@ header.top h1{font-size:1.4rem;font-weight:700;letter-spacing:-0.01em}
   background-size:42px 100%,42px 100%,14px 100%,14px 100%;
   background-attachment:local,local,scroll,scroll;
 }
-.card h3{padding:16px 20px;font-size:0.95rem;font-weight:700;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;left:0;width:max-content;min-width:100%;background:var(--raised);z-index:2}
+.card > h3{padding:16px 20px;font-size:0.95rem;font-weight:700;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;left:0;width:max-content;min-width:100%;background:var(--raised);z-index:2}
 .card > table{min-width:720px}
 table{width:100%;border-collapse:collapse;font-size:0.86rem}
 th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
@@ -837,8 +837,13 @@ button.tiny:hover{border-color:var(--gold)}
   --ease:.18s cubic-bezier(.4,0,.2,1);
   --sidebar:248px;
 }
-html{scroll-behavior:smooth}
+html{scroll-behavior:smooth;color-scheme:dark}
 body{grid-template-columns:var(--sidebar) 1fr;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+/* Headings can never render invisible: force a high-contrast colour and clear
+   any inherited transparent -webkit-text-fill-color. Inline-coloured headers
+   (the gold section labels in Settings / My Account / Store) keep their colour,
+   because an inline style attribute outranks this rule. */
+main h1, main h2, main h3, .card > h3{color:var(--text);-webkit-text-fill-color:currentColor}
 :focus-visible{outline:none;box-shadow:var(--ring);border-radius:8px}
 ::selection{background:rgba(251,191,36,.25)}
 .ico{flex:none;vertical-align:middle}
