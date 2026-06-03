@@ -241,6 +241,36 @@
 .seq-kit-hint{display:block;font-size:0.78rem;color:var(--text-muted);line-height:1.5}
 .seq-kit-hint b{color:var(--gold-bright,#FCC647);font-family:var(--font-display,monospace);font-weight:normal;padding:0 1px}
 
+/* ── Chord & Scale Explorer ── */
+.ch-controls{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:18px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
+.ch-field{display:flex;flex-direction:column;gap:6px;font-size:0.72rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted)}
+.ch-field-grow{flex:1;min-width:180px}
+.ch-field select{padding:11px 12px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.95rem;font-weight:600;min-height:46px;cursor:pointer}
+.ch-toggle{display:inline-flex;background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:11px;padding:4px;gap:4px}
+.ch-toggle button{padding:9px 16px;border:0;border-radius:8px;background:transparent;color:var(--text-muted);font-weight:800;font-size:0.84rem;cursor:pointer;min-height:38px}
+.ch-toggle button.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
+.ch-play{display:inline-flex;align-items:center;gap:9px;padding:13px 24px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.04em;border-radius:11px;border:0;cursor:pointer;min-height:48px;box-shadow:0 6px 18px rgba(224,138,26,0.35)}
+.ch-play:hover{transform:translateY(-1px)}
+.ch-keys{margin-bottom:18px}
+.ch-kb-inner{position:relative;display:flex;height:clamp(140px,28vw,184px);background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;padding:6px}
+.ch-key{position:relative;border:1px solid var(--border-strong);cursor:pointer;padding:0;transition:background .08s,transform .05s,filter .08s;display:flex;align-items:flex-end;justify-content:center}
+.ch-white{background:linear-gradient(180deg,#FBF7F1,#E9DFCE);color:#1A120B;border-radius:0 0 7px 7px;border-top:0;box-shadow:inset 0 -3px 6px rgba(0,0,0,0.08)}
+.ch-white + .ch-white{border-left:0}
+.ch-black{position:absolute;top:6px;height:62%;background:linear-gradient(180deg,#2A1D11,#160F08);border:1px solid #000;border-radius:0 0 5px 5px;transform:translateX(-50%);z-index:3;box-shadow:0 3px 6px rgba(0,0,0,0.5)}
+.ch-key.on.ch-white{background:linear-gradient(180deg,#FFE9B8,#FCC647)}
+.ch-key.on.ch-black{background:linear-gradient(180deg,#E08A1A,#B8721B)}
+.ch-key.root.ch-white{background:linear-gradient(180deg,#FFD27A,#F2A93B);box-shadow:inset 0 0 0 2px #B8721B}
+.ch-key.root.ch-black{background:linear-gradient(180deg,#FBBF24,#E08A1A)}
+.ch-key.ch-hit{transform:translateY(2px) scaleY(0.98);filter:brightness(1.15)}
+.ch-key-label{font-size:0.74rem;font-weight:800;padding-bottom:8px;pointer-events:none}
+.ch-info{background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;padding:16px 20px}
+.ch-info-name{font-family:var(--font-serif);font-size:1.3rem;font-weight:700;color:var(--gold-bright,#FCC647);margin-bottom:12px}
+.ch-info-notes{display:flex;flex-wrap:wrap;gap:8px}
+.ch-chip{display:inline-flex;flex-direction:column;align-items:center;min-width:46px;padding:8px 10px;background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:10px}
+.ch-chip.root{border-color:var(--border-gold);background:rgba(224,138,26,0.12)}
+.ch-chip b{font-size:1rem;color:var(--text);font-weight:800}
+.ch-chip i{font-size:0.7rem;color:var(--text-muted);font-style:normal;margin-top:2px}
+
 @media (max-width:640px){
   .seq-pads{grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:8px}
   .seq-pad{min-height:64px}
@@ -263,7 +293,7 @@
       <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Practice Studio</span></nav>
       <div class="page-hero-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i>The Practice Studio</div>
       <h1 class="page-hero-title">The Practice <span class="highlight-gold">Studio</span></h1>
-      <p class="page-hero-lede">Metronome, chromatic tuner, focus timer, ear-training drills, the speed-and-pitch trainer and a 16-step beat maker. Premium musician tools — free for everyone, sharpened for MAM students.</p>
+      <p class="page-hero-lede">Metronome, chromatic tuner, focus timer, ear-training drills, an interactive chord &amp; scale explorer, the speed-and-pitch trainer and a full beat maker with harmony. Premium musician tools — free for everyone, sharpened for MAM students.</p>
     </div>
   </header>
 
@@ -273,6 +303,7 @@
       <button data-tool="tuner" role="tab" aria-selected="false"><i class="fa-solid fa-tower-broadcast"></i> Tuner</button>
       <button data-tool="pomodoro" role="tab" aria-selected="false"><i class="fa-solid fa-hourglass-half"></i> Pomodoro</button>
       <button data-tool="ear" role="tab" aria-selected="false"><i class="fa-solid fa-headphones"></i> Ear Training</button>
+      <button data-tool="chords" role="tab" aria-selected="false"><i class="fa-solid fa-music"></i> Chords &amp; Scales <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
       <button data-tool="speed" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">PREMIUM</span></button>
       <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
     </nav>
@@ -501,6 +532,33 @@
       </div>
     </section>
 
+    <!-- ─── Chord & Scale Explorer ─── -->
+    <section class="tool-panel" data-tool="chords" role="tabpanel">
+      <div class="tool-head">
+        <div>
+          <h2>Chords &amp; Scales</h2>
+          <p>Pick a root, then a scale or chord — the keyboard lights up. Click any key to hear it, or press Play to arpeggiate the scale / strum the chord. A pocket theory reference that actually sounds.</p>
+        </div>
+      </div>
+      <div class="ch-controls">
+        <label class="ch-field">Root
+          <select id="chRoot" aria-label="Root note">
+            <option value="0" selected>C</option><option value="1">C♯</option><option value="2">D</option><option value="3">D♯</option><option value="4">E</option><option value="5">F</option><option value="6">F♯</option><option value="7">G</option><option value="8">G♯</option><option value="9">A</option><option value="10">A♯</option><option value="11">B</option>
+          </select>
+        </label>
+        <div class="ch-toggle" role="group" aria-label="Scale or chord">
+          <button type="button" data-ch-mode="scale" class="active">Scales</button>
+          <button type="button" data-ch-mode="chord">Chords</button>
+        </div>
+        <label class="ch-field ch-field-grow">Type
+          <select id="chPick" aria-label="Scale or chord type"></select>
+        </label>
+        <button class="ch-play" id="chPlay" type="button"><i class="fa-solid fa-play"></i> Play</button>
+      </div>
+      <div class="ch-keys" id="chKeys" aria-label="Piano keyboard — click a key to play it"></div>
+      <div class="ch-info" id="chInfo"></div>
+    </section>
+
     <!-- ─── Beat Maker (step sequencer) ─── -->
     <section class="tool-panel" data-tool="seq" role="tabpanel">
       <div class="tool-head">
@@ -646,6 +704,7 @@
 </script>
 <script src="assets/js/studio-core.js?v=20260602a" defer></script>
 <script src="assets/js/tools.js?v=20260602c" defer></script>
+<script src="assets/js/studio-chords.js?v=20260603a" defer></script>
 <script src="assets/js/sequencer.js?v=20260603c" defer></script>
 </body>
 </html>
