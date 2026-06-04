@@ -1077,3 +1077,15 @@
     ]).then(boot, boot);
   });
 })();
+
+/* Load the "Ask MAM" assistant on every public page. It self-mounts only when
+   the server reports the assistant is enabled, so this is a no-op otherwise.
+   Absolute path so it resolves from any page depth. */
+(function () {
+  try {
+    if (window.__mamAILoaded) return; window.__mamAILoaded = true;
+    var s = document.createElement('script');
+    s.src = '/assets/js/ai-chat.js?v=20260604a'; s.defer = true;
+    document.head.appendChild(s);
+  } catch (e) {}
+})();

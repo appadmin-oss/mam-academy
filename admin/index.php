@@ -953,7 +953,7 @@ tbody tr:last-child td{border-bottom:none}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
-<body>
+<body data-ai-context="admin">
 <?php
   $sessUser = mam_current_user();
   $whoLabel = $sessUser['email'] ?? ($_SERVER['PHP_AUTH_USER'] ?? 'admin');
@@ -1937,5 +1937,6 @@ tbody tr:last-child td{border-bottom:none}
   } catch (e) { if (window.console && console.warn) console.warn('[admin-csv]', e); }
 })();
 </script>
+<script src="/assets/js/ai-chat.js?v=20260604a" defer></script>
 </body>
 </html>
