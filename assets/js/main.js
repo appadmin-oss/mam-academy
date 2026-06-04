@@ -173,9 +173,14 @@
   // ============================================================
   function initPreloader() {
     var pl = $('#preloader'); if (!pl) return;
-    function hide() { pl.classList.add('hidden'); setTimeout(function () { pl.style.display = 'none'; }, 500); }
-    if (document.readyState === 'complete') setTimeout(hide, 500);
-    else { window.addEventListener('load', function () { setTimeout(hide, 400); }); setTimeout(hide, 3500); }
+    function hide() { if (pl.classList.contains('hidden')) return; pl.classList.add('hidden'); setTimeout(function () { pl.style.display = 'none'; }, 500); }
+    // Reveal as soon as the DOM is parsed + styled (CSS is render-blocking, so
+    // it's already applied) instead of waiting for window.load — which blocked
+    // on every hero image and font and made the loader linger for seconds.
+    if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(hide, 180);
+    else document.addEventListener('DOMContentLoaded', function () { setTimeout(hide, 180); });
+    window.addEventListener('load', hide);     // also hide on full load (no-op if already hidden)
+    setTimeout(hide, 2000);                     // hard last-resort cap
   }
 
   // ============================================================
