@@ -114,6 +114,11 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->post('/store/items',     $f('admin/store-items.php'),    [mw_csrf(), mw_admin()]);
 });
 
+/* ─── AI assistant · "Ask MAM" (provider-agnostic gateway) ─── */
+// One endpoint, four personas (site/student/practice/admin); the handler does
+// per-context access control. CSRF + a per-IP rate limit here.
+$r->post('/ai/chat', $f('ai-chat.php'), [mw_csrf(), mw_rate_limit('ai_chat', 30, 600, true)]);
+
 /* ─── Practice Studio · Klangio transcription (auth + CSRF + rate-limited) ─── */
 // Audio→notation. POST submits a clip; GET polls status / streams the result.
 // Requires a logged-in user because it spends a paid third-party quota.

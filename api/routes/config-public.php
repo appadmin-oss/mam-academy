@@ -53,4 +53,6 @@ mam_ok([
     // present a calm "not available" state up front instead of failing only
     // after a user records and submits a clip.
     'transcribe_enabled'      => function_exists('mam_klangio_configured') ? mam_klangio_configured() : false,
+    // "Ask MAM" assistant — surfaced only when a provider key is configured.
+    'ai_enabled'              => function_exists('mam_ai_configured') ? mam_ai_configured() : false,
 ]);
