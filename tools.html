@@ -281,6 +281,46 @@
   .seq-transport{gap:14px}
   .seq-toolbar .seq-tsep{flex-basis:100%;height:0}
 }
+
+/* ── Transcribe (audio → notation) ─────────────────────────────── */
+.tr-grid{display:grid;grid-template-columns:minmax(0,360px) 1fr;gap:20px}
+@media (max-width:760px){.tr-grid{grid-template-columns:1fr}}
+.tr-pane{background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+.tr-label{display:block;font-size:0.72rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.tr-select{width:100%;padding:11px 12px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.95rem;font-weight:600;min-height:46px;cursor:pointer;margin-bottom:16px}
+.tr-inputs{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tr-rec{display:inline-flex;align-items:center;gap:9px;padding:13px 22px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.03em;border-radius:11px;border:0;cursor:pointer;min-height:48px}
+.tr-rec.recording{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;animation:trPulse 1.1s ease-in-out infinite}
+@keyframes trPulse{0%,100%{box-shadow:0 0 0 0 rgba(244,66,59,0.5)}50%{box-shadow:0 0 0 8px rgba(244,66,59,0)}}
+.tr-or{color:var(--text-muted);font-size:0.84rem}
+.tr-upload{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;background:transparent;border:1px solid var(--border-gold);color:var(--gold-bright);font-weight:700;border-radius:11px;min-height:48px;cursor:pointer}
+.tr-upload:hover{background:rgba(224,138,26,0.06)}
+.tr-clip{margin-top:16px;padding:12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:11px}
+.tr-clip audio{width:100%;display:block}
+.tr-clip-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;font-size:0.82rem;color:var(--text-muted)}
+.tr-clip-x{background:none;border:0;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:6px}
+.tr-clip-x:hover{color:#FCA5A5;background:rgba(244,63,94,0.08)}
+.tr-go{display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:16px;padding:14px 22px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.04em;font-size:1rem;border-radius:12px;border:0;cursor:pointer;min-height:52px;box-shadow:0 8px 22px rgba(224,138,26,0.34)}
+.tr-go:disabled{opacity:0.45;cursor:not-allowed;box-shadow:none}
+.tr-hint{margin:12px 0 0;font-size:0.78rem;color:var(--text-muted);line-height:1.55}
+.tr-result{min-height:240px;display:flex;flex-direction:column}
+.tr-empty{margin:auto;text-align:center;color:var(--text-muted)}
+.tr-empty i{font-size:2.2rem;color:var(--border-strong);margin-bottom:10px;display:block}
+.tr-status{display:flex;align-items:center;gap:12px;color:var(--text-soft);font-size:0.94rem;margin:auto}
+.tr-spin{width:22px;height:22px;border:3px solid var(--border-strong);border-top-color:var(--gold-bright,#FCC647);border-radius:50%;animation:trSpin .8s linear infinite;flex-shrink:0}
+@keyframes trSpin{to{transform:rotate(360deg)}}
+.tr-done-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.tr-done-head h3{margin:0;font-family:var(--font-serif);font-size:1.15rem;color:var(--text)}
+.tr-done-head span{font-size:0.84rem;color:var(--gold-bright,#FCC647);font-weight:700}
+.tr-roll{width:100%;height:170px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;display:block;margin-bottom:6px}
+.tr-roll-x{font-size:0.72rem;color:var(--text-muted);text-align:center;margin:0 0 12px}
+.tr-dl{display:flex;gap:10px;flex-wrap:wrap}
+.tr-dl a{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:10px;color:var(--text);font-weight:700;font-size:0.86rem;text-decoration:none;min-height:44px}
+.tr-dl a:hover{border-color:var(--border-gold);color:var(--gold-bright)}
+.tr-msg{margin:auto;text-align:center;color:var(--text-soft);line-height:1.6;max-width:340px}
+.tr-msg i{font-size:1.8rem;margin-bottom:10px;display:block}
+.tr-msg.err i{color:#FCA5A5}
+.tr-msg .tr-retry{margin-top:14px;padding:10px 18px;background:transparent;border:1px solid var(--border-gold);color:var(--gold-bright);font-weight:700;border-radius:10px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -306,6 +346,7 @@
       <button data-tool="chords" role="tab" aria-selected="false"><i class="fa-solid fa-music"></i> Chords &amp; Scales <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
       <button data-tool="speed" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">PREMIUM</span></button>
       <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
+      <button data-tool="transcribe" role="tab" aria-selected="false"><i class="fa-solid fa-wand-magic-sparkles"></i> Transcribe <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">AI</span></button>
     </nav>
 
     <!-- ─── Metronome ─── -->
@@ -663,6 +704,46 @@
       </div>
       <p class="seq-status" id="seqStatus">Tip: tap a cell once for a hit, twice for an accent. Press play, add swing, and store grooves in A–D.</p>
     </section>
+
+    <!-- ─── Transcribe (Klangio audio → notation) ─── -->
+    <section class="tool-panel" data-tool="transcribe" role="tabpanel">
+      <div class="tool-head">
+        <div>
+          <h2>Transcribe to notation</h2>
+          <p>Record yourself or upload a short clip and turn it into notes, MIDI and MusicXML — powered by Klangio's music-AI. Perfect for capturing an idea, or checking what you just played.</p>
+        </div>
+      </div>
+      <div class="tr-grid">
+        <div class="tr-pane">
+          <label class="tr-label" for="trModel">Instrument</label>
+          <select id="trModel" class="tr-select">
+            <option value="piano">Piano / keys</option>
+            <option value="guitar">Guitar</option>
+            <option value="singing">Voice / melody</option>
+            <option value="bass">Bass</option>
+          </select>
+
+          <div class="tr-inputs">
+            <button class="tr-rec" id="trRec" type="button"><i class="fa-solid fa-microphone"></i> <span id="trRecLabel">Record</span></button>
+            <span class="tr-or">or</span>
+            <button class="tr-upload" id="trUploadBtn" type="button"><i class="fa-solid fa-file-arrow-up"></i> Upload a file</button>
+            <input type="file" id="trFile" accept="audio/*" hidden>
+          </div>
+
+          <div class="tr-clip" id="trClip" hidden>
+            <audio id="trAudio" controls preload="metadata"></audio>
+            <div class="tr-clip-meta"><span id="trClipName">clip</span><button class="tr-clip-x" id="trClipX" type="button" aria-label="Discard clip"><i class="fa-solid fa-xmark"></i></button></div>
+          </div>
+
+          <button class="tr-go" id="trGo" type="button" disabled><i class="fa-solid fa-wand-magic-sparkles"></i> Transcribe</button>
+          <p class="tr-hint" id="trHint">Up to ~30 seconds. A clean, single-instrument recording works best. Your clip is sent securely and isn't stored.</p>
+        </div>
+
+        <div class="tr-pane tr-result" id="trResult" aria-live="polite">
+          <div class="tr-empty" id="trEmpty"><i class="fa-solid fa-music"></i><p>Your transcription will appear here.</p></div>
+        </div>
+      </div>
+    </section>
   </section>
 </main>
 
@@ -706,5 +787,6 @@
 <script src="assets/js/tools.js?v=20260603d" defer></script>
 <script src="assets/js/studio-chords.js?v=20260603b" defer></script>
 <script src="assets/js/sequencer.js?v=20260603c" defer></script>
+<script src="assets/js/transcribe.js?v=20260604a" defer></script>
 </body>
 </html>
