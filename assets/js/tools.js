@@ -35,17 +35,35 @@
   function hasTone()   { return typeof window.Tone !== 'undefined'; }
   function hasPitchy() { return !!window.MAM_PITCHY; }
 
-  // ── Tab switching ──────────────────────────────────────────────────
+  // ── Tab switching — deep-linkable (/studio#tuner) + remembers your last tool ──
+  var TAB_STORE = 'mam.studio.tab';
+  function tabKeys() { return $$('.tools-tabs button').map(function (b) { return b.getAttribute('data-tool'); }); }
+  function activateTool(key) {
+    if (!key || tabKeys().indexOf(key) < 0) return false;
+    $$('.tools-tabs button').forEach(function (x) { var on = x.getAttribute('data-tool') === key; x.classList.toggle('active', on); x.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    $$('.tool-panel').forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-tool') === key); });
+    // Stop sound-producing tools when switching away so they don't haunt the page.
+    if (key !== 'metronome') stopMetronome();
+    if (key !== 'tuner') stopTuner();
+    return true;
+  }
   $$('.tools-tabs button').forEach(function (b) {
     b.addEventListener('click', function () {
       var key = b.getAttribute('data-tool');
-      $$('.tools-tabs button').forEach(function (x) { x.classList.toggle('active', x === b); x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
-      $$('.tool-panel').forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-tool') === key); });
-      // Stop sound-producing tools when switching away so they don't haunt the page.
-      if (key !== 'metronome') stopMetronome();
-      if (key !== 'tuner') stopTuner();
+      if (!activateTool(key)) return;
+      try { localStorage.setItem(TAB_STORE, key); } catch (e) {}
+      try { history.replaceState(null, '', '#' + key); } catch (e) {}  // shareable URL; replaceState never scrolls
+      if (b.scrollIntoView) { try { b.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} } // keep visible on the mobile tab strip
     });
   });
+  // On load: a #hash deep-link wins, else the last tool used on this device.
+  (function initTab() {
+    var fromHash = (location.hash || '').replace(/^#/, '');
+    if (activateTool(fromHash)) return;
+    var saved = ''; try { saved = localStorage.getItem(TAB_STORE) || ''; } catch (e) {}
+    if (activateTool(saved)) { try { history.replaceState(null, '', '#' + saved); } catch (e) {} }
+  })();
+  window.addEventListener('hashchange', function () { activateTool((location.hash || '').replace(/^#/, '')); });
 
   // ──────────────────────────────────────────────────────────────────
   // METRONOME — scheduled clicks via AudioBufferSourceNode, accent on 1.
