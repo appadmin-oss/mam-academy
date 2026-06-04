@@ -29,6 +29,7 @@
     var clipBlob = null, clipUrl = null;        // current audio
     var recorder = null, recStream = null, recChunks = [], recTimer = null, recStart = 0;
     var polling = false, pollStop = false;
+    var apiEnabled = true, noticeShown = false;  // optimistic until the capability check says otherwise
 
     if (!API || typeof API.request !== 'function') {
       elGo.disabled = true;
@@ -167,6 +168,7 @@
 
     elGo.addEventListener('click', function () {
       if (!clipBlob) return;
+      if (!apiEnabled) { disabledNotice(); return; }   // degrade before spending an upload
       setBusy(true);
       status('Uploading your clip…');
       blobToDataUrl(clipBlob).then(function (dataUrl) {
@@ -276,6 +278,38 @@
         });
       } catch (e) { /* preview is non-critical */ }
     }
+
+    // ── graceful availability ──
+    // Detect up front whether transcription is enabled on this server, so the
+    // tool shows a calm "not available" state instead of letting someone record
+    // a clip only to hit a 503. Optimistic by default — if the check can't run,
+    // the server-side 503 path still degrades cleanly.
+    function disabledNotice() {
+      noticeShown = true;
+      message('info', 'fa-screwdriver-wrench', 'Transcription isn\'t enabled on this server yet. Please check back soon.');
+    }
+    function setAvailable(on) {
+      apiEnabled = !!on;
+      if (elRec) elRec.disabled = !apiEnabled;
+      if (elUploadBtn) elUploadBtn.disabled = !apiEnabled;
+      if (elModel) elModel.disabled = !apiEnabled;
+      elGo.disabled = !apiEnabled || !clipBlob;
+      if (!apiEnabled) { if (!polling) disabledNotice(); }
+      else if (noticeShown) { noticeShown = false; clearResult(); }
+    }
+    function checkAvailability() {
+      try {
+        fetch(API_BASE + '/config/public', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (j) { if (j && typeof j.transcribe_enabled === 'boolean') setAvailable(j.transcribe_enabled); })
+          .catch(function () { /* stay optimistic — the 503 path still degrades */ });
+      } catch (e) {}
+    }
+    document.addEventListener('mam:config', function (e) {
+      var d = e && e.detail;
+      if (d && typeof d.transcribe_enabled === 'boolean') setAvailable(d.transcribe_enabled);
+    });
+    checkAvailability();
 
     // Redraw the roll on resize if one is showing.
     window.addEventListener('resize', function () {

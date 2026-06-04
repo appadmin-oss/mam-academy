@@ -49,4 +49,8 @@ mam_ok([
     'compulsory_fee_usd'      => mam_compulsory_fee(),       // Certified flat add-on
     'grand_discount_pct'      => mam_grand_discount_pct(),   // Grand = 3×base − this
     'programme_from_prices'   => mam_programme_from_prices(),// "from $X" display
+    // Capability flag (no secret) — lets the Practice Studio's Transcribe tool
+    // present a calm "not available" state up front instead of failing only
+    // after a user records and submits a clip.
+    'transcribe_enabled'      => function_exists('mam_klangio_configured') ? mam_klangio_configured() : false,
 ]);

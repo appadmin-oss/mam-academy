@@ -16,7 +16,9 @@
 declare(strict_types=1);
 
 function mam_klangio_configured(): bool {
-    return trim((string)mam_env('KLANGIO_API_KEY', '')) !== '';
+    // Needs both a key and an HTTP client — a host without cURL can't reach the
+    // API, so report unavailable up front rather than failing at submit time.
+    return function_exists('curl_init') && trim((string)mam_env('KLANGIO_API_KEY', '')) !== '';
 }
 
 function mam_klangio_key(): string {
