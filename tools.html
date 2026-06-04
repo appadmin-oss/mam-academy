@@ -321,6 +321,37 @@
 .tr-msg i{font-size:1.8rem;margin-bottom:10px;display:block}
 .tr-msg.err i{color:#FCA5A5}
 .tr-msg .tr-retry{margin-top:14px;padding:10px 18px;background:transparent;border:1px solid var(--border-gold);color:var(--gold-bright);font-weight:700;border-radius:10px;cursor:pointer}
+
+/* ── Mobile (phones / small tablets) ───────────────────────────── */
+@media (max-width:680px){
+  .tools-shell{padding:18px 12px 76px}
+  /* Tabs become one swipeable row that contains its own horizontal scroll, so
+     the 8 tools never wrap into a lumpy pill or push the whole page sideways. */
+  .tools-tabs{width:auto;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;justify-content:flex-start;
+    border-radius:14px;gap:4px;padding:5px;margin:14px 0 18px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x proximity}
+  .tools-tabs::-webkit-scrollbar{display:none}
+  .tools-tabs button{flex:0 0 auto;white-space:nowrap;padding:9px 13px;font-size:0.82rem;min-height:42px;gap:7px;scroll-snap-align:start}
+  .tools-tabs button span{display:none}                 /* hide NEW / AI / PREMIUM badges to keep tabs compact */
+  .tool-panel{border-radius:14px;padding:18px 14px}
+  .tool-head{margin-bottom:16px}
+  .tool-head h2{font-size:1.3rem}
+  .tool-head p{font-size:0.9rem}
+  /* Roomy, full-width primary actions; secondary controls wrap beneath. */
+  .met-start,.pomo-start,.ear-replay,.seq-play{width:100%;justify-content:center}
+  .met-actions,.pomo-actions{gap:10px}
+  /* Transcribe: stack the capture options full width. */
+  .tr-inputs{flex-direction:column;align-items:stretch;gap:10px}
+  .tr-rec,.tr-upload{width:100%;justify-content:center}
+  .tr-or{text-align:center}
+}
+@media (max-width:420px){
+  .tools-tabs button{font-size:0.78rem;padding:8px 10px}
+  .tool-panel{padding:16px 12px}
+  .met-bpm{font-size:3.6rem}
+  .tuner-note{font-size:4rem}
+  .pomo-time{font-size:4.4rem}
+}
 </style>
 </head>
 <body>
