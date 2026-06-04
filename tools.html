@@ -352,6 +352,26 @@
   .tuner-note{font-size:4rem}
   .pomo-time{font-size:4.4rem}
 }
+
+/* ── Drone ─────────────────────────────────────────────────────── */
+.drone-display{text-align:center;padding:28px 20px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
+.drone-note{font-family:var(--font-display);font-size:clamp(4rem,12vw,6.5rem);line-height:1;color:var(--gold-bright,#FCC647);letter-spacing:0.02em}
+.drone-oct{font-size:0.42em;color:var(--text-muted);vertical-align:super;margin-left:4px}
+.drone-freq{margin-top:8px;color:var(--text-soft);font-variant-numeric:tabular-nums}
+.drone-keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(56px,1fr));gap:8px;margin-bottom:16px}
+.drone-key{padding:12px 0;border-radius:10px;border:1.5px solid var(--border-strong);background:var(--bg-elevated);color:var(--text);font-weight:700;font-size:0.95rem;cursor:pointer;min-height:46px}
+.drone-key.sharp{color:var(--text-muted)}
+.drone-key:hover{border-color:var(--border-gold)}
+.drone-key.on{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
+.drone-controls{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:18px}
+.drone-controls label{display:inline-flex;align-items:center;gap:8px;font-size:0.86rem;font-weight:700;color:var(--text-muted)}
+.drone-controls select{padding:8px 11px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:9px;color:var(--text);min-height:42px}
+.drone-controls input{accent-color:var(--gold-bright,#FCC647)}
+.drone-vol{flex:1;min-width:170px}
+.drone-vol input{flex:1}
+.drone-play{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.04em;border-radius:12px;border:0;cursor:pointer;min-height:52px;font-size:1rem;box-shadow:0 8px 22px rgba(224,138,26,0.34)}
+.drone-play.playing{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;box-shadow:0 8px 22px rgba(244,66,59,0.4)}
+@media (max-width:680px){.drone-play{width:100%;justify-content:center}}
 </style>
 </head>
 <body>
@@ -378,6 +398,7 @@
       <button data-tool="speed" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">PREMIUM</span></button>
       <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
       <button data-tool="transcribe" role="tab" aria-selected="false"><i class="fa-solid fa-wand-magic-sparkles"></i> Transcribe <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">AI</span></button>
+      <button data-tool="drone" role="tab" aria-selected="false"><i class="fa-solid fa-wave-square"></i> Drone</button>
     </nav>
 
     <!-- ─── Metronome ─── -->
@@ -775,6 +796,26 @@
         </div>
       </div>
     </section>
+
+    <!-- ─── Drone ─── -->
+    <section class="tool-panel" data-tool="drone" role="tabpanel">
+      <div class="tool-head">
+        <div><h2>Drone</h2><p>A warm, sustained reference pitch for intonation, improvisation and play-along practice. Pick a note — add the perfect fifth for a tanpura-style backing — and hold it as long as you like.</p></div>
+      </div>
+      <div class="drone-display">
+        <div class="drone-note"><span id="droneNote">A</span><span class="drone-oct" id="droneOct">3</span></div>
+        <div class="drone-freq" id="droneFreq">—</div>
+      </div>
+      <div class="drone-keys" id="droneKeys" role="group" aria-label="Choose a note"></div>
+      <div class="drone-controls">
+        <label>Octave
+          <select id="droneOctSel"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select>
+        </label>
+        <label><input type="checkbox" id="droneFifth"> Add perfect fifth</label>
+        <label class="drone-vol">Volume <input type="range" id="droneVol" min="0" max="100" value="50"></label>
+      </div>
+      <button class="drone-play" id="dronePlay" type="button"><i class="fa-solid fa-play"></i> <span>Start drone</span></button>
+    </section>
   </section>
 </main>
 
@@ -819,5 +860,6 @@
 <script src="assets/js/studio-chords.js?v=20260603b" defer></script>
 <script src="assets/js/sequencer.js?v=20260604a" defer></script>
 <script src="assets/js/transcribe.js?v=20260604b" defer></script>
+<script src="assets/js/drone.js?v=20260604a" defer></script>
 </body>
 </html>
