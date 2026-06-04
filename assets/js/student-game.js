@@ -5,7 +5,7 @@
  *
  * LEARNING-FIRST
  *  • Learn Mode: untimed. Every note is explained — where it sits (line/space)
- *    plus the mnemonic (Every Good Boy Deserves Fudge / FACE / All Cows Eat
+ *    plus the mnemonic (Every Good Boy Deserves Fanta / FACE / All Cows Eat
  *    Grass …) — and the pitch plays. A "Reveal & learn" button shows the answer.
  *  • Every miss in the scored modes shows the same mnemonic, so mistakes teach.
  *  • Adaptive: the game tracks per-note accuracy and biases practice toward the
@@ -45,6 +45,10 @@
   ];
   function modeById(id) { return MODES.filter(function (m) { return m.id === id; })[0] || MODES[0]; }
 
+  // Interval Trainer — index = diatonic steps between the two notes.
+  var INTERVAL_LABELS = ['Unison', '2nd', '3rd', '4th', '5th', '6th', '7th', 'Octave'];
+  var INTERVAL_STEPS = [1, 2, 3, 4, 5, 6, 7];
+
   // Teaching: turn each note into a "where it sits + mnemonic" micro-lesson.
   function ordinal(n) { return n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n] || 'th'); }
   function learnHint(note, clef) {
@@ -54,8 +58,8 @@
     else if (steps % 2 === 0) pos = 'on the ' + ordinal(steps / 2 + 1) + ' line';
     else pos = 'in the ' + ordinal((steps - 1) / 2 + 1) + ' space';
     var onStaff = steps >= 0 && steps <= 8, line = steps % 2 === 0, mnem;
-    if (clef === 'treble') mnem = onStaff ? (line ? 'Treble lines: Every Good Boy Deserves Fudge (E G B D F)' : 'Treble spaces spell FACE (F A C E)') : 'Treble clef — count up/down from a line you know.';
-    else mnem = onStaff ? (line ? 'Bass lines: Good Boys Deserve Fudge Always (G B D F A)' : 'Bass spaces: All Cows Eat Grass (A C E G)') : 'Bass clef — count up/down from a line you know.';
+    if (clef === 'treble') mnem = onStaff ? (line ? 'Treble lines: Every Good Boy Deserves Fanta (E G B D F)' : 'Treble spaces spell FACE (F A C E)') : 'Treble clef — count up/down from a line you know.';
+    else mnem = onStaff ? (line ? 'Bass lines: Good Boys Deserve Fanta Always (G B D F A)' : 'Bass spaces: All Cows Eat Grass (A C E G)') : 'Bass clef — count up/down from a line you know.';
     return '<b>' + L + '</b> — ' + pos + '. ' + mnem;
   }
 
@@ -81,7 +85,7 @@
     return {
       xp: 0, games: 0, notes: 0, bestScore: 0, bestCombo: 0, playSec: 0,
       clef: { treble: { right: 0, total: 0 }, bass: { right: 0, total: 0 } },
-      modeBest: { treble: 0, bass: 0, 'treble-ledger': 0, grand: 0 },
+      modeBest: { treble: 0, bass: 0, 'treble-ledger': 0, grand: 0, interval: 0 },
       history: [], daily: { streak: 0, last: '', lastDay: 0, best: 0 },
       noteStats: {}, ach: {}
     };
@@ -160,6 +164,22 @@
     soundOn = settings.sound;
 
     function stop() { loopAlive = false; if (ticker) clearInterval(ticker); ticker = null; }
+
+    // Robustness net — any unexpected error in a screen transition shows a calm
+    // recovery card instead of leaving a broken panel inside the portal.
+    function safe(fn) {
+      try { fn(); }
+      catch (e) {
+        if (window.console && console.warn) console.warn('[MAM_GAME]', e);
+        try {
+          stop();
+          host.innerHTML = '<div class="ng-wrap"><div class="ng-summary"><div class="ng-sum-eyebrow"><i class="fa-solid fa-gamepad"></i> Practice Arcade</div>' +
+            '<p class="ng-hero-sub" style="margin:14px 0 18px">That didn\'t load cleanly. Let\'s try again.</p>' +
+            '<div class="ng-sum-actions"><button class="ng-btn ng-btn-gold" id="ngReboot" type="button"><i class="fa-solid fa-rotate-right"></i> Reload arcade</button></div></div></div>';
+          var b = document.getElementById('ngReboot'); if (b) b.addEventListener('click', function () { safe(renderMenu); });
+        } catch (e2) {}
+      }
+    }
     function weakLetterInRange(clef, lo, hi) {
       var seen = {}, best = null;
       for (var dd = lo; dd <= hi; dd++) seen[letterOf(dd)] = 1;
@@ -218,6 +238,14 @@
           '<span class="ng-daily-cta">Start <i class="fa-solid fa-arrow-right"></i></span></div>' +
       '</button>';
     }
+    function intervalCard() {
+      var best = prog.modeBest.interval || 0;
+      return '<button class="ng-daily ng-interval" type="button" data-interval="1">' +
+        '<div class="ng-daily-head"><span class="ng-daily-eyebrow"><i class="fa-solid fa-arrows-up-down-left-right"></i> Interval Trainer</span><span class="ng-daily-streak">' + (best ? 'Best ' + best : 'new') + '</span></div>' +
+        '<div class="ng-daily-body"><div><strong>Name the distance between two notes</strong><small>2nds to octaves — trains the relationships, not just letters.</small></div>' +
+          '<span class="ng-daily-cta">Play <i class="fa-solid fa-arrow-right"></i></span></div>' +
+      '</button>';
+    }
     function achPanel() {
       return '<div class="ng-section-title">Achievements <span>' + Object.keys(prog.ach).length + '/' + ACH.length + '</span></div>' +
         '<div class="ng-ach-grid">' + ACH.map(function (a) {
@@ -247,6 +275,7 @@
           progressPanel() +
           learnCard() +
           dailyCard() +
+          intervalCard() +
           '<div class="ng-section-title">Choose a level</div>' +
           '<div class="ng-modes">' + MODES.map(function (m) {
             return '<button class="ng-mode" type="button" data-mode="' + m.id + '"><span class="ng-mode-name">' + esc(m.name) + '</span><span class="ng-mode-sub">' + esc(m.sub) + '</span>' +
@@ -258,9 +287,10 @@
           achPanel() +
         '</div>';
 
-      Array.prototype.forEach.call(host.querySelectorAll('.ng-mode'), function (b) { b.addEventListener('click', function () { actxGet(); startGame({ modeId: b.getAttribute('data-mode') }); }); });
-      var dc = host.querySelector('[data-daily]'); if (dc) dc.addEventListener('click', function () { actxGet(); startGame({ modeId: 'grand', daily: true }); });
-      var lc = host.querySelector('[data-learn]'); if (lc) lc.addEventListener('click', function () { actxGet(); startGame({ modeId: 'treble-ledger', learn: true }); });
+      Array.prototype.forEach.call(host.querySelectorAll('.ng-mode'), function (b) { b.addEventListener('click', function () { actxGet(); safe(function () { startGame({ modeId: b.getAttribute('data-mode') }); }); }); });
+      var dc = host.querySelector('[data-daily]'); if (dc) dc.addEventListener('click', function () { actxGet(); safe(function () { startGame({ modeId: 'grand', daily: true }); }); });
+      var lc = host.querySelector('[data-learn]'); if (lc) lc.addEventListener('click', function () { actxGet(); safe(function () { startGame({ modeId: 'treble-ledger', learn: true }); }); });
+      var ic = host.querySelector('[data-interval]'); if (ic) ic.addEventListener('click', function () { actxGet(); safe(function () { startInterval({ clef: 'treble' }); }); });
       Array.prototype.forEach.call(host.querySelectorAll('[data-set]'), function (cb) { cb.addEventListener('change', function () { settings[cb.getAttribute('data-set')] = cb.checked; if (cb.getAttribute('data-set') === 'sound') soundOn = cb.checked; saveSettings(settings); }); });
       Array.prototype.forEach.call(host.querySelectorAll('[data-len]'), function (b) { b.addEventListener('click', function () { settings.roundSec = parseInt(b.getAttribute('data-len'), 10); saveSettings(settings); Array.prototype.forEach.call(host.querySelectorAll('[data-len]'), function (x) { x.classList.toggle('active', x === b); }); }); });
     }
@@ -440,8 +470,8 @@
             '<p class="ng-hero-sub" style="margin:0 0 18px">Great practice. The game will now lean a little more on the notes you found tricky — try a timed round when you\'re ready.</p>' +
             '<div class="ng-sum-actions"><button class="ng-btn ng-btn-gold" id="ngAgain" type="button"><i class="fa-solid fa-rotate-right"></i> Keep learning</button><button class="ng-btn" id="ngMenu" type="button">Menu</button></div>' +
           '</div></div>';
-          host.querySelector('#ngAgain').addEventListener('click', function () { startGame({ modeId: mode.id, learn: true }); });
-          host.querySelector('#ngMenu').addEventListener('click', renderMenu);
+          host.querySelector('#ngAgain').addEventListener('click', function () { safe(function () { startGame({ modeId: mode.id, learn: true }); }); });
+          host.querySelector('#ngMenu').addEventListener('click', function () { safe(renderMenu); });
           return;
         }
 
@@ -482,12 +512,165 @@
               '<button class="ng-btn" id="ngMenu" type="button">Menu</button>' +
             '</div>' +
           '</div></div>';
-        host.querySelector('#ngAgain').addEventListener('click', function () { startGame({ modeId: mode.id, daily: daily }); });
-        host.querySelector('#ngMenu').addEventListener('click', renderMenu);
+        host.querySelector('#ngAgain').addEventListener('click', function () { safe(function () { startGame({ modeId: mode.id, daily: daily }); }); });
+        host.querySelector('#ngMenu').addEventListener('click', function () { safe(renderMenu); });
       }
     }
 
-    renderMenu();
+    /* Interval Trainer — a second discipline: name the distance between two
+       notes. Self-contained (its own two-note staff) so the proven note-naming
+       flow above is untouched. */
+    function startInterval(opts) {
+      opts = opts || {};
+      var clefMode = opts.clef || 'treble';
+      var roundSec = settings.roundSec || 60;
+      var startedAt = Date.now();
+      var state = { score: 0, combo: 0, bestCombo: 0, right: 0, total: 0, endAt: Date.now() + roundSec * 1000, lo: null, clef: null, steps: 0, askAt: 0, flash: null, over: false };
+
+      host.innerHTML =
+        '<div class="ng-wrap ng-playing">' +
+          '<div class="ng-daily-banner ng-interval-banner"><i class="fa-solid fa-arrows-up-down-left-right"></i> Interval Trainer · name the distance between the two notes</div>' +
+          '<div class="ng-hud">' +
+            '<div class="ng-hud-item"><span>Score</span><b id="ngScore">0</b></div>' +
+            '<div class="ng-hud-item"><span>Combo</span><b id="ngCombo">0×</b></div>' +
+            '<div class="ng-hud-item ng-hud-time"><span>Time</span><b id="ngTime">' + roundSec + '</b></div>' +
+            '<button class="ng-quit" id="ngQuit" type="button" title="End round"><i class="fa-solid fa-xmark"></i></button>' +
+          '</div>' +
+          '<div class="ng-timebar"><i id="ngTimeBar"></i></div>' +
+          '<div class="ng-stage"><canvas id="ngCanvas" aria-label="Two notes on a staff — name the interval"></canvas><div class="ng-feedback" id="ngFeedback"></div></div>' +
+          '<div class="ng-answers ng-answers-wide" id="ngAnswers" role="group" aria-label="Name the interval">' +
+            INTERVAL_STEPS.map(function (s) { return '<button class="ng-key" type="button" data-step="' + s + '">' + INTERVAL_LABELS[s] + '</button>'; }).join('') +
+          '</div>' +
+          '<p class="ng-tip">Tap the interval, or press 2–8. ' + roundSec + 's on the clock.</p>' +
+        '</div>';
+
+      var cvs = host.querySelector('#ngCanvas'); if (!cvs) { safe(renderMenu); return; }
+      var ctx = cvs.getContext && cvs.getContext('2d'); if (!ctx) { safe(renderMenu); return; }
+      var elScore = host.querySelector('#ngScore'), elCombo = host.querySelector('#ngCombo'),
+          elTime = host.querySelector('#ngTime'), elBar = host.querySelector('#ngTimeBar'), elFb = host.querySelector('#ngFeedback');
+
+      function sizeCanvas() {
+        var w = cvs.parentNode.clientWidth || 600, h = Math.max(220, Math.min(300, Math.round(w * 0.42)));
+        var dpr = window.devicePixelRatio || 1;
+        cvs.style.width = w + 'px'; cvs.style.height = h + 'px';
+        cvs.width = Math.round(w * dpr); cvs.height = Math.round(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { w: w, h: h };
+      }
+      function nextPair() {
+        var clef = clefMode === 'both' ? (Math.random() < 0.5 ? 'treble' : 'bass') : clefMode;
+        var steps = INTERVAL_STEPS[Math.floor(Math.random() * INTERVAL_STEPS.length)];
+        var room = 8 - steps;                                   // keep both notes on/near the staff
+        var lo = CLEFS[clef].bottomLine + Math.floor(Math.random() * (room + 1));
+        if (state.lo === lo && state.steps === steps) lo = CLEFS[clef].bottomLine + ((lo - CLEFS[clef].bottomLine + 1) % (room + 1));
+        state.clef = clef; state.lo = lo; state.steps = steps; state.askAt = Date.now(); state.flash = null;
+        draw();
+      }
+      function drawNote(geom, d, color) {
+        var gap = geom.gap, bottomLineY = geom.bottomLineY, cx = geom.cx, clef = CLEFS[state.clef];
+        var steps = d - clef.bottomLine, ny = bottomLineY - steps * (gap / 2);
+        ctx.strokeStyle = 'rgba(245,238,227,0.7)'; ctx.lineWidth = 1.4;
+        if (steps < 0) for (var l = -2; l >= steps; l -= 2) { var ly = bottomLineY - l * (gap / 2); ctx.beginPath(); ctx.moveTo(cx - 16, ly + 0.5); ctx.lineTo(cx + 16, ly + 0.5); ctx.stroke(); }
+        if (steps > 8) for (var u = 10; u <= steps; u += 2) { var uy = bottomLineY - u * (gap / 2); ctx.beginPath(); ctx.moveTo(cx - 16, uy + 0.5); ctx.lineTo(cx + 16, uy + 0.5); ctx.stroke(); }
+        ctx.save(); ctx.translate(cx, ny); ctx.rotate(-0.32);
+        ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(0, 0, gap * 0.72, gap * 0.52, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      }
+      function draw() {
+        var dim = sizeCanvas(), w = dim.w, h = dim.h;
+        ctx.clearRect(0, 0, w, h);
+        var clef = CLEFS[state.clef], gap = 16, midY = h / 2, bottomLineY = midY + 2 * gap, cx = Math.round(w * 0.6);
+        ctx.strokeStyle = 'rgba(245,238,227,0.55)'; ctx.lineWidth = 1.4;
+        for (var i = 0; i < 5; i++) { var y = bottomLineY - i * gap; ctx.beginPath(); ctx.moveTo(40, y + 0.5); ctx.lineTo(w - 24, y + 0.5); ctx.stroke(); }
+        ctx.fillStyle = '#FBBF24'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.font = (gap * 5.4) + 'px Georgia, "Times New Roman", serif';
+        ctx.fillText(clef.glyph, 48, state.clef === 'treble' ? midY + 4 : midY - gap * 0.6);
+        var col = state.flash === 'good' ? '#34D399' : state.flash === 'bad' ? '#FB7185' : '#F5EEE3';
+        var geom = { gap: gap, bottomLineY: bottomLineY, cx: cx };
+        drawNote(geom, state.lo, col);
+        drawNote(geom, state.lo + state.steps, col);
+      }
+      function setFlash(kind, label) {
+        state.flash = kind; draw();
+        if (kind === 'bad' && label) { elFb.textContent = label; elFb.className = 'ng-feedback show bad'; }
+        else if (kind === 'good') { elFb.textContent = '✓'; elFb.className = 'ng-feedback show good'; }
+        setTimeout(function () { elFb.className = 'ng-feedback'; }, 520);
+      }
+      function answer(step) {
+        if (state.over || state.lo == null) return;
+        state.total++;
+        if (step === state.steps) {
+          var dt = (Date.now() - state.askAt) / 1000, speed = Math.max(0, Math.round((2.5 - Math.min(2.5, dt)) * 6));
+          state.score += 10 + state.combo * 2 + speed; state.combo++; state.right++;
+          if (state.combo > state.bestCombo) state.bestCombo = state.combo;
+          setFlash('good');
+          elScore.textContent = state.score; elCombo.textContent = state.combo + '×'; elCombo.classList.toggle('hot', state.combo >= 5);
+          nextPair();
+        } else {
+          state.combo = 0; elCombo.textContent = '0×'; elCombo.classList.remove('hot');
+          setFlash('bad', 'It was a ' + INTERVAL_LABELS[state.steps]);
+          var keys = host.querySelectorAll('.ng-key'); Array.prototype.forEach.call(keys, function (k) { k.disabled = true; });
+          setTimeout(function () { Array.prototype.forEach.call(keys, function (k) { k.disabled = false; }); nextPair(); }, 720);
+        }
+      }
+      host.querySelector('#ngAnswers').addEventListener('click', function (e) { var b = e.target.closest('.ng-key'); if (b && !b.disabled) answer(parseInt(b.getAttribute('data-step'), 10)); });
+      host.querySelector('#ngQuit').addEventListener('click', endInterval);
+      function onKey(e) {
+        if (!document.contains(cvs)) { document.removeEventListener('keydown', onKey); return; }
+        var n = parseInt(e.key, 10);
+        if (n >= 2 && n <= 8) { e.preventDefault(); var step = n - 1; var b = host.querySelector('.ng-key[data-step="' + step + '"]'); if (b && !b.disabled) answer(step); }
+      }
+      document.addEventListener('keydown', onKey);
+
+      loopAlive = true;
+      ticker = setInterval(function () {
+        if (!loopAlive || !document.contains(cvs)) { stop(); return; }
+        var left = Math.max(0, Math.ceil((state.endAt - Date.now()) / 1000));
+        if (elTime) elTime.textContent = left;
+        if (elBar) elBar.style.width = Math.max(0, (state.endAt - Date.now()) / (roundSec * 1000) * 100) + '%';
+        if (left <= 5) { var th = host.querySelector('.ng-hud-time'); if (th) th.classList.add('low'); }
+        if (Date.now() >= state.endAt) endInterval();
+      }, 200);
+      window.addEventListener('resize', draw);
+      nextPair();
+
+      function endInterval() {
+        if (state.over) return; state.over = true; stop();
+        document.removeEventListener('keydown', onKey);
+        var xpGain = Math.round(state.score / 5) + state.right;
+        var beforeLvl = levelFromXp(prog.xp);
+        prog.xp += xpGain; prog.games++;
+        prog.playSec += Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+        if (state.score > prog.bestScore) prog.bestScore = state.score;
+        if (state.bestCombo > prog.bestCombo) prog.bestCombo = state.bestCombo;
+        if (state.score > (prog.modeBest.interval || 0)) prog.modeBest.interval = state.score;
+        prog.history.push(state.score); if (prog.history.length > 14) prog.history = prog.history.slice(-14);
+        var fresh = applyAchievements(prog);
+        saveProg(prog);
+        var afterLvl = levelFromXp(prog.xp), leveled = afterLvl > beforeLvl;
+        var acc = state.total ? Math.round(state.right / state.total * 100) : 0;
+        host.innerHTML =
+          '<div class="ng-wrap"><div class="ng-summary">' +
+            (leveled ? '<div class="ng-levelup"><i class="fa-solid fa-arrow-up"></i> Level up! You\'re now level ' + afterLvl + '</div>' : '') +
+            '<div class="ng-sum-eyebrow">Interval Trainer · round complete</div>' +
+            '<div class="ng-sum-score">' + state.score + '<span>points</span></div>' +
+            '<div class="ng-sum-grid">' +
+              '<div><b>' + state.right + '/' + state.total + '</b><span>Correct</span></div>' +
+              '<div><b>' + acc + '%</b><span>Accuracy</span></div>' +
+              '<div><b>' + state.bestCombo + '×</b><span>Best combo</span></div>' +
+              '<div><b>+' + xpGain + '</b><span>XP earned</span></div>' +
+            '</div>' +
+            (fresh.length ? '<div class="ng-new-ach"><div class="ng-new-ach-title"><i class="fa-solid fa-medal"></i> Achievement' + (fresh.length > 1 ? 's' : '') + ' unlocked</div>' + fresh.map(function (a) { return '<span class="ng-new-ach-chip"><i class="fa-solid fa-' + a.icon + '"></i> ' + esc(a.name) + '</span>'; }).join('') + '</div>' : '') +
+            '<div class="ng-sum-actions">' +
+              '<button class="ng-btn ng-btn-gold" id="ngAgain" type="button"><i class="fa-solid fa-rotate-right"></i> Play again</button>' +
+              '<button class="ng-btn" id="ngMenu" type="button">Menu</button>' +
+            '</div>' +
+          '</div></div>';
+        host.querySelector('#ngAgain').addEventListener('click', function () { safe(function () { startInterval({ clef: clefMode }); }); });
+        host.querySelector('#ngMenu').addEventListener('click', function () { safe(renderMenu); });
+      }
+    }
+
+    safe(renderMenu);
   }
 
   window.MAM_GAME = { mount: mount, progress: loadProg };
