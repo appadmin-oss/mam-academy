@@ -1896,5 +1896,46 @@ tbody tr:last-child td{border-bottom:none}
   <p>Unknown view.</p>
 <?php endif; ?>
 </main>
+<!-- Additive client-side CSV export for every data table (reconciliation /
+     reporting). Reads the rendered DOM only — no server logic touched. Action
+     columns (those containing forms/buttons/inputs) are dropped automatically. -->
+<script>
+(function () {
+  try {
+    function cell(s) { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+    function toCsv(table) {
+      var rows = Array.prototype.slice.call(table.rows); if (!rows.length) return '';
+      var skip = {};
+      rows.forEach(function (r) { Array.prototype.forEach.call(r.cells, function (c, i) { if (c.querySelector('button,form,input,select,textarea')) skip[i] = true; }); });
+      var out = [];
+      rows.forEach(function (r) {
+        var cells = [];
+        Array.prototype.forEach.call(r.cells, function (c, i) { if (!skip[i]) cells.push(cell(c.textContent)); });
+        if (cells.join('') !== '') out.push(cells.join(','));
+      });
+      return out.join('\r\n');
+    }
+    function download(name, csv) {
+      var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('main .card table'), function (table) {
+      if (table._exp) return; table._exp = 1;
+      var body = table.tBodies && table.tBodies[0];
+      if (!body || body.rows.length < 1) return;                 // skip empty / form-only tables
+      var card = table.closest('.card'); if (!card) return;
+      var h = card.querySelector('h3, h2');
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.innerHTML = '↓ Export CSV';
+      btn.style.cssText = 'float:right;margin:-2px 0 6px;padding:5px 11px;font-size:.74rem;font-weight:700;border:1px solid var(--border,#2a2118);background:transparent;color:var(--gold,#FCC647);border-radius:8px;cursor:pointer';
+      var slug = (h ? h.textContent.trim().toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : '') || 'table';
+      btn.addEventListener('click', function () { download('mam-' + slug + '-' + new Date().toISOString().slice(0, 10) + '.csv', toCsv(table)); });
+      if (h && h.parentNode) h.parentNode.insertBefore(btn, h); else card.insertBefore(btn, card.firstChild);
+    });
+  } catch (e) { if (window.console && console.warn) console.warn('[admin-csv]', e); }
+})();
+</script>
 </body>
 </html>
