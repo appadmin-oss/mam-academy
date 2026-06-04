@@ -509,8 +509,16 @@
       + '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary" id="att-submit" disabled><i class="fa-solid fa-check"></i> Save attendance</button>'
       +   '<span id="att-selected-label" style="margin-left:14px;color:var(--text-muted);font-size:0.88rem">No student selected</span></div>'
       + '</form></section>'
-      + '<section class="panel"><div class="panel-head"><h2>Recent attendance</h2></div>'
+      + '<section class="panel"><div class="panel-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2>Recent attendance</h2>'
+      +   (att.length ? '<button type="button" class="panel-action" id="attHistCsv"><i class="fa-solid fa-download"></i> Export CSV</button>' : '') + '</div>'
       + (att.length ? attendanceTable(att) : '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded yet.') + '</div>') + '</section>';
+
+    var attHistCsv = document.getElementById('attHistCsv');
+    if (attHistCsv) attHistCsv.addEventListener('click', function () {
+      var rowsCsv = [['Date', 'Student', 'Class', 'Status', 'Notes']];
+      att.forEach(function (a) { rowsCsv.push([a.session_date || '', a.student_name || '', a.class_title || '', a.status || '', a.notes || '']); });
+      downloadCsv('mam-attendance-' + new Date().toISOString().slice(0, 10) + '.csv', rowsCsv);
+    });
 
     function paintStudents() {
       var cls = document.getElementById('att-class').value;

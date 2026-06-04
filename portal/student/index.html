@@ -294,21 +294,67 @@
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-bullhorn" style="margin-right:8px;color:var(--gold-bright)"></i>Announcements</h2></div><div style="padding:14px 18px;display:grid;gap:12px">' + annHtml + '</div></section>'
       + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-folder-open" style="margin-right:8px;color:var(--gold-bright)"></i>Resources &amp; materials</h2></div><div style="padding:14px 18px;display:grid;gap:10px">' + resHtml + '</div></section>';
   }
+  // Client-side CSV export (data is already loaded). BOM keeps Excel happy with
+  // UTF-8; values are quoted only when they contain a comma/quote/newline.
+  function dlCsv(filename, header, rows) {
+    try {
+      var q = function (v) { v = (v == null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+      var lines = [header.map(q).join(',')].concat(rows.map(function (r) { return r.map(q).join(','); }));
+      var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Exported ' + filename, 'success');
+    } catch (e) { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not export.', 'error'); }
+  }
   function renderAttendance() {
     var att = data.attendance || [];
     if (!att.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('calendar-check', 'No attendance recorded yet. Once your classes begin, every session shows here.') + '</div></section>'; return; }
     var present = att.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
     var rate = Math.round(present / att.length * 100);
-    var rows = att.map(function (a) {
-      return '<tr><td data-label="Date">' + P.fmtDate(a.session_date) + '</td>'
-        + '<td data-label="Class"><strong>' + P.escapeHtml(a.title || '—') + '</strong></td>'
-        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
-    }).join('');
+    var counts = {}; att.forEach(function (a) { counts[a.status] = (counts[a.status] || 0) + 1; });
+    var statuses = ['present', 'late', 'absent', 'excused'].filter(function (s) { return counts[s]; });
+    function rowsHtml(list) {
+      return list.map(function (a) {
+        return '<tr data-status="' + P.escapeHtml(a.status) + '"><td data-label="Date">' + P.fmtDate(a.session_date) + '</td>'
+          + '<td data-label="Class"><strong>' + P.escapeHtml(a.title || '—') + '</strong></td>'
+          + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
+      }).join('');
+    }
+    function chip(f, label) {
+      var on = f === 'all';
+      return '<button type="button" class="att-filter" data-filter="' + f + '" style="padding:6px 12px;border-radius:100px;border:1px solid var(--border-strong);background:' + (on ? 'linear-gradient(135deg,var(--gold),var(--gold-light))' : 'var(--bg-raised)') + ';color:' + (on ? '#1A120B' : 'var(--text-muted)') + ';font-weight:700;font-size:0.78rem;cursor:pointer;text-transform:capitalize">' + label + '</button>';
+    }
+    var chips = chip('all', 'All (' + att.length + ')') + statuses.map(function (s) { return chip(s, s + ' (' + counts[s] + ')'); }).join('');
     content.innerHTML = '<section class="kpi-row">'
       + '<div class="kpi"><div class="kpi-label">Attendance rate</div><div class="kpi-value gold">' + rate + '%</div><div class="kpi-sub">across ' + att.length + ' session' + (att.length === 1 ? '' : 's') + '</div></div>'
       + '<div class="kpi"><div class="kpi-label">Present / Late</div><div class="kpi-value">' + present + '</div><div class="kpi-sub">of ' + att.length + ' recorded</div></div>'
       + '</section>'
-      + '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+      + '<section class="panel"><div class="panel-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2>Sessions</h2>'
+      +   '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' + chips + '<button type="button" id="attCsv" class="btn btn-ghost" style="padding:6px 12px;font-size:0.8rem"><i class="fa-solid fa-file-csv"></i> Export CSV</button></div></div>'
+      +   '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th></tr></thead><tbody id="attBody">' + rowsHtml(att) + '</tbody></table>'
+      +   '<div id="attEmpty" class="panel-body" style="display:none">' + empty('filter', 'No sessions match this filter.') + '</div></div></section>';
+    var cur = 'all';
+    function applyFilter() {
+      var shown = 0;
+      content.querySelectorAll('#attBody tr').forEach(function (tr) {
+        var ok = cur === 'all' || tr.getAttribute('data-status') === cur;
+        tr.style.display = ok ? '' : 'none'; if (ok) shown++;
+      });
+      var e = document.getElementById('attEmpty'); if (e) e.style.display = shown ? 'none' : 'block';
+    }
+    content.querySelectorAll('.att-filter').forEach(function (b) {
+      b.addEventListener('click', function () {
+        cur = b.getAttribute('data-filter');
+        content.querySelectorAll('.att-filter').forEach(function (x) { var on = x === b; x.style.background = on ? 'linear-gradient(135deg,var(--gold),var(--gold-light))' : 'var(--bg-raised)'; x.style.color = on ? '#1A120B' : 'var(--text-muted)'; });
+        applyFilter();
+      });
+    });
+    var csvBtn = document.getElementById('attCsv');
+    if (csvBtn) csvBtn.addEventListener('click', function () {
+      dlCsv('attendance.csv', ['Date', 'Class', 'Status'], att.map(function (a) { return [a.session_date, a.title || '', a.status]; }));
+    });
   }
   function renderClassTable(enr) {
     var rows = enr.map(function (e) {
@@ -366,7 +412,7 @@
           + '<td data-label="Verified">' + (p.verified_at ? P.fmtDateTime(p.verified_at) : '—') + '</td>'
           + '<td data-label="Receipt">' + receipt + '</td></tr>';
       }).join('');
-      history = '<section class="panel"><div class="panel-head"><h2>Payment History</h2></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Verified</th><th>Receipt</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+      history = '<section class="panel"><div class="panel-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><h2>Payment History</h2><button type="button" id="payCsv" class="btn btn-ghost" style="padding:6px 12px;font-size:0.8rem"><i class="fa-solid fa-file-csv"></i> Export CSV</button></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Verified</th><th>Receipt</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
     } else {
       history = '<section class="panel"><div class="panel-body">' + empty('credit-card', 'No payments on file yet.') + '</div></section>';
     }
@@ -376,6 +422,11 @@
     // the dashboard data so the row flips to paid + the receipt appears.
     content.querySelectorAll('[data-action="pay-tuition"]').forEach(function (b) {
       b.addEventListener('click', function () { payTuition(b.getAttribute('data-ref'), b); });
+    });
+    var payCsv = document.getElementById('payCsv');
+    if (payCsv) payCsv.addEventListener('click', function () {
+      dlCsv('payments.csv', ['Reference', 'Purpose', 'Provider', 'Amount', 'Currency', 'Status', 'Verified'],
+        pays.map(function (p) { return [p.reference, p.purpose || 'tuition', p.provider, p.amount, p.currency, p.status, p.verified_at || '']; }));
     });
   }
 
