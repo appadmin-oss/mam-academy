@@ -110,24 +110,67 @@
     g.gain.exponentialRampToValueAtTime(peak, when + (hold || 0.004));
     g.gain.exponentialRampToValueAtTime(0.0001, when + decay);
   }
+  // Soft-clip curve — gentle tanh saturation adds harmonic warmth + weight
+  // (used on the kick body and bass) so they sound fuller, less like a raw sine.
+  function satCurve(ac) {
+    if (ac.__satCurve) return ac.__satCurve;
+    var n = 1024, c = new Float32Array(n);
+    for (var i = 0; i < n; i++) { var x = i / (n - 1) * 2 - 1; c[i] = Math.tanh(x * 1.8); }
+    ac.__satCurve = c; return c;
+  }
+  // Classic analog-style metallic hi-hat — six inharmonic square partials through
+  // a band-pass + high-pass. Far more realistic than filtered white noise.
+  function metalHat(ac, out, when, decay, peak) {
+    var bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 10000; bp.Q.value = 0.7;
+    var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
+    var g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(peak, when + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + decay);
+    bp.connect(hp).connect(g).connect(out);
+    [2, 3, 4.16, 5.43, 6.79, 8.21].forEach(function (r) {
+      var o = ac.createOscillator(); o.type = 'square'; o.frequency.value = 40 * r;
+      o.connect(bp); o.start(when); o.stop(when + decay + 0.02);
+    });
+  }
   var voices = {
     kick: function (ac, out, when) {
-      var o = ac.createOscillator(), g = ac.createGain();
+      // Body — pitch-swept sine, deeper + a touch longer, through soft saturation.
+      var o = ac.createOscillator(), g = ac.createGain(), sh = ac.createWaveShaper();
+      sh.curve = satCurve(ac);
       o.type = 'sine';
-      o.frequency.setValueAtTime(160, when);
-      o.frequency.exponentialRampToValueAtTime(50, when + 0.11);
-      env(g, when, 0.95, 0.40, 0.005);
-      o.connect(g).connect(out); o.start(when); o.stop(when + 0.42);
+      o.frequency.setValueAtTime(180, when);
+      o.frequency.exponentialRampToValueAtTime(45, when + 0.13);
+      g.gain.setValueAtTime(0.0001, when);
+      g.gain.exponentialRampToValueAtTime(1.0, when + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + 0.45);
+      o.connect(g).connect(sh).connect(out); o.start(when); o.stop(when + 0.47);
+      // Beater click — short high transient for attack/definition on small speakers.
+      var c = ac.createOscillator(), cg = ac.createGain();
+      c.type = 'triangle';
+      c.frequency.setValueAtTime(1500, when); c.frequency.exponentialRampToValueAtTime(420, when + 0.02);
+      cg.gain.setValueAtTime(0.5, when); cg.gain.exponentialRampToValueAtTime(0.0001, when + 0.03);
+      c.connect(cg).connect(out); c.start(when); c.stop(when + 0.04);
     },
     snare: function (ac, out, when) {
+      // Tonal body — two partials (fundamental + a higher overtone) for a real drum ring.
+      [185, 330].forEach(function (f, i) {
+        var o = ac.createOscillator(), og = ac.createGain();
+        o.type = 'triangle'; o.frequency.value = f;
+        og.gain.setValueAtTime(0.0001, when);
+        og.gain.exponentialRampToValueAtTime(i ? 0.16 : 0.34, when + 0.004);
+        og.gain.exponentialRampToValueAtTime(0.0001, when + (i ? 0.07 : 0.11));
+        o.connect(og).connect(out); o.start(when); o.stop(when + 0.13);
+      });
+      // Snares — band-passed noise for the crisp "snap", slightly longer tail.
       var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
-      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1200;
-      var ng = ac.createGain(); env(ng, when, 0.65, 0.18);
-      s.connect(hp).connect(ng).connect(out); s.start(when); s.stop(when + 0.2);
-      var o = ac.createOscillator(), og = ac.createGain();
-      o.type = 'triangle'; o.frequency.value = 180;
-      env(og, when, 0.4, 0.1);
-      o.connect(og).connect(out); o.start(when); o.stop(when + 0.12);
+      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1500;
+      var bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 4200; bp.Q.value = 0.6;
+      var ng = ac.createGain();
+      ng.gain.setValueAtTime(0.0001, when);
+      ng.gain.exponentialRampToValueAtTime(0.7, when + 0.003);
+      ng.gain.exponentialRampToValueAtTime(0.0001, when + 0.2);
+      s.connect(hp).connect(bp).connect(ng).connect(out); s.start(when); s.stop(when + 0.22);
     },
     clap: function (ac, out, when) {
       var bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 0.9;
@@ -142,18 +185,8 @@
         s.connect(g).connect(bp); s.start(when + k); s.stop(when + k + 0.14);
       });
     },
-    hatClosed: function (ac, out, when) {
-      var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
-      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7500;
-      var g = ac.createGain(); env(g, when, 0.4, 0.045, 0.002);
-      s.connect(hp).connect(g).connect(out); s.start(when); s.stop(when + 0.06);
-    },
-    hatOpen: function (ac, out, when) {
-      var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
-      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
-      var g = ac.createGain(); env(g, when, 0.4, 0.32, 0.002);
-      s.connect(hp).connect(g).connect(out); s.start(when); s.stop(when + 0.34);
-    },
+    hatClosed: function (ac, out, when) { metalHat(ac, out, when, 0.05, 0.30); },
+    hatOpen:   function (ac, out, when) { metalHat(ac, out, when, 0.34, 0.30); },
     tom: function (ac, out, when) {
       var o = ac.createOscillator(), g = ac.createGain();
       o.type = 'sine';
@@ -202,31 +235,44 @@
       });
     },
     // ── Pitched voices (harmony). Receive an array of frequencies. ──
-    bass: function (ac, out, when, freqs) {   // round synth bass
+    bass: function (ac, out, when, freqs) {   // round synth bass with a moving filter
       var f = (freqs && freqs[0]) || 110;
       var o = ac.createOscillator(), sub = ac.createOscillator(), g = ac.createGain();
-      var lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(Math.min(2600, f * 6), when); lp.Q.value = 7;
+      var lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 6;
+      // Filter envelope — opens then closes for a punchy, expressive attack.
+      lp.frequency.setValueAtTime(Math.min(3200, f * 9), when);
+      lp.frequency.exponentialRampToValueAtTime(Math.max(120, f * 2), when + 0.22);
+      var sh = ac.createWaveShaper(); sh.curve = satCurve(ac);  // light drive for warmth
       o.type = 'sawtooth'; o.frequency.setValueAtTime(f, when);
       sub.type = 'sine'; sub.frequency.setValueAtTime(f / 2, when);
       g.gain.setValueAtTime(0.0001, when);
-      g.gain.exponentialRampToValueAtTime(0.6, when + 0.014);
-      g.gain.exponentialRampToValueAtTime(0.0001, when + 0.34);
-      o.connect(lp); sub.connect(lp); lp.connect(g).connect(out);
-      o.start(when); sub.start(when); o.stop(when + 0.36); sub.stop(when + 0.36);
+      g.gain.exponentialRampToValueAtTime(0.62, when + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.2, when + 0.18);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + 0.4);
+      o.connect(lp).connect(sh).connect(g);   // saw → filter → drive
+      sub.connect(g);                          // clean sub for low-end weight
+      g.connect(out);
+      o.start(when); sub.start(when); o.stop(when + 0.42); sub.stop(when + 0.42);
     },
-    keys: function (ac, out, when, freqs) {   // soft electric-piano-ish chord
+    keys: function (ac, out, when, freqs) {   // FM electric-piano (tine) chord
       freqs = (freqs && freqs.length) ? freqs : [261.63];
       var g = ac.createGain();
       g.gain.setValueAtTime(0.0001, when);
-      g.gain.exponentialRampToValueAtTime(0.16, when + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, when + 0.7);
+      g.gain.exponentialRampToValueAtTime(0.16, when + 0.006);   // quick tine attack
+      g.gain.exponentialRampToValueAtTime(0.05, when + 0.2);
+      g.gain.exponentialRampToValueAtTime(0.0001, when + 0.9);   // gentle release
       g.connect(out);
       freqs.forEach(function (f) {
-        var o = ac.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
-        var h = ac.createOscillator(); h.type = 'sine'; h.frequency.value = f * 2;
-        var hg = ac.createGain(); hg.gain.value = 0.45;
-        o.connect(g); h.connect(hg).connect(g);
-        o.start(when); h.start(when); o.stop(when + 0.72); h.stop(when + 0.72);
+        // 2-operator FM: a sine carrier whose frequency is modulated at 2× with a
+        // decaying index — the classic Rhodes/DX bell-tine timbre.
+        var car = ac.createOscillator(); car.type = 'sine'; car.frequency.value = f;
+        var mod = ac.createOscillator(); mod.type = 'sine'; mod.frequency.value = f * 2;
+        var mg = ac.createGain();
+        mg.gain.setValueAtTime(f * 1.4, when);
+        mg.gain.exponentialRampToValueAtTime(f * 0.08, when + 0.25);
+        mod.connect(mg).connect(car.frequency);
+        car.connect(g);
+        car.start(when); mod.start(when); car.stop(when + 0.92); mod.stop(when + 0.92);
       });
     },
   };
@@ -277,7 +323,7 @@
     var names = {}; TRACKS.forEach(function (t) { if (!t.pitched) names[t.voice] = 1; }); // pitched voices vary in pitch — never cached
     Object.keys(names).forEach(function (v) {
       try {
-        var dur = 0.8;
+        var dur = (v === 'crash') ? 1.4 : 0.6;   // crash needs a long tail; others are short
         var off = new OAC(1, Math.ceil(sampleRate * dur), sampleRate);
         voices[v](off, off.destination, 0);
         off.startRendering().then(function (buf) { buffers[v] = buf; }).catch(function () {});
@@ -440,7 +486,11 @@
     if (!OAC) { status('Your browser can’t render WAV files offline — try the latest Chrome, Edge or Safari.'); return; }
     status('Rendering your beat…');
     var off = new OAC(2, Math.ceil((totalSteps * sd + tail) * sr), sr);
-    var master = off.createGain(); master.gain.value = st.master; master.connect(off.destination);
+    var master = off.createGain(); master.gain.value = st.master;
+    // Same bus compressor as live playback so the exported WAV is produced + safe.
+    var comp = off.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 3.2; comp.attack.value = 0.004; comp.release.value = 0.22;
+    master.connect(comp).connect(off.destination);
     var anySolo = st.tracks.some(function (t) { return t.solo; });
     TRACKS.forEach(function (t, i) {
       var aud = anySolo ? !!st.tracks[i].solo : !st.tracks[i].mute;
@@ -480,7 +530,12 @@
     function build() {
       ac = audio(); ensureBuffers(ac.sampleRate);
       if (masterGain && masterGain.context === ac) return;
-      masterGain = ac.createGain(); masterGain.gain.value = store.getState().master; masterGain.connect(ac.destination);
+      masterGain = ac.createGain(); masterGain.gain.value = store.getState().master;
+      // Bus compressor — glues the kit together and tames peaks so the mix sounds
+      // produced, not clippy, on phone speakers.
+      var comp = ac.createDynamicsCompressor();
+      comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 3.2; comp.attack.value = 0.004; comp.release.value = 0.22;
+      masterGain.connect(comp).connect(ac.destination);
       tgains = TRACKS.map(function (t, i) { var g = ac.createGain(); g.gain.value = store.getState().tracks[i].vol; g.connect(masterGain); return g; });
     }
     function trig(i, when, vel, step) {
