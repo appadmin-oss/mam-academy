@@ -143,13 +143,34 @@
     if (!soundOn) return;
     var ac = actxGet(); if (!ac) return;
     try {
-      var t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
-      o.type = good === false ? 'sawtooth' : 'triangle';
-      o.frequency.value = good === false ? 130 : freqOf(d);
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(good === false ? 0.12 : 0.18, t + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + (good === false ? 0.18 : 0.5));
-      o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.55);
+      var t = ac.currentTime;
+      if (good === false) {
+        // Gentle "not quite" — a soft, low two-note fall through a low-pass,
+        // never a harsh buzz (it plays on every miss, so it must be easy on the ear).
+        var lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.connect(ac.destination);
+        [155.56, 138.59].forEach(function (f, i) {
+          var o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = f;
+          var s = t + i * 0.05;
+          g.gain.setValueAtTime(0.0001, s);
+          g.gain.exponentialRampToValueAtTime(0.11, s + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.0001, s + 0.18);
+          o.connect(g).connect(lp); o.start(s); o.stop(s + 0.2);
+        });
+        return;
+      }
+      // Correct — a warm FM bell/tine (pleasant to hear repeatedly + trains the ear
+      // to the real pitch), shaped by a soft low-pass and a natural decay.
+      var f = freqOf(d);
+      var lp2 = ac.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = Math.min(6500, f * 8); lp2.Q.value = 0.5; lp2.connect(ac.destination);
+      var car = ac.createOscillator(), g2 = ac.createGain(); car.type = 'triangle'; car.frequency.value = f;
+      var mod = ac.createOscillator(), mg = ac.createGain(); mod.type = 'sine'; mod.frequency.value = f * 3;
+      mg.gain.setValueAtTime(f * 1.2, t); mg.gain.exponentialRampToValueAtTime(f * 0.05, t + 0.2);
+      mod.connect(mg).connect(car.frequency);
+      g2.gain.setValueAtTime(0.0001, t);
+      g2.gain.exponentialRampToValueAtTime(0.22, t + 0.008);
+      g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+      car.connect(g2).connect(lp2);
+      car.start(t); mod.start(t); car.stop(t + 0.6); mod.stop(t + 0.6);
     } catch (e) {}
   }
 
