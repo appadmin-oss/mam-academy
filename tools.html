@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
 <title>Practice Studio — MAM Academy</title>
-<meta name="description" content="The MAM Academy Practice Studio — metronome, chromatic tuner, focus timer, ear training, speed/pitch trainer, and a browser beat maker. Premium musician tools, free for everyone.">
+<meta name="description" content="The MAM Academy Practice Studio — metronome, chromatic tuner, focus timer, ear training, speed/pitch trainer, and a browser beat lab. Premium musician tools, free for everyone.">
 <link rel="canonical" href="https://academy.mamcentre.org/studio">
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <meta property="og:title" content="MAM Academy — Practice Studio">
-<meta property="og:description" content="Metronome, tuner, focus timer, ear training, speed-and-pitch trainer, beat maker. Free.">
+<meta property="og:description" content="Metronome, tuner, focus timer, ear training, speed-and-pitch trainer, beat lab. Free.">
 <!-- Permissions-Policy: the host injects a default policy that disallows
      microphone; without explicit allow, the tuner's getUserMedia errors with
      'Permissions policy violation'. The meta is a hint to the browser; the
@@ -189,7 +189,7 @@
   .met-bpm{margin-bottom:8px}
 }
 
-/* ── Beat Maker (step sequencer) ───────────────────────────────── */
+/* ── Beat Lab (step sequencer) ───────────────────────────────── */
 .seq-transport{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;padding:18px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
 .seq-play{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.05em;font-size:1rem;border-radius:12px;border:0;cursor:pointer;min-height:54px;box-shadow:0 8px 22px rgba(224,138,26,0.4)}
 .seq-play.playing{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;box-shadow:0 8px 22px rgba(244,66,59,0.45)}
@@ -384,7 +384,7 @@
       <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Practice Studio</span></nav>
       <div class="page-hero-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i>The Practice Studio</div>
       <h1 class="page-hero-title">The Practice <span class="highlight-gold">Studio</span></h1>
-      <p class="page-hero-lede">Metronome, chromatic tuner, focus timer, ear-training drills, an interactive chord &amp; scale explorer, the speed-and-pitch trainer and a full beat maker with harmony. Premium musician tools — free for everyone, sharpened for MAM students.</p>
+      <p class="page-hero-lede">Metronome, chromatic tuner, focus timer, ear-training drills, an interactive chord &amp; scale explorer, the speed-and-pitch trainer and a full beat lab with harmony. Premium musician tools — free for everyone, sharpened for MAM students.</p>
     </div>
   </header>
 
@@ -396,7 +396,7 @@
       <button data-tool="ear" role="tab" aria-selected="false"><i class="fa-solid fa-headphones"></i> Ear Training</button>
       <button data-tool="chords" role="tab" aria-selected="false"><i class="fa-solid fa-music"></i> Chords &amp; Scales <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
       <button data-tool="speed" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">PREMIUM</span></button>
-      <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
+      <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Lab <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
       <button data-tool="transcribe" role="tab" aria-selected="false"><i class="fa-solid fa-wand-magic-sparkles"></i> Transcribe <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">AI</span></button>
       <button data-tool="drone" role="tab" aria-selected="false"><i class="fa-solid fa-wave-square"></i> Drone</button>
     </nav>
@@ -404,7 +404,7 @@
     <!-- ─── Metronome ─── -->
     <section class="tool-panel active" data-tool="metronome" role="tabpanel">
       <div class="tool-head">
-        <div><h2>Metronome</h2><p>Steady time, accented downbeats, time-signature aware. Press space to start &amp; stop. Tempo is shared with the Beat Maker.</p></div>
+        <div><h2>Metronome</h2><p>Steady time, accented downbeats, time-signature aware. Press space to start &amp; stop. Tempo is shared with the Beat Lab.</p></div>
       </div>
       <div class="met-display">
         <div class="met-bpm" aria-live="polite"><span id="metBpmVal">100</span><small>BPM</small></div>
@@ -652,11 +652,11 @@
       <div class="ch-info" id="chInfo"></div>
     </section>
 
-    <!-- ─── Beat Maker (step sequencer) ─── -->
+    <!-- ─── Beat Lab (step sequencer) ─── -->
     <section class="tool-panel" data-tool="seq" role="tabpanel">
       <div class="tool-head">
         <div>
-          <h2>Beat Maker</h2>
+          <h2>Beat Lab</h2>
           <p>A full beat workstation — a playable drum kit (kick, snare, clap, hats, toms, rim, shaker, cowbell, crash) plus a <b>Bass</b> and <b>Keys</b> that follow your chosen <b>key</b> and <b>chord progression</b>, so it's melody and harmony, not just drums. Switch <b>time signature</b> (4/4, 3/4, 6/8, 5/4, 7/8), load a genre (Afrobeat, Amapiano, House, Trap, Gospel, Jazz…), tap the grid or play the pads live, press <b>space</b> to play, then bounce a WAV. Everything is generated live in your browser — works offline.</p>
         </div>
       </div>
@@ -858,7 +858,7 @@
 <script src="assets/js/studio-core.js?v=20260602a" defer></script>
 <script src="assets/js/tools.js?v=20260603d" defer></script>
 <script src="assets/js/studio-chords.js?v=20260603b" defer></script>
-<script src="assets/js/sequencer.js?v=20260604a" defer></script>
+<script src="assets/js/sequencer.js?v=20260604b" defer></script>
 <script src="assets/js/transcribe.js?v=20260604b" defer></script>
 <script src="assets/js/drone.js?v=20260604a" defer></script>
 </body>

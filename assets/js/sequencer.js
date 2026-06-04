@@ -1,4 +1,4 @@
-/*! MAM Academy — Beat Maker (step sequencer)  ·  window.MAM_SEQ
+/*! MAM Academy — Beat Lab (step sequencer)  ·  window.MAM_SEQ
  * ---------------------------------------------------------------------------
  * A 16-step drum sequencer, built to the studio's "Enterprise Web-Audio"
  * architecture: a Tone.js audio kernel, a Zustand state engine, and a Canvas
@@ -42,7 +42,7 @@
   'use strict';
 
   var panel = document.querySelector('.tool-panel[data-tool="seq"]');
-  if (!panel) return; // page doesn't include the Beat Maker
+  if (!panel) return; // page doesn't include the Beat Lab
 
   var $ = function (s) { return panel.querySelector(s); };
   var $$ = function (s) { return Array.prototype.slice.call(panel.querySelectorAll(s)); };
@@ -65,6 +65,10 @@
     { name: 'Shaker',     voice: 'shaker',    vol: 0.50 },
     { name: 'Cowbell',    voice: 'cowbell',   vol: 0.50 },
     { name: 'Crash',      voice: 'crash',     vol: 0.45 },
+    { name: 'Ride',       voice: 'ride',      vol: 0.42 },
+    { name: 'Conga',      voice: 'conga',     vol: 0.60 },
+    { name: 'Tambourine', voice: 'tambourine', vol: 0.42 },
+    { name: 'Clave',      voice: 'clave',     vol: 0.50 },
     // Pitched/harmonic voices — these don't play a fixed sample; their pitch is
     // derived live from the Key + chord progression (see chordAt). `pitched`
     // marks the role: 'bass' plays the chord root, 'chord' plays the triad.
@@ -73,7 +77,7 @@
   ];
 
   // Keyboard mapping for the playable drum kit — digit keys 1..0 trigger the
-  // first ten kit pieces. Active only while the Beat Maker panel is showing.
+  // first ten kit pieces. Active only while the Beat Lab panel is showing.
   var PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 
   // ── Shared AudioContext (autoplay-policy safe) ─────────────────────
@@ -232,6 +236,43 @@
         og.gain.exponentialRampToValueAtTime(0.055, when + 0.006);
         og.gain.exponentialRampToValueAtTime(0.0001, when + 0.9);
         o.connect(og).connect(out); o.start(when); o.stop(when + 0.95);
+      });
+    },
+    ride: function (ac, out, when) {  // ride cymbal — a defined "ping" over a soft wash
+      var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
+      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 6000;
+      var g = ac.createGain();
+      g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(0.16, when + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, when + 0.5);
+      s.connect(hp).connect(g).connect(out); s.start(when); s.stop(when + 0.55);
+      [3200, 4600, 5300].forEach(function (f) {
+        var o = ac.createOscillator(), og = ac.createGain(); o.type = 'square'; o.frequency.value = f;
+        og.gain.setValueAtTime(0.0001, when); og.gain.exponentialRampToValueAtTime(0.06, when + 0.003); og.gain.exponentialRampToValueAtTime(0.0001, when + 0.36);
+        o.connect(og).connect(out); o.start(when); o.stop(when + 0.4);
+      });
+    },
+    conga: function (ac, out, when) {  // tuned hand-drum — pitch-swept membrane + slap
+      var o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(320, when); o.frequency.exponentialRampToValueAtTime(220, when + 0.12);
+      g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(0.6, when + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, when + 0.28);
+      o.connect(g).connect(out); o.start(when); o.stop(when + 0.3);
+      var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
+      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2000;
+      var ng = ac.createGain(); ng.gain.setValueAtTime(0.0001, when); ng.gain.exponentialRampToValueAtTime(0.2, when + 0.002); ng.gain.exponentialRampToValueAtTime(0.0001, when + 0.04);
+      s.connect(hp).connect(ng).connect(out); s.start(when); s.stop(when + 0.05);
+    },
+    tambourine: function (ac, out, when) {  // jingle — bright noise bursts through a high band-pass
+      var bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 9000; bp.Q.value = 1.2; bp.connect(out);
+      [0, 0.012, 0.03].forEach(function (k, i) {
+        var s = ac.createBufferSource(); s.buffer = noiseBuf(ac); var g = ac.createGain(); var s0 = when + k;
+        g.gain.setValueAtTime(0.0001, s0); g.gain.exponentialRampToValueAtTime(i === 2 ? 0.28 : 0.18, s0 + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, s0 + (i === 2 ? 0.18 : 0.05));
+        s.connect(g).connect(bp); s.start(s0); s.stop(s0 + 0.2);
+      });
+    },
+    clave: function (ac, out, when) {  // wood-block / clave — sharp resonant click
+      [2500, 1250].forEach(function (f, i) {
+        var o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(i ? 0.18 : 0.42, when + 0.001); g.gain.exponentialRampToValueAtTime(0.0001, when + (i ? 0.05 : 0.035));
+        o.connect(g).connect(out); o.start(when); o.stop(when + 0.06);
       });
     },
     // ── Pitched voices (harmony). Receive an array of frequencies. ──
@@ -635,7 +676,7 @@
   // given key could not be found" errors from Transport.scheduleRepeat /
   // Tone.Draw.schedule, which silently killed playback. The raw look-ahead
   // scheduler is sample-accurate enough for a step sequencer and never depends
-  // on a CDN, so the Beat Maker just works.
+  // on a CDN, so the Beat Lab just works.
   function wantKernel() { return 'raw'; }
   function ensureKernel() {
     if (!kernel) kernel = wantKernel() === 'tone' ? createToneKernel() : createRawKernel();
@@ -917,7 +958,7 @@
         else setTimeout(layout, 30);
       });
     });
-    // Spacebar toggles play while the Beat Maker is the active panel.
+    // Spacebar toggles play while the Beat Lab is the active panel.
     document.addEventListener('keydown', function (e) {
       if (e.code !== 'Space') return;
       var active = document.querySelector('.tool-panel.active');
@@ -927,7 +968,7 @@
       e.preventDefault();
       store.getState().playing ? stop() : play();
     });
-    // Digit keys 1..0 play the drum kit live while the Beat Maker is active.
+    // Digit keys 1..0 play the drum kit live while the Beat Lab is active.
     document.addEventListener('keydown', function (e) {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       var active = document.querySelector('.tool-panel.active');
@@ -961,7 +1002,7 @@
   }
 
   // ── Init (synchronous) ─────────────────────────────────────────────
-  // The Beat Maker must be live the instant the panel exists — never gated
+  // The Beat Lab must be live the instant the panel exists — never gated
   // behind a CDN module load. nativeCreateStore is a complete, API-identical
   // store, so there is nothing to wait for. (The Tone.js kernel still upgrades
   // the *audio clock* on play once Tone has loaded; that's independent of this.)

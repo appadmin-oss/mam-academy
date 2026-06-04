@@ -22,7 +22,7 @@
   var ctx = null;
   function audio() {
     // Use the shared studio context (window.MAM) so every tool — metronome,
-    // tuner, ear-trainer, beat maker — runs on one engine.
+    // tuner, ear-trainer, beat lab — runs on one engine.
     if (window.MAM && typeof window.MAM.audio === 'function') { ctx = window.MAM.audio(); return ctx; }
     if (window.Tone && Tone.context) {
       ctx = Tone.context.rawContext || Tone.getContext().rawContext || ctx;
@@ -59,7 +59,7 @@
   var beatsBox = $('#metBeats');
 
   // Shared tempo: adopt the studio bus value and follow it so the Metronome
-  // and the Beat Maker always agree on the tempo.
+  // and the Beat Lab always agree on the tempo.
   function setMetBpm(v, fromBus) {
     metBpm = Math.max(30, Math.min(240, Math.round(v) || 100));
     bpmRange.value = metBpm; bpmVal.textContent = metBpm;

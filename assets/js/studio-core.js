@@ -1,14 +1,14 @@
 /*! MAM Academy — Studio Core (window.MAM)
  * ---------------------------------------------------------------------------
  * Shared infrastructure for every Practice Studio tool (metronome, tuner,
- * ear-trainer, speed/pitch, beat maker). Extracted so the tools share one
+ * ear-trainer, speed/pitch, beat lab). Extracted so the tools share one
  * audio engine and stay in sync instead of each spinning up their own.
  *
  *   • audio()       one autoplay-policy-safe, Tone.js-aware AudioContext, so
  *                   every tool mixes through the same (AudioWorklet-backed)
  *                   output and there's never a second, competing context.
  *   • tempo         a shared BPM bus — set the tempo in the Metronome and the
- *                   Beat Maker follows, and vice-versa. Persisted per device.
+ *                   Beat Lab follows, and vice-versa. Persisted per device.
  *   • createStore() a tiny Zustand-compatible immutable store (getState /
  *                   setState / subscribe) for tools that want reactive state.
  *   • bake/buffer/trigger   a warm one-shot buffer cache: pre-render a sound
