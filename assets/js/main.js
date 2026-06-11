@@ -1052,8 +1052,8 @@
   document.addEventListener('DOMContentLoaded', function () {
     injectSiteSchema();
     Promise.all([
-      loadPartial('include-header', 'partials/header.html?v=20260601a'),
-      loadPartial('include-footer', 'partials/footer.html?v=20260601a')
+      loadPartial('include-header', 'partials/header.html?v=20260611a'),
+      loadPartial('include-footer', 'partials/footer.html?v=20260611a')
     ]).then(boot);
   });
 })();
