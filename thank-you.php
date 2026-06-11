@@ -37,7 +37,7 @@
 </main>
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260602d"></script>
-<script src="assets/js/main.js?v=20260611e"></script>
+<script src="assets/js/main.js?v=20260611f"></script>
 <script>
 document.addEventListener('mam:ready', function () {
   try {

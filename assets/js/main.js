@@ -955,24 +955,26 @@
     if (!wm) return;
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce || !('requestAnimationFrame' in window)) { wm.style.opacity = '0.96'; wm.style.transform = 'none'; return; }
-    // Drive progress off the FOOTER's rect, not the wordmark's: the wordmark
-    // sits at the very bottom of the page and can never scroll to mid-viewport,
-    // so a wordmark-relative progress would never complete. The footer is tall
-    // enough to finish the reveal before the page bottom.
-    var footer = wm.closest('footer') || wm.parentElement;
     var raf = null;
     function update() {
       raf = null;
-      var fr = footer.getBoundingClientRect();
+      var r = wm.getBoundingClientRect();
       var vh = window.innerHeight || document.documentElement.clientHeight;
-      var p = (vh - fr.top) / (vh * 0.55);          // 0 as footer enters → 1 once risen ~45%
+      var h = r.height || 1;
+      // Key progress off the WORDMARK itself: 0 the moment its top edge reaches
+      // the viewport bottom (just rising into view), 1 once it has climbed by
+      // its own height — i.e. fully on screen as you land at the page bottom.
+      // (The old footer-rect version finished the reveal while the footer was
+      // only ~45% up, which is BEFORE the wordmark — at the footer's base —
+      // scrolls into view, so the animation was never actually seen.)
+      var p = (vh - r.top) / h;
       p = p < 0 ? 0 : (p > 1 ? 1 : p);
       var ease = 1 - Math.pow(1 - p, 3);            // easeOutCubic
       // Overlap reveal: a top-inset clip wipes the letters open from the
       // baseline up, so the word looks like it rises out from behind the
-      // copyright row above it; a small lift adds the layered overlap feel.
+      // copyright row above it; a lift adds the layered overlap feel.
       wm.style.clipPath = 'inset(' + ((1 - ease) * 100).toFixed(1) + '% 0 0 0)';
-      wm.style.transform = 'translate3d(0,' + ((1 - ease) * 44).toFixed(1) + 'px,0)';
+      wm.style.transform = 'translate3d(0,' + ((1 - ease) * 52).toFixed(1) + 'px,0)';
     }
     function onScroll() { if (!raf) raf = requestAnimationFrame(update); }
     window.addEventListener('scroll', onScroll, { passive: true });
