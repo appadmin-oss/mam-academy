@@ -5,6 +5,13 @@
 (function () {
   'use strict';
 
+  // ---- JS-on marker (synchronous, before paint) ------------------------
+  // Scroll-reveal elements are hidden ONLY under `html.js`. Setting this here,
+  // before first paint, means: (a) with JS the reveal animation works, and
+  // (b) without JS — or if this script never parses — content keeps its
+  // natural opacity and can never be stuck invisible.
+  try { document.documentElement.classList.add('js'); } catch (e) {}
+
   // ---- Gradient-text capability probe ----------------------------------
   // Gold/coloured headings paint a gradient onto the text via
   // background-clip:text + transparent fill. When an engine can't paint that
@@ -61,6 +68,34 @@
     } catch (e) {
       try { document.documentElement.className += ' reveal-fallback'; } catch (_) {}
     }
+  })();
+
+  // ---- Scroll-reveal: arm EARLY, independent of the header/footer partials --
+  // The reveal observer used to live in boot(), which only runs AFTER the
+  // header+footer partials are fetched. On slow/flaky mobile connections that
+  // delayed revealing above-the-fold content, so headings sat invisible until
+  // the safety-net timers fired (up to seconds). Arm it here on DOMContentLoaded
+  // so page content (which is in the static HTML, not the partials) reveals on
+  // time regardless of partial latency. Idempotent with boot's initAnimations.
+  (function () {
+    function armReveal() {
+      try {
+        var targets = document.querySelectorAll('.fade-in-up, .fade-in');
+        if (!('IntersectionObserver' in window)) {
+          for (var j = 0; j < targets.length; j++) targets[j].classList.add('visible');
+          return;
+        }
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (en.isIntersecting) { en.target.classList.add('visible'); io.unobserve(en.target); }
+          });
+        }, { threshold: 0.1, rootMargin: '0px 0px -32px 0px' });
+        for (var i = 0; i < targets.length; i++) io.observe(targets[i]);
+        window.__mamRevealArmed = true;
+      } catch (e) {}
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', armReveal);
+    else armReveal();
   })();
 
   // ---- Gradient-clip repaint after web fonts load -----------------------
@@ -451,16 +486,20 @@
   // Animations + scroll spy + counters
   // ============================================================
   function initAnimations() {
-    var targets = $$('.fade-in-up, .fade-in');
-    if ('IntersectionObserver' in window) {
-      var obs = new IntersectionObserver(function (entries) {
-        entries.forEach(function (en) {
-          if (en.isIntersecting) { en.target.classList.add('visible'); obs.unobserve(en.target); }
-        });
-      }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-      targets.forEach(function (el) { obs.observe(el); });
-    } else {
-      targets.forEach(function (el) { el.classList.add('visible'); });
+    // The fade-reveal observer is normally armed early (before partials) by the
+    // top-level IIFE; only arm here if that didn't run, so we never double-bind.
+    if (!window.__mamRevealArmed) {
+      var targets = $$('.fade-in-up, .fade-in');
+      if ('IntersectionObserver' in window) {
+        var obs = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (en.isIntersecting) { en.target.classList.add('visible'); obs.unobserve(en.target); }
+          });
+        }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+        targets.forEach(function (el) { obs.observe(el); });
+      } else {
+        targets.forEach(function (el) { el.classList.add('visible'); });
+      }
     }
 
     var stats = $$('.stat-number[data-count]');
@@ -628,9 +667,11 @@
   function initCookie() {
     var banner = $('#cookieBanner'); if (!banner) return;
     if (Storage.getItem('mam.cookie')) return;
-    setTimeout(function () { banner.classList.add('shown'); }, 1200);
-    on($('#cookieAccept'),  'click', function () { Storage.setItem('mam.cookie', 'accept'); banner.classList.remove('shown'); });
-    on($('#cookieDecline'), 'click', function () { Storage.setItem('mam.cookie', 'decline'); banner.classList.remove('shown'); });
+    var root = document.documentElement;
+    setTimeout(function () { banner.classList.add('shown'); root.classList.add('cookie-open'); }, 1200);
+    function dismiss(v) { return function () { Storage.setItem('mam.cookie', v); banner.classList.remove('shown'); root.classList.remove('cookie-open'); }; }
+    on($('#cookieAccept'),  'click', dismiss('accept'));
+    on($('#cookieDecline'), 'click', dismiss('decline'));
   }
 
   // ============================================================
@@ -903,13 +944,47 @@
     var st = document.createElement('style'); st.id = 'scholar-css'; st.textContent = css; document.head.appendChild(st);
   }
 
+  // ============================================================
+  // Footer wordmark — smooth scroll-linked parallax reveal
+  // The "MAM CENTRE" mark eases up and fades in as the footer enters view.
+  // JS owns the hidden start state, so without JS (or reduced-motion) the
+  // CSS default (opacity:.96) keeps it fully visible — never invisible.
+  // ============================================================
+  function initFooterWordmark() {
+    var wm = document.querySelector('.footer-wordmark');
+    if (!wm) return;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !('requestAnimationFrame' in window)) { wm.style.opacity = '0.96'; wm.style.transform = 'none'; return; }
+    // Drive progress off the FOOTER's rect, not the wordmark's: the wordmark
+    // sits at the very bottom of the page and can never scroll to mid-viewport,
+    // so a wordmark-relative progress would never complete. The footer is tall
+    // enough to finish the reveal before the page bottom.
+    var footer = wm.closest('footer') || wm.parentElement;
+    var raf = null;
+    function update() {
+      raf = null;
+      var fr = footer.getBoundingClientRect();
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      var p = (vh - fr.top) / (vh * 0.55);          // 0 as footer enters → 1 once risen ~45%
+      p = p < 0 ? 0 : (p > 1 ? 1 : p);
+      var ease = 1 - Math.pow(1 - p, 3);            // easeOutCubic
+      wm.style.opacity = (0.10 + 0.86 * ease).toFixed(3);
+      wm.style.transform = 'translate3d(0,' + ((1 - ease) * 66).toFixed(1) + 'px,0)';
+    }
+    function onScroll() { if (!raf) raf = requestAnimationFrame(update); }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    update();
+  }
+
   function boot() {
     // Each init is isolated: a throw in one (e.g. the nav) must never stop the
     // others from running — otherwise a single failure could, for example,
     // leave the scroll-reveal section headers stuck at opacity:0.
     [initPreloader, initNav, initHero, initSmoothScroll, initFaq, initAnimations,
      initCountdown, initTestimonials, initCookie, initToolbar, initCurrency,
-     initNewsletter, initFilters, initImageFallback, initYear, initScholarship].forEach(function (fn) {
+     initNewsletter, initFilters, initImageFallback, initYear, initScholarship,
+     initFooterWordmark].forEach(function (fn) {
       try { fn(); } catch (e) { if (window.console) console.error('[MAM] init failed:', fn.name, e); }
     });
 
