@@ -80,7 +80,7 @@
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
-<div id="include-header"></div>
+<?php include __DIR__ . '/partials/header.html'; ?>
 
 <main id="main">
   <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1465225314224-587cd83d322b?w=1920&q=80');padding:84px 22px 44px">
@@ -168,7 +168,7 @@
   </section>
 </main>
 
-<div id="include-footer"></div>
+<?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260602d"></script>
 <script src="assets/js/main.js?v=20260611d"></script>
 <script>

@@ -82,7 +82,7 @@
 <a href="#main" class="skip-link">Skip to main content</a>
 <div id="preloader"><div class="preloader-logo"><img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'"><div class="preloader-name">MAM ACADEMY</div><div class="preloader-tag">Power Play with Van. BOJA</div></div><div class="waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
 
-<div id="include-header"></div>
+<?php include __DIR__ . '/partials/header.html'; ?>
 
 <main id="main">
   <header class="pp-hero">
@@ -224,7 +224,7 @@
   </section>
 </main>
 
-<div id="include-footer"></div>
+<?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260602d"></script>
 <script src="assets/js/main.js?v=20260611d"></script>
 <script>

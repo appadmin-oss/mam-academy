@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="assets/css/main.css?v=20260611d">
 </head>
 <body>
-<div id="include-header"></div>
+<?php include __DIR__ . '/partials/header.html'; ?>
 <main id="main" style="min-height:calc(100vh - var(--nav-h));display:flex;align-items:center;justify-content:center;padding:60px 24px;text-align:center">
   <div style="max-width:580px">
     <div style="font-family:var(--font-display);font-size:clamp(6rem,18vw,12rem);line-height:1;background:linear-gradient(135deg,var(--gold),var(--gold-bright));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:14px">404</div>
@@ -26,7 +26,7 @@
     </div>
   </div>
 </main>
-<div id="include-footer"></div>
+<?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260602d"></script>
 <script src="assets/js/main.js?v=20260611d"></script>
 </body>

@@ -16,7 +16,7 @@
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
-<div id="include-header"></div>
+<?php include __DIR__ . '/partials/header.html'; ?>
 <main id="main">
   <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1486078695445-0497c2f58cfb?w=1600&q=80');padding:80px 24px 50px">
     <div class="page-hero-inner">
@@ -67,7 +67,7 @@
     <p>If we change this policy, we'll update the "last updated" date above and, for material changes, notify enrolled students by email.</p>
   </section>
 </main>
-<div id="include-footer"></div>
+<?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260602d"></script>
 <script src="assets/js/main.js?v=20260611d"></script>
 </body>

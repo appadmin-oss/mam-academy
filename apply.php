@@ -29,7 +29,7 @@
   <div class="waves" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
 </div>
 
-<div id="include-header"></div>
+<?php include __DIR__ . '/partials/header.html'; ?>
 
 <main id="main">
   <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&q=80');padding:clamp(64px,9vw,112px) 24px clamp(52px,7vw,84px)">
@@ -609,7 +609,7 @@
   </div>
 </main>
 
-<div id="include-footer"></div>
+<?php include __DIR__ . '/partials/footer.html'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/js/intlTelInputWithUtils.min.js"></script>
 <script src="assets/js/config.js?v=20260602d"></script>

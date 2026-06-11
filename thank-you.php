@@ -15,7 +15,7 @@
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
-<div id="include-header"></div>
+<?php include __DIR__ . '/partials/header.html'; ?>
 <main id="main" style="min-height:calc(100vh - var(--nav-h));display:flex;align-items:center;justify-content:center;padding:60px 24px">
   <div class="apply-main" style="max-width:680px;margin:0">
     <div class="apply-success">
@@ -35,7 +35,7 @@
     </div>
   </div>
 </main>
-<div id="include-footer"></div>
+<?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260602d"></script>
 <script src="assets/js/main.js?v=20260611d"></script>
 <script>

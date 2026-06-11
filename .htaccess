@@ -5,7 +5,7 @@
 # ============================================================
 
 # Default index
-DirectoryIndex index.html index.htm
+DirectoryIndex index.php index.html index.htm
 
 # ---------- HTTPS redirect (uncomment in production) ----------
 # RewriteEngine On
@@ -33,18 +33,27 @@ DirectoryIndex index.html index.htm
   RewriteRule ^api(/|$) - [L]
 
   # /studio is the renamed user-facing URL for the Practice Studio. Internally
-  # both /studio and /tools serve tools.html — the old URL keeps working so
+  # both /studio and /tools serve the tools page — the old URL keeps working so
   # existing email links / bookmarks / sitemaps don't 404.
-  RewriteRule ^studio/?$ tools.html [L]
+  RewriteRule ^studio/?$ tools.php [L]
 
-  # 1. External redirect: strip .html from the URL. Skips /partials/*,
-  #    which are fetched directly as .html by the front-end loader, so we
-  #    don't add a redirect hop to every page's header/footer fetch.
+  # 1. External redirect: strip .html / .php from the URL so the clean URL is
+  #    canonical (good for SEO, avoids duplicate content). %{THE_REQUEST} guards
+  #    so it only fires on the original browser request, never the internal
+  #    rewrite below. Skips /partials/* (fetched directly when needed).
   RewriteCond %{REQUEST_URI} !^/partials/ [NC]
-  RewriteCond %{THE_REQUEST} \s/+([^?\s]+)\.html[\s?] [NC]
+  RewriteCond %{THE_REQUEST} \s/+([^?\s]+)\.(?:html|php)[\s?] [NC]
   RewriteRule ^ /%1 [R=301,L,NE]
 
-  # 2. Internal rewrite: serve the .html file for the clean URL.
+  # 2. Internal rewrite: serve the page for the clean URL. Prefer a
+  #    server-side-included .php (header/footer rendered in-page, no client
+  #    fetch — better CLS/SEO); fall back to a legacy .html if no .php exists,
+  #    so the migration is non-destructive and incremental.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME}.php -f
+  RewriteRule ^(.+?)/?$ $1.php [L]
+
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteCond %{REQUEST_FILENAME}.html -f
@@ -52,7 +61,7 @@ DirectoryIndex index.html index.htm
 </IfModule>
 
 # ---------- 404 ----------
-ErrorDocument 404 /404.html
+ErrorDocument 404 /404.php
 
 # ---------- Gzip ----------
 <IfModule mod_deflate.c>
@@ -105,7 +114,7 @@ ErrorDocument 404 /404.html
   Header set Content-Security-Policy "default-src 'self' https:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://js.paystack.co https://checkout.flutterwave.com https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://code.iconify.design https://api.iconify.design; frame-src 'self' https://checkout.flutterwave.com https://standard.paystack.co https://js.stripe.com https://calendar.google.com; connect-src 'self' https: blob:; worker-src 'self' blob:; media-src 'self' https: blob: data:; manifest-src 'self';"
 
   # ----- Cache-control fine-tuning -----
-  <FilesMatch "\.(html)$">
+  <FilesMatch "\.(html|php)$">
     Header set Cache-Control "public, max-age=300, must-revalidate"
   </FilesMatch>
   <FilesMatch "\.(css|js|svg|woff|woff2|ttf|otf|png|jpg|jpeg|webp|avif|gif|ico)$">
