@@ -55,7 +55,7 @@
 
     <header class="portal-top">
       <h1 id="pageTitle">Overview <small id="pageSub">Welcome back</small></h1>
-      <div><a class="btn btn-primary" href="/apply.html"><i class="fa-solid fa-plus"></i>New Application</a></div>
+      <div><a class="btn btn-primary" href="/apply"><i class="fa-solid fa-plus"></i>New Application</a></div>
     </header>
 
     <div id="pwBanner" class="portal-banner" style="display:none">
@@ -519,7 +519,7 @@
 
   function renderAuditer() {
     var a = data.auditer;
-    if (!a) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('clipboard-check', 'No MAM Auditer assessment yet. <a href="/auditer.html">Learn more →</a>') + '</div></section>'; return; }
+    if (!a) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('clipboard-check', 'No MAM Auditer assessment yet. <a href="/auditer">Learn more →</a>') + '</div></section>'; return; }
     var dims = {}; try { dims = JSON.parse(a.dimensions || '{}'); } catch (e) {}
     var meters = Object.keys(dims).map(function (k) {
       var v = parseInt(dims[k], 10);
