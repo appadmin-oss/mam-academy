@@ -32,6 +32,7 @@
       <a class="portal-nav-link active" href="#overview" data-tab="overview"><i class="fa-solid fa-gauge"></i>Overview</a>
       <a class="portal-nav-link" href="#applications" data-tab="applications"><i class="fa-solid fa-file-pen"></i>My Applications</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
+      <a class="portal-nav-link" href="#courses" data-tab="courses"><i class="fa-solid fa-layer-group"></i>My Courses</a>
       <a class="portal-nav-link" href="#assignments" data-tab="assignments"><i class="fa-solid fa-list-check"></i>Assignments <span class="nav-badge" id="asgBadge" hidden></span></a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-calendar-check"></i>Attendance</a>
       <a class="portal-nav-link" href="#announcements" data-tab="announcements"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
@@ -76,7 +77,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], courses: ['My Courses', 'Add and track your courses'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
 
@@ -92,6 +93,7 @@
     if (tab === 'overview') return renderOverview();
     if (tab === 'applications') return renderApplications();
     if (tab === 'classes') return renderClasses();
+    if (tab === 'courses') return renderCourses();
     if (tab === 'assignments') return renderAssignments();
     if (tab === 'attendance') return renderAttendance();
     if (tab === 'announcements') return renderAnnouncements();
@@ -159,6 +161,87 @@
     var enr = data.enrollments || [];
     if (!enr.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('music', 'No active enrollments yet. Your instructor will add you to a class soon.') + '</div></section>'; return; }
     content.innerHTML = '<section class="panel">' + renderClassTable(enr) + '</section>';
+  }
+
+  // ── My Courses (v16 LMS) — list + flexible "add a course" ───────────────
+  var catalogCache = null;
+  function loadCatalog() {
+    if (catalogCache) return Promise.resolve(catalogCache);
+    return API.request('courses', { method: 'GET' }).then(function (r) { catalogCache = r || {}; return catalogCache; });
+  }
+  function coursePill(s) {
+    var label = { pending: 'Pending review', active: 'Active', completed: 'Completed', failed: 'Failed', withdrawn: 'Withdrawn' }[s] || s;
+    return '<span class="pill ' + P.escapeHtml(s) + '">' + P.escapeHtml(label) + '</span>';
+  }
+  function renderCourses() {
+    var courses = data.courses || [];
+    var list = courses.length
+      ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Course</th><th>Level</th><th>Instructor</th><th>Status</th><th>Grade</th></tr></thead><tbody>'
+        + courses.map(function (c) {
+            return '<tr><td data-label="Course">' + P.escapeHtml(c.course_name)
+              + (c.course_kind === 'core' ? ' <span class="pill" style="background:rgba(124,125,245,.18);color:#A5B4FC">Core</span>' : '') + '</td>'
+              + '<td data-label="Level">' + P.escapeHtml(c.level_name || '—') + '</td>'
+              + '<td data-label="Instructor">' + P.escapeHtml(c.instructor_name || 'To be assigned') + '</td>'
+              + '<td data-label="Status">' + coursePill(c.status) + '</td>'
+              + '<td data-label="Grade">' + (c.grade ? P.escapeHtml(c.grade) + (c.outcome ? ' · ' + P.escapeHtml(c.outcome) : '') : '—') + '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+      : '<div class="panel-body">' + empty('layer-group', 'No courses yet. Add your first one below — Piano now, Voice or Theory later.') + '</div>';
+
+    content.innerHTML = ''
+      + '<section class="panel"><div class="panel-head"><h2>My courses</h2>'
+      +   '<button class="btn btn-ghost" id="addCourseToggle" style="padding:7px 14px;font-size:0.82rem"><i class="fa-solid fa-plus"></i> Add course</button></div>'
+      +   list + '</section>'
+      + '<section class="panel" id="addCoursePanel" hidden><div class="panel-head"><h2>Add a course</h2></div>'
+      +   '<form id="addCourseForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">'
+      +     '<div class="field"><label for="ac-course">Course</label><select id="ac-course" required><option value="">Loading…</option></select></div>'
+      +     '<div class="field"><label for="ac-level">Level</label><select id="ac-level"><option value="">Select level</option></select></div>'
+      +     '<div class="field"><label for="ac-program">Programme</label><select id="ac-program"><option value="">Select programme</option></select></div>'
+      +     '<div class="field" style="grid-column:1/-1;display:flex;gap:14px;align-items:center;flex-wrap:wrap">'
+      +       '<button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Request course</button>'
+      +       '<span id="ac-msg" style="font-size:0.85rem;color:var(--text-muted)"></span></div>'
+      +   '</form></section>';
+
+    var panel = document.getElementById('addCoursePanel');
+    var toggle = document.getElementById('addCourseToggle');
+    if (toggle) toggle.addEventListener('click', function () {
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    loadCatalog().then(function (cat) {
+      var cs = document.getElementById('ac-course'); if (!cs) return;
+      var opt = function (c) { return '<option value="' + P.escapeHtml(c.code) + '">' + P.escapeHtml(c.name) + '</option>'; };
+      var core = (cat.courses || []).filter(function (c) { return c.kind === 'core'; }).map(opt).join('');
+      var elec = (cat.courses || []).filter(function (c) { return c.kind !== 'core'; }).map(opt).join('');
+      cs.innerHTML = '<option value="">Choose a course…</option><optgroup label="Core courses">' + core + '</optgroup><optgroup label="Electives">' + elec + '</optgroup>';
+      document.getElementById('ac-level').innerHTML = '<option value="">Select level</option>' + (cat.levels || []).map(function (l) { return '<option value="' + P.escapeHtml(l.code) + '">' + P.escapeHtml(l.name) + (l.trinity_grades ? ' · ' + P.escapeHtml(l.trinity_grades) : '') + '</option>'; }).join('');
+      document.getElementById('ac-program').innerHTML = '<option value="">Select programme</option>' + (cat.programs || []).map(function (p) { return '<option value="' + P.escapeHtml(p.code) + '">' + P.escapeHtml(p.name) + '</option>'; }).join('');
+    }).catch(function () { var cs = document.getElementById('ac-course'); if (cs) cs.innerHTML = '<option value="">Catalogue unavailable</option>'; });
+
+    var form = document.getElementById('addCourseForm');
+    if (form) form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var msg = document.getElementById('ac-msg');
+      var course = document.getElementById('ac-course').value;
+      if (!course) { msg.textContent = 'Please choose a course.'; return; }
+      var body = { course: course };
+      var lv = document.getElementById('ac-level').value; if (lv) body.level = lv;
+      var pg = document.getElementById('ac-program').value; if (pg) body.program = pg;
+      msg.style.color = 'var(--text-muted)'; msg.textContent = 'Submitting…';
+      API.request('student/add-course', { method: 'POST', body: body })
+        .then(function (r) {
+          msg.style.color = 'var(--emerald, #1FBF8F)';
+          msg.textContent = (r.status === 'active') ? 'Added — you’re enrolled!' : 'Requested — pending approval.';
+          return API.request('student/courses', { method: 'GET' });
+        })
+        .then(function (r) { if (r && r.courses) data.courses = r.courses; renderCourses(); })
+        .catch(function (err) {
+          var e2 = (err && err.message) || 'error';
+          msg.style.color = '#FB7185';
+          msg.textContent = e2 === 'already_enrolled' ? 'You’re already enrolled in that course/level.'
+            : (e2 === 'course_not_found' ? 'That course is unavailable.' : 'Could not add the course — please try again.');
+        });
+    });
   }
   function renderPractice() {
     var ps = data.practice_stats || { streak: 0, weekMin: 0, total: 0, sessions: 0 };

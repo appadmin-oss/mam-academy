@@ -84,6 +84,10 @@ $assignments = mam_db_all(
     [(int)$u['id']]
 );
 
+// Flexible course registrations (v16 LMS — distinct from legacy class
+// enrollments above). Drives the "My Courses" tab + "Add a course" flow.
+$courses = mam_lms_student_courses((int)$u['id']);
+
 // Server-persisted practice stats (cross-device).
 $practice = mam_practice_stats((int)$u['id']);
 
@@ -116,6 +120,7 @@ mam_ok([
     'applications' => $apps,
     'payments' => $payments,
     'enrollments' => $enrollments,
+    'courses' => $courses,
     'attendance' => $attendance,
     'auditer' => $auditer,
     'store_orders' => $storeOrders,
