@@ -968,14 +968,37 @@
       var p = (vh - fr.top) / (vh * 0.55);          // 0 as footer enters → 1 once risen ~45%
       p = p < 0 ? 0 : (p > 1 ? 1 : p);
       var ease = 1 - Math.pow(1 - p, 3);            // easeOutCubic
-      wm.style.opacity = (0.10 + 0.86 * ease).toFixed(3);
-      wm.style.transform = 'translate3d(0,' + ((1 - ease) * 66).toFixed(1) + 'px,0)';
+      // Overlap reveal: a top-inset clip wipes the letters open from the
+      // baseline up, so the word looks like it rises out from behind the
+      // copyright row above it; a small lift adds the layered overlap feel.
+      wm.style.clipPath = 'inset(' + ((1 - ease) * 100).toFixed(1) + '% 0 0 0)';
+      wm.style.transform = 'translate3d(0,' + ((1 - ease) * 44).toFixed(1) + 'px,0)';
     }
     function onScroll() { if (!raf) raf = requestAnimationFrame(update); }
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll, { passive: true });
     update();
   }
+
+  // ============================================================
+  // Nav pricing — hydrate the menu "from $X" chips from MAM_CONFIG.pricing so
+  // they can never drift from the server-authoritative prices again. The static
+  // markup carries a correct fallback; this refreshes it (and re-runs when the
+  // live /api/config/public values arrive via the mam:config event).
+  // ============================================================
+  function initNavPricing() {
+    var P = (window.MAM_CONFIG && window.MAM_CONFIG.pricing) || {};
+    $$('[data-price]').forEach(function (el) {
+      var key = el.getAttribute('data-price');
+      var row = P[key];
+      if (!row || typeof row.usd !== 'number') return;
+      var txt = (el.hasAttribute('data-price-from') ? 'from $' : '$') + Math.round(row.usd);
+      // Replace only the leading text node so any <small> suffix is preserved.
+      if (el.firstChild && el.firstChild.nodeType === 3) el.firstChild.nodeValue = txt;
+      else el.insertBefore(document.createTextNode(txt), el.firstChild);
+    });
+  }
+  document.addEventListener('mam:config', initNavPricing);
 
   function boot() {
     // Each init is isolated: a throw in one (e.g. the nav) must never stop the
@@ -984,7 +1007,7 @@
     [initPreloader, initNav, initHero, initSmoothScroll, initFaq, initAnimations,
      initCountdown, initTestimonials, initCookie, initToolbar, initCurrency,
      initNewsletter, initFilters, initImageFallback, initYear, initScholarship,
-     initFooterWordmark].forEach(function (fn) {
+     initFooterWordmark, initNavPricing].forEach(function (fn) {
       try { fn(); } catch (e) { if (window.console) console.error('[MAM] init failed:', fn.name, e); }
     });
 
@@ -1127,8 +1150,8 @@
   document.addEventListener('DOMContentLoaded', function () {
     injectSiteSchema();
     Promise.all([
-      loadPartial('include-header', 'partials/header.html?v=20260611a'),
-      loadPartial('include-footer', 'partials/footer.html?v=20260611a')
+      loadPartial('include-header', 'partials/header.html?v=20260611c'),
+      loadPartial('include-footer', 'partials/footer.html?v=20260611c')
     ]).then(boot);
   });
 })();

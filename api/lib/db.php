@@ -69,7 +69,7 @@ function mam_db_migrate_mysql(PDO $db): void {
     $current = 0;
     try { $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0); } catch (Throwable $e) {}
 
-    $target = 15;
+    $target = 16;
     if ($current >= $target) return;
 
     $path = realpath(__DIR__ . '/../../db/schema-mysql.sql');
@@ -507,6 +507,162 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX idx_assignments_student ON assignments(student_id);
             CREATE INDEX idx_assignments_author ON assignments(author_id);
+        ",
+        // v16 — Academic LMS backbone. A normalized, code-free model so the
+        // academy can add programmes/levels/courses/modules and run weekly
+        // assessments → results → certificates without code changes. Fully
+        // additive (existing tables untouched). Multi-role via user_roles so a
+        // user can be student + instructor + admin at once. Durations are data
+        // (programs.weeks/exam_week), so 6-week vs 12-week is admin-configurable.
+        16 => "
+            CREATE TABLE user_roles (
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              role TEXT NOT NULL CHECK(role IN ('admin','instructor','student')),
+              PRIMARY KEY (user_id, role)
+            );
+            INSERT OR IGNORE INTO user_roles (user_id, role) SELECT id, role FROM users;
+
+            CREATE TABLE programs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              code TEXT UNIQUE NOT NULL,
+              name TEXT NOT NULL,
+              weeks INTEGER NOT NULL DEFAULT 12,
+              revision_week INTEGER,
+              exam_week INTEGER,
+              requires_core INTEGER NOT NULL DEFAULT 0,
+              certification TEXT,
+              sort_order INTEGER DEFAULT 0,
+              active INTEGER NOT NULL DEFAULT 1
+            );
+            INSERT INTO programs (code,name,weeks,revision_week,exam_week,requires_core,certification,sort_order) VALUES
+              ('crash','Crash Program',6,NULL,6,0,'participation',1),
+              ('standard','Standard Program',12,11,12,0,'completion',2),
+              ('certified','Certified Program',12,11,12,1,'internal',3),
+              ('grand','Grand Certified Program',12,11,12,1,'internal_diploma',4);
+
+            CREATE TABLE levels (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              code TEXT UNIQUE NOT NULL,
+              name TEXT NOT NULL,
+              trinity_grades TEXT,
+              sort_order INTEGER NOT NULL
+            );
+            INSERT INTO levels (code,name,trinity_grades,sort_order) VALUES
+              ('precert','Pre-Certification','Grade 1-2',1),
+              ('cert','Certificate','Grade 3-4',2),
+              ('prediploma','Pre-Diploma','Grade 5-6',3),
+              ('diploma','Diploma','Grade 7-8',4);
+
+            CREATE TABLE courses (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              code TEXT UNIQUE NOT NULL,
+              name TEXT NOT NULL,
+              kind TEXT NOT NULL DEFAULT 'elective',
+              description TEXT,
+              sort_order INTEGER DEFAULT 0,
+              active INTEGER NOT NULL DEFAULT 1
+            );
+            INSERT INTO courses (code,name,kind,sort_order) VALUES
+              ('rhythm_pitch','Rhythm & Pitch Intelligence','core',1),
+              ('performance_etiquette','Performance Etiquette','core',2),
+              ('meta_music','Meta Music','core',3),
+              ('theory','Theory of Music','core',4),
+              ('piano','Piano','elective',10),
+              ('voice','Voice','elective',11),
+              ('guitar','Guitar','elective',12),
+              ('drums','Drums','elective',13),
+              ('saxophone','Saxophone','elective',14),
+              ('music_production','Music Production','elective',15),
+              ('songwriting','Songwriting','elective',16),
+              ('conducting','Conducting','elective',17);
+
+            CREATE TABLE modules (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+              level_id INTEGER REFERENCES levels(id) ON DELETE SET NULL,
+              week INTEGER NOT NULL,
+              title TEXT NOT NULL,
+              kind TEXT NOT NULL DEFAULT 'module',
+              content TEXT
+            );
+            CREATE INDEX idx_modules_course ON modules(course_id, level_id);
+
+            CREATE TABLE instructor_assignments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              instructor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+              level_id INTEGER REFERENCES levels(id) ON DELETE SET NULL,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_instr_assign ON instructor_assignments(instructor_id, course_id, level_id);
+
+            CREATE TABLE course_enrollments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+              level_id INTEGER REFERENCES levels(id) ON DELETE SET NULL,
+              program_id INTEGER REFERENCES programs(id) ON DELETE SET NULL,
+              instructor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              requested_instructor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              status TEXT NOT NULL DEFAULT 'pending',
+              approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              approved_at TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_cenroll_student ON course_enrollments(student_id);
+            CREATE INDEX idx_cenroll_course ON course_enrollments(course_id);
+            CREATE INDEX idx_cenroll_status ON course_enrollments(status);
+
+            CREATE TABLE assessment_types (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              code TEXT UNIQUE NOT NULL,
+              name TEXT NOT NULL,
+              weight INTEGER NOT NULL DEFAULT 0,
+              sort_order INTEGER DEFAULT 0,
+              active INTEGER NOT NULL DEFAULT 1
+            );
+            INSERT INTO assessment_types (code,name,weight,sort_order) VALUES
+              ('attendance','Attendance',10,1),
+              ('assignment','Assignment',20,2),
+              ('practical','Practical',30,3),
+              ('continuous','Continuous Assessment',10,4),
+              ('final','Final Examination',30,5);
+
+            CREATE TABLE assessments (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              enrollment_id INTEGER NOT NULL REFERENCES course_enrollments(id) ON DELETE CASCADE,
+              type_id INTEGER REFERENCES assessment_types(id) ON DELETE SET NULL,
+              instructor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              week INTEGER,
+              score REAL,
+              max_score REAL NOT NULL DEFAULT 100,
+              notes TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_assess_enroll ON assessments(enrollment_id);
+
+            CREATE TABLE results (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              enrollment_id INTEGER NOT NULL UNIQUE REFERENCES course_enrollments(id) ON DELETE CASCADE,
+              total_score REAL,
+              grade TEXT,
+              outcome TEXT,
+              finalized_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              finalized_at TEXT
+            );
+
+            CREATE TABLE certificates (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              reference TEXT UNIQUE NOT NULL,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              program_id INTEGER REFERENCES programs(id) ON DELETE SET NULL,
+              level_id INTEGER REFERENCES levels(id) ON DELETE SET NULL,
+              kind TEXT NOT NULL,
+              title TEXT,
+              issued_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              issued_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_certs_student ON certificates(student_id);
         ",
     ];
 

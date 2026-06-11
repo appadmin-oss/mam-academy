@@ -99,9 +99,30 @@ function mam_require_user(): array {
     return $u;
 }
 
+/**
+ * All roles a user holds. Reads the v16 `user_roles` join (multi-role: a user
+ * can be student + instructor + admin at once) and always folds in the legacy
+ * primary `users.role`. Degrades gracefully if the table isn't there yet.
+ */
+function mam_user_roles(array $u): array {
+    $roles = [];
+    if (!empty($u['role'])) $roles[] = (string)$u['role'];
+    try {
+        foreach (mam_db_all('SELECT role FROM user_roles WHERE user_id = ?', [(int)($u['id'] ?? 0)]) as $r) {
+            $roles[] = (string)$r['role'];
+        }
+    } catch (Throwable $e) { /* table not migrated yet — primary role still applies */ }
+    return array_values(array_unique($roles));
+}
+
+/** True if the user holds ANY of $roles (across primary + user_roles). */
+function mam_user_has_role(array $u, string ...$roles): bool {
+    return (bool)array_intersect($roles, mam_user_roles($u));
+}
+
 function mam_require_role(string ...$roles): array {
     $u = mam_require_user();
-    if (!in_array($u['role'], $roles, true)) mam_fail('forbidden', 403);
+    if (!mam_user_has_role($u, ...$roles)) mam_fail('forbidden', 403);
     return $u;
 }
 

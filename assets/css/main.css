@@ -492,11 +492,14 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .curve-top{border-radius:clamp(28px,5vw,60px) clamp(28px,5vw,60px) 0 0}
 .curve-bottom{border-radius:0 0 clamp(28px,5vw,60px) clamp(28px,5vw,60px)}
 .page-hero::before{content:'';position:absolute;inset:0;background-image:var(--page-hero-img);background-size:cover;background-position:center;opacity:0.18;pointer-events:none}
-.page-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(18,13,8,0.4),rgba(18,13,8,0.95));pointer-events:none}
-.page-hero-inner{position:relative;max-width:var(--content-w);margin:0 auto;text-align:center;z-index:1}
-.page-hero-eyebrow{display:inline-flex;align-items:center;gap:10px;padding:7px 18px;background:rgba(224,138,26,0.12);border:1px solid var(--border-gold);border-radius:100px;font-size:0.78rem;font-weight:800;color:var(--gold-bright);letter-spacing:0.14em;text-transform:uppercase;margin-bottom:20px}
-.page-hero-title{font-family:var(--font-serif);font-size:clamp(2.4rem,6vw,4.4rem);font-weight:700;line-height:1.1;margin-bottom:18px;color:var(--text)}
-.page-hero-lede{font-size:1.1rem;color:var(--text-soft);max-width:680px;margin:0 auto 28px;line-height:1.75}
+/* Layered backdrop: a warm gold glow at the crown over a deepening vignette —
+   gives every inner-page hero depth and focus without a bespoke image. */
+.page-hero::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 78% 62% at 50% -6%,rgba(232,150,31,0.16),transparent 58%),linear-gradient(180deg,rgba(18,13,8,0.42),rgba(18,13,8,0.78) 62%,var(--bg) 100%);pointer-events:none}
+.page-hero-inner{position:relative;max-width:840px;margin:0 auto;text-align:center;z-index:1;display:flex;flex-direction:column;align-items:center}
+.page-hero-eyebrow{display:inline-flex;align-items:center;gap:9px;padding:7px 16px 7px 14px;background:rgba(224,138,26,0.1);border:1px solid var(--border-gold);border-radius:100px;font-size:0.72rem;font-weight:800;color:var(--gold-bright);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:22px;backdrop-filter:blur(6px)}
+.page-hero-eyebrow::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--gold-bright);box-shadow:0 0 10px var(--gold-bright)}
+.page-hero-title{font-family:var(--font-serif);font-size:clamp(2.5rem,6vw,4.6rem);font-weight:700;line-height:1.06;letter-spacing:-0.01em;margin-bottom:18px;color:var(--text);text-wrap:balance}
+.page-hero-lede{font-size:clamp(1.02rem,1.6vw,1.18rem);color:var(--text-soft);max-width:660px;margin:0 auto 30px;line-height:1.7;text-wrap:pretty}
 .page-hero-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
 .breadcrumb{display:flex;justify-content:center;gap:10px;align-items:center;font-size:0.82rem;color:var(--text-muted);margin-bottom:18px}
 .breadcrumb a:hover{color:var(--gold-bright)}
@@ -876,11 +879,11 @@ footer::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;back
    Visible by default (opacity:.96) so it can NEVER be stuck invisible if JS
    fails; the parallax JS sets the hidden start state itself, then drives
    opacity + translateY from scroll position for a smooth reveal. */
-.footer-wordmark{display:block;line-height:0;padding:clamp(10px,1.8vw,26px) clamp(14px,3vw,44px) 0;opacity:0.96;transition:filter 0.3s var(--ease);will-change:transform,opacity}
+.footer-wordmark{display:block;line-height:0;padding:clamp(10px,1.8vw,26px) clamp(14px,3vw,44px) 0;opacity:1;transition:filter 0.3s var(--ease);will-change:clip-path,transform;clip-path:inset(0 0 0 0)}
 .footer-wordmark svg{display:block;width:100%;height:auto;overflow:visible}
 .footer-wordmark text{font-family:var(--font-roman);font-weight:700;font-size:190px;letter-spacing:0.03em;fill:url(#mamWordmarkFill)}
 .footer-wordmark:hover{filter:brightness(1.08)}
-@media (prefers-reduced-motion:reduce){.footer-wordmark{opacity:0.96!important;transform:none!important}}
+@media (prefers-reduced-motion:reduce){.footer-wordmark{clip-path:none!important;transform:none!important;opacity:0.96!important}}
 @media (max-width:640px){
   .footer-meta{flex-direction:column;align-items:center;gap:18px;text-align:center}
   .footer-socials{justify-content:center}
@@ -994,6 +997,11 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .floating-enroll{display:none!important}
   .toolbar{display:none}
   .page-hero{padding:88px 20px 56px}
+  /* Homepage carousel: cap height so there's no tall empty void above the card,
+     and let the promo card breathe near the bottom. */
+  #hero{min-height:80vh;min-height:80dvh}
+  .hero-content{padding:0 16px 28px}
+  .hero-deco-1{font-size:5rem}.hero-deco-2{font-size:3.4rem}
 }
 
 @media (prefers-reduced-motion:reduce){

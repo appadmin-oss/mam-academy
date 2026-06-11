@@ -472,3 +472,185 @@ CREATE TABLE IF NOT EXISTS assignments (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (15) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- Migration v16 — Academic LMS backbone (normalized, code-free).
+-- Programs → Levels → Courses → Modules → Enrollments → Instructor
+-- Assignments → Assessments → Results → Certificates, plus multi-role
+-- users (user_roles). Fully additive; durations are data (programs.weeks /
+-- exam_week) so 6-week vs 12-week is admin-configurable without code.
+-- ─────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_roles (
+  user_id INT NOT NULL,
+  role    ENUM('admin','instructor','student') NOT NULL,
+  PRIMARY KEY (user_id, role),
+  CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO user_roles (user_id, role) SELECT id, role FROM users;
+
+CREATE TABLE IF NOT EXISTS programs (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  code          VARCHAR(32) UNIQUE NOT NULL,
+  name          VARCHAR(120) NOT NULL,
+  weeks         INT NOT NULL DEFAULT 12,
+  revision_week INT NULL,
+  exam_week     INT NULL,
+  requires_core TINYINT(1) NOT NULL DEFAULT 0,
+  certification VARCHAR(32),
+  sort_order    INT DEFAULT 0,
+  active        TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO programs (code,name,weeks,revision_week,exam_week,requires_core,certification,sort_order) VALUES
+  ('crash','Crash Program',6,NULL,6,0,'participation',1),
+  ('standard','Standard Program',12,11,12,0,'completion',2),
+  ('certified','Certified Program',12,11,12,1,'internal',3),
+  ('grand','Grand Certified Program',12,11,12,1,'internal_diploma',4)
+ON DUPLICATE KEY UPDATE code = code;
+
+CREATE TABLE IF NOT EXISTS levels (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  code           VARCHAR(32) UNIQUE NOT NULL,
+  name           VARCHAR(80) NOT NULL,
+  trinity_grades VARCHAR(40),
+  sort_order     INT NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO levels (code,name,trinity_grades,sort_order) VALUES
+  ('precert','Pre-Certification','Grade 1-2',1),
+  ('cert','Certificate','Grade 3-4',2),
+  ('prediploma','Pre-Diploma','Grade 5-6',3),
+  ('diploma','Diploma','Grade 7-8',4)
+ON DUPLICATE KEY UPDATE code = code;
+
+CREATE TABLE IF NOT EXISTS courses (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  code        VARCHAR(48) UNIQUE NOT NULL,
+  name        VARCHAR(120) NOT NULL,
+  kind        VARCHAR(16) NOT NULL DEFAULT 'elective',
+  description TEXT,
+  sort_order  INT DEFAULT 0,
+  active      TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO courses (code,name,kind,sort_order) VALUES
+  ('rhythm_pitch','Rhythm & Pitch Intelligence','core',1),
+  ('performance_etiquette','Performance Etiquette','core',2),
+  ('meta_music','Meta Music','core',3),
+  ('theory','Theory of Music','core',4),
+  ('piano','Piano','elective',10),
+  ('voice','Voice','elective',11),
+  ('guitar','Guitar','elective',12),
+  ('drums','Drums','elective',13),
+  ('saxophone','Saxophone','elective',14),
+  ('music_production','Music Production','elective',15),
+  ('songwriting','Songwriting','elective',16),
+  ('conducting','Conducting','elective',17)
+ON DUPLICATE KEY UPDATE code = code;
+
+CREATE TABLE IF NOT EXISTS modules (
+  id        INT AUTO_INCREMENT PRIMARY KEY,
+  course_id INT NOT NULL,
+  level_id  INT NULL,
+  week      INT NOT NULL,
+  title     VARCHAR(200) NOT NULL,
+  kind      VARCHAR(16) NOT NULL DEFAULT 'module',
+  content   TEXT,
+  KEY idx_modules_course (course_id, level_id),
+  CONSTRAINT fk_modules_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_modules_level  FOREIGN KEY (level_id)  REFERENCES levels(id)  ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS instructor_assignments (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  instructor_id INT NOT NULL,
+  course_id     INT NOT NULL,
+  level_id      INT NULL,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_instr_assign (instructor_id, course_id, level_id),
+  CONSTRAINT fk_ia_instr  FOREIGN KEY (instructor_id) REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_ia_course FOREIGN KEY (course_id)     REFERENCES courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ia_level  FOREIGN KEY (level_id)      REFERENCES levels(id)  ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS course_enrollments (
+  id                      INT AUTO_INCREMENT PRIMARY KEY,
+  student_id              INT NOT NULL,
+  course_id               INT NOT NULL,
+  level_id                INT NULL,
+  program_id              INT NULL,
+  instructor_id           INT NULL,
+  requested_instructor_id INT NULL,
+  status                  VARCHAR(16) NOT NULL DEFAULT 'pending',
+  approved_by             INT NULL,
+  approved_at             DATETIME NULL,
+  created_at              DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_cenroll_student (student_id),
+  KEY idx_cenroll_course (course_id),
+  KEY idx_cenroll_status (status),
+  CONSTRAINT fk_ce_student FOREIGN KEY (student_id) REFERENCES users(id)    ON DELETE CASCADE,
+  CONSTRAINT fk_ce_course  FOREIGN KEY (course_id)  REFERENCES courses(id)  ON DELETE CASCADE,
+  CONSTRAINT fk_ce_level   FOREIGN KEY (level_id)   REFERENCES levels(id)   ON DELETE SET NULL,
+  CONSTRAINT fk_ce_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ce_instr   FOREIGN KEY (instructor_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS assessment_types (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  code       VARCHAR(32) UNIQUE NOT NULL,
+  name       VARCHAR(80) NOT NULL,
+  weight     INT NOT NULL DEFAULT 0,
+  sort_order INT DEFAULT 0,
+  active     TINYINT(1) NOT NULL DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO assessment_types (code,name,weight,sort_order) VALUES
+  ('attendance','Attendance',10,1),
+  ('assignment','Assignment',20,2),
+  ('practical','Practical',30,3),
+  ('continuous','Continuous Assessment',10,4),
+  ('final','Final Examination',30,5)
+ON DUPLICATE KEY UPDATE code = code;
+
+CREATE TABLE IF NOT EXISTS assessments (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  enrollment_id INT NOT NULL,
+  type_id       INT NULL,
+  instructor_id INT NULL,
+  week          INT NULL,
+  score         DECIMAL(6,2) NULL,
+  max_score     DECIMAL(6,2) NOT NULL DEFAULT 100,
+  notes         TEXT,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_assess_enroll (enrollment_id),
+  CONSTRAINT fk_as_enroll FOREIGN KEY (enrollment_id) REFERENCES course_enrollments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_as_type   FOREIGN KEY (type_id)       REFERENCES assessment_types(id)   ON DELETE SET NULL,
+  CONSTRAINT fk_as_instr  FOREIGN KEY (instructor_id) REFERENCES users(id)              ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS results (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  enrollment_id INT NOT NULL UNIQUE,
+  total_score   DECIMAL(6,2) NULL,
+  grade         VARCHAR(8),
+  outcome       VARCHAR(8),
+  finalized_by  INT NULL,
+  finalized_at  DATETIME NULL,
+  CONSTRAINT fk_res_enroll FOREIGN KEY (enrollment_id) REFERENCES course_enrollments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_res_user   FOREIGN KEY (finalized_by)  REFERENCES users(id)              ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS certificates (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  reference  VARCHAR(64) UNIQUE NOT NULL,
+  student_id INT NOT NULL,
+  program_id INT NULL,
+  level_id   INT NULL,
+  kind       VARCHAR(32) NOT NULL,
+  title      VARCHAR(200),
+  issued_by  INT NULL,
+  issued_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_certs_student (student_id),
+  CONSTRAINT fk_cert_student FOREIGN KEY (student_id) REFERENCES users(id)    ON DELETE CASCADE,
+  CONSTRAINT fk_cert_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE SET NULL,
+  CONSTRAINT fk_cert_level   FOREIGN KEY (level_id)   REFERENCES levels(id)   ON DELETE SET NULL,
+  CONSTRAINT fk_cert_issuer  FOREIGN KEY (issued_by)  REFERENCES users(id)    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (16) ON DUPLICATE KEY UPDATE version = version;
