@@ -330,6 +330,25 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         exit;
     }
 
+    // ─── LMS course registrations: approve + assign instructor ───────
+    if ($action === 'course_approve') {
+        $ceid   = (int)($_POST['enrollment_id'] ?? 0);
+        $iid    = (int)($_POST['instructor_id'] ?? 0);
+        $status = (string)($_POST['status'] ?? 'active');
+        if (!in_array($status, ['active', 'pending', 'completed', 'withdrawn'], true)) $status = 'active';
+        if (!$ceid || !mam_db_row('SELECT id FROM course_enrollments WHERE id = ?', [$ceid])) {
+            header('Location: ?v=courseenroll&err=' . urlencode('Course registration not found.')); exit;
+        }
+        if ($status === 'active') {
+            mam_lms_approve($ceid, $iid ?: null, (int)($adminUser['id'] ?? 0));
+        } else {
+            $upd = ['status' => $status]; if ($iid) $upd['instructor_id'] = $iid;
+            mam_db_update('course_enrollments', $upd, ['id' => $ceid]);
+            mam_audit('lms_status', 'course_enrollment', $ceid, ['status' => $status]);
+        }
+        header('Location: ?v=courseenroll&ok=1'); exit;
+    }
+
     // ─── Store / Library CRUD ────────────────────────────────────────
     // Single dispatch covers create (id=0), update (id>0), soft-delete (delete=1).
     // We slug-ify the name client-side, but normalise + de-dupe here so two
@@ -795,6 +814,7 @@ button.tiny:hover{border-color:var(--gold)}
       'users'        => 'Users',
       'classes'      => 'Classes',
       'enrollments'  => 'Enrollments',
+      'courseenroll' => 'Course Registrations',
       'storeitems'   => 'Store / Library',
       'storeorders'  => 'Store Orders',
       'messages'     => 'Messages',
@@ -1303,6 +1323,70 @@ button.tiny:hover{border-color:var(--gold)}
                 <?php endforeach; ?>
               </select>
               <button class="tiny" type="submit">Save</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+
+<?php elseif ($view === 'courseenroll'): ?>
+  <header class="top"><h1>Course Registrations</h1></header>
+  <?php
+    $autoApprove = (int)mam_setting_num('lms_auto_approve', 0) === 1;
+    $instructors = mam_lms_instructors();
+    $ces = mam_db_all(
+      "SELECT ce.id, ce.status, ce.created_at, ce.instructor_id,
+              c.name AS course_name, c.kind AS course_kind,
+              l.name AS level_name, p.name AS program_name,
+              su.name AS student_name, su.email AS student_email
+         FROM course_enrollments ce
+         JOIN courses c ON c.id = ce.course_id
+         LEFT JOIN levels l ON l.id = ce.level_id
+         LEFT JOIN programs p ON p.id = ce.program_id
+         JOIN users su ON su.id = ce.student_id
+         ORDER BY (ce.status = 'pending') DESC, ce.created_at DESC LIMIT 400"
+    );
+    $pendingCount = 0; foreach ($ces as $r) { if ($r['status'] === 'pending') $pendingCount++; }
+  ?>
+  <div class="card">
+    <h3>Approval policy</h3>
+    <p style="padding:0 20px 16px;color:var(--muted);font-size:0.86rem;line-height:1.6">
+      Course additions are currently <strong style="color:var(--gold)"><?= $autoApprove ? 'auto-approved' : 'manually reviewed' ?></strong>.
+      Toggle <code>lms_auto_approve</code> in <a href="?v=settings" style="color:var(--gold)">Pricing &amp; Settings</a>.
+      <?php if ($pendingCount): ?><br><strong style="color:var(--gold)"><?= $pendingCount ?></strong> registration<?= $pendingCount === 1 ? '' : 's' ?> awaiting review.<?php endif; ?>
+    </p>
+  </div>
+  <div class="card">
+    <h3>All course registrations</h3>
+    <table>
+      <thead><tr><th>Student</th><th>Course</th><th>Level · Programme</th><th>Status</th><th>Approve / assign</th></tr></thead>
+      <tbody>
+      <?php if (!$ces): ?><tr><td colspan="5" class="empty">No course registrations yet</td></tr><?php endif;
+      foreach ($ces as $r): ?>
+        <tr>
+          <td><strong><?= htmlspecialchars((string)($r['student_name'] ?: '—')) ?></strong><br><span class="muted"><?= htmlspecialchars((string)$r['student_email']) ?></span></td>
+          <td><?= htmlspecialchars((string)$r['course_name']) ?><?= $r['course_kind'] === 'core' ? ' <span class="pill">core</span>' : '' ?></td>
+          <td class="muted"><?= htmlspecialchars((string)($r['level_name'] ?: '—')) ?><?= $r['program_name'] ? ' · ' . htmlspecialchars((string)$r['program_name']) : '' ?></td>
+          <td><span class="pill <?= htmlspecialchars((string)$r['status']) ?>"><?= htmlspecialchars((string)$r['status']) ?></span></td>
+          <td>
+            <form class="inline" method="post">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <input type="hidden" name="action" value="course_approve">
+              <input type="hidden" name="enrollment_id" value="<?= (int)$r['id'] ?>">
+              <select name="instructor_id" class="tiny">
+                <option value="">— instructor —</option>
+                <?php foreach ($instructors as $ins): ?>
+                  <option value="<?= (int)$ins['id'] ?>" <?= (int)$ins['id'] === (int)$r['instructor_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string)($ins['name'] ?: $ins['email'])) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <select name="status" class="tiny">
+                <?php foreach (['active','pending','completed','withdrawn'] as $s): ?>
+                  <option value="<?= $s ?>" <?= $s === $r['status'] ? 'selected' : '' ?>><?= $s ?></option>
+                <?php endforeach; ?>
+              </select>
+              <button class="tiny" type="submit"><?= $r['status'] === 'pending' ? 'Approve' : 'Save' ?></button>
             </form>
           </td>
         </tr>
