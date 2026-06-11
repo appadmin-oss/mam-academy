@@ -40,6 +40,10 @@ $r->get('/config/public',   $f('config-public.php'),   [mw_rate_limit('config_pu
 // Academic session resolved from the calendar — applied silently by the form.
 $r->get('/session/current', $f('session-current.php'), [mw_rate_limit('session_current', 120, 60)]);
 
+// Public academic catalogue (programmes, levels, courses) — drives the apply
+// flow and the student "add a course" picker.
+$r->get('/courses', $f('courses.php'), [mw_rate_limit('courses', 120, 60)]);
+
 // Web-viewable invoice + signed policy. Replace the .html attachments that
 // most mail clients render as source code with proper standalone pages
 // (applicants click the link in the email and view in their browser, where
@@ -84,6 +88,8 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
 /* ─── Student portal ─── */
 $r->group('/student', function (MamRouter $r) use ($f) {
     $r->get ('/dashboard',           $f('student/dashboard.php'),           [mw_role('student')]);
+    $r->get ('/courses',             $f('student/courses.php'),             [mw_role('student')]);
+    $r->post('/add-course',          $f('student/add-course.php'),          [mw_csrf(), mw_role('student'), mw_rate_limit('add_course', 30, 600)]);
     $r->post('/update-profile',      $f('student/update-profile.php'),      [mw_csrf(), mw_role('student')]);
     $r->post('/practice-log',        $f('student/practice-log.php'),        [mw_csrf(), mw_role('student')]);
     $r->post('/assignment-complete', $f('student/assignment-complete.php'), [mw_csrf(), mw_role('student')]);
@@ -112,6 +118,9 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // Store catalogue admin CRUD (one file dispatches by method).
     $r->get ('/store/items',     $f('admin/store-items.php'),    [mw_admin()]);
     $r->post('/store/items',     $f('admin/store-items.php'),    [mw_csrf(), mw_admin()]);
+    // LMS course-registration approvals + instructor assignment.
+    $r->get ('/course-enrollments', $f('admin/course-enrollments.php'), [mw_admin()]);
+    $r->post('/course-enrollments', $f('admin/course-enrollments.php'), [mw_csrf(), mw_admin()]);
 });
 
 /* ─── Dispatch ─── */

@@ -100,5 +100,8 @@ function mam_settings_schema(): array {
         // assets/js/config.js → scholarship). Set enabled to 0 to hide it.
         ['Scholarship',             'scholarship_enabled',      'Show scholarship CTA in emails (1=on, 0=off)', 1, ''],
         ['Scholarship',             'scholarship_url',          'Scholarship application URL', 'https://mamcentre.org/scholarships/ngv', ''],
+        // LMS — course-registration policy. 0 = pending review (admin approves +
+        // assigns an instructor); 1 = students self-enrol straight into active.
+        ['Academy (LMS)',           'lms_auto_approve',         'Auto-approve course additions (1=on, 0=manual review)', 0, ''],
     ];
 }
