@@ -1000,6 +1000,30 @@
   }
   document.addEventListener('mam:config', initNavPricing);
 
+  // ============================================================
+  // Visual graphics — inject music-themed decoration site-wide (no per-page
+  // markup): an animated equalizer leading every section eyebrow, a sound-wave
+  // band under the homepage hero, and aurora depth behind key sections.
+  // ============================================================
+  function initGraphics() {
+    $$('.section-eyebrow').forEach(function (ey) {
+      if (ey.querySelector('.eq')) return;
+      var eq = document.createElement('span');
+      eq.className = 'eq'; eq.setAttribute('aria-hidden', 'true');
+      eq.innerHTML = '<i></i><i></i><i></i><i></i>';
+      ey.insertBefore(eq, ey.firstChild);
+    });
+    var hero = document.getElementById('hero');
+    if (hero && !document.querySelector('.wave-sep')) {
+      var w = document.createElement('div');
+      w.className = 'wave-sep'; w.setAttribute('aria-hidden', 'true');
+      hero.insertAdjacentElement('afterend', w);
+    }
+    ['schools', 'pathways', 'faculty-preview'].forEach(function (id) {
+      var s = document.getElementById(id); if (s) s.classList.add('aurora');
+    });
+  }
+
   function boot() {
     // Each init is isolated: a throw in one (e.g. the nav) must never stop the
     // others from running — otherwise a single failure could, for example,
@@ -1007,7 +1031,7 @@
     [initPreloader, initNav, initHero, initSmoothScroll, initFaq, initAnimations,
      initCountdown, initTestimonials, initCookie, initToolbar, initCurrency,
      initNewsletter, initFilters, initImageFallback, initYear, initScholarship,
-     initFooterWordmark, initNavPricing].forEach(function (fn) {
+     initFooterWordmark, initNavPricing, initGraphics].forEach(function (fn) {
       try { fn(); } catch (e) { if (window.console) console.error('[MAM] init failed:', fn.name, e); }
     });
 
