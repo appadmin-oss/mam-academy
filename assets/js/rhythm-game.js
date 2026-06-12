@@ -130,6 +130,8 @@
   }
   function loop() {
     if (state === 'idle') return;
+    // The portal re-renders tab content — if our board left the DOM, stop.
+    if (!document.body.contains(root)) { stopRun(true); return; }
     raf = requestAnimationFrame(loop);
     var elapsed = ac().currentTime - t0;
     var idx = Math.floor(elapsed / beat);
@@ -239,10 +241,56 @@
     buildBoard();
   }
 
+  /* ── Injected styles: the game is a drop-in for both the Practice Studio
+        and the student portal, so it carries its own look (matched to the
+        reference: cream board, soft blobs, chunky rounded note cards). ── */
+  function injectCSS() {
+    if (document.getElementById('rg-css')) return;
+    var css = ''
+      + '.rg-board{position:relative;overflow:hidden;background:#F6EBDD;border-radius:18px;padding:26px 18px 20px;text-align:center;box-shadow:inset 0 0 0 1px rgba(120,90,40,.08),0 18px 44px rgba(0,0,0,.35)}'
+      + '.rg-blob{position:absolute;border-radius:50%;background:#EFE0CB;pointer-events:none}'
+      + '.rg-blob-1{width:340px;height:340px;top:-160px;right:-120px}'
+      + '.rg-blob-2{width:260px;height:260px;bottom:-130px;left:-90px}'
+      + '.rg-head{position:relative}'
+      + '.rg-title{font-family:var(--font-display,Impact,sans-serif);font-size:2.2rem;letter-spacing:.04em;color:#E03131;margin:0}'
+      + '.rg-sub{font-size:.78rem;font-weight:800;color:#C2453A;letter-spacing:.04em;margin:2px 0 18px}'
+      + '.rg-grid{position:relative;display:grid;grid-template-columns:repeat(4,minmax(58px,86px));gap:12px;justify-content:center}'
+      + '.rg-card{position:relative;aspect-ratio:1;border:0;border-radius:16px;background:#B3ACA2;cursor:pointer;padding:10%;transition:transform .12s ease,background .15s ease;-webkit-tap-highlight-color:transparent}'
+      + '.rg-card svg{width:100%;height:100%;display:block}'
+      + '.rg-card svg *{fill:#fff}'
+      + '.rg-card.rg-cur{background:var(--rg-fill,#F2B632);transform:scale(1.07);box-shadow:0 8px 22px rgba(0,0,0,.18)}'
+      + '.rg-card.rg-cur svg *,.rg-card.rg-ok svg *{fill:#23232B}'
+      + '.rg-card.rg-ok{background:var(--rg-fill,#42C58B)}'
+      + '.rg-card.rg-miss{background:#8E8478;opacity:.85}'
+      + '.rg-card.rg-pulse{animation:rgPulse .18s ease}'
+      + '@keyframes rgPulse{50%{transform:scale(.92)}}'
+      + '.rg-bpm{position:relative;margin-top:16px;color:#9A8C77;font-size:.92rem;font-variant-numeric:tabular-nums;text-align:right;padding-right:6px}'
+      + '.rg-result{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(45,32,18,.55);backdrop-filter:blur(5px);border-radius:18px;z-index:3}'
+      + '.rg-result.shown{display:flex}'
+      + '.rg-result-card{background:#FFFDF8;border-radius:18px;padding:26px 34px;box-shadow:0 24px 60px rgba(0,0,0,.35)}'
+      + '.rg-stars{font-size:1.8rem;letter-spacing:5px}'
+      + '.rg-star{color:#D9CDBC}.rg-star.on{color:#F2B632;text-shadow:0 0 12px rgba(242,182,50,.55)}'
+      + '.rg-final{font-family:var(--font-display,Impact,sans-serif);font-size:3.6rem;line-height:1;color:#E03131}'
+      + '.rg-final small{font-size:1.3rem;color:#9A8C77}'
+      + '.rg-final-l{color:#6B5B45;margin:4px 0 16px;font-size:.92rem}'
+      + '.rg-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px}'
+      + '.rg-field{display:flex;flex-direction:column;gap:5px;font-size:.76rem;font-weight:700;color:var(--text-muted,#B9A88F)}'
+      + '.rg-field select{padding:9px 12px;border-radius:10px;border:1.5px solid var(--border-strong,#7a6a52);background:var(--bg-raised,#352A1F);color:var(--text,#FCF8F3);min-height:42px}'
+      + '.rg-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:11px;border:1px solid var(--border-strong,#7a6a52);background:var(--bg-raised,#352A1F);color:var(--text,#FCF8F3);font-weight:700;font-size:.9rem;cursor:pointer;min-height:44px}'
+      + '.rg-primary{background:linear-gradient(135deg,#E8961F,#F7A823);border-color:transparent;color:#1A120B}'
+      + '.rg-primary.rg-on{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff}'
+      + '.rg-status{flex:1 1 200px;min-width:0;font-size:.82rem;color:var(--text-muted,#B9A88F)}'
+      + '.rg-tap-hint{margin-top:8px;font-size:.78rem;color:var(--text-faint,#8d7f6a)}'
+      + '.rg-tap-hint kbd{padding:1px 7px;border:1px solid var(--border,#5a4a35);border-radius:5px;font-size:.74rem}'
+      + '@media (max-width:480px){.rg-grid{grid-template-columns:repeat(4,minmax(52px,1fr));gap:9px}.rg-title{font-size:1.8rem}.rg-board{padding:20px 12px 16px}}';
+    var st = document.createElement('style'); st.id = 'rg-css'; st.textContent = css;
+    document.head.appendChild(st);
+  }
+
   function init() {
     root = document.getElementById('rhythmGame');
     if (!root || root.__rg) return; root.__rg = 1;
-    try { build(); } catch (e) { if (window.console) console.error('[MAM rhythm]', e); }
+    try { injectCSS(); build(); } catch (e) { if (window.console) console.error('[MAM rhythm]', e); }
     document.querySelectorAll('.tools-tabs button').forEach(function (b) {
       b.addEventListener('click', function () { if (b.getAttribute('data-tool') !== 'rhythm' && state !== 'idle') stopRun(true); });
     });

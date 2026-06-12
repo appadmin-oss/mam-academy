@@ -307,6 +307,7 @@
       <button data-tool="pomodoro" role="tab" aria-selected="false"><i class="fa-solid fa-hourglass-half"></i> Pomodoro</button>
       <button data-tool="ear" role="tab" aria-selected="false"><i class="fa-solid fa-headphones"></i> Ear Training</button>
       <button data-tool="pitchgame" role="tab" aria-selected="false"><i class="fa-solid fa-microphone-lines"></i> Pitch Game <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
+      <button data-tool="rhythm" role="tab" aria-selected="false"><i class="fa-solid fa-drum"></i> Rhythm Tap <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
       <button data-tool="speed" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">PREMIUM</span></button>
       <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
     </nav>
@@ -612,6 +613,14 @@
       </div>
       <div id="pitchGame"></div>
     </section>
+
+    <!-- ─── Rhythm Tap (rhythm-reading game, mirrors the student-portal one) ─── -->
+    <section class="tool-panel" data-tool="rhythm" role="tabpanel">
+      <div class="tool-head">
+        <div><h2>Rhythm Tap</h2><p>Read the note cards, feel the count-in, then tap each card's rhythm in time. Levels move from quarter notes to sixteenths, dotted figures and rests — the fastest way to make rhythm reading instinctive.</p></div>
+      </div>
+      <div id="rhythmGame"></div>
+    </section>
   </section>
 </main>
 
@@ -655,5 +664,6 @@
 <script src="assets/js/tools.js?v=20260602c" defer></script>
 <script src="assets/js/sequencer.js?v=20260602c" defer></script>
 <script src="assets/js/pitch-game.js?v=20260612a" defer></script>
+<script src="assets/js/rhythm-game.js?v=20260612a" defer></script>
 </body>
 </html>
