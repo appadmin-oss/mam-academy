@@ -14,9 +14,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/lib/bootstrap.php';
 require_once __DIR__ . '/lib/router.php';
 
-/** Helper: include a route file as the request handler. */
+/** Helper: include a route file as the request handler. The router calls the
+ *  returned closure with the captured path params, so route files (invoice,
+ *  policy, certificate, …) can read them as $params['name']. */
 $f = function (string $path): callable {
-    return function () use ($path) { require __DIR__ . '/routes/' . $path; };
+    return function ($params = []) use ($path) { require __DIR__ . '/routes/' . $path; };
 };
 
 $r = new MamRouter();
@@ -50,6 +52,8 @@ $r->get('/courses', $f('courses.php'), [mw_rate_limit('courses', 120, 60)]);
 // "Save as PDF" + Print just work).
 $r->get('/invoice/:ref', $f('invoice.php'), [mw_rate_limit('invoice', 30, 60)]);
 $r->get('/policy/:ref',  $f('policy.php'),  [mw_rate_limit('policy',  30, 60)]);
+// Web-viewable, printable course/programme certificate (issued on a pass).
+$r->get('/certificate/:ref', $f('certificate.php'), [mw_rate_limit('certificate', 30, 60)]);
 
 /* ─── Store / Library (public catalogue) ─── */
 $r->get ('/store/items',       $f('store-list.php'),     [mw_rate_limit('store_list', 60, 60)]);

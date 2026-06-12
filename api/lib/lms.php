@@ -216,3 +216,87 @@ function mam_lms_enrollment_assessments(int $enrollmentId): array {
         [$enrollmentId]
     );
 }
+
+/* ───────────────────────────── Certificates ──────────────────────────────
+   Each programme issues a tier of certificate (programs.certification):
+   crash → participation · standard → completion · certified → internal ·
+   grand → internal + diploma transcript. Issued from a passed, completed
+   enrolment; web-viewable at /api/certificate/:ref like the invoice page. */
+
+/** Human title for a certificate kind. */
+function mam_lms_cert_kind_title(string $kind): string {
+    switch ($kind) {
+        case 'participation':    return 'Certificate of Participation';
+        case 'completion':       return 'Certificate of Completion';
+        case 'internal':         return 'Internal Certification';
+        case 'internal_diploma': return 'Internal Certification & Diploma Transcript';
+        default:                 return 'Certificate of Achievement';
+    }
+}
+
+/**
+ * Issue a certificate for (student, programme, level). Idempotent on
+ * (student, programme, level, kind) — re-issuing returns the existing one.
+ * Returns ['reference','issued'].
+ */
+function mam_lms_issue_certificate(int $studentId, ?int $programId, ?int $levelId, ?int $issuedBy = null): array {
+    $kind = 'completion';
+    if ($programId) {
+        $p = mam_db_row('SELECT certification FROM programs WHERE id = ?', [$programId]);
+        if ($p && !empty($p['certification'])) $kind = (string)$p['certification'];
+    }
+    // Duplicate guard — compare level_id as a bare column / IS NULL (affinity-safe).
+    $where = 'student_id = ? AND kind = ?'; $args = [$studentId, $kind];
+    if ($programId !== null) { $where .= ' AND program_id = ?'; $args[] = $programId; } else { $where .= ' AND program_id IS NULL'; }
+    if ($levelId   !== null) { $where .= ' AND level_id = ?';   $args[] = $levelId;   } else { $where .= ' AND level_id IS NULL'; }
+    $existing = mam_db_row("SELECT reference FROM certificates WHERE $where", $args);
+    if ($existing) return ['reference' => (string)$existing['reference'], 'issued' => false];
+
+    $ref = 'CERT-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(4)));
+    mam_db_insert('certificates', [
+        'reference' => $ref, 'student_id' => $studentId, 'program_id' => $programId,
+        'level_id' => $levelId, 'kind' => $kind, 'title' => mam_lms_cert_kind_title($kind),
+        'issued_by' => $issuedBy,
+    ]);
+    mam_audit('lms_certify', 'certificate', $studentId, ['ref' => $ref, 'kind' => $kind]);
+    return ['reference' => $ref, 'issued' => true];
+}
+
+/** Issue the programme certificate for a passed, completed enrolment.
+ *  Returns the issue result, or null if the enrolment hasn't passed. */
+function mam_lms_issue_for_enrollment(int $enrollmentId, ?int $issuedBy = null): ?array {
+    $e = mam_db_row(
+        "SELECT ce.student_id, ce.program_id, ce.level_id, r.outcome
+           FROM course_enrollments ce LEFT JOIN results r ON r.enrollment_id = ce.id
+          WHERE ce.id = ?", [$enrollmentId]
+    );
+    if (!$e || ($e['outcome'] ?? '') !== 'pass' || $e['program_id'] === null) return null;
+    return mam_lms_issue_certificate((int)$e['student_id'], (int)$e['program_id'], $e['level_id'] !== null ? (int)$e['level_id'] : null, $issuedBy);
+}
+
+/** A student's issued certificates (with programme/level names), newest first. */
+function mam_lms_student_certificates(int $studentId): array {
+    return mam_db_all(
+        "SELECT c.reference, c.kind, c.title, c.issued_at,
+                p.name AS program_name, l.name AS level_name
+           FROM certificates c
+           LEFT JOIN programs p ON p.id = c.program_id
+           LEFT JOIN levels l   ON l.id = c.level_id
+          WHERE c.student_id = ? ORDER BY c.issued_at DESC",
+        [$studentId]
+    );
+}
+
+/** Fetch one certificate by reference, joined with names — for the public view. */
+function mam_lms_certificate(string $reference): ?array {
+    return mam_db_row(
+        "SELECT c.*, u.name AS student_name, p.name AS program_name, p.weeks,
+                l.name AS level_name, l.trinity_grades
+           FROM certificates c
+           JOIN users u         ON u.id = c.student_id
+           LEFT JOIN programs p ON p.id = c.program_id
+           LEFT JOIN levels l   ON l.id = c.level_id
+          WHERE c.reference = ?",
+        [$reference]
+    );
+}

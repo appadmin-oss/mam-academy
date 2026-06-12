@@ -187,7 +187,19 @@
           }).join('') + '</tbody></table></div>'
       : '<div class="panel-body">' + empty('layer-group', 'No courses yet. Add your first one below — Piano now, Voice or Theory later.') + '</div>';
 
-    content.innerHTML = ''
+    var certs = data.certificates || [];
+    var certHtml = certs.length
+      ? '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-award" style="color:var(--gold-bright);margin-right:8px"></i>Your certificates</h2></div><div class="panel-body" style="display:grid;gap:10px">'
+        + certs.map(function (c) {
+            return '<a href="/api/certificate/' + encodeURIComponent(c.reference) + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:14px;padding:13px 16px;border:1px solid var(--border-gold,rgba(224,138,26,.4));border-radius:12px;background:var(--bg-raised);text-decoration:none">'
+              + '<span style="width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#120D08;flex:0 0 auto"><i class="fa-solid fa-award"></i></span>'
+              + '<span style="flex:1"><strong style="color:var(--text)">' + P.escapeHtml(c.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.85rem">' + P.escapeHtml(c.program_name || '') + (c.level_name ? ' · ' + P.escapeHtml(c.level_name) : '') + '</span></span>'
+              + '<i class="fa-solid fa-arrow-up-right-from-square" style="color:var(--gold-bright)"></i></a>';
+          }).join('')
+        + '</div></section>'
+      : '';
+
+    content.innerHTML = certHtml
       + '<section class="panel"><div class="panel-head"><h2>My courses</h2>'
       +   '<button class="btn btn-ghost" id="addCourseToggle" style="padding:7px 14px;font-size:0.82rem"><i class="fa-solid fa-plus"></i> Add course</button></div>'
       +   list + '</section>'

@@ -345,6 +345,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $upd = ['status' => $status]; if ($iid) $upd['instructor_id'] = $iid;
             mam_db_update('course_enrollments', $upd, ['id' => $ceid]);
             mam_audit('lms_status', 'course_enrollment', $ceid, ['status' => $status]);
+            // Completing a passed course auto-issues its programme certificate.
+            if ($status === 'completed') {
+                $cert = mam_lms_issue_for_enrollment($ceid, (int)($adminUser['id'] ?? 0));
+                if ($cert && !empty($cert['issued'])) {
+                    header('Location: ?v=courseenroll&cert=' . urlencode($cert['reference'])); exit;
+                }
+            }
         }
         header('Location: ?v=courseenroll&ok=1'); exit;
     }
@@ -1333,6 +1340,9 @@ button.tiny:hover{border-color:var(--gold)}
 
 <?php elseif ($view === 'courseenroll'): ?>
   <header class="top"><h1>Course Registrations</h1></header>
+  <?php if (!empty($_GET['cert'])): ?>
+    <div class="banner ok">🎓 Certificate issued — <a href="/api/certificate/<?= urlencode((string)$_GET['cert']) ?>" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">view it</a>.</div>
+  <?php endif; ?>
   <?php
     $autoApprove = (int)mam_setting_num('lms_auto_approve', 0) === 1;
     $instructors = mam_lms_instructors();
@@ -1340,11 +1350,17 @@ button.tiny:hover{border-color:var(--gold)}
       "SELECT ce.id, ce.status, ce.created_at, ce.instructor_id,
               c.name AS course_name, c.kind AS course_kind,
               l.name AS level_name, p.name AS program_name,
-              su.name AS student_name, su.email AS student_email
+              su.name AS student_name, su.email AS student_email,
+              r.grade AS result_grade, r.outcome AS result_outcome,
+              (SELECT cr.reference FROM certificates cr
+                 WHERE cr.student_id = ce.student_id AND cr.program_id = ce.program_id
+                   AND (cr.level_id = ce.level_id OR (cr.level_id IS NULL AND ce.level_id IS NULL))
+                 LIMIT 1) AS cert_ref
          FROM course_enrollments ce
          JOIN courses c ON c.id = ce.course_id
          LEFT JOIN levels l ON l.id = ce.level_id
          LEFT JOIN programs p ON p.id = ce.program_id
+         LEFT JOIN results r ON r.enrollment_id = ce.id
          JOIN users su ON su.id = ce.student_id
          ORDER BY (ce.status = 'pending') DESC, ce.created_at DESC LIMIT 400"
     );
@@ -1369,7 +1385,10 @@ button.tiny:hover{border-color:var(--gold)}
           <td><strong><?= htmlspecialchars((string)($r['student_name'] ?: '—')) ?></strong><br><span class="muted"><?= htmlspecialchars((string)$r['student_email']) ?></span></td>
           <td><?= htmlspecialchars((string)$r['course_name']) ?><?= $r['course_kind'] === 'core' ? ' <span class="pill">core</span>' : '' ?></td>
           <td class="muted"><?= htmlspecialchars((string)($r['level_name'] ?: '—')) ?><?= $r['program_name'] ? ' · ' . htmlspecialchars((string)$r['program_name']) : '' ?></td>
-          <td><span class="pill <?= htmlspecialchars((string)$r['status']) ?>"><?= htmlspecialchars((string)$r['status']) ?></span></td>
+          <td><span class="pill <?= htmlspecialchars((string)$r['status']) ?>"><?= htmlspecialchars((string)$r['status']) ?></span>
+            <?php if (!empty($r['result_grade'])): ?><br><span class="muted" style="font-size:0.78rem"><?= htmlspecialchars((string)$r['result_grade']) ?> · <?= htmlspecialchars((string)$r['result_outcome']) ?></span><?php endif; ?>
+            <?php if (!empty($r['cert_ref'])): ?><br><a href="/api/certificate/<?= urlencode((string)$r['cert_ref']) ?>" target="_blank" rel="noopener" style="color:var(--gold);font-size:0.78rem">🎓 Certificate</a><?php endif; ?>
+          </td>
           <td>
             <form class="inline" method="post">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
