@@ -173,12 +173,15 @@ window.MAM_CONFIG = {
     ]
   },
 
-  /* -------- Next intake (for the homepage countdown) -------- */
+  /* -------- Next intake (for the homepage countdown) --------
+     main.js stamps `label` into every [data-intake-label] and counts down to
+     `startDate`; once the date passes, the countdown swaps itself for an
+     "enrolment open" message instead of freezing at zero. */
   intake: {
-    startDate: '2026-05-05T00:00:00Z',
-    label: 'May 2026',
+    startDate: '2026-09-07T00:00:00Z',
+    label: 'September 2026',
     spotsTotal: 25,
-    spotsRemaining: 7
+    spotsRemaining: 19
   },
 
   /* -------- Programme tracks (age-based routing) --------

@@ -27,10 +27,23 @@ function mam_session_start_cookie(int $userId, bool $remember = true): string {
     return $token;
 }
 
+/**
+ * Whether the session cookie carries the Secure flag. Auto-detection can be
+ * fooled by a proxy that doesn't forward X-Forwarded-Proto, so COOKIE_SECURE
+ * in .env overrides it: 1/true forces Secure (recommended in production),
+ * 0/false disables it (plain-HTTP local dev only).
+ */
+function mam_cookie_secure(): bool {
+    $env = strtolower(trim((string)mam_env('COOKIE_SECURE', '')));
+    if ($env === '1' || $env === 'true')  return true;
+    if ($env === '0' || $env === 'false') return false;
+    return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+}
+
 function mam_session_set_cookie(string $token, int $ttl = null): void {
     if ($ttl === null) $ttl = MAM_SESSION_TTL_LONG;
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-           || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $secure = mam_cookie_secure();
     setcookie(MAM_COOKIE, $token, [
         'expires'  => time() + $ttl,
         'path'     => '/',

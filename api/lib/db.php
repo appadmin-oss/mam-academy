@@ -5,6 +5,11 @@
  */
 declare(strict_types=1);
 
+/** Latest schema version. The single source of truth for the migrators, the
+ *  admin overview banner and /api/diag — bump it together with a new
+ *  migration in $migrations below + db/schema-mysql.sql. */
+const MAM_SCHEMA_TARGET = 16;
+
 /**
  * Open (and cache) the PDO connection.
  *
@@ -69,7 +74,7 @@ function mam_db_migrate_mysql(PDO $db): void {
     $current = 0;
     try { $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0); } catch (Throwable $e) {}
 
-    $target = 16;
+    $target = MAM_SCHEMA_TARGET;
     if ($current >= $target) return;
 
     $path = realpath(__DIR__ . '/../../db/schema-mysql.sql');

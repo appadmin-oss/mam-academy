@@ -41,3 +41,30 @@ t_ok($piano !== null, 'student courses lists the enrolment');
 t_eq($piano['status'], 'active', 'approval activates the enrolment');
 t_eq($piano['instructor_name'], 'Test Instructor', 'instructor assigned on approval');
 t_ok(count(mam_lms_instructors()) >= 1, 'assignable instructors are listed (multi-role aware)');
+
+t_group('lms instructor-assignment memory');
+
+// The explicit pick above must be remembered in instructor_assignments…
+$mem = mam_db_row('SELECT * FROM instructor_assignments WHERE instructor_id = ? ORDER BY id DESC', [$iid]);
+t_ok($mem !== null, 'explicit instructor pick remembered in instructor_assignments');
+
+// …so approving ANOTHER student for the same course+level without picking an
+// instructor defaults to the remembered one.
+$sid2 = mam_db_insert('users', ['email' => 't_stu2@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Second Student', 'status' => 'active']);
+$r2 = mam_lms_add_course($sid2, 'piano', 'precert', 'standard');
+mam_lms_approve((int)$r2['id'], null, 1); // no instructor picked
+$mine2 = mam_lms_student_courses($sid2);
+t_eq($mine2[0]['instructor_name'], 'Test Instructor', 'approval w/o a pick defaults from the assignment memory');
+
+// Level-agnostic fallback: remember (instructor, course, NULL level) and the
+// default applies at any level of that course.
+$course2 = mam_db_row("SELECT id, code FROM courses WHERE code != 'piano' AND active = 1 ORDER BY id LIMIT 1");
+mam_lms_remember_instructor($iid, (int)$course2['id'], null);
+$lvl = mam_db_row("SELECT id FROM levels WHERE code = 'cert'");
+t_eq(mam_lms_default_instructor((int)$course2['id'], (int)$lvl['id']), $iid, 'level-agnostic memory backs any level of the course');
+t_eq(mam_lms_default_instructor(999999, null), null, 'no memory → no default');
+
+// Remember is idempotent — re-remembering must not violate the unique index.
+mam_lms_remember_instructor($iid, (int)$course2['id'], null);
+$n = mam_db_row('SELECT COUNT(*) AS c FROM instructor_assignments WHERE instructor_id = ? AND course_id = ? AND level_id IS NULL', [$iid, (int)$course2['id']]);
+t_eq((int)$n['c'], 1, 're-remembering the same assignment stays a single row');

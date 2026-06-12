@@ -156,10 +156,11 @@ try {
                 'tx_ref'       => $ref,
                 'amount'       => $amountNgn,
                 'currency'     => 'NGN',
+                // Email only: this endpoint is public (reference = capability),
+                // so don't echo the applicant's name/phone back to the caller —
+                // Flutterwave accepts an email-only customer object.
                 'customer'     => [
                     'email'        => $customerEmail,
-                    'phone_number' => $customerPhone,
-                    'name'         => $customerName,
                 ],
                 'customizations' => [
                     'title'       => 'MAM Academy',

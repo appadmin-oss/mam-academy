@@ -556,20 +556,33 @@
   // Countdown (intake)
   // ============================================================
   function initCountdown() {
+    // Stamp the configurable intake label wherever the markup references it.
+    var intake = (window.MAM_CONFIG && window.MAM_CONFIG.intake) || {};
+    if (intake.label) $$('[data-intake-label]').forEach(function (el) { el.textContent = intake.label; });
     var d = $('#cd-days'), h = $('#cd-hours'), m = $('#cd-mins'), s = $('#cd-secs');
     if (!d) return;
-    var cfg = window.MAM_CONFIG && window.MAM_CONFIG.intake ? window.MAM_CONFIG.intake.startDate : '2026-05-05T00:00:00Z';
-    var target = new Date(cfg).getTime();
+    var target = new Date(intake.startDate || '2026-09-07T00:00:00Z').getTime();
     function pad(n) { return String(n).padStart(2, '0'); }
     function tick() {
       var diff = target - Date.now();
-      if (diff <= 0) { d.textContent = h.textContent = m.textContent = s.textContent = '00'; return; }
+      if (diff <= 0) {
+        // The intake has begun — a frozen 00:00:00:00 reads as broken, so
+        // swap the digits for a live message instead.
+        var wrap = $('#countdown');
+        if (wrap && !wrap.dataset.cdOpen) {
+          wrap.dataset.cdOpen = '1';
+          wrap.innerHTML = '<div class="countdown-open" style="padding:14px 22px;border:1px solid var(--border-gold,rgba(224,138,26,.45));border-radius:12px;color:var(--gold-bright,#FCC647);font-weight:800;letter-spacing:0.04em"><i class="fa-solid fa-door-open" aria-hidden="true"></i> ' + (intake.label ? intake.label + ' intake is underway' : 'Enrolment is open') + ' — applications are reviewed weekly.</div>';
+        }
+        return true; // done — caller stops the interval
+      }
       d.textContent = pad(Math.floor(diff / 86400000));
       h.textContent = pad(Math.floor((diff % 86400000) / 3600000));
       m.textContent = pad(Math.floor((diff % 3600000) / 60000));
       s.textContent = pad(Math.floor((diff % 60000) / 1000));
+      return false;
     }
-    tick(); setInterval(tick, 1000);
+    if (tick()) return;
+    var timer = setInterval(function () { if (tick()) clearInterval(timer); }, 1000);
   }
 
   // ============================================================

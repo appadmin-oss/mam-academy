@@ -1,20 +1,47 @@
 <?php
 /**
- * /api/raw-debug.php
+ * /api/raw-debug.php?key=DEBUG_TOKEN
  *
  * Bypasses the router and bootstrap so a bootstrap-time failure can't
  * eat the error message. Probes each layer separately and reports back
  * as plain JSON.
  *
- * Hit this directly: https://academy.mamcentre.org/api/raw-debug.php
+ * Hit this directly: https://academy.mamcentre.org/api/raw-debug.php?key=…
  *
  * The file must remain CALLABLE EVEN IF EVERYTHING ELSE IS BROKEN — so
  * it does NOT require bootstrap.php. Every dependency is loaded inside
  * its own try/catch and reported separately.
+ *
+ * SECURITY: the output discloses server internals (paths, env key names,
+ * recent error-log lines), so it is gated by DEBUG_TOKEN from api/.env —
+ * parsed here with a minimal reader precisely so the gate still works when
+ * bootstrap is broken. No token configured ⇒ the endpoint refuses.
  */
 declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
 header('X-MAM-Debug: raw');
+
+/* ── Token gate (CLI is always allowed) ── */
+if (PHP_SAPI !== 'cli') {
+    $debugToken = '';
+    $envPath = __DIR__ . '/.env';
+    if (is_readable($envPath)) {
+        foreach ((file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: []) as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#') continue;
+            if (strpos($line, 'DEBUG_TOKEN=') === 0) { $debugToken = trim(substr($line, 12), " \t\"'"); break; }
+        }
+    }
+    $given = (string)($_GET['key'] ?? '');
+    if ($debugToken === '' || $given === '' || !hash_equals($debugToken, $given)) {
+        http_response_code(403);
+        echo json_encode([
+            'error' => 'forbidden',
+            'hint'  => 'Set DEBUG_TOKEN in api/.env and call this endpoint with ?key=<token>. The token gate works even when bootstrap is broken.',
+        ]);
+        exit;
+    }
+}
 
 $out = [
     'php'  => PHP_VERSION,

@@ -552,7 +552,7 @@
 <section id="cta" style="background:var(--bg-surface);padding:80px 24px;position:relative;overflow:hidden">
   <div style="position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(224,138,26,0.1) 0%,transparent 70%);pointer-events:none"></div>
   <div class="cta-inner">
-    <div class="cta-badge"><span class="cta-badge-dot"></span>May 2026 Intake Now Open</div>
+    <div class="cta-badge"><span class="cta-badge-dot"></span><span data-intake-label>September 2026</span> Intake Now Open</div>
     <h2 class="cta-title">Doors close in</h2>
     <p class="cta-desc">Book your MAM Auditer session and secure your seat. Early registrants receive a complimentary rhythm-intelligence workbook and 10% off first term.</p>
     <div class="countdown-wrap" id="countdown" aria-label="Countdown">

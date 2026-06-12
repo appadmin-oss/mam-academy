@@ -128,11 +128,13 @@ function mam_require_role(string ...$roles): array {
 
 /**
  * Admin guard accepted by both portals AND the legacy admin dashboard.
- * Prefers session role=admin; falls back to env-configured Basic Auth.
+ * Prefers a session user holding the admin role — primary users.role OR the
+ * multi-role user_roles table, so a secondary-admin isn't locked out — and
+ * falls back to env-configured Basic Auth.
  */
 function mam_require_admin(): void {
     $u = mam_current_user();
-    if ($u && $u['role'] === 'admin') return;
+    if ($u && mam_user_has_role($u, 'admin')) return;
 
     // Fallback: HTTP Basic Auth. On cPanel / LiteSpeed / many shared
     // hosts the `Authorization` header is stripped before PHP sees it

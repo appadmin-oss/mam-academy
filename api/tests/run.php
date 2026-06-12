@@ -44,6 +44,8 @@ require $ROOT . '/lib/csrf.php';
 require $ROOT . '/lib/paystack.php';
 require $ROOT . '/lib/flutterwave.php';
 require $ROOT . '/lib/lms.php';
+require $ROOT . '/lib/auth.php';            // account provisioning + role checks
+require $ROOT . '/lib/store.php';           // store totals (server-authoritative)
 
 require __DIR__ . '/assert.php';
 

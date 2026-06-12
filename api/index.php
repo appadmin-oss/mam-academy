@@ -99,6 +99,8 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->post('/update-profile',      $f('student/update-profile.php'),      [mw_csrf(), mw_role('student')]);
     $r->post('/practice-log',        $f('student/practice-log.php'),        [mw_csrf(), mw_role('student')]);
     $r->post('/assignment-complete', $f('student/assignment-complete.php'), [mw_csrf(), mw_role('student')]);
+    // Per-component gradebook breakdown for one of the student's own courses.
+    $r->get ('/assessments',         $f('student/assessments.php'),         [mw_role('student')]);
 });
 
 /* ─── Instructor portal ─── */
@@ -109,7 +111,8 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/resource',         $f('instructor/resource.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
-    $r->post('/assignment',       $f('instructor/assignment.php'),      [mw_csrf(), mw_role('instructor', 'admin')]);
+    $r->post('/assignment',        $f('instructor/assignment.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
+    $r->post('/assignment-delete', $f('instructor/assignment-delete.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
     // LMS gradebook — weekly weighted assessments → auto-computed results.
     $r->get ('/gradebook',        $f('instructor/gradebook.php'),       [mw_role('instructor', 'admin')]);
     $r->post('/assess',           $f('instructor/assess.php'),          [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('assess', 120, 600)]);

@@ -3,6 +3,10 @@
 **Date:** 2026-06-12 · **Scope:** entire repository (API, portals, admin, public site, schema, tests, config)
 **Baseline:** all 121 API tests pass, every PHP file lints, every JS file parses. The findings below are what review found beyond that.
 
+> **Status (same day):** every finding below has been resolved — see
+> [Resolutions](#4--resolutions-2026-06-12) at the end. The suite now passes
+> 157 tests including new regression coverage for E3, G1, G3.
+
 Severity: 🔴 fix soon · 🟡 should fix · 🔵 nice-to-have / informational.
 
 ---
@@ -84,3 +88,25 @@ Intentional per current product direction (Rhythm Tap is now student-exclusive),
 - **Client/server pricing:** `config.js` display prices match `validation.php` server prices (120/130/160/180, compulsory 120, grand −13%, +20% online, $5 registration), and the client hydrates from `/api/config/public` anyway.
 - **Dashboard contracts:** every field the student/instructor portal reads exists in the corresponding dashboard response (field-by-field check).
 - **CLI tools:** `api/tools/` is `Require all denied` + CLI-guarded; `api/lib` + `api/routes` direct access is 403'd.
+
+---
+
+## 4 · Resolutions (2026-06-12)
+
+| ID | Resolution |
+|----|------------|
+| 🔴 E1 | `api/raw-debug.php` now refuses without `?key=` matching `DEBUG_TOKEN` (parsed with a bootstrap-free .env reader, so the gate works even when bootstrap is broken; CLI always allowed). `/api/diag` serves a minimal secret-free summary unless the caller is an admin session or presents the token; error-log/env sections are gated. `diag.html` forwards `?key=` through. `DEBUG_TOKEN` documented in `.env.example`. |
+| 🟡 E2 | Login `next` guard tightened to `/^\/(?!\/)/` — protocol-relative `//evil.com` no longer passes. |
+| 🟡 E3 | `mam_require_admin()` and the `/admin/` gate now use `mam_user_has_role(…, 'admin')`, so admins granted via `user_roles` get in. Regression test in `test_auth.php`. |
+| 🟡 E4 | Intake moved to September 2026 and made data-driven: `main.js` stamps `[data-intake-label]` from config and swaps the countdown for an "intake is underway" message when the date passes (no more frozen zeros). `index.php` badge de-hardcoded. |
+| 🔵 E5 | Flutterwave init payload now sends an email-only customer object — no name/phone echoed to unauthenticated callers. |
+| 🔵 E6 | `robots.txt` rewritten for clean URLs: `/thank-you` + `/diag` (both forms) disallowed; `/apply` and `/book` deliberately indexable (they joined the sitemap — G2). |
+| 🔵 E7 | `COOKIE_SECURE` env override added (`mam_cookie_secure()`); `.env.example` defaults it to `1` for production. |
+| 🟡 G1 | `instructor_assignments` is now the assignment **memory**: an explicit pick during approval is remembered per course(+level), and approvals without a pick default from it (exact level first, then level-agnostic). Covered by new tests in `test_lms.php`. |
+| 🟡 G2 | Sitemap: `/apply` + `/book` added, duplicate `/tools` removed (canonical `/studio` stays). |
+| 🟡 G3 | New `test_auth.php` (admin create/idempotency, multi-role checks, student auto-provision) and `test_store.php` (authoritative totals, tax/shipping, stock/geo/sold-out/inactive guards, references) — suite went 121 → 157 green. |
+| 🔵 G4 | Instructors can now delete assignments (`POST /api/instructor/assignment-delete`, author-only, admin override) with a confirm dialog, and the list shows a "X of Y done" completion summary. |
+| 🔵 G5 | Students can open a per-component **Results** breakdown for each course (`GET /api/student/assessments?enrollment_id=`, ownership-checked) — component, weight, score, week, standing and pass mark. |
+| 🔵 G6 | Admin overview gained an "Operational readiness" banner flagging unset `BOOKING_EMBED_URL`, `powerPlay.meetUrl`, `cdn.cloudName`, `cdn.uploadPreset` and mail-delivery issues. Bonus: the overview's schema-target banner had drifted (13 vs 16) — both it and `/api/diag` now read the new `MAM_SCHEMA_TARGET` constant in `db.php`. |
+| 🔵 G7 | Unchanged by design — Stripe stays a disabled config placeholder until a server-side integration exists. |
+| 🔵 G8 | Unchanged by design — Rhythm Tap is student-portal-exclusive. |

@@ -26,7 +26,9 @@ require_once __DIR__ . '/../api/lib/bootstrap.php';
 // if neither is available, send the visitor to the portal login rather than
 // dumping a raw JSON error — a far friendlier first-run experience.
 $adminUser = mam_current_user();
-if (!($adminUser && ($adminUser['role'] ?? '') === 'admin')) {
+// Multi-role aware: admin may be the primary users.role OR granted via the
+// user_roles join table — both must open the dashboard.
+if (!($adminUser && mam_user_has_role($adminUser, 'admin'))) {
     if (mam_env('ADMIN_USER', '') !== '' && mam_env('ADMIN_PASSWORD_HASH', '') !== '') {
         mam_require_admin(); // HTTP Basic Auth challenge/verify
     } else {
@@ -933,7 +935,7 @@ button.tiny:hover{border-color:var(--gold)}
     // that's behind on migrations because schema-mysql.sql wasn't run after
     // a deploy. The button POSTs /admin/migrate which runs the idempotent
     // schema file. Safe to click repeatedly.
-    $schemaVersion = 0; $schemaTarget = 13;
+    $schemaVersion = 0; $schemaTarget = defined('MAM_SCHEMA_TARGET') ? MAM_SCHEMA_TARGET : 16;
     try {
       $schemaVersion = (int)mam_db()->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn();
     } catch (Throwable $e) {}
@@ -949,6 +951,17 @@ button.tiny:hover{border-color:var(--gold)}
     if (!$health['key']) echo '<div class="banner warn">⚠️ APP_KEY is missing or too short — CSRF tokens and admin forms will fail. Set <code>APP_KEY</code> in <code>api/.env</code> (hex, ≥32 chars).</div>';
     if (!$health['paystack'] && !$health['flw']) echo '<div class="banner warn">⚠️ No payment provider configured. Set <code>PAYSTACK_SECRET_KEY</code> or <code>FLW_SECRET_KEY</code>.</div>';
     if (!$health['smtp']) echo '<div class="banner">ℹ️ SMTP not configured — outgoing mail falls back to PHP <code>mail()</code>.</div>';
+    // Operational readiness: config that silently degrades a feature when left
+    // empty. Server-side values come from .env; the client-side ones live in
+    // assets/js/config.js, so we string-scan that file for its known defaults.
+    $ops = [];
+    if (!mam_env('BOOKING_EMBED_URL')) $ops[] = '<code>BOOKING_EMBED_URL</code> (api/.env) — paid bookers see “calendar is being set up” instead of the scheduler';
+    $cfgJs = @file_get_contents(__DIR__ . '/../assets/js/config.js') ?: '';
+    if (preg_match('/meetUrl:\s*\'\'/', $cfgJs))      $ops[] = '<code>powerPlay.meetUrl</code> (assets/js/config.js) — Power Play page has no join link';
+    if (preg_match('/cloudName:\s*\'\'/', $cfgJs))    $ops[] = '<code>cdn.cloudName</code> (assets/js/config.js) — image CDN is a no-op';
+    if (preg_match('/uploadPreset:\s*\'\'/', $cfgJs)) $ops[] = '<code>cdn.uploadPreset</code> (assets/js/config.js) — applicant headshot upload is disabled';
+    if (function_exists('mam_mail_readiness')) { $mr = mam_mail_readiness(); if (is_array($mr) && empty($mr['ready']) && !empty($mr['issues'])) $ops[] = 'Mail delivery: ' . htmlspecialchars(implode('; ', (array)$mr['issues'])); }
+    if ($ops) echo '<div class="banner"><strong>ℹ️ Operational readiness</strong> — features waiting on configuration:<ul style="margin:8px 0 0 18px;padding:0">' . implode('', array_map(fn ($o) => '<li style="margin:3px 0">' . $o . '</li>', $ops)) . '</ul></div>';
   ?>
   <div class="kpi-grid">
     <div class="kpi"><div class="kpi-label">Applications</div><div class="kpi-value"><?= number_format($kpi['applications']) ?></div></div>

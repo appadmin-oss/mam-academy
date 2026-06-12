@@ -102,12 +102,48 @@ function mam_lms_add_course(int $studentId, string $courseCode, ?string $levelCo
     return ['id' => $id, 'status' => $auto ? 'active' : 'pending'];
 }
 
-/** Admin: approve a pending enrolment and (optionally) assign an instructor. */
+/**
+ * Admin: approve a pending enrolment and (optionally) assign an instructor.
+ * instructor_assignments acts as the assignment MEMORY: an explicit pick is
+ * remembered for the course(+level), and an approval without a pick defaults
+ * from it — so the admin stops re-selecting the same instructor every time.
+ */
 function mam_lms_approve(int $enrollmentId, ?int $instructorId, int $adminId): void {
+    $e = mam_db_row('SELECT course_id, level_id FROM course_enrollments WHERE id = ?', [$enrollmentId]);
+    if ($e) {
+        $courseId = (int)$e['course_id'];
+        $levelId  = $e['level_id'] !== null ? (int)$e['level_id'] : null;
+        if ($instructorId) mam_lms_remember_instructor($instructorId, $courseId, $levelId);
+        else $instructorId = mam_lms_default_instructor($courseId, $levelId);
+    }
     $data = ['status' => 'active', 'approved_by' => $adminId, 'approved_at' => date('Y-m-d H:i:s')];
     if ($instructorId) $data['instructor_id'] = $instructorId;
     mam_db_update('course_enrollments', $data, ['id' => $enrollmentId]);
     mam_audit('lms_approve', 'course_enrollment', $enrollmentId, ['instructor' => $instructorId]);
+}
+
+/** The remembered instructor for a course (+level): exact course+level match
+ *  first, then a level-agnostic assignment. Null when nothing is on file. */
+function mam_lms_default_instructor(int $courseId, ?int $levelId): ?int {
+    $row = null;
+    if ($levelId !== null) {
+        $row = mam_db_row('SELECT instructor_id FROM instructor_assignments WHERE course_id = ? AND level_id = ? ORDER BY id DESC LIMIT 1', [$courseId, $levelId]);
+    }
+    if (!$row) {
+        $row = mam_db_row('SELECT instructor_id FROM instructor_assignments WHERE course_id = ? AND level_id IS NULL ORDER BY id DESC LIMIT 1', [$courseId]);
+    }
+    return $row ? (int)$row['instructor_id'] : null;
+}
+
+/** Remember that an instructor teaches a course (+level). Idempotent; failure
+ *  is swallowed — the memory must never block an approval. */
+function mam_lms_remember_instructor(int $instructorId, int $courseId, ?int $levelId): void {
+    try {
+        $dup = $levelId !== null
+            ? mam_db_row('SELECT id FROM instructor_assignments WHERE instructor_id = ? AND course_id = ? AND level_id = ?', [$instructorId, $courseId, $levelId])
+            : mam_db_row('SELECT id FROM instructor_assignments WHERE instructor_id = ? AND course_id = ? AND level_id IS NULL', [$instructorId, $courseId]);
+        if (!$dup) mam_db_insert('instructor_assignments', ['instructor_id' => $instructorId, 'course_id' => $courseId, 'level_id' => $levelId]);
+    } catch (Throwable $e) { /* memory only */ }
 }
 
 /** Everyone who can teach (primary role OR user_roles). For the assign dropdown. */

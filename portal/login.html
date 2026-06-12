@@ -216,8 +216,9 @@
     })
       .then(function (r) {
         var next = new URLSearchParams(location.search).get('next');
-        // Avoid open-redirect: only honor relative paths
-        if (next && !/^\//.test(next)) next = null;
+        // Avoid open redirects: only honor site-relative paths — a single
+        // leading slash. "//evil.com" is protocol-relative and must not pass.
+        if (next && !/^\/(?!\/)/.test(next)) next = null;
         window.location.href = next || r.redirect || '/portal/student/';
       })
       .catch(function (e) {

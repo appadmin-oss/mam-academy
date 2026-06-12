@@ -96,12 +96,16 @@
       + (clsOpts ? '<optgroup label="Classes">' + clsOpts + '</optgroup>' : '')
       + (stuOpts ? '<optgroup label="Students">' + stuOpts + '</optgroup>' : '')
       + '</select>';
+    var doneCount = asg.filter(function (a) { return a.status === 'done'; }).length;
     var list = asg.length ? asg.map(function (a) {
       var done = a.status === 'done';
-      return '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised);margin-bottom:10px">'
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised);margin-bottom:10px">'
         + '<div style="min-width:200px;flex:1"><strong style="color:var(--text)">' + P.escapeHtml(a.title) + '</strong>'
         + '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">' + P.escapeHtml(a.student_name || '') + (a.class_title ? ' · ' + P.escapeHtml(a.class_title) : '') + (a.due_on ? ' · due ' + P.fmtDate(a.due_on) : '') + '</div></div>'
-        + '<span class="pill ' + (done ? 'present' : 'pending') + '">' + (done ? 'done' : 'open') + '</span></div>';
+        + '<div style="display:flex;align-items:center;gap:10px">'
+        +   '<span class="pill ' + (done ? 'present' : 'pending') + '">' + (done ? 'done' : 'open') + '</span>'
+        +   '<button type="button" class="asg-del" data-id="' + a.id + '" title="Delete assignment" aria-label="Delete assignment" style="width:34px;height:34px;border-radius:8px;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);cursor:pointer"><i class="fa-solid fa-trash-can"></i></button>'
+        + '</div></div>';
     }).join('') : '<div class="panel-body">' + empty('list-check', 'No assignments set yet. Create one above.') + '</div>';
 
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Set an assignment</h2></div>'
@@ -112,7 +116,25 @@
       +   '<div class="field"><label for="asg-due">Due date (optional)</label><input id="asg-due" type="date"></div>'
       +   '<div class="actions"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-list-check"></i> Set assignment</button></div>'
       + '</form></section>'
-      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Assignments set</h2></div><div style="padding:14px 18px">' + list + '</div></section>';
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Assignments set</h2>'
+      + (asg.length ? '<span style="font-size:0.8rem;color:var(--text-muted)">' + doneCount + ' of ' + asg.length + ' done · ' + (asg.length - doneCount) + ' open</span>' : '')
+      + '</div><div style="padding:14px 18px">' + list + '</div></section>';
+
+    content.querySelectorAll('.asg-del').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var go = function () {
+          b.disabled = true;
+          API.request('instructor/assignment-delete', { method: 'POST', body: { id: parseInt(b.getAttribute('data-id'), 10) } })
+            .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Assignment deleted.', 'success'); return load(); })
+            .catch(function (err) {
+              b.disabled = false;
+              (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not delete: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not delete.'));
+            });
+        };
+        if (window.MAM_DIALOG && window.MAM_DIALOG.confirm) window.MAM_DIALOG.confirm('Delete this assignment?', 'The student will no longer see it.', 'Delete').then(function (ok) { if (ok) go(); });
+        else if (confirm('Delete this assignment?')) go();
+      });
+    });
 
     document.getElementById('asgForm').addEventListener('submit', function (e) {
       e.preventDefault();

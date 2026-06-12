@@ -1,20 +1,40 @@
 <?php
 /**
- * GET /api/diag
+ * GET /api/diag                  — restricted summary (safe to ping)
+ * GET /api/diag?key=DEBUG_TOKEN  — full diagnostics (operator)
  *
- * Diagnostic endpoint. Returns the state of the moving parts so you can
- * verify the pipeline end-to-end from a browser without guessing:
- *
- *   - PHP version + sapi
- *   - DB driver + schema_version + whether store_items exists
- *   - Logs + storage dirs writable
- *   - Output-buffering state at entry
- *   - Provider keys present (boolean only — never the value)
- *   - Last 20 lines of buffer-leak.log if any
- *
- * No PII. Safe to ping without auth from the operator.
+ * Diagnostic endpoint. The FULL view returns the state of every moving part
+ * (env-key presence, dir writability, schema introspection, recent error-log
+ * lines) and is gated: a logged-in admin session OR ?key= matching
+ * DEBUG_TOKEN in api/.env. Unauthenticated callers get only a minimal,
+ * secret-free health summary — error logs can contain stack traces and
+ * paths, so they are never served without the gate.
  */
 declare(strict_types=1);
+
+$diagAuthorized = false;
+try {
+    $u = function_exists('mam_current_user') ? mam_current_user() : null;
+    if ($u && function_exists('mam_user_has_role') && mam_user_has_role($u, 'admin')) $diagAuthorized = true;
+} catch (Throwable $e) { /* session layer down — token can still authorize */ }
+$debugToken = (string)mam_env('DEBUG_TOKEN', '');
+$givenKey   = (string)($_GET['key'] ?? '');
+if (!$diagAuthorized && $debugToken !== '' && $givenKey !== '' && hash_equals($debugToken, $givenKey)) $diagAuthorized = true;
+
+if (!$diagAuthorized) {
+    // Minimal, secret-free summary — enough for an uptime probe.
+    $min = ['ok' => true, 'restricted' => true, 'php' => PHP_VERSION, 'time' => date('c')];
+    try {
+        $db = mam_db();
+        $min['db'] = [
+            'driver'         => $db->getAttribute(PDO::ATTR_DRIVER_NAME),
+            'schema_version' => (int)$db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn(),
+            'target'         => defined('MAM_SCHEMA_TARGET') ? MAM_SCHEMA_TARGET : 16,
+        ];
+    } catch (Throwable $e) { $min['db'] = ['error' => 'unavailable']; }
+    $min['hint'] = 'Full diagnostics need an admin session or ?key=DEBUG_TOKEN (api/.env).';
+    mam_ok($min);
+}
 
 $out = [
     'php'    => PHP_VERSION,
@@ -42,7 +62,7 @@ try {
     $out['db'] = [
         'driver'           => $db->getAttribute(PDO::ATTR_DRIVER_NAME),
         'schema_version'   => (int)$db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn(),
-        'target'           => 16,
+        'target'           => defined('MAM_SCHEMA_TARGET') ? MAM_SCHEMA_TARGET : 16,
     ];
     // Probe a few key tables so we know what's actually present.
     foreach (['customers', 'applications', 'payments', 'store_items', 'store_orders'] as $t) {

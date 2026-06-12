@@ -83,10 +83,15 @@
     probesEl.innerHTML = '';
     diagOut.textContent = 'Running…';
 
+    // Full /api/diag output is operator-gated: forward ?key=… from this
+    // page's URL (DEBUG_TOKEN in api/.env). Without it you get the
+    // restricted summary — still enough to see whether the API answers.
+    var key = new URLSearchParams(location.search).get('key');
+    var diagUrl = '/api/diag' + (key ? '?key=' + encodeURIComponent(key) : '');
     var checks = [
       { url: '/api/health',  name: '/api/health (router + bootstrap)' },
       { url: '/api/csrf',    name: '/api/csrf (CSRF + DB connect)' },
-      { url: '/api/diag',    name: '/api/diag (full schema introspection)' },
+      { url: diagUrl,        name: '/api/diag (schema introspection' + (key ? '' : ' — restricted; add ?key=DEBUG_TOKEN for full') + ')' },
       { url: '/api/booking/pricing', name: '/api/booking/pricing (env load)' },
     ];
 
@@ -95,7 +100,7 @@
     checks.reduce(function (p, c) {
       return p.then(function () {
         return fetchText(c.url).then(function (r) {
-          if (c.url === '/api/diag') diagText = r;
+          if (c.url === diagUrl) diagText = r;
           var status;
           if (r.status === 0) status = 'fail';
           else if (looksLikePhp(r.body))         status = 'fail';
@@ -138,7 +143,10 @@
   }
 
   document.getElementById('rerun').addEventListener('click', run);
-  document.getElementById('opendiag').addEventListener('click', function () { window.open('/api/diag', '_blank'); });
+  document.getElementById('opendiag').addEventListener('click', function () {
+    var key = new URLSearchParams(location.search).get('key');
+    window.open('/api/diag' + (key ? '?key=' + encodeURIComponent(key) : ''), '_blank');
+  });
   run();
 })();
 </script>

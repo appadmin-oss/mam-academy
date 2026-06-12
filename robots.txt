@@ -1,13 +1,16 @@
 User-agent: *
 Allow: /
 
-# Private / transactional / non-content paths
+# Private / transactional / non-content paths. The site serves clean URLs
+# (/thank-you, not /thank-you.html) — list both forms so the canonical path
+# and legacy links are equally covered. /apply and /book ARE indexable:
+# they're the conversion landing pages and live in the sitemap.
 Disallow: /api/
 Disallow: /admin/
 Disallow: /portal/
-Disallow: /apply.html
-Disallow: /book.html
+Disallow: /thank-you
 Disallow: /thank-you.html
+Disallow: /diag
 Disallow: /diag.html
 
 Sitemap: https://academy.mamcentre.org/sitemap.xml
