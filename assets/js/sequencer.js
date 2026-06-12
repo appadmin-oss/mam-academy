@@ -53,7 +53,9 @@
   var SAVE_KEY = 'mam.seq.v1';
   var ZUSTAND_CDN = 'https://cdn.jsdelivr.net/npm/zustand@5.0.3/vanilla/+esm';
 
-  // Eight synth voices, ordered top-to-bottom. `vol` is the default mix level.
+  // Synth voices, ordered top-to-bottom. `vol` is the default mix level.
+  // The final lane is PITCHED — an 808-style bass whose per-step note comes
+  // from state.bassNotes (scale degrees; drag a lit cell vertically to pitch).
   var TRACKS = [
     { name: 'Kick',       voice: 'kick',      vol: 0.95 },
     { name: 'Snare',      voice: 'snare',     vol: 0.80 },
@@ -63,7 +65,46 @@
     { name: 'Low Tom',    voice: 'tom',       vol: 0.70 },
     { name: 'Rim',        voice: 'rim',       vol: 0.62 },
     { name: 'Shaker',     voice: 'shaker',    vol: 0.50 },
+    { name: 'Bass',       voice: 'bass',      vol: 0.85 },
   ];
+  var BASS_ROW = TRACKS.length - 1;
+
+  // ── Musical tables (bass lane) ─────────────────────────────────────
+  var KEY_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  // Minor-pentatonic degrees over two octaves — melodic but impossible to
+  // play a "wrong" note with. Degree index is what bassNotes[] stores.
+  var SCALE = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22];
+  function bassMidi(key, deg) { return 36 + (key | 0) + SCALE[Math.max(0, Math.min(SCALE.length - 1, deg | 0))]; }
+  function midiHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function bassLabel(key, deg) { var m = bassMidi(key, deg); return KEY_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1); }
+
+  // ── Kits — parameter variants over the same synthesis recipes ──────
+  // (classic = the original voicing; 808 = boomier, longer; afro = woodier,
+  // brighter percussion.) Buffers are baked per kit.
+  var KITS = {
+    classic: { label: 'MAM Classic' },
+    e808:    { label: '808',  kick: { f0: 120, f1: 41, decay: 0.62 }, snare: { hp: 1800, decay: 0.12, tone: 200 }, hatClosed: { hp: 8200, decay: 0.035 }, hatOpen: { hp: 7600, decay: 0.42 }, tom: { f0: 140, f1: 70, decay: 0.4 }, rim: { f: 2100 }, shaker: { hp: 7400 } },
+    afro:    { label: 'Afro Percussion', kick: { f0: 190, f1: 62, decay: 0.3 }, snare: { hp: 900, decay: 0.22, tone: 240 }, hatClosed: { hp: 6800, decay: 0.06 }, hatOpen: { hp: 6200, decay: 0.26 }, tom: { f0: 230, f1: 120, decay: 0.34 }, rim: { f: 1300 }, shaker: { hp: 5600 } },
+  };
+  function kitParam(kit, voice) { return (KITS[kit] && KITS[kit][voice]) || {}; }
+
+  // 808-style bass: square + sub-sine through a closing lowpass. Pitched, so
+  // it is always synthesised live (one short note ≈ 4 nodes — cheap).
+  function synthBass(ac, out, when, midi, vel) {
+    var hz = midiHz(midi);
+    var o1 = ac.createOscillator(); o1.type = 'square';   o1.frequency.value = hz;
+    var o2 = ac.createOscillator(); o2.type = 'sine';     o2.frequency.value = hz / 2;
+    var lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1.1;
+    lp.frequency.setValueAtTime(900, when);
+    lp.frequency.exponentialRampToValueAtTime(140, when + 0.28);
+    var g = ac.createGain();
+    var peak = 0.5 * (vel || 1);
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(peak, when + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.34);
+    o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(out);
+    o1.start(when); o2.start(when); o1.stop(when + 0.36); o2.stop(when + 0.36);
+  }
 
   // ── Shared AudioContext (autoplay-policy safe) ─────────────────────
   // Borrow Tone's context when present so we share one AudioWorklet timeline
@@ -100,21 +141,25 @@
     g.gain.exponentialRampToValueAtTime(0.0001, when + decay);
   }
   var voices = {
-    kick: function (ac, out, when) {
+    kick: function (ac, out, when, kp) {
+      kp = kp || {};
       var o = ac.createOscillator(), g = ac.createGain();
       o.type = 'sine';
-      o.frequency.setValueAtTime(160, when);
-      o.frequency.exponentialRampToValueAtTime(50, when + 0.11);
-      env(g, when, 0.95, 0.40, 0.005);
-      o.connect(g).connect(out); o.start(when); o.stop(when + 0.42);
+      o.frequency.setValueAtTime(kp.f0 || 160, when);
+      o.frequency.exponentialRampToValueAtTime(kp.f1 || 50, when + 0.11);
+      var dec = kp.decay || 0.40;
+      env(g, when, 0.95, dec, 0.005);
+      o.connect(g).connect(out); o.start(when); o.stop(when + dec + 0.05);
     },
-    snare: function (ac, out, when) {
+    snare: function (ac, out, when, kp) {
+      kp = kp || {};
       var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
-      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1200;
-      var ng = ac.createGain(); env(ng, when, 0.65, 0.18);
-      s.connect(hp).connect(ng).connect(out); s.start(when); s.stop(when + 0.2);
+      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = kp.hp || 1200;
+      var dec = kp.decay || 0.18;
+      var ng = ac.createGain(); env(ng, when, 0.65, dec);
+      s.connect(hp).connect(ng).connect(out); s.start(when); s.stop(when + dec + 0.03);
       var o = ac.createOscillator(), og = ac.createGain();
-      o.type = 'triangle'; o.frequency.value = 180;
+      o.type = 'triangle'; o.frequency.value = kp.tone || 180;
       env(og, when, 0.4, 0.1);
       o.connect(og).connect(out); o.start(when); o.stop(when + 0.12);
     },
@@ -131,29 +176,36 @@
         s.connect(g).connect(bp); s.start(when + k); s.stop(when + k + 0.14);
       });
     },
-    hatClosed: function (ac, out, when) {
+    hatClosed: function (ac, out, when, kp) {
+      kp = kp || {};
       var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
-      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7500;
-      var g = ac.createGain(); env(g, when, 0.4, 0.045, 0.002);
-      s.connect(hp).connect(g).connect(out); s.start(when); s.stop(when + 0.06);
+      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = kp.hp || 7500;
+      var dec = kp.decay || 0.045;
+      var g = ac.createGain(); env(g, when, 0.4, dec, 0.002);
+      s.connect(hp).connect(g).connect(out); s.start(when); s.stop(when + dec + 0.02);
     },
-    hatOpen: function (ac, out, when) {
+    hatOpen: function (ac, out, when, kp) {
+      kp = kp || {};
       var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
-      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
-      var g = ac.createGain(); env(g, when, 0.4, 0.32, 0.002);
-      s.connect(hp).connect(g).connect(out); s.start(when); s.stop(when + 0.34);
+      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = kp.hp || 7000;
+      var dec = kp.decay || 0.32;
+      var g = ac.createGain(); env(g, when, 0.4, dec, 0.002);
+      s.connect(hp).connect(g).connect(out); s.start(when); s.stop(when + dec + 0.02);
     },
-    tom: function (ac, out, when) {
+    tom: function (ac, out, when, kp) {
+      kp = kp || {};
       var o = ac.createOscillator(), g = ac.createGain();
       o.type = 'sine';
-      o.frequency.setValueAtTime(170, when);
-      o.frequency.exponentialRampToValueAtTime(90, when + 0.18);
-      env(g, when, 0.6, 0.3, 0.005);
-      o.connect(g).connect(out); o.start(when); o.stop(when + 0.32);
+      o.frequency.setValueAtTime(kp.f0 || 170, when);
+      o.frequency.exponentialRampToValueAtTime(kp.f1 || 90, when + 0.18);
+      var dec = kp.decay || 0.3;
+      env(g, when, 0.6, dec, 0.005);
+      o.connect(g).connect(out); o.start(when); o.stop(when + dec + 0.02);
     },
-    rim: function (ac, out, when) {
+    rim: function (ac, out, when, kp) {
+      kp = kp || {};
       var o = ac.createOscillator(), g = ac.createGain();
-      o.type = 'square'; o.frequency.value = 1700;
+      o.type = 'square'; o.frequency.value = kp.f || 1700;
       env(g, when, 0.42, 0.03, 0.002);
       o.connect(g).connect(out); o.start(when); o.stop(when + 0.04);
       var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
@@ -161,9 +213,10 @@
       var ng = ac.createGain(); env(ng, when, 0.25, 0.02, 0.001);
       s.connect(hp).connect(ng).connect(out); s.start(when); s.stop(when + 0.03);
     },
-    shaker: function (ac, out, when) {
+    shaker: function (ac, out, when, kp) {
+      kp = kp || {};
       var s = ac.createBufferSource(); s.buffer = noiseBuf(ac);
-      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 6500;
+      var hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = kp.hp || 6500;
       var g = ac.createGain();
       g.gain.setValueAtTime(0.0001, when);
       g.gain.exponentialRampToValueAtTime(0.32, when + 0.012);
@@ -176,20 +229,22 @@
   // Pre-render each voice once into a mono AudioBuffer so triggering is a warm
   // buffer playback. Best-effort: if it hasn't finished baking, triggers fall
   // back to live synthesis so the groove is never silent.
-  var buffers = {};
-  var baking = false;
-  function ensureBuffers(sampleRate) {
-    if (baking || Object.keys(buffers).length) return;
+  var buffers = {};          // key: kit + ':' + voice
+  var bakedKits = {};
+  function ensureBuffers(sampleRate, kit) {
+    kit = kit || 'classic';
+    if (bakedKits[kit]) return;
     var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!OAC) return;
-    baking = true;
-    var names = {}; TRACKS.forEach(function (t) { names[t.voice] = 1; });
-    Object.keys(names).forEach(function (v) {
+    bakedKits[kit] = true;
+    TRACKS.forEach(function (t) {
+      var v = t.voice;
+      if (v === 'bass' || !voices[v]) return; // bass is pitched → always live
       try {
         var dur = 0.8;
         var off = new OAC(1, Math.ceil(sampleRate * dur), sampleRate);
-        voices[v](off, off.destination, 0);
-        off.startRendering().then(function (buf) { buffers[v] = buf; }).catch(function () {});
+        voices[v](off, off.destination, 0, kitParam(kit, v));
+        off.startRendering().then(function (buf) { buffers[kit + ':' + v] = buf; }).catch(function () {});
       } catch (e) {}
     });
   }
@@ -227,6 +282,7 @@
   var ACCENT_VEL = { 1: 0.85, 2: 1.15 };   // velocity multiplier per cell value (1 = hit, 2 = accent)
   function slotName(i) { return ['A', 'B', 'C', 'D'][i] || '?'; }
   function blankPattern(n) { n = n || STEPS; return TRACKS.map(function () { return new Array(n).fill(0); }); }
+  function blankNotes(n) { return new Array(n || STEPS).fill(0); }
   function resizePattern(pat, n) {
     return pat.map(function (row) {
       var out = new Array(n).fill(0);
@@ -234,31 +290,57 @@
       return out;
     });
   }
+  function resizeNotes(notes, n) {
+    var out = blankNotes(n);
+    for (var i = 0; i < n && notes && i < notes.length; i++) out[i] = notes[i] | 0;
+    return out;
+  }
+  // Older saves / slots carry 8 rows (pre-Bass). Pad to the live track count.
+  function normalizeRows(pat, n) {
+    pat = Array.isArray(pat) ? pat.slice(0, TRACKS.length) : [];
+    while (pat.length < TRACKS.length) pat.push(new Array(n).fill(0));
+    return resizePattern(pat, n);
+  }
   function P(str) {
     var a = new Array(STEPS).fill(0);
     for (var i = 0; i < STEPS && i < str.length; i++) a[i] = str[i] === 'x' ? 1 : 0;
     return a;
   }
+  // `bassDeg` writes the bass lane: digits = scale-degree (also turns the step
+  // on), '.' = silent step. Gives every preset a real bassline out of the box.
   var PRESETS = {
-    'Four on the floor': { kick: 'x...x...x...x...', clap: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.', hatOpen: '..x...x...x...x.' },
-    'Boom bap':          { kick: 'x.....x..x......', snare: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.' },
-    'Afrobeat':          { kick: 'x..x..x...x..x..', rim: '..x..x..x..x..x.', clap: '....x.......x...', hatClosed: 'x.xx.x.xx.x.xx.x', shaker: 'x.x.x.x.x.x.x.x.' },
-    'Highlife':          { kick: 'x...x..x.x..x...', rim: '..x.x..x..x.x..x', hatClosed: 'x.x.x.x.x.x.x.x.', shaker: '..x...x...x...x.' },
-    'One drop':          { kick: '........x.......', snare: '........x.......', rim: '..x...x...x...x.', hatClosed: 'x.x.x.x.x.x.x.x.' },
+    'Four on the floor': { kick: 'x...x...x...x...', clap: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.', hatOpen: '..x...x...x...x.', bassDeg: '0.5.0.3.0.5.0.7.' },
+    'Boom bap':          { kick: 'x.....x..x......', snare: '....x.......x...', hatClosed: 'x.x.x.x.x.x.x.x.', bassDeg: '0.....3..0....2.' },
+    'Afrobeat':          { kick: 'x..x..x...x..x..', rim: '..x..x..x..x..x.', clap: '....x.......x...', hatClosed: 'x.xx.x.xx.x.xx.x', shaker: 'x.x.x.x.x.x.x.x.', bassDeg: '0..2..4...2..1..' },
+    'Highlife':          { kick: 'x...x..x.x..x...', rim: '..x.x..x..x.x..x', hatClosed: 'x.x.x.x.x.x.x.x.', shaker: '..x...x...x...x.', bassDeg: '0...4..2.5..3...' },
+    'One drop':          { kick: '........x.......', snare: '........x.......', rim: '..x...x...x...x.', hatClosed: 'x.x.x.x.x.x.x.x.', bassDeg: '0.......5....3..' },
   };
   function voiceIndex(v) { for (var i = 0; i < TRACKS.length; i++) if (TRACKS[i].voice === v) return i; return -1; }
   function patternFromPreset(name) {
-    var p = PRESETS[name]; var pat = blankPattern();
-    if (p) Object.keys(p).forEach(function (voice) { var idx = voiceIndex(voice); if (idx >= 0) pat[idx] = P(p[voice]); });
-    return pat;
+    var p = PRESETS[name]; var pat = blankPattern(); var notes = blankNotes();
+    if (p) Object.keys(p).forEach(function (voice) {
+      if (voice === 'bassDeg') {
+        for (var i = 0; i < STEPS && i < p.bassDeg.length; i++) {
+          var ch = p.bassDeg[i];
+          if (ch !== '.') { pat[BASS_ROW][i] = 1; notes[i] = parseInt(ch, 10) || 0; }
+        }
+        return;
+      }
+      var idx = voiceIndex(voice); if (idx >= 0) pat[idx] = P(p[voice]);
+    });
+    return { pattern: pat, bassNotes: notes };
   }
 
   // ── Persistence ────────────────────────────────────────────────────
   function defaultState() {
+    var seed = patternFromPreset('Afrobeat');
     return {
       bpm: 100, swing: 0, master: 0.85, playing: false, step: -1, engine: '—',
       steps: 16, slots: [null, null, null, null], activeSlot: 0,
-      pattern: patternFromPreset('Afrobeat'),
+      pattern: seed.pattern, bassNotes: seed.bassNotes,
+      kit: 'classic', key: 0,                          // bass key (0 = C)
+      fx: { space: 0.16, echo: 0.12 },                 // master send levels
+      chain: [], songMode: false, chainPos: -1,        // song arrangement
       tracks: TRACKS.map(function (t) { return { vol: t.vol, mute: false, solo: false }; }),
     };
   }
@@ -274,7 +356,13 @@
       if (Array.isArray(d.pattern)) {
         st.pattern = blankPattern(st.steps);
         d.pattern.forEach(function (rowArr, i) { if (st.pattern[i] && Array.isArray(rowArr)) for (var s = 0; s < st.steps; s++) st.pattern[i][s] = (rowArr[s] | 0) % 3; });
+        if (!Array.isArray(d.bassNotes)) st.bassNotes = blankNotes(st.steps);
       }
+      if (Array.isArray(d.bassNotes)) st.bassNotes = resizeNotes(d.bassNotes, st.steps);
+      if (KITS[d.kit]) st.kit = d.kit;
+      if (typeof d.key === 'number' && d.key >= 0 && d.key < 12) st.key = d.key | 0;
+      if (d.fx && typeof d.fx.space === 'number') st.fx = { space: Math.max(0, Math.min(1, d.fx.space)), echo: Math.max(0, Math.min(1, +d.fx.echo || 0)) };
+      if (Array.isArray(d.chain)) st.chain = d.chain.filter(function (v) { return v >= 0 && v < 4; }).slice(0, 16);
       if (Array.isArray(d.tracks)) d.tracks.forEach(function (s, i) {
         if (!st.tracks[i] || !s) return;
         if (typeof s.vol === 'number') st.tracks[i].vol = s.vol;
@@ -282,7 +370,14 @@
       });
       if (Array.isArray(d.slots)) st.slots = [0, 1, 2, 3].map(function (i) {
         var sl = d.slots[i];
-        if (sl && Array.isArray(sl.pattern)) return { steps: STEP_OPTIONS.indexOf(sl.steps) >= 0 ? sl.steps : 16, pattern: sl.pattern.map(function (r) { return (r || []).map(function (v) { return (v | 0) % 3; }); }) };
+        if (sl && Array.isArray(sl.pattern)) {
+          var sn = STEP_OPTIONS.indexOf(sl.steps) >= 0 ? sl.steps : 16;
+          return {
+            steps: sn,
+            pattern: normalizeRows(sl.pattern.map(function (r) { return (r || []).map(function (v) { return (v | 0) % 3; }); }), sn),
+            bassNotes: resizeNotes(sl.bassNotes || [], sn),
+          };
+        }
         return null;
       });
       if (typeof d.activeSlot === 'number' && d.activeSlot >= 0 && d.activeSlot < 4) st.activeSlot = d.activeSlot;
@@ -291,7 +386,7 @@
   }
   function save(s) {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ bpm: s.bpm, swing: s.swing, master: s.master, steps: s.steps, pattern: s.pattern, tracks: s.tracks, slots: s.slots, activeSlot: s.activeSlot }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ bpm: s.bpm, swing: s.swing, master: s.master, steps: s.steps, pattern: s.pattern, bassNotes: s.bassNotes, kit: s.kit, key: s.key, fx: s.fx, chain: s.chain, tracks: s.tracks, slots: s.slots, activeSlot: s.activeSlot }));
     } catch (e) {}
   }
 
@@ -315,37 +410,94 @@
     }
     return view;
   }
-  function exportWav() {
+  // ── Master FX bus ───────────────────────────────────────────────────
+  // tracks → sumBus → dry → master → destination
+  //                 └→ space send → convolver (generated impulse) → master
+  //                 └→ echo send  → tempo-synced feedback delay   → master
+  // One builder serves the live kernels AND the offline export, so what you
+  // hear is exactly what you bounce.
+  function makeImpulse(ac, seconds, decay) {
+    var len = Math.max(1, Math.floor(ac.sampleRate * (seconds || 1.8)));
+    var buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (var ch = 0; ch < 2; ch++) {
+      var d = buf.getChannelData(ch);
+      for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay || 3);
+    }
+    return buf;
+  }
+  function buildMixGraph(ac, st) {
+    var master = ac.createGain(); master.gain.value = st.master; master.connect(ac.destination);
+    var sum = ac.createGain(); sum.gain.value = 1;
+    sum.connect(master); // dry
+    var rev = ac.createConvolver(); rev.buffer = makeImpulse(ac, 1.8, 3);
+    var revSend = ac.createGain(); revSend.gain.value = st.fx.space;
+    sum.connect(revSend); revSend.connect(rev); rev.connect(master);
+    var dly = ac.createDelay(2.0); dly.delayTime.value = Math.min(1.8, (60 / st.bpm) * 0.75); // dotted 8th
+    var fb = ac.createGain(); fb.gain.value = 0.35;
+    var dlySend = ac.createGain(); dlySend.gain.value = st.fx.echo;
+    sum.connect(dlySend); dlySend.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(master);
+    return {
+      input: sum, master: master,
+      setFx: function (fx) { revSend.gain.value = fx.space; dlySend.gain.value = fx.echo; },
+      setBpm: function (bpm) { dly.delayTime.value = Math.min(1.8, (60 / bpm) * 0.75); },
+      setMaster: function (v) { master.gain.value = v; },
+    };
+  }
+
+  // ── Song helpers ─────────────────────────────────────────────────────
+  // Flatten the chain (A/B/B/C …) into one step list; each entry knows its
+  // slot's pattern + bass so playback and export walk the whole arrangement.
+  function songFlat(st) {
+    var flat = [];
+    (st.chain || []).forEach(function (ci) {
+      var slot = st.slots[ci]; if (!slot) return;
+      for (var s = 0; s < slot.steps; s++) flat.push({ slot: ci, s: s, steps: slot.steps, pattern: slot.pattern, bass: slot.bassNotes || [] });
+    });
+    return flat;
+  }
+  function chainLabel(chain) { return (chain || []).map(slotName).join('·'); }
+
+  function exportWav(asSong) {
     var st = store.getState();
-    var steps = st.steps, bars = 2, sd = 60 / st.bpm / 4, totalSteps = bars * steps, tail = 0.6;
     var sr = (ctx && ctx.sampleRate) || audio().sampleRate || 44100;
     var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     if (!OAC) { status('Your browser can’t render WAV files offline — try the latest Chrome, Edge or Safari.'); return; }
-    status('Rendering your beat…');
-    var off = new OAC(2, Math.ceil((totalSteps * sd + tail) * sr), sr);
-    var master = off.createGain(); master.gain.value = st.master; master.connect(off.destination);
+    var sd = 60 / st.bpm / 4, tail = 1.2, entries = [];
+    if (asSong) {
+      var flat = songFlat(st);
+      if (!flat.length) { status('Build a song first — store patterns in A–D, then add them to the chain.'); return; }
+      entries = flat;
+    } else {
+      for (var b = 0; b < 2; b++) for (var s0 = 0; s0 < st.steps; s0++) entries.push({ s: s0, steps: st.steps, pattern: st.pattern, bass: st.bassNotes });
+    }
+    status(asSong ? 'Rendering your song (' + chainLabel(st.chain) + ')…' : 'Rendering your beat…');
+    var off = new OAC(2, Math.ceil((entries.length * sd + tail) * sr), sr);
+    var graph = buildMixGraph(off, st);
     var anySolo = st.tracks.some(function (t) { return t.solo; });
-    TRACKS.forEach(function (t, i) {
-      var aud = anySolo ? !!st.tracks[i].solo : !st.tracks[i].mute;
-      if (!aud) return;
-      var tg = off.createGain(); tg.gain.value = st.tracks[i].vol; tg.connect(master);
-      for (var b = 0; b < bars; b++) for (var s = 0; s < steps; s++) {
-        var cell = st.pattern[i][s];
-        if (!cell) continue;
-        var gridT = (b * steps + s) * sd;
-        var when = gridT + (s % 2 ? st.swing * sd : 0);
-        var hg = off.createGain(); hg.gain.value = ACCENT_VEL[cell] || 1; hg.connect(tg);
-        voices[t.voice](off, hg, when);
+    var tg = TRACKS.map(function (t, i) {
+      var audible = anySolo ? !!st.tracks[i].solo : !st.tracks[i].mute;
+      if (!audible) return null;
+      var g = off.createGain(); g.gain.value = st.tracks[i].vol; g.connect(graph.input); return g;
+    });
+    entries.forEach(function (en, k) {
+      var when = k * sd + (en.s % 2 ? st.swing * sd : 0);
+      for (var i = 0; i < TRACKS.length; i++) {
+        var cell = en.pattern[i] && en.pattern[i][en.s];
+        if (!cell || !tg[i]) continue;
+        var hg = off.createGain(); hg.gain.value = ACCENT_VEL[cell] || 1; hg.connect(tg[i]);
+        if (TRACKS[i].voice === 'bass') synthBass(off, hg, when, bassMidi(st.key, (en.bass && en.bass[en.s]) | 0), 1);
+        else voices[TRACKS[i].voice](off, hg, when, kitParam(st.kit, TRACKS[i].voice));
       }
     });
     off.startRendering().then(function (buf) {
       var blob = new Blob([encodeWav(buf)], { type: 'audio/wav' });
       var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
-      a.href = url; a.download = 'mam-beat-' + st.bpm + 'bpm.wav';
+      var name = asSong ? ('mam-song-' + chainLabel(st.chain).replace(/·/g, '') + '-' + st.bpm + 'bpm.wav') : ('mam-beat-' + st.bpm + 'bpm.wav');
+      a.href = url; a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-      status('Saved “mam-beat-' + st.bpm + 'bpm.wav” — a 2-bar loop, straight from your browser.');
+      status('Saved “' + name + '” — rendered with kit, bass and FX, straight from your browser.');
     }).catch(function (e) { status('Couldn’t render the file: ' + (e && e.message || e)); });
   }
 
@@ -358,36 +510,53 @@
   // Raw Web-Audio kernel — hand-rolled look-ahead scheduler. The proven,
   // dependency-free path; also the fallback when Tone is unavailable.
   function createRawKernel() {
-    var ac, masterGain, tgains = [], timer = null, nextT = 0, stp = 0;
+    var ac, graph = null, tgains = [], timer = null, nextT = 0, stp = 0, flat = null;
     function build() {
-      ac = audio(); ensureBuffers(ac.sampleRate);
-      if (masterGain && masterGain.context === ac) return;
-      masterGain = ac.createGain(); masterGain.gain.value = store.getState().master; masterGain.connect(ac.destination);
-      tgains = TRACKS.map(function (t, i) { var g = ac.createGain(); g.gain.value = store.getState().tracks[i].vol; g.connect(masterGain); return g; });
+      var st = store.getState();
+      ac = audio(); ensureBuffers(ac.sampleRate, st.kit);
+      if (graph && graph.master.context === ac) return;
+      graph = buildMixGraph(ac, st);
+      tgains = TRACKS.map(function (t, i) { var g = ac.createGain(); g.gain.value = st.tracks[i].vol; g.connect(graph.input); return g; });
     }
-    function trig(i, when, vel) {
-      var v = TRACKS[i].voice, out = tgains[i];
+    function trig(i, when, vel, note) {
+      var st = store.getState(), v = TRACKS[i].voice, out = tgains[i];
       if (vel && vel !== 1) { var gv = ac.createGain(); gv.gain.value = vel; gv.connect(tgains[i]); out = gv; }
-      if (buffers[v]) { var s = ac.createBufferSource(); s.buffer = buffers[v]; s.connect(out); s.start(when); }
-      else voices[v](ac, out, when);
+      if (v === 'bass') { synthBass(ac, out, when, bassMidi(st.key, note | 0), 1); return; }
+      var key = st.kit + ':' + v;
+      if (buffers[key]) { var s = ac.createBufferSource(); s.buffer = buffers[key]; s.connect(out); s.start(when); }
+      else voices[v](ac, out, when, kitParam(st.kit, v));
     }
     function sched() {
-      var st = store.getState(), sd = 60 / st.bpm / 4, steps = st.steps;
+      var st = store.getState(), sd = 60 / st.bpm / 4;
       while (nextT < ac.currentTime + 0.12) {
-        var s = stp % steps, swung = nextT + (s % 2 ? st.swing * sd : 0);
-        for (var i = 0; i < TRACKS.length; i++) { var cell = st.pattern[i][s]; if (cell && trackAudible(i, st)) trig(i, swung, ACCENT_VEL[cell] || 1); }
-        (function (ss, t) { var d = Math.max(0, (t - ac.currentTime) * 1000); setTimeout(function () { if (store.getState().playing) store.setState({ step: ss }); }, d); })(s, nextT);
+        var pat, bass, s, slotIdx = -1;
+        if (st.songMode && flat && flat.length) {
+          var en = flat[stp % flat.length];
+          pat = en.pattern; bass = en.bass; s = en.s; slotIdx = en.slot;
+        } else { pat = st.pattern; bass = st.bassNotes; s = stp % st.steps; }
+        var swung = nextT + (s % 2 ? st.swing * sd : 0);
+        for (var i = 0; i < TRACKS.length; i++) { var cell = pat[i] && pat[i][s]; if (cell && trackAudible(i, st)) trig(i, swung, ACCENT_VEL[cell] || 1, bass && bass[s]); }
+        (function (ss, t, sl) {
+          var d = Math.max(0, (t - ac.currentTime) * 1000);
+          setTimeout(function () {
+            var cur = store.getState(); if (!cur.playing) return;
+            if (sl >= 0 && sl !== cur.activeSlot) showSlot(sl, ss); else store.setState({ step: ss });
+          }, d);
+        })(s, nextT, slotIdx);
         nextT += sd; stp++;
       }
     }
     return {
       name: 'raw',
-      start: function () { build(); stp = 0; nextT = ac.currentTime + 0.08; timer = setInterval(sched, 25); },
+      start: function () { build(); var st = store.getState(); flat = st.songMode ? songFlat(st) : null; stp = 0; nextT = ac.currentTime + 0.08; timer = setInterval(sched, 25); },
       stop: function () { if (timer) clearInterval(timer); timer = null; },
-      setBpm: function () {}, setSwing: function () {},  // read live from the store each tick
-      setMaster: function (v) { if (masterGain) masterGain.gain.value = v; },
+      setBpm: function (v) { if (graph) graph.setBpm(v); },
+      setSwing: function () {},                          // read live from the store each tick
+      setMaster: function (v) { if (graph) graph.setMaster(v); },
+      setFx: function (fx) { if (graph) graph.setFx(fx); },
+      setKit: function (k) { ensureBuffers((ac || audio()).sampleRate, k); },
       syncTrack: function (i) { if (tgains[i]) tgains[i].gain.value = store.getState().tracks[i].vol; }, // mute/solo via trackAudible()
-      audition: function (i, vel) { build(); trig(i, ac.currentTime + 0.01, vel); },
+      audition: function (i, vel, note) { build(); trig(i, ac.currentTime + 0.01, vel, note); },
       dispose: function () { this.stop(); },
     };
   }
@@ -396,61 +565,86 @@
   // solo bus), Tone.Transport.swing, Tone.Draw visual sync. Higher-quality
   // timing on an AudioWorklet-backed context.
   function createToneKernel() {
-    var channels = [], players = [], loopId = null, stp = 0, ready = false;
+    var channels = [], players = [], loopId = null, stp = 0, ready = false, graph = null, flat = null, kitOf = null;
+    function rawCtx() { return (Tone.context && Tone.context.rawContext) || audio(); }
     function build() {
-      audio(); ensureBuffers((Tone.context && Tone.context.sampleRate) || 44100);
-      if (ready) return;
+      audio();
       var st = store.getState();
-      channels = TRACKS.map(function (t, i) {
-        return new Tone.Channel({ volume: Tone.gainToDb(Math.max(0.0001, st.tracks[i].vol)), mute: !!st.tracks[i].mute, solo: !!st.tracks[i].solo }).toDestination();
-      });
+      ensureBuffers((Tone.context && Tone.context.sampleRate) || 44100, st.kit);
+      if (ready && kitOf === st.kit) return;
+      if (ready) { try { players.forEach(function (p) { p.dispose(); }); } catch (e) {} players = []; }
+      if (!graph) graph = buildMixGraph(rawCtx(), st);
+      if (!channels.length) {
+        channels = TRACKS.map(function (t, i) {
+          var c = new Tone.Channel({ volume: Tone.gainToDb(Math.max(0.0001, st.tracks[i].vol)), mute: !!st.tracks[i].mute, solo: !!st.tracks[i].solo });
+          c.connect(graph.input); // mix through the shared FX bus, not Tone Destination
+          return c;
+        });
+      }
       players = TRACKS.map(function (t, i) {
-        var p = buffers[t.voice] ? new Tone.Player(buffers[t.voice]) : new Tone.Player();
+        if (t.voice === 'bass') return null; // pitched → always live synth
+        var key = st.kit + ':' + t.voice;
+        var p = buffers[key] ? new Tone.Player(buffers[key]) : new Tone.Player();
         p.connect(channels[i]); return p;
       });
-      Tone.getDestination().volume.value = Tone.gainToDb(Math.max(0.0001, st.master));
-      ready = true;
+      kitOf = st.kit; ready = true;
     }
-    function trig(i, time, vel) {
+    function trig(i, time, vel, note) {
+      var st = store.getState();
+      if (TRACKS[i].voice === 'bass') {
+        var dest0 = channels[i] && channels[i].input ? channels[i].input : graph.input;
+        synthBass(rawCtx(), dest0, time != null ? time : rawCtx().currentTime, bassMidi(st.key, note | 0), 1);
+        return;
+      }
       var p = players[i];
       if (p && p.loaded !== false && p.buffer && p.buffer.loaded !== false) {
         try { if (p.volume) p.volume.value = Tone.gainToDb(Math.max(0.05, vel || 1)); p.start(time); return; } catch (e) {}
       }
       // buffer not warm yet → live synth into the channel's native input
-      var dest = channels[i] && channels[i].input ? channels[i].input : Tone.getDestination();
-      voices[TRACKS[i].voice](Tone.context.rawContext || audio(), dest, time != null ? time : (Tone.now()));
+      var dest = channels[i] && channels[i].input ? channels[i].input : graph.input;
+      voices[TRACKS[i].voice](rawCtx(), dest, time != null ? time : rawCtx().currentTime, kitParam(st.kit, TRACKS[i].voice));
     }
     return {
       name: 'tone',
       start: function () {
         build();
         var st = store.getState();
+        flat = st.songMode ? songFlat(st) : null;
         Tone.Transport.bpm.value = st.bpm;
         Tone.Transport.swing = st.swing;
         Tone.Transport.swingSubdivision = '16n';
         stp = 0;
         loopId = Tone.Transport.scheduleRepeat(function (time) {
-          var cur = store.getState(), s = stp % cur.steps;
-          for (var i = 0; i < TRACKS.length; i++) { var cell = cur.pattern[i][s]; if (cell && trackAudible(i, cur)) trig(i, time, ACCENT_VEL[cell] || 1); }
-          Tone.Draw.schedule(function () { if (store.getState().playing) store.setState({ step: s }); }, time);
+          var cur = store.getState(), pat, bass, s, slotIdx = -1;
+          if (cur.songMode && flat && flat.length) {
+            var en = flat[stp % flat.length];
+            pat = en.pattern; bass = en.bass; s = en.s; slotIdx = en.slot;
+          } else { pat = cur.pattern; bass = cur.bassNotes; s = stp % cur.steps; }
+          for (var i = 0; i < TRACKS.length; i++) { var cell = pat[i] && pat[i][s]; if (cell && trackAudible(i, cur)) trig(i, time, ACCENT_VEL[cell] || 1, bass && bass[s]); }
+          Tone.Draw.schedule(function () {
+            var c2 = store.getState(); if (!c2.playing) return;
+            if (slotIdx >= 0 && slotIdx !== c2.activeSlot) showSlot(slotIdx, s); else store.setState({ step: s });
+          }, time);
           stp++;
         }, '16n');
         Tone.start(); Tone.Transport.start();
       },
       stop: function () { if (loopId != null) { try { Tone.Transport.clear(loopId); } catch (e) {} loopId = null; } try { Tone.Transport.stop(); } catch (e) {} },
-      setBpm: function (v) { try { Tone.Transport.bpm.value = v; } catch (e) {} },
+      setBpm: function (v) { try { Tone.Transport.bpm.value = v; if (graph) graph.setBpm(v); } catch (e) {} },
       setSwing: function (v) { try { Tone.Transport.swing = v; } catch (e) {} },
-      setMaster: function (v) { try { Tone.getDestination().volume.value = Tone.gainToDb(Math.max(0.0001, v)); } catch (e) {} },
+      setMaster: function (v) { if (graph) graph.setMaster(v); },
+      setFx: function (fx) { if (graph) graph.setFx(fx); },
+      setKit: function () { build(); },
       syncTrack: function (i) {
         if (!ready) return;
         var t = store.getState().tracks[i];
         try { channels[i].volume.value = Tone.gainToDb(Math.max(0.0001, t.vol)); channels[i].mute = !!t.mute; channels[i].solo = !!t.solo; } catch (e) {}
       },
-      audition: function (i, vel) { build(); trig(i, undefined, vel); },
+      audition: function (i, vel, note) { build(); trig(i, undefined, vel, note); },
       dispose: function () {
         this.stop();
-        try { players.forEach(function (p) { p.dispose(); }); channels.forEach(function (c) { c.dispose(); }); } catch (e) {}
-        players = []; channels = []; ready = false;
+        try { players.forEach(function (p) { p && p.dispose(); }); channels.forEach(function (c) { c.dispose(); }); } catch (e) {}
+        players = []; channels = []; ready = false; kitOf = null;
       },
     };
   }
@@ -488,7 +682,27 @@
   }
   function stop() {
     if (kernel) { try { kernel.stop(); } catch (e) {} }
-    store.setState({ playing: false, step: -1 });
+    store.setState({ playing: false, step: -1, songMode: false, chainPos: -1 });
+  }
+
+  // Song playback: the current groove is stored into its slot first (nothing
+  // is lost), then playback walks the chain — and the grid FOLLOWS the song,
+  // showing each pattern as it plays.
+  function playSong() {
+    var st = store.getState();
+    if (!st.chain.length) { status('Chain is empty — store grooves in A–D, then type a chain like ABBC.'); return; }
+    if (st.playing) stop();
+    storeSlot(true);
+    store.setState({ songMode: true });
+    play();
+    status('Playing your song: ' + chainLabel(store.getState().chain) + ' — the grid follows the arrangement.');
+  }
+  // Swap the visible grid to the slot that just started playing (song mode).
+  function showSlot(i, stepIdx) {
+    var st = store.getState(), slot = st.slots[i];
+    if (!slot) return;
+    store.setState({ activeSlot: i, steps: slot.steps, pattern: slot.pattern.map(function (r) { return r.slice(); }), bassNotes: (slot.bassNotes || blankNotes(slot.steps)).slice(), step: stepIdx | 0 });
+    layout();
   }
 
   // ── Pattern length + slots ─────────────────────────────────────────
@@ -496,14 +710,14 @@
     if (STEP_OPTIONS.indexOf(n) < 0) n = 16;
     var st = store.getState();
     if (n === st.steps) return;
-    store.setState({ steps: n, pattern: resizePattern(st.pattern, n), step: -1 });
+    store.setState({ steps: n, pattern: resizePattern(st.pattern, n), bassNotes: resizeNotes(st.bassNotes, n), step: -1 });
     layout(); // cell width changed
     status('Pattern length: ' + n + ' steps.');
   }
   function selectSlot(i) {
     var st = store.getState(), slot = st.slots[i];
     if (slot) {
-      store.setState({ activeSlot: i, steps: slot.steps, pattern: slot.pattern.map(function (r) { return r.slice(); }), step: -1 });
+      store.setState({ activeSlot: i, steps: slot.steps, pattern: slot.pattern.map(function (r) { return r.slice(); }), bassNotes: (slot.bassNotes || blankNotes(slot.steps)).slice(), step: -1 });
       layout();
       status('Recalled pattern ' + slotName(i) + '.');
     } else {
@@ -511,11 +725,11 @@
       status('Pattern ' + slotName(i) + ' is empty — tap Store to save the current groove here.');
     }
   }
-  function storeSlot() {
+  function storeSlot(silent) {
     var st = store.getState(), slots = st.slots.slice();
-    slots[st.activeSlot] = { steps: st.steps, pattern: st.pattern.map(function (r) { return r.slice(); }) };
+    slots[st.activeSlot] = { steps: st.steps, pattern: st.pattern.map(function (r) { return r.slice(); }), bassNotes: st.bassNotes.slice() };
     store.setState({ slots: slots });
-    status('Stored the current groove in pattern ' + slotName(st.activeSlot) + '.');
+    if (!silent) status('Stored the current groove in pattern ' + slotName(st.activeSlot) + '.');
   }
 
   // ── Canvas view ────────────────────────────────────────────────────
@@ -550,12 +764,19 @@
       for (var s = 0; s < steps; s++) {
         var x = s * cellW, group = Math.floor(s / 4);
         var cell = st.pattern[t][s], isCur = st.playing && s === st.step;
+        var isBass = t === BASS_ROW;
         roundRect(c, x + 3, y + 3, cellW - 6, ROW - 6, 6);
         if (cell) {
-          c.fillStyle = isCur ? '#FFE6A0' : (cell === 2 ? '#FCC647' : (group % 2 ? '#D88A22' : '#EE9E2C')); c.fill();
+          c.fillStyle = isCur ? '#FFE6A0' : (isBass ? (cell === 2 ? '#9F8BF5' : '#7C7DF5') : (cell === 2 ? '#FCC647' : (group % 2 ? '#D88A22' : '#EE9E2C'))); c.fill();
           roundRect(c, x + 4, y + 4, cellW - 8, (ROW - 8) * 0.42, 5);
           c.fillStyle = 'rgba(255,255,255,0.22)'; c.fill();
-          if (cell === 2) { // accent marker
+          if (isBass) { // note name — drag the cell up/down to change pitch
+            c.fillStyle = 'rgba(16,12,30,0.88)';
+            c.font = '700 ' + Math.min(12, Math.max(9, cellW * 0.3)) + 'px Inter, sans-serif';
+            c.textAlign = 'center'; c.textBaseline = 'middle';
+            c.fillText(bassLabel(st.key, st.bassNotes[s] | 0), x + cellW / 2, y + ROW / 2 + 4);
+            c.textAlign = 'start'; c.textBaseline = 'alphabetic';
+          } else if (cell === 2) { // accent marker
             c.fillStyle = 'rgba(26,18,11,0.6)';
             c.beginPath(); c.arc(x + cellW / 2, y + ROW / 2 + (ROW - 8) * 0.12, Math.min(4, cellW * 0.09), 0, Math.PI * 2); c.fill();
           }
@@ -572,20 +793,42 @@
   // Tap toggles a cell; a horizontal drag scrolls the grid on narrow screens
   // (canvas uses touch-action:pan-x). Toggle on pointerup only if barely moved.
   var down = null;
-  cvs.addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; });
+  cvs.addEventListener('pointerdown', function (e) {
+    down = { x: e.clientX, y: e.clientY, pitched: false, deg0: 0, s: -1, t: -1 };
+    var r = cvs.getBoundingClientRect();
+    down.s = Math.floor((e.clientX - r.left) / cellW); down.t = Math.floor((e.clientY - r.top) / ROW);
+    if (down.t === BASS_ROW && down.s >= 0 && down.s < store.getState().steps) down.deg0 = store.getState().bassNotes[down.s] | 0;
+  });
   cvs.addEventListener('pointercancel', function () { down = null; });
+  // Vertical drag on a LIT bass cell = pitch it through the scale (live preview).
+  cvs.addEventListener('pointermove', function (e) {
+    if (!down || down.t !== BASS_ROW) return;
+    var st = store.getState();
+    if (down.s < 0 || down.s >= st.steps || !st.pattern[BASS_ROW][down.s]) return;
+    var dy = down.y - e.clientY;
+    if (!down.pitched && Math.abs(dy) < 12) return;
+    down.pitched = true;
+    var deg = Math.max(0, Math.min(SCALE.length - 1, down.deg0 + Math.round(dy / 14)));
+    if (deg !== (st.bassNotes[down.s] | 0)) {
+      var notes = st.bassNotes.slice(); notes[down.s] = deg;
+      store.setState({ bassNotes: notes });
+    }
+  });
   cvs.addEventListener('pointerup', function (e) {
     if (!down) return;
+    var wasPitch = down.pitched, ds = down.s, dt = down.t;
     var moved = Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y); down = null;
+    if (wasPitch) { // pitch drag ends with an audition of the new note
+      try { ensureKernel().audition(BASS_ROW, 1, store.getState().bassNotes[ds] | 0); } catch (err) {}
+      return;
+    }
     if (moved > 10) return;
-    var r = cvs.getBoundingClientRect();
     var steps = store.getState().steps;
-    var s = Math.floor((e.clientX - r.left) / cellW), t = Math.floor((e.clientY - r.top) / ROW);
-    if (s < 0 || s >= steps || t < 0 || t >= TRACKS.length) return;
+    if (ds < 0 || ds >= steps || dt < 0 || dt >= TRACKS.length) return;
     var pat = store.getState().pattern.map(function (row) { return row.slice(); });
-    pat[t][s] = (pat[t][s] + 1) % 3; // off → hit → accent → off
+    pat[dt][ds] = (pat[dt][ds] + 1) % 3; // off → hit → accent → off
     store.setState({ pattern: pat });
-    if (pat[t][s]) { try { ensureKernel().audition(t, ACCENT_VEL[pat[t][s]] || 1); } catch (err) {} } // audition on enable
+    if (pat[dt][ds]) { try { ensureKernel().audition(dt, ACCENT_VEL[pat[dt][ds]] || 1, store.getState().bassNotes[ds] | 0); } catch (err) {} } // audition on enable
   });
 
   // ── Track controls (mute / solo / per-track volume) ────────────────
@@ -642,6 +885,24 @@
         b.classList.toggle('active', i === s.activeSlot);
       });
     }
+    if (!prev || s.kit !== prev.kit) { var k = $('#seqKit'); if (k) k.value = s.kit; }
+    if (!prev || s.key !== prev.key) { var ky = $('#seqKey'); if (ky) ky.value = String(s.key); }
+    if (!prev || s.fx !== prev.fx) {
+      var sp = $('#seqSpace'), ec = $('#seqEcho');
+      if (sp) { sp.value = Math.round(s.fx.space * 100); var spv = $('#seqSpaceVal'); if (spv) spv.textContent = Math.round(s.fx.space * 100) + '%'; }
+      if (ec) { ec.value = Math.round(s.fx.echo * 100); var ecv = $('#seqEchoVal'); if (ecv) ecv.textContent = Math.round(s.fx.echo * 100) + '%'; }
+    }
+    if (!prev || s.chain !== prev.chain || s.songMode !== prev.songMode || s.playing !== prev.playing) {
+      var sb = $('#seqPlaySong');
+      if (sb) {
+        var on = s.songMode && s.playing;
+        sb.classList.toggle('playing', on);
+        sb.innerHTML = on ? '<i class="fa-solid fa-stop"></i> Stop song' : '<i class="fa-solid fa-list-music"></i> Play song';
+        sb.disabled = !on && !s.chain.length;
+      }
+      var xb = $('#seqExportSong'); if (xb) xb.disabled = !s.chain.length;
+      var ci = $('#seqChain'); if (ci && document.activeElement !== ci) ci.value = s.chain.map(slotName).join('');
+    }
   }
   function status(msg) { var el = $('#seqStatus'); if (el) el.textContent = msg; }
 
@@ -655,21 +916,57 @@
     });
     $('#seqSwing').addEventListener('input', function (e) { store.setState({ swing: (parseInt(e.target.value, 10) || 0) / 100 }); });
     $('#seqMaster').addEventListener('input', function (e) { store.setState({ master: (parseInt(e.target.value, 10) || 0) / 100 }); });
-    $('#seqClear').addEventListener('click', function () { store.setState({ pattern: blankPattern(store.getState().steps) }); status('Cleared. A blank canvas — start tapping cells.'); });
+    $('#seqClear').addEventListener('click', function () { store.setState({ pattern: blankPattern(store.getState().steps), bassNotes: blankNotes(store.getState().steps) }); status('Cleared. A blank canvas — start tapping cells.'); });
     $('#seqRandom').addEventListener('click', function () {
-      var prob = { kick: 0.28, snare: 0.12, clap: 0.12, hatClosed: 0.55, hatOpen: 0.12, tom: 0.1, rim: 0.18, shaker: 0.4 };
-      var steps = store.getState().steps, pat = blankPattern(steps);
-      TRACKS.forEach(function (t, i) { var p = prob[t.voice] || 0.2; for (var s = 0; s < steps; s++) pat[i][s] = Math.random() < p ? (Math.random() < 0.18 ? 2 : 1) : 0; });
+      var prob = { kick: 0.28, snare: 0.12, clap: 0.12, hatClosed: 0.55, hatOpen: 0.12, tom: 0.1, rim: 0.18, shaker: 0.4, bass: 0.3 };
+      var steps = store.getState().steps, pat = blankPattern(steps), notes = blankNotes(steps);
+      TRACKS.forEach(function (t, i) { var p = prob[t.voice] || 0.2; for (var s = 0; s < steps; s++) pat[i][s] = Math.random() < p ? (Math.random() < 0.18 && t.voice !== 'bass' ? 2 : 1) : 0; });
+      for (var s2 = 0; s2 < steps; s2++) if (pat[BASS_ROW][s2]) notes[s2] = [0, 0, 2, 3, 4, 5][Math.floor(Math.random() * 6)];
       var ki = voiceIndex('kick'); if (ki >= 0) pat[ki][0] = 2;
-      store.setState({ pattern: pat }); status('Rolled a fresh groove. Not feeling it? Roll again.');
+      pat[BASS_ROW][0] = 1; notes[0] = 0; // land the bass on the downbeat root
+      store.setState({ pattern: pat, bassNotes: notes }); status('Rolled a fresh groove. Not feeling it? Roll again.');
     });
     $('#seqPresets').addEventListener('change', function (e) {
       if (!e.target.value) return;
       var name = e.target.value; e.target.value = '';
-      store.setState({ steps: 16, pattern: patternFromPreset(name) }); layout();
-      status('Loaded the “' + name + '” groove. Hit play, then make it yours.');
+      var seed = patternFromPreset(name);
+      store.setState({ steps: 16, pattern: seed.pattern, bassNotes: seed.bassNotes }); layout();
+      status('Loaded the “' + name + '” groove — bassline included. Hit play, then make it yours.');
     });
-    $('#seqExport').addEventListener('click', exportWav);
+    $('#seqExport').addEventListener('click', function () { exportWav(false); });
+
+    // ── Sound design: kit, bass key, master FX ──
+    var kitSel = $('#seqKit');
+    if (kitSel) kitSel.addEventListener('change', function (e) {
+      var k = KITS[e.target.value] ? e.target.value : 'classic';
+      store.setState({ kit: k });
+      status('Kit: ' + KITS[k].label + '. Same groove, new colour.');
+    });
+    var keySel = $('#seqKey');
+    if (keySel) keySel.addEventListener('change', function (e) { store.setState({ key: (parseInt(e.target.value, 10) || 0) % 12 }); });
+    var spaceEl = $('#seqSpace');
+    if (spaceEl) spaceEl.addEventListener('input', function (e) {
+      var st = store.getState(); store.setState({ fx: { space: (parseInt(e.target.value, 10) || 0) / 100, echo: st.fx.echo } });
+    });
+    var echoEl = $('#seqEcho');
+    if (echoEl) echoEl.addEventListener('input', function (e) {
+      var st = store.getState(); store.setState({ fx: { space: st.fx.space, echo: (parseInt(e.target.value, 10) || 0) / 100 } });
+    });
+
+    // ── Song mode: type a chain (e.g. ABBC), play it, bounce it ──
+    var chainEl = $('#seqChain');
+    if (chainEl) chainEl.addEventListener('input', function (e) {
+      var st = store.getState();
+      var chain = String(e.target.value || '').toUpperCase().replace(/[^A-D]/g, '').split('')
+        .map(function (ch) { return ch.charCodeAt(0) - 65; })
+        .filter(function (i2) { return !!st.slots[i2] || i2 === st.activeSlot; })
+        .slice(0, 16);
+      store.setState({ chain: chain });
+    });
+    var songBtn = $('#seqPlaySong');
+    if (songBtn) songBtn.addEventListener('click', function () { store.getState().songMode && store.getState().playing ? stop() : playSong(); });
+    var exSong = $('#seqExportSong');
+    if (exSong) exSong.addEventListener('click', function () { storeSlot(true); exportWav(true); });
 
     // Pattern length
     var stepsSel = $('#seqSteps');
@@ -710,11 +1007,14 @@
       if (!prev || s.bpm !== prev.bpm) kernel.setBpm(s.bpm);
       if (!prev || s.swing !== prev.swing) kernel.setSwing(s.swing);
       if (!prev || s.master !== prev.master) kernel.setMaster(s.master);
+      if ((!prev || s.fx !== prev.fx) && kernel.setFx) kernel.setFx(s.fx);
+      if ((!prev || s.kit !== prev.kit) && kernel.setKit) kernel.setKit(s.kit);
       if (!prev || s.tracks !== prev.tracks) for (var i = 0; i < TRACKS.length; i++) kernel.syncTrack(i);
     }
     draw();
     syncControls(s, prev);
     if (!prev || s.bpm !== prev.bpm || s.swing !== prev.swing || s.master !== prev.master || s.pattern !== prev.pattern
+        || s.bassNotes !== prev.bassNotes || s.kit !== prev.kit || s.key !== prev.key || s.fx !== prev.fx || s.chain !== prev.chain
         || s.tracks !== prev.tracks || s.steps !== prev.steps || s.slots !== prev.slots || s.activeSlot !== prev.activeSlot) save(s);
   }
 
@@ -741,7 +1041,7 @@
     }
 
     window.MAM_SEQ = {
-      play: play, stop: stop, exportWav: exportWav,
+      play: play, stop: stop, playSong: playSong, exportWav: exportWav,
       store: store,
       state: function () { return store.getState(); },
       kernel: function () { return kernel && kernel.name; },

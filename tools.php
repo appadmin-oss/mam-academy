@@ -227,6 +227,10 @@
 .seq-steps-field{display:inline-flex;align-items:center;gap:8px;font-size:0.78rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted)}
 .seq-steps-field select{padding:9px 12px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.9rem;font-weight:600;min-height:42px;cursor:pointer}
 
+.seq-chain{width:96px;padding:8px 10px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:9px;color:var(--text);font-size:0.9rem;letter-spacing:0.18em;text-transform:uppercase;font-weight:800}
+.seq-chain:focus{outline:none;border-color:var(--gold-bright)}
+.seq-tbtn[disabled]{opacity:0.45;cursor:not-allowed}
+.seq-tbtn.playing{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;border-color:transparent}
 @media (max-width:640px){
   .seq-grid{gap:6px;padding:10px}
   .seq-tracks{width:128px}
@@ -234,6 +238,7 @@
   .seq-tvol{width:36px}
   .seq-transport{gap:14px}
   .seq-toolbar .seq-tsep{flex-basis:100%;height:0}
+  .seq-bank{flex-wrap:wrap}
 }
 
 /* ── Pitch Game ─────────────────────────────────────────────────── */
@@ -541,7 +546,7 @@
       <div class="tool-head">
         <div>
           <h2>Beat Maker</h2>
-          <p>A 16-step drum machine. Tap the grid to build a groove, press <b>space</b> to play, then bounce it to a WAV. Every sound is generated live in your browser — nothing to download, works offline.</p>
+          <p>A pocket production studio. Tap the grid to build a groove (the bottom lane is a <b>pitched bass</b> — drag a lit cell up/down to change its note), pick a kit, dial in space &amp; echo, then chain patterns A–D into a song and bounce it to WAV. Everything is synthesised live in your browser.</p>
         </div>
       </div>
 
@@ -560,6 +565,29 @@
           <label for="seqMaster">Volume <b id="seqMasterVal">85%</b></label>
           <input type="range" id="seqMaster" min="0" max="100" value="85">
         </div>
+        <div class="seq-field">
+          <label for="seqSpace">Space <b id="seqSpaceVal">16%</b></label>
+          <input type="range" id="seqSpace" min="0" max="60" value="16" title="Reverb send">
+        </div>
+        <div class="seq-field">
+          <label for="seqEcho">Echo <b id="seqEchoVal">12%</b></label>
+          <input type="range" id="seqEcho" min="0" max="60" value="12" title="Tempo-synced delay send">
+        </div>
+        <label class="seq-steps-field" for="seqKit">Kit
+          <select id="seqKit" aria-label="Drum kit">
+            <option value="classic" selected>MAM Classic</option>
+            <option value="e808">808</option>
+            <option value="afro">Afro Percussion</option>
+          </select>
+        </label>
+        <label class="seq-steps-field" for="seqKey">Key
+          <select id="seqKey" aria-label="Bass key">
+            <option value="0" selected>C</option><option value="1">C#</option><option value="2">D</option>
+            <option value="3">D#</option><option value="4">E</option><option value="5">F</option>
+            <option value="6">F#</option><option value="7">G</option><option value="8">G#</option>
+            <option value="9">A</option><option value="10">A#</option><option value="11">B</option>
+          </select>
+        </label>
       </div>
 
       <!-- Grid: track controls + canvas -->
@@ -586,6 +614,12 @@
             <option value="32">32</option>
           </select>
         </label>
+        <span class="seq-tsep"></span>
+        <label class="seq-steps-field" for="seqChain">Song
+          <input type="text" id="seqChain" class="seq-chain" placeholder="e.g. ABBC" maxlength="16" autocomplete="off" spellcheck="false" aria-label="Pattern chain, letters A to D">
+        </label>
+        <button class="seq-tbtn" id="seqPlaySong" type="button" disabled><i class="fa-solid fa-list-music"></i> Play song</button>
+        <button class="seq-tbtn" id="seqExportSong" type="button" disabled title="Render the whole chain to a WAV"><i class="fa-solid fa-file-export"></i> Export song</button>
       </div>
 
       <!-- Toolbar -->
