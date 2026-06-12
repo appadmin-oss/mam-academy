@@ -104,6 +104,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/resource',         $f('instructor/resource.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/assignment',       $f('instructor/assignment.php'),      [mw_csrf(), mw_role('instructor', 'admin')]);
+    // LMS gradebook — weekly weighted assessments → auto-computed results.
+    $r->get ('/gradebook',        $f('instructor/gradebook.php'),       [mw_role('instructor', 'admin')]);
+    $r->post('/assess',           $f('instructor/assess.php'),          [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('assess', 120, 600)]);
 });
 
 /* ─── Admin (JSON endpoints; the HTML dashboard is at /admin/) ─── */

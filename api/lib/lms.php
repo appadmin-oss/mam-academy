@@ -119,3 +119,100 @@ function mam_lms_instructors(): array {
           ORDER BY name"
     );
 }
+
+/* ───────────────────────── Assessments & results ─────────────────────────
+   Each course enrolment is graded across the weighted assessment_types
+   (attendance/assignment/practical/continuous/final). The result is a
+   weighted average of the per-type score-averages, normalised over whatever
+   has been graded so far — so a partial gradebook shows a fair "current
+   standing" and a complete one shows the final weighted mark. */
+
+/** Pass mark (percent) — admin-editable. */
+function mam_lms_pass_mark(): float { return mam_setting_num('lms_pass_mark', 50); }
+
+/** Map a 0–100 percentage to a [letter, band]. */
+function mam_lms_grade(float $pct): array {
+    if ($pct >= 80) return ['A', 'distinction'];
+    if ($pct >= 70) return ['B', 'merit'];
+    if ($pct >= 60) return ['C', 'credit'];
+    if ($pct >= 50) return ['D', 'pass'];
+    return ['F', 'fail'];
+}
+
+/**
+ * Recompute and persist an enrolment's result from its assessments.
+ * Returns ['total','grade','outcome','band','graded_weight']; total is null
+ * when nothing has been graded yet.
+ */
+function mam_lms_compute_result(int $enrollmentId, ?int $by = null): array {
+    $rows = mam_db_all(
+        "SELECT t.weight AS weight, AVG(a.score * 100.0 / a.max_score) AS avg_pct
+           FROM assessments a JOIN assessment_types t ON t.id = a.type_id
+          WHERE a.enrollment_id = ? GROUP BY t.id, t.weight",
+        [$enrollmentId]
+    );
+    $wsum = 0.0; $acc = 0.0;
+    foreach ($rows as $r) { $w = (float)$r['weight']; $wsum += $w; $acc += $w * (float)$r['avg_pct']; }
+    if ($wsum <= 0) return ['total' => null, 'grade' => null, 'outcome' => null, 'band' => null, 'graded_weight' => 0];
+
+    $total = round($acc / $wsum, 1);
+    [$grade, $band] = mam_lms_grade($total);
+    $outcome = $total >= mam_lms_pass_mark() ? 'pass' : 'fail';
+    $now = date('Y-m-d H:i:s');
+    mam_db_upsert(
+        'results',
+        ['enrollment_id' => $enrollmentId, 'total_score' => $total, 'grade' => $grade, 'outcome' => $outcome, 'finalized_by' => $by, 'finalized_at' => $now],
+        ['enrollment_id'],
+        ['total_score' => $total, 'grade' => $grade, 'outcome' => $outcome, 'finalized_by' => $by, 'finalized_at' => $now]
+    );
+    return ['total' => $total, 'grade' => $grade, 'outcome' => $outcome, 'band' => $band, 'graded_weight' => (int)round($wsum)];
+}
+
+/** Record one assessment score for an enrolment, then recompute its result.
+ *  Throws InvalidArgumentException('type_not_found') on an unknown type code. */
+function mam_lms_record_assessment(int $enrollmentId, string $typeCode, ?int $instructorId, float $score, float $maxScore = 100.0, ?int $week = null, ?string $notes = null): array {
+    $type = mam_db_row('SELECT id FROM assessment_types WHERE code = ? AND active = 1', [$typeCode]);
+    if (!$type) throw new InvalidArgumentException('type_not_found');
+    if ($maxScore <= 0) $maxScore = 100.0;
+    $score = max(0.0, min($score, $maxScore));
+    mam_db_insert('assessments', [
+        'enrollment_id' => $enrollmentId,
+        'type_id'       => (int)$type['id'],
+        'instructor_id' => $instructorId,
+        'week'          => $week,
+        'score'         => $score,
+        'max_score'     => $maxScore,
+        'notes'         => $notes,
+    ]);
+    mam_audit('lms_assess', 'course_enrollment', $enrollmentId, ['type' => $typeCode, 'score' => $score]);
+    return mam_lms_compute_result($enrollmentId, $instructorId);
+}
+
+/** An instructor's active course enrolments with student/course + current result. */
+function mam_lms_instructor_gradebook(int $instructorId): array {
+    return mam_db_all(
+        "SELECT ce.id, ce.status,
+                su.name AS student_name, su.email AS student_email,
+                c.name AS course_name, c.kind AS course_kind, l.name AS level_name,
+                r.total_score, r.grade, r.outcome
+           FROM course_enrollments ce
+           JOIN users su       ON su.id = ce.student_id
+           JOIN courses c      ON c.id = ce.course_id
+           LEFT JOIN levels l  ON l.id = ce.level_id
+           LEFT JOIN results r ON r.enrollment_id = ce.id
+          WHERE ce.instructor_id = ? AND ce.status = 'active'
+          ORDER BY su.name, c.name",
+        [$instructorId]
+    );
+}
+
+/** Every assessment recorded against an enrolment (newest first). */
+function mam_lms_enrollment_assessments(int $enrollmentId): array {
+    return mam_db_all(
+        "SELECT a.id, a.score, a.max_score, a.week, a.notes, a.created_at,
+                t.code AS type_code, t.name AS type_name, t.weight
+           FROM assessments a LEFT JOIN assessment_types t ON t.id = a.type_id
+          WHERE a.enrollment_id = ? ORDER BY a.created_at DESC",
+        [$enrollmentId]
+    );
+}

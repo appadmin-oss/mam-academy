@@ -34,6 +34,7 @@
       <a class="portal-nav-link" href="#students" data-tab="students"><i class="fa-solid fa-users"></i>Students</a>
       <a class="portal-nav-link" href="#assignments" data-tab="assignments"><i class="fa-solid fa-list-check"></i>Assignments</a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
+      <a class="portal-nav-link" href="#gradebook" data-tab="gradebook"><i class="fa-solid fa-graduation-cap"></i>Gradebook</a>
       <a class="portal-nav-link" href="#announce" data-tab="announce"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#account" data-tab="account"><i class="fa-solid fa-user-gear"></i>Account</a>
       <a class="portal-nav-link" href="/studio" target="_blank" rel="noopener" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:18px"><i class="fa-solid fa-wand-magic-sparkles"></i>Practice Studio <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;margin-left:auto;opacity:0.7"></i></a>
@@ -62,7 +63,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
+  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], gradebook: ['Gradebook', 'Grade students across the weighted components'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
   var data = null;
 
   function show(tab) {
@@ -76,6 +77,7 @@
     if (tab === 'students') return renderStudents();
     if (tab === 'assignments') return renderAssignments();
     if (tab === 'attendance') return renderAttendance();
+    if (tab === 'gradebook') return renderGradebook();
     if (tab === 'announce') return renderAnnounce();
     if (tab === 'account') return renderAccount();
   }
@@ -128,6 +130,68 @@
         btn.disabled = false; btn.innerHTML = orig;
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not set: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not set.'));
       });
+    });
+  }
+
+  // ── Gradebook (v16 LMS): weighted assessment entry → auto results ──────
+  var gbCache = null;
+  function gradePill(row) {
+    if (row.total_score == null) return '<span class="pill pending">ungraded</span>';
+    var cls = row.outcome === 'pass' ? 'present' : 'withdrawn';
+    return '<span class="pill ' + cls + '">' + P.escapeHtml(String(row.grade || '')) + ' · ' + Math.round(row.total_score) + '% · ' + P.escapeHtml(String(row.outcome || '')) + '</span>';
+  }
+  function loadGradebook(force) {
+    if (gbCache && !force) return Promise.resolve(gbCache);
+    return API.request('instructor/gradebook', { method: 'GET' }).then(function (r) { gbCache = r || {}; return gbCache; });
+  }
+  function renderGradebook() {
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('clipboard-list', 'Loading gradebook…') + '</div></section>';
+    loadGradebook().then(function (gb) {
+      var ens = gb.enrollments || [], types = gb.types || [];
+      if (!ens.length) {
+        content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('graduation-cap', 'No course students assigned yet. When an admin approves a student\'s course and assigns it to you, they appear here to grade.') + '</div></section>';
+        return;
+      }
+      var typeOpts = types.map(function (t) { return '<option value="' + P.escapeHtml(t.code) + '">' + P.escapeHtml(t.name) + ' (' + t.weight + '%)</option>'; }).join('');
+      var cards = ens.map(function (e) {
+        return '<div class="panel" data-eid="' + e.id + '" style="margin-bottom:14px">'
+          + '<div class="panel-head"><h2 style="font-size:1rem">' + P.escapeHtml(e.student_name) + ' <span style="color:var(--text-muted);font-weight:500">— ' + P.escapeHtml(e.course_name) + (e.level_name ? ' · ' + P.escapeHtml(e.level_name) : '') + '</span></h2>'
+          + '<span class="gb-result">' + gradePill(e) + '</span></div>'
+          + '<form class="gb-form profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
+          +   '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type">' + typeOpts + '</select></div>'
+          +   '<div class="field" style="width:84px"><label>Score</label><input name="score" type="number" min="0" step="0.5" required></div>'
+          +   '<div class="field" style="width:74px"><label>Out of</label><input name="max" type="number" min="1" step="0.5" value="100"></div>'
+          +   '<div class="field" style="width:70px"><label>Week</label><input name="week" type="number" min="1" max="12"></div>'
+          +   '<button type="submit" class="btn btn-primary" style="padding:9px 14px"><i class="fa-solid fa-plus"></i> Record</button>'
+          + '</form></div>';
+      }).join('');
+      content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Gradebook</h2><span style="font-size:0.8rem;color:var(--text-muted)">Pass mark ' + (gb.pass_mark || 50) + '%</span></div>'
+        + '<div style="padding:0 22px 14px;color:var(--text-muted);font-size:0.86rem;line-height:1.55">Record weekly scores across the weighted components — results compute automatically and appear in each student\'s portal.</div></section>'
+        + cards;
+      content.querySelectorAll('.gb-form').forEach(function (form) {
+        form.addEventListener('submit', function (ev) {
+          ev.preventDefault();
+          var card = form.closest('[data-eid]');
+          var score = parseFloat(form.elements.score.value);
+          if (isNaN(score)) return;
+          var body = { enrollment_id: parseInt(card.getAttribute('data-eid'), 10), type: form.elements.type.value, score: score, max_score: parseFloat(form.elements.max.value) || 100 };
+          if (form.elements.week.value) body.week = parseInt(form.elements.week.value, 10);
+          var btn = form.querySelector('button'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
+          API.request('instructor/assess', { method: 'POST', body: body }).then(function (r) {
+            btn.disabled = false; btn.innerHTML = orig; form.reset(); form.elements.max.value = '100';
+            var res = r.result || {};
+            card.querySelector('.gb-result').innerHTML = gradePill({ total_score: res.total, grade: res.grade, outcome: res.outcome });
+            gbCache = null; // next open re-fetches fresh standings
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Score recorded.', 'success');
+          }).catch(function (err) {
+            btn.disabled = false; btn.innerHTML = orig;
+            var msg = (err && err.body && err.body.error) || 'try again';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not record: ' + msg, 'error'); else alert('Could not record the score.');
+          });
+        });
+      });
+    }).catch(function () {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load the gradebook.') + '</div></section>';
     });
   }
 
