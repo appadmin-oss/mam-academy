@@ -1,7 +1,13 @@
 /* ============================================================
    MAM Academy — Rhythm Tap  ·  window.MAM_RHYTHM
    ------------------------------------------------------------
-   Student-portal-exclusive rhythm-reading game (portal → Games tab).
+   Student-portal-exclusive rhythm-reading game (portal → Games tab),
+   modelled on the "Tap with me" reference clip (Pianogoddess Academy):
+   a cream board of 4 bars × 4 beats, cards colour-coded BY NOTE VALUE
+   (quarters pink, eighths blue, sixteenth figures gold, dotted figures
+   magenta, triplets mint, long notes green/indigo), wide two-beat cards
+   (half note, dotted-quarter + eighth), colours persisting as the beat
+   sweeps the board, and a steady click pulse underneath.
 
    Notation   Real engraved music-font glyphs (Noto Music, falling back
               to the system music-symbol fonts) from the Unicode Musical
@@ -17,7 +23,8 @@
               rhythm") before tapping; a live counting line spells each
               card aloud ("1 e & a"); after a run a coach insight analyses
               rush/drag tendency and the figure that needs work, closing
-              with a reflective question for the next attempt.
+              with a reflective question — and a Next-level step appears
+              once the level is solid (≥2 stars).
    Audio      Each run plays through its own gain bus and tracks every
               scheduled source, so Stop is instant — nothing keeps
               clicking after the board stops.
@@ -27,43 +34,77 @@
 (function () {
   'use strict';
 
-  /* ── Notation glyphs — real music-font codepoints ── */
+  /* ── Notation glyphs — real music-font codepoints (escaped: the Musical
+        Symbols block lives outside the BMP) ── */
   var GL = {
-    quarter:     '\uD834\uDD5F',  /* 𝅘𝅥  U+1D15F quarter note */
-    eighths:     '\u266B',  /* ♫  U+266B beamed eighth pair */
-    sixteenths:  '\u266C\u266C',  /* ♬♬ U+266C ×2 — four sixteenths */
-    dotted:      '\uD834\uDD60\uD834\uDD6D\u2009\uD834\uDD61',  /* 𝅘𝅥𝅮𝅭 𝅘𝅥𝅯 dotted eighth + sixteenth */
-    restEighth:  '\uD834\uDD3E\u2009\uD834\uDD60',  /* 𝄾 𝅘𝅥𝅮 eighth rest + eighth note */
-    restQuarter: '\uD834\uDD3D',  /* 𝄽  U+1D13D quarter rest */
-    bpmNote:     '\u2669'  /* ♩  metronome mark */
+    quarter:    '\uD834\uDD5F',  /* 𝅘𝅥  quarter note */
+    half:       '\uD834\uDD5E',  /* 𝅗𝅥  half note */
+    eighths:    '\u266B',  /* ♫  beamed eighth pair */
+    sixteenths: '\u266C\u266C',  /* ♬♬ four sixteenths */
+    ess:        '\uD834\uDD60\u2009\u266C',  /* 𝅘𝅥𝅮 ♬ eighth + two sixteenths */
+    sse:        '\u266C\u2009\uD834\uDD60',  /* ♬ 𝅘𝅥𝅮 two sixteenths + eighth */
+    dotted:     '\uD834\uDD60\uD834\uDD6D\u2009\uD834\uDD61',  /* 𝅘𝅥𝅮𝅭 𝅘𝅥𝅯 dotted eighth + sixteenth */
+    sed:        '\uD834\uDD61\u2009\uD834\uDD60\uD834\uDD6D',  /* 𝅘𝅥𝅯 𝅘𝅥𝅮𝅭 sixteenth + dotted eighth */
+    restEighth: '\uD834\uDD3E\u2009\uD834\uDD60',  /* 𝄾 𝅘𝅥𝅮 eighth rest + eighth */
+    restSixt:   '\uD834\uDD3E\u2009\u266C',  /* 𝄾 ♬ eighth rest + two sixteenths */
+    restQuarter:'\uD834\uDD3D',  /* 𝄽  quarter rest */
+    triplet:    '\uD834\uDD60\uD834\uDD60\uD834\uDD60',  /* 𝅘𝅥𝅮𝅘𝅥𝅮𝅘𝅥𝅮 eighth-note triplet */
+    dqe:        '\uD834\uDD5F\uD834\uDD6D\u2009\uD834\uDD60',  /* 𝅘𝅥𝅭 𝅘𝅥𝅮 dotted quarter + eighth */
+    bpmNote:    '\u2669'  /* ♩  metronome mark */
   };
 
-  /* Onsets are positions within ONE beat (0 = downbeat … 1 = next beat).
-     `count` is how the figure is spoken; `tip` is the coach line used in
-     the post-run insight when this figure scores lowest. */
+  /* Patterns. `beats` = how many beats the card spans (wide cards = 2, as in
+     the reference video). `onsets` are beat positions inside the card.
+     `color` encodes the NOTE VALUE — the video's teaching device — so every
+     quarter is pink, every eighth figure blue, every sixteenth figure gold,
+     dotted figures magenta, triplets mint, long notes green/indigo.
+     `count` is the figure spoken aloud; `syls` name each onset for feedback;
+     `tip` is the coach line used when this figure scores lowest. */
   var PAT = {
-    q:    { onsets: [0],                glyph: GL.quarter,     small: 0, name: 'Quarter note',                 count: '1',       tip: 'Land exactly with the click — one full, settled beat.' },
-    ee:   { onsets: [0, 0.5],           glyph: GL.eighths,     small: 0, name: 'Two eighth notes',             count: '1 &',     tip: 'Split the beat exactly in half — say “1 &” out loud.' },
-    ssss: { onsets: [0, .25, .5, .75],  glyph: GL.sixteenths,  small: 1, name: 'Four sixteenth notes',         count: '1 e & a', tip: 'Four even taps per beat — “1 e & a”, hand relaxed.' },
-    des:  { onsets: [0, 0.75],          glyph: GL.dotted,      small: 1, name: 'Dotted eighth then sixteenth', count: '1 … a', tip: 'Long–short: hold the dot, the sixteenth lands on the late “a”.' },
-    res:  { onsets: [0.5],              glyph: GL.restEighth,  small: 1, name: 'Eighth rest then eighth note', count: '(1) &',   tip: 'Silence first — feel the downbeat, tap only the “&”.' },
-    qr:   { onsets: [],                 glyph: GL.restQuarter, small: 0, name: 'Quarter rest — stay silent',   count: '(rest)',  tip: 'A rest is music too — stay perfectly still for the whole beat.' }
+    q:    { beats: 1, onsets: [0],                glyph: GL.quarter,     small: 0, color: '#F4577E', name: 'Quarter note',                  count: '1',
+            syls: ['the downbeat'], tip: 'Land exactly with the click — one full, settled beat.' },
+    ee:   { beats: 1, onsets: [0, 0.5],           glyph: GL.eighths,     small: 0, color: '#5B9BE8', name: 'Two eighth notes',              count: '1 &',
+            syls: ['the downbeat', 'the “&”'], tip: 'Split the beat exactly in half — say “1 &” out loud.' },
+    ssss: { beats: 1, onsets: [0, .25, .5, .75],  glyph: GL.sixteenths,  small: 1, color: '#F2B632', name: 'Four sixteenth notes',          count: '1 e & a',
+            syls: ['the downbeat', 'the “e”', 'the “&”', 'the “a”'], tip: 'Four even taps per beat — “1 e & a”, hand relaxed.' },
+    ess:  { beats: 1, onsets: [0, .5, .75],       glyph: GL.ess,         small: 1, color: '#F2B632', name: 'Eighth then two sixteenths',    count: '1 & a',
+            syls: ['the downbeat', 'the “&”', 'the “a”'], tip: 'Long–short–short: the sixteenths share the back half — “1 & a”.' },
+    sse:  { beats: 1, onsets: [0, .25, .5],       glyph: GL.sse,         small: 1, color: '#F2B632', name: 'Two sixteenths then an eighth', count: '1 e &',
+            syls: ['the downbeat', 'the “e”', 'the “&”'], tip: 'Short–short–long: “1 e &” — land the eighth firmly and hold.' },
+    des:  { beats: 1, onsets: [0, 0.75],          glyph: GL.dotted,      small: 1, color: '#C44DD6', name: 'Dotted eighth then sixteenth',  count: '1 … a',
+            syls: ['the downbeat', 'the “a”'], tip: 'Long–short: hold the dot, the sixteenth lands on the late “a”.' },
+    sed:  { beats: 1, onsets: [0, 0.25],          glyph: GL.sed,         small: 1, color: '#C44DD6', name: 'Sixteenth then dotted eighth',  count: '1 e',
+            syls: ['the downbeat', 'the “e”'], tip: 'Short–long: snap the sixteenth on “e”, then hold through “& a”.' },
+    res:  { beats: 1, onsets: [0.5],              glyph: GL.restEighth,  small: 1, color: '#5B9BE8', name: 'Eighth rest then eighth note',  count: '(1) &',
+            syls: ['the “&”'], tip: 'Silence first — feel the downbeat, tap only the “&”.' },
+    rss:  { beats: 1, onsets: [0.5, 0.75],        glyph: GL.restSixt,    small: 1, color: '#F2B632', name: 'Eighth rest then two sixteenths', count: '(1) & a',
+            syls: ['the “&”', 'the “a”'], tip: 'Let the rest breathe, then two quick sixteenths on “& a”.' },
+    qr:   { beats: 1, onsets: [],                 glyph: GL.restQuarter, small: 0, color: '#F4577E', name: 'Quarter rest — stay silent',    count: '(rest)',
+            syls: [], tip: 'A rest is music too — stay perfectly still for the whole beat.' },
+    trip: { beats: 1, onsets: [0, 1/3, 2/3],      glyph: GL.triplet,     small: 1, color: '#3ECFA0', name: 'Eighth-note triplet',           count: '1-la-li', triplet: true,
+            syls: ['the downbeat', '“la” (2nd of the triplet)', '“li” (3rd of the triplet)'], tip: 'Three perfectly even notes in one beat — “1-la-li”, no swing.' },
+    h:    { beats: 2, onsets: [0],                glyph: GL.half,        small: 0, color: '#42C58B', name: 'Half note — two beats',         count: '1 (hold 2)', wide: 1,
+            syls: ['the downbeat'], tip: 'One tap, two beats — tap the downbeat, then hold the silence alive.' },
+    dqe:  { beats: 2, onsets: [0, 1.5],           glyph: GL.dqe,         small: 1, color: '#7C7DF5', name: 'Dotted quarter then eighth',    count: '1 … (2)&', wide: 1,
+            syls: ['the downbeat', 'the “&” of beat 2'], tip: 'The dotted quarter holds a beat and a half — the eighth lands on the “&” of beat 2.' }
   };
-  var SYL = { '0': 'the downbeat', '0.25': 'the “e”', '0.5': 'the “&”', '0.75': 'the “a”' };
 
+  /* Five levels, exactly like the reference: 4 bars of 4/4 (16 beats), every
+     row summing to 4 beats, the long note closing levels 1–4. */
   var LEVELS = [
-    { name: 'Level 1', focus: 'Quarters & eighths',  bpm: 92,  cards: ['q','ee','q','ee','q','q','ee','q','ee','q','q','ee'] },
-    { name: 'Level 2', focus: 'Sixteenths & rests',  bpm: 100, cards: ['q','ee','ssss','ee','res','ee','res','q','ssss','q','qr','ee'] },
-    { name: 'Level 3', focus: 'Dotted figures',      bpm: 104, cards: ['ee','des','ssss','ee','res','q','des','ssss','qr','ee','des','q'] },
-    { name: 'Level 4', focus: 'Syncopation & speed', bpm: 112, cards: ['ssss','des','ee','ssss','res','ee','des','ssss','des','ee','ssss','des','ee','qr'] }
+    { name: 'Level 1', focus: 'Quarters & eighths',    bpm: 100, cards: ['q','ee','q','ee',  'q','q','ee','q',   'qr','q','ee','q',   'q','ee','h'] },
+    { name: 'Level 2', focus: 'Sixteenths & rests',    bpm: 100, cards: ['q','ee','ssss','ee','res','ee','res','q','ssss','q','ssss','qr','q','ee','h'] },
+    { name: 'Level 3', focus: 'Composite figures',     bpm: 104, cards: ['ee','ssss','ess','q','rss','q','res','q', 'q','ee','sse','q',  'ess','q','h'] },
+    { name: 'Level 4', focus: 'Dotted rhythms',        bpm: 104, cards: ['sse','sed','q','ee', 'des','ee','des','q','rss','ee','sse','q', 'res','ee','h'] },
+    { name: 'Level 5', focus: 'Triplets & long notes', bpm: 108, cards: ['dqe','trip','q',     'ess','ee','dqe',    'trip','trip','ee','q','ee','q','ee','q'] }
   ];
-  var COLORS = ['#F4577E', '#5B9BE8', '#F2B632', '#C44DD6', '#42C58B', '#FF8A4C'];
   var HIT_TOL = 0.18;   // fraction of a beat that still counts as on-time
   var PERFECT = 0.07;   // fraction of a beat rated "Perfect"
 
   var root, dom = {}, level = LEVELS[0], state = 'idle', mode = 'play';
   var raf = null, t0 = 0, beat = 0.6, curCard = -1;
   var bus = null, srcs = [], onsets = [], strays = [], cardDone = [];
+  var starts = [], beatCard = [], totalBeats = 0;
 
   function ac() { return (window.MAM && window.MAM.audio) ? window.MAM.audio() : (window.__rgAC || (window.__rgAC = new (window.AudioContext || window.webkitAudioContext)())); }
   /* The click the student hears arrives outputLatency seconds after its
@@ -96,11 +137,22 @@
   }
 
   /* ════════════════════ Board ════════════════════ */
+  function noteHtml(p) {
+    return '<span class="rg-note' + (p.small ? ' sm' : '') + '" aria-hidden="true">'
+      + (p.triplet ? '<i class="rg-trip3">3</i>' : '') + p.glyph + '</span>';
+  }
   function buildBoard() {
+    // Beat timeline: starts[k] = the absolute beat card k begins on.
+    starts = []; beatCard = []; totalBeats = 0;
+    level.cards.forEach(function (id, k) {
+      starts[k] = totalBeats;
+      for (var b = 0; b < PAT[id].beats; b++) beatCard[totalBeats + b] = k;
+      totalBeats += PAT[id].beats;
+    });
     var cards = level.cards.map(function (id, i) {
       var p = PAT[id];
-      return '<button class="rg-card" data-i="' + i + '" type="button" aria-label="Card ' + (i + 1) + ': ' + p.name + '">'
-        + '<span class="rg-note' + (p.small ? ' sm' : '') + '" aria-hidden="true">' + p.glyph + '</span></button>';
+      return '<button class="rg-card' + (p.wide ? ' rg-wide' : '') + '" data-i="' + i + '" type="button" aria-label="Card ' + (i + 1) + ': ' + p.name + ' — count “' + p.count + '”">'
+        + noteHtml(p) + '</button>';
     }).join('');
     dom.title.textContent = level.name;
     dom.sub.textContent = 'Rhythm Tap · ' + level.focus;
@@ -116,11 +168,11 @@
     var els = dom.grid.querySelectorAll('.rg-card');
     els.forEach(function (el, i) {
       el.classList.toggle('rg-cur', i === curCard && state !== 'idle');
-      el.classList.remove('rg-miss', 'rg-ok');
+      el.classList.remove('rg-miss', 'rg-ok', 'rg-part');
       var d = cardDone[i];
       if (d != null) {
         if (d.acc >= 0.85) { el.style.setProperty('--rg-fill', d.color); el.classList.add('rg-ok'); }
-        else if (d.acc >= 0.5) { el.classList.add('rg-ok'); el.style.setProperty('--rg-fill', '#F2B632'); }
+        else if (d.acc >= 0.5) { el.style.setProperty('--rg-fill', d.color); el.classList.add('rg-ok', 'rg-part'); }
         else { el.classList.add('rg-miss'); el.style.removeProperty('--rg-fill'); }
       } else { el.style.removeProperty('--rg-fill'); }
     });
@@ -133,6 +185,11 @@
     if (!dom.countline) return;
     var id = level.cards[curCard];
     dom.countline.textContent = (state !== 'idle' && id) ? 'Say it: “' + PAT[id].count + '”' : '';
+  }
+  function cardAt(pos) {
+    var b = Math.floor(pos);
+    if (b < 0 || b >= totalBeats) return -1;
+    return beatCard[b];
   }
 
   /* ════════════════════ Timeline + loop ════════════════════ */
@@ -148,22 +205,22 @@
     // 4-beat count-in
     for (var i = 0; i < 4; i++) click(base + i * beat, i === 0);
     t0 = base + 4 * beat; // first card downbeat
-    // Expected onsets on an absolute beat timeline (card k, onset o → k + o).
+    // Expected onsets on an absolute beat timeline (card k starting at
+    // starts[k]; onset o → starts[k] + o). Each carries its syllable.
     level.cards.forEach(function (id, k) {
-      PAT[id].onsets.forEach(function (on) { onsets.push({ t: k + on, card: k, hit: null }); });
-    });
-    if (mode === 'listen') {
-      // Listen mode: pre-schedule a blip for every onset so it plays itself.
-      level.cards.forEach(function (id, k) {
-        PAT[id].onsets.forEach(function (on, j) { blip(t0 + k * beat + on * beat, 560 + j * 90); });
-        click(t0 + k * beat, k % 4 === 0);
+      PAT[id].onsets.forEach(function (on, j) {
+        onsets.push({ t: starts[k] + on, card: k, syl: PAT[id].syls[j] || 'the beat', hit: null });
       });
-    } else {
-      // Play mode keeps the pulse ticking so the student feels the beat.
-      for (var b = 0; b < level.cards.length; b++) click(t0 + b * beat, b % 4 === 0);
+    });
+    // The pulse ticks every beat in BOTH modes (as in the reference video),
+    // accented on each bar line; Listen mode adds a blip on every onset so
+    // the board plays its own rhythm.
+    for (var b = 0; b < totalBeats; b++) click(t0 + b * beat, b % 4 === 0);
+    if (mode === 'listen') {
+      onsets.forEach(function (o, j) { blip(t0 + o.t * beat, 560 + (o.t % 1) * 260); });
     }
     setStatus(mode === 'listen'
-      ? 'Listen — follow the cards and hear how each figure sits inside the beat.'
+      ? 'Listen — follow the colours and hear how each figure sits inside the beat.'
       : 'Count-in first: think the rhythm in your head, then tap what you read — eyes one card ahead.');
     dom.start.classList.toggle('rg-on', mode === 'play');
     if (dom.start) dom.start.blur();
@@ -193,22 +250,27 @@
     if (mode === 'play') {
       for (var k = 0; k < level.cards.length; k++) {
         if (cardDone[k] != null) continue;
-        if (pos > k + 1 + HIT_TOL) { finalizeCard(k); changed = true; } else break;
+        if (pos > starts[k] + PAT[level.cards[k]].beats + HIT_TOL) { finalizeCard(k); changed = true; } else break;
       }
     }
-    var idx = Math.floor(pos);
+    var idx = cardAt(pos);
+    if (pos >= totalBeats) idx = level.cards.length; // past the end — clear highlight
     if (idx !== curCard) {
-      if (mode === 'listen' && curCard >= 0 && curCard < level.cards.length) cardDone[curCard] = { acc: 1, color: COLORS[curCard % COLORS.length] };
+      if (mode === 'listen' && curCard >= 0 && curCard < level.cards.length) {
+        cardDone[curCard] = { acc: 1, color: PAT[level.cards[curCard]].color };
+      }
       curCard = idx; changed = true; countLine();
     }
     if (changed) paint();
-    if (pos >= level.cards.length + HIT_TOL + 0.1) { endRun(); return; }
+    if (pos >= totalBeats + HIT_TOL + 0.1) { endRun(); return; }
   }
 
   /* Score one card from globally matched onsets + stray taps inside it. */
   function finalizeCard(k) {
+    var p = PAT[level.cards[k]];
     var E = onsets.filter(function (o) { return o.card === k; });
-    var extra = strays.filter(function (s) { return s >= k && s < k + 1; }).length;
+    var s0 = starts[k], s1 = starts[k] + p.beats;
+    var extra = strays.filter(function (s) { return s >= s0 && s < s1; }).length;
     var acc;
     if (!E.length) acc = Math.max(0, 1 - extra * 0.5);             // rest card: don't tap
     else {
@@ -216,12 +278,12 @@
       E.forEach(function (o) { if (o.hit) sum += o.hit.q; });
       acc = Math.max(0, (sum - extra * 0.4) / E.length);
     }
-    cardDone[k] = { acc: acc, color: COLORS[k % COLORS.length] };
+    cardDone[k] = { acc: acc, color: p.color };
   }
 
   function endRun() {
     if (mode === 'play') for (var k = 0; k < level.cards.length; k++) if (cardDone[k] == null) finalizeCard(k);
-    if (mode === 'listen') for (var j = 0; j < level.cards.length; j++) if (cardDone[j] == null) cardDone[j] = { acc: 1, color: COLORS[j % COLORS.length] };
+    if (mode === 'listen') for (var j = 0; j < level.cards.length; j++) if (cardDone[j] == null) cardDone[j] = { acc: 1, color: PAT[level.cards[j]].color };
     var played = mode;
     state = 'idle'; cancelAnimationFrame(raf); raf = null; curCard = -1;
     killAudio();
@@ -246,7 +308,7 @@
     var a = ac();
     var pos = (a.currentTime - latency(a) - t0) / beat;
     if (pos < -HIT_TOL) { fb('Count-in — think it first…', 'wait'); return; }
-    if (pos > level.cards.length + HIT_TOL) return;
+    if (pos > totalBeats + HIT_TOL) return;
     // Nearest unclaimed onset wins, wherever the card boundary falls.
     var best = null, bd = 1e9;
     for (var i = 0; i < onsets.length; i++) {
@@ -258,9 +320,8 @@
       var err = pos - best.t; // signed: − early, + late
       best.hit = { err: err, q: 0.6 + 0.4 * (1 - Math.abs(err) / HIT_TOL) };
       var ms = Math.round(err * beat * 1000);
-      var syl = SYL[String(best.t - best.card)] || 'the beat';
-      if (Math.abs(err) <= PERFECT) fb('Perfect · ' + (ms >= 0 ? '+' : '−') + Math.abs(ms) + ' ms on ' + syl, 'perfect');
-      else fb((err < 0 ? 'Early' : 'Late') + ' · ' + (ms >= 0 ? '+' : '−') + Math.abs(ms) + ' ms on ' + syl, 'good');
+      if (Math.abs(err) <= PERFECT) fb('Perfect · ' + (ms >= 0 ? '+' : '−') + Math.abs(ms) + ' ms on ' + best.syl, 'perfect');
+      else fb((err < 0 ? 'Early' : 'Late') + ' · ' + (ms >= 0 ? '+' : '−') + Math.abs(ms) + ' ms on ' + best.syl, 'good');
       // High-latency outputs (Bluetooth) can land a compensated tap in a card
       // the wall-clock loop already judged — re-score it so the hit counts.
       if (cardDone[best.card] != null) { finalizeCard(best.card); paint(); }
@@ -268,7 +329,8 @@
     } else {
       strays.push(pos);
       fb('Extra tap — read the card, don’t guess', 'miss');
-      pulse(Math.max(0, Math.min(level.cards.length - 1, Math.floor(pos))));
+      var sc = cardAt(Math.max(0, Math.min(totalBeats - 0.01, pos)));
+      if (sc >= 0) pulse(sc);
     }
     blip(a.currentTime, 720);
   }
@@ -327,6 +389,12 @@
         : '<div class="rg-bestline">Personal best: ' + rec.best + '%</div>')
       : '';
 
+    // Level solid (≥2 stars) → surface the next step, like the video's chain.
+    var levelIdx = LEVELS.indexOf(level);
+    var nextBtn = (stars >= 2 && levelIdx >= 0 && levelIdx < LEVELS.length - 1)
+      ? '<button class="rg-btn rg-primary rg-next" type="button">Next: ' + LEVELS[levelIdx + 1].name + ' · ' + LEVELS[levelIdx + 1].focus + ' →</button>'
+      : '';
+
     dom.result.innerHTML = '<div class="rg-result-card"><div class="rg-stars">' + st + '</div>'
       + '<div class="rg-final">' + pct + '<small>%</small></div><div class="rg-final-l">' + level.name + ' · ' + level.focus + '</div>'
       + '<div class="rg-statrow">'
@@ -337,13 +405,21 @@
       + '</div>'
       + '<div class="rg-insight"><div class="rg-insight-h"><i class="fa-solid fa-graduation-cap"></i> Coach’s insight</div>' + insight.map(function (l) { return '<p>' + l + '</p>'; }).join('') + '</div>'
       + bestLine
-      + '<div class="rg-result-btns"><button class="rg-btn rg-primary rg-again" type="button">Try again</button>'
+      + '<div class="rg-result-btns">' + nextBtn
+      + '<button class="rg-btn rg-primary rg-again" type="button">Try again</button>'
       + '<button class="rg-btn rg-relisten" type="button"><i class="fa-solid fa-volume-high"></i> Listen again</button></div></div>';
     dom.result.classList.add('shown');
     var again = dom.result.querySelector('.rg-again');
     if (again) again.addEventListener('click', function () { dom.result.classList.remove('shown'); startRun(true); });
     var relisten = dom.result.querySelector('.rg-relisten');
     if (relisten) relisten.addEventListener('click', function () { dom.result.classList.remove('shown'); startRun(false); });
+    var next = dom.result.querySelector('.rg-next');
+    if (next) next.addEventListener('click', function () {
+      dom.result.classList.remove('shown');
+      level = LEVELS[levelIdx + 1];
+      var sel = root.querySelector('#rgLevel'); if (sel) sel.value = String(levelIdx + 1);
+      startRun(false); // hear the new level once before tapping it
+    });
     refreshBest();
   }
   function setStatus(m) { if (dom.status) dom.status.textContent = m; }
@@ -405,7 +481,7 @@
 
   /* ── Injected styles + the real music font (Noto Music). The game is a
         self-contained drop-in for the student portal, so it carries its own
-        look: cream board, soft blobs, engraved note cards. ── */
+        look: cream board, soft blobs, engraved value-coloured note cards. ── */
   function injectCSS() {
     if (!document.getElementById('rg-musicfont')) {
       var f = document.createElement('link');
@@ -423,12 +499,15 @@
       + '.rg-title{font-family:var(--font-display,Impact,sans-serif);font-size:2.2rem;letter-spacing:.04em;color:#E03131;margin:0}'
       + '.rg-sub{font-size:.78rem;font-weight:800;color:#C2453A;letter-spacing:.04em;margin:2px 0 18px}'
       + '.rg-grid{position:relative;display:grid;grid-template-columns:repeat(4,minmax(58px,86px));gap:12px;justify-content:center}'
-      + '.rg-card{position:relative;aspect-ratio:1;border:0;border-radius:16px;background:#B3ACA2;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:6%;transition:transform .12s ease,background .15s ease;-webkit-tap-highlight-color:transparent}'
-      + '.rg-note{font-family:"Noto Music","Bravura Text","Segoe UI Symbol","Symbola",serif;font-size:2.5rem;line-height:1.1;color:#fff;display:block;user-select:none;pointer-events:none}'
+      + '.rg-card{position:relative;aspect-ratio:1;border:0;border-radius:16px;background:#B3ACA2;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:6%;transition:transform .12s ease,background .22s ease;-webkit-tap-highlight-color:transparent}'
+      + '.rg-card.rg-wide{grid-column:span 2;aspect-ratio:auto;padding:3%}'
+      + '.rg-note{position:relative;font-family:"Noto Music","Bravura Text","Segoe UI Symbol","Symbola",serif;font-size:2.5rem;line-height:1.1;color:#fff;display:block;user-select:none;pointer-events:none}'
       + '.rg-note.sm{font-size:1.6rem}'
+      + '.rg-trip3{position:absolute;top:-.8em;left:50%;transform:translateX(-50%);font-family:Inter,system-ui,sans-serif;font-style:normal;font-weight:800;font-size:.46em;letter-spacing:0}'
       + '.rg-card.rg-cur{background:var(--rg-fill,#F2B632);transform:scale(1.07);box-shadow:0 8px 22px rgba(0,0,0,.18)}'
       + '.rg-card.rg-cur .rg-note,.rg-card.rg-ok .rg-note{color:#23232B}'
       + '.rg-card.rg-ok{background:var(--rg-fill,#42C58B)}'
+      + '.rg-card.rg-part{opacity:.55}'
       + '.rg-card.rg-miss{background:#8E8478;opacity:.85}'
       + '.rg-card.rg-pulse{animation:rgPulse .18s ease}'
       + '@keyframes rgPulse{50%{transform:scale(.92)}}'
