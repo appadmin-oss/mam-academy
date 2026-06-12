@@ -17,6 +17,21 @@ if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
     mam_fail('invalid_recipient', 422, ['fields' => ['to']]);
 }
 
+// Low-level reachability probe first: a refused/blocked/filtered SMTP port is
+// the most common shared-host failure and is invisible in higher-level errors.
+$probe = ['attempted' => false, 'ok' => null, 'error' => null, 'target' => null];
+$pHost = (string)mam_env('MAIL_HOST', '');
+if ($pHost !== '') {
+    $pPort = (int)mam_env('MAIL_PORT', '587');
+    $pEnc  = strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls'));
+    $probe['attempted'] = true;
+    $probe['target'] = $pHost . ':' . $pPort;
+    $errno = 0; $errstr = '';
+    $s = @stream_socket_client(($pEnc === 'ssl' ? 'ssl://' : '') . $pHost . ':' . $pPort, $errno, $errstr, 6);
+    if ($s) { $probe['ok'] = true; fclose($s); }
+    else    { $probe['ok'] = false; $probe['error'] = trim($errno . ' ' . $errstr) ?: 'connection failed'; }
+}
+
 $subject = '[MAM Academy] SMTP test — ' . date('Y-m-d H:i:s');
 $body    = "Test message from the MAM Academy admin mail-test endpoint.\n\nSent at: " . date('c') . "\n";
 
@@ -37,5 +52,7 @@ mam_ok([
     'transport' => $result['transport'],
     'host'      => $result['host'] ?? null,
     'error'     => $result['error'] ?? null,
+    'probe'     => $probe,
+    'readiness' => mam_mail_readiness(),
     'steps'     => $safeSteps,
 ]);

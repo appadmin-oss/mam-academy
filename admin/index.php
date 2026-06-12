@@ -1810,6 +1810,53 @@ button.tiny:hover{border-color:var(--gold)}
   <header class="top"><h1>Pricing &amp; Settings</h1></header>
   <?php if (isset($_GET['ok'])): ?><div class="banner ok">Saved. New prices apply to every new application, booking and store order immediately.</div><?php endif; ?>
 
+  <?php $mr = mam_mail_readiness(); ?>
+  <div class="card" style="max-width:760px">
+    <h3>Email delivery</h3>
+    <div style="padding:0 20px 18px">
+      <p class="muted" style="margin:0 0 12px;line-height:1.6">
+        Transport: <strong style="color:var(--gold)"><?= htmlspecialchars($mr['transport']) ?></strong>
+        <?= $mr['host'] ? '· ' . htmlspecialchars($mr['host']) . ':' . (int)$mr['port'] . ' (' . htmlspecialchars($mr['encryption']) . ')' : '· no SMTP host configured' ?>
+        · status: <?= $mr['ready'] ? '<strong style="color:#34D399">ready</strong>' : '<strong style="color:#FB7185">not configured</strong>' ?>.
+        Send a live test to see the exact SMTP step that fails (port probe → connect → TLS → auth → send).
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input type="email" id="mtTo" placeholder="you@example.com" style="flex:1;min-width:200px;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+        <button class="btn" type="button" id="mtSend">Send test email</button>
+      </div>
+      <pre id="mtOut" style="display:none;margin:14px 0 0;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:0.78rem;line-height:1.55;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto"></pre>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var btn = document.getElementById('mtSend'), out = document.getElementById('mtOut'), to = document.getElementById('mtTo');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var addr = (to.value || '').trim();
+      if (!addr) { to.focus(); return; }
+      btn.disabled = true; btn.textContent = 'Sending…';
+      out.style.display = 'block'; out.textContent = 'Running probe + send…';
+      fetch('/api/admin/mail-test', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': <?= json_encode(mam_csrf_token()) ?> },
+        body: JSON.stringify({ to: addr })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        btn.disabled = false; btn.textContent = 'Send test email';
+        var lines = [];
+        if (j.probe && j.probe.attempted) lines.push('PORT PROBE  ' + j.probe.target + '  →  ' + (j.probe.ok ? 'reachable ✓' : 'FAILED: ' + (j.probe.error || '?')));
+        lines.push('TRANSPORT   ' + (j.transport || '?') + (j.host ? ' via ' + j.host : ''));
+        lines.push('RESULT      ' + (j.sent ? 'SENT ✓ — check the inbox (and spam folder)' : 'FAILED: ' + (j.error || j.message || 'unknown')));
+        (j.steps || []).forEach(function (s) { lines.push('  step ' + s.step + '  ' + (s.ok ? 'ok' : 'FAIL') + '  ' + (s.reply || '')); });
+        if (!j.sent && j.readiness && j.readiness.issues && j.readiness.issues.length) lines.push('\nHINTS:\n- ' + j.readiness.issues.join('\n- '));
+        out.textContent = lines.join('\n');
+      }).catch(function (e) {
+        btn.disabled = false; btn.textContent = 'Send test email';
+        out.textContent = 'Request failed: ' + e;
+      });
+    });
+  })();
+  </script>
+
   <div class="card" style="max-width:760px">
     <p class="muted" style="margin:0 0 18px;line-height:1.6">
       These values are the live source of truth. The server charges from them at checkout, and the

@@ -146,11 +146,30 @@ function mam_send_via_phpmailer(string $to, string $subject, string $body, bool 
         }
         if ($enc === 'ssl')      $mail->SMTPSecure = 'ssl';
         elseif ($enc === 'tls')  $mail->SMTPSecure = 'tls';
-        else                     $mail->SMTPSecure = '';
+        else {
+            // Operator explicitly chose no TLS — also disable PHPMailer's
+            // opportunistic STARTTLS upgrade, which otherwise breaks plain
+            // port-25/2525 relays whose certs would fail verification.
+            $mail->SMTPSecure  = '';
+            $mail->SMTPAutoTLS = false;
+        }
+        // Shared-host reality: the relay's certificate is often issued for the
+        // server hostname (server123.host.com), not mail.yourdomain — peer-name
+        // verification then fails and NOTHING sends. Opt-in relaxation only,
+        // via MAIL_ALLOW_SELF_SIGNED=1 in api/.env; default stays strict.
+        if (in_array(strtolower((string)mam_env('MAIL_ALLOW_SELF_SIGNED', '0')), ['1', 'true', 'yes', 'on'], true)) {
+            $mail->SMTPOptions = ['ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true]];
+        }
         $mail->setFrom($from, $fromName);
         // Authenticated relays usually require the envelope sender to match the
-        // login — mirror the built-in client's behaviour.
-        if ($user !== '' && strpos($user, '@') !== false) $mail->Sender = $user;
+        // login — mirror the built-in client's behaviour. But ONLY when the
+        // username is a strictly valid address: many shared-host SMTP logins
+        // (user@host, cPanel system users) fail PHPMailer's validator, and an
+        // invalid Sender makes preSend() THROW and the whole email silently
+        // dies. Skipping it just lets the envelope fall back to From.
+        if ($user !== '' && strpos($user, '@') !== false && $mailClass::validateAddress($user)) {
+            $mail->Sender = $user;
+        }
         $mail->addAddress($to);
         if ($replyTo) $mail->addReplyTo($replyTo);
         foreach ($extraHeaders as $hk => $hv) { $mail->addCustomHeader($hk, $hv); }
@@ -217,7 +236,13 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
         // install / bundled vendor), otherwise the built-in SMTP client.
         // Both honour the same MAIL_* env and produce the same result shape.
         if (mam_phpmailer_available()) {
-            return mam_send_via_phpmailer($to, $subject, $body, $html, $from, $fromName, $replyTo, $extraHeaders, $attachments);
+            $r = mam_send_via_phpmailer($to, $subject, $body, $html, $from, $fromName, $replyTo, $extraHeaders, $attachments);
+            if ($r['ok']) return $r;
+            // PHPMailer failed (strict validation, TLS negotiation quirk, …).
+            // The built-in client is more forgiving of shared-host setups, so
+            // fall through and retry with it — a failed library must never be
+            // the reason an email dies when a working transport exists.
+            mam_log('warn', 'phpmailer_falling_back_to_builtin', ['error' => $r['error'] ?? null, 'to' => $to]);
         }
         // Retry-once-on-transient: 4xx replies are usually rate-limit or
         // greylisting and clear on a second attempt. 5xx is permanent —
@@ -308,7 +333,13 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
 
     $remote = ($encryption === 'ssl' ? 'ssl://' : '') . $host;
     $errno = 0; $errstr = '';
-    $ctx = stream_context_create(['ssl' => ['verify_peer' => true, 'verify_peer_name' => true, 'SNI_enabled' => true]]);
+    // Strict verification by default. MAIL_ALLOW_SELF_SIGNED=1 (api/.env)
+    // relaxes it for shared hosts whose relay cert is issued for the server
+    // hostname rather than mail.yourdomain — the classic cPanel mismatch.
+    $lax = in_array(strtolower((string)mam_env('MAIL_ALLOW_SELF_SIGNED', '0')), ['1', 'true', 'yes', 'on'], true);
+    $ctx = stream_context_create(['ssl' => $lax
+        ? ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true, 'SNI_enabled' => true]
+        : ['verify_peer' => true,  'verify_peer_name' => true,  'SNI_enabled' => true]]);
     $sock = @stream_socket_client("$remote:$port", $errno, $errstr, 20, STREAM_CLIENT_CONNECT, $ctx);
     if (!$sock) {
         mam_log('error', 'smtp_connect_failed', ['host' => $host, 'port' => $port, 'err' => $errstr]);
