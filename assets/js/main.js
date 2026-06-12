@@ -1007,6 +1007,28 @@
   // markup): an animated equalizer leading every section eyebrow, a sound-wave
   // band under the homepage hero, and aurora depth behind key sections.
   // ============================================================
+  // Build a real (amplitude-varying) audio waveform as an inline SVG: bars
+  // mirrored around a centre line, a smooth envelope that tapers to the edges
+  // (so the CSS edge-fade reads as intentional), and a gold vertical gradient.
+  // Deterministic — looks organic but renders identically every load.
+  function mamWaveformSVG() {
+    var N = 100, sp = 12, maxAmp = 28, W = N * sp, H = 76, cy = H / 2, bars = '';
+    for (var i = 0; i < N; i++) {
+      var t = i / (N - 1);
+      var env = Math.pow(Math.sin(Math.PI * t), 0.6);
+      var a = 0.5 + 0.5 * (0.55 * Math.sin(i * 0.5) + 0.30 * Math.sin(i * 1.3 + 1) + 0.15 * Math.sin(i * 2.7 + 2));
+      var h = Math.max(3, a * env * maxAmp * 2);
+      var x = i * sp + sp / 2;
+      bars += '<rect x="' + (x - 2.3).toFixed(1) + '" y="' + (cy - h / 2).toFixed(1) + '" width="4.6" height="' + h.toFixed(1) + '" rx="2.3" fill="url(#mamWf)"/>';
+    }
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" role="presentation">'
+      + '<defs><linearGradient id="mamWf" x1="0" y1="0" x2="0" y2="1">'
+      + '<stop offset="0" stop-color="#FDE9A8"/><stop offset="0.5" stop-color="#FCC647"/><stop offset="1" stop-color="#E8961F"/>'
+      + '</linearGradient></defs>'
+      + '<line x1="0" y1="' + cy + '" x2="' + W + '" y2="' + cy + '" stroke="rgba(232,201,160,0.16)" stroke-width="1"/>'
+      + bars + '</svg>';
+  }
+
   function initGraphics() {
     $$('.section-eyebrow').forEach(function (ey) {
       if (ey.querySelector('.eq')) return;
@@ -1019,6 +1041,7 @@
     if (hero && !document.querySelector('.wave-sep')) {
       var w = document.createElement('div');
       w.className = 'wave-sep'; w.setAttribute('aria-hidden', 'true');
+      w.innerHTML = mamWaveformSVG();
       hero.insertAdjacentElement('afterend', w);
     }
     ['schools', 'pathways', 'faculty-preview'].forEach(function (id) {
