@@ -176,15 +176,16 @@
   function renderCourses() {
     var courses = data.courses || [];
     var list = courses.length
-      ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Course</th><th>Level</th><th>Instructor</th><th>Status</th><th>Grade</th></tr></thead><tbody>'
+      ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Course</th><th>Level</th><th>Instructor</th><th>Status</th><th>Grade</th><th>Syllabus</th></tr></thead><tbody>'
         + courses.map(function (c) {
             return '<tr><td data-label="Course">' + P.escapeHtml(c.course_name)
               + (c.course_kind === 'core' ? ' <span class="pill" style="background:rgba(124,125,245,.18);color:#A5B4FC">Core</span>' : '') + '</td>'
               + '<td data-label="Level">' + P.escapeHtml(c.level_name || '—') + '</td>'
               + '<td data-label="Instructor">' + P.escapeHtml(c.instructor_name || 'To be assigned') + '</td>'
               + '<td data-label="Status">' + coursePill(c.status) + '</td>'
-              + '<td data-label="Grade">' + (c.grade ? P.escapeHtml(c.grade) + (c.outcome ? ' · ' + P.escapeHtml(c.outcome) : '') : '—') + '</td></tr>';
-          }).join('') + '</tbody></table></div>'
+              + '<td data-label="Grade">' + (c.grade ? P.escapeHtml(c.grade) + (c.outcome ? ' · ' + P.escapeHtml(c.outcome) : '') : '—') + '</td>'
+              + '<td data-label="Syllabus"><button type="button" class="btn btn-ghost co-btn" data-course="' + P.escapeHtml(c.course_code || '') + '" data-level="' + P.escapeHtml(c.level_code || '') + '" data-program="' + P.escapeHtml(c.program_code || '') + '" style="padding:5px 12px;font-size:0.78rem"><i class="fa-solid fa-calendar-week"></i> Weeks</button></td></tr>';
+          }).join('') + '</tbody></table></div><div id="courseOutline" style="margin-top:6px"></div>'
       : '<div class="panel-body">' + empty('layer-group', 'No courses yet. Add your first one below — Piano now, Voice or Theory later.') + '</div>';
 
     var certs = data.certificates || [];
@@ -254,6 +255,39 @@
             : (e2 === 'course_not_found' ? 'That course is unavailable.' : 'Could not add the course — please try again.');
         });
     });
+
+    // Per-course syllabus — fetch the week-by-week outline on demand.
+    content.querySelectorAll('.co-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var out = document.getElementById('courseOutline'); if (!out) return;
+        out.innerHTML = '<div class="empty-state" style="padding:18px"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading weeks…</div>';
+        var q = 'course=' + encodeURIComponent(btn.getAttribute('data-course') || '');
+        var lv = btn.getAttribute('data-level'); if (lv) q += '&level=' + encodeURIComponent(lv);
+        var pg = btn.getAttribute('data-program'); if (pg) q += '&program=' + encodeURIComponent(pg);
+        API.request('course/outline?' + q, { method: 'GET' })
+          .then(function (o) { out.innerHTML = outlineHtml(o); out.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); })
+          .catch(function () { out.innerHTML = '<div class="empty-state" style="padding:18px">Could not load the syllabus.</div>'; });
+      });
+    });
+  }
+  function outlineHtml(o) {
+    if (!o || !o.weeks) return '';
+    var tone = { module: '#7C7DF5', revision: '#1FBF8F', exam: '#F0436A' };
+    var label = { module: 'Module', revision: 'Revision', exam: 'Examination' };
+    var head = '<div style="padding:10px 4px 12px;font-weight:700;color:var(--text)">' + P.escapeHtml(o.course.name)
+      + (o.level ? ' <span style="color:var(--text-muted);font-weight:500">· ' + P.escapeHtml(o.level.name) + '</span>' : '')
+      + ' <span style="color:var(--text-muted);font-weight:500;font-size:0.85rem">— ' + o.weeks.length + '-week plan</span></div>';
+    var rows = o.weeks.map(function (w) {
+      var col = tone[w.kind] || tone.module;
+      return '<div style="display:flex;gap:13px;align-items:flex-start;padding:11px 13px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised);margin-bottom:8px">'
+        + '<div style="flex:0 0 40px;text-align:center"><div style="font-family:var(--font-display,inherit);font-size:1.35rem;line-height:1;color:var(--gold-bright)">' + w.week + '</div><div style="font-size:0.6rem;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase">wk</div></div>'
+        + '<div style="flex:1;min-width:0">'
+          + '<span style="display:inline-block;font-size:0.62rem;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;color:' + col + ';border:1px solid ' + col + '55;border-radius:100px;padding:2px 9px;margin-bottom:5px">' + (label[w.kind] || w.kind) + '</span>'
+          + '<div style="color:var(--text);font-weight:600;font-size:0.93rem">' + P.escapeHtml(w.title || ('Week ' + w.week)) + '</div>'
+          + (w.content ? '<div style="color:var(--text-muted);font-size:0.85rem;line-height:1.55;margin-top:3px">' + P.escapeHtml(w.content) + '</div>' : '')
+        + '</div></div>';
+    }).join('');
+    return '<section class="panel" style="margin-top:6px"><div style="padding:8px 18px 18px">' + head + rows + '</div></section>';
   }
   function renderPractice() {
     var ps = data.practice_stats || { streak: 0, weekMin: 0, total: 0, sessions: 0 };

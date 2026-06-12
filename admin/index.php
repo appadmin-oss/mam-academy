@@ -356,6 +356,45 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=courseenroll&ok=1'); exit;
     }
 
+    // ─── LMS course modules (curriculum authoring) ───────────────────
+    if (in_array($action, ['module_save', 'module_delete', 'module_scaffold'], true)) {
+        $courseCode  = (string)($_POST['course_code'] ?? '');
+        $levelCode   = (string)($_POST['level_code'] ?? '');
+        $programCode = (string)($_POST['program_code'] ?? '');
+        $back = '?v=modules' . ($courseCode !== '' ? '&course=' . urlencode($courseCode) : '')
+              . ($levelCode !== '' ? '&level=' . urlencode($levelCode) : '')
+              . ($programCode !== '' ? '&program=' . urlencode($programCode) : '');
+        $course   = $courseCode !== '' ? mam_db_row('SELECT id FROM courses WHERE code = ?', [$courseCode]) : null;
+        $courseId = $course ? (int)$course['id'] : 0;
+        $levelRow = $levelCode !== '' ? mam_db_row('SELECT id FROM levels WHERE code = ?', [$levelCode]) : null;
+        $levelId  = $levelRow ? (int)$levelRow['id'] : null;
+
+        if ($action === 'module_delete') {
+            $mid = (int)($_POST['module_id'] ?? 0);
+            if ($mid) mam_lms_delete_module($mid);
+            header('Location: ' . $back . '&ok=1'); exit;
+        }
+        if (!$courseId) { header('Location: ?v=modules&err=' . urlencode('Pick a course first.')); exit; }
+
+        if ($action === 'module_scaffold') {
+            $programRow = $programCode !== '' ? mam_db_row('SELECT id FROM programs WHERE code = ?', [$programCode]) : null;
+            $made = mam_lms_scaffold_modules($courseId, $levelId, $programRow ? (int)$programRow['id'] : null);
+            header('Location: ' . $back . '&made=' . $made); exit;
+        }
+        // module_save
+        $title = trim((string)($_POST['title'] ?? ''));
+        if ($title === '') { header('Location: ' . $back . '&err=' . urlencode('A title is required.')); exit; }
+        mam_lms_save_module(
+            (int)($_POST['module_id'] ?? 0) ?: null,
+            $courseId, $levelId,
+            (int)($_POST['week'] ?? 1),
+            (string)($_POST['kind'] ?? 'module'),
+            $title,
+            trim((string)($_POST['content'] ?? '')) ?: null
+        );
+        header('Location: ' . $back . '&ok=1'); exit;
+    }
+
     // ─── Store / Library CRUD ────────────────────────────────────────
     // Single dispatch covers create (id=0), update (id>0), soft-delete (delete=1).
     // We slug-ify the name client-side, but normalise + de-dupe here so two
@@ -822,6 +861,7 @@ button.tiny:hover{border-color:var(--gold)}
       'classes'      => 'Classes',
       'enrollments'  => 'Enrollments',
       'courseenroll' => 'Course Registrations',
+      'modules'      => 'Course Modules',
       'storeitems'   => 'Store / Library',
       'storeorders'  => 'Store Orders',
       'messages'     => 'Messages',
@@ -1413,6 +1453,93 @@ button.tiny:hover{border-color:var(--gold)}
       </tbody>
     </table>
   </div>
+
+<?php elseif ($view === 'modules'): ?>
+  <header class="top"><h1>Course Modules</h1></header>
+  <?php
+    $cat        = mam_lms_catalog();
+    $selCourse  = (string)($_GET['course'] ?? '');
+    $selLevel   = (string)($_GET['level'] ?? '');
+    $selProgram = (string)($_GET['program'] ?? '');
+    if (isset($_GET['made'])) echo '<div class="banner ok">Scaffolded ' . (int)$_GET['made'] . ' week(s).</div>';
+  ?>
+  <div class="card">
+    <h3>Choose a course to author</h3>
+    <form method="get" class="form-grid">
+      <input type="hidden" name="v" value="modules">
+      <label>Course
+        <select name="course" required onchange="this.form.submit()">
+          <option value="">— choose a course —</option>
+          <?php foreach ($cat['courses'] as $c): ?>
+            <option value="<?= htmlspecialchars($c['code']) ?>" <?= $c['code'] === $selCourse ? 'selected' : '' ?>><?= htmlspecialchars($c['name']) ?> · <?= htmlspecialchars($c['kind']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <label>Level
+        <select name="level" onchange="this.form.submit()">
+          <option value="">— level-agnostic —</option>
+          <?php foreach ($cat['levels'] as $l): ?>
+            <option value="<?= htmlspecialchars($l['code']) ?>" <?= $l['code'] === $selLevel ? 'selected' : '' ?>><?= htmlspecialchars($l['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <label>Programme frame
+        <select name="program" onchange="this.form.submit()">
+          <option value="">12-week (default)</option>
+          <?php foreach ($cat['programs'] as $p): ?>
+            <option value="<?= htmlspecialchars($p['code']) ?>" <?= $p['code'] === $selProgram ? 'selected' : '' ?>><?= htmlspecialchars($p['name']) ?> · <?= (int)$p['weeks'] ?>wk</option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+    </form>
+  </div>
+  <?php
+  if ($selCourse !== ''):
+    $outline = mam_lms_course_outline($selCourse, $selLevel ?: null, $selProgram ?: null);
+    if (!$outline): ?>
+      <div class="card"><div class="empty" style="padding:20px">Course not found.</div></div>
+    <?php else:
+      $hid = '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($csrf) . '">'
+           . '<input type="hidden" name="course_code" value="' . htmlspecialchars($selCourse) . '">'
+           . '<input type="hidden" name="level_code" value="' . htmlspecialchars($selLevel) . '">'
+           . '<input type="hidden" name="program_code" value="' . htmlspecialchars($selProgram) . '">';
+    ?>
+      <div class="card">
+        <h3><?= htmlspecialchars($outline['course']['name']) ?><?= $outline['level'] ? ' · ' . htmlspecialchars($outline['level']['name']) : '' ?>
+          <span class="muted" style="font-weight:400;font-size:0.8rem">— <?= count($outline['weeks']) ?>-week plan<?= $outline['program'] ? ' (' . htmlspecialchars($outline['program']['name']) . ')' : '' ?></span></h3>
+        <div style="padding:0 20px 16px">
+          <form method="post" class="inline"><?= $hid ?><input type="hidden" name="action" value="module_scaffold"><button class="btn" type="submit">⚙ Scaffold missing weeks</button></form>
+          <span class="muted" style="margin-left:12px;font-size:0.82rem">Creates a placeholder row for every week (modules · revision · exam).</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding:0 20px 20px">
+        <?php foreach ($outline['weeks'] as $wk): ?>
+          <form method="post" style="display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--bg)">
+            <?= $hid ?>
+            <input type="hidden" name="action" value="module_save">
+            <input type="hidden" name="module_id" value="<?= (int)($wk['id'] ?? 0) ?>">
+            <div style="text-align:center;flex:0 0 46px">
+              <div class="muted" style="font-size:0.66rem;letter-spacing:0.1em;text-transform:uppercase">Week</div>
+              <input type="number" name="week" value="<?= (int)$wk['week'] ?>" min="1" class="tiny" style="width:46px;text-align:center">
+            </div>
+            <select name="kind" class="tiny" style="flex:0 0 100px;align-self:center">
+              <?php foreach (['module', 'revision', 'exam'] as $k): ?><option value="<?= $k ?>" <?= $k === $wk['kind'] ? 'selected' : '' ?>><?= $k ?></option><?php endforeach; ?>
+            </select>
+            <div style="flex:1;min-width:0">
+              <input name="title" value="<?= htmlspecialchars((string)($wk['title'] ?? '')) ?>" placeholder="<?= $wk['kind'] === 'exam' ? 'Final Examination' : ($wk['kind'] === 'revision' ? 'Revision week' : 'Week ' . $wk['week'] . ' — module title') ?>" style="width:100%;margin-bottom:6px">
+              <textarea name="content" rows="2" placeholder="What this week covers (optional)" style="width:100%;resize:vertical"><?= htmlspecialchars((string)($wk['content'] ?? '')) ?></textarea>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;align-self:center">
+              <button class="tiny" type="submit">Save</button>
+            </div>
+        </form>
+        <?php if (!empty($wk['id'])): ?>
+          <form method="post" style="margin-top:-4px;text-align:right;padding-right:4px"><?= $hid ?><input type="hidden" name="action" value="module_delete"><input type="hidden" name="module_id" value="<?= (int)$wk['id'] ?>"><button class="tiny" type="submit" style="background:transparent;color:var(--muted);border:0;cursor:pointer;font-size:0.74rem">✕ remove week <?= (int)$wk['week'] ?></button></form>
+        <?php endif; ?>
+        <?php endforeach; ?>
+        </div>
+      </div>
+    <?php endif; ?>
+  <?php endif; ?>
 
 <?php elseif ($view === 'messages'): ?>
   <header class="top"><h1>Contact Messages</h1><a class="btn ghost" href="?v=export&type=messages.csv">⬇ Export</a></header>

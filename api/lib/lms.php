@@ -300,3 +300,112 @@ function mam_lms_certificate(string $reference): ?array {
         [$reference]
     );
 }
+
+/* ──────────────────────── Modules / weekly content ───────────────────────
+   A programme's shape is data (programs.weeks / revision_week / exam_week), so
+   a 12-week course runs wk 1–10 modules · wk 11 revision · wk 12 exam, while a
+   6-week crash runs wk 1–5 modules · wk 6 exam — no code change. Modules are
+   authored per course+level; the outline frames them with the programme plan. */
+
+/** Canonical week plan for a programme: [['week'=>1,'kind'=>'module'], …].
+ *  Defaults to a 12-week shape when no programme is given. */
+function mam_lms_program_week_plan(?int $programId): array {
+    $weeks = 12; $rev = 11; $exam = 12;
+    if ($programId) {
+        $p = mam_db_row('SELECT weeks, revision_week, exam_week FROM programs WHERE id = ?', [$programId]);
+        if ($p) {
+            $weeks = max(1, (int)$p['weeks']);
+            $rev   = $p['revision_week'] !== null ? (int)$p['revision_week'] : null;
+            $exam  = $p['exam_week'] !== null ? (int)$p['exam_week'] : $weeks;
+        }
+    }
+    $plan = [];
+    for ($w = 1; $w <= $weeks; $w++) {
+        $kind = 'module';
+        if ($w === $exam) $kind = 'exam';
+        elseif ($rev !== null && $w === $rev) $kind = 'revision';
+        $plan[] = ['week' => $w, 'kind' => $kind];
+    }
+    return $plan;
+}
+
+/** Authored module rows for a course at a level (level_id NULL = level-agnostic). */
+function mam_lms_course_modules(int $courseId, ?int $levelId): array {
+    if ($levelId !== null) {
+        return mam_db_all('SELECT id, week, title, kind, content FROM modules WHERE course_id = ? AND level_id = ? ORDER BY week', [$courseId, $levelId]);
+    }
+    return mam_db_all('SELECT id, week, title, kind, content FROM modules WHERE course_id = ? AND level_id IS NULL ORDER BY week', [$courseId]);
+}
+
+/** Full week-by-week outline for a course (at a level, within a programme):
+ *  the programme plan merged with any authored module title/content. */
+function mam_lms_course_outline(string $courseCode, ?string $levelCode = null, ?string $programCode = null): ?array {
+    $course = mam_db_row('SELECT id, code, name FROM courses WHERE code = ? AND active = 1', [$courseCode]);
+    if (!$course) return null;
+
+    $level = $levelCode ? mam_db_row('SELECT id, name, trinity_grades FROM levels WHERE code = ?', [$levelCode]) : null;
+    $levelId = $level ? (int)$level['id'] : null;
+    $program = $programCode ? mam_db_row('SELECT id, name, weeks FROM programs WHERE code = ?', [$programCode]) : null;
+    $programId = $program ? (int)$program['id'] : null;
+
+    $authored = [];
+    foreach (mam_lms_course_modules((int)$course['id'], $levelId) as $m) $authored[(int)$m['week']] = $m;
+
+    $plan = mam_lms_program_week_plan($programId);
+    $weeks = [];
+    foreach ($plan as $p) {
+        $a = $authored[$p['week']] ?? null;
+        $weeks[] = [
+            'week'     => $p['week'],
+            'kind'     => $a['kind'] ?? $p['kind'],
+            'title'    => $a['title'] ?? null,
+            'content'  => $a['content'] ?? null,
+            'authored' => $a !== null,
+            'id'       => $a !== null ? (int)$a['id'] : null,
+        ];
+        unset($authored[$p['week']]);
+    }
+    // Defensive: surface any authored weeks beyond the plan length.
+    foreach ($authored as $w => $a) {
+        $weeks[] = ['week' => (int)$w, 'kind' => $a['kind'], 'title' => $a['title'], 'content' => $a['content'], 'authored' => true, 'id' => (int)$a['id']];
+    }
+    usort($weeks, fn ($x, $y) => $x['week'] <=> $y['week']);
+
+    return [
+        'course'  => ['code' => $course['code'], 'name' => $course['name']],
+        'level'   => $level ? ['code' => $levelCode, 'name' => $level['name'], 'trinity_grades' => $level['trinity_grades']] : null,
+        'program' => $program ? ['code' => $programCode, 'name' => $program['name'], 'weeks' => (int)$program['weeks']] : null,
+        'weeks'   => $weeks,
+    ];
+}
+
+/** Create or update a module row (admin authoring). Returns the row id. */
+function mam_lms_save_module(?int $id, int $courseId, ?int $levelId, int $week, string $kind, string $title, ?string $content): int {
+    if (!in_array($kind, ['module', 'revision', 'exam'], true)) $kind = 'module';
+    $data = ['course_id' => $courseId, 'level_id' => $levelId, 'week' => max(1, $week), 'kind' => $kind, 'title' => $title, 'content' => $content];
+    if ($id) { mam_db_update('modules', $data, ['id' => $id]); return $id; }
+    $newId = mam_db_insert('modules', $data);
+    mam_audit('lms_module_save', 'module', $newId, ['course' => $courseId, 'week' => $week]);
+    return $newId;
+}
+
+function mam_lms_delete_module(int $id): void {
+    mam_db()->prepare('DELETE FROM modules WHERE id = ?')->execute([$id]);
+    mam_audit('lms_module_delete', 'module', $id, []);
+}
+
+/** Create the missing week rows for a course+level per the programme plan.
+ *  Returns how many were created. Lets an admin scaffold a syllabus in a click. */
+function mam_lms_scaffold_modules(int $courseId, ?int $levelId, ?int $programId): int {
+    $have = [];
+    foreach (mam_lms_course_modules($courseId, $levelId) as $m) $have[(int)$m['week']] = true;
+    $n = 0;
+    foreach (mam_lms_program_week_plan($programId) as $p) {
+        if (isset($have[$p['week']])) continue;
+        $title = $p['kind'] === 'exam' ? 'Final Examination' : ($p['kind'] === 'revision' ? 'Revision' : 'Week ' . $p['week']);
+        mam_db_insert('modules', ['course_id' => $courseId, 'level_id' => $levelId, 'week' => $p['week'], 'kind' => $p['kind'], 'title' => $title, 'content' => null]);
+        $n++;
+    }
+    if ($n) mam_audit('lms_module_scaffold', 'course', $courseId, ['created' => $n]);
+    return $n;
+}

@@ -45,6 +45,8 @@ $r->get('/session/current', $f('session-current.php'), [mw_rate_limit('session_c
 // Public academic catalogue (programmes, levels, courses) — drives the apply
 // flow and the student "add a course" picker.
 $r->get('/courses', $f('courses.php'), [mw_rate_limit('courses', 120, 60)]);
+// Course week-by-week outline (programme plan + authored modules).
+$r->get('/course/outline', $f('course-outline.php'), [mw_rate_limit('course_outline', 120, 60)]);
 
 // Web-viewable invoice + signed policy. Replace the .html attachments that
 // most mail clients render as source code with proper standalone pages
