@@ -52,7 +52,7 @@
 }
 
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-html{font-size:16px;scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;-webkit-tap-highlight-color:transparent;scroll-padding-top:calc(var(--nav-h) + 28px)}
+html{font-size:16px;scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;-webkit-tap-highlight-color:transparent;scroll-padding-top:calc(var(--nav-h) + 28px);overflow-x:clip}
 body{font-family:var(--font-body),"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla","EmojiOne Color",sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden;min-height:100vh;min-height:100dvh}
 /* Warm, soft ambient light so the page reads candlelit rather than black */
 body::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:
@@ -317,7 +317,7 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
 /* The flanking gold lines were a redundant divider once the equalizer motif
    leads each eyebrow — hide them for a cleaner, single-accent label. */
 .section-eyebrow .line{display:none}
-.section-title{font-family:var(--font-serif);font-size:clamp(2rem,5vw,3.4rem);font-weight:700;line-height:1.1;letter-spacing:-0.02em;margin-bottom:18px;color:var(--text)}
+.section-title{font-family:var(--font-serif);font-size:clamp(2rem,5vw,3.4rem);font-weight:700;line-height:1.1;letter-spacing:-0.02em;margin-bottom:18px;color:var(--text);text-wrap:balance}
 
 /* Programme-structure detail cards (pathways "How the programmes work") */
 .struct-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}

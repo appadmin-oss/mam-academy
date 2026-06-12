@@ -1047,6 +1047,15 @@
     ['schools', 'pathways', 'faculty-preview'].forEach(function (id) {
       var s = document.getElementById(id); if (s) s.classList.add('aurora');
     });
+    // Perf: below-the-fold images load lazily (skip anything in the hero or
+    // nav, which must paint immediately).
+    var vh = window.innerHeight || 800;
+    $$('img:not([loading])').forEach(function (img) {
+      if (img.closest('#hero, #navbar, .page-hero, .mobile-menu')) return;
+      if (img.getBoundingClientRect().top < vh * 1.5) return;
+      img.setAttribute('loading', 'lazy');
+      img.setAttribute('decoding', 'async');
+    });
   }
 
   function boot() {
