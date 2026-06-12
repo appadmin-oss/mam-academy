@@ -47,6 +47,17 @@
     });
   });
 
+  // Deep links: /studio#tuner, /studio#pitchgame … open that tab directly
+  // (the student portal links into specific tools this way).
+  function openToolFromHash() {
+    var key = (location.hash || '').replace('#', '');
+    if (!key) return;
+    var btn = $$('.tools-tabs button').filter(function (b) { return b.getAttribute('data-tool') === key; })[0];
+    if (btn) btn.click();
+  }
+  openToolFromHash();
+  window.addEventListener('hashchange', openToolFromHash);
+
   // ──────────────────────────────────────────────────────────────────
   // METRONOME — scheduled clicks via AudioBufferSourceNode, accent on 1.
   // Uses the "Chris Wilson scheduler" pattern: a setInterval lookahead

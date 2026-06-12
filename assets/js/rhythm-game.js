@@ -1,106 +1,138 @@
 /* ============================================================
    MAM Academy — Rhythm Tap  ·  window.MAM_RHYTHM
    ------------------------------------------------------------
-   A rhythm-reading tap game in the style of the reference clip: a cream board,
-   a grid of note-value cards that light up in time at a fixed BPM, levels of
-   increasing difficulty, and a metronome. Two modes:
+   Student-portal-exclusive rhythm-reading game (portal → Games tab).
 
-     • Listen — the board plays the rhythm for you (cards light + click on each
-       note onset) so you learn it.
-     • Play   — a 4-beat count-in, then you TAP each card's rhythm in time; cards
-       fill with colour by how tightly you hit the onsets; weighted timing score.
-
-   Original implementation: rhythm patterns + simplified SVG notation are
-   generic music theory (no songs/lyrics/art). Reuses window.MAM.audio() for a
-   single shared, low-latency click; no samples to host.
+   Notation   Real engraved music-font glyphs (Noto Music, falling back
+              to the system music-symbol fonts) from the Unicode Musical
+              Symbols block — no hand-drawn shapes.
+   Accuracy   Everything runs on the AudioContext clock. Taps are
+              compensated for the device's reported output latency and
+              matched to the nearest expected onset ACROSS card
+              boundaries, so an early tap on a downbeat is never punished
+              twice. Per-tap feedback reports Perfect / Early / Late with
+              the offset in milliseconds and the counting syllable it
+              belongs to.
+   Thinking   The 4-beat count-in asks the student to audiate ("think the
+              rhythm") before tapping; a live counting line spells each
+              card aloud ("1 e & a"); after a run a coach insight analyses
+              rush/drag tendency and the figure that needs work, closing
+              with a reflective question for the next attempt.
+   Audio      Each run plays through its own gain bus and tracks every
+              scheduled source, so Stop is instant — nothing keeps
+              clicking after the board stops.
+   Scores     Logged via window.MAM_STUDIO.logScore so personal bests
+              persist per signed-in student.
    ============================================================ */
 (function () {
   'use strict';
 
-  // Onsets are positions within ONE beat (0 = downbeat … 1 = next beat).
-  var PAT = {
-    q:    { onsets: [0],                 glyph: 'quarter'    }, // ♩
-    ee:   { onsets: [0, 0.5],            glyph: 'eighths'    }, // ♫
-    ssss: { onsets: [0, .25, .5, .75],   glyph: 'sixteenths' }, // ♬♬
-    des:  { onsets: [0, 0.75],           glyph: 'dotted'     }, // ♩.♪ feel
-    res:  { onsets: [0.5],               glyph: 'rest_eighth'}, // 𝄾♪
-    qr:   { onsets: [],                  glyph: 'rest'       }  // 𝄽 (don't tap)
+  /* ── Notation glyphs — real music-font codepoints ── */
+  var GL = {
+    quarter:     '\uD834\uDD5F',  /* 𝅘𝅥  U+1D15F quarter note */
+    eighths:     '\u266B',  /* ♫  U+266B beamed eighth pair */
+    sixteenths:  '\u266C\u266C',  /* ♬♬ U+266C ×2 — four sixteenths */
+    dotted:      '\uD834\uDD60\uD834\uDD6D\u2009\uD834\uDD61',  /* 𝅘𝅥𝅮𝅭 𝅘𝅥𝅯 dotted eighth + sixteenth */
+    restEighth:  '\uD834\uDD3E\u2009\uD834\uDD60',  /* 𝄾 𝅘𝅥𝅮 eighth rest + eighth note */
+    restQuarter: '\uD834\uDD3D',  /* 𝄽  U+1D13D quarter rest */
+    bpmNote:     '\u2669'  /* ♩  metronome mark */
   };
+
+  /* Onsets are positions within ONE beat (0 = downbeat … 1 = next beat).
+     `count` is how the figure is spoken; `tip` is the coach line used in
+     the post-run insight when this figure scores lowest. */
+  var PAT = {
+    q:    { onsets: [0],                glyph: GL.quarter,     small: 0, name: 'Quarter note',                 count: '1',       tip: 'Land exactly with the click — one full, settled beat.' },
+    ee:   { onsets: [0, 0.5],           glyph: GL.eighths,     small: 0, name: 'Two eighth notes',             count: '1 &',     tip: 'Split the beat exactly in half — say “1 &” out loud.' },
+    ssss: { onsets: [0, .25, .5, .75],  glyph: GL.sixteenths,  small: 1, name: 'Four sixteenth notes',         count: '1 e & a', tip: 'Four even taps per beat — “1 e & a”, hand relaxed.' },
+    des:  { onsets: [0, 0.75],          glyph: GL.dotted,      small: 1, name: 'Dotted eighth then sixteenth', count: '1 … a', tip: 'Long–short: hold the dot, the sixteenth lands on the late “a”.' },
+    res:  { onsets: [0.5],              glyph: GL.restEighth,  small: 1, name: 'Eighth rest then eighth note', count: '(1) &',   tip: 'Silence first — feel the downbeat, tap only the “&”.' },
+    qr:   { onsets: [],                 glyph: GL.restQuarter, small: 0, name: 'Quarter rest — stay silent',   count: '(rest)',  tip: 'A rest is music too — stay perfectly still for the whole beat.' }
+  };
+  var SYL = { '0': 'the downbeat', '0.25': 'the “e”', '0.5': 'the “&”', '0.75': 'the “a”' };
+
   var LEVELS = [
-    { name: 'Level 1', bpm: 92,  cards: ['q','ee','q','ee','q','q','ee','q','ee','q','q','ee'] },
-    { name: 'Level 2', bpm: 100, cards: ['q','ee','ssss','ee','res','ee','res','q','ssss','q','qr','ee'] },
-    { name: 'Level 3', bpm: 104, cards: ['ee','des','ssss','ee','res','q','des','ssss','qr','ee','des','q'] },
-    { name: 'Level 4', bpm: 112, cards: ['ssss','des','ee','ssss','res','ee','des','ssss','des','ee','ssss','des','ee','qr'] }
+    { name: 'Level 1', focus: 'Quarters & eighths',  bpm: 92,  cards: ['q','ee','q','ee','q','q','ee','q','ee','q','q','ee'] },
+    { name: 'Level 2', focus: 'Sixteenths & rests',  bpm: 100, cards: ['q','ee','ssss','ee','res','ee','res','q','ssss','q','qr','ee'] },
+    { name: 'Level 3', focus: 'Dotted figures',      bpm: 104, cards: ['ee','des','ssss','ee','res','q','des','ssss','qr','ee','des','q'] },
+    { name: 'Level 4', focus: 'Syncopation & speed', bpm: 112, cards: ['ssss','des','ee','ssss','res','ee','des','ssss','des','ee','ssss','des','ee','qr'] }
   ];
   var COLORS = ['#F4577E', '#5B9BE8', '#F2B632', '#C44DD6', '#42C58B', '#FF8A4C'];
-  var HIT_TOL = 0.18; // fraction of a beat that still counts as on-time
+  var HIT_TOL = 0.18;   // fraction of a beat that still counts as on-time
+  var PERFECT = 0.07;   // fraction of a beat rated "Perfect"
 
-  var root, dom = {}, level = LEVELS[0], state = 'idle';
-  var raf = null, t0 = 0, beat = 0.6, cardTaps = [], cardDone = [], curCard = -1, mode = 'play';
+  var root, dom = {}, level = LEVELS[0], state = 'idle', mode = 'play';
+  var raf = null, t0 = 0, beat = 0.6, curCard = -1;
+  var bus = null, srcs = [], onsets = [], strays = [], cardDone = [];
 
   function ac() { return (window.MAM && window.MAM.audio) ? window.MAM.audio() : (window.__rgAC || (window.__rgAC = new (window.AudioContext || window.webkitAudioContext)())); }
+  /* The click the student hears arrives outputLatency seconds after its
+     scheduled time, so their tap (read on the context clock) measures late
+     by exactly that amount — subtract it for honest scoring. */
+  function latency(a) { return a.outputLatency || a.baseLatency || 0; }
 
-  /* ── Click / tone synthesis (shared context) ── */
+  /* ── Click / tone synthesis — every node goes through the run bus and is
+        tracked, so Stop can silence + cancel the whole schedule. ── */
+  function out(a) { return bus || a.destination; }
+  function track(o) { srcs.push(o); return o; }
   function click(when, accent) {
-    var a = ac(), o = a.createOscillator(), g = a.createGain();
+    var a = ac(), o = track(a.createOscillator()), g = a.createGain();
     o.type = 'square'; o.frequency.value = accent ? 2000 : 1400;
     g.gain.setValueAtTime(accent ? 0.22 : 0.12, when);
     g.gain.exponentialRampToValueAtTime(0.0001, when + 0.05);
-    o.connect(g).connect(a.destination); o.start(when); o.stop(when + 0.06);
+    o.connect(g).connect(out(a)); o.start(when); o.stop(when + 0.06);
   }
   function blip(when, freq) {
-    var a = ac(), o = a.createOscillator(), g = a.createGain();
+    var a = ac(), o = track(a.createOscillator()), g = a.createGain();
     o.type = 'triangle'; o.frequency.value = freq || 660;
     g.gain.setValueAtTime(0.0001, when); g.gain.exponentialRampToValueAtTime(0.2, when + 0.008);
     g.gain.exponentialRampToValueAtTime(0.0001, when + 0.14);
-    o.connect(g).connect(a.destination); o.start(when); o.stop(when + 0.16);
+    o.connect(g).connect(out(a)); o.start(when); o.stop(when + 0.16);
   }
-
-  /* ════════════════════ Notation glyphs (simplified SVG) ════════════════════ */
-  function glyph(type) {
-    var ink = '#2B2B33', s = '<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">';
-    function head(x, y) { return '<ellipse cx="' + x + '" cy="' + y + '" rx="9" ry="6.6" transform="rotate(-20 ' + x + ' ' + y + ')" fill="' + ink + '"/>'; }
-    function stem(x) { return '<rect x="' + (x + 7.4) + '" y="22" width="2.6" height="34" fill="' + ink + '"/>'; }
-    function flagBeam(x1, x2, y, h) { return '<rect x="' + (x1 + 7.4) + '" y="' + y + '" width="' + (x2 - x1) + '" height="' + (h || 4.5) + '" fill="' + ink + '"/>'; }
-    function rest() { // stylised quarter rest
-      return '<path d="M40 24 q9 6 2 13 q-8 6 1 13 q-9 -4 -3 -12 q7 -6 -1 -12 z" fill="' + ink + '"/>';
-    }
-    function eighthRest() { return '<g><circle cx="36" cy="34" r="4.2" fill="' + ink + '"/><rect x="38.5" y="33" width="2.4" height="20" transform="rotate(18 39 43)" fill="' + ink + '"/></g>'; }
-    var g = '';
-    if (type === 'quarter') { g = head(32, 50) + stem(32); }
-    else if (type === 'eighths') { g = head(20, 52) + stem(20) + head(46, 52) + stem(46) + flagBeam(20, 46, 22, 5); }
-    else if (type === 'sixteenths') { g = head(13, 54) + stem(13) + head(31, 54) + stem(31) + head(49, 54) + stem(49) + head(60, 54) + stem(60) + flagBeam(13, 60, 22, 4) + flagBeam(13, 60, 28, 4); }
-    else if (type === 'dotted') { g = head(22, 52) + stem(22) + '<circle cx="36" cy="50" r="3" fill="' + ink + '"/>' + head(50, 52) + stem(50) + flagBeam(22, 50, 22, 5) + flagBeam(40, 50, 28, 4); }
-    else if (type === 'rest_eighth') { g = eighthRest() + head(54, 52) + stem(54); }
-    else if (type === 'rest') { g = rest(); }
-    return s + g + '</svg>';
+  function killAudio() {
+    srcs.forEach(function (s) { try { s.stop(0); } catch (e) {} });
+    srcs = [];
+    if (bus) { try { bus.disconnect(); } catch (e) {} bus = null; }
   }
 
   /* ════════════════════ Board ════════════════════ */
   function buildBoard() {
     var cards = level.cards.map(function (id, i) {
-      return '<button class="rg-card" data-i="' + i + '" type="button" aria-label="Card ' + (i + 1) + '">' + glyph(PAT[id].glyph) + '</button>';
+      var p = PAT[id];
+      return '<button class="rg-card" data-i="' + i + '" type="button" aria-label="Card ' + (i + 1) + ': ' + p.name + '">'
+        + '<span class="rg-note' + (p.small ? ' sm' : '') + '" aria-hidden="true">' + p.glyph + '</span></button>';
     }).join('');
     dom.title.textContent = level.name;
-    dom.bpm.textContent = '♩ = ' + level.bpm + ' BPM';
+    dom.sub.textContent = 'Rhythm Tap · ' + level.focus;
+    dom.bpm.innerHTML = '<span class="rg-mus">' + GL.bpmNote + '</span> = ' + level.bpm + ' BPM';
     dom.grid.innerHTML = cards;
     cardDone = level.cards.map(function () { return null; });
-    cardTaps = level.cards.map(function () { return []; });
+    onsets = []; strays = [];
     curCard = -1;
+    countLine();
     paint();
   }
   function paint() {
     var els = dom.grid.querySelectorAll('.rg-card');
     els.forEach(function (el, i) {
       el.classList.toggle('rg-cur', i === curCard && state !== 'idle');
-      el.classList.remove('rg-c0', 'rg-c1', 'rg-c2', 'rg-c3', 'rg-c4', 'rg-c5', 'rg-miss', 'rg-ok');
+      el.classList.remove('rg-miss', 'rg-ok');
       var d = cardDone[i];
       if (d != null) {
-        if (d.acc >= 0.85) el.style.setProperty('--rg-fill', d.color), el.classList.add('rg-ok');
-        else if (d.acc >= 0.5) el.classList.add('rg-ok'), el.style.setProperty('--rg-fill', '#F2B632');
-        else el.classList.add('rg-miss'), el.style.removeProperty('--rg-fill');
+        if (d.acc >= 0.85) { el.style.setProperty('--rg-fill', d.color); el.classList.add('rg-ok'); }
+        else if (d.acc >= 0.5) { el.classList.add('rg-ok'); el.style.setProperty('--rg-fill', '#F2B632'); }
+        else { el.classList.add('rg-miss'); el.style.removeProperty('--rg-fill'); }
       } else { el.style.removeProperty('--rg-fill'); }
     });
+  }
+  function pulse(k) {
+    var el = dom.grid.querySelector('.rg-card[data-i="' + k + '"]');
+    if (el) { el.classList.remove('rg-pulse'); void el.offsetWidth; el.classList.add('rg-pulse'); }
+  }
+  function countLine() {
+    if (!dom.countline) return;
+    var id = level.cards[curCard];
+    dom.countline.textContent = (state !== 'idle' && id) ? 'Say it: “' + PAT[id].count + '”' : '';
   }
 
   /* ════════════════════ Timeline + loop ════════════════════ */
@@ -110,105 +142,227 @@
     buildBoard();
     state = mode;
     beat = 60 / level.bpm;
-    var a = ac(), base = a.currentTime + 0.18;
+    var a = ac();
+    bus = a.createGain(); bus.gain.value = 1; bus.connect(a.destination);
+    var base = a.currentTime + 0.18;
     // 4-beat count-in
     for (var i = 0; i < 4; i++) click(base + i * beat, i === 0);
     t0 = base + 4 * beat; // first card downbeat
-    // Listen mode: pre-schedule the clicks for every onset so it plays itself.
+    // Expected onsets on an absolute beat timeline (card k, onset o → k + o).
+    level.cards.forEach(function (id, k) {
+      PAT[id].onsets.forEach(function (on) { onsets.push({ t: k + on, card: k, hit: null }); });
+    });
     if (mode === 'listen') {
+      // Listen mode: pre-schedule a blip for every onset so it plays itself.
       level.cards.forEach(function (id, k) {
         PAT[id].onsets.forEach(function (on, j) { blip(t0 + k * beat + on * beat, 560 + j * 90); });
         click(t0 + k * beat, k % 4 === 0);
       });
     } else {
-      // Play mode still ticks the pulse so the student feels the beat.
+      // Play mode keeps the pulse ticking so the student feels the beat.
       for (var b = 0; b < level.cards.length; b++) click(t0 + b * beat, b % 4 === 0);
     }
-    setStatus(mode === 'listen' ? 'Listen — watch the cards light up in time.' : 'Tap each card’s rhythm as it lights up. Count-in first…');
+    setStatus(mode === 'listen'
+      ? 'Listen — follow the cards and hear how each figure sits inside the beat.'
+      : 'Count-in first: think the rhythm in your head, then tap what you read — eyes one card ahead.');
     dom.start.classList.toggle('rg-on', mode === 'play');
+    if (dom.start) dom.start.blur();
     cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
   }
+
   function loop() {
     if (state === 'idle') return;
     // The portal re-renders tab content — if our board left the DOM, stop.
     if (!document.body.contains(root)) { stopRun(true); return; }
     raf = requestAnimationFrame(loop);
-    var elapsed = ac().currentTime - t0;
-    var idx = Math.floor(elapsed / beat);
-    if (idx !== curCard) {
-      // a card just ended → finalize it (play mode)
-      if (mode === 'play' && curCard >= 0 && curCard < level.cards.length && cardDone[curCard] == null) finalizeCard(curCard);
-      if (mode === 'listen' && curCard >= 0 && curCard < level.cards.length) cardDone[curCard] = { acc: 1, color: COLORS[curCard % COLORS.length] };
-      curCard = idx; paint();
+    var pos = (ac().currentTime - t0) / beat; // absolute position in beats
+    // Count-in overlay: big 1·2·3·4 with an audiation prompt.
+    if (pos < 0) {
+      var n = Math.max(1, Math.min(4, Math.floor(pos) + 5));
+      if (dom.count.getAttribute('data-n') !== String(n)) {
+        dom.count.setAttribute('data-n', n);
+        dom.count.innerHTML = '<b>' + n + '</b><span>' + (mode === 'play' ? 'think the rhythm…' : 'listen…') + '</span>';
+      }
+      dom.count.classList.add('on');
+    } else if (dom.count.classList.contains('on')) {
+      dom.count.classList.remove('on'); dom.count.removeAttribute('data-n');
     }
-    if (elapsed >= level.cards.length * beat + 0.05) { endRun(); return; }
+    var changed = false;
+    // A card is only judged once its full tolerance window has passed, so an
+    // early tap for the NEXT downbeat is never trapped in the wrong card.
+    if (mode === 'play') {
+      for (var k = 0; k < level.cards.length; k++) {
+        if (cardDone[k] != null) continue;
+        if (pos > k + 1 + HIT_TOL) { finalizeCard(k); changed = true; } else break;
+      }
+    }
+    var idx = Math.floor(pos);
+    if (idx !== curCard) {
+      if (mode === 'listen' && curCard >= 0 && curCard < level.cards.length) cardDone[curCard] = { acc: 1, color: COLORS[curCard % COLORS.length] };
+      curCard = idx; changed = true; countLine();
+    }
+    if (changed) paint();
+    if (pos >= level.cards.length + HIT_TOL + 0.1) { endRun(); return; }
   }
+
+  /* Score one card from globally matched onsets + stray taps inside it. */
   function finalizeCard(k) {
-    var pat = PAT[level.cards[k]], E = pat.onsets, T = cardTaps[k] || [];
+    var E = onsets.filter(function (o) { return o.card === k; });
+    var extra = strays.filter(function (s) { return s >= k && s < k + 1; }).length;
     var acc;
-    if (E.length === 0) { acc = T.length === 0 ? 1 : Math.max(0, 1 - T.length * 0.5); } // rest: don't tap
+    if (!E.length) acc = Math.max(0, 1 - extra * 0.5);             // rest card: don't tap
     else {
-      var used = [], matched = 0;
-      E.forEach(function (e) {
-        var bi = -1, bd = 1e9;
-        T.forEach(function (t, ti) { if (used[ti]) return; var dd = Math.abs(t - e); if (dd < bd) { bd = dd; bi = ti; } });
-        if (bi >= 0 && bd <= HIT_TOL) { used[bi] = 1; matched += (1 - bd / HIT_TOL) * 0.4 + 0.6; }
-      });
-      var extra = T.length - used.filter(Boolean).length;
-      acc = Math.max(0, (matched - extra * 0.4) / E.length);
+      var sum = 0;
+      E.forEach(function (o) { if (o.hit) sum += o.hit.q; });
+      acc = Math.max(0, (sum - extra * 0.4) / E.length);
     }
     cardDone[k] = { acc: acc, color: COLORS[k % COLORS.length] };
   }
+
   function endRun() {
-    if (mode === 'play' && curCard >= 0 && cardDone[curCard] == null && curCard < level.cards.length) finalizeCard(curCard);
+    if (mode === 'play') for (var k = 0; k < level.cards.length; k++) if (cardDone[k] == null) finalizeCard(k);
+    if (mode === 'listen') for (var j = 0; j < level.cards.length; j++) if (cardDone[j] == null) cardDone[j] = { acc: 1, color: COLORS[j % COLORS.length] };
+    var played = mode;
     state = 'idle'; cancelAnimationFrame(raf); raf = null; curCard = -1;
+    killAudio();
     dom.start.classList.remove('rg-on');
-    paint();
-    if (mode === 'play') showResult();
-    else setStatus('That’s the rhythm. Hit Play to tap it yourself.');
+    dom.count.classList.remove('on');
+    countLine(); paint();
+    if (played === 'play') showResult();
+    else setStatus('That’s the rhythm. Before you Play: think it through once in your head — can you say every card’s counts?');
   }
   function stopRun(silent) {
     state = 'idle'; cancelAnimationFrame(raf); raf = null; curCard = -1;
-    dom.start && dom.start.classList.remove('rg-on'); paint();
+    killAudio();
+    if (dom.start) dom.start.classList.remove('rg-on');
+    if (dom.count) dom.count.classList.remove('on');
+    countLine(); paint();
     if (!silent) setStatus('Stopped.');
   }
 
-  /* ── tap capture ── */
+  /* ── Tap capture: latency-compensated, globally matched ── */
   function tap() {
     if (state !== 'play') return;
-    var elapsed = ac().currentTime - t0;
-    if (elapsed < -0.05) return;
-    var k = Math.floor(elapsed / beat);
-    if (k < 0 || k >= level.cards.length) return;
-    var frac = elapsed / beat - k; // 0..1 within the card
-    (cardTaps[k] = cardTaps[k] || []).push(frac);
-    var el = dom.grid.querySelector('.rg-card[data-i="' + k + '"]');
-    if (el) { el.classList.remove('rg-pulse'); void el.offsetWidth; el.classList.add('rg-pulse'); }
-    blip(ac().currentTime, 720);
+    var a = ac();
+    var pos = (a.currentTime - latency(a) - t0) / beat;
+    if (pos < -HIT_TOL) { fb('Count-in — think it first…', 'wait'); return; }
+    if (pos > level.cards.length + HIT_TOL) return;
+    // Nearest unclaimed onset wins, wherever the card boundary falls.
+    var best = null, bd = 1e9;
+    for (var i = 0; i < onsets.length; i++) {
+      if (onsets[i].hit) continue;
+      var d = Math.abs(onsets[i].t - pos);
+      if (d < bd) { bd = d; best = onsets[i]; }
+    }
+    if (best && bd <= HIT_TOL) {
+      var err = pos - best.t; // signed: − early, + late
+      best.hit = { err: err, q: 0.6 + 0.4 * (1 - Math.abs(err) / HIT_TOL) };
+      var ms = Math.round(err * beat * 1000);
+      var syl = SYL[String(best.t - best.card)] || 'the beat';
+      if (Math.abs(err) <= PERFECT) fb('Perfect · ' + (ms >= 0 ? '+' : '−') + Math.abs(ms) + ' ms on ' + syl, 'perfect');
+      else fb((err < 0 ? 'Early' : 'Late') + ' · ' + (ms >= 0 ? '+' : '−') + Math.abs(ms) + ' ms on ' + syl, 'good');
+      // High-latency outputs (Bluetooth) can land a compensated tap in a card
+      // the wall-clock loop already judged — re-score it so the hit counts.
+      if (cardDone[best.card] != null) { finalizeCard(best.card); paint(); }
+      pulse(best.card);
+    } else {
+      strays.push(pos);
+      fb('Extra tap — read the card, don’t guess', 'miss');
+      pulse(Math.max(0, Math.min(level.cards.length - 1, Math.floor(pos))));
+    }
+    blip(a.currentTime, 720);
   }
 
+  /* Floating per-tap feedback chip (aria-live so screen readers hear it). */
+  function fb(msg, cls) {
+    if (!dom.fb) return;
+    dom.fb.className = 'rg-fb';
+    void dom.fb.offsetWidth; // restart the fade animation
+    dom.fb.textContent = msg;
+    dom.fb.className = 'rg-fb show ' + (cls || '');
+  }
+
+  /* ════════════════════ Results + coach insight ════════════════════ */
   function showResult() {
     var sum = 0; cardDone.forEach(function (d) { sum += d ? d.acc : 0; });
     var pct = Math.round(sum / level.cards.length * 100);
     var stars = pct >= 90 ? 3 : pct >= 70 ? 2 : pct >= 45 ? 1 : 0, st = '';
     for (var i = 0; i < 3; i++) st += '<span class="rg-star ' + (i < stars ? 'on' : '') + '">★</span>';
+
+    // Timing analytics
+    var hits = 0, missed = 0, errSum = 0;
+    onsets.forEach(function (o) { if (o.hit) { hits++; errSum += o.hit.err; } else missed++; });
+    var avgMs = hits ? Math.round(errSum / hits * beat * 1000) : 0;
+    var extra = strays.length;
+
+    // Weakest figure (lowest mean card accuracy, only if it clearly lags)
+    var byId = {};
+    level.cards.forEach(function (id, k) { (byId[id] = byId[id] || []).push(cardDone[k] ? cardDone[k].acc : 0); });
+    var weak = null, wv = 0.75;
+    Object.keys(byId).forEach(function (id) {
+      var a = byId[id].reduce(function (s, v) { return s + v; }, 0) / byId[id].length;
+      if (a < wv) { wv = a; weak = id; }
+    });
+
+    var insight = [];
+    if (hits) {
+      if (avgMs <= -15) insight.push('You tend to <b>rush</b> — on average ' + Math.abs(avgMs) + ' ms ahead of the beat.');
+      else if (avgMs >= 15) insight.push('You tend to <b>drag</b> — on average ' + avgMs + ' ms behind the beat.');
+      else insight.push('Your timing centre is solid — average offset just ' + (avgMs >= 0 ? '+' : '−') + Math.abs(avgMs) + ' ms.');
+    }
+    if (missed) insight.push(missed + ' onset' + (missed === 1 ? '' : 's') + ' went untapped.');
+    if (extra) insight.push(extra + ' extra tap' + (extra === 1 ? '' : 's') + ' — usually guessing instead of reading.');
+    if (weak) insight.push('<b>' + PAT[weak].name + '</b> needs work: ' + PAT[weak].tip);
+    insight.push('<i>' + (avgMs <= -15
+      ? 'Think: are you tapping what you read, or jumping at what you expect?'
+      : (avgMs >= 15
+        ? 'Think: are you waiting to hear the click before you move? Predict it — breathe with the count-in.'
+        : 'Think the trickiest card through once in your head — can you say its counts aloud before the next run?')) + '</i>');
+
+    // Personal best (per student, via the portal studio store)
+    var rec = null;
+    if (window.MAM_STUDIO && window.MAM_STUDIO.logScore) { try { rec = window.MAM_STUDIO.logScore('rhythm', pct, { level: level.name }); } catch (e) {} }
+    var bestLine = rec
+      ? (rec.newBest && rec.plays > 1 ? '<div class="rg-bestline new">New personal best! 🎉</div>'
+        : '<div class="rg-bestline">Personal best: ' + rec.best + '%</div>')
+      : '';
+
     dom.result.innerHTML = '<div class="rg-result-card"><div class="rg-stars">' + st + '</div>'
-      + '<div class="rg-final">' + pct + '<small>%</small></div><div class="rg-final-l">' + level.name + ' rhythm</div>'
-      + '<button class="rg-btn rg-primary rg-again" type="button">Try again</button></div>';
+      + '<div class="rg-final">' + pct + '<small>%</small></div><div class="rg-final-l">' + level.name + ' · ' + level.focus + '</div>'
+      + '<div class="rg-statrow">'
+      +   '<span><b>' + hits + '/' + onsets.length + '</b>on time</span>'
+      +   '<span><b>' + (avgMs >= 0 ? '+' : '−') + Math.abs(avgMs) + '</b>avg ms</span>'
+      +   '<span><b>' + missed + '</b>missed</span>'
+      +   '<span><b>' + extra + '</b>extra</span>'
+      + '</div>'
+      + '<div class="rg-insight"><div class="rg-insight-h"><i class="fa-solid fa-graduation-cap"></i> Coach’s insight</div>' + insight.map(function (l) { return '<p>' + l + '</p>'; }).join('') + '</div>'
+      + bestLine
+      + '<div class="rg-result-btns"><button class="rg-btn rg-primary rg-again" type="button">Try again</button>'
+      + '<button class="rg-btn rg-relisten" type="button"><i class="fa-solid fa-volume-high"></i> Listen again</button></div></div>';
     dom.result.classList.add('shown');
-    var a = dom.result.querySelector('.rg-again'); if (a) a.addEventListener('click', function () { dom.result.classList.remove('shown'); startRun(true); });
-    if (window.MAM_STUDIO && window.MAM_STUDIO.logScore) { try { window.MAM_STUDIO.logScore('rhythm', pct); } catch (e) {} }
+    var again = dom.result.querySelector('.rg-again');
+    if (again) again.addEventListener('click', function () { dom.result.classList.remove('shown'); startRun(true); });
+    var relisten = dom.result.querySelector('.rg-relisten');
+    if (relisten) relisten.addEventListener('click', function () { dom.result.classList.remove('shown'); startRun(false); });
+    refreshBest();
   }
   function setStatus(m) { if (dom.status) dom.status.textContent = m; }
+  function refreshBest() {
+    if (!dom.best) return;
+    var s = (window.MAM_STUDIO && window.MAM_STUDIO.gameStats) ? window.MAM_STUDIO.gameStats('rhythm') : null;
+    dom.best.textContent = s && s.best ? 'Personal best ' + s.best + '% · ' + s.plays + ' play' + (s.plays === 1 ? '' : 's') : '';
+  }
 
   /* ════════════════════ UI ════════════════════ */
   function build() {
     root.innerHTML =
       '<div class="rg-board">'
       +  '<div class="rg-blob rg-blob-1"></div><div class="rg-blob rg-blob-2"></div>'
-      +  '<div class="rg-head"><h3 class="rg-title" id="rgTitle">Level 1</h3><div class="rg-sub">MAM Academy · Rhythm Tap</div></div>'
+      +  '<div class="rg-head"><h3 class="rg-title" id="rgTitle">Level 1</h3><div class="rg-sub">Rhythm Tap</div></div>'
       +  '<div class="rg-grid" id="rgGrid"></div>'
-      +  '<div class="rg-bpm" id="rgBpm">♩ = 100 BPM</div>'
+      +  '<div class="rg-underbar"><div class="rg-countline" id="rgCountline"></div><div class="rg-bpm" id="rgBpm"></div></div>'
+      +  '<div class="rg-fb" id="rgFb" role="status" aria-live="polite"></div>'
+      +  '<div class="rg-count" id="rgCount" aria-hidden="true"></div>'
       +  '<div class="rg-result" id="rgResult"></div>'
       + '</div>'
       + '<div class="rg-controls">'
@@ -218,33 +372,47 @@
       +  '<button class="rg-btn" id="rgStop" type="button"><i class="fa-solid fa-stop"></i> Stop</button>'
       +  '<span class="rg-status" id="rgStatus">Pick a level, hit Listen to learn the rhythm, then Play to tap it in time.</span>'
       + '</div>'
-      + '<div class="rg-tap-hint">Tap the board, click a card, or press <kbd>Space</kbd> on the beat.</div>';
+      + '<div class="rg-foot"><span class="rg-tap-hint">Tap the board, click a card, or press <kbd>Space</kbd> on the beat.</span><span class="rg-best" id="rgBest"></span></div>';
     dom = {
       title: root.querySelector('#rgTitle'), sub: root.querySelector('.rg-sub'), grid: root.querySelector('#rgGrid'),
       bpm: root.querySelector('#rgBpm'), result: root.querySelector('#rgResult'), status: root.querySelector('#rgStatus'),
-      start: root.querySelector('#rgStart'), board: root.querySelector('.rg-board')
+      start: root.querySelector('#rgStart'), board: root.querySelector('.rg-board'),
+      count: root.querySelector('#rgCount'), countline: root.querySelector('#rgCountline'),
+      fb: root.querySelector('#rgFb'), best: root.querySelector('#rgBest')
     };
     var sel = root.querySelector('#rgLevel');
-    sel.innerHTML = LEVELS.map(function (l, i) { return '<option value="' + i + '">' + l.name + '</option>'; }).join('');
-    sel.addEventListener('change', function () { stopRun(true); level = LEVELS[parseInt(sel.value, 10)] || LEVELS[0]; buildBoard(); });
-    root.querySelector('#rgListen').addEventListener('click', function () { startRun(false); });
+    sel.innerHTML = LEVELS.map(function (l, i) { return '<option value="' + i + '">' + l.name + ' · ' + l.focus + '</option>'; }).join('');
+    sel.addEventListener('change', function () { stopRun(true); level = LEVELS[parseInt(sel.value, 10)] || LEVELS[0]; dom.result.classList.remove('shown'); buildBoard(); });
+    root.querySelector('#rgListen').addEventListener('click', function () { dom.result.classList.remove('shown'); startRun(false); });
     dom.start.addEventListener('click', function () { dom.result.classList.remove('shown'); startRun(true); });
     root.querySelector('#rgStop').addEventListener('click', function () { stopRun(); dom.result.classList.remove('shown'); });
-    // Tap surfaces
     dom.board.addEventListener('pointerdown', function (e) { if (!e.target.closest('.rg-result')) tap(); });
-    document.addEventListener('keydown', function (e) {
-      if (e.code !== 'Space') return;
-      var panel = root.closest('.tool-panel'); if (panel && !panel.classList.contains('active')) return;
-      if (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
-      e.preventDefault(); tap();
-    });
     buildBoard();
+    refreshBest();
   }
 
-  /* ── Injected styles: the game is a drop-in for both the Practice Studio
-        and the student portal, so it carries its own look (matched to the
-        reference: cream board, soft blobs, chunky rounded note cards). ── */
+  /* Space = tap. Bound ONCE at module level (the portal re-renders the tab,
+     so binding inside build() would stack duplicate listeners and register
+     phantom double-taps). Only fires mid-run, so buttons keep their normal
+     keyboard behaviour while idle. */
+  document.addEventListener('keydown', function (e) {
+    if (e.code !== 'Space' || e.repeat) return;
+    if (state !== 'play' || !root || !document.body.contains(root)) return;
+    var ae = document.activeElement;
+    if (ae && /INPUT|SELECT|TEXTAREA/.test(ae.tagName)) return;
+    e.preventDefault(); tap();
+  });
+
+  /* ── Injected styles + the real music font (Noto Music). The game is a
+        self-contained drop-in for the student portal, so it carries its own
+        look: cream board, soft blobs, engraved note cards. ── */
   function injectCSS() {
+    if (!document.getElementById('rg-musicfont')) {
+      var f = document.createElement('link');
+      f.id = 'rg-musicfont'; f.rel = 'stylesheet';
+      f.href = 'https://fonts.googleapis.com/css2?family=Noto+Music&display=swap';
+      document.head.appendChild(f);
+    }
     if (document.getElementById('rg-css')) return;
     var css = ''
       + '.rg-board{position:relative;overflow:hidden;background:#F6EBDD;border-radius:18px;padding:26px 18px 20px;text-align:center;box-shadow:inset 0 0 0 1px rgba(120,90,40,.08),0 18px 44px rgba(0,0,0,.35)}'
@@ -255,34 +423,62 @@
       + '.rg-title{font-family:var(--font-display,Impact,sans-serif);font-size:2.2rem;letter-spacing:.04em;color:#E03131;margin:0}'
       + '.rg-sub{font-size:.78rem;font-weight:800;color:#C2453A;letter-spacing:.04em;margin:2px 0 18px}'
       + '.rg-grid{position:relative;display:grid;grid-template-columns:repeat(4,minmax(58px,86px));gap:12px;justify-content:center}'
-      + '.rg-card{position:relative;aspect-ratio:1;border:0;border-radius:16px;background:#B3ACA2;cursor:pointer;padding:10%;transition:transform .12s ease,background .15s ease;-webkit-tap-highlight-color:transparent}'
-      + '.rg-card svg{width:100%;height:100%;display:block}'
-      + '.rg-card svg *{fill:#fff}'
+      + '.rg-card{position:relative;aspect-ratio:1;border:0;border-radius:16px;background:#B3ACA2;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:6%;transition:transform .12s ease,background .15s ease;-webkit-tap-highlight-color:transparent}'
+      + '.rg-note{font-family:"Noto Music","Bravura Text","Segoe UI Symbol","Symbola",serif;font-size:2.5rem;line-height:1.1;color:#fff;display:block;user-select:none;pointer-events:none}'
+      + '.rg-note.sm{font-size:1.6rem}'
       + '.rg-card.rg-cur{background:var(--rg-fill,#F2B632);transform:scale(1.07);box-shadow:0 8px 22px rgba(0,0,0,.18)}'
-      + '.rg-card.rg-cur svg *,.rg-card.rg-ok svg *{fill:#23232B}'
+      + '.rg-card.rg-cur .rg-note,.rg-card.rg-ok .rg-note{color:#23232B}'
       + '.rg-card.rg-ok{background:var(--rg-fill,#42C58B)}'
       + '.rg-card.rg-miss{background:#8E8478;opacity:.85}'
       + '.rg-card.rg-pulse{animation:rgPulse .18s ease}'
       + '@keyframes rgPulse{50%{transform:scale(.92)}}'
-      + '.rg-bpm{position:relative;margin-top:16px;color:#9A8C77;font-size:.92rem;font-variant-numeric:tabular-nums;text-align:right;padding-right:6px}'
-      + '.rg-result{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(45,32,18,.55);backdrop-filter:blur(5px);border-radius:18px;z-index:3}'
+      + '.rg-underbar{position:relative;display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:16px;padding:0 6px}'
+      + '.rg-countline{font-size:.92rem;font-weight:800;color:#C2453A;letter-spacing:.03em;min-height:1.3em;text-align:left}'
+      + '.rg-bpm{color:#9A8C77;font-size:.92rem;font-variant-numeric:tabular-nums;white-space:nowrap}'
+      + '.rg-mus{font-family:"Noto Music","Bravura Text","Segoe UI Symbol","Symbola",serif}'
+      + '.rg-fb{position:absolute;left:50%;top:14px;transform:translateX(-50%);padding:7px 16px;border-radius:100px;font-size:.85rem;font-weight:800;letter-spacing:.02em;background:#2B2B33;color:#fff;opacity:0;pointer-events:none;z-index:2;white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis}'
+      + '.rg-fb.show{animation:rgFb 1.5s ease forwards}'
+      + '.rg-fb.perfect{background:#1E9E66;color:#fff}'
+      + '.rg-fb.good{background:#C77F12;color:#fff}'
+      + '.rg-fb.miss{background:#C9304F;color:#fff}'
+      + '.rg-fb.wait{background:#3D6FB8;color:#fff}'
+      + '@keyframes rgFb{0%{opacity:0;transform:translate(-50%,6px)}12%{opacity:1;transform:translate(-50%,0)}78%{opacity:1}100%{opacity:0}}'
+      + '.rg-count{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(246,235,221,.78);backdrop-filter:blur(2px);border-radius:18px;z-index:3;pointer-events:none}'
+      + '.rg-count.on{display:flex}'
+      + '.rg-count b{font-family:var(--font-display,Impact,sans-serif);font-size:5rem;line-height:1;color:#E03131}'
+      + '.rg-count span{font-size:.95rem;font-weight:800;color:#C2453A;letter-spacing:.05em;margin-top:6px}'
+      + '.rg-result{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(45,32,18,.55);backdrop-filter:blur(5px);border-radius:18px;z-index:4;overflow:auto;padding:14px}'
       + '.rg-result.shown{display:flex}'
-      + '.rg-result-card{background:#FFFDF8;border-radius:18px;padding:26px 34px;box-shadow:0 24px 60px rgba(0,0,0,.35)}'
+      + '.rg-result-card{background:#FFFDF8;border-radius:18px;padding:22px 26px;box-shadow:0 24px 60px rgba(0,0,0,.35);max-width:430px;width:100%;margin:auto}'
       + '.rg-stars{font-size:1.8rem;letter-spacing:5px}'
       + '.rg-star{color:#D9CDBC}.rg-star.on{color:#F2B632;text-shadow:0 0 12px rgba(242,182,50,.55)}'
-      + '.rg-final{font-family:var(--font-display,Impact,sans-serif);font-size:3.6rem;line-height:1;color:#E03131}'
+      + '.rg-final{font-family:var(--font-display,Impact,sans-serif);font-size:3.4rem;line-height:1;color:#E03131}'
       + '.rg-final small{font-size:1.3rem;color:#9A8C77}'
-      + '.rg-final-l{color:#6B5B45;margin:4px 0 16px;font-size:.92rem}'
+      + '.rg-final-l{color:#6B5B45;margin:4px 0 12px;font-size:.92rem}'
+      + '.rg-statrow{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin:0 0 12px}'
+      + '.rg-statrow span{display:flex;flex-direction:column;font-size:.66rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#9A8C77}'
+      + '.rg-statrow b{font-size:1.15rem;color:#2B2B33;font-variant-numeric:tabular-nums;letter-spacing:0}'
+      + '.rg-insight{text-align:left;background:#F6EBDD;border-radius:12px;padding:12px 14px;margin:0 0 12px}'
+      + '.rg-insight-h{font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#C2453A;margin-bottom:6px}'
+      + '.rg-insight p{margin:0 0 6px;font-size:.84rem;line-height:1.5;color:#4A3E2E}'
+      + '.rg-insight p:last-child{margin-bottom:0}'
+      + '.rg-bestline{font-size:.84rem;font-weight:700;color:#9A8C77;margin:0 0 12px}'
+      + '.rg-bestline.new{color:#1E9E66}'
+      + '.rg-result-btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}'
       + '.rg-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px}'
       + '.rg-field{display:flex;flex-direction:column;gap:5px;font-size:.76rem;font-weight:700;color:var(--text-muted,#B9A88F)}'
       + '.rg-field select{padding:9px 12px;border-radius:10px;border:1.5px solid var(--border-strong,#7a6a52);background:var(--bg-raised,#352A1F);color:var(--text,#FCF8F3);min-height:42px}'
       + '.rg-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:11px;border:1px solid var(--border-strong,#7a6a52);background:var(--bg-raised,#352A1F);color:var(--text,#FCF8F3);font-weight:700;font-size:.9rem;cursor:pointer;min-height:44px}'
+      + '.rg-result-card .rg-btn{border-color:#D9CDBC;background:#FFFDF8;color:#4A3E2E}'
       + '.rg-primary{background:linear-gradient(135deg,#E8961F,#F7A823);border-color:transparent;color:#1A120B}'
+      + '.rg-result-card .rg-primary{background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B;border-color:transparent}'
       + '.rg-primary.rg-on{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff}'
       + '.rg-status{flex:1 1 200px;min-width:0;font-size:.82rem;color:var(--text-muted,#B9A88F)}'
-      + '.rg-tap-hint{margin-top:8px;font-size:.78rem;color:var(--text-faint,#8d7f6a)}'
+      + '.rg-foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px}'
+      + '.rg-tap-hint{font-size:.78rem;color:var(--text-faint,#8d7f6a)}'
       + '.rg-tap-hint kbd{padding:1px 7px;border:1px solid var(--border,#5a4a35);border-radius:5px;font-size:.74rem}'
-      + '@media (max-width:480px){.rg-grid{grid-template-columns:repeat(4,minmax(52px,1fr));gap:9px}.rg-title{font-size:1.8rem}.rg-board{padding:20px 12px 16px}}';
+      + '.rg-best{font-size:.78rem;font-weight:700;color:var(--gold-bright,#FCC647)}'
+      + '@media (max-width:480px){.rg-grid{grid-template-columns:repeat(4,minmax(52px,1fr));gap:9px}.rg-title{font-size:1.8rem}.rg-board{padding:20px 12px 16px}.rg-note{font-size:2rem}.rg-note.sm{font-size:1.3rem}.rg-count b{font-size:3.6rem}}';
     var st = document.createElement('style'); st.id = 'rg-css'; st.textContent = css;
     document.head.appendChild(st);
   }
@@ -291,9 +487,6 @@
     root = document.getElementById('rhythmGame');
     if (!root || root.__rg) return; root.__rg = 1;
     try { injectCSS(); build(); } catch (e) { if (window.console) console.error('[MAM rhythm]', e); }
-    document.querySelectorAll('.tools-tabs button').forEach(function (b) {
-      b.addEventListener('click', function () { if (b.getAttribute('data-tool') !== 'rhythm' && state !== 'idle') stopRun(true); });
-    });
   }
   window.MAM_RHYTHM = { init: init };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

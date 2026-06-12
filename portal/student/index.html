@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&family=Noto+Music&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260612b">
 <link rel="stylesheet" href="/assets/css/portal.css?v=20260602b">
@@ -70,8 +70,8 @@
 
 <script src="/assets/js/config.js?v=20260601a"></script>
 <script src="/assets/js/portal.js?v=20260530a"></script>
-<script src="/assets/js/rhythm-game.js?v=20260612a" defer></script>
-<script src="/assets/js/studio-tools.js?v=20260531b"></script>
+<script src="/assets/js/rhythm-game.js?v=20260612b" defer></script>
+<script src="/assets/js/studio-tools.js?v=20260612a"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <script>
 (function () {
@@ -295,8 +295,8 @@
   // ── Games — rhythm-reading tap game (in-portal) + Pitch Game link ───────
   function renderGames() {
     content.innerHTML = ''
-      + '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-drum" style="color:var(--gold-bright);margin-right:8px"></i>Rhythm Tap</h2>'
-      +   '<span style="font-size:0.8rem;color:var(--text-muted)">Read the cards · tap in time</span></div>'
+      + '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-drum" style="color:var(--gold-bright);margin-right:8px"></i>Rhythm Tap <span class="nav-badge" style="display:inline-block;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;vertical-align:middle">Students only</span></h2>'
+      +   '<span style="font-size:0.8rem;color:var(--text-muted)">Read it · think it · tap it in time</span></div>'
       +   '<div style="padding:16px 18px 20px"><div id="rhythmGame"></div></div></section>'
       + '<section class="panel" style="margin-top:16px"><div class="panel-body" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
       +   '<span style="width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;flex:0 0 auto"><i class="fa-solid fa-microphone-lines"></i></span>'

@@ -93,6 +93,30 @@
   };
 
   // ============================================================
+  //  GAME SCORES — Rhythm Tap & Pitch Game personal bests
+  // ============================================================
+  var games = {
+    all: function(){ var g = read('gameScores', {}); return (g && typeof g === 'object' && !Array.isArray(g)) ? g : {}; },
+    log: function(game, score, meta){
+      game = String(game || '').slice(0, 24);
+      score = clamp(Math.round(score) || 0, 0, 100);
+      var all = games.all();
+      var g = all[game] || { best: 0, last: 0, plays: 0, levels: {} };
+      g.last = score; g.plays = (g.plays || 0) + 1; g.at = Date.now();
+      var newBest = score > (g.best || 0);
+      if (newBest) g.best = score;
+      if (meta && meta.level){
+        var lv = String(meta.level).slice(0, 40);
+        g.levels = g.levels || {};
+        if (score > (g.levels[lv] || 0)) g.levels[lv] = score;
+      }
+      all[game] = g; write('gameScores', all);
+      return { best: g.best, last: g.last, plays: g.plays, newBest: newBest };
+    },
+    stats: function(game){ return games.all()[game] || null; }
+  };
+
+  // ============================================================
   //  RENDERERS
   // ============================================================
   function fmtMin(m){ m = parseInt(m,10)||0; if (m < 60) return m + ' min'; var h = Math.floor(m/60), r = m%60; return h + 'h' + (r ? ' ' + r + 'm' : ''); }
@@ -275,6 +299,8 @@
     setUser: function(email){ NS = (email || 'guest').toLowerCase().replace(/[^a-z0-9@._-]/g,'') || 'guest'; },
     practiceStats: function(){ return practice.stats(); },
     repertoireCount: function(){ return repertoire.all().length; },
+    logScore: function(game, score, meta){ return games.log(game, score, meta); },
+    gameStats: function(game){ return games.stats(game); },
     renderPractice: renderPractice,
     renderRepertoire: renderRepertoire
   };
