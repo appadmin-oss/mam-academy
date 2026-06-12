@@ -409,3 +409,59 @@ function mam_lms_scaffold_modules(int $courseId, ?int $levelId, ?int $programId)
     if ($n) mam_audit('lms_module_scaffold', 'course', $courseId, ['created' => $n]);
     return $n;
 }
+
+/* ───────────────────────────── Progression ───────────────────────────────
+   Passing a course's examination advances the student to the SAME course at
+   the next level (Pre-Certification → Certificate → Pre-Diploma → Diploma).
+   Admin policy: lms_auto_promote (default off → admin advances manually). */
+
+/** Whether a passed course auto-advances to the next level on completion. */
+function mam_lms_auto_promote(): bool { return (int)mam_setting_num('lms_auto_promote', 0) === 1; }
+
+/** The level after $code in the progression, or null at the top (Diploma). */
+function mam_lms_next_level(string $code): ?array {
+    $order = ['precert', 'cert', 'prediploma', 'diploma'];
+    $i = array_search($code, $order, true);
+    if ($i === false || $i + 1 >= count($order)) return null;
+    return mam_db_row('SELECT id, code, name, trinity_grades FROM levels WHERE code = ?', [$order[$i + 1]]);
+}
+
+/**
+ * Advance a passed enrolment to the same course at the next level. Idempotent
+ * (won't duplicate an existing pending/active enrolment at the next level), and
+ * a no-op for un-passed enrolments or those already at Diploma. New status
+ * follows the add-course policy (lms_auto_approve). Returns
+ * ['enrollment_id','level','created'] or null when not eligible.
+ */
+function mam_lms_promote_enrollment(int $enrollmentId, ?int $by = null): ?array {
+    $e = mam_db_row(
+        "SELECT ce.student_id, ce.course_id, ce.program_id, l.code AS level_code, r.outcome
+           FROM course_enrollments ce
+           LEFT JOIN levels l  ON l.id = ce.level_id
+           LEFT JOIN results r ON r.enrollment_id = ce.id
+          WHERE ce.id = ?", [$enrollmentId]
+    );
+    if (!$e || ($e['outcome'] ?? '') !== 'pass' || empty($e['level_code'])) return null;
+    $next = mam_lms_next_level((string)$e['level_code']);
+    if (!$next) return null;
+
+    $dup = mam_db_row(
+        "SELECT id FROM course_enrollments
+          WHERE student_id = ? AND course_id = ? AND level_id = ? AND status IN ('pending','active')",
+        [(int)$e['student_id'], (int)$e['course_id'], (int)$next['id']]
+    );
+    if ($dup) return ['enrollment_id' => (int)$dup['id'], 'level' => (string)$next['code'], 'created' => false];
+
+    $auto = mam_lms_auto_approve();
+    $id = mam_db_insert('course_enrollments', [
+        'student_id'  => (int)$e['student_id'],
+        'course_id'   => (int)$e['course_id'],
+        'level_id'    => (int)$next['id'],
+        'program_id'  => $e['program_id'] !== null ? (int)$e['program_id'] : null,
+        'status'      => $auto ? 'active' : 'pending',
+        'approved_by' => $auto ? $by : null,
+        'approved_at' => $auto ? date('Y-m-d H:i:s') : null,
+    ]);
+    mam_audit('lms_promote', 'course_enrollment', $id, ['from' => $enrollmentId, 'to_level' => $next['code']]);
+    return ['enrollment_id' => $id, 'level' => (string)$next['code'], 'created' => true];
+}

@@ -104,5 +104,6 @@ function mam_settings_schema(): array {
         // assigns an instructor); 1 = students self-enrol straight into active.
         ['Academy (LMS)',           'lms_auto_approve',         'Auto-approve course additions (1=on, 0=manual review)', 0, ''],
         ['Academy (LMS)',           'lms_pass_mark',            'Pass mark for course results', 50, '%'],
+        ['Academy (LMS)',           'lms_auto_promote',         'Auto-advance a passed course to the next level on completion (1=on, 0=manual)', 0, ''],
     ];
 }

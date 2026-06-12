@@ -345,15 +345,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $upd = ['status' => $status]; if ($iid) $upd['instructor_id'] = $iid;
             mam_db_update('course_enrollments', $upd, ['id' => $ceid]);
             mam_audit('lms_status', 'course_enrollment', $ceid, ['status' => $status]);
-            // Completing a passed course auto-issues its programme certificate.
+            // Completing a passed course auto-issues its programme certificate
+            // and (when policy allows) advances it to the next level.
             if ($status === 'completed') {
                 $cert = mam_lms_issue_for_enrollment($ceid, (int)($adminUser['id'] ?? 0));
+                if (mam_lms_auto_promote()) mam_lms_promote_enrollment($ceid, (int)($adminUser['id'] ?? 0));
                 if ($cert && !empty($cert['issued'])) {
                     header('Location: ?v=courseenroll&cert=' . urlencode($cert['reference'])); exit;
                 }
             }
         }
         header('Location: ?v=courseenroll&ok=1'); exit;
+    }
+
+    // Manually advance a passed enrolment to the same course at the next level.
+    if ($action === 'course_promote') {
+        $ceid = (int)($_POST['enrollment_id'] ?? 0);
+        if (!$ceid) { header('Location: ?v=courseenroll&err=' . urlencode('Missing enrolment.')); exit; }
+        $res = mam_lms_promote_enrollment($ceid, (int)($adminUser['id'] ?? 0));
+        if ($res === null) { header('Location: ?v=courseenroll&err=' . urlencode('Not eligible — needs a passing result and a higher level.')); exit; }
+        header('Location: ?v=courseenroll&promoted=' . urlencode($res['level']) . ($res['created'] ? '' : '&dup=1')); exit;
     }
 
     // ─── LMS course modules (curriculum authoring) ───────────────────
@@ -1384,12 +1395,19 @@ button.tiny:hover{border-color:var(--gold)}
     <div class="banner ok">🎓 Certificate issued — <a href="/api/certificate/<?= urlencode((string)$_GET['cert']) ?>" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">view it</a>.</div>
   <?php endif; ?>
   <?php
+    $lvlName   = ['precert' => 'Pre-Certification', 'cert' => 'Certificate', 'prediploma' => 'Pre-Diploma', 'diploma' => 'Diploma'];
+    $nextLabel = ['precert' => 'Certificate', 'cert' => 'Pre-Diploma', 'prediploma' => 'Diploma'];
+  ?>
+  <?php if (!empty($_GET['promoted'])): ?>
+    <div class="banner ok">↑ Advanced to <?= htmlspecialchars($lvlName[(string)$_GET['promoted']] ?? (string)$_GET['promoted']) ?><?= !empty($_GET['dup']) ? ' (already enrolled there)' : '' ?>.</div>
+  <?php endif; ?>
+  <?php
     $autoApprove = (int)mam_setting_num('lms_auto_approve', 0) === 1;
     $instructors = mam_lms_instructors();
     $ces = mam_db_all(
       "SELECT ce.id, ce.status, ce.created_at, ce.instructor_id,
               c.name AS course_name, c.kind AS course_kind,
-              l.name AS level_name, p.name AS program_name,
+              l.code AS level_code, l.name AS level_name, p.name AS program_name,
               su.name AS student_name, su.email AS student_email,
               r.grade AS result_grade, r.outcome AS result_outcome,
               (SELECT cr.reference FROM certificates cr
@@ -1447,6 +1465,14 @@ button.tiny:hover{border-color:var(--gold)}
               </select>
               <button class="tiny" type="submit"><?= $r['status'] === 'pending' ? 'Approve' : 'Save' ?></button>
             </form>
+            <?php if (($r['result_outcome'] ?? '') === 'pass' && !empty($r['level_code']) && isset($nextLabel[$r['level_code']])): ?>
+              <form class="inline" method="post" style="margin-top:6px">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <input type="hidden" name="action" value="course_promote">
+                <input type="hidden" name="enrollment_id" value="<?= (int)$r['id'] ?>">
+                <button class="tiny" type="submit" title="Enrol this student in the same course at the next level">↑ Advance to <?= htmlspecialchars($nextLabel[$r['level_code']]) ?></button>
+              </form>
+            <?php endif; ?>
           </td>
         </tr>
       <?php endforeach; ?>
