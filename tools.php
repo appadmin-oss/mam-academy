@@ -235,6 +235,55 @@
   .seq-transport{gap:14px}
   .seq-toolbar .seq-tsep{flex-basis:100%;height:0}
 }
+
+/* ── Pitch Game ─────────────────────────────────────────────────── */
+.pg-controls{display:flex;gap:14px 18px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
+.pg-field{display:flex;flex-direction:column;gap:6px;font-size:0.78rem;font-weight:700;color:var(--text-muted);letter-spacing:0.02em}
+.pg-field select,.pg-field input[type=range]{min-height:42px}
+.pg-field select{padding:9px 12px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.92rem;min-width:170px}
+.pg-field input[type=range]{width:200px;accent-color:var(--gold-bright,#FCC647)}
+.pg-check{display:inline-flex;align-items:center;gap:8px;font-size:0.84rem;font-weight:700;color:var(--text-muted)}
+.pg-check input{width:18px;height:18px;accent-color:var(--gold-bright,#FCC647)}
+.pg-stage{position:relative;background:radial-gradient(120% 120% at 50% 0%,rgba(232,150,31,0.06),var(--bg-elevated));border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.pg-stage canvas{display:block;width:100%}
+.pg-results{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,8,4,0.78);backdrop-filter:blur(6px);padding:18px}
+.pg-results.shown{display:flex}
+.pg-result-card{text-align:center;max-width:420px;width:100%}
+.pg-stars{font-size:1.7rem;letter-spacing:6px;margin-bottom:6px}
+.pg-star{color:rgba(255,255,255,0.22)}.pg-star.on{color:var(--gold-bright,#FCC647);text-shadow:0 0 14px rgba(252,198,71,0.6)}
+.pg-final{font-family:var(--font-display,inherit);font-size:4rem;line-height:1;color:var(--gold-bright,#FCC647)}
+.pg-final small{font-size:1.4rem;color:var(--text-muted)}
+.pg-final-label{color:var(--text-soft);margin:2px 0 14px;font-size:0.95rem}
+.pg-breakdown{display:flex;justify-content:center;gap:22px;margin-bottom:14px}
+.pg-breakdown b{display:block;font-size:1.3rem;color:var(--text)}
+.pg-breakdown span{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted)}
+.pg-rows{display:flex;flex-direction:column;gap:5px;max-height:140px;overflow:auto;margin-bottom:16px;text-align:left}
+.pg-rowline{display:flex;align-items:center;gap:10px;font-size:0.82rem;color:var(--text-soft)}
+.pg-rowline span:first-child{width:42px;font-weight:700}
+.pg-bar{flex:1;height:8px;background:var(--bg-raised);border-radius:5px;overflow:hidden}
+.pg-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-bright));border-radius:5px}
+.pg-meter{margin:16px 0}
+.pg-readout{display:flex;justify-content:center;gap:clamp(18px,6vw,52px);margin-bottom:14px}
+.pg-r{text-align:center}.pg-r-l{display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:3px}
+.pg-r b{font-family:var(--font-display,inherit);font-size:2.2rem;line-height:1;color:var(--text)}
+.pg-needle-track{position:relative;width:min(460px,92%);height:54px;margin:0 auto;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px}
+.pg-needle-center{position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--gold-bright,#FCC647);transform:translateX(-50%)}
+.pg-needle{position:absolute;top:50%;left:50%;width:14px;height:14px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);transition:left .1s ease-out,background .1s;box-shadow:0 0 14px rgba(255,255,255,0.45)}
+.pg-needle.in{background:#34D399;box-shadow:0 0 18px rgba(52,211,153,0.7)}
+.pg-needle.sharp{background:#F89B8A}.pg-needle.flat{background:#7CC3F0}
+.pg-needle-lab{position:absolute;bottom:4px;font-size:0.68rem;color:var(--text-muted)}
+.pg-needle-lab.pg-flat{left:10px}.pg-needle-lab.pg-sharp{right:10px}
+.pg-verdict{text-align:center;margin:14px 0 4px;font-size:1.05rem;font-weight:700;color:var(--text-soft)}
+.pg-verdict.good{color:#34D399}.pg-verdict.off{color:#F4C56A}
+.pg-cents{text-align:center;font-variant-numeric:tabular-nums;color:var(--text-muted);font-size:0.9rem}
+.pg-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
+.pg-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:11px;border:1px solid var(--border-strong);background:var(--bg-raised);color:var(--text);font-weight:700;font-size:0.92rem;cursor:pointer;min-height:46px}
+.pg-btn:hover{border-color:var(--border-gold)}
+.pg-primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
+.pg-running .pg-primary{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff}
+.pg-status{font-size:0.84rem;color:var(--text-muted);flex:1 1 220px;min-width:0}
+.pg-status.warn{color:#F4C56A}
+@media (max-width:600px){.pg-field input[type=range]{width:150px}.pg-r b{font-size:1.7rem}}
 </style>
 </head>
 <body>
@@ -257,6 +306,7 @@
       <button data-tool="tuner" role="tab" aria-selected="false"><i class="fa-solid fa-tower-broadcast"></i> Tuner</button>
       <button data-tool="pomodoro" role="tab" aria-selected="false"><i class="fa-solid fa-hourglass-half"></i> Pomodoro</button>
       <button data-tool="ear" role="tab" aria-selected="false"><i class="fa-solid fa-headphones"></i> Ear Training</button>
+      <button data-tool="pitchgame" role="tab" aria-selected="false"><i class="fa-solid fa-microphone-lines"></i> Pitch Game <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
       <button data-tool="speed" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">PREMIUM</span></button>
       <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
     </nav>
@@ -554,6 +604,14 @@
       </div>
       <p class="seq-status" id="seqStatus">Tip: tap a cell once for a hit, twice for an accent. Press play, add swing, and store grooves in A–D.</p>
     </section>
+
+    <!-- ─── Pitch Game (sing & play — scored intonation + timing) ─── -->
+    <section class="tool-panel" data-tool="pitchgame" role="tabpanel">
+      <div class="tool-head">
+        <div><h2>Pitch Game — sing &amp; play</h2><p>Match each note as it reaches the line. Real-time pitch detection scores your intonation (in cents), timing and consistency — like a coach in your pocket. Sing it or play your instrument; your audio stays on your device and nothing is recorded.</p></div>
+      </div>
+      <div id="pitchGame"></div>
+    </section>
   </section>
 </main>
 
@@ -596,5 +654,6 @@
 <script src="assets/js/studio-core.js?v=20260602a" defer></script>
 <script src="assets/js/tools.js?v=20260602c" defer></script>
 <script src="assets/js/sequencer.js?v=20260602c" defer></script>
+<script src="assets/js/pitch-game.js?v=20260612a" defer></script>
 </body>
 </html>
