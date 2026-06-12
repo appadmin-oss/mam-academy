@@ -32,6 +32,9 @@ $out = [
         'FLW_SECRET_KEY'      => !!mam_env('FLW_SECRET_KEY'),
         'MAIL_HOST'           => !!mam_env('MAIL_HOST'),
     ],
+    // Email-delivery readiness (no secrets) — the usual reason mail isn't
+    // delivered. `ready:false` + `issues` tells the operator exactly what to set.
+    'mail' => mam_mail_readiness(),
 ];
 
 try {
@@ -39,7 +42,7 @@ try {
     $out['db'] = [
         'driver'           => $db->getAttribute(PDO::ATTR_DRIVER_NAME),
         'schema_version'   => (int)$db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn(),
-        'target'           => 10,
+        'target'           => 16,
     ];
     // Probe a few key tables so we know what's actually present.
     foreach (['customers', 'applications', 'payments', 'store_items', 'store_orders'] as $t) {

@@ -73,6 +73,43 @@ function mam_phpmailer_available(): bool {
 }
 
 /**
+ * Email-delivery readiness — a single, secret-free source of truth for the
+ * diag endpoint and the admin warning banner. The #1 reason mail "isn't
+ * delivered" is that MAIL_* is unset, so the app silently falls back to PHP
+ * mail() (a black hole on most hosts). This makes that visible and actionable.
+ */
+function mam_mail_readiness(): array {
+    $host  = trim((string)mam_env('MAIL_HOST', ''));
+    $user  = trim((string)mam_env('MAIL_USERNAME', ''));
+    $pass  = (string)mam_env('MAIL_PASSWORD', '');
+    $force = in_array(strtolower((string)mam_env('MAIL_FORCE_SMTP', '0')), ['1', 'true', 'yes', 'on'], true);
+
+    $issues = [];
+    if ($host === '') {
+        $issues[] = 'MAIL_HOST is empty in api/.env — the app is falling back to PHP mail(), which most hosts silently drop. Set MAIL_HOST (e.g. mail.mamcentre.org).';
+    }
+    if ($host !== '' && $user !== '' && $pass === '') {
+        $issues[] = 'MAIL_USERNAME is set but MAIL_PASSWORD is empty — SMTP authentication will fail. Set MAIL_PASSWORD.';
+    }
+    $ready = $host !== '' && !($user !== '' && $pass === '');
+
+    return [
+        'ready'        => $ready,
+        'transport'    => $host !== '' ? (mam_phpmailer_available() ? 'phpmailer' : 'smtp') : 'mail()',
+        'host'         => $host !== '' ? $host : null,
+        'port'         => (int)mam_env('MAIL_PORT', '587'),
+        'encryption'   => strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls')),
+        'username_set' => $user !== '',
+        'password_set' => $pass !== '',
+        'from'         => (string)mam_env('MAIL_FROM_EMAIL', 'no-reply@mamcentre.org'),
+        'notify'       => (string)mam_env('NOTIFY_EMAIL', ''),
+        'force_smtp'   => $force,
+        'phpmailer'    => mam_phpmailer_available(),
+        'issues'       => $issues,
+    ];
+}
+
+/**
  * Send via PHPMailer when it's installed. Honours the same MAIL_* env as the
  * built-in client and returns the same {ok,transport,host,error,steps} shape
  * so callers (mam_send, the CLI tester, the admin endpoint) don't care which

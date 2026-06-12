@@ -313,8 +313,10 @@ input[type="radio"]:not(.native):disabled{opacity:.5;cursor:not-allowed}
 /* ===== Section base ===== */
 section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:relative}
 .container{max-width:var(--content-w);margin:0 auto;width:100%}
-.section-eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:0.78rem;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:18px}
-.section-eyebrow .line{width:32px;height:2px;background:linear-gradient(90deg,var(--gold-bright),transparent)}
+.section-eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:0.76rem;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:18px}
+/* The flanking gold lines were a redundant divider once the equalizer motif
+   leads each eyebrow — hide them for a cleaner, single-accent label. */
+.section-eyebrow .line{display:none}
 .section-title{font-family:var(--font-serif);font-size:clamp(2rem,5vw,3.4rem);font-weight:700;line-height:1.1;letter-spacing:-0.02em;margin-bottom:18px;color:var(--text)}
 
 /* Programme-structure detail cards (pathways "How the programmes work") */
@@ -506,7 +508,7 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .breadcrumb i{font-size:0.6rem;opacity:0.5}
 
 /* ===== Stats ===== */
-#stats{background:var(--bg-surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:0}
+#stats{background:var(--bg-surface);border-bottom:1px solid var(--border);padding:0}
 .stats-inner{max-width:var(--content-w);margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
 .stat-item{padding:36px 24px;display:flex;flex-direction:column;align-items:center;gap:8px;border-right:1px solid var(--border);transition:background 0.3s var(--ease)}
 .stat-item:last-child{border-right:none}

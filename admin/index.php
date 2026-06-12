@@ -906,6 +906,13 @@ button.tiny:hover{border-color:var(--gold)}
 <main>
 <?php if ($flashOk): ?><div class="banner ok">Done.</div><?php endif; ?>
 <?php if ($flashErr !== ''): ?><div class="banner err"><?= htmlspecialchars($flashErr) ?></div><?php endif; ?>
+<?php $mailRdy = mam_mail_readiness(); if (!$mailRdy['ready']): ?>
+  <div class="banner err" style="line-height:1.6">
+    <strong>⚠ Email is not configured</strong> — applications, password resets, portal logins, store receipts and certificates won't be delivered.
+    <?= htmlspecialchars(implode(' ', $mailRdy['issues'])) ?>
+    Set <code>MAIL_HOST</code>, <code>MAIL_USERNAME</code>, <code>MAIL_PASSWORD</code> (and <code>MAIL_PORT</code>/<code>MAIL_ENCRYPTION</code>) in <code>api/.env</code>, then verify with <code>php api/tools/mail-test.php you@example.com</code> or <code>GET /api/diag</code>.
+  </div>
+<?php endif; ?>
 
 <?php if ($view === 'overview'): ?>
   <header class="top">
