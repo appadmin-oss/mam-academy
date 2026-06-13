@@ -727,7 +727,7 @@
 <script src="assets/js/tools.js?v=20260613a" defer></script>
 <script src="assets/js/sequencer.js?v=20260613a" defer></script>
 <script src="assets/js/pitch-game.js?v=20260613a" defer></script>
-<script src="assets/js/rhythm-game.js?v=20260613c" defer></script>
+<script src="assets/js/rhythm-game.js?v=20260613d" defer></script>
 <script src="assets/js/studio-gate.js?v=20260613a" defer></script>
 </body>
 </html>

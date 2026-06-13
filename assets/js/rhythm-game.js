@@ -26,8 +26,13 @@
               badges — all persisted per signed-in student.
    Audio      Each run plays through its own gain bus and tracks every scheduled
               source, so Stop is instant.
-
-   (Input is tap / Space here; the mic "Play" mode is added in the next pass.)
+   Input      TAP (board / Space) or PLAY (mic): clap, tap, sing or play any
+              instrument — spectral-flux onset detection scores your TIMING, not
+              the notes. echoCancellation/NS/AGC are requested AND the engine
+              stays silent through the scored bars (only the count-in sounds), so
+              the app's own audio can never affect the rhythmic analysis. Both
+              inputs score through one Trinity engine; mic mode emits no confirm
+              tone (it would feed back).
    ============================================================ */
 (function () {
   'use strict';
@@ -170,6 +175,36 @@
   var bus = null, srcs = [], onsets = [], strays = [], cardDone = [];
   var starts = [], beatCard = [], totalBeats = 0;
 
+  // ── Input mode: tap (default) or mic "Play" ──
+  // In mic mode the student claps/taps/sings/plays any instrument; we detect
+  // onset TIMING (not pitch) and score it through the same engine as taps.
+  var inputMode = 'tap';
+  var micStream = null, micSrc = null, micAnalyser = null, micFreqBuf = null, micTimeBuf = null, detector = null;
+  var MIC_LATENCY = 0.03;   // analyser-frame + input-latency estimate (s)
+
+  /* Spectral-flux onset detector with an adaptive threshold + refractory.
+     Pure of Web Audio so it's unit-testable: feed it magnitude frames. */
+  function makeOnsetDetector() {
+    var prev = null, hist = [], last = -1e9;
+    var REFRACTORY = 0.08;            // s — ignore re-triggers within 80 ms
+    return {
+      reset: function () { prev = null; hist = []; last = -1e9; },
+      // mag: Float array of bin magnitudes; t: seconds. Returns true on an onset.
+      process: function (mag, t) {
+        var flux = 0, i;
+        if (prev) for (i = 0; i < mag.length; i++) { var d = mag[i] - prev[i]; if (d > 0) flux += d; }
+        if (!prev) prev = new Float32Array(mag.length);
+        for (i = 0; i < mag.length; i++) prev[i] = mag[i];
+        hist.push(flux); if (hist.length > 43) hist.shift();   // ~0.7 s window @60fps
+        var m = 0, n = hist.length; for (i = 0; i < n; i++) m += hist[i]; m /= n;
+        var v = 0; for (i = 0; i < n; i++) { var dd = hist[i] - m; v += dd * dd; } v = Math.sqrt(v / n);
+        var thr = m + 1.8 * v + 1e-4;
+        if (n > 8 && flux > thr && (t - last) > REFRACTORY) { last = t; return true; }
+        return false;
+      }
+    };
+  }
+
   function ac() { return (window.MAM && window.MAM.audio) ? window.MAM.audio() : (window.__rgAC || (window.__rgAC = new (window.AudioContext || window.webkitAudioContext)())); }
   function latency(a) { return a.outputLatency || a.baseLatency || 0; }
   function out(a) { return bus || a.destination; }
@@ -192,6 +227,55 @@
     srcs.forEach(function (s) { try { s.stop(0); } catch (e) {} });
     srcs = [];
     if (bus) { try { bus.disconnect(); } catch (e) {} bus = null; }
+  }
+
+  /* ── Microphone capture for "Play" mode ──
+     echoCancellation/noiseSuppression/autoGainControl are requested so the
+     device cancels the app's own audio out of the mic; combined with the
+     engine going SILENT during the scored bars (only the count-in clicks,
+     which land before scoring), the app's sound can never affect accuracy.
+     The analyser is a pure sink — never routed to destination, so there is
+     no feedback loop. */
+  function ensureMic() {
+    if (micStream && micAnalyser) return Promise.resolve(true);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.reject(new Error('no_mic_api'));
+    return navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    }).then(function (stream) {
+      var a = ac();
+      micStream = stream;
+      micSrc = a.createMediaStreamSource(stream);
+      micAnalyser = a.createAnalyser();
+      micAnalyser.fftSize = 1024;
+      micAnalyser.smoothingTimeConstant = 0;
+      micFreqBuf = new Float32Array(micAnalyser.frequencyBinCount);
+      micTimeBuf = new Float32Array(micAnalyser.fftSize);
+      micSrc.connect(micAnalyser);   // sink only — never to destination
+      return true;
+    });
+  }
+  function stopMic() {
+    if (micStream) { try { micStream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} micStream = null; }
+    if (micSrc) { try { micSrc.disconnect(); } catch (e) {} micSrc = null; }
+    micAnalyser = null; micFreqBuf = micTimeBuf = null;
+  }
+  // Called each animation frame while playing in mic mode: detect an onset and
+  // update the live input meter. dB → linear magnitudes feed the flux detector.
+  function micFrame(pos) {
+    if (!micAnalyser || !detector) return;
+    micAnalyser.getFloatFrequencyData(micFreqBuf);
+    var mag = micFreqBuf, lin = new Float32Array(mag.length);
+    for (var i = 0; i < mag.length; i++) lin[i] = Math.pow(10, mag[i] / 20); // dBFS → amplitude
+    // Live level meter (RMS of time-domain).
+    micAnalyser.getFloatTimeDomainData(micTimeBuf);
+    var rms = 0; for (var j = 0; j < micTimeBuf.length; j++) rms += micTimeBuf[j] * micTimeBuf[j];
+    rms = Math.sqrt(rms / micTimeBuf.length);
+    if (dom.meterFill) dom.meterFill.style.width = Math.min(100, Math.round(rms * 320)) + '%';
+    // Only score within the playing window (count-in energy is excluded by pos<0).
+    if (pos < -HIT_TOL) return;
+    if (detector.process(lin, ac().currentTime)) {
+      registerHit((ac().currentTime - MIC_LATENCY - t0) / beat, true);
+    }
   }
 
   /* ════════════════════ Board ════════════════════ */
@@ -248,31 +332,52 @@
   function startRun(playMode) {
     if (state !== 'idle') stopRun(true);
     mode = playMode ? 'play' : 'listen';
+    var micPlay = (mode === 'play' && inputMode === 'mic');
     buildBoard();
     state = mode;
     beat = 60 / level.bpm;
     var a = ac();
     bus = a.createGain(); bus.gain.value = 1; bus.connect(a.destination);
     var base = a.currentTime + 0.18;
-    for (var i = 0; i < 4; i++) click(base + i * beat, i === 0);
+    for (var i = 0; i < 4; i++) click(base + i * beat, i === 0);   // count-in (always)
     t0 = base + 4 * beat;
     level.cards.forEach(function (id, k) {
       PAT[id].onsets.forEach(function (on, j) { onsets.push({ t: starts[k] + on, card: k, syl: PAT[id].syls[j] || 'the beat', hit: null }); });
     });
-    for (var b = 0; b < totalBeats; b++) click(t0 + b * beat, b % 4 === 0);
+    // Mic "Play": stay SILENT through the scored bars (no per-beat clicks) so the
+    // app's own sound can never reach the mic and skew the analysis. Tap/Listen
+    // keep the pulse. Listen also sonifies every onset.
+    if (!micPlay) for (var b = 0; b < totalBeats; b++) click(t0 + b * beat, b % 4 === 0);
     if (mode === 'listen') onsets.forEach(function (o) { blip(t0 + o.t * beat, 560 + (o.t % 1) * 260); });
+    if (micPlay && detector) detector.reset();
+    if (dom.meter) dom.meter.hidden = !micPlay;
     setStatus(mode === 'listen'
       ? 'Listen — follow the colours and hear how each figure sits inside the beat.'
-      : 'Count-in first: think the rhythm, then tap what you read — eyes one card ahead.');
+      : (micPlay
+        ? 'Count-in, then PLAY the rhythm — clap, tap, sing or play any instrument. We listen to your timing.'
+        : 'Count-in first: think the rhythm, then tap what you read — eyes one card ahead.'));
     dom.start.classList.toggle('rg-on', mode === 'play');
     if (dom.start) dom.start.blur();
     cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
+  }
+  // Play handler: in mic mode, secure the microphone first (async), then run.
+  function startPlay() {
+    dom.result.classList.remove('shown');
+    if (inputMode !== 'mic') { startRun(true); return; }
+    setStatus('Requesting microphone…');
+    ensureMic().then(function () { startRun(true); }).catch(function (err) {
+      inputMode = 'tap'; syncModeUI();
+      setStatus(err && err.name === 'NotAllowedError'
+        ? 'Microphone blocked — switched to Tap. Allow mic access to play it instead.'
+        : 'No microphone available — switched to Tap mode.');
+    });
   }
   function loop() {
     if (state === 'idle') return;
     if (!document.body.contains(root)) { stopRun(true); return; }
     raf = requestAnimationFrame(loop);
     var pos = (ac().currentTime - t0) / beat;
+    if (mode === 'play' && inputMode === 'mic') micFrame(pos);
     if (pos < 0) {
       var n = Math.max(1, Math.min(4, Math.floor(pos) + 5));
       if (dom.count.getAttribute('data-n') !== String(n)) {
@@ -314,6 +419,7 @@
     state = 'idle'; cancelAnimationFrame(raf); raf = null; curCard = -1;
     killAudio();
     dom.start.classList.remove('rg-on'); dom.count.classList.remove('on');
+    if (dom.meter) dom.meter.hidden = true;
     countLine(); paint();
     if (played === 'play') showResult();
     else setStatus('That’s the rhythm. Hit Play and tap it — can you say every card’s counts first?');
@@ -323,16 +429,16 @@
     killAudio();
     if (dom.start) dom.start.classList.remove('rg-on');
     if (dom.count) dom.count.classList.remove('on');
+    if (dom.meter) dom.meter.hidden = true;
+    if (!silent) stopMic();   // release the mic on an explicit stop (kept across auto-advance/retries)
     countLine(); paint();
     if (!silent) setStatus('Stopped.');
   }
 
-  /* ── Tap capture: latency-compensated, globally matched ── */
-  function tap() {
-    if (state !== 'play') return;
-    var a = ac();
-    var pos = (a.currentTime - latency(a) - t0) / beat;
-    if (pos < -HIT_TOL) { fb('Count-in — think it first…', 'wait'); return; }
+  /* ── Hit registration (shared by tap + mic): latency-compensated, globally
+        matched to the nearest unclaimed onset across card boundaries. ── */
+  function registerHit(pos, fromMic) {
+    if (pos < -HIT_TOL) { if (!fromMic) fb('Count-in — think it first…', 'wait'); return; }
     if (pos > totalBeats + HIT_TOL) return;
     var best = null, bd = 1e9;
     for (var i = 0; i < onsets.length; i++) {
@@ -340,21 +446,28 @@
       var d = Math.abs(onsets[i].t - pos);
       if (d < bd) { bd = d; best = onsets[i]; }
     }
+    var src = fromMic ? ' (heard)' : '';
     if (best && bd <= HIT_TOL) {
       var err = pos - best.t;
       best.hit = { err: err, q: 0.6 + 0.4 * (1 - Math.abs(err) / HIT_TOL) };
       var ms = Math.round(err * beat * 1000);
-      if (Math.abs(err) <= PERFECT) fb('Perfect · ' + (ms >= 0 ? '+' : '−') + Math.abs(ms) + ' ms on ' + best.syl, 'perfect');
-      else fb((err < 0 ? 'Early' : 'Late') + ' · ' + (ms >= 0 ? '+' : '−') + Math.abs(ms) + ' ms on ' + best.syl, 'good');
+      if (Math.abs(err) <= PERFECT) fb('Perfect · ' + (ms >= 0 ? '+' : '−') + Math.abs(ms) + ' ms on ' + best.syl + src, 'perfect');
+      else fb((err < 0 ? 'Early' : 'Late') + ' · ' + (ms >= 0 ? '+' : '−') + Math.abs(ms) + ' ms on ' + best.syl + src, 'good');
       if (cardDone[best.card] != null) { finalizeCard(best.card); paint(); }
       pulse(best.card);
     } else {
       strays.push(pos);
-      fb('Extra tap — read the card, don’t guess', 'miss');
+      fb(fromMic ? 'Extra hit — only play what you read' : 'Extra tap — read the card, don’t guess', 'miss');
       var sc = cardAt(Math.max(0, Math.min(totalBeats - 0.01, pos)));
       if (sc >= 0) pulse(sc);
     }
-    blip(a.currentTime, 720);
+    // A confirm blip ONLY for taps — in mic mode it would feed back and self-trigger.
+    if (!fromMic) blip(ac().currentTime, 720);
+  }
+  function tap() {
+    if (state !== 'play' || inputMode !== 'tap') return;   // in mic mode the board listens, not taps
+    var a = ac();
+    registerHit((a.currentTime - latency(a) - t0) / beat, false);
   }
   function fb(msg, cls) {
     if (!dom.fb) return;
@@ -470,6 +583,7 @@
       +  '<div class="rg-head"><h3 class="rg-title" id="rgTitle">Level 1</h3><div class="rg-sub">Trinity-graded</div></div>'
       +  '<div class="rg-grid" id="rgGrid"></div>'
       +  '<div class="rg-underbar"><div class="rg-countline" id="rgCountline"></div><div class="rg-bpm" id="rgBpm"></div></div>'
+      +  '<div class="rg-meter" id="rgMeter" hidden><span class="rg-meter-label"><i class="fa-solid fa-microphone"></i> Listening</span><div class="rg-meter-track"><div class="rg-meter-fill" id="rgMeterFill"></div></div></div>'
       +  '<div class="rg-fb" id="rgFb" role="status" aria-live="polite"></div>'
       +  '<div class="rg-count" id="rgCount" aria-hidden="true"></div>'
       +  '<div class="rg-result" id="rgResult"></div>'
@@ -477,18 +591,21 @@
       + '<div class="rg-rewards" id="rgRewards"></div>'
       + '<div class="rg-controls">'
       +  '<label class="rg-field">Start level<select id="rgLevel"></select></label>'
+      +  '<div class="rg-mode" role="group" aria-label="Input mode"><button class="rg-mode-btn active" type="button" data-mode="tap">Tap</button><button class="rg-mode-btn" type="button" data-mode="mic">Play</button></div>'
       +  '<button class="rg-btn" id="rgListen" type="button"><i class="fa-solid fa-volume-high"></i> Listen</button>'
       +  '<button class="rg-btn rg-primary" id="rgStart" type="button"><i class="fa-solid fa-hand-pointer"></i> Play</button>'
       +  '<button class="rg-btn" id="rgStop" type="button"><i class="fa-solid fa-stop"></i> Stop</button>'
       +  '<span class="rg-status" id="rgStatus">Endless &amp; Trinity-graded — pass a level to auto-advance. Pick a start level, Listen, then Play.</span>'
       + '</div>'
-      + '<div class="rg-foot"><span class="rg-tap-hint">Tap the board, click a card, or press <kbd>Space</kbd> on the beat.</span></div>';
+      + '<div class="rg-foot"><span class="rg-tap-hint" id="rgHint">Tap the board, click a card, or press <kbd>Space</kbd> on the beat.</span></div>';
     dom = {
       title: root.querySelector('#rgTitle'), sub: root.querySelector('.rg-sub'), grid: root.querySelector('#rgGrid'),
       bpm: root.querySelector('#rgBpm'), result: root.querySelector('#rgResult'), status: root.querySelector('#rgStatus'),
       start: root.querySelector('#rgStart'), board: root.querySelector('.rg-board'),
       count: root.querySelector('#rgCount'), countline: root.querySelector('#rgCountline'),
-      fb: root.querySelector('#rgFb'), rewards: root.querySelector('#rgRewards')
+      fb: root.querySelector('#rgFb'), rewards: root.querySelector('#rgRewards'),
+      meter: root.querySelector('#rgMeter'), meterFill: root.querySelector('#rgMeterFill'), hint: root.querySelector('#rgHint'),
+      modeBtns: Array.prototype.slice.call(root.querySelectorAll('.rg-mode-btn'))
     };
     var prog = loadProg();
     var sel = root.querySelector('#rgLevel');
@@ -497,13 +614,26 @@
     sel.innerHTML = opts;
     difficulty = maxStart; sel.value = String(maxStart);
     sel.addEventListener('change', function () { stopRun(true); difficulty = parseInt(sel.value, 10) || 1; level = genLevel(difficulty); dom.result.classList.remove('shown'); buildBoard(); });
+    dom.modeBtns.forEach(function (b) {
+      b.addEventListener('click', function () { if (state !== 'idle') stopRun(true); inputMode = b.getAttribute('data-mode'); detector = inputMode === 'mic' ? makeOnsetDetector() : null; syncModeUI(); });
+    });
     root.querySelector('#rgListen').addEventListener('click', function () { dom.result.classList.remove('shown'); startRun(false); });
-    dom.start.addEventListener('click', function () { dom.result.classList.remove('shown'); startRun(true); });
+    dom.start.addEventListener('click', startPlay);
     root.querySelector('#rgStop').addEventListener('click', function () { stopRun(); dom.result.classList.remove('shown'); });
     dom.board.addEventListener('pointerdown', function (e) { if (!e.target.closest('.rg-result')) tap(); });
     level = genLevel(difficulty);
     buildBoard();
     paintRewards(prog);
+    syncModeUI();
+  }
+  function syncModeUI() {
+    if (!dom.modeBtns) return;
+    dom.modeBtns.forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-mode') === inputMode); });
+    if (dom.hint) {
+      dom.hint.innerHTML = inputMode === 'mic'
+        ? '<i class="fa-solid fa-circle-info"></i> Play it any way — clap, tap your desk, sing, or play your instrument. We listen to your <strong>timing</strong>, not the notes.'
+        : 'Tap the board, click a card, or press <kbd>Space</kbd> on the beat.';
+    }
   }
 
   document.addEventListener('keydown', function (e) {
@@ -587,6 +717,13 @@
       + '.rg-foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:8px}'
       + '.rg-tap-hint{font-size:.78rem;color:var(--text-faint,#8d7f6a)}'
       + '.rg-tap-hint kbd{padding:1px 7px;border:1px solid var(--border,#5a4a35);border-radius:5px;font-size:.74rem}'
+      + '.rg-mode{display:inline-flex;gap:3px;padding:3px;border-radius:100px;background:var(--bg-raised,#352A1F);border:1px solid var(--border-strong,#7a6a52)}'
+      + '.rg-mode-btn{padding:8px 16px;border:0;border-radius:100px;background:transparent;color:var(--text-muted,#B9A88F);font-weight:800;font-size:.84rem;cursor:pointer;min-height:38px}'
+      + '.rg-mode-btn.active{background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B}'
+      + '.rg-meter{position:relative;display:flex;align-items:center;gap:10px;margin-top:12px;padding:0 6px}'
+      + '.rg-meter-label{font-size:.74rem;font-weight:800;letter-spacing:.04em;color:#C2453A;white-space:nowrap}'
+      + '.rg-meter-track{flex:1;height:8px;border-radius:6px;background:#E0D3BE;overflow:hidden}'
+      + '.rg-meter-fill{height:100%;width:0;background:linear-gradient(90deg,#42C58B,#F2B632,#F4577E);transition:width .06s linear}'
       + '@media (max-width:480px){.rg-grid{grid-template-columns:repeat(4,minmax(52px,1fr));gap:9px}.rg-title{font-size:1.8rem}.rg-board{padding:20px 12px 16px}.rg-note{font-size:2rem}.rg-note.sm{font-size:1.3rem}.rg-count b{font-size:3.6rem}}';
     var st = document.createElement('style'); st.id = 'rg-css'; st.textContent = css;
     document.head.appendChild(st);
@@ -596,6 +733,12 @@
     root = document.getElementById('rhythmGame');
     if (!root || root.__rg) return; root.__rg = 1;
     try { injectCSS(); build(); } catch (e) { if (window.console) console.error('[MAM rhythm]', e); }
+    // Leaving the Rhythm tab stops the run AND releases the microphone.
+    document.querySelectorAll('.tools-tabs button').forEach(function (b) {
+      b.addEventListener('click', function () { if (b.getAttribute('data-tool') !== 'rhythm') { if (state !== 'idle') stopRun(true); stopMic(); } });
+    });
+    // Releasing the page (tab hidden / unload) must free the mic too.
+    document.addEventListener('visibilitychange', function () { if (document.hidden && micStream) { if (state !== 'idle') stopRun(true); stopMic(); } });
   }
   window.MAM_RHYTHM = {
     init: init,
@@ -607,7 +750,7 @@
         cards: level ? level.cards.map(function (id) { return { id: id, beats: PAT[id].beats, onsets: PAT[id].onsets.slice() }; }) : []
       };
     },
-    __trinity: trinity, __genLevel: genLevel
+    __trinity: trinity, __genLevel: genLevel, __detector: makeOnsetDetector
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
