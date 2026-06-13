@@ -63,6 +63,22 @@ function mam_name(?string $first, ?string $last): string {
     return $n === '' ? '—' : $n;
 }
 
+/**
+ * Never-throw helpers for the overview's read-only aggregates. A deployment
+ * whose DB is behind on migrations is missing some tables; without these, the
+ * unconditional KPI queries below would 500 the ENTIRE admin dashboard — and
+ * with it the "Run migrations now" button that fixes the problem. Degrading to
+ * zero/empty keeps the dashboard (and its schema-behind banner) reachable.
+ */
+function mam_admin_scalar(string $sql, $fallback = 0) {
+    try { return mam_db()->query($sql)->fetchColumn(); }
+    catch (Throwable $e) { return $fallback; }
+}
+function mam_admin_rows(string $sql, array $args = []): array {
+    try { return mam_db_all($sql, $args); }
+    catch (Throwable $e) { return []; }
+}
+
 /* ─── CSV export (no state change) ─── */
 if ($view === 'export') {
     $type = $_GET['type'] ?? 'applications.csv';
@@ -713,16 +729,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     exit;
 }
 
-/* ─── KPIs ─── */
+/* ─── KPIs (degrade to 0 if a table is missing — see mam_admin_scalar) ─── */
 $kpi = [
-    'applications' => (int)mam_db()->query('SELECT COUNT(*) FROM applications')->fetchColumn(),
-    'paid'         => (int)mam_db()->query("SELECT COUNT(*) FROM applications WHERE status='paid'")->fetchColumn(),
-    'revenue'      => (float)mam_db()->query("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='succeeded'")->fetchColumn(),
-    'newsletter'   => (int)mam_db()->query('SELECT COUNT(*) FROM newsletter')->fetchColumn(),
-    'messages'     => (int)mam_db()->query("SELECT COUNT(*) FROM messages WHERE status='unread'")->fetchColumn(),
-    'webhooks'     => (int)mam_db()->query('SELECT COUNT(*) FROM webhook_events')->fetchColumn(),
-    'users'        => (int)mam_db()->query('SELECT COUNT(*) FROM users')->fetchColumn(),
-    'classes'      => (int)mam_db()->query("SELECT COUNT(*) FROM classes WHERE status='active'")->fetchColumn(),
+    'applications' => (int)mam_admin_scalar('SELECT COUNT(*) FROM applications'),
+    'paid'         => (int)mam_admin_scalar("SELECT COUNT(*) FROM applications WHERE status='paid'"),
+    'revenue'      => (float)mam_admin_scalar("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='succeeded'"),
+    'newsletter'   => (int)mam_admin_scalar('SELECT COUNT(*) FROM newsletter'),
+    'messages'     => (int)mam_admin_scalar("SELECT COUNT(*) FROM messages WHERE status='unread'"),
+    'webhooks'     => (int)mam_admin_scalar('SELECT COUNT(*) FROM webhook_events'),
+    'users'        => (int)mam_admin_scalar('SELECT COUNT(*) FROM users'),
+    'classes'      => (int)mam_admin_scalar("SELECT COUNT(*) FROM classes WHERE status='active'"),
 ];
 
 /* ─── 14-day trend series (bucketed in PHP so it works identically on
@@ -734,11 +750,11 @@ for ($i = $trendDays - 1; $i >= 0; $i--) {
     $buckets[$d] = ['apps' => 0, 'rev' => 0.0];
 }
 $since = date('Y-m-d 00:00:00', strtotime('-' . ($trendDays - 1) . ' day'));
-foreach (mam_db_all('SELECT created_at FROM applications WHERE created_at >= ?', [$since]) as $r) {
+foreach (mam_admin_rows('SELECT created_at FROM applications WHERE created_at >= ?', [$since]) as $r) {
     $d = substr((string)$r['created_at'], 0, 10);
     if (isset($buckets[$d])) $buckets[$d]['apps']++;
 }
-foreach (mam_db_all("SELECT amount, COALESCE(verified_at, created_at) AS paid_at FROM payments WHERE status='succeeded' AND COALESCE(verified_at, created_at) >= ?", [$since]) as $r) {
+foreach (mam_admin_rows("SELECT amount, COALESCE(verified_at, created_at) AS paid_at FROM payments WHERE status='succeeded' AND COALESCE(verified_at, created_at) >= ?", [$since]) as $r) {
     $d = substr((string)$r['paid_at'], 0, 10);
     if (isset($buckets[$d])) $buckets[$d]['rev'] += (float)$r['amount'];
 }
@@ -747,7 +763,7 @@ $trendApps   = array_map(function ($b) { return $b['apps']; }, array_values($buc
 $trendRev    = array_map(function ($b) { return round($b['rev']); }, array_values($buckets));
 // Payment status mix (all-time) for the doughnut.
 $payMix = [];
-foreach (mam_db_all('SELECT status, COUNT(*) AS n FROM payments GROUP BY status') as $r) {
+foreach (mam_admin_rows('SELECT status, COUNT(*) AS n FROM payments GROUP BY status') as $r) {
     $payMix[(string)$r['status']] = (int)$r['n'];
 }
 
