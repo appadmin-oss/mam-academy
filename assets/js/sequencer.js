@@ -592,17 +592,17 @@
     function trig(i, time, vel, note) {
       var st = store.getState();
       if (TRACKS[i].voice === 'bass') {
-        var dest0 = channels[i] && channels[i].input ? channels[i].input : graph.input;
-        synthBass(rawCtx(), dest0, time != null ? time : rawCtx().currentTime, bassMidi(st.key, note | 0), 1);
+        // Live synth MUST feed the native mix graph — channels[i].input is a
+        // Tone node, and a native AudioNode.connect(toneNode) throws (silent hit).
+        synthBass(rawCtx(), graph.input, time != null ? time : rawCtx().currentTime, bassMidi(st.key, note | 0), 1);
         return;
       }
       var p = players[i];
       if (p && p.loaded !== false && p.buffer && p.buffer.loaded !== false) {
         try { if (p.volume) p.volume.value = Tone.gainToDb(Math.max(0.05, vel || 1)); p.start(time); return; } catch (e) {}
       }
-      // buffer not warm yet → live synth into the channel's native input
-      var dest = channels[i] && channels[i].input ? channels[i].input : graph.input;
-      voices[TRACKS[i].voice](rawCtx(), dest, time != null ? time : rawCtx().currentTime, kitParam(st.kit, TRACKS[i].voice));
+      // buffer not warm yet → live synth into the NATIVE mix graph (not the Tone channel)
+      voices[TRACKS[i].voice](rawCtx(), graph.input, time != null ? time : rawCtx().currentTime, kitParam(st.kit, TRACKS[i].voice));
     }
     return {
       name: 'tone',
