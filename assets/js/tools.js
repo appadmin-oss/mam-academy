@@ -78,6 +78,18 @@
   openToolFromHash();
   window.addEventListener('hashchange', openToolFromHash);
 
+  // "Tools at a glance" cards jump to their tab and scroll it into view.
+  $$('[data-goto-tool]').forEach(function (card) {
+    card.addEventListener('click', function () {
+      var key = card.getAttribute('data-goto-tool');
+      var btn = toolTabs.filter(function (b) { return b.getAttribute('data-tool') === key; })[0];
+      if (!btn) return;
+      btn.click();
+      var shell = document.querySelector('.tools-tabs');
+      if (shell && shell.scrollIntoView) shell.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
   // ──────────────────────────────────────────────────────────────────
   // METRONOME — scheduled clicks via AudioBufferSourceNode, accent on 1.
   // Uses the "Chris Wilson scheduler" pattern: a setInterval lookahead

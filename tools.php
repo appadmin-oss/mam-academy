@@ -317,6 +317,34 @@
 .pg-status{font-size:0.84rem;color:var(--text-muted);flex:1 1 220px;min-width:0}
 .pg-status.warn{color:#F4C56A}
 @media (max-width:600px){.pg-field input[type=range]{width:150px}.pg-r b{font-size:1.7rem}}
+
+/* ── Studio hero chips + tools-at-a-glance overview + FAQ (UX & SEO) ── */
+.studio-hero-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.studio-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:100px;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text-soft);font-size:0.82rem;font-weight:600}
+.studio-chip i{color:var(--gold-bright,#FCC647)}
+.studio-overview-band{max-width:1180px;margin:0 auto;padding:28px 22px 0}
+.studio-overview{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.studio-card{display:flex;flex-direction:column;align-items:flex-start;gap:7px;text-align:left;padding:18px 18px 16px;border-radius:16px;border:1px solid var(--border);background:var(--bg-surface);cursor:pointer;transition:transform .16s var(--ease),border-color .16s var(--ease),box-shadow .16s var(--ease);position:relative}
+.studio-card:hover{transform:translateY(-3px);border-color:var(--border-gold);box-shadow:0 14px 34px rgba(0,0,0,0.28)}
+.studio-card-ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:1.15rem;color:#1A120B;background:linear-gradient(135deg,var(--gold),var(--gold-light))}
+.studio-card.locked .studio-card-ic{background:linear-gradient(135deg,#7a6a52,#9a8264);color:#fff}
+.studio-card-name{font-weight:800;color:var(--text);font-size:1rem;display:flex;align-items:center;gap:7px}
+.studio-card-name .fa-lock{font-size:0.7rem;color:var(--text-muted)}
+.studio-card-desc{font-size:0.86rem;color:var(--text-soft);line-height:1.55}
+.studio-card-tag{margin-top:2px;font-size:0.62rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;padding:3px 9px;border-radius:100px;background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid var(--border)}
+.studio-card-tag.free{color:#34D399;border-color:rgba(52,211,153,0.4);background:rgba(52,211,153,0.1)}
+.studio-faq{max-width:900px;margin:56px auto 0;padding:0 22px 80px}
+.studio-faq h2{font-family:var(--font-serif);font-size:clamp(1.4rem,3vw,1.9rem);color:var(--text);margin:0 0 20px;text-align:center}
+.faq-grid{display:grid;gap:12px}
+.faq-item{background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;padding:4px 18px}
+.faq-item summary{cursor:pointer;padding:14px 0;font-weight:700;color:var(--text);font-size:0.98rem;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:14px}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary::after{content:'+';color:var(--gold-bright,#FCC647);font-size:1.3rem;font-weight:400;flex:0 0 auto}
+.faq-item[open] summary::after{content:'−'}
+.faq-item p{margin:0 0 16px;color:var(--text-soft);line-height:1.7;font-size:0.92rem}
+.faq-item p a{color:var(--gold-bright,#FCC647)}
+@media (max-width:600px){.studio-overview{grid-template-columns:1fr 1fr}.studio-card-desc{display:none}.studio-overview-band{padding:20px 16px 0}}
+@media (max-width:400px){.studio-overview{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -328,10 +356,30 @@
     <div class="page-hero-inner">
       <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Practice Studio</span></nav>
       <div class="page-hero-eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i>The Practice Studio</div>
-      <h1 class="page-hero-title">The Practice <span class="highlight-gold">Studio</span></h1>
-      <p class="page-hero-lede">Metronome, chromatic tuner, focus timer, ear-training drills, the speed-and-pitch trainer and a 16-step beat maker. Premium musician tools — free for everyone, sharpened for MAM students.</p>
+      <h1 class="page-hero-title">Free online music <span class="highlight-gold">practice tools</span></h1>
+      <p class="page-hero-lede">A pro-grade metronome, chromatic tuner, focus timer, ear-training drills and a browser beat maker — plus a Trinity-graded rhythm trainer and pitch game for MAM students. In your browser, nothing to install, your audio never leaves your device.</p>
+      <div class="studio-hero-chips">
+        <span class="studio-chip"><i class="fa-solid fa-bolt"></i> No install</span>
+        <span class="studio-chip"><i class="fa-solid fa-shield-halved"></i> Private — on-device audio</span>
+        <span class="studio-chip"><i class="fa-solid fa-infinity"></i> Free for everyone</span>
+      </div>
     </div>
   </header>
+
+  <!-- Tools at a glance — orientation + crawlable, keyword-rich content. Each
+       card jumps to its tab (data-goto-tool, handled in tools.js). -->
+  <section class="studio-overview-band" aria-label="Practice tools overview">
+    <div class="studio-overview" id="studioOverview">
+      <button class="studio-card" type="button" data-goto-tool="metronome"><span class="studio-card-ic"><i class="fa-solid fa-stopwatch-20"></i></span><span class="studio-card-name">Metronome</span><span class="studio-card-desc">Rock-steady tempo with accents, time signatures &amp; a speed trainer.</span><span class="studio-card-tag free">Free</span></button>
+      <button class="studio-card" type="button" data-goto-tool="tuner"><span class="studio-card-ic"><i class="fa-solid fa-tower-broadcast"></i></span><span class="studio-card-name">Chromatic Tuner</span><span class="studio-card-desc">Tune any instrument by microphone, with an adjustable A4 reference.</span><span class="studio-card-tag free">Free</span></button>
+      <button class="studio-card" type="button" data-goto-tool="pomodoro"><span class="studio-card-ic"><i class="fa-solid fa-hourglass-half"></i></span><span class="studio-card-name">Practice Timer</span><span class="studio-card-desc">Focused Pomodoro blocks that keep a log of every session.</span><span class="studio-card-tag free">Free</span></button>
+      <button class="studio-card" type="button" data-goto-tool="ear"><span class="studio-card-ic"><i class="fa-solid fa-headphones"></i></span><span class="studio-card-name">Ear Training</span><span class="studio-card-desc">Interval, chord-quality &amp; pitch-direction drills that adapt to you.</span><span class="studio-card-tag free">Free</span></button>
+      <button class="studio-card" type="button" data-goto-tool="seq"><span class="studio-card-ic"><i class="fa-solid fa-grip"></i></span><span class="studio-card-name">Beat Maker</span><span class="studio-card-desc">A 16-step sequencer with kits, swing, FX and one-click WAV export.</span><span class="studio-card-tag free">Free</span></button>
+      <button class="studio-card locked" type="button" data-goto-tool="rhythm"><span class="studio-card-ic"><i class="fa-solid fa-drum"></i></span><span class="studio-card-name">Rhythm Trainer <i class="fa-solid fa-lock"></i></span><span class="studio-card-desc">Endless, Trinity-graded sight-reading — tap it or play it on any instrument.</span><span class="studio-card-tag">Students</span></button>
+      <button class="studio-card locked" type="button" data-goto-tool="pitchgame"><span class="studio-card-ic"><i class="fa-solid fa-microphone-lines"></i></span><span class="studio-card-name">Pitch Game <i class="fa-solid fa-lock"></i></span><span class="studio-card-desc">Real-time intonation, timing &amp; consistency scoring as you sing or play.</span><span class="studio-card-tag">Students</span></button>
+      <button class="studio-card locked" type="button" data-goto-tool="speed"><span class="studio-card-ic"><i class="fa-solid fa-gauge-high"></i></span><span class="studio-card-name">Speed &amp; Pitch <i class="fa-solid fa-lock"></i></span><span class="studio-card-desc">Slow any track down and transpose it to your key — independently.</span><span class="studio-card-tag">Students</span></button>
+    </div>
+  </section>
 
   <section class="tools-shell">
     <p class="tools-tabs-hint" id="toolsTabsHint" hidden><i class="fa-solid fa-lock"></i> <span></span></p>
@@ -685,6 +733,29 @@
       <div id="pitchGame"></div>
     </section>
   </section>
+
+  <!-- ─── SEO + UX: a real, indexable FAQ (mirrored in FAQPage structured data) ─── -->
+  <section class="studio-faq" aria-labelledby="studioFaqH">
+    <h2 id="studioFaqH">Practice Studio — frequently asked questions</h2>
+    <div class="faq-grid">
+      <details class="faq-item"><summary>Are these music practice tools really free?</summary><p>Yes. The metronome, chromatic tuner, practice timer, ear-training drills and beat maker are free for everyone — no account, no install, no payment. The Rhythm Trainer, Pitch Game and Speed &amp; Pitch trainer are unlocked for enrolled MAM Academy students.</p></details>
+      <details class="faq-item"><summary>Does the online tuner work on my phone?</summary><p>It works in any modern mobile or desktop browser that can access the microphone. Tap “Listen”, allow microphone access, and play a single note — the tuner shows the nearest pitch and how many cents sharp or flat you are. You can set the A4 reference for transposing instruments.</p></details>
+      <details class="faq-item"><summary>Is my microphone audio recorded or uploaded?</summary><p>No. The tuner, Pitch Game and Rhythm Trainer analyse sound entirely on your device in real time — nothing is recorded, stored or sent anywhere. The Speed &amp; Pitch trainer decodes your audio file locally too.</p></details>
+      <details class="faq-item"><summary>How is the Rhythm Trainer graded?</summary><p>Each level is scored out of 100 and banded to the Trinity College London standard — Distinction (≥87), Merit (≥75) and Pass (≥60). It auto-advances through endless, procedurally generated levels, and you can tap the rhythm or play it on any instrument (clap, drum, sing) while it listens to your timing.</p></details>
+      <details class="faq-item"><summary>Can I use the metronome and tuner without signing up?</summary><p>Absolutely — the five core tools need no sign-in. To unlock the student tools and have your practice automatically logged to your portal, <a href="/apply">apply to MAM Academy</a>.</p></details>
+      <details class="faq-item"><summary>What is the Beat Maker?</summary><p>A 16-step drum sequencer you can play in the browser: pick a kit, program a groove across drum and pitched-bass lanes, add swing and effects, chain patterns into a song and export it to WAV — all synthesised live, with nothing to download.</p></details>
+    </div>
+  </section>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+    {"@type":"Question","name":"Are these music practice tools really free?","acceptedAnswer":{"@type":"Answer","text":"Yes. The metronome, chromatic tuner, practice timer, ear-training drills and beat maker are free for everyone — no account, no install, no payment. The Rhythm Trainer, Pitch Game and Speed & Pitch trainer are unlocked for enrolled MAM Academy students."}},
+    {"@type":"Question","name":"Does the online tuner work on my phone?","acceptedAnswer":{"@type":"Answer","text":"It works in any modern mobile or desktop browser that can access the microphone. Tap Listen, allow microphone access and play a single note — the tuner shows the nearest pitch and how many cents sharp or flat you are, with an adjustable A4 reference."}},
+    {"@type":"Question","name":"Is my microphone audio recorded or uploaded?","acceptedAnswer":{"@type":"Answer","text":"No. The tuner, Pitch Game and Rhythm Trainer analyse sound entirely on your device in real time — nothing is recorded, stored or sent anywhere."}},
+    {"@type":"Question","name":"How is the Rhythm Trainer graded?","acceptedAnswer":{"@type":"Answer","text":"Each level is scored out of 100 and banded to the Trinity College London standard — Distinction (87+), Merit (75+) and Pass (60+) — auto-advancing through endless procedurally generated levels. Tap the rhythm or play it on any instrument while it listens to your timing."}},
+    {"@type":"Question","name":"Can I use the metronome and tuner without signing up?","acceptedAnswer":{"@type":"Answer","text":"Yes — the five core tools need no sign-in. Apply to MAM Academy to unlock the student tools and have your practice automatically logged to your portal."}},
+    {"@type":"Question","name":"What is the Beat Maker?","acceptedAnswer":{"@type":"Answer","text":"A 16-step drum sequencer in the browser: pick a kit, program a groove across drum and pitched-bass lanes, add swing and effects, chain patterns into a song and export to WAV — all synthesised live."}}
+  ]}
+  </script>
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
@@ -724,7 +795,7 @@
   })();
 </script>
 <script src="assets/js/studio-core.js?v=20260602a" defer></script>
-<script src="assets/js/tools.js?v=20260613a" defer></script>
+<script src="assets/js/tools.js?v=20260613e" defer></script>
 <script src="assets/js/sequencer.js?v=20260613a" defer></script>
 <script src="assets/js/pitch-game.js?v=20260613a" defer></script>
 <script src="assets/js/rhythm-game.js?v=20260613d" defer></script>
