@@ -346,6 +346,54 @@ window.MAM_API = (function () {
   };
 })();
 
+/* -------- Signed-in state (site-wide) --------
+   One cached source of truth for "is someone signed in, and who". The marketing
+   nav, the Studio gate, and the auto practice-logger all read this instead of
+   each calling /api/auth/me. The result is cached in memory + sessionStorage
+   (5-min TTL) so navigating between pages doesn't refetch, while a single async
+   revalidation keeps it fresh. Never throws — a down API resolves to signed-out. */
+window.MAM_AUTH = (function () {
+  var PORTAL = { admin: '/admin/', instructor: '/portal/instructor/', student: '/portal/student/' };
+  var KEY = 'mam.auth.v1', TTL = 5 * 60 * 1000;
+  var mem = null, inflight = null;
+
+  function portalFor(role) { return PORTAL[role] || '/portal/student/'; }
+  function shape(r) {
+    return (r && r.authenticated && r.user)
+      ? { authenticated: true, user: r.user, role: r.user.role, portal: portalFor(r.user.role) }
+      : { authenticated: false, user: null, role: null, portal: '/portal/login' };
+  }
+  /** Synchronous best-guess from sessionStorage — lets the nav paint the right
+      state on first frame (no flash), then state() revalidates in the background. */
+  function cached() {
+    if (mem) return mem;
+    try { var r = JSON.parse(sessionStorage.getItem(KEY)); if (r && (Date.now() - r.t) < TTL) return (mem = r.v); } catch (e) {}
+    return null;
+  }
+  /** Authoritative async check. force=true bypasses the cache. */
+  function state(force) {
+    if (!force) { var c = cached(); if (c) return Promise.resolve(c); }
+    if (inflight) return inflight;
+    inflight = window.MAM_API.request('auth/me', { method: 'GET' })
+      .then(function (r) { return done(shape(r)); })
+      .catch(function () { return done(shape(null)); });
+    return inflight;
+  }
+  function done(v) {
+    mem = v; inflight = null;
+    try { sessionStorage.setItem(KEY, JSON.stringify({ t: Date.now(), v: v })); } catch (e) {}
+    return v;
+  }
+  function clear() { mem = null; try { sessionStorage.removeItem(KEY); } catch (e) {} }
+  function logout() {
+    clear();
+    return window.MAM_API.request('auth/logout', { method: 'POST' })
+      .catch(function () {})
+      .then(function () { return true; });
+  }
+  return { state: state, cached: cached, portalFor: portalFor, clear: clear, logout: logout };
+})();
+
 /* -------- Cloudinary fetch helper --------
    Wraps any absolute image URL in a Cloudinary fetch URL so we get q_auto,
    f_auto, the right width and DPR variant — without uploading anything.

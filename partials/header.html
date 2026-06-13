@@ -1,6 +1,6 @@
 <div class="announce" role="region" aria-label="Site announcement">
   <span class="announce-dot" aria-hidden="true"></span>
-  <span>May 2026 intake is now open — only <strong>7 of 25</strong> seats remaining</span>
+  <span><span data-intake-label>September 2026</span> intake is now open — <strong>limited seats</strong> remaining</span>
   <a href="apply">Reserve your seat →</a>
 </div>
 
@@ -349,7 +349,10 @@
 
     </ul>
 
-    <div class="nav-cta-group">
+    <div class="nav-cta-group" id="navCta" data-auth-cta>
+      <!-- Signed-out (default / no-JS fallback). main.js swaps this for an
+           account chip once MAM_AUTH confirms a session, so the nav reflects
+           the real signed-in state on every page. -->
       <a href="portal/login" class="btn-nav-ghost" title="Student &amp; Instructor sign in"><svg class="nav-ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg> Sign in</a>
       <a href="apply" class="btn-nav-cta"><i class="fa-solid fa-music"></i> Apply Now</a>
       <button class="nav-hamburger" id="hamburgerBtn" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobileMenu">
@@ -360,9 +363,9 @@
 </nav>
 
 <aside class="mobile-menu" id="mobileMenu" aria-label="Mobile navigation">
-  <div class="mobile-quick" role="group" aria-label="Quick actions">
+  <div class="mobile-quick" role="group" aria-label="Quick actions" id="mobileQuick">
     <a class="mobile-quick-tile primary" href="apply"><iconify-icon icon="fluent-emoji:musical-note" width="24" aria-hidden="true"></iconify-icon><span>Apply</span></a>
-    <a class="mobile-quick-tile" href="portal/login"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i><span>Sign in</span></a>
+    <a class="mobile-quick-tile" href="portal/login" data-auth-tile><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i><span>Sign in</span></a>
     <a class="mobile-quick-tile" href="studio"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i><span>Studio</span></a>
     <a class="mobile-quick-tile" href="store"><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i><span>Store</span></a>
   </div>

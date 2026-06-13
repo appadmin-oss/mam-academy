@@ -1071,11 +1071,68 @@
     });
   }
 
+  // ============================================================
+  // Signed-in state in the nav
+  // ============================================================
+  // Reflects the real session site-wide: a cached paint (no flash) then an
+  // async revalidation via MAM_AUTH. Signed-in swaps the "Sign in" ghost for an
+  // account chip → the role's portal, plus a Sign-out button; the hamburger
+  // node (already bound by initNav) is preserved, never re-created.
+  function initAuthNav() {
+    if (!window.MAM_AUTH) return;
+    var cta = $('#navCta');
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+    function firstName(u) { return (((u && u.name) || '').trim().split(/\s+/)[0]) || 'Account'; }
+    function avatarInner(u) {
+      if (u && u.avatar_url) return '<img src="' + esc(u.avatar_url) + '" alt="">';
+      var n = ((u && (u.name || u.email)) || '?').trim();
+      return esc(n.charAt(0).toUpperCase() || '?');
+    }
+    injectAuthCss();
+    var rendered = false;
+    function renderSignedIn(st) {
+      if (rendered || !cta || !st || !st.authenticated) return;
+      rendered = true;
+      var ham = cta.querySelector('#hamburgerBtn');           // keep the bound node
+      cta.innerHTML = ''
+        + '<a href="' + esc(st.portal) + '" class="btn-nav-account" title="Open your dashboard">'
+        +   '<span class="nav-avatar">' + avatarInner(st.user) + '</span>'
+        +   '<span class="nav-account-text"><span class="nav-account-name">' + esc(firstName(st.user)) + '</span>'
+        +   '<span class="nav-account-role">' + esc(st.role || 'member') + '</span></span>'
+        + '</a>'
+        + '<button type="button" class="btn-nav-ghost btn-nav-logout" data-action="nav-logout" title="Sign out" aria-label="Sign out"><i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i></button>';
+      if (ham) cta.appendChild(ham);
+      var lo = cta.querySelector('[data-action="nav-logout"]');
+      if (lo) on(lo, 'click', function () { lo.disabled = true; window.MAM_AUTH.logout().then(function () { location.href = '/'; }); });
+      // Mobile quick tile: Sign in → Dashboard
+      var tile = document.querySelector('[data-auth-tile]');
+      if (tile) { tile.setAttribute('href', st.portal); tile.innerHTML = '<i class="fa-solid fa-gauge" aria-hidden="true"></i><span>Dashboard</span>'; }
+    }
+    var c = window.MAM_AUTH.cached();
+    if (c && c.authenticated) renderSignedIn(c);
+    window.MAM_AUTH.state().then(renderSignedIn).catch(function () {});
+  }
+  function injectAuthCss() {
+    if (document.getElementById('mam-authnav-css')) return;
+    var css = ''
+      + '.btn-nav-account{display:inline-flex;align-items:center;gap:9px;padding:5px 14px 5px 6px;border-radius:100px;border:1px solid var(--border-gold,rgba(224,138,26,.45));background:linear-gradient(135deg,rgba(224,138,26,.14),rgba(251,191,36,.06));color:var(--text,#fff);text-decoration:none;font-weight:700;line-height:1;transition:transform .15s ease,box-shadow .15s ease}'
+      + '.btn-nav-account:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(224,138,26,.28)}'
+      + '.nav-avatar{width:30px;height:30px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-size:.82rem;font-weight:800;color:#1A120B;background:linear-gradient(135deg,#E8961F,#FBBF24);overflow:hidden}'
+      + '.nav-avatar img{width:100%;height:100%;object-fit:cover}'
+      + '.nav-account-text{display:flex;flex-direction:column;gap:1px}'
+      + '.nav-account-name{font-size:.86rem}'
+      + '.nav-account-role{font-size:.64rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.6}'
+      + '.btn-nav-logout{padding:9px 12px}'
+      + '@media (max-width:1024px){.btn-nav-account .nav-account-text{display:none}.btn-nav-account{padding:5px}}';
+    var st = document.createElement('style'); st.id = 'mam-authnav-css'; st.textContent = css;
+    document.head.appendChild(st);
+  }
+
   function boot() {
     // Each init is isolated: a throw in one (e.g. the nav) must never stop the
     // others from running — otherwise a single failure could, for example,
     // leave the scroll-reveal section headers stuck at opacity:0.
-    [initPreloader, initNav, initHero, initSmoothScroll, initFaq, initAnimations,
+    [initPreloader, initNav, initAuthNav, initHero, initSmoothScroll, initFaq, initAnimations,
      initCountdown, initTestimonials, initCookie, initToolbar, initCurrency,
      initNewsletter, initFilters, initImageFallback, initYear, initScholarship,
      initFooterWordmark, initNavPricing, initGraphics].forEach(function (fn) {
@@ -1221,7 +1278,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     injectSiteSchema();
     Promise.all([
-      loadPartial('include-header', 'partials/header.html?v=20260611c'),
+      loadPartial('include-header', 'partials/header.html?v=20260613a'),
       loadPartial('include-footer', 'partials/footer.html?v=20260611c')
     ]).then(boot);
   });
