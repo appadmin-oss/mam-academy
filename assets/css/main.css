@@ -368,6 +368,20 @@ html:not(.textclip) .match-result-name, html:not(.textclip) .col-price{
 }
 html:not(.textclip) .highlight-red{-webkit-text-fill-color:currentColor!important;color:var(--red-hot,#E11D48)!important;background:none!important}
 html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!important;color:#A78BFA!important;background:none!important}
+/* CSS-only guarantee (independent of the JS probe above): on any engine that
+   does NOT support background-clip:text, force every gradient-text class to a
+   solid, visible colour so it can never render transparent. Two angles cover
+   each other — @supports here for "no support", the .textclip probe above for
+   "accepts but doesn't paint". One of them always catches it. */
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  .highlight-gold,.highlight-red,.highlight-purple,.preloader-name,.nav-brand-name,
+  .footer-logo-name,.stat-number,.countdown-num,.mam-exit-glow,.portal-brand-name,
+  .kpi-value.gold,.pp-title .accent,.match-result-name,.col-price{
+    -webkit-text-fill-color:currentColor!important;color:var(--gold-bright,#FCC647)!important;background:none!important;
+  }
+  .highlight-red{color:var(--red-hot,#E11D48)!important}
+  .highlight-purple{color:#A78BFA!important}
+}
 
 /* Native emoji with a CSS-driven bounce — replaces the dotlottie-wc nodes.
    Forces the colour-emoji font stack so the glyph never falls back to a

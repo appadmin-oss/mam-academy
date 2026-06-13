@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260612b">
+<link rel="stylesheet" href="assets/css/main.css?v=20260613b">
 <style>
 /* ── Shell + layout ───────────────────────────────────────────── */
 .store-shell{max-width:1240px;margin:0 auto;padding:36px 22px 96px}
@@ -352,8 +352,8 @@
 </div>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260602d"></script>
-<script src="assets/js/main.js?v=20260612b"></script>
+<script src="assets/js/config.js?v=20260613b"></script>
+<script src="assets/js/main.js?v=20260613b"></script>
 <script>
 (function(){
   'use strict';

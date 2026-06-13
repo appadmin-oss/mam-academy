@@ -49,10 +49,24 @@
   // reduced-motion shows it at once, and a hard timer reveals anything still
   // hidden so nothing can be stuck transparent.
   (function () {
-    function revealAll() {
+    // Reveal targets: our own .fade-in(-up), AOS [data-aos] (opacity:0 until
+    // animated), and the exact elements GSAP hides with inline opacity:0
+    // (section/hero headings + content cards). Scoped deliberately so we NEVER
+    // clear opacity on hero slides, decorative layers or carousels that use
+    // opacity:0 for legitimate reasons.
+    var GSAP_SEL = '.section-title,.page-hero-title,.unique-card,.school-card,.program-card,.pathway-card,.faculty-card,.team-card';
+    var SEL = '.fade-in-up:not(.visible),.fade-in:not(.visible),[data-aos]:not(.aos-animate),' + GSAP_SEL;
+    function vh() { return window.innerHeight || document.documentElement.clientHeight || 0; }
+    function inView(el) { try { var r = el.getBoundingClientRect(); return r.bottom > -80 && r.top < vh() + 80; } catch (e) { return true; } }
+    function reveal(el) {
+      el.classList.add('visible');                                   // .fade-in(-up)
+      if (el.hasAttribute('data-aos')) el.classList.add('aos-animate'); // AOS
+      if (el.style && parseFloat(el.style.opacity) === 0) el.style.opacity = ''; // GSAP leftover (only if exactly 0 → never mid-animation)
+    }
+    function sweep(force) {
       try {
-        var els = document.querySelectorAll('.fade-in-up:not(.visible), .fade-in:not(.visible)');
-        for (var i = 0; i < els.length; i++) els[i].classList.add('visible');
+        var els = document.querySelectorAll(SEL);
+        for (var i = 0; i < els.length; i++) if (force || inView(els[i])) reveal(els[i]);
       } catch (e) {
         try { document.documentElement.className += ' reveal-fallback'; } catch (_) {}
       }
@@ -60,11 +74,14 @@
     try {
       var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (reduce) {
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', revealAll);
-        else revealAll();
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { sweep(true); });
+        else sweep(true);
       }
-      window.addEventListener('load', function () { setTimeout(revealAll, 1200); });
-      setTimeout(revealAll, 4000); // last-resort guarantee
+      // As the user scrolls, un-stick anything in view that a reveal never fired on.
+      var tick = false;
+      window.addEventListener('scroll', function () { if (tick) return; tick = true; setTimeout(function () { tick = false; sweep(false); }, 180); }, { passive: true });
+      window.addEventListener('load', function () { setTimeout(function () { sweep(false); }, 1200); });
+      setTimeout(function () { sweep(true); }, 6000); // last-resort: force-reveal everything so nothing is ever stuck transparent
     } catch (e) {
       try { document.documentElement.className += ' reveal-fallback'; } catch (_) {}
     }
