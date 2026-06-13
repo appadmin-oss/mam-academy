@@ -44,7 +44,7 @@
   // ── State ──────────────────────────────────────────────────────────
   var root, cvs, cx, hud, dom = {};
   var stream = null, ac = null, analyser = null, buf = null, detector = null, srcNode = null;
-  var raf = null, running = false, refMuted = false;
+  var raf = null, running = false, refMuted = false, refBus = null;
   var melody = MELODIES[0], bpm = 90, tol = TOL.beginner;
   var timeline = [], t0 = 0, lenSec = 0, trail = [], reduceMotion = false;
 
@@ -53,6 +53,18 @@
     ac = ac || new (window.AudioContext || window.webkitAudioContext)();
     if (ac.state === 'suspended') ac.resume();
     return ac;
+  }
+  // Per-run output bus for the synthesised reference. Routing every scheduled
+  // tone/tick through it means Stop can silence the whole schedule instantly —
+  // disconnecting the bus kills notes that were queued ahead on the audio clock
+  // (otherwise "Listen" then "Stop" would keep playing to the end of the melody).
+  function refOut() {
+    var a = audioCtx();
+    if (!refBus) { refBus = a.createGain(); refBus.connect(a.destination); }
+    return refBus;
+  }
+  function killRef() {
+    if (refBus) { try { refBus.disconnect(); } catch (e) {} refBus = null; }
   }
 
   // ── Build the timeline from the chosen melody + tempo ───────────────
@@ -85,7 +97,7 @@
     g.gain.exponentialRampToValueAtTime(0.18, t + atk);
     g.gain.setValueAtTime(0.18, t + dur - rel);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(a.destination);
+    o.connect(g).connect(refOut());
     o.start(t); o.stop(t + dur + 0.02);
   }
   function tick(when) {
@@ -93,9 +105,10 @@
     var a = audioCtx(); var o = a.createOscillator(), g = a.createGain();
     o.type = 'square'; o.frequency.value = 1320;
     g.gain.setValueAtTime(0.12, when); g.gain.exponentialRampToValueAtTime(0.0001, when + 0.05);
-    o.connect(g).connect(a.destination); o.start(when); o.stop(when + 0.06);
+    o.connect(g).connect(refOut()); o.start(when); o.stop(when + 0.06);
   }
   function scheduleReference() {
+    killRef();                                                  // fresh bus per run (Listen-then-Listen won't stack)
     var a = audioCtx(), base = a.currentTime + 0.12, beat = 60 / bpm;
     for (var i = 0; i < 4; i++) tick(base + i * beat);          // count-in
     timeline.forEach(function (n) { playTone(n.midi, base + n.start, (n.end - n.start)); });
@@ -346,16 +359,15 @@
   }
   function stop(silent) {
     running = false; cancelAnimationFrame(raf); raf = null;
-    stopMic(); root.classList.remove('pg-running');
+    stopMic(); killRef(); root.classList.remove('pg-running');
     if (!silent) setStatus('Stopped.');
   }
   function finish() {
-    running = false; cancelAnimationFrame(raf); raf = null; stopMic();
+    running = false; cancelAnimationFrame(raf); raf = null; stopMic(); killRef();
     root.classList.remove('pg-running');
     var s = finalScore();
     var stars = s.final >= 90 ? 3 : s.final >= 70 ? 2 : s.final >= 45 ? 1 : 0;
-    var starHtml = '★★★☆☆☆'.slice(3 - stars, 6 - stars); // not used; build below
-    starHtml = '';
+    var starHtml = '';
     for (var i = 0; i < 3; i++) starHtml += '<span class="pg-star ' + (i < stars ? 'on' : '') + '">★</span>';
     var bars = s.rows.map(function (r) {
       return '<div class="pg-rowline"><span>' + r.name + '</span>'

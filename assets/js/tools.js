@@ -36,15 +36,35 @@
   function hasPitchy() { return !!window.MAM_PITCHY; }
 
   // ── Tab switching ──────────────────────────────────────────────────
-  $$('.tools-tabs button').forEach(function (b) {
+  var toolTabs = $$('.tools-tabs button');
+  function setRoving(active) { toolTabs.forEach(function (t) { t.tabIndex = (t === active ? 0 : -1); }); }
+  toolTabs.forEach(function (b) {
     b.addEventListener('click', function () {
       var key = b.getAttribute('data-tool');
-      $$('.tools-tabs button').forEach(function (x) { x.classList.toggle('active', x === b); x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
+      toolTabs.forEach(function (x) { x.classList.toggle('active', x === b); x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
       $$('.tool-panel').forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-tool') === key); });
+      setRoving(b); // keep the roving tabindex on the selected tab
       // Stop sound-producing tools when switching away so they don't haunt the page.
       if (key !== 'metronome') stopMetronome();
       if (key !== 'tuner') stopTuner();
     });
+  });
+
+  // Accessible tablist: a focused tab moves with Arrow/Home/End (WAI-ARIA tabs
+  // pattern) and only the active tab is in the tab order (roving tabindex), so
+  // keyboard users aren't forced to step through all eight tabs.
+  setRoving($('.tools-tabs button.active') || toolTabs[0]);
+  var tablist = $('.tools-tabs');
+  if (tablist) tablist.addEventListener('keydown', function (e) {
+    var i = toolTabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    var n = null, last = toolTabs.length - 1;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') n = toolTabs[(i + 1) % toolTabs.length];
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') n = toolTabs[(i - 1 + toolTabs.length) % toolTabs.length];
+    else if (e.key === 'Home') n = toolTabs[0];
+    else if (e.key === 'End') n = toolTabs[last];
+    else return;
+    e.preventDefault(); n.focus(); n.click();
   });
 
   // Deep links: /studio#tuner, /studio#pitchgame … open that tab directly
@@ -195,12 +215,15 @@
   $('#metSubdivision').addEventListener('change', function (e) { metSub = parseInt(e.target.value, 10) || 1; });
   $('#metVolume').addEventListener('input', function (e) { metVol = (parseInt(e.target.value, 10) || 0) / 100; });
 
-  // Tap tempo: average the last 4 taps.
+  // Tap tempo: rolling average of the last few taps. A pause longer than ~2s
+  // (≈ slower than 30 BPM) means the user is starting a NEW tempo, so we reset
+  // the window — otherwise the stale gap is averaged in and the BPM is wrong.
   var tapTimes = [];
   $('#metTap').addEventListener('click', function () {
     var now = performance.now();
+    if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) tapTimes = [];
     tapTimes.push(now);
-    if (tapTimes.length > 4) tapTimes.shift();
+    if (tapTimes.length > 5) tapTimes.shift();
     if (tapTimes.length >= 2) {
       var diffs = [];
       for (var i = 1; i < tapTimes.length; i++) diffs.push(tapTimes[i] - tapTimes[i - 1]);
@@ -267,11 +290,16 @@
     for (var i = 1; i < SIZE / 2; i++) if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
     buf = buf.slice(r1, r2);
     SIZE = buf.length;
-    var c = new Array(SIZE).fill(0);
-    for (var i = 0; i < SIZE; i++) for (var j = 0; j < SIZE - i; j++) c[i] += buf[j] * buf[j + i];
-    var d = 0; while (c[d] > c[d + 1]) d++;
+    // Only correlate up to the lag of the lowest pitch we report (~50 Hz). This
+    // bounds the O(n²) autocorrelation to the musical range — a meaningful
+    // speed-up on low-end devices when the Pitchy module is blocked — and stops
+    // the peak search locking onto a spurious sub-harmonic past that lag.
+    var maxLag = Math.min(SIZE - 1, Math.ceil(sampleRate / 50));
+    var c = new Array(maxLag + 1).fill(0);
+    for (var i = 0; i <= maxLag; i++) for (var j = 0; j < SIZE - i; j++) c[i] += buf[j] * buf[j + i];
+    var d = 0; while (d < maxLag && c[d] > c[d + 1]) d++;
     var maxVal = -1, maxPos = -1;
-    for (var i = d; i < SIZE; i++) if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
+    for (var i = d; i <= maxLag; i++) if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
     var T0 = maxPos;
     var x1 = c[T0 - 1] || 0, x2 = c[T0] || 0, x3 = c[T0 + 1] || 0;
     var a = (x1 + x3 - 2 * x2) / 2;
