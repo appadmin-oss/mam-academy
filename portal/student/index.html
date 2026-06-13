@@ -37,7 +37,6 @@
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-calendar-check"></i>Attendance</a>
       <a class="portal-nav-link" href="#announcements" data-tab="announcements"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#practice" data-tab="practice"><i class="fa-solid fa-chart-line"></i>Practice</a>
-      <a class="portal-nav-link" href="#games" data-tab="games"><i class="fa-solid fa-gamepad"></i>Games <span class="nav-badge" style="display:inline-block;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B">NEW</span></a>
       <a class="portal-nav-link" href="#repertoire" data-tab="repertoire"><i class="fa-solid fa-book-open"></i>Repertoire</a>
       <a class="portal-nav-link" href="#payments" data-tab="payments"><i class="fa-solid fa-credit-card"></i>Payments</a>
       <a class="portal-nav-link" href="#orders" data-tab="orders"><i class="fa-solid fa-bag-shopping"></i>Store Orders</a>
@@ -70,7 +69,6 @@
 
 <script src="/assets/js/config.js?v=20260601a"></script>
 <script src="/assets/js/portal.js?v=20260530a"></script>
-<script src="/assets/js/rhythm-game.js?v=20260612c" defer></script>
 <script src="/assets/js/studio-tools.js?v=20260612a"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <script>
@@ -79,7 +77,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], courses: ['My Courses', 'Add and track your courses'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], games: ['Games', 'Train rhythm & pitch — play your way'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], classes: ['Classes', 'Your active enrollments'], courses: ['My Courses', 'Add and track your courses'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Your billing history'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
 
@@ -92,7 +90,6 @@
     if (STUDIO && tab === 'repertoire') return STUDIO.renderRepertoire(content);
     if (!data) return;
     if (tab === 'practice') return renderPractice();
-    if (tab === 'games') return renderGames();
     if (tab === 'overview') return renderOverview();
     if (tab === 'applications') return renderApplications();
     if (tab === 'classes') return renderClasses();
@@ -328,21 +325,6 @@
     }).join('');
     return '<section class="panel" style="margin-top:6px"><div style="padding:8px 18px 18px">' + head + rows + '</div></section>';
   }
-  // ── Games — rhythm-reading tap game (in-portal) + Pitch Game link ───────
-  function renderGames() {
-    content.innerHTML = ''
-      + '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-drum" style="color:var(--gold-bright);margin-right:8px"></i>Rhythm Tap <span class="nav-badge" style="display:inline-block;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;vertical-align:middle">Students only</span></h2>'
-      +   '<span style="font-size:0.8rem;color:var(--text-muted)">Read it · think it · tap it in time</span></div>'
-      +   '<div style="padding:16px 18px 20px"><div id="rhythmGame"></div></div></section>'
-      + '<section class="panel" style="margin-top:16px"><div class="panel-body" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
-      +   '<span style="width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;flex:0 0 auto"><i class="fa-solid fa-microphone-lines"></i></span>'
-      +   '<span style="flex:1;min-width:200px"><strong style="color:var(--text)">Pitch Game — sing &amp; play</strong><br><span style="color:var(--text-muted);font-size:0.86rem">Match notes with your voice or instrument; scored on intonation, timing and consistency.</span></span>'
-      +   '<a class="btn btn-primary" href="/studio#pitchgame" target="_blank" rel="noopener">Open in Studio <i class="fa-solid fa-arrow-up-right-from-square"></i></a>'
-      + '</div></section>';
-    if (window.MAM_RHYTHM) window.MAM_RHYTHM.init();
-    else content.querySelector('#rhythmGame').innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-notch fa-spin"></i>Loading the game…</div>';
-  }
-
   function renderPractice() {
     var ps = data.practice_stats || { streak: 0, weekMin: 0, total: 0, sessions: 0 };
     var logs = data.practice || [];

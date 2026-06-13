@@ -4,12 +4,27 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>Practice Studio — MAM Academy</title>
-<meta name="description" content="The MAM Academy Practice Studio — metronome, chromatic tuner, focus timer, ear training, speed/pitch trainer, and a browser beat maker. Premium musician tools, free for everyone.">
+<title>Free Online Music Practice Tools — Metronome, Tuner, Ear Training &amp; Rhythm Games | MAM Academy Studio</title>
+<meta name="description" content="Free online music practice studio: a precise metronome, chromatic tuner, focus timer, ear-training drills and a browser beat maker — plus Trinity-graded Rhythm Tap, the Pitch Game and a speed/pitch trainer for MAM Academy students. Works in your browser, your audio never leaves your device.">
+<meta name="keywords" content="online metronome, free chromatic tuner, ear training online, rhythm game, sight-reading rhythm trainer, music practice tools, beat maker online, pitch trainer, tempo trainer, Trinity rhythm grading, MAM Academy">
+<meta name="robots" content="index, follow, max-image-preview:large">
 <link rel="canonical" href="https://academy.mamcentre.org/studio">
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<meta property="og:title" content="MAM Academy — Practice Studio">
-<meta property="og:description" content="Metronome, tuner, focus timer, ear training, speed-and-pitch trainer, beat maker. Free.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://academy.mamcentre.org/studio">
+<meta property="og:site_name" content="MAM Academy">
+<meta property="og:title" content="Free Online Music Practice Studio — Metronome, Tuner, Ear Training &amp; Rhythm Games">
+<meta property="og:description" content="A precise metronome, chromatic tuner, focus timer, ear-training drills and a beat maker — free in your browser. Plus Trinity-graded Rhythm Tap and the Pitch Game for MAM Academy students.">
+<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Free Online Music Practice Studio — MAM Academy">
+<meta name="twitter:description" content="Metronome, tuner, ear training, beat maker, Trinity-graded rhythm trainer and pitch game — free in your browser.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+  {"@type":"WebApplication","@id":"https://academy.mamcentre.org/studio#app","name":"MAM Academy Practice Studio","url":"https://academy.mamcentre.org/studio","applicationCategory":"MusicApplication","operatingSystem":"Any (web browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"A suite of free in-browser music practice tools — metronome, chromatic tuner, focus timer, ear-training drills and a beat maker — plus Trinity-graded Rhythm Tap, the Pitch Game and a speed/pitch trainer for enrolled students.","featureList":["Metronome with tempo trainer","Chromatic tuner","Pomodoro practice timer","Ear-training drills","Beat maker / step sequencer","Rhythm Tap (Trinity-graded)","Pitch Game","Speed & pitch trainer"],"publisher":{"@type":"EducationalOrganization","name":"MAM Academy","url":"https://academy.mamcentre.org"}},
+  {"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Practice Studio","item":"https://academy.mamcentre.org/studio"}]}
+]}
+</script>
 <!-- Permissions-Policy: the host injects a default policy that disallows
      microphone; without explicit allow, the tuner's getUserMedia errors with
      'Permissions policy violation'. The meta is a hint to the browser; the
@@ -22,9 +37,22 @@
 <link rel="stylesheet" href="assets/css/main.css?v=20260612b">
 <style>
 .tools-shell{max-width:1180px;margin:0 auto;padding:32px 22px 96px}
-.tools-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:6px;background:var(--bg-surface);border:1px solid var(--border);border-radius:100px;margin:18px 0 28px;width:fit-content}
-.tools-tabs button{padding:10px 18px;border-radius:100px;font-size:0.88rem;font-weight:700;color:var(--text-muted);background:transparent;border:0;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:42px}
+.tools-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:6px;background:var(--bg-surface);border:1px solid var(--border);border-radius:18px;margin:14px 0 26px;width:fit-content;max-width:100%}
+.tools-tabs button{padding:10px 18px;border-radius:12px;font-size:0.88rem;font-weight:700;color:var(--text-muted);background:transparent;border:0;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:42px;white-space:nowrap;transition:background .18s var(--ease),color .18s var(--ease)}
+.tools-tabs button:hover{color:var(--text)}
 .tools-tabs button.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
+.tools-tabs button[data-locked] .tab-lock{font-size:0.66rem;opacity:0.7}
+.tools-tabs button.active[data-locked] .tab-lock{opacity:0.85}
+.tools-tabs-hint{display:flex;align-items:center;gap:8px;margin:18px 0 0;font-size:0.84rem;color:var(--text-muted)}
+.tools-tabs-hint a{color:var(--gold-bright,#FCC647);font-weight:700;text-decoration:none}
+.tools-tabs-hint a:hover{text-decoration:underline}
+.tool-pill{display:inline-block;vertical-align:middle;font-size:0.6rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;padding:3px 8px;border-radius:100px;background:rgba(224,138,26,0.16);color:var(--gold-bright,#FCC647);border:1px solid var(--border-gold,rgba(224,138,26,0.4));margin-left:8px}
+/* Mobile: a single clean scroll-row instead of a wrapped pill blob. */
+@media (max-width:760px){
+  .tools-tabs{flex-wrap:nowrap;overflow-x:auto;width:100%;border-radius:14px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tools-tabs::-webkit-scrollbar{display:none}
+  .tools-tabs button{flex:0 0 auto}
+}
 .tool-panel{display:none;background:var(--bg-surface);border:1px solid var(--border);border-radius:18px;padding:clamp(20px,3vw,36px);box-shadow:0 14px 36px rgba(0,0,0,0.25)}
 .tool-panel.active{display:block;animation:fadeUp .3s var(--ease)}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -306,14 +334,16 @@
   </header>
 
   <section class="tools-shell">
+    <p class="tools-tabs-hint" id="toolsTabsHint" hidden><i class="fa-solid fa-lock"></i> <span></span></p>
     <nav class="tools-tabs" role="tablist" aria-label="Practice tools">
       <button class="active" data-tool="metronome" role="tab" aria-selected="true"><i class="fa-solid fa-stopwatch-20"></i> Metronome</button>
       <button data-tool="tuner" role="tab" aria-selected="false"><i class="fa-solid fa-tower-broadcast"></i> Tuner</button>
       <button data-tool="pomodoro" role="tab" aria-selected="false"><i class="fa-solid fa-hourglass-half"></i> Pomodoro</button>
       <button data-tool="ear" role="tab" aria-selected="false"><i class="fa-solid fa-headphones"></i> Ear Training</button>
-      <button data-tool="pitchgame" role="tab" aria-selected="false"><i class="fa-solid fa-microphone-lines"></i> Pitch Game <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
-      <button data-tool="speed" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">PREMIUM</span></button>
-      <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker <span style="font-size:0.62rem;font-weight:800;letter-spacing:0.08em;padding:2px 6px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;margin-left:4px">NEW</span></button>
+      <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker</button>
+      <button data-tool="rhythm" data-locked="student" role="tab" aria-selected="false"><i class="fa-solid fa-drum"></i> Rhythm Tap <i class="fa-solid fa-lock tab-lock" aria-label="Students only" title="Students only"></i></button>
+      <button data-tool="pitchgame" data-locked="student" role="tab" aria-selected="false"><i class="fa-solid fa-microphone-lines"></i> Pitch Game <i class="fa-solid fa-lock tab-lock" aria-label="Students only" title="Students only"></i></button>
+      <button data-tool="speed" data-locked="student" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <i class="fa-solid fa-lock tab-lock" aria-label="Students only" title="Students only"></i></button>
     </nav>
 
     <!-- ─── Metronome ─── -->
@@ -458,11 +488,11 @@
       </div>
     </section>
 
-    <!-- ─── Speed & Pitch Trainer (premium) ─── -->
-    <section class="tool-panel" data-tool="speed" role="tabpanel">
+    <!-- ─── Speed & Pitch Trainer (premium · student-only) ─── -->
+    <section class="tool-panel" data-tool="speed" data-locked="student" role="tabpanel">
       <div class="tool-head">
         <div>
-          <h2>Speed &amp; Pitch Trainer</h2>
+          <h2>Speed &amp; Pitch Trainer <span class="tool-pill">Students only</span></h2>
           <p>Load a track, slow it down to learn it, transpose it to your key — independently. Audio never leaves your device.</p>
         </div>
       </div>
@@ -639,22 +669,27 @@
       <p class="seq-status" id="seqStatus">Tip: tap a cell once for a hit, twice for an accent. Press play, add swing, and store grooves in A–D.</p>
     </section>
 
-    <!-- ─── Pitch Game (sing & play — scored intonation + timing) ─── -->
-    <section class="tool-panel" data-tool="pitchgame" role="tabpanel">
+    <!-- ─── Rhythm Tap (student-only · Trinity-graded, endless, listen-and-play) ─── -->
+    <section class="tool-panel" data-tool="rhythm" data-locked="student" role="tabpanel">
       <div class="tool-head">
-        <div><h2>Pitch Game — sing &amp; play</h2><p>Match each note as it reaches the line. Real-time pitch detection scores your intonation (in cents), timing and consistency — like a coach in your pocket. Sing it or play your instrument; your audio stays on your device and nothing is recorded.</p></div>
+        <div><h2>Rhythm Tap <span class="tool-pill">Students only</span></h2><p>Read the rhythm, then tap it or <strong>play it back</strong> — clap, drum, sing or any instrument; we detect the timing, not the notes. Endless auto-levelling, Trinity-standard grading and rewards.</p></div>
+      </div>
+      <div id="rhythmGame"></div>
+    </section>
+
+    <!-- ─── Pitch Game (sing & play — scored intonation + timing) ─── -->
+    <section class="tool-panel" data-tool="pitchgame" data-locked="student" role="tabpanel">
+      <div class="tool-head">
+        <div><h2>Pitch Game — sing &amp; play <span class="tool-pill">Students only</span></h2><p>Match each note as it reaches the line. Real-time pitch detection scores your intonation (in cents), timing and consistency — like a coach in your pocket. Sing it or play your instrument; your audio stays on your device and nothing is recorded.</p></div>
       </div>
       <div id="pitchGame"></div>
     </section>
-
-    <!-- Rhythm Tap is a student-exclusive: it lives in the student portal's
-         Games tab only (portal/student → #games). -->
   </section>
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260602d"></script>
-<script src="assets/js/main.js?v=20260612b"></script>
+<script src="assets/js/config.js?v=20260613a"></script>
+<script src="assets/js/main.js?v=20260613a"></script>
 <!--
   Audio libraries are DEFERRED until the first user interaction with the
   studio. Tone.js performs capability probes at script-evaluation time
@@ -690,7 +725,9 @@
 </script>
 <script src="assets/js/studio-core.js?v=20260602a" defer></script>
 <script src="assets/js/tools.js?v=20260613a" defer></script>
-<script src="assets/js/sequencer.js?v=20260612b" defer></script>
+<script src="assets/js/sequencer.js?v=20260613a" defer></script>
 <script src="assets/js/pitch-game.js?v=20260613a" defer></script>
+<script src="assets/js/rhythm-game.js?v=20260613a" defer></script>
+<script src="assets/js/studio-gate.js?v=20260613a" defer></script>
 </body>
 </html>
