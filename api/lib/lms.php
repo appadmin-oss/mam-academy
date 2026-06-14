@@ -31,6 +31,108 @@ function mam_lms_auto_approve(): bool {
     return (int)mam_setting_num('lms_auto_approve', 0) === 1;
 }
 
+/* ─────────────────────────── Enrolment lifecycle ─────────────────────────
+   An enrolment moves through an ENFORCED state machine, not free text. Every
+   change is appended to enrolment_events (who/when/why) so the lifecycle is
+   fully auditable. Legal moves:
+       pending   → active | rejected | withdrawn
+       active    → completed | failed | withdrawn
+       completed | failed | withdrawn | rejected  → (terminal)
+   The vocabulary is backwards-compatible with the existing 'pending'/'active'
+   data; the terminal states formalise outcomes that were previously implicit
+   (a passed/finished course, a drop-out, a declined request). */
+
+/** The legal transition graph (terminal states have an empty allow-list). */
+function mam_lms_transitions(): array {
+    return [
+        'pending'   => ['active', 'rejected', 'withdrawn'],
+        'active'    => ['completed', 'failed', 'withdrawn'],
+        'completed' => [],
+        'failed'    => [],
+        'withdrawn' => [],
+        'rejected'  => [],
+    ];
+}
+
+/** Pure predicate: is $from → $to a legal enrolment transition? */
+function mam_lms_can_transition(string $from, string $to): bool {
+    $g = mam_lms_transitions();
+    return isset($g[$from]) && in_array($to, $g[$from], true);
+}
+
+/** Append one row to the enrolment audit trail. Never throws (the audit must
+ *  not break a write); a missing table on a pre-v18 install is simply skipped. */
+function mam_lms_log_event(int $enrollmentId, ?string $from, string $to, ?int $actorId = null, ?string $reason = null): void {
+    try {
+        mam_db_insert('enrolment_events', [
+            'enrollment_id' => $enrollmentId,
+            'from_status'   => $from,
+            'to_status'     => $to,
+            'actor_id'      => $actorId,
+            'reason'        => $reason !== null ? mb_substr($reason, 0, 255) : null,
+        ]);
+    } catch (Throwable $e) { /* audit-only */ }
+}
+
+/**
+ * Enforced enrolment-status transition. Validates that $to is reachable from
+ * the current status, updates course_enrollments (+ status_changed_at, and the
+ * legacy approved_* columns when activating), and appends an enrolment_events
+ * audit row. Idempotent: a move to the current status is a no-op (no duplicate
+ * event). Throws RuntimeException('enrollment_not_found') or
+ * RuntimeException('illegal_transition'). Returns
+ * ['ok'=>true,'changed'=>bool,'from'=>?string,'to'=>string].
+ */
+function mam_lms_transition(int $enrollmentId, string $to, ?int $by = null, ?string $reason = null): array {
+    $row = mam_db_row('SELECT status FROM course_enrollments WHERE id = ?', [$enrollmentId]);
+    if (!$row) throw new RuntimeException('enrollment_not_found');
+    $from = (string)$row['status'];
+    if ($from === $to) return ['ok' => true, 'changed' => false, 'from' => $from, 'to' => $to];
+    if (!mam_lms_can_transition($from, $to)) throw new RuntimeException('illegal_transition');
+
+    $now  = date('Y-m-d H:i:s');
+    $data = ['status' => $to, 'status_changed_at' => $now];
+    // Keep the legacy approval columns in lockstep when an enrolment activates.
+    if ($to === 'active') { $data['approved_at'] = $now; if ($by) $data['approved_by'] = $by; }
+    mam_db_update('course_enrollments', $data, ['id' => $enrollmentId]);
+
+    mam_lms_log_event($enrollmentId, $from, $to, $by, $reason);
+    mam_audit('lms_transition', 'course_enrollment', $enrollmentId, ['from' => $from, 'to' => $to, 'reason' => $reason]);
+    return ['ok' => true, 'changed' => true, 'from' => $from, 'to' => $to];
+}
+
+/** The audit trail for an enrolment, oldest first (the lifecycle as it happened). */
+function mam_lms_enrolment_events(int $enrollmentId): array {
+    return mam_db_all(
+        "SELECT ev.id, ev.from_status, ev.to_status, ev.reason, ev.created_at,
+                u.name AS actor_name
+           FROM enrolment_events ev
+           LEFT JOIN users u ON u.id = ev.actor_id
+          WHERE ev.enrollment_id = ? ORDER BY ev.id ASC",
+        [$enrollmentId]
+    );
+}
+
+/** Withdraw (cancel / drop) an enrolment: pending|active → withdrawn. */
+function mam_lms_withdraw(int $enrollmentId, ?int $by = null, ?string $reason = 'withdrawn'): array {
+    return mam_lms_transition($enrollmentId, 'withdrawn', $by, $reason);
+}
+
+/**
+ * Finalize an active enrolment from its gradebook: compute the result, then
+ * move active → completed (met the pass mark) or active → failed. Refuses to
+ * finalize an ungraded enrolment (RuntimeException('not_graded')) so a course
+ * is never closed as "failed" purely for a lack of marks. Returns
+ * ['result'=>…, 'status'=>'completed'|'failed', 'transition'=>…].
+ */
+function mam_lms_finalize(int $enrollmentId, ?int $by = null): array {
+    $res = mam_lms_compute_result($enrollmentId, $by);
+    if ($res['total'] === null) throw new RuntimeException('not_graded');
+    $to = ($res['outcome'] ?? '') === 'pass' ? 'completed' : 'failed';
+    $t  = mam_lms_transition($enrollmentId, $to, $by, 'finalized:' . ($res['outcome'] ?? 'none'));
+    return ['result' => $res, 'status' => $to, 'transition' => $t];
+}
+
 /** A student's course enrolments, with course/level/programme/instructor names
  *  and any finalized result. Newest first. */
 function mam_lms_student_courses(int $studentId): array {
@@ -98,6 +200,8 @@ function mam_lms_add_course(int $studentId, string $courseCode, ?string $levelCo
         'status'                  => $auto ? 'active' : 'pending',
         'approved_at'             => $auto ? date('Y-m-d H:i:s') : null,
     ]);
+    // Birth of the enrolment in the lifecycle audit (from = null = "created").
+    mam_lms_log_event($id, null, $auto ? 'active' : 'pending', $auto ? $studentId : null, $auto ? 'auto_approved' : 'requested');
     mam_audit('lms_add_course', 'course_enrollment', $id, ['student' => $studentId, 'course' => $courseCode, 'auto' => $auto]);
     return ['id' => $id, 'status' => $auto ? 'active' : 'pending'];
 }
@@ -116,9 +220,12 @@ function mam_lms_approve(int $enrollmentId, ?int $instructorId, int $adminId): v
         if ($instructorId) mam_lms_remember_instructor($instructorId, $courseId, $levelId);
         else $instructorId = mam_lms_default_instructor($courseId, $levelId);
     }
-    $data = ['status' => 'active', 'approved_by' => $adminId, 'approved_at' => date('Y-m-d H:i:s')];
-    if ($instructorId) $data['instructor_id'] = $instructorId;
-    mam_db_update('course_enrollments', $data, ['id' => $enrollmentId]);
+    // Assign the instructor first, then run the enforced transition pending →
+    // active (which stamps approved_by/at and writes the lifecycle event). The
+    // transition is a no-op if the enrolment is already active — e.g. an admin
+    // re-opening it only to (re)assign an instructor.
+    if ($instructorId) mam_db_update('course_enrollments', ['instructor_id' => $instructorId], ['id' => $enrollmentId]);
+    mam_lms_transition($enrollmentId, 'active', $adminId, 'approved');
     mam_audit('lms_approve', 'course_enrollment', $enrollmentId, ['instructor' => $instructorId]);
 }
 
@@ -498,6 +605,7 @@ function mam_lms_promote_enrollment(int $enrollmentId, ?int $by = null): ?array 
         'approved_by' => $auto ? $by : null,
         'approved_at' => $auto ? date('Y-m-d H:i:s') : null,
     ]);
+    mam_lms_log_event($id, null, $auto ? 'active' : 'pending', $by, 'promoted_from:' . $enrollmentId);
     mam_audit('lms_promote', 'course_enrollment', $id, ['from' => $enrollmentId, 'to_level' => $next['code']]);
     return ['enrollment_id' => $id, 'level' => (string)$next['code'], 'created' => true];
 }

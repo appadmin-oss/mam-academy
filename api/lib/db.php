@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 17;
+const MAM_SCHEMA_TARGET = 18;
 
 /**
  * Open (and cache) the PDO connection.
@@ -696,6 +696,26 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX idx_mail_log_status ON mail_log(status);
             CREATE INDEX idx_mail_log_created ON mail_log(created_at);
+        ",
+        // v18 — Enrolment lifecycle (LMS L1). Enrolment status was free text
+        // with no enforced transitions and no record of who changed it, when, or
+        // why. This adds an append-only audit of every state change
+        // (enrolment_events) plus a status_changed_at stamp; the legal moves
+        // themselves are enforced in code (mam_lms_transition). Pays down the
+        // "lifecycle is implicit" debt that the rest of the LMS roadmap would
+        // otherwise inherit. Fully additive — existing rows keep their status.
+        18 => "
+            CREATE TABLE enrolment_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              enrollment_id INTEGER NOT NULL REFERENCES course_enrollments(id) ON DELETE CASCADE,
+              from_status TEXT,
+              to_status TEXT NOT NULL,
+              actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              reason TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_enrolment_events_enrollment ON enrolment_events(enrollment_id, id);
+            ALTER TABLE course_enrollments ADD COLUMN status_changed_at TEXT;
         ",
     ];
 

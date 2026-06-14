@@ -581,6 +581,7 @@ CREATE TABLE IF NOT EXISTS course_enrollments (
   status                  VARCHAR(16) NOT NULL DEFAULT 'pending',
   approved_by             INT NULL,
   approved_at             DATETIME NULL,
+  status_changed_at       DATETIME NULL,
   created_at              DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_cenroll_student (student_id),
   KEY idx_cenroll_course (course_id),
@@ -678,3 +679,25 @@ CREATE TABLE IF NOT EXISTS mail_log (
 
 INSERT INTO schema_version (version) VALUES (16) ON DUPLICATE KEY UPDATE version = version;
 INSERT INTO schema_version (version) VALUES (17) ON DUPLICATE KEY UPDATE version = version;
+
+-- v18 — Enrolment lifecycle (LMS L1): append-only transition audit + a
+-- status_changed_at stamp. Legal moves are enforced in code (mam_lms_transition).
+-- The ALTER is for installs already past v16 (fresh installs get the column from
+-- the CREATE above). "IF NOT EXISTS" is MariaDB-friendly; on MySQL 8 run once.
+ALTER TABLE course_enrollments
+  ADD COLUMN IF NOT EXISTS status_changed_at DATETIME NULL AFTER approved_at;
+
+CREATE TABLE IF NOT EXISTS enrolment_events (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  enrollment_id INT NOT NULL,
+  from_status   VARCHAR(16) NULL,
+  to_status     VARCHAR(16) NOT NULL,
+  actor_id      INT NULL,
+  reason        VARCHAR(255) NULL,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_enrolment_events_enrollment (enrollment_id, id),
+  CONSTRAINT fk_ee_enroll FOREIGN KEY (enrollment_id) REFERENCES course_enrollments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ee_actor  FOREIGN KEY (actor_id)      REFERENCES users(id)              ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (18) ON DUPLICATE KEY UPDATE version = version;
