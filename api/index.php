@@ -101,6 +101,8 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->post('/assignment-complete', $f('student/assignment-complete.php'), [mw_csrf(), mw_role('student')]);
     // Per-component gradebook breakdown for one of the student's own courses.
     $r->get ('/assessments',         $f('student/assessments.php'),         [mw_role('student')]);
+    // AI progress note (provider-agnostic gateway; off unless ai_provider set).
+    $r->get ('/ai-narrative',        $f('student/ai-narrative.php'),        [mw_role('student'), mw_rate_limit('ai_narrative', 20, 600)]);
 });
 
 /* ─── Instructor portal ─── */

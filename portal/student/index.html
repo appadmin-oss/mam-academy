@@ -134,12 +134,31 @@
       + kpi('Applications', apps.length, apps.length ? apps[0].pathway : 'None yet')
       + '</section>'
       + progressPanel(prog, ps)
+      + '<section class="panel" id="aiNote" hidden><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;color:var(--gold-bright)"></i>Your progress note</h2></div><div class="panel-body" id="aiNoteBody"></div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Latest application</h2><a class="panel-action" href="#applications" data-tab="applications">All →</a></div>'
       + '<div class="panel-body">' + (apps[0] ? appRowFull(apps[0]) : empty('file-pen', 'No applications yet — start one.')) + '</div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Upcoming &amp; active classes</h2><a class="panel-action" href="#classes" data-tab="classes">All →</a></div>'
       + '<div class="panel-body">' + (enr.length ? renderClassTable(enr.slice(0,5)) : empty('music', 'No active classes yet.')) + '</div></section>';
     content.innerHTML = html;
     bindTabLinks();
+    loadAiNote();
+  }
+
+  // Lazily fetch the AI progress note (api/lib/ai.php). Shows the card only when
+  // AI is enabled AND a note came back; silent + non-blocking otherwise, so the
+  // overview is never delayed or disrupted by it.
+  function loadAiNote() {
+    var panel = document.getElementById('aiNote');
+    if (!panel || !API) return;
+    API.request('student/ai-narrative', { method: 'GET' }).then(function (res) {
+      var n = res && res.narrative;
+      if (!n || !n.text) return;
+      var body = document.getElementById('aiNoteBody');
+      if (!body) return;
+      body.innerHTML = '<p style="margin:0;line-height:1.65">' + P.escapeHtml(n.text) + '</p>'
+        + '<p style="margin:10px 0 0;font-size:0.72rem;color:var(--text-muted)"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:5px"></i>AI-generated from your results' + (n.provider ? ' · ' + P.escapeHtml(n.provider) : '') + '</p>';
+      panel.hidden = false;
+    }).catch(function () { /* never disrupt the overview */ });
   }
 
   function renderApplications() {
