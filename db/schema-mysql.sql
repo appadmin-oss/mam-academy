@@ -741,3 +741,24 @@ INSERT IGNORE INTO cohorts (instructor_id, title, discipline, pathway, mode, cap
   SELECT instructor_id, title, discipline, pathway, mode, COALESCE(capacity,12), schedule, starts_on, COALESCE(status,'active'), id, created_at FROM classes;
 
 INSERT INTO schema_version (version) VALUES (19) ON DUPLICATE KEY UPDATE version = version;
+
+-- v20 — AI run audit (provider-agnostic AI gateway). Records who/what/provider
+-- for reproducibility + quota; stores a prompt HASH, not the prompt (no PII).
+CREATE TABLE IF NOT EXISTS ai_runs (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  use_case      VARCHAR(64) NOT NULL,
+  provider      VARCHAR(32),
+  model         VARCHAR(64),
+  ok            TINYINT NOT NULL DEFAULT 0,
+  prompt_hash   VARCHAR(64),
+  input_tokens  INT DEFAULT 0,
+  output_tokens INT DEFAULT 0,
+  error         VARCHAR(255),
+  reviewed_by   INT NULL,
+  reviewed_at   DATETIME NULL,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_ai_runs_usecase (use_case, id),
+  CONSTRAINT fk_airuns_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (20) ON DUPLICATE KEY UPDATE version = version;

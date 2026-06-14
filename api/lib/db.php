@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 19;
+const MAM_SCHEMA_TARGET = 20;
 
 /**
  * Open (and cache) the PDO connection.
@@ -755,6 +755,27 @@ function mam_db_migrate(PDO $db): void {
 
             INSERT OR IGNORE INTO cohorts (instructor_id, title, discipline, pathway, mode, capacity, meeting_pattern, starts_on, status, legacy_class_id, created_at)
               SELECT instructor_id, title, discipline, pathway, mode, COALESCE(capacity,12), schedule, starts_on, COALESCE(status,'active'), id, created_at FROM classes;
+        ",
+        // v20 — AI run audit (provider-agnostic AI gateway). Every call through
+        // api/lib/ai.php records who/what/which-provider for reproducibility +
+        // quota, WITHOUT hoarding PII: we store a prompt HASH, not the prompt.
+        // Additive; supports the free-by-default, premium-optional AI layer.
+        20 => "
+            CREATE TABLE ai_runs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              use_case TEXT NOT NULL,
+              provider TEXT,
+              model TEXT,
+              ok INTEGER NOT NULL DEFAULT 0,
+              prompt_hash TEXT,
+              input_tokens INTEGER DEFAULT 0,
+              output_tokens INTEGER DEFAULT 0,
+              error TEXT,
+              reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              reviewed_at TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_ai_runs_usecase ON ai_runs(use_case, id);
         ",
     ];
 
