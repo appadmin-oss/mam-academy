@@ -73,3 +73,10 @@ t_ok($link4 > 0 && $link4 !== $link2, 'a different level resolves to a different
 
 // ensure_cohort is idempotent for a tuple (find-or-create)
 t_eq(mam_lms_ensure_cohort($guitarId, (int)mam_db_row("SELECT id FROM levels WHERE code='precert'")['id'], (int)mam_db_row("SELECT id FROM programs WHERE code='standard'")['id']), $link2, 'ensure_cohort returns the existing cohort for a known tuple');
+
+// ── enrollment_count (admin read surface) reflects linked enrolments ──────────
+$byId = [];
+foreach (mam_lms_cohorts() as $c) { $byId[(int)$c['id']] = $c; }
+t_ok(isset($byId[$link2]), 'mam_lms_cohorts() lists the auto-created cohort');
+t_eq((int)$byId[$link2]['enrollment_count'], 2, 'enrollment_count counts the two enrolments sharing the cohort');
+t_eq((int)mam_lms_cohort($cid)['enrollment_count'], 1, 'single-cohort fetch carries enrollment_count (the one manually linked enrolment)');

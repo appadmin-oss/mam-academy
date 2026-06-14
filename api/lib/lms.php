@@ -296,7 +296,8 @@ function mam_lms_backfill_cohorts(): int {
  *  where set; the carried legacy `title`/`discipline` cover migrated classes. */
 function mam_lms_cohorts(): array {
     return mam_db_all(
-        "SELECT co.*, c.name AS course_name, l.name AS level_name, p.name AS program_name, u.name AS instructor_name
+        "SELECT co.*, c.name AS course_name, l.name AS level_name, p.name AS program_name, u.name AS instructor_name,
+                (SELECT COUNT(*) FROM course_enrollments ce WHERE ce.cohort_id = co.id) AS enrollment_count
            FROM cohorts co
            LEFT JOIN courses c  ON c.id = co.course_id
            LEFT JOIN levels l   ON l.id = co.level_id
@@ -309,7 +310,8 @@ function mam_lms_cohorts(): array {
 /** Fetch one cohort by id (with resolved names). */
 function mam_lms_cohort(int $id): ?array {
     return mam_db_row(
-        "SELECT co.*, c.name AS course_name, l.name AS level_name, p.name AS program_name, u.name AS instructor_name
+        "SELECT co.*, c.name AS course_name, l.name AS level_name, p.name AS program_name, u.name AS instructor_name,
+                (SELECT COUNT(*) FROM course_enrollments ce WHERE ce.cohort_id = co.id) AS enrollment_count
            FROM cohorts co
            LEFT JOIN courses c  ON c.id = co.course_id
            LEFT JOIN levels l   ON l.id = co.level_id

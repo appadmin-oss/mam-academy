@@ -1437,6 +1437,26 @@ button.tiny:hover{border-color:var(--gold)}
   <?php if (!empty($_GET['promoted'])): ?>
     <div class="banner ok">↑ Advanced to <?= htmlspecialchars($lvlName[(string)$_GET['promoted']] ?? (string)$_GET['promoted']) ?><?= !empty($_GET['dup']) ? ' (already enrolled there)' : '' ?>.</div>
   <?php endif; ?>
+  <?php $cohortList = function_exists('mam_lms_cohorts') ? mam_lms_cohorts() : []; ?>
+  <?php if ($cohortList): ?>
+  <div class="card">
+    <h3>Cohorts <span class="muted" style="font-weight:400">· the unified &ldquo;scheduled run&rdquo; grouping (course &times; level &times; programme)</span></h3>
+    <table>
+      <thead><tr><th>Cohort</th><th>Course / Level</th><th>Instructor</th><th>Students</th><th>Status</th></tr></thead>
+      <tbody>
+      <?php foreach ($cohortList as $co): ?>
+        <tr>
+          <td><strong><?= htmlspecialchars((string)($co['title'] ?: ('Cohort #' . $co['id']))) ?></strong><?= !empty($co['legacy_class_id']) ? ' <span class="muted">(from class #' . (int)$co['legacy_class_id'] . ')</span>' : '' ?></td>
+          <td><?= htmlspecialchars((string)($co['course_name'] ?? $co['discipline'] ?? '—')) ?><?= !empty($co['level_name']) ? ' &middot; ' . htmlspecialchars((string)$co['level_name']) : '' ?></td>
+          <td><?= htmlspecialchars((string)($co['instructor_name'] ?? '—')) ?></td>
+          <td><?= (int)($co['enrollment_count'] ?? 0) ?></td>
+          <td><span class="pill <?= htmlspecialchars((string)$co['status']) ?>"><?= htmlspecialchars((string)$co['status']) ?></span></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
   <?php
     $autoApprove = (int)mam_setting_num('lms_auto_approve', 0) === 1;
     $instructors = mam_lms_instructors();
