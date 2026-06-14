@@ -7,6 +7,11 @@
 <title>Faculty &amp; Instructors — MAM Academy</title>
 <meta name="description" content="Meet the musicians, performers and creative leaders who train students at MAM Academy. Each pathway is taught by someone who has lived it.">
 <link rel="canonical" href="https://academy.mamcentre.org/faculty">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Faculty &amp; Instructors — MAM Academy">
+<meta name="twitter:description" content="Meet the musicians, performers and creative leaders who train students at MAM Academy. Each pathway is taught by someone who has lived it.">
+<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Faculty","item":"https://academy.mamcentre.org/faculty"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <meta property="og:title" content="MAM Academy Faculty">
 <meta property="og:description" content="Meet the people who teach at MAM Academy.">

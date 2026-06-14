@@ -7,6 +7,11 @@
 <title>The MetaMusic Order — 12-Week Civilization Engineering Intensive | MAM Academy</title>
 <meta name="description" content="The MetaMusic Order is a 12-week civilization engineering intensive at MAM Academy. From Performer to Architect. Engineer the soundtrack of civilization.">
 <link rel="canonical" href="https://academy.mamcentre.org/metamusic-order">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The MetaMusic Order — 12-Week Civilization Engineering Intensive | MAM Academy">
+<meta name="twitter:description" content="The MetaMusic Order is a 12-week civilization engineering intensive at MAM Academy. From Performer to Architect. Engineer the soundtrack of civilization.">
+<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"The MetaMusic Order","item":"https://academy.mamcentre.org/metamusic-order"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <meta property="og:title" content="The MetaMusic Order — Civilization Engineering Through Sound">
 <meta property="og:description" content="A 12-week intensive raising the next generation of musicians who understand sound as influence, architecture, programming and governance.">

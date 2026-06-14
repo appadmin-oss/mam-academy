@@ -7,6 +7,11 @@
 <title>About MAM Academy — Mission, Vision &amp; The MAM Method</title>
 <meta name="description" content="MAM Academy is a transformational academy forming complete musicians, performers and creative thinkers. Discover our mission, vision and the MAM Method.">
 <link rel="canonical" href="https://academy.mamcentre.org/about">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="About MAM Academy — Mission, Vision &amp; The MAM Method">
+<meta name="twitter:description" content="MAM Academy is a transformational academy forming complete musicians, performers and creative thinkers. Discover our mission, vision and the MAM Method.">
+<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"About","item":"https://academy.mamcentre.org/about"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <meta property="og:title" content="About MAM Academy"><meta property="og:description" content="A Creative Intelligence and Performance Academy."><meta property="og:image" content="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

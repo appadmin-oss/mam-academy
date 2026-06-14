@@ -8,6 +8,18 @@
 <meta name="description" content="Complete your MAM Academy enrollment in five guided steps. Pay securely with Paystack, Flutterwave, Stripe or bank transfer.">
 <meta name="robots" content="noindex, follow">
 <link rel="canonical" href="https://academy.mamcentre.org/apply">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MAM Academy">
+<meta property="og:title" content="Apply Now — MAM Academy | Smart Onboarding &amp; Secure Payment">
+<meta property="og:description" content="Complete your MAM Academy enrollment in five guided steps. Pay securely with Paystack, Flutterwave, Stripe or bank transfer.">
+<meta property="og:url" content="https://academy.mamcentre.org/apply">
+<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Apply Now — MAM Academy | Smart Onboarding &amp; Secure Payment">
+<meta name="twitter:description" content="Complete your MAM Academy enrollment in five guided steps. Pay securely with Paystack, Flutterwave, Stripe or bank transfer.">
+<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Apply","item":"https://academy.mamcentre.org/apply"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

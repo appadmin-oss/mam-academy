@@ -7,6 +7,18 @@
 <title>Class Policies — MAM Academy</title>
 <meta name="description" content="MAM Academy class policies for online/home and onsite classes — punctuality, attendance, assignments, certification and payments.">
 <link rel="canonical" href="https://academy.mamcentre.org/policies">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MAM Academy">
+<meta property="og:title" content="Class Policies — MAM Academy">
+<meta property="og:description" content="MAM Academy class policies for online/home and onsite classes — punctuality, attendance, assignments, certification and payments.">
+<meta property="og:url" content="https://academy.mamcentre.org/policies">
+<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Class Policies — MAM Academy">
+<meta name="twitter:description" content="MAM Academy class policies for online/home and onsite classes — punctuality, attendance, assignments, certification and payments.">
+<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Policies","item":"https://academy.mamcentre.org/policies"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">

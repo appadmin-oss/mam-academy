@@ -7,6 +7,11 @@
 <title>Power Play — A Free Monthly Series with Van. BOJA | MAM Academy</title>
 <meta name="description" content="Power Play is a free monthly global series for musicians, artists, worship leaders and culture shapers — hosted by Van. BOJA. Online via Google Meet.">
 <link rel="canonical" href="https://academy.mamcentre.org/power-play">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Power Play — A Free Monthly Series with Van. BOJA | MAM Academy">
+<meta name="twitter:description" content="Power Play is a free monthly global series for musicians, artists, worship leaders and culture shapers — hosted by Van. BOJA. Online via Google Meet.">
+<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Power Play","item":"https://academy.mamcentre.org/power-play"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <meta property="og:title" content="⚡ Power Play with Van. BOJA"><meta property="og:description" content="A free monthly global series for musicians, artists and culture shapers."><meta property="og:image" content="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

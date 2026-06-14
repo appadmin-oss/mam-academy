@@ -7,6 +7,11 @@
 <title>Compare Pathways &amp; Programmes — MAM Academy</title>
 <meta name="description" content="Side-by-side comparison of every MAM Academy programme — Certified Musician, Grand Musician, Crash and The MetaMusic Order. Pick what fits.">
 <link rel="canonical" href="https://academy.mamcentre.org/compare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Compare Pathways &amp; Programmes — MAM Academy">
+<meta name="twitter:description" content="Side-by-side comparison of every MAM Academy programme — Certified Musician, Grand Musician, Crash and The MetaMusic Order. Pick what fits.">
+<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Compare Programmes","item":"https://academy.mamcentre.org/compare"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <meta property="og:title" content="Compare MAM Academy Programmes">
 <meta property="og:description" content="Side-by-side comparison of every pathway and intensive.">

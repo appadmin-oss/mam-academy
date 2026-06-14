@@ -7,6 +7,18 @@
 <title>Pathways &amp; Tuition — MAM Academy | Programmes, Levels &amp; Fees</title>
 <meta name="description" content="Choose a programme (Standard, Certified or Grand), a level (Pre-Certificate to Diploma) and your courses — then see your exact tuition with our live estimator. Crash from $70. Scholarships available.">
 <link rel="canonical" href="https://academy.mamcentre.org/pathways">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MAM Academy">
+<meta property="og:title" content="Pathways &amp; Tuition — MAM Academy | Programmes, Levels &amp; Fees">
+<meta property="og:description" content="Choose a programme (Standard, Certified or Grand), a level (Pre-Certificate to Diploma) and your courses — then see your exact tuition with our live estimator. Crash from $70. Scholarships available.">
+<meta property="og:url" content="https://academy.mamcentre.org/pathways">
+<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Pathways &amp; Tuition — MAM Academy | Programmes, Levels &amp; Fees">
+<meta name="twitter:description" content="Choose a programme (Standard, Certified or Grand), a level (Pre-Certificate to Diploma) and your courses — then see your exact tuition with our live estimator. Crash from $70. Scholarships available.">
+<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Pathways","item":"https://academy.mamcentre.org/pathways"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">

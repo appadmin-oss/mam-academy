@@ -7,6 +7,11 @@
 <title>Store &amp; Library — MAM Academy</title>
 <meta name="description" content="The MAM Academy Store — sheet music, handouts, fakebooks, recordings and learning bundles, plus instructor add-ons and physical merch. Region-aware delivery.">
 <link rel="canonical" href="https://academy.mamcentre.org/store">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Store &amp; Library — MAM Academy">
+<meta name="twitter:description" content="The MAM Academy Store — sheet music, handouts, fakebooks, recordings and learning bundles, plus instructor add-ons and physical merch. Region-aware delivery.">
+<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Store","item":"https://academy.mamcentre.org/store"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <meta property="og:title" content="MAM Academy Store">
 <meta property="og:description" content="Sheet music, handouts, recordings and add-ons from the MAM Centre.">
