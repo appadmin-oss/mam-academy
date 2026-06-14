@@ -502,6 +502,62 @@ function mam_lms_student_session_attendance(int $studentId, ?int $cohortId = nul
     return mam_db_all($sql, $args);
 }
 
+/** Cohorts an instructor is responsible for: any cohort holding an active
+ *  enrolment they teach, or one assigned directly to them. With counts. */
+function mam_lms_instructor_cohorts(int $instructorId): array {
+    return mam_db_all(
+        "SELECT co.id, co.title, co.status, c.name AS course_name, l.name AS level_name,
+                (SELECT COUNT(*) FROM course_enrollments ce WHERE ce.cohort_id = co.id) AS enrollment_count,
+                (SELECT COUNT(*) FROM class_sessions cs WHERE cs.cohort_id = co.id) AS session_count
+           FROM cohorts co
+           LEFT JOIN courses c ON c.id = co.course_id
+           LEFT JOIN levels l  ON l.id = co.level_id
+          WHERE co.instructor_id = ?
+             OR co.id IN (SELECT cohort_id FROM course_enrollments WHERE instructor_id = ? AND cohort_id IS NOT NULL)
+          ORDER BY co.id DESC",
+        [$instructorId, $instructorId]
+    );
+}
+
+/** Whether an instructor is responsible for a cohort (teaches an enrolment in
+ *  it, or it's assigned to them). Admins bypass this at the route layer. */
+function mam_lms_instructor_owns_cohort(int $instructorId, int $cohortId): bool {
+    return mam_db_row(
+        "SELECT 1 FROM cohorts co
+          WHERE co.id = ? AND (co.instructor_id = ?
+            OR co.id IN (SELECT cohort_id FROM course_enrollments WHERE instructor_id = ? AND cohort_id IS NOT NULL))",
+        [$cohortId, $instructorId, $instructorId]
+    ) !== null;
+}
+
+/** Active/completed students enrolled in a cohort — the attendance roster. */
+function mam_lms_cohort_roster(int $cohortId): array {
+    return mam_db_all(
+        "SELECT DISTINCT u.id AS student_id, u.name AS student_name, u.email AS student_email
+           FROM course_enrollments ce JOIN users u ON u.id = ce.student_id
+          WHERE ce.cohort_id = ? AND ce.status IN ('active','completed')
+          ORDER BY u.name",
+        [$cohortId]
+    );
+}
+
+/** The mark sheet for a session: every enrolled student with their attendance
+ *  status for that session (null where not yet marked). */
+function mam_lms_session_mark_sheet(int $sessionId, int $cohortId): array {
+    $marks = [];
+    foreach (mam_lms_session_attendance($sessionId) as $m) $marks[(int)$m['student_id']] = $m['status'];
+    $rows = [];
+    foreach (mam_lms_cohort_roster($cohortId) as $s) {
+        $rows[] = [
+            'student_id'    => (int)$s['student_id'],
+            'student_name'  => $s['student_name'],
+            'student_email' => $s['student_email'],
+            'status'        => $marks[(int)$s['student_id']] ?? null,
+        ];
+    }
+    return $rows;
+}
+
 /* ───────────────────────── Assessments & results ─────────────────────────
    Each course enrolment is graded across the weighted assessment_types
    (attendance/assignment/practical/continuous/final). The result is a
