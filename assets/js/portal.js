@@ -74,6 +74,52 @@
       });
     },
 
+    /** Progressive a11y upgrade for the sidebar tabs: ARIA tablist semantics +
+        keyboard navigation (arrow/Home/End to move focus, Enter/Space to
+        activate), roving tabindex, and a panel labelled by the active tab.
+        Purely additive — the existing click→show() path is untouched. Returns a
+        sync(tab) the caller runs whenever the active tab changes, so ARIA stays
+        correct for clicks, hash changes, and programmatic activation alike. */
+    enhanceTabs: function (opts) {
+      opts = opts || {};
+      var list = opts.list || $('.portal-nav');
+      var panel = opts.panel || $('#content');
+      var onActivate = typeof opts.onActivate === 'function' ? opts.onActivate : function () {};
+      if (!list) return function () {};
+      var tabsEls = $$('[data-tab]', list);
+      if (!tabsEls.length) return function () {};
+      list.setAttribute('role', 'tablist');
+      if (panel) { panel.setAttribute('role', 'tabpanel'); if (!panel.hasAttribute('tabindex')) panel.setAttribute('tabindex', '0'); }
+      tabsEls.forEach(function (t) {
+        t.setAttribute('role', 'tab');
+        if (!t.id) t.id = 'ptab-' + t.getAttribute('data-tab');
+        if (panel && panel.id) t.setAttribute('aria-controls', panel.id);
+        var active = t.classList.contains('active');
+        t.setAttribute('aria-selected', active ? 'true' : 'false');
+        t.setAttribute('tabindex', active ? '0' : '-1');
+      });
+      function focusAt(i) { i = (i + tabsEls.length) % tabsEls.length; if (tabsEls[i]) tabsEls[i].focus(); }
+      on(list, 'keydown', function (e) {
+        var idx = tabsEls.indexOf(document.activeElement);
+        if (idx < 0) return;
+        switch (e.key) {
+          case 'ArrowRight': case 'ArrowDown': e.preventDefault(); focusAt(idx + 1); break;
+          case 'ArrowLeft':  case 'ArrowUp':   e.preventDefault(); focusAt(idx - 1); break;
+          case 'Home': e.preventDefault(); focusAt(0); break;
+          case 'End':  e.preventDefault(); focusAt(tabsEls.length - 1); break;
+          case 'Enter': case ' ': e.preventDefault(); onActivate(tabsEls[idx].getAttribute('data-tab')); break;
+        }
+      });
+      return function sync(active) {
+        tabsEls.forEach(function (t) {
+          var sel = t.getAttribute('data-tab') === active;
+          t.setAttribute('aria-selected', sel ? 'true' : 'false');
+          t.setAttribute('tabindex', sel ? '0' : '-1');
+          if (sel && panel && t.id) panel.setAttribute('aria-labelledby', t.id);
+        });
+      };
+    },
+
     /** Patch the existing main.js API helper to add credentials and base path */
     init: function () {
       // window.MAM_API already adds same-origin credentials + auto CSRF.
