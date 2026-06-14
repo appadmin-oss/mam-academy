@@ -27,6 +27,23 @@
       return;
     }
     booted = true;
+    // Cross-device resume: a ?resume=<key>&t=<token> magic link loads the saved
+    // draft from the server into localStorage BEFORE init, so the normal draft
+    // path hydrates it. One-shot per page (sessionStorage guard).
+    var rq = new URLSearchParams(location.search);
+    if (rq.get('resume') && rq.get('t') && !sessionStorage.getItem('mam.apply.resumed')) {
+      try { sessionStorage.setItem('mam.apply.resumed', '1'); } catch (e) {}
+      window.MAM_API.request('application/draft?k=' + encodeURIComponent(rq.get('resume')) + '&t=' + encodeURIComponent(rq.get('t')), { method: 'GET' })
+        .then(function (r) {
+          if (r && r.draft && r.draft.payload && typeof r.draft.payload === 'object') {
+            if (!r.draft.payload.idempotencyKey) r.draft.payload.idempotencyKey = rq.get('resume');
+            try { localStorage.setItem('mam.apply.draft', JSON.stringify(r.draft.payload)); } catch (e) {}
+          }
+        })
+        .catch(function () {})
+        .then(function () { initApply(); });
+      return;
+    }
     initApply();
   }
   // Wait for main.js to load partials, then init
@@ -149,7 +166,17 @@
       // Remember where the applicant is so a return visit resumes here.
       data.currentStep = current; saveDraft();
     }
-    function saveDraft() { try { localStorage.setItem('mam.apply.draft', JSON.stringify(data)); } catch (e) {} }
+    function saveDraft() {
+      try { localStorage.setItem('mam.apply.draft', JSON.stringify(data)); } catch (e) {}
+      // Mirror to the server (debounced, best-effort) so the application is
+      // resumable on any device via a magic link. Never blocks the form.
+      if (window.MAM_API && data.idempotencyKey) {
+        clearTimeout(saveDraft._t);
+        saveDraft._t = setTimeout(function () {
+          try { window.MAM_API.request('application/draft', { method: 'POST', body: { draft_key: data.idempotencyKey, email: data.email || '', payload: data } }).catch(function () {}); } catch (e) {}
+        }, 1500);
+      }
+    }
     function loadDraft() { try { var r = localStorage.getItem('mam.apply.draft'); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
     function clearDraft() { try { localStorage.removeItem('mam.apply.draft'); } catch (e) {} }
 
@@ -1447,8 +1474,21 @@
       b.className = 'resume-banner';
       b.setAttribute('role', 'status');
       b.innerHTML = '<span><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Welcome back — we saved your progress on this device.</span>' +
+        '<button type="button" id="resumeEmailLink">Email me a link to continue elsewhere</button>' +
         '<button type="button" id="resumeStartOver">Start over</button>';
       main.insertBefore(b, main.firstChild);
+      var el = document.getElementById('resumeEmailLink');
+      if (el) on(el, 'click', function () {
+        var em = (data.email || '').trim();
+        if (!em || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+          (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Enter your email in the form first, then try again.', 'info') : alert('Enter your email in the form first.'));
+          return;
+        }
+        el.disabled = true; var o = el.textContent; el.textContent = 'Sending…';
+        window.MAM_API.request('application/resume-link', { method: 'POST', body: { draft_key: data.idempotencyKey, email: em } })
+          .then(function () { el.textContent = 'Link sent ✓'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('We emailed you a link to continue on any device.', 'success'); })
+          .catch(function () { el.disabled = false; el.textContent = o; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not send the link — try again.', 'error'); });
+      });
       var btn = document.getElementById('resumeStartOver');
       if (btn) on(btn, 'click', function () {
         var go = function () { clearDraft(); location.href = location.pathname; };
