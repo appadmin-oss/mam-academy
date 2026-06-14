@@ -1887,6 +1887,66 @@ button.tiny:hover{border-color:var(--gold)}
   </script>
 
   <div class="card" style="max-width:760px">
+    <h3>Recent email activity</h3>
+    <div style="padding:0 20px 18px">
+      <p class="muted" style="margin:0 0 12px;line-height:1.6">
+        Every transactional email is recorded in the outbox. A failed send is <strong>kept</strong> (not lost) and can be
+        re-sent once SMTP is fixed — here with <em>Retry failed</em>, or automatically on a schedule via
+        <code>php api/tools/mail-retry.php</code> (cron, every 15&nbsp;min).
+      </p>
+      <div id="mlChips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <button class="btn" type="button" id="mlRetry" disabled>Retry failed</button>
+        <button class="btn" type="button" id="mlRefresh">Refresh</button>
+        <span id="mlMsg" class="muted" style="font-size:0.82rem"></span>
+      </div>
+      <div id="mlList" style="max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:10px"></div>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var CSRF = <?= json_encode(mam_csrf_token()) ?>;
+    var chips = document.getElementById('mlChips'), list = document.getElementById('mlList'),
+        retry = document.getElementById('mlRetry'), refresh = document.getElementById('mlRefresh'), msg = document.getElementById('mlMsg');
+    if (!list) return;
+    function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function chip(label, n, color) { return '<span style="display:inline-flex;gap:6px;align-items:center;padding:4px 10px;border-radius:999px;background:var(--bg);border:1px solid var(--border);font-size:0.8rem"><strong style="color:' + color + '">' + (n || 0) + '</strong> ' + label + '</span>'; }
+    function load() {
+      list.innerHTML = '<div class="muted" style="padding:14px">Loading…</div>';
+      fetch('/api/admin/mail-log?limit=100', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) {
+        var c = j.counts || {}, entries = j.entries || [], retryable = j.retryable || 0;
+        chips.innerHTML = chip('sent', c.sent, '#34D399') + chip('failed', c.failed, '#FB7185') + chip('queued', c.queued, '#FBBF24');
+        retry.textContent = retryable > 0 ? ('Retry failed (' + retryable + ')') : 'Retry failed';
+        retry.disabled = retryable <= 0;
+        if (!entries.length) { list.innerHTML = '<div class="muted" style="padding:14px">No email recorded yet — submit a form or send a test above.</div>'; return; }
+        list.innerHTML = entries.map(function (e) {
+          var col = e.status === 'sent' ? '#34D399' : (e.status === 'failed' ? '#FB7185' : '#FBBF24');
+          return '<div style="padding:10px 12px;border-bottom:1px solid var(--border);font-size:0.82rem">'
+            + '<div style="display:flex;justify-content:space-between;gap:10px">'
+            + '<strong style="color:' + col + ';text-transform:uppercase;font-size:0.7rem;letter-spacing:0.05em">' + esc(e.status) + '</strong>'
+            + '<span class="muted">' + esc(e.created_at) + '</span></div>'
+            + '<div style="margin-top:2px">' + esc(e.to_email) + ' · <span class="muted">' + esc(e.context || '') + '</span></div>'
+            + '<div class="muted" style="margin-top:1px">' + esc(e.subject || '') + '</div>'
+            + (e.error ? '<div style="margin-top:3px;color:#FB7185">' + esc(e.error) + (e.attempts > 1 ? ' · ' + e.attempts + ' attempts' : '') + '</div>' : '')
+            + '</div>';
+        }).join('');
+      }).catch(function (e) { list.innerHTML = '<div class="muted" style="padding:14px">Failed to load: ' + esc(e) + '</div>'; });
+    }
+    retry.addEventListener('click', function () {
+      retry.disabled = true; msg.textContent = 'Re-sending the failed backlog…';
+      fetch('/api/admin/mail-retry', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF }, body: '{}' })
+        .then(function (r) { return r.json(); }).then(function (j) {
+          var s = j.retry || {};
+          msg.textContent = 'Tried ' + (s.tried || 0) + ' · sent ' + (s.sent || 0) + ' · still failed ' + (s.failed || 0) + '.';
+          load();
+        }).catch(function (e) { msg.textContent = 'Retry request failed: ' + e; retry.disabled = false; });
+    });
+    refresh.addEventListener('click', load);
+    load();
+  })();
+  </script>
+
+  <div class="card" style="max-width:760px">
     <p class="muted" style="margin:0 0 18px;line-height:1.6">
       These values are the live source of truth. The server charges from them at checkout, and the
       public site reads them via <code>/api/config/public</code> — so a change here takes effect everywhere

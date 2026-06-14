@@ -3,17 +3,17 @@
 declare(strict_types=1);
 t_group('migrations (cold start)');
 
-$pdo = mam_db(); // first access runs v1..v16 inside a fresh temp DB
+$pdo = mam_db(); // first access runs v1..v17 inside a fresh temp DB
 $v = (int)$pdo->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn();
-t_eq($v, 16, 'schema migrated to v16');
+t_eq($v, 17, 'schema migrated to v17');
 
 // v16 seeds.
 foreach (['programs' => 4, 'levels' => 4, 'courses' => 12, 'assessment_types' => 5] as $tbl => $n) {
     t_eq((int)$pdo->query("SELECT COUNT(*) FROM $tbl")->fetchColumn(), $n, "$tbl seeded with $n rows");
 }
 
-// All v16 tables exist and are queryable.
-foreach (['user_roles', 'modules', 'instructor_assignments', 'course_enrollments', 'assessments', 'results', 'certificates'] as $tbl) {
+// All v16/v17 tables exist and are queryable (incl. the v17 mail outbox).
+foreach (['user_roles', 'modules', 'instructor_assignments', 'course_enrollments', 'assessments', 'results', 'certificates', 'mail_log'] as $tbl) {
     $ok = false;
     try { $pdo->query("SELECT COUNT(*) FROM $tbl"); $ok = true; } catch (Throwable $e) {}
     t_ok($ok, "table $tbl exists");
@@ -27,4 +27,4 @@ t_eq($crash['certification'], 'participation', 'crash → participation certific
 
 // Idempotent: a second migrate pass leaves the version untouched.
 mam_db_migrate($pdo);
-t_eq((int)$pdo->query('SELECT MAX(version) FROM schema_version')->fetchColumn(), 16, 're-running migrations stays at v16');
+t_eq((int)$pdo->query('SELECT MAX(version) FROM schema_version')->fetchColumn(), 17, 're-running migrations stays at v17');

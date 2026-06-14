@@ -108,3 +108,41 @@ Admins sign in at `/portal/login` and are redirected to `/admin/`.
 | Admin re-prompts for Basic Auth forever | Host strips the `Authorization` header → the bundled `.htaccess` re-injects it; ensure it deployed. Prefer a session admin (§3) over env Basic Auth. |
 | API returns HTML/PHP source instead of JSON | PHP handler not active for `/api/` → check the host's PHP handler; `/diag.html` surfaces this. |
 | `/api/diag` won't show full detail | By design — pass `?key=<DEBUG_TOKEN>` or use an admin session. |
+| **Emails don't arrive** | 99% config, not code (see §6). Admin → *Email delivery* shows the exact failing SMTP step; *Recent email activity* shows the stored failures. Fix `api/.env`, then **Retry failed**. |
+
+---
+
+## 6 · Email delivery
+
+The mail transport (built-in SMTP client + PHPMailer fallback, STARTTLS/SSL
+auto-correct, retry-on-transient) is verified by the test suite. When mail
+"doesn't work" in production it is almost always **configuration**, and the app
+is built to make that obvious and recoverable:
+
+1. **Set the SMTP block in `api/.env`** — the #1 cause is an empty
+   `MAIL_PASSWORD` (the app then silently falls back to PHP `mail()`, a black
+   hole on most hosts):
+   ```
+   MAIL_HOST=mail.mamcentre.org
+   MAIL_PORT=587            # 587 ⇒ STARTTLS, 465 ⇒ SSL (auto-corrected)
+   MAIL_ENCRYPTION=tls
+   MAIL_USERNAME=no-reply@mamcentre.org
+   MAIL_PASSWORD=<the mailbox password>     # ← must NOT be empty
+   MAIL_FROM_EMAIL=no-reply@mamcentre.org
+   MAIL_FORCE_SMTP=1        # recommended in prod: fail loudly instead of mail()
+   ```
+2. **Confirm the path** — from the server: `php api/tools/mail-test.php you@example.com`
+   prints the resolved config (password redacted) and a full per-step SMTP
+   transcript. The admin dashboard → *Email delivery* does the same (with a port
+   probe) without SSH.
+3. **Deliverability (DNS)** — even with SMTP working, mail lands in spam or is
+   rejected without **SPF** + **DKIM** for the sending domain. Publish an SPF
+   record authorising your relay and enable DKIM signing at the mail host; add a
+   DMARC record once both pass.
+4. **Nothing is lost while you fix it** — every send is recorded in the `mail_log`
+   outbox (migration v17). Failed sends are **retained with their rendered body**;
+   re-send the backlog from admin → *Recent email activity* → **Retry failed**, or
+   automatically on cron:
+   ```
+   */15 * * * * php /path/to/site/api/tools/mail-retry.php >> /var/log/mam-mail.log 2>&1
+   ```

@@ -653,4 +653,28 @@ CREATE TABLE IF NOT EXISTS certificates (
   CONSTRAINT fk_cert_issuer  FOREIGN KEY (issued_by)  REFERENCES users(id)    ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- v17 — Outbound email outbox. Every transactional send becomes a durable,
+-- queryable row so failures are visible + recoverable (admin "Retry failed" +
+-- api/tools/mail-retry.php cron) instead of vanishing into a log file. Body +
+-- opts retained only while a row is retryable; cleared on success.
+CREATE TABLE IF NOT EXISTS mail_log (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  to_email   VARCHAR(320) NOT NULL,
+  subject    VARCHAR(512),
+  context    VARCHAR(120),
+  is_html    TINYINT NOT NULL DEFAULT 1,
+  status     VARCHAR(16) NOT NULL DEFAULT 'queued',
+  transport  VARCHAR(32),
+  error      TEXT,
+  attempts   INT NOT NULL DEFAULT 0,
+  body       LONGTEXT,
+  opts       TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  sent_at    DATETIME NULL,
+  KEY idx_mail_log_status (status),
+  KEY idx_mail_log_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 INSERT INTO schema_version (version) VALUES (16) ON DUPLICATE KEY UPDATE version = version;
+INSERT INTO schema_version (version) VALUES (17) ON DUPLICATE KEY UPDATE version = version;

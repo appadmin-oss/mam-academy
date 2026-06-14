@@ -46,6 +46,7 @@ require $ROOT . '/lib/flutterwave.php';
 require $ROOT . '/lib/lms.php';
 require $ROOT . '/lib/auth.php';            // account provisioning + role checks
 require $ROOT . '/lib/store.php';           // store totals (server-authoritative)
+require $ROOT . '/lib/mailer.php';          // mail helpers + outbox (record/retry)
 
 require __DIR__ . '/assert.php';
 

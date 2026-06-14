@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 16;
+const MAM_SCHEMA_TARGET = 17;
 
 /**
  * Open (and cache) the PDO connection.
@@ -668,6 +668,34 @@ function mam_db_migrate(PDO $db): void {
               issued_at TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_certs_student ON certificates(student_id);
+        ",
+        // v17 — Outbound email outbox. Transactional mail used to be
+        // fire-and-forget: a failed SMTP send vanished into a log file with no
+        // record, no admin visibility, and no way to recover it. This makes
+        // every send a durable, queryable row so an operator can SEE which
+        // emails failed and why, and re-send them once config is fixed (admin
+        // 'Retry failed' button + the api/tools/mail-retry.php cron). The body
+        // + opts are retained ONLY while a row is retryable; cleared on success
+        // so we don't hoard rendered PII. Additive — touches nothing existing.
+        17 => "
+            CREATE TABLE mail_log (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              to_email TEXT NOT NULL,
+              subject TEXT,
+              context TEXT,
+              is_html INTEGER NOT NULL DEFAULT 1,
+              status TEXT NOT NULL DEFAULT 'queued',
+              transport TEXT,
+              error TEXT,
+              attempts INTEGER NOT NULL DEFAULT 0,
+              body TEXT,
+              opts TEXT,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT DEFAULT (datetime('now')),
+              sent_at TEXT
+            );
+            CREATE INDEX idx_mail_log_status ON mail_log(status);
+            CREATE INDEX idx_mail_log_created ON mail_log(created_at);
         ",
     ];
 

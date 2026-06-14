@@ -110,6 +110,94 @@ function mam_mail_readiness(): array {
 }
 
 /**
+ * Persist one outbound-email attempt to the mail_log outbox. This is the piece
+ * that turns "the email silently vanished" into "an operator can see it failed,
+ * why, and re-send it." Never throws — mail bookkeeping must never break a
+ * request — and disables itself for the rest of the request if the table is
+ * absent (pre-migration) so it can't spam the same error on every send.
+ *
+ * On SUCCESS the body + opts are dropped (the message already went out; there
+ * is nothing to retry and no reason to hoard rendered PII). On FAILURE they are
+ * retained verbatim so mam_mail_retry_failed() can re-send the exact message.
+ * Returns the row id (0 on any no-op/failure).
+ */
+function mam_mail_log_record(string $to, string $subject, string $context, string $body, bool $html, array $opts, array $result): int {
+    static $disabled = false;
+    if ($disabled || !function_exists('mam_db')) return 0;
+    try {
+        $ok = !empty($result['ok']);
+        return mam_db_insert('mail_log', [
+            'to_email'  => mb_substr($to, 0, 320),
+            'subject'   => mb_substr($subject, 0, 500),
+            'context'   => mb_substr($context, 0, 120),
+            'is_html'   => $html ? 1 : 0,
+            'status'    => $ok ? 'sent' : 'failed',
+            'transport' => $result['transport'] ?? null,
+            'error'     => $ok ? null : mb_substr((string)($result['error'] ?? ''), 0, 1000),
+            'attempts'  => (int)($result['attempts'] ?? 1),
+            'body'      => $ok ? null : $body,
+            'opts'      => $ok ? null : json_encode($opts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'sent_at'   => $ok ? date('c') : null,
+        ]);
+    } catch (\Throwable $e) {
+        // Table missing or DB unavailable — stop trying for this request.
+        $disabled = true;
+        return 0;
+    }
+}
+
+/**
+ * Re-send failed outbox rows. Drives the admin "Retry failed" button and the
+ * api/tools/mail-retry.php cron, so once an operator fixes the SMTP config the
+ * backlog of failed transactional mail (application confirmations, password
+ * resets, …) actually goes out instead of being lost. Each attempt updates the
+ * row in place. Never throws; returns a {tried,sent,failed,skipped} summary.
+ *
+ *   $limit       max rows processed in one pass (cron-friendly batching)
+ *   $maxAttempts give up on a row once it has failed this many times (poison-
+ *                message guard — a permanently-bad address won't retry forever)
+ *   $onlyId      retry a single row (admin "retry this one"); 0 = all eligible
+ */
+function mam_mail_retry_failed(int $limit = 25, int $maxAttempts = 6, int $onlyId = 0): array {
+    $summary = ['tried' => 0, 'sent' => 0, 'failed' => 0, 'skipped' => 0];
+    if (!function_exists('mam_db')) return $summary;
+    try {
+        if ($onlyId > 0) {
+            $rows = mam_db_all('SELECT * FROM mail_log WHERE id = ? AND status = ?', [$onlyId, 'failed']);
+        } else {
+            $rows = mam_db_all(
+                'SELECT * FROM mail_log WHERE status = ? AND attempts < ? AND body IS NOT NULL ORDER BY id ASC LIMIT ' . max(1, $limit),
+                ['failed', $maxAttempts]
+            );
+        }
+    } catch (\Throwable $e) { return $summary; }
+
+    foreach ($rows as $r) {
+        $summary['tried']++;
+        $body = (string)($r['body'] ?? '');
+        if ($body === '') { $summary['skipped']++; continue; }
+        $opts = [];
+        if (!empty($r['opts'])) { $d = json_decode((string)$r['opts'], true); if (is_array($d)) $opts = $d; }
+        $res = mam_send_mail_verbose((string)$r['to_email'], (string)$r['subject'], $body, (int)($r['is_html'] ?? 1) === 1, $opts);
+        $ok  = !empty($res['ok']);
+        try {
+            mam_db_update('mail_log', [
+                'status'     => $ok ? 'sent' : 'failed',
+                'transport'  => $res['transport'] ?? null,
+                'error'      => $ok ? null : mb_substr((string)($res['error'] ?? ''), 0, 1000),
+                'attempts'   => (int)($r['attempts'] ?? 0) + (int)($res['attempts'] ?? 1),
+                'body'       => $ok ? null : $body,
+                'opts'       => $ok ? null : ($r['opts'] ?? null),
+                'sent_at'    => $ok ? date('c') : null,
+                'updated_at' => date('c'),
+            ], ['id' => (int)$r['id']]);
+        } catch (\Throwable $e) { /* a single bad row must not abort the batch */ }
+        if ($ok) $summary['sent']++; else $summary['failed']++;
+    }
+    return $summary;
+}
+
+/**
  * Send via PHPMailer when it's installed. Honours the same MAIL_* env as the
  * built-in client and returns the same {ok,transport,host,error,steps} shape
  * so callers (mam_send, the CLI tester, the admin endpoint) don't care which
@@ -933,6 +1021,11 @@ function mam_send(string $to, string $subject, string $body, string $context, bo
         ]);
     }
     $result = mam_send_mail_verbose($to, $subject, $body, $html, $opts);
+    // Durable outbox row: success is audited; failure is RETAINED with its
+    // rendered body so it can be re-sent once the SMTP config is fixed. This is
+    // why a failed transactional email is no longer lost. Uses the final body +
+    // opts (post-{{UNSUB_URL}}) so a retry reproduces the message faithfully.
+    mam_mail_log_record($to, $subject, $context, $body, $html, $opts, $result);
     if (!$result['ok']) {
         mam_log('warn', 'mail_delivery_failed', [
             'context'   => $context,
