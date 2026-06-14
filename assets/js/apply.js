@@ -300,7 +300,14 @@
       if (idx === 4) {
         if (!data.payment) { var pm = $('#err-payment'); if (pm) pm.classList.add('shown'); ok = false; }
       }
-      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (first) {
+        first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Move screen-reader/keyboard focus to the first invalid field, not just
+        // the viewport. preventScroll so it doesn't fight the smooth scroll above.
+        if (typeof first.focus === 'function') {
+          try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); }
+        }
+      }
       return ok;
     }
 
@@ -1125,7 +1132,14 @@
     on($('#btnPay'), 'click', function (e) {
       e.preventDefault();
       if (!data.reference) { apiError('Please complete the previous step first.'); return; }
-      if (!data.payment) { showFieldError('payment'); return; }
+      if (!data.payment) {
+        // Was showFieldError() — which is undefined and threw a ReferenceError.
+        // Use the same #err-payment surface step-4 validation uses, and bring it into view.
+        setError('payment');
+        var pe = document.getElementById('err-payment');
+        if (pe) pe.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
       setBusy('btnPay', true, 'Opening secure checkout…');
       api.initializePayment({ reference: data.reference, provider: data.payment, purpose: 'booking_fee' })
         .then(function (init) {
