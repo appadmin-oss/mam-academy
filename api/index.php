@@ -103,6 +103,8 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->get ('/assessments',         $f('student/assessments.php'),         [mw_role('student')]);
     // AI progress note (provider-agnostic gateway; off unless ai_provider set).
     $r->get ('/ai-narrative',        $f('student/ai-narrative.php'),        [mw_role('student'), mw_rate_limit('ai_narrative', 20, 600)]);
+    // Cohort session attendance (LMS L2 dual-read view).
+    $r->get ('/session-attendance',  $f('student/session-attendance.php'),  [mw_role('student')]);
 });
 
 /* ─── Instructor portal ─── */

@@ -474,19 +474,48 @@
   }
   function renderAttendance() {
     var att = data.attendance || [];
-    if (!att.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('calendar-check', 'No attendance recorded yet. Once your classes begin, every session shows here.') + '</div></section>'; return; }
-    var present = att.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
-    var rate = Math.round(present / att.length * 100);
-    var rows = att.map(function (a) {
-      return '<tr><td data-label="Date">' + P.fmtDate(a.session_date) + '</td>'
-        + '<td data-label="Class"><strong>' + P.escapeHtml(a.title || '—') + '</strong></td>'
-        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
-    }).join('');
-    content.innerHTML = '<section class="kpi-row">'
-      + '<div class="kpi"><div class="kpi-label">Attendance rate</div><div class="kpi-value gold">' + rate + '%</div><div class="kpi-sub">across ' + att.length + ' session' + (att.length === 1 ? '' : 's') + '</div></div>'
-      + '<div class="kpi"><div class="kpi-label">Present / Late</div><div class="kpi-value">' + present + '</div><div class="kpi-sub">of ' + att.length + ' recorded</div></div>'
-      + '</section>'
-      + '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    var legacy = '';
+    if (att.length) {
+      var present = att.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
+      var rate = Math.round(present / att.length * 100);
+      var rows = att.map(function (a) {
+        return '<tr><td data-label="Date">' + P.fmtDate(a.session_date) + '</td>'
+          + '<td data-label="Class"><strong>' + P.escapeHtml(a.title || '—') + '</strong></td>'
+          + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
+      }).join('');
+      legacy = '<section class="kpi-row">'
+        + '<div class="kpi"><div class="kpi-label">Attendance rate</div><div class="kpi-value gold">' + rate + '%</div><div class="kpi-sub">across ' + att.length + ' session' + (att.length === 1 ? '' : 's') + '</div></div>'
+        + '<div class="kpi"><div class="kpi-label">Present / Late</div><div class="kpi-value">' + present + '</div><div class="kpi-sub">of ' + att.length + ' recorded</div></div>'
+        + '</section>'
+        + '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    }
+    content.innerHTML = legacy + '<div id="sessAttArea">' + (att.length ? '' : ('<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading attendance…') + '</div></section>')) + '</div>';
+    // Dual-read: also surface cohort session attendance (LMS L2). Shows only when
+    // there are session records; if there's neither legacy nor session
+    // attendance, fall back to the single empty state.
+    var emptyState = '<section class="panel"><div class="panel-body">' + empty('calendar-check', 'No attendance recorded yet. Once your classes begin, every session shows here.') + '</div></section>';
+    API.request('student/session-attendance', { method: 'GET' }).then(function (r) {
+      var sa = r.attendance || [];
+      var area = document.getElementById('sessAttArea');
+      if (!area) return;
+      if (sa.length) {
+        var srows = sa.map(function (a) {
+          return '<tr><td data-label="When">' + (a.scheduled_at ? P.escapeHtml(a.scheduled_at) : '—') + '</td>'
+            + '<td data-label="Cohort"><strong>' + P.escapeHtml(a.cohort_title || '—') + '</strong>' + (a.session_title ? ' · ' + P.escapeHtml(a.session_title) : '') + '</td>'
+            + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
+        }).join('');
+        area.innerHTML = '<section class="panel"' + (att.length ? ' style="margin-top:18px"' : '') + '><div class="panel-head"><h2><i class="fa-solid fa-calendar-days" style="margin-right:8px;color:var(--gold-bright)"></i>Class sessions</h2></div>'
+          + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>When</th><th>Cohort / Session</th><th>Status</th></tr></thead><tbody>' + srows + '</tbody></table></div></section>';
+      } else if (!att.length) {
+        content.innerHTML = emptyState;
+      } else {
+        area.innerHTML = '';
+      }
+    }).catch(function () {
+      var area = document.getElementById('sessAttArea');
+      if (!area) return;
+      if (!att.length) content.innerHTML = emptyState; else area.innerHTML = '';
+    });
   }
   function renderClassTable(enr) {
     var rows = enr.map(function (e) {
