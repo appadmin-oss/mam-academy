@@ -118,3 +118,36 @@ function mam_app_draft_mark_submitted(string $draftKey): void {
     if (trim($draftKey) === '') return;
     try { mam_db_update('application_drafts', ['status' => 'submitted', 'updated_at' => date('Y-m-d H:i:s')], ['draft_key' => trim($draftKey)]); } catch (\Throwable $e) {}
 }
+
+/**
+ * Abandoned-draft nudge sweep (L3 automation): email a one-time "finish your
+ * application" magic link to each draft that's been idle in the window
+ * (default 24h–7d), has an email, and hasn't been nudged or submitted. Marks
+ * each 'nudged' so it's emailed at most once. Returns how many were nudged.
+ * Driven by the run-jobs cron. Never throws.
+ */
+function mam_app_draft_nudge_sweep(int $minHours = 24, int $maxHours = 168, int $limit = 50): int {
+    $now   = time();
+    $minTs = date('Y-m-d H:i:s', $now - max(1, $minHours) * 3600);  // older than this
+    $maxTs = date('Y-m-d H:i:s', $now - max(2, $maxHours) * 3600);  // but newer than this
+    $sent  = 0;
+    try {
+        $rows = mam_db_all(
+            "SELECT draft_key, email FROM application_drafts
+              WHERE status = 'draft' AND email IS NOT NULL AND email <> ''
+                AND updated_at <= ? AND updated_at >= ?
+              ORDER BY id ASC LIMIT " . max(1, $limit),
+            [$minTs, $maxTs]
+        );
+        foreach ($rows as $r) {
+            if (function_exists('mam_send')) {
+                mam_send((string)$r['email'], 'Finish your MAM Academy application',
+                    mam_email_resume_link(mam_app_draft_resume_url((string)$r['draft_key'])),
+                    'application_draft_nudge', true);
+            }
+            mam_db_update('application_drafts', ['status' => 'nudged', 'updated_at' => date('Y-m-d H:i:s')], ['draft_key' => $r['draft_key']]);
+            $sent++;
+        }
+    } catch (\Throwable $e) { /* best-effort */ }
+    return $sent;
+}

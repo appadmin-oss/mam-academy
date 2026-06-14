@@ -35,3 +35,23 @@ $badRow = mam_db_row('SELECT attempts, status, last_error FROM jobs WHERE id = ?
 t_eq((int)$badRow['attempts'], 1, 'a job with no handler increments attempts');
 t_eq($badRow['status'], 'pending', 'and stays pending for retry (under the cap)');
 t_ok(strpos((string)$badRow['last_error'], 'no_handler') !== false, 'the failure reason is recorded');
+
+// ── Auto-progression on pass (finalize → event + job → promote) ──
+mam_setting_set('lms_auto_promote', '1');
+$stu = mam_db_insert('users', ['email' => 't_job_stu@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Climber', 'status' => 'active']);
+$cidCourse = (int)mam_db_row("SELECT id FROM courses WHERE code='piano'")['id'];
+$pre = (int)mam_db_row("SELECT id FROM levels WHERE code='precert'")['id'];
+$std = (int)mam_db_row("SELECT id FROM programs WHERE code='standard'")['id'];
+$eid = mam_db_insert('course_enrollments', ['student_id' => $stu, 'course_id' => $cidCourse, 'level_id' => $pre, 'program_id' => $std, 'status' => 'active']);
+mam_lms_record_assessment($eid, 'final', null, 90, 100, 12, null);   // passing
+$fin = mam_lms_finalize($eid, 1);
+t_eq($fin['status'], 'completed', 'a passing finalize completes the enrolment');
+t_ok(mam_db_row("SELECT id FROM events WHERE type='enrolment.finalized' AND entity_id=?", [$eid]) !== null, 'finalize records an enrolment.finalized event');
+$job = mam_db_row("SELECT id FROM jobs WHERE kind='lms_auto_progress' AND status='pending' AND payload LIKE '%\"enrollment_id\":" . $eid . "%'");
+t_ok($job !== null, 'auto-promotion is enqueued (not done inline) when lms_auto_promote is on');
+// Before running the job, no next-level enrolment exists yet.
+t_ok(mam_db_row("SELECT id FROM course_enrollments WHERE student_id=? AND course_id=? AND level_id=?", [$stu, $cidCourse, (int)mam_db_row("SELECT id FROM levels WHERE code='cert'")['id']]) === null, 'no next-level enrolment until the job runs');
+mam_run_jobs(50);
+$cert = (int)mam_db_row("SELECT id FROM levels WHERE code='cert'")['id'];
+t_ok(mam_db_row("SELECT id FROM course_enrollments WHERE student_id=? AND course_id=? AND level_id=?", [$stu, $cidCourse, $cert]) !== null, 'running the job promotes the student to the next level');
+mam_setting_set('lms_auto_promote', '0');

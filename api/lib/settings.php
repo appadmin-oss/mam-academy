@@ -17,9 +17,16 @@
  */
 declare(strict_types=1);
 
+/** Mutable holder for the per-request settings cache, so mam_setting_set() can
+ *  keep it consistent after a write (set-then-read returns the new value). */
+function &mam_settings_cache(): ?array {
+    static $cache = null;
+    return $cache;
+}
+
 /** Load all settings once per request. Returns [] if the table isn't there. */
 function mam_settings_all(): array {
-    static $cache = null;
+    $cache = &mam_settings_cache();
     if ($cache !== null) return $cache;
     $cache = [];
     try {
@@ -63,6 +70,9 @@ function mam_setting_set(string $key, $value): void {
         ['skey'],
         ['svalue' => (string)$value, 'updated_at' => date('Y-m-d H:i:s')]
     );
+    // Keep the per-request cache consistent so a later read sees the new value.
+    $cache = &mam_settings_cache();
+    if (is_array($cache)) $cache[$key] = (string)$value;
 }
 
 /**

@@ -130,6 +130,12 @@ function mam_lms_finalize(int $enrollmentId, ?int $by = null): array {
     if ($res['total'] === null) throw new RuntimeException('not_graded');
     $to = ($res['outcome'] ?? '') === 'pass' ? 'completed' : 'failed';
     $t  = mam_lms_transition($enrollmentId, $to, $by, 'finalized:' . ($res['outcome'] ?? 'none'));
+    // Automation spine (L3): record the event, and on a pass — if auto-promotion
+    // is enabled — enqueue the progression job instead of doing it inline.
+    if (function_exists('mam_event')) mam_event('enrolment.finalized', 'course_enrollment', $enrollmentId, ['outcome' => $res['outcome'] ?? null, 'to' => $to]);
+    if ($to === 'completed' && mam_lms_auto_promote() && function_exists('mam_job_enqueue')) {
+        mam_job_enqueue('lms_auto_progress', ['enrollment_id' => $enrollmentId]);
+    }
     return ['result' => $res, 'status' => $to, 'transition' => $t];
 }
 

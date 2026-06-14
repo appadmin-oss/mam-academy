@@ -26,6 +26,12 @@ echo "── MAM Academy job runner ──────────────�
 $s = mam_run_jobs($limit);
 printf("jobs       : ran %d · done %d · failed %d\n", $s['ran'], $s['done'], $s['failed']);
 
+// Abandoned-draft nudges (A1 × L3): one "finish your application" email per
+// eligible idle draft.
+if (function_exists('mam_app_draft_nudge_sweep')) {
+    printf("draft nudge: emailed %d\n", mam_app_draft_nudge_sweep());
+}
+
 // Generalised cron: also drain the failed-email outbox in the same pass.
 if (function_exists('mam_mail_retry_failed')) {
     $m = mam_mail_retry_failed(50, 6, 0);

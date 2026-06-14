@@ -58,6 +58,24 @@ function mam_job_handlers(): array {
     return [
         // A safe, always-available no-op (used by tests + as a heartbeat).
         'noop' => function (array $p): bool { return true; },
+
+        // Auto-progression on pass: promote a finalized, passed enrolment to the
+        // same course at the next level. Idempotent (promote won't duplicate), so
+        // safe to retry. Enqueued by mam_lms_finalize when lms_auto_promote is on.
+        'lms_auto_progress' => function (array $p): bool {
+            if (!function_exists('mam_lms_promote_enrollment')) return false;
+            $eid = (int)($p['enrollment_id'] ?? 0);
+            if ($eid > 0) mam_lms_promote_enrollment($eid, null);
+            return true;
+        },
+
+        // Abandoned-draft nudge sweep: one gentle "finish your application" email
+        // per eligible server draft (idle 24h–7d, has an email, not yet nudged).
+        'app_draft_nudge' => function (array $p): bool {
+            if (!function_exists('mam_app_draft_nudge_sweep')) return false;
+            mam_app_draft_nudge_sweep();
+            return true;
+        },
     ];
 }
 
