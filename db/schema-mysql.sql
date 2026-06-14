@@ -783,3 +783,23 @@ CREATE TABLE IF NOT EXISTS class_sessions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (21) ON DUPLICATE KEY UPDATE version = version;
+
+-- v22 — Session attendance (LMS L2). One record per (session, student),
+-- alongside the legacy `attendance` table (dual-read; no cutover).
+CREATE TABLE IF NOT EXISTS session_attendance (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  session_id INT NOT NULL,
+  student_id INT NOT NULL,
+  status     VARCHAR(16) NOT NULL,
+  notes      TEXT,
+  marked_by  INT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_sess_att (session_id, student_id),
+  KEY idx_sess_att_student (student_id),
+  CONSTRAINT fk_sa_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sa_student FOREIGN KEY (student_id) REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_sa_marker  FOREIGN KEY (marked_by)  REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (22) ON DUPLICATE KEY UPDATE version = version;

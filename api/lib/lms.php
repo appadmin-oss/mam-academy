@@ -448,6 +448,60 @@ function mam_lms_set_session_status(int $id, string $to, ?int $by = null): array
     return ['ok' => true, 'changed' => true, 'from' => $from, 'to' => $to];
 }
 
+/** Mark (or re-mark) a student's attendance for a class session. Upserts one
+ *  record per (session, student). Validates the session + status. Returns the
+ *  row id. Throws session_not_found / invalid_status. */
+function mam_lms_mark_attendance(int $sessionId, int $studentId, string $status, ?int $markedBy = null, ?string $notes = null): int {
+    if (!mam_db_row('SELECT id FROM class_sessions WHERE id = ?', [$sessionId])) throw new RuntimeException('session_not_found');
+    if (!in_array($status, ['present', 'absent', 'late', 'excused'], true)) throw new RuntimeException('invalid_status');
+    $now = date('Y-m-d H:i:s');
+    $existing = mam_db_row('SELECT id FROM session_attendance WHERE session_id = ? AND student_id = ?', [$sessionId, $studentId]);
+    if ($existing) {
+        mam_db_update('session_attendance', ['status' => $status, 'notes' => $notes, 'marked_by' => $markedBy, 'updated_at' => $now], ['id' => (int)$existing['id']]);
+        $id = (int)$existing['id'];
+    } else {
+        $id = mam_db_insert('session_attendance', ['session_id' => $sessionId, 'student_id' => $studentId, 'status' => $status, 'notes' => $notes, 'marked_by' => $markedBy]);
+    }
+    mam_audit('lms_attendance_mark', 'class_session', $sessionId, ['student' => $studentId, 'status' => $status]);
+    return $id;
+}
+
+/** Attendance roster for a session (with student names) — the instructor mark sheet. */
+function mam_lms_session_attendance(int $sessionId): array {
+    return mam_db_all(
+        "SELECT sa.id, sa.student_id, sa.status, sa.notes, sa.updated_at,
+                u.name AS student_name, u.email AS student_email
+           FROM session_attendance sa JOIN users u ON u.id = sa.student_id
+          WHERE sa.session_id = ? ORDER BY u.name",
+        [$sessionId]
+    );
+}
+
+/** Present/absent/late/excused counts for a session. */
+function mam_lms_session_attendance_summary(int $sessionId): array {
+    $out = ['present' => 0, 'absent' => 0, 'late' => 0, 'excused' => 0];
+    foreach (mam_db_all('SELECT status, COUNT(*) AS n FROM session_attendance WHERE session_id = ? GROUP BY status', [$sessionId]) as $r) {
+        if (isset($out[(string)$r['status']])) $out[(string)$r['status']] = (int)$r['n'];
+    }
+    return $out;
+}
+
+/** A student's session-based attendance (newest session first), optionally
+ *  scoped to one cohort — the dual-read source that will replace the legacy
+ *  class-attendance view in the portal. */
+function mam_lms_student_session_attendance(int $studentId, ?int $cohortId = null): array {
+    $sql = "SELECT sa.status, sa.notes, cs.title AS session_title, cs.scheduled_at, cs.kind,
+                   co.id AS cohort_id, co.title AS cohort_title
+              FROM session_attendance sa
+              JOIN class_sessions cs ON cs.id = sa.session_id
+              JOIN cohorts co        ON co.id = cs.cohort_id
+             WHERE sa.student_id = ?";
+    $args = [$studentId];
+    if ($cohortId !== null) { $sql .= ' AND co.id = ?'; $args[] = $cohortId; }
+    $sql .= ' ORDER BY (cs.scheduled_at IS NULL), cs.scheduled_at DESC, sa.id DESC';
+    return mam_db_all($sql, $args);
+}
+
 /* ───────────────────────── Assessments & results ─────────────────────────
    Each course enrolment is graded across the weighted assessment_types
    (attendance/assignment/practical/continuous/final). The result is a

@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 21;
+const MAM_SCHEMA_TARGET = 22;
 
 /**
  * Open (and cache) the PDO connection.
@@ -798,6 +798,24 @@ function mam_db_migrate(PDO $db): void {
               created_at TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_class_sessions_cohort ON class_sessions(cohort_id, scheduled_at);
+        ",
+        // v22 — Session attendance (LMS L2). Attendance keyed to a class_session
+        // (the cohort-scoped meeting), one record per (session, student). Same
+        // status vocabulary as the legacy `attendance` table; runs ALONGSIDE it
+        // (dual-read) — no cutover here. Additive.
+        22 => "
+            CREATE TABLE session_attendance (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              session_id INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              status TEXT NOT NULL CHECK(status IN ('present','absent','late','excused')),
+              notes TEXT,
+              marked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_sess_att_unique ON session_attendance(session_id, student_id);
+            CREATE INDEX idx_sess_att_student ON session_attendance(student_id);
         ",
     ];
 
