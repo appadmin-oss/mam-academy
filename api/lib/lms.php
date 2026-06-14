@@ -263,6 +263,89 @@ function mam_lms_instructors(): array {
     );
 }
 
+/* ─────────────────────────────── Cohorts ─────────────────────────────────
+   A cohort is the single "scheduled run of a course" that unifies the legacy
+   classes/enrollments world (attendance, resources) with the v16
+   course_enrollments world (gradebook, results). v19 introduces the table and
+   backfills one cohort per legacy class; the read-path cutover follows in a
+   later, separately-tested increment (dual-read discipline). */
+
+/** Idempotently create one cohort per legacy `classes` row (keyed by
+ *  legacy_class_id). Driver-aware (INSERT OR IGNORE / INSERT IGNORE). Safe to
+ *  re-run; returns how many cohorts were created this pass. */
+function mam_lms_backfill_cohorts(): int {
+    $before = (int)(mam_db_row('SELECT COUNT(*) AS n FROM cohorts')['n'] ?? 0);
+    $ignore = mam_db_driver() === 'mysql' ? 'INSERT IGNORE INTO' : 'INSERT OR IGNORE INTO';
+    mam_db()->exec(
+        $ignore . " cohorts (instructor_id, title, discipline, pathway, mode, capacity, meeting_pattern, starts_on, status, legacy_class_id, created_at)
+           SELECT instructor_id, title, discipline, pathway, mode, COALESCE(capacity,12), schedule, starts_on, COALESCE(status,'active'), id, created_at FROM classes"
+    );
+    $after = (int)(mam_db_row('SELECT COUNT(*) AS n FROM cohorts')['n'] ?? 0);
+    $n = max(0, $after - $before);
+    if ($n) mam_audit('lms_cohort_backfill', 'cohort', null, ['created' => $n]);
+    return $n;
+}
+
+/** All cohorts (newest first), with names resolved from the normalized FKs
+ *  where set; the carried legacy `title`/`discipline` cover migrated classes. */
+function mam_lms_cohorts(): array {
+    return mam_db_all(
+        "SELECT co.*, c.name AS course_name, l.name AS level_name, p.name AS program_name, u.name AS instructor_name
+           FROM cohorts co
+           LEFT JOIN courses c  ON c.id = co.course_id
+           LEFT JOIN levels l   ON l.id = co.level_id
+           LEFT JOIN programs p ON p.id = co.program_id
+           LEFT JOIN users u    ON u.id = co.instructor_id
+          ORDER BY co.id DESC LIMIT 500"
+    );
+}
+
+/** Fetch one cohort by id (with resolved names). */
+function mam_lms_cohort(int $id): ?array {
+    return mam_db_row(
+        "SELECT co.*, c.name AS course_name, l.name AS level_name, p.name AS program_name, u.name AS instructor_name
+           FROM cohorts co
+           LEFT JOIN courses c  ON c.id = co.course_id
+           LEFT JOIN levels l   ON l.id = co.level_id
+           LEFT JOIN programs p ON p.id = co.program_id
+           LEFT JOIN users u    ON u.id = co.instructor_id
+          WHERE co.id = ?", [$id]
+    );
+}
+
+/** Create a cohort. All FKs are optional, so a cohort can be fully normalized
+ *  (course/level/programme) or descriptive (legacy-style title only). */
+function mam_lms_create_cohort(array $d): int {
+    $id = mam_db_insert('cohorts', [
+        'course_id'       => isset($d['course_id'])     ? (int)$d['course_id']     : null,
+        'level_id'        => isset($d['level_id'])      ? (int)$d['level_id']      : null,
+        'program_id'      => isset($d['program_id'])    ? (int)$d['program_id']    : null,
+        'instructor_id'   => isset($d['instructor_id']) ? (int)$d['instructor_id'] : null,
+        'title'           => isset($d['title']) ? (string)$d['title'] : null,
+        'discipline'      => $d['discipline'] ?? null,
+        'pathway'         => $d['pathway'] ?? null,
+        'mode'            => $d['mode'] ?? null,
+        'term'            => $d['term'] ?? null,
+        'capacity'        => isset($d['capacity']) ? (int)$d['capacity'] : 12,
+        'meeting_pattern' => $d['meeting_pattern'] ?? null,
+        'starts_on'       => $d['starts_on'] ?? null,
+        'ends_on'         => $d['ends_on'] ?? null,
+        'status'          => $d['status'] ?? 'active',
+    ]);
+    mam_audit('lms_cohort_create', 'cohort', $id, ['title' => $d['title'] ?? null]);
+    return $id;
+}
+
+/** Link a course-enrolment to a cohort — the dual-write that begins unifying
+ *  the two systems. Validates both exist; throws enrollment_not_found /
+ *  cohort_not_found. */
+function mam_lms_link_enrollment_cohort(int $enrollmentId, int $cohortId): void {
+    if (!mam_db_row('SELECT id FROM course_enrollments WHERE id = ?', [$enrollmentId])) throw new RuntimeException('enrollment_not_found');
+    if (!mam_db_row('SELECT id FROM cohorts WHERE id = ?', [$cohortId])) throw new RuntimeException('cohort_not_found');
+    mam_db_update('course_enrollments', ['cohort_id' => $cohortId], ['id' => $enrollmentId]);
+    mam_audit('lms_cohort_link', 'course_enrollment', $enrollmentId, ['cohort' => $cohortId]);
+}
+
 /* ───────────────────────── Assessments & results ─────────────────────────
    Each course enrolment is graded across the weighted assessment_types
    (attendance/assignment/practical/continuous/final). The result is a

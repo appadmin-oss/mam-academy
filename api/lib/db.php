@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 18;
+const MAM_SCHEMA_TARGET = 19;
 
 /**
  * Open (and cache) the PDO connection.
@@ -716,6 +716,45 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX idx_enrolment_events_enrollment ON enrolment_events(enrollment_id, id);
             ALTER TABLE course_enrollments ADD COLUMN status_changed_at TEXT;
+        ",
+        // v19 — Cohorts (LMS L1: unify the two enrolment systems). A cohort is
+        // the single 'scheduled run of a course' that both the legacy
+        // classes/enrollments world (attendance, resources) and the v16
+        // course_enrollments world (gradebook) hang off. Additive: introduces
+        // `cohorts`, links course_enrollments.cohort_id (nullable), and
+        // idempotently backfills one cohort per legacy class (keyed by
+        // legacy_class_id). No read-path is cut over here — that follows in a
+        // separately-tested increment (dual-read discipline). On a fresh DB the
+        // backfill is a no-op (no classes yet).
+        19 => "
+            CREATE TABLE cohorts (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL,
+              level_id INTEGER REFERENCES levels(id) ON DELETE SET NULL,
+              program_id INTEGER REFERENCES programs(id) ON DELETE SET NULL,
+              instructor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              title TEXT,
+              discipline TEXT,
+              pathway TEXT,
+              mode TEXT,
+              term TEXT,
+              capacity INTEGER DEFAULT 12,
+              meeting_pattern TEXT,
+              starts_on TEXT,
+              ends_on TEXT,
+              status TEXT NOT NULL DEFAULT 'active',
+              legacy_class_id INTEGER,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_cohorts_legacy ON cohorts(legacy_class_id);
+            CREATE INDEX idx_cohorts_course ON cohorts(course_id, level_id);
+            CREATE INDEX idx_cohorts_instructor ON cohorts(instructor_id);
+
+            ALTER TABLE course_enrollments ADD COLUMN cohort_id INTEGER;
+            CREATE INDEX idx_cenroll_cohort ON course_enrollments(cohort_id);
+
+            INSERT OR IGNORE INTO cohorts (instructor_id, title, discipline, pathway, mode, capacity, meeting_pattern, starts_on, status, legacy_class_id, created_at)
+              SELECT instructor_id, title, discipline, pathway, mode, COALESCE(capacity,12), schedule, starts_on, COALESCE(status,'active'), id, created_at FROM classes;
         ",
     ];
 

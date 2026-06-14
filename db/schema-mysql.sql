@@ -701,3 +701,43 @@ CREATE TABLE IF NOT EXISTS enrolment_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (18) ON DUPLICATE KEY UPDATE version = version;
+
+-- v19 — Cohorts (LMS L1: unify the two enrolment systems). Additive: a `cohorts`
+-- table (the single scheduled-run concept), course_enrollments.cohort_id link,
+-- and an idempotent backfill of one cohort per legacy class (keyed by
+-- legacy_class_id via INSERT IGNORE). No read-path cutover here. "IF NOT EXISTS"
+-- on the ALTERs is MariaDB-friendly; on MySQL 8 run once.
+CREATE TABLE IF NOT EXISTS cohorts (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  course_id       INT NULL,
+  level_id        INT NULL,
+  program_id      INT NULL,
+  instructor_id   INT NULL,
+  title           VARCHAR(160),
+  discipline      VARCHAR(32),
+  pathway         VARCHAR(32),
+  mode            VARCHAR(16),
+  term            VARCHAR(64),
+  capacity        INT DEFAULT 12,
+  meeting_pattern VARCHAR(200),
+  starts_on       DATE NULL,
+  ends_on         DATE NULL,
+  status          VARCHAR(24) NOT NULL DEFAULT 'active',
+  legacy_class_id INT NULL,
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_cohorts_legacy (legacy_class_id),
+  KEY idx_cohorts_course (course_id, level_id),
+  KEY idx_cohorts_instructor (instructor_id),
+  CONSTRAINT fk_cohort_course  FOREIGN KEY (course_id)     REFERENCES courses(id)  ON DELETE SET NULL,
+  CONSTRAINT fk_cohort_level   FOREIGN KEY (level_id)      REFERENCES levels(id)   ON DELETE SET NULL,
+  CONSTRAINT fk_cohort_program FOREIGN KEY (program_id)    REFERENCES programs(id) ON DELETE SET NULL,
+  CONSTRAINT fk_cohort_instr   FOREIGN KEY (instructor_id) REFERENCES users(id)    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE course_enrollments ADD COLUMN IF NOT EXISTS cohort_id INT NULL;
+ALTER TABLE course_enrollments ADD KEY IF NOT EXISTS idx_cenroll_cohort (cohort_id);
+
+INSERT IGNORE INTO cohorts (instructor_id, title, discipline, pathway, mode, capacity, meeting_pattern, starts_on, status, legacy_class_id, created_at)
+  SELECT instructor_id, title, discipline, pathway, mode, COALESCE(capacity,12), schedule, starts_on, COALESCE(status,'active'), id, created_at FROM classes;
+
+INSERT INTO schema_version (version) VALUES (19) ON DUPLICATE KEY UPDATE version = version;
