@@ -379,6 +379,75 @@ function mam_lms_ensure_cohort(int $courseId, ?int $levelId, ?int $programId): i
     return mam_lms_create_cohort(['course_id' => $courseId, 'level_id' => $levelId, 'program_id' => $programId, 'title' => $title]);
 }
 
+/* ───────────────────────── Sessions / scheduling (L2) ────────────────────
+   A class_session is a scheduled meeting of a cohort — the first-class
+   scheduling primitive the cohort grouping was built to carry. (Named
+   class_sessions because the auth-session table already owns `sessions`.)
+   Attendance re-homing onto sessions + the instructor scheduling UI follow in
+   later, separately-tested increments. */
+
+/** Legal session-status moves: scheduled → held|cancelled; both terminal. */
+function mam_lms_session_transitions(): array {
+    return ['scheduled' => ['held', 'cancelled'], 'held' => [], 'cancelled' => []];
+}
+function mam_lms_session_can_transition(string $from, string $to): bool {
+    $g = mam_lms_session_transitions();
+    return isset($g[$from]) && in_array($to, $g[$from], true);
+}
+
+/** Schedule a session for a cohort. Validates the cohort exists. Returns the id. */
+function mam_lms_create_session(int $cohortId, array $d): int {
+    if (!mam_db_row('SELECT id FROM cohorts WHERE id = ?', [$cohortId])) throw new RuntimeException('cohort_not_found');
+    $kind = (string)($d['kind'] ?? 'class');
+    if (!in_array($kind, ['class', 'exam', 'revision', 'makeup'], true)) $kind = 'class';
+    $id = mam_db_insert('class_sessions', [
+        'cohort_id'    => $cohortId,
+        'title'        => isset($d['title']) ? (string)$d['title'] : null,
+        'scheduled_at' => $d['scheduled_at'] ?? null,
+        'duration_min' => isset($d['duration_min']) ? max(1, (int)$d['duration_min']) : 60,
+        'kind'         => $kind,
+        'location'     => $d['location'] ?? null,
+        'status'       => 'scheduled',
+        'notes'        => $d['notes'] ?? null,
+        'created_by'   => isset($d['created_by']) ? (int)$d['created_by'] : null,
+    ]);
+    mam_audit('lms_session_create', 'class_session', $id, ['cohort' => $cohortId, 'kind' => $kind]);
+    return $id;
+}
+
+/** Sessions for a cohort, soonest-first (undated last). */
+function mam_lms_cohort_sessions(int $cohortId): array {
+    return mam_db_all(
+        "SELECT cs.*, co.title AS cohort_title
+           FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
+          WHERE cs.cohort_id = ?
+          ORDER BY (cs.scheduled_at IS NULL), cs.scheduled_at ASC, cs.id ASC",
+        [$cohortId]
+    );
+}
+
+/** One session, with its cohort title. */
+function mam_lms_session(int $id): ?array {
+    return mam_db_row(
+        "SELECT cs.*, co.title AS cohort_title
+           FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id WHERE cs.id = ?",
+        [$id]
+    );
+}
+
+/** Move a session scheduled → held|cancelled (enforced). Idempotent on the
+ *  current status. Throws session_not_found / illegal_transition. */
+function mam_lms_set_session_status(int $id, string $to, ?int $by = null): array {
+    $row = mam_db_row('SELECT status FROM class_sessions WHERE id = ?', [$id]);
+    if (!$row) throw new RuntimeException('session_not_found');
+    $from = (string)$row['status'];
+    if ($from === $to) return ['ok' => true, 'changed' => false, 'from' => $from, 'to' => $to];
+    if (!mam_lms_session_can_transition($from, $to)) throw new RuntimeException('illegal_transition');
+    mam_db_update('class_sessions', ['status' => $to], ['id' => $id]);
+    mam_audit('lms_session_status', 'class_session', $id, ['from' => $from, 'to' => $to, 'by' => $by]);
+    return ['ok' => true, 'changed' => true, 'from' => $from, 'to' => $to];
+}
+
 /* ───────────────────────── Assessments & results ─────────────────────────
    Each course enrolment is graded across the weighted assessment_types
    (attendance/assignment/practical/continuous/final). The result is a

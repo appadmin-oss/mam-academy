@@ -762,3 +762,24 @@ CREATE TABLE IF NOT EXISTS ai_runs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (20) ON DUPLICATE KEY UPDATE version = version;
+
+-- v21 — Class sessions (LMS L2: scheduling on cohorts). Named class_sessions
+-- (not sessions) because the auth-session table already owns `sessions`.
+CREATE TABLE IF NOT EXISTS class_sessions (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  cohort_id    INT NOT NULL,
+  title        VARCHAR(160),
+  scheduled_at DATETIME NULL,
+  duration_min INT DEFAULT 60,
+  kind         VARCHAR(16) NOT NULL DEFAULT 'class',
+  location     VARCHAR(255),
+  status       VARCHAR(16) NOT NULL DEFAULT 'scheduled',
+  notes        TEXT,
+  created_by   INT NULL,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_class_sessions_cohort (cohort_id, scheduled_at),
+  CONSTRAINT fk_cs_cohort  FOREIGN KEY (cohort_id)  REFERENCES cohorts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cs_creator FOREIGN KEY (created_by) REFERENCES users(id)   ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (21) ON DUPLICATE KEY UPDATE version = version;
