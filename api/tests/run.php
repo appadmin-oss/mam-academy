@@ -48,6 +48,7 @@ require $ROOT . '/lib/auth.php';            // account provisioning + role check
 require $ROOT . '/lib/store.php';           // store totals (server-authoritative)
 require $ROOT . '/lib/mailer.php';          // mail helpers + outbox (record/retry)
 require $ROOT . '/lib/ai.php';              // provider-agnostic AI gateway
+require $ROOT . '/lib/admissions.php';      // applicant status lookup
 
 require __DIR__ . '/assert.php';
 

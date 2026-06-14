@@ -64,6 +64,8 @@ $r->post('/store/checkout',    $f('store-checkout.php'), [mw_csrf(), mw_rate_lim
 
 /* ─── Public forms (CSRF + rate-limited) ─── */
 $r->post('/application', $f('application.php'), [mw_csrf(), mw_rate_limit('apply',       10, 600)]);
+// Public applicant status lookup (reference + matching email; rate-limited).
+$r->get ('/application/status', $f('application/status.php'), [mw_rate_limit('app_status', 30, 600)]);
 $r->post('/newsletter',  $f('newsletter.php'),  [mw_csrf(), mw_rate_limit('newsletter',  5,  600)]);
 // Unsubscribe is reached from email links / mail-client one-click — no CSRF
 // cookie available, so it relies on a signed token instead. Both verbs map
