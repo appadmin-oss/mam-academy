@@ -128,9 +128,10 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/sessions',           $f('instructor/sessions.php'),           [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->get ('/session-attendance', $f('instructor/session-attendance.php'), [mw_role('instructor', 'admin')]);
     $r->post('/session-attendance', $f('instructor/session-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('sess_att', 240, 600)]);
-    // Submissions review + feedback (LMS L2).
+    // Submissions review + feedback (LMS L2) + AI grading assist (L4).
     $r->get ('/submissions',        $f('instructor/submissions.php'),     [mw_role('instructor', 'admin')]);
     $r->post('/feedback',           $f('instructor/feedback.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
+    $r->post('/feedback-draft',     $f('instructor/feedback-draft.php'),  [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('ai_draft', 30, 600)]);
 });
 
 /* ─── Admin (JSON endpoints; the HTML dashboard is at /admin/) ─── */

@@ -15,4 +15,8 @@ $a = mam_db_row('SELECT id, author_id, title FROM assignments WHERE id = ?', [$a
 if (!$a) mam_fail('assignment_not_found', 404);
 if (!$isAdmin && (int)$a['author_id'] !== (int)$u['id']) mam_fail('forbidden', 403);
 
-mam_ok(['assignment' => $a, 'submissions' => mam_lms_assignment_submissions($aid)]);
+mam_ok([
+    'assignment'  => $a,
+    'submissions' => mam_lms_assignment_submissions($aid),
+    'ai_enabled'  => mam_ai_enabled('grading_feedback'),
+]);

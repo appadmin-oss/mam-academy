@@ -172,6 +172,7 @@
     area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     API.request('instructor/submissions?assignment_id=' + encodeURIComponent(aid), { method: 'GET' }).then(function (r) {
       var subs = r.submissions || [];
+      var aiEnabled = !!r.ai_enabled;
       if (!subs.length) {
         area.innerHTML = '<section class="panel"><div class="panel-head"><h2>Submissions — ' + P.escapeHtml(title) + '</h2></div><div class="panel-body">' + empty('inbox', 'No submissions yet for this assignment.') + '</div></section>';
         return;
@@ -183,6 +184,7 @@
           + '<form class="fb-form profile-form" style="padding:14px 18px;display:grid;gap:10px">'
           +   '<div class="field"><label>Feedback</label><textarea name="comments" rows="2" placeholder="What worked, what to fix…">' + P.escapeHtml(s.feedback_comments || '') + '</textarea></div>'
           +   '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><select name="outcome"><option value="accepted"' + (s.feedback_outcome === 'accepted' ? ' selected' : '') + '>Accept</option><option value="revise"' + (s.feedback_outcome === 'revise' ? ' selected' : '') + '>Revise &amp; resubmit</option></select>'
+          +   (aiEnabled ? '<button type="button" class="btn fb-ai"><i class="fa-solid fa-wand-magic-sparkles"></i> AI draft</button>' : '')
           +   '<button type="submit" class="btn btn-primary"><i class="fa-solid fa-comment-dots"></i> Save feedback</button></div>'
           + '</form></div>';
       }).join('');
@@ -195,6 +197,17 @@
           API.request('instructor/feedback', { method: 'POST', body: { submission_id: subId, outcome: form.elements.outcome.value, comments: form.elements.comments.value } })
             .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Feedback saved.', 'success'); openSubmissions(aid, title); })
             .catch(function () { btn.disabled = false; btn.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not save feedback.', 'error'); });
+        });
+      });
+      area.querySelectorAll('.fb-ai').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var form = b.closest('.fb-form'), subId = parseInt(form.closest('[data-subid]').getAttribute('data-subid'), 10);
+          var orig = b.innerHTML; b.disabled = true; b.innerHTML = 'Drafting…';
+          API.request('instructor/feedback-draft', { method: 'POST', body: { submission_id: subId } }).then(function (rr) {
+            b.disabled = false; b.innerHTML = orig;
+            if (rr && rr.draft) { form.elements.comments.value = rr.draft; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Draft inserted — edit, then Save.', 'success'); }
+            else if (window.MAM_DIALOG) window.MAM_DIALOG.toast('AI could not draft right now.', 'info');
+          }).catch(function () { b.disabled = false; b.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('AI draft failed.', 'error'); });
         });
       });
     }).catch(function () { area.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load submissions.') + '</div></section>'; });

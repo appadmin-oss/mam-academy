@@ -305,3 +305,37 @@ function mam_ai_progress_narrative(int $studentId): ?array {
         return !empty($res['ok']) ? ['text' => trim((string)$res['text']), 'provider' => $res['provider'], 'model' => $res['model']] : null;
     } catch (\Throwable $e) { return null; }
 }
+
+/**
+ * AI grading assist: draft instructor feedback for a submission. Read-only — the
+ * instructor EDITS and signs it (via the normal feedback save); nothing is
+ * auto-recorded. Honest by design: the model cannot perceive the artifact (it's
+ * a URL), so it's told NOT to invent specifics and instead drafts a
+ * rubric-aligned starting point from the assignment + the student's note,
+ * leaving room for the instructor's own observations. Returns ['text','provider']
+ * or null when AI is off / unavailable.
+ */
+function mam_ai_draft_feedback(int $submissionId, ?int $by = null): ?array {
+    if (!mam_ai_enabled('grading_feedback')) return null;
+    try {
+        $s = function_exists('mam_lms_submission') ? mam_lms_submission($submissionId) : null;
+        if (!$s) return null;
+        $a     = mam_db_row('SELECT title, instructions FROM assignments WHERE id = ?', [(int)$s['assignment_id']]);
+        $title = $a ? (string)$a['title'] : 'the assignment';
+        $instr = $a && !empty($a['instructions']) ? (string)$a['instructions'] : '(none given)';
+        $note  = !empty($s['note']) ? (string)$s['note'] : '(none)';
+        $prompt = "Draft feedback an instructor will EDIT before sending to a music student.\n"
+                . "Assignment: {$title}\nInstructions given to the student: {$instr}\n"
+                . "The student submitted a " . (string)$s['artifact_kind'] . " and noted: {$note}\n\n"
+                . "Write 2-3 sentences of warm, specific, constructive feedback. You CANNOT see or hear the "
+                . "submission, so do NOT invent specifics about their performance — instead frame what to check "
+                . "and the common things to refine for this kind of assignment, leaving room for the instructor "
+                . "to add their own observations.";
+        $res = mam_ai_complete('grading_feedback', $prompt, [
+            'system'      => 'You help music instructors write kind, specific, honest feedback faster. Never fabricate details you cannot observe.',
+            'max_tokens'  => 240,
+            'reviewed_by' => $by,
+        ]);
+        return !empty($res['ok']) ? ['text' => trim((string)$res['text']), 'provider' => $res['provider']] : null;
+    } catch (\Throwable $e) { return null; }
+}

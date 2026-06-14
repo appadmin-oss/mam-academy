@@ -54,3 +54,12 @@ $threw = false; try { mam_lms_give_feedback($sub, $ins, ['outcome' => 'bogus']);
 t_ok($threw, 'an invalid feedback outcome is rejected');
 $threw = false; try { mam_lms_give_feedback(99999, $ins, ['outcome' => 'accepted']); } catch (RuntimeException $e) { $threw = $e->getMessage() === 'submission_not_found'; }
 t_ok($threw, 'feedback on a missing submission throws submission_not_found');
+
+// ── AI grading assist (mock provider) — drafts feedback the instructor edits ──
+mam_test_env(['AI_PROVIDER' => 'none']);
+t_ok(mam_ai_draft_feedback($sub, $ins) === null, 'AI feedback draft is null when AI is disabled');
+mam_test_env(['AI_PROVIDER' => 'mock']);
+$draft = mam_ai_draft_feedback($sub, $ins);
+t_ok(is_array($draft) && !empty($draft['text']), 'AI feedback draft returns text when AI is enabled');
+t_ok(mam_ai_draft_feedback(99999, $ins) === null, 'AI draft for a missing submission is null (no crash)');
+mam_test_env(['AI_PROVIDER' => 'none']);
