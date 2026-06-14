@@ -34,6 +34,7 @@
       <a class="portal-nav-link" href="#students" data-tab="students"><i class="fa-solid fa-users"></i>Students</a>
       <a class="portal-nav-link" href="#assignments" data-tab="assignments"><i class="fa-solid fa-list-check"></i>Assignments</a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
+      <a class="portal-nav-link" href="#sessions" data-tab="sessions"><i class="fa-solid fa-calendar-days"></i>Sessions</a>
       <a class="portal-nav-link" href="#gradebook" data-tab="gradebook"><i class="fa-solid fa-graduation-cap"></i>Gradebook</a>
       <a class="portal-nav-link" href="#announce" data-tab="announce"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#account" data-tab="account"><i class="fa-solid fa-user-gear"></i>Account</a>
@@ -63,7 +64,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], gradebook: ['Gradebook', 'Grade students across the weighted components'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
+  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], sessions: ['Sessions', 'Schedule cohort sessions & take attendance'], gradebook: ['Gradebook', 'Grade students across the weighted components'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
   var data = null;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
 
@@ -79,6 +80,7 @@
     if (tab === 'students') return renderStudents();
     if (tab === 'assignments') return renderAssignments();
     if (tab === 'attendance') return renderAttendance();
+    if (tab === 'sessions') return renderSessions();
     if (tab === 'gradebook') return renderGradebook();
     if (tab === 'announce') return renderAnnounce();
     if (tab === 'account') return renderAccount();
@@ -168,6 +170,115 @@
     if (gbCache && !force) return Promise.resolve(gbCache);
     return API.request('instructor/gradebook', { method: 'GET' }).then(function (r) { gbCache = r || {}; return gbCache; });
   }
+  // ── Sessions: cohort scheduling + attendance (LMS L2) ──
+  var sessState = { cohortId: 0 };
+  var ATT = ['present', 'late', 'absent', 'excused'];
+
+  function renderSessions() {
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('calendar-days', 'Loading your cohorts…') + '</div></section>';
+    API.request('instructor/sessions', { method: 'GET' }).then(function (r) {
+      var cohorts = r.cohorts || [];
+      if (!cohorts.length) {
+        content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('calendar-days', 'No cohorts yet. They appear here once students you teach are enrolled (or an admin assigns you one).') + '</div></section>';
+        return;
+      }
+      var opts = cohorts.map(function (c) {
+        var label = (c.title || c.course_name || ('Cohort #' + c.id)) + (c.level_name ? ' · ' + c.level_name : '') + ' (' + (c.enrollment_count || 0) + ' students)';
+        return '<option value="' + c.id + '"' + (c.id == sessState.cohortId ? ' selected' : '') + '>' + P.escapeHtml(label) + '</option>';
+      }).join('');
+      content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Cohort</h2></div>'
+        + '<div style="padding:14px 18px"><select id="sessCohort" style="min-width:280px;padding:9px 11px;border-radius:8px">' + opts + '</select></div></section>'
+        + '<div id="sessArea"></div>';
+      var sel = document.getElementById('sessCohort');
+      sel.addEventListener('change', function () { sessState.cohortId = parseInt(sel.value, 10); loadCohortSessions(sessState.cohortId); });
+      sessState.cohortId = parseInt(sel.value, 10);
+      loadCohortSessions(sessState.cohortId);
+    }).catch(function () {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load your cohorts.') + '</div></section>';
+    });
+  }
+
+  function loadCohortSessions(cid) {
+    var area = document.getElementById('sessArea');
+    if (!area) return;
+    area.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading sessions…') + '</div></section>';
+    API.request('instructor/sessions?cohort_id=' + encodeURIComponent(cid), { method: 'GET' }).then(function (r) {
+      var sessions = r.sessions || [];
+      var rows = sessions.length ? sessions.map(function (s) {
+        var when = s.scheduled_at ? P.escapeHtml(s.scheduled_at) : '<span style="color:var(--text-muted)">unscheduled</span>';
+        var actions = '<button class="btn" data-mark="' + s.id + '"><i class="fa-solid fa-clipboard-check"></i> Attendance</button>';
+        if (s.status === 'scheduled') actions += ' <button class="btn" data-sess-status="' + s.id + '|held">Held</button> <button class="btn" data-sess-status="' + s.id + '|cancelled">Cancel</button>';
+        return '<tr><td>' + P.escapeHtml(s.title || ('Session #' + s.id)) + '</td><td>' + when + '</td><td>' + P.escapeHtml(s.kind) + '</td><td><span class="pill ' + P.escapeHtml(s.status) + '">' + P.escapeHtml(s.status) + '</span></td><td>' + actions + '</td></tr>';
+      }).join('') : '<tr><td colspan="5" class="empty">No sessions yet — schedule one below.</td></tr>';
+      area.innerHTML = '<section class="panel"><div class="panel-head"><h2>Sessions</h2></div>'
+        + '<table><thead><tr><th>Session</th><th>When</th><th>Kind</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></section>'
+        + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Schedule a session</h2></div>'
+        + '<form id="sessForm" class="profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
+        +   '<div class="field" style="flex:1;min-width:160px"><label>Title</label><input name="title" placeholder="e.g. Week 1 — Scales"></div>'
+        +   '<div class="field"><label>Date &amp; time</label><input name="scheduled_at" type="datetime-local"></div>'
+        +   '<div class="field" style="width:90px"><label>Minutes</label><input name="duration_min" type="number" min="1" value="60"></div>'
+        +   '<div class="field" style="width:120px"><label>Kind</label><select name="kind"><option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option></select></div>'
+        +   '<button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Schedule</button>'
+        + '</form></section>'
+        + '<div id="markArea"></div>';
+      bindSessionList(cid);
+    }).catch(function () { area.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load sessions.') + '</div></section>'; });
+  }
+
+  function bindSessionList(cid) {
+    var form = document.getElementById('sessForm');
+    if (form) form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = form.querySelector('button'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Scheduling…';
+      var body = { action: 'create', cohort_id: cid, title: form.elements.title.value, scheduled_at: form.elements.scheduled_at.value, duration_min: parseInt(form.elements.duration_min.value, 10) || 60, kind: form.elements.kind.value };
+      API.request('instructor/sessions', { method: 'POST', body: body })
+        .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Session scheduled.', 'success'); loadCohortSessions(cid); })
+        .catch(function () { btn.disabled = false; btn.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not schedule.', 'error'); });
+    });
+    document.querySelectorAll('[data-sess-status]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var p = b.getAttribute('data-sess-status').split('|');
+        API.request('instructor/sessions', { method: 'POST', body: { action: 'status', session_id: parseInt(p[0], 10), status: p[1] } })
+          .then(function () { loadCohortSessions(cid); })
+          .catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update.', 'error'); });
+      });
+    });
+    document.querySelectorAll('[data-mark]').forEach(function (b) {
+      b.addEventListener('click', function () { openMarkSheet(parseInt(b.getAttribute('data-mark'), 10)); });
+    });
+  }
+
+  function openMarkSheet(sid) {
+    var area = document.getElementById('markArea');
+    if (!area) return;
+    area.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading roster…') + '</div></section>';
+    area.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    API.request('instructor/session-attendance?session_id=' + encodeURIComponent(sid), { method: 'GET' }).then(function (r) {
+      var marks = r.marks || [];
+      if (!marks.length) { area.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-body">' + empty('users', 'No students enrolled in this cohort yet.') + '</div></section>'; return; }
+      var rows = marks.map(function (m) {
+        var btns = ATT.map(function (st) {
+          var on = m.status === st;
+          return '<button class="btn att-btn" data-att="' + m.student_id + '|' + st + '" style="padding:5px 9px;font-size:0.78rem' + (on ? ';background:var(--gold);color:#1A120B' : '') + '">' + st + '</button>';
+        }).join(' ');
+        return '<tr data-sid="' + m.student_id + '"><td>' + P.escapeHtml(m.student_name || m.student_email) + '</td><td style="display:flex;gap:6px;flex-wrap:wrap">' + btns + '</td></tr>';
+      }).join('');
+      area.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Take attendance</h2><span id="markMsg" style="font-size:0.8rem;color:var(--text-muted)"></span></div>'
+        + '<table><thead><tr><th>Student</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></section>';
+      area.querySelectorAll('[data-att]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var p = b.getAttribute('data-att').split('|'), studentId = parseInt(p[0], 10), st = p[1];
+          API.request('instructor/session-attendance', { method: 'POST', body: { session_id: sid, student_id: studentId, status: st } }).then(function () {
+            var tr = b.closest('[data-sid]');
+            tr.querySelectorAll('.att-btn').forEach(function (x) { x.style.background = ''; x.style.color = ''; });
+            b.style.background = 'var(--gold)'; b.style.color = '#1A120B';
+            var msg = document.getElementById('markMsg'); if (msg) msg.textContent = 'Saved ✓';
+          }).catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not save attendance.', 'error'); });
+        });
+      });
+    }).catch(function () { area.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load the roster.') + '</div></section>'; });
+  }
+
   function renderGradebook() {
     content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('clipboard-list', 'Loading gradebook…') + '</div></section>';
     loadGradebook().then(function (gb) {
