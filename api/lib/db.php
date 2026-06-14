@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 22;
+const MAM_SCHEMA_TARGET = 23;
 
 /**
  * Open (and cache) the PDO connection.
@@ -816,6 +816,37 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE UNIQUE INDEX idx_sess_att_unique ON session_attendance(session_id, student_id);
             CREATE INDEX idx_sess_att_student ON session_attendance(student_id);
+        ",
+        // v23 — Submissions & feedback (LMS L2). A student submits an artifact
+        // (link/audio/video/pdf) against an assignment; the instructor leaves
+        // feedback (1:1 with a submission, editable) whose outcome drives the
+        // submission status. Resubmissions create new rows (history). Additive.
+        23 => "
+            CREATE TABLE submissions (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              artifact_url TEXT,
+              artifact_kind TEXT NOT NULL DEFAULT 'link',
+              note TEXT,
+              status TEXT NOT NULL DEFAULT 'submitted',
+              submitted_at TEXT DEFAULT (datetime('now')),
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_submissions_assignment ON submissions(assignment_id, id);
+            CREATE INDEX idx_submissions_student ON submissions(student_id, id);
+
+            CREATE TABLE feedback (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              submission_id INTEGER NOT NULL UNIQUE REFERENCES submissions(id) ON DELETE CASCADE,
+              instructor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              rubric_json TEXT,
+              comments TEXT,
+              outcome TEXT,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT DEFAULT (datetime('now'))
+            );
         ",
     ];
 

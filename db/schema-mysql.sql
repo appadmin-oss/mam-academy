@@ -803,3 +803,37 @@ CREATE TABLE IF NOT EXISTS session_attendance (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (22) ON DUPLICATE KEY UPDATE version = version;
+
+-- v23 — Submissions & feedback (LMS L2). Student artifact submissions against
+-- assignments + instructor feedback (1:1 with a submission, editable).
+CREATE TABLE IF NOT EXISTS submissions (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  assignment_id INT NOT NULL,
+  student_id    INT NOT NULL,
+  artifact_url  VARCHAR(1024),
+  artifact_kind VARCHAR(16) NOT NULL DEFAULT 'link',
+  note          TEXT,
+  status        VARCHAR(24) NOT NULL DEFAULT 'submitted',
+  submitted_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_submissions_assignment (assignment_id, id),
+  KEY idx_submissions_student (student_id, id),
+  CONSTRAINT fk_sub_assignment FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sub_student    FOREIGN KEY (student_id)    REFERENCES users(id)       ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS feedback (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  submission_id INT NOT NULL UNIQUE,
+  instructor_id INT NULL,
+  rubric_json   TEXT,
+  comments      TEXT,
+  outcome       VARCHAR(24),
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_fb_submission FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_fb_instructor FOREIGN KEY (instructor_id) REFERENCES users(id)       ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (23) ON DUPLICATE KEY UPDATE version = version;

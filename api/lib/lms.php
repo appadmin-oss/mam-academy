@@ -558,6 +558,98 @@ function mam_lms_session_mark_sheet(int $sessionId, int $cohortId): array {
     return $rows;
 }
 
+/* ───────────────────────── Submissions & feedback (L2) ───────────────────
+   A student submits an artifact (link/audio/video/pdf) against an assignment;
+   the instructor leaves feedback (1:1 with a submission, editable) whose
+   outcome drives the submission status. Resubmissions create new rows. */
+
+/** A student submits an artifact for one of their assignments. Validates the
+ *  assignment is theirs. Returns the submission id. Throws
+ *  assignment_not_found / not_your_assignment. */
+function mam_lms_submit(int $assignmentId, int $studentId, string $artifactUrl, array $opts = []): int {
+    $a = mam_db_row('SELECT id, student_id FROM assignments WHERE id = ?', [$assignmentId]);
+    if (!$a) throw new RuntimeException('assignment_not_found');
+    if ((int)$a['student_id'] !== $studentId) throw new RuntimeException('not_your_assignment');
+    $kind = (string)($opts['artifact_kind'] ?? 'link');
+    if (!in_array($kind, ['link', 'audio', 'video', 'pdf', 'image'], true)) $kind = 'link';
+    $id = mam_db_insert('submissions', [
+        'assignment_id' => $assignmentId,
+        'student_id'    => $studentId,
+        'artifact_url'  => $artifactUrl !== '' ? $artifactUrl : null,
+        'artifact_kind' => $kind,
+        'note'          => $opts['note'] ?? null,
+        'status'        => 'submitted',
+    ]);
+    mam_audit('lms_submit', 'submission', $id, ['assignment' => $assignmentId, 'student' => $studentId]);
+    return $id;
+}
+
+/** Instructor feedback on a submission (1:1, editable). outcome 'accepted' →
+ *  submission accepted; 'revise' → needs_resubmission. Validates the submission
+ *  + outcome. Returns ['ok','status','feedback_id']. Throws
+ *  submission_not_found / invalid_outcome. */
+function mam_lms_give_feedback(int $submissionId, int $instructorId, array $d): array {
+    if (!mam_db_row('SELECT id FROM submissions WHERE id = ?', [$submissionId])) throw new RuntimeException('submission_not_found');
+    $outcome = (string)($d['outcome'] ?? 'accepted');
+    if (!in_array($outcome, ['accepted', 'revise'], true)) throw new RuntimeException('invalid_outcome');
+    $now = date('Y-m-d H:i:s');
+    $rubric = isset($d['rubric']) ? (is_string($d['rubric']) ? $d['rubric'] : json_encode($d['rubric'])) : null;
+    $existing = mam_db_row('SELECT id FROM feedback WHERE submission_id = ?', [$submissionId]);
+    if ($existing) {
+        mam_db_update('feedback', ['instructor_id' => $instructorId, 'rubric_json' => $rubric, 'comments' => $d['comments'] ?? null, 'outcome' => $outcome, 'updated_at' => $now], ['id' => (int)$existing['id']]);
+        $fid = (int)$existing['id'];
+    } else {
+        $fid = mam_db_insert('feedback', ['submission_id' => $submissionId, 'instructor_id' => $instructorId, 'rubric_json' => $rubric, 'comments' => $d['comments'] ?? null, 'outcome' => $outcome]);
+    }
+    $status = $outcome === 'accepted' ? 'accepted' : 'needs_resubmission';
+    mam_db_update('submissions', ['status' => $status, 'updated_at' => $now], ['id' => $submissionId]);
+    mam_audit('lms_feedback', 'submission', $submissionId, ['outcome' => $outcome]);
+    return ['ok' => true, 'status' => $status, 'feedback_id' => $fid];
+}
+
+/** Submissions for an assignment (newest first) with student name + feedback. */
+function mam_lms_assignment_submissions(int $assignmentId): array {
+    return mam_db_all(
+        "SELECT s.*, u.name AS student_name, f.comments AS feedback_comments, f.outcome AS feedback_outcome, f.rubric_json
+           FROM submissions s
+           JOIN users u         ON u.id = s.student_id
+           LEFT JOIN feedback f ON f.submission_id = s.id
+          WHERE s.assignment_id = ? ORDER BY s.id DESC",
+        [$assignmentId]
+    );
+}
+
+/** A student's submissions (optionally for one assignment), newest first, with
+ *  feedback + the assignment title. */
+function mam_lms_student_submissions(int $studentId, ?int $assignmentId = null): array {
+    $sql = "SELECT s.*, a.title AS assignment_title, f.comments AS feedback_comments,
+                   f.outcome AS feedback_outcome, f.rubric_json, fu.name AS feedback_by
+              FROM submissions s
+              JOIN assignments a   ON a.id = s.assignment_id
+              LEFT JOIN feedback f ON f.submission_id = s.id
+              LEFT JOIN users fu   ON fu.id = f.instructor_id
+             WHERE s.student_id = ?";
+    $args = [$studentId];
+    if ($assignmentId !== null) { $sql .= ' AND s.assignment_id = ?'; $args[] = $assignmentId; }
+    $sql .= ' ORDER BY s.id DESC';
+    return mam_db_all($sql, $args);
+}
+
+/** One submission with its feedback, assignment title (+ author), student name. */
+function mam_lms_submission(int $id): ?array {
+    return mam_db_row(
+        "SELECT s.*, a.title AS assignment_title, a.author_id AS assignment_author_id,
+                u.name AS student_name, f.comments AS feedback_comments, f.outcome AS feedback_outcome,
+                f.rubric_json, f.instructor_id AS feedback_instructor_id
+           FROM submissions s
+           JOIN assignments a   ON a.id = s.assignment_id
+           JOIN users u         ON u.id = s.student_id
+           LEFT JOIN feedback f ON f.submission_id = s.id
+          WHERE s.id = ?",
+        [$id]
+    );
+}
+
 /* ───────────────────────── Assessments & results ─────────────────────────
    Each course enrolment is graded across the weighted assessment_types
    (attendance/assignment/practical/continuous/final). The result is a
