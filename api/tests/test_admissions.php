@@ -39,3 +39,24 @@ t_eq(mam_application_status('MAM-TEST-001', 'applicant@x.dev')['stage'], 'confir
 // ── Admin-set status flows through ──
 mam_db_update('applications', ['status' => 'enrolled'], ['id' => $aid]);
 t_eq(mam_application_status('MAM-TEST-001', 'applicant@x.dev')['stage'], 'enrolled', 'an enrolled application reports enrolled');
+
+// ── Server-side drafts (A1: cross-device resume) ──
+mam_app_draft_save('MAMK-draft-1', 'Drafter@x.dev', ['currentStep' => 2, 'firstName' => 'Bem']);
+$d = mam_app_draft_load('MAMK-draft-1');
+t_ok($d !== null && is_array($d['payload']), 'draft saves + loads with its payload');
+t_eq($d['payload']['firstName'], 'Bem', 'draft payload round-trips');
+t_eq($d['email'], 'drafter@x.dev', 'draft email is normalised to lowercase');
+mam_app_draft_save('MAMK-draft-1', 'drafter@x.dev', ['currentStep' => 3, 'firstName' => 'Bem']);
+t_eq(mam_app_draft_load('MAMK-draft-1')['payload']['currentStep'], 3, 're-saving the same key updates in place (upsert)');
+t_eq((int)mam_db_row("SELECT COUNT(*) AS n FROM application_drafts WHERE draft_key='MAMK-draft-1'")['n'], 1, 'one row per draft key');
+
+// magic-link token: verified load works, a forged token is rejected
+$tok = mam_app_draft_token('MAMK-draft-1');
+t_ok(mam_app_draft_load_verified('MAMK-draft-1', $tok) !== null, 'a valid token loads the draft');
+t_ok(mam_app_draft_load_verified('MAMK-draft-1', 'deadbeef') === null, 'a forged token is rejected');
+t_ok(mam_app_draft_load_verified('MAMK-nope', $tok) === null, 'a token for a different key is rejected');
+t_ok(strpos(mam_app_draft_resume_url('MAMK-draft-1'), 't=' . $tok) !== false, 'resume URL carries the signed token');
+
+// mark submitted
+mam_app_draft_mark_submitted('MAMK-draft-1');
+t_eq(mam_app_draft_load('MAMK-draft-1')['status'], 'submitted', 'a submitted draft is marked submitted');

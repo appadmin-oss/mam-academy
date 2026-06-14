@@ -1074,6 +1074,22 @@ function mam_email_newsletter_welcome(string $source = 'site'): string {
 }
 
 /**
+ * Magic-link email to resume a saved application on any device (A1).
+ */
+function mam_email_resume_link(string $url): string {
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>Pick up where you left off</h2>
+      <p style='color:#4A3624;font-size:15px;margin:0'>Your MAM Academy application is saved. Continue on <strong>any device</strong> — this link reopens it with everything you'd already entered:</p>
+      " . mam_email_button($url, 'Resume my application') . "
+      <p style='font-size:13px;color:#9A8264;margin:18px 0 0'>The link is personal to your application — don't forward it. If you didn't request this, you can safely ignore it; nothing changes until you submit.</p>";
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'Continue your MAM Academy application on any device.',
+        'reason' => 'You received this because you asked for a link to resume your application.',
+        'body' => $inner,
+    ]);
+}
+
+/**
  * Auto-responder for the public contact form. Confirms receipt to the
  * sender and surfaces faster routes (apply, FAQ, phone) so they aren't
  * stuck waiting if they had a simple question.

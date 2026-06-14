@@ -837,3 +837,18 @@ CREATE TABLE IF NOT EXISTS feedback (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (23) ON DUPLICATE KEY UPDATE version = version;
+
+-- v24 — Server-side application drafts (Application A1): cross-device resume via
+-- a signed magic link, keyed by the client's idempotency key.
+CREATE TABLE IF NOT EXISTS application_drafts (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  draft_key  VARCHAR(64) NOT NULL UNIQUE,
+  email      VARCHAR(320),
+  payload    LONGTEXT,
+  status     VARCHAR(16) NOT NULL DEFAULT 'draft',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_app_drafts_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (24) ON DUPLICATE KEY UPDATE version = version;

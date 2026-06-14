@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 23;
+const MAM_SCHEMA_TARGET = 24;
 
 /**
  * Open (and cache) the PDO connection.
@@ -847,6 +847,21 @@ function mam_db_migrate(PDO $db): void {
               created_at TEXT DEFAULT (datetime('now')),
               updated_at TEXT DEFAULT (datetime('now'))
             );
+        ",
+        // v24 — Server-side application drafts (Application A1). Mirrors the
+        // client's localStorage draft so an application can be resumed on ANY
+        // device via a signed magic link. Keyed by the client's idempotency key.
+        24 => "
+            CREATE TABLE application_drafts (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              draft_key TEXT NOT NULL UNIQUE,
+              email TEXT,
+              payload TEXT,
+              status TEXT NOT NULL DEFAULT 'draft',
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_app_drafts_email ON application_drafts(email);
         ",
     ];
 

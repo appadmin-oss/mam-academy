@@ -65,3 +65,56 @@ function mam_application_status(string $reference, string $email): ?array {
         'next_step'      => $stage['next'],
     ];
 }
+
+/* ── Server-side application drafts (A1: cross-device resume) ─────────────── */
+
+/** Upsert a server-side draft keyed by the client's idempotency key. Best-effort
+ *  (a draft save must never break the apply page); caps payload size. */
+function mam_app_draft_save(string $draftKey, string $email, $payload): void {
+    $draftKey = trim($draftKey);
+    if ($draftKey === '' || strlen($draftKey) > 64) return;
+    $json = is_string($payload) ? $payload : json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    if (!is_string($json) || strlen($json) > 200000) return; // sanity cap
+    $email = strtolower(trim($email));
+    if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $email = '';
+    $now = date('Y-m-d H:i:s');
+    try {
+        $existing = mam_db_row('SELECT id FROM application_drafts WHERE draft_key = ?', [$draftKey]);
+        if ($existing) {
+            mam_db_update('application_drafts', ['email' => $email ?: null, 'payload' => $json, 'updated_at' => $now], ['id' => (int)$existing['id']]);
+        } else {
+            mam_db_insert('application_drafts', ['draft_key' => $draftKey, 'email' => $email ?: null, 'payload' => $json, 'status' => 'draft']);
+        }
+    } catch (\Throwable $e) { /* best-effort */ }
+}
+
+/** Load a draft by key → ['draft_key','email','status','payload'(array|null)] or null. */
+function mam_app_draft_load(string $draftKey): ?array {
+    $row = mam_db_row('SELECT draft_key, email, payload, status FROM application_drafts WHERE draft_key = ?', [trim($draftKey)]);
+    if (!$row) return null;
+    $payload = $row['payload'] !== null ? json_decode((string)$row['payload'], true) : null;
+    return ['draft_key' => $row['draft_key'], 'email' => $row['email'], 'status' => $row['status'], 'payload' => is_array($payload) ? $payload : null];
+}
+
+/** Signed, stable resume token for a draft key (HMAC over the app key). */
+function mam_app_draft_token(string $draftKey): string {
+    return substr(hash_hmac('sha256', 'draft:' . trim($draftKey), mam_app_key()), 0, 32);
+}
+/** Constant-time token check. */
+function mam_app_draft_verify(string $draftKey, string $token): bool {
+    return trim($draftKey) !== '' && hash_equals(mam_app_draft_token($draftKey), (string)$token);
+}
+/** Token-verified load — the resume path. Null on a bad/forged token. */
+function mam_app_draft_load_verified(string $draftKey, string $token): ?array {
+    return mam_app_draft_verify($draftKey, $token) ? mam_app_draft_load($draftKey) : null;
+}
+/** The magic-link resume URL emailed to the applicant. */
+function mam_app_draft_resume_url(string $draftKey): string {
+    $base = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
+    return $base . '/apply?resume=' . rawurlencode(trim($draftKey)) . '&t=' . mam_app_draft_token($draftKey);
+}
+/** Mark a draft submitted (called after a successful application submit). */
+function mam_app_draft_mark_submitted(string $draftKey): void {
+    if (trim($draftKey) === '') return;
+    try { mam_db_update('application_drafts', ['status' => 'submitted', 'updated_at' => date('Y-m-d H:i:s')], ['draft_key' => trim($draftKey)]); } catch (\Throwable $e) {}
+}

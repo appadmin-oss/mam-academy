@@ -3,9 +3,9 @@
 declare(strict_types=1);
 t_group('migrations (cold start)');
 
-$pdo = mam_db(); // first access runs v1..v23 inside a fresh temp DB
+$pdo = mam_db(); // first access runs v1..v24 inside a fresh temp DB
 $v = (int)$pdo->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn();
-t_eq($v, 23, 'schema migrated to v23');
+t_eq($v, 24, 'schema migrated to v24');
 
 // v16 seeds.
 foreach (['programs' => 4, 'levels' => 4, 'courses' => 12, 'assessment_types' => 5] as $tbl => $n) {
@@ -15,7 +15,7 @@ foreach (['programs' => 4, 'levels' => 4, 'courses' => 12, 'assessment_types' =>
 // All v16–v23 tables exist and are queryable (incl. v17 mail outbox, v18
 // enrolment-lifecycle audit, v19 cohorts, v20 AI audit, v21 class sessions,
 // v22 session attendance, v23 submissions + feedback).
-foreach (['user_roles', 'modules', 'instructor_assignments', 'course_enrollments', 'assessments', 'results', 'certificates', 'mail_log', 'enrolment_events', 'cohorts', 'ai_runs', 'class_sessions', 'session_attendance', 'submissions', 'feedback'] as $tbl) {
+foreach (['user_roles', 'modules', 'instructor_assignments', 'course_enrollments', 'assessments', 'results', 'certificates', 'mail_log', 'enrolment_events', 'cohorts', 'ai_runs', 'class_sessions', 'session_attendance', 'submissions', 'feedback', 'application_drafts'] as $tbl) {
     $ok = false;
     try { $pdo->query("SELECT COUNT(*) FROM $tbl"); $ok = true; } catch (Throwable $e) {}
     t_ok($ok, "table $tbl exists");
@@ -29,4 +29,4 @@ t_eq($crash['certification'], 'participation', 'crash → participation certific
 
 // Idempotent: a second migrate pass leaves the version untouched.
 mam_db_migrate($pdo);
-t_eq((int)$pdo->query('SELECT MAX(version) FROM schema_version')->fetchColumn(), 23, 're-running migrations stays at v23');
+t_eq((int)$pdo->query('SELECT MAX(version) FROM schema_version')->fetchColumn(), 24, 're-running migrations stays at v24');
