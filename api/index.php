@@ -105,6 +105,9 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->get ('/ai-narrative',        $f('student/ai-narrative.php'),        [mw_role('student'), mw_rate_limit('ai_narrative', 20, 600)]);
     // Cohort session attendance (LMS L2 dual-read view).
     $r->get ('/session-attendance',  $f('student/session-attendance.php'),  [mw_role('student')]);
+    // Submissions against assignments (LMS L2).
+    $r->post('/submit',              $f('student/submit.php'),              [mw_csrf(), mw_role('student'), mw_rate_limit('submit', 60, 600)]);
+    $r->get ('/submissions',         $f('student/submissions.php'),         [mw_role('student')]);
 });
 
 /* ─── Instructor portal ─── */
@@ -125,6 +128,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/sessions',           $f('instructor/sessions.php'),           [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->get ('/session-attendance', $f('instructor/session-attendance.php'), [mw_role('instructor', 'admin')]);
     $r->post('/session-attendance', $f('instructor/session-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('sess_att', 240, 600)]);
+    // Submissions review + feedback (LMS L2).
+    $r->get ('/submissions',        $f('instructor/submissions.php'),     [mw_role('instructor', 'admin')]);
+    $r->post('/feedback',           $f('instructor/feedback.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
 });
 
 /* ─── Admin (JSON endpoints; the HTML dashboard is at /admin/) ─── */
