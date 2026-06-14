@@ -11,7 +11,7 @@
 
 The LMS foundation is genuinely good: a normalized academic model (programmes → levels → courses → enrolments → weighted assessments → results → certificates), an instructor gradebook, flexible self-service course registration with admin approval, level progression, and a portable SQLite↔MySQL migrator. Since v1 of this proposal we have also **paid down the single biggest structural debt's first instalment** — enrolment status is no longer free text; it moves through an enforced state machine with an append-only audit (who/when/why).
 
-It is **not yet enterprise-grade** because it still lacks: unified scheduling/cohorts, a submissions & feedback loop, an automation spine (events → jobs → notifications), analytics, deep RBAC, and any AI layer. This proposal keeps the schema and PHP API spine and layers on **(1)** a clean domain/state model, **(2)** automation, **(3)** an AI optimization layer via the Claude API with explicit cost and PII guardrails, and **(4)** production hardening (RBAC, observability, accessibility, data protection, testing). Delivered in 5 phases, each shippable and test-covered — exactly how this branch has been delivered so far.
+It is **not yet enterprise-grade** because it still lacks: unified scheduling/cohorts, a submissions & feedback loop, an automation spine (events → jobs → notifications), analytics, deep RBAC, and any AI layer. This proposal keeps the schema and PHP API spine and layers on **(1)** a clean domain/state model, **(2)** automation, **(3)** a **provider-agnostic** AI optimization layer (free/local by default, premium optional) with explicit cost and PII guardrails, and **(4)** production hardening (RBAC, observability, accessibility, data protection, testing). Delivered in 5 phases, each shippable and test-covered — exactly how this branch has been delivered so far.
 
 ---
 
@@ -83,24 +83,25 @@ A lightweight, dependency-free **event → job** spine — and we already have t
 
 ### 3.4 AI optimization layer (the "AI-optimized" requirement)
 
-All AI runs **server-side, through one audited gateway** (`api/lib/ai.php`) using the **Claude API (Anthropic)**. The gateway is the only place that talks to the model; it owns prompt templates, schema-constrained output, model selection, caching, quotas, redaction, logging, and the human-in-the-loop gate.
+All AI runs **server-side, through one audited, provider-agnostic gateway** (`api/lib/ai.php`). The gateway is the only thing that talks to a model: it owns prompt templates, output schemas, provider selection, caching, quotas, PII redaction, logging, and the human-in-the-loop gate. Crucially it is **not tied to any one vendor** — providers are pluggable adapters behind a single contract, and the academy can run **every AI feature for free** on local/open models, then *optionally* upgrade individual use-cases to a paid provider for higher quality. **No feature ever hard-depends on a paid API.**
 
-**Model tiering — route by stakes, not by habit.** (Per-1M-token list prices; all support tool use + structured outputs.)
+**Provider adapters — free by default, premium optional.** Each adapter implements one contract — `complete(prompt, schema?, opts) → {json|text, provider, model, usage, ok}` — so callers never know or care which ran:
 
-| Tier | Model ID | Price (in/out per 1M) | Context | Use for |
-|------|----------|-----------------------|---------|---------|
-| **Workhorse default** | `claude-sonnet-4-6` | $3 / $15 | 1M | Practice-plan generation, feedback drafts, progress narratives, syllabus drafts |
-| **High-stakes reasoning** | `claude-opus-4-8` | $5 / $25 | 1M | Placement/auditer recommendation, grading assist, anything a human will sign off on. **Also zero-data-retention-compatible** → preferred for any call carrying raw student PII |
-| **High-volume / low-stakes** | `claude-haiku-4-5` | $1 / $5 | 200K | Classification, short nudges, tagging, summarisation at scale |
-| **Frontier reserve** | (top-tier frontier model) | premium | 1M | Only the rarest hardest reasoning. **Note:** the current frontier tier requires 30-day data retention (not ZDR) — **do not** send raw student PII to it; reserve it for de-identified analytics. |
+| Tier | Examples | Cost | Why / when |
+|------|----------|------|-----------|
+| **Free · self-hosted** *(default)* | Open-weight models via **Ollama** / **llama.cpp** on the server (Llama, Mistral, Qwen, Gemma…) | **$0**, no external calls | The zero-cost default. Best for **PII** — student data never leaves the box. Wants modest server resources (a small GPU helps latency). |
+| **Free-tier hosted** | **Groq** (fast, open models), **Google Gemini** free tier, **OpenRouter** free models, **Mistral**, **Hugging Face** | $0 within each provider's free limits | When the host has no GPU — fast, nothing to run, just an API key. |
+| **Premium** *(opt-in)* | **Claude** (Anthropic) — Sonnet (workhorse), Opus (high-stakes + zero-data-retention-safe for PII), Haiku (volume); or any other paid provider | paid per-token | Reserve for the calls where quality matters most (placement, grading assist). Configured per use-case; never required. |
+
+**Selection is config-driven, not hard-coded.** An admin setting (`ai_provider`, default a free adapter) sets the global default; high-stakes use-cases may override to a stronger provider. With **no provider configured or reachable, AI features simply stay off** and the manual workflow is unaffected — graceful degradation, never a hard dependency.
+
+**One contract across providers (capability negotiation).** The gateway asks each adapter what it supports (JSON-schema output, tool use, vision). Where a provider offers native **structured output** it's used directly; where it doesn't, the gateway enforces the schema by **validating + repairing the returned JSON server-side**. Either way the schema *is* the contract — placement decisions, rubric scores, and structured feedback come back guaranteed-parseable, whatever the vendor.
 
 **Cost & latency guardrails (designed in, not bolted on):**
-- **Prompt caching** for the large, stable prefixes (the rubric library, the policy/FAQ corpus, a course's syllabus). Cache *reads* cost ~0.1× of base input; this is the single biggest lever for the repeated-context calls (grading assist, the support assistant).
-- **Asynchronous Batch API** for everything not user-blocking (overnight progress narratives, bulk syllabus drafts, weekly-digest summaries) — lower per-token cost for non-time-sensitive jobs, drained by `run-jobs.php`.
-- **`effort` + adaptive thinking + per-call `max_tokens`** tuned per use case; **per-account quotas** enforced in the gateway so a runaway loop can't run up spend.
-- **Tier down by default:** Haiku/Sonnet handle the volume; Opus is reserved for the decisions that matter.
-
-**Structured outputs everywhere it touches data.** Placement decisions, rubric scores, and structured feedback are returned as **schema-constrained JSON** (`output_config.format` + `strict` tool use) so the result is guaranteed-parseable and storable — no brittle string parsing. The schema *is* the contract between the model and the gradebook.
+- **Free-first, tier-up deliberately.** The default path costs nothing; a paid provider is an explicit, per-use-case choice — so a runaway loop can't run up a surprise bill.
+- **Cache stable prefixes** (rubric library, policy/FAQ corpus, a course's syllabus): native prompt caching where the provider offers it, an app-level response cache otherwise.
+- **Batch the non-urgent** (overnight narratives, bulk syllabus drafts, digests) through `run-jobs.php` — and on a self-hosted model, off-peak generation is free.
+- **Per-account quotas** in the gateway, plus per-call token/length caps tuned per use-case.
 
 **High-value use cases mapped to existing data:**
 1. **AI-assisted MAM Auditer placement** — entry assessment (`auditer_results.dimensions`) + a short played/sung sample (Rhythm/Pitch telemetry) → recommended programme/level + written rationale (schema-constrained). *Human confirms.*
@@ -112,8 +113,8 @@ All AI runs **server-side, through one audited gateway** (`api/lib/ai.php`) usin
 
 **Guardrails (non-negotiable):**
 - **Human-in-the-loop** for anything affecting a grade, placement, payment, or certificate. AI drafts; a human signs.
-- **Every AI output is stored with its prompt + model + `reviewed_by`** — auditable, reproducible.
-- **PII minimisation & data residency:** redact PII before it reaches a prompt where possible; **keep raw student-PII calls on a ZDR-compatible model** (Opus 4.8 / Sonnet / Haiku), never the 30-day-retention frontier tier. Honour the NDPA/GDPR posture the privacy policy already promises (export + delete).
+- **Every AI output is stored with its prompt + provider + model + `reviewed_by`** — auditable, reproducible, and provider-portable.
+- **PII minimisation & data residency:** redact PII before it reaches a prompt where possible; **keep raw student-PII calls on the self-hosted/local adapter (data never leaves the server) or a zero-data-retention-compatible paid model** — never a provider/model whose retention policy doesn't permit it. Honour the NDPA/GDPR posture the privacy policy already promises (export + delete). For an academy serving minors, the free self-hosted adapter is the safest default precisely because nothing leaves the box.
 - **Quality/eval gate:** a golden-case eval set (representative placements, gradings, narratives) run before any prompt or model change ships — the same "test before merge" discipline as the PHP suite.
 - **Prompt-injection defence:** untrusted content (student submissions, uploaded docs) is delimited and never trusted as instructions; the gateway strips/escapes control sequences.
 
@@ -154,7 +155,7 @@ Model competencies explicitly (`skills`, `skill_assessments`) — *rhythm readin
 
 1. **Cohort merge (finish L1).** Introduce `cohorts`; back-map `classes`→`cohorts` and link `course_enrollments.cohort_id`; route attendance/announcements/resources through cohorts. Dual-read during migration, then cut over. *Test: every legacy class resolves to exactly one cohort; no orphaned enrolments.*
 2. **`events` table + `run-jobs.php`.** Generalise the outbox/recovery crons into one job drainer; move auto-progression-on-pass behind it. *Test with a faked clock (pattern already exists).*
-3. **`api/lib/ai.php` gateway (stub + contract test).** One audited entry point — model tiering, schema-constrained output, quota, PII redaction, `reviewed_by` storage — before any feature. Wire the first use case (progress narrative — read-only, low-risk, Sonnet + prompt caching + Batch).
+3. **`api/lib/ai.php` gateway (stub + contract test).** One audited, provider-agnostic entry point — pluggable adapters, schema-constrained output, quota, PII redaction, `reviewed_by` storage — before any feature. Ship with a **free adapter (Ollama/local) as the default** and a mocked adapter for the contract test; wire the first use case (progress narrative — read-only, low-risk). Premium adapters (Claude, etc.) are opt-in config.
 4. **Skill-profile read-model.** Derive a per-student skill snapshot from `results` + game telemetry; surface in the portal. No new teacher workflow.
 
 Each is additive, test-covered, and ships independently.
