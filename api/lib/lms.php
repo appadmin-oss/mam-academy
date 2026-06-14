@@ -202,6 +202,12 @@ function mam_lms_add_course(int $studentId, string $courseCode, ?string $levelCo
     ]);
     // Birth of the enrolment in the lifecycle audit (from = null = "created").
     mam_lms_log_event($id, null, $auto ? 'active' : 'pending', $auto ? $studentId : null, $auto ? 'auto_approved' : 'requested');
+    // Dual-write: link the enrolment to its (course, level, programme) cohort so
+    // the cohort becomes the unifying grouping for new enrolments. cohort_id is
+    // nullable + currently unread, so this is additive; it must never block an
+    // enrolment, hence the soft guard.
+    try { mam_db_update('course_enrollments', ['cohort_id' => mam_lms_ensure_cohort((int)$course['id'], $levelId, $programId)], ['id' => $id]); }
+    catch (Throwable $e) { /* cohort linking is best-effort */ }
     mam_audit('lms_add_course', 'course_enrollment', $id, ['student' => $studentId, 'course' => $courseCode, 'auto' => $auto]);
     return ['id' => $id, 'status' => $auto ? 'active' : 'pending'];
 }
@@ -344,6 +350,31 @@ function mam_lms_link_enrollment_cohort(int $enrollmentId, int $cohortId): void 
     if (!mam_db_row('SELECT id FROM cohorts WHERE id = ?', [$cohortId])) throw new RuntimeException('cohort_not_found');
     mam_db_update('course_enrollments', ['cohort_id' => $cohortId], ['id' => $enrollmentId]);
     mam_audit('lms_cohort_link', 'course_enrollment', $enrollmentId, ['cohort' => $cohortId]);
+}
+
+/**
+ * Find (or create) the open, system-managed cohort for a (course, level,
+ * programme) tuple — the default grouping a new enrolment is linked to. System
+ * cohorts have legacy_class_id IS NULL (a migrated legacy class is never reused
+ * as an auto-target). NULL level/programme are matched as NULL (affinity-safe,
+ * like the duplicate guard). Returns the cohort id.
+ *
+ * Note: find-then-create has a tiny concurrency window; under SQLite's single
+ * writer it's a non-issue, and on MySQL a rare duplicate-for-a-tuple is a
+ * data-quality nit (dedupe-able later), not a correctness bug.
+ */
+function mam_lms_ensure_cohort(int $courseId, ?int $levelId, ?int $programId): int {
+    $where = 'course_id = ? AND legacy_class_id IS NULL AND status = ?';
+    $args  = [$courseId, 'active'];
+    if ($levelId === null)   { $where .= ' AND level_id IS NULL'; }   else { $where .= ' AND level_id = ?';   $args[] = $levelId; }
+    if ($programId === null) { $where .= ' AND program_id IS NULL'; } else { $where .= ' AND program_id = ?'; $args[] = $programId; }
+    $row = mam_db_row("SELECT id FROM cohorts WHERE $where ORDER BY id LIMIT 1", $args);
+    if ($row) return (int)$row['id'];
+
+    $c = mam_db_row('SELECT name FROM courses WHERE id = ?', [$courseId]);
+    $title = $c ? (string)$c['name'] : ('Course #' . $courseId);
+    if ($levelId !== null) { $l = mam_db_row('SELECT name FROM levels WHERE id = ?', [$levelId]); if ($l) $title .= ' — ' . $l['name']; }
+    return mam_lms_create_cohort(['course_id' => $courseId, 'level_id' => $levelId, 'program_id' => $programId, 'title' => $title]);
 }
 
 /* ───────────────────────── Assessments & results ─────────────────────────
@@ -689,6 +720,9 @@ function mam_lms_promote_enrollment(int $enrollmentId, ?int $by = null): ?array 
         'approved_at' => $auto ? date('Y-m-d H:i:s') : null,
     ]);
     mam_lms_log_event($id, null, $auto ? 'active' : 'pending', $by, 'promoted_from:' . $enrollmentId);
+    // Dual-write: link the promoted enrolment to its next-level cohort (best-effort).
+    try { mam_db_update('course_enrollments', ['cohort_id' => mam_lms_ensure_cohort((int)$e['course_id'], (int)$next['id'], $e['program_id'] !== null ? (int)$e['program_id'] : null)], ['id' => $id]); }
+    catch (Throwable $e2) { /* best-effort */ }
     mam_audit('lms_promote', 'course_enrollment', $id, ['from' => $enrollmentId, 'to_level' => $next['code']]);
     return ['enrollment_id' => $id, 'level' => (string)$next['code'], 'created' => true];
 }

@@ -50,3 +50,26 @@ $threw = false; try { mam_lms_link_enrollment_cohort($eid, 99999); } catch (Runt
 t_ok($threw, 'linking to a missing cohort throws cohort_not_found');
 $threw = false; try { mam_lms_link_enrollment_cohort(99999, $cid); } catch (RuntimeException $e) { $threw = $e->getMessage() === 'enrollment_not_found'; }
 t_ok($threw, 'linking a missing enrolment throws enrollment_not_found');
+
+// ── Dual-write: add_course auto-links the new enrolment to a cohort ──────────
+$s2 = mam_db_insert('users', ['email' => 't_coh_s2@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'S2', 'status' => 'active']);
+$r2 = mam_lms_add_course($s2, 'guitar', 'precert', 'standard');
+$link2 = (int)(mam_db_row('SELECT cohort_id FROM course_enrollments WHERE id = ?', [(int)$r2['id']])['cohort_id'] ?? 0);
+t_ok($link2 > 0, 'add_course auto-links the new enrolment to a cohort');
+$guitarId = (int)mam_db_row("SELECT id FROM courses WHERE code = 'guitar'")['id'];
+t_eq((int)mam_lms_cohort($link2)['course_id'], $guitarId, 'the auto-cohort is for the right course');
+
+// Same course+level+programme → the SAME cohort (one grouping, not per-student)
+$s3 = mam_db_insert('users', ['email' => 't_coh_s3@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'S3', 'status' => 'active']);
+$r3 = mam_lms_add_course($s3, 'guitar', 'precert', 'standard');
+$link3 = (int)(mam_db_row('SELECT cohort_id FROM course_enrollments WHERE id = ?', [(int)$r3['id']])['cohort_id'] ?? 0);
+t_eq($link3, $link2, 'a second enrolment in the same course+level+programme shares the cohort');
+
+// Different level → a DIFFERENT cohort
+$s4 = mam_db_insert('users', ['email' => 't_coh_s4@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'S4', 'status' => 'active']);
+$r4 = mam_lms_add_course($s4, 'guitar', 'cert', 'standard');
+$link4 = (int)(mam_db_row('SELECT cohort_id FROM course_enrollments WHERE id = ?', [(int)$r4['id']])['cohort_id'] ?? 0);
+t_ok($link4 > 0 && $link4 !== $link2, 'a different level resolves to a different cohort');
+
+// ensure_cohort is idempotent for a tuple (find-or-create)
+t_eq(mam_lms_ensure_cohort($guitarId, (int)mam_db_row("SELECT id FROM levels WHERE code='precert'")['id'], (int)mam_db_row("SELECT id FROM programs WHERE code='standard'")['id']), $link2, 'ensure_cohort returns the existing cohort for a known tuple');
