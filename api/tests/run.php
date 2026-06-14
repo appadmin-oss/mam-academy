@@ -49,6 +49,7 @@ require $ROOT . '/lib/store.php';           // store totals (server-authoritativ
 require $ROOT . '/lib/mailer.php';          // mail helpers + outbox (record/retry)
 require $ROOT . '/lib/ai.php';              // provider-agnostic AI gateway
 require $ROOT . '/lib/admissions.php';      // applicant status lookup
+require $ROOT . '/lib/jobs.php';            // automation spine (events + jobs)
 
 require __DIR__ . '/assert.php';
 

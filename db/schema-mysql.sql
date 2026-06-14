@@ -852,3 +852,29 @@ CREATE TABLE IF NOT EXISTS application_drafts (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (24) ON DUPLICATE KEY UPDATE version = version;
+
+-- v25 — Automation spine (LMS L3): append-only events + a due-able jobs queue.
+CREATE TABLE IF NOT EXISTS events (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  type       VARCHAR(64) NOT NULL,
+  entity     VARCHAR(64),
+  entity_id  INT,
+  payload    TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_events_type (type, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS jobs (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  kind       VARCHAR(64) NOT NULL,
+  payload    TEXT,
+  run_after  DATETIME NULL,
+  attempts   INT NOT NULL DEFAULT 0,
+  status     VARCHAR(16) NOT NULL DEFAULT 'pending',
+  last_error VARCHAR(255),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_jobs_due (status, run_after)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (25) ON DUPLICATE KEY UPDATE version = version;

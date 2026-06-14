@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 24;
+const MAM_SCHEMA_TARGET = 25;
 
 /**
  * Open (and cache) the PDO connection.
@@ -862,6 +862,33 @@ function mam_db_migrate(PDO $db): void {
               updated_at TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_app_drafts_email ON application_drafts(email);
+        ",
+        // v25 — Automation spine (LMS L3). Append-only domain `events` + a due-able
+        // `jobs` queue drained by a single cron (api/tools/run-jobs.php). The
+        // foundation for reminders, auto-progression, digests, and notifications.
+        25 => "
+            CREATE TABLE events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              type TEXT NOT NULL,
+              entity TEXT,
+              entity_id INTEGER,
+              payload TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_events_type ON events(type, id);
+
+            CREATE TABLE jobs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              kind TEXT NOT NULL,
+              payload TEXT,
+              run_after TEXT,
+              attempts INTEGER NOT NULL DEFAULT 0,
+              status TEXT NOT NULL DEFAULT 'pending',
+              last_error TEXT,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_jobs_due ON jobs(status, run_after);
         ",
     ];
 
