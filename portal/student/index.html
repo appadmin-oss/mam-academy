@@ -425,6 +425,15 @@
         +   (a.instructions ? '<p class="asg-instr">' + P.escapeHtml(a.instructions) + '</p>' : '')
         +   '<div class="asg-meta">' + (a.author ? 'Set by ' + P.escapeHtml(a.author) : '') + (a.class_title ? ' · ' + P.escapeHtml(a.class_title) : '')
         +     (a.due_on ? ' · <span class="' + (overdue ? 'asg-overdue' : '') + '">Due ' + P.fmtDate(a.due_on) + (overdue ? ' (overdue)' : '') + '</span>' : '') + '</div>'
+        +   '<div class="asg-sub-status" data-aid="' + a.id + '"></div>'
+        +   '<details class="asg-submit" style="margin-top:8px">'
+        +     '<summary style="cursor:pointer;color:var(--gold-bright);font-size:0.84rem"><i class="fa-solid fa-paper-plane" style="margin-right:5px"></i>' + (kid ? 'Send your work' : 'Submit / resubmit work') + '</summary>'
+        +     '<div class="asg-sub-form" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px">'
+        +       '<input class="sub-url" type="url" placeholder="Link to your recording or file (Drive, YouTube…)" style="flex:1;min-width:200px;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)">'
+        +       '<select class="sub-kind" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)"><option value="audio">Audio</option><option value="video">Video</option><option value="pdf">PDF</option><option value="image">Image</option><option value="link">Link</option></select>'
+        +       '<button type="button" class="btn btn-primary sub-go" data-aid="' + a.id + '">Submit</button>'
+        +     '</div>'
+        +   '</details>'
         + '</div>'
         + '<button type="button" class="btn ' + (done ? 'btn-ghost' : 'btn-primary') + ' asg-toggle" data-id="' + a.id + '" data-done="' + (done ? '1' : '0') + '">'
         +   (done ? '<i class="fa-solid fa-rotate-left"></i> Reopen' : '<i class="fa-solid fa-check"></i> ' + (kid ? 'I did it!' : 'Mark done')) + '</button>'
@@ -446,6 +455,38 @@
           .catch(function () { b.disabled = false; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update — try again', 'error'); else alert('Could not update.'); });
       });
     });
+    content.querySelectorAll('.sub-go').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var aid = parseInt(b.getAttribute('data-aid'), 10);
+        var wrap = b.closest('.asg-sub-form');
+        var url = wrap.querySelector('.sub-url').value.trim();
+        if (!url) { wrap.querySelector('.sub-url').focus(); return; }
+        var orig = b.textContent; b.disabled = true; b.textContent = 'Submitting…';
+        API.request('student/submit', { method: 'POST', body: { assignment_id: aid, artifact_url: url, artifact_kind: wrap.querySelector('.sub-kind').value } })
+          .then(function () { b.disabled = false; b.textContent = orig; wrap.querySelector('.sub-url').value = ''; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Submitted ✓', 'success'); loadSubmissionStatuses(); })
+          .catch(function () { b.disabled = false; b.textContent = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not submit — try again', 'error'); });
+      });
+    });
+    loadSubmissionStatuses();
+  }
+
+  function submissionStatusHtml(s) {
+    if (!s) return '';
+    var label = { submitted: 'Submitted — awaiting feedback', accepted: 'Accepted ✓', needs_resubmission: 'Revise & resubmit' }[s.status] || s.status;
+    var color = s.status === 'accepted' ? 'var(--emerald)' : (s.status === 'needs_resubmission' ? '#FB7185' : 'var(--gold-bright)');
+    var h = '<div style="margin-top:6px;font-size:0.84rem"><strong style="color:' + color + '">' + P.escapeHtml(label) + '</strong>';
+    if (s.artifact_url) h += ' · <a href="' + P.escapeHtml(s.artifact_url) + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">your submission ↗</a>';
+    if (s.feedback_comments) h += '<div style="margin-top:4px;color:var(--text-soft);line-height:1.5"><i class="fa-solid fa-comment" style="margin-right:5px;color:var(--gold-bright)"></i>' + P.escapeHtml(s.feedback_comments) + (s.feedback_by ? ' — ' + P.escapeHtml(s.feedback_by) : '') + '</div>';
+    return h + '</div>';
+  }
+  function loadSubmissionStatuses() {
+    API.request('student/submissions', { method: 'GET' }).then(function (r) {
+      var subs = r.submissions || [], latest = {};
+      subs.forEach(function (s) { if (latest[s.assignment_id] === undefined) latest[s.assignment_id] = s; }); // newest-first → first seen wins
+      content.querySelectorAll('.asg-sub-status').forEach(function (el) {
+        el.innerHTML = submissionStatusHtml(latest[parseInt(el.getAttribute('data-aid'), 10)] || null);
+      });
+    }).catch(function () {});
   }
 
   function renderAnnouncements() {
