@@ -1246,6 +1246,7 @@
         '  </div>' +
         '  <div class="success-actions">' +
         '    <a href="portal/login" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket"></i> Open Student Portal</a>' +
+        '    <a href="/status?ref=' + encodeURIComponent(ref) + '&email=' + encodeURIComponent(data.email || '') + '" class="btn btn-secondary"><i class="fa-solid fa-clipboard-check"></i> Track application status</a>' +
         '    <a href="/" class="btn btn-secondary"><i class="fa-solid fa-house"></i> Back to Home</a>' +
         '  </div>' +
         '</div>';
