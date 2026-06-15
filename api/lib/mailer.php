@@ -706,6 +706,49 @@ function mam_email_button(string $url, string $label, string $accent = ''): stri
 }
 
 /**
+ * The MAM brand badge as a base64 PNG data URI, generated once with GD so it
+ * renders in EVERY email client (Gmail/Outlook don't render SVG, and the SVG
+ * logo is 150KB). A dark gold-ringed disc with a gold "equalizer" motif —
+ * small (~a few KB), retina-friendly at 64px. Cached per request; returns ''
+ * if GD is unavailable, in which case the header falls back to the wordmark.
+ */
+function mam_email_logo_png_b64(): string {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = '';
+    if (!function_exists('imagecreatetruecolor') || !function_exists('imagepng')) return $cache;
+    try {
+        $sz = 220;
+        $im = imagecreatetruecolor($sz, $sz);
+        imagealphablending($im, true);
+        imagesavealpha($im, true);
+        imagefill($im, 0, 0, imagecolorallocatealpha($im, 0, 0, 0, 127)); // transparent ground
+        $dark = imagecolorallocate($im, 0x1A, 0x12, 0x0B);
+        $gold = imagecolorallocate($im, 0xFB, 0xBF, 0x24);
+        $c = intdiv($sz, 2);
+        imagefilledellipse($im, $c, $c, $sz - 6, $sz - 6, $gold);   // gold ring …
+        imagefilledellipse($im, $c, $c, $sz - 22, $sz - 22, $dark); // … over a dark disc
+        // Gold "equalizer" bars (a music/audio motif), centred, varied heights.
+        $heights = [52, 96, 70, 116, 60];
+        $bw = 16; $gap = 12;
+        $totalW = count($heights) * $bw + (count($heights) - 1) * $gap;
+        $x = $c - intdiv($totalW, 2);
+        $baseY = $c + 58;
+        foreach ($heights as $h) {
+            imagefilledrectangle($im, $x, $baseY - $h, $x + $bw, $baseY, $gold);
+            imagefilledellipse($im, $x + intdiv($bw, 2), $baseY - $h, $bw, $bw, $gold); // rounded top
+            $x += $bw + $gap;
+        }
+        ob_start();
+        imagepng($im, null, 9);
+        $png = ob_get_clean();
+        imagedestroy($im);
+        if (is_string($png) && $png !== '') $cache = 'data:image/png;base64,' . base64_encode($png);
+    } catch (\Throwable $e) { $cache = ''; }
+    return $cache;
+}
+
+/**
  * Responsive, Outlook-compatible, legally-compliant email layout used by every
  * template. Provides: viewport + dark/light color-scheme meta, a fluid
  * max-width:600px container, a hidden preheader, MSO ghost-table wrapping, and
@@ -734,6 +777,10 @@ function mam_email_layout(array $o): string {
     $marketing = !empty($o['unsubscribe']);
     $year      = date('Y');
     $appUrl    = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
+    $logo      = mam_email_logo_png_b64();
+    $logoImg   = $logo !== ''
+        ? '<img src="' . $logo . '" width="60" height="60" alt="MAM Academy" style="display:block;margin:0 auto 14px;width:60px;height:60px;border:0;outline:none">'
+        : '';
 
     $unsubLine = $marketing
         ? '<p style="margin:14px 0 0;font-size:11.5px;color:#9A8264;line-height:1.7">' . $reason
@@ -769,13 +816,12 @@ function mam_email_layout(array $o): string {
       . '<center style="width:100%;background:#F6F1E8">'
       . '<!--[if mso]><table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="620"><tr><td><![endif]-->'
       . '<table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="100%" class="container" style="max-width:620px;margin:0 auto;background:#FFFFFF;border-radius:18px;overflow:hidden;box-shadow:0 12px 36px rgba(26,18,11,0.10)">'
-      // Hairline gold accent bar
-      . '<tr><td style="background:#B8721B;height:5px;line-height:5px;font-size:0">&nbsp;</td></tr>'
-      // Editorial header
-      . '<tr><td class="px" style="padding:32px 44px 4px;text-align:center">'
-      .   '<p style="margin:0;font-size:10.5px;letter-spacing:0.32em;text-transform:uppercase;color:#B8721B;font-weight:700">A Creative Intelligence &amp; Performance Academy</p>'
-      .   '<p style="margin:8px 0 0;font-family:Georgia,\'Times New Roman\',serif;font-size:22px;letter-spacing:0.18em;color:#1A120B;font-weight:bold">MAM ACADEMY</p>'
-      .   '<table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" style="margin:18px auto 0"><tr><td style="height:1px;background:#ECDFC4;width:60px;line-height:1px;font-size:0">&nbsp;</td></tr></table>'
+      // Branded dark header band — logo badge + gold-accented wordmark + tagline.
+      // Solid hexes only (dark-mode-inverter safe); the gold rule is the accent.
+      . '<tr><td style="background:#161009;padding:34px 44px 28px;text-align:center;border-bottom:3px solid #B8721B">'
+      .   $logoImg
+      .   '<div style="font-family:Georgia,\'Times New Roman\',serif;font-size:23px;letter-spacing:0.18em;color:#FFFFFF;font-weight:bold">MAM ACADEMY</div>'
+      .   '<div style="margin:9px 0 0;font-size:10px;letter-spacing:0.34em;text-transform:uppercase;color:#FBBF24;font-weight:700">Music &middot; Arts &middot; Mastery</div>'
       . '</td></tr>'
       // Body (templates inject their content here)
       . '<tr><td class="px py" style="padding:32px 44px 36px;color:#4A3624;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;line-height:1.7;font-size:15px">'
