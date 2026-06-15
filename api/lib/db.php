@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 28;
+const MAM_SCHEMA_TARGET = 29;
 
 /**
  * Open (and cache) the PDO connection.
@@ -940,6 +940,24 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX idx_funnel_event ON funnel_events(event, created_at);
             CREATE INDEX idx_funnel_sid ON funnel_events(sid);
+        ",
+        // v29 — Notification centre (LMS L3). A per-user in-app inbox over the
+        // automation spine: a typed, titled notification with an optional body
+        // and deep link, and a read_at marker. Recipients are real users
+        // (CASCADE on delete). Emitted at key moments (feedback, finalize,
+        // assignment) and surfaced in the portals + admin header. Additive.
+        29 => "
+            CREATE TABLE notifications (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              type TEXT NOT NULL,
+              title TEXT NOT NULL,
+              body TEXT,
+              url TEXT,
+              read_at TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_notif_user ON notifications(user_id, read_at, id);
         ",
     ];
 

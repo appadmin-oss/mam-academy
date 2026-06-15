@@ -101,6 +101,10 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
     $r->post('/perform-reset',     $f('auth/perform-reset.php'),    [mw_csrf(), mw_rate_limit('reset_perform', 10, 600)]);
 });
 
+/* ─── Notification centre (any signed-in user; LMS L3) ─── */
+$r->get ('/notifications',      $f('notifications/list.php'), [mw_user(), mw_rate_limit('notif_list', 240, 600)]);
+$r->post('/notifications/read', $f('notifications/read.php'), [mw_csrf(), mw_user(), mw_rate_limit('notif_read', 240, 600)]);
+
 /* ─── Student portal ─── */
 $r->group('/student', function (MamRouter $r) use ($f) {
     $r->get ('/dashboard',           $f('student/dashboard.php'),           [mw_role('student')]);

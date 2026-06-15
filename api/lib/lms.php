@@ -136,6 +136,16 @@ function mam_lms_finalize(int $enrollmentId, ?int $by = null): array {
     if ($to === 'completed' && mam_lms_auto_promote() && function_exists('mam_job_enqueue')) {
         mam_job_enqueue('lms_auto_progress', ['enrollment_id' => $enrollmentId]);
     }
+    // Notify the student their result is in (best-effort, never-throw).
+    if (function_exists('mam_notify')) {
+        $ce = mam_db_row('SELECT ce.student_id, c.name AS course_name FROM course_enrollments ce JOIN courses c ON c.id = ce.course_id WHERE ce.id = ?', [$enrollmentId]);
+        if ($ce) {
+            $pass  = $to === 'completed';
+            $title = $pass ? 'Course completed 🎉' : 'Your course result is published';
+            $body  = trim((string)($ce['course_name'] ?? '') . ($pass ? ' — congratulations on passing!' : ' — see your gradebook for details.'));
+            mam_notify((int)$ce['student_id'], 'enrolment.' . $to, $title, $body !== '' ? $body : null, '/portal/student/');
+        }
+    }
     return ['result' => $res, 'status' => $to, 'transition' => $t];
 }
 
@@ -595,7 +605,8 @@ function mam_lms_submit(int $assignmentId, int $studentId, string $artifactUrl, 
  *  + outcome. Returns ['ok','status','feedback_id']. Throws
  *  submission_not_found / invalid_outcome. */
 function mam_lms_give_feedback(int $submissionId, int $instructorId, array $d): array {
-    if (!mam_db_row('SELECT id FROM submissions WHERE id = ?', [$submissionId])) throw new RuntimeException('submission_not_found');
+    $sub = mam_db_row('SELECT id, student_id, assignment_id FROM submissions WHERE id = ?', [$submissionId]);
+    if (!$sub) throw new RuntimeException('submission_not_found');
     $outcome = (string)($d['outcome'] ?? 'accepted');
     if (!in_array($outcome, ['accepted', 'revise'], true)) throw new RuntimeException('invalid_outcome');
     $now = date('Y-m-d H:i:s');
@@ -610,6 +621,13 @@ function mam_lms_give_feedback(int $submissionId, int $instructorId, array $d): 
     $status = $outcome === 'accepted' ? 'accepted' : 'needs_resubmission';
     mam_db_update('submissions', ['status' => $status, 'updated_at' => $now], ['id' => $submissionId]);
     mam_audit('lms_feedback', 'submission', $submissionId, ['outcome' => $outcome]);
+    // Notify the student their work was reviewed (best-effort, never-throw).
+    if (function_exists('mam_notify')) {
+        $title = $outcome === 'accepted' ? 'Your submission was accepted' : 'Your submission needs another pass';
+        $at = mam_db_row('SELECT title FROM assignments WHERE id = ?', [(int)$sub['assignment_id']]);
+        $body = ($at && (string)$at['title'] !== '') ? 'Assignment: ' . $at['title'] : null;
+        mam_notify((int)$sub['student_id'], 'submission.feedback', $title, $body, '/portal/student/');
+    }
     return ['ok' => true, 'status' => $status, 'feedback_id' => $fid];
 }
 

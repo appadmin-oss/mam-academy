@@ -248,6 +248,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=applications&app=' . $aid . '&ok=1'); exit;
     }
 
+    // Clear the signed-in admin's notification inbox (operational; session only).
+    if ($action === 'notif_read_all') {
+        if ($adminUser && function_exists('mam_notifications_mark_all_read')) {
+            try { mam_notifications_mark_all_read((int)$adminUser['id']); } catch (Throwable $e) {}
+        }
+        $to = preg_replace('/[^a-z]/', '', (string)($_POST['back'] ?? 'overview')) ?: 'overview';
+        header('Location: ?v=' . $to); exit;
+    }
+
     if ($action === 'msg_status') {
         $id = (int)($_POST['id'] ?? 0);
         $status = $_POST['status'] ?? 'read';
@@ -988,6 +997,36 @@ button.tiny:hover{border-color:var(--gold)}
     ?><br>
     <a href="/" style="color:var(--gold)" target="_blank">↗ View site</a>
   </div>
+  <?php
+    // Notification centre (L3) — session admins only (Basic-Auth has no user row,
+    // so no inbox). Surfaces assignments and other staff alerts where admins work.
+    if ($adminUser && function_exists('mam_notifications')):
+      $myUid  = (int)$adminUser['id'];
+      $unread = mam_notifications_unread_count($myUid);
+      $notes  = mam_notifications($myUid, false, 6);
+  ?>
+  <div style="margin-top:16px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <strong style="color:var(--gold);font-size:.8rem"><i class="fa-solid fa-bell" aria-hidden="true"></i> Notifications<?php if ($unread): ?> <span style="background:#E11D48;color:#fff;border-radius:9px;padding:0 6px;font-size:.64rem"><?= (int)$unread ?></span><?php endif; ?></strong>
+      <?php if ($unread): ?>
+        <form method="post" style="margin:0">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+          <input type="hidden" name="action" value="notif_read_all">
+          <input type="hidden" name="back" value="<?= htmlspecialchars((string)$view) ?>">
+          <button type="submit" style="background:none;border:0;color:var(--gold);cursor:pointer;font-size:.68rem;padding:0">Mark all read</button>
+        </form>
+      <?php endif; ?>
+    </div>
+    <?php if (!$notes): ?>
+      <div class="muted" style="font-size:.74rem">You're all caught up.</div>
+    <?php else: foreach ($notes as $n): $nurl = (string)($n['url'] ?? ''); ?>
+      <a href="<?= htmlspecialchars($nurl !== '' ? $nurl : '#') ?>" style="display:block;padding:6px 0;border-top:1px solid var(--border);text-decoration:none;color:var(--text)<?= $n['read_at'] ? ';opacity:.5' : '' ?>">
+        <div style="font-size:.75rem;font-weight:600"><?= htmlspecialchars((string)$n['title']) ?></div>
+        <?php if (!empty($n['body'])): ?><div class="muted" style="font-size:.7rem"><?= htmlspecialchars((string)$n['body']) ?></div><?php endif; ?>
+      </a>
+    <?php endforeach; endif; ?>
+  </div>
+  <?php endif; ?>
 </aside>
 
 <main>

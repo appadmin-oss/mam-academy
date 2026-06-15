@@ -120,12 +120,83 @@
       };
     },
 
+    /** Notification centre (L3): a bell + dropdown mounted into [data-notif-bell].
+        Self-contained (injects its own styles once), owner-scoped, and entirely
+        best-effort — a failed fetch never disturbs the portal. Polls lightly. */
+    notifications: function () {
+      var host = $('[data-notif-bell]');
+      if (!host || !window.MAM_API) return;
+      if (!document.getElementById('mam-notif-style')) {
+        var st = document.createElement('style');
+        st.id = 'mam-notif-style';
+        st.textContent = [
+          '.mam-notif{position:relative;display:inline-block}',
+          '.mam-notif-btn{position:relative;background:transparent;border:1px solid var(--border,rgba(255,255,255,.16));color:inherit;border-radius:10px;width:42px;height:42px;cursor:pointer;font-size:1rem}',
+          '.mam-notif-badge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#E11D48;color:#fff;font-size:.66rem;line-height:18px;text-align:center;font-weight:700;display:none}',
+          '.mam-notif-panel{position:absolute;right:0;top:50px;width:344px;max-width:86vw;max-height:62vh;overflow:auto;background:var(--card,#1A120B);border:1px solid var(--border,rgba(255,255,255,.16));border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.5);z-index:60;display:none}',
+          '.mam-notif-panel.open{display:block}',
+          '.mam-notif-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--border,rgba(255,255,255,.12));font-weight:700;font-size:.9rem}',
+          '.mam-notif-head button{background:transparent;border:0;color:var(--gold,#FBBF24);cursor:pointer;font-size:.76rem}',
+          '.mam-notif-item{display:block;padding:11px 14px;border-bottom:1px solid var(--border,rgba(255,255,255,.07));color:inherit;text-decoration:none;cursor:pointer}',
+          '.mam-notif-item:hover{background:rgba(255,255,255,.05)}',
+          '.mam-notif-item.unread{background:rgba(251,191,36,.08)}',
+          '.mam-notif-title{font-weight:600;font-size:.85rem;margin-bottom:2px}',
+          '.mam-notif-body{font-size:.77rem;opacity:.75}',
+          '.mam-notif-time{font-size:.67rem;opacity:.5;margin-top:3px}',
+          '.mam-notif-empty{padding:22px 14px;text-align:center;opacity:.6;font-size:.82rem}'
+        ].join('');
+        document.head.appendChild(st);
+      }
+      host.classList.add('mam-notif');
+      host.innerHTML = '<button class="mam-notif-btn" type="button" aria-label="Notifications" aria-haspopup="true" aria-expanded="false"><i class="fa-solid fa-bell" aria-hidden="true"></i><span class="mam-notif-badge" aria-hidden="true">0</span></button>'
+        + '<div class="mam-notif-panel" role="dialog" aria-label="Notifications"><div class="mam-notif-head"><span>Notifications</span><button type="button" data-notif-clear>Mark all read</button></div><div data-notif-list><div class="mam-notif-empty">Loading…</div></div></div>';
+      var btn = $('.mam-notif-btn', host), badge = $('.mam-notif-badge', host),
+          panel = $('.mam-notif-panel', host), listEl = $('[data-notif-list]', host);
+      function setBadge(u) { u = u || 0; badge.style.display = u > 0 ? 'block' : 'none'; badge.textContent = u > 99 ? '99+' : String(u); }
+      function render(data) {
+        var items = (data && data.notifications) || [];
+        setBadge(data && data.unread);
+        if (!items.length) { listEl.innerHTML = '<div class="mam-notif-empty">You’re all caught up.</div>'; return; }
+        listEl.innerHTML = items.map(function (n) {
+          return '<a class="mam-notif-item' + (n.read_at ? '' : ' unread') + '" data-id="' + n.id + '" href="' + (n.url ? escapeHtml(n.url) : '#') + '">'
+            + '<div class="mam-notif-title">' + escapeHtml(n.title) + '</div>'
+            + (n.body ? '<div class="mam-notif-body">' + escapeHtml(n.body) + '</div>' : '')
+            + '<div class="mam-notif-time">' + fmtDateTime(n.created_at) + '</div></a>';
+        }).join('');
+      }
+      function load() { window.MAM_API.request('notifications', { method: 'GET' }).then(render).catch(function () {}); }
+      on(btn, 'click', function (e) {
+        e.stopPropagation();
+        var open = panel.classList.toggle('open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) load();
+      });
+      on(document, 'click', function (e) { if (!host.contains(e.target)) { panel.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); } });
+      on(listEl, 'click', function (e) {
+        var a = e.target.closest ? e.target.closest('[data-id]') : null;
+        if (!a) return;
+        e.preventDefault();
+        var id = Number(a.getAttribute('data-id')), href = a.getAttribute('href');
+        // Record the read FIRST, then navigate, so the count is correct on return.
+        window.MAM_API.request('notifications/read', { method: 'POST', body: { id: id } })
+          .catch(function () {})
+          .then(function () { if (href && href !== '#') window.location.href = href; else load(); });
+      });
+      on($('[data-notif-clear]', host), 'click', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        window.MAM_API.request('notifications/read', { method: 'POST', body: { all: true } }).catch(function () {}).then(load);
+      });
+      load();
+      setInterval(load, 60000);
+    },
+
     /** Patch the existing main.js API helper to add credentials and base path */
     init: function () {
       // window.MAM_API already adds same-origin credentials + auto CSRF.
       // Wire up logout / sidebar / footer year on every portal page.
       $$('[data-action=logout]').forEach(function (b) { on(b, 'click', function (e) { e.preventDefault(); window.MAM_PORTAL.logout(); }); });
       window.MAM_PORTAL.sidebarToggle();
+      window.MAM_PORTAL.notifications();
       $$('[data-year]').forEach(function (e) { e.textContent = new Date().getFullYear(); });
     },
   };

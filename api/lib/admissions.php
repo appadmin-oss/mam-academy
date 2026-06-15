@@ -114,6 +114,13 @@ function mam_admissions_assign(int $appId, ?int $userId, ?int $by = null): void 
     if (!mam_db_row('SELECT id FROM applications WHERE id = ?', [$appId])) throw new RuntimeException('application_not_found');
     mam_db_update('applications', ['assignee_id' => $userId, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $appId]);
     mam_audit('admissions_assign', 'application', $appId, ['assignee' => $userId, 'by' => $by]);
+    // Notify the newly assigned staff member (best-effort, never-throw). Skip
+    // when clearing the assignee, or when someone assigns an application to self.
+    if ($userId && $userId !== $by && function_exists('mam_notify')) {
+        $ref = (string)(mam_db_row('SELECT reference FROM applications WHERE id = ?', [$appId])['reference'] ?? '');
+        mam_notify($userId, 'application.assigned', 'An application was assigned to you',
+            $ref !== '' ? 'Reference: ' . $ref : null, '/admin/?v=applications&app=' . $appId);
+    }
 }
 
 /** The admissions pipeline: applications with applicant, stage, assignee, and

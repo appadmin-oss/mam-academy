@@ -930,3 +930,21 @@ CREATE TABLE IF NOT EXISTS funnel_events (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (28) ON DUPLICATE KEY UPDATE version = version;
+
+-- v29 — Notification centre (LMS L3): a per-user in-app inbox over the
+-- automation spine. Typed/titled notifications with an optional body + deep
+-- link and a read_at marker; recipients are real users (CASCADE on delete).
+CREATE TABLE IF NOT EXISTS notifications (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT NOT NULL,
+  type       VARCHAR(64) NOT NULL,
+  title      VARCHAR(200) NOT NULL,
+  body       TEXT,
+  url        VARCHAR(500),
+  read_at    DATETIME NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_notif_user (user_id, read_at, id),
+  CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (29) ON DUPLICATE KEY UPDATE version = version;
