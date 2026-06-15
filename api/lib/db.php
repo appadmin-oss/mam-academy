@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 29;
+const MAM_SCHEMA_TARGET = 30;
 
 /**
  * Open (and cache) the PDO connection.
@@ -958,6 +958,23 @@ function mam_db_migrate(PDO $db): void {
               created_at TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_notif_user ON notifications(user_id, read_at, id);
+        ",
+        // v30 — Studio leaderboard (S2). One row per (user, tool) holding their
+        // best score + play count — the substrate for an OPT-IN cohort
+        // leaderboard. Submission is explicit (the student chooses to post);
+        // PII is minimised at read time (first name only). Additive.
+        30 => "
+            CREATE TABLE tool_scores (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              tool TEXT NOT NULL,
+              best_score INTEGER NOT NULL DEFAULT 0,
+              plays INTEGER NOT NULL DEFAULT 0,
+              updated_at TEXT DEFAULT (datetime('now')),
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_tool_scores_user_tool ON tool_scores(user_id, tool);
+            CREATE INDEX idx_tool_scores_board ON tool_scores(tool, best_score);
         ",
     ];
 

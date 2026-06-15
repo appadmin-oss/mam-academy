@@ -3,9 +3,9 @@
 declare(strict_types=1);
 t_group('migrations (cold start)');
 
-$pdo = mam_db(); // first access runs v1..v29 inside a fresh temp DB
+$pdo = mam_db(); // first access runs v1..v30 inside a fresh temp DB
 $v = (int)$pdo->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn();
-t_eq($v, 29, 'schema migrated to v29');
+t_eq($v, 30, 'schema migrated to v30');
 
 // v16 seeds.
 foreach (['programs' => 4, 'levels' => 4, 'courses' => 12, 'assessment_types' => 5] as $tbl => $n) {
@@ -16,7 +16,7 @@ foreach (['programs' => 4, 'levels' => 4, 'courses' => 12, 'assessment_types' =>
 // enrolment-lifecycle audit, v19 cohorts, v20 AI audit, v21 class sessions,
 // v22 session attendance, v23 submissions + feedback, v24 drafts, v25
 // events+jobs, v27 admissions audit/notes, v28 funnel analytics).
-foreach (['user_roles', 'modules', 'instructor_assignments', 'course_enrollments', 'assessments', 'results', 'certificates', 'mail_log', 'enrolment_events', 'cohorts', 'ai_runs', 'class_sessions', 'session_attendance', 'submissions', 'feedback', 'application_drafts', 'events', 'jobs', 'application_events', 'application_notes', 'funnel_events', 'notifications'] as $tbl) {
+foreach (['user_roles', 'modules', 'instructor_assignments', 'course_enrollments', 'assessments', 'results', 'certificates', 'mail_log', 'enrolment_events', 'cohorts', 'ai_runs', 'class_sessions', 'session_attendance', 'submissions', 'feedback', 'application_drafts', 'events', 'jobs', 'application_events', 'application_notes', 'funnel_events', 'notifications', 'tool_scores'] as $tbl) {
     $ok = false;
     try { $pdo->query("SELECT COUNT(*) FROM $tbl"); $ok = true; } catch (Throwable $e) {}
     t_ok($ok, "table $tbl exists");
@@ -30,4 +30,4 @@ t_eq($crash['certification'], 'participation', 'crash → participation certific
 
 // Idempotent: a second migrate pass leaves the version untouched.
 mam_db_migrate($pdo);
-t_eq((int)$pdo->query('SELECT MAX(version) FROM schema_version')->fetchColumn(), 29, 're-running migrations stays at v29');
+t_eq((int)$pdo->query('SELECT MAX(version) FROM schema_version')->fetchColumn(), 30, 're-running migrations stays at v30');

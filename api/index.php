@@ -104,6 +104,10 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
 /* ─── Studio AI practice feedback (any signed-in user; S3) ─── */
 $r->post('/studio/feedback', $f('studio/feedback.php'), [mw_csrf(), mw_user(), mw_rate_limit('studio_feedback', 60, 600)]);
 
+/* ─── Studio leaderboard (opt-in; S2) ─── */
+$r->post('/studio/score',       $f('studio/score.php'),       [mw_csrf(), mw_role('student'), mw_rate_limit('studio_score', 60, 600)]);
+$r->get ('/studio/leaderboard', $f('studio/leaderboard.php'), [mw_user(), mw_rate_limit('studio_board', 120, 600)]);
+
 /* ─── Notification centre (any signed-in user; LMS L3) ─── */
 $r->get ('/notifications',      $f('notifications/list.php'), [mw_user(), mw_rate_limit('notif_list', 240, 600)]);
 $r->post('/notifications/read', $f('notifications/read.php'), [mw_csrf(), mw_user(), mw_rate_limit('notif_read', 240, 600)]);

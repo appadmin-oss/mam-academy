@@ -64,10 +64,12 @@
   // any studio page (registered unconditionally). Telemetry always; AI feedback
   // only for the scored tools, signed-in, throttled, and entirely best-effort.
   var _aiFbLast = {};
+  var _lastScore = {};   // tool → last run score (for the opt-in leaderboard post)
   document.addEventListener('mam:game-complete', function (e) {
     var d = (e && e.detail) || {};
     var game = String(d.game || '');
     var score = Math.round(d.score || 0);
+    _lastScore[game] = score;
     if (window.MAM_TRACK) window.MAM_TRACK('score_logged', game, { score: score });
     if (game !== 'rhythm' && game !== 'pitchgame' && game !== 'pitch') return;
     var a = cachedAuth();
@@ -238,6 +240,50 @@
         if (panels[i].getAttribute('data-tool') === tool && demoActive[tool]) endDemo(tool, g.gate, g.hint);
       });
     });
+
+    setupLeaderboards();
+  }
+
+  /* ───────────────── Opt-in cohort leaderboard (S2) ───────────────── */
+  function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function setupLeaderboards() {
+    ['rhythm', 'pitchgame'].forEach(function (tool) {
+      var panel = document.querySelector('.tool-panel[data-tool="' + tool + '"]');
+      if (!panel || panel.querySelector('[data-leaderboard]')) return;
+      var card = document.createElement('div');
+      card.setAttribute('data-leaderboard', tool);
+      card.style.cssText = 'margin-top:18px;padding:14px 16px;border:1px solid var(--border,rgba(255,255,255,.16));border-radius:12px';
+      card.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
+        + '<strong><i class="fa-solid fa-ranking-star" aria-hidden="true"></i> Leaderboard</strong>'
+        + '<button type="button" data-board-post style="padding:7px 12px;border-radius:9px;border:1px solid var(--border-gold,rgba(224,138,26,.5));background:transparent;color:inherit;cursor:pointer;font-weight:700;font-size:.8rem">Post my best</button>'
+        + '</div><ol data-board-list style="margin:10px 0 0;padding-left:22px;line-height:1.8"></ol>'
+        + '<p data-board-me class="studio-gate-note" style="margin:8px 0 0" hidden></p>';
+      panel.appendChild(card);
+      card.querySelector('[data-board-post]').addEventListener('click', function () {
+        var a = cachedAuth();
+        if (!a || !a.authenticated || a.role !== 'student') { setBoardMsg(card, 'Sign in as a student to post your score.'); return; }
+        if (_lastScore[tool] == null) { setBoardMsg(card, 'Play a round first, then post your best.'); return; }
+        if (!window.MAM_API) return;
+        window.MAM_API.request('studio/score', { method: 'POST', body: { tool: tool, score: _lastScore[tool] } })
+          .then(function () { loadBoard(tool, card); })
+          .catch(function () { setBoardMsg(card, 'Could not post right now.'); });
+      });
+      loadBoard(tool, card);
+    });
+  }
+  function setBoardMsg(card, msg) { var p = card.querySelector('[data-board-me]'); if (p) { p.textContent = msg; p.hidden = false; } }
+  function loadBoard(tool, card) {
+    if (!window.MAM_API) return;
+    window.MAM_API.request('studio/leaderboard?tool=' + encodeURIComponent(tool), { method: 'GET' })
+      .then(function (r) {
+        var list = card.querySelector('[data-board-list]'); if (!list) return;
+        var items = (r && r.leaderboard) || [];
+        list.innerHTML = items.length
+          ? items.map(function (x) { return '<li>' + escHtml(x.name) + ' — <strong>' + (x.best_score | 0) + '</strong></li>'; }).join('')
+          : '<li style="opacity:.6">No scores yet — be the first!</li>';
+        if (r && r.me) setBoardMsg(card, 'Your best: ' + (r.me.best_score | 0) + ' · rank #' + (r.me.rank | 0));
+      })
+      .catch(function () { /* guests get a 401 — leave the default text */ });
   }
 
   window.MAM_STUDIO_GATE = { init: init };

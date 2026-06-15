@@ -54,6 +54,7 @@ require $ROOT . '/lib/funnel.php';          // first-party funnel analytics
 require $ROOT . '/lib/notifications.php';   // in-app notification centre
 require $ROOT . '/lib/analytics.php';       // learning analytics (read-only)
 require $ROOT . '/lib/datarights.php';      // data-subject export + erasure
+require $ROOT . '/lib/studio.php';          // studio leaderboard (opt-in)
 
 require __DIR__ . '/assert.php';
 

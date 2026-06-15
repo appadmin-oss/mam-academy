@@ -948,3 +948,20 @@ CREATE TABLE IF NOT EXISTS notifications (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (29) ON DUPLICATE KEY UPDATE version = version;
+
+-- v30 — Studio leaderboard (S2): best score + play count per (user, tool) for
+-- an opt-in cohort leaderboard. PII minimised at read time (first name only).
+CREATE TABLE IF NOT EXISTS tool_scores (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT NOT NULL,
+  tool       VARCHAR(32) NOT NULL,
+  best_score INT NOT NULL DEFAULT 0,
+  plays      INT NOT NULL DEFAULT 0,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_tool_scores_user_tool (user_id, tool),
+  KEY idx_tool_scores_board (tool, best_score),
+  CONSTRAINT fk_tool_scores_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (30) ON DUPLICATE KEY UPDATE version = version;
