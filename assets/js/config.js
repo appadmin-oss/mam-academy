@@ -12,8 +12,17 @@ window.MAM_CONFIG = {
     name: 'MAM Academy',
     url: 'https://academy.mamcentre.org',
     contactEmail: 'academy@mamcentre.org',
-    supportPhone: '+234 800 000 0000',
+    supportPhone: '+234 704 444 6517',
     address: 'MAM Centre, Lagos, Nigeria'
+  },
+
+  /* Receiving bank account — static fallback; the live values come from
+     /api/config/public (admin-editable in Pricing & Settings) and override
+     these on the mam:config event. */
+  bank: {
+    bank: 'GTBank',
+    account_name: 'The Just Folks Limited',
+    account_number: '0117579643'
   },
 
   /* ============================================================

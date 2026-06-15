@@ -38,6 +38,9 @@ mam_ok([
     'registration_fee_usd'    => mam_registration_fee(),
     'online_surcharge_pct'    => mam_online_surcharge_pct(),
     'store_shipping_flat_usd' => mam_setting_num('store_shipping_flat_usd', 5),
+    // The academy's receiving bank account, so the apply/store bank-transfer
+    // panels show the real details instead of placeholders.
+    'bank'                    => mam_bank_details(),
     // Effective live USD→NGN (auto-updated from the rate API, cached, with the
     // admin static rate as fallback) so the UI's "approx ₦…" matches the charge.
     'usd_to_ngn'              => mam_usd_to_ngn_rate(false),

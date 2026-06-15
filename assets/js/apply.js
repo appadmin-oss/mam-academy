@@ -916,6 +916,17 @@
       });
     }
 
+    // Fill the bank-transfer panel with the academy's real account details
+    // (from config; /api/config/public overrides on mam:config). Re-run on the
+    // config event so late-arriving live values land too.
+    function fillBankDetails() {
+      var b = (window.MAM_CONFIG && window.MAM_CONFIG.bank) || {};
+      var set = function (id, v) { var el = document.getElementById(id); if (el && v) el.textContent = v; };
+      set('bankName', b.bank); set('bankAccountName', b.account_name); set('bankAccountNumber', b.account_number);
+    }
+    fillBankDetails();
+    document.addEventListener('mam:config', fillBankDetails);
+
     bindRadioGroup('payment', 'payment');
     $$('input[name="payment"]').forEach(function (r) {
       on(r, 'change', function () {

@@ -181,7 +181,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260613b"></script>
+<script src="assets/js/config.js?v=20260615c"></script>
 <script src="assets/js/main.js?v=20260615b"></script>
 <script>
 (function(){
@@ -340,7 +340,9 @@
 
   function showBank(init, btn, orig){
     btn.disabled = false; btn.innerHTML = orig;
-    status('Bank transfer: send ₦' + (init.amount_ngn || '').toLocaleString() + ' to MAM Centre, then email proof to academy@mamcentre.org with reference ' + init.reference + '. We confirm within 24h.', 'ok');
+    var b = init.bank || {};
+    var lines = b.account_number ? ('<br><strong>' + b.bank + '</strong> · ' + b.account_name + ' · <strong>' + b.account_number + '</strong>') : '';
+    status((init.instructions || ('Send ₦' + (init.amount_ngn || '').toLocaleString() + ' and email proof to academy@mamcentre.org with reference ' + init.reference + '.')) + lines, 'ok');
   }
 
   document.getElementById('payPaystack').addEventListener('click', function(){ pay('paystack'); });

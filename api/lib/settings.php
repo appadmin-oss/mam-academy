@@ -58,6 +58,25 @@ function mam_setting_num(string $key, float $default): float {
     return is_numeric($v) ? (float)$v : $default;
 }
 
+/** The academy's receiving bank account — one source of truth for the invoice
+ *  and every bank-transfer instruction (apply, book, tuition, store checkout). */
+function mam_bank_details(): array {
+    return [
+        'bank'           => (string)mam_setting('invoice_bank_name', 'GTBank'),
+        'account_name'   => (string)mam_setting('invoice_account_name', 'The Just Folks Limited'),
+        'account_number' => (string)mam_setting('invoice_account_number', '0117579643'),
+    ];
+}
+
+/** A one-line bank-transfer instruction for a given reference + optional amount. */
+function mam_bank_instructions(string $reference, ?string $amountLabel = null): string {
+    $b = mam_bank_details();
+    $amt = $amountLabel ? ('Transfer ' . $amountLabel . ' to ') : 'Transfer to ';
+    return $amt . $b['account_name'] . ' — ' . $b['bank'] . ', account ' . $b['account_number']
+         . '. Use reference ' . $reference . ' as the narration, then email proof to '
+         . (string)mam_env('NOTIFY_EMAIL', 'academy@mamcentre.org') . '. We confirm within 24 hours.';
+}
+
 /**
  * Persist one setting (upsert). Caller is responsible for auth + CSRF. Values
  * are stored as strings; reads cast as needed. Safe across SQLite + MySQL via
@@ -104,9 +123,9 @@ function mam_settings_schema(): array {
         ['Fees & surcharges',       'online_surcharge_pct',     'Online surcharge',       20, '%'],
         ['Fees & surcharges',       'registration_fee_usd',     'Registration fee',        5, '$'],
         ['Store',                   'store_shipping_flat_usd',  'Store shipping (flat, physical goods)', 5, '$'],
-        // Invoice — bank-transfer + signatory details (no fixed bank brand).
-        // Leave the bank name blank to hide that row entirely.
-        ['Invoice',                 'invoice_bank_name',        'Bank name (blank = hide)', '', ''],
+        // Invoice / bank transfer — the academy's receiving account, shown on the
+        // invoice AND every bank-transfer instruction (apply, book, tuition, store).
+        ['Invoice',                 'invoice_bank_name',        'Bank name', 'GTBank', ''],
         ['Invoice',                 'invoice_account_name',     'Bank account name', 'The Just Folks Limited', ''],
         ['Invoice',                 'invoice_account_number',   'Bank account number', '0117579643', ''],
         ['Invoice',                 'invoice_finance_name',     'Finance signatory name', 'Anuoluwapo O. Ogunbanjo', ''],

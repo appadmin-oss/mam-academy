@@ -91,7 +91,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260613b"></script>
+<script src="assets/js/config.js?v=20260615c"></script>
 <script src="assets/js/main.js?v=20260615b"></script>
 <script>
 (function () {
@@ -222,7 +222,9 @@
   }
   function showBank(init) {
     setBusy(false);
-    status('Bank transfer: send the tuition to MAM Centre, then email proof to academy@mamcentre.org with reference <strong>' + esc(init.reference) + '</strong>. We confirm within 24 hours and email your portal credentials.', 'ok');
+    var b = init.bank || {};
+    var lines = b.account_number ? ('<br><strong>' + esc(b.bank) + '</strong> · ' + esc(b.account_name) + ' · <strong>' + esc(b.account_number) + '</strong>') : '';
+    status((esc(init.instructions || ('Send the tuition and email proof to academy@mamcentre.org with reference ' + init.reference + '.'))) + lines + ' We email your portal credentials once confirmed.', 'ok');
   }
   document.querySelectorAll('.tu-pay button').forEach(function (b) {
     b.addEventListener('click', function () { pay(b.getAttribute('data-prov')); });
