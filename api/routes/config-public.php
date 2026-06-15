@@ -44,6 +44,10 @@ mam_ok([
     // Effective live USD→NGN (auto-updated from the rate API, cached, with the
     // admin static rate as fallback) so the UI's "approx ₦…" matches the charge.
     'usd_to_ngn'              => mam_usd_to_ngn_rate(false),
+    // One authoritative display-rate map (USD/NGN/GBP/EUR). The homepage toggle,
+    // the apply form and the charged amount all hydrate from this, so a visitor
+    // can never see a naira figure that disagrees with what we actually charge.
+    'currency_rates'          => mam_currency_rates(false),
     // Level-based pricing model (spec §2). The new application form computes
     // display prices from the level base + these rules; the server stays
     // authoritative at charge time via mam_compute_application_price().

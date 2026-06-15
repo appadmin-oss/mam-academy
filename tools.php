@@ -759,8 +759,8 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260615c"></script>
-<script src="assets/js/main.js?v=20260615b"></script>
+<script src="assets/js/config.js?v=20260615d"></script>
+<script src="assets/js/main.js?v=20260615c"></script>
 <!--
   Audio libraries are DEFERRED until the first user interaction with the
   studio. Tone.js performs capability probes at script-evaluation time

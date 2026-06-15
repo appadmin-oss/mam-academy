@@ -491,6 +491,11 @@ window.MAM_CDN = (function () {
         if (typeof j.grand_discount_pct === 'number') C.grandDiscountPct = j.grand_discount_pct;
         if (typeof j.store_shipping_flat_usd === 'number') C.storeShippingUsd = j.store_shipping_flat_usd;
         if (typeof j.usd_to_ngn === 'number' && C.currency && C.currency.rates) C.currency.rates.NGN = j.usd_to_ngn;
+        // Full display-rate map (server-authoritative). Merge so any currency the
+        // server omits keeps its built-in fallback; the live NGN above is included.
+        if (j.currency_rates && C.currency) C.currency.rates = Object.assign({}, C.currency.rates, j.currency_rates);
+        // Real receiving bank account for the apply/store transfer panels.
+        if (j.bank) C.bank = j.bank;
         try { document.dispatchEvent(new CustomEvent('mam:config', { detail: j })); } catch (e) {}
       })
       .catch(function () { /* defaults already in place */ });

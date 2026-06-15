@@ -740,6 +740,17 @@
     var rates = Object.assign({ USD: 1 }, cfgCur.rates || { USD: 1, NGN: 1500, GBP: 0.79, EUR: 0.92 });
     var current = 'USD';
 
+    // The server's rate map is authoritative: a visitor must never see an
+    // "approx ₦…" (or any converted price) on the homepage that differs from
+    // what the checkout bills or what the apply form shows. We overlay the
+    // server map on top of any third-party feed, so the feed only ever fills
+    // currencies the server didn't provide — it can't override a real rate.
+    function serverRates() {
+      var c = window.MAM_CONFIG && window.MAM_CONFIG.currency && window.MAM_CONFIG.currency.rates;
+      return (c && typeof c === 'object') ? c : null;
+    }
+    function pinServer() { var s = serverRates(); if (s) rates = Object.assign(rates, s); }
+
     function setCur(cur, persist) {
       current = cur;
       btns.forEach(function (b) {
@@ -759,11 +770,21 @@
     }
     btns.forEach(function (b) { on(b, 'click', function () { setCur(b.getAttribute('data-currency')); }); });
 
+    // When config.js finishes hydrating from /api/config/public, pull the
+    // server's authoritative rate map in (it carries the live, charge-accurate
+    // NGN) and re-render so the toggle and the charged amount can't disagree.
+    document.addEventListener('mam:config', function () {
+      var c = window.MAM_CONFIG && window.MAM_CONFIG.currency && window.MAM_CONFIG.currency.rates;
+      if (c) { rates = Object.assign(rates, c); setCur(current, false); }
+    });
+
     // 1) Live, auto-updating rates — free, key-less, cached 24h in localStorage.
+    //    This is a FALLBACK source: the server map is re-overlaid afterwards so
+    //    every currency the server provides (incl. the charge-accurate NGN) wins.
     (function loadRates() {
       try {
         var c = JSON.parse(Storage.getItem('mam.fx') || 'null');
-        if (c && c.rates && (Date.now() - c.t) < 864e5) { rates = Object.assign(rates, c.rates); return setCur(current, false); }
+        if (c && c.rates && (Date.now() - c.t) < 864e5) { rates = Object.assign(rates, c.rates); pinServer(); return setCur(current, false); }
       } catch (e) {}
       fetch('https://open.er-api.com/v6/latest/USD', { mode: 'cors' })
         .then(function (r) { return r.json(); })
@@ -771,6 +792,7 @@
           if (j && j.rates && j.rates.USD === 1) {
             rates = Object.assign(rates, j.rates);
             try { Storage.setItem('mam.fx', JSON.stringify({ t: Date.now(), rates: j.rates })); } catch (e) {}
+            pinServer();
             setCur(current, false);
           }
         }).catch(function () { /* keep fallback rates */ });

@@ -31,6 +31,22 @@ function mam_usd_to_ngn_fallback(): float {
 }
 
 /**
+ * One authoritative USD-based display-rate map for the whole front end, so the
+ * homepage toggle, the apply form and the charged amount can't disagree. NGN is
+ * the LIVE rate (read-only — matches what's actually charged); GBP/EUR are
+ * admin-tunable settings with sensible defaults (display-only, since we settle
+ * NGN/USD). $allowFetch=false keeps a page load off the network.
+ */
+function mam_currency_rates(bool $allowFetch = false): array {
+    return [
+        'USD' => 1.0,
+        'NGN' => round(mam_usd_to_ngn_rate($allowFetch), 2),
+        'GBP' => round(mam_setting_num('fx_usd_gbp', 0.79), 4),
+        'EUR' => round(mam_setting_num('fx_usd_eur', 0.92), 4),
+    ];
+}
+
+/**
  * The effective USD→NGN rate to charge/convert at. Resolution order:
  *   1. fx_auto disabled  → static fallback rate.
  *   2. fresh cached live rate (< TTL) → use it (no network hit).
