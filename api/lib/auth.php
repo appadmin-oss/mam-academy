@@ -150,6 +150,7 @@ function mam_admin_capabilities(): array {
         'users'         => 'super',    // create / reset / delete users, roles, tiers
         'settings'      => 'super',    // pricing & settings
         'store_catalog' => 'super',    // store item CRUD
+        'curriculum'    => 'super',    // author the standard curriculum (modules) + import/export
         'mail'          => 'super',    // mail test / retry
         'migrate'       => 'super',    // run DB migrations
         'rbac'          => 'super',    // assign admin tiers

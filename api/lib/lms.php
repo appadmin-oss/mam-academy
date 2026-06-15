@@ -964,6 +964,160 @@ function mam_lms_scaffold_modules(int $courseId, ?int $levelId, ?int $programId)
     return $n;
 }
 
+/* ──────────────────── Standard curriculum: admin + import/export ──────────
+   The curriculum IS the `modules` table (per course+level+week). These helpers
+   give the admin a first-class authoring surface over it: a catalogue picker, a
+   portable JSON/CSV export, and an idempotent bulk import that upserts by
+   (course, level, week) so a syllabus can be version-controlled in a
+   spreadsheet and re-imported to refine — never duplicating weeks. */
+
+/** Courses/levels/programmes for the admin curriculum picker — includes
+ *  INACTIVE rows (with an `active` flag) and ids, unlike the public catalogue. */
+function mam_lms_admin_catalog(): array {
+    return [
+        'programs' => mam_db_all('SELECT id, code, name, weeks, revision_week, exam_week, active FROM programs ORDER BY sort_order, name'),
+        'levels'   => mam_db_all('SELECT id, code, name, trinity_grades, sort_order FROM levels ORDER BY sort_order'),
+        'courses'  => mam_db_all("SELECT id, code, name, kind, active FROM courses ORDER BY CASE WHEN kind = 'core' THEN 0 ELSE 1 END, sort_order, name"),
+    ];
+}
+
+/** The authored modules for a course (+level) as a clean, portable list —
+ *  [{week,kind,title,content}], week-sorted. The unit of curriculum export. */
+function mam_lms_export_modules(int $courseId, ?int $levelId): array {
+    $out = [];
+    foreach (mam_lms_course_modules($courseId, $levelId) as $m) {
+        $out[] = [
+            'week'    => (int)$m['week'],
+            'kind'    => (string)$m['kind'],
+            'title'   => (string)$m['title'],
+            'content' => $m['content'] !== null ? (string)$m['content'] : null,
+        ];
+    }
+    return $out;
+}
+
+/** Render an export list as CSV text (header + rows). Pure — uses an in-memory
+ *  stream so quoting/escaping matches a spreadsheet exactly. */
+function mam_lms_modules_to_csv(array $rows): string {
+    $fh = fopen('php://temp', 'r+');
+    // Pass the separator/enclosure/escape explicitly — PHP 8.4 deprecates relying
+    // on the implicit escape default.
+    fputcsv($fh, ['week', 'kind', 'title', 'content'], ',', '"', '\\');
+    foreach ($rows as $r) {
+        fputcsv($fh, [$r['week'] ?? '', $r['kind'] ?? 'module', $r['title'] ?? '', $r['content'] ?? ''], ',', '"', '\\');
+    }
+    rewind($fh);
+    $csv = stream_get_contents($fh);
+    fclose($fh);
+    return (string)$csv;
+}
+
+/** Parse CSV text into a list of associative rows keyed by a normalized header
+ *  (lower-cased, non-alphanumerics → underscore). Tolerant of quoted fields and
+ *  embedded newlines (fgetcsv) and a UTF-8 BOM. Returns [] on empty/headerless
+ *  input. Pure — easy to unit-test. */
+function mam_lms_parse_csv(string $csv): array {
+    $csv = preg_replace("/^\xEF\xBB\xBF/", '', $csv); // strip UTF-8 BOM if present
+    $fh = fopen('php://temp', 'r+');
+    fwrite($fh, (string)$csv);
+    rewind($fh);
+    $header = null; $rows = [];
+    while (($cols = fgetcsv($fh, 0, ',', '"', '\\')) !== false) {
+        // Skip a fully blank line (fgetcsv yields [null] or a single empty cell).
+        if ($cols === [null] || (count($cols) === 1 && trim((string)($cols[0] ?? '')) === '')) continue;
+        if ($header === null) {
+            $header = array_map(function ($h) {
+                return trim(preg_replace('/[^a-z0-9]+/', '_', strtolower(trim((string)$h))), '_');
+            }, $cols);
+            continue;
+        }
+        $row = [];
+        foreach ($header as $i => $key) { if ($key !== '') $row[$key] = $cols[$i] ?? null; }
+        $rows[] = $row;
+    }
+    fclose($fh);
+    return $rows;
+}
+
+/** The module id authored for (course, level, week), or null. Affinity-safe on
+ *  the nullable level_id (bare-column comparison, like the enrolment guards). */
+function mam_lms_find_module_week(int $courseId, ?int $levelId, int $week): ?int {
+    $row = $levelId === null
+        ? mam_db_row('SELECT id FROM modules WHERE course_id = ? AND level_id IS NULL AND week = ?', [$courseId, $week])
+        : mam_db_row('SELECT id FROM modules WHERE course_id = ? AND level_id = ? AND week = ?', [$courseId, $levelId, $week]);
+    return $row ? (int)$row['id'] : null;
+}
+
+/**
+ * Bulk import curriculum modules. Each row: { week, title, kind?, content?,
+ * course_code?, level_code? }. A row's own course_code/level_code override the
+ * defaults, so one file can populate several courses at once. Upserts by
+ * (course, level, week) — re-importing refines an existing syllabus rather than
+ * duplicating it. Validates per-row and never throws on a bad row (it's
+ * collected in `errors`). Returns
+ * ['created','updated','skipped','errors'=>[{row,reason}]].
+ */
+function mam_lms_import_modules(?int $defaultCourseId, ?int $defaultLevelId, array $rows): array {
+    $created = 0; $updated = 0; $skipped = 0; $errors = [];
+    $courseCache = []; $levelCache = []; // a multi-course file shouldn't re-query the same code
+
+    $resolveCourse = function ($code) use (&$courseCache) {
+        $code = trim((string)$code);
+        if ($code === '') return null;
+        if (!array_key_exists($code, $courseCache)) {
+            $r = mam_db_row('SELECT id FROM courses WHERE code = ?', [$code]);
+            $courseCache[$code] = $r ? (int)$r['id'] : null;
+        }
+        return $courseCache[$code];
+    };
+    $resolveLevel = function ($code) use (&$levelCache) {
+        $code = trim((string)$code);
+        if ($code === '') return null;
+        if (!array_key_exists($code, $levelCache)) {
+            $r = mam_db_row('SELECT id FROM levels WHERE code = ?', [$code]);
+            $levelCache[$code] = $r ? (int)$r['id'] : null;
+        }
+        return $levelCache[$code];
+    };
+
+    foreach ($rows as $i => $row) {
+        $n = $i + 1;
+        if (!is_array($row)) { $errors[] = ['row' => $n, 'reason' => 'not_an_object']; $skipped++; continue; }
+
+        // Course: a per-row code overrides the default selection.
+        $courseId = $defaultCourseId;
+        $cCode = $row['course_code'] ?? $row['course'] ?? null;
+        if ($cCode !== null && trim((string)$cCode) !== '') {
+            $courseId = $resolveCourse($cCode);
+            if ($courseId === null) { $errors[] = ['row' => $n, 'reason' => 'course_not_found:' . trim((string)$cCode)]; $skipped++; continue; }
+        }
+        if ($courseId === null) { $errors[] = ['row' => $n, 'reason' => 'no_course']; $skipped++; continue; }
+
+        // Level: a per-row code overrides; absent → fall back to the default.
+        $levelId = $defaultLevelId;
+        $lCode = $row['level_code'] ?? $row['level'] ?? null;
+        if ($lCode !== null && trim((string)$lCode) !== '') {
+            $levelId = $resolveLevel($lCode);
+            if ($levelId === null) { $errors[] = ['row' => $n, 'reason' => 'level_not_found:' . trim((string)$lCode)]; $skipped++; continue; }
+        }
+
+        $week  = (int)($row['week'] ?? 0);
+        $title = trim((string)($row['title'] ?? ''));
+        if ($week < 1)     { $errors[] = ['row' => $n, 'reason' => 'bad_week']; $skipped++; continue; }
+        if ($title === '') { $errors[] = ['row' => $n, 'reason' => 'empty_title']; $skipped++; continue; }
+        $kind = (string)($row['kind'] ?? 'module');
+        if (!in_array($kind, ['module', 'revision', 'exam'], true)) $kind = 'module';
+        $content = (isset($row['content']) && trim((string)$row['content']) !== '') ? (string)$row['content'] : null;
+
+        $existing = mam_lms_find_module_week($courseId, $levelId, $week);
+        $data = ['course_id' => $courseId, 'level_id' => $levelId, 'week' => $week, 'kind' => $kind, 'title' => $title, 'content' => $content];
+        if ($existing) { mam_db_update('modules', $data, ['id' => $existing]); $updated++; }
+        else           { mam_db_insert('modules', $data);                     $created++; }
+    }
+    if ($created || $updated) mam_audit('lms_module_import', 'course', $defaultCourseId, ['created' => $created, 'updated' => $updated, 'skipped' => $skipped]);
+    return ['created' => $created, 'updated' => $updated, 'skipped' => $skipped, 'errors' => $errors];
+}
+
 /* ───────────────────────────── Progression ───────────────────────────────
    Passing a course's examination advances the student to the SAME course at
    the next level (Pre-Certification → Certificate → Pre-Diploma → Diploma).

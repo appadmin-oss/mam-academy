@@ -184,6 +184,9 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // LMS course-registration approvals + instructor assignment (operational).
     $r->get ('/course-enrollments', $f('admin/course-enrollments.php'), [mw_admin_cap('enrollments')]);
     $r->post('/course-enrollments', $f('admin/course-enrollments.php'), [mw_csrf(), mw_admin_cap('enrollments')]);
+    // Standard curriculum authoring + JSON/CSV import & export (one file by method).
+    $r->get ('/curriculum',         $f('admin/curriculum.php'),         [mw_admin_cap('curriculum')]);
+    $r->post('/curriculum',         $f('admin/curriculum.php'),         [mw_csrf(), mw_admin_cap('curriculum'), mw_rate_limit('curriculum', 120, 600)]);
     // Assign admin tiers (super-only).
     $r->post('/set-admin-tier',  $f('admin/set-admin-tier.php'), [mw_csrf(), mw_admin_cap('rbac')]);
     // AI placement assist (L4 / A4) — advisory pathway/level suggestion for an
