@@ -84,21 +84,52 @@ function mam_studio_share_svg(string $tool, int $score, string $name = ''): stri
     $esc = function (string $s): string { return htmlspecialchars($s, ENT_QUOTES | ENT_XML1, 'UTF-8'); };
     $who = $first !== 'Student' ? ($esc($first) . ' scored') : 'I scored';
 
+    // Star rating + a short seal label from the Trinity band.
+    $stars = ['Distinction' => 3, 'Merit' => 2, 'Pass' => 1][$band] ?? 0;
+    $sealLabel = ['Distinction' => 'DISTINCTION', 'Merit' => 'MERIT', 'Pass' => 'PASS'][$band] ?? 'KEEP GOING';
+    $sealSize  = strlen($sealLabel) > 6 ? 30 : 42;
+    $starRow = '';
+    for ($i = 0; $i < 3; $i++) $starRow .= '<tspan fill="' . ($i < $stars ? '#FBBF24' : '#4a3a24') . '">&#9733;</tspan>';
+    $toolUpper = $esc(strtoupper($toolLabel));
+
     return '<?xml version="1.0" encoding="UTF-8"?>'
-        . '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="' . $esc($who . ' ' . $score . ' on ' . $toolLabel) . '">'
-        . '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">'
-        . '<stop offset="0" stop-color="#120D08"/><stop offset="1" stop-color="#2E2015"/></linearGradient>'
-        . '<linearGradient id="gold" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#E08A1A"/><stop offset="1" stop-color="#FBBF24"/></linearGradient></defs>'
-        . '<rect width="1200" height="630" fill="url(#bg)"/>'
-        . '<rect x="40" y="40" width="1120" height="550" rx="28" fill="none" stroke="#3a2a18" stroke-width="2"/>'
-        . '<text x="80" y="130" font-family="Georgia,serif" font-size="34" fill="#FBBF24" font-weight="bold" letter-spacing="3">MAM ACADEMY</text>'
-        . '<text x="80" y="180" font-family="Arial,sans-serif" font-size="28" fill="#cbb89e">' . $esc($toolLabel) . ' · Practice Studio</text>'
-        . '<text x="80" y="300" font-family="Arial,sans-serif" font-size="40" fill="#FBF7F3">' . $who . '</text>'
-        . '<text x="80" y="450" font-family="Arial,sans-serif" font-size="200" fill="url(#gold)" font-weight="900">' . $score . '<tspan font-size="70" fill="#cbb89e">/100</tspan></text>'
-        . '<rect x="80" y="495" width="' . (200 + strlen($band) * 22) . '" height="60" rx="30" fill="url(#gold)"/>'
-        . '<text x="110" y="535" font-family="Arial,sans-serif" font-size="34" fill="#1A120B" font-weight="800">' . $esc($band) . '</text>'
-        . '<text x="1120" y="560" text-anchor="end" font-family="Arial,sans-serif" font-size="24" fill="#8a7355">mam-academy · practice that counts</text>'
-        . '</svg>';
+      . '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="' . $esc($who . ' ' . $score . ' / 100 — ' . $band . ' on ' . $toolLabel) . '">'
+      . '<defs>'
+      .   '<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1B130B"/><stop offset="1" stop-color="#0E0A06"/></linearGradient>'
+      .   '<linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E08A1A"/><stop offset="1" stop-color="#FBBF24"/></linearGradient>'
+      .   '<linearGradient id="goldv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FBBF24"/><stop offset="1" stop-color="#E08A1A"/></linearGradient>'
+      .   '<radialGradient id="sealg" cx="0.5" cy="0.38" r="0.62"><stop offset="0" stop-color="#2A1D10"/><stop offset="1" stop-color="#140E08"/></radialGradient>'
+      . '</defs>'
+      . '<rect width="1200" height="630" fill="url(#bg)"/>'
+      // decorative concentric rings, bottom-right
+      . '<g opacity="0.06" stroke="#FBBF24" fill="none" stroke-width="2"><circle cx="1090" cy="580" r="120"/><circle cx="1090" cy="580" r="185"/><circle cx="1090" cy="580" r="250"/></g>'
+      // card frame + top gold accent
+      . '<rect x="28" y="28" width="1144" height="574" rx="26" fill="none" stroke="#3a2a18" stroke-width="2"/>'
+      . '<rect x="28" y="28" width="1144" height="6" rx="3" fill="url(#gold)"/>'
+      // logo lockup (equalizer mark + wordmark)
+      . '<g transform="translate(72,68)"><rect width="58" height="58" rx="13" fill="#1A120B" stroke="url(#gold)" stroke-width="2"/>'
+      .   '<rect x="13" y="32" width="6" height="14" rx="3" fill="url(#gold)"/><rect x="23" y="22" width="6" height="24" rx="3" fill="url(#gold)"/>'
+      .   '<rect x="33" y="28" width="6" height="18" rx="3" fill="url(#gold)"/><rect x="43" y="18" width="6" height="28" rx="3" fill="url(#gold)"/></g>'
+      . '<text x="148" y="96" font-family="Georgia,Times New Roman,serif" font-size="30" font-weight="bold" fill="#FFFFFF" letter-spacing="2">MAM ACADEMY</text>'
+      . '<text x="150" y="119" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#FBBF24" letter-spacing="6">PRACTICE STUDIO</text>'
+      // achievement (left column)
+      . '<text x="72" y="248" font-family="Arial,Helvetica,sans-serif" font-size="22" fill="#cbb89e" letter-spacing="4">' . $toolUpper . '</text>'
+      . '<text x="72" y="300" font-family="Georgia,Times New Roman,serif" font-size="36" fill="#FBF7F3">' . $who . '</text>'
+      . '<text x="68" y="452" font-family="Arial,Helvetica,sans-serif" font-weight="900" font-size="172" fill="url(#goldv)">' . $score . '<tspan font-size="54" font-weight="700" fill="#8a7355"> /100</tspan></text>'
+      . '<text x="76" y="512" font-family="Arial,Helvetica,sans-serif" font-size="46" letter-spacing="8">' . $starRow . '</text>'
+      // award seal (right column)
+      . '<g transform="translate(958,288)">'
+      .   '<circle r="150" fill="url(#sealg)" stroke="url(#gold)" stroke-width="6"/><circle r="128" fill="none" stroke="#E08A1A" stroke-width="1.5" opacity="0.65"/>'
+      .   '<text x="0" y="-72" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#FBBF24" letter-spacing="5">RESULT</text>'
+      .   '<text x="0" y="14" text-anchor="middle" font-family="Georgia,Times New Roman,serif" font-weight="bold" font-size="' . $sealSize . '" fill="url(#gold)" letter-spacing="2">' . $esc($sealLabel) . '</text>'
+      .   '<text x="0" y="66" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="34" letter-spacing="8">' . $starRow . '</text>'
+      .   '<text x="0" y="104" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#8a7355" letter-spacing="3">TRINITY-ALIGNED</text>'
+      . '</g>'
+      // footer
+      . '<line x1="72" y1="552" x2="1128" y2="552" stroke="#3a2a18" stroke-width="1.5"/>'
+      . '<text x="72" y="584" font-family="Arial,Helvetica,sans-serif" font-size="21" fill="#cbb89e">academy.mamcentre.org</text>'
+      . '<text x="1128" y="584" text-anchor="end" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="700" fill="#FBBF24">Train like a complete musician &#8594;</text>'
+      . '</svg>';
 }
 
 /** A user's own best + 1-based rank for a tool, or null if they haven't posted. */
