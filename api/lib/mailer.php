@@ -241,13 +241,15 @@ function mam_send_via_phpmailer(string $to, string $subject, string $body, bool 
             $mail->SMTPSecure  = '';
             $mail->SMTPAutoTLS = false;
         }
-        // Shared-host reality: the relay's certificate is often issued for the
-        // server hostname (server123.host.com), not mail.yourdomain — peer-name
-        // verification then fails and NOTHING sends. Opt-in relaxation only,
-        // via MAIL_ALLOW_SELF_SIGNED=1 in api/.env; default stays strict.
-        if (in_array(strtolower((string)mam_env('MAIL_ALLOW_SELF_SIGNED', '0')), ['1', 'true', 'yes', 'on'], true)) {
-            $mail->SMTPOptions = ['ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true]];
-        }
+        // Shared-host reality: the relay's certificate is usually issued for the
+        // server hostname (server123.host.com / 27.qservers.net), not
+        // mail.yourdomain — strict peer-NAME verification then fails and NOTHING
+        // sends. Default: verify the CA chain but tolerate the hostname mismatch.
+        // MAIL_ALLOW_SELF_SIGNED=1 fully relaxes it for self-signed relay certs.
+        $mail->SMTPOptions = ['ssl' =>
+            in_array(strtolower((string)mam_env('MAIL_ALLOW_SELF_SIGNED', '0')), ['1', 'true', 'yes', 'on'], true)
+                ? ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true]
+                : ['verify_peer' => true,  'verify_peer_name' => false]];
         $mail->setFrom($from, $fromName);
         // Authenticated relays usually require the envelope sender to match the
         // login — mirror the built-in client's behaviour. But ONLY when the
@@ -421,13 +423,17 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
 
     $remote = ($encryption === 'ssl' ? 'ssl://' : '') . $host;
     $errno = 0; $errstr = '';
-    // Strict verification by default. MAIL_ALLOW_SELF_SIGNED=1 (api/.env)
-    // relaxes it for shared hosts whose relay cert is issued for the server
-    // hostname rather than mail.yourdomain — the classic cPanel mismatch.
+    // TLS verification posture. The #1 cause of "stream_socket_enable_crypto
+    // returned false" on shared hosts (cPanel/Exim, e.g. qservers) is that the
+    // relay presents a cert for the SERVER hostname (27.qservers.net), not
+    // mail.yourdomain — so strict NAME verification fails even though the cert
+    // is perfectly valid. Default: verify the CA chain but TOLERATE the hostname
+    // mismatch (peer_name still drives SNI). MAIL_ALLOW_SELF_SIGNED=1 fully
+    // relaxes it for relays whose cert is also self-signed.
     $lax = in_array(strtolower((string)mam_env('MAIL_ALLOW_SELF_SIGNED', '0')), ['1', 'true', 'yes', 'on'], true);
     $ctx = stream_context_create(['ssl' => $lax
-        ? ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true, 'SNI_enabled' => true]
-        : ['verify_peer' => true,  'verify_peer_name' => true,  'SNI_enabled' => true]]);
+        ? ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true, 'SNI_enabled' => true, 'peer_name' => $host]
+        : ['verify_peer' => true,  'verify_peer_name' => false, 'SNI_enabled' => true, 'peer_name' => $host]]);
     $sock = @stream_socket_client("$remote:$port", $errno, $errstr, 20, STREAM_CLIENT_CONNECT, $ctx);
     if (!$sock) {
         mam_log('error', 'smtp_connect_failed', ['host' => $host, 'port' => $port, 'err' => $errstr]);
