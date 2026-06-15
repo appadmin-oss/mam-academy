@@ -79,6 +79,20 @@ function mam_admin_rows(string $sql, array $args = []): array {
     catch (Throwable $e) { return []; }
 }
 
+/* ─── Pagination: keep every list bounded + navigable as data grows ─── */
+function mam_admin_page(): int { return max(1, (int)($_GET['page'] ?? 1)); }
+/** Prev/next controls that preserve the current view + query params. */
+function mam_admin_pager(int $page, int $total, int $perPage): string {
+    $pages = max(1, (int)ceil($total / max(1, $perPage)));
+    $qs = $_GET; unset($qs['ok'], $qs['err']); // don't carry flash banners across pages
+    $mk = function ($p) use ($qs) { $qs['page'] = $p; return '?' . http_build_query($qs); };
+    $out = '<div class="pager" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:.82rem">'
+         . '<span class="muted">Page ' . $page . ' of ' . $pages . ' · ' . number_format($total) . ' total</span>';
+    if ($page > 1)      $out .= '<a class="btn ghost tiny" href="' . htmlspecialchars($mk($page - 1)) . '">← Prev</a>';
+    if ($page < $pages) $out .= '<a class="btn ghost tiny" href="' . htmlspecialchars($mk($page + 1)) . '">Next →</a>';
+    return $out . '</div>';
+}
+
 /* ─── CSV export (no state change) ─── */
 if ($view === 'export') {
     $type = $_GET['type'] ?? 'applications.csv';
@@ -1322,7 +1336,9 @@ button.tiny:hover{border-color:var(--gold)}
     <table>
       <thead><tr><th>Photo</th><th>Reference</th><th>Student</th><th>Programme</th><th>Pathway · Mode</th><th>Course</th><th>Session</th><th>Age</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
       <tbody>
-      <?php $rows = mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email, c.phone, c.sex, c.address, c.lga, c.state, c.country, c.age_range FROM applications a LEFT JOIN customers c ON c.id=a.customer_id ORDER BY a.created_at DESC LIMIT 200');
+      <?php
+      $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM applications'); $off = ($page - 1) * $perPage;
+      $rows = mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email, c.phone, c.sex, c.address, c.lga, c.state, c.country, c.age_range FROM applications a LEFT JOIN customers c ON c.id=a.customer_id ORDER BY a.created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
       if (!$rows): ?>
         <tr><td colspan="12" class="empty">No applications yet</td></tr>
       <?php endif;
@@ -1378,6 +1394,7 @@ button.tiny:hover{border-color:var(--gold)}
       <?php endforeach; ?>
       </tbody>
     </table>
+    <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
 
 <?php elseif ($view === 'funnel'): ?>
@@ -1555,7 +1572,9 @@ button.tiny:hover{border-color:var(--gold)}
     <table>
       <thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Provider Ref</th><th>Verified</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
-      <?php $rows = mam_db_all('SELECT * FROM payments ORDER BY created_at DESC LIMIT 200');
+      <?php
+      $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM payments'); $off = ($page - 1) * $perPage;
+      $rows = mam_db_all('SELECT * FROM payments ORDER BY created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
       if (!$rows): ?><tr><td colspan="9" class="empty">No payments yet</td></tr><?php endif;
       foreach ($rows as $r): ?>
         <tr>
@@ -1590,6 +1609,7 @@ button.tiny:hover{border-color:var(--gold)}
       <?php endforeach; ?>
       </tbody>
     </table>
+    <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
 
 <?php elseif ($view === 'users'): ?>
@@ -1640,7 +1660,10 @@ button.tiny:hover{border-color:var(--gold)}
       $roleFilter = $_GET['role'] ?? '';
       $where = ''; $params = [];
       if (in_array($roleFilter, ['admin','instructor','student'], true)) { $where = 'WHERE role = ?'; $params = [$roleFilter]; }
-      $users = mam_db_all("SELECT id, email, name, phone, role, status, last_login, created_at, admin_tier FROM users $where ORDER BY created_at DESC LIMIT 500", $params);
+      $perPage = 50; $page = mam_admin_page();
+      $total = (int)(mam_db_row("SELECT COUNT(*) AS n FROM users $where", $params)['n'] ?? 0);
+      $off = ($page - 1) * $perPage;
+      $users = mam_db_all("SELECT id, email, name, phone, role, status, last_login, created_at, admin_tier FROM users $where ORDER BY created_at DESC LIMIT $perPage OFFSET $off", $params);
       if (!$users): ?><tr><td colspan="8" class="empty">No users yet</td></tr><?php endif;
       foreach ($users as $u): ?>
         <tr>
@@ -1689,6 +1712,7 @@ button.tiny:hover{border-color:var(--gold)}
       <?php endforeach; ?>
       </tbody>
     </table>
+    <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
 
 <?php elseif ($view === 'classes'): ?>
@@ -1746,9 +1770,10 @@ button.tiny:hover{border-color:var(--gold)}
       <thead><tr><th>Title</th><th>Discipline</th><th>Pathway</th><th>Instructor</th><th>Mode</th><th>Capacity</th><th>Enrolled</th><th>Starts</th><th>Status</th></tr></thead>
       <tbody>
       <?php
+      $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM classes'); $off = ($page - 1) * $perPage;
       $classes = mam_db_all(
         "SELECT c.*, u.name AS instructor_name, (SELECT COUNT(*) FROM enrollments e WHERE e.class_id = c.id AND e.status='active') AS enrolled_count
-         FROM classes c LEFT JOIN users u ON u.id = c.instructor_id ORDER BY c.created_at DESC LIMIT 200"
+         FROM classes c LEFT JOIN users u ON u.id = c.instructor_id ORDER BY c.created_at DESC LIMIT " . $perPage . " OFFSET " . $off
       );
       if (!$classes): ?><tr><td colspan="9" class="empty">No classes yet</td></tr><?php endif;
       foreach ($classes as $c): ?>
@@ -1779,6 +1804,7 @@ button.tiny:hover{border-color:var(--gold)}
       <?php endforeach; ?>
       </tbody>
     </table>
+    <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
 
 <?php elseif ($view === 'enrollments'): ?>
@@ -2058,7 +2084,9 @@ button.tiny:hover{border-color:var(--gold)}
     <table>
       <thead><tr><th>When</th><th>From</th><th>Topic</th><th>Message</th><th>Status</th><th></th></tr></thead>
       <tbody>
-      <?php $rows = mam_db_all('SELECT * FROM messages ORDER BY created_at DESC LIMIT 200');
+      <?php
+      $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM messages'); $off = ($page - 1) * $perPage;
+      $rows = mam_db_all('SELECT * FROM messages ORDER BY created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
       if (!$rows): ?><tr><td colspan="6" class="empty">No messages yet</td></tr><?php endif;
       foreach ($rows as $r): ?>
         <tr>
@@ -2080,6 +2108,7 @@ button.tiny:hover{border-color:var(--gold)}
       <?php endforeach; ?>
       </tbody>
     </table>
+    <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
 
 <?php elseif ($view === 'webhooks'): ?>
@@ -2088,7 +2117,9 @@ button.tiny:hover{border-color:var(--gold)}
     <table>
       <thead><tr><th>When</th><th>Provider</th><th>Event</th><th>Event ID</th><th>Sig</th><th>Status</th></tr></thead>
       <tbody>
-      <?php $rows = mam_db_all('SELECT * FROM webhook_events ORDER BY received_at DESC LIMIT 100');
+      <?php
+      $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM webhook_events'); $off = ($page - 1) * $perPage;
+      $rows = mam_db_all('SELECT * FROM webhook_events ORDER BY received_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
       if (!$rows): ?><tr><td colspan="6" class="empty">No webhooks received yet</td></tr><?php endif;
       foreach ($rows as $r): ?>
         <tr>
@@ -2102,6 +2133,7 @@ button.tiny:hover{border-color:var(--gold)}
       <?php endforeach; ?>
       </tbody>
     </table>
+    <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
 
 <?php elseif ($view === 'newsletter'): ?>
@@ -2110,13 +2142,16 @@ button.tiny:hover{border-color:var(--gold)}
     <table>
       <thead><tr><th>Email</th><th>Source</th><th>Status</th><th>When</th></tr></thead>
       <tbody>
-      <?php $rows = mam_db_all('SELECT * FROM newsletter ORDER BY created_at DESC LIMIT 500');
+      <?php
+      $perPage = 100; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM newsletter'); $off = ($page - 1) * $perPage;
+      $rows = mam_db_all('SELECT * FROM newsletter ORDER BY created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
       if (!$rows): ?><tr><td colspan="4" class="empty">No subscribers yet</td></tr><?php endif;
       foreach ($rows as $r): ?>
         <tr><td><?= htmlspecialchars($r['email']) ?></td><td class="muted"><?= htmlspecialchars((string)$r['source']) ?></td><td><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td><td class="muted"><?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?></td></tr>
       <?php endforeach; ?>
       </tbody>
     </table>
+    <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
 
 <?php elseif ($view === 'audit'): ?>
@@ -2125,7 +2160,9 @@ button.tiny:hover{border-color:var(--gold)}
     <table>
       <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Meta</th><th>IP</th></tr></thead>
       <tbody>
-      <?php foreach (mam_db_all('SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 200') as $r): ?>
+      <?php
+      $perPage = 100; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM audit_log'); $off = ($page - 1) * $perPage;
+      foreach (mam_db_all('SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off) as $r): ?>
         <tr>
           <td class="muted"><?= htmlspecialchars(substr($r['created_at'], 0, 19)) ?></td>
           <td><?= htmlspecialchars((string)$r['actor']) ?></td>
@@ -2137,6 +2174,7 @@ button.tiny:hover{border-color:var(--gold)}
       <?php endforeach; ?>
       </tbody>
     </table>
+    <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
 
 <?php elseif ($view === 'storeitems'):
@@ -2239,7 +2277,8 @@ button.tiny:hover{border-color:var(--gold)}
   </table>
 
 <?php elseif ($view === 'storeorders'):
-    $orders = mam_db_all('SELECT * FROM store_orders ORDER BY id DESC LIMIT 200');
+    $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM store_orders'); $off = ($page - 1) * $perPage;
+    $orders = mam_db_all('SELECT * FROM store_orders ORDER BY id DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
 ?>
   <h1>Store Orders</h1>
   <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Updated.</strong></div><?php endif; ?>
@@ -2276,6 +2315,7 @@ button.tiny:hover{border-color:var(--gold)}
     <?php endforeach; if (!$orders): ?><tr><td colspan="7" class="empty">No store orders yet.</td></tr><?php endif; ?>
     </tbody>
   </table>
+  <?= mam_admin_pager($page, $total, $perPage) ?>
 
 <?php elseif ($view === 'settings'):
     $cur = mam_settings_all();
