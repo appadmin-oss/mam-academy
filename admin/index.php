@@ -178,12 +178,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($action === 'app_status') {
         $id = (int)($_POST['id'] ?? 0);
         $status = $_POST['status'] ?? '';
+        // Preserve the detail-card context when the change came from it.
+        $back = ((int)($_POST['app'] ?? 0)) ? '&app=' . (int)$_POST['app'] : '';
         if ($id && in_array($status, ['submitted', 'in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'], true)) {
             // Route through the enforced, audited admissions state machine (A2).
             try {
                 mam_admissions_transition($id, $status, ((int)($adminUser['id'] ?? 0)) ?: null, trim((string)($_POST['reason'] ?? '')) ?: null);
             } catch (RuntimeException $e) {
-                header('Location: ?v=applications&err=' . urlencode($e->getMessage() === 'illegal_transition' ? "That status change isn't allowed from the current stage." : 'Application not found.'));
+                header('Location: ?v=applications' . $back . '&err=' . urlencode($e->getMessage() === 'illegal_transition' ? "That status change isn't allowed from the current stage." : 'Application not found.'));
                 exit;
             }
 
@@ -221,8 +223,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             }
             $flash = ['ok', 'Application updated.'];
         }
-        header('Location: ?v=applications&ok=1');
+        header('Location: ?v=applications' . $back . '&ok=1');
         exit;
+    }
+
+    // Admissions pipeline (A2): internal notes + assignee. Both are operational
+    // (omitted from the super-only $actionCaps map) so admissions managers can
+    // triage. actor/author ids fall back to null for break-glass Basic-Auth.
+    if ($action === 'app_note') {
+        $aid  = (int)($_POST['app_id'] ?? 0);
+        $note = trim((string)($_POST['note'] ?? ''));
+        if ($note === '') {
+            header('Location: ?v=applications&app=' . $aid . '&err=' . urlencode('Note cannot be empty.')); exit;
+        }
+        try { mam_admissions_note($aid, (int)($adminUser['id'] ?? 0) ?: null, $note); }
+        catch (Throwable $e) { mam_log('warn', 'app_note_failed', ['app_id' => $aid, 'err' => $e->getMessage()]); }
+        header('Location: ?v=applications&app=' . $aid . '&ok=1'); exit;
+    }
+    if ($action === 'app_assign') {
+        $aid = (int)($_POST['app_id'] ?? 0);
+        $uid = (int)($_POST['assignee_id'] ?? 0);
+        try { mam_admissions_assign($aid, $uid ?: null, (int)($adminUser['id'] ?? 0) ?: null); }
+        catch (Throwable $e) { mam_log('warn', 'app_assign_failed', ['app_id' => $aid, 'err' => $e->getMessage()]); }
+        header('Location: ?v=applications&app=' . $aid . '&ok=1'); exit;
     }
 
     if ($action === 'msg_status') {
@@ -1112,6 +1135,120 @@ button.tiny:hover{border-color:var(--gold)}
     <h1>Applications</h1>
     <a class="btn ghost" href="?v=export&type=applications.csv">⬇ Export CSV</a>
   </header>
+  <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Saved.</strong></div><?php endif; ?>
+  <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars((string)$_GET['err']) ?></strong></div><?php endif; ?>
+  <?php
+    /* ── A2 admissions pipeline: per-application detail card (shown when ?app=N) ──
+       The enforced state machine, notes and assignee live in api/lib/admissions.php;
+       this card is the staff cockpit over them. Managers reach it too (the
+       app_note/app_assign actions are operational, not super-only). */
+    $manageId  = (int)($_GET['app'] ?? 0);
+    $manageApp = $manageId ? mam_db_row('SELECT a.*, c.first_name, c.last_name, c.email, c.phone FROM applications a LEFT JOIN customers c ON c.id = a.customer_id WHERE a.id = ?', [$manageId]) : null;
+    if ($manageApp):
+      $mPay    = (string)(mam_db_row('SELECT status FROM payments WHERE application_id = ? ORDER BY id DESC LIMIT 1', [$manageId])['status'] ?? '');
+      $mStage  = mam_application_stage((string)$manageApp['status'], $mPay);
+      $mNext   = mam_admissions_transitions()[(string)$manageApp['status']] ?? [];
+      $mNotes  = mam_admissions_notes($manageId);
+      $mEvents = mam_admissions_events($manageId);
+      $mStaff  = mam_lms_instructors();
+  ?>
+  <div class="card" style="border-color:var(--gold)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0 0 4px">Manage application
+          <span class="mono muted" style="font-size:.8rem">#<?= (int)$manageApp['id'] ?> · <?= htmlspecialchars((string)$manageApp['reference']) ?></span>
+        </h2>
+        <div><strong><?= htmlspecialchars(mam_name($manageApp['first_name'] ?? null, $manageApp['last_name'] ?? null)) ?></strong>
+          <span class="muted">· <?= htmlspecialchars((string)($manageApp['email'] ?? '')) ?></span></div>
+        <div style="margin-top:6px">
+          <span class="pill <?= htmlspecialchars((string)$manageApp['status']) ?>"><?= htmlspecialchars((string)$manageApp['status']) ?></span>
+          <span class="pill" style="background:var(--panel)"><?= htmlspecialchars($mStage['label']) ?></span>
+        </div>
+      </div>
+      <a class="btn ghost" href="?v=applications">✕ Close</a>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:18px">
+      <div>
+        <h3 style="margin:0 0 8px">Decision</h3>
+        <?php if ($mNext): ?>
+          <form method="post" style="display:flex;flex-direction:column;gap:8px">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+            <input type="hidden" name="action" value="app_status">
+            <input type="hidden" name="id" value="<?= (int)$manageApp['id'] ?>">
+            <input type="hidden" name="app" value="<?= (int)$manageApp['id'] ?>">
+            <label>Move to
+              <select name="status">
+                <?php foreach ($mNext as $s): ?><option value="<?= $s ?>"><?= htmlspecialchars($s) ?></option><?php endforeach; ?>
+              </select>
+            </label>
+            <label>Reason <span class="muted">(optional, recorded in the audit trail)</span>
+              <input type="text" name="reason" maxlength="255" placeholder="e.g. strong audition sample">
+            </label>
+            <button class="btn" type="submit">Apply decision</button>
+          </form>
+        <?php else: ?>
+          <p class="muted">This application is in a terminal state (<?= htmlspecialchars((string)$manageApp['status']) ?>) — no further moves.</p>
+        <?php endif; ?>
+
+        <h3 style="margin:18px 0 8px">Assignee</h3>
+        <form method="post" style="display:flex;gap:8px;align-items:flex-end">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+          <input type="hidden" name="action" value="app_assign">
+          <input type="hidden" name="app_id" value="<?= (int)$manageApp['id'] ?>">
+          <label style="flex:1">Handled by
+            <select name="assignee_id">
+              <option value="0">— Unassigned —</option>
+              <?php foreach ($mStaff as $st): ?>
+                <option value="<?= (int)$st['id'] ?>" <?= (int)($manageApp['assignee_id'] ?? 0) === (int)$st['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string)$st['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </label>
+          <button class="btn ghost" type="submit">Save</button>
+        </form>
+      </div>
+
+      <div>
+        <h3 style="margin:0 0 8px">Internal notes <span class="muted" style="font-size:.72rem">(staff-only)</span></h3>
+        <form method="post" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+          <input type="hidden" name="action" value="app_note">
+          <input type="hidden" name="app_id" value="<?= (int)$manageApp['id'] ?>">
+          <textarea name="note" rows="2" maxlength="4000" placeholder="Add a note — not visible to the applicant…" required></textarea>
+          <button class="btn" type="submit" style="align-self:flex-start">Add note</button>
+        </form>
+        <?php if (!$mNotes): ?>
+          <p class="muted">No notes yet.</p>
+        <?php else: foreach ($mNotes as $n): ?>
+          <div style="border-left:2px solid var(--border);padding:2px 0 2px 10px;margin-bottom:8px">
+            <div><?= nl2br(htmlspecialchars((string)$n['note'])) ?></div>
+            <div class="muted" style="font-size:.72rem"><?= htmlspecialchars((string)($n['author_name'] ?? 'system')) ?> · <?= htmlspecialchars(substr((string)$n['created_at'], 0, 16)) ?></div>
+          </div>
+        <?php endforeach; endif; ?>
+      </div>
+    </div>
+
+    <h3 style="margin:18px 0 8px">Status history</h3>
+    <?php if (!$mEvents): ?>
+      <p class="muted">No status changes recorded yet.</p>
+    <?php else: ?>
+      <table>
+        <thead><tr><th>When</th><th>From</th><th>To</th><th>By</th><th>Reason</th></tr></thead>
+        <tbody>
+        <?php foreach ($mEvents as $e): ?>
+          <tr>
+            <td class="muted"><?= htmlspecialchars(substr((string)$e['created_at'], 0, 16)) ?></td>
+            <td><span class="muted"><?= htmlspecialchars((string)($e['from_status'] ?? '—')) ?></span></td>
+            <td><span class="pill <?= htmlspecialchars((string)$e['to_status']) ?>"><?= htmlspecialchars((string)$e['to_status']) ?></span></td>
+            <td class="muted"><?= htmlspecialchars((string)($e['actor_name'] ?? 'system')) ?></td>
+            <td class="muted"><?= htmlspecialchars((string)($e['reason'] ?? '')) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
   <div class="card">
     <table>
       <thead><tr><th>Photo</th><th>Reference</th><th>Student</th><th>Programme</th><th>Pathway · Mode</th><th>Course</th><th>Session</th><th>Age</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
@@ -1149,6 +1286,7 @@ button.tiny:hover{border-color:var(--gold)}
           </td>
           <td class="muted"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
           <td style="white-space:nowrap">
+            <a class="tiny btn ghost" href="?v=applications&app=<?= (int)$r['id'] ?>" title="Open the admissions cockpit (decision, notes, assignee, history)">⚙ Manage</a>
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="app_status">
