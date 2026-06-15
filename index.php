@@ -36,36 +36,9 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="assets/css/main.css?v=20260615a">
 
-<script type="application/ld+json">
-{
-  "@context":"https://schema.org","@type":"EducationalOrganization","@id":"https://academy.mamcentre.org/#organization",
-  "name":"MAM Academy","alternateName":["Music Arts & Formation Academy","MAM Centre Academy"],
-  "url":"https://academy.mamcentre.org/",
-  "logo":{"@type":"ImageObject","url":"https://academy.mamcentre.org/mam-academy-logo.svg","caption":"MAM Academy"},
-  "image":"https://academy.mamcentre.org/mam-academy-logo.svg",
-  "description":"A Creative Intelligence and Performance Academy that trains complete musicians, performers, and creative thinkers through the MAM Method. Trinity-equivalent certification, the MAM Auditer entry assessment, Rhythm Intelligence and the MetaMusic Order — online or onsite in Lagos.",
-  "slogan":"A Creative Intelligence & Performance Academy",
-  "email":"academy@mamcentre.org",
-  "foundingDate":"2019",
-  "knowsLanguage":["en"],
-  "areaServed":[{"@type":"Country","name":"Nigeria"},{"@type":"Place","name":"Worldwide (online)"}],
-  "address":{"@type":"PostalAddress","streetAddress":"2 Oremeji Street, Egbeda","addressLocality":"Lagos","addressRegion":"Lagos","addressCountry":"NG"},
-  "contactPoint":[{"@type":"ContactPoint","contactType":"admissions","email":"academy@mamcentre.org","areaServed":"Worldwide","availableLanguage":"English"}],
-  "parentOrganization":{"@type":"Organization","name":"MAM Centre","url":"https://mamcentre.org/"},
-  "department":[
-    {"@type":"EducationalOrganization","name":"Instrumental Intelligence School"},
-    {"@type":"EducationalOrganization","name":"Performance Intelligence School"},
-    {"@type":"EducationalOrganization","name":"Rhythm Intelligence School"},
-    {"@type":"EducationalOrganization","name":"MetaMusic & Creative Consciousness School"}
-  ],
-  "sameAs":["https://instagram.com/mamcentre","https://twitter.com/mamcentre","https://facebook.com/mamcentre","https://youtube.com/mamcentre"]
-}
-</script>
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebSite","@id":"https://academy.mamcentre.org/#website","name":"MAM Academy","url":"https://academy.mamcentre.org/",
- "publisher":{"@id":"https://academy.mamcentre.org/#organization"},
- "potentialAction":{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"https://academy.mamcentre.org/?q={search_term_string}"},"query-input":"required name=search_term_string"}}
-</script>
+<!-- The canonical #organization + #website entity now lives sitewide in
+     partials/header.html (on every page). The page-specific Course/ItemList/
+     Breadcrumb nodes below reference it by @id. -->
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"ItemList","name":"MAM Academy Programmes","itemListElement":[
  {"@type":"ListItem","position":1,"item":{"@type":"Course","name":"Certified Musician","url":"https://academy.mamcentre.org/pathways#certified-musician","description":"One major tradition (Contemporary, Classical or African) plus supporting courses, across all four certification levels.","provider":{"@id":"https://academy.mamcentre.org/#organization"},"offers":{"@type":"AggregateOffer","lowPrice":"240","priceCurrency":"USD"}}},
