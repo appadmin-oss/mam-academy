@@ -319,13 +319,26 @@ window.MAM_API = (function () {
         });
       });
     };
-    if (method === 'GET') return fire(null);
-    return getCsrf().then(fire).catch(function (e) {
-      if (e && e.status === 403 && (e.body || {}).error === 'csrf_invalid') {
-        // Token may have expired — fetch a fresh one and retry once
-        return getCsrf(true).then(fire);
-      }
-      throw e;
+    var attempt = function () {
+      if (method === 'GET') return fire(null);
+      return getCsrf().then(fire).catch(function (e) {
+        if (e && e.status === 403 && (e.body || {}).error === 'csrf_invalid') {
+          // Token may have expired — fetch a fresh one and retry once
+          return getCsrf(true).then(fire);
+        }
+        throw e;
+      });
+    };
+    if (!opts.retryOnNetwork) return attempt();
+    // One quiet retry on a NETWORK-level failure (intermittent ERR_CONNECTION_RESET,
+    // a dropped connection, a flaky proxy). Only callers that send an idempotency
+    // key opt in, so the server dedupes a request that landed but whose response
+    // was lost — the retry can never create a duplicate. A persistent outage still
+    // falls through to the caller's graceful fallback.
+    return attempt().catch(function (e) {
+      var networkish = e && (e.apiDown || e.name === 'TypeError' || e.message === 'Failed to fetch' || e.message === 'api_unavailable');
+      if (!networkish) throw e;
+      return new Promise(function (res) { setTimeout(res, 1200); }).then(attempt);
     });
   }
 
@@ -333,7 +346,9 @@ window.MAM_API = (function () {
     health:           function ()      { return request(cfg.healthPath); },
     submitApplication: function (data, idempotencyKey) {
       var opts = { method: 'POST', body: data };
-      if (idempotencyKey) opts.headers = { 'X-Idempotency-Key': idempotencyKey };
+      // Only enable the network-retry when we can send an idempotency key — the
+      // key is what makes a retry safe (server dedupes), so the two travel together.
+      if (idempotencyKey) { opts.headers = { 'X-Idempotency-Key': idempotencyKey }; opts.retryOnNetwork = true; }
       return request(cfg.applicationPath, opts);
     },
     initializePayment: function (data) { return request(cfg.paymentInitPath, { method: 'POST', body: data }); },

@@ -27,7 +27,7 @@
   </div>
 </main>
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260615d"></script>
+<script src="assets/js/config.js?v=20260615e"></script>
 <script src="assets/js/main.js?v=20260615c"></script>
 </body>
 </html>
