@@ -50,14 +50,10 @@ try {
             mam_log('warn', 'paystack_webhook_amount_mismatch', ['ref' => $ref, 'paid' => $amount, 'expected' => $payment['amount'], 'currency' => $currency]);
         }
         if ($payment && $amountOk && $payment['status'] !== 'succeeded') {
-            mam_db_update('payments', [
-                'status' => 'succeeded',
-                'provider_reference' => $payload['data']['reference'] ?? null,
-                'provider_response' => $raw,
-                'verified_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
-            ], ['reference' => $ref]);
-            mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $payment['application_id']]);
+            // Settle via the shared, purpose-aware path (store delivery /
+            // booking-fee stamp / tuition enrolment + provisioning) — identical
+            // to the interactive verify endpoint, idempotent + race-safe.
+            mam_payment_settle($payment, $payload['data'] ?? null, $raw, (string)($payload['data']['reference'] ?? $ref));
             mam_audit('webhook_succeeded', 'payment', (int)$payment['id'], ['ref' => $ref, 'amount' => $amount]);
         }
     }

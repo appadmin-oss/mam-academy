@@ -79,126 +79,14 @@ if (!$ok) {
     mam_fail('verification_failed', 402, ['provider_status' => $status]);
 }
 
-mam_db_update('payments', [
-    'status'             => 'succeeded',
-    'provider_reference' => $providerRef ?? null,
-    'provider_response'  => json_encode($data),
-    'verified_at'        => date('Y-m-d H:i:s'),
-    'updated_at'         => date('Y-m-d H:i:s'),
-], ['reference' => $ref]);
-
-// Booking-fee path: this is now the default flow. The $5 is a confirmation of
-// intent + registration / ID card / file / 30-min Auditer slot — it does NOT
-// pay tuition or enroll the student. We stamp booking_fee_paid_at so /book
-// can unlock the Google appointment embed, but leave application.status alone
-// (the admin marks it 'paid' / 'enrolled' after the Auditer session).
-if ($purpose === 'store') {
-    // Mark the order paid + ship/deliver. For digital items we email the
-    // file URLs immediately (instant delivery). Physical orders are flipped
-    // to 'paid' (admin fulfils + flips to 'shipped' from the dashboard).
-    $items = json_decode((string)$order['items_json'], true) ?: [];
-    $hasPhysical = false;
-    foreach ($items as $i) if (($i['goods_type'] ?? '') === 'physical') { $hasPhysical = true; break; }
-    mam_db_update('store_orders', [
-        'status'       => $hasPhysical ? 'paid' : 'delivered',
-        'delivered_at' => $hasPhysical ? null : date('Y-m-d H:i:s'),
-        'updated_at'   => date('Y-m-d H:i:s'),
-    ], ['id' => (int)$order['id']]);
-    // Decrement inventory for tracked items (stock >= 0; -1 means unlimited).
-    // Runs exactly once thanks to the already-succeeded short-circuit above.
-    // The WHERE stock >= qty guard means a race can never push stock negative,
-    // and auto-flips an item to sold_out when it hits zero.
-    foreach ($items as $i) {
-        $sku = (string)($i['sku'] ?? '');
-        $qty = max(1, (int)($i['qty'] ?? 1));
-        if ($sku === '') continue;
-        try {
-            mam_db()->prepare(
-                "UPDATE store_items
-                    SET stock = stock - ?,
-                        availability = CASE WHEN stock - ? <= 0 THEN 'sold_out' ELSE availability END,
-                        updated_at = ?
-                  WHERE sku = ? AND stock >= 0 AND stock >= ?"
-            )->execute([$qty, $qty, date('Y-m-d H:i:s'), $sku, $qty]);
-        } catch (Throwable $e) { mam_log('warn', 'store_stock_decrement_failed', ['sku' => $sku, 'err' => $e->getMessage()]); }
-    }
-    // Resolve digital file_urls server-side (the public endpoints strip them).
-    $links = [];
-    foreach ($items as $i) {
-        if (($i['goods_type'] ?? '') !== 'digital') continue;
-        $r = mam_db_row('SELECT name, file_url FROM store_items WHERE sku = ?', [(string)$i['sku']]);
-        if ($r && !empty($r['file_url'])) $links[] = ['name' => $r['name'], 'url' => (string)$r['file_url']];
-    }
-    try {
-        mam_send(
-            (string)$order['customer_email'],
-            'MAM Academy Store — Order ' . $order['reference'] . ' confirmed',
-            mam_email_store_receipt($order, $items, $links),
-            'store_order_confirmed',
-            true
-        );
-    } catch (Throwable $e) { mam_log('warn', 'store_email_failed', ['err' => $e->getMessage()]); }
-} elseif ($purpose === 'booking_fee') {
-    mam_db_update('applications', [
-        'booking_fee_paid_at' => date('Y-m-d H:i:s'),
-        'updated_at'          => date('Y-m-d H:i:s'),
-    ], ['id' => $payment['application_id']]);
-    try {
-        $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
-        if ($customer && !empty($customer['email'])) {
-            mam_send(
-                $customer['email'],
-                'Your MAM Academy seat is reserved — pick your time',
-                mam_email_booking_confirmed($app, $customer),
-                'booking_confirmed',
-                true
-            );
-        }
-    } catch (Throwable $e) { mam_log('warn', 'booking_email_failed', ['err' => $e->getMessage()]); }
-} else {
-    mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $payment['application_id']]);
-}
-mam_audit('verify_succeeded', 'payment', (int)$payment['id'], ['ref' => $ref, 'provider' => $provider, 'purpose' => $purpose]);
-
-// Auto-provision a student portal account once TUITION payment clears. The
-// $5 booking fee deliberately does NOT yet create a portal account — admin
-// confirms enrolment after the Auditer session.
-$portalNotice = null;
-try {
-    if ($purpose === 'tuition' && $app['customer_id']) {
-        $provision = mam_ensure_student_user((int)$app['customer_id']);
-        if ($provision['password']) {
-            $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
-            $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
-            $name = htmlspecialchars(trim($customer['first_name'] . ' ' . $customer['last_name']));
-            $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Welcome, $name</h2>"
-                  . "<p style='color:rgba(255,255,255,0.86);margin:0'>Your student portal is now active. Sign in to view your applications, classes and MAM Auditer placement.</p>"
-                  . "<div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:14px;color:#FBBF24;margin:16px 0'>"
-                  . "<div>Email: <strong>" . htmlspecialchars($customer['email']) . "</strong></div>"
-                  . "<div>Temporary password: <strong>" . htmlspecialchars($provision['password']) . "</strong></div>"
-                  . "</div>"
-                  . "<p style='color:rgba(255,255,255,0.86);margin:0'>Please change this password on first sign-in.</p>"
-                  . mam_email_button($loginUrl, 'Open student portal');
-            $body = mam_email_layout([
-                'header' => 'MAM ACADEMY',
-                'preheader' => 'Your MAM Academy student portal is ready — sign-in details inside.',
-                'reason' => 'You received this because your payment activated a MAM Academy student portal account.',
-                'body' => $inner,
-            ]);
-            mam_send($customer['email'], 'Your MAM Academy student portal is ready', $body, 'portal_welcome', true);
-            $portalNotice = 'portal_credentials_emailed';
-        } else {
-            $portalNotice = 'portal_already_provisioned';
-        }
-    }
-} catch (Throwable $e) {
-    mam_log('warn', 'student_provision_failed', ['ref' => $ref, 'err' => $e->getMessage()]);
-}
+// Settle via the shared, purpose-aware, race-safe path used by the webhooks too,
+// so the interactive verify and the asynchronous webhook can never diverge.
+$settled = mam_payment_settle($payment, $data, json_encode($data), $providerRef ?? $ref);
 
 mam_ok([
-    'status' => 'succeeded',
-    'reference' => $ref,
-    'provider' => $provider,
+    'status'      => 'succeeded',
+    'reference'   => $ref,
+    'provider'    => $provider,
     'verified_at' => date('c'),
-    'portal' => $portalNotice,
+    'portal'      => $settled['portal'] ?? null,
 ]);

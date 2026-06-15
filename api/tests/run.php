@@ -40,6 +40,7 @@ require $ROOT . '/lib/settings.php';
 require $ROOT . '/lib/fx.php';
 require $ROOT . '/lib/validation.php';      // pricing engine lives here
 require $ROOT . '/lib/booking-pricing.php';
+require $ROOT . '/lib/payments.php';        // shared payment settlement (verify + webhooks)
 require $ROOT . '/lib/csrf.php';
 require $ROOT . '/lib/paystack.php';
 require $ROOT . '/lib/flutterwave.php';

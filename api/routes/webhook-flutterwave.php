@@ -47,14 +47,8 @@ try {
                 mam_log('warn', 'flw_webhook_amount_mismatch', ['ref' => $ref, 'paid' => $d['amount'] ?? 0, 'expected' => $payment['amount'], 'currency' => $currency]);
             }
             if ($payment && $amountOk && $payment['status'] !== 'succeeded') {
-                mam_db_update('payments', [
-                    'status' => 'succeeded',
-                    'provider_reference' => $d['flw_ref'] ?? null,
-                    'provider_response' => json_encode($d),
-                    'verified_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ], ['reference' => $ref]);
-                mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $payment['application_id']]);
+                // Shared, purpose-aware settlement (matches verify exactly).
+                mam_payment_settle($payment, $d, json_encode($d), (string)($d['flw_ref'] ?? $ref));
                 mam_audit('webhook_succeeded', 'payment', (int)$payment['id'], ['ref' => $ref]);
             }
         }

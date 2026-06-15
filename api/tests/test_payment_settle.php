@@ -1,0 +1,50 @@
+<?php
+/**
+ * Payment settlement (the shared verify+webhook path). Guards the bug where the
+ * webhooks blindly set applications.status='paid' for EVERY charge: a booking
+ * fee must NOT enrol, a store payment must deliver the order, tuition must
+ * enrol + provision — and settling twice must be a safe no-op.
+ */
+declare(strict_types=1);
+t_group('payment settlement (purpose-aware, idempotent)');
+
+// ── Booking fee: stamps paid time, does NOT mark the application paid ──
+$cid = mam_db_insert('customers', ['email' => 't_set_book@x.dev', 'first_name' => 'Book', 'last_name' => 'Fee']);
+$aid = mam_db_insert('applications', ['reference' => 'MAM-SET-BK', 'customer_id' => $cid, 'pathway' => 'standard', 'mode' => 'online', 'status' => 'submitted', 'total_usd' => 300]);
+$pid = mam_db_insert('payments', ['application_id' => $aid, 'reference' => 'MAM-SET-BK-BK', 'provider' => 'paystack', 'purpose' => 'booking_fee', 'status' => 'pending', 'amount' => 7500, 'currency' => 'NGN']);
+$pay = mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid]);
+
+$res = mam_payment_settle($pay, ['x' => 1], '{"x":1}', 'PSK-1');
+t_ok($res['ok'] && !$res['already'], 'booking-fee settle succeeds');
+t_eq(mam_db_row('SELECT status FROM payments WHERE id = ?', [$pid])['status'], 'succeeded', 'payment marked succeeded');
+t_ok(mam_db_row('SELECT booking_fee_paid_at FROM applications WHERE id = ?', [$aid])['booking_fee_paid_at'] !== null, 'booking_fee_paid_at stamped');
+t_eq(mam_db_row('SELECT status FROM applications WHERE id = ?', [$aid])['status'], 'submitted', 'a booking fee does NOT mark the application paid (the bug fix)');
+
+// Idempotent / race-safe: settling again is a no-op.
+$again = mam_payment_settle(mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid]), null, '{}', 'PSK-1');
+t_ok($again['already'] === true, 're-settling an already-succeeded payment is a safe no-op');
+
+// ── Tuition: marks paid + provisions the student portal ──
+$cid2 = mam_db_insert('customers', ['email' => 't_set_tui@x.dev', 'first_name' => 'Tui', 'last_name' => 'Shun']);
+$aid2 = mam_db_insert('applications', ['reference' => 'MAM-SET-TU', 'customer_id' => $cid2, 'pathway' => 'standard', 'status' => 'submitted', 'total_usd' => 300]);
+$pid2 = mam_db_insert('payments', ['application_id' => $aid2, 'reference' => 'MAM-SET-TU', 'provider' => 'paystack', 'purpose' => 'tuition', 'status' => 'pending', 'amount' => 450000, 'currency' => 'NGN']);
+$res2 = mam_payment_settle(mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid2]), null, '{}', 'PSK-2');
+t_eq(mam_db_row('SELECT status FROM applications WHERE id = ?', [$aid2])['status'], 'paid', 'a tuition payment marks the application paid');
+t_ok(in_array($res2['portal'], ['portal_credentials_emailed', 'portal_already_provisioned'], true), 'tuition settle reports a portal outcome');
+t_ok(mam_db_row("SELECT id FROM users WHERE email = ?", ['t_set_tui@x.dev']) !== null, 'a student portal account was provisioned');
+
+// ── Store: marks the order delivered + decrements stock ──
+$sku = 'TST-SET-' . substr(bin2hex(random_bytes(3)), 0, 5);
+mam_db_insert('store_items', ['sku' => $sku, 'slug' => $sku, 'name' => 'Test Score', 'goods_type' => 'digital', 'delivery_type' => 'download', 'availability' => 'in_stock', 'stock' => 5, 'price_usd' => 10, 'currency' => 'USD', 'file_url' => 'https://x/score.pdf', 'active' => 1]);
+$items = json_encode([['sku' => $sku, 'name' => 'Test Score', 'qty' => 2, 'unit_usd' => 10, 'line_total' => 20, 'goods_type' => 'digital']]);
+$oid = mam_db_insert('store_orders', ['reference' => 'ORD-SET-1', 'customer_email' => 'buyer@x.dev', 'customer_name' => 'Buyer', 'items_json' => $items, 'subtotal_usd' => 20, 'total_usd' => 20, 'status' => 'pending']);
+$pid3 = mam_db_insert('payments', ['application_id' => null, 'reference' => 'ORD-SET-1', 'provider' => 'paystack', 'purpose' => 'store', 'status' => 'pending', 'amount' => 30000, 'currency' => 'NGN']);
+mam_payment_settle(mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid3]), null, '{}', 'PSK-3');
+t_eq(mam_db_row('SELECT status FROM store_orders WHERE id = ?', [$oid])['status'], 'delivered', 'a digital store order is delivered on settle');
+t_eq((int)mam_db_row('SELECT stock FROM store_items WHERE sku = ?', [$sku])['stock'], 3, 'store stock decremented by the ordered qty (5 - 2)');
+
+// ── Defensive guards: the settle helpers no-op (no crash) on a missing subject ──
+t_ok(mam_payment_settle_tuition(0) === null, 'tuition settle with no application id is a safe no-op');
+mam_payment_settle_booking(0); // must not throw
+mam_payment_settle_store('NOPE-NO-ORDER'); // must not throw
+t_ok(true, 'booking/store settle helpers no-op safely on a missing subject');
