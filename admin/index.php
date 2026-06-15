@@ -2003,7 +2003,19 @@ button.tiny:hover{border-color:var(--gold)}
   <?php
     $autoApprove = (int)mam_setting_num('lms_auto_approve', 0) === 1;
     $instructors = mam_lms_instructors();
-    $ces = mam_db_all(
+    // Per-instructor live load (active + pending) so the admin can assign by
+    // capacity rather than guessing.
+    $loadMap = [];
+    foreach (mam_admin_rows("SELECT instructor_id, COUNT(*) AS n FROM course_enrollments WHERE instructor_id IS NOT NULL AND status IN ('active','pending') GROUP BY instructor_id") as $lr) {
+        $loadMap[(int)$lr['instructor_id']] = (int)$lr['n'];
+    }
+    // Focus filter: all | pending (awaiting approval) | unassigned (active but
+    // no instructor — the real gap to close).
+    $ceFilter = in_array(($_GET['ce'] ?? 'all'), ['all', 'pending', 'unassigned'], true) ? $_GET['ce'] : 'all';
+    $where = '';
+    if ($ceFilter === 'pending')         $where = "WHERE ce.status = 'pending'";
+    elseif ($ceFilter === 'unassigned')  $where = "WHERE ce.instructor_id IS NULL AND ce.status IN ('active','pending')";
+    $ces = mam_admin_rows(
       "SELECT ce.id, ce.status, ce.created_at, ce.instructor_id,
               c.name AS course_name, c.kind AS course_kind,
               l.code AS level_code, l.name AS level_name, p.name AS program_name,
@@ -2019,9 +2031,11 @@ button.tiny:hover{border-color:var(--gold)}
          LEFT JOIN programs p ON p.id = ce.program_id
          LEFT JOIN results r ON r.enrollment_id = ce.id
          JOIN users su ON su.id = ce.student_id
-         ORDER BY (ce.status = 'pending') DESC, ce.created_at DESC LIMIT 400"
+         $where
+         ORDER BY (ce.status = 'pending') DESC, (ce.instructor_id IS NULL) DESC, ce.created_at DESC LIMIT 400"
     );
-    $pendingCount = 0; foreach ($ces as $r) { if ($r['status'] === 'pending') $pendingCount++; }
+    $pendingCount    = (int)mam_admin_scalar("SELECT COUNT(*) FROM course_enrollments WHERE status='pending'");
+    $unassignedCount = (int)mam_admin_scalar("SELECT COUNT(*) FROM course_enrollments WHERE instructor_id IS NULL AND status IN ('active','pending')");
   ?>
   <div class="card">
     <h3>Approval policy</h3>
@@ -2032,7 +2046,14 @@ button.tiny:hover{border-color:var(--gold)}
     </p>
   </div>
   <div class="card">
-    <h3>All course registrations</h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 4px 6px">
+      <h3 style="margin:0">Course registrations</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <?php foreach ([['all','All'],['pending','Pending'.($pendingCount?' ('.$pendingCount.')':'')],['unassigned','Needs instructor'.($unassignedCount?' ('.$unassignedCount.')':'')]] as $f): ?>
+          <a class="btn <?= $ceFilter === $f[0] ? '' : 'ghost' ?> tiny" href="?v=courseenroll&ce=<?= $f[0] ?>"><?= htmlspecialchars($f[1]) ?></a>
+        <?php endforeach; ?>
+      </div>
+    </div>
     <table>
       <thead><tr><th>Student</th><th>Course</th><th>Level · Programme</th><th>Status</th><th>Approve / assign</th></tr></thead>
       <tbody>
@@ -2043,6 +2064,7 @@ button.tiny:hover{border-color:var(--gold)}
           <td><?= htmlspecialchars((string)$r['course_name']) ?><?= $r['course_kind'] === 'core' ? ' <span class="pill">core</span>' : '' ?></td>
           <td class="muted"><?= htmlspecialchars((string)($r['level_name'] ?: '—')) ?><?= $r['program_name'] ? ' · ' . htmlspecialchars((string)$r['program_name']) : '' ?></td>
           <td><span class="pill <?= htmlspecialchars((string)$r['status']) ?>"><?= htmlspecialchars((string)$r['status']) ?></span>
+            <?php if (empty($r['instructor_id']) && in_array((string)$r['status'], ['active','pending'], true)): ?><br><span class="pill cancelled" style="font-size:0.7rem;margin-top:3px;display:inline-block"><i class="fa-solid fa-user-slash" aria-hidden="true"></i> needs instructor</span><?php endif; ?>
             <?php if (!empty($r['result_grade'])): ?><br><span class="muted" style="font-size:0.78rem"><?= htmlspecialchars((string)$r['result_grade']) ?> · <?= htmlspecialchars((string)$r['result_outcome']) ?></span><?php endif; ?>
             <?php if (!empty($r['cert_ref'])): ?><br><a href="/api/certificate/<?= urlencode((string)$r['cert_ref']) ?>" target="_blank" rel="noopener" style="color:var(--gold);font-size:0.78rem">🎓 Certificate</a><?php endif; ?>
           </td>
@@ -2053,8 +2075,8 @@ button.tiny:hover{border-color:var(--gold)}
               <input type="hidden" name="enrollment_id" value="<?= (int)$r['id'] ?>">
               <select name="instructor_id" class="tiny">
                 <option value="">— instructor —</option>
-                <?php foreach ($instructors as $ins): ?>
-                  <option value="<?= (int)$ins['id'] ?>" <?= (int)$ins['id'] === (int)$r['instructor_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string)($ins['name'] ?: $ins['email'])) ?></option>
+                <?php foreach ($instructors as $ins): $ld = $loadMap[(int)$ins['id']] ?? 0; ?>
+                  <option value="<?= (int)$ins['id'] ?>" <?= (int)$ins['id'] === (int)$r['instructor_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string)($ins['name'] ?: $ins['email'])) ?><?= $ld ? ' · ' . $ld . ' student' . ($ld === 1 ? '' : 's') : ' · free' ?></option>
                 <?php endforeach; ?>
               </select>
               <select name="status" class="tiny">
