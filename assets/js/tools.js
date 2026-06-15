@@ -196,6 +196,18 @@
       setTimeout(function () { dots[n].classList.remove('beat-active'); }, 90);
     }
   }
+  // A11y (S4): announce audio-tool state to screen readers via a polite live
+  // region, since the cues are otherwise purely audible/visual. Created lazily.
+  function studioAnnounce(msg) {
+    var el = document.getElementById('studioLive');
+    if (!el) {
+      el = document.createElement('p');
+      el.id = 'studioLive'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+      el.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+  }
   function startMetronome() {
     var a = audio();
     metPlaying = true; metBeatIndex = 0; metBar = 0; metNextTime = a.currentTime + 0.06;
@@ -204,6 +216,7 @@
     btn.classList.add('playing');
     btn.querySelector('span').textContent = 'Stop';
     btn.querySelector('i').className = 'fa-solid fa-stop';
+    var bv = $('#metBpmVal'); studioAnnounce('Metronome started' + (bv ? ' at ' + bv.textContent + ' BPM' : ''));
   }
   function stopMetronome() {
     metPlaying = false;
@@ -214,6 +227,7 @@
       btn.classList.remove('playing');
       btn.querySelector('span').textContent = 'Start';
       btn.querySelector('i').className = 'fa-solid fa-play';
+      studioAnnounce('Metronome stopped');
     }
     $$('.met-beat').forEach(function (d) { d.classList.remove('beat-active'); });
   }

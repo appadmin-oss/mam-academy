@@ -795,7 +795,7 @@
   })();
 </script>
 <script src="assets/js/studio-core.js?v=20260615a" defer></script>
-<script src="assets/js/tools.js?v=20260615a" defer></script>
+<script src="assets/js/tools.js?v=20260615b" defer></script>
 <script src="assets/js/sequencer.js?v=20260613a" defer></script>
 <script src="assets/js/pitch-game.js?v=20260613a" defer></script>
 <script src="assets/js/rhythm-game.js?v=20260613d" defer></script>
