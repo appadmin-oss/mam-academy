@@ -62,5 +62,33 @@ $narr = mam_ai_progress_narrative($sid);
 t_ok(is_array($narr) && !empty($narr['text']), 'progress narrative returns text when AI is enabled');
 t_eq($narr['provider'], 'mock', 'narrative carries the provider used');
 
+// ── L4 use case: practice coach (read-only, from the student's own logs) ──
+mam_db_insert('practice_logs', ['student_id' => $sid, 'minutes' => 45, 'focus' => 'scales', 'notes' => 'C and G major', 'logged_on' => date('Y-m-d')]);
+mam_db_insert('practice_logs', ['student_id' => $sid, 'minutes' => 30, 'focus' => 'repertoire', 'logged_on' => date('Y-m-d', strtotime('-2 days'))]);
+mam_test_env(['AI_PROVIDER' => 'none']);
+t_ok(mam_ai_practice_coach($sid) === null, 'practice coach is null when AI is off (caller falls back)');
+mam_test_env(['AI_PROVIDER' => 'mock']);
+$coach = mam_ai_practice_coach($sid);
+t_ok(is_array($coach) && !empty($coach['text']), 'practice coach returns a plan when AI is enabled');
+t_eq($coach['provider'], 'mock', 'coach carries the provider used');
+$crow = mam_db_row("SELECT use_case FROM ai_runs WHERE use_case = 'practice_coach' ORDER BY id DESC LIMIT 1");
+t_ok($crow !== null, 'the practice-coach run is audited in ai_runs');
+
+// ── L4 / A4 use case: placement recommendation (schema-constrained, advisory) ──
+$pcid = mam_db_insert('customers', ['email' => 't_ai_app@x.dev', 'first_name' => 'Bem', 'last_name' => 'T', 'age_range' => '16-20']);
+$paid = mam_db_insert('applications', ['reference' => 'MAM-AI-PLACE-1', 'customer_id' => $pcid, 'pathway' => 'standard', 'mode' => 'online', 'discipline' => 'piano', 'experience' => '2 years self-taught', 'goals' => 'play in church', 'status' => 'submitted']);
+mam_test_env(['AI_PROVIDER' => 'none']);
+t_ok(mam_ai_placement_recommendation($paid) === null, 'placement recommendation is null when AI is off');
+mam_test_env(['AI_PROVIDER' => 'mock']);
+$rec = mam_ai_placement_recommendation($paid, 1);
+t_ok(is_array($rec) && is_array($rec['json']), 'placement returns a parsed JSON recommendation when AI is on');
+foreach (['recommended_pathway', 'recommended_level', 'confidence', 'rationale'] as $k) {
+    t_ok(array_key_exists($k, $rec['json']), "placement JSON carries '$k'");
+}
+t_eq($rec['provider'], 'mock', 'placement carries the provider used');
+t_ok(mam_ai_placement_recommendation(999999) === null, 'placement for a missing application is null (no crash)');
+$prow = mam_db_row("SELECT reviewed_by FROM ai_runs WHERE use_case = 'placement' ORDER BY id DESC LIMIT 1");
+t_ok($prow !== null && (int)$prow['reviewed_by'] === 1, 'the placement run is audited with the reviewer id');
+
 // Reset so later test files start clean.
 mam_test_env(['AI_PROVIDER' => 'none']);

@@ -117,6 +117,8 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->get ('/assessments',         $f('student/assessments.php'),         [mw_role('student')]);
     // AI progress note (provider-agnostic gateway; off unless ai_provider set).
     $r->get ('/ai-narrative',        $f('student/ai-narrative.php'),        [mw_role('student'), mw_rate_limit('ai_narrative', 20, 600)]);
+    // AI practice coach (L4) — a weekly plan from the student's own logs/results.
+    $r->get ('/practice-coach',      $f('student/practice-coach.php'),      [mw_role('student'), mw_rate_limit('practice_coach', 20, 600)]);
     // Cohort session attendance (LMS L2 dual-read view).
     $r->get ('/session-attendance',  $f('student/session-attendance.php'),  [mw_role('student')]);
     // Submissions against assignments (LMS L2).
@@ -169,6 +171,9 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->post('/course-enrollments', $f('admin/course-enrollments.php'), [mw_csrf(), mw_admin_cap('enrollments')]);
     // Assign admin tiers (super-only).
     $r->post('/set-admin-tier',  $f('admin/set-admin-tier.php'), [mw_csrf(), mw_admin_cap('rbac')]);
+    // AI placement assist (L4 / A4) — advisory pathway/level suggestion for an
+    // application. Operational (admissions); rate-limited; off unless ai_provider set.
+    $r->get ('/placement',       $f('admin/placement.php'),      [mw_admin_cap('admissions'), mw_rate_limit('ai_placement', 30, 600)]);
 });
 
 /* ─── Dispatch ─── */

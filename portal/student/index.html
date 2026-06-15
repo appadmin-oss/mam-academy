@@ -361,6 +361,7 @@
       + kpi('This week', wk, Math.min(100, Math.round((ps.weekMin || 0) / 150 * 100)) + '% of 150-min goal')
       + kpi('Total logged', (ps.total || 0) + ' min', (ps.sessions || 0) + ' session' + (ps.sessions === 1 ? '' : 's'))
       + '</section>'
+      + '<section class="panel" id="coachNote" hidden><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;color:var(--gold-bright)"></i>Your practice coach</h2></div><div class="panel-body" id="coachNoteBody"></div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Log a practice session</h2></div>'
       + '<form id="pracForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">'
       +   '<div class="field"><label for="pr-min">Minutes</label><input id="pr-min" type="number" min="1" max="1440" value="30" required></div>'
@@ -389,6 +390,20 @@
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not log: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not log.'));
       });
     });
+    loadPracticeCoach();
+  }
+  function loadPracticeCoach() {
+    var panel = document.getElementById('coachNote');
+    if (!panel || !API) return;
+    API.request('student/practice-coach', { method: 'GET' }).then(function (res) {
+      var c = res && res.coach;
+      if (!c || !c.text) return;
+      var body = document.getElementById('coachNoteBody');
+      if (!body) return;
+      body.innerHTML = '<p style="margin:0;line-height:1.65;white-space:pre-line">' + P.escapeHtml(c.text) + '</p>'
+        + '<p style="margin:10px 0 0;font-size:0.72rem;color:var(--text-muted)"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:5px"></i>AI-generated from your practice logs &amp; results' + (c.provider ? ' · ' + P.escapeHtml(c.provider) : '') + '</p>';
+      panel.hidden = false;
+    }).catch(function () { /* never disrupt the practice tab */ });
   }
   function progressPanel(prog, ps) {
     function bar(label, val, sub) {

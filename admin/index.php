@@ -1246,6 +1246,34 @@ button.tiny:hover{border-color:var(--gold)}
           </label>
           <button class="btn ghost" type="submit">Save</button>
         </form>
+
+        <?php if (function_exists('mam_ai_enabled') && mam_ai_enabled('placement')): ?>
+          <h3 style="margin:18px 0 8px">AI placement assist <span class="muted" style="font-size:.7rem">(advisory)</span></h3>
+          <button type="button" class="btn ghost" id="aiPlaceBtn" data-app="<?= (int)$manageApp['id'] ?>">✨ Suggest pathway &amp; level</button>
+          <div id="aiPlaceOut" style="margin-top:10px;font-size:.82rem"></div>
+          <script>
+          (function () {
+            var btn = document.getElementById('aiPlaceBtn'), out = document.getElementById('aiPlaceOut');
+            if (!btn) return;
+            function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
+            btn.addEventListener('click', function () {
+              btn.disabled = true; var old = btn.textContent; btn.textContent = 'Thinking…';
+              fetch('/api/admin/placement?app_id=' + encodeURIComponent(btn.getAttribute('data-app')), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.json(); })
+                .then(function (j) {
+                  btn.disabled = false; btn.textContent = old;
+                  if (!j || !j.ok || !j.recommendation || !j.recommendation.json) { out.innerHTML = '<span style="color:var(--muted)">No suggestion available right now.</span>'; return; }
+                  var rec = j.recommendation.json;
+                  out.innerHTML = '<div style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">'
+                    + '<div><strong>Pathway:</strong> ' + esc(rec.recommended_pathway || '—') + ' &nbsp; <strong>Level:</strong> ' + esc(rec.recommended_level || '—') + ' &nbsp; <span class="pill">' + esc(rec.confidence || '') + '</span></div>'
+                    + '<div style="margin-top:6px;color:var(--muted)">' + esc(rec.rationale || '') + '</div>'
+                    + '<div style="margin-top:6px;font-size:.68rem;color:var(--muted)">Advisory only · ' + esc(j.recommendation.provider || '') + ' · confirm at the entry assessment</div></div>';
+                })
+                .catch(function () { btn.disabled = false; btn.textContent = old; out.innerHTML = '<span style="color:#FCA5A5">Could not reach the AI service.</span>'; });
+            });
+          })();
+          </script>
+        <?php endif; ?>
       </div>
 
       <div>

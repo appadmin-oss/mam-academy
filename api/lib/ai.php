@@ -339,3 +339,116 @@ function mam_ai_draft_feedback(int $submissionId, ?int $by = null): ?array {
         return !empty($res['ok']) ? ['text' => trim((string)$res['text']), 'provider' => $res['provider']] : null;
     } catch (\Throwable $e) { return null; }
 }
+
+/**
+ * AI practice coach (L4) — read-only, advisory. Turns a student's own practice
+ * logs + finalized results into a short, encouraging, *concrete* practice plan
+ * for the week ahead. Uses ONLY the student's real data (never invents), and
+ * falls back to a starter routine when there's little history. Returns
+ * ['text','provider','model'] or null when AI is off / unavailable.
+ */
+function mam_ai_practice_coach(int $studentId): ?array {
+    if (!mam_ai_enabled('practice_coach')) return null;
+    try {
+        $u = mam_db_row('SELECT name FROM users WHERE id = ?', [$studentId]);
+        $first = $u && trim((string)$u['name']) !== '' ? trim(explode(' ', (string)$u['name'])[0]) : 'there';
+        $stats = function_exists('mam_practice_stats')
+            ? mam_practice_stats($studentId)
+            : ['practice' => [], 'practiceStats' => ['streak' => 0, 'weekMin' => 0, 'total' => 0, 'sessions' => 0]];
+        $ps = $stats['practiceStats'];
+
+        // Minutes by focus area (from recent logs) so the advice is specific.
+        $byFocus = [];
+        foreach ($stats['practice'] as $r) {
+            $f = trim((string)($r['focus'] ?? '')); if ($f === '') $f = 'general';
+            $byFocus[$f] = ($byFocus[$f] ?? 0) + (int)$r['minutes'];
+        }
+        arsort($byFocus);
+        $focusLines = [];
+        foreach ($byFocus as $f => $min) { $focusLines[] = '- ' . $f . ': ' . $min . ' min'; if (count($focusLines) >= 8) break; }
+
+        $results = mam_db_all(
+            "SELECT c.name AS course, r.total_score, r.outcome
+               FROM course_enrollments ce
+               JOIN courses c      ON c.id = ce.course_id
+               LEFT JOIN results r ON r.enrollment_id = ce.id
+              WHERE ce.student_id = ? ORDER BY ce.id DESC LIMIT 8",
+            [$studentId]
+        );
+        $resLines = [];
+        foreach ($results as $c) $resLines[] = '- ' . $c['course'] . ': ' . ($c['total_score'] !== null ? round((float)$c['total_score']) . '%' : 'in progress');
+
+        $prompt = "You are coaching a music student named {$first}. Using ONLY the data below (never invent facts), "
+                . "write a short, encouraging practice plan: acknowledge their effort, name 1-2 strengths, then give "
+                . "2-3 concrete, specific things to work on this coming week. If there is little data, suggest a simple "
+                . "starter routine instead.\n\n"
+                . "This week: {$ps['weekMin']} minutes across {$ps['sessions']} recent sessions; current streak {$ps['streak']} day(s); lifetime {$ps['total']} minutes.\n"
+                . "Time by focus area (recent):\n" . (count($focusLines) ? implode("\n", $focusLines) : '- (no logged focus yet)') . "\n"
+                . "Course results:\n" . (count($resLines) ? implode("\n", $resLines) : '- (none yet)');
+        $res = mam_ai_complete('practice_coach', $prompt, [
+            'system'     => 'You are a supportive, practical music practice coach. Be concrete and motivating, never generic. 4-6 sentences maximum.',
+            'max_tokens' => 320,
+        ]);
+        return !empty($res['ok']) ? ['text' => trim((string)$res['text']), 'provider' => $res['provider'], 'model' => $res['model']] : null;
+    } catch (\Throwable $e) { return null; }
+}
+
+/**
+ * AI placement assist (L4 / Application A4) — schema-constrained, ADVISORY.
+ * Turns an application's stated pathway/discipline/experience/goals into a
+ * recommended pathway + level + confidence + written rationale, choosing from
+ * the REAL catalogue codes so a human admissions officer can confirm it at the
+ * entry assessment. PII is redacted automatically before egress to a non-local
+ * provider (the gateway handles it). Returns
+ * ['json'=>['recommended_pathway','recommended_level','confidence','rationale'],
+ *  'text','provider','model'] or null when AI is off / unavailable / unparseable.
+ */
+function mam_ai_placement_recommendation(int $applicationId, ?int $by = null): ?array {
+    if (!mam_ai_enabled('placement')) return null;
+    try {
+        $a = mam_db_row(
+            "SELECT a.pathway, a.mode, a.discipline, a.experience, a.goals, c.age_range, c.first_name
+               FROM applications a LEFT JOIN customers c ON c.id = a.customer_id WHERE a.id = ?",
+            [$applicationId]
+        );
+        if (!$a) return null;
+
+        // Offer the model the real catalogue so it can only pick valid options.
+        $pathways = array_column(mam_db_all("SELECT code FROM programs WHERE active = 1 ORDER BY sort_order, id"), 'code');
+        $levels   = array_column(mam_db_all("SELECT code FROM levels ORDER BY sort_order, id"), 'code');
+        if (!$pathways) $pathways = ['standard'];
+        if (!$levels)   $levels   = ['precert'];
+
+        $schema = [
+            'type'       => 'object',
+            'properties' => [
+                'recommended_pathway' => ['type' => 'string'],
+                'recommended_level'   => ['type' => 'string'],
+                'confidence'          => ['type' => 'string'],
+                'rationale'           => ['type' => 'string'],
+            ],
+            'required' => ['recommended_pathway', 'recommended_level', 'confidence', 'rationale'],
+        ];
+        $prompt = "Recommend a placement for a prospective music student. "
+                . "recommended_pathway MUST be one of: " . implode(', ', $pathways) . ". "
+                . "recommended_level MUST be one of: " . implode(', ', $levels) . ". "
+                . "confidence MUST be one of: low, medium, high. "
+                . "Base the recommendation ONLY on the facts below; in 'rationale' explain your reasoning in 2-3 "
+                . "sentences and note what to confirm at the entry assessment. This is ADVISORY — a human admissions "
+                . "officer confirms it.\n\n"
+                . "Applicant chose pathway: " . (($a['pathway'] ?? '') ?: 'unspecified')
+                . "; mode: " . (($a['mode'] ?? '') ?: 'unspecified')
+                . "; discipline/instrument: " . (($a['discipline'] ?? '') ?: 'unspecified')
+                . "; age range: " . (($a['age_range'] ?? '') ?: 'unspecified') . ".\n"
+                . "Stated experience: " . (($a['experience'] ?? '') ?: '(none)') . "\n"
+                . "Stated goals: " . (($a['goals'] ?? '') ?: '(none)');
+        $res = mam_ai_complete('placement', $prompt, [
+            'system'      => 'You are an experienced music-academy admissions advisor. Recommend a realistic starting pathway and level, and output strict JSON only.',
+            'schema'      => $schema,
+            'max_tokens'  => 400,
+            'reviewed_by' => $by,
+        ]);
+        if (empty($res['ok']) || !is_array($res['json'] ?? null)) return null;
+        return ['json' => $res['json'], 'text' => trim((string)($res['text'] ?? '')), 'provider' => $res['provider'], 'model' => $res['model']];
+    } catch (\Throwable $e) { return null; }
+}
