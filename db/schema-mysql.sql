@@ -885,3 +885,31 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_tier VARCHAR(16) NULL;
 UPDATE users SET admin_tier = 'super' WHERE role = 'admin' AND (admin_tier IS NULL OR admin_tier = '');
 
 INSERT INTO schema_version (version) VALUES (26) ON DUPLICATE KEY UPDATE version = version;
+
+-- v27 — Admissions pipeline (Application A2): enforced status state machine +
+-- audit (application_events) + internal notes + an assignee.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS assignee_id INT NULL;
+CREATE TABLE IF NOT EXISTS application_events (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL,
+  from_status    VARCHAR(24),
+  to_status      VARCHAR(24) NOT NULL,
+  actor_id       INT NULL,
+  reason         VARCHAR(255),
+  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_app_events_app (application_id, id),
+  CONSTRAINT fk_ae_app   FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ae_actor FOREIGN KEY (actor_id)       REFERENCES users(id)        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS application_notes (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL,
+  author_id      INT NULL,
+  note           TEXT NOT NULL,
+  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_app_notes_app (application_id, id),
+  CONSTRAINT fk_an_app    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_an_author FOREIGN KEY (author_id)      REFERENCES users(id)        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (27) ON DUPLICATE KEY UPDATE version = version;

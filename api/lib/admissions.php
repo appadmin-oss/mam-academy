@@ -13,21 +13,132 @@ declare(strict_types=1);
  */
 function mam_application_stage(string $status, string $paymentStatus): array {
     $s    = strtolower(trim($status));
-    $paid = strtolower(trim($paymentStatus)) === 'succeeded';
+    $paid = strtolower(trim($paymentStatus)) === 'succeeded' || $s === 'paid';
 
-    if ($s === 'enrolled') {
-        return ['stage' => 'enrolled', 'label' => 'Enrolled', 'next' => 'You\'re in — sign in to your student portal to begin.'];
-    }
-    if ($s === 'accepted') {
-        return ['stage' => 'accepted', 'label' => 'Accepted', 'next' => 'Congratulations! Watch your email for enrolment and onboarding details.'];
-    }
-    if ($s === 'declined' || $s === 'rejected') {
-        return ['stage' => 'closed', 'label' => 'Decision made', 'next' => 'Thank you for applying — please check your email for details.'];
+    switch ($s) {
+        case 'enrolled':
+            return ['stage' => 'enrolled', 'label' => 'Enrolled', 'next' => 'You\'re in — sign in to your student portal to begin.'];
+        case 'accepted':
+            return ['stage' => 'accepted', 'label' => 'Accepted', 'next' => 'Congratulations! Watch your email for enrolment and onboarding details.'];
+        case 'waitlisted':
+            return ['stage' => 'waitlisted', 'label' => 'Waitlisted', 'next' => 'You\'re on our waitlist — we\'ll be in touch if a place opens. Thank you for your patience.'];
+        case 'in_review':
+        case 'reviewing':
+            return ['stage' => 'reviewing', 'label' => 'Under review', 'next' => 'Our admissions team is reviewing your application — we\'ll update you shortly.'];
+        case 'cancelled':
+        case 'declined':
+        case 'rejected':
+        case 'withdrawn':
+            return ['stage' => 'closed', 'label' => 'Closed', 'next' => 'This application is closed — please check your email, or start a new application.'];
     }
     if ($paid) {
         return ['stage' => 'confirmed', 'label' => 'Seat confirmed', 'next' => 'Your booking fee is in. We\'ll be in touch about your MAM Auditer assessment and the next steps.'];
     }
     return ['stage' => 'received', 'label' => 'Application received', 'next' => 'Confirm your seat with the one-time booking fee — use the link in your confirmation email, or reopen your application to pay.'];
+}
+
+/* ── Admissions pipeline (A2): enforced state machine + notes + audit ─────── */
+
+/** Legal application-status moves. Terminal states have an empty allow-list. */
+function mam_admissions_transitions(): array {
+    return [
+        'submitted'  => ['in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'],
+        'in_review'  => ['accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'],
+        'waitlisted' => ['in_review', 'accepted', 'paid', 'enrolled', 'cancelled'],
+        'accepted'   => ['paid', 'enrolled', 'cancelled'],
+        'paid'       => ['accepted', 'enrolled', 'cancelled'],
+        'enrolled'   => [],
+        'cancelled'  => [],
+    ];
+}
+function mam_admissions_can_transition(string $from, string $to): bool {
+    $g = mam_admissions_transitions();
+    return isset($g[$from]) && in_array($to, $g[$from], true);
+}
+
+/**
+ * Move an application through the admissions pipeline (enforced + audited).
+ * Idempotent on the current status. Throws application_not_found /
+ * illegal_transition. Returns ['ok','changed','from','to'].
+ */
+function mam_admissions_transition(int $appId, string $to, ?int $by = null, ?string $reason = null): array {
+    $row = mam_db_row('SELECT status FROM applications WHERE id = ?', [$appId]);
+    if (!$row) throw new RuntimeException('application_not_found');
+    $from = (string)$row['status'];
+    if ($from === $to) return ['ok' => true, 'changed' => false, 'from' => $from, 'to' => $to];
+    if (!mam_admissions_can_transition($from, $to)) throw new RuntimeException('illegal_transition');
+    mam_db_update('applications', ['status' => $to, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $appId]);
+    try {
+        mam_db_insert('application_events', [
+            'application_id' => $appId, 'from_status' => $from, 'to_status' => $to,
+            'actor_id' => $by, 'reason' => $reason !== null ? mb_substr($reason, 0, 255) : null,
+        ]);
+    } catch (\Throwable $e) { /* audit best-effort */ }
+    if (function_exists('mam_event')) mam_event('application.' . $to, 'application', $appId, ['from' => $from]);
+    mam_audit('admissions_transition', 'application', $appId, ['from' => $from, 'to' => $to, 'reason' => $reason]);
+    return ['ok' => true, 'changed' => true, 'from' => $from, 'to' => $to];
+}
+
+/** Add an internal admissions note to an application. Returns the note id. */
+function mam_admissions_note(int $appId, ?int $authorId, string $note): int {
+    $note = trim($note);
+    if ($note === '') throw new RuntimeException('empty_note');
+    if (!mam_db_row('SELECT id FROM applications WHERE id = ?', [$appId])) throw new RuntimeException('application_not_found');
+    $id = mam_db_insert('application_notes', ['application_id' => $appId, 'author_id' => $authorId, 'note' => mb_substr($note, 0, 4000)]);
+    mam_audit('admissions_note', 'application', $appId, []);
+    return $id;
+}
+
+/** Internal notes for an application, newest first (with author names). */
+function mam_admissions_notes(int $appId): array {
+    return mam_db_all(
+        "SELECT n.id, n.note, n.created_at, u.name AS author_name
+           FROM application_notes n LEFT JOIN users u ON u.id = n.author_id
+          WHERE n.application_id = ? ORDER BY n.id DESC",
+        [$appId]
+    );
+}
+
+/** The status audit trail for an application, oldest first (with actor names). */
+function mam_admissions_events(int $appId): array {
+    return mam_db_all(
+        "SELECT e.from_status, e.to_status, e.reason, e.created_at, u.name AS actor_name
+           FROM application_events e LEFT JOIN users u ON u.id = e.actor_id
+          WHERE e.application_id = ? ORDER BY e.id ASC",
+        [$appId]
+    );
+}
+
+/** Assign (or clear, with null) the staff member handling an application. */
+function mam_admissions_assign(int $appId, ?int $userId, ?int $by = null): void {
+    if (!mam_db_row('SELECT id FROM applications WHERE id = ?', [$appId])) throw new RuntimeException('application_not_found');
+    mam_db_update('applications', ['assignee_id' => $userId, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $appId]);
+    mam_audit('admissions_assign', 'application', $appId, ['assignee' => $userId, 'by' => $by]);
+}
+
+/** The admissions pipeline: applications with applicant, stage, assignee, and
+ *  payment status — newest first, optionally filtered by status. */
+function mam_admissions_pipeline(?string $status = null, int $limit = 500): array {
+    $where = ''; $args = [];
+    if ($status !== null && $status !== '') { $where = 'WHERE a.status = ?'; $args[] = $status; }
+    $rows = mam_db_all(
+        "SELECT a.id, a.reference, a.pathway, a.mode, a.status, a.created_at, a.assignee_id,
+                c.first_name, c.last_name, c.email,
+                asg.name AS assignee_name,
+                (SELECT pp.status FROM payments pp WHERE pp.application_id = a.id ORDER BY pp.id DESC LIMIT 1) AS payment_status
+           FROM applications a
+           JOIN customers c    ON c.id = a.customer_id
+           LEFT JOIN users asg ON asg.id = a.assignee_id
+           $where
+          ORDER BY a.id DESC LIMIT " . max(1, $limit),
+        $args
+    );
+    foreach ($rows as &$r) {
+        $st = mam_application_stage((string)$r['status'], (string)($r['payment_status'] ?? ''));
+        $r['stage'] = $st['stage'];
+        $r['stage_label'] = $st['label'];
+    }
+    return $rows;
 }
 
 /**

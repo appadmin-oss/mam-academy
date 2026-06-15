@@ -71,3 +71,45 @@ mam_db_update('application_drafts', ['updated_at' => date('Y-m-d H:i:s', time() 
 t_eq(mam_app_draft_nudge_sweep(24, 168, 50), 1, 'a stale draft (idle 2 days) is nudged');
 t_eq(mam_app_draft_load('MAMK-stale')['status'], 'nudged', 'the nudged draft is marked nudged');
 t_eq(mam_app_draft_nudge_sweep(24, 168, 50), 0, 're-running the sweep does not nudge it again');
+
+// ── Admissions pipeline (A2) ──
+t_eq(mam_application_stage('in_review', '')['stage'], 'reviewing', 'in_review → reviewing stage');
+t_eq(mam_application_stage('waitlisted', '')['stage'], 'waitlisted', 'waitlisted stage maps through');
+t_eq(mam_application_stage('cancelled', '')['stage'], 'closed', 'cancelled → closed');
+t_eq(mam_application_stage('paid', '')['stage'], 'confirmed', 'paid status → confirmed even without a payment row');
+t_ok(mam_admissions_can_transition('submitted', 'in_review') && mam_admissions_can_transition('accepted', 'enrolled'), 'core forward transitions are legal');
+t_ok(!mam_admissions_can_transition('enrolled', 'in_review') && !mam_admissions_can_transition('cancelled', 'accepted'), 'enrolled and cancelled are terminal');
+
+$staff = mam_db_insert('users', ['email' => 't_adm_staff@x.dev', 'password_hash' => 'x', 'role' => 'admin', 'name' => 'Admissions A', 'status' => 'active', 'admin_tier' => 'manager']);
+$cid2 = mam_db_insert('customers', ['email' => 'pipe@x.dev', 'first_name' => 'Pipe', 'last_name' => 'Line']);
+$aid2 = mam_db_insert('applications', ['reference' => 'MAM-PIPE-1', 'customer_id' => $cid2, 'pathway' => 'standard', 'status' => 'submitted']);
+
+$t = mam_admissions_transition($aid2, 'in_review', $staff, 'screening');
+t_eq($t['to'], 'in_review', 'transition moves the application');
+t_eq(mam_db_row('SELECT status FROM applications WHERE id=?', [$aid2])['status'], 'in_review', 'status persisted');
+$t2 = mam_admissions_transition($aid2, 'accepted', $staff, 'strong sample');
+t_eq($t2['from'], 'in_review', 'transition records the prior status');
+$ev = mam_admissions_events($aid2);
+t_eq(count($ev), 2, 'each transition appends an audit event');
+t_eq($ev[1]['to_status'], 'accepted', 'audit captures the to-status');
+t_eq($ev[1]['reason'], 'strong sample', 'audit captures the reason');
+$threw = false; try { mam_admissions_transition($aid2, 'submitted', $staff); } catch (RuntimeException $e) { $threw = $e->getMessage() === 'illegal_transition'; }
+t_ok($threw, 'an illegal transition (accepted → submitted) throws');
+$threw = false; try { mam_admissions_transition(99999, 'in_review'); } catch (RuntimeException $e) { $threw = $e->getMessage() === 'application_not_found'; }
+t_ok($threw, 'a transition on a missing application throws');
+
+// the pipeline reflects the live status, and the applicant status portal agrees
+t_eq(mam_application_status('MAM-PIPE-1', 'pipe@x.dev')['stage'], 'accepted', 'the applicant status portal reflects the pipeline decision');
+
+// notes + assignee
+$nid = mam_admissions_note($aid2, $staff, 'Called the parent; keen to start.');
+t_ok($nid > 0, 'a note is added');
+t_eq(mam_admissions_notes($aid2)[0]['note'], 'Called the parent; keen to start.', 'notes list newest-first with content');
+$threw = false; try { mam_admissions_note($aid2, $staff, '   '); } catch (RuntimeException $e) { $threw = $e->getMessage() === 'empty_note'; }
+t_ok($threw, 'an empty note is rejected');
+mam_admissions_assign($aid2, $staff, $staff);
+t_eq((int)mam_db_row('SELECT assignee_id FROM applications WHERE id=?', [$aid2])['assignee_id'], $staff, 'assignee recorded');
+$pipe = array_filter(mam_admissions_pipeline(), function ($r) use ($aid2) { return (int)$r['id'] === $aid2; });
+$pipeRow = array_values($pipe)[0];
+t_eq($pipeRow['stage'], 'accepted', 'pipeline carries the friendly stage');
+t_eq($pipeRow['assignee_name'], 'Admissions A', 'pipeline resolves the assignee name');

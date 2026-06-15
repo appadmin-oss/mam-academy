@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 26;
+const MAM_SCHEMA_TARGET = 27;
 
 /**
  * Open (and cache) the PDO connection.
@@ -897,6 +897,31 @@ function mam_db_migrate(PDO $db): void {
         26 => "
             ALTER TABLE users ADD COLUMN admin_tier TEXT;
             UPDATE users SET admin_tier = 'super' WHERE role = 'admin' AND (admin_tier IS NULL OR admin_tier = '');
+        ",
+        // v27 — Admissions pipeline (Application A2). An enforced state machine
+        // over applications.status with an audit trail (application_events),
+        // internal staff notes (application_notes), and an assignee. Drives the
+        // applicant status portal (A1). Additive.
+        27 => "
+            ALTER TABLE applications ADD COLUMN assignee_id INTEGER;
+            CREATE TABLE application_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+              from_status TEXT,
+              to_status TEXT NOT NULL,
+              actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              reason TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_app_events_app ON application_events(application_id, id);
+            CREATE TABLE application_notes (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              application_id INTEGER NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+              author_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              note TEXT NOT NULL,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_app_notes_app ON application_notes(application_id, id);
         ",
     ];
 
