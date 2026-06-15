@@ -253,7 +253,6 @@
             <label class="choice-card"><input type="radio" name="discipline" value="flute"><div class="choice-card-head"><span class="choice-card-title">Flute</span></div><span class="choice-card-desc">Tone, breath &amp; repertoire</span><span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="discipline" value="clarinet"><div class="choice-card-head"><span class="choice-card-title">Clarinet</span></div><span class="choice-card-desc">Reed mastery &amp; ensemble</span><span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="discipline" value="drums"><div class="choice-card-head"><span class="choice-card-title">Drums &amp; Percussion</span></div><span class="choice-card-desc">Kit, djembe, afro-rhythms</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="robotics"><div class="choice-card-head"><span class="choice-card-title">Robotics</span></div><span class="choice-card-desc">Music tech &amp; physical computing</span><span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="discipline" value="theory"><div class="choice-card-head"><span class="choice-card-title">Music Theory &amp; Ear</span></div><span class="choice-card-desc">Notation &amp; aural skills</span><span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="discipline" value="performance"><div class="choice-card-head"><span class="choice-card-title">Performance Intelligence</span></div><span class="choice-card-desc">Stagecraft &amp; psychology</span><span class="choice-card-icon"></span></label>
             <label class="choice-card"><input type="radio" name="discipline" value="rhythm"><div class="choice-card-head"><span class="choice-card-title">Rhythm Intelligence</span></div><span class="choice-card-desc">MAM Rapid System</span><span class="choice-card-icon"></span></label>
@@ -627,7 +626,7 @@
 <script src="assets/js/config.js?v=20260613b"></script>
 <script src="assets/js/main.js?v=20260613b"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
-<script src="assets/js/headshot.js?v=20260530a"></script>
-<script src="assets/js/apply.js?v=20260615b"></script>
+<script src="assets/js/headshot.js?v=20260615c"></script>
+<script src="assets/js/apply.js?v=20260615c"></script>
 </body>
 </html>

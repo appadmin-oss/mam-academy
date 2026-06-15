@@ -276,7 +276,7 @@ function mam_validate_application(array $in): array {
     // rhythm, metamusic).
     $allowedDisc = [
         'piano','voice','guitar','bass','violin','saxophone','trumpet','flute','clarinet',
-        'drums','robotics','theory','performance','rhythm','metamusic','multiple'
+        'drums','theory','performance','rhythm','metamusic','multiple'
     ];
     $out['discipline'] = mam_str($in, 'discipline', 32);
     if (!mam_in($out['discipline'], $allowedDisc)) $errors[] = 'discipline';

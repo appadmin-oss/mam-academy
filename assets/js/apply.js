@@ -505,7 +505,7 @@
       ['piano', 'Piano & Keyboard'], ['voice', 'Voice & Choir'], ['guitar', 'Guitar'],
       ['bass', 'Bass'], ['violin', 'Violin / Strings'], ['saxophone', 'Saxophone'],
       ['trumpet', 'Trumpet'], ['flute', 'Flute'], ['clarinet', 'Clarinet'],
-      ['drums', 'Drums & Percussion'], ['robotics', 'Robotics']
+      ['drums', 'Drums & Percussion']
     ];
     var minorsRenderKey = null;
     function renderMinors() {

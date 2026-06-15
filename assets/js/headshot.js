@@ -45,11 +45,12 @@
 
   var MAX_BYTES    = 10 * 1024 * 1024;
   var MIN_PX       = 240;
-  var MIN_FACE_PCT = 0.15;
-  var MAX_FACE_PCT = 0.90;
-  var CENTER_TOL   = 0.30;
-  var MAX_TILT_DEG = 25;
-  var MIN_SCORE    = 0.55;
+  var MIN_FACE_PCT = 0.12;
+  var MAX_FACE_PCT = 0.92;
+  var CENTER_TOL   = 0.38;
+  var MAX_TILT_DEG = 32;
+  var MIN_SCORE    = 0.40;   // lenient: BlazeFace under-scores some phone selfies
+  var DETECT_TIMEOUT_MS = 6000; // never let model load/inference block the form
 
   // Keypoint indices documented by MediaPipe: 0=right eye, 1=left eye,
   // 2=nose tip, 3=mouth center, 4=right ear tragion, 5=left ear tragion.
@@ -77,6 +78,16 @@
       });
     });
     return detectorReady;
+  }
+
+  // Race the detector against a timeout so a slow CDN / WASM download can NEVER
+  // hang the headshot step. On timeout the caller treats the check as skipped
+  // (photo accepted, reviewed by a human) — speed over a perfect AI gate.
+  function detectorWithTimeout(ms) {
+    return Promise.race([
+      ensureDetector(),
+      new Promise(function (_, reject) { setTimeout(function () { reject(new Error('detector_timeout')); }, ms); })
+    ]);
   }
 
   function readImage(file) {
@@ -117,7 +128,7 @@
         return { ok: false, reasons: ['That image is too small (' + w + '×' + h + '). Please upload at least 240×240.'] };
       }
 
-      return ensureDetector().then(function (detector) {
+      return detectorWithTimeout(DETECT_TIMEOUT_MS).then(function (detector) {
         var result;
         try {
           result = detector.detect(img);
@@ -125,76 +136,46 @@
           URL.revokeObjectURL(loaded.url);
           // Detector loaded but failed at inference time — don't block submit;
           // log it and let the backend review.
-          return { ok: true, reasons: [], face: null, skipped: true, error: String(e && e.message || e) };
+          return { ok: true, reasons: [], warnings: [], face: null, skipped: true, error: String(e && e.message || e) };
         }
         URL.revokeObjectURL(loaded.url);
 
+        // The face check is ADVISORY — it offers helpful tips but NEVER blocks
+        // the upload. A photo is still required (the file must be picked +
+        // uploaded), and a human confirms it in the dashboard. This is what
+        // makes the step fast + forgiving instead of a strict AI gate.
         var faces = (result && result.detections) || [];
+        var warnings = [];
 
         if (!faces.length) {
-          return { ok: false, reasons: ['No face detected. Please use a clear, front-facing photo with good lighting.'], face: null };
+          return { ok: true, reasons: [], warnings: ["We couldn't clearly detect a face — please use a well-lit, front-facing photo. Your photo is saved and will be reviewed."], face: null, soft: true };
         }
-        if (faces.length > 1) {
-          return { ok: false, reasons: ['We see ' + faces.length + ' faces in this photo. Headshots must show only the applicant.'], face: null };
-        }
+        if (faces.length > 1) warnings.push('We can see more than one face — your headshot should show only you.');
 
         var d = faces[0];
         var bb = d.boundingBox;       // { originX, originY, width, height } in pixels
-        var score = d.categories && d.categories[0] && d.categories[0].score || 0;
+        var score = (d.categories && d.categories[0] && d.categories[0].score) || 0;
+        var pct = Math.min(bb.width, bb.height) / Math.min(w, h);
+        if (pct < MIN_FACE_PCT)      warnings.push('You look a little far away — for the sharpest ID photo, crop closer (face roughly a third to half the frame).');
+        else if (pct > MAX_FACE_PCT) warnings.push('Your face fills the frame — pull back slightly so we see your head and shoulders.');
 
-        var shortSide = Math.min(w, h);
-        var faceShort = Math.min(bb.width, bb.height);
-        var pct = faceShort / shortSide;
-
-        if (pct < MIN_FACE_PCT) {
-          return { ok: false, reasons: ["You're too far from the camera — the face takes up only " + Math.round(pct * 100) + '% of the frame. Crop closer (target 30–60%).'], face: { score: score, pct: pct } };
-        }
-        if (pct > MAX_FACE_PCT) {
-          return { ok: false, reasons: ['Face fills almost the entire frame. Pull back so we can see your head and shoulders.'], face: { score: score, pct: pct } };
-        }
-
-        // Centre check.
-        var cx = (bb.originX + bb.width  / 2) / w;
+        var cx = (bb.originX + bb.width / 2) / w;
         var cy = (bb.originY + bb.height / 2) / h;
-        if (Math.abs(cx - 0.5) > CENTER_TOL || Math.abs(cy - 0.5) > CENTER_TOL) {
-          return { ok: false, reasons: ['Please centre your face in the frame.'], face: { score: score, pct: pct } };
-        }
+        if (Math.abs(cx - 0.5) > CENTER_TOL || Math.abs(cy - 0.5) > CENTER_TOL) warnings.push('Try to centre your face in the frame.');
 
-        // Head tilt — angle between the two eye keypoints. Anything past 25°
-        // is uncomfortable enough that the photo will need re-taking for the
-        // ID card. (Subjects with their head straight typically come in <5°.)
         var rightEye = kp(d, KP.RIGHT_EYE, w, h);
         var leftEye  = kp(d, KP.LEFT_EYE,  w, h);
         var tiltDeg = 0;
         if (rightEye && leftEye) {
-          // Math.atan2(dy, dx) gives the eye-line angle relative to horizontal.
-          var dy = leftEye.y - rightEye.y;
-          var dx = leftEye.x - rightEye.x;
-          tiltDeg = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI);
-          // Normalise — left/right may flip the sign; we only care about magnitude.
+          tiltDeg = Math.abs(Math.atan2(leftEye.y - rightEye.y, leftEye.x - rightEye.x) * 180 / Math.PI);
           if (tiltDeg > 90) tiltDeg = 180 - tiltDeg;
         }
-        if (tiltDeg > MAX_TILT_DEG) {
-          return { ok: false, reasons: ['Your head is tilted (' + Math.round(tiltDeg) + '°). Please straighten your head so your eyes are roughly level.'], face: { score: score, pct: pct, tilt_deg: tiltDeg } };
-        }
-
-        // Both-eyes-visible check — when someone is turned sideways MediaPipe
-        // still returns 6 keypoints but the off-screen eye lands outside the
-        // face bounding box. If either eye is more than 15 % outside the box
-        // we treat it as a profile shot.
-        function withinBox(p) {
-          if (!p) return false;
-          var pad = 0.15 * Math.max(bb.width, bb.height);
-          return p.x >= bb.originX - pad && p.x <= bb.originX + bb.width + pad
-              && p.y >= bb.originY - pad && p.y <= bb.originY + bb.height + pad;
-        }
-        if (!withinBox(rightEye) || !withinBox(leftEye)) {
-          return { ok: false, reasons: ['Please face the camera straight on so both eyes are visible.'], face: { score: score, pct: pct, tilt_deg: tiltDeg } };
-        }
+        if (tiltDeg > MAX_TILT_DEG) warnings.push('Your head looks tilted — straighten up so your eyes are level (best for the ID card).');
 
         return {
           ok: true,
           reasons: [],
+          warnings: warnings,
           face: {
             score:    Math.round(score * 100) / 100,
             pct:      Math.round(pct * 100) / 100,
@@ -209,7 +190,7 @@
         // Detector failed to load (offline, CDN blocked, browser too old).
         // Don't block the applicant — flag it as skipped so the backend knows
         // a human should eyeball this photo.
-        return { ok: true, reasons: [], face: null, skipped: true, error: String(err && err.message || err) };
+        return { ok: true, reasons: [], warnings: [], face: null, skipped: true, error: String(err && err.message || err) };
       });
     });
   }
@@ -301,13 +282,18 @@
 
       validate(file).then(function (v) {
         state.validation = v;
+        // Only objective FILE problems (type / size / dimensions) block. Face
+        // geometry is advisory — shown as a tip, never a hard stop.
         if (!v.ok) {
-          setStatus('error', '<i class="fa-solid fa-circle-exclamation"></i> ' + v.reasons.join(' '));
+          setStatus('error', '<i class="fa-solid fa-circle-exclamation"></i> ' + (v.reasons || []).join(' '));
           if (opts.onChange) opts.onChange(state);
           return;
         }
+        var warns = (v.warnings && v.warnings.length) ? v.warnings : null;
         if (v.skipped) {
-          setStatus('warn', "<i class=\"fa-solid fa-circle-info\"></i> AI validation unavailable — saved your photo anyway. We'll review it manually.");
+          setStatus('ok', "<i class=\"fa-solid fa-circle-check\"></i> Photo saved — we'll confirm it for your ID. <span class=\"hs-detail\">(Instant face check skipped — taking too long.)</span>");
+        } else if (warns) {
+          setStatus('warn', '<i class="fa-solid fa-circle-info"></i> ' + warns.join(' ') + ' <span class="hs-detail">You can continue — a person will confirm it.</span>');
         } else {
           var detail = '';
           if (v.face) {
