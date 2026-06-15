@@ -170,6 +170,36 @@
 .headshot-required-pulse .hs-dropzone{border-color:var(--red-hot,#E11D48)!important;animation:hsRequiredPulse 0.7s var(--ease) 2}
 @keyframes hsRequiredPulse{0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,0.4)}50%{box-shadow:0 0 0 8px rgba(244,63,94,0)}}
 
+/* ── Headshot quality report ─────────────────────────────────────────────────
+   A professional per-criterion checklist + overall grade, rendered inside
+   .hs-status. The status tone (ok/warn) tints the surrounding panel; each row
+   colours its own ✓ / ! / ✗ so the report reads like a real ID-photo validator. */
+.hs-report{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:9px}
+.hs-report-head{display:flex;align-items:center;gap:9px}
+.hs-grade{font-size:0.64rem;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;padding:3px 10px;border-radius:100px;border:1px solid currentColor}
+.hs-grade-excellent{color:#6EE7B7}
+.hs-grade-good{color:#A7F3D0}
+.hs-grade-fair{color:#FDE68A}
+.hs-grade-low{color:#FCA5A5}
+.hs-score-label{font-size:0.82rem;font-weight:600;color:rgba(255,255,255,0.72)}
+.hs-score-num{margin-left:auto;font-size:0.95rem;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
+.hs-meter{height:5px;border-radius:100px;background:rgba(255,255,255,0.10);overflow:hidden}
+.hs-meter>span{display:block;height:100%;border-radius:100px;background:linear-gradient(90deg,#E08A1A,#F4B740);transition:width .5s var(--ease)}
+.hs-checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.hs-check{display:flex;align-items:baseline;gap:8px;font-size:0.82rem;line-height:1.5;color:rgba(255,255,255,0.85)}
+.hs-check i{font-size:0.84rem;flex-shrink:0;position:relative;top:1px;width:14px;text-align:center}
+.hs-c-label{font-weight:700;flex-shrink:0}
+.hs-c-detail{color:rgba(255,255,255,0.55);font-weight:500}
+.hs-c-pass i{color:#34D399}
+.hs-c-warn i,.hs-c-warn .hs-c-label{color:#FBBF24}
+.hs-c-fail i,.hs-c-fail .hs-c-label{color:#FB7185}
+.hs-c-skip i,.hs-c-skip .hs-c-label{color:rgba(255,255,255,0.45)}
+.hs-report-foot{margin:2px 0 0;font-size:0.8rem;line-height:1.5;color:rgba(255,255,255,0.62)}
+.hs-upload{display:flex;align-items:center;gap:8px;margin-top:2px;padding-top:9px;border-top:1px solid rgba(255,255,255,0.12);font-size:0.82rem;font-weight:600}
+.hs-upload-working{color:#C7D2FE}
+.hs-upload-ok{color:#A7F3D0}
+.hs-upload-warn{color:#FDE68A}
+
 /* intl-tel-input: blend the country-picker flag/dropdown into our dark form */
 .iti{width:100%}
 .iti--allow-dropdown .iti__flag-container{background:var(--bg-elevated);border-radius:var(--radius-sm) 0 0 var(--radius-sm)}

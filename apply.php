@@ -27,7 +27,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
 <link rel="stylesheet" href="assets/css/main.css?v=20260615b">
-<link rel="stylesheet" href="assets/css/apply.css?v=20260602e">
+<link rel="stylesheet" href="assets/css/apply.css?v=20260615a">
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
@@ -626,7 +626,7 @@
 <script src="assets/js/config.js?v=20260615d"></script>
 <script src="assets/js/main.js?v=20260615c"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
-<script src="assets/js/headshot.js?v=20260615c"></script>
+<script src="assets/js/headshot.js?v=20260615d"></script>
 <script src="assets/js/apply.js?v=20260615d"></script>
 </body>
 </html>
