@@ -231,7 +231,10 @@
       .then(function(j){
         if (!j || !j.ok) throw new Error('bad_response');
         if (!j.found) { show(noRef); return; }
-        if (j.paid) { renderUnlocked(j); }
+        // Unlock the calendar whenever a VALID MAM Auditer placement stands —
+        // this application's own fee, a sibling application within the year, or
+        // an enrolled-student exemption — not just this app's payment.
+        if (j.paid || (j.auditer && j.auditer.valid)) { renderUnlocked(j); }
         else { renderGate(j); }
       })
       .catch(function(){
@@ -246,6 +249,8 @@
     var sub = j.name
       ? "Hi " + j.name + " — one more step, then we'll see you on the calendar."
       : "One more step, then we'll see you on the calendar.";
+    // If their previous Auditer lapsed (valid one year), explain the re-book.
+    if (j.auditer && j.auditer.state === 'expired' && j.message) sub = j.message + ' ' + sub;
     $('#gateSub').textContent = sub;
     show(gate);
   }

@@ -1122,15 +1122,28 @@
       if (!notice) {
         notice = document.createElement('div');
         notice.id = 'apiNotice';
-        notice.setAttribute('role', 'alert');
-        notice.style.cssText = 'margin:14px 0;padding:14px 16px;background:rgba(244,63,94,0.1);border:1px solid rgba(244,63,94,0.45);border-radius:12px;color:#FECDD3;font-size:0.88rem;line-height:1.55';
+        notice.tabIndex = -1; // focusable so we can move attention to it
         var main = $('.apply-main'); if (main) main.prepend(notice);
       }
       return notice;
     }
+    // Error: red, role=alert (interrupts a screen reader), focused + scrolled
+    // into view so the user can NEVER miss why something failed.
     function apiError(msg) {
       var notice = ensureNotice();
-      notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + msg + ' &middot; If this keeps happening, email <a href="mailto:' + cfg.site.contactEmail + '" style="color:var(--gold-bright)">' + cfg.site.contactEmail + '</a>';
+      notice.setAttribute('role', 'alert');
+      notice.style.cssText = 'margin:14px 0;padding:14px 16px;background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.5);border-radius:12px;color:#FECDD3;font-size:0.9rem;line-height:1.55;outline:none';
+      notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ' + msg + ' &middot; If this keeps happening, email <a href="mailto:' + cfg.site.contactEmail + '" style="color:var(--gold-bright)">' + cfg.site.contactEmail + '</a>';
+      notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      try { notice.focus({ preventScroll: true }); } catch (e) {}
+    }
+    // Positive/neutral info: green, role=status (polite) — for "no action needed"
+    // outcomes (e.g. already paid / Auditer still valid) so they don't read as errors.
+    function apiInfo(msg) {
+      var notice = ensureNotice();
+      notice.setAttribute('role', 'status');
+      notice.style.cssText = 'margin:14px 0;padding:14px 16px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.5);border-radius:12px;color:#BBF7D0;font-size:0.9rem;line-height:1.55;outline:none';
+      notice.innerHTML = '<i class="fa-solid fa-circle-check" aria-hidden="true"></i> ' + msg;
       notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
@@ -1215,7 +1228,14 @@
       setBusy('btnPay', true, 'Opening secure checkout…');
       api.initializePayment({ reference: data.reference, provider: data.payment, purpose: 'booking_fee' })
         .then(function (init) {
-          if (init.already_paid) { showSuccess(data.reference, 'Already confirmed.'); return; }
+          if (init.already_paid) { showSuccess(data.reference, 'Your booking is already confirmed.'); return; }
+          // MAM Auditer still valid (or enrolled student) — no payment needed.
+          // Show it as good news, not a dead end, with a clear next step.
+          if (init.already_valid) {
+            setBusy('btnPay', false);
+            showSuccess(data.reference, (init.message || 'Your MAM Auditer placement is already valid — no payment needed.') + ' You can book your session from the link in your email, or track your status below.');
+            return;
+          }
           if (data.payment === 'paystack')      return openPaystack(init);
           if (data.payment === 'flutterwave')   return openFlutterwave(init);
           if (data.payment === 'bank')          return handleBank(init);
