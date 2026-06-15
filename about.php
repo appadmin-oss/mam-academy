@@ -116,6 +116,38 @@
     </div>
   </section>
 
+  <!-- Life at MAM — brand photography. Images live at the paths below; until
+       they're added (see assets/img/README.md) a branded placeholder shows. -->
+  <style>
+    .mam-photos{display:grid;grid-template-columns:1.2fr 1fr;gap:22px;align-items:stretch}
+    @media (max-width:760px){.mam-photos{grid-template-columns:1fr}}
+    .mam-photo{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--border-gold,rgba(224,138,26,.35));background:linear-gradient(135deg,#241710,#120D08);min-height:300px;margin:0}
+    .mam-photo img{width:100%;height:100%;object-fit:cover;display:block;min-height:300px}
+    .mam-photo figcaption{position:absolute;left:0;right:0;bottom:0;padding:16px 18px;background:linear-gradient(transparent,rgba(10,7,4,.88));color:#fff;font-size:.92rem;font-weight:600}
+    .mam-photo.is-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}
+    .mam-photo.is-empty::before{content:"\f001";font-family:"Font Awesome 6 Free";font-weight:900;font-size:2.6rem;color:rgba(252,198,71,.4)}
+    .mam-photo.is-empty figcaption{position:static;background:none;padding:0;color:var(--text-muted,#cbb89e)}
+  </style>
+  <section id="life" style="background:var(--bg-surface)">
+    <div class="container">
+      <div style="text-align:center;margin-bottom:34px">
+        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Life at MAM<span class="line" style="transform:scaleX(-1)"></span></div>
+        <h2 class="section-title">Music that <span class="highlight-gold">builds people</span></h2>
+        <p class="section-desc" style="margin:0 auto">At MAM, we use music lessons to boost morale — discipline, confidence and joy, one session at a time.</p>
+      </div>
+      <div class="mam-photos">
+        <figure class="mam-photo">
+          <img src="assets/img/gallery/mam-drummer.jpg" alt="A MAM Academy student performing on drums" loading="lazy" decoding="async" onerror="var f=this.closest('.mam-photo');f.classList.add('is-empty');this.remove();">
+          <figcaption>On stage — rhythm intelligence in action.</figcaption>
+        </figure>
+        <figure class="mam-photo">
+          <img src="assets/img/values/mam-guitar-morale.jpg" alt="At MAM we use music lessons to boost morale" loading="lazy" decoding="async" onerror="var f=this.closest('.mam-photo');f.classList.add('is-empty');this.remove();">
+          <figcaption>Lessons that lift the spirit.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
   <section id="next-step" aria-label="Continue your journey">
     <div class="next-step-wrap">
       <a class="next-step-back" href="/">
