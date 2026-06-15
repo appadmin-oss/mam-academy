@@ -53,3 +53,26 @@ t_ok(mam_studio_rank($b, 'pitchgame') === null, 'a student who never posted has 
 mam_db_update('users', ['status' => 'suspended'], ['id' => $b]);
 $board2 = mam_studio_leaderboard('rhythm', 10);
 t_eq($board2[0]['name'], 'Ada', 'a suspended student is excluded from the board');
+
+// ── Trinity-aligned band ──
+t_eq(mam_studio_band(90), 'Distinction', '90 → Distinction');
+t_eq(mam_studio_band(70), 'Merit', '70 → Merit');
+t_eq(mam_studio_band(60), 'Pass', '60 → Pass');
+t_eq(mam_studio_band(40), 'Keep practising', '40 → Keep practising');
+
+// ── Shareable SVG card (S2) ──
+$svg = mam_studio_share_svg('rhythm', 92, 'Ada Obi');
+t_ok(strpos($svg, '<svg') !== false && strpos($svg, '</svg>') !== false, 'card is a complete SVG document');
+t_ok(strpos($svg, 'width="1200"') !== false && strpos($svg, 'height="630"') !== false, 'card uses social 1200x630 dimensions');
+t_ok(strpos($svg, '>92<') !== false, 'card shows the score');
+t_ok(strpos($svg, 'Distinction') !== false, 'card shows the Trinity band');
+t_ok(strpos($svg, 'Ada scored') !== false, 'card shows the first name only');
+t_ok(strpos($svg, 'Obi') === false, 'card never includes the surname (PII-min)');
+t_ok(strpos($svg, 'Rhythm Tap') !== false, 'card shows the tool label');
+
+// Score clamped; an unknown tool falls back; the name is XML-escaped.
+t_ok(strpos(mam_studio_share_svg('rhythm', 250, ''), '>100<') !== false, 'an over-range score is clamped to 100');
+t_ok(strpos(mam_studio_share_svg('rhythm', -5, ''), '>0<') !== false, 'a negative score is clamped to 0');
+t_ok(strpos(mam_studio_share_svg('bogus', 50, ''), 'Practice Studio') !== false, 'an unknown tool falls back to a generic label');
+$xss = mam_studio_share_svg('rhythm', 80, '<script>x</script>');
+t_ok(strpos($xss, '<script>') === false, 'the name is XML-escaped (no raw markup injected)');

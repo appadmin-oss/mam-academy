@@ -255,10 +255,19 @@
       card.style.cssText = 'margin-top:18px;padding:14px 16px;border:1px solid var(--border,rgba(255,255,255,.16));border-radius:12px';
       card.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
         + '<strong><i class="fa-solid fa-ranking-star" aria-hidden="true"></i> Leaderboard</strong>'
+        + '<span style="display:flex;gap:8px">'
+        + '<button type="button" data-board-share style="padding:7px 12px;border-radius:9px;border:1px solid var(--border,rgba(255,255,255,.2));background:transparent;color:inherit;cursor:pointer;font-weight:700;font-size:.8rem"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share</button>'
         + '<button type="button" data-board-post style="padding:7px 12px;border-radius:9px;border:1px solid var(--border-gold,rgba(224,138,26,.5));background:transparent;color:inherit;cursor:pointer;font-weight:700;font-size:.8rem">Post my best</button>'
-        + '</div><ol data-board-list style="margin:10px 0 0;padding-left:22px;line-height:1.8"></ol>'
+        + '</span></div><ol data-board-list style="margin:10px 0 0;padding-left:22px;line-height:1.8"></ol>'
         + '<p data-board-me class="studio-gate-note" style="margin:8px 0 0" hidden></p>';
       panel.appendChild(card);
+      card.querySelector('[data-board-share]').addEventListener('click', function () {
+        if (_lastScore[tool] == null) { setBoardMsg(card, 'Play a round first, then share your result.'); return; }
+        var a = cachedAuth();
+        var first = (a && a.user && a.user.name) ? String(a.user.name).split(' ')[0] : '';
+        var url = '/api/studio/card?tool=' + encodeURIComponent(tool) + '&score=' + (_lastScore[tool] | 0) + (first ? '&name=' + encodeURIComponent(first) : '');
+        window.open(url, '_blank', 'noopener');
+      });
       card.querySelector('[data-board-post]').addEventListener('click', function () {
         var a = cachedAuth();
         if (!a || !a.authenticated || a.role !== 'student') { setBoardMsg(card, 'Sign in as a student to post your score.'); return; }
