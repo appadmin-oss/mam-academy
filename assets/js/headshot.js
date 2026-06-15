@@ -42,10 +42,12 @@
  *     skipped?, soft? }
  * `ok` is true for every advisory outcome — only a FILE problem makes it false.
  *
- * NOTE: the pixel-quality thresholds are tuned conservatively but were written
- * without a browser to calibrate against (no camera/canvas in CI). They want a
- * real-device QA pass; because every quality finding is advisory, a mis-tuned
- * threshold only changes a tip, never whether an applicant can proceed.
+ * VERIFICATION: the quality MATH (metricsFromGray / borderStd / assessQuality)
+ * is exercised headlessly by headshot.selftest.cjs against synthetic pixels, so
+ * the formulas and grading are proven. What still wants a real-device pass is
+ * the live canvas-capture path and the absolute threshold calibration — and
+ * since every quality finding is advisory, a mis-tuned threshold only changes a
+ * tip, never whether an applicant can proceed.
  *
  * Public API (unchanged from the face-api.js version, so apply.js
  * doesn't care which engine is underneath):
@@ -172,12 +174,70 @@
   }
 
   /**
-   * Measure objective image quality from the pixels themselves — the part of a
-   * professional ID-photo check that face detection can't tell you: focus,
-   * exposure, contrast, lighting balance and background. Runs on a downscaled
-   * copy (ANALYSIS_MAX) so it's fast and resolution-independent. `faceBoxPx` is
-   * the detected box in FULL-RES pixels (or null when no face was found — global
-   * metrics are still useful). Returns null only if a 2D canvas is unavailable.
+   * Pure image-quality math over a grayscale luma buffer (0..255), length cw*ch.
+   * Separated from canvas I/O so the computational core can be verified
+   * headlessly (see headshot.selftest.cjs). `faceBoxPx` is the detected face box
+   * in FULL-RES pixels (or null); `scale` maps full-res → this buffer's
+   * resolution. Returns the metrics object, or null for an empty/short buffer.
+   */
+  function metricsFromGray(gray, cw, ch, faceBoxPx, scale) {
+    var n = cw * ch;
+    if (n <= 0 || gray.length < n) return null;
+    scale = scale || 1;
+
+    var sum = 0, black = 0, white = 0;
+    for (var i = 0; i < n; i++) { var L = gray[i]; sum += L; if (L <= 8) black++; else if (L >= 247) white++; }
+    var mean = sum / n, vs = 0;
+    for (var k = 0; k < n; k++) { var dv = gray[k] - mean; vs += dv * dv; }
+    var std = Math.sqrt(vs / n);
+
+    // Variance of the Laplacian — the standard no-reference focus/blur metric.
+    // Clamp at 0: float rounding can make E[x²]−E[x]² a hair negative on a
+    // perfectly flat image.
+    var lapSum = 0, lapSq = 0, lapN = 0;
+    for (var y = 1; y < ch - 1; y++) {
+      for (var x = 1; x < cw - 1; x++) {
+        var idx = y * cw + x;
+        var lap = 4 * gray[idx] - gray[idx - 1] - gray[idx + 1] - gray[idx - cw] - gray[idx + cw];
+        lapSum += lap; lapSq += lap * lap; lapN++;
+      }
+    }
+    var lapVar = lapN ? Math.max(0, (lapSq / lapN) - Math.pow(lapSum / lapN, 2)) : 0;
+
+    var metrics = {
+      brightness: Math.round(mean),
+      contrast:   Math.round(std),
+      sharpness:  Math.round(lapVar),
+      clip:       round2((black + white) / n),
+      lightingDiff: null,
+      bgStd:        borderStd(gray, cw, ch)
+    };
+
+    if (faceBoxPx) {
+      var fx = Math.max(0, Math.round(faceBoxPx.x * scale));
+      var fy = Math.max(0, Math.round(faceBoxPx.y * scale));
+      var fw = Math.min(cw - fx, Math.round(faceBoxPx.w * scale));
+      var fh = Math.min(ch - fy, Math.round(faceBoxPx.h * scale));
+      if (fw > 4 && fh > 4) {
+        var midX = fx + (fw >> 1), lS = 0, lC = 0, rS = 0, rC = 0;
+        for (var yy = fy; yy < fy + fh; yy++) {
+          var off = yy * cw;
+          for (var xx = fx; xx < fx + fw; xx++) {
+            if (xx < midX) { lS += gray[off + xx]; lC++; } else { rS += gray[off + xx]; rC++; }
+          }
+        }
+        var lM = lC ? lS / lC : 0, rM = rC ? rS / rC : 0, avg = (lM + rM) / 2;
+        metrics.lightingDiff = avg > 0 ? round2(Math.abs(lM - rM) / avg) : 0;
+      }
+    }
+    return metrics;
+  }
+
+  /**
+   * Measure objective image quality from the pixels. Draws the image to a
+   * downscaled canvas (ANALYSIS_MAX) so it's fast and resolution-independent,
+   * extracts a grayscale buffer, then delegates the math to metricsFromGray.
+   * Returns null only if a 2D canvas is unavailable.
    */
   function computeImageMetrics(img, faceBoxPx) {
     try {
@@ -191,54 +251,8 @@
       ctx.drawImage(img, 0, 0, cw, ch);
       var data = ctx.getImageData(0, 0, cw, ch).data;
       var n = cw * ch, gray = new Float32Array(n);
-      var sum = 0, black = 0, white = 0;
-      for (var i = 0, p = 0; i < n; i++, p += 4) {
-        var L = luma(data[p], data[p + 1], data[p + 2]);
-        gray[i] = L; sum += L;
-        if (L <= 8) black++; else if (L >= 247) white++;
-      }
-      var mean = sum / n, vs = 0;
-      for (var k = 0; k < n; k++) { var dv = gray[k] - mean; vs += dv * dv; }
-      var std = Math.sqrt(vs / n);
-
-      // Variance of the Laplacian — the standard no-reference focus/blur metric.
-      var lapSum = 0, lapSq = 0, lapN = 0;
-      for (var y = 1; y < ch - 1; y++) {
-        for (var x = 1; x < cw - 1; x++) {
-          var idx = y * cw + x;
-          var lap = 4 * gray[idx] - gray[idx - 1] - gray[idx + 1] - gray[idx - cw] - gray[idx + cw];
-          lapSum += lap; lapSq += lap * lap; lapN++;
-        }
-      }
-      var lapVar = lapN ? (lapSq / lapN) - Math.pow(lapSum / lapN, 2) : 0;
-
-      var metrics = {
-        brightness: Math.round(mean),
-        contrast:   Math.round(std),
-        sharpness:  Math.round(lapVar),
-        clip:       round2((black + white) / n),
-        lightingDiff: null,
-        bgStd:        borderStd(gray, cw, ch)
-      };
-
-      if (faceBoxPx) {
-        var fx = Math.max(0, Math.round(faceBoxPx.x * scale));
-        var fy = Math.max(0, Math.round(faceBoxPx.y * scale));
-        var fw = Math.min(cw - fx, Math.round(faceBoxPx.w * scale));
-        var fh = Math.min(ch - fy, Math.round(faceBoxPx.h * scale));
-        if (fw > 4 && fh > 4) {
-          var midX = fx + (fw >> 1), lS = 0, lC = 0, rS = 0, rC = 0;
-          for (var yy = fy; yy < fy + fh; yy++) {
-            var off = yy * cw;
-            for (var xx = fx; xx < fx + fw; xx++) {
-              if (xx < midX) { lS += gray[off + xx]; lC++; } else { rS += gray[off + xx]; rC++; }
-            }
-          }
-          var lM = lC ? lS / lC : 0, rM = rC ? rS / rC : 0, avg = (lM + rM) / 2;
-          metrics.lightingDiff = avg > 0 ? round2(Math.abs(lM - rM) / avg) : 0;
-        }
-      }
-      return metrics;
+      for (var i = 0, p = 0; i < n; i++, p += 4) gray[i] = luma(data[p], data[p + 1], data[p + 2]);
+      return metricsFromGray(gray, cw, ch, faceBoxPx, scale);
     } catch (e) { return null; }
   }
 
@@ -304,7 +318,9 @@
       if (c.status === 'skip') return;
       var wt = (weights[c.id] != null) ? weights[c.id] : 1;
       max += wt;
-      got += wt * (c.status === 'pass' ? 1 : (c.status === 'warn' ? 0.5 : 0));
+      // A warning is a real problem, so it earns only partial credit — half
+      // would let a photo that fails everything-but-one still score ~60%.
+      got += wt * (c.status === 'pass' ? 1 : (c.status === 'warn' ? 0.35 : 0));
     });
     var score = max ? Math.round(got / max * 100) : 0;
     var grade = score >= 90 ? 'Excellent' : score >= 75 ? 'Good' : score >= 55 ? 'Fair' : 'Needs work';
@@ -611,5 +627,10 @@
     return { state: function () { return state; }, clear: clear };
   }
 
-  window.MAM_HEADSHOT = { mount: mount, validate: validate, upload: upload };
+  window.MAM_HEADSHOT = {
+    mount: mount, validate: validate, upload: upload,
+    // Exposed so the pure quality math can be verified headlessly (no canvas)
+    // by headshot.selftest.cjs. Harmless in production — just function refs.
+    _internals: { metricsFromGray: metricsFromGray, assessQuality: assessQuality, borderStd: borderStd }
+  };
 })();

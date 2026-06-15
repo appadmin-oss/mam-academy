@@ -626,7 +626,7 @@
 <script src="assets/js/config.js?v=20260615e"></script>
 <script src="assets/js/main.js?v=20260615c"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
-<script src="assets/js/headshot.js?v=20260615d"></script>
+<script src="assets/js/headshot.js?v=20260615e"></script>
 <script src="assets/js/apply.js?v=20260615d"></script>
 </body>
 </html>
