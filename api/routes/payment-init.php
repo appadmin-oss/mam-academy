@@ -50,6 +50,21 @@ if ($purpose === 'store') {
     if ($purpose === 'booking_fee' && !empty($app['booking_fee_paid_at'])) {
         mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
     }
+    // MAM Auditer is once-until-expiration (valid 1 year; enrolled students
+    // exempt). If this customer already holds a valid placement — even from a
+    // different application — don't let them pay for a redundant assessment.
+    if ($purpose === 'booking_fee') {
+        $aud = mam_auditer_status((int)$app['customer_id']);
+        if (!$aud['can_book']) {
+            mam_ok([
+                'already_valid' => true,
+                'purpose'       => $purpose,
+                'reference'     => $payRef,
+                'auditer'       => $aud,
+                'message'       => mam_auditer_message($aud),
+            ]);
+        }
+    }
     if ($purpose === 'tuition' && ($app['status'] ?? '') === 'paid') {
         mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
     }
