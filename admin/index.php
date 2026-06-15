@@ -124,6 +124,35 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     $action = $_POST['action'] ?? '';
 
+    // RBAC: gate sensitive actions to the right admin tier in one place.
+    // Operational actions (course/enrolment/messages/orders/own-account) are
+    // omitted → allowed for managers; everything here is super-only. Basic-Auth
+    // admins (no $adminUser row) are the break-glass super and skip the check.
+    $actionCaps = [
+        'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
+        'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
+        'save_settings' => 'settings',
+        'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
+        'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
+    ];
+    if (isset($actionCaps[$action]) && $adminUser && !mam_admin_can($adminUser, $actionCaps[$action])) {
+        header('Location: ?err=' . urlencode('Your admin level does not permit that action.')); exit;
+    }
+
+    // Set an admin's access tier (super-only — gated above via set_admin_tier).
+    if ($action === 'set_admin_tier') {
+        $uid  = (int)($_POST['user_id'] ?? 0);
+        $tier = strtolower(trim((string)($_POST['tier'] ?? '')));
+        $me   = mam_current_user();
+        if ($uid <= 0 || !in_array($tier, ['super', 'manager'], true)) { header('Location: ?v=users&err=' . urlencode('Pick a valid tier.')); exit; }
+        $target = mam_db_row('SELECT id, role FROM users WHERE id = ?', [$uid]);
+        if (!$target || !mam_user_has_role($target, 'admin')) { header('Location: ?v=users&err=' . urlencode('That user is not an admin.')); exit; }
+        if ($me && (int)$me['id'] === $uid && $tier === 'manager') { header('Location: ?v=users&err=' . urlencode('You can\'t demote your own access.')); exit; }
+        mam_db_update('users', ['admin_tier' => $tier], ['id' => $uid]);
+        mam_audit('set_admin_tier', 'user', $uid, ['tier' => $tier]);
+        header('Location: ?v=users&ok=1'); exit;
+    }
+
     // Self-service account: a session admin updates their own name/phone and,
     // optionally, their password. (Basic-Auth admins have no DB row — guarded.)
     if ($action === 'change_own_account') {
@@ -900,9 +929,20 @@ button.tiny:hover{border-color:var(--gold)}
       'audit'        => 'Audit Log',
       'account'      => 'My Account',
     ];
+    // RBAC: managers only see sections they can use; sensitive views are
+    // super-only. A direct URL to a restricted view falls back to Overview.
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'storeitems' => 'store_catalog', 'webhooks' => 'settings', 'audit' => 'users'];
+    $canView = function ($k) use ($adminUser, $viewCaps) {
+        return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
+    };
+    if (!$canView($view)) { $view = 'overview'; }
     foreach ($links as $k => $label) {
+        if (!$canView($k)) continue;
         $cls = $view === $k ? 'active' : '';
         echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'>" . htmlspecialchars($label) . "</a>";
+    }
+    if ($adminUser && mam_admin_tier($adminUser) === 'manager') {
+        echo "<div style='margin-top:10px;padding:7px 10px;font-size:0.72rem;color:var(--muted);border:1px dashed var(--border);border-radius:8px'>Manager access — pricing, users &amp; settings are restricted.</div>";
     }
     ?>
   </nav>
@@ -1224,13 +1264,26 @@ button.tiny:hover{border-color:var(--gold)}
       $roleFilter = $_GET['role'] ?? '';
       $where = ''; $params = [];
       if (in_array($roleFilter, ['admin','instructor','student'], true)) { $where = 'WHERE role = ?'; $params = [$roleFilter]; }
-      $users = mam_db_all("SELECT id, email, name, phone, role, status, last_login, created_at FROM users $where ORDER BY created_at DESC LIMIT 500", $params);
+      $users = mam_db_all("SELECT id, email, name, phone, role, status, last_login, created_at, admin_tier FROM users $where ORDER BY created_at DESC LIMIT 500", $params);
       if (!$users): ?><tr><td colspan="8" class="empty">No users yet</td></tr><?php endif;
       foreach ($users as $u): ?>
         <tr>
           <td><strong><?= htmlspecialchars((string)($u['name'] ?? '—')) ?></strong><br><span class="muted mono">#<?= (int)$u['id'] ?></span></td>
           <td><?= htmlspecialchars($u['email']) ?><br><span class="muted"><?= htmlspecialchars((string)($u['phone'] ?? '')) ?></span></td>
-          <td><span class="pill <?= htmlspecialchars($u['role']) ?>"><?= htmlspecialchars($u['role']) ?></span></td>
+          <td><span class="pill <?= htmlspecialchars($u['role']) ?>"><?= htmlspecialchars($u['role']) ?></span>
+            <?php if ($u['role'] === 'admin'): ?>
+              <form class="inline" method="post" style="margin-top:6px;display:flex;gap:4px;align-items:center" title="Admin access tier">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <input type="hidden" name="action" value="set_admin_tier">
+                <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+                <select name="tier" class="tiny">
+                  <option value="super" <?= (($u['admin_tier'] ?? 'super') !== 'manager') ? 'selected' : '' ?>>super</option>
+                  <option value="manager" <?= (($u['admin_tier'] ?? '') === 'manager') ? 'selected' : '' ?>>manager</option>
+                </select>
+                <button class="tiny" type="submit">Tier</button>
+              </form>
+            <?php endif; ?>
+          </td>
           <td><span class="pill <?= htmlspecialchars($u['status']) ?>"><?= htmlspecialchars($u['status']) ?></span></td>
           <td class="muted"><?= htmlspecialchars(substr((string)($u['last_login'] ?? ''), 0, 16)) ?></td>
           <td class="muted"><?= htmlspecialchars(substr((string)$u['created_at'], 0, 16)) ?></td>
