@@ -126,6 +126,54 @@ function mam_require_role(string ...$roles): array {
     return $u;
 }
 
+/* ───────────────────────── Admin access tiers (RBAC) ─────────────────────
+   An admin is 'super' (full control) or 'manager' (operational only). A NULL/
+   blank tier on an admin defaults to 'super', and existing admins were
+   backfilled to 'super', so nobody loses access; new limited admins are set to
+   'manager'. Capabilities map to a minimum tier. */
+
+/** An admin's tier: 'super' | 'manager'. Non-admins → 'none'. NULL → 'super'. */
+function mam_admin_tier(array $u): string {
+    if (!mam_user_has_role($u, 'admin')) return 'none';
+    return ((string)($u['admin_tier'] ?? '') === 'manager') ? 'manager' : 'super';
+}
+
+/** Capability → minimum admin tier. Manager gets operational capabilities;
+ *  'super' is reserved for sensitive control. Unknown caps default to super. */
+function mam_admin_capabilities(): array {
+    return [
+        'view'          => 'manager',  // dashboards + read-only lists
+        'enrollments'   => 'manager',  // approve / assign course registrations
+        'admissions'    => 'manager',  // work the applications pipeline
+        'messages'      => 'manager',  // contact messages
+        'store_orders'  => 'manager',  // fulfil store orders
+        'users'         => 'super',    // create / reset / delete users, roles, tiers
+        'settings'      => 'super',    // pricing & settings
+        'store_catalog' => 'super',    // store item CRUD
+        'mail'          => 'super',    // mail test / retry
+        'migrate'       => 'super',    // run DB migrations
+        'rbac'          => 'super',    // assign admin tiers
+    ];
+}
+
+/** Whether an admin user holds a capability (super → all; manager → operational). */
+function mam_admin_can(array $u, string $cap): bool {
+    if (!mam_user_has_role($u, 'admin')) return false;
+    if (mam_admin_tier($u) === 'super') return true;
+    return (mam_admin_capabilities()[$cap] ?? 'super') === 'manager';
+}
+
+/**
+ * Guard: the request must be from an admin holding $cap, else 403. Preserves the
+ * Basic-Auth break-glass (a host-level admin with no session user is treated as
+ * super); only restricts SESSION admins who are managers.
+ */
+function mam_require_admin_cap(string $cap): void {
+    mam_require_admin(); // session admin OR Basic-Auth break-glass, else 401/403
+    $u = mam_current_user();
+    if ($u && mam_user_has_role($u, 'admin') && !mam_admin_can($u, $cap)) mam_fail('forbidden', 403);
+}
+
 /**
  * Admin guard accepted by both portals AND the legacy admin dashboard.
  * Prefers a session user holding the admin role — primary users.role OR the

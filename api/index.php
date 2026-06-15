@@ -142,22 +142,25 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
 
 /* ─── Admin (JSON endpoints; the HTML dashboard is at /admin/) ─── */
 $r->group('/admin', function (MamRouter $r) use ($f) {
-    $r->get ('/list-users',      $f('admin/list-users.php'),     [mw_admin()]);
-    $r->post('/create-user',     $f('admin/create-user.php'),    [mw_csrf(), mw_admin()]);
-    $r->post('/reset-password',  $f('admin/reset-password.php'), [mw_csrf(), mw_admin()]);
-    $r->post('/create-class',    $f('admin/create-class.php'),   [mw_csrf(), mw_admin()]);
-    $r->post('/enroll-student',  $f('admin/enroll-student.php'), [mw_csrf(), mw_admin()]);
-    $r->post('/mail-test',       $f('admin/mail-test.php'),      [mw_csrf(), mw_admin(), mw_rate_limit('mail_test', 10, 600)]);
-    // Outbound-mail outbox: see what was sent / failed, and re-send failures.
-    $r->get ('/mail-log',        $f('admin/mail-log.php'),       [mw_admin()]);
-    $r->post('/mail-retry',      $f('admin/mail-retry.php'),     [mw_csrf(), mw_admin(), mw_rate_limit('mail_retry', 30, 600)]);
-    $r->post('/migrate',         $f('admin/migrate.php'),        [mw_csrf(), mw_admin(), mw_rate_limit('migrate', 5, 300)]);
+    // RBAC: sensitive control is super-only; operational endpoints allow managers.
+    $r->get ('/list-users',      $f('admin/list-users.php'),     [mw_admin_cap('users')]);
+    $r->post('/create-user',     $f('admin/create-user.php'),    [mw_csrf(), mw_admin_cap('users')]);
+    $r->post('/reset-password',  $f('admin/reset-password.php'), [mw_csrf(), mw_admin_cap('users')]);
+    $r->post('/create-class',    $f('admin/create-class.php'),   [mw_csrf(), mw_admin_cap('enrollments')]);
+    $r->post('/enroll-student',  $f('admin/enroll-student.php'), [mw_csrf(), mw_admin_cap('enrollments')]);
+    $r->post('/mail-test',       $f('admin/mail-test.php'),      [mw_csrf(), mw_admin_cap('mail'), mw_rate_limit('mail_test', 10, 600)]);
+    // Outbound-mail outbox: viewing is operational; re-sending is super-only.
+    $r->get ('/mail-log',        $f('admin/mail-log.php'),       [mw_admin_cap('view')]);
+    $r->post('/mail-retry',      $f('admin/mail-retry.php'),     [mw_csrf(), mw_admin_cap('mail'), mw_rate_limit('mail_retry', 30, 600)]);
+    $r->post('/migrate',         $f('admin/migrate.php'),        [mw_csrf(), mw_admin_cap('migrate'), mw_rate_limit('migrate', 5, 300)]);
     // Store catalogue admin CRUD (one file dispatches by method).
-    $r->get ('/store/items',     $f('admin/store-items.php'),    [mw_admin()]);
-    $r->post('/store/items',     $f('admin/store-items.php'),    [mw_csrf(), mw_admin()]);
-    // LMS course-registration approvals + instructor assignment.
-    $r->get ('/course-enrollments', $f('admin/course-enrollments.php'), [mw_admin()]);
-    $r->post('/course-enrollments', $f('admin/course-enrollments.php'), [mw_csrf(), mw_admin()]);
+    $r->get ('/store/items',     $f('admin/store-items.php'),    [mw_admin_cap('view')]);
+    $r->post('/store/items',     $f('admin/store-items.php'),    [mw_csrf(), mw_admin_cap('store_catalog')]);
+    // LMS course-registration approvals + instructor assignment (operational).
+    $r->get ('/course-enrollments', $f('admin/course-enrollments.php'), [mw_admin_cap('enrollments')]);
+    $r->post('/course-enrollments', $f('admin/course-enrollments.php'), [mw_csrf(), mw_admin_cap('enrollments')]);
+    // Assign admin tiers (super-only).
+    $r->post('/set-admin-tier',  $f('admin/set-admin-tier.php'), [mw_csrf(), mw_admin_cap('rbac')]);
 });
 
 /* ─── Dispatch ─── */

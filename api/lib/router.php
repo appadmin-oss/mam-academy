@@ -138,6 +138,11 @@ function mw_role(string ...$roles): callable {
 function mw_admin(): callable {
     return function (callable $next) { mam_require_admin(); $next(); };
 }
+/** Admin guard that also requires a capability (RBAC tier). Super passes all;
+ *  manager passes operational caps only; Basic-Auth break-glass is treated as super. */
+function mw_admin_cap(string $cap): callable {
+    return function (callable $next) use ($cap) { mam_require_admin_cap($cap); $next(); };
+}
 function mw_user(): callable {
     return function (callable $next) { mam_require_user();  $next(); };
 }

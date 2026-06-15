@@ -878,3 +878,10 @@ CREATE TABLE IF NOT EXISTS jobs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (25) ON DUPLICATE KEY UPDATE version = version;
+
+-- v26 — Admin access tiers (RBAC): 'super' (full) vs 'manager' (operational).
+-- NULL = treated as 'super' in code; existing admins backfilled so none lose access.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_tier VARCHAR(16) NULL;
+UPDATE users SET admin_tier = 'super' WHERE role = 'admin' AND (admin_tier IS NULL OR admin_tier = '');
+
+INSERT INTO schema_version (version) VALUES (26) ON DUPLICATE KEY UPDATE version = version;

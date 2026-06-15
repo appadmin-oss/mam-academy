@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 25;
+const MAM_SCHEMA_TARGET = 26;
 
 /**
  * Open (and cache) the PDO connection.
@@ -889,6 +889,14 @@ function mam_db_migrate(PDO $db): void {
               updated_at TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_jobs_due ON jobs(status, run_after);
+        ",
+        // v26 — Admin access tiers (RBAC). An admin user is 'super' (full
+        // control) or 'manager' (operational only — no settings/users/pricing/
+        // mail/migrate). NULL = treated as 'super' in code, and existing admins
+        // are backfilled to 'super', so nobody loses access. Additive.
+        26 => "
+            ALTER TABLE users ADD COLUMN admin_tier TEXT;
+            UPDATE users SET admin_tier = 'super' WHERE role = 'admin' AND (admin_tier IS NULL OR admin_tier = '');
         ",
     ];
 
