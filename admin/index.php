@@ -178,9 +178,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($action === 'app_status') {
         $id = (int)($_POST['id'] ?? 0);
         $status = $_POST['status'] ?? '';
-        if ($id && in_array($status, ['submitted', 'in_review', 'paid', 'enrolled', 'cancelled'], true)) {
-            mam_db_update('applications', ['status' => $status, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $id]);
-            mam_audit('update_status', 'application', $id, ['status' => $status]);
+        if ($id && in_array($status, ['submitted', 'in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'], true)) {
+            // Route through the enforced, audited admissions state machine (A2).
+            try {
+                mam_admissions_transition($id, $status, ((int)($adminUser['id'] ?? 0)) ?: null, trim((string)($_POST['reason'] ?? '')) ?: null);
+            } catch (RuntimeException $e) {
+                header('Location: ?v=applications&err=' . urlencode($e->getMessage() === 'illegal_transition' ? "That status change isn't allowed from the current stage." : 'Application not found.'));
+                exit;
+            }
 
             // When an admin marks a bank-transfer (or any) application as paid
             // from the dashboard, mirror the verify-payment flow: provision a
@@ -1149,7 +1154,7 @@ button.tiny:hover{border-color:var(--gold)}
               <input type="hidden" name="action" value="app_status">
               <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
               <select name="status" class="tiny">
-                <?php foreach (['submitted', 'in_review', 'paid', 'enrolled', 'cancelled'] as $s): ?>
+                <?php foreach (['submitted', 'in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'] as $s): ?>
                   <option value="<?= $s ?>" <?= $s === $r['status'] ? 'selected' : '' ?>><?= $s ?></option>
                 <?php endforeach; ?>
               </select>
