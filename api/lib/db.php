@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 27;
+const MAM_SCHEMA_TARGET = 28;
 
 /**
  * Open (and cache) the PDO connection.
@@ -922,6 +922,24 @@ function mam_db_migrate(PDO $db): void {
               created_at TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_app_notes_app ON application_notes(application_id, id);
+        ",
+        // v28 — Funnel analytics (Application A3). First-party, privacy-
+        // respecting instrumentation: anonymous funnel-session id (sid, from
+        // sessionStorage — NOT identity), an allowlisted event, the step, the
+        // pathway, and a small no-PII meta blob. Powers drop-off measurement
+        // per step and per pathway. Honours Do-Not-Track at the edge. Additive.
+        28 => "
+            CREATE TABLE funnel_events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              sid TEXT,
+              event TEXT NOT NULL,
+              step INTEGER,
+              pathway TEXT,
+              meta TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_funnel_event ON funnel_events(event, created_at);
+            CREATE INDEX idx_funnel_sid ON funnel_events(sid);
         ",
     ];
 

@@ -70,6 +70,10 @@ $r->get ('/application/status', $f('application/status.php'), [mw_rate_limit('ap
 $r->get ('/application/draft',       $f('application/draft.php'),       [mw_rate_limit('app_draft',  240, 600)]);
 $r->post('/application/draft',       $f('application/draft.php'),       [mw_csrf(), mw_rate_limit('app_draft', 240, 600)]);
 $r->post('/application/resume-link', $f('application/resume-link.php'), [mw_csrf(), mw_rate_limit('app_resume', 6, 600)]);
+// First-party funnel beacon (A3). No CSRF — it's an append-only analytics
+// signal sent via navigator.sendBeacon; bounded by the rate limit + a strict
+// event allowlist, and Do-Not-Track is honoured inside the handler.
+$r->post('/track', $f('track.php'), [mw_rate_limit('track', 300, 600)]);
 $r->post('/newsletter',  $f('newsletter.php'),  [mw_csrf(), mw_rate_limit('newsletter',  5,  600)]);
 // Unsubscribe is reached from email links / mail-client one-click — no CSRF
 // cookie available, so it relies on a signed token instead. Both verbs map

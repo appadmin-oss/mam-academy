@@ -19,6 +19,41 @@
     else fn();
   }
 
+  // ---------- First-party funnel analytics (A3) ----------
+  // Privacy-respecting: honours Do-Not-Track, sends an ANONYMOUS funnel-session
+  // id (sessionStorage — never identity) and NO third-party pixel. Best-effort
+  // and entirely silent — a beacon must never affect the form.
+  function mamDntOn() {
+    try {
+      var d = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      return d === '1' || d === 'yes';
+    } catch (e) { return false; }
+  }
+  function mamFunnelSid() {
+    try {
+      var k = 'mam.funnel.sid', v = sessionStorage.getItem(k);
+      if (!v) { v = 'fs-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10); sessionStorage.setItem(k, v); }
+      return v;
+    } catch (e) { return null; }
+  }
+  function mamTrack(event, extra) {
+    try {
+      if (mamDntOn()) return;
+      var payload = { event: event, sid: mamFunnelSid() };
+      if (extra) {
+        if (extra.step != null) payload.step = extra.step;
+        if (extra.pathway) payload.pathway = extra.pathway;
+        if (extra.meta) payload.meta = extra.meta;
+      }
+      var body = JSON.stringify(payload);
+      if (navigator.sendBeacon) {
+        var blob = new Blob([body], { type: 'application/json' });
+        if (navigator.sendBeacon('/api/track', blob)) return;
+      }
+      fetch('/api/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true, credentials: 'same-origin' }).catch(function () {});
+    } catch (e) {}
+  }
+
   var booted = false;
   function boot() {
     if (booted) return;
@@ -93,6 +128,10 @@
     // any draft that still carries it needs the user to re-pick a specific instrument.
     if (data.discipline === 'wind') data.discipline = '';
 
+    // Funnel: the apply flow is live for this (anonymous) session. Distinct-sid
+    // counting de-dupes reloads/resumes, so emitting once per init is correct.
+    mamTrack('apply_start', { pathway: data.pathway || '', meta: resuming ? { resumed: 1 } : null });
+
     // KTAMS (Kids @ MAM) = under 16; MAM = 16 and above. Derived entirely from DOB.
     function ageFromDob(dob) {
       if (!dob) return null;
@@ -165,6 +204,8 @@
       var bar = $('#applyMobileBar'); if (bar) bar.style.display = current === totalSteps - 1 ? 'none' : '';
       // Remember where the applicant is so a return visit resumes here.
       data.currentStep = current; saveDraft();
+      // Funnel: this step is now on screen (distinct-sid de-duped server-side).
+      mamTrack('apply_step_view', { step: current, pathway: data.pathway || '' });
     }
     function saveDraft() {
       try { localStorage.setItem('mam.apply.draft', JSON.stringify(data)); } catch (e) {}
@@ -598,6 +639,8 @@
     // ---------- Step nav ----------
     function attemptNext() {
       if (!validateStep(current)) return;
+      // Funnel: the applicant cleared validation for this step.
+      mamTrack('apply_step_complete', { step: current, pathway: data.pathway || '' });
       // When leaving step 3 (Review) → submit to backend FIRST, then move to payment step
       if (current === 3 && !data.reference) {
         submitApplicationToServer();
@@ -926,6 +969,8 @@
           data.applicationId = resp.application_id;
           data.serverTotalUsd = resp.total_usd;
           saveDraft();
+          // Funnel: application submitted (server-issued reference exists).
+          mamTrack('apply_submit', { pathway: data.pathway || '', meta: { mode: data.mode || '' } });
           // The server has just emailed the confirmation + invoice. Now advance
           // to Step 5 (Payment) where the applicant pays the regional booking
           // fee. They can also bail and pay later via the link in the email.
@@ -1228,8 +1273,12 @@
       setBusy('btnPay', true, 'Verifying…');
       api.verifyPayment({ provider: provider, reference: reference, transaction_id: transactionId || 0 })
         .then(function (res) {
-          if (res.status === 'succeeded') showSuccess(reference, 'Paid via ' + capitalize(provider));
-          else apiError('Payment not confirmed yet. Please refresh, or email us your reference.');
+          if (res.status === 'succeeded') {
+            // Funnel: booking fee confirmed (definitive — transient/soft cases
+            // are deliberately not counted, to keep conversion honest).
+            mamTrack('apply_pay', { pathway: data.pathway || '', meta: { provider: provider } });
+            showSuccess(reference, 'Paid via ' + capitalize(provider));
+          } else apiError('Payment not confirmed yet. Please refresh, or email us your reference.');
         })
         .catch(function (err) {
           console.warn('verify_error', err);

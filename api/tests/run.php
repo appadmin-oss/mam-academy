@@ -50,6 +50,7 @@ require $ROOT . '/lib/mailer.php';          // mail helpers + outbox (record/ret
 require $ROOT . '/lib/ai.php';              // provider-agnostic AI gateway
 require $ROOT . '/lib/admissions.php';      // applicant status lookup
 require $ROOT . '/lib/jobs.php';            // automation spine (events + jobs)
+require $ROOT . '/lib/funnel.php';          // first-party funnel analytics
 
 require __DIR__ . '/assert.php';
 

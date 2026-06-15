@@ -913,3 +913,20 @@ CREATE TABLE IF NOT EXISTS application_notes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (27) ON DUPLICATE KEY UPDATE version = version;
+
+-- v28 — Funnel analytics (Application A3): first-party, privacy-respecting
+-- instrumentation. sid is an anonymous funnel-session id (NOT identity); event
+-- is allowlisted; meta is a small no-PII blob. Do-Not-Track honoured at the edge.
+CREATE TABLE IF NOT EXISTS funnel_events (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  sid        VARCHAR(64),
+  event      VARCHAR(32) NOT NULL,
+  step       INT NULL,
+  pathway    VARCHAR(32),
+  meta       TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_funnel_event (event, created_at),
+  KEY idx_funnel_sid (sid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (28) ON DUPLICATE KEY UPDATE version = version;

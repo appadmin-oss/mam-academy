@@ -942,6 +942,7 @@ button.tiny:hover{border-color:var(--gold)}
     $links = [
       'overview'     => 'Overview',
       'applications' => 'Applications',
+      'funnel'       => 'Apply Funnel',
       'payments'     => 'Payments',
       'users'        => 'Users',
       'classes'      => 'Classes',
@@ -1310,6 +1311,94 @@ button.tiny:hover{border-color:var(--gold)}
       </tbody>
     </table>
   </div>
+
+<?php elseif ($view === 'funnel'): ?>
+  <?php
+    $fDays = (int)($_GET['days'] ?? 30); if (!in_array($fDays, [7, 30, 90, 365], true)) $fDays = 30;
+    $rep = mam_funnel_report($fDays);
+    $pct = function ($n, $d) { return $d > 0 ? round(100 * $n / $d) : 0; };
+    $stepLabels = [0 => 'Programme & pathway', 1 => 'Your details', 2 => 'Experience & goals', 3 => 'Review', 4 => 'Payment'];
+  ?>
+  <header class="top">
+    <h1>Apply Funnel</h1>
+    <div>
+      <?php foreach ([7 => '7d', 30 => '30d', 90 => '90d', 365 => '1y'] as $d => $lbl): ?>
+        <a class="btn <?= $fDays === $d ? '' : 'ghost' ?>" href="?v=funnel&days=<?= $d ?>"><?= $lbl ?></a>
+      <?php endforeach; ?>
+    </div>
+  </header>
+  <div class="card" style="font-size:.82rem;color:var(--muted)">
+    <i class="fa-solid fa-shield-halved" aria-hidden="true"></i> First-party only — no third-party pixels, Do-Not-Track is honoured, and we count
+    <strong>anonymous</strong> funnel sessions (never identities). Showing the last <strong><?= (int)$rep['days'] ?> days</strong>.
+  </div>
+
+  <?php $anyData = $rep['started'] || $rep['submitted'] || $rep['paid'] || $rep['steps'] || $rep['totals']; ?>
+  <?php if (!$anyData): ?>
+    <div class="card"><p class="empty">No funnel events recorded in this window yet. Events start flowing as applicants use the apply flow (with Do-Not-Track off).</p></div>
+  <?php else: ?>
+
+  <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:6px 0 4px">
+    <div class="kpi"><div class="kpi-label">Started</div><div class="kpi-value"><?= number_format($rep['started']) ?></div></div>
+    <div class="kpi"><div class="kpi-label">Submitted</div><div class="kpi-value"><?= number_format($rep['submitted']) ?></div>
+      <div class="muted" style="font-size:.72rem"><?= $pct($rep['submitted'], $rep['started']) ?>% of started</div></div>
+    <div class="kpi"><div class="kpi-label">Paid (booking fee)</div><div class="kpi-value"><?= number_format($rep['paid']) ?></div>
+      <div class="muted" style="font-size:.72rem"><?= $pct($rep['paid'], $rep['submitted']) ?>% of submitted · <?= $pct($rep['paid'], $rep['started']) ?>% overall</div></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">Step drop-off</h3>
+    <?php if (!$rep['steps']): ?>
+      <p class="muted">No per-step events yet.</p>
+    <?php else: ?>
+      <table>
+        <thead><tr><th>Step</th><th>Reached</th><th>Completed</th><th>Dropped</th><th>Drop-off</th></tr></thead>
+        <tbody>
+        <?php foreach ($rep['steps'] as $s): ?>
+          <tr>
+            <td><strong>Step <?= (int)$s['step'] + 1 ?></strong> <span class="muted">· <?= htmlspecialchars($stepLabels[$s['step']] ?? '') ?></span></td>
+            <td><?= number_format($s['viewed']) ?></td>
+            <td><?= number_format($s['completed']) ?></td>
+            <td><?= number_format($s['dropped']) ?></td>
+            <td>
+              <?php $d = $pct($s['dropped'], $s['viewed']); ?>
+              <span class="pill <?= $d >= 50 ? 'cancelled' : ($d >= 25 ? 'submitted' : 'enrolled') ?>"><?= $d ?>%</span>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">Conversion by pathway</h3>
+    <?php if (!$rep['by_pathway']): ?>
+      <p class="muted">No pathway-tagged submissions yet.</p>
+    <?php else: ?>
+      <table>
+        <thead><tr><th>Pathway</th><th>Submitted</th><th>Paid</th><th>Pay rate</th></tr></thead>
+        <tbody>
+        <?php foreach ($rep['by_pathway'] as $p): ?>
+          <tr>
+            <td><?= htmlspecialchars($p['pathway']) ?></td>
+            <td><?= number_format($p['submitted']) ?></td>
+            <td><?= number_format($p['paid']) ?></td>
+            <td><span class="pill"><?= $pct($p['paid'], $p['submitted']) ?>%</span></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </div>
+
+  <?php if ($rep['totals']): ?>
+  <div class="card" style="font-size:.78rem;color:var(--muted)">
+    <strong>Raw event totals</strong> (independent of session stitching):
+    <?php $bits = []; foreach ($rep['totals'] as $ev => $n) $bits[] = htmlspecialchars($ev) . ' = ' . number_format($n); echo implode(' · ', $bits); ?>
+  </div>
+  <?php endif; ?>
+
+  <?php endif; ?>
 
 <?php elseif ($view === 'payments'): ?>
   <header class="top">
