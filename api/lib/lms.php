@@ -1039,6 +1039,23 @@ function mam_lms_parse_csv(string $csv): array {
     return $rows;
 }
 
+/** Turn pasted/uploaded import text into module rows. Auto-detects JSON vs CSV
+ *  unless $format forces it ('json'|'csv'). Understands a bare JSON array, a
+ *  wrapped {"modules":[…]} export, or CSV. Returns [] when nothing parseable.
+ *  Pure — shared by the API route and the admin UI so there's one import brain. */
+function mam_lms_rows_from_text(string $text, string $format = ''): array {
+    $text = trim($text);
+    if ($text === '') return [];
+    $looksJson = str_starts_with($text, '[') || str_starts_with($text, '{');
+    if ($format === 'csv' || ($format !== 'json' && !$looksJson)) {
+        return mam_lms_parse_csv($text);
+    }
+    $decoded = json_decode($text, true);
+    if (!is_array($decoded)) return [];
+    if (isset($decoded['modules']) && is_array($decoded['modules'])) return $decoded['modules'];
+    return $decoded;
+}
+
 /** The module id authored for (course, level, week), or null. Affinity-safe on
  *  the nullable level_id (bare-column comparison, like the enrolment guards). */
 function mam_lms_find_module_week(int $courseId, ?int $levelId, int $week): ?int {

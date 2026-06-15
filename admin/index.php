@@ -111,6 +111,32 @@ if ($view === 'export') {
         exit;
     }
 
+    // Standard-curriculum export: the authored weekly modules for one course
+    // (+level), as a re-importable JSON bundle or a spreadsheet CSV. Super-only
+    // (structural content). The JSON shape {course,level,modules} is exactly
+    // what the importer re-ingests, so a syllabus is portable between installs.
+    if ($type === 'curriculum' || $type === 'curriculum.csv') {
+        if ($adminUser && !mam_admin_can($adminUser, 'curriculum')) { http_response_code(403); echo 'Forbidden — super-admin only.'; exit; }
+        $cc = trim((string)($_GET['course'] ?? ''));
+        $course = $cc !== '' ? mam_db_row('SELECT id, code, name FROM courses WHERE code = ?', [$cc]) : null;
+        if (!$course) { http_response_code(404); echo 'Course not found.'; exit; }
+        $lc = trim((string)($_GET['level'] ?? ''));
+        $level = $lc !== '' ? mam_db_row('SELECT id FROM levels WHERE code = ?', [$lc]) : null;
+        $modules = mam_lms_export_modules((int)$course['id'], $level ? (int)$level['id'] : null);
+        $base = trim('curriculum-' . preg_replace('/[^a-z0-9]+/i', '-', $cc . ($lc !== '' ? '-' . $lc : '')), '-');
+        mam_audit('curriculum_export', 'course', (int)$course['id'], ['level' => $lc ?: null, 'count' => count($modules), 'format' => $type === 'curriculum.csv' ? 'csv' : 'json']);
+        if ($type === 'curriculum.csv') {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $base . '.csv"');
+            echo mam_lms_modules_to_csv($modules);
+            exit;
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $base . '.json"');
+        echo json_encode(['course' => $course['code'], 'level' => $lc !== '' ? $lc : null, 'modules' => $modules], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     $filename = preg_replace('/[^A-Za-z0-9._-]/', '', basename($type));
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -504,7 +530,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     // ─── LMS course modules (curriculum authoring) ───────────────────
-    if (in_array($action, ['module_save', 'module_delete', 'module_scaffold'], true)) {
+    if (in_array($action, ['module_save', 'module_delete', 'module_scaffold', 'module_import'], true)) {
         $courseCode  = (string)($_POST['course_code'] ?? '');
         $levelCode   = (string)($_POST['level_code'] ?? '');
         $programCode = (string)($_POST['program_code'] ?? '');
@@ -527,6 +553,28 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $programRow = $programCode !== '' ? mam_db_row('SELECT id FROM programs WHERE code = ?', [$programCode]) : null;
             $made = mam_lms_scaffold_modules($courseId, $levelId, $programRow ? (int)$programRow['id'] : null);
             header('Location: ' . $back . '&made=' . $made); exit;
+        }
+
+        // Bulk import — paste/upload JSON or CSV; upserts by (course,level,week)
+        // into the selected course (rows may carry their own course_code/level_code).
+        if ($action === 'module_import') {
+            $text = (string)($_POST['import_text'] ?? '');
+            // An uploaded file takes precedence over pasted text.
+            if (!empty($_FILES['import_file']['tmp_name']) && is_uploaded_file($_FILES['import_file']['tmp_name'])) {
+                $sz = (int)($_FILES['import_file']['size'] ?? 0);
+                if ($sz <= 0 || $sz > 2 * 1024 * 1024) { header('Location: ' . $back . '&err=' . urlencode('That file is empty or larger than 2 MB.')); exit; }
+                $text = (string)file_get_contents($_FILES['import_file']['tmp_name']);
+            }
+            $rows = mam_lms_rows_from_text($text, (string)($_POST['import_format'] ?? ''));
+            if (!$rows) { header('Location: ' . $back . '&err=' . urlencode('Nothing to import — paste JSON/CSV or choose a file with week & title columns.')); exit; }
+            $res = mam_lms_import_modules($courseId, $levelId, $rows);
+            $q = '&imp_c=' . (int)$res['created'] . '&imp_u=' . (int)$res['updated'] . '&imp_s=' . (int)$res['skipped'];
+            if (!empty($res['errors'])) {
+                $first = $res['errors'][0];
+                $more  = count($res['errors']) - 1;
+                $q .= '&imp_e=' . urlencode('Row ' . ($first['row'] ?? '?') . ': ' . ($first['reason'] ?? 'error') . ($more > 0 ? ' (+' . $more . ' more)' : ''));
+            }
+            header('Location: ' . $back . $q); exit;
         }
         // module_save
         $title = trim((string)($_POST['title'] ?? ''));
@@ -1024,7 +1072,7 @@ button.tiny:hover{border-color:var(--gold)}
       'classes'      => 'Classes',
       'enrollments'  => 'Enrollments',
       'courseenroll' => 'Course Registrations',
-      'modules'      => 'Course Modules',
+      'modules'      => 'Standard Curriculum',
       'storeitems'   => 'Store / Library',
       'storeorders'  => 'Store Orders',
       'messages'     => 'Messages',
@@ -1037,7 +1085,7 @@ button.tiny:hover{border-color:var(--gold)}
     ];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'storeitems' => 'store_catalog', 'webhooks' => 'settings', 'audit' => 'users', 'datarights' => 'users'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'datarights' => 'users'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -2102,13 +2150,23 @@ button.tiny:hover{border-color:var(--gold)}
   </div>
 
 <?php elseif ($view === 'modules'): ?>
-  <header class="top"><h1>Course Modules</h1></header>
+  <header class="top">
+    <h1>Standard Curriculum</h1>
+    <span class="muted" style="font-size:.82rem">Author the week-by-week syllabus per course &amp; level · scaffold · import / export</span>
+  </header>
   <?php
     $cat        = mam_lms_catalog();
     $selCourse  = (string)($_GET['course'] ?? '');
     $selLevel   = (string)($_GET['level'] ?? '');
     $selProgram = (string)($_GET['program'] ?? '');
     if (isset($_GET['made'])) echo '<div class="banner ok">Scaffolded ' . (int)$_GET['made'] . ' week(s).</div>';
+    if (isset($_GET['imp_c'])) {
+        $ic = (int)$_GET['imp_c']; $iu = (int)($_GET['imp_u'] ?? 0); $is = (int)($_GET['imp_s'] ?? 0);
+        echo '<div class="banner ok">Imported curriculum — <strong>' . $ic . '</strong> created, <strong>' . $iu . '</strong> updated'
+           . ($is ? ', <strong>' . $is . '</strong> skipped' : '') . '.'
+           . (!empty($_GET['imp_e']) ? ' <span style="opacity:.85">First issue — ' . htmlspecialchars((string)$_GET['imp_e']) . '</span>' : '')
+           . '</div>';
+    }
   ?>
   <div class="card">
     <h3>Choose a course to author</h3>
@@ -2140,6 +2198,42 @@ button.tiny:hover{border-color:var(--gold)}
       </label>
     </form>
   </div>
+
+  <?php if ($selCourse !== ''): ?>
+  <div class="card">
+    <h3>Import &amp; export this syllabus</h3>
+    <div style="padding:0 20px 18px;display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div class="muted" style="font-size:.82rem;margin-bottom:9px">Download the authored weeks to edit in a spreadsheet or back up, then re-import to apply. A re-import <strong>upserts by week</strong> — it refines existing weeks instead of duplicating them. JSON exports are portable between installs.</div>
+        <a class="btn ghost" href="?v=export&amp;type=curriculum.csv&amp;course=<?= urlencode($selCourse) ?>&amp;level=<?= urlencode($selLevel) ?>">⬇ Export CSV</a>
+        <a class="btn ghost" href="?v=export&amp;type=curriculum&amp;course=<?= urlencode($selCourse) ?>&amp;level=<?= urlencode($selLevel) ?>">⬇ Export JSON</a>
+      </div>
+      <form method="post" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:11px;border-top:1px solid var(--border);padding-top:16px">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="module_import">
+        <input type="hidden" name="course_code" value="<?= htmlspecialchars($selCourse) ?>">
+        <input type="hidden" name="level_code" value="<?= htmlspecialchars($selLevel) ?>">
+        <input type="hidden" name="program_code" value="<?= htmlspecialchars($selProgram) ?>">
+        <label style="font-size:.82rem;font-weight:600">Paste JSON or CSV
+          <textarea name="import_text" rows="5" placeholder="week,kind,title,content&#10;1,module,Intro to Rhythm,Clap &amp; count&#10;2,module,Sight Reading,&#10;11,revision,Revision,&#10;12,exam,Final Examination," style="width:100%;font-family:var(--mono,ui-monospace,monospace);font-size:.8rem;resize:vertical"></textarea>
+        </label>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+          <label style="font-size:.82rem">…or choose a file <input type="file" name="import_file" accept=".csv,.json,text/csv,application/json"></label>
+          <label style="font-size:.82rem">Format
+            <select name="import_format" class="tiny">
+              <option value="">Auto-detect</option>
+              <option value="csv">CSV</option>
+              <option value="json">JSON</option>
+            </select>
+          </label>
+          <button class="btn" type="submit">⬆ Import into <?= htmlspecialchars($selCourse) ?><?= $selLevel !== '' ? ' · ' . htmlspecialchars($selLevel) : '' ?></button>
+        </div>
+        <div class="muted" style="font-size:.74rem;line-height:1.6">Columns: <code>week</code> &amp; <code>title</code> (required); optional <code>kind</code> (module · revision · exam) and <code>content</code>. A row may also set <code>course_code</code> / <code>level_code</code> to target a different course in the same file. Without those, rows import into the selected course/level above.</div>
+      </form>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <?php
   if ($selCourse !== ''):
     $outline = mam_lms_course_outline($selCourse, $selLevel ?: null, $selProgram ?: null);

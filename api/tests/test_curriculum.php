@@ -81,6 +81,16 @@ t_ok(mam_lms_find_module_week($cid, $lid, 9) === null, 'conducting did NOT recei
 $parsed = mam_lms_parse_csv(mam_lms_modules_to_csv($exp));
 t_eq(count($parsed), count($exp), 'modules_to_csv round-trips through parse_csv');
 
+t_group('curriculum import text detection');
+t_eq(count(mam_lms_rows_from_text('[{"week":1,"title":"A"}]')), 1, 'bare JSON array detected');
+$wrapped = mam_lms_rows_from_text('{"course":"piano","modules":[{"week":1,"title":"A"},{"week":2,"title":"B"}]}');
+t_eq(count($wrapped), 2, 'wrapped {modules:[…]} unwrapped to rows');
+$auto = mam_lms_rows_from_text("week,title\n1,Hello\n");
+t_eq($auto[0]['title'], 'Hello', 'non-bracketed text auto-detected as CSV');
+t_eq(mam_lms_rows_from_text('1,Hello', 'csv'), [], 'format=csv with no header row → []');
+t_ok(mam_lms_rows_from_text('   ') === [], 'blank text → []');
+t_ok(mam_lms_rows_from_text('not json', 'json') === [], 'forced json on garbage → []');
+
 // Affinity: a level-agnostic (NULL) week is distinct from the same week at a level.
 $res5 = mam_lms_import_modules($cid, null, [['week' => 1, 'title' => 'Agnostic Wk1']]);
 t_eq($res5['created'], 1, 'NULL-level week 1 is a distinct row from the diploma week 1');

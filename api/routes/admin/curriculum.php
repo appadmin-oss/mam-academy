@@ -127,22 +127,14 @@ if ($action === 'import') {
         $rows = $in['modules'];
     } elseif (isset($in['data']) && is_string($in['data']) && trim($in['data']) !== '') {
         $data = trim($in['data']);
-        $fmt  = (string)($in['format'] ?? '');
-        $looksJson = str_starts_with($data, '[') || str_starts_with($data, '{');
-        if ($fmt === 'csv' || (!$looksJson && $fmt !== 'json')) {
-            $rows = mam_lms_parse_csv($data);
-        } else {
-            $decoded = json_decode($data, true);
-            if (is_array($decoded)) {
-                if (isset($decoded['modules']) && is_array($decoded['modules'])) {
-                    $rows = $decoded['modules'];
-                    // A wrapped export carries its own course/level — honour them
-                    // when the form didn't pick one.
-                    if ($defaultCid === null && isset($decoded['course'])) $defaultCid = $resolveCourse((string)$decoded['course']);
-                    if ($defaultLid === null && isset($decoded['level']))  $defaultLid = $resolveLevel($decoded['level']);
-                } else {
-                    $rows = $decoded;
-                }
+        $rows = mam_lms_rows_from_text($data, (string)($in['format'] ?? ''));
+        // A wrapped {course,level,modules} export carries its own scope — honour
+        // it only when the request didn't already pick a course/level.
+        if (($defaultCid === null || $defaultLid === null) && str_starts_with($data, '{')) {
+            $w = json_decode($data, true);
+            if (is_array($w)) {
+                if ($defaultCid === null && isset($w['course'])) $defaultCid = $resolveCourse((string)$w['course']);
+                if ($defaultLid === null && isset($w['level']))  $defaultLid = $resolveLevel($w['level']);
             }
         }
     }
