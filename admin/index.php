@@ -952,6 +952,7 @@ button.tiny:hover{border-color:var(--gold)}
       'overview'     => 'Overview',
       'applications' => 'Applications',
       'funnel'       => 'Apply Funnel',
+      'analytics'    => 'Learning Analytics',
       'payments'     => 'Payments',
       'users'        => 'Users',
       'classes'      => 'Classes',
@@ -1466,6 +1467,82 @@ button.tiny:hover{border-color:var(--gold)}
   <?php endif; ?>
 
   <?php endif; ?>
+
+<?php elseif ($view === 'analytics'): ?>
+  <?php
+    $an   = mam_analytics_overview();
+    $risk = mam_analytics_at_risk();
+    $ret  = $an['retention'];
+  ?>
+  <header class="top"><h1>Learning Analytics</h1></header>
+
+  <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:6px 0 4px">
+    <div class="kpi"><div class="kpi-label">Enrolments</div><div class="kpi-value"><?= number_format($an['enrolments']['total']) ?></div>
+      <div class="muted" style="font-size:.72rem"><?= number_format($ret['active']) ?> active</div></div>
+    <div class="kpi"><div class="kpi-label">Pass rate</div><div class="kpi-value"><?= $ret['pass_rate'] === null ? '—' : $ret['pass_rate'] . '%' ?></div>
+      <div class="muted" style="font-size:.72rem"><?= number_format($ret['completed']) ?> passed · <?= number_format($ret['failed']) ?> failed</div></div>
+    <div class="kpi"><div class="kpi-label">Attendance</div><div class="kpi-value"><?= $an['attendance']['rate'] === null ? '—' : $an['attendance']['rate'] . '%' ?></div>
+      <div class="muted" style="font-size:.72rem"><?= number_format($an['attendance']['attended']) ?>/<?= number_format($an['attendance']['total']) ?> present</div></div>
+    <div class="kpi"><div class="kpi-label">At-risk students</div><div class="kpi-value"><?= number_format(count($risk)) ?></div>
+      <div class="muted" style="font-size:.72rem">flagged from active enrolments</div></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">Enrolment outcomes</h3>
+    <?php $bs = $an['enrolments']['by_status']; if (!$bs): ?>
+      <p class="muted">No enrolments yet.</p>
+    <?php else: ?>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <?php foreach (['pending', 'active', 'completed', 'failed', 'withdrawn', 'rejected'] as $st): if (!empty($bs[$st])): ?>
+          <span class="pill <?= htmlspecialchars($st) ?>"><?= htmlspecialchars($st) ?>: <strong><?= number_format($bs[$st]) ?></strong></span>
+        <?php endif; endforeach; ?>
+      </div>
+    <?php endif; ?>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">By course</h3>
+    <?php if (!$an['by_course']): ?>
+      <p class="muted">No course enrolments yet.</p>
+    <?php else: ?>
+      <table>
+        <thead><tr><th>Course</th><th>Enrolled</th><th>Completed</th><th>Pass rate</th><th>Avg score</th></tr></thead>
+        <tbody>
+        <?php foreach ($an['by_course'] as $c): ?>
+          <tr>
+            <td><strong><?= htmlspecialchars($c['course']) ?></strong> <span class="muted mono">· <?= htmlspecialchars($c['code']) ?></span></td>
+            <td><?= number_format($c['enrolled']) ?></td>
+            <td><?= number_format($c['completed']) ?></td>
+            <td><?= $c['pass_rate'] === null ? '<span class="muted">—</span>' : (int)$c['pass_rate'] . '%' ?></td>
+            <td><?= $c['avg_score'] === null ? '<span class="muted">—</span>' : (int)$c['avg_score'] . '%' ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 6px">At-risk students <span class="muted" style="font-size:.72rem">(transparent heuristic over attendance, resubmissions, assessment averages &amp; practice recency)</span></h3>
+    <?php if (!$risk): ?>
+      <p class="muted">No active students are flagged — nicely on track. 🎉</p>
+    <?php else: ?>
+      <table>
+        <thead><tr><th>Student</th><th>Why flagged</th><th>Attendance</th><th>Avg score</th></tr></thead>
+        <tbody>
+        <?php foreach ($risk as $s): ?>
+          <tr>
+            <td><strong><?= htmlspecialchars($s['name']) ?></strong>
+              <a class="muted" style="font-size:.7rem" href="?v=search&q=<?= rawurlencode($s['name']) ?>">view</a></td>
+            <td><?php foreach ($s['reasons'] as $why): ?><span class="pill submitted" style="margin:1px 2px;display:inline-block"><?= htmlspecialchars($why) ?></span><?php endforeach; ?></td>
+            <td><?= $s['attendance_rate'] === null ? '<span class="muted">n/a</span>' : (int)$s['attendance_rate'] . '%' ?></td>
+            <td><?= $s['avg_score'] === null ? '<span class="muted">n/a</span>' : (int)$s['avg_score'] . '%' ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </div>
 
 <?php elseif ($view === 'payments'): ?>
   <header class="top">
