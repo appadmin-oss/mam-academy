@@ -44,6 +44,7 @@
       toolTabs.forEach(function (x) { x.classList.toggle('active', x === b); x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
       $$('.tool-panel').forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-tool') === key); });
       setRoving(b); // keep the roving tabindex on the selected tab
+      if (window.MAM_TRACK) window.MAM_TRACK('tool_open', key); // S1 engagement telemetry
       // Stop sound-producing tools when switching away so they don't haunt the page.
       if (key !== 'metronome') stopMetronome();
       if (key !== 'tuner') stopTuner();

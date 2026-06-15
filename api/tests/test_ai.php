@@ -90,5 +90,15 @@ t_ok(mam_ai_placement_recommendation(999999) === null, 'placement for a missing 
 $prow = mam_db_row("SELECT reviewed_by FROM ai_runs WHERE use_case = 'placement' ORDER BY id DESC LIMIT 1");
 t_ok($prow !== null && (int)$prow['reviewed_by'] === 1, 'the placement run is audited with the reviewer id');
 
+// ── Studio S3 use case: practice feedback (non-PII: scores/metrics only) ──
+mam_test_env(['AI_PROVIDER' => 'none']);
+t_ok(mam_ai_studio_feedback(['tool' => 'rhythm', 'score' => 80]) === null, 'studio feedback is null when AI is off');
+mam_test_env(['AI_PROVIDER' => 'mock']);
+$sf = mam_ai_studio_feedback(['tool' => 'pitchgame', 'score' => 72, 'metrics' => ['intonation' => 70, 'timing' => 80], 'weak' => ['bar 3', 'high notes']]);
+t_ok(is_array($sf) && !empty($sf['text']), 'studio feedback returns text when AI is enabled');
+t_eq($sf['provider'], 'mock', 'studio feedback carries the provider');
+$sfrow = mam_db_row("SELECT use_case FROM ai_runs WHERE use_case = 'studio_feedback' ORDER BY id DESC LIMIT 1");
+t_ok($sfrow !== null, 'the studio-feedback run is audited in ai_runs');
+
 // Reset so later test files start clean.
 mam_test_env(['AI_PROVIDER' => 'none']);

@@ -452,3 +452,44 @@ function mam_ai_placement_recommendation(int $applicationId, ?int $by = null): ?
         return ['json' => $res['json'], 'text' => trim((string)($res['text'] ?? '')), 'provider' => $res['provider'], 'model' => $res['model']];
     } catch (\Throwable $e) { return null; }
 }
+
+/**
+ * Studio practice feedback (S3) — explain-the-score + next-drill for a Rhythm
+ * Tap / Pitch Game run. Input is NON-PII (a tool key, a 0-100 score, numeric
+ * metrics, weak-spot labels) so it's safe on any provider. Read-only, advisory.
+ * Returns ['text','provider'] or null when AI is off / unavailable.
+ */
+function mam_ai_studio_feedback(array $in): ?array {
+    if (!mam_ai_enabled('studio_feedback')) return null;
+    try {
+        $tool = (string)($in['tool'] ?? '');
+        $toolName = [
+            'rhythm'    => 'Rhythm Tap (rhythm sight-reading)',
+            'pitchgame' => 'Pitch Game (intonation & timing)',
+            'pitch'     => 'Pitch Game (intonation & timing)',
+        ][$tool] ?? 'a practice tool';
+        $score = max(0, min(100, (int)($in['score'] ?? 0)));
+
+        $mLines = [];
+        foreach ((is_array($in['metrics'] ?? null) ? $in['metrics'] : []) as $k => $v) {
+            if (!is_scalar($v)) continue;
+            $mLines[] = '- ' . preg_replace('/[^a-z0-9 _-]/i', '', (string)$k) . ': ' . (is_numeric($v) ? round((float)$v) : mb_substr((string)$v, 0, 40));
+            if (count($mLines) >= 8) break;
+        }
+        $weakLine = '';
+        if (is_array($in['weak'] ?? null) && $in['weak']) {
+            $w = array_slice(array_map(function ($x) { return mb_substr(preg_replace('/[^a-z0-9 #._\/-]/i', '', (string)$x), 0, 40); }, $in['weak']), 0, 8);
+            $weakLine = 'Weak spots: ' . implode(', ', $w) . ".\n";
+        }
+        $prompt = "A music student just finished a run on {$toolName} and scored {$score}/100.\n"
+                . (count($mLines) ? "Metrics:\n" . implode("\n", $mLines) . "\n" : '')
+                . $weakLine
+                . "In 2 sentences: briefly say what that score reflects, then prescribe ONE concrete next drill to improve. "
+                . "Be specific and encouraging; never invent metrics you weren't given.";
+        $res = mam_ai_complete('studio_feedback', $prompt, [
+            'system'     => 'You are a concise, motivating music practice coach. Two sentences maximum, with a concrete next step.',
+            'max_tokens' => 160,
+        ]);
+        return !empty($res['ok']) ? ['text' => trim((string)$res['text']), 'provider' => $res['provider']] : null;
+    } catch (\Throwable $e) { return null; }
+}

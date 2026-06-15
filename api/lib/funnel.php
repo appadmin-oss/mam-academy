@@ -12,9 +12,14 @@
  */
 declare(strict_types=1);
 
-/** The only events we accept — anything else is ignored at the edge. */
+/** The only events we accept — anything else is ignored at the edge.
+ *  apply_* drive the application funnel; the rest are Studio engagement (S1),
+ *  which reuse the same table with the tool key carried in `pathway`. */
 function mam_funnel_event_names(): array {
-    return ['apply_start', 'apply_step_view', 'apply_step_complete', 'apply_submit', 'apply_pay'];
+    return [
+        'apply_start', 'apply_step_view', 'apply_step_complete', 'apply_submit', 'apply_pay',
+        'tool_open', 'demo_start', 'demo_complete', 'score_logged', 'gate_apply_click',
+    ];
 }
 
 /**
@@ -117,5 +122,47 @@ function mam_funnel_report(int $days = 30): array {
         foreach ($totRows as $tr) $out['totals'][(string)$tr['event']] = (int)$tr['n'];
     } catch (\Throwable $e) { /* report is best-effort; partial is fine */ }
 
+    return $out;
+}
+
+/**
+ * Studio engagement report (S1) over the last $days. Per-event totals plus a
+ * per-tool breakdown (the tool key rides in `pathway`): opens, demo starts,
+ * scores logged, and apply-clicks from the gate — answering "which tool drives
+ * applications". Distinct-session reach per tool too.
+ */
+function mam_funnel_studio_report(int $days = 30): array {
+    $days = max(1, min(365, $days));
+    $since = date('Y-m-d H:i:s', time() - $days * 86400);
+    $events = ['tool_open', 'demo_start', 'demo_complete', 'score_logged', 'gate_apply_click'];
+    $out = ['days' => $days, 'totals' => [], 'by_tool' => []];
+    if (!function_exists('mam_db')) return $out;
+    try {
+        foreach ($events as $e) $out['totals'][$e] = 0;
+        $totRows = mam_db_all(
+            "SELECT event, COUNT(*) AS n FROM funnel_events WHERE event IN ('tool_open','demo_start','demo_complete','score_logged','gate_apply_click') AND created_at >= ? GROUP BY event",
+            [$since]
+        );
+        foreach ($totRows as $tr) $out['totals'][(string)$tr['event']] = (int)$tr['n'];
+
+        // Per-tool matrix: one row per tool with each event's count + reach.
+        $rows = mam_db_all(
+            "SELECT pathway AS tool, event, COUNT(*) AS n, COUNT(DISTINCT sid) AS reach
+               FROM funnel_events
+              WHERE event IN ('tool_open','demo_start','demo_complete','score_logged','gate_apply_click')
+                AND pathway IS NOT NULL AND created_at >= ?
+              GROUP BY pathway, event",
+            [$since]
+        );
+        $tools = [];
+        foreach ($rows as $r) {
+            $t = (string)$r['tool'];
+            if (!isset($tools[$t])) { $tools[$t] = ['tool' => $t, 'opens' => 0, 'reach' => 0, 'demo_start' => 0, 'score_logged' => 0, 'gate_apply_click' => 0]; }
+            if ((string)$r['event'] === 'tool_open') { $tools[$t]['opens'] = (int)$r['n']; $tools[$t]['reach'] = (int)$r['reach']; }
+            elseif (isset($tools[$t][(string)$r['event']])) { $tools[$t][(string)$r['event']] = (int)$r['n']; }
+        }
+        usort($tools, function ($a, $b) { return $b['opens'] <=> $a['opens']; });
+        $out['by_tool'] = array_values($tools);
+    } catch (\Throwable $e) { /* best-effort */ }
     return $out;
 }

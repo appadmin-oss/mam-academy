@@ -60,6 +60,31 @@
   }
   function gameStats(game) { var all = lread('gameScores', {}); return (all && all[game]) || null; }
 
+  // S1 telemetry + S3 AI practice feedback — fires on every completed run, on
+  // any studio page (registered unconditionally). Telemetry always; AI feedback
+  // only for the scored tools, signed-in, throttled, and entirely best-effort.
+  var _aiFbLast = {};
+  document.addEventListener('mam:game-complete', function (e) {
+    var d = (e && e.detail) || {};
+    var game = String(d.game || '');
+    var score = Math.round(d.score || 0);
+    if (window.MAM_TRACK) window.MAM_TRACK('score_logged', game, { score: score });
+    if (game !== 'rhythm' && game !== 'pitchgame' && game !== 'pitch') return;
+    var a = cachedAuth();
+    if (!a || !a.authenticated || !window.MAM_API) return;
+    var now = Date.now();
+    if (now - (_aiFbLast[game] || 0) < 30000) return;   // throttle rapid replays
+    _aiFbLast[game] = now;
+    window.MAM_API.request('studio/feedback', { method: 'POST', body: { tool: game, score: score, metrics: (d.meta && d.meta.metrics) || {}, weak: (d.meta && d.meta.weak) || [] } })
+      .then(function (r) {
+        if (!r || !r.enabled || !r.feedback || !r.feedback.text) return;
+        try { document.dispatchEvent(new CustomEvent('mam:studio-feedback', { detail: { game: game, text: r.feedback.text, provider: r.feedback.provider } })); } catch (e2) {}
+        var box = document.querySelector('[data-studio-feedback="' + game + '"]') || document.querySelector('[data-studio-feedback]');
+        if (box) { box.textContent = r.feedback.text; box.hidden = false; }
+      })
+      .catch(function () { /* AI is best-effort; never disrupt play */ });
+  });
+
   // Record a practice session to the portal tracker when a signed-in student
   // finishes a tool. Throttled to once per game per 10 min so retries don't
   // flood the log; fires only for the 'student' role (others would 403).
@@ -150,6 +175,8 @@
 
     gate.querySelector('[data-demo]').addEventListener('click', function () { startDemo(tool, gate, hint); });
     hint.querySelector('[data-demo-join]').addEventListener('click', function () { endDemo(tool, gate, hint); });
+    var applyLink = gate.querySelector('.sg-primary');
+    if (applyLink) applyLink.addEventListener('click', function () { if (window.MAM_TRACK) window.MAM_TRACK('gate_apply_click', tool); });
     return { gate: gate, hint: hint };
   }
 
@@ -158,10 +185,12 @@
     gate.hidden = true;
     hint.hidden = false;
     clearTimeout(demoTimers[tool]);
+    if (window.MAM_TRACK) window.MAM_TRACK('demo_start', tool); // S1 telemetry
     // Auto-close the demo after one completed run or the time cap.
     demoTimers[tool] = setTimeout(function () { endDemo(tool, gate, hint); }, DEMO_CAP_MS);
   }
   function endDemo(tool, gate, hint) {
+    if (demoActive[tool] && window.MAM_TRACK) window.MAM_TRACK('demo_complete', tool); // S1 telemetry
     demoActive[tool] = false;
     clearTimeout(demoTimers[tool]);
     hint.hidden = true;

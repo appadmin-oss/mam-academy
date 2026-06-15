@@ -80,3 +80,30 @@ $rec('apply_start', 's-old');
 mam_db_update('funnel_events', ['created_at' => date('Y-m-d H:i:s', time() - 40 * 86400)], ['sid' => 's-old']);
 t_eq(mam_funnel_report(7)['started'], 3, 'a 40-day-old event is outside the 7-day window');
 t_eq(mam_funnel_report(365)['started'], 4, 'the same event is inside the 1-year window');
+
+// ── Studio engagement events (S1) ──
+foreach (['tool_open', 'demo_start', 'demo_complete', 'score_logged', 'gate_apply_click'] as $e) {
+    t_ok(in_array($e, mam_funnel_event_names(), true), "studio event $e is allowlisted");
+}
+// 3 metronome opens from 2 sessions (one repeat) → opens=3, reach=2.
+mam_funnel_record(['event' => 'tool_open', 'sid' => 'st1', 'pathway' => 'metronome']);
+mam_funnel_record(['event' => 'tool_open', 'sid' => 'st2', 'pathway' => 'metronome']);
+mam_funnel_record(['event' => 'tool_open', 'sid' => 'st1', 'pathway' => 'metronome']);
+// A full rhythm engagement → open, demo, score, apply-click.
+mam_funnel_record(['event' => 'tool_open', 'sid' => 'st3', 'pathway' => 'rhythm']);
+mam_funnel_record(['event' => 'demo_start', 'sid' => 'st3', 'pathway' => 'rhythm']);
+mam_funnel_record(['event' => 'score_logged', 'sid' => 'st3', 'pathway' => 'rhythm', 'meta' => ['score' => 88]]);
+mam_funnel_record(['event' => 'gate_apply_click', 'sid' => 'st3', 'pathway' => 'rhythm']);
+
+$sr = mam_funnel_studio_report(30);
+t_eq($sr['totals']['tool_open'], 4, 'studio report counts all tool_open events');
+t_eq($sr['totals']['gate_apply_click'], 1, 'studio report counts gate apply-clicks');
+$byTool = []; foreach ($sr['by_tool'] as $t) $byTool[$t['tool']] = $t;
+t_eq($byTool['metronome']['opens'], 3, 'metronome opens counted (incl. repeat)');
+t_eq($byTool['metronome']['reach'], 2, 'metronome distinct-session reach = 2 (repeat collapsed)');
+t_eq($byTool['rhythm']['demo_start'], 1, 'rhythm demo starts counted');
+t_eq($byTool['rhythm']['score_logged'], 1, 'rhythm scores counted');
+t_eq($byTool['rhythm']['gate_apply_click'], 1, 'rhythm gate apply-clicks counted');
+$opens = array_map(function ($t) { return $t['opens']; }, $sr['by_tool']);
+$o2 = $opens; rsort($o2);
+t_eq($opens, $o2, 'by_tool is sorted by opens (most-engaged first)');

@@ -1459,6 +1459,35 @@ button.tiny:hover{border-color:var(--gold)}
       <div class="muted" style="font-size:.72rem"><?= $pct($rep['paid'], $rep['submitted']) ?>% of submitted · <?= $pct($rep['paid'], $rep['started']) ?>% overall</div></div>
   </div>
 
+  <?php $studio = mam_funnel_studio_report($fDays); ?>
+  <div class="card">
+    <h3 style="margin:0 0 10px">Studio engagement <span class="muted" style="font-size:.72rem">(which practice tool drives applications)</span></h3>
+    <?php if (empty($studio['by_tool']) && array_sum($studio['totals']) === 0): ?>
+      <p class="muted">No Studio engagement events yet.</p>
+    <?php else: ?>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <?php foreach ($studio['totals'] as $ev => $n): ?><span class="pill"><?= htmlspecialchars($ev) ?>: <strong><?= number_format($n) ?></strong></span><?php endforeach; ?>
+      </div>
+      <?php if ($studio['by_tool']): ?>
+      <table>
+        <thead><tr><th>Tool</th><th>Opens</th><th>Reach</th><th>Demos</th><th>Scores</th><th>Apply clicks</th></tr></thead>
+        <tbody>
+        <?php foreach ($studio['by_tool'] as $t): ?>
+          <tr>
+            <td><strong><?= htmlspecialchars($t['tool']) ?></strong></td>
+            <td><?= number_format($t['opens']) ?></td>
+            <td><?= number_format($t['reach']) ?></td>
+            <td><?= number_format($t['demo_start']) ?></td>
+            <td><?= number_format($t['score_logged']) ?></td>
+            <td><?= number_format($t['gate_apply_click']) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <?php endif; ?>
+    <?php endif; ?>
+  </div>
+
   <div class="card">
     <h3 style="margin:0 0 10px">Step drop-off</h3>
     <?php if (!$rep['steps']): ?>

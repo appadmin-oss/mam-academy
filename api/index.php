@@ -101,6 +101,9 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
     $r->post('/perform-reset',     $f('auth/perform-reset.php'),    [mw_csrf(), mw_rate_limit('reset_perform', 10, 600)]);
 });
 
+/* ─── Studio AI practice feedback (any signed-in user; S3) ─── */
+$r->post('/studio/feedback', $f('studio/feedback.php'), [mw_csrf(), mw_user(), mw_rate_limit('studio_feedback', 60, 600)]);
+
 /* ─── Notification centre (any signed-in user; LMS L3) ─── */
 $r->get ('/notifications',      $f('notifications/list.php'), [mw_user(), mw_rate_limit('notif_list', 240, 600)]);
 $r->post('/notifications/read', $f('notifications/read.php'), [mw_csrf(), mw_user(), mw_rate_limit('notif_read', 240, 600)]);

@@ -113,10 +113,37 @@
     return view;
   }
 
+  // ── Studio engagement telemetry (S1) ──
+  // First-party, privacy-respecting beacon to /api/track (same endpoint + sid as
+  // the apply funnel). Honours Do-Not-Track; the tool key rides in `pathway`.
+  // Best-effort and silent — analytics must never affect a tool.
+  function dntOn() {
+    try { var d = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack; return d === '1' || d === 'yes'; } catch (e) { return false; }
+  }
+  function funnelSid() {
+    try {
+      var k = 'mam.funnel.sid', v = sessionStorage.getItem(k);
+      if (!v) { v = 'fs-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10); sessionStorage.setItem(k, v); }
+      return v;
+    } catch (e) { return null; }
+  }
+  function track(event, tool, meta) {
+    try {
+      if (dntOn()) return;
+      var payload = { event: String(event || ''), sid: funnelSid() };
+      if (tool) payload.pathway = String(tool);
+      if (meta) payload.meta = meta;
+      var body = JSON.stringify(payload);
+      if (navigator.sendBeacon) { if (navigator.sendBeacon('/api/track', new Blob([body], { type: 'application/json' }))) return; }
+      fetch('/api/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true, credentials: 'same-origin' }).catch(function () {});
+    } catch (e) {}
+  }
+  window.MAM_TRACK = track;
+
   window.MAM = Object.assign(window.MAM || {}, {
     audio: audio, hasTone: hasTone, hasPitchy: hasPitchy,
     createStore: createStore, tempo: tempo,
     bake: bake, buffer: buffer, trigger: trigger,
-    encodeWav: encodeWav,
+    encodeWav: encodeWav, track: track,
   });
 })();
