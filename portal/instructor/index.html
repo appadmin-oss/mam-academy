@@ -57,7 +57,7 @@
 </div>
 
 <script src="/assets/js/config.js?v=20260613b"></script>
-<script src="/assets/js/portal.js?v=20260615a"></script>
+<script src="/assets/js/portal.js?v=20260615b"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <script>
 (function () {
@@ -480,7 +480,8 @@
       +   '<div class="field"><label for="pw-current">Current password</label><input id="pw-current" type="password" autocomplete="current-password" required></div>'
       +   '<div class="field"><label for="pw-next">New password</label><input id="pw-next" type="password" autocomplete="new-password" minlength="8" required></div>'
       +   '<div class="actions"><button type="submit" class="btn btn-primary">Change password</button></div>'
-      + '</form></section>';
+      + '</form></section>'
+      + '<section class="panel" style="margin-top:22px"><div class="panel-head"><h2>Active sessions</h2></div><div class="panel-body" data-sessions style="padding:18px 22px"><p class="empty-state">Loading…</p></div></section>';
     var toast = function (m, t) { return window.MAM_DIALOG ? window.MAM_DIALOG.toast(m, t) : alert(m); };
     document.getElementById('profileForm').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -503,6 +504,7 @@
           toast(c === 'invalid_current_password' ? 'Current password is incorrect.' : (c === 'weak_password' ? 'Use at least 8 characters.' : 'Could not change password.'), 'error');
         });
     });
+    P.mountSessions();
   }
 
   function greeting() { var h = new Date().getHours(); return h < 12 ? 'Good morning' : (h < 18 ? 'Good afternoon' : 'Good evening'); }

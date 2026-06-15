@@ -44,6 +44,7 @@ require $ROOT . '/lib/csrf.php';
 require $ROOT . '/lib/paystack.php';
 require $ROOT . '/lib/flutterwave.php';
 require $ROOT . '/lib/lms.php';
+require $ROOT . '/lib/session.php';         // cookie/DB sessions + session management
 require $ROOT . '/lib/auth.php';            // account provisioning + role checks
 require $ROOT . '/lib/store.php';           // store totals (server-authoritative)
 require $ROOT . '/lib/mailer.php';          // mail helpers + outbox (record/retry)

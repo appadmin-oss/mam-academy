@@ -99,6 +99,10 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
     $r->post('/change-password',   $f('auth/change-password.php'),  [mw_csrf(), mw_user()]);
     $r->post('/request-reset',     $f('auth/request-reset.php'),    [mw_csrf(), mw_rate_limit('reset_request',  5,  600)]);
     $r->post('/perform-reset',     $f('auth/perform-reset.php'),    [mw_csrf(), mw_rate_limit('reset_perform', 10, 600)]);
+    // Session management (P5): see + revoke your active sessions.
+    $r->get ('/sessions',          $f('auth/sessions.php'),         [mw_user()]);
+    $r->post('/revoke-session',    $f('auth/revoke-session.php'),   [mw_csrf(), mw_user()]);
+    $r->post('/revoke-others',     $f('auth/revoke-others.php'),    [mw_csrf(), mw_user()]);
 });
 
 /* ─── Studio AI practice feedback (any signed-in user; S3) ─── */

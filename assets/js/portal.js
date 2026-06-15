@@ -190,6 +190,33 @@
       setInterval(load, 60000);
     },
 
+    /** Active-session management (P5): renders into [data-sessions] with revoke
+        controls. Call after the host element is in the DOM (e.g. profile render).
+        Self-contained + best-effort. */
+    mountSessions: function () {
+      var host = document.querySelector('[data-sessions]');
+      if (!host || !window.MAM_API) return;
+      function render(sessions) {
+        sessions = sessions || [];
+        if (!sessions.length) { host.innerHTML = '<p class="empty-state">No active sessions.</p>'; return; }
+        var rows = sessions.map(function (s) {
+          return '<tr><td>' + escapeHtml(s.ua || 'Unknown device') + (s.current ? ' <span class="pill">this device</span>' : '') + '</td>'
+            + '<td>' + escapeHtml(s.ip || '') + '</td><td>' + escapeHtml((s.created_at || '').slice(0, 16)) + '</td>'
+            + '<td>' + (s.current ? '<span class="muted">—</span>' : '<button class="btn btn-ghost" type="button" data-revoke="' + escapeHtml(s.id) + '">Revoke</button>') + '</td></tr>';
+        }).join('');
+        host.innerHTML = '<table class="ptable"><thead><tr><th>Device</th><th>IP</th><th>Signed in</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
+          + (sessions.length > 1 ? '<div style="margin-top:12px"><button class="btn btn-ghost" type="button" data-revoke-others>Sign out everywhere else</button></div>' : '');
+      }
+      function load() { window.MAM_API.request('auth/sessions', { method: 'GET' }).then(function (r) { render(r.sessions); }).catch(function () {}); }
+      on(host, 'click', function (e) {
+        var rv = e.target.closest ? e.target.closest('[data-revoke]') : null;
+        var ro = e.target.closest ? e.target.closest('[data-revoke-others]') : null;
+        if (rv) { window.MAM_API.request('auth/revoke-session', { method: 'POST', body: { id: rv.getAttribute('data-revoke') } }).then(function (r) { render(r.sessions); }).catch(function () {}); }
+        else if (ro) { window.MAM_API.request('auth/revoke-others', { method: 'POST', body: {} }).then(function (r) { render(r.sessions); }).catch(function () {}); }
+      });
+      load();
+    },
+
     /** Patch the existing main.js API helper to add credentials and base path */
     init: function () {
       // window.MAM_API already adds same-origin credentials + auto CSRF.

@@ -68,7 +68,7 @@
 </div>
 
 <script src="/assets/js/config.js?v=20260613b"></script>
-<script src="/assets/js/portal.js?v=20260615a"></script>
+<script src="/assets/js/portal.js?v=20260615b"></script>
 <script src="/assets/js/studio-tools.js?v=20260612a"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <script>
@@ -730,7 +730,8 @@
       + '<div class="field"><label for="pw-current">Current password</label><input id="pw-current" type="password" required></div>'
       + '<div class="field"><label for="pw-next">New password</label><input id="pw-next" type="password" minlength="8" required></div>'
       + '<div class="actions"><button type="submit" class="btn btn-primary">Change password</button></div>'
-      + '</form></section>';
+      + '</form></section>'
+      + '<section class="panel"><div class="panel-head"><h2>Active sessions</h2></div><div class="panel-body" data-sessions><p class="empty-state">Loading…</p></div></section>';
     document.getElementById('profileForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var name = document.getElementById('pf-name').value.trim();
@@ -747,6 +748,7 @@
         .then(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Password changed', 'success') : alert('Password changed.')); load(); })
         .catch(function (err) { var msg = 'Could not change password: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Password change failed', msg, 'error') : alert(msg)); });
     });
+    P.mountSessions();
   }
 
   function kpi(label, value, sub, cls) {

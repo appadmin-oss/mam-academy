@@ -89,6 +89,66 @@ function mam_session_destroy(): void {
     mam_session_clear_cookie();
 }
 
+/** The SHA-256 hash of the current request's session token, or '' if none. */
+function mam_session_current_hash(): string {
+    $token = $_COOKIE[MAM_COOKIE] ?? '';
+    return ($token && preg_match('/^[a-f0-9]{40}$/', $token)) ? hash('sha256', $token) : '';
+}
+
+/**
+ * Session management (Portals P5): a user's active (non-expired) sessions,
+ * newest first, with the CURRENT one flagged. The full token_hash is never
+ * exposed — a 16-hex-char id (used for revoke) is enough to disambiguate a
+ * user's own handful of sessions while leaking nothing useful.
+ */
+function mam_sessions_list(int $userId): array {
+    if ($userId <= 0) return [];
+    $current = mam_session_current_hash();
+    $rows = mam_db_all(
+        "SELECT token_hash, ip, ua, created_at, expires_at FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC",
+        [$userId, date('Y-m-d H:i:s')]
+    );
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'id'         => substr((string)$r['token_hash'], 0, 16),
+            'ip'         => (string)($r['ip'] ?? ''),
+            'ua'         => (string)($r['ua'] ?? ''),
+            'created_at' => (string)($r['created_at'] ?? ''),
+            'expires_at' => (string)($r['expires_at'] ?? ''),
+            'current'    => ($current !== '' && (string)$r['token_hash'] === $current),
+        ];
+    }
+    return $out;
+}
+
+/** Revoke one of a user's sessions by its 16-char id (owner-scoped). */
+function mam_sessions_revoke(int $userId, string $id): bool {
+    $id = preg_replace('/[^a-f0-9]/', '', $id);
+    if ($userId <= 0 || strlen($id) < 8) return false;
+    try {
+        $st = mam_db()->prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash LIKE ?');
+        $st->execute([$userId, $id . '%']);
+        return $st->rowCount() > 0;
+    } catch (Throwable $e) { return false; }
+}
+
+/** Revoke all of a user's OTHER sessions (keep the current one). Returns count. */
+function mam_sessions_revoke_others(int $userId): int {
+    if ($userId <= 0) return 0;
+    $current = mam_session_current_hash();
+    try {
+        if ($current !== '') {
+            $st = mam_db()->prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?');
+            $st->execute([$userId, $current]);
+        } else {
+            $st = mam_db()->prepare('DELETE FROM sessions WHERE user_id = ?');
+            $st->execute([$userId]);
+        }
+        return $st->rowCount();
+    } catch (Throwable $e) { return 0; }
+}
+
 /** Sweep expired sessions occasionally (1 in 50 requests). */
 function mam_session_gc(): void {
     if (random_int(1, 50) !== 1) return;

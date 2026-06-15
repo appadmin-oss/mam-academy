@@ -290,6 +290,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=datarights&erased=1'); exit;
     }
 
+    // Active-session management (P5; operational — a session admin manages their
+    // OWN devices). Basic-Auth admins have no session row → guarded no-op.
+    if ($action === 'session_revoke' || $action === 'session_revoke_others') {
+        if ($adminUser && function_exists('mam_sessions_revoke')) {
+            if ($action === 'session_revoke') { mam_sessions_revoke((int)$adminUser['id'], (string)($_POST['sid'] ?? '')); }
+            else { mam_sessions_revoke_others((int)$adminUser['id']); }
+        }
+        header('Location: ?v=account&ok=1'); exit;
+    }
+
     // Clear the signed-in admin's notification inbox (operational; session only).
     if ($action === 'notif_read_all') {
         if ($adminUser && function_exists('mam_notifications_mark_all_read')) {
@@ -2611,6 +2621,40 @@ button.tiny:hover{border-color:var(--gold)}
           <input type="password" name="next" minlength="8" autocomplete="new-password"></label>
         <button class="btn" type="submit">Save changes</button>
       </form>
+    </div>
+
+    <?php $sessions = function_exists('mam_sessions_list') ? mam_sessions_list((int)$me['id']) : []; ?>
+    <div class="card" style="max-width:620px">
+      <h3 style="margin:0 0 6px;color:var(--gold);font-size:0.92rem;letter-spacing:.04em;text-transform:uppercase">Active sessions</h3>
+      <p class="muted" style="font-size:.8rem;margin:0 0 12px">Devices currently signed in to your account. Revoke any you don't recognise.</p>
+      <table>
+        <thead><tr><th>Device</th><th>IP</th><th>Signed in</th><th></th></tr></thead>
+        <tbody>
+        <?php foreach ($sessions as $s): ?>
+          <tr>
+            <td style="max-width:260px"><?= htmlspecialchars($s['ua'] !== '' ? $s['ua'] : 'Unknown device') ?>
+              <?php if ($s['current']): ?><span class="pill enrolled">this device</span><?php endif; ?></td>
+            <td class="mono muted"><?= htmlspecialchars($s['ip']) ?></td>
+            <td class="muted"><?= htmlspecialchars(substr($s['created_at'], 0, 16)) ?></td>
+            <td><?php if (!$s['current']): ?>
+              <form method="post" style="display:inline">
+                <?= mam_csrf_field() ?>
+                <input type="hidden" name="action" value="session_revoke">
+                <input type="hidden" name="sid" value="<?= htmlspecialchars($s['id']) ?>">
+                <button class="tiny btn ghost" type="submit">Revoke</button>
+              </form>
+            <?php else: ?><span class="muted">—</span><?php endif; ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <?php if (count($sessions) > 1): ?>
+        <form method="post" style="margin-top:12px" onsubmit="return confirm('Sign out of every other device?');">
+          <?= mam_csrf_field() ?>
+          <input type="hidden" name="action" value="session_revoke_others">
+          <button class="btn ghost" type="submit">Sign out everywhere else</button>
+        </form>
+      <?php endif; ?>
     </div>
   <?php endif; ?>
 
