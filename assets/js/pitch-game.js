@@ -385,13 +385,29 @@
       +   '<div><b>' + s.consistency + '%</b><span>Consistency</span></div>'
       + '</div>'
       + '<div class="pg-rows">' + bars + '</div>'
+      // AI practice coach (S3) — filled async via the mam:studio-feedback event.
+      + '<div id="pgAiSlot" class="pg-coach" hidden style="text-align:left;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(252,198,71,.3)"></div>'
       + '<button class="pg-btn pg-again" type="button"><i class="fa-solid fa-rotate-right"></i> Try again</button>'
       + '</div>';
     dom.results.classList.add('shown');
     var again = dom.results.querySelector('.pg-again');
     if (again) again.addEventListener('click', function () { dom.results.classList.remove('shown'); start(); });
-    if (window.MAM_STUDIO && window.MAM_STUDIO.logScore) { try { window.MAM_STUDIO.logScore('pitch', s.final); } catch (e) {} }
+    if (window.MAM_STUDIO && window.MAM_STUDIO.logScore) {
+      try {
+        // Pass the score breakdown + weak notes so the AI coach can be specific.
+        var weak = s.rows.filter(function (r) { return r.sung && r.note < 0.6; }).map(function (r) { return r.name; });
+        window.MAM_STUDIO.logScore('pitch', s.final, { metrics: { pitch: s.pitch, timing: s.timing, consistency: s.consistency }, weak: weak });
+      } catch (e) {}
+    }
   }
+  // Render the AI practice coach into the result card when it arrives. One-time.
+  document.addEventListener('mam:studio-feedback', function (e) {
+    if (!e.detail || e.detail.game !== 'pitch' || !e.detail.text) return;
+    var slot = document.getElementById('pgAiSlot'); if (!slot) return;
+    slot.innerHTML = '<div style="font-weight:700;color:#FBBF24;margin-bottom:4px"><i class="fa-solid fa-wand-magic-sparkles"></i> AI practice coach</div>';
+    var p = document.createElement('p'); p.style.cssText = 'margin:0;line-height:1.55'; p.textContent = e.detail.text; slot.appendChild(p);
+    slot.hidden = false;
+  });
 
   function setStatus(msg, warn) {
     if (!dom.status) return;

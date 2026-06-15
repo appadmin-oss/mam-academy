@@ -542,6 +542,9 @@
       + '</div>'
       + streakHtml + badgesHtml
       + '<div class="rg-insight"><div class="rg-insight-h"><i class="fa-solid fa-graduation-cap"></i> Coach’s insight</div>' + insight.map(function (l) { return '<p>' + l + '</p>'; }).join('') + '</div>'
+      // AI practice coach (S3) — filled async via the mam:studio-feedback event
+      // (signed-in students only; off unless an AI provider is configured).
+      + '<div class="rg-insight" id="rgAiSlot" hidden></div>'
       + (rec && rec.newBest && rec.plays > 1 ? '<div class="rg-bestline new">New personal best: ' + rec.best + '/100 🎉</div>' : (rec ? '<div class="rg-bestline">Personal best: ' + rec.best + '/100</div>' : ''))
       + '<div class="rg-result-btns">'
       +   (t.pass
@@ -557,6 +560,15 @@
     var relisten = dom.result.querySelector('.rg-relisten');
     if (relisten) relisten.addEventListener('click', function () { dom.result.classList.remove('shown'); startRun(false); });
   }
+  // Render the AI practice coach into the result card when it arrives (the
+  // gateway is called by studio-gate.js on mam:game-complete). One-time listener.
+  document.addEventListener('mam:studio-feedback', function (e) {
+    if (!e.detail || e.detail.game !== 'rhythm' || !e.detail.text) return;
+    var slot = document.getElementById('rgAiSlot'); if (!slot) return;
+    slot.innerHTML = '<div class="rg-insight-h"><i class="fa-solid fa-wand-magic-sparkles"></i> AI practice coach</div>';
+    var p = document.createElement('p'); p.textContent = e.detail.text; slot.appendChild(p);
+    slot.hidden = false;
+  });
   function setStatus(m) { if (dom.status) dom.status.textContent = m; }
 
   function paintRewards(prog) {
