@@ -56,6 +56,43 @@ function mam_payment_settle(array $payment, ?array $providerData, string $rawRes
     return $out;
 }
 
+/**
+ * Privacy-safe tuition lookup for the gated tuition page. Requires BOTH the
+ * reference and the matching application email (so tuition isn't enumerable by
+ * reference). Returns null when not found / mismatched / bad input. The payable
+ * tuition is the application's server-computed total_usd. already_paid is true
+ * once the application is paid/enrolled OR a tuition payment has succeeded.
+ */
+function mam_tuition_status(string $ref, string $email): ?array {
+    $ref = trim($ref);
+    $email = strtolower(trim($email));
+    if ($ref === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
+    $row = mam_db_row(
+        "SELECT a.id, a.reference, a.status, a.total_usd, a.pathway, c.first_name
+           FROM applications a JOIN customers c ON c.id = a.customer_id
+          WHERE a.reference = ? AND LOWER(c.email) = ?",
+        [$ref, $email]
+    );
+    if (!$row) return null;
+    $amountUsd = (float)$row['total_usd'];
+    $paid = in_array((string)$row['status'], ['paid', 'enrolled'], true);
+    if (!$paid) {
+        $p = mam_db_row("SELECT 1 AS x FROM payments WHERE application_id = ? AND purpose = 'tuition' AND status = 'succeeded' LIMIT 1", [(int)$row['id']]);
+        $paid = (bool)$p;
+    }
+    $rate = function_exists('mam_usd_to_ngn_rate') ? mam_usd_to_ngn_rate() : 0;
+    return [
+        'found'        => true,
+        'name'         => (string)($row['first_name'] ?? ''),
+        'reference'    => (string)$row['reference'],
+        'pathway'      => (string)($row['pathway'] ?? ''),
+        'amount_usd'   => $amountUsd,
+        'amount_ngn'   => $rate > 0 ? (int)round($amountUsd * $rate) : 0,
+        'already_paid' => $paid,
+        'payable'      => (!$paid && $amountUsd > 0),
+    ];
+}
+
 /** Store: mark the order paid/delivered, decrement stock once, email the receipt. */
 function mam_payment_settle_store(string $ref): void {
     $order = mam_db_row('SELECT * FROM store_orders WHERE reference = ?', [$ref]);

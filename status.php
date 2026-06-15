@@ -68,6 +68,7 @@
         <div class="st-result" id="stResult" hidden></div>
       </div>
       <p class="st-muted" style="text-align:center;margin-top:18px">Need to finish applying? <a href="/apply">Continue your application →</a></p>
+      <p class="st-muted" style="text-align:center;margin-top:6px">Been placed after your MAM Auditer? <a href="/tuition" id="stTuitionLink">Pay your tuition →</a></p>
     </div>
   </section>
 </main>
@@ -82,6 +83,17 @@
   var qs = new URLSearchParams(location.search);
   if (qs.get('ref')) refEl.value = qs.get('ref');
   if (qs.get('email')) emEl.value = qs.get('email');
+  // Carry the reference + email through to the gated tuition page so the
+  // applicant doesn't have to re-type them.
+  var tuLink = document.getElementById('stTuitionLink');
+  function syncTuition() {
+    if (!tuLink) return;
+    var r = refEl.value.trim(), e = emEl.value.trim(), q = [];
+    if (r) q.push('ref=' + encodeURIComponent(r));
+    if (e) q.push('email=' + encodeURIComponent(e));
+    tuLink.href = '/tuition' + (q.length ? '?' + q.join('&') : '');
+  }
+  refEl.addEventListener('input', syncTuition); emEl.addEventListener('input', syncTuition); syncTuition();
   var STAGES = [['received', 'Received'], ['confirmed', 'Confirmed'], ['accepted', 'Accepted'], ['enrolled', 'Enrolled']];
   function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function color(stage) { return (stage === 'enrolled' || stage === 'accepted' || stage === 'confirmed') ? '#34D399' : (stage === 'closed' ? '#FB7185' : '#FBBF24'); }

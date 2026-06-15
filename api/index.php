@@ -66,6 +66,8 @@ $r->post('/store/checkout',    $f('store-checkout.php'), [mw_csrf(), mw_rate_lim
 $r->post('/application', $f('application.php'), [mw_csrf(), mw_rate_limit('apply',       10, 600)]);
 // Public applicant status lookup (reference + matching email; rate-limited).
 $r->get ('/application/status', $f('application/status.php'), [mw_rate_limit('app_status', 30, 600)]);
+// Gated tuition lookup for the /tuition payment page (reference + matching email).
+$r->get ('/tuition/status', $f('tuition-status.php'), [mw_rate_limit('tuition_status', 30, 600)]);
 // Server-side resumable application drafts + magic-link (A1).
 $r->get ('/application/draft',       $f('application/draft.php'),       [mw_rate_limit('app_draft',  240, 600)]);
 $r->post('/application/draft',       $f('application/draft.php'),       [mw_csrf(), mw_rate_limit('app_draft', 240, 600)]);

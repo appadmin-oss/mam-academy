@@ -48,3 +48,18 @@ t_ok(mam_payment_settle_tuition(0) === null, 'tuition settle with no application
 mam_payment_settle_booking(0); // must not throw
 mam_payment_settle_store('NOPE-NO-ORDER'); // must not throw
 t_ok(true, 'booking/store settle helpers no-op safely on a missing subject');
+
+// ── Gated tuition lookup (for the /tuition page) ──
+$cidT = mam_db_insert('customers', ['email' => 'tu_look@x.dev', 'first_name' => 'Tee', 'last_name' => 'You']);
+$aidT = mam_db_insert('applications', ['reference' => 'MAM-TU-LK', 'customer_id' => $cidT, 'pathway' => 'certified-musician', 'status' => 'submitted', 'total_usd' => 230]);
+t_ok(mam_tuition_status('MAM-TU-LK', 'nobody@x.dev') === null, 'tuition lookup with a mismatched email is null (not enumerable)');
+t_ok(mam_tuition_status('MAM-NOPE', 'tu_look@x.dev') === null, 'tuition lookup with an unknown reference is null');
+t_ok(mam_tuition_status('MAM-TU-LK', 'not-an-email') === null, 'tuition lookup with a bad email is null');
+$ts = mam_tuition_status('MAM-TU-LK', 'TU_LOOK@x.dev'); // case-insensitive
+t_ok(is_array($ts) && $ts['found'] === true, 'tuition lookup found with matching reference + email (case-insensitive)');
+t_eq((int)$ts['amount_usd'], 230, 'payable tuition is the application total_usd');
+t_ok($ts['payable'] === true && $ts['already_paid'] === false, 'an unpaid application is payable');
+// A succeeded tuition payment flips it to already-paid.
+mam_db_insert('payments', ['application_id' => $aidT, 'reference' => 'MAM-TU-LK', 'provider' => 'paystack', 'purpose' => 'tuition', 'status' => 'succeeded', 'amount' => 345000, 'currency' => 'NGN']);
+$ts2 = mam_tuition_status('MAM-TU-LK', 'tu_look@x.dev');
+t_ok($ts2['already_paid'] === true && $ts2['payable'] === false, 'a succeeded tuition payment marks it already-paid (not payable)');
