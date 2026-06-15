@@ -104,6 +104,12 @@ function mam_settings_schema(): array {
         ['Fees & surcharges',       'online_surcharge_pct',     'Online surcharge',       20, '%'],
         ['Fees & surcharges',       'registration_fee_usd',     'Registration fee',        5, '$'],
         ['Store',                   'store_shipping_flat_usd',  'Store shipping (flat, physical goods)', 5, '$'],
+        // Invoice — bank-transfer + signatory details (no fixed bank brand).
+        // Leave the bank name blank to hide that row entirely.
+        ['Invoice',                 'invoice_bank_name',        'Bank name (blank = hide)', '', ''],
+        ['Invoice',                 'invoice_account_name',     'Bank account name', 'The Just Folks Limited', ''],
+        ['Invoice',                 'invoice_account_number',   'Bank account number', '0117579643', ''],
+        ['Invoice',                 'invoice_finance_name',     'Finance signatory name', 'Anuoluwapo O. Ogunbanjo', ''],
         ['Currency',                'fx_auto',                  'Auto-update USD→NGN from live rate API (1=on, 0=off)', 1, ''],
         ['Currency',                'usd_to_ngn',               'USD → NGN fallback rate (used when live FX is off/unreachable)', 1500, '₦'],
         // Scholarship CTA shown in emails (the website reads its own copy from

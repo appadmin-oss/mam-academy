@@ -1282,18 +1282,18 @@ function mam_email_application_confirmation(array $app, array $customer, ?array 
 /**
  * MAM Academy invoice (HTML, self-contained, print-friendly).
  *
- * Mirrors the studio's printed invoice layout: black header with address +
- * logo, a giant orange "INVOICE" word, customer block, item table with orange
- * header, T&C + totals row, GTCO bank tile + Finance Manager signature line,
- * black footer. Self-contained inline CSS so it renders identically when
- * attached to email, opened in a browser, or printed to PDF.
+ * Modernised layout: rounded card on a wash, gradient brand header with the
+ * logo + wordmark, billed-to/contact cards, a programme summary, a "Due now —
+ * booking & assessment" line-item table with a gold total pill, a clearly-
+ * separated "Estimated tuition" card (NOT payable now — confirmed after the
+ * MAM Auditer placement), a configurable bank-transfer card (no fixed bank
+ * brand), terms, and a finance signature. Self-contained inline CSS + responsive
+ * so it renders identically in a browser, on mobile, or printed to PDF.
  *
- * Generated from the applicant's selections so the invoice always summarises
- * exactly what they chose. The TOTAL is what they owe NOW (the regional
- * booking fee). Tuition is listed as an estimate due after Auditer placement
- * — transparent, no surprises.
- *
- * $app + $customer come from the DB; $tier is the result of mam_booking_tier().
+ * Bank/finance details come from settings (invoice_bank_name / _account_name /
+ * _account_number / _finance_name) with safe defaults, so they're editable
+ * without a code change. $app + $customer from the DB; $tier from
+ * mam_booking_tier(); the tuition estimate is the application's total_usd.
  */
 function mam_invoice_print_html(array $app, array $customer, array $tier, string $invoiceNumber): string {
     $name  = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')), ENT_QUOTES);
@@ -1322,23 +1322,32 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
     $disc = htmlspecialchars((string)($app['discipline'] ?? '—'), ENT_QUOTES);
     $track = htmlspecialchars((string)($app['program_track'] ?? 'MAM'), ENT_QUOTES);
 
-    $prices = mam_prices();
-    $tuitionUsd = (float)($prices[$pathwayKey] ?? 0);
-
     $cur = (string)$tier['currency'];
     $label = (string)$tier['label'];
-    // Per-line allocation of the regional booking fee. Splits the total into
-    // four equal items for clean display; rounded so the sum still equals.
-    // Prices are presented as flat, whole-number amounts (no decimals). The
-    // booking fee is split into four whole-number line items; the last absorbs
-    // any rounding so the displayed lines still sum to the exact total.
-    $total = (float)$tier['amount'];
-    $each  = floor($total / 4);
-    $remainder = $total - ($each * 3); // last line absorbs rounding
-    $fmt = function($n) use ($cur) {
+    $fmt = function ($n) use ($cur) {
         $sym = ['NGN'=>'₦','USD'=>'$','GBP'=>'£','EUR'=>'€','CAD'=>'CA$','AUD'=>'AU$','GHS'=>'GH₵','KES'=>'KSh ','ZAR'=>'R'][$cur] ?? ($cur.' ');
         return $sym . number_format($n, 0);
     };
+    // The booking fee is one fee covering four deliverables — shown as line
+    // items that sum to the exact regional total (last line absorbs rounding).
+    $bookingTotal = (float)$tier['amount'];
+    $each  = floor($bookingTotal / 4);
+    $remainder = $bookingTotal - ($each * 3);
+
+    // Estimated tuition — the server-computed programme cost stored on the
+    // application (NOT payable now; confirmed after the MAM Auditer placement).
+    $tuitionUsd  = (float)($app['total_usd'] ?? 0);
+    $ngnRate     = function_exists('mam_usd_to_ngn_rate') ? mam_usd_to_ngn_rate() : 0;
+    $tuitionNgn  = $ngnRate > 0 ? (int)round($tuitionUsd * $ngnRate) : 0;
+    $tuitionMain = '$' . number_format($tuitionUsd, 0);
+    $tuitionAlt  = ($tuitionNgn > 0 && $cur !== 'USD') ? ' &middot; approx ₦' . number_format($tuitionNgn) : '';
+
+    // Bank-transfer details — configurable (GTCO branding removed). Admin sets
+    // these in Pricing & Settings; sensible defaults keep existing invoices intact.
+    $bankName = htmlspecialchars((string)mam_setting('invoice_bank_name', ''), ENT_QUOTES);
+    $acctName = htmlspecialchars((string)mam_setting('invoice_account_name', 'The Just Folks Limited'), ENT_QUOTES);
+    $acctNo   = htmlspecialchars((string)mam_setting('invoice_account_number', '0117579643'), ENT_QUOTES);
+    $finName  = htmlspecialchars((string)mam_setting('invoice_finance_name', 'Anuoluwapo O. Ogunbanjo'), ENT_QUOTES);
 
     $logoUrl = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/mam-academy-logo.svg', ENT_QUOTES);
     $invNo   = htmlspecialchars($invoiceNumber, ENT_QUOTES);
@@ -1347,149 +1356,132 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
       . '<title>Invoice ' . $invNo . ' — MAM Academy</title>'
       . '<meta name="viewport" content="width=device-width,initial-scale=1">'
       . '<style>'
+      . ':root{--ink:#1A120B;--muted:#6b6b6b;--faint:#9a9a9a;--line:#ece7e0;--gold:#E08A1A;--gold2:#FBBF24;--paper:#fff;--wash:#FBF8F4}'
       . '@page{size:A4;margin:0}'
-      . 'body{margin:0;font-family:Inter,Arial,Helvetica,sans-serif;color:#1A120B;background:#F4F4F4;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-      . '.sheet{max-width:820px;margin:24px auto;background:#fff;box-shadow:0 6px 28px rgba(0,0,0,0.12)}'
-      . '.bar-top{background:#0E0A06;color:#fff;padding:30px 44px;display:flex;justify-content:space-between;align-items:center;gap:22px}'
-      . '.bar-top .addr{font-size:12.5px;line-height:1.6;color:#fff;border-bottom:2px solid #E08A1A;padding-bottom:8px;display:inline-block;max-width:320px}'
-      . '.bar-top .tax{font-size:11.5px;color:#cdcdcd;margin-top:8px;display:block;letter-spacing:0.04em}'
-      . '.bar-top .logo{width:96px;height:96px;border:1.5px solid #fff;display:flex;align-items:center;justify-content:center;background:#0E0A06}'
-      . '.bar-top .logo img{width:78%;height:auto;display:block}'
-      . '.body{padding:32px 44px 24px;background:#fff}'
-      . '.titlerow{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding-bottom:18px;border-bottom:1px solid #e0e0e0;margin-bottom:24px}'
-      . '.title{font-family:"Bebas Neue",Impact,sans-serif;font-size:88px;line-height:0.85;color:#E04A1A;letter-spacing:0.02em;margin:0;text-transform:uppercase}'
-      . '.meta{font-size:13px;color:#3a2a1a;line-height:1.7;padding-left:18px;border-left:2px solid #E04A1A;min-width:230px}'
-      . '.meta b{color:#1A120B}'
-      . '.who{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:26px}'
-      . '.who .col{padding-left:16px;border-left:2px solid #E04A1A}'
-      . '.who .col p{margin:6px 0;font-size:13.5px;color:#1A120B;line-height:1.55}'
-      . '.who .col p.label{font-size:11.5px;color:#7a7a7a;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px}'
-      . '.summary{padding:14px 16px;background:#FFF6EF;border:1px solid #FBE3CC;border-radius:8px;margin-bottom:22px;font-size:12.5px;color:#3a2a1a;line-height:1.65}'
-      . '.summary b{color:#1A120B}'
-      . 'table.items{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:13px}'
-      . 'table.items thead th{background:#F2F2F2;color:#E04A1A;text-align:left;font-weight:800;font-size:13px;padding:14px 16px;border-bottom:2px solid #E04A1A}'
+      . '*{box-sizing:border-box}'
+      . 'body{margin:0;font-family:Inter,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:#EDE9E3;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:14px;line-height:1.5}'
+      . '.sheet{max-width:840px;margin:28px auto;background:var(--paper);border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.12)}'
+      . '.head{background:linear-gradient(120deg,#161009,#2a1d10);color:#fff;padding:34px 46px;display:flex;justify-content:space-between;align-items:flex-start;gap:24px}'
+      . '.brand{display:flex;align-items:center;gap:14px}'
+      . '.brand .logo{width:56px;height:56px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;padding:7px}'
+      . '.brand .logo img{width:100%;height:auto;display:block}'
+      . '.brand .nm{font-family:Georgia,serif;font-weight:700;font-size:19px;letter-spacing:.02em;line-height:1.15}'
+      . '.brand .nm small{display:block;font-family:Inter,Arial,sans-serif;font-weight:600;font-size:10.5px;letter-spacing:.22em;color:var(--gold2);text-transform:uppercase;margin-top:3px}'
+      . '.head .addr{font-size:12px;line-height:1.6;color:#d9cfc4;text-align:right;max-width:260px}'
+      . '.head .addr .tag{display:inline-block;margin-top:7px;font-size:10.5px;letter-spacing:.05em;color:#9c8d7d}'
+      . '.title{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;padding:30px 46px 22px}'
+      . '.title h1{margin:0;font-size:30px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);font-weight:800}'
+      . '.title .pill{display:inline-block;margin-top:8px;font-size:11.5px;letter-spacing:.04em;color:#7a5a2a;background:var(--wash);border:1px solid #f0e2cf;border-radius:999px;padding:5px 12px}'
+      . '.title .meta{font-size:13px;color:var(--muted);text-align:right;line-height:1.8}'
+      . '.title .meta b{color:var(--ink)}'
+      . '.body{padding:0 46px 28px}'
+      . '.who{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px}'
+      . '.who .col{background:var(--wash);border:1px solid var(--line);border-radius:12px;padding:14px 18px}'
+      . '.who .col .label{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}'
+      . '.who .col p{margin:3px 0;font-size:13.5px;line-height:1.5}'
+      . '.who .col .nm{font-size:15px;font-weight:700}'
+      . '.summary{padding:13px 18px;background:#fff;border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;margin-bottom:24px;font-size:12.5px;color:#4a4036;line-height:1.7}'
+      . '.summary b{color:var(--ink)}'
+      . '.sec{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:800;margin:0 0 10px}'
+      . 'table.items{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:13px}'
+      . 'table.items thead th{text-align:left;font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:0 14px 10px;border-bottom:1px solid var(--line)}'
       . 'table.items thead th.r{text-align:right}'
-      . 'table.items tbody td{padding:14px 16px;border-bottom:1px solid #ECECEC;vertical-align:top;color:#1A120B}'
+      . 'table.items tbody td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}'
       . 'table.items tbody td.r{text-align:right;font-variant-numeric:tabular-nums}'
-      . 'table.items tbody td .desc{display:block;color:#7a7a7a;font-size:12px;font-style:italic;margin-top:3px}'
-      . '.bottom{display:grid;grid-template-columns:1.2fr 1fr;gap:32px;margin-top:18px;margin-bottom:24px}'
-      . '.tcs h4{color:#E04A1A;font-size:13.5px;margin:0 0 8px;letter-spacing:0.02em}'
-      . '.tcs p{margin:0;font-size:12px;color:#3a2a1a;line-height:1.6}'
-      . '.totals{font-size:13.5px}'
-      . '.totals .row{display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px dotted #cdcdcd}'
-      . '.totals .row b{font-variant-numeric:tabular-nums}'
-      . '.totals .grand{margin-top:14px;background:#E04A1A;color:#fff;padding:18px 22px;border-radius:100px;display:flex;justify-content:space-between;align-items:center}'
-      . '.totals .grand span{font-family:"Bebas Neue",Impact,sans-serif;letter-spacing:0.06em;font-size:22px}'
-      . '.totals .grand b{font-family:"Bebas Neue",Impact,sans-serif;font-size:24px;letter-spacing:0.04em}'
-      . '.tuition-note{margin:6px 4px 0;font-size:11.5px;color:#7a7a7a;text-align:right}'
-      . '.sign{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:flex-end;padding-top:16px;border-top:1px solid #e0e0e0;margin-bottom:24px}'
-      . '.bank{display:flex;align-items:center;gap:12px}'
-      . '.bank .gtco{background:#E04A1A;color:#1A120B;font-weight:800;font-size:11px;letter-spacing:0.05em;padding:14px 14px;border-radius:4px;text-align:center;line-height:1}'
-      . '.bank .gtco div{font-size:18px;margin-top:4px}'
-      . '.bank .bk{font-family:"Bebas Neue",Impact,sans-serif;font-size:24px;color:#1A120B;letter-spacing:0.02em;line-height:1}'
-      . '.bank .bk b{display:block;font-size:18px;color:#E04A1A;margin-top:4px;font-family:Inter,Arial,sans-serif;font-weight:800;letter-spacing:0}'
-      . '.sig{text-align:right;border-bottom:1px solid #1A120B;padding-bottom:6px}'
-      . '.sig .nm{font-size:13.5px;color:#1A120B;font-weight:600}'
-      . '.sig .role{font-size:12px;color:#E04A1A;font-weight:800;margin-top:3px}'
-      . '.bar-bottom{background:#0E0A06;color:#cdcdcd;text-align:center;padding:14px 22px;font-size:12px;letter-spacing:0.02em}'
-      . '@media print{body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none}}'
+      . 'table.items tbody td b{font-size:13px}'
+      . 'table.items tbody td .desc{display:block;color:var(--faint);font-size:11.5px;margin-top:3px}'
+      . '.duenow{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(120deg,var(--gold),var(--gold2));color:#1A120B;border-radius:12px;padding:15px 22px;margin:8px 0 26px}'
+      . '.duenow .lbl{font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:13px}'
+      . '.duenow .amt{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}'
+      . '.tuition{display:flex;justify-content:space-between;align-items:center;gap:16px;background:var(--wash);border:1px dashed #e3cba6;border-radius:12px;padding:16px 22px;margin-bottom:26px}'
+      . '.tuition .t-main{font-size:13.5px;color:#4a4036;line-height:1.55}'
+      . '.tuition .t-main b{color:var(--ink)}'
+      . '.tuition .t-amt{text-align:right;white-space:nowrap}'
+      . '.tuition .t-amt .v{font-size:22px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}'
+      . '.tuition .t-amt .c{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}'
+      . '.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:24px}'
+      . '.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px}'
+      . '.card h4{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold)}'
+      . '.card p{margin:0;font-size:12px;color:#4a4036;line-height:1.6}'
+      . '.bankrow{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dotted var(--line)}'
+      . '.bankrow:last-child{border-bottom:0}.bankrow span{color:var(--muted)}.bankrow b{color:var(--ink)}'
+      . '.sign{display:flex;justify-content:flex-end;padding-top:8px;margin-bottom:22px}'
+      . '.sign .sig{text-align:right;min-width:220px;border-top:1px solid var(--ink);padding-top:7px}'
+      . '.sign .sig .nm{font-size:13.5px;font-weight:600}.sign .sig .role{font-size:11.5px;color:var(--gold);font-weight:700;margin-top:2px}'
+      . '.foot{background:#161009;color:#cdbfb0;text-align:center;padding:15px 22px;font-size:12px;letter-spacing:.02em}'
+      . '@media print{body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none;border-radius:0}}'
+      . '@media (max-width:560px){.head,.title,.body{padding-left:22px;padding-right:22px}.who,.grid2{grid-template-columns:1fr}.title{flex-direction:column;align-items:flex-start;gap:10px}.title .meta{text-align:left}}'
       . '</style></head><body>'
       . '<div class="sheet">'
 
-      // Black top bar
-      . '<div class="bar-top">'
-      .   '<div>'
-      .     '<span class="addr">2, Abolude / Oremeji Street,<br>Bakery B/S, Egbeda, Lagos</span>'
-      .     '<span class="tax">TAX ID: 119 491 230001</span>'
+      // Header
+      . '<div class="head">'
+      .   '<div class="brand">'
+      .     '<div class="logo"><img src="' . $logoUrl . '" alt="MAM Academy"></div>'
+      .     '<div class="nm">MAM Academy<small>Music · Arts · Mastery</small></div>'
       .   '</div>'
-      .   '<div class="logo"><img src="' . $logoUrl . '" alt="MAM Academy"></div>'
+      .   '<div class="addr">2 Abolude / Oremeji Street,<br>Bakery B/S, Egbeda, Lagos<span class="tag">TAX ID · 119 491 230001</span></div>'
       . '</div>'
 
-      // Title row
+      // Title + meta
+      . '<div class="title">'
+      .   '<div><h1>Invoice</h1><div class="pill">Booking confirmation &amp; tuition estimate</div></div>'
+      .   '<div class="meta">Invoice <b>' . $invNo . '</b><br>Date <b>' . $dateLong . '</b><br>Ref <b style="color:var(--gold)">' . $ref . '</b></div>'
+      . '</div>'
+
       . '<div class="body">'
-      .   '<div class="titlerow">'
-      .     '<h1 class="title">Invoice</h1>'
-      .     '<div class="meta">'
-      .       'Invoice: <b>' . $invNo . '</b><br>'
-      .       'Date: <b>' . $dateLong . '</b>'
-      .     '</div>'
-      .   '</div>'
-
-      // Customer block
+      // Billed-to + contact
       .   '<div class="who">'
-      .     '<div class="col">'
-      .       '<p class="label">Billed to</p>'
-      .       '<p style="font-size:15px;font-weight:700;margin:2px 0">' . $name . '</p>'
-      .       '<p>' . $loc . '</p>'
-      .       '<p style="font-size:11.5px;color:#7a7a7a">Application reference: <b style="color:#E04A1A">' . $ref . '</b></p>'
-      .     '</div>'
-      .     '<div class="col">'
-      .       '<p class="label">Contact</p>'
-      .       '<p>' . ($phone ?: '—') . '</p>'
-      .       '<p>' . ($email ?: '—') . '</p>'
-      .     '</div>'
+      .     '<div class="col"><div class="label">Billed to</div>'
+      .       '<p class="nm">' . $name . '</p><p>' . $loc . '</p></div>'
+      .     '<div class="col"><div class="label">Contact</div>'
+      .       '<p>' . ($phone ?: '—') . '</p><p>' . ($email ?: '—') . '</p></div>'
       .   '</div>'
 
-      // Programme summary (their choices)
+      // Programme summary
       .   '<div class="summary">'
-      .     '<b>Programme summary:</b> ' . htmlspecialchars($pathwayName) . ($pathwaySub ? ' &middot; <span style="color:#7a7a7a">' . htmlspecialchars($pathwaySub) . '</span>' : '')
+      .     '<b>Programme:</b> ' . htmlspecialchars($pathwayName) . ($pathwaySub ? ' &middot; <span style="color:var(--muted)">' . htmlspecialchars($pathwaySub) . '</span>' : '')
       .     '<br><b>Track:</b> ' . $track . ' &middot; <b>Mode:</b> ' . $mode . ' &middot; <b>Discipline:</b> ' . $disc
       .   '</div>'
 
-      // Items table — booking-fee components
-      .   '<table class="items" cellspacing="0" cellpadding="0">'
-      .     '<thead><tr>'
-      .       '<th>Item / Description</th>'
-      .       '<th class="r" style="width:60px">QTY</th>'
-      .       '<th class="r" style="width:110px">Unit Price</th>'
-      .       '<th class="r" style="width:110px">Total</th>'
-      .     '</tr></thead>'
-      .     '<tbody>'
-      .       '<tr><td><b>REGISTRATION &amp; ADMISSION</b><span class="desc">Application processing &amp; admission</span></td>'
-      .         '<td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
-      .       '<tr><td><b>MAM ACADEMY STUDENT ID CARD</b><span class="desc">Physical ID issued at the Centre</span></td>'
-      .         '<td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
-      .       '<tr><td><b>STUDENT FILE</b><span class="desc">Onboarding documentation kept on record</span></td>'
-      .         '<td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
-      .       '<tr><td><b>MAM AUDITER ASSESSMENT</b><span class="desc">30-minute placement session with our judges</span></td>'
-      .         '<td class="r">1</td><td class="r">' . $fmt($remainder) . '</td><td class="r">' . $fmt($remainder) . '</td></tr>'
-      .     '</tbody>'
-      .   '</table>'
+      // Due now — booking & assessment
+      .   '<p class="sec">Due now — booking &amp; assessment</p>'
+      .   '<table class="items"><thead><tr><th>Item</th><th class="r" style="width:55px">Qty</th><th class="r" style="width:110px">Amount</th></tr></thead><tbody>'
+      .     '<tr><td><b>Registration &amp; admission</b><span class="desc">Application processing &amp; admission</span></td><td class="r">1</td><td class="r">' . $fmt($each) . '</td></tr>'
+      .     '<tr><td><b>MAM Academy student ID card</b><span class="desc">Physical ID issued at the Centre</span></td><td class="r">1</td><td class="r">' . $fmt($each) . '</td></tr>'
+      .     '<tr><td><b>Student file</b><span class="desc">Onboarding documentation kept on record</span></td><td class="r">1</td><td class="r">' . $fmt($each) . '</td></tr>'
+      .     '<tr><td><b>MAM Auditer assessment</b><span class="desc">30-minute placement session with our judges</span></td><td class="r">1</td><td class="r">' . $fmt($remainder) . '</td></tr>'
+      .   '</tbody></table>'
+      .   '<div class="duenow"><span class="lbl">Total due now</span><span class="amt">' . $label . '</span></div>'
 
-      // T&C + Totals
-      .   '<div class="bottom">'
-      .     '<div class="tcs">'
-      .       '<h4>Term and Conditions</h4>'
-      .       '<p>Our booking-confirmation fee is due before the scheduled session and is final once paid. Tuition is a separate charge, billed only after the MAM Auditer Judges have placed you accurately. Payment terms otherwise per the academy class policy.</p>'
+      // Estimated tuition
+      .   '<p class="sec">Estimated tuition</p>'
+      .   '<div class="tuition">'
+      .     '<div class="t-main"><b>Programme tuition — payable after placement.</b><br>This is an estimate for the ' . htmlspecialchars($pathwayName) . ' programme. It is <b>not payable now</b>: your exact tuition is confirmed after the MAM Auditer judges place you, and flexible plans are available.</div>'
+      .     '<div class="t-amt"><div class="v">' . $tuitionMain . '</div><div class="c">USD' . $tuitionAlt . '</div></div>'
+      .   '</div>'
+
+      // Payment details + terms
+      .   '<div class="grid2">'
+      .     '<div class="card"><h4>Bank transfer</h4>'
+      .       ($bankName !== '' ? '<div class="bankrow"><span>Bank</span><b>' . $bankName . '</b></div>' : '')
+      .       '<div class="bankrow"><span>Account name</span><b>' . $acctName . '</b></div>'
+      .       '<div class="bankrow"><span>Account number</span><b>' . $acctNo . '</b></div>'
+      .       '<p style="margin-top:9px;color:var(--faint);font-size:11px">Use your reference <b>' . $ref . '</b> as the transfer narration, or pay by card via the link in your email.</p>'
       .     '</div>'
-      .     '<div class="totals">'
-      .       '<div class="row"><span>Subtotal</span><b>' . $label . '</b></div>'
-      .       '<div class="row"><span>Discount (NIL)</span><b>' . $label . '</b></div>'
-      .       '<div class="grand"><span>TOTAL</span><b>' . $label . '</b></div>'
-      .       '<div class="tuition-note">Tuition is discussed after your MAM Auditer assessment and is flexible.</div>'
+      .     '<div class="card"><h4>Terms &amp; conditions</h4>'
+      .       '<p>The booking-confirmation fee is due before your scheduled session and is final once paid. Tuition is billed separately, only after the MAM Auditer judges have placed you. Other terms follow the academy class policy.</p>'
       .     '</div>'
       .   '</div>'
 
-      // Signature row
-      .   '<div class="sign">'
-      .     '<div class="bank">'
-      .       '<div class="gtco">GTCO<div>&nbsp;</div></div>'
-      .       '<div class="bk">The Just Folks Limited<b>0117579643</b></div>'
-      .     '</div>'
-      .     '<div class="sig">'
-      .       '<div class="nm">Anuoluwapo O. Ogunbanjo</div>'
-      .       '<div class="role">Finance Manager</div>'
-      .     '</div>'
-      .   '</div>'
+      // Signature
+      .   '<div class="sign"><div class="sig"><div class="nm">' . $finName . '</div><div class="role">Finance Manager</div></div></div>'
 
-      // Scholarship — shown for applicants who may need financial help
       .   mam_email_scholarship_block()
-      . '</div>' // .body
+      . '</div>'
 
-      // Black bottom bar
-      . '<div class="bar-bottom">academy@mamcentre.org &nbsp;|&nbsp; academy.mamcentre.org &nbsp;|&nbsp; +234 704 444 6517</div>'
-      . '</div>' // .sheet
-      . '</body></html>';
+      . '<div class="foot">academy@mamcentre.org &nbsp;·&nbsp; academy.mamcentre.org &nbsp;·&nbsp; +234 704 444 6517</div>'
+      . '</div></body></html>';
 }
 
 /**
