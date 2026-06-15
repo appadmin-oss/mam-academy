@@ -35,9 +35,32 @@
     });
   }
 
+  // ── Shared portal-kit UI builders (P1) ──
+  // One canonical implementation of the panel / KPI / empty / skeleton markup
+  // both SPAs (and new views like My Learning) build on, so components stop
+  // being re-implemented per portal. Markup matches the existing .panel/.kpi/
+  // .empty-state CSS, so they're drop-in.
+  function uiKpi(label, value, sub, cls) {
+    return '<div class="kpi"><div class="kpi-label">' + escapeHtml(label) + '</div>'
+      + '<div class="kpi-value ' + (cls || '') + '">' + value + '</div>'
+      + '<div class="kpi-sub">' + escapeHtml(sub || '') + '</div></div>';
+  }
+  function uiEmpty(icon, msg) {
+    return '<div class="empty-state"><i class="fa-solid fa-' + (icon || 'inbox') + '" aria-hidden="true"></i>' + escapeHtml(msg || 'Nothing here yet.') + '</div>';
+  }
+  function uiPanel(title, bodyHtml, actionHtml) {
+    return '<section class="panel"><div class="panel-head"><h2>' + escapeHtml(title) + '</h2>' + (actionHtml || '') + '</div>' + (bodyHtml || '') + '</section>';
+  }
+  function uiSkeleton(rows) {
+    rows = rows || 3; var s = '';
+    for (var i = 0; i < rows; i++) s += '<div style="height:14px;border-radius:7px;background:rgba(255,255,255,.08);margin:12px 0;width:' + (100 - i * 12) + '%"></div>';
+    return '<div class="panel-body" aria-busy="true" aria-label="Loading">' + s + '</div>';
+  }
+
   window.MAM_PORTAL = {
     fmtDate: fmtDate, fmtDateTime: fmtDateTime, fmtMoney: fmtMoney,
     initials: initials, escapeHtml: escapeHtml,
+    kpi: uiKpi, empty: uiEmpty, panel: uiPanel, skeleton: uiSkeleton,
 
     requireAuth: function (allowedRoles) {
       return window.MAM_API.request('auth/me', { method: 'GET' }).then(function (r) {
