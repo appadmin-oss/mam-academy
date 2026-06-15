@@ -241,15 +241,16 @@ function mam_send_via_phpmailer(string $to, string $subject, string $body, bool 
             $mail->SMTPSecure  = '';
             $mail->SMTPAutoTLS = false;
         }
-        // Shared-host reality: the relay's certificate is usually issued for the
-        // server hostname (server123.host.com / 27.qservers.net), not
-        // mail.yourdomain — strict peer-NAME verification then fails and NOTHING
-        // sends. Default: verify the CA chain but tolerate the hostname mismatch.
-        // MAIL_ALLOW_SELF_SIGNED=1 fully relaxes it for self-signed relay certs.
+        // Shared-host reality: the relay can't complete a *verified* TLS
+        // handshake (cert is for the server hostname and/or signed by a CA not
+        // in PHP's bundle), so verified TLS fails and NOTHING sends. STARTTLS
+        // still encrypts; we just can't verify the peer. Default to
+        // encrypted-but-unverified (what actually delivers on cPanel/Exim);
+        // MAIL_STRICT_TLS=1 opts a capable host back into full verification.
         $mail->SMTPOptions = ['ssl' =>
-            in_array(strtolower((string)mam_env('MAIL_ALLOW_SELF_SIGNED', '0')), ['1', 'true', 'yes', 'on'], true)
-                ? ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true]
-                : ['verify_peer' => true,  'verify_peer_name' => false]];
+            in_array(strtolower((string)mam_env('MAIL_STRICT_TLS', '0')), ['1', 'true', 'yes', 'on'], true)
+                ? ['verify_peer' => true,  'verify_peer_name' => true]
+                : ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true]];
         $mail->setFrom($from, $fromName);
         // Authenticated relays usually require the envelope sender to match the
         // login — mirror the built-in client's behaviour. But ONLY when the
@@ -423,17 +424,18 @@ function mam_smtp_send(string $host, int $port, string $user, string $pass, stri
 
     $remote = ($encryption === 'ssl' ? 'ssl://' : '') . $host;
     $errno = 0; $errstr = '';
-    // TLS verification posture. The #1 cause of "stream_socket_enable_crypto
-    // returned false" on shared hosts (cPanel/Exim, e.g. qservers) is that the
-    // relay presents a cert for the SERVER hostname (27.qservers.net), not
-    // mail.yourdomain — so strict NAME verification fails even though the cert
-    // is perfectly valid. Default: verify the CA chain but TOLERATE the hostname
-    // mismatch (peer_name still drives SNI). MAIL_ALLOW_SELF_SIGNED=1 fully
-    // relaxes it for relays whose cert is also self-signed.
-    $lax = in_array(strtolower((string)mam_env('MAIL_ALLOW_SELF_SIGNED', '0')), ['1', 'true', 'yes', 'on'], true);
-    $ctx = stream_context_create(['ssl' => $lax
-        ? ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true, 'SNI_enabled' => true, 'peer_name' => $host]
-        : ['verify_peer' => true,  'verify_peer_name' => false, 'SNI_enabled' => true, 'peer_name' => $host]]);
+    // TLS verification posture. Shared mail hosts (cPanel/Exim, e.g. qservers)
+    // routinely CANNOT complete a *verified* STARTTLS handshake: the relay cert
+    // is issued for the server hostname (27.qservers.net) and/or signed by a CA
+    // that isn't in PHP's bundle — so stream_socket_enable_crypto() returns
+    // false even with name-checking off. STARTTLS still ENCRYPTS the channel;
+    // we just can't verify the peer. So we DEFAULT to encrypted-but-unverified
+    // (the universal shared-host setting that actually delivers mail), and let
+    // a capable host opt into full verification with MAIL_STRICT_TLS=1.
+    $strictTls = in_array(strtolower((string)mam_env('MAIL_STRICT_TLS', '0')), ['1', 'true', 'yes', 'on'], true);
+    $ctx = stream_context_create(['ssl' => $strictTls
+        ? ['verify_peer' => true,  'verify_peer_name' => true,  'SNI_enabled' => true, 'peer_name' => $host]
+        : ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true, 'SNI_enabled' => true, 'peer_name' => $host]]);
     $sock = @stream_socket_client("$remote:$port", $errno, $errstr, 20, STREAM_CLIENT_CONNECT, $ctx);
     if (!$sock) {
         mam_log('error', 'smtp_connect_failed', ['host' => $host, 'port' => $port, 'err' => $errstr]);
