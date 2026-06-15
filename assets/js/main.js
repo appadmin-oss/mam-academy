@@ -81,7 +81,7 @@
       var tick = false;
       window.addEventListener('scroll', function () { if (tick) return; tick = true; setTimeout(function () { tick = false; sweep(false); }, 180); }, { passive: true });
       window.addEventListener('load', function () { setTimeout(function () { sweep(false); }, 1200); });
-      setTimeout(function () { sweep(true); }, 6000); // last-resort: force-reveal everything so nothing is ever stuck transparent
+      setTimeout(function () { sweep(true); }, 1800); // last-resort: force-reveal everything so nothing is ever stuck transparent (CSS failsafe also reveals ~1.1s)
     } catch (e) {
       try { document.documentElement.className += ' reveal-fallback'; } catch (_) {}
     }
