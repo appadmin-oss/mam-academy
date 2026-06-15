@@ -640,8 +640,10 @@
   $('#cartBackdrop').addEventListener('click', closeCart);
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && drawer.classList.contains('is-open')) closeCart(); });
 
-  // Checkout from the drawer → open the checkout modal (summarises the cart)
-  $('#cartCheckout').addEventListener('click', function(){ if (!cart.length) return; closeCart(); openCheckout(); });
+  // Checkout from the drawer → the dedicated, full checkout page (/checkout),
+  // which reads the same localStorage cart. The legacy in-drawer modal below is
+  // kept as a fallback but is no longer the primary path.
+  $('#cartCheckout').addEventListener('click', function(){ if (!cart.length) return; window.location.href = '/checkout'; });
 
   // Live pricing/shipping can arrive after first paint — re-render everything.
   // Guard on a loaded catalogue so a config event can't flash an empty grid
