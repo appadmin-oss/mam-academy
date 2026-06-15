@@ -896,6 +896,9 @@ $flashErr = $_GET['err'] ?? '';
 <meta name="robots" content="noindex, nofollow">
 <title>MAM Admin — <?= htmlspecialchars($view) ?></title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<!-- Font Awesome — the dashboard uses fa-* icons throughout (nav, tables, the
+     notifications panel, the top bar); without this they render blank. -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -915,12 +918,23 @@ aside{background:var(--panel);border-right:1px solid var(--border);padding:18px 
 nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;color:var(--muted);border-radius:8px;margin-bottom:2px;font-size:0.92rem}
 nav a:hover{background:rgba(255,255,255,0.04);color:var(--text)}
 nav a.active{background:linear-gradient(135deg,rgba(224,138,26,0.18),rgba(251,191,36,0.08));color:var(--gold);border:1px solid var(--border)}
-main{padding:28px 32px;overflow:auto}
-header.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:18px;flex-wrap:wrap}
-header.top h1{font-size:1.4rem;font-weight:700;letter-spacing:-0.01em}
+main{padding:0 36px 40px;overflow:auto}
+/* Sticky app-shell top bar — page title left, account + view-site right. Bleeds
+   to main's horizontal padding and frosts on scroll. */
+.admin-topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  margin:0 -36px 28px;padding:15px 36px;background:rgba(20,14,9,0.85);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.admin-topbar .atb-title{font-size:0.98rem;font-weight:700;letter-spacing:0.02em;color:var(--text);display:flex;align-items:center;gap:10px}
+.admin-topbar .atb-title .dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-2));box-shadow:0 0 10px rgba(251,191,36,0.6)}
+.admin-topbar .atb-right{display:flex;align-items:center;gap:10px}
+.admin-topbar .atb-chip{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:0.82rem;transition:color .15s,border-color .15s}
+.admin-topbar .atb-chip:hover{color:var(--gold);border-color:var(--gold)}
+.admin-topbar .atb-user{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:0.82rem;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:4px}
+.admin-topbar .atb-user .av{width:28px;height:28px;border-radius:50%;flex:0 0 auto;background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.78rem}
+header.top{display:flex;align-items:center;justify-content:space-between;margin:0 0 26px;gap:18px;flex-wrap:wrap}
+header.top h1{font-size:1.45rem;font-weight:700;letter-spacing:-0.01em}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B;border-radius:8px;font-weight:700;font-size:0.85rem;border:none;cursor:pointer}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:32px}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:36px}
 .kpi{padding:18px;background:var(--raised);border:1px solid var(--border);border-radius:12px}
 .kpi-label{font-size:0.72rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;font-weight:600}
 .kpi-value{font-size:1.7rem;font-weight:800;letter-spacing:-0.01em}
@@ -928,7 +942,7 @@ header.top h1{font-size:1.4rem;font-weight:700;letter-spacing:-0.01em}
 /* Tables can be wide (9+ columns). The card is the horizontal scroll
    container; the h3 header is pinned via sticky so it doesn't pan with
    the table. Edge-fade backgrounds appear only when there's more to scroll. */
-.card{background:var(--raised);border:1px solid var(--border);border-radius:14px;margin-bottom:22px;overflow:hidden;overflow-x:auto;-webkit-overflow-scrolling:touch;
+.card{background:var(--raised);border:1px solid var(--border);border-radius:14px;margin-bottom:26px;overflow:hidden;overflow-x:auto;-webkit-overflow-scrolling:touch;
   background-image:
     linear-gradient(to right,var(--raised) 30%,rgba(0,0,0,0)),
     linear-gradient(to right,rgba(0,0,0,0),var(--raised) 70%),
@@ -1043,15 +1057,8 @@ button.tiny:hover{border-color:var(--gold)}
     <input type="search" name="q" value="<?= htmlspecialchars((string)($_GET['q'] ?? '')) ?>" placeholder="Search ref, email, name…" style="flex:1;min-width:0;padding:9px 11px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--ink);font-size:0.82rem">
     <button class="btn" type="submit" style="padding:9px 12px" aria-label="Search">🔍</button>
   </form>
-  <div style="margin-top:24px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px;font-size:0.78rem;color:var(--muted);line-height:1.5">
-    <strong style="color:var(--gold)">Signed in:</strong>
-    <?php
-    $sessUser = mam_current_user();
-    echo htmlspecialchars($sessUser['email'] ?? ($_SERVER['PHP_AUTH_USER'] ?? 'admin'));
-    ?><br>
-    <a href="/" style="color:var(--gold)" target="_blank">↗ View site</a>
-  </div>
   <?php
+  // (Signed-in identity + "View site" now live in the sticky top bar.)
     // Notification centre (L3) — session admins only (Basic-Auth has no user row,
     // so no inbox). Surfaces assignments and other staff alerts where admins work.
     if ($adminUser && function_exists('mam_notifications')):
@@ -1084,6 +1091,19 @@ button.tiny:hover{border-color:var(--gold)}
 </aside>
 
 <main>
+<?php
+  // App-shell top bar — current section + account, sticky on scroll.
+  $atbLabel = $links[$view] ?? ucfirst((string)$view);
+  $atbEmail = (string)($adminUser['email'] ?? ($_SERVER['PHP_AUTH_USER'] ?? 'admin'));
+  $atbInit  = strtoupper(substr(trim((string)($adminUser['name'] ?? $atbEmail)), 0, 1)) ?: 'M';
+?>
+<div class="admin-topbar">
+  <div class="atb-title"><span class="dot" aria-hidden="true"></span><?= htmlspecialchars($atbLabel) ?></div>
+  <div class="atb-right">
+    <a class="atb-chip" href="/" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> View site</a>
+    <span class="atb-user" title="<?= htmlspecialchars($atbEmail) ?>"><span class="av"><?= htmlspecialchars($atbInit) ?></span><?= htmlspecialchars($atbEmail) ?></span>
+  </div>
+</div>
 <?php if ($flashOk): ?><div class="banner ok">Done.</div><?php endif; ?>
 <?php if ($flashErr !== ''): ?><div class="banner err"><?= htmlspecialchars($flashErr) ?></div><?php endif; ?>
 <?php $mailRdy = mam_mail_readiness(); if (!$mailRdy['ready']): ?>
