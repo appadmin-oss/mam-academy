@@ -96,6 +96,21 @@ function mam_admin_pager(int $page, int $total, int $perPage): string {
 /* ─── CSV export (no state change) ─── */
 if ($view === 'export') {
     $type = $_GET['type'] ?? 'applications.csv';
+
+    // Data-subject access export (NDPA/GDPR): a full JSON bundle for ONE person.
+    // Contains full PII → super-only (Basic-Auth break-glass = super, $adminUser null).
+    if ($type === 'datarights') {
+        if ($adminUser && !mam_admin_can($adminUser, 'users')) { http_response_code(403); echo 'Forbidden — super-admin only.'; exit; }
+        $email = strtolower(trim((string)($_GET['email'] ?? '')));
+        $bundle = mam_datarights_export($email);
+        if (!$bundle) { http_response_code(404); echo 'No data found for that email.'; exit; }
+        mam_audit('datarights_export', 'customer', (int)($bundle['customer']['id'] ?? 0), ['email' => $email]);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Disposition: attachment; filename="mam-data-' . preg_replace('/[^a-z0-9]/', '_', $email) . '.json"');
+        echo json_encode($bundle, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     $filename = preg_replace('/[^A-Za-z0-9._-]/', '', basename($type));
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -145,6 +160,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $actionCaps = [
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
+        'datarights_erase' => 'users',
         'save_settings' => 'settings',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
         'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
@@ -260,6 +276,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         try { mam_admissions_assign($aid, $uid ?: null, (int)($adminUser['id'] ?? 0) ?: null); }
         catch (Throwable $e) { mam_log('warn', 'app_assign_failed', ['app_id' => $aid, 'err' => $e->getMessage()]); }
         header('Location: ?v=applications&app=' . $aid . '&ok=1'); exit;
+    }
+
+    // Data-subject erasure (NDPA/GDPR). Super-only (gated above). Requires a
+    // typed confirmation to prevent accidents. Anonymises PII + deletes free-form
+    // PII, preserving financial + audit records (lawful basis).
+    if ($action === 'datarights_erase') {
+        $email   = strtolower(trim((string)($_POST['email'] ?? '')));
+        $confirm = (string)($_POST['confirm'] ?? '');
+        if ($confirm !== 'ERASE') { header('Location: ?v=datarights&email=' . urlencode($email) . '&err=' . urlencode('Type ERASE to confirm.')); exit; }
+        $res = mam_datarights_erase($email, (int)($adminUser['id'] ?? 0) ?: null);
+        if (empty($res['ok'])) { header('Location: ?v=datarights&email=' . urlencode($email) . '&err=' . urlencode($res['error'] === 'not_found' ? 'No data found for that email.' : 'Could not erase (' . ($res['error'] ?? 'error') . ').')); exit; }
+        header('Location: ?v=datarights&erased=1'); exit;
     }
 
     // Clear the signed-in admin's notification inbox (operational; session only).
@@ -980,11 +1008,12 @@ button.tiny:hover{border-color:var(--gold)}
       'newsletter'   => 'Newsletter',
       'settings'     => 'Pricing & Settings',
       'audit'        => 'Audit Log',
+      'datarights'   => 'Data Rights',
       'account'      => 'My Account',
     ];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'storeitems' => 'store_catalog', 'webhooks' => 'settings', 'audit' => 'users'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'storeitems' => 'store_catalog', 'webhooks' => 'settings', 'audit' => 'users', 'datarights' => 'users'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -2176,6 +2205,57 @@ button.tiny:hover{border-color:var(--gold)}
     </table>
     <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
+
+<?php elseif ($view === 'datarights'): ?>
+  <header class="top"><h1>Data Rights <span class="muted" style="font-size:.8rem">(NDPA / GDPR)</span></h1></header>
+  <?php if (isset($_GET['erased'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Erased.</strong> The person's personal data was anonymised and free-form PII deleted; financial &amp; audit records were preserved as required.</div><?php endif; ?>
+  <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars((string)$_GET['err']) ?></strong></div><?php endif; ?>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px">Look up a person</h3>
+    <form method="get" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <input type="hidden" name="v" value="datarights">
+      <label style="flex:1;min-width:240px">Email
+        <input type="email" name="email" required value="<?= htmlspecialchars((string)($_GET['email'] ?? '')) ?>" placeholder="person@example.com">
+      </label>
+      <button class="btn" type="submit">Look up</button>
+    </form>
+    <p class="muted" style="font-size:.78rem;margin:10px 0 0">Export returns everything we hold about the person (a Data Subject Access Request). Erasure anonymises identifying fields and deletes free-form PII, while keeping financial and audit records there is a lawful basis to retain.</p>
+  </div>
+
+  <?php
+    $drEmail = strtolower(trim((string)($_GET['email'] ?? '')));
+    if ($drEmail !== ''):
+      $bundle = mam_datarights_export($drEmail);
+      if (!$bundle):
+  ?>
+    <div class="card"><p class="empty">No customer or user found for <strong><?= htmlspecialchars($drEmail) ?></strong>.</p></div>
+  <?php else: ?>
+    <div class="card">
+      <h3 style="margin:0 0 10px">What we hold for <span class="mono"><?= htmlspecialchars($drEmail) ?></span></h3>
+      <ul style="line-height:1.9;margin:0 0 8px">
+        <li>Customer record: <strong><?= $bundle['customer'] ? 'yes (#' . (int)$bundle['customer']['id'] . ')' : 'no' ?></strong></li>
+        <li>User account: <strong><?= $bundle['user'] ? 'yes (#' . (int)$bundle['user']['id'] . ', ' . htmlspecialchars((string)$bundle['user']['role']) . ')' : 'no' ?></strong></li>
+        <li>Applications: <strong><?= count($bundle['applications'] ?? []) ?></strong> · Payments: <strong><?= count($bundle['payments'] ?? []) ?></strong></li>
+        <li>Enrolments: <strong><?= count($bundle['enrolments'] ?? []) ?></strong> · Submissions: <strong><?= count($bundle['submissions'] ?? []) ?></strong> · Practice logs: <strong><?= count($bundle['practice_logs'] ?? []) ?></strong></li>
+        <li>Attendance rows: <strong><?= count($bundle['attendance'] ?? []) ?></strong> · Notifications: <strong><?= count($bundle['notifications'] ?? []) ?></strong></li>
+        <li>Contact messages: <strong><?= count($bundle['messages'] ?? []) ?></strong> · Newsletter: <strong><?= count($bundle['newsletter'] ?? []) ?></strong></li>
+      </ul>
+      <a class="btn" href="?v=export&type=datarights&email=<?= rawurlencode($drEmail) ?>"><i class="fa-solid fa-download"></i> Download JSON export</a>
+    </div>
+
+    <div class="card" style="border-color:#FCA5A5">
+      <h3 style="margin:0 0 6px;color:#FCA5A5">Erase personal data</h3>
+      <p class="muted" style="font-size:.82rem;margin:0 0 10px">This anonymises the customer/user identity, deletes contact messages and newsletter entries, and nulls free-form notes. It cannot be undone. Financial (payment) and audit records are preserved. Type <strong>ERASE</strong> to confirm.</p>
+      <form method="post" onsubmit="return confirm('Permanently erase personal data for <?= htmlspecialchars($drEmail) ?>? This cannot be undone.');" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="datarights_erase">
+        <input type="hidden" name="email" value="<?= htmlspecialchars($drEmail) ?>">
+        <label>Type ERASE<input type="text" name="confirm" autocomplete="off" placeholder="ERASE" style="text-transform:uppercase"></label>
+        <button class="btn" type="submit" style="background:transparent;border:1px solid #FCA5A5;color:#FCA5A5">Erase data</button>
+      </form>
+    </div>
+  <?php endif; endif; ?>
 
 <?php elseif ($view === 'storeitems'):
     // List + create/edit form for store items. The form is the same one for

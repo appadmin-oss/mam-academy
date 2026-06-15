@@ -171,7 +171,7 @@ $mam_vendor = MAM_API_ROOT . '/vendor/autoload.php';
 if (is_file($mam_vendor)) require_once $mam_vendor;
 
 // ---------- Library autoload (manual; no Composer needed) ----------
-$mam_libs = ['log', 'response', 'validation', 'db', 'settings', 'fx', 'session', 'academic-session', 'auth', 'mailer', 'csrf', 'rate-limit', 'paystack', 'flutterwave', 'booking-pricing', 'store', 'practice', 'lms', 'ai', 'admissions', 'jobs', 'funnel', 'notifications', 'analytics'];
+$mam_libs = ['log', 'response', 'validation', 'db', 'settings', 'fx', 'session', 'academic-session', 'auth', 'mailer', 'csrf', 'rate-limit', 'paystack', 'flutterwave', 'booking-pricing', 'store', 'practice', 'lms', 'ai', 'admissions', 'jobs', 'funnel', 'notifications', 'analytics', 'datarights'];
 foreach ($mam_libs as $lib) {
     require_once __DIR__ . '/' . $lib . '.php';
 }
