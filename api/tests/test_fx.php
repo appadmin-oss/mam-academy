@@ -8,6 +8,13 @@ t_eq(mam_fx_parse_ngn('{"conversion_rates":{"NGN":1700}}'), 1700.0, 'exchangerat
 t_ok(mam_fx_parse_ngn('{"rates":{"USD":1,"GBP":0.8}}') === null, 'missing NGN → null');
 t_ok(mam_fx_parse_ngn('not-json-at-all') === null, 'unparseable body → null');
 t_ok(mam_fx_parse_ngn('{"rates":{"NGN":"oops"}}') === null, 'non-numeric NGN → null');
+// fawaz currency-api (primary provider): lowercase {usd:{ngn,…}} shape.
+t_eq(mam_fx_parse_ngn('{"date":"2026-06-16","usd":{"ngn":1605.5,"gbp":0.79,"eur":0.92}}'), 1605.5, 'fawaz {usd:{ngn}} shape');
+$m = mam_fx_parse_rates('{"date":"2026-06-16","usd":{"ngn":1600,"gbp":0.79,"eur":0.92}}');
+t_ok(is_array($m) && $m['GBP'] === 0.79 && $m['EUR'] === 0.92, 'parse_rates returns live GBP/EUR too');
+$m2 = mam_fx_parse_rates('{"rates":{"NGN":1600,"GBP":0.8,"EUR":0.9}}');
+t_ok(is_array($m2) && $m2['NGN'] === 1600.0 && $m2['GBP'] === 0.8, 'parse_rates understands the open.er-api shape');
+t_ok(mam_fx_parse_rates('{"usd":{"gbp":0.79}}') === null, 'no NGN in map → null (NGN is required)');
 
 t_group('currency display-rate map');
 $rates = mam_currency_rates(false); // read-only: must never touch the network

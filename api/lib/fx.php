@@ -1,57 +1,75 @@
 <?php
 /**
- * Live USD→NGN exchange rate, with caching and graceful fallback.
+ * Live USD-based exchange rates (NGN/GBP/EUR), with a multi-provider chain,
+ * caching, and graceful fallback.
  *
- * Why: the naira/dollar rate moves fast, so charging at a hand-set static
- * number goes stale quickly. This fetches a live mid-market rate from a free,
- * key-less provider, caches it in the `settings` table for a TTL, and falls
- * back to the admin-set `usd_to_ngn` value whenever the network or provider is
- * unavailable. It NEVER throws — the payment path depends on it, so a rate-API
- * outage must degrade to the static rate, not 500 a checkout.
+ * Why: the naira/dollar rate moves fast, so charging at a hand-set static number
+ * goes stale quickly. This fetches live mid-market rates from free, key-less
+ * providers — trying several in order so one blocked/troubled endpoint can't
+ * leave us stranded on the static rate — caches them in `settings` for a TTL,
+ * and falls back to the admin-set `usd_to_ngn` value when everything is
+ * unreachable. It NEVER throws: the payment path depends on it, so a rate-API
+ * outage degrades to the static rate, not a 500 at checkout.
  *
- * Provider: defaults to open.er-api.com (no API key). Override with the
- * FX_RATE_URL env when the host's network policy allowlists a different one;
- * both the open.er-api.com (`rates`) and exchangerate-API (`conversion_rates`)
- * JSON shapes are understood.
+ * Providers (USD base, no key): the jsdelivr-hosted currency-api is primary —
+ * the host already reaches jsdelivr for our JS libs, it's CDN-fast and updates
+ * daily — with a pages.dev mirror and open.er-api as further fallbacks. Set the
+ * FX_RATE_URL env to prepend a preferred endpoint. Three JSON shapes are
+ * understood: fawaz `{usd:{ngn,…}}`, open.er-api `{rates:{NGN,…}}`, and
+ * exchangerate-API `{conversion_rates:{…}}`.
  */
 declare(strict_types=1);
 
-/** How long a fetched live rate is trusted before refetching (seconds). */
-const MAM_FX_TTL_SECONDS = 21600; // 6 hours
+/** How long fetched live rates are trusted before refetching (seconds). */
+const MAM_FX_TTL_SECONDS = 14400; // 4 hours
 
 /** Lowest/highest USD→NGN we'll accept from a provider — guards against a
  *  glitched response (e.g. a `1` or `0`) silently mispricing every charge. */
 const MAM_FX_MIN = 100.0;
 const MAM_FX_MAX = 100000.0;
 
-/** Admin-set static rate — the authoritative fallback when live FX is off or
- *  unreachable. Legacy USD_TO_NGN env still honoured. */
+/** The currencies we display/convert (besides the USD base). */
+function mam_fx_currencies(): array { return ['NGN', 'GBP', 'EUR']; }
+
+/** Admin-set static NGN rate — the authoritative fallback when live FX is off
+ *  or unreachable. Legacy USD_TO_NGN env still honoured. */
 function mam_usd_to_ngn_fallback(): float {
     return mam_setting_num('usd_to_ngn', (float)mam_env('USD_TO_NGN', '1500'));
+}
+
+/** Ordered provider endpoints. First that returns a sane NGN wins. */
+function mam_fx_providers(): array {
+    $list = [
+        'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.min.json',
+        'https://latest.currency-api.pages.dev/v1/currencies/usd.json',
+        'https://open.er-api.com/v6/latest/USD',
+    ];
+    $env = trim((string)mam_env('FX_RATE_URL', ''));
+    if ($env !== '') array_unshift($list, $env);
+    return $list;
 }
 
 /**
  * One authoritative USD-based display-rate map for the whole front end, so the
  * homepage toggle, the apply form and the charged amount can't disagree. NGN is
- * the LIVE rate (read-only — matches what's actually charged); GBP/EUR are
- * admin-tunable settings with sensible defaults (display-only, since we settle
- * NGN/USD). $allowFetch=false keeps a page load off the network.
+ * the live charge rate; GBP/EUR are live too when a provider supplied them
+ * (else the admin-tunable settings defaults). $allowFetch=false keeps a page
+ * load off the network (reads cache/fallback only).
  */
 function mam_currency_rates(bool $allowFetch = false): array {
-    return [
-        'USD' => 1.0,
-        'NGN' => round(mam_usd_to_ngn_rate($allowFetch), 2),
-        'GBP' => round(mam_setting_num('fx_usd_gbp', 0.79), 4),
-        'EUR' => round(mam_setting_num('fx_usd_eur', 0.92), 4),
-    ];
+    $ngn    = round(mam_usd_to_ngn_rate($allowFetch), 2); // also primes the cache when fetching
+    $cached = mam_fx_cached_rates(true);                  // allow a stale read for display currencies
+    $gbp    = ($cached && isset($cached['GBP'])) ? (float)$cached['GBP'] : mam_setting_num('fx_usd_gbp', 0.79);
+    $eur    = ($cached && isset($cached['EUR'])) ? (float)$cached['EUR'] : mam_setting_num('fx_usd_eur', 0.92);
+    return ['USD' => 1.0, 'NGN' => $ngn, 'GBP' => round($gbp, 4), 'EUR' => round($eur, 4)];
 }
 
 /**
  * The effective USD→NGN rate to charge/convert at. Resolution order:
  *   1. fx_auto disabled  → static fallback rate.
- *   2. fresh cached live rate (< TTL) → use it (no network hit).
- *   3. otherwise fetch live; on success cache + use it.
- *   4. fetch failed/insane → last good cached live rate, else static fallback.
+ *   2. fresh cached live rates (< TTL) → use them (no network hit).
+ *   3. otherwise fetch the provider chain; on success cache + use it.
+ *   4. all providers failed/insane → last good cached rate, else static fallback.
  *
  * $allowFetch=false makes it read-only (cache/fallback, no network) — used by
  * the public display endpoint so a page load never blocks on the rate API; the
@@ -63,79 +81,125 @@ function mam_usd_to_ngn_rate(bool $allowFetch = true): float {
     // Auto-update can be switched off from admin settings (fx_auto = 0).
     if ((int)mam_setting_num('fx_auto', 1) !== 1) return $fallback;
 
-    $cached    = mam_setting_num('fx_usd_ngn_cached', 0);
-    $fetchedAt = (int)mam_setting_num('fx_usd_ngn_at', 0);
-    if ($cached > 0 && (time() - $fetchedAt) < MAM_FX_TTL_SECONDS) {
-        return $cached; // still fresh
-    }
+    $cached = mam_fx_cached_rates();
+    if ($cached && isset($cached['NGN'])) return (float)$cached['NGN']; // still fresh
+
     if (!$allowFetch) {
-        return $cached > 0 ? $cached : $fallback; // stale but no network allowed
+        $last = mam_setting_num('fx_usd_ngn_cached', 0);
+        return $last > 0 ? $last : $fallback; // stale but no network allowed
     }
 
-    $live = mam_fx_fetch_usd_ngn();
-    if ($live !== null && $live >= MAM_FX_MIN && $live <= MAM_FX_MAX) {
+    $live = mam_fx_fetch_rates();
+    if ($live !== null && isset($live['NGN']) && $live['NGN'] >= MAM_FX_MIN && $live['NGN'] <= MAM_FX_MAX) {
         mam_fx_cache_set($live);
-        return $live;
+        return (float)$live['NGN'];
     }
 
     // Unreachable or implausible — prefer the last good live value, else static.
-    return $cached > 0 ? $cached : $fallback;
+    $last = mam_setting_num('fx_usd_ngn_cached', 0);
+    return $last > 0 ? $last : $fallback;
 }
 
-/** Persist the freshly-fetched rate + timestamp. Never throws (the settings
- *  table may be missing on a not-yet-migrated DB; a failed cache write must
- *  not break the charge — we just refetch next time). */
-function mam_fx_cache_set(float $rate): void {
+/** The cached live rate map if present and (unless $allowStale) still fresh. */
+function mam_fx_cached_rates(bool $allowStale = false): ?array {
+    $raw = (string)mam_setting('fx_rates_cached', '');
+    if ($raw === '') return null;
+    $map = json_decode($raw, true);
+    if (!is_array($map) || !isset($map['NGN'])) return null;
+    if (!$allowStale) {
+        $at = (int)mam_setting_num('fx_rates_at', 0);
+        if ($at <= 0 || (time() - $at) >= MAM_FX_TTL_SECONDS) return null;
+    }
+    return $map;
+}
+
+/** Persist the freshly-fetched rate map + timestamp (+ legacy NGN keys for any
+ *  external reader). Never throws — a failed cache write must not break a charge. */
+function mam_fx_cache_set(array $rates): void {
     try {
-        mam_setting_set('fx_usd_ngn_cached', (string)$rate);
-        mam_setting_set('fx_usd_ngn_at', (string)time());
+        mam_setting_set('fx_rates_cached', json_encode($rates, JSON_UNESCAPED_SLASHES));
+        mam_setting_set('fx_rates_at', (string)time());
+        if (isset($rates['NGN'])) { // keep the legacy keys in step
+            mam_setting_set('fx_usd_ngn_cached', (string)$rates['NGN']);
+            mam_setting_set('fx_usd_ngn_at', (string)time());
+        }
     } catch (Throwable $e) {
         mam_log('info', 'fx_cache_write_failed', ['err' => $e->getMessage()]);
     }
 }
 
 /**
- * Fetch the raw USD→NGN rate from the configured provider. Returns null on any
- * error (no curl, network down, bad HTTP, unparseable body, missing NGN).
+ * Fetch the live rate map, trying each provider until one returns a sane NGN.
+ * Returns ['NGN'=>…,'GBP'=>…,'EUR'=>…] (whatever the winner supplied, NGN
+ * guaranteed), or null if every provider failed.
  */
-function mam_fx_fetch_usd_ngn(): ?float {
-    $url = (string)mam_env('FX_RATE_URL', 'https://open.er-api.com/v6/latest/USD');
+function mam_fx_fetch_rates(): ?array {
     if (!function_exists('curl_init')) return null;
+    foreach (mam_fx_providers() as $url) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_USERAGENT      => 'mam-academy/1.0 (+fx)',
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+        $resp = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 8,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_USERAGENT      => 'mam-academy/1.0 (+fx)',
-        CURLOPT_HTTPHEADER     => ['Accept: application/json'],
-    ]);
-    $resp = curl_exec($ch);
-    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
-
-    if ($resp === false || $code < 200 || $code >= 300) {
-        mam_log('warn', 'fx_fetch_failed', ['code' => $code, 'err' => $err]);
-        return null;
+        if ($resp === false || $code < 200 || $code >= 300) {
+            mam_log('warn', 'fx_fetch_failed', ['url' => $url, 'code' => $code, 'err' => $err]);
+            continue;
+        }
+        $map = mam_fx_parse_rates((string)$resp);
+        if ($map !== null && $map['NGN'] >= MAM_FX_MIN && $map['NGN'] <= MAM_FX_MAX) {
+            return $map;
+        }
+        mam_log('warn', 'fx_parse_failed', ['url' => $url]);
     }
-    return mam_fx_parse_ngn((string)$resp);
+    return null;
+}
+
+/** Back-compat single-rate fetch (USD→NGN). */
+function mam_fx_fetch_usd_ngn(): ?float {
+    $map = mam_fx_fetch_rates();
+    return $map['NGN'] ?? null;
 }
 
 /**
- * Pull the NGN rate out of a provider JSON body. Understands the common
- * key-less shapes:
+ * Pull the USD-based rate map out of a provider JSON body. Understands:
+ *   fawaz currency-api:                   { "date":…, "usd": { "ngn":1600, … } }
  *   open.er-api.com / exchangerate.host:  { "rates": { "NGN": 1600, … } }
  *   exchangerate-API v6:                  { "conversion_rates": { "NGN": … } }
- * Returns null if no numeric NGN value is present. Pure — easy to unit-test.
+ * Returns the {NGN,GBP,EUR} subset (NGN required), or null. Pure — unit-tested.
  */
-function mam_fx_parse_ngn(string $json): ?float {
+function mam_fx_parse_rates(string $json): ?array {
     $data = json_decode($json, true);
     if (!is_array($data)) return null;
-    $rates = $data['rates'] ?? $data['conversion_rates'] ?? null;
-    if (is_array($rates) && isset($rates['NGN']) && is_numeric($rates['NGN'])) {
-        return (float)$rates['NGN'];
+
+    $src = null;
+    if (isset($data['usd']) && is_array($data['usd'])) {
+        $src = []; // fawaz uses lowercase keys
+        foreach ($data['usd'] as $k => $v) $src[strtoupper((string)$k)] = $v;
+    } else {
+        $src = $data['rates'] ?? $data['conversion_rates'] ?? null;
     }
-    return null;
+    if (!is_array($src)) return null;
+
+    $out = [];
+    foreach (mam_fx_currencies() as $c) {
+        if (isset($src[$c]) && is_numeric($src[$c])) $out[$c] = (float)$src[$c];
+    }
+    return isset($out['NGN']) ? $out : null; // NGN is the must-have (the charge rate)
+}
+
+/** Pull just the NGN rate out of a provider JSON body (back-compat helper). */
+function mam_fx_parse_ngn(string $json): ?float {
+    $map = mam_fx_parse_rates($json);
+    return $map['NGN'] ?? null;
 }
