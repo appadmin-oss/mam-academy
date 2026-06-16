@@ -30,6 +30,8 @@ function mam_application_stage(string $status, string $paymentStatus): array {
         case 'rejected':
         case 'withdrawn':
             return ['stage' => 'closed', 'label' => 'Closed', 'next' => 'This application is closed — please check your email, or start a new application.'];
+        case 'expired':
+            return ['stage' => 'expired', 'label' => 'Expired', 'next' => 'This application expired because the processing fee wasn\'t paid in time. Please start a new application — the full processing fee applies afresh.'];
     }
     if ($paid) {
         return ['stage' => 'confirmed', 'label' => 'Seat confirmed', 'next' => 'Your booking fee is in. We\'ll be in touch about your MAM Auditer assessment and the next steps.'];
@@ -42,13 +44,14 @@ function mam_application_stage(string $status, string $paymentStatus): array {
 /** Legal application-status moves. Terminal states have an empty allow-list. */
 function mam_admissions_transitions(): array {
     return [
-        'submitted'  => ['in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'],
-        'in_review'  => ['accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'],
-        'waitlisted' => ['in_review', 'accepted', 'paid', 'enrolled', 'cancelled'],
-        'accepted'   => ['paid', 'enrolled', 'cancelled'],
+        'submitted'  => ['in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled', 'expired'],
+        'in_review'  => ['accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled', 'expired'],
+        'waitlisted' => ['in_review', 'accepted', 'paid', 'enrolled', 'cancelled', 'expired'],
+        'accepted'   => ['paid', 'enrolled', 'cancelled', 'expired'],
         'paid'       => ['accepted', 'enrolled', 'cancelled'],
         'enrolled'   => [],
         'cancelled'  => [],
+        'expired'    => [],
     ];
 }
 function mam_admissions_can_transition(string $from, string $to): bool {

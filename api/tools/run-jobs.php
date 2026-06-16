@@ -32,6 +32,13 @@ if (function_exists('mam_app_draft_nudge_sweep')) {
     printf("draft nudge: emailed %d\n", mam_app_draft_nudge_sweep());
 }
 
+// Application invoices: auto-invoice applications whose fee is due, and expire
+// those left unpaid past the window (the applicant must then re-apply).
+if (function_exists('mam_invoices_process')) {
+    $iv = mam_invoices_process();
+    printf("invoices   : scanned %d · invoiced %d · expired %d\n", $iv['scanned'], $iv['invoiced'], $iv['expired']);
+}
+
 // Generalised cron: also drain the failed-email outbox in the same pass.
 if (function_exists('mam_mail_retry_failed')) {
     $m = mam_mail_retry_failed(50, 6, 0);

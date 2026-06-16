@@ -129,6 +129,10 @@ function mam_settings_schema(): array {
         ['Invoice',                 'invoice_account_name',     'Bank account name', 'The Just Folks Limited', ''],
         ['Invoice',                 'invoice_account_number',   'Bank account number', '0117579643', ''],
         ['Invoice',                 'invoice_finance_name',     'Finance signatory name', 'Anuoluwapo O. Ogunbanjo', ''],
+        // Application invoice lifecycle (auto-invoice when due, expire when overdue).
+        ['Invoice',                 'invoice_auto',             'Auto-invoice & auto-expire unpaid applications (1=on, 0=off)', 1, ''],
+        ['Invoice',                 'invoice_due_days',         'Days after submission to send the auto-invoice reminder', 3, 'days'],
+        ['Invoice',                 'invoice_expiry_days',      'Days after submission an unpaid application expires (restart required)', 14, 'days'],
         ['Currency',                'fx_auto',                  'Auto-update USD→NGN from live rate API (1=on, 0=off)', 1, ''],
         ['Currency',                'usd_to_ngn',               'USD → NGN fallback rate (used when live FX is off/unreachable)', 1500, '₦'],
         // Scholarship CTA shown in emails (the website reads its own copy from

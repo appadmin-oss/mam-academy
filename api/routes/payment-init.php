@@ -46,6 +46,11 @@ if ($purpose === 'store') {
                         FROM applications a JOIN customers c ON c.id = a.customer_id
                         WHERE a.reference = ?', [$ref]);
     if (!$app) mam_fail('application_not_found', 404);
+    // An expired application can no longer be paid — its invoice lapsed, so the
+    // applicant must start a fresh application (full processing fee applies).
+    if (($app['status'] ?? '') === 'expired') {
+        mam_fail('application_expired', 409, ['message' => 'This application has expired. Please start a new application — the processing fee applies afresh.']);
+    }
     $payRef = $purpose === 'booking_fee' ? ($ref . '-BK') : $ref;
     if ($purpose === 'booking_fee' && !empty($app['booking_fee_paid_at'])) {
         mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
