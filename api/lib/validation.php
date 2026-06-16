@@ -58,7 +58,8 @@ function mam_grand_discount_pct(): float {
  *   grand-musician     → (3B + 0.5B·extra)·(1 − discount) (up to 7 courses)
  *   meta-order         → flat price (not level-based)
  *
- * Online and onsite are priced the same (no surcharge). Registration ($5)
+ * Online adds +online_surcharge_pct% (20) to the subtotal; it is folded
+ * silently into `total` and never returned as its own field. Registration ($5)
  * is added separately at checkout, not part of the tuition formula.
  */
 function mam_compute_application_price(array $args): array {
@@ -105,8 +106,10 @@ function mam_compute_application_price(array $args): array {
             $subtotal = 0.0;
     }
 
-    // Online and onsite are priced identically (the online surcharge was removed).
     $adjusted = $subtotal;
+    if ($onlineApplies && $mode === 'online') {
+        $adjusted = $subtotal * (1 + mam_online_surcharge_pct() / 100);
+    }
     $registration = $reg ? mam_registration_fee() : 0.0;
 
     // Prices are always presented as flat, whole-dollar amounts (no decimals).
@@ -164,9 +167,12 @@ function mam_programme_from_prices(): array {
     ];
 }
 
-/** Online/onsite are priced the same — the online surcharge was removed. Kept
- *  returning 0 so the public config and any reader reflect "no surcharge". */
-function mam_online_surcharge_pct(): float { return 0.0; }
+/** Online learners pay the programme fee + this percentage premium. Onsite is
+ *  the standard fee. Server-authoritative so it can't be bypassed client-side.
+ *  Admin-editable; legacy ONLINE_SURCHARGE_PCT env still honoured as fallback. */
+function mam_online_surcharge_pct(): float {
+    return mam_setting_num('online_surcharge_pct', (float)mam_env('ONLINE_SURCHARGE_PCT', '20'));
+}
 
 /** One-time registration / student-file fee added at checkout. Admin-editable. */
 function mam_registration_fee(): float {

@@ -452,7 +452,7 @@ function mam_db_migrate(PDO $db): void {
               ('price_grand_musician','310'),
               ('price_crash','70'),
               ('price_meta_order','60'),
-              ('online_surcharge_pct','0'),
+              ('online_surcharge_pct','20'),
               ('registration_fee_usd','5'),
               ('store_shipping_flat_usd','5'),
               ('usd_to_ngn','1500');

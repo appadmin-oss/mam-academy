@@ -5,15 +5,15 @@ t_group('pricing engine');
 
 // Crash: flat $70, level-independent, online-exempt; + $5 registration.
 $r = mam_compute_application_price(['programme' => 'crash', 'level' => '', 'mode' => 'online', 'extraCourses' => 0, 'includeRegistration' => true]);
-t_eq($r['total'], 75, 'crash online = 70 flat + 5 reg');
+t_eq($r['total'], 75, 'crash online = 70 flat + 5 reg (online surcharge exempt)');
 
 // Standard at Pre-Certificate: base 120, onsite, + reg.
 $r = mam_compute_application_price(['programme' => 'standard', 'level' => 'precert', 'mode' => 'onsite', 'extraCourses' => 0, 'includeRegistration' => true]);
 t_eq($r['total'], 125, 'standard precert onsite = 120 + 5 reg');
 
-// Online and onsite are priced the same (online surcharge removed).
+// Online adds +20% to the programme fee.
 $r = mam_compute_application_price(['programme' => 'standard', 'level' => 'precert', 'mode' => 'online', 'extraCourses' => 0, 'includeRegistration' => false]);
-t_eq($r['subtotal'], 120, 'standard precert online == onsite (no surcharge)');
+t_eq($r['subtotal'], 144, 'standard precert online = 120 * 1.20');
 
 // Certified: level base + compulsory-courses fee (120) => 240 at precert.
 $r = mam_compute_application_price(['programme' => 'certified-musician', 'level' => 'precert', 'mode' => 'onsite', 'extraCourses' => 0, 'includeRegistration' => false]);

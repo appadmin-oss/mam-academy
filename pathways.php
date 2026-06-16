@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260616g">
+<link rel="stylesheet" href="assets/css/main.css?v=20260616h">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"ItemList","name":"MAM Academy Programmes &amp; Tuition","itemListElement":[
  {"@type":"ListItem","position":1,"item":{"@type":"Course","name":"Standard Programme","url":"https://academy.mamcentre.org/pathways#standard","description":"One course at your chosen level, with optional additional courses at 50% of the base fee.","provider":{"@type":"EducationalOrganization","name":"MAM Academy","sameAs":"https://academy.mamcentre.org/"},"offers":{"@type":"AggregateOffer","lowPrice":"120","priceCurrency":"USD","category":"Tuition"},"hasCourseInstance":[{"@type":"CourseInstance","courseMode":["online","onsite"]}]}},
@@ -290,7 +290,7 @@
             <label>Mode of study</label>
             <div class="seg" id="calcMode" role="group">
               <button type="button" data-v="onsite" class="on">Onsite</button>
-              <button type="button" data-v="online">Online</button>
+              <button type="button" data-v="online">Online <span style="opacity:.7">(+20%)</span></button>
             </div>
           </div>
           <div class="calc-field" id="calcExtraField">
@@ -356,7 +356,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260616a"></script>
+<script src="assets/js/config.js?v=20260616h"></script>
 <script src="assets/js/main.js?v=20260616e"></script>
 <script>
 /* Live tuition estimator — mirrors mam_compute_application_price() exactly,
@@ -374,7 +374,7 @@
   function levelPrices() { return cfg().levelPrices || { precert: 120, cert: 130, prediploma: 160, diploma: 180 }; }
   function compFee() { return cfg().compulsoryFeeUsd != null ? cfg().compulsoryFeeUsd : 120; }
   function regFee() { return cfg().registrationFeeUsd != null ? cfg().registrationFeeUsd : 5; }
-  function onlinePct() { return 0; } /* online & onsite priced the same (surcharge removed) */
+  function onlinePct() { return cfg().onlineSurchargePct != null ? cfg().onlineSurchargePct : 20; }
   function flatPrice(p) { var pr = (cfg().pricing || {})[p]; return pr && pr.usd ? pr.usd : (p === 'crash' ? 70 : 60); }
 
   function activeCur() { var b = $('.currency-toggle .currency-btn.active'); return b ? b.getAttribute('data-currency') : 'USD'; }
@@ -400,7 +400,8 @@
     } else {
       sub = B + (state.prog === 'certified-musician' ? compFee() : 0) + 0.5 * B * ex;
     }
-    return Math.round(sub) + reg; // online and onsite are priced the same (surcharge removed)
+    if (state.mode === 'online') sub = sub * (1 + onlinePct() / 100);
+    return Math.round(sub) + reg;
   }
 
   function render() {

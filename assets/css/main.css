@@ -1412,7 +1412,7 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 .frame[data-tone="sun"]::before{background:radial-gradient(closest-side,rgba(252,198,71,.45),rgba(252,198,71,.14) 55%,transparent 76%)}
 /* soundwave halo ring */
 .frame::after{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
-  background:url('/assets/img/showcase/wave-ring.svg') center/86% 86% no-repeat;
+  background:url('/assets/img/showcase/wave-ring.svg?v=20260616h') center/86% 86% no-repeat;
   transition:transform .8s var(--ease)}
 .frame:hover::after{transform:rotate(7deg)}
 /* the transparent cut-out subject */
