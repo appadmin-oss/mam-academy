@@ -623,7 +623,7 @@
 <?php include __DIR__ . '/partials/footer.html'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/js/intlTelInputWithUtils.min.js"></script>
-<script src="assets/js/config.js?v=20260615e"></script>
+<script src="assets/js/config.js?v=20260615f"></script>
 <script src="assets/js/main.js?v=20260615c"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
 <script src="assets/js/headshot.js?v=20260615e"></script>

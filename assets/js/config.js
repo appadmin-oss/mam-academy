@@ -13,7 +13,7 @@ window.MAM_CONFIG = {
     url: 'https://academy.mamcentre.org',
     contactEmail: 'academy@mamcentre.org',
     supportPhone: '+234 704 444 6517',
-    address: 'MAM Centre, Lagos, Nigeria'
+    address: '2 Abolude Oremeji Street, Off Akowonjo Road, Bakery Bus Stop, Egbeda, Alimosho, Lagos, Nigeria'
   },
 
   /* Receiving bank account — static fallback; the live values come from

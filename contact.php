@@ -50,7 +50,7 @@
           <div class="help-list">
             <div class="help-item"><i class="fa-solid fa-envelope"></i><span><strong>Email</strong><br><a href="mailto:academy@mamcentre.org" style="color:var(--gold-bright)">academy@mamcentre.org</a></span></div>
             <div class="help-item"><i class="fa-solid fa-phone"></i><span><strong>Phone</strong><br><a href="tel:+2347044446517" style="color:var(--gold-bright)">+234 704 444 6517</a></span></div>
-            <div class="help-item"><i class="fa-solid fa-location-dot"></i><span><strong>Office</strong><br>MAM Centre, Lagos, Nigeria</span></div>
+            <div class="help-item"><i class="fa-solid fa-location-dot"></i><span><strong>Office</strong><br>CACENTRE-Egbeda, 2 Abolude Oremeji Street, Off Akowonjo Road, Bakery Bus Stop, Egbeda, Alimosho, Lagos</span></div>
             <div class="help-item"><i class="fa-solid fa-clock"></i><span><strong>Hours</strong><br>Mon–Sat · 9am–6pm WAT</span></div>
           </div>
         </div>
@@ -90,7 +90,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260615e"></script>
+<script src="assets/js/config.js?v=20260615f"></script>
 <script src="assets/js/main.js?v=20260615c"></script>
 <script>
 document.addEventListener('mam:ready', function () {
