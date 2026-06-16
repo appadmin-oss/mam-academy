@@ -960,15 +960,15 @@ html.cookie-open .mam-cta-bar{bottom:118px}
    `html.js` selector doesn't match, so these elements keep their natural
    opacity:1 and can NEVER be stuck invisible. With JS they hide, then the
    reveal observer adds .visible as they enter view. */
-.fade-in-up{transition:opacity 0.7s var(--ease),transform 0.7s var(--ease)}
-.fade-in{transition:opacity 0.7s var(--ease)}
+.fade-in-up{transition:opacity 0.5s var(--ease),transform 0.5s var(--ease)}
+.fade-in{transition:opacity 0.5s var(--ease)}
 /* The hidden start state carries a pure-CSS FAILSAFE: even if the reveal
    observer never fires (slow/blocked JS), a keyframe reveals the element by
    ~1.1s so text is NEVER left invisible. The observer still reveals earlier on
    scroll-in by adding .visible (which stops :not(.visible) matching, so the
    failsafe animation drops and .visible takes over cleanly). */
-html.js .fade-in-up:not(.visible){opacity:0;transform:translateY(32px);animation:mamRevealUp .45s var(--ease,ease-out) .7s forwards}
-html.js .fade-in:not(.visible){opacity:0;animation:mamRevealIn .45s ease .7s forwards}
+html.js .fade-in-up:not(.visible){opacity:0;transform:translateY(20px);animation:mamRevealUp .5s var(--ease,ease-out) .12s forwards}
+html.js .fade-in:not(.visible){opacity:0;animation:mamRevealIn .5s ease .12s forwards}
 .fade-in-up.visible{opacity:1;transform:translateY(0)}
 .fade-in.visible{opacity:1}
 @keyframes mamRevealUp{to{opacity:1;transform:translateY(0)}}

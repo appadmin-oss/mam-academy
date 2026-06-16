@@ -81,7 +81,7 @@
       var tick = false;
       window.addEventListener('scroll', function () { if (tick) return; tick = true; setTimeout(function () { tick = false; sweep(false); }, 180); }, { passive: true });
       window.addEventListener('load', function () { setTimeout(function () { sweep(false); }, 1200); });
-      setTimeout(function () { sweep(true); }, 1800); // last-resort: force-reveal everything so nothing is ever stuck transparent (CSS failsafe also reveals ~1.1s)
+      setTimeout(function () { sweep(true); }, 700); // last-resort: force-reveal everything so nothing is ever stuck transparent (CSS failsafe also reveals ~0.6s)
     } catch (e) {
       try { document.documentElement.className += ' reveal-fallback'; } catch (_) {}
     }
@@ -1095,7 +1095,7 @@
       eq.innerHTML = '<i></i><i></i><i></i><i></i>';
       ey.insertBefore(eq, ey.firstChild);
     });
-    ['schools', 'pathways', 'faculty-preview', 'showcase'].forEach(function (id) {
+    ['how', 'modes', 'schools', 'showcase', 'pathways', 'faculty-preview'].forEach(function (id) {
       var s = document.getElementById(id); if (s) s.classList.add('aurora');
     });
     initCardGlow();
