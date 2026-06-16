@@ -34,7 +34,7 @@
 <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260616f">
+<link rel="stylesheet" href="assets/css/main.css?v=20260616g">
 
 <!-- The canonical #organization + #website entity now lives sitewide in
      partials/header.html (on every page). The page-specific Course/ItemList/
@@ -300,7 +300,7 @@
 
     <div class="showcase-row">
       <figure class="frame" data-tone="gold">
-        <img src="assets/img/showcase/mam-voice.jpg" alt="A MAM Academy vocalist singing with joy" loading="lazy" decoding="async" onerror="var f=this.closest('.frame');f.classList.add('is-empty');this.remove();">
+        <img src="assets/img/showcase/mam-voice.webp" alt="A MAM Academy vocalist singing with joy" loading="lazy" decoding="async" onerror="var f=this.closest('.frame');f.classList.add('is-empty');this.remove();">
         <span class="frame-ph" aria-hidden="true"><i class="fa-solid fa-music"></i></span>
       </figure>
       <div class="showcase-copy">
@@ -313,7 +313,7 @@
 
     <div class="showcase-row reverse">
       <figure class="frame" data-tone="ember">
-        <img src="assets/img/showcase/mam-sax.jpg" alt="A MAM Academy student playing the saxophone" loading="lazy" decoding="async" onerror="var f=this.closest('.frame');f.classList.add('is-empty');this.remove();">
+        <img src="assets/img/showcase/mam-sax.webp" alt="A MAM Academy student playing the saxophone" loading="lazy" decoding="async" onerror="var f=this.closest('.frame');f.classList.add('is-empty');this.remove();">
         <span class="frame-ph" aria-hidden="true"><i class="fa-solid fa-music"></i></span>
       </figure>
       <div class="showcase-copy">
@@ -326,7 +326,7 @@
 
     <div class="showcase-row">
       <figure class="frame" data-tone="sun">
-        <img src="assets/img/showcase/mam-strings.jpg" alt="A MAM Academy student playing the violin" loading="lazy" decoding="async" onerror="var f=this.closest('.frame');f.classList.add('is-empty');this.remove();">
+        <img src="assets/img/showcase/mam-strings.webp" alt="A MAM Academy student playing the violin" loading="lazy" decoding="async" onerror="var f=this.closest('.frame');f.classList.add('is-empty');this.remove();">
         <span class="frame-ph" aria-hidden="true"><i class="fa-solid fa-music"></i></span>
       </figure>
       <div class="showcase-copy">

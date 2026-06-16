@@ -26,7 +26,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
-<link rel="stylesheet" href="assets/css/main.css?v=20260616f">
+<link rel="stylesheet" href="assets/css/main.css?v=20260616g">
 <link rel="stylesheet" href="assets/css/apply.css?v=20260616a">
 </head>
 <body>

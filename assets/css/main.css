@@ -1399,28 +1399,37 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 .showcase-heading{font-family:var(--font-serif);font-size:clamp(1.55rem,3.4vw,2.4rem);line-height:1.12;letter-spacing:-.01em;color:var(--text);margin-bottom:14px}
 .showcase-copy p{color:var(--text-muted);font-size:1.02rem;line-height:1.7;margin:0 0 22px}
 
-/* The image is woven INTO the page, not framed onto it: its edges feather away
-   into the dark canvas over a warm halo, so the subject reads as native page
-   composition — never a pasted-on external tile. No border, no tilt. */
+/* Cut-out subject on a soundwave halo — the brand's promo look, rebuilt for the
+   transparent PNG/WebP cut-outs. A warm glow + a gold soundwave ring sit behind
+   the subject; the subject is lifted with a drop-shadow and its BOTTOM fades
+   into the page so a cropped figure never feels cut off. */
 .frame{position:relative;margin:0;overflow:visible;transition:transform .4s var(--ease)}
-.frame::before{content:'';position:absolute;inset:-16% -14% -22%;z-index:0;border-radius:50%;pointer-events:none;
-  background:radial-gradient(closest-side,rgba(232,150,31,.55),rgba(232,150,31,.16) 52%,transparent 78%);
+/* warm glow */
+.frame::before{content:'';position:absolute;inset:4% 6% 8%;z-index:0;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(232,150,31,.42),rgba(232,150,31,.12) 55%,transparent 76%);
   filter:blur(10px);transition:opacity .45s var(--ease)}
-.frame[data-tone="ember"]::before{background:radial-gradient(closest-side,rgba(247,106,56,.55),rgba(247,106,56,.16) 52%,transparent 78%)}
-.frame[data-tone="sun"]::before{background:radial-gradient(closest-side,rgba(252,198,71,.58),rgba(252,198,71,.18) 52%,transparent 78%)}
-.frame img{position:relative;z-index:1;display:block;width:100%;aspect-ratio:1/1;object-fit:cover;
-  -webkit-mask-image:radial-gradient(74% 80% at 50% 44%,#000 60%,rgba(0,0,0,0) 100%);
-          mask-image:radial-gradient(74% 80% at 50% 44%,#000 60%,rgba(0,0,0,0) 100%);
+.frame[data-tone="ember"]::before{background:radial-gradient(closest-side,rgba(247,106,56,.42),rgba(247,106,56,.12) 55%,transparent 76%)}
+.frame[data-tone="sun"]::before{background:radial-gradient(closest-side,rgba(252,198,71,.45),rgba(252,198,71,.14) 55%,transparent 76%)}
+/* soundwave halo ring */
+.frame::after{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:url('/assets/img/showcase/wave-ring.svg') center/86% 86% no-repeat;
+  transition:transform .8s var(--ease)}
+.frame:hover::after{transform:rotate(7deg)}
+/* the transparent cut-out subject */
+.frame img{position:relative;z-index:1;display:block;width:100%;aspect-ratio:1/1;object-fit:contain;
+  -webkit-mask-image:linear-gradient(180deg,#000 82%,transparent 99.5%);
+          mask-image:linear-gradient(180deg,#000 82%,transparent 99.5%);
+  filter:drop-shadow(0 16px 28px rgba(20,12,4,.5));
   transition:transform .5s var(--ease)}
-.frame:hover img{transform:scale(1.025)}
+.frame:hover img{transform:translateY(-4px) scale(1.012)}
 .frame:hover::before{opacity:.85}
-/* branded placeholder until the photo is dropped in (see assets/img/README.md) */
+/* branded placeholder until a photo is present (see assets/img/README.md) */
 .frame-ph{display:none}
-.frame.is-empty{min-height:300px;border-radius:clamp(20px,3vw,28px);background:radial-gradient(120% 120% at 50% 40%,rgba(232,150,31,.18),transparent 62%),linear-gradient(150deg,#2A1B10,#140D08)}
-.frame.is-empty .frame-ph{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;min-height:300px;color:rgba(252,198,71,.55);font-size:3rem}
+.frame.is-empty{min-height:320px}
+.frame.is-empty .frame-ph{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;min-height:320px;color:rgba(252,198,71,.55);font-size:3rem}
 @media (max-width:820px){
-  .showcase-row{grid-template-columns:1fr;gap:22px}
+  .showcase-row{grid-template-columns:1fr;gap:18px}
   .showcase-row.reverse .frame{order:0}            /* image back on top when stacked */
-  .frame{max-width:440px;margin:0 auto;width:100%}
+  .frame{max-width:420px;margin:0 auto;width:100%}
 }
-@media (prefers-reduced-motion:reduce){ .frame:hover img{transform:none} }
+@media (prefers-reduced-motion:reduce){ .frame:hover img{transform:none} .frame:hover::after{transform:none} }
