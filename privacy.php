@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260616e">
+<link rel="stylesheet" href="assets/css/main.css?v=20260616f">
 <style>.legal{max-width:800px;margin:0 auto;padding:48px 24px 96px}.legal h2{font-family:var(--font-serif);font-size:1.38rem;margin:34px 0 12px;color:var(--text);padding-left:14px;border-left:3px solid var(--gold)}.legal p,.legal li{color:var(--text-soft);line-height:1.78;margin-bottom:12px;font-size:0.96rem}.legal ul{padding-left:18px;list-style:disc}.legal ul li{margin-bottom:6px}.legal a{color:var(--gold-bright);text-decoration:underline;text-underline-offset:2px}.legal strong{color:var(--text)}.legal-updated{display:inline-flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--text-muted);background:var(--bg-raised);border:1px solid var(--border);padding:6px 14px;border-radius:100px;margin-bottom:18px}.legal-updated i{color:var(--gold-bright)}</style>
 </head>
 <body>
@@ -81,6 +81,6 @@
 </main>
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260615f"></script>
-<script src="assets/js/main.js?v=20260616d"></script>
+<script src="assets/js/main.js?v=20260616e"></script>
 </body>
 </html>

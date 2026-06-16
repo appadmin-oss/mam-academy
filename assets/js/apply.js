@@ -947,6 +947,27 @@
       }
     });
 
+    // Smart payment guidance: lead with — and flag "Recommended" — the method
+    // most likely to clear for the chosen currency (local card/bank/USSD rails
+    // for NGN; international-friendly Flutterwave otherwise). Purely advisory:
+    // it reorders + badges, never changes the selection or its validation.
+    function tunePaymentMethods() {
+      var wrap = document.querySelector('.payment-methods'); if (!wrap) return;
+      var rec = (!data.currency || data.currency === 'NGN') ? 'paystack' : 'flutterwave';
+      var recEl = null;
+      $$('.payment-method').forEach(function (m) {
+        var input = m.querySelector('input[name="payment"]');
+        var badge = m.querySelector('.payment-rec');
+        var on = input && input.value === rec && m.style.display !== 'none';
+        if (on) {
+          recEl = m;
+          if (!badge) { badge = document.createElement('span'); badge.className = 'payment-rec'; badge.textContent = 'Recommended'; (m.querySelector('.payment-method-info') || m).appendChild(badge); }
+        } else if (badge) { badge.remove(); }
+      });
+      if (recEl && recEl !== wrap.firstElementChild) wrap.insertBefore(recEl, wrap.firstElementChild);
+    }
+    tunePaymentMethods();
+
     // Copy bank fields
     $$('.bank-copy').forEach(function (btn) {
       on(btn, 'click', function () {
@@ -958,7 +979,7 @@
       });
     });
 
-    on($('#applyCurrency'), 'change', function () { data.currency = $('#applyCurrency').value; saveDraft(); updateSummary(); });
+    on($('#applyCurrency'), 'change', function () { data.currency = $('#applyCurrency').value; saveDraft(); updateSummary(); tunePaymentMethods(); });
     if (data.currency) { var cs = $('#applyCurrency'); if (cs) cs.value = data.currency; }
     on($('#ambView'), 'click', function () {
       var panel = $('#summaryPanel'); if (panel) panel.open = true;

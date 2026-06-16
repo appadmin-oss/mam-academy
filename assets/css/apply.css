@@ -288,6 +288,7 @@
 .payment-method-info{flex:1}
 .payment-method-name{font-size:0.95rem;font-weight:700;color:var(--text);margin-bottom:2px}
 .payment-method-desc{font-size:0.78rem;color:var(--text-muted);line-height:1.4}
+.payment-rec{display:inline-block;margin-top:6px;padding:2px 9px;border-radius:100px;font-size:0.62rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;background:linear-gradient(135deg,var(--gold),var(--gold-light,#F7A823));color:#1A120B}
 .payment-method-check{width:22px;height:22px;border-radius:50%;border:2px solid var(--border-strong);display:flex;align-items:center;justify-content:center;color:transparent;transition:all 0.2s var(--ease);flex-shrink:0}
 .payment-method:has(input:checked) .payment-method-check{background:var(--gold-bright);border-color:var(--gold-bright);color:#1A120B}
 .payment-method:has(input:checked) .payment-method-check::before{content:'✓';font-weight:900;font-size:0.7rem}

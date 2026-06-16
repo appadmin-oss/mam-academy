@@ -1095,8 +1095,10 @@
       eq.innerHTML = '<i></i><i></i><i></i><i></i>';
       ey.insertBefore(eq, ey.firstChild);
     });
-    ['how', 'modes', 'schools', 'showcase', 'pathways', 'faculty-preview'].forEach(function (id) {
-      var s = document.getElementById(id); if (s) s.classList.add('aurora');
+    ['how', 'modes', 'schools', 'showcase', 'pathways', 'faculty-preview'].forEach(function (id, i) {
+      var s = document.getElementById(id); if (!s) return;
+      s.classList.add('aurora');
+      if (i % 2) s.classList.add('aurora-flip'); // mirror every other → flowing warmth
     });
     initCardGlow();
     // Perf: below-the-fold images load lazily (skip anything in the hero or

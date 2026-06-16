@@ -16,7 +16,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260616e">
+<link rel="stylesheet" href="assets/css/main.css?v=20260616f">
 <style>
   .tu-wrap{max-width:620px;margin:0 auto}
   .tu-card{background:#1A120B;border:1px solid rgba(224,138,26,.35);border-radius:16px;padding:26px 24px;box-shadow:0 12px 36px rgba(0,0,0,.28)}
@@ -92,7 +92,7 @@
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260615f"></script>
-<script src="assets/js/main.js?v=20260616d"></script>
+<script src="assets/js/main.js?v=20260616e"></script>
 <script>
 (function () {
   var form = document.getElementById('tuForm'), btn = document.getElementById('tuGo');
