@@ -290,7 +290,7 @@
             <label>Mode of study</label>
             <div class="seg" id="calcMode" role="group">
               <button type="button" data-v="onsite" class="on">Onsite</button>
-              <button type="button" data-v="online">Online <span style="opacity:.7">(+20%)</span></button>
+              <button type="button" data-v="online">Online</button>
             </div>
           </div>
           <div class="calc-field" id="calcExtraField">
