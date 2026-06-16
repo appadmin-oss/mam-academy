@@ -1081,6 +1081,66 @@
       + bars + '</svg>';
   }
 
+  // Bring the brand waveform to life — a gentle traveling pulse (as if a track
+  // is playing) plus a soft "swell" of the bars where the cursor sweeps across,
+  // like running a hand across sound. Composited scaleY transforms only; runs
+  // only on roomy screens, pauses when off-screen, decays smoothly, and stays
+  // perfectly static under prefers-reduced-motion (the SVG renders as-is).
+  var mamWaveLive = !!(window.matchMedia && matchMedia('(min-width: 720px)').matches)
+                 && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var mamWaveFine = !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
+  function mamLiveWave(band) {
+    if (!mamWaveLive) return;
+    try {
+      var bars = band.querySelectorAll('svg rect');
+      if (!bars.length) return;
+      var n = bars.length, t = 0, raf = 0, visible = false, hoverX = -1, bump = 0;
+      function frame() {
+        t += 0.018;
+        bump += ((hoverX >= 0 ? 1 : 0) - bump) * 0.08;   // ease the cursor swell in/out
+        for (var i = 0; i < n; i++) {
+          var k = 1 + 0.14 * Math.sin(i * 0.32 - t * 1.6);          // slow flowing pulse
+          if (hoverX >= 0) { var d = (i / (n - 1)) - hoverX; k += bump * 0.65 * Math.exp(-(d * d) / 0.006); }
+          bars[i].style.transform = 'scaleY(' + k.toFixed(3) + ')';
+        }
+        raf = visible ? requestAnimationFrame(frame) : 0;
+      }
+      function start() { if (!raf && visible) raf = requestAnimationFrame(frame); }
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (es) { visible = es[0].isIntersecting; if (visible) start(); }, { threshold: 0 }).observe(band);
+      } else { visible = true; start(); }
+      if (mamWaveFine) {
+        band.addEventListener('pointermove', function (e) { var r = band.getBoundingClientRect(); hoverX = r.width ? (e.clientX - r.left) / r.width : -1; });
+        band.addEventListener('pointerleave', function () { hoverX = -1; });
+      }
+    } catch (e) { /* the static waveform is a perfectly good fallback */ }
+  }
+
+  // Cursor "spotlight" on cards — a soft warm light glides under the pointer,
+  // the premium feel top product sites use. Collision-free: a dedicated
+  // pointer-events:none overlay child using mix-blend-mode:soft-light, so it
+  // gently warms the card near the cursor WITHOUT obscuring any text. Fine
+  // pointers only (coarse/touch + reduced-motion are handled in CSS).
+  function initCardGlow() {
+    if (!mamWaveFine) return;
+    var sel = '.school-card,.mode-card,.faculty-card,.pathway-card,.unique-card,'
+            + '.next-step-card,.choice-card,.struct-card,.extra-card,.testimonial-card,.method-step';
+    $$(sel).forEach(function (card) {
+      if (card.__mamGlow) return;
+      card.__mamGlow = 1;
+      card.classList.add('has-glow');
+      var g = document.createElement('span');
+      g.className = 'card-glow'; g.setAttribute('aria-hidden', 'true');
+      card.appendChild(g);
+      card.addEventListener('pointermove', function (e) {
+        var r = card.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        card.style.setProperty('--gx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
+        card.style.setProperty('--gy', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%');
+      });
+    });
+  }
+
   function initGraphics() {
     $$('.section-eyebrow').forEach(function (ey) {
       if (ey.querySelector('.eq')) return;
@@ -1095,6 +1155,7 @@
       w.className = 'wave-sep'; w.setAttribute('aria-hidden', 'true');
       w.innerHTML = mamWaveformSVG();
       hero.insertAdjacentElement('afterend', w);
+      mamLiveWave(w);
     }
     // Sub-pages use .page-hero (not #hero) — carry the same brand waveform band
     // under them so the motif is consistent across the whole site, not just home.
@@ -1104,10 +1165,12 @@
       pw.className = 'wave-sep wave-sep-page'; pw.setAttribute('aria-hidden', 'true');
       pw.innerHTML = mamWaveformSVG();
       ph.insertAdjacentElement('afterend', pw);
+      mamLiveWave(pw);
     }
     ['schools', 'pathways', 'faculty-preview'].forEach(function (id) {
       var s = document.getElementById(id); if (s) s.classList.add('aurora');
     });
+    initCardGlow();
     // Perf: below-the-fold images load lazily (skip anything in the hero or
     // nav, which must paint immediately).
     var vh = window.innerHeight || 800;

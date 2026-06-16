@@ -1375,3 +1375,25 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .btn-primary::before,.btn-nav-cta::before,
   .btn-signup-orange::before,.btn-signup-gold::before{display:none}
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   SIGNATURE INTERACTIONS — music-native polish that makes the site feel
+   alive and hand-crafted. All progressive enhancement: pointer/motion-gated
+   in JS + CSS, and everything degrades to the existing static design.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Living waveform: each bar scales about its own centre so the JS visualizer
+   (a flowing pulse + a swell that follows the cursor) reads as sound in motion
+   while staying mirrored on the mid-line. */
+.wave-sep svg rect{transform-box:fill-box;transform-origin:center}
+
+/* Cursor spotlight: a warm light glides under the pointer across a card. It's a
+   pointer-events:none overlay using soft-light, so it gently warms the card near
+   the cursor without ever obscuring text. Hidden on touch + reduced-motion. */
+.has-glow{position:relative}
+.card-glow{position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;z-index:3;
+  background:radial-gradient(240px circle at var(--gx,50%) var(--gy,50%),rgba(255,206,115,0.45),transparent 62%);
+  mix-blend-mode:soft-light;transition:opacity .35s var(--ease)}
+.has-glow:hover .card-glow{opacity:1}
+@media (pointer:coarse){.card-glow{display:none}}
+@media (prefers-reduced-motion:reduce){.card-glow{display:none}}
