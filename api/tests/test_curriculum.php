@@ -106,3 +106,24 @@ t_ok($cond !== null && isset($cond['levels']['diploma']), 'overview row carries 
 t_ok($cond && $cond['levels']['diploma'] >= 3, 'conducting/diploma reflects weeks imported earlier');
 t_ok($cond && array_key_exists('_none', $cond['levels']), 'overview includes the level-agnostic (General) column');
 t_ok($ov['total'] >= $cond['total'] && $cond['total'] >= 3, 'per-course + grand totals roll up');
+
+t_group('curriculum import — data-source SSRF guard');
+// Host → public-IP classifier. IP literals are evaluated WITHOUT DNS, so these
+// assertions are fully offline and deterministic.
+t_eq(mam_lms_public_ips_for('8.8.8.8'),       ['8.8.8.8'],       'public IPv4 literal accepted');
+t_eq(mam_lms_public_ips_for('93.184.216.34'), ['93.184.216.34'], 'public IPv4 literal accepted (2)');
+t_eq(mam_lms_public_ips_for('2606:4700:4700::1111'), ['2606:4700:4700::1111'], 'public IPv6 literal accepted');
+foreach (['127.0.0.1','10.0.0.1','192.168.1.1','172.16.0.1','169.254.169.254','0.0.0.0','::1','fc00::1','fe80::1'] as $bad) {
+    t_ok(mam_lms_public_ips_for($bad) === [], "private/reserved literal rejected: $bad");
+}
+t_ok(mam_lms_public_ips_for('') === [],   'empty host rejected');
+t_ok(mam_lms_public_ips_for('   ') === [], 'blank host rejected');
+
+// fetch_url rejects unsafe URLs BEFORE any network I/O (scheme gate, then the
+// SSRF guard on the literal host), so these never reach out.
+foreach (['', 'not a url', 'ftp://example.com/x', 'file:///etc/passwd', 'gopher://x/', 'javascript:alert(1)', 'http://', 'https://'] as $u) {
+    t_ok(mam_lms_fetch_url($u) === null, "non-http(s) / malformed URL refused: " . ($u === '' ? '(empty)' : $u));
+}
+foreach (['http://127.0.0.1/x', 'https://10.0.0.5/x', 'http://192.168.1.1/', 'http://172.16.0.1/', 'http://169.254.169.254/latest/meta-data/', 'http://[::1]/', 'http://0.0.0.0/'] as $u) {
+    t_ok(mam_lms_fetch_url($u) === null, "loopback/private/reserved host refused: $u");
+}

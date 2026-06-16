@@ -559,7 +559,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // into the selected course (rows may carry their own course_code/level_code).
         if ($action === 'module_import') {
             $text = (string)($_POST['import_text'] ?? '');
-            // An uploaded file takes precedence over pasted text.
+            // A remote data-source URL (published CSV/JSON) wins over pasted text;
+            // an uploaded file wins over both.
+            $impUrl = trim((string)($_POST['import_url'] ?? ''));
+            if ($impUrl !== '') {
+                $fetched = mam_lms_fetch_url($impUrl);
+                if ($fetched === null) { header('Location: ' . $back . '&err=' . urlencode('Could not fetch that data source — use a public http(s) CSV/JSON URL.')); exit; }
+                $text = $fetched;
+            }
             if (!empty($_FILES['import_file']['tmp_name']) && is_uploaded_file($_FILES['import_file']['tmp_name'])) {
                 $sz = (int)($_FILES['import_file']['size'] ?? 0);
                 if ($sz <= 0 || $sz > 2 * 1024 * 1024) { header('Location: ' . $back . '&err=' . urlencode('That file is empty or larger than 2 MB.')); exit; }
@@ -2307,7 +2314,11 @@ button.tiny:hover{border-color:var(--gold)}
         <input type="hidden" name="course_code" value="<?= htmlspecialchars($selCourse) ?>">
         <input type="hidden" name="level_code" value="<?= htmlspecialchars($selLevel) ?>">
         <input type="hidden" name="program_code" value="<?= htmlspecialchars($selProgram) ?>">
-        <label style="font-size:.82rem;font-weight:600">Paste JSON or CSV
+        <label style="font-size:.82rem;font-weight:600">Import from a data source (URL)
+          <input type="url" name="import_url" placeholder="https://docs.google.com/…/pub?output=csv  ·  or any public CSV/JSON endpoint" style="width:100%;font-size:.82rem;padding:9px 12px;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:8px">
+          <span class="muted" style="font-size:.72rem;font-weight:400">We fetch it server-side (public http(s) only). Great for a published Google Sheet or a partner feed.</span>
+        </label>
+        <label style="font-size:.82rem;font-weight:600">…or paste JSON / CSV
           <textarea name="import_text" rows="5" placeholder="week,kind,title,content&#10;1,module,Intro to Rhythm,Clap &amp; count&#10;2,module,Sight Reading,&#10;11,revision,Revision,&#10;12,exam,Final Examination," style="width:100%;font-family:var(--mono,ui-monospace,monospace);font-size:.8rem;resize:vertical"></textarea>
         </label>
         <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">

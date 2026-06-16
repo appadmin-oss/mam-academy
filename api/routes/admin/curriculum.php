@@ -121,8 +121,14 @@ if ($action === 'import') {
     $defaultCid = $resolveCourse((string)($in['course'] ?? ''));
     $defaultLid = $resolveLevel($in['level'] ?? null);
 
-    // Rows can arrive pre-parsed (modules[]) or as raw text (data) — JSON or CSV.
+    // Rows can arrive pre-parsed (modules[]), as raw text (data), or be fetched
+    // from a remote data-source URL (a published CSV/JSON — e.g. a Google Sheet).
     $rows = [];
+    if (isset($in['url']) && is_string($in['url']) && trim($in['url']) !== '') {
+        $fetched = mam_lms_fetch_url(trim($in['url']));
+        if ($fetched === null) mam_fail('fetch_failed', 400, ['message' => 'Could not fetch that data source (must be a public http(s) CSV/JSON URL).']);
+        $in['data'] = $fetched; // fall through to the text parser below
+    }
     if (isset($in['modules']) && is_array($in['modules'])) {
         $rows = $in['modules'];
     } elseif (isset($in['data']) && is_string($in['data']) && trim($in['data']) !== '') {

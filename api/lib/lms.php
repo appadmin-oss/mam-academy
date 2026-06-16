@@ -1091,6 +1091,102 @@ function mam_lms_rows_from_text(string $text, string $format = ''): array {
     return $decoded;
 }
 
+/**
+ * Resolve a host to its public IP addresses, for the SSRF guard. Returns every
+ * A/AAAA address — but ONLY if the host resolves AND every record is public.
+ * If the host is unresolvable, or ANY record points at a loopback/private/
+ * reserved range, returns [] so the caller fails closed (this also defeats a
+ * DNS answer that mixes a public and a private address). For an IP literal,
+ * validates the literal itself.
+ */
+function mam_lms_public_ips_for(string $host): array {
+    $host = trim($host);
+    if ($host === '') return [];
+    // parse_url keeps IPv6 literals bracketed (e.g. "[::1]"); strip for testing.
+    $bare = (strlen($host) > 1 && $host[0] === '[' && $host[-1] === ']') ? substr($host, 1, -1) : $host;
+
+    $isPublic = static fn(string $ip): bool =>
+        filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+
+    if (filter_var($bare, FILTER_VALIDATE_IP)) {     // an IP literal — no DNS to consult
+        return $isPublic($bare) ? [$bare] : [];
+    }
+
+    $ips = [];
+    $v4 = @gethostbynamel($host);                    // A records
+    if (is_array($v4)) $ips = $v4;
+    if (function_exists('dns_get_record')) {         // AAAA records
+        $aaaa = @dns_get_record($host, DNS_AAAA);
+        if (is_array($aaaa)) foreach ($aaaa as $r) if (!empty($r['ipv6'])) $ips[] = (string)$r['ipv6'];
+    }
+    $ips = array_values(array_unique($ips));
+    if (!$ips) return [];                            // unresolvable
+    foreach ($ips as $ip) if (!$isPublic($ip)) return []; // one private answer poisons the host
+    return $ips;
+}
+
+/**
+ * Fetch a remote curriculum DATA SOURCE (a published CSV/JSON URL — e.g. a
+ * Google Sheets "publish to web" CSV, or any JSON endpoint) for import.
+ *
+ * SSRF hardening: http(s) only; redirects are followed MANUALLY (≤4) so every
+ * hop is re-validated — a public URL can't 302 us onto an internal host such as
+ * 169.254.169.254 (cloud metadata) or 10.x. For named hosts the validated
+ * address is pinned with CURLOPT_RESOLVE, so curl can't re-resolve to a private
+ * IP between our check and the connect (DNS rebinding). 8 s timeout, 2 MB cap.
+ * Returns the body, or null on any failure (fails closed).
+ */
+function mam_lms_fetch_url(string $url): ?string {
+    if (!function_exists('curl_init')) return null;
+    $url = trim($url);
+    $cap = 2 * 1024 * 1024;
+
+    for ($hop = 0; $hop < 5; $hop++) {               // initial request + up to 4 redirects
+        if (!preg_match('#^https?://#i', $url)) return null;
+        $p = parse_url($url);
+        if (!is_array($p) || empty($p['host'])) return null;
+        $host   = (string)$p['host'];
+        $scheme = strtolower((string)($p['scheme'] ?? 'http'));
+        $port   = (int)($p['port'] ?? ($scheme === 'https' ? 443 : 80));
+
+        $ips = mam_lms_public_ips_for($host);        // SSRF guard, applied to EVERY hop
+        if (!$ips) return null;
+
+        $opts = [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,         // we follow manually so each hop is validated + pinned
+            CURLOPT_PROTOCOLS      => defined('CURLPROTO_HTTP') ? (CURLPROTO_HTTP | CURLPROTO_HTTPS) : 0,
+            CURLOPT_TIMEOUT        => 8,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_USERAGENT      => 'mam-academy/1.0 (+curriculum-import)',
+            CURLOPT_HTTPHEADER     => ['Accept: text/csv, application/json, text/plain, */*'],
+        ];
+        // Pin the validated address(es) for a named host (literals are already
+        // exact, so curl connects to precisely the IP we checked).
+        if (!filter_var(trim($host, '[]'), FILTER_VALIDATE_IP)) {
+            $opts[CURLOPT_RESOLVE] = ["{$host}:{$port}:" . implode(',', $ips)];
+        }
+
+        $ch = curl_init();
+        curl_setopt_array($ch, $opts);
+        $resp = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $loc  = (string)curl_getinfo($ch, CURLINFO_REDIRECT_URL); // absolute target, even with FOLLOWLOCATION off
+        curl_close($ch);
+
+        if ($resp === false) return null;
+        if ($code >= 300 && $code < 400) {           // re-validate the redirect target next iteration
+            if ($loc === '') return null;
+            $url = $loc;
+            continue;
+        }
+        if ($code < 200 || $code >= 300) return null;
+        return strlen((string)$resp) > $cap ? substr((string)$resp, 0, $cap) : (string)$resp;
+    }
+    return null;                                     // too many redirects
+}
+
 /** The module id authored for (course, level, week), or null. Affinity-safe on
  *  the nullable level_id (bare-column comparison, like the enrolment guards). */
 function mam_lms_find_module_week(int $courseId, ?int $levelId, int $week): ?int {
