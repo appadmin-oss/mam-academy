@@ -290,7 +290,7 @@
             <label>Mode of study</label>
             <div class="seg" id="calcMode" role="group">
               <button type="button" data-v="onsite" class="on">Onsite</button>
-              <button type="button" data-v="online">Online <span style="opacity:.7">(+20%)</span></button>
+              <button type="button" data-v="online">Online</button>
             </div>
           </div>
           <div class="calc-field" id="calcExtraField">
@@ -356,7 +356,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260615f"></script>
+<script src="assets/js/config.js?v=20260616a"></script>
 <script src="assets/js/main.js?v=20260616e"></script>
 <script>
 /* Live tuition estimator — mirrors mam_compute_application_price() exactly,
@@ -374,7 +374,7 @@
   function levelPrices() { return cfg().levelPrices || { precert: 120, cert: 130, prediploma: 160, diploma: 180 }; }
   function compFee() { return cfg().compulsoryFeeUsd != null ? cfg().compulsoryFeeUsd : 120; }
   function regFee() { return cfg().registrationFeeUsd != null ? cfg().registrationFeeUsd : 5; }
-  function onlinePct() { return cfg().onlineSurchargePct != null ? cfg().onlineSurchargePct : 20; }
+  function onlinePct() { return 0; } /* online & onsite priced the same (surcharge removed) */
   function flatPrice(p) { var pr = (cfg().pricing || {})[p]; return pr && pr.usd ? pr.usd : (p === 'crash' ? 70 : 60); }
 
   function activeCur() { var b = $('.currency-toggle .currency-btn.active'); return b ? b.getAttribute('data-currency') : 'USD'; }
@@ -400,8 +400,7 @@
     } else {
       sub = B + (state.prog === 'certified-musician' ? compFee() : 0) + 0.5 * B * ex;
     }
-    if (state.mode === 'online') sub = sub * (1 + onlinePct() / 100);
-    return Math.round(sub) + reg;
+    return Math.round(sub) + reg; // online and onsite are priced the same (surcharge removed)
   }
 
   function render() {

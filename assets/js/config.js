@@ -109,9 +109,8 @@ window.MAM_CONFIG = {
 
   /* -------- Pricing (display only — server enforces real total) --------
      Two flagship programmes (available across all four certification levels)
-     plus two standalone intensives. Online learners pay +onlineSurchargePct%
-     on the programme fee; onsite is the standard fee. Keep in sync with
-     mam_prices() in api/lib/validation.php. */
+     plus two standalone intensives. Online and onsite are priced the same.
+     Keep in sync with mam_prices() in api/lib/validation.php. */
   pricing: {
     'standard':           { name: 'Standard',           usd: 120 },
     'certified-musician': { name: 'Certified Musician', usd: 240 },
@@ -120,12 +119,12 @@ window.MAM_CONFIG = {
     'meta-order':         { name: 'The MetaMusic Order (12 weeks)', usd: 60 }
   },
   registrationFeeUsd: 5,
-  onlineSurchargePct: 20,
+  onlineSurchargePct: 0, // online and onsite are priced the same (surcharge removed)
 
   /* -------- Level-based pricing model --------
      B = chosen level's base price; C = compulsory fee ($120, Certified/Grand).
      Standard = B · Certified/Grand = B + C + 0.5B·extra · Crash = flat (no level).
-     Online adds +onlineSurchargePct%. Hydrated live from /api/config/public;
+     Online and onsite priced the same. Hydrated live from /api/config/public;
      server stays authoritative. Keep in sync with mam_compute_application_price. */
   levels: { precert: 'Pre-Certificate', cert: 'Certificate', prediploma: 'Pre-Diploma', diploma: 'Diploma' },
   levelPrices: { precert: 120, cert: 130, prediploma: 160, diploma: 180 },

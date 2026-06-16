@@ -10,7 +10,7 @@
  *
  *   { ok:true,
  *     pricing:{ 'certified-musician':{name,usd}, ... },
- *     registration_fee_usd:5, online_surcharge_pct:20,
+ *     registration_fee_usd:5, online_surcharge_pct:0,
  *     store_shipping_flat_usd:5, usd_to_ngn:1500 }
  */
 declare(strict_types=1);

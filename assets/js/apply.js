@@ -408,10 +408,7 @@
       } else if (prog === 'meta-order') {
         subtotal = (cfg.pricing['meta-order'] && cfg.pricing['meta-order'].usd) || 60; onlineApplies = false;
       }
-      var adjusted = subtotal;
-      if (onlineApplies && data.mode === 'online' && cfg.onlineSurchargePct) {
-        adjusted = subtotal * (1 + cfg.onlineSurchargePct / 100);
-      }
+      var adjusted = subtotal; // online and onsite are priced the same (surcharge removed)
       var registration = data.includeRegistration ? (cfg.registrationFeeUsd || 0) : 0;
       // Prices are flat whole-dollar amounts (no decimals) — mirror the server.
       var r0 = function (n) { return Math.round(n); };

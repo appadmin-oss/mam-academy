@@ -80,7 +80,7 @@
   </section>
 </main>
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260615f"></script>
+<script src="assets/js/config.js?v=20260616a"></script>
 <script src="assets/js/main.js?v=20260616e"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 /**
  * Admin-editable runtime settings (key/value), with safe fallbacks.
  *
- * Why this exists: programme prices, the online surcharge, the registration
+ * Why this exists: programme prices, the registration
  * fee and the store shipping flat-rate used to be hardcoded in PHP (and
  * mirrored by hand into assets/js/config.js). That meant a price change was a
  * code edit + redeploy. These now live in a `settings` table the admin can
@@ -120,7 +120,6 @@ function mam_settings_schema(): array {
         // the level-based form rebuild lands; then these can be retired.
         ['Programme pricing (legacy)', 'price_certified_musician', 'Certified Musician (legacy flat)', 230, '$'],
         ['Programme pricing (legacy)', 'price_grand_musician',     'Grand Musician (legacy flat)',     310, '$'],
-        ['Fees & surcharges',       'online_surcharge_pct',     'Online surcharge',       20, '%'],
         ['Fees & surcharges',       'registration_fee_usd',     'Registration fee',        5, '$'],
         ['Store',                   'store_shipping_flat_usd',  'Store shipping (flat, physical goods)', 5, '$'],
         // Invoice / bank transfer — the academy's receiving account, shown on the
