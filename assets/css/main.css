@@ -1290,14 +1290,6 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 @keyframes eqp{0%,100%{height:26%}50%{height:100%}}
 @media (prefers-reduced-motion:reduce){.eq i{animation:none;height:62%}}
 
-/* Audio-waveform separator — main.js injects a real (amplitude-varying) gold
-   waveform SVG under the hero: on-brand for a music academy, edge-faded so it
-   reads as an intentional transition rather than a hard band. */
-.wave-sep{position:relative;display:block;width:min(100%,calc(var(--content-w) + 96px));margin:0 auto;height:clamp(48px,6vw,72px);padding:0 clamp(16px,4vw,52px);pointer-events:none;
-  -webkit-mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent);
-          mask-image:linear-gradient(90deg,transparent,#000 9%,#000 91%,transparent)}
-.wave-sep svg{display:block;width:100%;height:100%;filter:drop-shadow(0 1px 10px rgba(245,168,35,0.22))}
-
 /* ── Hero polish ──────────────────────────────────────────────────────
    A warm halo behind the promo card gives the hero depth/focus even before
    the slide imagery loads; the slide-nav dots gain a subtle glass pill so
@@ -1368,24 +1360,16 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 .btn-primary:hover::before,.btn-nav-cta:hover::before,
 .btn-signup-orange:hover::before,.btn-signup-gold:hover::before{left:155%}
 
-/* Sub-page hero waveform: give the injected band gentle vertical rhythm. */
-.wave-sep-page{margin-top:clamp(6px,1.6vw,16px);margin-bottom:clamp(2px,1.2vw,12px)}
-
 @media (prefers-reduced-motion:reduce){
   .btn-primary::before,.btn-nav-cta::before,
   .btn-signup-orange::before,.btn-signup-gold::before{display:none}
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   SIGNATURE INTERACTIONS — music-native polish that makes the site feel
-   alive and hand-crafted. All progressive enhancement: pointer/motion-gated
-   in JS + CSS, and everything degrades to the existing static design.
+   SIGNATURE INTERACTIONS — premium polish that makes the site feel
+   hand-crafted. Progressive enhancement: pointer/motion-gated in JS + CSS,
+   degrading to the existing static design.
    ════════════════════════════════════════════════════════════════════ */
-
-/* Living waveform: each bar scales about its own centre so the JS visualizer
-   (a flowing pulse + a swell that follows the cursor) reads as sound in motion
-   while staying mirrored on the mid-line. */
-.wave-sep svg rect{transform-box:fill-box;transform-origin:center}
 
 /* Cursor spotlight: a warm light glides under the pointer across a card. It's a
    pointer-events:none overlay using soft-light, so it gently warms the card near
@@ -1397,3 +1381,51 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 .has-glow:hover .card-glow{opacity:1}
 @media (pointer:coarse){.card-glow{display:none}}
 @media (prefers-reduced-motion:reduce){.card-glow{display:none}}
+
+/* ════════════════════════════════════════════════════════════════════
+   FRAMED SHOWCASE — an alternating two-column layout that presents the
+   academy's promotional cutout images as polished, framed assets. A "smart
+   frame" (refined dark matte + warm halo + hairline edge + editorial tilt
+   that straightens on hover) lets the vibrant images pop on the dark canvas.
+   ════════════════════════════════════════════════════════════════════ */
+.showcase-row{display:grid;grid-template-columns:1fr 1fr;gap:clamp(28px,5vw,72px);align-items:center;margin-bottom:clamp(40px,7vw,84px)}
+.showcase-row:last-child{margin-bottom:0}
+.showcase-row.reverse .frame{order:2}            /* image to the right */
+.showcase-copy{max-width:520px}
+.showcase-kicker{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:12px}
+.showcase-heading{font-family:var(--font-serif);font-size:clamp(1.55rem,3.4vw,2.4rem);line-height:1.12;letter-spacing:-.01em;color:var(--text);margin-bottom:14px}
+.showcase-copy p{color:var(--text-muted);font-size:1.02rem;line-height:1.7;margin:0 0 22px}
+
+/* The smart frame — the vibrant tile FLOWS into the dark page: a warm glow
+   bleeds beyond its edges (keyed to the tile's tone) while a hairline keeps the
+   edge crisp, so image and layout melt together rather than sitting in a box. */
+.frame{position:relative;margin:0;border-radius:clamp(20px,3vw,28px);overflow:visible;
+  transition:transform .45s var(--ease);will-change:transform}
+.frame::before{content:'';position:absolute;inset:-14% -12% -20%;z-index:0;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(232,150,31,.50),rgba(232,150,31,.14) 55%,transparent 78%);
+  filter:blur(8px);transition:opacity .45s var(--ease)}
+.frame[data-tone="ember"]::before{background:radial-gradient(closest-side,rgba(247,106,56,.52),rgba(247,106,56,.15) 55%,transparent 78%)}
+.frame[data-tone="sun"]::before{background:radial-gradient(closest-side,rgba(252,198,71,.55),rgba(252,198,71,.16) 55%,transparent 78%)}
+.frame img{position:relative;z-index:1;display:block;width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:inherit;
+  box-shadow:0 26px 60px rgba(20,12,4,.5);transition:transform .5s var(--ease)}
+.frame::after{content:'';position:absolute;inset:0;z-index:2;border-radius:inherit;pointer-events:none;
+  border:1px solid rgba(255,255,255,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}
+/* editorial tilt → straighten + lift on hover; the glow swells a touch */
+.showcase-row:nth-child(odd) .frame{transform:rotate(-1.4deg)}
+.showcase-row:nth-child(even) .frame{transform:rotate(1.4deg)}
+.frame:hover{transform:rotate(0) translateY(-6px)}
+.frame:hover::before{opacity:.85}
+.frame:hover img{transform:scale(1.02)}
+/* branded placeholder until the photo is dropped in (see assets/img/README.md) */
+.frame-ph{display:none}
+.frame.is-empty{min-height:300px;background:linear-gradient(150deg,#2A1B10,#140D08)}
+.frame.is-empty .frame-ph{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;min-height:300px;color:rgba(252,198,71,.55);font-size:3rem}
+@media (max-width:820px){
+  .showcase-row{grid-template-columns:1fr;gap:22px}
+  .showcase-row.reverse .frame{order:0}            /* image back on top when stacked */
+  .frame{transform:none!important;max-width:440px;margin:0 auto;width:100%}
+}
+@media (prefers-reduced-motion:reduce){
+  .frame:hover{transform:rotate(0)}
+  .frame:hover img{transform:none}
+}

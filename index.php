@@ -34,7 +34,7 @@
 <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260616b">
+<link rel="stylesheet" href="assets/css/main.css?v=20260616c">
 
 <!-- The canonical #organization + #website entity now lives sitewide in
      partials/header.html (on every page). The page-specific Course/ItemList/
@@ -285,6 +285,56 @@
           <a href="apply?mode=onsite" class="btn btn-primary"><i class="fa-solid fa-location-dot"></i>Apply Onsite</a>
         </div>
       </article>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== SHOWCASE (framed disciplines) ====================== -->
+<section id="showcase" aria-labelledby="showcase-title">
+  <div class="container">
+    <div style="text-align:center;margin-bottom:clamp(34px,5vw,52px)">
+      <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Find Your Sound<span class="line" style="transform:scaleX(-1)"></span></div>
+      <h2 class="section-title" id="showcase-title">Every voice. <span class="highlight-gold">Every instrument.</span></h2>
+      <p class="section-desc" style="margin:0 auto">From the first note to the main stage — find the discipline that moves you, taught the MAM way.</p>
+    </div>
+
+    <div class="showcase-row">
+      <figure class="frame" data-tone="gold">
+        <img src="assets/img/showcase/mam-voice.jpg" alt="A MAM Academy vocalist singing with joy" loading="lazy" decoding="async" onerror="var f=this.closest('.frame');f.classList.add('is-empty');this.remove();">
+        <span class="frame-ph" aria-hidden="true"><i class="fa-solid fa-music"></i></span>
+      </figure>
+      <div class="showcase-copy">
+        <span class="showcase-kicker">Voice</span>
+        <h3 class="showcase-heading">Sing like you mean it</h3>
+        <p>Breath, pitch, harmony and stage presence — discover and free the one instrument you were born with.</p>
+        <a class="btn btn-secondary" href="schools">Explore the Schools <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+      </div>
+    </div>
+
+    <div class="showcase-row reverse">
+      <figure class="frame" data-tone="ember">
+        <img src="assets/img/showcase/mam-sax.jpg" alt="A MAM Academy student playing the saxophone" loading="lazy" decoding="async" onerror="var f=this.closest('.frame');f.classList.add('is-empty');this.remove();">
+        <span class="frame-ph" aria-hidden="true"><i class="fa-solid fa-music"></i></span>
+      </figure>
+      <div class="showcase-copy">
+        <span class="showcase-kicker">Wind &amp; Brass</span>
+        <h3 class="showcase-heading">Make the brass sing</h3>
+        <p>Saxophone, trumpet and more — tone, technique and the groove to carry a whole room.</p>
+        <a class="btn btn-secondary" href="pathways">See the Pathways <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+      </div>
+    </div>
+
+    <div class="showcase-row">
+      <figure class="frame" data-tone="sun">
+        <img src="assets/img/showcase/mam-strings.jpg" alt="A MAM Academy student playing the violin" loading="lazy" decoding="async" onerror="var f=this.closest('.frame');f.classList.add('is-empty');this.remove();">
+        <span class="frame-ph" aria-hidden="true"><i class="fa-solid fa-music"></i></span>
+      </figure>
+      <div class="showcase-copy">
+        <span class="showcase-kicker">Strings</span>
+        <h3 class="showcase-heading">Strings with soul</h3>
+        <p>Violin, guitar and a true classical foundation — precision, expression, and the patience that makes mastery.</p>
+        <a class="btn btn-secondary" href="auditer">Start Your Audition <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+      </div>
     </div>
   </div>
 </section>
@@ -546,6 +596,6 @@
 <?php include __DIR__ . '/partials/footer.html'; ?>
 
 <script src="assets/js/config.js?v=20260615f"></script>
-<script src="assets/js/main.js?v=20260616b"></script>
+<script src="assets/js/main.js?v=20260616c"></script>
 </body>
 </html>

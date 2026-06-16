@@ -1056,65 +1056,11 @@
 
   // ============================================================
   // Visual graphics — inject music-themed decoration site-wide (no per-page
-  // markup): an animated equalizer leading every section eyebrow, a sound-wave
-  // band under the homepage hero, and aurora depth behind key sections.
+  // markup): an animated equalizer leading every section eyebrow, aurora depth
+  // behind key sections, and a cursor-spotlight on cards.
   // ============================================================
-  // Build a real (amplitude-varying) audio waveform as an inline SVG: bars
-  // mirrored around a centre line, a smooth envelope that tapers to the edges
-  // (so the CSS edge-fade reads as intentional), and a gold vertical gradient.
-  // Deterministic — looks organic but renders identically every load.
-  function mamWaveformSVG() {
-    var N = 100, sp = 12, maxAmp = 28, W = N * sp, H = 76, cy = H / 2, bars = '';
-    for (var i = 0; i < N; i++) {
-      var t = i / (N - 1);
-      var env = Math.pow(Math.sin(Math.PI * t), 0.6);
-      var a = 0.5 + 0.5 * (0.55 * Math.sin(i * 0.5) + 0.30 * Math.sin(i * 1.3 + 1) + 0.15 * Math.sin(i * 2.7 + 2));
-      var h = Math.max(3, a * env * maxAmp * 2);
-      var x = i * sp + sp / 2;
-      bars += '<rect x="' + (x - 2.3).toFixed(1) + '" y="' + (cy - h / 2).toFixed(1) + '" width="4.6" height="' + h.toFixed(1) + '" rx="2.3" fill="url(#mamWf)"/>';
-    }
-    return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" role="presentation">'
-      + '<defs><linearGradient id="mamWf" x1="0" y1="0" x2="0" y2="1">'
-      + '<stop offset="0" stop-color="#FDE9A8"/><stop offset="0.5" stop-color="#FCC647"/><stop offset="1" stop-color="#E8961F"/>'
-      + '</linearGradient></defs>'
-      + '<line x1="0" y1="' + cy + '" x2="' + W + '" y2="' + cy + '" stroke="rgba(232,201,160,0.16)" stroke-width="1"/>'
-      + bars + '</svg>';
-  }
-
-  // Bring the brand waveform to life — a gentle traveling pulse (as if a track
-  // is playing) plus a soft "swell" of the bars where the cursor sweeps across,
-  // like running a hand across sound. Composited scaleY transforms only; runs
-  // only on roomy screens, pauses when off-screen, decays smoothly, and stays
-  // perfectly static under prefers-reduced-motion (the SVG renders as-is).
-  var mamWaveLive = !!(window.matchMedia && matchMedia('(min-width: 720px)').matches)
-                 && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  // Fine-pointer check — used by the card cursor-spotlight below.
   var mamWaveFine = !!(window.matchMedia && matchMedia('(pointer: fine)').matches);
-  function mamLiveWave(band) {
-    if (!mamWaveLive) return;
-    try {
-      var bars = band.querySelectorAll('svg rect');
-      if (!bars.length) return;
-      var n = bars.length, t = 0, raf = 0, visible = false, hoverX = -1, bump = 0;
-      function frame() {
-        t += 0.018;
-        bump += ((hoverX >= 0 ? 1 : 0) - bump) * 0.08;   // ease the cursor swell in/out
-        for (var i = 0; i < n; i++) {
-          var k = 1 + 0.14 * Math.sin(i * 0.32 - t * 1.6);          // slow flowing pulse
-          if (hoverX >= 0) { var d = (i / (n - 1)) - hoverX; k += bump * 0.65 * Math.exp(-(d * d) / 0.006); }
-          bars[i].style.transform = 'scaleY(' + k.toFixed(3) + ')';
-        }
-        raf = visible ? requestAnimationFrame(frame) : 0;
-      }
-      function start() { if (!raf && visible) raf = requestAnimationFrame(frame); }
-      if ('IntersectionObserver' in window) {
-        new IntersectionObserver(function (es) { visible = es[0].isIntersecting; if (visible) start(); }, { threshold: 0 }).observe(band);
-      } else { visible = true; start(); }
-      if (mamWaveFine) {
-        band.addEventListener('pointermove', function (e) { var r = band.getBoundingClientRect(); hoverX = r.width ? (e.clientX - r.left) / r.width : -1; });
-        band.addEventListener('pointerleave', function () { hoverX = -1; });
-      }
-    } catch (e) { /* the static waveform is a perfectly good fallback */ }
-  }
 
   // Cursor "spotlight" on cards — a soft warm light glides under the pointer,
   // the premium feel top product sites use. Collision-free: a dedicated
@@ -1149,25 +1095,7 @@
       eq.innerHTML = '<i></i><i></i><i></i><i></i>';
       ey.insertBefore(eq, ey.firstChild);
     });
-    var hero = document.getElementById('hero');
-    if (hero && !document.querySelector('.wave-sep')) {
-      var w = document.createElement('div');
-      w.className = 'wave-sep'; w.setAttribute('aria-hidden', 'true');
-      w.innerHTML = mamWaveformSVG();
-      hero.insertAdjacentElement('afterend', w);
-      mamLiveWave(w);
-    }
-    // Sub-pages use .page-hero (not #hero) — carry the same brand waveform band
-    // under them so the motif is consistent across the whole site, not just home.
-    var ph = document.querySelector('.page-hero');
-    if (ph && !document.querySelector('.wave-sep')) {
-      var pw = document.createElement('div');
-      pw.className = 'wave-sep wave-sep-page'; pw.setAttribute('aria-hidden', 'true');
-      pw.innerHTML = mamWaveformSVG();
-      ph.insertAdjacentElement('afterend', pw);
-      mamLiveWave(pw);
-    }
-    ['schools', 'pathways', 'faculty-preview'].forEach(function (id) {
+    ['schools', 'pathways', 'faculty-preview', 'showcase'].forEach(function (id) {
       var s = document.getElementById(id); if (s) s.classList.add('aurora');
     });
     initCardGlow();
