@@ -975,6 +975,17 @@ aside{background:var(--panel);border-right:1px solid var(--border);padding:18px 
 nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;color:var(--muted);border-radius:8px;margin-bottom:2px;font-size:0.92rem}
 nav a:hover{background:rgba(255,255,255,0.04);color:var(--text)}
 nav a.active{background:linear-gradient(135deg,rgba(224,138,26,0.18),rgba(251,191,36,0.08));color:var(--gold);border:1px solid var(--border)}
+nav a i{width:18px;text-align:center;font-size:0.88rem;opacity:0.8;flex:0 0 auto}
+nav a.active i{opacity:1;color:var(--gold)}
+/* Grouped sidebar: a quiet section label introduces each domain of the admin. */
+.nav-group{margin:15px 12px 5px;font-size:0.62rem;font-weight:800;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);opacity:0.62}
+.nav-group:first-of-type{margin-top:2px}
+.nav-note{margin-top:12px;padding:8px 11px;font-size:0.72rem;line-height:1.5;color:var(--muted);border:1px dashed var(--border);border-radius:8px}
+/* Access-level (RBAC tier) badges — make the admin's level explicit. */
+.tier-badge{display:inline-block;margin-top:6px;padding:2px 9px;border-radius:100px;font-size:0.6rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}
+.tier-super{background:linear-gradient(135deg,var(--red),#FB7185);color:#fff}
+.tier-manager{background:rgba(99,102,241,0.2);color:#A5B4FC;border:1px solid rgba(165,180,252,0.4)}
+.atb-tier{padding:3px 11px;border-radius:100px;font-size:0.64rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase}
 main{padding:0 36px 40px;overflow:auto}
 /* Sticky app-shell top bar — page title left, account + view-site right. Bleeds
    to main's horizontal padding and frosts on scroll. */
@@ -1067,31 +1078,29 @@ button.tiny:hover{border-color:var(--gold)}
 <aside>
   <div class="brand">
     <div class="logo">M</div>
-    <div><b>MAM Admin</b><small><?= htmlspecialchars(mam_env('APP_ENV', 'production')) ?></small></div>
+    <div>
+      <b>MAM Admin</b>
+      <small><?= htmlspecialchars(mam_env('APP_ENV', 'production')) ?></small>
+      <?php $__tier = $adminUser ? mam_admin_tier($adminUser) : 'super'; ?>
+      <span class="tier-badge tier-<?= htmlspecialchars($__tier) ?>"><?= $__tier === 'super' ? 'Super admin' : 'Manager' ?></span>
+    </div>
   </div>
   <nav>
     <?php
-    $links = [
-      'overview'     => 'Overview',
-      'applications' => 'Applications',
-      'funnel'       => 'Apply Funnel',
-      'analytics'    => 'Learning Analytics',
-      'payments'     => 'Payments',
-      'users'        => 'Users',
-      'classes'      => 'Classes',
-      'enrollments'  => 'Enrollments',
-      'courseenroll' => 'Course Registrations',
-      'modules'      => 'Standard Curriculum',
-      'storeitems'   => 'Store / Library',
-      'storeorders'  => 'Store Orders',
-      'messages'     => 'Messages',
-      'webhooks'     => 'Webhook Events',
-      'newsletter'   => 'Newsletter',
-      'settings'     => 'Pricing & Settings',
-      'audit'        => 'Audit Log',
-      'datarights'   => 'Data Rights',
-      'account'      => 'My Account',
+    // Sidebar nav grouped by domain — [view => [label, FontAwesome icon]].
+    // Grouping turns a flat 19-item list into a scannable structure.
+    $navGroups = [
+      'Overview'   => ['overview' => ['Overview', 'gauge-high']],
+      'Admissions' => ['applications' => ['Applications', 'file-lines'], 'funnel' => ['Apply Funnel', 'filter']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'analytics' => ['Learning Analytics', 'chart-line']],
+      'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open']],
+      'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane']],
+      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'datarights' => ['Data Rights', 'shield-halved']],
+      'Account'    => ['account' => ['My Account', 'circle-user']],
     ];
+    // Flatten to a label map so the topbar title lookup keeps working.
+    $links = [];
+    foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
     $viewCaps = ['users' => 'users', 'settings' => 'settings', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'datarights' => 'users'];
@@ -1099,13 +1108,18 @@ button.tiny:hover{border-color:var(--gold)}
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
     if (!$canView($view)) { $view = 'overview'; }
-    foreach ($links as $k => $label) {
-        if (!$canView($k)) continue;
-        $cls = $view === $k ? 'active' : '';
-        echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'>" . htmlspecialchars($label) . "</a>";
+    foreach ($navGroups as $groupName => $items) {
+        if (!array_filter(array_keys($items), $canView)) continue; // hide an empty group
+        echo "<div class='nav-group'>" . htmlspecialchars($groupName) . "</div>";
+        foreach ($items as $k => $meta) {
+            if (!$canView($k)) continue;
+            $cls = $view === $k ? 'active' : '';
+            echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'>"
+               . "<i class='fa-solid fa-" . htmlspecialchars($meta[1]) . "' aria-hidden='true'></i><span>" . htmlspecialchars($meta[0]) . "</span></a>";
+        }
     }
     if ($adminUser && mam_admin_tier($adminUser) === 'manager') {
-        echo "<div style='margin-top:10px;padding:7px 10px;font-size:0.72rem;color:var(--muted);border:1px dashed var(--border);border-radius:8px'>Manager access — pricing, users &amp; settings are restricted.</div>";
+        echo "<div class='nav-note'>Manager access — pricing, users &amp; settings are restricted.</div>";
     }
     ?>
   </nav>
@@ -1157,6 +1171,8 @@ button.tiny:hover{border-color:var(--gold)}
 <div class="admin-topbar">
   <div class="atb-title"><span class="dot" aria-hidden="true"></span><?= htmlspecialchars($atbLabel) ?></div>
   <div class="atb-right">
+    <?php $__atbTier = $adminUser ? mam_admin_tier($adminUser) : 'super'; ?>
+    <span class="atb-tier tier-<?= htmlspecialchars($__atbTier) ?>" title="Your admin access level"><?= $__atbTier === 'super' ? 'Super admin' : 'Manager' ?></span>
     <a class="atb-chip" href="/" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> View site</a>
     <span class="atb-user" title="<?= htmlspecialchars($atbEmail) ?>"><span class="av"><?= htmlspecialchars($atbInit) ?></span><?= htmlspecialchars($atbEmail) ?></span>
   </div>
