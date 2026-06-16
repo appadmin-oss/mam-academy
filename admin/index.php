@@ -590,6 +590,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ' . $back . '&ok=1'); exit;
     }
 
+    // ─── Load the bundled starter curriculum (from MAM's documents) ──
+    if ($action === 'seed_starter') {
+        $force = (int)($_POST['force'] ?? 0) === 1;
+        $res = mam_lms_seed_starter_curriculum($force);
+        $c = 0; $u = 0;
+        foreach ($res as $r) { $c += (int)($r['created'] ?? 0); $u += (int)($r['updated'] ?? 0); }
+        header('Location: ?v=modules&seed_c=' . $c . '&seed_u=' . $u . '&seed_n=' . count($res)); exit;
+    }
+
     // ─── Store / Library CRUD ────────────────────────────────────────
     // Single dispatch covers create (id=0), update (id>0), soft-delete (delete=1).
     // We slug-ify the name client-side, but normalise + de-dupe here so two
@@ -2167,7 +2176,39 @@ button.tiny:hover{border-color:var(--gold)}
            . (!empty($_GET['imp_e']) ? ' <span style="opacity:.85">First issue — ' . htmlspecialchars((string)$_GET['imp_e']) . '</span>' : '')
            . '</div>';
     }
+    if (isset($_GET['seed_c'])) {
+        echo '<div class="banner ok">Starter curriculum loaded — <strong>' . (int)$_GET['seed_c'] . '</strong> week(s) created'
+           . ((int)($_GET['seed_u'] ?? 0) ? ', <strong>' . (int)$_GET['seed_u'] . '</strong> reset' : '')
+           . ' across <strong>' . (int)($_GET['seed_n'] ?? 0) . '</strong> course syllabi. Edit any week below.</div>';
+    }
+    $modulesAuthored = (int)mam_admin_scalar('SELECT COUNT(*) FROM modules');
   ?>
+
+  <div class="card">
+    <h3>Starter curriculum</h3>
+    <div style="padding:0 20px 18px">
+      <p class="muted" style="font-size:.85rem;line-height:1.6;margin:0 0 12px">
+        Load MAM's ready-made syllabus — transcribed from the <strong>KTAMS Young Musicians</strong> (foundation · pre-cert) and
+        <strong>Grand Musicians II</strong> (Grades 3–4 · certificate) documents: 8 course syllabi across Rhythm &amp; Pitch, Piano, Guitar, Voice and Drums,
+        each a full 12-week plan. It's <strong>non-destructive</strong> — weeks you've already authored are left untouched — so it's safe to run now and refine afterwards.
+      </p>
+      <form method="post" class="inline">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="seed_starter">
+        <button class="btn" type="submit"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Load starter curriculum</button>
+      </form>
+      <form method="post" class="inline" style="margin-left:8px" onsubmit="return confirm('Reset the starter weeks back to MAM\'s original content? This overwrites edits on those weeks.');">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="seed_starter">
+        <input type="hidden" name="force" value="1">
+        <button class="btn ghost" type="submit" title="Overwrite the starter weeks back to the original document content">Reset to starter</button>
+      </form>
+      <?php if ($modulesAuthored === 0): ?>
+        <div class="muted" style="font-size:.78rem;margin-top:10px"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> No weeks authored yet — loading the starter is the quickest way to begin.</div>
+      <?php endif; ?>
+    </div>
+  </div>
+
   <div class="card">
     <h3>Choose a course to author</h3>
     <form method="get" class="form-grid">

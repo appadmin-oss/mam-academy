@@ -1135,6 +1135,38 @@ function mam_lms_import_modules(?int $defaultCourseId, ?int $defaultLevelId, arr
     return ['created' => $created, 'updated' => $updated, 'skipped' => $skipped, 'errors' => $errors];
 }
 
+/**
+ * Seed the bundled starter curriculum (mam_lms_starter_curriculum, transcribed
+ * from MAM's KTAMS & Grand Musicians II documents) so the academy ships with a
+ * real, editable syllabus. Non-destructive by default: only weeks that don't
+ * already exist for a (course, level) are written, so an educator's edits are
+ * never clobbered. $force=true re-imports every week (reset to the starter).
+ * Sets the `curriculum_seeded` flag. Returns a per-syllabus summary keyed by
+ * "course/level".
+ */
+function mam_lms_seed_starter_curriculum(bool $force = false): array {
+    if (!function_exists('mam_lms_starter_curriculum')) return [];
+    $summary = [];
+    foreach (mam_lms_starter_curriculum() as $syllabus) {
+        $key = ($syllabus['course'] ?? '?') . '/' . ($syllabus['level'] ?? '?');
+        $c = mam_db_row('SELECT id FROM courses WHERE code = ?', [$syllabus['course'] ?? '']);
+        $l = mam_db_row('SELECT id FROM levels  WHERE code = ?', [$syllabus['level'] ?? '']);
+        if (!$c || !$l) { $summary[$key] = ['error' => 'course_or_level_not_found']; continue; }
+        $cid = (int)$c['id']; $lid = (int)$l['id'];
+        $weeks = $syllabus['weeks'] ?? [];
+        // Non-forced: skip weeks already authored, so we never overwrite edits.
+        $rows = $force ? $weeks : array_values(array_filter($weeks, function ($w) use ($cid, $lid) {
+            return mam_lms_find_module_week($cid, $lid, (int)($w['week'] ?? 0)) === null;
+        }));
+        $summary[$key] = $rows
+            ? mam_lms_import_modules($cid, $lid, $rows)
+            : ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
+    }
+    if (function_exists('mam_setting_set')) { try { mam_setting_set('curriculum_seeded', '1'); } catch (Throwable $e) { /* flag is best-effort */ } }
+    mam_audit('lms_seed_starter', 'course', null, ['force' => $force, 'syllabi' => count($summary)]);
+    return $summary;
+}
+
 /* ───────────────────────────── Progression ───────────────────────────────
    Passing a course's examination advances the student to the SAME course at
    the next level (Pre-Certification → Certificate → Pre-Diploma → Diploma).
