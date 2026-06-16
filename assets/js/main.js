@@ -1096,6 +1096,15 @@
       w.innerHTML = mamWaveformSVG();
       hero.insertAdjacentElement('afterend', w);
     }
+    // Sub-pages use .page-hero (not #hero) — carry the same brand waveform band
+    // under them so the motif is consistent across the whole site, not just home.
+    var ph = document.querySelector('.page-hero');
+    if (ph && !document.querySelector('.wave-sep')) {
+      var pw = document.createElement('div');
+      pw.className = 'wave-sep wave-sep-page'; pw.setAttribute('aria-hidden', 'true');
+      pw.innerHTML = mamWaveformSVG();
+      ph.insertAdjacentElement('afterend', pw);
+    }
     ['schools', 'pathways', 'faculty-preview'].forEach(function (id) {
       var s = document.getElementById(id); if (s) s.classList.add('aurora');
     });

@@ -1350,3 +1350,28 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .section-desc{font-size:0.98rem}
   .eq{height:11px;width:16px}
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   2026 micro-polish — brand-orange accent token, a premium light-sweep on
+   the primary CTAs, and breathing room for the brand waveform now that it
+   rides under sub-page heroes too. Additive + reduced-motion-safe.
+   ════════════════════════════════════════════════════════════════════ */
+:root{ --brand-orange:#F47A1E; --brand-orange-deep:#E2620C; }
+
+/* A quick, subtle "shine" sweeps across the primary CTAs on hover — the kind of
+   tactile micro-interaction modern product pages use. Clipped to the button. */
+.btn-primary,.btn-nav-cta,.btn-signup-orange,.btn-signup-gold{overflow:hidden}
+.btn-primary::before,.btn-nav-cta::before,.btn-signup-orange::before,.btn-signup-gold::before{
+  content:'';position:absolute;top:-15%;left:-130%;width:55%;height:130%;pointer-events:none;z-index:1;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,0.5),transparent);
+  transform:skewX(-18deg);transition:left .6s var(--ease)}
+.btn-primary:hover::before,.btn-nav-cta:hover::before,
+.btn-signup-orange:hover::before,.btn-signup-gold:hover::before{left:155%}
+
+/* Sub-page hero waveform: give the injected band gentle vertical rhythm. */
+.wave-sep-page{margin-top:clamp(6px,1.6vw,16px);margin-bottom:clamp(2px,1.2vw,12px)}
+
+@media (prefers-reduced-motion:reduce){
+  .btn-primary::before,.btn-nav-cta::before,
+  .btn-signup-orange::before,.btn-signup-gold::before{display:none}
+}
