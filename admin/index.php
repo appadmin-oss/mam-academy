@@ -986,6 +986,17 @@ nav a.active i{opacity:1;color:var(--gold)}
 .tier-super{background:linear-gradient(135deg,var(--red),#FB7185);color:#fff}
 .tier-manager{background:rgba(99,102,241,0.2);color:#A5B4FC;border:1px solid rgba(165,180,252,0.4)}
 .atb-tier{padding:3px 11px;border-radius:100px;font-size:0.64rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase}
+/* Curriculum completeness matrix (Standard Curriculum overview). */
+.curric-matrix{width:100%;border-collapse:collapse;font-size:0.84rem;min-width:560px}
+.curric-matrix th{font-size:0.64rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);font-weight:700;text-align:center;padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
+.curric-matrix th:first-child{text-align:left}
+.curric-matrix td{padding:5px 6px;border-bottom:1px solid var(--border);text-align:center}
+.cm-course{text-align:left;white-space:nowrap;color:var(--text);font-weight:600}
+.cm-core{font-size:0.58rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold);border:1px solid var(--border);border-radius:100px;padding:1px 6px;margin-left:5px}
+.cm-cell{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;border-radius:7px;font-weight:700;font-variant-numeric:tabular-nums;text-decoration:none;transition:all .15s var(--ease)}
+.cm-cell.on{background:linear-gradient(135deg,rgba(224,138,26,0.22),rgba(251,191,36,0.10));color:var(--gold);border:1px solid rgba(245,168,35,0.45)}
+.cm-cell.off{color:var(--muted);border:1px solid var(--border)}
+.cm-cell:hover{border-color:var(--gold);color:var(--gold);transform:translateY(-1px)}
 main{padding:0 36px 40px;overflow:auto}
 /* Sticky app-shell top bar — page title left, account + view-site right. Bleeds
    to main's horizontal padding and frosts on scroll. */
@@ -2198,7 +2209,32 @@ button.tiny:hover{border-color:var(--gold)}
            . ' across <strong>' . (int)($_GET['seed_n'] ?? 0) . '</strong> course syllabi. Edit any week below.</div>';
     }
     $modulesAuthored = (int)mam_admin_scalar('SELECT COUNT(*) FROM modules');
+    $ov = mam_lms_curriculum_overview();
   ?>
+
+  <div class="card">
+    <h3>Curriculum overview <span class="muted" style="font-weight:400;font-size:.8rem">— authored weeks per course &amp; level; click a cell to author it</span></h3>
+    <div style="padding:0 20px 16px;overflow-x:auto">
+      <table class="curric-matrix">
+        <thead><tr><th>Course</th>
+          <?php foreach ($ov['levels'] as $l): ?><th><?= htmlspecialchars((string)$l['name']) ?></th><?php endforeach; ?>
+          <th>General</th></tr></thead>
+        <tbody>
+        <?php foreach ($ov['courses'] as $c): ?>
+          <tr>
+            <td class="cm-course"><?= htmlspecialchars((string)$c['name']) ?><?php if (($c['kind'] ?? '') === 'core'): ?><span class="cm-core">core</span><?php endif; ?></td>
+            <?php foreach ($ov['levels'] as $l): $n = (int)$c['levels'][(string)$l['code']]; ?>
+              <td><a class="cm-cell <?= $n ? 'on' : 'off' ?>" href="?v=modules&amp;course=<?= urlencode((string)$c['code']) ?>&amp;level=<?= urlencode((string)$l['code']) ?>" title="<?= htmlspecialchars((string)$c['name'] . ' · ' . (string)$l['name']) ?>"><?= $n ?: '·' ?></a></td>
+            <?php endforeach; ?>
+            <?php $ng = (int)$c['levels']['_none']; ?>
+            <td><a class="cm-cell <?= $ng ? 'on' : 'off' ?>" href="?v=modules&amp;course=<?= urlencode((string)$c['code']) ?>" title="<?= htmlspecialchars((string)$c['name']) ?> · level-agnostic"><?= $ng ?: '·' ?></a></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <div class="muted" style="font-size:.78rem;margin-top:10px"><strong><?= (int)$ov['authored_cells'] ?></strong> syllabus cell(s) authored · <strong><?= (int)$ov['total'] ?></strong> total weeks. A number = weeks authored for that course at that level; “·” = empty. Load the starter below to fill the core syllabi instantly.</div>
+    </div>
+  </div>
 
   <div class="card">
     <h3>Starter curriculum</h3>

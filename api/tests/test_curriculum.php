@@ -97,3 +97,12 @@ t_eq($res5['created'], 1, 'NULL-level week 1 is a distinct row from the diploma 
 $nullId = mam_lms_find_module_week($cid, null, 1);
 $dipId  = mam_lms_find_module_week($cid, $lid, 1);
 t_ok($nullId !== null && $dipId !== null && $nullId !== $dipId, 'NULL-level and diploma week 1 are separate rows (affinity-safe)');
+
+t_group('curriculum overview matrix');
+$ov = mam_lms_curriculum_overview();
+t_ok(count($ov['courses']) >= 12 && count($ov['levels']) >= 4, 'overview spans all courses and levels');
+$cond = null; foreach ($ov['courses'] as $c) if ($c['code'] === 'conducting') $cond = $c;
+t_ok($cond !== null && isset($cond['levels']['diploma']), 'overview row carries per-level counts');
+t_ok($cond && $cond['levels']['diploma'] >= 3, 'conducting/diploma reflects weeks imported earlier');
+t_ok($cond && array_key_exists('_none', $cond['levels']), 'overview includes the level-agnostic (General) column');
+t_ok($ov['total'] >= $cond['total'] && $cond['total'] >= 3, 'per-course + grand totals roll up');

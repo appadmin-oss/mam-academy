@@ -981,6 +981,41 @@ function mam_lms_admin_catalog(): array {
     ];
 }
 
+/**
+ * Curriculum completeness matrix for the admin overview: authored-week counts
+ * per (course × level), plus a level-agnostic ('_none') column. One grouped
+ * query feeds the whole grid so admins see — and can jump to — every syllabus
+ * at a glance. Returns ['courses'=>[{code,name,kind,active,levels{code=>n,_none=>n},total}], 'levels'=>[…], 'total'=>n, 'authored_cells'=>n].
+ */
+function mam_lms_curriculum_overview(): array {
+    $cat = mam_lms_admin_catalog();
+    $levelCode = [];
+    foreach ($cat['levels'] as $l) $levelCode[(int)$l['id']] = (string)$l['code'];
+
+    $counts = []; // [course_id][levelCode|'_none'] = n
+    foreach (mam_db_all('SELECT course_id, level_id, COUNT(*) AS n FROM modules GROUP BY course_id, level_id') as $r) {
+        $cid = (int)$r['course_id'];
+        $key = $r['level_id'] !== null ? ($levelCode[(int)$r['level_id']] ?? ('#' . (int)$r['level_id'])) : '_none';
+        $counts[$cid][$key] = (int)$r['n'];
+    }
+
+    $courses = []; $total = 0; $cells = 0;
+    foreach ($cat['courses'] as $c) {
+        $cid = (int)$c['id'];
+        $row = ['code' => $c['code'], 'name' => $c['name'], 'kind' => $c['kind'], 'active' => (int)$c['active'], 'levels' => [], 'total' => 0];
+        foreach ($cat['levels'] as $l) {
+            $n = $counts[$cid][(string)$l['code']] ?? 0;
+            $row['levels'][(string)$l['code']] = $n;
+            $row['total'] += $n; if ($n > 0) $cells++;
+        }
+        $none = $counts[$cid]['_none'] ?? 0;
+        $row['levels']['_none'] = $none; $row['total'] += $none; if ($none > 0) $cells++;
+        $total += $row['total'];
+        $courses[] = $row;
+    }
+    return ['courses' => $courses, 'levels' => $cat['levels'], 'total' => $total, 'authored_cells' => $cells];
+}
+
 /** The authored modules for a course (+level) as a clean, portable list —
  *  [{week,kind,title,content}], week-sorted. The unit of curriculum export. */
 function mam_lms_export_modules(int $courseId, ?int $levelId): array {
