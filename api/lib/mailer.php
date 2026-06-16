@@ -338,39 +338,57 @@ function mam_send_mail_verbose(string $to, string $subject, string $body, bool $
         // Retry-once-on-transient: 4xx replies are usually rate-limit or
         // greylisting and clear on a second attempt. 5xx is permanent —
         // don't waste time. The retry uses a fresh connection.
-        $attempts = 0; $maxAttempts = 2; $transcript = []; $ok = false; $failedStep = null;
-        while ($attempts < $maxAttempts) {
-            $attempts++;
-            $transcript = [];
-            // Same encryption-by-port auto-correct as the PHPMailer path —
-            // STARTTLS to a 465-port server hangs the connection.
-            $port = (int)mam_env('MAIL_PORT', '587');
-            $enc  = strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls'));
-            if ($port === 465) $enc = 'ssl';
-            elseif ($port === 587 && $enc === 'ssl') $enc = 'tls';
-            $ok = mam_smtp_send($host, $port,
-                mam_env('MAIL_USERNAME', ''), mam_env('MAIL_PASSWORD', ''),
-                $enc,
-                $from, $fromName, $replyTo, $to, $subject, $body, $html, $extraHeaders, $attachments, $transcript);
-            $failedStep = null;
-            foreach ($transcript as $s) {
-                if (!($s['ok'] ?? true)) { $failedStep = $s; break; }
+        // Transport strategies, tried in order: the configured one first, then
+        // the ALTERNATE TLS transport — because a host that can't complete a
+        // STARTTLS handshake on 587 will often accept implicit SSL on 465 (and
+        // vice versa). This auto-recovers the most common shared-host mail
+        // failure ("tls_handshake: enable_crypto returned false") with no config
+        // change. Each strategy still gets the 4xx transient retry.
+        $cfgPort = (int)mam_env('MAIL_PORT', '587');
+        $cfgEnc  = strtolower((string)mam_env('MAIL_ENCRYPTION', 'tls'));
+        if ($cfgPort === 465) $cfgEnc = 'ssl';
+        elseif ($cfgPort === 587 && $cfgEnc === 'ssl') $cfgEnc = 'tls';
+        $strategies = [[$cfgPort, $cfgEnc]];
+        $alt = ($cfgEnc === 'ssl') ? [587, 'tls'] : [465, 'ssl'];
+        if ($alt !== [$cfgPort, $cfgEnc]) $strategies[] = $alt;
+
+        $transcript = []; $ok = false; $failedStep = null; $usedPort = $cfgPort; $usedEnc = $cfgEnc; $attempts = 0;
+        foreach ($strategies as $si => $strat) {
+            [$sPort, $sEnc] = $strat;
+            $attempts = 0; $maxAttempts = 2;
+            while ($attempts < $maxAttempts) {
+                $attempts++;
+                $transcript = [];
+                $ok = mam_smtp_send($host, $sPort,
+                    mam_env('MAIL_USERNAME', ''), mam_env('MAIL_PASSWORD', ''), $sEnc,
+                    $from, $fromName, $replyTo, $to, $subject, $body, $html, $extraHeaders, $attachments, $transcript);
+                $failedStep = null;
+                foreach ($transcript as $s) { if (!($s['ok'] ?? true)) { $failedStep = $s; break; } }
+                if ($ok) { $usedPort = $sPort; $usedEnc = $sEnc; break; }
+                // 4xx = transient (greylist/rate-limit) → retry once. Else stop this strategy.
+                $code = $failedStep ? substr(trim((string)($failedStep['reply'] ?? '')), 0, 1) : '';
+                if ($code !== '4' || $attempts >= $maxAttempts) break;
+                usleep(500000);
+                mam_log('info', 'smtp_retry', ['step' => $failedStep['step'] ?? '', 'attempt' => $attempts]);
             }
             if ($ok) break;
-            $code = $failedStep ? substr(trim((string)($failedStep['reply'] ?? '')), 0, 1) : '';
-            // 4xx = transient → retry once with a short pause. Anything else (5xx,
-            // connect failure) is treated as permanent.
-            if ($code !== '4' || $attempts >= $maxAttempts) break;
-            usleep(500000); // 0.5 s pause before retry
-            mam_log('info', 'smtp_retry', ['step' => $failedStep['step'] ?? '', 'reply' => $failedStep['reply'] ?? '', 'attempt' => $attempts]);
+            // Only fall back to the alternate transport for connect/TLS-level
+            // failures — switching STARTTLS↔SSL can't fix auth/recipient/5xx errors.
+            $fstep = $failedStep['step'] ?? '';
+            if (!in_array($fstep, ['connect', 'banner', 'starttls', 'tls_handshake'], true)) break;
+            if ($si + 1 < count($strategies)) {
+                mam_log('warn', 'smtp_transport_fallback', ['tried' => "$sPort/$sEnc", 'reason' => $fstep, 'next' => $strategies[$si + 1][0] . '/' . $strategies[$si + 1][1]]);
+            }
         }
         return [
-            'ok'        => $ok,
-            'transport' => 'smtp',
-            'host'      => $host,
-            'attempts'  => $attempts,
-            'error'     => $ok ? null : ($failedStep['step'] ?? 'smtp_failed') . ': ' . trim((string)($failedStep['reply'] ?? '')),
-            'steps'     => $transcript,
+            'ok'         => $ok,
+            'transport'  => 'smtp',
+            'host'       => $host,
+            'port'       => $usedPort,
+            'encryption' => $usedEnc,
+            'attempts'   => $attempts,
+            'error'      => $ok ? null : ($failedStep['step'] ?? 'smtp_failed') . ': ' . trim((string)($failedStep['reply'] ?? '')),
+            'steps'      => $transcript,
         ];
     }
 
