@@ -57,10 +57,10 @@
         <div class="apply-side-card">
           <h4>Follow MAM</h4>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <a href="https://instagram.com/mamcentre" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-instagram"></i></a>
-            <a href="https://twitter.com/mamcentre" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-x-twitter"></i></a>
-            <a href="https://facebook.com/mamcentre" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-facebook-f"></i></a>
-            <a href="https://youtube.com/mamcentre" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-youtube"></i></a>
+            <a href="https://instagram.com/mamacademy1" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-instagram"></i></a>
+            <a href="https://twitter.com/mamacademy1" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-x-twitter"></i></a>
+            <a href="https://facebook.com/mamacademy1" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-facebook-f"></i></a>
+            <a href="https://youtube.com/mamacademy1" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-youtube"></i></a>
           </div>
         </div>
       </aside>
