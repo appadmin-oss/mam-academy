@@ -23,8 +23,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260617a">
-<link rel="stylesheet" href="assets/css/apply.css?v=20260530a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260617b">
+<link rel="stylesheet" href="assets/css/apply.css?v=20260617b">
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
@@ -46,7 +46,7 @@
     <div class="container about-grid" style="display:grid;grid-template-columns:1fr 1.5fr;gap:48px;align-items:start">
       <aside style="display:flex;flex-direction:column;gap:18px">
         <div class="apply-side-card">
-          <h4>Reach Us Directly</h4>
+          <h2>Reach Us Directly</h2>
           <div class="help-list">
             <div class="help-item"><i class="fa-solid fa-envelope"></i><span><strong>Email</strong><br><a href="mailto:academy@mamcentre.org" style="color:var(--gold-bright)">academy@mamcentre.org</a></span></div>
             <div class="help-item"><i class="fa-solid fa-phone"></i><span><strong>Phone</strong><br><a href="tel:+2347044446517" style="color:var(--gold-bright)">+234 704 444 6517</a></span></div>
@@ -55,12 +55,12 @@
           </div>
         </div>
         <div class="apply-side-card">
-          <h4>Follow MAM</h4>
+          <h2>Follow MAM</h2>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <a href="https://instagram.com/mamacademy1" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-instagram"></i></a>
-            <a href="https://twitter.com/mamacademy1" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-x-twitter"></i></a>
-            <a href="https://facebook.com/mamacademy1" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-facebook-f"></i></a>
-            <a href="https://youtube.com/mamacademy1" target="_blank" rel="noopener" class="footer-social"><i class="fa-brands fa-youtube"></i></a>
+            <a href="https://instagram.com/mamacademy1" target="_blank" rel="noopener" class="footer-social" aria-label="MAM Academy on Instagram"><i class="fa-brands fa-instagram"></i></a>
+            <a href="https://twitter.com/mamacademy1" target="_blank" rel="noopener" class="footer-social" aria-label="MAM Academy on X (Twitter)"><i class="fa-brands fa-x-twitter"></i></a>
+            <a href="https://facebook.com/mamacademy1" target="_blank" rel="noopener" class="footer-social" aria-label="MAM Academy on Facebook"><i class="fa-brands fa-facebook-f"></i></a>
+            <a href="https://youtube.com/mamacademy1" target="_blank" rel="noopener" class="footer-social" aria-label="MAM Academy on YouTube"><i class="fa-brands fa-youtube"></i></a>
           </div>
         </div>
       </aside>
@@ -91,7 +91,7 @@
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260616h"></script>
-<script src="assets/js/main.js?v=20260617a"></script>
+<script src="assets/js/main.js?v=20260617b"></script>
 <script>
 document.addEventListener('mam:ready', function () {
   var form = document.getElementById('contactForm'); if (!form) return;

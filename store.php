@@ -19,7 +19,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260617a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260617b">
 <style>
 /* ── Shell + layout ───────────────────────────────────────────── */
 .store-shell{max-width:1240px;margin:0 auto;padding:36px 22px 96px}
@@ -257,7 +257,8 @@
       <div class="st-region"><i class="fa-solid fa-earth-africa"></i> Shipping to <b id="regionName">your region</b></div>
     </div>
 
-    <div class="st-categories" id="catTabs" role="tablist" aria-label="Filter by category">
+    <h2 class="sr-only">Browse the store</h2>
+    <div class="st-categories" id="catTabs" role="group" aria-label="Filter by category">
       <button class="active" data-cat="" type="button">All</button>
     </div>
 
@@ -358,7 +359,7 @@
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260616h"></script>
-<script src="assets/js/main.js?v=20260617a"></script>
+<script src="assets/js/main.js?v=20260617b"></script>
 <script>
 (function(){
   'use strict';
@@ -442,9 +443,9 @@
     var counts = { '': allItems.length };
     allItems.forEach(function(i){ if (i.category) counts[i.category] = (counts[i.category] || 0) + 1; });
 
-    var html = '<button data-cat="" type="button" class="' + (activeCat === '' ? 'active' : '') + '">All <span class="count">' + counts[''] + '</span></button>';
+    var html = '<button data-cat="" type="button" aria-pressed="' + (activeCat === '' ? 'true' : 'false') + '" class="' + (activeCat === '' ? 'active' : '') + '">All <span class="count">' + counts[''] + '</span></button>';
     Object.keys(counts).filter(function(k){ return k !== ''; }).sort().forEach(function(c){
-      html += '<button data-cat="' + escAttr(c) + '" type="button" class="' + (activeCat === c ? 'active' : '') + '">' + escapeHtml(c) + ' <span class="count">' + counts[c] + '</span></button>';
+      html += '<button data-cat="' + escAttr(c) + '" type="button" aria-pressed="' + (activeCat === c ? 'true' : 'false') + '" class="' + (activeCat === c ? 'active' : '') + '">' + escapeHtml(c) + ' <span class="count">' + counts[c] + '</span></button>';
     });
     tabs.innerHTML = html;
   }

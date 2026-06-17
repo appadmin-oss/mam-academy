@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260617a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260617b">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"ItemList","name":"MAM Academy Programmes &amp; Tuition","itemListElement":[
  {"@type":"ListItem","position":1,"item":{"@type":"Course","name":"Standard Programme","url":"https://academy.mamcentre.org/pathways#standard","description":"One course at your chosen level, with optional additional courses at 50% of the base fee.","provider":{"@type":"EducationalOrganization","name":"MAM Academy","sameAs":"https://academy.mamcentre.org/"},"offers":{"@type":"AggregateOffer","lowPrice":"120","priceCurrency":"USD","category":"Tuition"},"hasCourseInstance":[{"@type":"CourseInstance","courseMode":["online","onsite"]}]}},
@@ -164,7 +164,7 @@
         <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Choose a programme<span class="line" style="transform:scaleX(-1)"></span></div>
         <h2 class="section-title" style="margin:0 auto 12px">Three ways to study</h2>
         <p class="section-desc">Every programme runs across all four levels, and your level sets the base fee. <strong>Certified</strong> adds a flat <strong>$120</strong> for its four compulsory courses; <strong>Grand</strong> covers all three expressions at 3× the base with <strong>13% off</strong>. Prices below start at the Pre-Certificate level — use the estimator for your exact figure.</p>
-        <div class="currency-toggle" role="tablist" aria-label="Display currency" style="margin-top:18px">
+        <div class="currency-toggle" role="group" aria-label="Display currency" style="margin-top:18px">
           <button class="currency-btn active" data-currency="USD">USD</button>
           <button class="currency-btn" data-currency="NGN">NGN</button>
           <button class="currency-btn" data-currency="GBP">GBP</button>
@@ -357,7 +357,7 @@
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260616h"></script>
-<script src="assets/js/main.js?v=20260617a"></script>
+<script src="assets/js/main.js?v=20260617b"></script>
 <script>
 /* Live tuition estimator — mirrors mam_compute_application_price() exactly,
    reading the admin-editable values from MAM_CONFIG so it never drifts from

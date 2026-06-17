@@ -755,7 +755,7 @@
       current = cur;
       btns.forEach(function (b) {
         var active = b.getAttribute('data-currency') === cur;
-        b.classList.toggle('active', active); b.setAttribute('aria-selected', String(active));
+        b.classList.toggle('active', active); b.setAttribute('aria-pressed', String(active));
       });
       var symbol = symbols[cur] || '$';
       $$('[data-cur-sym]').forEach(function (s) { s.textContent = symbol; });
@@ -1400,8 +1400,8 @@
   document.addEventListener('DOMContentLoaded', function () {
     injectSiteSchema();
     Promise.all([
-      loadPartial('include-header', 'partials/header.html?v=20260613a'),
-      loadPartial('include-footer', 'partials/footer.html?v=20260611c')
+      loadPartial('include-header', 'partials/header.html?v=20260617b'),
+      loadPartial('include-footer', 'partials/footer.html?v=20260617b')
     ]).then(boot);
   });
 })();

@@ -45,6 +45,9 @@
 .apply-side-card.summary-card{background:linear-gradient(180deg,rgba(224,138,26,0.1),var(--bg-surface));border-color:var(--border-gold);box-shadow:0 8px 30px rgba(0,0,0,0.35)}
 .apply-side-card.summary-card h4{color:var(--gold-bright);display:flex;align-items:center;gap:8px}
 .apply-side-card.summary-card h4::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--gold-bright);box-shadow:0 0 0 3px rgba(251,191,36,0.2)}
+/* Side-card titles render at the same scale whether h2/h3/h4 — the level is
+   chosen for document outline (heading-order), the size stays a tidy card title. */
+.apply-side-card h2,.apply-side-card h3{font-size:1rem;font-weight:700;line-height:1.6;margin:0}
 .summary-row{display:flex;justify-content:space-between;font-size:0.85rem;padding:9px 0;border-bottom:1px solid var(--border)}
 .summary-row:last-child{border-bottom:none}
 .summary-row span:first-child{color:var(--text-muted)}

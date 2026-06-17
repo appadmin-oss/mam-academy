@@ -34,7 +34,7 @@
 <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260617a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260617b">
 
 <!-- The canonical #organization + #website entity now lives sitewide in
      partials/header.html (on every page). The page-specific Course/ItemList/
@@ -467,7 +467,7 @@
       <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>International Certification Pathway<span class="line" style="transform:scaleX(-1)"></span></div>
       <h2 class="section-title" id="pathways-title">Certification That <span class="highlight-gold">Means Something</span></h2>
       <p class="section-desc" style="margin:0 auto">Equivalent to Trinity London standards. Students are <strong>intelligently audited first</strong>, then placed in the right pathway.</p>
-      <div class="currency-toggle" role="tablist" aria-label="Currency">
+      <div class="currency-toggle" role="group" aria-label="Currency">
         <button class="currency-btn active" data-currency="USD">USD</button>
         <button class="currency-btn" data-currency="NGN">NGN</button>
         <button class="currency-btn" data-currency="GBP">GBP</button>
@@ -549,7 +549,7 @@
       <h2 class="section-title">The <span class="highlight-gold">MAM Method</span></h2>
       <p class="section-desc" style="margin:0 auto">Not just a curriculum — a system. Five pillars that form complete musicians.</p>
     </div>
-    <div class="method-grid">
+    <div class="method-grid" role="group" tabindex="0" aria-label="The MAM Method — five pillars">
       <div class="method-step"><div class="method-num">1</div><h3 class="method-name">Technique</h3><p class="method-desc">Instrument mastery &amp; technical excellence.</p></div>
       <div class="method-step"><div class="method-num">2</div><h3 class="method-name">Rhythm Intelligence</h3><p class="method-desc">Fast interpretation &amp; timing fluency.</p></div>
       <div class="method-step"><div class="method-num">3</div><h3 class="method-name">Performance Intelligence</h3><p class="method-desc">Professional stage mastery.</p></div>
@@ -567,7 +567,7 @@
     <p class="section-desc" style="margin:0 auto">Real stories from those who experienced the MAM Academy difference.</p>
   </div>
   <div class="testimonials-track-wrap">
-    <div class="testimonials-track" id="testimonialsTrack"></div>
+    <div class="testimonials-track" id="testimonialsTrack" role="group" tabindex="0" aria-label="Student stories"></div>
   </div>
 </section>
 
@@ -596,6 +596,6 @@
 <?php include __DIR__ . '/partials/footer.html'; ?>
 
 <script src="assets/js/config.js?v=20260616h"></script>
-<script src="assets/js/main.js?v=20260617a"></script>
+<script src="assets/js/main.js?v=20260617b"></script>
 </body>
 </html>

@@ -19,7 +19,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260617a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260617b">
 <style>
 .faculty-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px}
 .faculty-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;transition:all 0.3s var(--ease);display:flex;flex-direction:column}
@@ -41,7 +41,7 @@
 .team-avatar{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.2rem;letter-spacing:0.04em;color:#1A120B;flex-shrink:0;background:linear-gradient(135deg,var(--accent,var(--gold)),var(--gold-light));box-shadow:0 6px 16px color-mix(in srgb,var(--accent,var(--gold)) 35%,transparent)}
 .team-info{min-width:0}
 .team-name{font-size:1.04rem;font-weight:700;color:var(--text);line-height:1.2}
-.team-role{font-size:0.72rem;color:var(--accent,var(--gold-bright));font-weight:800;letter-spacing:0.08em;text-transform:uppercase;margin:4px 0 8px}
+.team-role{font-size:0.72rem;color:color-mix(in srgb,var(--accent,var(--gold-bright)) 66%,#fff);font-weight:800;letter-spacing:0.08em;text-transform:uppercase;margin:4px 0 8px}
 .team-line{font-size:0.85rem;color:var(--text-muted);line-height:1.55}
 </style>
 </head>
@@ -265,6 +265,6 @@
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260616h"></script>
-<script src="assets/js/main.js?v=20260617a"></script>
+<script src="assets/js/main.js?v=20260617b"></script>
 </body>
 </html>
