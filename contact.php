@@ -23,7 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260616h">
+<link rel="stylesheet" href="assets/css/main.css?v=20260617a">
 <link rel="stylesheet" href="assets/css/apply.css?v=20260530a">
 </head>
 <body>
@@ -73,11 +73,11 @@
           <input type="text" name="_honeypot" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true">
 
           <div class="field-row">
-            <div class="field"><label class="field-label" for="cf-name">Your Name <span class="req">*</span></label><input type="text" id="cf-name" class="field-input" placeholder="Full name" required></div>
-            <div class="field"><label class="field-label" for="cf-email">Email <span class="req">*</span></label><input type="email" id="cf-email" class="field-input" placeholder="you@example.com" required></div>
+            <div class="field"><label class="field-label" for="cf-name">Your Name <span class="req">*</span></label><input type="text" id="cf-name" class="field-input" placeholder="Full name" autocomplete="name" required></div>
+            <div class="field"><label class="field-label" for="cf-email">Email <span class="req">*</span></label><input type="email" id="cf-email" class="field-input" placeholder="you@example.com" autocomplete="email" inputmode="email" required></div>
           </div>
           <div class="field-row">
-            <div class="field"><label class="field-label" for="cf-phone">Phone</label><input type="tel" id="cf-phone" class="field-input" placeholder="+234…"></div>
+            <div class="field"><label class="field-label" for="cf-phone">Phone</label><input type="tel" id="cf-phone" class="field-input" placeholder="+234…" autocomplete="tel" inputmode="tel"></div>
             <div class="field"><label class="field-label" for="cf-topic">Topic <span class="req">*</span></label><div class="field-select-wrap"><select id="cf-topic" class="field-select" required><option value="">Select topic</option><option>Enrollment &amp; Pathways</option><option>MAM Auditer Assessment</option><option>MetaMusic Order</option><option>Power Play series</option><option>Crash Programmes</option><option>Partnerships &amp; Speaking</option><option>Press &amp; Media</option><option>Other</option></select><i class="fa-solid fa-chevron-down field-select-arrow"></i></div></div>
           </div>
           <div class="field"><label class="field-label" for="cf-message">Message <span class="req">*</span></label><textarea id="cf-message" class="field-textarea" placeholder="Tell us how we can help…" required maxlength="2000"></textarea></div>
@@ -91,7 +91,7 @@
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260616h"></script>
-<script src="assets/js/main.js?v=20260616e"></script>
+<script src="assets/js/main.js?v=20260617a"></script>
 <script>
 document.addEventListener('mam:ready', function () {
   var form = document.getElementById('contactForm'); if (!form) return;

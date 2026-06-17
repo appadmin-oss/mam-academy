@@ -226,8 +226,7 @@
       if (data[key] != null) { if (el.type === 'checkbox') el.checked = !!data[key]; else el.value = data[key]; }
       var set = function () {
         data[key] = el.type === 'checkbox' ? el.checked : el.value;
-        if (el.classList.contains('error')) el.classList.remove('error');
-        var errEl = document.getElementById('err-' + id); if (errEl) errEl.classList.remove('shown');
+        clearError(id);
         // Drop any smart-validation note the moment the user edits again
         var note = document.getElementById('note-' + id); if (note) note.remove();
         saveDraft(); updateSummary();
@@ -240,8 +239,21 @@
         on(input, 'change', function () { if (input.checked) { data[key] = input.value; saveDraft(); updateSummary(); } });
       });
     }
+    // Toggle a field's invalid state together: the visual `.error` class, the
+    // semantic aria-invalid, and an aria-describedby link to its #err-<id> text
+    // (token-preserving, so any existing description isn't clobbered).
+    function setInvalid(input, errId, on) {
+      if (!input) return;
+      input.classList.toggle('error', on);
+      if (on) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+      var toks = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean)
+                   .filter(function (t) { return t !== errId; });
+      if (on) toks.push(errId);
+      if (toks.length) input.setAttribute('aria-describedby', toks.join(' '));
+      else input.removeAttribute('aria-describedby');
+    }
     function setError(id) {
-      var input = document.getElementById(id); if (input) input.classList.add('error');
+      setInvalid(document.getElementById(id), 'err-' + id, true);
       var err = document.getElementById('err-' + id); if (err) err.classList.add('shown');
     }
     // Inline coloured note attached underneath a field. Used by smart
@@ -267,7 +279,7 @@
     function setFieldHelpOk(id, text)    { setFieldHelp(id, text, 'ok');    }
     function clearFieldHelp(id) { var n = document.getElementById('note-' + id); if (n) n.remove(); }
     function clearError(id) {
-      var input = document.getElementById(id); if (input) input.classList.remove('error');
+      setInvalid(document.getElementById(id), 'err-' + id, false);
       var err = document.getElementById('err-' + id); if (err) err.classList.remove('shown');
     }
 
@@ -717,8 +729,7 @@
         var num = '';
         try { num = iti.isValidNumber() ? iti.getNumber() : raw; } catch (e) { num = raw; }
         data[key] = num;
-        if (el.classList.contains('error')) el.classList.remove('error');
-        var errEl = document.getElementById('err-' + inputId); if (errEl) errEl.classList.remove('shown');
+        clearError(inputId);
         var note = document.getElementById('note-' + inputId); if (note) note.remove();
         saveDraft();
       };

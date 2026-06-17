@@ -185,7 +185,9 @@ input[type="radio"]:not(.native):disabled{opacity:.5;cursor:not-allowed}
 .nav-item{position:relative}
 .nav-link{display:inline-flex;align-items:center;gap:6px;padding:10px 14px;font-size:0.875rem;font-weight:500;color:var(--text-soft);border-radius:var(--radius-sm);transition:all 0.2s var(--ease);white-space:nowrap}
 .nav-link:hover,.nav-link:focus-visible{color:var(--gold-bright);background:var(--glass-light)}
-.nav-link.active{color:var(--gold-bright)}
+.nav-link.active{color:var(--gold-bright);position:relative}
+.nav-link.active::after{content:"";position:absolute;left:14px;right:14px;bottom:5px;height:2px;border-radius:2px;background:var(--gold-bright)}
+.dropdown-item[aria-current="page"],.mobile-menu a[aria-current="page"]{color:var(--gold-bright)}
 .nav-link .chev{font-size:0.7rem;transition:transform 0.25s var(--ease)}
 .nav-item.open > .nav-link .chev{transform:rotate(180deg)}
 
@@ -1433,3 +1435,9 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .frame{max-width:420px;margin:0 auto;width:100%}
 }
 @media (prefers-reduced-motion:reduce){ .frame:hover img{transform:none} .frame:hover::after{transform:none} }
+
+/* ===== Back-to-top (injected by main.js on long pages) ===== */
+.to-top{position:fixed;left:max(18px,env(safe-area-inset-left));bottom:calc(20px + env(safe-area-inset-bottom));z-index:901;width:48px;height:48px;display:grid;place-items:center;border:1px solid var(--border-gold,rgba(224,138,26,.45));border-radius:50%;background:rgba(18,13,8,.74);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);color:var(--gold-bright);font-size:1rem;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,.4);opacity:0;visibility:hidden;transform:translateY(14px) scale(.92);transition:opacity .3s var(--ease),transform .3s var(--ease),visibility .3s,background .2s var(--ease),box-shadow .2s var(--ease)}
+.to-top.show{opacity:1;visibility:visible;transform:translateY(0) scale(1)}
+.to-top:hover{background:rgba(224,138,26,.2);box-shadow:0 12px 34px rgba(224,138,26,.32);transform:translateY(-2px) scale(1)}
+@media (prefers-reduced-motion:reduce){.to-top{transition:opacity .2s linear,visibility .2s}.to-top,.to-top.show,.to-top:hover{transform:none}}

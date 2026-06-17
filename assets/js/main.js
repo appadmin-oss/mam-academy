@@ -1169,14 +1169,95 @@
     document.head.appendChild(st);
   }
 
+  // Floating "back to top" — these marketing pages get very long on mobile.
+  // Injected here (not in the partials) so it's present site-wide and simply
+  // doesn't exist when JS is off, where it'd be inert anyway.
+  function initBackToTop() {
+    if (document.querySelector('.to-top')) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'to-top';
+    btn.setAttribute('aria-label', 'Back to top');
+    btn.innerHTML = '<i class="fa-solid fa-arrow-up" aria-hidden="true"></i>';
+    document.body.appendChild(btn);
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var shown = false, ticking = false;
+    // The bottom-left corner is also home to the (transient) cookie-consent and
+    // lead-CTA bars. Rather than fight them for space, yield: stay hidden while
+    // one occupies the corner, and reappear once it's dismissed. The right
+    // gutter is left to the floating "Apply Now" button.
+    function cornerBlocked() {
+      var vh = window.innerHeight || 800, blocked = false;
+      ['.cookie-banner.shown', '.mam-cta-bar.shown'].forEach(function (sel) {
+        var el = document.querySelector(sel); if (!el) return;
+        var r = el.getBoundingClientRect();
+        if (r.height && r.bottom > vh - 40 && r.left < 110) blocked = true;
+      });
+      return blocked;
+    }
+    function update() {
+      ticking = false;
+      var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+      var want = y > (window.innerHeight || 800) * 1.2 && !cornerBlocked();
+      if (want !== shown) { shown = want; btn.classList.toggle('show', want); btn.setAttribute('aria-hidden', want ? 'false' : 'true'); }
+    }
+    function ping() { if (ticking) return; ticking = true; setTimeout(update, 120); }
+    window.addEventListener('scroll', ping, { passive: true });
+    window.addEventListener('resize', ping, { passive: true });
+    // Dismissing the consent / CTA bar frees the corner — re-evaluate after any click.
+    document.addEventListener('click', function () { setTimeout(update, 80); }, true);
+    setTimeout(update, 1400); // re-check once the consent/CTA bars have appeared (~1.2s)
+    on(btn, 'click', function () {
+      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+      // Return focus to the top of the document so keyboard users aren't stranded.
+      var top = document.querySelector('.skip-link') || document.querySelector('#navbar a, #navbar button');
+      if (top) { try { top.focus({ preventScroll: true }); } catch (e) { top.focus(); } }
+    });
+    update();
+  }
+
+  // Mark the current page in the nav (aria-current + the pre-existing `.active`
+  // style hook) so visitors always know where they are. Matches by pathname,
+  // tolerant of clean URLs (/pathways) vs .php and of trailing slashes.
+  function initActiveNav() {
+    function norm(href) {
+      if (!href) return null;
+      var h = String(href).trim();
+      if (!h || h === '#' || h.charAt(0) === '#') return null;   // fragment / non-navigational
+      var a = document.createElement('a'); a.href = h;
+      if (a.host && a.host !== location.host) return null;       // external link
+      var p = a.pathname.replace(/\/+$/, '').replace(/\.php$/, '').toLowerCase();
+      return p === '' ? '/' : p;
+    }
+    var here = norm(location.pathname) || '/';
+    var matches = function (a) { var p = norm(a.getAttribute('href')); return !!p && p === here; };
+
+    // aria-current="page" on every link that LITERALLY points here (valid for
+    // repeated links and correct for screen readers).
+    $$('#navbar a.nav-link, #navbar a.dropdown-item, .mobile-menu a[href]')
+      .forEach(function (a) { if (matches(a)) a.setAttribute('aria-current', 'page'); });
+
+    // The underline is purely visual → show it on exactly ONE top-level item:
+    // a direct match if there is one, else the category that owns the matching
+    // dropdown entry (e.g. Pathways while on /crash). This avoids two links
+    // (e.g. Schools + Disciplines, both → /schools) underlining at once.
+    var top = $$('#navbar a.nav-link').filter(matches)[0];
+    if (!top) {
+      var di = $$('#navbar a.dropdown-item').filter(matches)[0];
+      var item = di && di.closest('.nav-item');
+      top = item && item.querySelector('a.nav-link');
+    }
+    if (top) top.classList.add('active');
+  }
+
   function boot() {
     // Each init is isolated: a throw in one (e.g. the nav) must never stop the
     // others from running — otherwise a single failure could, for example,
     // leave the scroll-reveal section headers stuck at opacity:0.
-    [initPreloader, initNav, initAuthNav, initHero, initSmoothScroll, initFaq, initAnimations,
+    [initPreloader, initNav, initAuthNav, initActiveNav, initHero, initSmoothScroll, initFaq, initAnimations,
      initCountdown, initTestimonials, initCookie, initToolbar, initCurrency,
      initNewsletter, initFilters, initImageFallback, initYear, initScholarship,
-     initFooterWordmark, initNavPricing, initGraphics].forEach(function (fn) {
+     initFooterWordmark, initNavPricing, initGraphics, initBackToTop].forEach(function (fn) {
       try { fn(); } catch (e) { if (window.console) console.error('[MAM] init failed:', fn.name, e); }
     });
 
