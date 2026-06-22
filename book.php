@@ -338,11 +338,17 @@
     });
   }
 
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
   function showBank(init, btn, orig){
     btn.disabled = false; btn.innerHTML = orig;
     var b = init.bank || {};
-    var lines = b.account_number ? ('<br><strong>' + b.bank + '</strong> · ' + b.account_name + ' · <strong>' + b.account_number + '</strong>') : '';
-    status((init.instructions || ('Send ₦' + (init.amount_ngn || '').toLocaleString() + ' and email proof to academy@mamcentre.org with reference ' + init.reference + '.')) + lines, 'ok');
+    var base = init.instructions || ('Send ₦' + (init.amount_ngn || '').toLocaleString() + ' and email proof to academy@mamcentre.org with reference ' + init.reference + '.');
+    // Render as (escaped) HTML so the bank line shows formatted — the shared
+    // status() uses textContent, which would print the <br>/<strong> literally.
+    var html = esc(base);
+    if (b.account_number) html += '<br><strong>' + esc(b.bank) + '</strong> · ' + esc(b.account_name) + ' · <strong>' + esc(b.account_number) + '</strong>';
+    msg.innerHTML = html;
+    msg.className = 'gate-msg show ok';
   }
 
   document.getElementById('payPaystack').addEventListener('click', function(){ pay('paystack'); });

@@ -4,8 +4,8 @@ declare(strict_types=1);
 $u = mam_require_user();
 
 $in = mam_json_input();
-$current = mam_str($in, 'current', 200);
-$next    = mam_str($in, 'next',    200);
+$current = mam_secret($in, 'current');
+$next    = mam_secret($in, 'next');
 
 if (strlen($next) < 8) mam_fail('weak_password', 422, ['fields' => ['next']]);
 if (!password_verify($current, $u['password_hash'])) mam_fail('invalid_current_password', 401);
@@ -15,6 +15,9 @@ mam_db_update('users', [
     'must_change_password' => 0,
     'updated_at' => date('Y-m-d H:i:s'),
 ], ['id' => (int)$u['id']]);
+// A password change should evict any other (possibly stolen) sessions, keeping
+// only the one performing the change — matching perform-reset / admin reset.
+mam_sessions_revoke_others((int)$u['id']);
 if (!empty($u['email'])) {
     // The password is already changed; a mail hiccup must never fail the action.
     try {

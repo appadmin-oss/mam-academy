@@ -17,6 +17,16 @@ declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(403); echo "This tool is CLI-only.\n"; exit(1); }
 require_once __DIR__ . '/../lib/bootstrap.php';
 
+// Single-runner lock: a slow pass (50 SMTP sends + transient retries) can
+// overrun the 5-minute cron, and two overlapping passes would both read
+// "not yet reminded" and double-send invoice emails. Hold an exclusive lock
+// for the lifetime of the process; bail out cleanly if another pass holds it.
+$mamJobsLock = @fopen(MAM_STORAGE . '/.run-jobs.lock', 'c');
+if ($mamJobsLock === false || !@flock($mamJobsLock, LOCK_EX | LOCK_NB)) {
+    echo "Another job run is in progress — skipping this pass.\n";
+    exit(0);
+}
+
 $limit = 100;
 foreach (array_slice($argv, 1) as $a) {
     if (strpos($a, '--limit=') === 0) $limit = max(1, (int)substr($a, 8));
@@ -30,6 +40,14 @@ printf("jobs       : ran %d · done %d · failed %d\n", $s['ran'], $s['done'], $
 // eligible idle draft.
 if (function_exists('mam_app_draft_nudge_sweep')) {
     printf("draft nudge: emailed %d\n", mam_app_draft_nudge_sweep());
+}
+
+// Warm the live FX cache here (the one place that's allowed to hit the network)
+// so the public display endpoint and the charge path both read the SAME cached
+// rate — the UI's "approx ₦…" can't disagree with what's charged.
+if (function_exists('mam_usd_to_ngn_rate')) {
+    mam_usd_to_ngn_rate(true);
+    printf("fx warm    : usd→ngn %.2f\n", mam_usd_to_ngn_rate(false));
 }
 
 // Application invoices: auto-invoice applications whose fee is due, and expire

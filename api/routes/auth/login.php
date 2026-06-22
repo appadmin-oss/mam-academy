@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 $in = mam_json_input();
 $email = mam_str($in, 'email', 120);
-$password = mam_str($in, 'password', 200);
+$password = mam_secret($in, 'password');
 $remember = isset($in['remember']) ? (bool)$in['remember'] : true;
 
 if (!$email || !$password) mam_fail('validation', 422, ['fields' => ['email', 'password']]);

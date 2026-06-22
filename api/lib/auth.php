@@ -36,12 +36,14 @@ function mam_create_admin(string $email, string $password, string $name = 'Admin
             'password_hash' => $hash, 'role' => 'admin', 'status' => 'active',
             'name' => $name, 'must_change_password' => 0, 'updated_at' => $now,
         ], ['id' => (int)$existing['id']]);
+        mam_user_ensure_role((int)$existing['id'], 'admin');
         return ['id' => (int)$existing['id'], 'email' => $email, 'created' => false];
     }
     $id = mam_db_insert('users', [
         'email' => $email, 'password_hash' => $hash, 'role' => 'admin',
         'name' => $name, 'status' => 'active', 'must_change_password' => 0,
     ]);
+    mam_user_ensure_role($id, 'admin');
     return ['id' => $id, 'email' => $email, 'created' => true];
 }
 
@@ -118,6 +120,17 @@ function mam_user_roles(array $u): array {
 /** True if the user holds ANY of $roles (across primary + user_roles). */
 function mam_user_has_role(array $u, string ...$roles): bool {
     return (bool)array_intersect($roles, mam_user_roles($u));
+}
+
+/** Idempotently grant a role in the multi-role join (portable across SQLite +
+ *  MySQL). Keeps user_roles in step with the primary users.role at creation. */
+function mam_user_ensure_role(int $userId, string $role): void {
+    if ($userId <= 0 || $role === '') return;
+    try {
+        if (!mam_db_row('SELECT 1 FROM user_roles WHERE user_id = ? AND role = ?', [$userId, $role])) {
+            mam_db_insert('user_roles', ['user_id' => $userId, 'role' => $role]);
+        }
+    } catch (Throwable $e) { /* table not migrated yet — primary role still applies */ }
 }
 
 function mam_require_role(string ...$roles): array {

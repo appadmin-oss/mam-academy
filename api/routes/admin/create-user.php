@@ -27,6 +27,11 @@ $id = mam_db_insert('users', [
     'must_change_password' => 1,
 ]);
 
+// Mirror the primary role into the multi-role join so the two role stores
+// agree from creation (mam_user_has_role folds in the primary today, but any
+// code reading user_roles alone would otherwise miss this user).
+mam_user_ensure_role($id, $role);
+
 if ($role === 'instructor') {
     mam_db_insert('instructor_profiles', ['user_id' => $id]);
 }

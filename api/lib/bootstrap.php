@@ -33,6 +33,12 @@ foreach ([MAM_LOGS, MAM_STORAGE] as $d) {
     if (!is_dir($d)) @mkdir($d, 0775, true);
 }
 
+// ---------- Timezone ----------
+// DB timestamps are written in UTC (SQLite datetime('now'), MySQL UTC), so the
+// app MUST parse/format them in UTC too — otherwise strtotime() on a php.ini
+// default like Africa/Lagos skews every due/expiry computation by the offset.
+date_default_timezone_set('UTC');
+
 // ---------- Error handling ----------
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
@@ -206,15 +212,67 @@ mam_log('info', 'request', [
 if (function_exists('mam_session_gc')) mam_session_gc();
 
 // ---------- Helpers ----------
-function mam_client_ip(): string {
-    $headers = ['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'];
-    foreach ($headers as $h) {
-        if (!empty($_SERVER[$h])) {
-            $ip = explode(',', $_SERVER[$h])[0];
-            return trim($ip);
+// (mam_ip_in_cidr lives in validation.php — the shared helpers lib loaded before
+//  this point — so the test harness, which doesn't load bootstrap, has it too.)
+
+/**
+ * True when the direct peer is a proxy we trust to set forwarding headers.
+ *
+ * Default trusted set = private/loopback/link-local (a same-host reverse proxy)
+ * + Cloudflare's published edge ranges (the app reads CF-Connecting-IP, so CF is
+ * the expected fronting proxy). Honouring forwarding headers only from a trusted
+ * peer stops a direct attacker forging its rate-limit / audit identity with a
+ * spoofed X-Forwarded-For. Override the whole set with the TRUSTED_PROXY_CIDRS
+ * env (comma-separated CIDRs) for non-Cloudflare deployments.
+ */
+function mam_ip_is_trusted_proxy(string $ip): bool {
+    static $cidrs = null;
+    if ($cidrs === null) {
+        $env = trim((string)mam_env('TRUSTED_PROXY_CIDRS', ''));
+        if ($env !== '') {
+            $cidrs = array_filter(array_map('trim', explode(',', $env)));
+        } else {
+            $cidrs = [
+                // private / loopback / link-local
+                '127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16',
+                '169.254.0.0/16', '::1/128', 'fc00::/7', 'fe80::/10',
+                // Cloudflare edge (IPv4)
+                '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+                '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+                '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+                '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+                // Cloudflare edge (IPv6)
+                '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+                '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+            ];
         }
     }
-    return '0.0.0.0';
+    if (!filter_var($ip, FILTER_VALIDATE_IP)) return false;
+    foreach ($cidrs as $cidr) if (mam_ip_in_cidr($ip, $cidr)) return true;
+    return false;
+}
+
+/**
+ * The real client IP, used as the rate-limit key and stored in sessions/audit.
+ * Client-supplied forwarding headers are trusted ONLY when REMOTE_ADDR is a
+ * trusted proxy (see above); otherwise we use REMOTE_ADDR, so a direct attacker
+ * can't rotate X-Forwarded-For to dodge per-IP limits.
+ */
+function mam_client_ip(): string {
+    $remote = trim((string)($_SERVER['REMOTE_ADDR'] ?? ''));
+    if ($remote === '') return '0.0.0.0';
+    if (!mam_ip_is_trusted_proxy($remote)) return $remote;
+
+    // Cloudflare sets (and strips any client-sent) CF-Connecting-IP.
+    $cf = trim((string)($_SERVER['HTTP_CF_CONNECTING_IP'] ?? ''));
+    if ($cf !== '' && filter_var($cf, FILTER_VALIDATE_IP)) return $cf;
+
+    // Generic proxy: first syntactically valid hop in X-Forwarded-For.
+    foreach (explode(',', (string)($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '')) as $hop) {
+        $hop = trim($hop);
+        if ($hop !== '' && filter_var($hop, FILTER_VALIDATE_IP)) return $hop;
+    }
+    return $remote;
 }
 
 function mam_json_input(): array {

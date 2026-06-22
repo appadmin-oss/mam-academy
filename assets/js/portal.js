@@ -176,12 +176,14 @@
       var btn = $('.mam-notif-btn', host), badge = $('.mam-notif-badge', host),
           panel = $('.mam-notif-panel', host), listEl = $('[data-notif-list]', host);
       function setBadge(u) { u = u || 0; badge.style.display = u > 0 ? 'block' : 'none'; badge.textContent = u > 99 ? '99+' : String(u); }
+      // Only same-origin paths or http(s) are navigable — never javascript:/data: etc.
+      function safeUrl(u) { u = String(u || ''); return /^(https?:\/\/|\/(?!\/))/i.test(u) ? u : '#'; }
       function render(data) {
         var items = (data && data.notifications) || [];
         setBadge(data && data.unread);
         if (!items.length) { listEl.innerHTML = '<div class="mam-notif-empty">You’re all caught up.</div>'; return; }
         listEl.innerHTML = items.map(function (n) {
-          return '<a class="mam-notif-item' + (n.read_at ? '' : ' unread') + '" data-id="' + n.id + '" href="' + (n.url ? escapeHtml(n.url) : '#') + '">'
+          return '<a class="mam-notif-item' + (n.read_at ? '' : ' unread') + '" data-id="' + n.id + '" href="' + escapeHtml(safeUrl(n.url)) + '">'
             + '<div class="mam-notif-title">' + escapeHtml(n.title) + '</div>'
             + (n.body ? '<div class="mam-notif-body">' + escapeHtml(n.body) + '</div>' : '')
             + '<div class="mam-notif-time">' + fmtDateTime(n.created_at) + '</div></a>';
@@ -203,7 +205,7 @@
         // Record the read FIRST, then navigate, so the count is correct on return.
         window.MAM_API.request('notifications/read', { method: 'POST', body: { id: id } })
           .catch(function () {})
-          .then(function () { if (href && href !== '#') window.location.href = href; else load(); });
+          .then(function () { var safe = safeUrl(href); if (safe !== '#') window.location.href = safe; else load(); });
       });
       on($('[data-notif-clear]', host), 'click', function (e) {
         e.preventDefault(); e.stopPropagation();

@@ -31,15 +31,15 @@ const MAM_BOOKING_DEFAULT_TIERS = [
 
 const MAM_EU_COUNTRIES = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE'];
 
-/** Detect the visitor's ISO-2 country. Trusts the standard upstream-proxy
- *  headers in priority order (Cloudflare > generic CDN > Accept-Language
- *  fallback). Defaults to 'DEFAULT' if nothing is determinable. */
+/** Detect the visitor's ISO-2 country. Trusts ONLY headers the fronting
+ *  platform sets and overwrites (Cloudflare / Vercel) — the generic
+ *  `X-Country`/`X-Geo-Country` are not set by any platform here, so honouring
+ *  them let a client self-select a cheaper booking tier; they're dropped.
+ *  Falls back to Accept-Language (dev only) then 'DEFAULT'. */
 function mam_detect_country(): string {
     $hdrs = [
-        'HTTP_CF_IPCOUNTRY',       // Cloudflare
-        'HTTP_X_VERCEL_IP_COUNTRY',
-        'HTTP_X_COUNTRY',
-        'HTTP_X_GEO_COUNTRY',
+        'HTTP_CF_IPCOUNTRY',        // Cloudflare (overwrites any client value)
+        'HTTP_X_VERCEL_IP_COUNTRY', // Vercel edge
     ];
     foreach ($hdrs as $h) {
         $v = strtoupper((string)($_SERVER[$h] ?? ''));

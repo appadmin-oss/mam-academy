@@ -731,7 +731,7 @@
     }
     var rows = orders.map(function (o) {
       var items = []; try { items = JSON.parse(o.items_json || '[]'); } catch (e) {}
-      var summary = items.map(function (i) { return P.escapeHtml(i.name) + ' × ' + i.qty; }).join(', ');
+      var summary = items.map(function (i) { return P.escapeHtml(i.name) + ' × ' + (Number(i.qty) || 0); }).join(', ');
       var statusPill = '<span class="pill ' + P.escapeHtml(o.status) + '">' + P.escapeHtml(o.status) + '</span>';
       return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(o.reference) + '</td>'
         + '<td data-label="Items" style="max-width:340px"><span style="color:var(--text-soft);font-size:0.88rem">' + summary + '</span></td>'

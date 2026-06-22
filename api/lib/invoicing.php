@@ -101,8 +101,16 @@ function mam_invoices_process(?int $now = null): array {
         $created = (string)($app['created_at'] ?? '');
 
         if ($now >= mam_invoice_ts($created, $pol['expiry_days'])) {
-            try { mam_admissions_transition($appId, 'expired', null, 'invoice_expired'); $out['expired']++; } catch (\Throwable $e) {}
-            mam_invoice_email_expired($app);
+            $changed = false;
+            try {
+                $res = mam_admissions_transition($appId, 'expired', null, 'invoice_expired');
+                $changed = !empty($res['changed']);
+            } catch (\Throwable $e) {
+                mam_log('warn', 'invoice_expire_failed', ['app' => $appId, 'err' => $e->getMessage()]);
+            }
+            // Only email (and count) on a real transition — otherwise a row that
+            // failed to flip stays 'submitted' and would re-send every pass.
+            if ($changed) { $out['expired']++; mam_invoice_email_expired($app); }
             continue;
         }
         if ($now >= mam_invoice_ts($created, $pol['due_days']) && !mam_invoice_reminded($appId)) {

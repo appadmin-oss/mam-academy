@@ -116,6 +116,11 @@ t_eq(mam_lms_public_ips_for('2606:4700:4700::1111'), ['2606:4700:4700::1111'], '
 foreach (['127.0.0.1','10.0.0.1','192.168.1.1','172.16.0.1','169.254.169.254','0.0.0.0','::1','fc00::1','fe80::1'] as $bad) {
     t_ok(mam_lms_public_ips_for($bad) === [], "private/reserved literal rejected: $bad");
 }
+// Hardened ranges PHP's filter flags don't cover (F2/F3): CGNAT, IETF
+// special-purpose blocks, and an IPv4-mapped IPv6 metadata address.
+foreach (['100.64.0.1','198.18.0.5','192.0.2.10','203.0.113.7','240.0.0.1','::ffff:169.254.169.254','::ffff:10.0.0.1'] as $bad) {
+    t_ok(mam_lms_public_ips_for($bad) === [], "extra-denied literal rejected: $bad");
+}
 t_ok(mam_lms_public_ips_for('') === [],   'empty host rejected');
 t_ok(mam_lms_public_ips_for('   ') === [], 'blank host rejected');
 

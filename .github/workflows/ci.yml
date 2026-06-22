@@ -34,7 +34,7 @@ jobs:
           find . -name '*.php' -not -path './api/vendor/*' -print0 \
             | xargs -0 -n1 -P4 php -l
 
-      - name: Run test suite (pricing · payments · migrations · csrf · lms · fx)
+      - name: Run full test suite (auto-discovers every api/tests/test_*.php)
         run: php api/tests/run.php
 
   js:
@@ -45,9 +45,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Syntax-check front-end JS
+      - name: Syntax-check front-end JS (incl. .cjs)
         run: |
           set -e
-          for f in assets/js/*.js; do
+          for f in $(find assets/js -name '*.js' -o -name '*.cjs'); do
             node --check "$f"
           done

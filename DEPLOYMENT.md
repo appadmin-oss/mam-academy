@@ -30,8 +30,9 @@ set at least:
 
 ## 2 · Database schema
 
-The canonical schema is `db/schema-mysql.sql` (target version **16**, the single
-source of truth is `MAM_SCHEMA_TARGET` in `api/lib/db.php`).
+The canonical schema is `db/schema-mysql.sql` (target version **30** — the
+single source of truth is the `MAM_SCHEMA_TARGET` constant in `api/lib/db.php`;
+trust that constant over any number quoted here).
 
 - **SQLite:** nothing to do — the migrator runs incrementally on every cold start.
 - **MySQL:** the migrator executes `db/schema-mysql.sql` (idempotent) whenever

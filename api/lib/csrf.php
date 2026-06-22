@@ -45,13 +45,29 @@ function mam_app_key(): string {
     return $key = $generated;
 }
 
+/**
+ * Per-session binding folded into the token signature: the current session's
+ * token hash, or '' for an anonymous caller (public apply/contact/newsletter
+ * forms). This stops a token minted in one user's context from validating
+ * another user's state-changing request. A token whose binding no longer
+ * matches (e.g. minted before login) fails verification; the client's
+ * MAM_API.request() transparently refetches once on `csrf_invalid`.
+ */
+function mam_csrf_binding(): string {
+    if (function_exists('mam_session_current_hash')) {
+        $h = mam_session_current_hash();
+        if (is_string($h) && $h !== '') return $h;
+    }
+    return '';
+}
+
 function mam_csrf_token(): string {
     $key = mam_app_key();
     if (!$key) return '';
     $ts = time();
     $nonce = bin2hex(random_bytes(8));
     $payload = $ts . '.' . $nonce;
-    $sig = hash_hmac('sha256', $payload, $key);
+    $sig = hash_hmac('sha256', $payload . '.' . mam_csrf_binding(), $key);
     return $payload . '.' . $sig;
 }
 
@@ -73,7 +89,7 @@ function mam_csrf_verify(?string $token, int $maxAgeSec = 7200): bool {
     [$ts, $nonce, $sig] = $parts;
     if (!ctype_digit($ts)) return false;
     if (time() - (int)$ts > $maxAgeSec) return false;
-    $expected = hash_hmac('sha256', $ts . '.' . $nonce, $key);
+    $expected = hash_hmac('sha256', $ts . '.' . $nonce . '.' . mam_csrf_binding(), $key);
     return hash_equals($expected, $sig);
 }
 

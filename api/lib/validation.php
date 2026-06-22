@@ -187,6 +187,31 @@ function mam_str(array $src, string $key, int $max = 255): string {
     return $v;
 }
 
+/** Read a password/secret WITHOUT trimming — leading/trailing spaces are
+ *  significant in a credential. Caps length only as a DoS guard. */
+function mam_secret(array $src, string $key, int $max = 200): string {
+    $v = $src[$key] ?? '';
+    if (!is_string($v)) return '';
+    return strlen($v) > $max ? substr($v, 0, $max) : $v;
+}
+
+/** Is $ip inside $cidr? Handles both IPv4 and IPv6 (bitwise on inet_pton).
+ *  Shared by the trusted-proxy resolver (bootstrap) and the SSRF guard (lms). */
+function mam_ip_in_cidr(string $ip, string $cidr): bool {
+    if (strpos($cidr, '/') === false) return $ip === $cidr;
+    [$subnet, $bits] = explode('/', $cidr, 2);
+    $bits = (int)$bits;
+    $ipB  = @inet_pton($ip);
+    $subB = @inet_pton($subnet);
+    if ($ipB === false || $subB === false || strlen($ipB) !== strlen($subB)) return false;
+    $bytes = intdiv($bits, 8);
+    $rem   = $bits % 8;
+    if ($bytes > 0 && strncmp($ipB, $subB, $bytes) !== 0) return false;
+    if ($rem === 0) return true;
+    $mask = chr((0xff << (8 - $rem)) & 0xff);
+    return (ord($ipB[$bytes]) & ord($mask)) === (ord($subB[$bytes]) & ord($mask));
+}
+
 function mam_bool(array $src, string $key): int {
     $v = $src[$key] ?? false;
     if (is_string($v)) $v = in_array(strtolower($v), ['1','true','yes','on'], true);

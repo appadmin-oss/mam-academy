@@ -14,8 +14,8 @@
     { "src": "mam-academy-logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ],
   "shortcuts": [
-    { "name": "Apply Now",       "url": "/apply.html",            "description": "Apply to MAM Academy" },
-    { "name": "Pathways",        "url": "/pathways.html",         "description": "View certification pathways" },
-    { "name": "MetaMusic Order", "url": "/metamusic-order.html",  "description": "12-week intensive" }
+    { "name": "Apply Now",       "url": "/apply",            "description": "Apply to MAM Academy" },
+    { "name": "Pathways",        "url": "/pathways",         "description": "View certification pathways" },
+    { "name": "MetaMusic Order", "url": "/metamusic-order",  "description": "12-week intensive" }
   ]
 }

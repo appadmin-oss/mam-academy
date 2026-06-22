@@ -1105,8 +1105,27 @@ function mam_lms_public_ips_for(string $host): array {
     // parse_url keeps IPv6 literals bracketed (e.g. "[::1]"); strip for testing.
     $bare = (strlen($host) > 1 && $host[0] === '[' && $host[-1] === ']') ? substr($host, 1, -1) : $host;
 
-    $isPublic = static fn(string $ip): bool =>
-        filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
+    // Ranges PHP's NO_PRIV/NO_RES flags don't cover: shared/CGNAT (RFC 6598),
+    // "this host" 0.0.0.0/8, IETF protocol/benchmark/TEST-NET/reserved blocks.
+    static $extraDeny = [
+        '0.0.0.0/8', '100.64.0.0/10', '192.0.0.0/24', '198.18.0.0/15',
+        '192.0.2.0/24', '198.51.100.0/24', '203.0.113.0/24', '240.0.0.0/4',
+        '::/128', '64:ff9b::/96', '2001:db8::/32',
+    ];
+    $isPublic = static function (string $ip) use ($extraDeny): bool {
+        // Normalize an IPv4-mapped IPv6 literal (::ffff:169.254.169.254) to its
+        // embedded v4 so it's classified by the v4 rules, not waved through as
+        // "some IPv6 address" on PHP builds that don't fold it themselves.
+        if (stripos($ip, '::ffff:') === 0) {
+            $tail = substr($ip, 7);
+            if (filter_var($tail, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) $ip = $tail;
+        }
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            return false;
+        }
+        foreach ($extraDeny as $cidr) if (mam_ip_in_cidr($ip, $cidr)) return false;
+        return true;
+    };
 
     if (filter_var($bare, FILTER_VALIDATE_IP)) {     // an IP literal — no DNS to consult
         return $isPublic($bare) ? [$bare] : [];
@@ -1148,6 +1167,10 @@ function mam_lms_fetch_url(string $url): ?string {
         $host   = (string)$p['host'];
         $scheme = strtolower((string)($p['scheme'] ?? 'http'));
         $port   = (int)($p['port'] ?? ($scheme === 'https' ? 443 : 80));
+
+        // A public IP can still front non-HTTP services (:22, :6379, :25…).
+        // A curriculum data source is plain web content — pin to the web ports.
+        if (!in_array($port, [80, 443], true)) return null;
 
         $ips = mam_lms_public_ips_for($host);        // SSRF guard, applied to EVERY hop
         if (!$ips) return null;

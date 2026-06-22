@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 $in       = mam_json_input();
 $token    = mam_str($in, 'token', 64);
-$password = mam_str($in, 'password', 200);
+$password = mam_secret($in, 'password');
 
 if (!preg_match('/^[a-f0-9]{40}$/', $token)) {
     mam_fail('invalid_token', 400);
