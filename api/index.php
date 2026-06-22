@@ -124,6 +124,9 @@ $r->post('/notifications/read', $f('notifications/read.php'), [mw_csrf(), mw_use
 $r->group('/student', function (MamRouter $r) use ($f) {
     $r->get ('/dashboard',           $f('student/dashboard.php'),           [mw_role('student')]);
     $r->get ('/courses',             $f('student/courses.php'),             [mw_role('student')]);
+    // Internal wallet (#12): read-only balance/history + store-only redemption.
+    $r->get ('/wallet',              $f('student/wallet.php'),              [mw_role('student')]);
+    $r->post('/store-redeem',        $f('student/store-redeem.php'),        [mw_csrf(), mw_role('student'), mw_rate_limit('store_redeem', 20, 600)]);
     $r->post('/add-course',          $f('student/add-course.php'),          [mw_csrf(), mw_role('student'), mw_rate_limit('add_course', 30, 600)]);
     $r->post('/update-profile',      $f('student/update-profile.php'),      [mw_csrf(), mw_role('student')]);
     $r->post('/practice-log',        $f('student/practice-log.php'),        [mw_csrf(), mw_role('student')]);
@@ -190,6 +193,7 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // Assign admin tiers (super-only).
     $r->post('/set-admin-tier',  $f('admin/set-admin-tier.php'), [mw_csrf(), mw_admin_cap('rbac')]);
     $r->post('/set-student-type', $f('admin/set-student-type.php'), [mw_csrf(), mw_admin_cap('users')]);
+    $r->post('/wallet-credit',    $f('admin/wallet-credit.php'),    [mw_csrf(), mw_admin_cap('users')]);
     // AI placement assist (L4 / A4) — advisory pathway/level suggestion for an
     // application. Operational (admissions); rate-limited; off unless ai_provider set.
     $r->get ('/placement',       $f('admin/placement.php'),      [mw_admin_cap('admissions'), mw_rate_limit('ai_placement', 30, 600)]);

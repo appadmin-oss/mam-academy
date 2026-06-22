@@ -46,12 +46,18 @@ $payments = $customer ? $soft(fn () => mam_db_all(
     [(int)$customer['id'], (string)$customer['email']]
 ), []) : [];
 
-// Store orders placed by this customer (matched on email — public store
-// doesn't require an account so the email is the only stable link).
-$storeOrders = $customer ? $soft(fn () => mam_db_all(
+// Store orders placed by this student (matched on email — the public store
+// doesn't require an account, so email is the only stable link). Match BOTH the
+// linked customer email AND the login email, so admin-created students (no
+// customer row) still see — and can redeem credit against — their orders.
+$orderEmails = array_values(array_unique(array_filter([
+    isset($customer['email']) ? strtolower((string)$customer['email']) : null,
+    strtolower((string)$u['email']),
+])));
+$storeOrders = $orderEmails ? $soft(fn () => mam_db_all(
     'SELECT id, reference, status, items_json, subtotal_usd, tax_usd, shipping_usd, total_usd, delivered_at, created_at
-       FROM store_orders WHERE customer_email = ? ORDER BY id DESC',
-    [(string)$customer['email']]
+       FROM store_orders WHERE LOWER(customer_email) IN (' . implode(',', array_fill(0, count($orderEmails), '?')) . ') ORDER BY id DESC',
+    $orderEmails
 ), []) : [];
 
 $enrollments = $soft(fn () => mam_db_all(
@@ -149,6 +155,7 @@ mam_ok([
     'attendance' => $attendance,
     'auditer' => $auditer,
     'auditer_status' => $auditerStatus,
+    'wallet' => ['balance_cents' => mam_wallet_balance((int)$u['id']), 'balance_usd' => round(mam_wallet_balance((int)$u['id']) / 100, 2)],
     'store_orders' => $storeOrders,
     'announcements' => $announcements,
     'resources' => $resources,

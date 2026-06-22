@@ -972,3 +972,22 @@ INSERT INTO schema_version (version) VALUES (30) ON DUPLICATE KEY UPDATE version
 ALTER TABLE users ADD COLUMN IF NOT EXISTS student_type VARCHAR(16) NULL;
 
 INSERT INTO schema_version (version) VALUES (31) ON DUPLICATE KEY UPDATE version = version;
+
+-- v32 — Internal wallet (#12): append-only credit ledger. Balance = SUM(amount_cents).
+-- Admin-issued credits, store-only spend (no real-money rails). Every debit is
+-- server-validated against the running balance.
+CREATE TABLE IF NOT EXISTS wallet_ledger (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  user_id             INT NOT NULL,
+  amount_cents        INT NOT NULL,
+  reason              VARCHAR(32) NOT NULL,
+  reference           VARCHAR(64) NULL,
+  note                VARCHAR(255) NULL,
+  balance_after_cents INT NOT NULL,
+  created_by          INT NULL,
+  created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_wallet_user (user_id, id),
+  CONSTRAINT fk_wallet_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (32) ON DUPLICATE KEY UPDATE version = version;

@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 31;
+const MAM_SCHEMA_TARGET = 32;
 
 /**
  * Open (and cache) the PDO connection.
@@ -983,6 +983,25 @@ function mam_db_migrate(PDO $db): void {
         // clause (MySQL TEXT can't carry one) — the code treats NULL as 'paying'.
         31 => "
             ALTER TABLE users ADD COLUMN student_type TEXT;
+        ",
+        // v32 — Internal wallet (#12). An append-only credit ledger: one signed
+        // row per transaction (amount_cents), with the running balance_after for
+        // audit. Balance = SUM(amount_cents). Admin-issued credits only, spendable
+        // on the store only (no Paystack/Flutterwave top-up or withdrawal). Every
+        // mutation is server-validated (a debit can't drive the balance negative).
+        32 => "
+            CREATE TABLE wallet_ledger (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              amount_cents INTEGER NOT NULL,
+              reason TEXT NOT NULL,
+              reference TEXT,
+              note TEXT,
+              balance_after_cents INTEGER NOT NULL,
+              created_by INTEGER,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_wallet_user ON wallet_ledger(user_id, id);
         ",
     ];
 

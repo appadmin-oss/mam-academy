@@ -60,6 +60,7 @@ require $ROOT . '/lib/analytics.php';       // learning analytics (read-only)
 require $ROOT . '/lib/datarights.php';      // data-subject export + erasure
 require $ROOT . '/lib/studio.php';          // studio leaderboard (opt-in)
 require $ROOT . '/lib/auditer.php';         // MAM Auditer placement validity
+require $ROOT . '/lib/wallet.php';          // internal credit ledger (#12)
 
 require __DIR__ . '/assert.php';
 
