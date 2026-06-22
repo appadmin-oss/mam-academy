@@ -260,7 +260,7 @@
     API.request('instructor/sessions?cohort_id=' + encodeURIComponent(cid), { method: 'GET' }).then(function (r) {
       var sessions = r.sessions || [];
       var rows = sessions.length ? sessions.map(function (s) {
-        var when = s.scheduled_at ? P.escapeHtml(s.scheduled_at) : '<span style="color:var(--text-muted)">unscheduled</span>';
+        var when = s.scheduled_at ? P.escapeHtml(P.fmtDateTime(s.scheduled_at)) : '<span style="color:var(--text-muted)">unscheduled</span>';
         var actions = '<button class="btn" data-mark="' + s.id + '"><i class="fa-solid fa-clipboard-check"></i> Attendance</button>';
         if (s.status === 'scheduled') actions += ' <button class="btn" data-sess-status="' + s.id + '|held">Held</button> <button class="btn" data-sess-status="' + s.id + '|cancelled">Cancel</button>';
         return '<tr><td>' + P.escapeHtml(s.title || ('Session #' + s.id)) + '</td><td>' + when + '</td><td>' + P.escapeHtml(s.kind) + '</td><td><span class="pill ' + P.escapeHtml(s.status) + '">' + P.escapeHtml(s.status) + '</span></td><td>' + actions + '</td></tr>';
@@ -633,7 +633,7 @@
       // Full roster (one row per enrolment) so a student in two classes appears twice.
       var rowsCsv = [['Name', 'Email', 'Phone', 'Class']];
       s.forEach(function (st) { rowsCsv.push([st.name || '', st.email || '', st.phone || '', st.class_title || '']); });
-      downloadCsv('mam-roster-' + new Date().toISOString().slice(0, 10) + '.csv', rowsCsv);
+      downloadCsv('mam-roster-' + P.today() + '.csv', rowsCsv);
     });
   }
 
@@ -698,7 +698,7 @@
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Mark attendance</h2></div>'
       + '<form id="attForm" class="profile-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px">'
       + '<div class="field"><label for="att-class">Class</label><select id="att-class" required>' + classOpts + '</select></div>'
-      + '<div class="field"><label for="att-date">Date</label><input id="att-date" type="date" value="' + new Date().toISOString().slice(0,10) + '" required></div>'
+      + '<div class="field"><label for="att-date">Date</label><input id="att-date" type="date" value="' + P.today() + '" required></div>'
       + '<div class="field"><label for="att-status">Status</label><select id="att-status" required><option value="present">Present</option><option value="late">Late</option><option value="absent">Absent</option><option value="excused">Excused</option></select></div>'
       + '<div class="field" style="grid-column:1/-1"><label for="att-notes">Notes</label><input id="att-notes" placeholder="Optional"></div>'
       + '<div class="field" style="grid-column:1/-1"><label>Student in class <small style="color:var(--text-muted);font-weight:400">— click a row to select, or use the bulk buttons below</small></label>'
@@ -719,7 +719,7 @@
       + '</div>'
       + '<input type="hidden" id="att-enrollment" name="enrollment_id" required>'
       + '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary" id="att-submit" disabled><i class="fa-solid fa-check"></i> Save attendance</button>'
-      +   '<span id="att-selected-label" style="margin-left:14px;color:var(--text-muted);font-size:0.88rem">No student selected</span></div>'
+      +   '<span id="att-selected-label" aria-live="polite" style="margin-left:14px;color:var(--text-muted);font-size:0.88rem">No student selected</span></div>'
       + '</form></section>'
       + '<section class="panel"><div class="panel-head"><h2>Recent attendance</h2></div>'
       + (att.length ? attendanceTable(att) : '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded yet.') + '</div>') + '</section>';
@@ -730,7 +730,7 @@
       var list = byClass[cls] || [];
       if (!list.length) { box.innerHTML = '<p style="margin:6px 4px;color:var(--text-muted);font-size:0.88rem">No students enrolled in this class yet.</p>'; return; }
       box.innerHTML = list.map(function (st) {
-        return '<button type="button" class="att-student-row" data-eid="' + st.enrollment_id + '" data-name="' + P.escapeHtml(st.name || '—') + '" '
+        return '<button type="button" class="att-student-row" aria-pressed="false" data-eid="' + st.enrollment_id + '" data-name="' + P.escapeHtml(st.name || '—') + '" '
           + 'style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;text-align:left;cursor:pointer;min-height:48px;color:var(--text);font-size:0.92rem">'
           + '<i class="fa-solid fa-user-graduate" style="color:var(--gold-bright)" aria-hidden="true"></i>'
           + '<span style="flex:1"><strong>' + P.escapeHtml(st.name || '—') + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(st.email || '') + '</span></span>'
@@ -739,9 +739,10 @@
       }).join('');
       box.querySelectorAll('.att-student-row').forEach(function (b) {
         b.addEventListener('click', function () {
-          box.querySelectorAll('.att-student-row').forEach(function (x) { x.style.borderColor = 'var(--border)'; x.style.background = 'var(--bg-surface)'; });
+          box.querySelectorAll('.att-student-row').forEach(function (x) { x.style.borderColor = 'var(--border)'; x.style.background = 'var(--bg-surface)'; x.setAttribute('aria-pressed', 'false'); });
           b.style.borderColor = 'var(--gold-bright)';
           b.style.background = 'rgba(252,198,71,0.10)';
+          b.setAttribute('aria-pressed', 'true');
           document.getElementById('att-enrollment').value = b.getAttribute('data-eid');
           document.getElementById('att-selected-label').textContent = 'Selected: ' + b.getAttribute('data-name') + ' (enrolment #' + b.getAttribute('data-eid') + ')';
           document.getElementById('att-submit').disabled = false;
@@ -762,17 +763,21 @@
           (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Pick a class and date first', 'error') : alert('Pick a class and date first'));
           return;
         }
-        var confirmed = confirm('Mark EVERY active student in "' + className + '" as ' + defaultStatus.toUpperCase() + ' for ' + date + '? You can edit individual students after.');
-        if (!confirmed) return;
-        var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving…';
-        API.request('instructor/mark-attendance', { method: 'POST', body: { class_id: classId, session_date: date, default_status: defaultStatus, notes: document.getElementById('att-notes').value } })
-          .then(function (res) {
-            b.disabled = false; b.innerHTML = orig;
-            var msg = (res.count || 0) + ' student' + ((res.count || 0) === 1 ? '' : 's') + ' marked ' + defaultStatus + '.';
-            (window.MAM_DIALOG ? window.MAM_DIALOG.toast(msg, 'success') : alert(msg));
-            load();
-          })
-          .catch(function (err) { b.disabled = false; b.innerHTML = orig; var msg = 'Could not save: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not save', msg, 'error') : alert(msg)); });
+        function doBulk() {
+          var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving…';
+          API.request('instructor/mark-attendance', { method: 'POST', body: { class_id: classId, session_date: date, default_status: defaultStatus, notes: document.getElementById('att-notes').value } })
+            .then(function (res) {
+              b.disabled = false; b.innerHTML = orig;
+              var msg = (res.count || 0) + ' student' + ((res.count || 0) === 1 ? '' : 's') + ' marked ' + defaultStatus + '.';
+              (window.MAM_DIALOG ? window.MAM_DIALOG.toast(msg, 'success') : alert(msg));
+              load();
+            })
+            .catch(function (err) { b.disabled = false; b.innerHTML = orig; var msg = 'Could not save: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not save', msg, 'error') : alert(msg)); });
+        }
+        var prompt = 'Mark EVERY active student in "' + className + '" as ' + defaultStatus.toUpperCase() + ' for ' + date + '? You can edit individual students after.';
+        if (window.MAM_DIALOG && window.MAM_DIALOG.confirm) {
+          window.MAM_DIALOG.confirm('Bulk attendance', prompt, 'Mark all').then(function (ok) { if (ok) doBulk(); });
+        } else if (confirm(prompt)) { doBulk(); }
       });
     });
 

@@ -281,6 +281,8 @@
   }
   forgotLink.addEventListener('click', showForgot);
   backLink.addEventListener('click', showSignin);
+  // Honour a #forgot deep-link (e.g. reset.html sends an expired-token user here).
+  if (location.hash === '#forgot') showForgot();
 
   forgotForm.addEventListener('submit', function (e) {
     e.preventDefault();

@@ -140,7 +140,8 @@
       + progressPanel(prog, ps)
       + '<section class="panel" id="aiNote" hidden><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;color:var(--gold-bright)"></i>Your progress note</h2></div><div class="panel-body" id="aiNoteBody"></div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Latest application</h2><a class="panel-action" href="#applications" data-tab="applications">All →</a></div>'
-      + '<div class="panel-body">' + (apps[0] ? appRowFull(apps[0]) : empty('file-pen', 'No applications yet — start one.')) + '</div></section>'
+      // Don't nudge an already-enrolled student (classes or courses) to "start an application".
+      + '<div class="panel-body">' + (apps[0] ? appRowFull(apps[0]) : empty('file-pen', (enr.length || (data.courses && data.courses.length)) ? 'No applications on file.' : 'No applications yet — start one.')) + '</div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Upcoming &amp; active classes</h2><a class="panel-action" href="#classes" data-tab="classes">All →</a></div>'
       + '<div class="panel-body">' + (enr.length ? renderClassTable(enr.slice(0,5)) : empty('music', 'No active classes yet.')) + '</div></section>';
     content.innerHTML = html;
@@ -408,7 +409,7 @@
       + '<form id="pracForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">'
       +   '<div class="field"><label for="pr-min">Minutes</label><input id="pr-min" type="number" min="1" max="1440" value="30" required></div>'
       +   '<div class="field"><label for="pr-focus">Focus</label><input id="pr-focus" placeholder="e.g. Scales, repertoire"></div>'
-      +   '<div class="field"><label for="pr-date">Date</label><input id="pr-date" type="date" value="' + new Date().toISOString().slice(0,10) + '"></div>'
+      +   '<div class="field"><label for="pr-date">Date</label><input id="pr-date" type="date" value="' + P.today() + '"></div>'
       +   '<div class="field" style="grid-column:1/-1"><label for="pr-notes">Notes</label><input id="pr-notes" placeholder="Optional"></div>'
       +   '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Log session</button> '
       +     '<a class="btn btn-ghost" href="/studio" target="_blank" rel="noopener" style="margin-left:8px"><i class="fa-solid fa-wand-magic-sparkles"></i> Open Practice Studio</a></div>'
@@ -472,7 +473,7 @@
       content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('list-check', kid ? 'No homework yet! Your teacher will add fun things to practise here. 🎵' : 'No assignments yet. When your instructor sets practice tasks or pieces, they\'ll appear here.') + '</div></section>';
       return;
     }
-    var today = new Date().toISOString().slice(0, 10);
+    var today = P.today();
     function card(a) {
       var done = a.status === 'done';
       var overdue = !done && a.due_on && a.due_on < today;
@@ -598,7 +599,7 @@
       if (!area) return;
       if (sa.length) {
         var srows = sa.map(function (a) {
-          return '<tr><td data-label="When">' + (a.scheduled_at ? P.escapeHtml(a.scheduled_at) : '—') + '</td>'
+          return '<tr><td data-label="When">' + (a.scheduled_at ? P.escapeHtml(P.fmtDateTime(a.scheduled_at)) : '—') + '</td>'
             + '<td data-label="Cohort"><strong>' + P.escapeHtml(a.cohort_title || '—') + '</strong>' + (a.session_title ? ' · ' + P.escapeHtml(a.session_title) : '') + '</td>'
             + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
         }).join('');
@@ -749,7 +750,20 @@
 
   function renderAuditer() {
     var a = data.auditer;
-    if (!a) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('clipboard-check', 'No MAM Auditer assessment yet. <a href="/auditer">Learn more →</a>') + '</div></section>'; return; }
+    if (!a) {
+      // No detailed report on file — show live placement validity instead of a
+      // dead empty state. (state: student | valid | expired | none)
+      var s = data.auditer_status;
+      if (s && s.state && s.state !== 'none') {
+        var msg, cta = '';
+        if (s.state === 'student') { msg = 'As an enrolled student, your MAM Auditer placement stays on file — no reassessment needed.'; }
+        else if (s.state === 'valid') { msg = 'Your MAM Auditer placement is valid' + (s.expires_at ? ' until ' + P.fmtDate(s.expires_at) : '') + '. No need to sit it again yet.'; }
+        else { msg = 'Your MAM Auditer has expired (it\'s valid for one year). You can book a fresh assessment.'; cta = '<a class="btn btn-primary" href="/book" style="margin-top:14px;display:inline-flex"><i class="fa-solid fa-clipboard-check"></i>Book the Auditer</a>'; }
+        content.innerHTML = '<section class="panel"><div class="panel-head"><h2>MAM Auditer placement</h2></div><div class="panel-body"><p style="font-size:0.95rem;color:var(--text-soft);line-height:1.65;margin:0">' + P.escapeHtml(msg) + '</p>' + cta + '</div></section>';
+        return;
+      }
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('clipboard-check', 'No MAM Auditer assessment yet. <a href="/auditer">Learn more →</a>') + '</div></section>'; return;
+    }
     var dims = {}; try { dims = JSON.parse(a.dimensions || '{}'); } catch (e) {}
     var meters = Object.keys(dims).map(function (k) {
       var v = parseInt(dims[k], 10);
@@ -828,7 +842,7 @@
       if (r.user.must_change_password) document.getElementById('pwBanner').style.display = 'flex';
       // KTAMS (under-16 "Kids @ MAM") gets a brighter, friendlier portal variant.
       var kid = (r.program_track === 'KTAMS');
-      document.body.setAttribute('data-variant', kid ? 'ktams' : '');
+      if (kid) document.body.setAttribute('data-variant', 'ktams'); else document.body.removeAttribute('data-variant');
       if (kid) { var sub = document.querySelector('.portal-brand-sub'); if (sub) sub.textContent = 'Kids @ MAM'; }
       // Open-assignment count badge in the sidebar.
       var openCount = (r.assignments || []).filter(function (a) { return a.status !== 'done'; }).length;

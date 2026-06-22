@@ -65,6 +65,10 @@ $attendance = $soft(fn () => mam_db_all(
 ), []);
 
 $auditer = $soft(fn () => mam_db_row('SELECT * FROM auditer_results WHERE student_id = ? ORDER BY audited_at DESC LIMIT 1', [(int)$u['id']]), null);
+// Live placement validity (the detailed auditer_results above has no writer yet,
+// so the tab fell back to a permanent empty state). This gives the Auditer tab
+// real, current status — student-exempt / valid-until / expired / not-taken.
+$auditerStatus = $soft(fn () => $u['customer_id'] ? mam_auditer_status((int)$u['customer_id']) : null, null);
 
 // Announcements from any class the student is enrolled in.
 $announcements = $soft(fn () => mam_db_all(
@@ -109,8 +113,10 @@ $certificates = $soft(fn () => mam_lms_student_certificates((int)$u['id']), []);
 $practice = $soft(fn () => mam_practice_stats((int)$u['id']), ['practice' => [], 'practiceStats' => ['streak' => 0, 'weekMin' => 0, 'total' => 0, 'sessions' => 0]]);
 
 // Progress roll-up for the overview card.
+// "Attended" = present OR late, matching the client's attendanceRate()/render —
+// otherwise the overview progress bar disagreed with the Attendance tab/KPI.
 $attCounts = $soft(fn () => mam_db_row(
-    "SELECT COUNT(*) AS total, SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS present
+    "SELECT COUNT(*) AS total, SUM(CASE WHEN a.status IN ('present','late') THEN 1 ELSE 0 END) AS present
        FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id WHERE e.student_id = ?",
     [(int)$u['id']]
 ), ['total' => 0, 'present' => 0]) ?: ['total' => 0, 'present' => 0];
@@ -141,6 +147,7 @@ mam_ok([
     'certificates' => $certificates,
     'attendance' => $attendance,
     'auditer' => $auditer,
+    'auditer_status' => $auditerStatus,
     'store_orders' => $storeOrders,
     'announcements' => $announcements,
     'resources' => $resources,

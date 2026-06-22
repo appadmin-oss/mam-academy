@@ -14,6 +14,13 @@
     if (isNaN(d.getTime())) return s;
     return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
+  // Today's date as YYYY-MM-DD in the user's LOCAL timezone. toISOString() is UTC,
+  // which rolls to "tomorrow" for evening users in positive-offset zones (e.g. WAT).
+  function today() {
+    var d = new Date();
+    var m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
   function fmtDateTime(s) {
     if (!s) return '—';
     var d = new Date(s.replace(' ', 'T') + 'Z');
@@ -58,7 +65,7 @@
   }
 
   window.MAM_PORTAL = {
-    fmtDate: fmtDate, fmtDateTime: fmtDateTime, fmtMoney: fmtMoney,
+    fmtDate: fmtDate, fmtDateTime: fmtDateTime, fmtMoney: fmtMoney, today: today,
     initials: initials, escapeHtml: escapeHtml,
     kpi: uiKpi, empty: uiEmpty, panel: uiPanel, skeleton: uiSkeleton,
 
