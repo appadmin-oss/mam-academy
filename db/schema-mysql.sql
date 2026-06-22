@@ -965,3 +965,10 @@ CREATE TABLE IF NOT EXISTS tool_scores (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (30) ON DUPLICATE KEY UPDATE version = version;
+
+-- v31 — Scholarship tier (#4): separate scholarship recipients from fee-paying
+-- students. NULL/'' = paying (default for all existing + new accounts);
+-- 'scholarship' = sponsored. Drives invoice exemption + reporting.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS student_type VARCHAR(16) NULL;
+
+INSERT INTO schema_version (version) VALUES (31) ON DUPLICATE KEY UPDATE version = version;

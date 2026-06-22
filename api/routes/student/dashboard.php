@@ -138,6 +138,7 @@ mam_ok([
         'phone' => $u['phone'],
         'avatar_url' => $u['avatar_url'],
         'must_change_password' => (int)$u['must_change_password'] === 1,
+        'student_type' => mam_user_is_scholarship($u) ? 'scholarship' : 'paying',
     ],
     'customer' => $customer,
     'applications' => $apps,

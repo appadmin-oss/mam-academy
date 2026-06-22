@@ -54,3 +54,19 @@ $aOff = _inv_app($cid, 'INV-OFF-' . $rnd(), 20);
 mam_invoices_process();
 t_eq(_inv_row($aOff)['status'], 'submitted', 'with invoice_auto=0 the sweep does nothing');
 mam_setting_set('invoice_auto', '1');
+
+// ── Scholarship exemption (#4): a sponsored student never owes or expires ──
+t_group('invoice scholarship exemption');
+$schEmail = 'sch_' . $rnd() . '@x.dev';
+$schUid = mam_db_insert('users', ['email' => $schEmail, 'name' => 'Sch O', 'role' => 'student', 'password_hash' => 'x', 'student_type' => 'scholarship']);
+$schCid = mam_db_insert('customers', ['email' => $schEmail, 'first_name' => 'Sch', 'last_name' => 'O']);
+$aSch = _inv_app($schCid, 'INV-SCH-' . $rnd(), 20);  // 20 days old → would normally expire
+t_ok(mam_invoice_is_scholarship(_inv_row($aSch)), 'application maps to a scholarship student');
+t_ok(!mam_invoice_owes(_inv_row($aSch)), 'scholarship application owes nothing');
+t_eq(mam_invoice_status(_inv_row($aSch))['state'], 'scholarship', 'scholarship app → state scholarship');
+mam_invoices_process();
+t_eq(_inv_row($aSch)['status'], 'submitted', 'the sweep never expires a scholarship application');
+
+// flipping the student back to paying re-enables billing
+mam_db_update('users', ['student_type' => null], ['id' => $schUid]);
+t_ok(mam_invoice_owes(_inv_row($aSch)), 'reverting to paying re-enables the invoice');

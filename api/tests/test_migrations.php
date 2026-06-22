@@ -3,9 +3,9 @@
 declare(strict_types=1);
 t_group('migrations (cold start)');
 
-$pdo = mam_db(); // first access runs v1..v30 inside a fresh temp DB
+$pdo = mam_db(); // first access runs all migrations inside a fresh temp DB
 $v = (int)$pdo->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn();
-t_eq($v, 30, 'schema migrated to v30');
+t_eq($v, MAM_SCHEMA_TARGET, 'schema migrated to the current target (v' . MAM_SCHEMA_TARGET . ')');
 
 // v16 seeds.
 foreach (['programs' => 4, 'levels' => 4, 'courses' => 12, 'assessment_types' => 5] as $tbl => $n) {
@@ -30,4 +30,4 @@ t_eq($crash['certification'], 'participation', 'crash → participation certific
 
 // Idempotent: a second migrate pass leaves the version untouched.
 mam_db_migrate($pdo);
-t_eq((int)$pdo->query('SELECT MAX(version) FROM schema_version')->fetchColumn(), 30, 're-running migrations stays at v30');
+t_eq((int)$pdo->query('SELECT MAX(version) FROM schema_version')->fetchColumn(), MAM_SCHEMA_TARGET, 're-running migrations stays at the target');

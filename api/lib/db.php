@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 30;
+const MAM_SCHEMA_TARGET = 31;
 
 /**
  * Open (and cache) the PDO connection.
@@ -975,6 +975,14 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE UNIQUE INDEX idx_tool_scores_user_tool ON tool_scores(user_id, tool);
             CREATE INDEX idx_tool_scores_board ON tool_scores(tool, best_score);
+        ",
+        // v31 — Scholarship tier (#4). A nullable student_type on users separates
+        // scholarship recipients from fee-paying students. NULL/'' = paying (the
+        // default for every existing + new account); 'scholarship' = sponsored.
+        // Drives invoice exemption + portal/admin reporting. Additive, no default
+        // clause (MySQL TEXT can't carry one) — the code treats NULL as 'paying'.
+        31 => "
+            ALTER TABLE users ADD COLUMN student_type TEXT;
         ",
     ];
 

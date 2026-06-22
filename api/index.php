@@ -189,6 +189,7 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->post('/curriculum',         $f('admin/curriculum.php'),         [mw_csrf(), mw_admin_cap('curriculum'), mw_rate_limit('curriculum', 120, 600)]);
     // Assign admin tiers (super-only).
     $r->post('/set-admin-tier',  $f('admin/set-admin-tier.php'), [mw_csrf(), mw_admin_cap('rbac')]);
+    $r->post('/set-student-type', $f('admin/set-student-type.php'), [mw_csrf(), mw_admin_cap('users')]);
     // AI placement assist (L4 / A4) — advisory pathway/level suggestion for an
     // application. Operational (admissions); rate-limited; off unless ai_provider set.
     $r->get ('/placement',       $f('admin/placement.php'),      [mw_admin_cap('admissions'), mw_rate_limit('ai_placement', 30, 600)]);

@@ -127,7 +127,7 @@
     var prog = data.progress || {};
     var kid = (data.program_track === 'KTAMS');
     var html = ''
-      + '<div class="portal-hello"><h2>' + (kid ? 'Hi ' + P.escapeHtml(firstName) + '! ' : greeting() + ', ' + P.escapeHtml(firstName) + ' ') + '<span aria-hidden="true">' + (kid ? '🎵' : '👋') + '</span></h2>'
+      + '<div class="portal-hello"><h2>' + (kid ? 'Hi ' + P.escapeHtml(firstName) + '! ' : greeting() + ', ' + P.escapeHtml(firstName) + ' ') + '<span aria-hidden="true">' + (kid ? '🎵' : '👋') + '</span>' + ((data.user && data.user.student_type === 'scholarship') ? ' <span class="pill" style="background:rgba(252,198,71,0.16);color:var(--gold-bright);font-size:0.62rem;vertical-align:middle">★ Scholarship</span>' : '') + '</h2>'
       +   '<p>' + (ps.streak ? 'You\'re on a <strong>' + ps.streak + '-day</strong> practice streak — ' + (kid ? 'amazing, keep going! 🌟' : 'keep the momentum going.') : (kid ? 'Ready to make some music today? Tap Practice to begin! 🎹' : 'Ready to practise? Log a session to start a streak.')) + '</p></div>'
       + '<section class="kpi-row">'
       + kpi('Practice streak', ps.streak + (ps.streak === 1 ? ' day' : ' days'), ps.streak ? 'On fire 🔥' : 'Start today', 'gold')

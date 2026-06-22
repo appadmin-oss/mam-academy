@@ -34,10 +34,26 @@ function mam_invoice_paid(array $app): bool {
     return false;
 }
 
+/** Does the applicant map to a scholarship (sponsored) student? Such students
+ *  are billing-exempt, so their applications never auto-invoice or expire. The
+ *  link is application → customer email → user.student_type. */
+function mam_invoice_is_scholarship(array $app): bool {
+    $email = (string)($app['cust_email'] ?? $app['email'] ?? '');
+    if ($email === '' && !empty($app['customer_id'])) {
+        $c = mam_db_row('SELECT email FROM customers WHERE id = ?', [(int)$app['customer_id']]);
+        $email = (string)($c['email'] ?? '');
+    }
+    if ($email === '') return false;
+    $u = mam_db_row('SELECT student_type FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1', [$email]);
+    return $u ? mam_user_is_scholarship($u) : false;
+}
+
 /** Does this application still owe its fee AND remain in the auto-expire path?
  *  Only a freshly-submitted, untouched, unpaid application qualifies — once
- *  admissions moves it along (in_review/accepted/…) it leaves the auto path. */
+ *  admissions moves it along (in_review/accepted/…) it leaves the auto path.
+ *  Scholarship students are exempt and never owe. */
 function mam_invoice_owes(array $app): bool {
+    if (mam_invoice_is_scholarship($app)) return false;
     return (string)($app['status'] ?? '') === 'submitted' && !mam_invoice_paid($app);
 }
 
@@ -62,6 +78,7 @@ function mam_invoice_status(array $app, ?int $now = null): array {
     $now  = $now ?? time();
     $none = ['owes' => false, 'due_at' => null, 'expires_at' => null, 'days_left' => 0, 'reminded' => false];
     if ((string)($app['status'] ?? '') === 'expired') return ['state' => 'expired'] + $none + ['reminded' => true];
+    if (mam_invoice_is_scholarship($app)) return ['state' => 'scholarship'] + $none;
     if (mam_invoice_paid($app)) return ['state' => 'paid'] + $none;
     if (!mam_invoice_owes($app)) return ['state' => 'active'] + $none;
     $pol     = mam_invoice_policy();

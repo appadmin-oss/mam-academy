@@ -47,17 +47,19 @@
     <p>Cancellations within 7 days of the term start are refundable minus a 15% admin fee. After 7 days, fees are non-refundable but a student may pause up to 4 weeks per term and retain their seat. Email <a href="mailto:academy@mamcentre.org">academy@mamcentre.org</a> to request.</p>
     <h2>4. Attendance</h2>
     <p>Students are expected to attend at least 80% of scheduled lessons per term. Persistent absence without communication may forfeit certification eligibility for that term.</p>
-    <h2>5. Code of conduct</h2>
+    <h2>5. Practice &amp; the MAM metronome</h2>
+    <p>Structured practice is part of your programme. Students must use the Academy's built-in metronome (available in the MAM Studio and student portal) for timed practice — not an external metronome app or device. The platform records each metronome practice session (date, duration and tempo) to your practice log, and this record may count toward your practice and online-attendance requirements. Leaving the metronome running idle does not count as practice.</p>
+    <h2>6. Code of conduct</h2>
     <p>MAM students are expected to demonstrate discipline, honour and respect — toward instructors, peers and ensembles. The academy reserves the right to dismiss students who breach this code, without refund.</p>
-    <h2>6. Intellectual property</h2>
+    <h2>7. Intellectual property</h2>
     <p>All curriculum materials, recordings and the "MAM Method" framework are property of MAM Centre. Students receive personal-use rights for the duration of their enrollment.</p>
-    <h2>7. Performances &amp; media</h2>
+    <h2>8. Performances &amp; media</h2>
     <p>Students may be recorded during showcases and rehearsals. Footage is used for academy promotion. Opt-outs may be requested in writing before each event.</p>
-    <h2>8. Liability</h2>
+    <h2>9. Liability</h2>
     <p>MAM Academy is not liable for personal items brought to onsite classes. Students participate in performances at their own risk.</p>
-    <h2>9. Changes</h2>
+    <h2>10. Changes</h2>
     <p>We may revise these terms. Material changes will be communicated to enrolled students by email at least 14 days before they take effect.</p>
-    <h2>10. Governing law</h2>
+    <h2>11. Governing law</h2>
     <p>These terms are governed by the laws of the Federal Republic of Nigeria.</p>
   </section>
 </main>

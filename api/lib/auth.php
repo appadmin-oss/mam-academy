@@ -122,6 +122,11 @@ function mam_user_has_role(array $u, string ...$roles): bool {
     return (bool)array_intersect($roles, mam_user_roles($u));
 }
 
+/** Is this user a scholarship (sponsored) student? NULL/'' student_type = paying. */
+function mam_user_is_scholarship(array $u): bool {
+    return strtolower(trim((string)($u['student_type'] ?? ''))) === 'scholarship';
+}
+
 /** Idempotently grant a role in the multi-role join (portable across SQLite +
  *  MySQL). Keeps user_roles in step with the primary users.role at creation. */
 function mam_user_ensure_role(int $userId, string $role): void {
