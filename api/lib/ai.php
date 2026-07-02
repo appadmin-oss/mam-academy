@@ -98,10 +98,16 @@ function mam_ai_complete(string $useCase, string $prompt, array $opts = []): arr
     $out = ['ok' => false, 'provider' => $provider, 'model' => null, 'text' => null, 'json' => null, 'usage' => [], 'error' => null];
     if ($provider === 'none') { $out['error'] = 'disabled'; return $out; }
 
+    // Resolve the acting user so spend is capped per-user, not just globally —
+    // otherwise a single authenticated user can drain the whole academy's daily
+    // budget (the per-route limiters are keyed on IP, which one user rotates).
+    $uid = isset($opts['user_id']) ? (int)$opts['user_id']
+         : (function_exists('mam_current_user') && ($cu = mam_current_user()) ? (int)$cu['id'] : 0);
+
     try {
-        if (!mam_ai_quota_ok()) {
+        if (!mam_ai_quota_ok() || ($uid > 0 && !mam_ai_user_quota_ok($uid))) {
             $out['error'] = 'quota_exceeded';
-            mam_ai_record($useCase, $provider, null, false, $prompt, [], 'quota_exceeded');
+            mam_ai_record($useCase, $provider, null, false, $prompt, [], 'quota_exceeded', null, $uid);
             return $out;
         }
         $conn = mam_ai_resolve($provider);
@@ -132,7 +138,7 @@ function mam_ai_complete(string $useCase, string $prompt, array $opts = []): arr
 
         $out = array_merge($out, $r);
         $out['provider'] = $provider;
-        mam_ai_record($useCase, $provider, $out['model'], !empty($out['ok']), $prompt, $out['usage'] ?? [], !empty($out['ok']) ? null : ($out['error'] ?? 'failed'), $opts['reviewed_by'] ?? null);
+        mam_ai_record($useCase, $provider, $out['model'], !empty($out['ok']), $prompt, $out['usage'] ?? [], !empty($out['ok']) ? null : ($out['error'] ?? 'failed'), $opts['reviewed_by'] ?? null, $uid);
         return $out;
     } catch (\Throwable $e) {
         if (function_exists('mam_log')) mam_log('error', 'ai_exception', ['use_case' => $useCase, 'err' => $e->getMessage()]);
@@ -244,9 +250,21 @@ function mam_ai_quota_ok(): bool {
     } catch (\Throwable $e) { return true; }
 }
 
+/** Per-user daily call cap so one user can't exhaust the shared budget.
+ *  ai_user_daily_cap <= 0 means unlimited (best-effort, never-throw). */
+function mam_ai_user_quota_ok(int $userId): bool {
+    if ($userId <= 0) return true;
+    $cap = (int)mam_setting_num('ai_user_daily_cap', 60);
+    if ($cap <= 0) return true;
+    try {
+        $row = mam_db_row('SELECT count FROM rate_limits WHERE bucket = ?', ['ai:u:' . $userId . ':' . date('Y-m-d')]);
+        return (!$row ? 0 : (int)$row['count']) < $cap;
+    } catch (\Throwable $e) { return true; }
+}
+
 /** Record an AI run for audit/reproducibility + bump the daily counter.
  *  Best-effort (never-throw). Stores a prompt HASH, never the raw prompt. */
-function mam_ai_record(string $useCase, string $provider, ?string $model, bool $ok, string $prompt, array $usage, ?string $error = null, ?int $reviewedBy = null): void {
+function mam_ai_record(string $useCase, string $provider, ?string $model, bool $ok, string $prompt, array $usage, ?string $error = null, ?int $reviewedBy = null, int $userId = 0): void {
     if (!function_exists('mam_db')) return;
     try {
         mam_db_insert('ai_runs', [
@@ -260,13 +278,15 @@ function mam_ai_record(string $useCase, string $provider, ?string $model, bool $
             'error'         => $error !== null ? mb_substr($error, 0, 255) : null,
             'reviewed_by'   => $reviewedBy,
         ]);
-        $bucket = 'ai:' . date('Y-m-d');
-        $reset  = strtotime('tomorrow') ?: (time() + 86400);
-        if (mam_db_driver() === 'mysql') {
-            mam_db()->prepare('INSERT INTO rate_limits (bucket, count, reset_at) VALUES (?,1,?) ON DUPLICATE KEY UPDATE count = count + 1')->execute([$bucket, $reset]);
-        } else {
-            mam_db()->prepare('INSERT INTO rate_limits (bucket, count, reset_at) VALUES (?,1,?) ON CONFLICT(bucket) DO UPDATE SET count = count + 1')->execute([$bucket, $reset]);
-        }
+        $reset   = strtotime('tomorrow') ?: (time() + 86400);
+        $buckets = ['ai:' . date('Y-m-d')];
+        if ($userId > 0) $buckets[] = 'ai:u:' . $userId . ':' . date('Y-m-d');
+        $isMysql = mam_db_driver() === 'mysql';
+        $sql = $isMysql
+            ? 'INSERT INTO rate_limits (bucket, count, reset_at) VALUES (?,1,?) ON DUPLICATE KEY UPDATE count = count + 1'
+            : 'INSERT INTO rate_limits (bucket, count, reset_at) VALUES (?,1,?) ON CONFLICT(bucket) DO UPDATE SET count = count + 1';
+        $stmt = mam_db()->prepare($sql);
+        foreach ($buckets as $b) $stmt->execute([$b, $reset]);
     } catch (\Throwable $e) { /* audit + quota are best-effort */ }
 }
 

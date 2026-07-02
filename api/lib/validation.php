@@ -418,7 +418,9 @@ function mam_age_band(int $age): string {
  */
 function mam_honeypot(array $src, string $key = '_honeypot'): void {
     if (!empty($src[$key])) {
-        mam_log('warn', 'honeypot_triggered', ['ip' => mam_client_ip(), 'value' => $src[$key]]);
+        // Log the length only — never the raw attacker-controlled value (log
+        // injection / PII if a real user trips it).
+        mam_log('warn', 'honeypot_triggered', ['ip' => mam_client_ip(), 'value_len' => is_string($src[$key]) ? strlen($src[$key]) : -1]);
         // Return a fake-success to throw bots off
         mam_ok(['accepted' => true, 'reference' => 'NA-' . bin2hex(random_bytes(3))]);
     }

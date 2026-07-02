@@ -6,7 +6,7 @@
  */
 declare(strict_types=1);
 
-function mam_rate_limit(string $name, string $key, int $limit, int $windowSec): void {
+function mam_rate_limit(string $name, string $key, int $limit, int $windowSec, bool $failClosed = false): void {
     $bucket = $name . ':' . sha1($key);
     $now = time();
     $reset = $now + $windowSec;
@@ -32,7 +32,13 @@ function mam_rate_limit(string $name, string $key, int $limit, int $windowSec): 
         $db->commit();
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
-        // Fail open: log but do not block legitimate users due to DB error
-        mam_log('warn', 'rate_limit_error', ['err' => $e->getMessage()]);
+        mam_log('warn', 'rate_limit_error', ['err' => $e->getMessage(), 'bucket' => $name]);
+        // Sensitive buckets (login/reset) fail CLOSED — a DB error must not
+        // silently disable brute-force protection. Others fail open so a
+        // transient DB hiccup doesn't block legitimate public traffic.
+        if ($failClosed) {
+            header('Retry-After: 60');
+            mam_fail('rate_limited', 429, ['retry_after' => 60]);
+        }
     }
 }

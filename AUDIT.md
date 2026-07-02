@@ -28,6 +28,44 @@ Severity: 🔴 Blocker · 🟠 High · 🟡 Medium · 🔵 Low / Improvement
 
 ---
 
+## ✅ Remediation status (2026-07-02)
+
+All findings triaged; **20 of 25 fixed in code**, 5 consciously deferred (rationale
+below). Full PHP lint clean; `php api/tests/run.php` → **817 passed, 0 failed**
+(three attendance tests updated to seed cohort rosters, matching the new
+server-side roster invariant).
+
+**Fixed**
+- **#1** reset now binds a PHP timestamp (`perform-reset.php`) — portable across MySQL/MariaDB/SQLite.
+- **#2** dropped MariaDB-only `IF NOT EXISTS` from all `ADD COLUMN/INDEX/KEY` in `schema-mysql.sql` (valid on MySQL 8; idempotency comes from the migrator's 1060/1061 swallowing) + the migrator now drops `1146` from "expected" and asserts required columns exist, logging an **error** if any are missing.
+- **#3** wallet history inlines the clamped `LIMIT` int (no bound `LIMIT ?` under native prepares).
+- **#4** `/api/setup` now requires `SETUP_TOKEN` in production (missing token = closed).
+- **#5** `mam_wallet_apply` takes a `SELECT … FOR UPDATE` row lock (MySQL) inside the txn — no more negative-balance race.
+- **#6** setup admin (re)set is now audited + logged on every use (plus #4's prod-token gate).
+- **#7** per-account login throttle added; the limiter can now **fail closed** for login/reset buckets.
+- **#8** `mam_lms_mark_attendance` enforces cohort-roster membership (no off-roster writes).
+- **#9** per-user daily AI sub-cap (`ai_user_daily_cap`, default 60) in the gateway.
+- **#10** an unfulfillable paid store order is flagged `oversold` + logged `error` + audited (was a silent warn).
+- **#11** `app_delete`/`class_delete`/`enrollment_delete`/`seed_starter` are now super-only in the admin RBAC map.
+- **#12** `/api/diag` rate-limited + driver/schema/PHP-version removed from the pre-auth summary.
+- **#13** `/api/health` public payload reduced to `{service,time,db}`; config posture gated behind admin/`DEBUG_TOKEN`.
+- **#15** application-draft saves are email-locked (a guessed key can't reassign a draft's email).
+- **#16** `Require all denied` added to `api/tests|bin|vendor`; `api/tests/run.php` now refuses non-CLI SAPI.
+- **#17** HTTPS redirect + HSTS enabled, Cloudflare-aware (X-Forwarded-Proto guarded, no redirect loop).
+- **#19** payment webhooks rate-limited and reject an invalid signature **before** persisting.
+- **#20** legacy `mark-attendance` drops the `"admin"` SQL literal (ANSI_QUOTES-safe) + honours secondary-role admins.
+- **#21** honeypot logs a length, not the raw submitted value.
+- **#23** `mam_lms_compute_result` guards divide-by-zero with `NULLIF(max_score,0)`.
+
+**Deferred (with rationale — tracked, not silently dropped)**
+- **#14** invoice/certificate/policy PII-by-reference — kept as unguessable-reference + rate-limited access. Requiring an email factor would break the one-click links in emails (or push the email into the URL/referrer/logs, its own leak); certificates are intended to be shareable. Revisit with signed per-link tokens if these move to sensitive data.
+- **#18** CSRF auto-key fallback file — already protected by `storage/.htaccess` (`Require all denied`) + gitignore; moving it outside the web root is host-specific. Recommend setting an explicit `APP_KEY` in production (documented).
+- **#22** CSP `'unsafe-inline'` — tightening needs a nonce/hash refactor of inline bootstrap/theme/studio scripts + full regression; no reflected-XSS sink exists today, so this is defense-in-depth.
+- **#24** `payments.amount` mixed currency — reporting-only; safe per-path. Normalising to USD cents is a data migration, not a bug fix.
+- **#25** AI name egress — documented "PII-light" design decision; mitigation is to keep a local (`ollama`) provider default for PII-bearing use.
+
+---
+
 ## 🔴 Production blockers (all MySQL/MariaDB-specific — invisible to the SQLite CI)
 
 ### 1. Password reset is dead on MySQL — SQLite-only `datetime()` in a live query

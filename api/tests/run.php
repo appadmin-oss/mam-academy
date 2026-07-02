@@ -9,6 +9,12 @@
  *   php api/tests/run.php
  */
 declare(strict_types=1);
+
+// CLI only. Refuse to run over HTTP so `GET /api/tests/run.php` can't execute
+// the suite (info disclosure / remote code execution of the harness) on any
+// host that serves this directory despite the .htaccess deny.
+if (PHP_SAPI !== 'cli') { http_response_code(403); header('Content-Type: text/plain'); echo "Forbidden: CLI only.\n"; exit(1); }
+
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
 
 $ROOT = dirname(__DIR__);                       // .../api

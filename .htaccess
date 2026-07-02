@@ -7,10 +7,18 @@
 # Default index
 DirectoryIndex index.php index.html index.htm
 
-# ---------- HTTPS redirect (uncomment in production) ----------
-# RewriteEngine On
-# RewriteCond %{HTTPS} !=on
-# RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+# ---------- HTTPS redirect ----------
+# Cloudflare-aware: behind CF the origin connection may legitimately be HTTP
+# (Flexible SSL), so redirecting on %{HTTPS}!=on alone causes an infinite loop.
+# Only redirect when the *visitor* used http, which CF reports in
+# X-Forwarded-Proto. Direct-to-origin (no XFP) also redirects when not on HTTPS.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTP:X-Forwarded-Proto} =http [OR]
+  RewriteCond %{HTTP:X-Forwarded-Proto} ^$
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+</IfModule>
 
 # ---------- Clean (extensionless) URLs ----------
 # Canonical form is /about, not /about.html. Two rules:
@@ -102,8 +110,11 @@ ErrorDocument 404 /404.php
   # only when the page is served from this origin. camera + geolocation
   # remain blocked site-wide.
   Header set Permissions-Policy "camera=(), microphone=(self), geolocation=(), interest-cohort=()"
-  # HSTS — enable after HTTPS is live
-  # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
+  # HSTS. Only emitted on a secure request (direct HTTPS, or CF/proxy reporting
+  # X-Forwarded-Proto: https) so it's never sent over a plain-HTTP hop.
+  SetEnvIf X-Forwarded-Proto "https" MAM_HTTPS=1
+  SetEnvIf HTTPS "on" MAM_HTTPS=1
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=MAM_HTTPS
   # CSP — relaxed for inline styles/scripts. Notes on the allow-list:
   #  • script-src includes blob: so Web-Audio AudioWorklet / blob-URL module
   #    scripts (Tone.js) load; cdn.jsdelivr.net covers Tone, Zustand (+esm),

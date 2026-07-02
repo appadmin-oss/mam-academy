@@ -13,6 +13,14 @@ $raw = file_get_contents('php://input') ?: '';
 $signature = $_SERVER['HTTP_X_PAYSTACK_SIGNATURE'] ?? '';
 $valid = $signature !== '' && mam_paystack_verify_signature($raw, $signature);
 
+// Reject an unsigned/forged webhook BEFORE writing anything, so an
+// unauthenticated flood can't fill webhook_events with attacker-supplied raw
+// payloads (a DB-write DoS). Only signature-valid events are persisted.
+if (!$valid) {
+    mam_log('warn', 'paystack_webhook_invalid_signature', ['ip' => mam_client_ip()]);
+    mam_fail('invalid_signature', 401);
+}
+
 $payload = json_decode($raw, true) ?: [];
 $eventId = (string)($payload['data']['id'] ?? $payload['event'] . '-' . ($payload['data']['reference'] ?? '') ?? '');
 $eventType = (string)($payload['event'] ?? '');
@@ -23,18 +31,13 @@ try {
         'event_id'        => $eventId,
         'event_type'      => $eventType,
         'payload'         => $raw,
-        'signature_valid' => $valid ? 1 : 0,
-        'status'          => $valid ? 'received' : 'invalid',
+        'signature_valid' => 1,
+        'status'          => 'received',
     ]);
 } catch (Throwable $e) {
     // Likely a duplicate event id — record but don't reprocess.
     mam_log('info', 'paystack_webhook_duplicate', ['event_id' => $eventId]);
     mam_ok(['received' => true, 'duplicate' => true]);
-}
-
-if (!$valid) {
-    mam_log('warn', 'paystack_webhook_invalid_signature', ['ip' => mam_client_ip()]);
-    mam_fail('invalid_signature', 401);
 }
 
 try {

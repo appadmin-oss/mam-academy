@@ -29,6 +29,15 @@ function mam_wallet_balance(int $userId): int {
 function mam_wallet_apply(int $userId, int $amountCents, string $reason, ?int $by = null, ?string $ref = null, ?string $note = null): int {
     if ($userId <= 0)       throw new InvalidArgumentException('bad_user');
     if ($amountCents === 0) throw new InvalidArgumentException('zero_amount');
+    // Serialise concurrent wallet writes for this user so the read-then-write
+    // balance check can't be raced into a negative balance (double-spend of
+    // store credit). Lock the owning user row for the rest of the transaction;
+    // callers (mam_wallet_post / store-redeem) always hold one open. FOR UPDATE
+    // is MySQL/MariaDB only — SQLite serialises writers at the DB level anyway.
+    $db = mam_db();
+    if ($db->inTransaction() && $db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') {
+        $db->prepare('SELECT id FROM users WHERE id = ? FOR UPDATE')->execute([$userId]);
+    }
     $after = mam_wallet_balance($userId) + $amountCents;
     if ($after < 0) throw new RuntimeException('insufficient_credit');
     mam_db_insert('wallet_ledger', [
@@ -68,11 +77,13 @@ function mam_wallet_post(int $userId, int $amountCents, string $reason, ?int $by
 /** Recent ledger rows, newest first. */
 function mam_wallet_history(int $userId, int $limit = 50): array {
     if ($userId <= 0) return [];
+    // Inline the (already clamped) integer limit. A bound `LIMIT ?` is sent as a
+    // string under native prepares (EMULATE_PREPARES=false) and MySQL rejects it.
     $limit = max(1, min(200, $limit));
     return mam_db_all(
         'SELECT id, amount_cents, reason, reference, note, balance_after_cents, created_at
-           FROM wallet_ledger WHERE user_id = ? ORDER BY id DESC LIMIT ?',
-        [$userId, $limit]
+           FROM wallet_ledger WHERE user_id = ? ORDER BY id DESC LIMIT ' . $limit,
+        [$userId]
     );
 }
 

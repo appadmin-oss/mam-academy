@@ -34,6 +34,10 @@ mam_db_insert('course_enrollments', ['student_id' => $sam, 'course_id' => $cid, 
 // Healthy Hannah: good attendance, an accepted submission, a strong assessment,
 // and practice TODAY → must NOT be flagged.
 $cohort = mam_lms_create_cohort(['title' => 'Analytics Cohort']);
+// Put the students we mark attendance for on this cohort's roster — production
+// sets cohort_id on the enrolment, and mam_lms_mark_attendance now enforces
+// roster membership (an instructor can't mark an off-roster student).
+mam_db()->prepare("UPDATE course_enrollments SET cohort_id = ? WHERE student_id IN (?, ?) AND status = 'active'")->execute([$cohort, $good, $sam]);
 $sess   = mam_lms_create_session($cohort, ['title' => 'Lesson 1', 'scheduled_at' => '2026-07-20 17:00']);
 mam_lms_mark_attendance($sess, $good, 'present', $ins);
 $hEnr = (int)mam_db_row("SELECT id FROM course_enrollments WHERE student_id = ? AND status='active'", [$good])['id'];

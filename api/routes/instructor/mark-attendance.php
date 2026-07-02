@@ -19,6 +19,9 @@
 declare(strict_types=1);
 
 $u = mam_require_role('instructor', 'admin');
+// Honour secondary-role admins (admin via user_roles with a non-admin primary
+// role), consistent with the rest of the codebase.
+$isAdmin = function_exists('mam_user_has_role') ? mam_user_has_role($u, 'admin') : ($u['role'] === 'admin');
 
 $in = mam_json_input();
 $date = mam_str($in, 'session_date', 20) ?: date('Y-m-d');
@@ -33,7 +36,7 @@ if (isset($in['class_id'])) {
 
     $cls = mam_db_row('SELECT id, instructor_id FROM classes WHERE id = ?', [$classId]);
     if (!$cls) mam_fail('class_not_found', 404);
-    if ($u['role'] !== 'admin' && (int)$cls['instructor_id'] !== (int)$u['id']) mam_fail('forbidden', 403);
+    if (!$isAdmin && (int)$cls['instructor_id'] !== (int)$u['id']) mam_fail('forbidden', 403);
 
     $rows = mam_db_all("SELECT id FROM enrollments WHERE class_id = ? AND status = 'active'", [$classId]);
     $overrides = is_array($in['overrides'] ?? null) ? $in['overrides'] : [];
@@ -66,10 +69,11 @@ $status = mam_str($in, 'status', 16);
 
 if (!in_array($status, $VALID, true)) mam_fail('validation', 422, ['fields' => ['status']]);
 
-$check = mam_db_row(
-    'SELECT e.id FROM enrollments e JOIN classes c ON c.id = e.class_id WHERE e.id = ? AND (c.instructor_id = ? OR ? = "admin")',
-    [$enrollmentId, (int)$u['id'], $u['role']]
-);
+// Admins can mark any enrolment; instructors only their own classes. (The old
+// `? = "admin"` SQL literal broke under MySQL ANSI_QUOTES — do the check in PHP.)
+$check = $isAdmin
+    ? mam_db_row('SELECT e.id FROM enrollments e WHERE e.id = ?', [$enrollmentId])
+    : mam_db_row('SELECT e.id FROM enrollments e JOIN classes c ON c.id = e.class_id WHERE e.id = ? AND c.instructor_id = ?', [$enrollmentId, (int)$u['id']]);
 if (!$check) mam_fail('forbidden', 403);
 
 $existing = mam_db_row('SELECT id FROM attendance WHERE enrollment_id = ? AND session_date = ?', [$enrollmentId, $date]);

@@ -190,6 +190,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'save_settings' => 'settings',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
         'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
+        // Destructive record deletions + bulk seeding are super-only — a manager
+        // must not be able to permanently remove applications/classes/enrolments.
+        'app_delete' => 'settings', 'class_delete' => 'settings',
+        'enrollment_delete' => 'settings', 'seed_starter' => 'settings',
     ];
     if (isset($actionCaps[$action]) && $adminUser && !mam_admin_can($adminUser, $actionCaps[$action])) {
         header('Location: ?err=' . urlencode('Your admin level does not permit that action.')); exit;

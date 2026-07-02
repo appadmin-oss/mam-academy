@@ -12,6 +12,11 @@ $sid = mam_lms_create_session($cid, ['title' => 'Lesson', 'scheduled_at' => '202
 $a = mam_db_insert('users', ['email' => 't_sa_a@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Ada A', 'status' => 'active']);
 $b = mam_db_insert('users', ['email' => 't_sa_b@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Bode B', 'status' => 'active']);
 
+// Enrol both on the cohort roster — mam_lms_mark_attendance now enforces that a
+// marked student actually belongs to the session's cohort.
+$scId = (int)mam_db_row("SELECT id FROM courses WHERE code = 'piano'")['id'];
+foreach ([$a, $b] as $stu) mam_db_insert('course_enrollments', ['student_id' => $stu, 'course_id' => $scId, 'cohort_id' => $cid, 'status' => 'active']);
+
 // ── Mark + roster ──
 mam_lms_mark_attendance($sid, $a, 'present', 1);
 mam_lms_mark_attendance($sid, $b, 'absent', 1, 'no-show');

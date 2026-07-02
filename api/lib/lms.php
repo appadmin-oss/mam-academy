@@ -468,8 +468,18 @@ function mam_lms_set_session_status(int $id, string $to, ?int $by = null): array
  *  record per (session, student). Validates the session + status. Returns the
  *  row id. Throws session_not_found / invalid_status. */
 function mam_lms_mark_attendance(int $sessionId, int $studentId, string $status, ?int $markedBy = null, ?string $notes = null): int {
-    if (!mam_db_row('SELECT id FROM class_sessions WHERE id = ?', [$sessionId])) throw new RuntimeException('session_not_found');
+    $sess = mam_db_row('SELECT id, cohort_id FROM class_sessions WHERE id = ?', [$sessionId]);
+    if (!$sess) throw new RuntimeException('session_not_found');
     if (!in_array($status, ['present', 'absent', 'late', 'excused'], true)) throw new RuntimeException('invalid_status');
+    // The student must actually be on this session's cohort roster. Without this,
+    // an instructor who owns one cohort could POST an arbitrary student_id and
+    // fabricate/overwrite attendance for a student in a different cohort.
+    $onRoster = mam_db_row(
+        "SELECT 1 AS x FROM course_enrollments
+          WHERE cohort_id = ? AND student_id = ? AND status IN ('active','completed') LIMIT 1",
+        [(int)$sess['cohort_id'], $studentId]
+    );
+    if (!$onRoster) throw new RuntimeException('not_on_roster');
     $now = date('Y-m-d H:i:s');
     $existing = mam_db_row('SELECT id FROM session_attendance WHERE session_id = ? AND student_id = ?', [$sessionId, $studentId]);
     if ($existing) {
@@ -700,7 +710,7 @@ function mam_lms_grade(float $pct): array {
  */
 function mam_lms_compute_result(int $enrollmentId, ?int $by = null): array {
     $rows = mam_db_all(
-        "SELECT t.weight AS weight, AVG(a.score * 100.0 / a.max_score) AS avg_pct
+        "SELECT t.weight AS weight, AVG(a.score * 100.0 / NULLIF(a.max_score, 0)) AS avg_pct
            FROM assessments a JOIN assessment_types t ON t.id = a.type_id
           WHERE a.enrollment_id = ? GROUP BY t.id, t.weight",
         [$enrollmentId]

@@ -108,8 +108,10 @@ function mam_db_migrate_mysql(PDO $db): void {
         catch (PDOException $e) {
             $failed++;
             // 1050 = table exists, 1060 = duplicate column, 1061 = duplicate
-            // key, 1091 = can't DROP — all expected when re-running idempotently.
-            $expected = [1050, 1060, 1061, 1091, 1146];
+            // key, 1091 = can't DROP — all expected when re-running the idempotent
+            // schema. NOTE: 1146 (table doesn't exist) is deliberately NOT here —
+            // it signals a genuinely broken/out-of-order schema and must surface.
+            $expected = [1050, 1060, 1061, 1091];
             $code = (int)$e->errorInfo[1] ?? 0;
             if (!in_array($code, $expected, true)) {
                 mam_log('warn', 'mysql_migration_stmt_failed', ['code' => $code, 'msg' => $e->getMessage(), 'stmt' => mb_substr($stmt, 0, 200)]);
@@ -119,6 +121,30 @@ function mam_db_migrate_mysql(PDO $db): void {
     $newVersion = 0;
     try { $newVersion = (int)$db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn(); } catch (Throwable $e) {}
     mam_log('info', 'mysql_migration_complete', ['from' => $current, 'to' => $newVersion, 'ran' => $ran, 'failed' => $failed]);
+
+    // Loud verification: schema_version advances via the file's own INSERTs, so
+    // it can read "complete" even if a DDL statement silently failed to add a
+    // column (this is exactly how the MariaDB-only `ADD COLUMN IF NOT EXISTS`
+    // syntax used to leave MySQL 8 missing columns). Assert the columns the code
+    // depends on actually exist and log an ERROR naming any that don't.
+    try {
+        $required = [
+            'applications' => ['booking_fee_paid_at', 'program', 'headshot_url', 'session', 'idempotency_key', 'level', 'expression', 'extra_courses', 'courses_label', 'assignee_id', 'program_track'],
+            'payments'     => ['purpose'],
+            'users'        => ['admin_tier', 'student_type'],
+            'course_enrollments' => ['cohort_id'],
+        ];
+        $missing = [];
+        foreach ($required as $table => $cols) {
+            $have = $db->query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = " . $db->quote($table))->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($cols as $c) if (!in_array($c, $have, true)) $missing[] = "$table.$c";
+        }
+        if ($missing) {
+            mam_log('error', 'mysql_migration_missing_columns', ['missing' => $missing, 'hint' => 'A migration DDL did not apply — the schema is incomplete and dependent endpoints will 500.']);
+        }
+    } catch (Throwable $e) {
+        mam_log('warn', 'mysql_migration_verify_failed', ['err' => $e->getMessage()]);
+    }
 }
 
 function mam_db_driver(): string {

@@ -10,6 +10,12 @@ $raw = file_get_contents('php://input') ?: '';
 $signature = $_SERVER['HTTP_VERIF_HASH'] ?? '';
 $valid = mam_flw_verify_signature($signature);
 
+// Reject an unsigned/forged webhook BEFORE writing anything (DB-write DoS guard).
+if (!$valid) {
+    mam_log('warn', 'flw_webhook_invalid_signature', ['ip' => mam_client_ip()]);
+    mam_fail('invalid_signature', 401);
+}
+
 $payload = json_decode($raw, true) ?: [];
 $eventId = (string)($payload['data']['id'] ?? '');
 $eventType = (string)($payload['event'] ?? '');
@@ -20,17 +26,12 @@ try {
         'event_id'        => $eventId,
         'event_type'      => $eventType,
         'payload'         => $raw,
-        'signature_valid' => $valid ? 1 : 0,
-        'status'          => $valid ? 'received' : 'invalid',
+        'signature_valid' => 1,
+        'status'          => 'received',
     ]);
 } catch (Throwable $e) {
     mam_log('info', 'flw_webhook_duplicate', ['event_id' => $eventId]);
     mam_ok(['received' => true, 'duplicate' => true]);
-}
-
-if (!$valid) {
-    mam_log('warn', 'flw_webhook_invalid_signature', ['ip' => mam_client_ip()]);
-    mam_fail('invalid_signature', 401);
 }
 
 try {

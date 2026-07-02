@@ -22,16 +22,12 @@ $givenKey   = (string)($_GET['key'] ?? '');
 if (!$diagAuthorized && $debugToken !== '' && $givenKey !== '' && hash_equals($debugToken, $givenKey)) $diagAuthorized = true;
 
 if (!$diagAuthorized) {
-    // Minimal, secret-free summary — enough for an uptime probe.
-    $min = ['ok' => true, 'restricted' => true, 'php' => PHP_VERSION, 'time' => date('c')];
-    try {
-        $db = mam_db();
-        $min['db'] = [
-            'driver'         => $db->getAttribute(PDO::ATTR_DRIVER_NAME),
-            'schema_version' => (int)$db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn(),
-            'target'         => defined('MAM_SCHEMA_TARGET') ? MAM_SCHEMA_TARGET : 16,
-        ];
-    } catch (Throwable $e) { $min['db'] = ['error' => 'unavailable']; }
+    // Minimal, secret-free summary — enough for an uptime probe. Deliberately
+    // omits PHP version, DB driver and schema_version: those are fingerprinting
+    // aids and are only served behind the gate below.
+    $min = ['ok' => true, 'restricted' => true, 'time' => date('c')];
+    try { mam_db()->query('SELECT 1'); $min['db'] = 'ok'; }
+    catch (Throwable $e) { $min['db'] = 'down'; }
     $min['hint'] = 'Full diagnostics need an admin session or ?key=DEBUG_TOKEN (api/.env).';
     mam_ok($min);
 }

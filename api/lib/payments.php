@@ -105,18 +105,31 @@ function mam_payment_settle_store(string $ref): void {
         'delivered_at' => $hasPhysical ? null : date('Y-m-d H:i:s'),
         'updated_at'   => date('Y-m-d H:i:s'),
     ], ['id' => (int)$order['id']]);
+    // Stock is only checked at checkout, so two buyers can both take the last
+    // unit and both pay. The guarded decrement below fulfils only what's really
+    // in stock; if a physical line can't be satisfied (0 rows affected), the
+    // order is oversold — flag it loudly for the admin to refund/restock rather
+    // than silently marking it delivered.
+    $oversold = [];
     foreach ($items as $i) {
         $sku = (string)($i['sku'] ?? '');
         $qty = max(1, (int)($i['qty'] ?? 1));
         if ($sku === '') continue;
         try {
-            mam_db()->prepare(
+            $st = mam_db()->prepare(
                 "UPDATE store_items SET stock = stock - ?,
                         availability = CASE WHEN stock - ? <= 0 THEN 'sold_out' ELSE availability END,
                         updated_at = ?
                   WHERE sku = ? AND stock >= 0 AND stock >= ?"
-            )->execute([$qty, $qty, date('Y-m-d H:i:s'), $sku, $qty]);
+            );
+            $st->execute([$qty, $qty, date('Y-m-d H:i:s'), $sku, $qty]);
+            if ($st->rowCount() === 0 && ($i['goods_type'] ?? '') === 'physical') $oversold[] = $sku . '×' . $qty;
         } catch (\Throwable $e) { mam_log('warn', 'store_stock_decrement_failed', ['sku' => $sku, 'err' => $e->getMessage()]); }
+    }
+    if ($oversold) {
+        mam_db_update('store_orders', ['status' => 'oversold', 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$order['id']]);
+        mam_log('error', 'store_order_oversold', ['ref' => $ref, 'lines' => $oversold, 'hint' => 'Paid order cannot be fulfilled from stock — refund or restock.']);
+        mam_audit('store_oversold', 'store_order', (int)$order['id'], ['ref' => $ref, 'lines' => $oversold]);
     }
     $links = [];
     foreach ($items as $i) {

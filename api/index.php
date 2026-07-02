@@ -24,9 +24,9 @@ $f = function (string $path): callable {
 $r = new MamRouter();
 
 /* ─── Public ─── */
-$r->get('/health',  $f('health.php'));
+$r->get('/health',  $f('health.php'),  [mw_rate_limit('health', 60, 60)]);
 $r->get('/csrf',    $f('csrf-token.php'));
-$r->get('/diag',    $f('diag.php'));
+$r->get('/diag',    $f('diag.php'),     [mw_rate_limit('diag', 30, 60)]);
 // First-run installer (self-disables once any user exists). Token-guarded via
 // SETUP_TOKEN env when set. No CSRF: it's a one-time bootstrap before any login.
 $r->get ('/setup', $f('setup.php'), [mw_rate_limit('setup', 30, 600)]);
@@ -88,9 +88,11 @@ $r->post('/contact',     $f('contact.php'),     [mw_csrf(), mw_rate_limit('conta
 $r->group('/payment', function (MamRouter $r) use ($f) {
     $r->post('/initialize', $f('payment-init.php'),   [mw_csrf(), mw_rate_limit('payment_init',   20, 600)]);
     $r->post('/verify',     $f('payment-verify.php'), [mw_csrf(), mw_rate_limit('payment_verify', 30, 600)]);
-    // Webhooks rely on HMAC signatures, not CSRF cookies.
-    $r->post('/webhook/paystack',    $f('webhook-paystack.php'));
-    $r->post('/webhook/flutterwave', $f('webhook-flutterwave.php'));
+    // Webhooks rely on HMAC signatures, not CSRF cookies. Rate-limited so an
+    // unauthenticated flood can't fill webhook_events with raw payloads (the
+    // handlers also reject an invalid signature before persisting).
+    $r->post('/webhook/paystack',    $f('webhook-paystack.php'),    [mw_rate_limit('wh_paystack', 120, 60)]);
+    $r->post('/webhook/flutterwave', $f('webhook-flutterwave.php'), [mw_rate_limit('wh_flutterwave', 120, 60)]);
 });
 
 /* ─── Auth ─── */

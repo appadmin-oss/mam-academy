@@ -8,6 +8,11 @@ $remember = isset($in['remember']) ? (bool)$in['remember'] : true;
 
 if (!$email || !$password) mam_fail('validation', 422, ['fields' => ['email', 'password']]);
 
+// Per-account throttle, on top of the per-IP limit in the router: a distributed
+// attacker rotating source IPs still can't brute-force a single account. Fails
+// closed so a DB error can't silently disable the protection.
+mam_rate_limit('login_email', strtolower(trim($email)), 12, 900, true);
+
 // On a fresh install, provision the env-configured admin so the very first
 // sign-in works with zero manual steps. No-op once any user exists.
 mam_maybe_seed_admin_from_env();

@@ -23,9 +23,16 @@ $provided  = (string)($_REQUEST['token'] ?? '');
 $method    = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 $alreadyUp = mam_user_count() > 0;
 
-// A configured token must match (constant-time). When no token is configured,
-// the first-run guard (self-disable once a user exists) is the protection.
-$tokenOk = $setupTok === '' || hash_equals($setupTok, $provided);
+// In production the installer must be explicitly unlocked with a SETUP_TOKEN.
+// Without this, an attacker could POST /api/setup during the window between
+// deploy and the operator's first login and seize the first admin account
+// (which then permanently disables the env-seeded admin). Outside production
+// (local/dev) the first-run guard alone is enough for a frictionless setup.
+$requireToken = strtolower((string)mam_env('APP_ENV', 'production')) === 'production';
+
+// A configured token must match (constant-time).
+$tokenOk = (!$requireToken && $setupTok === '')
+        || ($setupTok !== '' && hash_equals($setupTok, $provided));
 $tokenQS = $setupTok !== '' ? ('?token=' . rawurlencode($provided)) : '';
 
 // Normally the installer self-disables once a user exists. But when a valid
@@ -33,7 +40,7 @@ $tokenQS = $setupTok !== '' ? ('?token=' . rawurlencode($provided)) : '';
 // (re)set the administrator even if accounts already exist — gated entirely by
 // the secret token. mam_create_admin() is idempotent by email, so this resets
 // an existing admin's password or creates one.
-$canManage = !$alreadyUp || ($setupTok !== '' && $tokenOk);
+$canManage = $tokenOk && (!$alreadyUp || $setupTok !== '');
 $isReset   = $alreadyUp && $canManage;
 
 $error = null; $created = false;
@@ -49,6 +56,10 @@ if ($method === 'POST' && $canManage && $tokenOk) {
         try {
             mam_create_admin($email, $pass, $name);
             $created = true;
+            // Loud audit trail — this endpoint can (re)set an admin via the
+            // SETUP_TOKEN recovery path, so every use must be traceable.
+            mam_audit('setup_admin', 'user', null, ['email' => strtolower($email), 'reset' => $isReset, 'ip' => mam_client_ip()]);
+            mam_log('warn', 'setup_admin_used', ['email' => strtolower($email), 'reset' => $isReset]);
         } catch (InvalidArgumentException $e) {
             $error = $e->getMessage() === 'weak_password'
                 ? 'Password must be at least 8 characters.'
@@ -64,9 +75,9 @@ $esc = static fn ($s) => htmlspecialchars((string)$s, ENT_QUOTES);
 
 // ---- Decide which screen to show -------------------------------------------
 $state = 'form';
-if ($created)                          $state = 'success';
-elseif ($setupTok !== '' && !$tokenOk) $state = 'locked';
-elseif (!$canManage)                   $state = 'done';
+if ($created)               $state = 'success';
+elseif (!$tokenOk)          $state = 'locked'; // wrong token, or prod without SETUP_TOKEN
+elseif (!$canManage)        $state = 'done';
 
 // ---- Shared shell ----------------------------------------------------------
 $body = '';

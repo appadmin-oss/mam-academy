@@ -21,12 +21,15 @@ if (strlen($password) < 8) {
 }
 
 $hash  = hash('sha256', $token);
+// Compare against a PHP-computed timestamp — portable across SQLite, MySQL and
+// MariaDB. SQLite's datetime("now") is not a function on MySQL/MariaDB and would
+// 500 every reset in production.
 $reset = mam_db_row(
     'SELECT * FROM password_resets
        WHERE token_hash = ?
-         AND expires_at > datetime("now")
+         AND expires_at > ?
          AND used_at IS NULL',
-    [$hash]
+    [$hash, date('Y-m-d H:i:s')]
 );
 if (!$reset) {
     mam_fail('invalid_or_expired', 400);

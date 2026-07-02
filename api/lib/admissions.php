@@ -200,9 +200,21 @@ function mam_app_draft_save(string $draftKey, string $email, $payload): void {
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) $email = '';
     $now = date('Y-m-d H:i:s');
     try {
-        $existing = mam_db_row('SELECT id FROM application_drafts WHERE draft_key = ?', [$draftKey]);
+        $existing = mam_db_row('SELECT id, email FROM application_drafts WHERE draft_key = ?', [$draftKey]);
         if ($existing) {
-            mam_db_update('application_drafts', ['email' => $email ?: null, 'payload' => $json, 'updated_at' => $now], ['id' => (int)$existing['id']]);
+            // Integrity guard: once a draft is bound to an email, a save carrying
+            // a DIFFERENT non-empty email is refused. Combined with the ~40-bit
+            // client key + rate limit, this stops someone who guesses a key from
+            // hijacking a known applicant's draft. Same-email autosave (and the
+            // pre-email autosave, where the stored email is null) still works.
+            $prevEmail = strtolower(trim((string)($existing['email'] ?? '')));
+            if ($prevEmail !== '' && $email !== '' && $email !== $prevEmail) {
+                mam_log('warn', 'app_draft_email_mismatch', ['draft_key' => substr($draftKey, 0, 12)]);
+                return;
+            }
+            // Never blank out a previously-recorded email.
+            $emailToStore = $email !== '' ? $email : ($prevEmail !== '' ? $prevEmail : null);
+            mam_db_update('application_drafts', ['email' => $emailToStore, 'payload' => $json, 'updated_at' => $now], ['id' => (int)$existing['id']]);
         } else {
             mam_db_insert('application_drafts', ['draft_key' => $draftKey, 'email' => $email ?: null, 'payload' => $json, 'status' => 'draft']);
         }

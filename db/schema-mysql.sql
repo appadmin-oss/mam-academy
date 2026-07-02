@@ -269,11 +269,11 @@ INSERT INTO schema_version (version) VALUES (1), (2) ON DUPLICATE KEY UPDATE ver
 -- "IF NOT EXISTS" and run once, or guard via your migration tool.
 -- ─────────────────────────────────────────────────────────────
 ALTER TABLE applications
-  ADD COLUMN IF NOT EXISTS program_track      VARCHAR(8)   DEFAULT 'MAM' AFTER include_certification,
-  ADD COLUMN IF NOT EXISTS policy_mode        VARCHAR(16)                AFTER program_track,
-  ADD COLUMN IF NOT EXISTS policy_agreed      TINYINT(1)   DEFAULT 0     AFTER policy_mode,
-  ADD COLUMN IF NOT EXISTS policy_signed_name VARCHAR(120)               AFTER policy_agreed,
-  ADD COLUMN IF NOT EXISTS policy_signed_at   DATETIME     NULL          AFTER policy_signed_name;
+  ADD COLUMN program_track      VARCHAR(8)   DEFAULT 'MAM' AFTER include_certification,
+  ADD COLUMN policy_mode        VARCHAR(16)                AFTER program_track,
+  ADD COLUMN policy_agreed      TINYINT(1)   DEFAULT 0     AFTER policy_mode,
+  ADD COLUMN policy_signed_name VARCHAR(120)               AFTER policy_agreed,
+  ADD COLUMN policy_signed_at   DATETIME     NULL          AFTER policy_signed_name;
 INSERT INTO schema_version (version) VALUES (3) ON DUPLICATE KEY UPDATE version = version;
 
 -- ─────────────────────────────────────────────────────────────
@@ -281,17 +281,17 @@ INSERT INTO schema_version (version) VALUES (3) ON DUPLICATE KEY UPDATE version 
 -- abandonment-recovery timestamp, idempotency key.
 -- ─────────────────────────────────────────────────────────────
 ALTER TABLE customers
-  ADD COLUMN IF NOT EXISTS sex     VARCHAR(16)  NULL,
-  ADD COLUMN IF NOT EXISTS address VARCHAR(255) NULL,
-  ADD COLUMN IF NOT EXISTS lga     VARCHAR(64)  NULL,
-  ADD COLUMN IF NOT EXISTS state   VARCHAR(64)  NULL;
+  ADD COLUMN sex     VARCHAR(16)  NULL,
+  ADD COLUMN address VARCHAR(255) NULL,
+  ADD COLUMN lga     VARCHAR(64)  NULL,
+  ADD COLUMN state   VARCHAR(64)  NULL;
 ALTER TABLE applications
-  ADD COLUMN IF NOT EXISTS program          VARCHAR(64)  NULL,
-  ADD COLUMN IF NOT EXISTS headshot_url     VARCHAR(500) NULL,
-  ADD COLUMN IF NOT EXISTS session          VARCHAR(16)  NULL,
-  ADD COLUMN IF NOT EXISTS recovery_sent_at DATETIME     NULL,
-  ADD COLUMN IF NOT EXISTS idempotency_key  VARCHAR(64)  NULL,
-  ADD INDEX  IF NOT EXISTS idx_apps_idem (idempotency_key);
+  ADD COLUMN program          VARCHAR(64)  NULL,
+  ADD COLUMN headshot_url     VARCHAR(500) NULL,
+  ADD COLUMN session          VARCHAR(16)  NULL,
+  ADD COLUMN recovery_sent_at DATETIME     NULL,
+  ADD COLUMN idempotency_key  VARCHAR(64)  NULL,
+  ADD INDEX idx_apps_idem (idempotency_key);
 INSERT INTO schema_version (version) VALUES (4), (5), (6), (7) ON DUPLICATE KEY UPDATE version = version;
 
 -- ─────────────────────────────────────────────────────────────
@@ -302,9 +302,9 @@ INSERT INTO schema_version (version) VALUES (4), (5), (6), (7) ON DUPLICATE KEY 
 -- safely share the same payments table.
 -- ─────────────────────────────────────────────────────────────
 ALTER TABLE applications
-  ADD COLUMN IF NOT EXISTS booking_fee_paid_at DATETIME NULL;
+  ADD COLUMN booking_fee_paid_at DATETIME NULL;
 ALTER TABLE payments
-  ADD COLUMN IF NOT EXISTS purpose VARCHAR(24) DEFAULT 'tuition';
+  ADD COLUMN purpose VARCHAR(24) DEFAULT 'tuition';
 INSERT INTO schema_version (version) VALUES (8) ON DUPLICATE KEY UPDATE version = version;
 
 -- ─────────────────────────────────────────────────────────────
@@ -421,10 +421,10 @@ INSERT INTO schema_version (version) VALUES (12) ON DUPLICATE KEY UPDATE version
 -- v13: level-based application model (spec §2). IF NOT EXISTS (MariaDB) makes
 -- this idempotent; 1060 (duplicate column) is also in the migrator's
 -- expected-error list as a belt-and-braces fallback on stock MySQL.
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS level         VARCHAR(16) NULL;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS expression    VARCHAR(16) NULL;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS extra_courses INT NOT NULL DEFAULT 0;
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS courses_label TEXT NULL;
+ALTER TABLE applications ADD COLUMN level         VARCHAR(16) NULL;
+ALTER TABLE applications ADD COLUMN expression    VARCHAR(16) NULL;
+ALTER TABLE applications ADD COLUMN extra_courses INT NOT NULL DEFAULT 0;
+ALTER TABLE applications ADD COLUMN courses_label TEXT NULL;
 INSERT INTO schema_version (version) VALUES (13) ON DUPLICATE KEY UPDATE version = version;
 
 -- v14: class announcements (instructor → enrolled students) + server-persisted
@@ -685,7 +685,7 @@ INSERT INTO schema_version (version) VALUES (17) ON DUPLICATE KEY UPDATE version
 -- The ALTER is for installs already past v16 (fresh installs get the column from
 -- the CREATE above). "IF NOT EXISTS" is MariaDB-friendly; on MySQL 8 run once.
 ALTER TABLE course_enrollments
-  ADD COLUMN IF NOT EXISTS status_changed_at DATETIME NULL AFTER approved_at;
+  ADD COLUMN status_changed_at DATETIME NULL AFTER approved_at;
 
 CREATE TABLE IF NOT EXISTS enrolment_events (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -734,8 +734,8 @@ CREATE TABLE IF NOT EXISTS cohorts (
   CONSTRAINT fk_cohort_instr   FOREIGN KEY (instructor_id) REFERENCES users(id)    ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-ALTER TABLE course_enrollments ADD COLUMN IF NOT EXISTS cohort_id INT NULL;
-ALTER TABLE course_enrollments ADD KEY IF NOT EXISTS idx_cenroll_cohort (cohort_id);
+ALTER TABLE course_enrollments ADD COLUMN cohort_id INT NULL;
+ALTER TABLE course_enrollments ADD KEY idx_cenroll_cohort (cohort_id);
 
 INSERT IGNORE INTO cohorts (instructor_id, title, discipline, pathway, mode, capacity, meeting_pattern, starts_on, status, legacy_class_id, created_at)
   SELECT instructor_id, title, discipline, pathway, mode, COALESCE(capacity,12), schedule, starts_on, COALESCE(status,'active'), id, created_at FROM classes;
@@ -881,14 +881,14 @@ INSERT INTO schema_version (version) VALUES (25) ON DUPLICATE KEY UPDATE version
 
 -- v26 — Admin access tiers (RBAC): 'super' (full) vs 'manager' (operational).
 -- NULL = treated as 'super' in code; existing admins backfilled so none lose access.
-ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_tier VARCHAR(16) NULL;
+ALTER TABLE users ADD COLUMN admin_tier VARCHAR(16) NULL;
 UPDATE users SET admin_tier = 'super' WHERE role = 'admin' AND (admin_tier IS NULL OR admin_tier = '');
 
 INSERT INTO schema_version (version) VALUES (26) ON DUPLICATE KEY UPDATE version = version;
 
 -- v27 — Admissions pipeline (Application A2): enforced status state machine +
 -- audit (application_events) + internal notes + an assignee.
-ALTER TABLE applications ADD COLUMN IF NOT EXISTS assignee_id INT NULL;
+ALTER TABLE applications ADD COLUMN assignee_id INT NULL;
 CREATE TABLE IF NOT EXISTS application_events (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   application_id INT NOT NULL,
@@ -969,7 +969,7 @@ INSERT INTO schema_version (version) VALUES (30) ON DUPLICATE KEY UPDATE version
 -- v31 — Scholarship tier (#4): separate scholarship recipients from fee-paying
 -- students. NULL/'' = paying (default for all existing + new accounts);
 -- 'scholarship' = sponsored. Drives invoice exemption + reporting.
-ALTER TABLE users ADD COLUMN IF NOT EXISTS student_type VARCHAR(16) NULL;
+ALTER TABLE users ADD COLUMN student_type VARCHAR(16) NULL;
 
 INSERT INTO schema_version (version) VALUES (31) ON DUPLICATE KEY UPDATE version = version;
 
