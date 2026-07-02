@@ -343,9 +343,11 @@
         var key = btn.getAttribute('data-mobile-toggle');
         var sub = document.getElementById('m-' + key);
         var open = sub && sub.classList.contains('open');
-        $$('[data-mobile-toggle]').forEach(function (b) { b.classList.remove('open'); });
+        // Accordion: collapse every section, then open the clicked one if it was
+        // closed. Keep aria-expanded in sync so screen readers announce state.
+        $$('[data-mobile-toggle]').forEach(function (b) { b.classList.remove('open'); b.setAttribute('aria-expanded', 'false'); });
         $$('.mobile-nav-sub').forEach(function (s) { s.classList.remove('open'); });
-        if (!open && sub) { btn.classList.add('open'); sub.classList.add('open'); }
+        if (!open && sub) { btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); sub.classList.add('open'); }
       });
     });
 
