@@ -1,11 +1,15 @@
 # MAM Academy — Application-Flow Guide: Fit Review & Integration Plan
 
-**Status:** review for decision · **Date:** 2026-07-02
+**Status:** review for decision · **Date:** 2026-07-02 · **Rev 2** (folds in the
+reviewer's 17 "Reservations & Strategic Improvements")
 **Purpose:** A stakeholder shared a 15-point "improve the application flow" guide
 (discovery → eligibility → scholarship detection → admissions dashboard →
-orientation → lifecycle). This document maps **each item to the code that
-already exists**, flags where a suggestion **conflicts with MAM's decided model**,
-and recommends a small, high-impact first slice.
+orientation → lifecycle), then a second round of 17 reservations that push it
+from a *feature set* toward a *distinctive admissions product*. This document maps
+**each item to the code that already exists**, flags where a suggestion
+**conflicts with MAM's decided model**, and recommends a high-impact first slice —
+now designed as an **intelligent advisor**, not a questionnaire (§2), with the 17
+elevations mapped in §2b.
 
 > The guide is written as if for a greenfield admissions funnel. MAM already has
 > a mature one. So the useful question isn't "build these 15 things" — it's
@@ -52,61 +56,128 @@ Legend — **✅ Exists** · **◑ Partial** · **➕ Fits (build)** · **⚠ Co
 
 ---
 
-## 2 · Recommended first slice — "Find Your Path" (guide #1 + #2 + #14)
+## 2 · Recommended first slice — "Find Your Path" as an **intelligent advisor** (guide #1 + #2 + #14; reservations #1–#4)
 
-The single highest-leverage, lowest-risk, self-contained addition. It targets the
-one real gap at the top of funnel (decision fatigue) and folds in the guide's
-recommendation cards and conditional-path branching.
+The single highest-leverage, self-contained addition. The reviewer's key
+reservation is right: a pre-application *questionnaire* adds friction before the
+applicant has committed. So this is designed as an **advisor**, not a form — it
+should feel like MAM *understanding* the applicant, not collecting data.
 
-**Shape**
-- A **skippable discovery panel** on `apply.php` *before* Step 1, shown to
-  undecided applicants (persistent "I know what I want — skip" link).
-- 4–5 friendly questions: **age band · learning mode · experience · main interest/instrument · goal**.
-- Deterministic client-side mapping → a recommended **pathway + mode + level +
-  discipline/expression**, emitted **only** as the wizard's existing allowlisted
-  tokens (`crash | standard | certified-musician | grand-musician | meta-order`;
-  `precert | cert | prediploma | diploma`; `classical | contemporary | african`;
-  real disciplines). One "recommended path" card + "see other options."
-- **Hand-off = today's prefill path.** Choosing a path routes into the wizard via
-  `?pathway=&mode=&level=&discipline=` — reusing the XSS-safe allowlist at
-  `apply.js:177–182`. No new endpoint, no new trust surface, no DB change.
+**Experience shape**
+- A **skippable advisor** on `apply.php` *before* Step 1 (persistent "I know what
+  I want — skip" link). Framed warmly: *"Let's find the best place to begin."*
+- **Psychologically-ordered** questions (aspiration first, admin last), each
+  updating a **live recommendation panel** beside them:
+  1. *What do you dream of becoming?* (performer · producer · worship leader · teacher · well-rounded musician)
+  2. *What excites you most?* (an instrument · your voice · rhythm · theory/composition · the philosophy of music)
+  3. *Where are you now?* (never studied · self-taught · some formal training · advanced)
+  4. *Which instrument or discipline?* (maps to the real `discipline` tokens)
+  5. *How do you want to learn?* (online · onsite Lagos)
+  6. *Age* — **last, and explicitly** *"only because it affects guardian requirements."*
+- After each answer the side panel re-scores and re-renders. No "submit."
 
-**Honesty guardrails (per §0)**
-- Presents a *recommended starting point*, explicitly: "**MAM Auditer fine-tunes
-  your placement**." No hard tuition quote. No fabricated scholarship eligibility —
-  links to the existing scholarship info instead. Advanced applicants are routed
-  toward **Auditer**, beginners toward the foundational path — a soft branch, never
-  a hard disqualification.
+**Weighted, transparent recommendation (reservations #3, #4)**
+- Not rigid `if beginner → crash`. Each answer contributes **weights** to every
+  pathway; the panel shows a **ranked set with match %** and a **confidence badge**:
+  - `Recommended with high confidence` (clear leader) · `Good match` · `Multiple great options` (close scores → show the top 2–3).
+- Every recommendation shows its **"Because:"** reasons (✓ beginner · ✓ wants
+  performance · ✓ weekend availability) — deterministic and legible (reservation #17:
+  core logic stays deterministic; AI can *explain* later, never decide).
+- Scoring is **pure client-side** over `MAM_CONFIG`/`config-public` data — no new
+  endpoint, no new trust surface.
 
-**Progressive enhancement & a11y**
-- JS-off or "skip" → `apply.php` behaves exactly as today (finder is additive).
-- Reuse `.choice-card` / `.field` patterns, `aria-current`, reduced-motion, and
-  persist answers into the existing `data` draft object so a return visit remembers them.
+**Persistent throughout the journey (reservations #2, #13)**
+- The chosen recommendation **rides along** as a compact "Recommended path" chip
+  in the existing collapsible summary panel on every wizard step, with a
+  **"change"** affordance that reopens the advisor **without restarting** the form.
+- Progressive personalization: once known, later steps greet contextually
+  (*"Applying for Certified Musician — recommended because you have choir
+  experience"*), reusing the `data` draft object.
 
-**Verification**
-- `php api/tests/run.php` green; `node --check` changed JS; `php -l apply.php`.
-- Playwright: complete finder → lands in wizard **pre-filled with valid tokens**;
-  "skip" and JS-off both leave the current flow intact.
+**Hand-off = today's prefill path.** Selecting a path routes into the wizard via
+`?pathway=&mode=&level=&discipline=&expression=` — reusing the XSS-safe allowlist
+at `apply.js:177–182`. Emits **only** valid tokens (`crash | standard |
+certified-musician | grand-musician | meta-order`; `precert | cert | prediploma |
+diploma`; `classical | contemporary | african`; real disciplines). No DB change.
 
-**Est. effort:** ~S–M, front-end only (`apply.php` markup + `assets/js/apply.js`
-or a small `assets/js/apply-discovery.js` + a few `assets/css/apply.css` rules).
+**Honesty guardrails (per §0)** — a *recommended starting point*, always with
+"**MAM Auditer fine-tunes your placement**." No hard tuition quote, no fabricated
+scholarship eligibility (links to the existing scholarship info). Advanced → routed
+toward **Auditer**; beginner → foundational path. A **soft branch, never a hard
+disqualification** (this is why §6 reframes "eligibility" as "readiness").
+
+**Progressive enhancement & a11y** — JS-off or "skip" → `apply.php` behaves exactly
+as today (advisor is additive). Reuse `.choice-card`/`.field` patterns, `aria-live`
+on the recommendation panel so updates are announced, `aria-current`, reduced-motion;
+persist answers into the `data` draft so a return visit remembers them.
+
+**Verification** — `php api/tests/run.php` green; `node --check` changed JS;
+`php -l apply.php`; Playwright: complete advisor → wizard **pre-filled with valid
+tokens**; "skip" + JS-off leave the current flow intact.
+
+**Est. effort:** ~M, front-end only (`apply.php` markup + `assets/js/apply-discovery.js`
++ `assets/css/apply.css` rules). The weighted-scoring table is a small data
+structure, not a rules tree.
 
 ---
 
-## 3 · Recommended sequence (fit-ordered, not guide-ordered)
+## 2b · The 17 reservations, mapped (elevation, not rework)
 
-1. **#1 Find Your Path** finder (this doc, §2) — the real top-of-funnel gap.
-2. **#5/#12 lifecycle timeline** render on `status.php` — pure UI over data that
-   already exists; makes the existing admissions stages legible to applicants.
-3. **#9/#13 copy pass** — reframe apply→Auditer→enrol so the stages read clearly
-   (near-zero code).
-4. **#3/#14 eligibility soft-screen** — implement the portal-brief §#1 rules as a
-   *signal + routing* (server re-derived), not a hard gate.
-5. **#15 completeness meter** + optional **#8 applicant AI readiness** (advisory,
-   reusing the existing gateway).
-6. **#11 advisor card** on `status.php` (needs an advisor contact source).
-7. **Later roadmap / product decision:** #7 document OCR, #10 orientation hub,
-   #4 only ever as scholarship *awareness*.
+The reviewer's reservations are UX/product elevations. Almost all fit the existing
+backend **without new subsystems** and without touching the two hard constraints
+(§0). Legend as §1.
+
+| # | Reservation | Verdict | How it lands in this codebase |
+|---|-------------|---------|-------------------------------|
+| 1 | Advisor, not questionnaire | ➕ **In §2** | Live side panel + conversational framing; no "submit". |
+| 2 | Discovery persists through the journey | ➕ **In §2** | "Recommended path" chip in the existing summary panel; "change" reopens advisor, no restart. |
+| 3 | Weighted scoring, not rule routing | ➕ **In §2** | Per-answer weight table → ranked match %; client-side over `config-public`. |
+| 4 | Confidence indicators | ➕ **In §2** | `high confidence / good match / multiple options` from score spread. |
+| 5 | Outcome-centric programme cards | ➕ Build | Extend Step-1 cards + `compare.php`: *Ideal for · Become · Duration · Skills · After graduation*. Content, not backend. |
+| 6 | "Readiness", not "Eligibility" | ➕ **Reframe** | Rename the planned screen to **Learning Readiness**: *current experience · recommended start · optional prep*. Removes the exclusion frame; matches placement-by-Auditer. Server re-derivation in `validation.php`. |
+| 7 | Background → **Placement Profile** | ➕ Build (additive) | Reframe Step 3 into Learning / Technical / Community sub-profiles (genres, goals, practice availability, instruments owned, notation/ear, church/band/choir/teaching). New nullable columns (MySQL `TEXT` no-DEFAULT rule) feed cohort placement + the admin AI placement recommender. |
+| 8 | Dashboard → **mission control** | ◑ Extend `status.php` | Add task list, booking status, payment status, upcoming Auditer, announcements, support + advisor contact around the existing stage data. Messages/announcements need a small channel — sequence later. |
+| 9 | Predictive next steps | ➕ Build | Extend `mam_application_stage()` to also return *typical duration* + *likely next step* + *prepare-now* links per stage. Pure data on existing states. |
+| 10 | Auditer introduced **early** | ➕ Copy/UX | Thread Auditer explainer through the advisor, wizard, and post-submit roadmap (what/why/benefit/expect/prepare), so `book.php` feels like an exciting milestone. Mostly copy. |
+| 11 | "What happens after I apply?" roadmap | ➕ Build | Post-submit success panel + `status.php` render the real chain: *received → booking fee → book Auditer → placement review → decision → enrolment → orientation → portal → first class*, each with a timeframe + one line. Uses existing stages. |
+| 12 | Contextual trust builders | ➕ Content | Surface testimonials / instructor profiles / affiliations *contextually* in-flow (faculty data already exists on `faculty.php`), not a separate page. |
+| 13 | Progressive personalization | ➕ **In §2** | Contextual greetings from the `data` draft ("recommended because you have choir experience"). |
+| 14 | Timeline → **living history** | ✅ Data exists → render | `mam_admissions_events()` already stores the dated, audited transition trail (submitted → fee → review → Auditer invite → completed → placement). Render it chronologically on `status.php`. |
+| 15 | Admissions **knowledge center** (contextual) | ➕ Content | Inline expandable answers (why Auditer? how are placements decided? can I switch programmes? what if I miss my Auditer?) beside the relevant step — reuse the FAQ accordion pattern. |
+| 16 | Emotional journey | ➕ UX | Celebrate completed milestones; frame Auditer as *opportunity*; welcome into the community pre-enrolment. Tone/microcopy + the existing reduced-motion-safe celebration on payment success. |
+| 17 | AI-ready, not AI-dependent | ✅ **Already the stance** | Core recommendation/readiness/next-steps stay **deterministic**; the audited AI gateway (`api/lib/ai.php`, per-user-capped) *augments* — explanations, smart FAQ, resource hints — behind `ai_provider` and never on the critical path. |
+
+**Net:** of 17, most are **content/UX elevations** over data and patterns that
+already exist. Only three imply new backend surface — a **placement-profile**
+schema (#7), a **messages/announcements** channel for the mission-control
+dashboard (#8), and the **living-history render** (#14, which just reads existing
+events). None conflict with §0.
+
+---
+
+## 3 · Recommended sequence (fit-ordered, elevated)
+
+1. **"Find Your Path" advisor** (§2) — weighted, transparent, persistent. The real
+   top-of-funnel gap; folds in reservations #1–#4, #13.
+2. **"What happens next" roadmap + living-history timeline** on `status.php` and the
+   post-submit panel (reservations #11, #14, #9) — render over `mam_application_stage()`
+   + `mam_admissions_events()`, adding typical-duration / next-step hints. High
+   transparency, low code.
+3. **Auditer-forward copy + emotional tone + knowledge center** (reservations #10,
+   #15, #16) — near-zero-code content pass that makes the Auditer the differentiator
+   and reduces support questions inline.
+4. **Readiness (not eligibility) soft-screen** (reservation #6 + portal-brief §#1) —
+   *signal + routing*, server re-derived, never a hard gate.
+5. **Outcome-centric programme cards** (reservation #5) + **contextual trust
+   builders** (reservation #12) — content over existing faculty/compare data.
+6. **Placement Profile** (reservation #7) — additive nullable columns feeding cohort
+   placement + the admin AI recommender; the one schema change worth doing early.
+7. **Mission-control dashboard** (reservation #8) — extend `status.php`; the
+   messages/announcements piece needs a small channel, so it trails the rest.
+8. **AI augmentation** (reservation #17) — explanations / smart FAQ / resource hints
+   on top of the deterministic core, behind `ai_provider`.
+9. **Later roadmap / product decision:** #7-doc-OCR and #10-orientation-hub from the
+   original guide; auto-scholarship only ever as *awareness*.
 
 ---
 
@@ -116,5 +187,14 @@ or a small `assets/js/apply-discovery.js` + a few `assets/css/apply.css` rules).
   booking-fee → Auditer → enrol model.
 - **Document OCR/verification (#7)** and **orientation hub (#10):** net-new
   subsystems; no current requirement in the pre-Auditer flow — roadmap items.
+
+## 5 · Guiding principle (from the reviewer's final assessment)
+
+The elevation goal, in one line: make the flow feel **less like completing forms
+and more like beginning a guided educational journey** — recommendations that feel
+genuinely advisory, the **Auditer as the central differentiator** throughout, richer
+applicant personalization, a dashboard that is a real workspace, and an experience
+that moves the applicant from **curiosity → confidence → commitment → anticipation** —
+all on the current deterministic backend, with AI as augmentation, not dependency.
 
 *No code changed by this document. It exists to pick the next build with eyes open.*
