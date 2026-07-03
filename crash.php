@@ -45,11 +45,11 @@
   <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1568454537842-d933259bb258?w=1920&q=80')">
     <div class="page-hero-inner">
       <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><a href="pathways">Pathways</a><i class="fa-solid fa-chevron-right"></i><span>Crash Programmes</span></nav>
-      <div class="page-hero-eyebrow"><i class="fa-solid fa-bolt"></i>6 Weeks · $70 · Online or Onsite</div>
+      <div class="page-hero-eyebrow"><i class="fa-solid fa-bolt"></i>6 Weeks · <span data-cur-sym>$</span><span data-price="70">70</span> · Online or Onsite</div>
       <h1 class="page-hero-title">MAM <span class="highlight-gold">Crash Programmes</span></h1>
       <p class="page-hero-lede">Intensive 6-week professional courses designed for fast-track learning and rapid skill development. Online or onsite.</p>
       <div class="page-hero-actions">
-        <a href="apply?pathway=crash" class="btn btn-primary"><i class="fa-solid fa-bolt"></i>Apply — $70</a>
+        <a href="apply?pathway=crash" class="btn btn-primary"><i class="fa-solid fa-bolt"></i>Apply — <span data-cur-sym>$</span><span data-price="70">70</span></a>
         <a href="#categories" class="btn btn-secondary">Browse Categories</a>
       </div>
     </div>
@@ -157,7 +157,7 @@
             <li class="school-course-item"><i class="fa-solid fa-circle-check" style="color:#34D399"></i>Better stage presentation</li>
             <li class="school-course-item"><i class="fa-solid fa-circle-check" style="color:#34D399"></i>Greater artistic understanding</li>
           </ul>
-          <div style="margin-top:28px"><a href="apply?pathway=crash" class="btn btn-primary btn-large"><i class="fa-solid fa-bolt"></i>Apply — $70</a></div>
+          <div style="margin-top:28px"><a href="apply?pathway=crash" class="btn btn-primary btn-large"><i class="fa-solid fa-bolt"></i>Apply — <span data-cur-sym>$</span><span data-price="70">70</span></a></div>
         </div>
       </div>
     </div>

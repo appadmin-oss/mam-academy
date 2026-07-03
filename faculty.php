@@ -256,7 +256,7 @@
         <p class="next-step-desc">See the 4 Trinity-equivalent levels — Pre-Cert through Diploma — plus Crash Programmes and The MetaMusic Order.</p>
         <div class="next-step-meta">
           <span><i class="fa-solid fa-graduation-cap"></i>Grade 1–8</span>
-          <span><i class="fa-solid fa-dollar-sign"></i>From $70 / $120</span>
+          <span><i class="fa-solid fa-tag"></i>From <span data-cur-sym>$</span><span data-price="70">70</span> / <span data-cur-sym>$</span><span data-price="120">120</span></span>
         </div>
       </a>
     </div>

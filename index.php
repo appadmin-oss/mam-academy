@@ -144,7 +144,7 @@
             <p class="card-desc">Sight read. Sight sing. Lock the timing. A signature method for fast rhythm fluency &amp; ensemble synchronization.</p>
             <div class="hero-card-actions">
               <a href="schools#rhythm" class="btn-signup btn-signup-red">Explore Rhythm</a>
-              <a href="crash" class="btn-signup btn-signup-ghost-light">Crash Course $70</a>
+              <a href="crash" class="btn-signup btn-signup-ghost-light">Crash Course <span data-cur-sym>$</span><span data-price="70">70</span></a>
             </div>
           </div>
         </div>
@@ -528,7 +528,7 @@
       <blockquote style="padding:18px 22px;border-left:3px solid #FB7185;background:rgba(225,29,72,0.07);border-radius:0 var(--radius-sm) var(--radius-sm) 0;margin-bottom:24px"><p style="font-family:var(--font-serif);font-style:italic;font-size:1.05rem;color:var(--text);line-height:1.55">"If the trumpet gives an uncertain sound, who shall prepare himself for battle?"</p><cite style="display:block;margin-top:8px;font-size:0.78rem;color:#FB7185;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;font-style:normal">— 1 Corinthians 14:8</cite></blockquote>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <a href="metamusic-order" class="btn btn-primary"><i class="fa-solid fa-fire"></i>Enter the Order</a>
-        <a href="apply?pathway=meta-order" class="btn btn-secondary">Apply Now — $60</a>
+        <a href="apply?pathway=meta-order" class="btn btn-secondary">Apply Now — <span data-cur-sym>$</span><span data-price="60">60</span></a>
       </div>
     </div>
     <div style="position:relative">

@@ -221,7 +221,7 @@
         <div class="next-step-title">Apply to MAM Academy <i class="fa-solid fa-arrow-right"></i></div>
         <p class="next-step-desc">Power Play is the free spark. Apply for a full pathway to keep the fire structured — Trinity-equivalent certification, instructors, ensemble &amp; stage time.</p>
         <div class="next-step-meta">
-          <span><i class="fa-solid fa-graduation-cap"></i>From $70 / $120</span>
+          <span><i class="fa-solid fa-graduation-cap"></i>From <span data-cur-sym>$</span><span data-price="70">70</span> / <span data-cur-sym>$</span><span data-price="120">120</span></span>
           <span><i class="fa-solid fa-globe"></i>Online or onsite</span>
         </div>
       </a>
