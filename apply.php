@@ -58,6 +58,11 @@
   </header>
 
   <section class="apply-shell" aria-label="Application form">
+    <!-- Find Your Path — the Learning Advisor. JS-only enhancement: it stays
+         hidden (and the wizard below works normally) unless apply-discovery.js
+         opens it for an undecided applicant. Hand-off is the wizard's own
+         allow-listed ?pathway/&mode/&level/&discipline/&expression prefill. -->
+    <section class="advisor" id="mamAdvisor" aria-label="Find your path" hidden></section>
     <!-- Horizontal progress stepper -->
     <nav class="apply-stepper" id="applyProgress" aria-label="Application progress">
       <button type="button" class="apply-progress-step active" data-step="0"><span class="step-dot"><span>1</span></span><span class="step-name">Programme</span></button>
@@ -628,5 +633,6 @@
 <script src="assets/js/validate.js?v=20260530a"></script>
 <script src="assets/js/headshot.js?v=20260615e"></script>
 <script src="assets/js/apply.js?v=20260617a"></script>
+<script src="assets/js/apply-discovery.js?v=20260703a"></script>
 </body>
 </html>
