@@ -238,6 +238,16 @@
     var hamburger = $('#hamburgerBtn');
     var mobileMenu = $('#mobileMenu');
     var floatingEnroll = $('#floatingEnroll');
+    // Context-aware "Apply Now" FAB: it's redundant or distracting on the
+    // application itself and other transactional/authenticated surfaces, so
+    // remove it there entirely (it stays on marketing/info pages).
+    (function () {
+      if (!floatingEnroll) return;
+      var slug = (location.pathname.split('/').pop() || '').replace(/\.(php|html)$/, '') || 'index';
+      var hideOn = ['apply', 'checkout', 'book', 'thank-you', 'status', 'contact'];
+      var inApp = /\/(portal|admin)(\/|$)/.test(location.pathname);
+      if (hideOn.indexOf(slug) >= 0 || inApp) { floatingEnroll.remove(); floatingEnroll = null; }
+    })();
     var footerEl = null;
 
     on(window, 'scroll', function () {
@@ -733,90 +743,68 @@
   // Currency toggle
   // ============================================================
   function initCurrency() {
-    var btns = $$('.currency-btn'); if (!btns.length) return;
-    var cfgCur = (window.MAM_CONFIG && window.MAM_CONFIG.currency) || {};
-    var symbols = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' };
-    var SUPPORTED = btns.map(function (b) { return b.getAttribute('data-currency'); });
-    // Live rates (USD base). Start from the config fallback; replace with live
-    // data once fetched so prices are always up to date even if the API is down.
-    var rates = Object.assign({ USD: 1 }, cfgCur.rates || { USD: 1, NGN: 1500, GBP: 0.79, EUR: 0.92 });
-    var current = 'USD';
-
-    // The server's rate map is authoritative: a visitor must never see an
-    // "approx ₦…" (or any converted price) on the homepage that differs from
-    // what the checkout bills or what the apply form shows. We overlay the
-    // server map on top of any third-party feed, so the feed only ever fills
-    // currencies the server didn't provide — it can't override a real rate.
-    function serverRates() {
-      var c = window.MAM_CONFIG && window.MAM_CONFIG.currency && window.MAM_CONFIG.currency.rates;
-      return (c && typeof c === 'object') ? c : null;
-    }
-    function pinServer() { var s = serverRates(); if (s) rates = Object.assign(rates, s); }
+    // Run wherever there's money on the page — the switcher is an optional
+    // override; prices convert to the visitor's local currency regardless.
+    var btns = $$('.currency-btn');
+    if (!btns.length && !$$('[data-price]').length && !$$('[data-cur-sym]').length) return;
+    var CCY = window.MAM_CCY;
+    if (!CCY) return; // config.js provides the single currency source of truth
+    var current = CCY.detect();
+    // Currencies where a big converted number reads better abbreviated ("1.5k").
+    var BIG = { NGN: 1, UGX: 1, TZS: 1, RWF: 1, MWK: 1 };
 
     function setCur(cur, persist) {
+      if (!CCY.known(cur)) cur = 'USD';
       current = cur;
       btns.forEach(function (b) {
         var active = b.getAttribute('data-currency') === cur;
         b.classList.toggle('active', active); b.setAttribute('aria-pressed', String(active));
       });
-      var symbol = symbols[cur] || '$';
-      $$('[data-cur-sym]').forEach(function (s) { s.textContent = symbol; });
+      var sym = CCY.symbol(cur), rate = CCY.rate(cur);
+      $$('[data-cur-sym]').forEach(function (s) { s.textContent = sym; });
       $$('[data-price]').forEach(function (p) {
         var usd = parseFloat(p.getAttribute('data-price')) || 0;
-        var converted = usd * (rates[cur] || 1);
+        var converted = usd * rate;
         if (cur === 'USD') p.textContent = Math.round(usd).toLocaleString();
-        else if (cur === 'NGN' && converted >= 1000) p.textContent = Math.round(converted / 1000) + 'k';
+        else if (BIG[cur] && converted >= 1000) p.textContent = Math.round(converted / 1000) + 'k';
         else p.textContent = Math.round(converted).toLocaleString();
       });
       if (persist !== false) Storage.setItem('mam.currency', cur);
     }
     btns.forEach(function (b) { on(b, 'click', function () { setCur(b.getAttribute('data-currency')); }); });
 
-    // When config.js finishes hydrating from /api/config/public, pull the
-    // server's authoritative rate map in (it carries the live, charge-accurate
-    // NGN) and re-render so the toggle and the charged amount can't disagree.
-    document.addEventListener('mam:config', function () {
-      var c = window.MAM_CONFIG && window.MAM_CONFIG.currency && window.MAM_CONFIG.currency.rates;
-      if (c) { rates = Object.assign(rates, c); setCur(current, false); }
-    });
+    // Render immediately in the detected/saved currency (MAM_CCY reads rates live).
+    setCur(current, false);
 
-    // 1) Live, auto-updating rates — free, key-less, cached 24h in localStorage.
-    //    This is a FALLBACK source: the server map is re-overlaid afterwards so
-    //    every currency the server provides (incl. the charge-accurate NGN) wins.
+    // Re-render when config.js hydrates the server's authoritative rate map.
+    document.addEventListener('mam:config', function () { setCur(current, false); });
+
+    // 1) Live, auto-updating rates — free, key-less, cached 24h in localStorage
+    //    ('mam.fx', which MAM_CCY reads). The server map still wins where present.
     (function loadRates() {
       try {
         var c = JSON.parse(Storage.getItem('mam.fx') || 'null');
-        if (c && c.rates && (Date.now() - c.t) < 864e5) { rates = Object.assign(rates, c.rates); pinServer(); return setCur(current, false); }
+        if (c && c.rates && (Date.now() - c.t) < 864e5) { return setCur(current, false); }
       } catch (e) {}
       fetch('https://open.er-api.com/v6/latest/USD', { mode: 'cors' })
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (j && j.rates && j.rates.USD === 1) {
-            rates = Object.assign(rates, j.rates);
             try { Storage.setItem('mam.fx', JSON.stringify({ t: Date.now(), rates: j.rates })); } catch (e) {}
-            pinServer();
             setCur(current, false);
           }
         }).catch(function () { /* keep fallback rates */ });
     })();
 
-    // 2) Location-aware default (only when the visitor hasn't chosen before).
-    var saved = Storage.getItem('mam.currency');
-    if (saved) { setCur(saved, false); return; }
-    function applyDetected(cur) {
-      if (Storage.getItem('mam.currency')) return;       // user clicked meanwhile
-      if (cur && SUPPORTED.indexOf(cur) >= 0) setCur(cur, false);
+    // 2) Refine the location guess with a free geo-IP lookup — only when the
+    //    visitor hasn't explicitly chosen a currency. ipapi returns the currency
+    //    code directly; accept any we can price, else stay on the local guess.
+    if (!Storage.getItem('mam.currency')) {
+      fetch('https://ipapi.co/currency/', { mode: 'cors' })
+        .then(function (r) { return r.text(); })
+        .then(function (c) { c = (c || '').trim().toUpperCase(); if (!Storage.getItem('mam.currency') && CCY.known(c)) setCur(c, false); })
+        .catch(function () {});
     }
-    // Cheap, instant guess from locale + timezone…
-    var region = (navigator.language || '').split('-')[1];
-    var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
-    var byRegion = { NG: 'NGN', GB: 'GBP', US: 'USD', IE: 'EUR', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR', NL: 'EUR' };
-    applyDetected(byRegion[region] || (tz.indexOf('Lagos') >= 0 ? 'NGN' : ''));
-    // …then refine with a free, key-less geo-IP lookup (best effort).
-    fetch('https://ipapi.co/currency/', { mode: 'cors' })
-      .then(function (r) { return r.text(); })
-      .then(function (c) { c = (c || '').trim(); if (/^[A-Z]{3}$/.test(c)) applyDetected(c); })
-      .catch(function () {});
   }
 
   // ============================================================

@@ -522,7 +522,7 @@
       +   (item.description ? '<p class="item-desc">' + escapeHtml(item.description) + '</p>' : '')
       + '</div>'
       + '<div class="item-foot">'
-      +   '<span class="item-price">' + fmtPrice(item.price_usd) + '<small>USD</small></span>'
+      +   '<span class="item-price">' + fmtPrice(item.price_usd) + '<small>' + curCode() + '</small></span>'
       +   '<button type="button" class="item-buy"' + (canBuy ? '' : ' disabled') + '>'
       +     (canBuy ? '<i class="fa-solid fa-cart-plus"></i> Add' : 'Unavailable')
       +   '</button>'
@@ -541,11 +541,16 @@
     return card;
   }
 
+  function curCode(){ return (window.MAM_CCY && MAM_CCY.detect()) || 'USD'; }
   function fmtPrice(n){
     var v = Number(n) || 0;
+    if (window.MAM_CCY) return MAM_CCY.format(v, curCode());
     return '$' + (v % 1 === 0 ? v.toFixed(0) : v.toFixed(2));
   }
-  function fmt(n){ return '$' + Number(n).toFixed(2); }
+  function fmt(n){
+    if (window.MAM_CCY) return MAM_CCY.format(Number(n) || 0, curCode());
+    return '$' + Number(n).toFixed(2);
+  }
   function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
   function escAttr(s){ return escapeHtml(s).replace(/`/g, '&#96;'); }
 

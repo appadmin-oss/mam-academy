@@ -88,6 +88,8 @@
     return base;
   }
   function money(usd) {
+    // Single source of truth: local-currency formatting via MAM_CCY (config.js).
+    if (window.MAM_CCY) return MAM_CCY.format(usd);
     var cur = curPref(), r = fxRates();
     var v = usd * (r[cur] || 1);
     var n = cur === 'NGN' ? Math.round(v / 50) * 50 : Math.round(v);

@@ -516,3 +516,87 @@ window.MAM_CDN = (function () {
       .catch(function () { /* defaults already in place */ });
   } catch (e) {}
 })();
+
+/* =====================================================================
+ * MAM_CCY — one currency source of truth for the whole site.
+ * Shows money in the visitor's LOCAL currency (by country/locale), unless
+ * they've modified it via the switcher ('mam.currency'). Broad coverage of
+ * major world + English-speaking African currencies; anything we can't price
+ * falls back to USD. Rates come from the server ('mam.fx' live cache +
+ * MAM_CONFIG.currency.rates), with a small static fallback for first paint.
+ * ===================================================================== */
+window.MAM_CCY = (function () {
+  // Country (ISO-3166-alpha-2) → currency. Covers majors + English-speaking
+  // Africa; unmapped countries fall through to USD.
+  var COUNTRY = {
+    US:'USD', UM:'USD', PR:'USD', EC:'USD', SV:'USD', PA:'USD',
+    GB:'GBP', UK:'GBP', IM:'GBP', JE:'GBP', GG:'GBP',
+    IE:'EUR', DE:'EUR', FR:'EUR', IT:'EUR', ES:'EUR', NL:'EUR', BE:'EUR', AT:'EUR', PT:'EUR',
+    FI:'EUR', GR:'EUR', LU:'EUR', SK:'EUR', SI:'EUR', LT:'EUR', LV:'EUR', EE:'EUR', CY:'EUR', MT:'EUR', HR:'EUR',
+    // English-speaking / major African markets
+    NG:'NGN', GH:'GHS', KE:'KES', ZA:'ZAR', UG:'UGX', TZ:'TZS', RW:'RWF', ZM:'ZMW',
+    MW:'MWK', BW:'BWP', NA:'NAD', GM:'GMD', SL:'SLE', SZ:'SZL', LS:'LSL', MU:'MUR', EG:'EGP',
+    ZW:'USD', LR:'USD',
+    // Other majors / large diaspora
+    CA:'CAD', AU:'AUD', NZ:'NZD', IN:'INR', PK:'PKR', BD:'BDT',
+    AE:'AED', SA:'SAR', QA:'QAR', JP:'JPY', CN:'CNY', CH:'CHF',
+    SE:'SEK', NO:'NOK', DK:'DKK', BR:'BRL', MX:'MXN', PH:'PHP'
+  };
+  var SYM = {
+    USD:'$', NGN:'₦', GBP:'£', EUR:'€', GHS:'GH₵', KES:'KSh', ZAR:'R',
+    UGX:'USh', TZS:'TSh', RWF:'FRw', ZMW:'ZK', MWK:'MK', BWP:'P', NAD:'N$', GMD:'D',
+    SLE:'Le', LRD:'L$', SZL:'E', LSL:'L', MUR:'₨', EGP:'E£',
+    CAD:'C$', AUD:'A$', NZD:'NZ$', INR:'₹', PKR:'₨', BDT:'৳', AED:'AED', SAR:'SAR',
+    QAR:'QAR', JPY:'¥', CNY:'¥', CHF:'CHF', SEK:'kr', NOK:'kr', DKK:'kr',
+    BRL:'R$', MXN:'MX$', PHP:'₱'
+  };
+  // First-paint fallback rates (USD-relative). Live server rates override these.
+  var FALLBACK = {
+    USD:1, NGN:1500, GBP:0.79, EUR:0.92, GHS:15, KES:129, ZAR:18, UGX:3800, TZS:2600,
+    RWF:1300, ZMW:27, MWK:1700, BWP:13.5, NAD:18, GMD:70, SLE:22, LRD:190, SZL:18, LSL:18,
+    MUR:46, EGP:49, CAD:1.37, AUD:1.52, NZD:1.66, INR:84, PKR:278, BDT:120, AED:3.67,
+    SAR:3.75, QAR:3.64, JPY:155, CNY:7.2, CHF:0.88, SEK:10.7, NOK:10.9, DKK:6.9, BRL:5.6, MXN:18.5, PHP:58
+  };
+  // Zero-decimal currencies (don't show cents).
+  var ZERO_DEC = { NGN:1, JPY:1, UGX:1, TZS:1, RWF:1, KES:1, GHS:1, MWK:1, XAF:1, XOF:1 };
+
+  function ls(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  function rates() {
+    var out = {}; for (var k in FALLBACK) out[k] = FALLBACK[k];
+    try { var c = window.MAM_CONFIG && MAM_CONFIG.currency && MAM_CONFIG.currency.rates; if (c) for (var a in c) out[a] = c[a]; } catch (e) {}
+    try { var f = JSON.parse(ls('mam.fx') || 'null'); if (f && f.rates) for (var b in f.rates) out[b] = f.rates[b]; } catch (e) {}
+    return out;
+  }
+  function known(cur) { return !!cur && (rates()[cur] != null); }
+  function rate(cur) { var r = rates(); return r[cur] != null ? r[cur] : 1; }
+  function symbol(cur) { return SYM[cur] || (cur ? cur + ' ' : '$'); }
+
+  // Detect the visitor's currency: their saved choice ("modified") wins; else map
+  // their locale region → currency; else USD. (An async geo-IP refinement in
+  // main.js can upgrade this via setCountry().)
+  function detect() {
+    var saved = ls('mam.currency');
+    if (saved && known(saved)) return saved;
+    var region = ((navigator.language || navigator.userLanguage || '').split('-')[1] || '').toUpperCase();
+    var byLocale = COUNTRY[region];
+    if (byLocale && known(byLocale)) return byLocale;
+    var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    if (/Lagos|Accra|Nairobi|Johannesburg|Kampala|Dar_es_Salaam|Kigali|Lusaka/.test(tz)) {
+      var byTz = { Lagos:'NGN', Accra:'GHS', Nairobi:'KES', Johannesburg:'ZAR', Kampala:'UGX', Kigali:'RWF', Lusaka:'ZMW' }[tz.split('/').pop()];
+      if (byTz && known(byTz)) return byTz;
+    }
+    return 'USD';
+  }
+  function fromCountry(code) { var c = COUNTRY[(code || '').toUpperCase()]; return (c && known(c)) ? c : null; }
+
+  // Format a USD amount in `cur` (defaults to detected). Zero-decimal aware.
+  function format(usd, cur) {
+    cur = cur || detect();
+    var v = (parseFloat(usd) || 0) * rate(cur);
+    var n = ZERO_DEC[cur] ? Math.round(v) : Math.round(v * 100) / 100;
+    return symbol(cur) + n.toLocaleString('en-US', ZERO_DEC[cur] ? {} : { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  }
+
+  return { COUNTRY: COUNTRY, detect: detect, fromCountry: fromCountry, rate: rate, symbol: symbol, format: format, known: known, rates: rates };
+})();

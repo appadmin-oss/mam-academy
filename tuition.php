@@ -140,7 +140,12 @@
       return;
     }
     document.getElementById('tuAmt').textContent = '$' + fmt(r.amount_usd);
-    document.getElementById('tuCur').textContent = r.amount_ngn ? ('USD · approx ₦' + fmt(r.amount_ngn)) : 'USD';
+    var cur = window.MAM_CCY ? MAM_CCY.detect() : 'USD';
+    if (window.MAM_CCY && cur !== 'USD') {
+      document.getElementById('tuCur').textContent = 'USD · approx ' + MAM_CCY.format(Number(r.amount_usd) || 0, cur);
+    } else {
+      document.getElementById('tuCur').textContent = r.amount_ngn ? ('USD · approx ₦' + fmt(r.amount_ngn)) : 'USD';
+    }
     payCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 

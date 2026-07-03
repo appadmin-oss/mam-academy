@@ -28,8 +28,39 @@ const MAM_FX_TTL_SECONDS = 14400; // 4 hours
 const MAM_FX_MIN = 100.0;
 const MAM_FX_MAX = 100000.0;
 
-/** The currencies we display/convert (besides the USD base). */
-function mam_fx_currencies(): array { return ['NGN', 'GBP', 'EUR']; }
+/** The currencies we display/convert (besides the USD base). Broad coverage:
+ *  major world currencies + English-speaking African markets. The live providers
+ *  return a full USD-based map; we extract this set (missing ones use the static
+ *  fallback below, and anything we can't price at all falls back to USD client-side). */
+function mam_fx_currencies(): array {
+    return [
+        // Charge + core display
+        'NGN', 'GBP', 'EUR',
+        // English-speaking / major African markets
+        'GHS', 'KES', 'ZAR', 'UGX', 'TZS', 'RWF', 'ZMW', 'MWK', 'BWP', 'NAD',
+        'GMD', 'SLE', 'LRD', 'SZL', 'LSL', 'MUR', 'EGP',
+        // Other majors / large diaspora markets
+        'USD', 'CAD', 'AUD', 'NZD', 'INR', 'PKR', 'BDT', 'AED', 'SAR', 'QAR',
+        'JPY', 'CNY', 'CHF', 'SEK', 'NOK', 'DKK', 'BRL', 'MXN', 'PHP',
+    ];
+}
+
+/** Static, USD-relative fallback rates used when live FX is off/unreachable for a
+ *  given currency (display-only; the charge rate for NGN comes from the live path).
+ *  Approximate mid-market values — refreshed live in production. */
+function mam_fx_fallback_rates(): array {
+    return [
+        'USD' => 1.0,   'NGN' => 1500.0, 'GBP' => 0.79,  'EUR' => 0.92,
+        'GHS' => 15.0,  'KES' => 129.0,  'ZAR' => 18.0,  'UGX' => 3800.0, 'TZS' => 2600.0,
+        'RWF' => 1300.0,'ZMW' => 27.0,   'MWK' => 1700.0,'BWP' => 13.5,   'NAD' => 18.0,
+        'GMD' => 70.0,  'SLE' => 22.0,   'LRD' => 190.0, 'SZL' => 18.0,   'LSL' => 18.0,
+        'MUR' => 46.0,  'EGP' => 49.0,
+        'CAD' => 1.37,  'AUD' => 1.52,   'NZD' => 1.66,  'INR' => 84.0,   'PKR' => 278.0,
+        'BDT' => 120.0, 'AED' => 3.67,   'SAR' => 3.75,  'QAR' => 3.64,
+        'JPY' => 155.0, 'CNY' => 7.2,    'CHF' => 0.88,  'SEK' => 10.7,   'NOK' => 10.9,
+        'DKK' => 6.9,   'BRL' => 5.6,    'MXN' => 18.5,  'PHP' => 58.0,
+    ];
+}
 
 /** Admin-set static NGN rate — the authoritative fallback when live FX is off
  *  or unreachable. Legacy USD_TO_NGN env still honoured. */
@@ -58,10 +89,21 @@ function mam_fx_providers(): array {
  */
 function mam_currency_rates(bool $allowFetch = false): array {
     $ngn    = round(mam_usd_to_ngn_rate($allowFetch), 2); // also primes the cache when fetching
-    $cached = mam_fx_cached_rates(true);                  // allow a stale read for display currencies
-    $gbp    = ($cached && isset($cached['GBP'])) ? (float)$cached['GBP'] : mam_setting_num('fx_usd_gbp', 0.79);
-    $eur    = ($cached && isset($cached['EUR'])) ? (float)$cached['EUR'] : mam_setting_num('fx_usd_eur', 0.92);
-    return ['USD' => 1.0, 'NGN' => $ngn, 'GBP' => round($gbp, 4), 'EUR' => round($eur, 4)];
+    $cached = mam_fx_cached_rates(true) ?: [];            // allow a stale read for display currencies
+
+    // Start from the broad static fallback, overlay any live rates the provider
+    // supplied (they only ever fill in / refresh, never invent), then pin the two
+    // authoritative values (USD base, and the NGN charge rate).
+    $out = mam_fx_fallback_rates();
+    foreach ($cached as $k => $v) { if (is_numeric($v)) $out[strtoupper((string)$k)] = (float)$v; }
+    // Admin-tunable GBP/EUR defaults still apply when live FX hasn't supplied them.
+    if (!isset($cached['GBP'])) $out['GBP'] = mam_setting_num('fx_usd_gbp', $out['GBP'] ?? 0.79);
+    if (!isset($cached['EUR'])) $out['EUR'] = mam_setting_num('fx_usd_eur', $out['EUR'] ?? 0.92);
+    $out['USD'] = 1.0;
+    $out['NGN'] = $ngn;
+
+    foreach ($out as $k => $v) $out[$k] = round((float)$v, 4);
+    return $out;
 }
 
 /**

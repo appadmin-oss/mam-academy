@@ -143,7 +143,10 @@
   var cart = loadCart();
   var $ = function (s) { return document.querySelector(s); };
   function esc(s) { return (s == null ? '' : String(s)).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function money(n) { return '$' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function money(n) {
+    if (window.MAM_CCY) return MAM_CCY.format(Number(n) || 0, MAM_CCY.detect());
+    return '$' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
   function hasPhysical() { return cart.some(function (l) { return l.goods_type === 'physical'; }); }
 
   var grid = $('#coGrid'), empty = $('#coEmpty'), done = $('#coDone'), statusEl = $('#coStatus'), placeBtn = $('#coPlace');

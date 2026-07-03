@@ -170,15 +170,16 @@
   // saved choice in localStorage). NGN is the contractual base, so for any
   // non-NGN currency we convert via USD using live rates (NGN→USD→target).
   // Rounded to nice numbers — fines should read clean, never ugly decimals.
-  var SYMS = { USD:'$', NGN:'₦', GBP:'£', EUR:'€' };
+  function sym(cur){ return (window.MAM_CCY ? MAM_CCY.symbol(cur) : ({ USD:'$', NGN:'₦', GBP:'£', EUR:'€' }[cur] || cur + ' ')); }
   function fmt(amount, cur){
     var rounded;
     if (cur === 'NGN') rounded = Math.round(amount / 50) * 50;          // round to ₦50
-    else if (cur === 'USD') rounded = (amount < 1 ? amount.toFixed(2) : Math.round(amount)); // keep $0.50
-    else rounded = (amount < 1 ? amount.toFixed(2) : Math.round(amount));
-    return (SYMS[cur] || cur + ' ') + (typeof rounded === 'number' ? rounded.toLocaleString() : rounded);
+    else if (amount < 1) rounded = amount.toFixed(2);                    // keep small fines like $0.50
+    else rounded = Math.round(amount);
+    return sym(cur) + (typeof rounded === 'number' ? rounded.toLocaleString() : rounded);
   }
   function rates(){
+    if (window.MAM_CCY) return MAM_CCY.rates();
     var cfg = (window.MAM_CONFIG && window.MAM_CONFIG.currency) || {};
     var live = null; try { var c = JSON.parse(localStorage.getItem('mam.fx') || 'null'); if (c && c.rates) live = c.rates; } catch(e){}
     return Object.assign({ USD:1, NGN:1500, GBP:0.79, EUR:0.92 }, cfg.rates || {}, live || {});
@@ -210,10 +211,11 @@
   // The site-wide currency switcher writes to localStorage('mam.currency').
   // We honour that as the source of truth, fall back to a tiny detection.
   function detect(){
+    if (window.MAM_CCY) return MAM_CCY.detect();
     var saved = null; try { saved = localStorage.getItem('mam.currency'); } catch(e){}
-    if (saved && SYMS[saved]) return saved;
+    if (saved) return saved;
     var region = (navigator.language || '').split('-')[1];
-    return ({ NG:'NGN', GB:'GBP', IE:'EUR', DE:'EUR', FR:'EUR', US:'USD' })[region] || 'NGN';
+    return ({ NG:'NGN', GB:'GBP', IE:'EUR', DE:'EUR', FR:'EUR', US:'USD' })[region] || 'USD';
   }
   function bindSwitch(){
     document.querySelectorAll('.pc-switch .currency-btn').forEach(function(b){

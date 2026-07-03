@@ -441,7 +441,9 @@
     }
     function fmtMoney(usd, cur) {
       cur = cur || data.currency || 'USD';
-      var rate = cfg.currency.rates[cur] || 1;
+      // Single source of truth: local-currency formatting via MAM_CCY (config.js).
+      if (window.MAM_CCY) return MAM_CCY.format(usd, cur);
+      var rate = (cfg.currency.rates && cfg.currency.rates[cur]) || 1;
       var sym = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' }[cur] || '$';
       return sym + Math.round(usd * rate).toLocaleString('en-US');
     }
@@ -1567,13 +1569,18 @@
       try { draftRaw = localStorage.getItem('mam.apply.draft'); } catch (e) {}
       // Only auto-default if the user has never touched the selector before
       if (!draftRaw || draftRaw.indexOf('"currency"') === -1) {
-        // Honour the site-wide currency the visitor already set / was detected
-        // elsewhere ('mam.currency' — "local unless modified"); else detect here.
-        var siteCur = ''; try { siteCur = localStorage.getItem('mam.currency') || ''; } catch (e) {}
-        var detected = /^(USD|NGN|GBP|EUR)$/.test(siteCur) ? siteCur : detectCurrencyFromLocale();
+        // Use the one shared currency source (MAM_CCY): saved override → the
+        // visitor's local currency by country/locale → USD. Covers many
+        // currencies, so ensure the selector can actually display it.
+        var detected = window.MAM_CCY ? MAM_CCY.detect() : detectCurrencyFromLocale();
         if (detected !== data.currency) {
           data.currency = detected;
-          var sel = $('#applyCurrency'); if (sel) sel.value = detected;
+          var sel = $('#applyCurrency');
+          if (sel) {
+            var has = false; for (var oi = 0; oi < sel.options.length; oi++) { if (sel.options[oi].value === detected) { has = true; break; } }
+            if (!has) { var o = document.createElement('option'); o.value = detected; o.textContent = detected + ' (' + (window.MAM_CCY ? MAM_CCY.symbol(detected) : detected) + ')'; sel.appendChild(o); }
+            sel.value = detected;
+          }
           saveDraft();
         }
       }

@@ -203,8 +203,10 @@
     if (!feeTier) return;
     var price = document.getElementById('gatePrice');
     if (price) {
-      var sym = ({USD:'$',NGN:'₦',GBP:'£',EUR:'€',CAD:'CA$',AUD:'AU$',GHS:'GH₵',KES:'KSh ',ZAR:'R'})[feeTier.currency] || '';
-      var amount = (feeTier.currency === 'NGN') ? (feeTier.amount).toLocaleString() : feeTier.amount;
+      // Symbol only — the amount is the server's charge-currency figure, never re-converted (display == charge).
+      var sym = (window.MAM_CCY ? MAM_CCY.symbol(feeTier.currency) : '')
+        || ({USD:'$',NGN:'₦',GBP:'£',EUR:'€',CAD:'CA$',AUD:'AU$',GHS:'GH₵',KES:'KSh',ZAR:'R'})[feeTier.currency] || '';
+      var amount = Number(feeTier.amount).toLocaleString();
       price.innerHTML = '<span class="currency">' + sym + '</span><b>' + amount + '</b><span class="unit">' + feeTier.currency + ' &middot; one-time</span>';
     }
     var lbl = document.getElementById('payPaystackLabel');
