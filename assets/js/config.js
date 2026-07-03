@@ -590,6 +590,30 @@ window.MAM_CCY = (function () {
   }
   function fromCountry(code) { var c = COUNTRY[(code || '').toUpperCase()]; return (c && known(c)) ? c : null; }
 
+  // Format a raw Naira amount (already in NGN — NOT a USD figure to convert).
+  // Card & bank payments settle in NGN, so the gateway charge is disclosed here.
+  function ngn(n) { return '₦' + Math.round(parseFloat(n) || 0).toLocaleString('en-US'); }
+
+  // Build the "you'll actually be charged" disclosure from a payment/initialize
+  // response. Card & bank always settle in Naira; we surface the exact NGN charge
+  // and, when the visitor's display currency differs, an ≈ estimate in it. The
+  // server is authoritative for the amount — this is disclosure only.
+  function settlementNote(init) {
+    if (!init || !init.amount_ngn) return '';
+    var out = 'Card &amp; bank payments settle in Nigerian Naira — you will be charged <strong>' + ngn(init.amount_ngn) + '</strong>';
+    var cur = detect();
+    if (cur !== 'NGN' && init.amount_usd) out += ' (≈ ' + format(init.amount_usd, cur) + ')';
+    return out + '.';
+  }
+  // Plain-text twin of settlementNote for status regions that render via textContent.
+  function settlementText(init) {
+    if (!init || !init.amount_ngn) return '';
+    var out = 'Card & bank payments settle in Nigerian Naira — you will be charged ' + ngn(init.amount_ngn);
+    var cur = detect();
+    if (cur !== 'NGN' && init.amount_usd) out += ' (≈ ' + format(init.amount_usd, cur) + ')';
+    return out + '.';
+  }
+
   // Format a USD amount in `cur` (defaults to detected). Zero-decimal aware.
   function format(usd, cur) {
     cur = cur || detect();
@@ -598,5 +622,5 @@ window.MAM_CCY = (function () {
     return symbol(cur) + n.toLocaleString('en-US', ZERO_DEC[cur] ? {} : { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   }
 
-  return { COUNTRY: COUNTRY, detect: detect, fromCountry: fromCountry, rate: rate, symbol: symbol, format: format, known: known, rates: rates };
+  return { COUNTRY: COUNTRY, detect: detect, fromCountry: fromCountry, rate: rate, symbol: symbol, format: format, known: known, rates: rates, ngn: ngn, settlementNote: settlementNote, settlementText: settlementText };
 })();

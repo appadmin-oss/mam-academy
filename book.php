@@ -321,6 +321,9 @@
   function openPaystack(init, btn, orig){
     return loadScript('https://js.paystack.co/v1/inline.js').then(function(){
       btn.disabled = false; btn.innerHTML = orig;
+      // Disclose the exact Naira settlement — the regional fee tier may display in
+      // another currency, but the card gateway always charges the server's NGN figure.
+      if (window.MAM_CCY) { var note = MAM_CCY.settlementText(init); if (note) status(note, 'ok'); }
       var handler = window.PaystackPop.setup({
         key: init.public_key,
         email: 'applicant+' + ref + '@mamcentre.org', // server already has the real one

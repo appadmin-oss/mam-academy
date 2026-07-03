@@ -165,6 +165,9 @@
     window.MAM_API.initializePayment({ reference: ref, provider: provider, purpose: 'tuition' })
       .then(function (init) {
         if (init.already_paid) { status('Your tuition is already settled. <a href="/portal/login" style="color:#fff">Sign in →</a>', 'ok'); setBusy(false); return; }
+        if (window.MAM_CCY && (provider === 'paystack' || provider === 'flutterwave')) {
+          var note = MAM_CCY.settlementNote(init); if (note) status(note, 'ok');
+        }
         if (provider === 'paystack')    return openPaystack(init);
         if (provider === 'flutterwave') return openFlutterwave(init);
         if (provider === 'bank')        return showBank(init);

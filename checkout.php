@@ -208,6 +208,11 @@
         $('#coGrand').textContent = money(order.total_usd);
         return window.MAM_API.initializePayment({ reference: order.reference, provider: prov, purpose: 'store' })
           .then(function (init) {
+            // Disclose the exact NGN settlement before handing off to the card gateway,
+            // so the local-currency cart estimate reconciles with what's actually charged.
+            if (window.MAM_CCY && (prov === 'paystack' || prov === 'flutterwave')) {
+              var note = MAM_CCY.settlementNote(init); if (note) status(note, 'ok');
+            }
             if (prov === 'paystack') return openPaystack(init, order.reference, email);
             if (prov === 'flutterwave') return openFlutterwave(init, order.reference);
             if (prov === 'bank') return showBank(init);
@@ -257,7 +262,9 @@
     busy(false);
     var b = init.bank || {};
     var lines = b.account_number ? ('<br><strong>' + esc(b.bank) + '</strong> · ' + esc(b.account_name) + ' · <strong>' + esc(b.account_number) + '</strong>') : '';
-    status((esc(init.instructions || ('Send ' + money(init.amount_usd) + ' and email proof to academy@mamcentre.org with order ' + init.reference + '.'))) + lines, 'ok');
+    // Bank transfers settle in NGN — quote the Naira figure, never the local display amount.
+    var amt = (window.MAM_CCY && init.amount_ngn) ? MAM_CCY.ngn(init.amount_ngn) : money(init.amount_usd);
+    status((esc(init.instructions || ('Send ' + amt + ' and email proof to academy@mamcentre.org with order ' + init.reference + '.'))) + lines, 'ok');
   }
   function showDone(ref) {
     var digitalOnly = !hasPhysical();
