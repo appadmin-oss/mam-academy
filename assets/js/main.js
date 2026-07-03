@@ -763,12 +763,16 @@
       var sym = CCY.symbol(cur), rate = CCY.rate(cur);
       $$('[data-cur-sym]').forEach(function (s) { s.textContent = sym; });
       $$('[data-price]').forEach(function (p) {
-        var usd = parseFloat(p.getAttribute('data-price')) || 0;
+        var usd = parseFloat(p.getAttribute('data-price'));
+        // Non-numeric data-price (e.g. "meta-order") is a program KEY used by the
+        // nav mega-menu chips — owned by initNavPricing, not a value to convert.
+        if (!isFinite(usd)) return;
         var converted = usd * rate;
         if (cur === 'USD') p.textContent = Math.round(usd).toLocaleString();
         else if (BIG[cur] && converted >= 1000) p.textContent = Math.round(converted / 1000) + 'k';
         else p.textContent = Math.round(converted).toLocaleString();
       });
+      if (typeof initNavPricing === 'function') initNavPricing(); // keep the key-based nav chips in the same currency
       if (persist !== false) Storage.setItem('mam.currency', cur);
     }
     btns.forEach(function (b) { on(b, 'click', function () { setCur(b.getAttribute('data-currency')); }); });
@@ -1032,11 +1036,15 @@
   // ============================================================
   function initNavPricing() {
     var P = (window.MAM_CONFIG && window.MAM_CONFIG.pricing) || {};
+    var CCY = window.MAM_CCY;
     $$('[data-price]').forEach(function (el) {
       var key = el.getAttribute('data-price');
+      if (isFinite(parseFloat(key))) return; // numeric data-price is the currency engine's job
       var row = P[key];
       if (!row || typeof row.usd !== 'number') return;
-      var txt = (el.hasAttribute('data-price-from') ? 'from $' : '$') + Math.round(row.usd);
+      // Localise the chip to the visitor's currency (USD is the canonical unit).
+      var money = CCY ? CCY.format(row.usd, CCY.detect()) : '$' + Math.round(row.usd);
+      var txt = (el.hasAttribute('data-price-from') ? 'from ' : '') + money;
       // Replace only the leading text node so any <small> suffix is preserved.
       if (el.firstChild && el.firstChild.nodeType === 3) el.firstChild.nodeValue = txt;
       else el.insertBefore(document.createTextNode(txt), el.firstChild);

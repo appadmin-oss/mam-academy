@@ -71,7 +71,7 @@
       <h1 class="order-title">THE <span class="accent">METAMUSIC</span><br>ORDER</h1>
       <p class="order-lede">This is not a music class. This is an Order. A reconstruction system designed to raise a new generation of musicians who understand that sound is not merely entertainment — sound is <strong>influence, architecture, programming, governance</strong>.</p>
       <div class="page-hero-actions" style="justify-content:center">
-        <a href="apply?pathway=meta-order" class="btn btn-primary btn-large"><i class="fa-solid fa-fire"></i>Enter the Order — $60</a>
+        <a href="apply?pathway=meta-order" class="btn btn-primary btn-large"><i class="fa-solid fa-fire"></i>Enter the Order — <span data-cur-sym>$</span><span data-price="60">60</span></a>
         <a href="#what" class="btn btn-secondary btn-large" style="color:#fff;border-color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.06)">Learn More</a>
       </div>
       <blockquote class="order-quote">
@@ -182,7 +182,7 @@
     <div class="container">
       <h2 class="section-title" style="margin:0 auto 24px;display:inline-flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center"><dotlottie-wc src="https://fonts.gstatic.com/s/e/notoemoji/latest/26a1/lottie.json" speed="1" autoplay loop class="fx-lottie fx-md" aria-hidden="true"></dotlottie-wc>The Final Question</h2>
       <p style="font-family:var(--font-serif);font-size:1.55rem;color:var(--text);line-height:1.45;font-style:italic;max-width:640px;margin:0 auto 36px">Who is engineering the<br>soundtrack of civilization?</p>
-      <a href="apply?pathway=meta-order" class="btn btn-primary btn-large"><i class="fa-solid fa-fire"></i>Enter the Order — $60</a>
+      <a href="apply?pathway=meta-order" class="btn btn-primary btn-large"><i class="fa-solid fa-fire"></i>Enter the Order — <span data-cur-sym>$</span><span data-price="60">60</span></a>
     </div>
   </section>
 
@@ -198,7 +198,7 @@
         <p class="next-step-desc">For musicians ready to engineer culture, not just perform. Twelve weeks. One commission. From Performer → Architect.</p>
         <div class="next-step-meta">
           <span><i class="fa-solid fa-fire"></i>12 weeks</span>
-          <span><i class="fa-solid fa-dollar-sign"></i>$60</span>
+          <span><span data-cur-sym>$</span><span data-price="60">60</span></span>
         </div>
       </a>
     </div>

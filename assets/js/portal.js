@@ -27,10 +27,19 @@
     if (isNaN(d.getTime())) return s;
     return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
+  // Literal formatter: the amount is ALREADY in `currency`. Used for factual
+  // records such as a completed payment in its settlement currency — never
+  // converts. MAM_CCY.symbol widens symbol coverage beyond the old 4-currency map.
   function fmtMoney(amount, currency) {
     var cur = (currency || 'USD').toUpperCase();
-    var sym = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' }[cur] || cur + ' ';
+    var sym = (window.MAM_CCY ? window.MAM_CCY.symbol(cur) : ({ USD: '$', NGN: '₦', GBP: '£', EUR: '€' }[cur])) || cur + ' ';
     return sym + Number(amount || 0).toLocaleString('en-US');
+  }
+  // Display a USD accounting figure (a price, total or store-credit balance) in
+  // the visitor's local currency — mirrors the public store/tuition pages. USD is
+  // the canonical unit, so this is a display-only conversion at the live rate.
+  function fmtUsd(usd) {
+    return window.MAM_CCY ? window.MAM_CCY.format(usd, window.MAM_CCY.detect()) : fmtMoney(usd, 'USD');
   }
   function initials(name) {
     if (!name) return '?';
@@ -65,7 +74,7 @@
   }
 
   window.MAM_PORTAL = {
-    fmtDate: fmtDate, fmtDateTime: fmtDateTime, fmtMoney: fmtMoney, today: today,
+    fmtDate: fmtDate, fmtDateTime: fmtDateTime, fmtMoney: fmtMoney, fmtUsd: fmtUsd, today: today,
     initials: initials, escapeHtml: escapeHtml,
     kpi: uiKpi, empty: uiEmpty, panel: uiPanel, skeleton: uiSkeleton,
 

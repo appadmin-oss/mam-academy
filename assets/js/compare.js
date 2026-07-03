@@ -50,6 +50,8 @@
   PROGRAMMES.forEach(function (p) { byId[p.id] = p; });
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  // Prices are stored in USD; show them in the visitor's local currency.
+  function money(usd) { return window.MAM_CCY ? MAM_CCY.format(usd, MAM_CCY.detect()) : '$' + usd; }
   function fmtValue(v) {
     if (v === '—') return '<span class="pc-dash" aria-label="not included">—</span>';
     if (/^✓/.test(v)) return '<span class="pc-yes"><i class="fa-solid fa-check" aria-hidden="true"></i>' + esc(v.replace(/^✓+\s?/, '') || '') + '</span>';
@@ -151,7 +153,7 @@
           '<div class="match-result">' +
             '<div class="match-result-badge"><i class="fa-solid fa-trophy" aria-hidden="true"></i> Best fit</div>' +
             '<div class="match-result-name">' + esc(top.label) + ' <span>· ' + esc(top.name) + '</span></div>' +
-            '<div class="match-result-price">$' + top.price + '<small>' + esc(top.unit) + '</small></div>' +
+            '<div class="match-result-price">' + money(top.price) + '<small>' + esc(top.unit) + '</small></div>' +
             '<p class="match-result-why">' + esc(reasonText(top, answers)) + '</p>' +
             '<div class="match-result-actions">' +
               '<a class="match-cta" href="' + applyHref(top.id) + '"><i class="fa-solid fa-bolt" aria-hidden="true"></i> Apply for ' + esc(top.label) + '</a>' +
@@ -200,7 +202,7 @@
         '<div class="pcard-label">' + esc(p.label) + '</div>' +
         '<h3 class="pcard-name">' + esc(p.name) + '</h3>' +
         '<div class="pcard-trinity">' + esc(p.trinity) + '</div>' +
-        '<div class="pcard-price">$' + p.price + '<small>' + esc(p.unit) + '</small></div>' +
+        '<div class="pcard-price">' + money(p.price) + '<small>' + esc(p.unit) + '</small></div>' +
         rowsHtml(p, HEADLINE) +
         '<div class="pc-more" hidden>' + rowsHtml(p, rest) + '</div>' +
         '<button type="button" class="pc-toggle" aria-expanded="false">See full breakdown <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>' +

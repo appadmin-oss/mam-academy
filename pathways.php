@@ -377,8 +377,15 @@
   function onlinePct() { return cfg().onlineSurchargePct != null ? cfg().onlineSurchargePct : 20; }
   function flatPrice(p) { var pr = (cfg().pricing || {})[p]; return pr && pr.usd ? pr.usd : (p === 'crash' ? 70 : 60); }
 
-  function activeCur() { var b = $('.currency-toggle .currency-btn.active'); return b ? b.getAttribute('data-currency') : 'USD'; }
+  function activeCur() {
+    // MAM_CCY.detect() is the site-wide source of truth — it reflects both auto
+    // detection (e.g. a Kenyan visitor → KES, which has no toggle button) and any
+    // explicit currency-btn click (main.js persists the choice to mam.currency).
+    if (window.MAM_CCY) return MAM_CCY.detect();
+    var b = $('.currency-toggle .currency-btn.active'); return b ? b.getAttribute('data-currency') : 'USD';
+  }
   function fmt(usd) {
+    if (window.MAM_CCY) return MAM_CCY.format(usd, activeCur());
     var cur = activeCur();
     var rates = (cfg().currency && cfg().currency.rates) || { USD: 1 };
     var sym = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' }[cur] || (cur + ' ');
