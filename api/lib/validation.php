@@ -247,51 +247,6 @@ function mam_in(string $v, array $allowed): bool {
 }
 
 /**
- * Derive a Learning-Readiness SIGNAL from an application's readiness inputs
- * (portal brief #1, reframed per guide §6). This is deliberately NOT an
- * eligibility gate: MAM places every applicant via the Auditer, so the signal
- * only routes/flags for admissions — it never rejects and never blocks submit.
- *
- *   ready      — meets the readiness guidance; proceed normally.
- *   foundation — a complete beginner; route to a foundational start (Crash /
- *                Foundation) with the Auditer confirming placement.
- *   review     — soft flags (age outside 16–26, no instrument yet, limited
- *                availability) that admissions should look at individually.
- *
- * @param array{age?:?int,experience?:string,instrumentAccess?:?string,weekendAvailable?:?string} $args
- * @return array{signal:string,reasons:string[]}
- */
-function mam_application_readiness(array $args): array {
-    $age        = $args['age'] ?? null;
-    $experience = (string)($args['experience'] ?? '');
-    $instrument = (string)($args['instrumentAccess'] ?? '');
-    $weekend    = (string)($args['weekendAvailable'] ?? '');
-
-    $signal  = 'ready';
-    $reasons = [];
-
-    // A complete beginner is welcomed, not turned away — routed to a foundational
-    // start; the Auditer fine-tunes placement either way.
-    if ($experience === 'none') {
-        $signal    = 'foundation';
-        $reasons[] = 'New to music — a foundational start is recommended';
-    }
-
-    // Soft review flags. None reject; each just asks admissions to look closer.
-    $review = [];
-    if ($age !== null && $age < 16)  $review[] = 'Under 16 — junior track with guardian involvement';
-    if ($age !== null && $age > 26)  $review[] = 'Over 26 — adult intake, reviewed individually';
-    if ($instrument === 'none')      $review[] = 'Will need help arranging an instrument';
-    if ($weekend === 'limited' || $weekend === 'no') $review[] = 'Limited weekly availability — we will confirm a workable schedule';
-
-    if ($signal === 'ready' && $review) $signal = 'review';
-    foreach ($review as $r) $reasons[] = $r;
-    if (!$reasons) $reasons[] = 'Meets our readiness guidance';
-
-    return ['signal' => $signal, 'reasons' => $reasons];
-}
-
-/**
  * Validate application payload. Returns sanitized array or fails.
  */
 function mam_validate_application(array $in): array {
@@ -411,25 +366,6 @@ function mam_validate_application(array $in): array {
     $out['experience']= mam_str($in, 'experience', 32) ?: null;
     $out['goals']    = mam_str($in, 'goals',    1000) ?: null;
     $out['referrer'] = mam_str($in, 'referrer', 40) ?: null;
-
-    // Learning-Readiness inputs (#1). All optional — they inform a soft, advisory
-    // signal (below); they never add validation errors, so they can't block a
-    // submission. Unknown values are dropped to NULL.
-    $ia = mam_str($in, 'instrumentAccess', 24);
-    $out['instrumentAccess'] = mam_in($ia, ['own', 'access', 'none']) ? $ia : null;
-    $wa = mam_str($in, 'weekendAvailable', 12);
-    $out['weekendAvailable'] = mam_in($wa, ['yes', 'limited', 'no']) ? $wa : null;
-    $out['valuesStatement']  = mam_str($in, 'valuesStatement', 1000) ?: null;
-    // Server re-derives the signal from the sanitized inputs — never trust a
-    // client-supplied readiness verdict.
-    $readiness = mam_application_readiness([
-        'age'              => $age,
-        'experience'       => $out['experience'],
-        'instrumentAccess' => $out['instrumentAccess'],
-        'weekendAvailable' => $out['weekendAvailable'],
-    ]);
-    $out['readinessSignal']  = $readiness['signal'];
-    $out['readinessReasons'] = $readiness['reasons'];
     $out['parentName']  = mam_str($in, 'parentName',  120) ?: null;
     $out['parentPhone'] = mam_str($in, 'parentPhone', 24)  ?: null;
 

@@ -433,43 +433,9 @@
         </div>
 
         <div class="field">
-          <label class="field-label" for="instrumentAccess">Do you have an instrument to practise on?</label>
-          <div class="field-select-wrap">
-            <select id="instrumentAccess" class="field-select">
-              <option value="">Select one</option>
-              <option value="own">I own my instrument</option>
-              <option value="access">I have reliable access to one</option>
-              <option value="none">Not yet — I'll need help</option>
-            </select>
-            <i class="fa-solid fa-chevron-down field-select-arrow"></i>
-          </div>
-          <div class="field-help">Vocalists: your voice is your instrument — choose "I own my instrument".</div>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="weekendAvailable">Can you commit to weekly classes, including Saturdays?</label>
-          <div class="field-select-wrap">
-            <select id="weekendAvailable" class="field-select">
-              <option value="">Select one</option>
-              <option value="yes">Yes — I can commit to the weekly schedule</option>
-              <option value="limited">I have some scheduling limits</option>
-              <option value="no">Not at the moment</option>
-            </select>
-            <i class="fa-solid fa-chevron-down field-select-arrow"></i>
-          </div>
-        </div>
-
-        <div class="readiness-note" id="readinessNote" role="status" aria-live="polite" hidden></div>
-
-        <div class="field">
           <label class="field-label" for="goals">What do you want to achieve at MAM?</label>
           <textarea id="goals" class="field-textarea" placeholder="e.g. lead my church worship team, perform on stage, pass Grade 5 ABRSM, write my own songs…" maxlength="1000"></textarea>
           <div class="field-help">Your goals help us shape your learning roadmap.</div>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="valuesStatement">What draws you to MAM, and what will you bring? <span style="color:var(--text-muted);font-weight:500">(optional)</span></label>
-          <textarea id="valuesStatement" class="field-textarea" placeholder="A sentence or two on why MAM, and the spirit you'd add to our community…" maxlength="1000"></textarea>
         </div>
 
         <div class="field">
