@@ -34,24 +34,30 @@
     <div class="page-hero-inner">
       <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Privacy Policy</span></nav>
       <h1 class="page-hero-title">Privacy <span class="highlight-gold">Policy</span></h1>
-      <p class="page-hero-lede">Last updated: <span data-year>2026</span>. This policy describes how MAM Academy collects, uses and protects your information.</p>
+      <p class="page-hero-lede">Effective 3 July 2026. This policy describes how MAM Academy collects, uses and protects your information.</p>
     </div>
   </header>
   <section class="legal">
-    <div class="legal-updated"><i class="fa-solid fa-shield-halved"></i> Last updated <span data-year>2026</span> · Aligned with Nigeria's NDPA (2023), the EU GDPR, the UK GDPR and Canada's CASL &amp; PIPEDA</div>
+    <div class="legal-updated"><i class="fa-solid fa-shield-halved"></i> Effective 3 July 2026 · Aligned with Nigeria's NDPA (2023), the EU GDPR, the UK GDPR and Canada's CASL &amp; PIPEDA</div>
     <h2>1. Who we are (Data Controller)</h2>
     <p>MAM Academy is the training arm of <strong>MAM Centre</strong>, 2 Oremeji Street, Egbeda, Lagos, Nigeria — the data controller responsible for your personal data. For any privacy request or to reach our data protection contact, email <a href="mailto:academy@mamcentre.org">academy@mamcentre.org</a> or call +234 704 444 6517.</p>
     <h2>2. Information we collect</h2>
     <ul>
-      <li><strong>Application data</strong> you submit (name, email, phone, age range, country, pathway choice, learning goals).</li>
-      <li><strong>Payment metadata</strong> (transaction reference, status, provider) — never your card number, which is handled by certified payment providers.</li>
+      <li><strong>Application &amp; profile data</strong> you submit (name, email, phone, date of birth/age range, sex, country/city, address where given, pathway/level/discipline choice, experience and learning goals).</li>
+      <li><strong>Parent/guardian &amp; emergency-contact details</strong> for applicants under 18 (guardian name and phone, emergency contact).</li>
+      <li><strong>A photo/headshot</strong>, if you choose to upload one with your application.</li>
+      <li><strong>Learning records</strong> created while you study with us — attendance, practice logs (including built-in metronome sessions: date, duration and tempo), assignments, submissions, assessments and MAM Auditer results.</li>
+      <li><strong>Payment metadata</strong> (transaction reference, amount, status, provider) — never your card number, which is handled directly by certified payment providers.</li>
+      <li><strong>Technical &amp; security data</strong> collected automatically — IP address, browser/device information and server logs — used to keep the service secure, prevent abuse and rate-limit requests.</li>
       <li><strong>Local storage</strong> on your device for form drafts, currency preference and accessibility settings.</li>
-      <li><strong>Anonymous usage analytics</strong> — only if enabled by you.</li>
+      <li><strong>Usage analytics</strong> — first-party and anonymised, and only where you have not opted out.</li>
     </ul>
     <h2>3. How we use it</h2>
     <ul>
-      <li>To process your enrollment and schedule MAM Auditer assessments.</li>
+      <li>To process your application and schedule your MAM Auditer assessment.</li>
+      <li>To deliver classes and track your attendance, practice and progress.</li>
       <li>To send confirmations, schedules and academy updates by email.</li>
+      <li>To keep the platform secure and prevent fraud and abuse.</li>
       <li>To improve the website and our educational offerings.</li>
       <li>To comply with legal obligations.</li>
     </ul>
@@ -74,7 +80,7 @@
     <h2>12. Cookies &amp; local storage</h2>
     <p>We use only essential cookies and local storage for site functionality (form drafts, currency &amp; accessibility preferences). We do not use third-party tracking cookies by default.</p>
     <h2>13. Children's privacy</h2>
-    <p>Students under 18 must enrol with a parent or guardian. We collect minors' data only with guardian consent and use it solely for academy purposes.</p>
+    <p>Applicants under 18 must apply and enrol through a parent or legal guardian, who agrees to this policy and our Terms on the child's behalf. We collect and process a minor's data (including the learning records in section 2) on the basis of guardian consent and the enrollment contract, and use it solely for academy purposes. A guardian may exercise the child's data rights and withdraw consent at any time by emailing <a href="mailto:academy@mamcentre.org">academy@mamcentre.org</a>.</p>
     <h2>14. Changes</h2>
     <p>If we change this policy, we'll update the "last updated" date above and, for material changes, notify enrolled students by email.</p>
   </section>
