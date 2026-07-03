@@ -231,6 +231,7 @@ function mam_ai_schema_stub(array $schema): array {
     $out = [];
     foreach (($schema['properties'] ?? []) as $k => $spec) {
         $type = $spec['type'] ?? 'string';
+        if (!empty($spec['enum']) && is_array($spec['enum'])) { $out[$k] = $spec['enum'][0]; continue; }
         if ($type === 'integer' || $type === 'number') $out[$k] = 0;
         elseif ($type === 'boolean') $out[$k] = false;
         elseif ($type === 'array') $out[$k] = [];
@@ -511,5 +512,54 @@ function mam_ai_studio_feedback(array $in): ?array {
             'max_tokens' => 160,
         ]);
         return !empty($res['ok']) ? ['text' => trim((string)$res['text']), 'provider' => $res['provider']] : null;
+    } catch (\Throwable $e) { return null; }
+}
+
+/**
+ * "Find Your Path" advisor — the AI-driven recommendation. The AI both CHOOSES
+ * the best starting programme (constrained to the real programme set via an enum
+ * schema) and writes the warm rationale. Non-PII (whitelisted answer tokens only).
+ * Returns ['pathway','rationale','provider'] or null when AI is off/unavailable or
+ * returns something invalid — the client then falls back to its deterministic
+ * preview so the advisor always works. The server stays authoritative on price
+ * (this never sets or mentions money) and on final placement (the MAM Auditer).
+ */
+function mam_ai_advisor_recommend(array $ctx): ?array {
+    if (!mam_ai_enabled('advisor')) return null;
+    try {
+        $allow = ['crash', 'certified-musician', 'grand-musician', 'meta-order'];
+        $schema = [
+            'type' => 'object', 'additionalProperties' => false,
+            'properties' => [
+                'pathway'   => ['type' => 'string', 'enum' => $allow],
+                'rationale' => ['type' => 'string'],
+            ],
+            'required' => ['pathway', 'rationale'],
+        ];
+        $bits = [];
+        foreach (['dream', 'excites', 'level', 'discipline', 'expression', 'mode'] as $k) {
+            $v = isset($ctx[$k]) ? preg_replace('/[^a-z0-9 \-]/i', '', substr((string)$ctx[$k], 0, 32)) : '';
+            if ($v !== '') $bits[] = $k . ': ' . $v;
+        }
+        $prompt = "An applicant to MAM Academy (a music academy) told us — "
+                . (count($bits) ? implode('; ', $bits) : '(little detail)') . ".\n"
+                . "The starting programmes are:\n"
+                . "- crash: a 6-week single-course intensive; great to begin or try it out.\n"
+                . "- certified-musician: one tradition, all four levels; the core certification path.\n"
+                . "- grand-musician: all three traditions across all four levels; the flagship for ambitious / advanced / well-rounded musicians.\n"
+                . "- meta-order: a post-diploma intensive in theory, philosophy and composition; for advanced musicians, producers and thinkers.\n"
+                . "Choose the single best STARTING programme for this applicant, and write a warm, encouraging 2-sentence rationale that refers to what they told you and is aspirational.";
+        $res = mam_ai_complete('advisor', $prompt, [
+            'system'      => 'You are a warm, encouraging admissions mentor at MAM Academy. '
+                           . 'Never promise outcomes, grades, jobs or scholarships, and never mention price. '
+                           . 'End the rationale by noting the MAM Auditer fine-tunes their exact placement. Output strict JSON only.',
+            'schema'      => $schema,
+            'max_tokens'  => 240,
+            'temperature' => 0.5,
+        ]);
+        $j = $res['json'] ?? null;
+        if (empty($res['ok']) || !is_array($j) || empty($j['pathway']) || empty($j['rationale'])) return null;
+        if (!in_array($j['pathway'], $allow, true)) return null;
+        return ['pathway' => (string)$j['pathway'], 'rationale' => trim((string)$j['rationale']), 'provider' => $res['provider'] ?? ''];
     } catch (\Throwable $e) { return null; }
 }

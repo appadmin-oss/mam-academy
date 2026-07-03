@@ -45,7 +45,9 @@
   }
   function dismissed() { try { return sessionStorage.getItem('mam.advisor.skip') === '1'; } catch (e) { return false; } }
   var deepLinked = !!(qs.get('pathway') || qs.get('programme'));
-  if (!forced && (started() || deepLinked || dismissed())) return;
+  // Open the advisor for undecided applicants; otherwise (resuming / deep-linked /
+  // skipped) leave the wizard alone and just surface the recommendation chip.
+  var willOpen = forced || !(started() || deepLinked || dismissed());
 
   // ---- Data model ----------------------------------------------------------
   var PATHWAYS = ['crash', 'certified-musician', 'grand-musician', 'meta-order'];
@@ -69,6 +71,34 @@
     } catch (e) {}
     return PROG[key].from;
   }
+
+  // ---- Currency: show prices in the user's local currency unless they've
+  // modified it. Mirrors the site engine — saved override ('mam.currency') wins,
+  // else detect from locale; convert the USD base via the live FX cache. --------
+  var SYM = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' };
+  function curPref() {
+    try { var s = localStorage.getItem('mam.currency'); if (s && SYM[s]) return s; } catch (e) {}
+    var region = (navigator.language || '').split('-')[1];
+    return ({ NG: 'NGN', GB: 'GBP', US: 'USD', IE: 'EUR', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR', NL: 'EUR' })[region] || 'USD';
+  }
+  function fxRates() {
+    var base = { USD: 1, NGN: 1500, GBP: 0.79, EUR: 0.92 };
+    try { var c = JSON.parse(localStorage.getItem('mam.fx') || 'null'); if (c && c.rates) return Object.assign(base, c.rates); } catch (e) {}
+    try { if (window.MAM_CONFIG && MAM_CONFIG.currency && MAM_CONFIG.currency.rates) return Object.assign(base, MAM_CONFIG.currency.rates); } catch (e) {}
+    return base;
+  }
+  function money(usd) {
+    var cur = curPref(), r = fxRates();
+    var v = usd * (r[cur] || 1);
+    var n = cur === 'NGN' ? Math.round(v / 50) * 50 : Math.round(v);
+    return (SYM[cur] || cur + ' ') + n.toLocaleString();
+  }
+
+  // The AI-driven recommendation ({pathway, rationale}) once resolved, plus the
+  // answer-set key it was fetched for (so changing answers re-recommends). The
+  // deterministic score() is the instant preview + the fallback when AI is off.
+  var aiRec = null;
+  var aiRecKey = '';
 
   // Each option adds weights to programmes and may set a wizard field. `because`
   // is the reason shown when that option's leading programme wins.
@@ -185,8 +215,12 @@
       panel.innerHTML = '<div class="adv-reco-empty"><i class="fa-solid fa-compass" aria-hidden="true"></i><p>Answer as you go — your recommended path builds here in real time.</p></div>';
       return;
     }
-    var top = r.top, meta = PROG[top];
-    var reasons = r.reasons[top].filter(function (v, i, a) { return a.indexOf(v) === i; }).slice(0, 4);
+    // The displayed programme: the AI's choice once it lands, else the instant
+    // deterministic preview. The advisor is presented as one AI-driven result.
+    var aiOn = !!(aiRec && aiRec.pathway && PROG[aiRec.pathway] && aiRec.rationale);
+    var top = aiOn ? aiRec.pathway : r.top;
+    var meta = PROG[top] || PROG[r.top];
+    var reasons = r.reasons[top] ? r.reasons[top].filter(function (v, i, a) { return a.indexOf(v) === i; }).slice(0, 4) : [];
     var f = fields();
     var chips = [];
     if (f.discipline && DISC[f.discipline]) chips.push(DISC[f.discipline]);
@@ -194,25 +228,65 @@
     if ((top === 'certified-musician' || top === 'grand-musician') && f.level && LEVELS[f.level]) chips.push(LEVELS[f.level]);
     if (f.mode) chips.push(f.mode === 'online' ? 'Online' : 'Onsite Lagos');
 
+    // Rationale: the AI's cohesive explanation when present; otherwise the
+    // programme blurb + the deterministic "because" reasons.
+    var rationale = aiOn
+      ? '<p class="adv-reco-blurb">' + esc(aiRec.rationale) + '</p>'
+      : '<p class="adv-reco-blurb">' + esc(meta.blurb) + '</p>' +
+        (reasons.length ? '<ul class="adv-reco-because">' + reasons.map(function (b) { return '<li><i class="fa-solid fa-check" aria-hidden="true"></i>' + esc(b) + '</li>'; }).join('') + '</ul>' : '');
+
     var html = '' +
       '<div class="adv-reco-card">' +
+        '<div class="adv-reco-kicker"><i class="fa-solid fa-compass" aria-hidden="true"></i> Chosen for you</div>' +
         badge(r.confidence) +
         '<div class="adv-reco-match" aria-hidden="true">' + r.pct[top] + '%<span>match</span></div>' +
         '<h3 class="adv-reco-name">' + esc(meta.name) + ' <span class="adv-reco-tag">' + esc(meta.tag) + '</span></h3>' +
-        '<p class="adv-reco-blurb">' + esc(meta.blurb) + '</p>' +
+        rationale +
         (chips.length ? '<div class="adv-reco-chips">' + chips.map(function (c) { return '<span>' + esc(c) + '</span>'; }).join('') + '</div>' : '') +
-        (reasons.length ? '<ul class="adv-reco-because">' + reasons.map(function (b) { return '<li><i class="fa-solid fa-check" aria-hidden="true"></i>' + esc(b) + '</li>'; }).join('') + '</ul>' : '') +
-        '<div class="adv-reco-price">From <strong>$' + priceOf(top) + '</strong> · the MAM Auditer confirms your exact placement</div>' +
+        '<div class="adv-reco-price">From <strong>' + money(priceOf(top)) + '</strong> · the MAM Auditer confirms your exact placement</div>' +
       '</div>';
 
-    // Runner-up when it's genuinely close (honest "a few great options").
-    if (r.confidence === 'multiple') {
+    // Runner-up only in deterministic preview mode (honest "a few great options").
+    if (!aiOn && r.confidence === 'multiple') {
       var second = r.ranked[1];
       html += '<button type="button" class="adv-reco-alt" data-pick-alt="' + esc(second) + '">' +
         'Also strong for you: <strong>' + esc(PROG[second].name) + '</strong> (' + r.pct[second] + '%)' +
       '</button>';
     }
     panel.innerHTML = html;
+
+    // Once there's enough signal, let the AI make the actual recommendation.
+    maybeFetchRec();
+  }
+
+  // ---- AI-driven recommendation (provider-agnostic gateway; Groq in prod) ----
+  function apiBase() {
+    try { if (window.MAM_CONFIG && MAM_CONFIG.api && MAM_CONFIG.api.base) return String(MAM_CONFIG.api.base).replace(/\/$/, ''); } catch (e) {}
+    return 'api';
+  }
+  function answerKey() { return Object.keys(answers).sort().map(function (k) { return k + '=' + (answers[k] ? answers[k].v : ''); }).join('&'); }
+  function maybeFetchRec() {
+    if (Object.keys(answers).length < 5) return;   // wait for enough signal
+    var key = answerKey();
+    if (key === aiRecKey) return;                   // already fetched / in-flight for this set
+    aiRecKey = key; aiRec = null;
+    var f = fields();
+    var p = new URLSearchParams();
+    if (answers.dream)   p.set('dream',   answers.dream.v);
+    if (answers.excites) p.set('excites', answers.excites.v);
+    if (f.level)      p.set('level', f.level);
+    if (f.discipline) p.set('discipline', f.discipline);
+    if (f.expression) p.set('expression', f.expression);
+    if (f.mode)       p.set('mode', f.mode);
+    fetch(apiBase() + '/advisor/recommend?' + p.toString(), { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (key !== aiRecKey) return;               // a newer answer set superseded this
+        if (j && j.ok && j.recommendation && j.recommendation.pathway && PROG[j.recommendation.pathway]) {
+          aiRec = j.recommendation; persist(); renderPanel();
+        }
+      })
+      .catch(function () { /* AI off/unreachable → deterministic preview stands */ });
   }
 
   function renderQuestion() {
@@ -244,10 +318,15 @@
     }
   }
 
+  // The chosen programme: AI's pick when available, else the deterministic top.
+  function chosenPathway() {
+    if (aiRec && aiRec.pathway && PROG[aiRec.pathway]) return aiRec.pathway;
+    var r = score(); return r.s[r.top] > 0 ? r.top : '';
+  }
   function persist() {
     try {
-      var a = {}; Object.keys(answers).forEach(function (k) { a[k] = answers[k].v; });
-      localStorage.setItem('mam.advisor', JSON.stringify({ answers: a, at: Date.now() }));
+      var a = {}; Object.keys(answers).forEach(function (k) { if (answers[k] && answers[k].v !== undefined) a[k] = answers[k].v; });
+      localStorage.setItem('mam.advisor', JSON.stringify({ answers: a, rec: chosenPathway(), at: Date.now() }));
     } catch (e) {}
   }
 
@@ -266,7 +345,7 @@
   function handoff() {
     var r = score();
     var f = fields();
-    var pathway = r.s[r.top] > 0 ? r.top : '';
+    var pathway = chosenPathway();
     var params = new URLSearchParams();
     if (f.mode) params.set('mode', f.mode);
     if (pathway) params.set('pathway', pathway);
@@ -359,6 +438,30 @@
     track('advisor_start', {});
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', open);
-  else open();
+  // ---- Summary-panel chip: "Recommended by your Advisor · Change" ----------
+  // Shown in the wizard (when the advisor isn't open) so the recommendation
+  // persists and can be revisited without restarting the application.
+  function injectChip() {
+    // Prefer the recommendation actually made (AI or deterministic), saved at
+    // hand-off; else recompute from restored answers.
+    var pathway = '';
+    try { var s = JSON.parse(localStorage.getItem('mam.advisor') || 'null'); if (s && s.rec && PROG[s.rec]) pathway = s.rec; } catch (e) {}
+    if (!pathway) { if (!Object.keys(answers).length) return; var r = score(); if (r.s[r.top] <= 0) return; pathway = r.top; }
+    var body = document.querySelector('.summary-panel-body');
+    if (!body || document.getElementById('advChip')) return;
+    var chip = document.createElement('div');
+    chip.id = 'advChip'; chip.className = 'adv-chip';
+    chip.innerHTML = '<span><i class="fa-solid fa-compass" aria-hidden="true"></i> Recommended by your Advisor: <strong>' + esc(PROG[pathway].name) + '</strong></span>' +
+                     '<button type="button" id="advChipChange">Change</button>';
+    body.insertBefore(chip, body.firstChild);
+    var btn = document.getElementById('advChipChange');
+    if (btn) btn.addEventListener('click', function () {
+      try { sessionStorage.removeItem('mam.advisor.skip'); } catch (e) {}
+      location.assign('apply?advisor=1');
+    });
+  }
+
+  function boot() { if (willOpen) open(); else injectChip(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
 })();

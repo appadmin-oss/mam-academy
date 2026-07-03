@@ -469,3 +469,14 @@ body.mam-advisor-open #applyMobileBar{display:none!important}
 .adv-side-foot{display:flex;gap:8px;align-items:flex-start;font-size:0.78rem;color:var(--text-muted);line-height:1.5;margin:14px 0 0}
 .adv-side-foot i{color:var(--gold-bright);margin-top:3px}
 @media (min-width:880px){.adv-side{margin-top:0}}
+
+/* Advisor: AI "your advisor" note + the summary-panel recommendation chip */
+.adv-reco-note{margin:0 0 12px;padding:12px 14px;border-radius:10px;background:rgba(99,102,241,0.09);border:1px solid rgba(99,102,241,0.28);color:var(--text-soft);font-size:0.88rem;line-height:1.6}
+.adv-reco-note-badge{display:inline-flex;align-items:center;gap:6px;font-size:0.68rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#A5B4FC;margin-right:8px}
+.adv-chip{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 14px;padding:11px 14px;border-radius:11px;background:linear-gradient(135deg,rgba(224,138,26,0.12),rgba(251,191,36,0.05));border:1px solid var(--border-gold,var(--border));font-size:0.86rem;color:var(--text-soft)}
+.adv-chip strong{color:var(--text)}
+.adv-chip i{color:var(--gold-bright);margin-right:5px}
+.adv-chip button{flex-shrink:0;background:transparent;border:1px solid var(--border);color:var(--gold-bright);border-radius:8px;padding:5px 12px;font-size:0.78rem;font-weight:700;cursor:pointer}
+.adv-chip button:hover{border-color:var(--gold-bright)}
+.adv-reco-kicker{display:inline-flex;align-items:center;gap:6px;font-size:0.68rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold-bright);margin:0 0 8px}
+.adv-reco-kicker i{font-size:0.9em}

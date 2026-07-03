@@ -100,5 +100,14 @@ t_eq($sf['provider'], 'mock', 'studio feedback carries the provider');
 $sfrow = mam_db_row("SELECT use_case FROM ai_runs WHERE use_case = 'studio_feedback' ORDER BY id DESC LIMIT 1");
 t_ok($sfrow !== null, 'the studio-feedback run is audited in ai_runs');
 
+// ── Find Your Path advisor: AI-driven recommendation (schema-constrained) ──
+mam_test_env(['AI_PROVIDER' => 'none']);
+t_ok(mam_ai_advisor_recommend(['dream' => 'performer']) === null, 'advisor recommendation is null when AI is off');
+mam_test_env(['AI_PROVIDER' => 'mock']);
+$adv = mam_ai_advisor_recommend(['dream' => 'performer', 'level' => 'some', 'discipline' => 'piano', 'mode' => 'online']);
+t_ok(is_array($adv) && !empty($adv['pathway']) && !empty($adv['rationale']), 'advisor recommendation returns a pathway + rationale when AI is on');
+t_ok(in_array($adv['pathway'], ['crash', 'certified-musician', 'grand-musician', 'meta-order'], true), 'advisor pathway is constrained to the real programme set');
+t_eq($adv['provider'], 'mock', 'advisor recommendation carries the provider used');
+
 // Reset so later test files start clean.
 mam_test_env(['AI_PROVIDER' => 'none']);

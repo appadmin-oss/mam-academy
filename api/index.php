@@ -42,6 +42,11 @@ $r->get('/config/public',   $f('config-public.php'),   [mw_rate_limit('config_pu
 // Academic session resolved from the calendar — applied silently by the form.
 $r->get('/session/current', $f('session-current.php'), [mw_rate_limit('session_current', 120, 60)]);
 
+// "Find Your Path" advisor — AI-driven recommendation (AI picks the programme +
+// writes the rationale). Public + rate-limited; off unless ai_provider set, in
+// which case the client falls back to its deterministic preview.
+$r->get('/advisor/recommend', $f('advisor-recommend.php'), [mw_rate_limit('advisor_reco', 30, 600)]);
+
 // Public academic catalogue (programmes, levels, courses) — drives the apply
 // flow and the student "add a course" picker.
 $r->get('/courses', $f('courses.php'), [mw_rate_limit('courses', 120, 60)]);

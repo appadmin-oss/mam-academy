@@ -990,7 +990,7 @@
       });
     });
 
-    on($('#applyCurrency'), 'change', function () { data.currency = $('#applyCurrency').value; saveDraft(); updateSummary(); tunePaymentMethods(); });
+    on($('#applyCurrency'), 'change', function () { data.currency = $('#applyCurrency').value; try { localStorage.setItem('mam.currency', data.currency); } catch (e) {} saveDraft(); updateSummary(); tunePaymentMethods(); });
     if (data.currency) { var cs = $('#applyCurrency'); if (cs) cs.value = data.currency; }
     on($('#ambView'), 'click', function () {
       var panel = $('#summaryPanel'); if (panel) panel.open = true;
@@ -1567,7 +1567,10 @@
       try { draftRaw = localStorage.getItem('mam.apply.draft'); } catch (e) {}
       // Only auto-default if the user has never touched the selector before
       if (!draftRaw || draftRaw.indexOf('"currency"') === -1) {
-        var detected = detectCurrencyFromLocale();
+        // Honour the site-wide currency the visitor already set / was detected
+        // elsewhere ('mam.currency' — "local unless modified"); else detect here.
+        var siteCur = ''; try { siteCur = localStorage.getItem('mam.currency') || ''; } catch (e) {}
+        var detected = /^(USD|NGN|GBP|EUR)$/.test(siteCur) ? siteCur : detectCurrencyFromLocale();
         if (detected !== data.currency) {
           data.currency = detected;
           var sel = $('#applyCurrency'); if (sel) sel.value = detected;
