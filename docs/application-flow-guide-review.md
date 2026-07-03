@@ -1,7 +1,8 @@
 # MAM Academy — Application-Flow Guide: Fit Review & Integration Plan
 
-**Status:** admissions product strategy · **Date:** 2026-07-02 · **Rev 4**
-(Rev 2 folded in the 17 UX reservations; Rev 3 adds the executive assessment's
+**Status:** admissions product strategy · **Date:** 2026-07-02 · **Rev 5**
+(Rev 5 makes it **placement _and_ conversion** — an explicit conversion/desire
+discipline and a landing→enrolment north-star; Rev 2 folded in the 17 UX reservations; Rev 3 adds the executive assessment's
 12 strategic reservations — vision, emotional journey, metrics, outcome-based
 roadmap — and the newly-decided **Scholarship Journey**)
 **Purpose:** A stakeholder shared a 15-point "improve the application flow" guide
@@ -28,16 +29,21 @@ elevations mapped in §2b.
 > applicant should leave the admissions journey feeling _understood_, _accurately
 > placed_ and _excited about their future_ — whether or not they ultimately enrol.**
 
-That final clause is the differentiator. A university sells admission; a course
-platform sells enrolment. **MAM's journey delivers value even to those who don't
-enrol** — an honest read of where they belong and what to do next. That is what
-separates us from universities, online-course providers and training centres, and
-it is why the organising idea is **placement and transformation, not conversion**.
+**Placement _and_ conversion — they compound, they don't compete.** A university
+sells admission; a course platform sells enrolment. MAM does both *better* by
+leading with placement: an applicant who feels genuinely understood, accurately
+placed and excited **converts at a far higher rate** than one pushed through a
+funnel. Trust is the highest-performing conversion tactic we have. So the journey
+delivers value even to those who don't enrol (an honest read of where they belong)
+**and** is engineered, end to end, to make enrolling the easy, exciting, obvious
+next step. **We optimise for both — measured conversion lift is an explicit goal
+(§4b/§4c), pursued through desire and clarity, never through dark patterns.**
 
 Every feature below must make the journey more **intelligent** (better placement),
-more **transparent** (less uncertainty) or more **encouraging** (less anxiety, more
-belonging). If it does none of those, it doesn't ship. Contributors optimising an
-isolated feature should check it against this line first.
+more **transparent** (less uncertainty), more **encouraging** (less anxiety, more
+belonging) — and more **enticing** (more desire to say yes). If it does none of
+those, it doesn't ship. Contributors optimising an isolated feature should check it
+against this line first.
 
 Two signature experiences carry the brand:
 - **The Learning Advisor** — the *entrance* to MAM. Not a form; the first
@@ -75,6 +81,41 @@ rules every screen obeys so two engineers build the same experience:
 5. **Celebrate progress.** Acknowledge each milestone; momentum is a feature.
 6. **Consistency over cleverness.** Reuse the established patterns and tone before
    inventing new ones.
+
+## ✦ Conversion & desire — make every step *want*-able
+
+Attractiveness is a feature, and conversion is a goal, not a side effect. The
+journey should make an applicant *lean in* at each step — pulled by desire, not
+pushed by pressure. Tactics, each mapped to the funnel stage it lifts (§4c) and
+each **honest** (no fake countdowns, no manufactured scarcity, no guilt):
+
+- **Aspiration first.** Open on the dream ("what do you dream of becoming?") and
+  reflect it back as a vivid future self — desire is the strongest converter.
+  *(Lifts: Landing → Advisor start.)*
+- **Instant, personalised payoff.** The Advisor returns a confident, flattering-
+  but-true recommendation within seconds — value *before* the form. *(Advisor →
+  Application start.)*
+- **Momentum & near-completion.** Visible progress, "you're 2 steps from your
+  Auditer," celebrate every milestone — the closer it feels, the fewer drop off.
+  *(Application start → submit.)*
+- **Social proof at the decision moment.** Right where they hesitate ("1,200
+  musicians started with Piano," a graduate story) — proof beats persuasion.
+  *(Programme choice → submit.)*
+- **Belonging pull.** Show the community they're about to join *before* they pay —
+  people commit to rooms they can already picture themselves in. *(Submit →
+  booking-fee.)*
+- **Honest urgency only.** Real intake dates and real remaining-seat counts
+  (already in `config.js`/`config-public`) create genuine now-ness; never invent it.
+- **Radical friction removal.** Autosave, resume-anywhere, prefill, one-tap pay,
+  currency shown in the applicant's money — every removed keystroke is conversion.
+- **Price framed as value + access.** Lead with outcomes and the low booking fee;
+  surface the Scholars Initiative so cost is never the silent reason someone leaves.
+- **Reassurance at every commit point.** "You can change anything before payment,"
+  "the Auditer fine-tunes this" — safety converts the anxious.
+
+**Guardrail:** desire, clarity and momentum — never coercion. The design principles
+(recommend-not-dictate, preserve control, explain everything) bound every tactic
+here. Attractive *and* trustworthy is the only combination that compounds.
 
 ---
 
@@ -374,9 +415,14 @@ Targets are illustrative — set real baselines from the funnel analytics
 | Median time-to-complete the application | ↓ | measurable ↓ |
 | Auditer attendance (booked→attended) | ↑ | measurable ↑ |
 | Advisor engagement (started→acted on a recommendation) | ↑ | new baseline |
+| **Landing → enrolment (end-to-end conversion)** | ↑ | **north-star** |
 
-Instrument each via the existing funnel beacon (`POST /api/track`) so the Advisor,
-timeline and Scholars Initiative each report against an objective, not a vanity count.
+**North-star metric: end-to-end conversion (landing → enrolment)** — every other
+row is a lever on it. The conversion tactics above are hypotheses; ship them behind
+the funnel beacon and A/B where feasible so each "enticing" change is *proven* to
+lift the north-star, not just assumed to. Instrument each via `POST /api/track` so
+the Advisor, timeline and Scholars Initiative report against the goal, not a vanity
+count.
 
 ### 4c · Full analytics plan (per-stage funnel + drop-off)
 
@@ -471,12 +517,14 @@ aloud in a review — is:
 ## 9 · Guiding principle
 
 Make the flow feel **less like completing forms and more like beginning a guided
-educational journey** — carried by two signature experiences (the **Learning
-Advisor** and the **Auditer**), governed by the design principles, designed around
-the applicant's emotional arc (**curiosity → confidence → commitment → validation →
-belonging → excitement**), on the current deterministic backend, with AI as
-augmentation, every feature tied to a measurable objective, and the unhappy paths
-designed with the same care as the happy one.
+educational journey** — one so clear, personal and **enticing** that enrolling
+feels like the natural next step. Carried by two signature experiences (the
+**Learning Advisor** and the **Auditer**), governed by the design principles,
+designed around the applicant's emotional arc (**curiosity → confidence →
+commitment → validation → belonging → excitement**), on the current deterministic
+backend, with AI as augmentation. **Placement and conversion compound**: every
+feature is tied to the north-star (landing → enrolment), the unhappy paths are
+designed with the same care as the happy one, and desire always beats pressure.
 
 *No code changed by this document. It exists to steer the build — and the product —
 with eyes open.*
