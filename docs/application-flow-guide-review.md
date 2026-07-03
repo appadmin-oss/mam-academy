@@ -1,6 +1,6 @@
 # MAM Academy — Application-Flow Guide: Fit Review & Integration Plan
 
-**Status:** admissions product strategy · **Date:** 2026-07-02 · **Rev 3**
+**Status:** admissions product strategy · **Date:** 2026-07-02 · **Rev 4**
 (Rev 2 folded in the 17 UX reservations; Rev 3 adds the executive assessment's
 12 strategic reservations — vision, emotional journey, metrics, outcome-based
 roadmap — and the newly-decided **Scholarship Journey**)
@@ -24,13 +24,20 @@ elevations mapped in §2b.
 
 ## ✦ Product vision (the north star)
 
-> **MAM Academy's admissions experience should become the most intelligent,
-> transparent and encouraging music-education onboarding journey in Africa.**
+> **MAM Academy exists to discover, develop and deploy musical potential. Every
+> applicant should leave the admissions journey feeling _understood_, _accurately
+> placed_ and _excited about their future_ — whether or not they ultimately enrol.**
 
-Every feature below exists to serve that sentence. If a proposed change doesn't
-make the journey more intelligent (better placement), more transparent (less
-uncertainty) or more encouraging (less anxiety, more belonging), it doesn't ship.
-Contributors optimising an isolated feature should check it against this line first.
+That final clause is the differentiator. A university sells admission; a course
+platform sells enrolment. **MAM's journey delivers value even to those who don't
+enrol** — an honest read of where they belong and what to do next. That is what
+separates us from universities, online-course providers and training centres, and
+it is why the organising idea is **placement and transformation, not conversion**.
+
+Every feature below must make the journey more **intelligent** (better placement),
+more **transparent** (less uncertainty) or more **encouraging** (less anxiety, more
+belonging). If it does none of those, it doesn't ship. Contributors optimising an
+isolated feature should check it against this line first.
 
 Two signature experiences carry the brand:
 - **The Learning Advisor** — the *entrance* to MAM. Not a form; the first
@@ -54,6 +61,20 @@ has a dominant anxiety; each feature exists to convert it:
 
 **Rule:** every roadmap item in §3 must name which transition it serves. Anything
 that serves none is decoration.
+
+## ✦ Design principles (implementation guardrails)
+
+Vision says *why*; the emotional map says *for whom, when*; these say *how* — the
+rules every screen obeys so two engineers build the same experience:
+
+1. **Guide, never overwhelm.** One decision per screen; progressive disclosure.
+2. **Recommend, never dictate.** Always show alternatives and a way to override.
+3. **Explain every decision.** No black boxes — recommendations, readiness and
+   next-steps always show their "because."
+4. **Always preserve user control.** Skippable, editable, reversible; no dead ends.
+5. **Celebrate progress.** Acknowledge each milestone; momentum is a feature.
+6. **Consistency over cleverness.** Reuse the established patterns and tone before
+   inventing new ones.
 
 ---
 
@@ -99,6 +120,20 @@ The single highest-leverage, self-contained addition. The reviewer's key
 reservation is right: a pre-application *questionnaire* adds friction before the
 applicant has committed. So this is designed as an **advisor**, not a form — it
 should feel like MAM *understanding* the applicant, not collecting data.
+
+**The Advisor's voice (a defined character, so two builds feel the same)**
+- **Persona:** a *warm, wise mentor* — the encouraging senior musician who has
+  guided hundreds of students, not a chatbot and not an admissions officer.
+- **Tone:** encouraging first, professional underneath, aspirational throughout.
+  Speaks *to* the applicant ("you", "let's"), celebrates their ambition, never
+  gatekeeps ("there's a place for you here — let's find it").
+- **Recommendation philosophy:** *placement, not judgement.* It never says "you
+  don't qualify"; it says "here's the best place to begin, and here's why." It is
+  confident but humble — it always defers final placement to the Auditer.
+- **Copy examples:** *"Beautiful — worship leaders thrive in our Performance track.
+  Let's build from there."* / *"You're closer than you think. Two quick questions
+  and I'll show you your path."*
+- These voice rules are binding copy guardrails, owned per **§6 content governance**.
 
 **Experience shape**
 - A **skippable advisor** on `apply.php` *before* Step 1 (persistent "I know what
@@ -192,12 +227,18 @@ events). None conflict with §0.
 
 ---
 
-## 2c · The Scholarship Journey (decided in Rev 3 — its own workstream)
+## 2c · The MAM Scholars Initiative (decided in Rev 3 — its own workstream)
 
-Scholarship becomes a **parallel review**, explicitly separate from admissions
-(*Admission ≠ Scholarship · Scholarship is earned, limited, mission-driven*). It
-runs after the booking fee and feeds the Auditer + a human committee. Framing is
-**investment, not charity**.
+Named, not generic: the **MAM Scholars Initiative** — *"We invest in exceptional
+musical potential and outstanding character."* This is the mission framing the
+reviewer asked for: it is **not "financial aid" and not "scholarship application"**;
+it is a CSR initiative that *entrusts* talented, values-driven musicians with an
+investment they are expected to multiply in their communities. Every word in this
+flow should read as **investment and calling, not charity**.
+
+Mechanically it is a **parallel review**, explicitly separate from admissions
+(*Admission ≠ Scholars Initiative · it is earned, limited, mission-driven*), running
+after the booking fee and feeding the Auditer + a human committee.
 
 **Lifecycle (its own status track, distinct from the application stage):**
 ```
@@ -335,18 +376,107 @@ Targets are illustrative — set real baselines from the funnel analytics
 | Advisor engagement (started→acted on a recommendation) | ↑ | new baseline |
 
 Instrument each via the existing funnel beacon (`POST /api/track`) so the Advisor,
-timeline and Scholarship Journey each report against an objective, not a vanity count.
+timeline and Scholars Initiative each report against an objective, not a vanity count.
+
+### 4c · Full analytics plan (per-stage funnel + drop-off)
+
+Targets need instrumentation. Capture the whole journey as an ordered funnel, plus
+**drop-off per Advisor question** and **per wizard step**, all through the existing
+beacon so optimisation is evidence-led, not guesswork:
+
+`Landing → Advisor start → Advisor complete → Application start → Application
+submit → Booking-fee paid → Auditer booked → Auditer attended → Placement/offer →
+Enrolment` — and, in parallel, `Scholars: requested → assessment submitted →
+committee decision → agreement signed`.
+
+Per stage record: entry count · completion count · drop-off % · median dwell.
+Per Advisor question and wizard step: abandonment rate (find the friction point).
+Dashboards read from these; no new tracking framework — new named events on
+`funnel.php` / `POST /api/track`.
 
 ---
 
-## 5 · Guiding principle
+## 5 · Experience refinements (rev-4 detail)
+
+Small but load-bearing refinements the reviewer called out:
+- **Richer Placement Profile** (§2b-7) — beyond technical fields, ask *creative
+  influences · favourite musicians · biggest learning frustration · weekly practice
+  habits · personal goals for the next six months.* These prepare instructors far
+  better than notation/ear checkboxes alone.
+- **"My Journey" needs priority, not just status** — lead with **"What needs your
+  attention today?"** using a tier hierarchy: **Urgent → Recommended → Upcoming →
+  Completed**, rather than a flat stage list.
+- **Community *before* enrolment** — surface student performances, rehearsal clips,
+  current-student stories and an applicant community (WhatsApp/Discord) *during* the
+  journey, so applicants feel like members before they are students.
+- **AI augmentation roadmap** (behind `ai_provider`, never on the critical path):
+  Advisor recommendation *explanations* → programme Q&A → **Scholars essay feedback
+  before submission** → Auditer prep → resource suggestions → translation → a11y
+  assistance. Sequenced, additive, always augmenting a deterministic core.
+
+---
+
+## 6 · Resilience — the unhappy paths (design these explicitly)
+
+Good strategy designs the failure modes, not just the happy path. Each needs
+defined UX (most reuse existing machinery):
+
+| Scenario | Intended experience |
+|----------|--------------------|
+| Applicant abandons midway | Server draft already persists (resume magic-link); add a gentle, value-led nudge email ("you're 2 steps from your Auditer") via the existing outbox/cron — never nagging. |
+| Returns after months | Resume restores context + a warm "welcome back"; if prices/intake changed, show what's new rather than silently differing. |
+| Programme becomes unavailable | Advisor + cards read live availability from `config-public`; an unavailable path is shown as "opening next intake — here's the closest available now," never a dead end. |
+| Auditer missed / no-show | A clear, non-punitive reschedule path from **My Journey**; the stage explains next steps, not a failure state. |
+| Booking-fee / payment expires | The `expired` stage already exists (`mam_application_stage`); pair it with a one-click restart and an honest explanation of the fresh fee. |
+| Scholars funding exhausted | Show it transparently: *"this cycle is fully committed — join the next cycle,"* preserving dignity; never a silent rejection. |
+| Recommendation ≠ Auditer outcome | The Auditer is authoritative and always wins; frame the shift positively ("the panel found your strengths sit better in X") — this is why the Advisor never over-promises. |
+
+---
+
+## 7 · Governance & evolution (so quality doesn't decay)
+
+- **Recommendation governance.** The weighted matrix (§2, §2c) has an **owner**
+  (admissions lead), a **review cadence** (each intake, and whenever a programme/
+  price/outcome changes), a **validation step** (spot-check recommendations against
+  expert placement), **tests** (fixture answers → expected top pathway, in the
+  zero-dep runner), and **versioning** (the matrix carries a version; changes are
+  logged). Without this, recommendation quality drifts as programmes evolve.
+- **Content governance.** Advisor copy, programme outcomes, trust builders,
+  knowledge-centre answers, Scholars guidance and Auditer explainers each have a
+  **content owner**, a **review schedule**, an **approval step**, and live in
+  versioned source (they already do — they're in the repo), so quality is auditable.
+- **Scalability (acknowledge, don't build yet).** The architecture is already
+  multi-tenant-shaped (server-authoritative config, cohorts, academic sessions). The
+  strategy should keep the door open for **multiple campuses, additional countries,
+  partner institutions, corporate cohorts, festivals/competitions and online-only
+  pathways** — favour config-driven programmes/pricing over hard-coding so future
+  expansion is a data change, not a rewrite. No expansion work now; just don't
+  foreclose it.
+
+---
+
+## 8 · Definition of success
+
+Quantitative targets live in §4b/§4c. The qualitative benchmark — the one to read
+aloud in a review — is:
+
+> **We'll know this has succeeded when applicants consistently report that they
+> understood where they belonged, knew exactly what would happen next, trusted the
+> admissions process, and entered MAM feeling welcomed before their first class —
+> and when even those who don't enrol leave with an honest, encouraging read of
+> their path.**
+
+---
+
+## 9 · Guiding principle
 
 Make the flow feel **less like completing forms and more like beginning a guided
 educational journey** — carried by two signature experiences (the **Learning
-Advisor** and the **Auditer**), designed around the applicant's emotional arc
-(**curiosity → confidence → commitment → validation → belonging → excitement**), on
-the current deterministic backend, with AI as augmentation and every feature tied to
-a measurable objective.
+Advisor** and the **Auditer**), governed by the design principles, designed around
+the applicant's emotional arc (**curiosity → confidence → commitment → validation →
+belonging → excitement**), on the current deterministic backend, with AI as
+augmentation, every feature tied to a measurable objective, and the unhappy paths
+designed with the same care as the happy one.
 
 *No code changed by this document. It exists to steer the build — and the product —
 with eyes open.*
