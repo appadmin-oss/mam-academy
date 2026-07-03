@@ -1,0 +1,4 @@
+# Internal documentation — never web-servable. Architecture, security
+# audits and admissions strategy live here; they ship in the repo for the
+# team, not for the public.
+Require all denied

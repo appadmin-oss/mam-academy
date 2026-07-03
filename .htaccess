@@ -152,7 +152,10 @@ ErrorDocument 404 /404.php
 </IfModule>
 
 # ---------- Block sensitive files ----------
-<FilesMatch "(^\.|~$|\.bak$|\.log$|\.sql$|\.git|composer\.(json|lock))">
+# .md included: internal docs (AUDIT.md, CLAUDE.md, DEPLOYMENT.md and everything
+# under docs/) ship in the repo but must never be web-served — they hold
+# architecture, security-audit and admissions-strategy detail not meant for the public.
+<FilesMatch "(^\.|~$|\.bak$|\.log$|\.sql$|\.md$|\.git|composer\.(json|lock))">
   Require all denied
 </FilesMatch>
 
