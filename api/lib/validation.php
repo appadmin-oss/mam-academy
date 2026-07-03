@@ -140,12 +140,26 @@ function mam_compute_application_price(array $args): array {
  * form rebuild flips charging over to mam_compute_application_price(). Kept
  * admin-editable so live prices stay controllable during the transition.
  */
+/**
+ * Public "from" prices for each programme.
+ *
+ * Certified & Grand are level-based: their advertised minimum is derived from
+ * the SAME model that charges them (mam_compute_application_price) using the
+ * cheapest level base, so the displayed "from $X" always equals the lowest
+ * amount actually charged and can never drift. (Crash & MetaMusic are flat.)
+ * The legacy flat settings price_certified_musician/price_grand_musician are
+ * retained in admin for reference but no longer drive display or charge.
+ */
 function mam_prices(): array {
+    $bases   = mam_level_base_prices();
+    $minBase = $bases ? (float)min($bases) : 0.0;
     return [
-        'certified-musician' => mam_setting_num('price_certified_musician', 230),
-        'grand-musician'     => mam_setting_num('price_grand_musician',     310),
-        'crash'              => mam_setting_num('price_crash',               70),
-        'meta-order'         => mam_setting_num('price_meta_order',          60),
+        // 120 base + 120 compulsory = 240 at Pre-Certificate.
+        'certified-musician' => round($minBase + mam_compulsory_fee(), 0),
+        // 3×base − 13% ≈ 313 at Pre-Certificate.
+        'grand-musician'     => round(3 * $minBase * (1 - mam_grand_discount_pct() / 100), 0),
+        'crash'              => mam_setting_num('price_crash',      70),
+        'meta-order'         => mam_setting_num('price_meta_order', 60),
     ];
 }
 
