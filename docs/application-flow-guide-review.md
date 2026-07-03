@@ -1,7 +1,9 @@
 # MAM Academy — Application-Flow Guide: Fit Review & Integration Plan
 
-**Status:** review for decision · **Date:** 2026-07-02 · **Rev 2** (folds in the
-reviewer's 17 "Reservations & Strategic Improvements")
+**Status:** admissions product strategy · **Date:** 2026-07-02 · **Rev 3**
+(Rev 2 folded in the 17 UX reservations; Rev 3 adds the executive assessment's
+12 strategic reservations — vision, emotional journey, metrics, outcome-based
+roadmap — and the newly-decided **Scholarship Journey**)
 **Purpose:** A stakeholder shared a 15-point "improve the application flow" guide
 (discovery → eligibility → scholarship detection → admissions dashboard →
 orientation → lifecycle), then a second round of 17 reservations that push it
@@ -20,13 +22,48 @@ elevations mapped in §2b.
 
 ---
 
+## ✦ Product vision (the north star)
+
+> **MAM Academy's admissions experience should become the most intelligent,
+> transparent and encouraging music-education onboarding journey in Africa.**
+
+Every feature below exists to serve that sentence. If a proposed change doesn't
+make the journey more intelligent (better placement), more transparent (less
+uncertainty) or more encouraging (less anxiety, more belonging), it doesn't ship.
+Contributors optimising an isolated feature should check it against this line first.
+
+Two signature experiences carry the brand:
+- **The Learning Advisor** — the *entrance* to MAM. Not a form; the first
+  conversation with an academy that understands you (§2).
+- **The MAM Auditer** — MAM's defining differentiator. Internally it stays
+  "Auditer"; experientially it is *"Discover your musical potential — find your
+  starting point,"* an aspirational milestone, never a procedural hurdle (§0.1, §2c-5).
+
+## ✦ Experience principles — design for the applicant's emotional state
+
+The flow is engineered around **emotional transitions**, not screens. Each stage
+has a dominant anxiety; each feature exists to convert it:
+
+| Stage | Applicant is feeling | The product must deliver | → Transition |
+|-------|---------------------|--------------------------|--------------|
+| Landing / considering | *"I don't know where to begin."* | The Advisor: a warm, aspiration-first conversation with a confident recommendation | **Curiosity → Confidence** |
+| During the wizard | *"Is this right for me? Is it too much?"* | Persistent recommendation + reasons, progress celebrated, contextual answers inline | **Confidence → Commitment** |
+| After submission | *"Did it work? What now?"* | Instant roadmap ("what happens next"), living timeline, predictive next step | **Commitment → Validation** |
+| Before the Auditer | *"What exactly happens there?"* | Auditer explainer threaded from the start: what/why/benefit/how to prepare | **Validation → Belonging** |
+| After the Auditer / awaiting decision | *"Did I do well?"* | Honest status, typical durations, prepare-now resources, community welcome | **Belonging → Excitement** |
+
+**Rule:** every roadmap item in §3 must name which transition it serves. Anything
+that serves none is decoration.
+
+---
+
 ## 0 · The two hard constraints the guide doesn't know about
 
 1. **The money model is not "apply → pay tuition → enrolled."** It is:
    **free application → flat regional booking fee (~$5, `payments.purpose='booking_fee'`) → MAM Auditer assessment → admin enrols after assessment → tuition discussed/charged later** (`tuition.php` + `GET /api/tuition/status`). `mam_payment_settle_booking()` deliberately **does not** enrol or mark the application paid. So any guide step that shows a **tuition quote up front**, or treats **payment as the end of the application**, must be reframed as "confirm your seat (booking fee) → Auditer → placement."
-2. **Scholarships are admin-issued, not self-detected** (`users.student_type`, `mam_user_is_scholarship`, `POST /api/admin/set-student-type`; portal brief §#4). A public "you qualify for 5 scholarships" detector would contradict that decision and create commitments we can't honour automatically. The honest version is: *surface the scholarship program and let admissions award it* — which `config-public` + the site's scholarship banner already do.
+2. **The scholarship *decision* stays human — but the *intake* becomes a structured, applicant-initiated journey.** Rev 1–2 treated scholarships as "banner + admin award." Stakeholder direction in Rev 3 supersedes that: build an **opt-in Scholarship Journey** — *Request consideration → transparent soft requirements → an essay-based assessment (need · musical journey · commitment · values · community impact) → Auditer recommendation → committee review against a weighted rubric → signed agreement → activation.* This does **not** break the "admin-issued" principle — the award is still a human committee decision (`users.student_type` / `mam_user_is_scholarship` remain the source of truth). What changes: we **structure the intake in front of that decision** instead of a passive banner. Auto-*detection* of eligibility is still forbidden (it would imply a promise). Framing is **investment, not charity** (a CSR initiative entrusting talented, values-driven musicians). Full design in **§2c**.
 
-Everything below is judged against these two facts.
+Everything below is judged against these facts.
 
 ---
 
@@ -39,7 +76,7 @@ Legend — **✅ Exists** · **◑ Partial** · **➕ Fits (build)** · **⚠ Co
 | 1 | Pre-application **Discovery / Find Your Path** | ➕ **Build — top pick** | No discovery step today; wizard opens on Step 1 "Choose Your Programme" (`apply.php`). The wizard already prefills from allowlisted `?pathway=&mode=&level=&discipline=&expression=` (`apply.js:165–183`), so a finder can hand off with **zero new trust surface**. | S–M |
 | 2 | "Choose Your Learning Path" premium cards + **Compare** | ◑ Partial | Programme cards exist in Step 1; a full compare page already exists (`compare.php`, linked from the mega-menu). Missing: per-card *weekly commitment / outcomes / intake* metadata surfaced in-flow. | S |
 | 3 | **Instant eligibility screening** | ➕/⚠ Build, reframed | No eligibility gate today. Portal brief §#1 specifies rules (age 16–26, instrument ownership, prior experience, commitment, values). Reframe "auto-disqualify" → **soft signal + route to Foundation/Auditer**, since MAM places via Auditer, not hard rejection. Server re-derivation must live in `api/lib/validation.php`/`admissions.php`. | M |
-| 4 | **Smart scholarship detection** | ⚠ Conflicts | Scholarships are admin-issued (see §0.2). Keep as *awareness* (the existing `config-public` scholarship link + banner); do **not** auto-promise eligibility. Optional: a "flag me for scholarship review" checkbox that sets an admissions note. | S (as awareness) |
+| 4 | **Smart scholarship detection** | ⚠→➕ **Reframed to a Scholarship Journey** | Auto-*detection* stays forbidden (implies a promise). **Superseded by §2c**: an opt-in, essay-based scholarship intake feeding a human committee — decision still admin-issued (`users.student_type`), but the intake is now a first-class journey. | M (own workstream) |
 | 5 | **Admissions dashboard** (applicant-facing status) | ✅ Exists (◑ polish) | `status.php` + `GET /api/application/status` (reference+email), backed by `mam_application_stage()` → `received → seat confirmed → under review → accepted/waitlisted → enrolled → closed/expired`. Missing: rendering it as a **visual milestone timeline** with outstanding-task hints. | S (polish) |
 | 6 | Richer **Background** step (education, musical history, goals) | ◑ Partial | Step 3 "Background" exists; the guide's deeper profile (voice type, performance/production history, goals) would feed cohort placement. Additive fields + validation. | S–M |
 | 7 | **Document verification earlier** (OCR, quality check) | 🧱 Net-new | No document pipeline exists (headshot is an on-device MediaPipe check + Cloudinary URL only, `headshot.js`). OCR/verification is a whole subsystem; MAM's flow currently needs no docs pre-Auditer. Defer unless a real document requirement appears. | L |
@@ -155,46 +192,161 @@ events). None conflict with §0.
 
 ---
 
-## 3 · Recommended sequence (fit-ordered, elevated)
+## 2c · The Scholarship Journey (decided in Rev 3 — its own workstream)
 
-1. **"Find Your Path" advisor** (§2) — weighted, transparent, persistent. The real
-   top-of-funnel gap; folds in reservations #1–#4, #13.
-2. **"What happens next" roadmap + living-history timeline** on `status.php` and the
-   post-submit panel (reservations #11, #14, #9) — render over `mam_application_stage()`
-   + `mam_admissions_events()`, adding typical-duration / next-step hints. High
-   transparency, low code.
-3. **Auditer-forward copy + emotional tone + knowledge center** (reservations #10,
-   #15, #16) — near-zero-code content pass that makes the Auditer the differentiator
-   and reduces support questions inline.
-4. **Readiness (not eligibility) soft-screen** (reservation #6 + portal-brief §#1) —
-   *signal + routing*, server re-derived, never a hard gate.
-5. **Outcome-centric programme cards** (reservation #5) + **contextual trust
-   builders** (reservation #12) — content over existing faculty/compare data.
-6. **Placement Profile** (reservation #7) — additive nullable columns feeding cohort
-   placement + the admin AI recommender; the one schema change worth doing early.
-7. **Mission-control dashboard** (reservation #8) — extend `status.php`; the
-   messages/announcements piece needs a small channel, so it trails the rest.
-8. **AI augmentation** (reservation #17) — explanations / smart FAQ / resource hints
-   on top of the deterministic core, behind `ai_provider`.
-9. **Later roadmap / product decision:** #7-doc-OCR and #10-orientation-hub from the
-   original guide; auto-scholarship only ever as *awareness*.
+Scholarship becomes a **parallel review**, explicitly separate from admissions
+(*Admission ≠ Scholarship · Scholarship is earned, limited, mission-driven*). It
+runs after the booking fee and feeds the Auditer + a human committee. Framing is
+**investment, not charity**.
+
+**Lifecycle (its own status track, distinct from the application stage):**
+```
+Scholarship Requested → Eligibility Acknowledged → Assessment Submitted
+  → Auditer Recommendation → Committee Review → Decision
+  → Agreement Signed → Activated → Ongoing Progress Reviews
+```
+Sits alongside the admissions chain: `Application → Booking Fee → [Scholarship
+Interest → Assessment] → Auditer → Admission Decision → Scholarship Decision →
+Enrolment`.
+
+**Flow & components**
+1. **Opt-in gate** — *"Would you like to be considered for the MAM Scholarship
+   Programme?"* Yes opens the assessment; No continues normally. Never automatic.
+2. **Transparent soft requirements** (shown up front, explicitly *not* pass/fail):
+   ages 16–26 · prior musical experience (not a complete beginner) · owns/has
+   reliable access to their instrument · available 5 days/week incl. Saturdays ·
+   demonstrable financial need · values alignment · community commitment · will
+   complete the programme. With the disclaimer: *"Meeting these does not guarantee
+   a scholarship; every application is reviewed holistically."* **These are the
+   portal-brief §#1 eligibility rules** — so the "Learning Readiness" screen (§6)
+   and the scholarship requirements share one server-side derivation in
+   `validation.php`, not two.
+3. **Essay-based assessment** (5 sections): Financial Need · Musical Journey ·
+   Commitment (with an explicit *"I understand and commit"* checkbox) · Values
+   Alignment (**scenario prompts**, e.g. *"a time you served your community through
+   music"* — reveals character better than yes/no) · Community Impact (*"how will
+   you multiply this investment?"*).
+4. **Auditer recommendation** — the Auditer returns a structured scholarship signal
+   (`Highly recommended / Recommended / Recommend if funding permits / Not
+   recommended`) **alongside** Musical Potential / Technical Readiness / Growth
+   Potential — *input to* the committee, not the decision. **This is the natural
+   first writer for the `auditer_results` table** (currently writer-less — CLAUDE.md
+   gotcha #5), turning a reserved table into a real capture flow.
+5. **Weighted review rubric** for staff (supports, never replaces, judgment):
+   Financial Need 25% · Musical Competence 20% · Values Alignment 20% · Growth
+   Potential 15% · Community Impact 10% · Commitment & Availability 10%.
+6. **Digital Scholarship Agreement** — recipient signs before enrolment (attendance,
+   participation, conduct, progress, values, review/withdrawal terms). Reuse the
+   existing electronic-signature pattern from the application policy step.
+
+**Backend surface (new, but bounded):** a `scholarship_applications` table
+(opt-in, essay fields, status track) + its own status route mirroring
+`application/status.php`; the Auditer recommendation lands in `auditer_results`;
+the award endpoint still routes through the existing admin `set-student-type`.
+No change to who decides. **Own workstream — sequence after the core journey (§3
+Objective 3), since it depends on the readiness derivation and the Auditer capture.**
+
+---
+
+## 2d · Executive-assessment reservations (the strategic 12) — where they live now
+
+Rev 3 feedback is *strategic* (vision/emotion/metrics), not technical. Most are now
+addressed by the **Vision** + **Experience Principles** sections above; the table
+records where each lands so none is lost.
+
+| # | Strategic reservation | Where it now lives |
+|---|----------------------|--------------------|
+| 1 | Experience-driven, not solution-driven | **Experience Principles** table (emotional state → transition per stage). |
+| 2 | Elevate the Advisor into a signature product | **Vision** ("the entrance to MAM") + §2 reframed as *Meet Your Learning Advisor*. |
+| 3 | Start from **dreams/aspirations**, not pathways | §2 Q1 is *"What do you dream of becoming?"*; pathway is the *output*, surfaced late. |
+| 4 | A product-vision north star | New **Product vision** section. |
+| 5 | Auditer as brand identity, not operation | **Vision** + §2c-4 + §3 Obj-2: aspirational framing (*"Discover your potential"*), Auditer threaded from the start. |
+| 6 | Deeper, proactive personalization | §2 persistence + examples ("two steps from your Auditer"; "you may enjoy meeting Pastor Samuel at orientation") — from the `data` draft + placement profile. |
+| 7 | Dashboard → **"My Journey"** (user term) | Rename the mission-control surface to **My Journey / Admissions Journey**; "dashboard" is internal only. |
+| 8 | **Social proof at decision moments** | Contextual proof *at the choice*, not a testimonials page: on picking Piano show "N students started here / graduate story." Data from faculty + (future) cohort counts. |
+| 9 | **Community before enrolment** | Add belonging touchpoints: meet future classmates, watch student rehearsals, alumni stories — begins the "joining a movement" feeling pre-enrolment. |
+| 10 | Leverage AI further (without deciding) | Explain recommendations · summarise programmes · answer admissions Qs · Auditer prep · resource suggestions · translation · a11y assist — all via the audited gateway, behind `ai_provider`, off the critical path. |
+| 11 | **Success metrics** | New **§4b** below. |
+| 12 | **Outcome-based roadmap** | §3 rewritten around objectives, not features. |
+
+---
+
+## 3 · Roadmap — organised by outcome, not feature
+
+Per the executive assessment, work is grouped under **objectives** (the *why*),
+each tagged with the emotional transition it serves. Features are the *how*.
+
+### Objective 1 — Help applicants choose confidently  ·  *Curiosity → Confidence*
+- The **Learning Advisor** (§2): aspiration-first, weighted, transparent, persistent.
+- **Outcome-centric programme cards** (who it's for · what you become · duration ·
+  skills · after graduation) + the existing `compare.php`.
+- **Social proof at the decision moment** (§2d-8) and early **community** touchpoints (§2d-9).
+- *Success signals:* higher discovery→apply start rate; more completed Step 1s.
+
+### Objective 2 — Reduce uncertainty  ·  *Commitment → Validation → Belonging*
+- **"What happens next" roadmap** on the post-submit panel + **My Journey** page (§2d-7):
+  living-history timeline (`mam_admissions_events`) + predictive next-step & typical
+  durations (extend `mam_application_stage`).
+- **Auditer-forward** explainer threaded from the start, framed aspirationally (§2c-4, §2d-5).
+- **Contextual knowledge center** (inline "why the Auditer?", "can I switch?") + an
+  **emotional tone** pass (celebrate milestones, welcome to the community).
+- *Success signals:* fewer admissions support tickets; higher booking-fee conversion;
+  higher Auditer attendance.
+
+### Objective 3 — Improve placement quality (and fund it)  ·  *Belonging → Excitement*
+- **Learning Readiness** screen (§6) — server-derived signal + routing, never a gate.
+- **Placement Profile** (§2b-7) — richer learning/technical/community data for cohorts.
+- **The Scholarship Journey** (§2c) — opt-in intake → Auditer recommendation (first
+  writer for `auditer_results`) → weighted committee review → signed agreement.
+- *Success signals:* better cohort fit; scholarship pipeline throughput; instructor
+  satisfaction with placement data.
+
+### Cross-cutting — AI augmentation (never dependency)
+Explanations, programme summaries, admissions Q&A, Auditer prep, resource hints,
+translation, a11y assist — all via the audited gateway behind `ai_provider`, off the
+critical path (§2d-10, reservation #17).
+
+**First build (unchanged):** the Objective-1 **Learning Advisor** — highest leverage,
+self-contained, front-end only, hands off via the existing allowlisted prefill.
 
 ---
 
 ## 4 · Explicitly out (with reasons)
-- **Auto-scholarship detection (#4):** conflicts with admin-issued scholarships.
+- **Auto-*detection* of scholarship eligibility:** implies a promise; the decision
+  stays a human committee (the *intake* is structured — §2c).
 - **Tuition-quote-at-apply / payment-as-enrolment:** conflicts with the
-  booking-fee → Auditer → enrol model.
-- **Document OCR/verification (#7)** and **orientation hub (#10):** net-new
-  subsystems; no current requirement in the pre-Auditer flow — roadmap items.
+  booking-fee → Auditer → enrol model (§0.1).
+- **Document OCR/verification** and a full **orientation hub:** net-new subsystems;
+  no current requirement pre-Auditer — later roadmap.
 
-## 5 · Guiding principle (from the reviewer's final assessment)
+## 4b · Success metrics (define before building)
 
-The elevation goal, in one line: make the flow feel **less like completing forms
-and more like beginning a guided educational journey** — recommendations that feel
-genuinely advisory, the **Auditer as the central differentiator** throughout, richer
-applicant personalization, a dashboard that is a real workspace, and an experience
-that moves the applicant from **curiosity → confidence → commitment → anticipation** —
-all on the current deterministic backend, with AI as augmentation, not dependency.
+Targets are illustrative — set real baselines from the funnel analytics
+(`api/lib/funnel.php`) first, then commit to numbers.
 
-*No code changed by this document. It exists to pick the next build with eyes open.*
+| Metric | Direction | Illustrative target |
+|--------|-----------|----------------------|
+| Application abandonment (start→submit drop-off) | ↓ | −30% |
+| Completed applications | ↑ | +20% |
+| Booking-fee conversion (submit→fee paid) | ↑ | +15% |
+| Admissions support tickets per applicant | ↓ | −40% |
+| Median time-to-complete the application | ↓ | measurable ↓ |
+| Auditer attendance (booked→attended) | ↑ | measurable ↑ |
+| Advisor engagement (started→acted on a recommendation) | ↑ | new baseline |
+
+Instrument each via the existing funnel beacon (`POST /api/track`) so the Advisor,
+timeline and Scholarship Journey each report against an objective, not a vanity count.
+
+---
+
+## 5 · Guiding principle
+
+Make the flow feel **less like completing forms and more like beginning a guided
+educational journey** — carried by two signature experiences (the **Learning
+Advisor** and the **Auditer**), designed around the applicant's emotional arc
+(**curiosity → confidence → commitment → validation → belonging → excitement**), on
+the current deterministic backend, with AI as augmentation and every feature tied to
+a measurable objective.
+
+*No code changed by this document. It exists to steer the build — and the product —
+with eyes open.*
