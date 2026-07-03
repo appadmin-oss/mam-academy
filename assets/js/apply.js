@@ -103,6 +103,7 @@
       sex: '', address: '', lga: '', state: '',
       country: 'Nigeria', city: '', dob: '',
       experience: '', goals: '', referrer: '',
+      instrumentAccess: '', weekendAvailable: '', valuesStatement: '',
       auditer: true, parentName: '', parentPhone: '',
       headshotUrl: '',
       includeRegistration: true, includeCertification: false, payment: '', currency: 'USD',
@@ -690,7 +691,45 @@
     bindRadioGroup('sex', 'sex');
     // phone + parentPhone are owned by intl-tel-input below; binding them here
     // would race with the country picker's setNumber().
-    ['firstName','lastName','email','address','lga','state','country','city','dob','program','experience','goals','referrer','parentName'].forEach(function (id) { bindField(id, id); });
+    ['firstName','lastName','email','address','lga','state','country','city','dob','program','experience','goals','referrer','parentName','instrumentAccess','weekendAvailable','valuesStatement'].forEach(function (id) { bindField(id, id); });
+
+    // ---------- Learning Readiness (soft signal, never a gate) ----------
+    // A warm, encouraging reflection of the readiness inputs. It mirrors the
+    // server's mam_application_readiness() intent but ONLY reassures/routes — the
+    // server re-derives authoritatively and it never blocks submission. Persona
+    // per the flow guide §6: placement, not judgement; "there's a place for you".
+    function renderReadiness() {
+      var note = document.getElementById('readinessNote'); if (!note) return;
+      var exp = data.experience, ia = data.instrumentAccess, wa = data.weekendAvailable;
+      var age = ageFromDob(data.dob);
+      if (!exp && !ia && !wa) { note.hidden = true; note.innerHTML = ''; return; }
+      var msg, tone, icon;
+      if (exp === 'none') {
+        tone = 'foundation'; icon = 'seedling';
+        msg = 'Wonderful — everyone starts somewhere. We’ll begin you on a strong foundation, and the MAM Auditer confirms your perfect starting point.';
+      } else {
+        var flags = [];
+        if (age !== null && age < 16) flags.push('a parent or guardian will simply co-sign your enrolment');
+        if (age !== null && age > 26) flags.push('our adult intake reviews your fit individually');
+        if (ia === 'none') flags.push('we’ll help you arrange an instrument');
+        if (wa === 'limited' || wa === 'no') flags.push('we’ll work with you to find a schedule that fits');
+        if (flags.length) {
+          tone = 'review'; icon = 'circle-info';
+          msg = 'You’re welcome here — ' + flags.join('; ') + '. The MAM Auditer confirms your placement.';
+        } else {
+          tone = 'ready'; icon = 'circle-check';
+          msg = 'You’re a great fit for MAM. The MAM Auditer will confirm your exact placement.';
+        }
+      }
+      note.className = 'readiness-note tone-' + tone;
+      note.innerHTML = '<i class="fa-solid fa-' + icon + '" aria-hidden="true"></i><span></span>';
+      note.querySelector('span').textContent = msg; // message is static, but keep it text-node clean
+      note.hidden = false;
+    }
+    ['experience', 'instrumentAccess', 'weekendAvailable', 'dob'].forEach(function (id) {
+      var el = document.getElementById(id); if (el) { on(el, 'change', renderReadiness); on(el, 'input', renderReadiness); }
+    });
+    renderReadiness();
 
     // ---------- Headshot widget (AI-validated; upload required when Cloudinary is configured) ----------
     var headshotState = null;
@@ -1082,6 +1121,7 @@
         address: data.address, lga: data.lga, state: data.state,
         country: data.country, city: data.city, dob: data.dob,
         experience: data.experience, goals: data.goals, referrer: data.referrer,
+        instrumentAccess: data.instrumentAccess, weekendAvailable: data.weekendAvailable, valuesStatement: data.valuesStatement,
         parentName: data.parentName, parentPhone: data.parentPhone,
         headshotUrl: data.headshotUrl,
         auditer: !!data.auditer,

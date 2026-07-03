@@ -120,6 +120,10 @@ try {
         'headshot_url'           => $v['headshotUrl'],
         'experience'             => $v['experience'],
         'goals'                  => $v['goals'],
+        'instrument_access'      => $v['instrumentAccess'],
+        'weekend_available'      => $v['weekendAvailable'],
+        'values_statement'       => $v['valuesStatement'],
+        'readiness_signal'       => $v['readinessSignal'],
         'referrer'               => $v['referrer'],
         'parent_name'            => $v['parentName'],
         'parent_phone'           => $v['parentPhone'],
@@ -138,7 +142,7 @@ try {
         'user_agent'             => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 240),
     ]);
 
-    mam_audit('create', 'application', $appId, ['reference' => $reference, 'total' => $total]);
+    mam_audit('create', 'application', $appId, ['reference' => $reference, 'total' => $total, 'readiness' => $v['readinessSignal']]);
     $db->commit();
 } catch (Throwable $e) {
     if ($db->inTransaction()) $db->rollBack();

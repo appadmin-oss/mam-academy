@@ -48,6 +48,10 @@ CREATE TABLE IF NOT EXISTS applications (
   headshot_url           VARCHAR(500),
   experience             VARCHAR(32),
   goals                  TEXT,
+  instrument_access      VARCHAR(24),
+  weekend_available      VARCHAR(12),
+  values_statement       TEXT,
+  readiness_signal       VARCHAR(16),
   referrer               VARCHAR(40),
   parent_name            VARCHAR(120),
   parent_phone           VARCHAR(32),
@@ -991,3 +995,13 @@ CREATE TABLE IF NOT EXISTS wallet_ledger (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (32) ON DUPLICATE KEY UPDATE version = version;
+
+-- v33 — Learning Readiness (#1). Instrument access, weekly (incl. Saturday)
+-- availability and an optional values note, plus a server-derived advisory
+-- signal (ready | foundation | review). Advisory only — routes/flags for
+-- admissions, never rejects. Additive nullable columns (no DEFAULT: NULL = unknown).
+ALTER TABLE applications ADD COLUMN instrument_access VARCHAR(24) NULL;
+ALTER TABLE applications ADD COLUMN weekend_available VARCHAR(12) NULL;
+ALTER TABLE applications ADD COLUMN values_statement  TEXT NULL;
+ALTER TABLE applications ADD COLUMN readiness_signal  VARCHAR(16) NULL;
+INSERT INTO schema_version (version) VALUES (33) ON DUPLICATE KEY UPDATE version = version;
