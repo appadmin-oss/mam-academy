@@ -1,7 +1,9 @@
 # MAM Academy — Application-Flow Guide: Fit Review & Integration Plan
 
-**Status:** admissions product strategy · **Date:** 2026-07-02 · **Rev 5**
-(Rev 5 makes it **placement _and_ conversion** — an explicit conversion/desire
+**Status:** admissions product strategy · **Date:** 2026-07-02 · **Rev 6**
+(Rev 6 adds the compounding-loop diagram, Product + Brand principles, a
+claims/compliance discipline, three-tier KPIs, a vision horizon and
+continuity-beyond-admissions; Rev 5 makes it **placement _and_ conversion** — an explicit conversion/desire
 discipline and a landing→enrolment north-star; Rev 2 folded in the 17 UX reservations; Rev 3 adds the executive assessment's
 12 strategic reservations — vision, emotional journey, metrics, outcome-based
 roadmap — and the newly-decided **Scholarship Journey**)
@@ -45,6 +47,28 @@ belonging) — and more **enticing** (more desire to say yes). If it does none o
 those, it doesn't ship. Contributors optimising an isolated feature should check it
 against this line first.
 
+**The compounding loop (the whole strategy in one diagram):**
+```
+ accurate placement → higher trust → lower uncertainty → higher confidence
+        → higher conversion → higher retention → higher referrals ──┐
+        ↑                                                            │
+        └──────────── each referral re-enters as a warmer lead ──────┘
+```
+Placement is the flywheel's first push; conversion, retention and referrals are
+what it spins up. Optimise the front of the loop and the back takes care of itself.
+
+**Claims & compliance discipline (state everything clearly).** Because trust is the
+mechanism, every claim in the journey must be **true, clear and defensible** — this
+is a conversion tactic *and* a legal safeguard. Concretely: no guaranteed outcomes
+or grades (placement is guidance, not a promise); no accreditation/affiliation
+claims we can't evidence (e.g. only reference an external syllabus as "informed by"
+unless a licence is in writing); scholarships are *invitations to be considered*,
+never pre-approved; prices, fees and refund terms shown before payment and
+consistent with the <a>Terms</a>/<a>Class Policies</a>/<a>Privacy Policy</a>; and any
+data the flow captures (practice logs, attendance, headshot) is disclosed in the
+Privacy Policy. Persuade with desire and honesty — never with a claim legal or
+support will have to walk back.
+
 Two signature experiences carry the brand:
 - **The Learning Advisor** — the *entrance* to MAM. Not a form; the first
   conversation with an academy that understands you (§2).
@@ -68,10 +92,21 @@ has a dominant anxiety; each feature exists to convert it:
 **Rule:** every roadmap item in §3 must name which transition it serves. Anything
 that serves none is decoration.
 
+## ✦ Product principles (decision guardrails)
+
+These govern *decisions* when trade-offs arise — the tie-breakers:
+1. **Always increase clarity.** If two options are equal, ship the clearer one.
+2. **Always reduce uncertainty.** Every screen should answer *"what happens next?"*
+3. **Recommendations never become promises.** Guidance, always overridable.
+4. **Humans retain authority over placement, admission and scholarships.** AI and
+   scoring advise; people decide.
+5. **Every interaction should increase trust.** Trust is the asset that compounds.
+
 ## ✦ Design principles (implementation guardrails)
 
-Vision says *why*; the emotional map says *for whom, when*; these say *how* — the
-rules every screen obeys so two engineers build the same experience:
+Vision says *why*; the emotional map says *for whom, when*; product principles say
+*what to choose*; these say *how* — the rules every screen obeys so two engineers
+build the same experience:
 
 1. **Guide, never overwhelm.** One decision per screen; progressive disclosure.
 2. **Recommend, never dictate.** Always show alternatives and a way to override.
@@ -81,6 +116,15 @@ rules every screen obeys so two engineers build the same experience:
 5. **Celebrate progress.** Acknowledge each milestone; momentum is a feature.
 6. **Consistency over cleverness.** Reuse the established patterns and tone before
    inventing new ones.
+
+## ✦ Brand principles (how MAM always sounds)
+
+One voice across every team and touchpoint — the Advisor, emails, the site,
+support. MAM always sounds:
+**encouraging · respectful · aspirational · confident · honest — never elitist,
+never transactional, never pressuring.** Copy that gatekeeps, oversells, shames or
+reads like a sales funnel is off-brand, however well it converts. (These bind the
+Advisor's voice in §2 and are owned per §7 content governance.)
 
 ## ✦ Conversion & desire — make every step *want*-able
 
@@ -424,6 +468,17 @@ lift the north-star, not just assumed to. Instrument each via `POST /api/track` 
 the Advisor, timeline and Scholars Initiative report against the goal, not a vanity
 count.
 
+**Three tiers of KPI (so ownership is clear across departments):**
+- **Business** (growth/finance): landing→enrolment conversion, booking-fee
+  conversion, Scholars acceptance rate, revenue.
+- **Experience** (product/UX): completion time, drop-off per step/question,
+  applicant satisfaction.
+- **Educational** (academic): placement accuracy, Auditer satisfaction, student
+  retention, first-term completion.
+
+Placement accuracy is the bridge metric — it's *educational*, but per the
+compounding loop it's the root cause of the *business* numbers.
+
 ### 4c · Full analytics plan (per-stage funnel + drop-off)
 
 Targets need instrumentation. Capture the whole journey as an ordered funnel, plus
@@ -514,6 +569,29 @@ aloud in a review — is:
 
 ---
 
+## 8b · Continuity beyond admissions (admissions is a beginning, not a finish line)
+
+The journey should hand off, not stop. Admissions is the first arc of a lifelong
+relationship:
+```
+Applicant → Student → Graduate → Alumnus → Mentor → future Auditer panellist
+```
+Design the enrolment moment as an *opening* (welcome, orientation, community),
+and let the data and relationship carry forward into the student portal and LMS.
+Detailed design of the post-enrolment arcs belongs in the LMS/portal proposals —
+this document just insists the admissions experience points *toward* them.
+
+## 8c · Vision horizon (3–5 years)
+
+Where this is heading, to give the work a destination (not implementation):
+- The **Learning Advisor** matures into an intelligent musical mentor that guides
+  well beyond the application.
+- The **MAM Auditer** becomes the most respected placement assessment in African
+  music education.
+- The **MAM Scholars Initiative** grows into a flagship talent-investment programme.
+- MAM becomes the **benchmark for music-education onboarding** — the reference
+  others study.
+
 ## 9 · Guiding principle
 
 Make the flow feel **less like completing forms and more like beginning a guided
@@ -525,6 +603,11 @@ commitment → validation → belonging → excitement**), on the current determ
 backend, with AI as augmentation. **Placement and conversion compound**: every
 feature is tied to the north-star (landing → enrolment), the unhappy paths are
 designed with the same care as the happy one, and desire always beats pressure.
+
+**Scope guard:** this is a *strategy* — vision, principles, priorities, guardrails.
+Implementation detail (component APIs, schemas, copy decks, test plans) belongs in
+the build tickets and the companion proposals, not here. Keep it strategic; if it
+starts becoming a comprehensive product handbook, split the detail back out.
 
 *No code changed by this document. It exists to steer the build — and the product —
 with eyes open.*
