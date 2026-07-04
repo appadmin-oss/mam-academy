@@ -409,6 +409,26 @@
 .apply-shell.advisor-open > :not(#mamAdvisor){display:none!important}
 body.mam-advisor-open #applyMobileBar{display:none!important}
 
+/* --- The invitation: a slim, dismissible offer above the form. It NEVER hides
+   the wizard — the form stays fully visible and usable beneath it. --- */
+.adv-invite-host{display:block;margin:0 0 20px}
+.adv-invite{display:flex;align-items:center;justify-content:space-between;gap:16px 20px;flex-wrap:wrap;padding:16px 20px;border-radius:var(--radius-md,16px);border:1px solid var(--border-gold,var(--border));background:linear-gradient(135deg,rgba(224,138,26,0.12),rgba(251,191,36,0.04))}
+.adv-invite-text{display:flex;flex-direction:column;gap:3px;min-width:min(100%,260px)}
+.adv-invite-title{font-weight:800;font-size:1rem;color:var(--text);display:inline-flex;align-items:center;gap:8px}
+.adv-invite-title i{color:var(--gold-bright)}
+.adv-invite-sub{font-size:0.88rem;color:var(--text-soft);line-height:1.5}
+.adv-invite-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.adv-invite-go{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:11px;font-weight:800;font-size:0.92rem;cursor:pointer;border:1.5px solid transparent;background:linear-gradient(135deg,var(--gold),var(--gold-light,var(--gold-bright)));color:#1A120B}
+.adv-invite-go:hover{filter:brightness(1.05)}
+.adv-invite-go:focus-visible,.adv-invite-dismiss:focus-visible{outline:2px solid var(--gold-bright);outline-offset:2px}
+.adv-invite-dismiss{background:none;border:0;color:var(--text-muted);font-size:0.86rem;font-weight:600;cursor:pointer;padding:10px 12px;border-radius:8px}
+.adv-invite-dismiss:hover{color:var(--text-soft)}
+@media (max-width:560px){
+  .adv-invite{align-items:stretch}
+  .adv-invite-actions{width:100%}
+  .adv-invite-go{flex:1;justify-content:center}
+}
+
 .adv-inner{max-width:100%;margin:0 auto}
 .adv-head{text-align:center;margin:0 0 26px}
 .adv-kicker{display:inline-flex;align-items:center;gap:8px;font-size:0.74rem;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:12px}

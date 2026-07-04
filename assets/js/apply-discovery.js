@@ -1,16 +1,27 @@
 /**
  * MAM Academy — "Find Your Path" Learning Advisor
  * ---------------------------------------------------------------
- * The entrance to MAM: a warm, aspiration-first conversation that recommends a
- * starting programme, then hands off into the existing application wizard.
+ * A warm, aspiration-first helper that suggests a starting programme, then
+ * hands off into the existing application wizard.
  *
- * Design (see docs/application-flow-guide-review.md §2):
+ * Two guiding principles (both deliberate — see docs/application-flow-guide-review.md §2):
+ *  - NEVER DISTURB. The advisor is *offered*, never imposed. Undecided
+ *    applicants see a small, dismissible invitation above the form — the wizard
+ *    itself is always right there and fully usable. The full advisor opens only
+ *    when the applicant asks for it (the invitation, or ?advisor=1). It never
+ *    hijacks the page on arrival.
+ *  - DON'T FEEL LIKE AI. The recommendation is deterministic, transparent and
+ *    human: a legible weighted score, a match %, a confidence badge, and plain
+ *    "because" reasons the applicant can read and trust. No chatbot, no
+ *    generated prose, no "the AI chose this for you". (A server-side AI gateway
+ *    exists for future augmentation, but the advisor does not surface it — the
+ *    experience should feel like MAM understands you, not like a machine.)
+ *
+ * Other invariants:
  *  - Psychologically ordered (dream first), one question at a time, with a LIVE
  *    recommendation panel that re-scores after every answer.
- *  - Weighted + transparent: ranked programmes with a match % + confidence badge
- *    and the "because" reasons — never a rigid if/else route.
- *  - Placement, not judgement: it recommends a *starting point* and always defers
- *    final placement to the MAM Auditer. No guaranteed outcomes, no pressure.
+ *  - Placement, not judgement: a *starting point* that always defers final
+ *    placement to the MAM Auditer. No guaranteed outcomes, no pressure.
  *  - Hand-off = the wizard's existing, allow-listed URL prefill
  *    (?mode=&pathway=&level=&discipline=&expression=). No new endpoint, no new
  *    trust surface, no DB change. The server stays authoritative on price.
@@ -45,9 +56,6 @@
   }
   function dismissed() { try { return sessionStorage.getItem('mam.advisor.skip') === '1'; } catch (e) { return false; } }
   var deepLinked = !!(qs.get('pathway') || qs.get('programme'));
-  // Open the advisor for undecided applicants; otherwise (resuming / deep-linked /
-  // skipped) leave the wizard alone and just surface the recommendation chip.
-  var willOpen = forced || !(started() || deepLinked || dismissed());
 
   // ---- Data model ----------------------------------------------------------
   var PATHWAYS = ['crash', 'certified-musician', 'grand-musician', 'meta-order'];
@@ -95,12 +103,6 @@
     var n = cur === 'NGN' ? Math.round(v / 50) * 50 : Math.round(v);
     return (SYM[cur] || cur + ' ') + n.toLocaleString();
   }
-
-  // The AI-driven recommendation ({pathway, rationale}) once resolved, plus the
-  // answer-set key it was fetched for (so changing answers re-recommends). The
-  // deterministic score() is the instant preview + the fallback when AI is off.
-  var aiRec = null;
-  var aiRecKey = '';
 
   // Each option adds weights to programmes and may set a wizard field. `because`
   // is the reason shown when that option's leading programme wins.
@@ -217,11 +219,11 @@
       panel.innerHTML = '<div class="adv-reco-empty"><i class="fa-solid fa-compass" aria-hidden="true"></i><p>Answer as you go — your recommended path builds here in real time.</p></div>';
       return;
     }
-    // The displayed programme: the AI's choice once it lands, else the instant
-    // deterministic preview. The advisor is presented as one AI-driven result.
-    var aiOn = !!(aiRec && aiRec.pathway && PROG[aiRec.pathway] && aiRec.rationale);
-    var top = aiOn ? aiRec.pathway : r.top;
-    var meta = PROG[top] || PROG[r.top];
+    // Deterministic, transparent recommendation — the programme blurb plus the
+    // legible "because" reasons. No generated prose; the applicant can read
+    // exactly why this path fits.
+    var top = r.top;
+    var meta = PROG[top];
     var reasons = r.reasons[top] ? r.reasons[top].filter(function (v, i, a) { return a.indexOf(v) === i; }).slice(0, 4) : [];
     var f = fields();
     var chips = [];
@@ -230,16 +232,12 @@
     if ((top === 'certified-musician' || top === 'grand-musician') && f.level && LEVELS[f.level]) chips.push(LEVELS[f.level]);
     if (f.mode) chips.push(f.mode === 'online' ? 'Online' : 'Onsite Lagos');
 
-    // Rationale: the AI's cohesive explanation when present; otherwise the
-    // programme blurb + the deterministic "because" reasons.
-    var rationale = aiOn
-      ? '<p class="adv-reco-blurb">' + esc(aiRec.rationale) + '</p>'
-      : '<p class="adv-reco-blurb">' + esc(meta.blurb) + '</p>' +
-        (reasons.length ? '<ul class="adv-reco-because">' + reasons.map(function (b) { return '<li><i class="fa-solid fa-check" aria-hidden="true"></i>' + esc(b) + '</li>'; }).join('') + '</ul>' : '');
+    var rationale = '<p class="adv-reco-blurb">' + esc(meta.blurb) + '</p>' +
+      (reasons.length ? '<ul class="adv-reco-because">' + reasons.map(function (b) { return '<li><i class="fa-solid fa-check" aria-hidden="true"></i>' + esc(b) + '</li>'; }).join('') + '</ul>' : '');
 
     var html = '' +
       '<div class="adv-reco-card">' +
-        '<div class="adv-reco-kicker"><i class="fa-solid fa-compass" aria-hidden="true"></i> Chosen for you</div>' +
+        '<div class="adv-reco-kicker"><i class="fa-solid fa-compass" aria-hidden="true"></i> A great place to begin</div>' +
         badge(r.confidence) +
         '<div class="adv-reco-match" aria-hidden="true">' + r.pct[top] + '%<span>match</span></div>' +
         '<h3 class="adv-reco-name">' + esc(meta.name) + ' <span class="adv-reco-tag">' + esc(meta.tag) + '</span></h3>' +
@@ -248,47 +246,14 @@
         '<div class="adv-reco-price">From <strong>' + money(priceOf(top)) + '</strong> · the MAM Auditer confirms your exact placement</div>' +
       '</div>';
 
-    // Runner-up only in deterministic preview mode (honest "a few great options").
-    if (!aiOn && r.confidence === 'multiple') {
+    // Runner-up when it's a close call — an honest "a few great options".
+    if (r.confidence === 'multiple') {
       var second = r.ranked[1];
       html += '<button type="button" class="adv-reco-alt" data-pick-alt="' + esc(second) + '">' +
         'Also strong for you: <strong>' + esc(PROG[second].name) + '</strong> (' + r.pct[second] + '%)' +
       '</button>';
     }
     panel.innerHTML = html;
-
-    // Once there's enough signal, let the AI make the actual recommendation.
-    maybeFetchRec();
-  }
-
-  // ---- AI-driven recommendation (provider-agnostic gateway; Groq in prod) ----
-  function apiBase() {
-    try { if (window.MAM_CONFIG && MAM_CONFIG.api && MAM_CONFIG.api.base) return String(MAM_CONFIG.api.base).replace(/\/$/, ''); } catch (e) {}
-    return 'api';
-  }
-  function answerKey() { return Object.keys(answers).sort().map(function (k) { return k + '=' + (answers[k] ? answers[k].v : ''); }).join('&'); }
-  function maybeFetchRec() {
-    if (Object.keys(answers).length < 5) return;   // wait for enough signal
-    var key = answerKey();
-    if (key === aiRecKey) return;                   // already fetched / in-flight for this set
-    aiRecKey = key; aiRec = null;
-    var f = fields();
-    var p = new URLSearchParams();
-    if (answers.dream)   p.set('dream',   answers.dream.v);
-    if (answers.excites) p.set('excites', answers.excites.v);
-    if (f.level)      p.set('level', f.level);
-    if (f.discipline) p.set('discipline', f.discipline);
-    if (f.expression) p.set('expression', f.expression);
-    if (f.mode)       p.set('mode', f.mode);
-    fetch(apiBase() + '/advisor/recommend?' + p.toString(), { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (key !== aiRecKey) return;               // a newer answer set superseded this
-        if (j && j.ok && j.recommendation && j.recommendation.pathway && PROG[j.recommendation.pathway]) {
-          aiRec = j.recommendation; persist(); renderPanel();
-        }
-      })
-      .catch(function () { /* AI off/unreachable → deterministic preview stands */ });
   }
 
   function renderQuestion() {
@@ -320,9 +285,8 @@
     }
   }
 
-  // The chosen programme: AI's pick when available, else the deterministic top.
+  // The chosen programme: the deterministic top-scorer.
   function chosenPathway() {
-    if (aiRec && aiRec.pathway && PROG[aiRec.pathway]) return aiRec.pathway;
     var r = score(); return r.s[r.top] > 0 ? r.top : '';
   }
   function persist() {
@@ -384,6 +348,7 @@
     var shell = document.querySelector('.apply-shell');
     if (shell) shell.classList.add('advisor-open');
     document.body.classList.add('mam-advisor-open');
+    host.classList.remove('adv-invite-host');
     host.hidden = false;
     host.innerHTML = '' +
       '<div class="adv-inner">' +
@@ -463,7 +428,44 @@
     });
   }
 
-  function boot() { if (willOpen) open(); else injectChip(); }
+  // ---- Invitation: the non-intrusive offer ---------------------------------
+  // Undecided applicants get a small, dismissible banner above the form — the
+  // wizard stays fully visible and usable. The full advisor opens ONLY when the
+  // applicant accepts (or arrives with ?advisor=1). It never takes over on load.
+  function renderInvite() {
+    host.hidden = false;
+    host.classList.add('adv-invite-host');
+    host.innerHTML = '' +
+      '<div class="adv-invite">' +
+        '<div class="adv-invite-text">' +
+          '<span class="adv-invite-title"><i class="fa-solid fa-compass" aria-hidden="true"></i> Not sure where to begin?</span>' +
+          '<span class="adv-invite-sub">Answer a few quick questions and we’ll suggest a starting point — or just fill in the form below.</span>' +
+        '</div>' +
+        '<div class="adv-invite-actions">' +
+          '<button type="button" class="adv-invite-go" id="advInviteGo">Help me choose <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>' +
+          '<button type="button" class="adv-invite-dismiss" id="advInviteDismiss">No thanks</button>' +
+        '</div>' +
+      '</div>';
+    var go = document.getElementById('advInviteGo');
+    if (go) go.addEventListener('click', function () { track('advisor_invite_accept', {}); open(); });
+    var no = document.getElementById('advInviteDismiss');
+    if (no) no.addEventListener('click', function () {
+      try { sessionStorage.setItem('mam.advisor.skip', '1'); } catch (e) {}
+      track('advisor_invite_dismiss', {});
+      host.hidden = true; host.innerHTML = ''; host.classList.remove('adv-invite-host');
+    });
+    track('advisor_invite_view', {});
+  }
+
+  function boot() {
+    // Explicit request always opens the full advisor.
+    if (forced) { open(); return; }
+    // Resuming / deep-linked / already-dismissed → don't offer; just surface the
+    // recommendation chip in the wizard if we have one.
+    if (started() || deepLinked || dismissed()) { injectChip(); return; }
+    // Otherwise: offer, never impose.
+    renderInvite();
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
