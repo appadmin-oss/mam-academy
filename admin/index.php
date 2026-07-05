@@ -186,6 +186,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $actionCaps = [
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
+        'wallet_credit' => 'users',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
@@ -210,6 +211,28 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($me && (int)$me['id'] === $uid && $tier === 'manager') { header('Location: ?v=users&err=' . urlencode('You can\'t demote your own access.')); exit; }
         mam_db_update('users', ['admin_tier' => $tier], ['id' => $uid]);
         mam_audit('set_admin_tier', 'user', $uid, ['tier' => $tier]);
+        header('Location: ?v=users&ok=1'); exit;
+    }
+
+    // Issue (or adjust) a student's internal store credit — admin-issued only,
+    // the sole way credits enter the wallet (#12). Positive adds, negative
+    // deducts (never below zero). mam_wallet_post audits the movement itself.
+    if ($action === 'wallet_credit') {
+        $uid       = (int)($_POST['user_id'] ?? 0);
+        $amountUsd = (float)($_POST['amount_usd'] ?? 0);
+        $note      = substr(trim((string)($_POST['note'] ?? '')), 0, 255) ?: null;
+        $me        = mam_current_user();
+        if ($uid <= 0 || !is_finite($amountUsd) || $amountUsd == 0.0) { header('Location: ?v=users&err=' . urlencode('Enter a non-zero dollar amount.')); exit; }
+        if (abs($amountUsd) > 100000) { header('Location: ?v=users&err=' . urlencode('That amount is too large.')); exit; }
+        $target = mam_db_row('SELECT id, role FROM users WHERE id = ?', [$uid]);
+        if (!$target || !mam_user_has_role($target, 'student')) { header('Location: ?v=users&err=' . urlencode('Wallet credit applies to students.')); exit; }
+        $cents = (int) round($amountUsd * 100);
+        try {
+            mam_wallet_post($uid, $cents, $cents >= 0 ? 'admin_credit' : 'admin_debit', $me ? (int)$me['id'] : null, null, $note);
+        } catch (\RuntimeException $e) {
+            $msg = $e->getMessage() === 'insufficient_credit' ? 'That deduction would overdraw the wallet.' : 'Could not post that credit.';
+            header('Location: ?v=users&err=' . urlencode($msg)); exit;
+        }
         header('Location: ?v=users&ok=1'); exit;
     }
 
@@ -1863,6 +1886,17 @@ button.tiny:hover{border-color:var(--gold)}
                   <option value="manager" <?= (($u['admin_tier'] ?? '') === 'manager') ? 'selected' : '' ?>>manager</option>
                 </select>
                 <button class="tiny" type="submit">Tier</button>
+              </form>
+            <?php endif; ?>
+            <?php if ($u['role'] === 'student'): $walletBal = mam_wallet_balance((int)$u['id']); ?>
+              <form class="inline" method="post" style="margin-top:6px;display:flex;gap:4px;align-items:center;flex-wrap:wrap" title="Issue store credit (USD). Negative deducts; never below $0.">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <input type="hidden" name="action" value="wallet_credit">
+                <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
+                <span class="muted mono" title="Current wallet balance">💳 $<?= number_format($walletBal / 100, 2) ?></span>
+                <input type="number" name="amount_usd" class="tiny" step="0.01" placeholder="± USD" style="width:74px" required>
+                <input type="text" name="note" class="tiny" placeholder="note (optional)" maxlength="255" style="width:96px">
+                <button class="tiny" type="submit">Credit</button>
               </form>
             <?php endif; ?>
           </td>
