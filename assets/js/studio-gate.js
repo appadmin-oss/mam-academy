@@ -43,6 +43,26 @@
   function lread(name, fb) { try { var v = JSON.parse(localStorage.getItem(lkey(name))); return v == null ? fb : v; } catch (e) { return fb; } }
   function lwrite(name, v) { try { localStorage.setItem(lkey(name), JSON.stringify(v)); } catch (e) {} }
 
+  // Trinity-aligned band for a 0-100 score (mirrors the server's mam_studio_band).
+  function band(score) { score = score | 0; return score >= 85 ? 'Distinction' : score >= 70 ? 'Merit' : score >= 60 ? 'Pass' : 'Keep going'; }
+
+  // A device-local practice streak: consecutive days with at least one completed
+  // run. Honest and dependency-free (no server call) — surfaced as encouragement,
+  // never a claim about the student's official record. Bumped from logScore().
+  function dayKey(d) { return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  function bumpStreak() {
+    try {
+      var now = new Date(), today = dayKey(now);
+      var s = lread('practiceStreak', { date: '', count: 0 }) || { date: '', count: 0 };
+      if (s.date === today) return s.count || 1;                 // already counted today
+      var yKey = dayKey(new Date(now.getTime() - 86400000));
+      s.count = (s.date === yKey) ? (s.count || 0) + 1 : 1;      // continue or reset
+      s.date = today; lwrite('practiceStreak', s);
+      return s.count;
+    } catch (e) { return 0; }
+  }
+  function currentStreak() { var s = lread('practiceStreak', { count: 0 }); return (s && s.count) || 0; }
+
   function logScore(game, score, meta) {
     game = String(game || '').slice(0, 24);
     score = Math.max(0, Math.min(100, Math.round(score) || 0));
@@ -56,6 +76,8 @@
     try { document.dispatchEvent(new CustomEvent('mam:game-complete', { detail: { game: game, score: score, meta: meta || {} } })); } catch (e) {}
     // Auto practice-log (signed-in students only, throttled).
     autoPracticeLog(game, meta);
+    // Encouragement: keep a device-local daily practice streak.
+    bumpStreak();
     return { best: g.best, last: g.last, plays: g.plays, newBest: newBest };
   }
   function gameStats(game) { var all = lread('gameScores', {}); return (all && all[game]) || null; }
@@ -108,7 +130,7 @@
   if (!window.MAM_STUDIO) {
     window.MAM_STUDIO = {
       setUser: function () {}, logScore: logScore, gameStats: gameStats,
-      practiceStats: function () { return { streak: 0, weekMin: 0 }; }
+      practiceStats: function () { return { streak: currentStreak(), weekMin: 0 }; }
     };
   } else if (!window.MAM_STUDIO.logScore) {
     window.MAM_STUDIO.logScore = logScore; window.MAM_STUDIO.gameStats = gameStats;
@@ -139,7 +161,22 @@
       + '.studio-gate-demohint[hidden]{display:none}'
       + '.studio-gate-demohint button{background:linear-gradient(135deg,var(--gold,#E08A1A),var(--gold-light,#FBBF24));color:#1A120B;border:0;border-radius:100px;padding:6px 14px;font-weight:800;cursor:pointer}'
       + '.tools-tabs button[data-locked]{position:relative}'
-      + '.tab-lock{font-size:.66rem;margin-left:5px;opacity:.85}';
+      + '.tab-lock{font-size:.66rem;margin-left:5px;opacity:.85}'
+      // Personal best + streak line on the scored-tool cards.
+      + '.sg-personal{margin:10px 0 0;font-size:.86rem;color:var(--text-soft,#cbb89e);display:flex;flex-wrap:wrap;align-items:center;gap:8px}'
+      + '.sg-personal strong{color:var(--gold-bright,#FCC647)}'
+      + '.sg-band{font-size:.68rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--gold-bright,#FCC647);background:rgba(224,138,26,.14);border:1px solid var(--border-gold,rgba(224,138,26,.4));border-radius:100px;padding:2px 8px}'
+      + '.sg-streak{color:var(--gold-bright,#FCC647);font-weight:700}.sg-streak i{margin-right:3px}.sg-dot{opacity:.5}'
+      // Free-tool "unlock the full Studio" bridge.
+      + '.sg-bridge{margin-top:18px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;'
+      + 'padding:13px 16px;border-radius:12px;border:1px solid var(--border-gold,rgba(224,138,26,.4));background:linear-gradient(135deg,rgba(224,138,26,.1),rgba(224,138,26,.03))}'
+      + '.sg-bridge[hidden]{display:none}'
+      + '.sg-bridge-txt{font-size:.9rem;color:var(--text-soft,#cbb89e)}.sg-bridge-txt i{color:var(--gold-bright,#FCC647);margin-right:6px}.sg-bridge-txt strong{color:var(--text,#fff)}'
+      + '.sg-bridge-act{display:flex;align-items:center;gap:8px;flex-wrap:wrap}'
+      + '.sg-bridge-go{padding:9px 16px;border-radius:9px;font-weight:800;font-size:.84rem;text-decoration:none;background:linear-gradient(135deg,var(--gold,#E08A1A),var(--gold-light,#FBBF24));color:#1A120B}'
+      + '.sg-bridge-signin{padding:9px 12px;border-radius:9px;font-weight:700;font-size:.84rem;text-decoration:none;color:var(--text,#fff);border:1px solid var(--border-strong,#7a6a52)}'
+      + '.sg-bridge-x{background:none;border:0;color:var(--text-muted,#9a8264);font-size:1.3rem;line-height:1;cursor:pointer;padding:0 4px}'
+      + '.sg-bridge-x:hover{color:var(--text,#fff)}';
     var st = document.createElement('style'); st.id = 'studio-gate-css'; st.textContent = css;
     document.head.appendChild(st);
   }
@@ -204,11 +241,40 @@
     }
   }
 
+  /* ── "Unlock the full Studio" bridge on the FREE tools (value-first, S2) ── */
+  // A tasteful, dismissible prompt on the always-free tools that connects a
+  // visitor's engagement to applying — shown only to signed-out visitors, and
+  // only until dismissed for the session. Never blocks a tool.
+  var FREE_TOOLS = ['metronome', 'tuner', 'pomodoro', 'ear', 'seq'];
+  function bridgeDismissed() { try { return sessionStorage.getItem('mam.studio.bridge.dismiss') === '1'; } catch (e) { return false; } }
+  function buildBridges() {
+    return FREE_TOOLS.map(function (tool) {
+      var panel = document.querySelector('.tool-panel[data-tool="' + tool + '"]');
+      if (!panel || panel.querySelector('[data-apply-bridge]')) return null;
+      var b = document.createElement('div');
+      b.setAttribute('data-apply-bridge', ''); b.className = 'sg-bridge'; b.hidden = true;
+      b.innerHTML = '<span class="sg-bridge-txt"><i class="fa-solid fa-unlock-keyhole" aria-hidden="true"></i> Enjoying the free tools? Students also unlock <strong>Rhythm Tap</strong>, <strong>Pitch Game</strong> &amp; <strong>Speed &amp; Pitch</strong>.</span>'
+        + '<span class="sg-bridge-act">'
+        + '<a class="sg-bridge-go" href="/apply">Apply for access</a>'
+        + '<a class="sg-bridge-signin" href="/portal/login?next=' + encodeURIComponent('/studio') + '">Sign in</a>'
+        + '<button type="button" class="sg-bridge-x" aria-label="Dismiss">&times;</button>'
+        + '</span>';
+      panel.appendChild(b);
+      b.querySelector('.sg-bridge-x').addEventListener('click', function () {
+        try { sessionStorage.setItem('mam.studio.bridge.dismiss', '1'); } catch (e) {}
+        b.hidden = true;
+      });
+      b.querySelector('.sg-bridge-go').addEventListener('click', function () { if (window.MAM_TRACK) window.MAM_TRACK('gate_apply_click', tool); });
+      return b;
+    }).filter(Boolean);
+  }
+
   function init() {
     var panels = Array.prototype.slice.call(document.querySelectorAll('.tool-panel[data-locked]'));
     if (!panels.length) return;
     injectCss();
     var gates = panels.map(function (p) { return build(p, p.getAttribute('data-tool')); });
+    var bridges = buildBridges();
 
     var tabsHint = document.getElementById('toolsTabsHint');
     function applyAuth(st) {
@@ -218,6 +284,8 @@
         if (signedIn) { g.gate.hidden = true; g.hint.hidden = true; demoActive[tool] = false; }
         else if (!demoActive[tool]) { g.gate.hidden = false; }
       });
+      // The free-tool apply bridge: signed-out visitors only, until dismissed.
+      bridges.forEach(function (b) { b.hidden = signedIn || bridgeDismissed(); });
       if (tabsHint) {
         if (signedIn) { tabsHint.hidden = true; }
         else {
@@ -258,9 +326,16 @@
         + '<span style="display:flex;gap:8px">'
         + '<button type="button" data-board-share style="padding:7px 12px;border-radius:9px;border:1px solid var(--border,rgba(255,255,255,.2));background:transparent;color:inherit;cursor:pointer;font-weight:700;font-size:.8rem"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share</button>'
         + '<button type="button" data-board-post style="padding:7px 12px;border-radius:9px;border:1px solid var(--border-gold,rgba(224,138,26,.5));background:transparent;color:inherit;cursor:pointer;font-weight:700;font-size:.8rem">Post my best</button>'
-        + '</span></div><ol data-board-list style="margin:10px 0 0;padding-left:22px;line-height:1.8"></ol>'
+        + '</span></div>'
+        + '<p data-board-personal class="sg-personal" hidden></p>'
+        + '<ol data-board-list style="margin:10px 0 0;padding-left:22px;line-height:1.8"></ol>'
         + '<p data-board-me class="studio-gate-note" style="margin:8px 0 0" hidden></p>';
       panel.appendChild(card);
+      renderPersonal(tool, card);
+      // Keep the personal best + streak fresh as the student plays.
+      document.addEventListener('mam:game-complete', function (e) {
+        if (e && e.detail && e.detail.game === tool) renderPersonal(tool, card);
+      });
       card.querySelector('[data-board-share]').addEventListener('click', function () {
         if (_lastScore[tool] == null) { setBoardMsg(card, 'Play a round first, then share your result.'); return; }
         var a = cachedAuth();
@@ -279,6 +354,19 @@
       });
       loadBoard(tool, card);
     });
+  }
+  // Inline personal best + Trinity band + play count + device-local streak, from
+  // the student's own gameStats — surfaced immediately, no server round-trip.
+  function renderPersonal(tool, card) {
+    var el = card.querySelector('[data-board-personal]'); if (!el) return;
+    var st = gameStats(tool);
+    if (!st || !(st.plays > 0)) { el.hidden = true; el.innerHTML = ''; return; }
+    var parts = ['Your best <strong>' + (st.best | 0) + '</strong> <span class="sg-band">' + band(st.best) + '</span>',
+                 (st.plays | 0) + ' play' + (st.plays === 1 ? '' : 's')];
+    var streak = currentStreak();
+    if (streak > 0) parts.push('<span class="sg-streak"><i class="fa-solid fa-fire" aria-hidden="true"></i> ' + streak + '-day streak</span>');
+    el.innerHTML = parts.join(' <span class="sg-dot">·</span> ');
+    el.hidden = false;
   }
   function setBoardMsg(card, msg) { var p = card.querySelector('[data-board-me]'); if (p) { p.textContent = msg; p.hidden = false; } }
   function loadBoard(tool, card) {
