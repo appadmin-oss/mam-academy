@@ -59,6 +59,8 @@
 <script src="/assets/js/config.js?v=20260616h"></script>
 <script src="/assets/js/portal.js?v=20260615c"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
+<!-- Self-hosted QR generator (MIT, qrcodejs) for the attendance check-in QR (#9/#10). -->
+<script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
 <script>
 (function () {
   var P = window.MAM_PORTAL, API = window.MAM_API;
@@ -704,6 +706,12 @@
       + '<div class="field" style="grid-column:1/-1"><label>Student in class <small style="color:var(--text-muted);font-weight:400">— click a row to select, or use the bulk buttons below</small></label>'
       +   '<div id="att-students" style="display:grid;gap:8px;max-height:300px;overflow:auto;padding:10px;background:var(--bg-raised);border:1px solid var(--border);border-radius:10px"></div>'
       + '</div>'
+      // QR self-check-in (#9/#10): show a QR students scan to mark themselves
+      // present for the selected class, today. Uses the selected #att-class.
+      + '<div class="field" style="grid-column:1/-1;padding:14px 16px;background:rgba(224,138,26,0.06);border:1px solid var(--border-gold);border-radius:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">'
+      +   '<div style="flex:1;min-width:180px"><label style="color:var(--gold-bright);font-size:0.82rem;letter-spacing:0.06em;text-transform:uppercase;font-weight:800;margin-bottom:4px;display:block"><i class="fa-solid fa-qrcode"></i> QR self-check-in</label><span style="color:var(--text-muted);font-size:0.8rem">Project a QR your students scan to mark themselves present for the selected class today.</span></div>'
+      +   '<button type="button" class="btn btn-primary" id="att-qr-btn"><i class="fa-solid fa-qrcode"></i> Show check-in QR</button>'
+      + '</div>'
       // Bulk-mark row. One tap → POSTs to /api/instructor/mark-attendance
       // with { class_id, default_status, session_date } so the entire
       // enrolled class gets a row for that date in one call.
@@ -779,6 +787,42 @@
           window.MAM_DIALOG.confirm('Bulk attendance', prompt, 'Mark all').then(function (ok) { if (ok) doBulk(); });
         } else if (confirm(prompt)) { doBulk(); }
       });
+    });
+
+    // QR self-check-in (#9/#10): fetch a signed, day-scoped token for the
+    // selected class and render its scannable URL as a QR in an overlay.
+    function showQrModal(r) {
+      var ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,7,4,.78);backdrop-filter:blur(4px)';
+      var qrOk = (typeof QRCode !== 'undefined');
+      // qrcodejs appends its <img> fallback asynchronously (after a data-URI
+      // support probe) and ships it without an intrinsic size — a CSS rule sizes
+      // it whenever it lands, and hides the redundant <canvas>.
+      ov.innerHTML = '<style>#att-qr-canvas img{width:210px!important;height:210px!important;display:block;flex:none}#att-qr-canvas canvas{display:none}</style>'
+        + '<div role="dialog" aria-modal="true" aria-label="Attendance check-in QR" style="max-width:400px;width:100%;text-align:center;background:var(--bg-surface);border:1px solid var(--border-gold);border-radius:18px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.5)">'
+        + '<h3 style="font-family:var(--font-serif,Georgia,serif);margin:0 0 4px;color:var(--text)">Scan to check in</h3>'
+        + '<p style="color:var(--text-muted);font-size:.85rem;margin:0 0 14px">' + P.escapeHtml(r.class_title || 'Class') + ' &middot; ' + P.escapeHtml(r.date || '') + '</p>'
+        + (qrOk ? '<div id="att-qr-canvas" style="display:inline-block;background:#fff;padding:14px;border-radius:12px;margin:0 auto;line-height:0"></div>' : '')
+        + '<p style="color:var(--text-soft);font-size:.78rem;margin:14px 0 0;word-break:break-all"><a href="' + encodeURI(r.url || '') + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">' + P.escapeHtml(r.url || '') + '</a></p>'
+        + '<p style="color:var(--text-muted);font-size:.76rem;margin:8px 0 0">Students sign in and scan &mdash; valid for today only.</p>'
+        + '<button type="button" data-qr-close class="btn" style="margin-top:16px"><i class="fa-solid fa-xmark"></i> Close</button>'
+        + '</div>';
+      document.body.appendChild(ov);
+      if (qrOk) { try { new QRCode(ov.querySelector('#att-qr-canvas'), { text: r.url, width: 210, height: 210, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {} }
+      function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
+      function onKey(e) { if (e.key === 'Escape') close(); }
+      ov.querySelector('[data-qr-close]').addEventListener('click', close);
+      ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+      document.addEventListener('keydown', onKey);
+    }
+    var qrBtn = document.getElementById('att-qr-btn');
+    if (qrBtn) qrBtn.addEventListener('click', function () {
+      var classId = parseInt(document.getElementById('att-class').value, 10);
+      if (!classId) { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Pick a class first', 'error') : alert('Pick a class first')); return; }
+      var orig = qrBtn.innerHTML; qrBtn.disabled = true; qrBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Loading…';
+      API.request('instructor/attendance-qr?class_id=' + classId, { method: 'GET' })
+        .then(function (r) { qrBtn.disabled = false; qrBtn.innerHTML = orig; showQrModal(r); })
+        .catch(function () { qrBtn.disabled = false; qrBtn.innerHTML = orig; (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not load the QR', 'error') : alert('Could not load the QR')); });
     });
 
     document.getElementById('attForm').addEventListener('submit', function (e) {
