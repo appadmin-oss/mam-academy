@@ -136,9 +136,23 @@ real-money top-up/withdrawal). **Scoring tool before the notation showcase.**
   "Pay with credit" on pending orders. **TODO:** admin button to issue credit (endpoint ready).
 - ✅ **#2/#3 verified** — no brand drift; admissions state machine
   (`mam_admissions_transition`) already enforced + audited; status routes are read-only.
-- ⏭ **#1 Eligibility** — fully specified (age 16–26, instrument ownership, prior
-  experience, 5-day/Sat commitment, values statement; auto-disqualify vs manual review).
-  Build in `apply.php` + `api/lib/admissions.php`/`validation.php`. NOT started.
+- ✅ **#1 Learning Readiness** (was "Eligibility"; reframed per flow-guide §6 as
+  *readiness*, not a gate) — **friction-free & advisory-only**. `mam_application_readiness()`
+  (`validation.php`) derives `ready | foundation | review` **from data the wizard already
+  collects** (age from DOB + experience) — **no new form questions**. Persisted as
+  `applications.readiness_signal` (schema **v33**) + in the create audit; it routes/flags
+  for admissions but **never rejects or blocks submit**. Warm, tone-aware note on Step 3
+  (`renderReadiness` in `apply.js`) mirrors it. ⚠️ An earlier attempt that **added** three
+  Step-3 questions (instrument access / weekend availability / values statement) was
+  **reverted** — do NOT reintroduce applicant-facing eligibility questions.
+- 🧭 **Apply "Find Your Path" advisor** (not a brief item, but shipped) —
+  `assets/js/apply-discovery.js` + `#mamAdvisor` in `apply.php`. A *non-intrusive*
+  invitation (never a takeover) that opens a warm advisor; it **uses AI** (server
+  `mam_ai_advisor_recommend` in `ai.php` via public `GET /api/advisor/recommend`, off
+  unless `ai_provider` set) to pick the programme + write the rationale, but is
+  presented so it **never looks like AI** (deterministic instant preview + fallback,
+  MAM mentor voice, no AI labels/spinner). Hands off via the wizard's allow-listed
+  `?pathway/&mode/&level/&discipline/&expression` prefill.
 - ⏭ **#13 Scoring tool** — extend `api/routes/studio/score.php` (already does pitch/rhythm
   accuracy); gate like other studio tools (`assets/js/studio-gate.js`). NOT started.
 - ⏸ **#7 Instructor earnings** — blocked on pay-model decision.
