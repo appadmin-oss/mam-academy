@@ -366,6 +366,17 @@ function mam_validate_application(array $in): array {
     $out['experience']= mam_str($in, 'experience', 32) ?: null;
     $out['goals']    = mam_str($in, 'goals',    1000) ?: null;
     $out['referrer'] = mam_str($in, 'referrer', 40) ?: null;
+
+    // Learning-Readiness signal (#1) — server-derived from data we ALREADY have
+    // (age + experience); no new form fields. Advisory only: it routes/flags for
+    // admissions and never blocks a submission. Client-supplied values are never
+    // trusted — it is computed here from the sanitized inputs.
+    $readiness = mam_application_readiness([
+        'age'        => (isset($age) && $age !== null && $age >= 3 && $age <= 120) ? $age : null,
+        'experience' => $out['experience'],
+    ]);
+    $out['readinessSignal']  = $readiness['signal'];
+    $out['readinessReasons'] = $readiness['reasons'];
     $out['parentName']  = mam_str($in, 'parentName',  120) ?: null;
     $out['parentPhone'] = mam_str($in, 'parentPhone', 24)  ?: null;
 
@@ -425,6 +436,51 @@ function mam_age_band(int $age): string {
     if ($age <= 17) return '16-17';
     if ($age <= 25) return '18-25';
     return '26+';
+}
+
+/**
+ * Derive a Learning-Readiness SIGNAL for an application (portal brief #1,
+ * reframed per flow-guide §6 as "readiness", not "eligibility").
+ *
+ * Deliberately friction-free: it is derived ENTIRELY from data the wizard
+ * already collects — the applicant's age (from DOB) and stated experience — so
+ * it adds NO new questions to the form. It is advisory ONLY: MAM places every
+ * applicant via the Auditer, so this routes/flags for admissions; it never
+ * rejects, never blocks submission, and never gates anything.
+ *
+ *   ready      — proceed normally.
+ *   foundation — a complete beginner; route to a foundational start (Crash /
+ *                Foundation), the Auditer confirming placement.
+ *   review     — a soft flag for admissions to look individually (age outside
+ *                the typical 16–26 intake). Still welcomed, never rejected.
+ *
+ * @param array{age?:?int,experience?:?string} $args
+ * @return array{signal:string,reasons:string[]}
+ */
+function mam_application_readiness(array $args): array {
+    $age        = $args['age'] ?? null;
+    $experience = (string)($args['experience'] ?? '');
+
+    $signal  = 'ready';
+    $reasons = [];
+
+    // A complete beginner is welcomed, not turned away — routed to a foundational
+    // start; the Auditer fine-tunes placement either way. This takes precedence.
+    if ($experience === 'none') {
+        $signal    = 'foundation';
+        $reasons[] = 'New to music — a foundational start is recommended';
+    }
+
+    // Soft review flags. None reject; each just asks admissions to look closer.
+    $review = [];
+    if ($age !== null && $age < 16) $review[] = 'Under 16 — junior (KTAMS) track with guardian involvement';
+    if ($age !== null && $age > 26) $review[] = 'Over 26 — adult intake, reviewed individually';
+
+    if ($signal === 'ready' && $review) $signal = 'review';
+    foreach ($review as $r) $reasons[] = $r;
+    if (!$reasons) $reasons[] = 'Meets our readiness guidance';
+
+    return ['signal' => $signal, 'reasons' => $reasons];
 }
 
 /**

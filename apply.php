@@ -432,6 +432,12 @@
           </div>
         </div>
 
+        <!-- Learning-Readiness note (#1): a warm, encouraging reflection derived
+             from the level + date of birth already entered. Reassurance, never a
+             gate — the server derives the authoritative signal, and the MAM
+             Auditer confirms placement. Announced to assistive tech. -->
+        <div class="readiness-note" id="readinessNote" role="status" aria-live="polite" hidden></div>
+
         <div class="field">
           <label class="field-label" for="goals">What do you want to achieve at MAM?</label>
           <textarea id="goals" class="field-textarea" placeholder="e.g. lead my church worship team, perform on stage, pass Grade 5 ABRSM, write my own songs…" maxlength="1000"></textarea>

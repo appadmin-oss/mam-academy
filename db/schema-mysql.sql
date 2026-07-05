@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS applications (
   experience             VARCHAR(32),
   goals                  TEXT,
   referrer               VARCHAR(40),
+  readiness_signal       VARCHAR(16),
   parent_name            VARCHAR(120),
   parent_phone           VARCHAR(32),
   emergency_contact      VARCHAR(200),
@@ -991,3 +992,9 @@ CREATE TABLE IF NOT EXISTS wallet_ledger (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO schema_version (version) VALUES (32) ON DUPLICATE KEY UPDATE version = version;
+
+-- v33 — Learning Readiness (#1): advisory signal column on applications, derived
+-- server-side from age + experience (no new form fields). The column is declared
+-- inline in the applications table above; this marks the version so a fresh
+-- MySQL install skips the equivalent ALTER migration.
+INSERT INTO schema_version (version) VALUES (33) ON DUPLICATE KEY UPDATE version = version;

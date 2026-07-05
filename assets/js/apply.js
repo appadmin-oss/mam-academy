@@ -692,6 +692,41 @@
     // would race with the country picker's setNumber().
     ['firstName','lastName','email','address','lga','state','country','city','dob','program','experience','goals','referrer','parentName'].forEach(function (id) { bindField(id, id); });
 
+    // ---------- Learning Readiness (#1): a warm, friction-free reflection ----------
+    // Mirrors the server's advisory signal (mam_application_readiness) but ONLY
+    // reassures/encourages — it never gates or blocks. Derived from the level +
+    // DOB the applicant already gave (no extra questions). The server re-derives
+    // the authoritative signal on submit; placement is confirmed by the Auditer.
+    function renderReadiness() {
+      var note = document.getElementById('readinessNote'); if (!note) return;
+      var exp = data.experience, age = ageFromDob(data.dob);
+      if (!exp) { note.hidden = true; note.innerHTML = ''; return; }
+      var msg, tone, icon;
+      if (exp === 'none') {
+        tone = 'foundation'; icon = 'seedling';
+        msg = 'Wonderful — everyone starts somewhere. We’ll begin you on a strong foundation, and your MAM Auditer confirms the perfect starting point.';
+      } else {
+        var flags = [];
+        if (age !== null && age < 16) flags.push('a parent or guardian will simply co-sign your enrolment');
+        if (age !== null && age > 26) flags.push('our adult intake welcomes you and reviews your fit individually');
+        if (flags.length) {
+          tone = 'review'; icon = 'hand-holding-heart';
+          msg = 'You’re welcome here — ' + flags.join('; ') + '. Your MAM Auditer confirms your placement.';
+        } else {
+          tone = 'ready'; icon = 'circle-check';
+          msg = 'You’re a great fit for MAM. Your MAM Auditer will confirm your exact placement.';
+        }
+      }
+      note.className = 'readiness-note tone-' + tone;
+      note.innerHTML = '<i class="fa-solid fa-' + icon + '" aria-hidden="true"></i><span></span>';
+      note.querySelector('span').textContent = msg; // static copy, kept as a text node
+      note.hidden = false;
+    }
+    ['experience', 'dob'].forEach(function (id) {
+      var el = document.getElementById(id); if (el) { on(el, 'change', renderReadiness); on(el, 'input', renderReadiness); }
+    });
+    renderReadiness();
+
     // ---------- Headshot widget (AI-validated; upload required when Cloudinary is configured) ----------
     var headshotState = null;
     function hasCloudinaryConfigured() {

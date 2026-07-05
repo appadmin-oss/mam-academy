@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 32;
+const MAM_SCHEMA_TARGET = 33;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1028,6 +1028,15 @@ function mam_db_migrate(PDO $db): void {
               created_at TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_wallet_user ON wallet_ledger(user_id, id);
+        ",
+        // v33 — Learning Readiness (portal brief #1, reframed per flow-guide §6).
+        // A single advisory signal (ready | foundation | review) derived
+        // server-side from data the apply form already collects (age + experience)
+        // — NO new questions. It routes/flags for admissions and NEVER rejects.
+        // Additive nullable column, no DEFAULT (MySQL TEXT can't carry one); code
+        // treats NULL as 'unknown'.
+        33 => "
+            ALTER TABLE applications ADD COLUMN readiness_signal TEXT;
         ",
     ];
 

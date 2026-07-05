@@ -121,6 +121,7 @@ try {
         'experience'             => $v['experience'],
         'goals'                  => $v['goals'],
         'referrer'               => $v['referrer'],
+        'readiness_signal'       => $v['readinessSignal'],
         'parent_name'            => $v['parentName'],
         'parent_phone'           => $v['parentPhone'],
         'auditer_optin'          => $v['auditer'],
@@ -138,7 +139,7 @@ try {
         'user_agent'             => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 240),
     ]);
 
-    mam_audit('create', 'application', $appId, ['reference' => $reference, 'total' => $total]);
+    mam_audit('create', 'application', $appId, ['reference' => $reference, 'total' => $total, 'readiness' => $v['readinessSignal']]);
     $db->commit();
 } catch (Throwable $e) {
     if ($db->inTransaction()) $db->rollBack();
