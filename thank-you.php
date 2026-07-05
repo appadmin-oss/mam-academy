@@ -28,6 +28,11 @@
         <strong style="display:block;color:var(--gold-bright);margin-bottom:6px"><i class="fa-solid fa-envelope-open-text"></i> Check your email</strong>
         Once your payment clears we'll email you student portal credentials — sign in to track your application, classes &amp; MAM Auditer report.
       </div>
+      <div style="margin:0 auto 26px;max-width:480px;padding:18px 22px;background:linear-gradient(135deg,rgba(224,138,26,0.12),rgba(224,138,26,0.03));border:1px solid var(--border-gold);border-radius:12px;text-align:left">
+        <strong style="display:flex;align-items:center;gap:8px;color:var(--gold-bright);margin-bottom:6px"><i class="fa-solid fa-hand-holding-heart"></i> MAM Scholars Initiative</strong>
+        <p style="font-size:0.88rem;color:var(--text-soft);line-height:1.6;margin:0 0 12px">Would you like to be considered for a scholarship? It's a separate, holistic review — earned, values-driven, and community-minded.</p>
+        <a href="scholarship" class="btn btn-secondary" style="width:100%;justify-content:center"><i class="fa-solid fa-arrow-right"></i> Consider me for a scholarship</a>
+      </div>
       <div class="success-actions">
         <a href="portal/login" class="btn btn-primary"><i class="fa-solid fa-right-to-bracket"></i> Open Student Portal</a>
         <a href="/" class="btn btn-secondary"><i class="fa-solid fa-house"></i> Back to Home</a>
