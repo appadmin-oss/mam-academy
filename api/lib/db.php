@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 33;
+const MAM_SCHEMA_TARGET = 34;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1037,6 +1037,32 @@ function mam_db_migrate(PDO $db): void {
         // treats NULL as 'unknown'.
         33 => "
             ALTER TABLE applications ADD COLUMN readiness_signal TEXT;
+        ",
+        // v34 — MAM Scholars Initiative (scholarship flow, flow-guide §2c). A
+        // parallel, opt-in track separate from admissions: essay-based assessment
+        // + its own status. Award still routes through admin set-student-type; the
+        // committee decides. Advisory readiness_signal reuses mam_application_readiness.
+        34 => "
+            CREATE TABLE scholarship_applications (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              reference TEXT UNIQUE NOT NULL,
+              application_reference TEXT,
+              full_name TEXT NOT NULL,
+              email TEXT NOT NULL,
+              age_band TEXT,
+              experience TEXT,
+              financial_need TEXT,
+              musical_journey TEXT,
+              values_alignment TEXT,
+              community_impact TEXT,
+              commitment_ack INTEGER NOT NULL DEFAULT 0,
+              readiness_signal TEXT,
+              status TEXT NOT NULL DEFAULT 'submitted',
+              ip TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_scholarship_email ON scholarship_applications(email);
+            CREATE INDEX idx_scholarship_status ON scholarship_applications(status, id);
         ",
     ];
 

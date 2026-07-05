@@ -998,3 +998,28 @@ INSERT INTO schema_version (version) VALUES (32) ON DUPLICATE KEY UPDATE version
 -- inline in the applications table above; this marks the version so a fresh
 -- MySQL install skips the equivalent ALTER migration.
 INSERT INTO schema_version (version) VALUES (33) ON DUPLICATE KEY UPDATE version = version;
+
+-- v34 — MAM Scholars Initiative (scholarship flow, flow-guide §2c): a parallel,
+-- opt-in essay assessment with its own status track. Award still routes through
+-- admin set-student-type; this only captures the application.
+CREATE TABLE IF NOT EXISTS scholarship_applications (
+  id                    INT AUTO_INCREMENT PRIMARY KEY,
+  reference             VARCHAR(64) UNIQUE NOT NULL,
+  application_reference VARCHAR(64),
+  full_name             VARCHAR(160) NOT NULL,
+  email                 VARCHAR(190) NOT NULL,
+  age_band              VARCHAR(16),
+  experience            VARCHAR(32),
+  financial_need        TEXT,
+  musical_journey       TEXT,
+  values_alignment      TEXT,
+  community_impact      TEXT,
+  commitment_ack        TINYINT(1) NOT NULL DEFAULT 0,
+  readiness_signal      VARCHAR(16),
+  status                VARCHAR(24) NOT NULL DEFAULT 'submitted',
+  ip                    VARCHAR(64),
+  created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_scholarship_email (email),
+  KEY idx_scholarship_status (status, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (34) ON DUPLICATE KEY UPDATE version = version;

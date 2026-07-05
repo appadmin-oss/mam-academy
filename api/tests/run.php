@@ -68,6 +68,7 @@ require $ROOT . '/lib/studio.php';          // studio leaderboard (opt-in)
 require $ROOT . '/lib/auditer.php';         // MAM Auditer placement validity
 require $ROOT . '/lib/wallet.php';          // internal credit ledger (#12)
 require $ROOT . '/lib/attendance.php';      // QR self-check-in (#9/#10)
+require $ROOT . '/lib/scholarship.php';     // MAM Scholars Initiative (§2c)
 
 require __DIR__ . '/assert.php';
 

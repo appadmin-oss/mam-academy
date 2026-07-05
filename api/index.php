@@ -69,6 +69,9 @@ $r->post('/store/checkout',    $f('store-checkout.php'), [mw_csrf(), mw_rate_lim
 
 /* ─── Public forms (CSRF + rate-limited) ─── */
 $r->post('/application', $f('application.php'), [mw_csrf(), mw_rate_limit('apply',       10, 600)]);
+// MAM Scholars Initiative — opt-in scholarship assessment + status (§2c).
+$r->post('/scholarship/apply',  $f('scholarship-apply.php'),  [mw_csrf(), mw_rate_limit('scholarship_apply', 6, 600)]);
+$r->get ('/scholarship/status', $f('scholarship-status.php'), [mw_rate_limit('scholarship_status', 30, 600)]);
 // Public applicant status lookup (reference + matching email; rate-limited).
 $r->get ('/application/status', $f('application/status.php'), [mw_rate_limit('app_status', 30, 600)]);
 // Gated tuition lookup for the /tuition payment page (reference + matching email).
