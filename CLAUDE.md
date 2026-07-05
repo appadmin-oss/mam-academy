@@ -153,13 +153,27 @@ real-money top-up/withdrawal). **Scoring tool before the notation showcase.**
   presented so it **never looks like AI** (deterministic instant preview + fallback,
   MAM mentor voice, no AI labels/spinner). Hands off via the wizard's allow-listed
   `?pathway/&mode/&level/&discipline/&expression` prefill.
-- ⏭ **#13 Scoring tool** — extend `api/routes/studio/score.php` (already does pitch/rhythm
-  accuracy); gate like other studio tools (`assets/js/studio-gate.js`). NOT started.
+- ✅ **#13 Scoring tool** — the studio already has server-tested pitch/rhythm scoring +
+  leaderboard (`mam_studio_*`, `test_studio_leaderboard.php`). Hardened `studio/score.php`
+  to reject malformed client input (no silent `(int)` coercion). The score stays a
+  client-attested practice result (mic-driven; server can't recompute), range/tool/role
+  validated + rate-limited.
+- ✅ **Studio S2** — scored-tool cards show personal best + Trinity band + plays + a
+  device-local practice streak (tracked in `logScore`); free tools show a dismissible
+  "unlock the full Studio" apply bridge for signed-out visitors (`studio-gate.js`).
+- ✅ **#11 How-it-works** — `how-it-works.php` (7-step journey; footer + sitemap + HowTo
+  JSON-LD; clean URL via .htaccess).
+- ✅ **#9/#10 QR attendance** — instructor shows a per-session QR (signed, day-scoped
+  token via `mam_attendance_token`, `GET /api/instructor/attendance-qr`), enrolled
+  students scan → `attend.php` → `POST /api/attendance/checkin` (`api/lib/attendance.php`,
+  enrolment-gated, idempotent, never downgrades an instructor mark). Sits over the LEGACY
+  attendance model (enrollments+classes+attendance), not cohorts. QR rendered by a
+  self-hosted MIT lib at `assets/js/vendor/qrcode.min.js` (CDN is CSP-blocked). The
+  **metronome** half of #9 already existed as a studio tool.
 - ⏸ **#7 Instructor earnings** — blocked on pay-model decision.
 - 🔬 **#14 Notation showcase** (audio→Classical/Contemporary/African 6-line, interactive,
   realistic playback) — large R&D; not a quick task. **#5 Google Drive video upload** —
-  needs Drive API/OAuth credentials. **#9/#10 metronome+QR attendance**, **#11 how-to page**
-  — scoped, not started.
+  needs Drive API/OAuth credentials.
 
 ## Where to look
 - Audits: `docs/codebase-audit-2026-06-22.md` (security/correctness),
