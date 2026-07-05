@@ -114,6 +114,9 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
     $r->post('/revoke-others',     $f('auth/revoke-others.php'),    [mw_csrf(), mw_user()]);
 });
 
+/* ─── Attendance QR self-check-in (student scans the instructor's session QR; #9/#10) ─── */
+$r->post('/attendance/checkin', $f('attendance-checkin.php'), [mw_csrf(), mw_role('student'), mw_rate_limit('attendance_checkin', 30, 600)]);
+
 /* ─── Studio AI practice feedback (any signed-in user; S3) ─── */
 $r->post('/studio/feedback', $f('studio/feedback.php'), [mw_csrf(), mw_user(), mw_rate_limit('studio_feedback', 60, 600)]);
 
@@ -156,6 +159,8 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->get ('/dashboard',        $f('instructor/dashboard.php'),       [mw_role('instructor', 'admin')]);
     $r->get ('/student',          $f('instructor/student.php'),         [mw_role('instructor', 'admin')]);
     $r->post('/mark-attendance',  $f('instructor/mark-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
+    // Per-session QR check-in token for a class the instructor teaches (#9/#10).
+    $r->get ('/attendance-qr',    $f('instructor/attendance-qr.php'),   [mw_role('instructor', 'admin')]);
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/resource',         $f('instructor/resource.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);

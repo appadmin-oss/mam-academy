@@ -67,6 +67,7 @@ require $ROOT . '/lib/datarights.php';      // data-subject export + erasure
 require $ROOT . '/lib/studio.php';          // studio leaderboard (opt-in)
 require $ROOT . '/lib/auditer.php';         // MAM Auditer placement validity
 require $ROOT . '/lib/wallet.php';          // internal credit ledger (#12)
+require $ROOT . '/lib/attendance.php';      // QR self-check-in (#9/#10)
 
 require __DIR__ . '/assert.php';
 
