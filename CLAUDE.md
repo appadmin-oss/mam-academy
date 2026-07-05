@@ -130,6 +130,14 @@ real-money top-up/withdrawal). **Scoring tool before the notation showcase.**
 - ✅ **#4 Scholarship tier** — `users.student_type` (NULL/''=paying, 'scholarship');
   `mam_user_is_scholarship`; invoice-exempt (`mam_invoice_is_scholarship`); audited
   `POST /api/admin/set-student-type`; portal badge; in `list-users`.
+- ✅ **Scholarship flow (MAM Scholars Initiative, §2c)** — `scholarship.php` (opt-in
+  page: transparent soft-requirements + 5-section essay assessment + commitment
+  checkbox) → `POST /api/scholarship/apply` → `scholarship_applications` (schema **v34**,
+  `api/lib/scholarship.php`, own status track, advisory readiness reuses
+  `mam_application_readiness`). `GET /api/scholarship/status` (email-gated). Linked from
+  footer + a post-apply opt-in CTA on `thank-you.php`. Awarding still routes through the
+  existing admin `set-student-type` (committee decides; capture-only here). Auditer
+  scholarship-signal writer (`auditer_results`) is the next piece, not yet built.
 - ✅ **#6 T&C** — clause 5 "Practice & the MAM metronome" in `terms.php`.
 - ✅ **#12 Wallet** — `wallet_ledger` (v32), `api/lib/wallet.php`, `POST /api/admin/wallet-credit`,
   `GET /api/student/wallet`, `POST /api/student/store-redeem`; student "Wallet" tab +
