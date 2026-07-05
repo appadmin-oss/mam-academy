@@ -10,12 +10,15 @@
  *    itself is always right there and fully usable. The full advisor opens only
  *    when the applicant asks for it (the invitation, or ?advisor=1). It never
  *    hijacks the page on arrival.
- *  - DON'T FEEL LIKE AI. The recommendation is deterministic, transparent and
- *    human: a legible weighted score, a match %, a confidence badge, and plain
- *    "because" reasons the applicant can read and trust. No chatbot, no
- *    generated prose, no "the AI chose this for you". (A server-side AI gateway
- *    exists for future augmentation, but the advisor does not surface it — the
- *    experience should feel like MAM understands you, not like a machine.)
+ *  - DON'T FEEL LIKE AI. The AI IS used — the gateway chooses the best starting
+ *    programme and writes a warm rationale — but the applicant never sees a
+ *    machine. A deterministic score renders instantly (no "thinking" spinner);
+ *    the AI's pick is then quietly adopted and its sentence is shown in MAM's
+ *    own mentor voice, under a warm heading, with a match % and (in the
+ *    deterministic fallback) plain "because" reasons. No chatbot framing, no
+ *    "the AI chose this", no AI badge. If AI is off/unreachable the deterministic
+ *    recommendation stands, so the advisor always works. It should feel like MAM
+ *    understands you — not like you're talking to a model.
  *
  * Other invariants:
  *  - Psychologically ordered (dream first), one question at a time, with a LIVE
@@ -211,18 +214,56 @@
     return '<span class="adv-badge adv-badge-multi">Building your recommendation…</span>';
   }
 
+  // ---- AI recommendation (used, but never made to LOOK like AI) --------------
+  // The deterministic score() renders instantly, so there is never a "thinking"
+  // state. In the background we ask the gateway for its pick + a warm rationale;
+  // when it lands we quietly adopt its programme and show its human-voiced
+  // sentence — no AI labels, no chatbot, no spinner. If AI is off/unreachable the
+  // deterministic preview simply stands. `aiRec` = { pathway, rationale } | null.
+  var aiRec = null, aiRecKey = '';
+  function apiBase() {
+    try { if (window.MAM_CONFIG && MAM_CONFIG.api && MAM_CONFIG.api.base) return String(MAM_CONFIG.api.base).replace(/\/$/, ''); } catch (e) {}
+    return 'api';
+  }
+  function answerKey() { return Object.keys(answers).sort().map(function (k) { return k + '=' + (answers[k] ? answers[k].v : ''); }).join('&'); }
+  function maybeFetchRec() {
+    if (Object.keys(answers).length < 5) return;   // wait for enough signal
+    var key = answerKey();
+    if (key === aiRecKey) return;                   // already fetched / in-flight for this set
+    aiRecKey = key;
+    var f = fields();
+    var p = new URLSearchParams();
+    if (answers.dream)   p.set('dream',   answers.dream.v);
+    if (answers.excites) p.set('excites', answers.excites.v);
+    if (f.level)      p.set('level', f.level);
+    if (f.discipline) p.set('discipline', f.discipline);
+    if (f.expression) p.set('expression', f.expression);
+    if (f.mode)       p.set('mode', f.mode);
+    fetch(apiBase() + '/advisor/recommend?' + p.toString(), { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+      .then(function (res) { return res.json(); })
+      .then(function (j) {
+        if (key !== aiRecKey) return;               // a newer answer set superseded this
+        if (j && j.ok && j.recommendation && j.recommendation.pathway && PROG[j.recommendation.pathway]) {
+          aiRec = j.recommendation; persist(); renderPanel();
+        }
+      })
+      .catch(function () { /* AI off/unreachable → the deterministic preview stands */ });
+  }
+
   function renderPanel() {
     var r = score();
     var panel = $('#advReco'); if (!panel) return;
     var answered = Object.keys(answers).length;
     if (!answered || r.s[r.top] === 0) {
       panel.innerHTML = '<div class="adv-reco-empty"><i class="fa-solid fa-compass" aria-hidden="true"></i><p>Answer as you go — your recommended path builds here in real time.</p></div>';
+      maybeFetchRec();
       return;
     }
-    // Deterministic, transparent recommendation — the programme blurb plus the
-    // legible "because" reasons. No generated prose; the applicant can read
-    // exactly why this path fits.
-    var top = r.top;
+    // Prefer the AI's programme once it lands; otherwise the instant deterministic
+    // top. Either way it's shown in MAM's own warm voice — the AI is used, but the
+    // panel never announces itself as AI.
+    var aiOn = !!(aiRec && aiRec.pathway && PROG[aiRec.pathway] && aiRec.rationale);
+    var top = aiOn ? aiRec.pathway : r.top;
     var meta = PROG[top];
     var reasons = r.reasons[top] ? r.reasons[top].filter(function (v, i, a) { return a.indexOf(v) === i; }).slice(0, 4) : [];
     var f = fields();
@@ -232,8 +273,12 @@
     if ((top === 'certified-musician' || top === 'grand-musician') && f.level && LEVELS[f.level]) chips.push(LEVELS[f.level]);
     if (f.mode) chips.push(f.mode === 'online' ? 'Online' : 'Onsite Lagos');
 
-    var rationale = '<p class="adv-reco-blurb">' + esc(meta.blurb) + '</p>' +
-      (reasons.length ? '<ul class="adv-reco-because">' + reasons.map(function (b) { return '<li><i class="fa-solid fa-check" aria-hidden="true"></i>' + esc(b) + '</li>'; }).join('') + '</ul>' : '');
+    // When the AI has spoken, show its warm rationale sentence (mentor voice, no
+    // AI mention); otherwise the curated blurb + the legible deterministic reasons.
+    var rationale = aiOn
+      ? '<p class="adv-reco-blurb">' + esc(aiRec.rationale) + '</p>'
+      : '<p class="adv-reco-blurb">' + esc(meta.blurb) + '</p>' +
+        (reasons.length ? '<ul class="adv-reco-because">' + reasons.map(function (b) { return '<li><i class="fa-solid fa-check" aria-hidden="true"></i>' + esc(b) + '</li>'; }).join('') + '</ul>' : '');
 
     var html = '' +
       '<div class="adv-reco-card">' +
@@ -246,14 +291,17 @@
         '<div class="adv-reco-price">From <strong>' + money(priceOf(top)) + '</strong> · the MAM Auditer confirms your exact placement</div>' +
       '</div>';
 
-    // Runner-up when it's a close call — an honest "a few great options".
-    if (r.confidence === 'multiple') {
+    // Runner-up only in the deterministic preview (an honest "a few great options").
+    if (!aiOn && r.confidence === 'multiple') {
       var second = r.ranked[1];
       html += '<button type="button" class="adv-reco-alt" data-pick-alt="' + esc(second) + '">' +
         'Also strong for you: <strong>' + esc(PROG[second].name) + '</strong> (' + r.pct[second] + '%)' +
       '</button>';
     }
     panel.innerHTML = html;
+
+    // Once there's enough signal, ask the gateway to make the actual pick.
+    maybeFetchRec();
   }
 
   function renderQuestion() {
@@ -285,8 +333,9 @@
     }
   }
 
-  // The chosen programme: the deterministic top-scorer.
+  // The chosen programme: the AI's pick once it lands, else the deterministic top.
   function chosenPathway() {
+    if (aiRec && aiRec.pathway && PROG[aiRec.pathway]) return aiRec.pathway;
     var r = score(); return r.s[r.top] > 0 ? r.top : '';
   }
   function persist() {
