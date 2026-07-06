@@ -1377,6 +1377,29 @@ button.tiny:hover{border-color:var(--gold)}
     if (preg_match('/uploadPreset:\s*\'\'/', $cfgJs)) $ops[] = '<code>cdn.uploadPreset</code> (assets/js/config.js) — applicant headshot upload is disabled';
     if (function_exists('mam_mail_readiness')) { $mr = mam_mail_readiness(); if (is_array($mr) && empty($mr['ready']) && !empty($mr['issues'])) $ops[] = 'Mail delivery: ' . htmlspecialchars(implode('; ', (array)$mr['issues'])); }
     if ($ops) echo '<div class="banner"><strong>ℹ️ Operational readiness</strong> — features waiting on configuration:<ul style="margin:8px 0 0 18px;padding:0">' . implode('', array_map(fn ($o) => '<li style="margin:3px 0">' . $o . '</li>', $ops)) . '</ul></div>';
+
+    // ── AI assist status — what the gateway powers and whether it's live ──
+    if (function_exists('mam_ai_readiness')) {
+        $ai = mam_ai_readiness();
+        $aiSurfaces = [
+            'Placement suggestions + reviewer triage on applications (Admissions)',
+            'Grading feedback drafts in the instructor gradebook',
+            'Student progress notes + practice coach in the portal',
+            'The "Find Your Path" advisor on the apply page',
+        ];
+        echo '<div class="card"><h3>🤖 AI assist '
+           . ($ai['enabled']
+               ? '<span class="pill present">on · ' . htmlspecialchars((string)$ai['provider']) . ($ai['model'] ? ' · ' . htmlspecialchars((string)$ai['model']) : '') . '</span>'
+               : '<span class="pill pending">off</span>')
+           . ' <span class="muted" style="font-weight:400;font-size:.78rem">— all surfaces are advisory; a human always decides</span></h3>'
+           . '<div style="padding:0 20px 16px;font-size:.86rem;color:var(--muted);line-height:1.7">'
+           . '<ul style="margin:0 0 10px 18px;padding:0">' . implode('', array_map(fn ($s) => '<li>' . htmlspecialchars($s) . '</li>', $aiSurfaces)) . '</ul>'
+           . ($ai['enabled']
+               ? 'Provider adapter: <code>' . htmlspecialchars((string)$ai['adapter']) . '</code>' . ($ai['local'] ? ' (self-hosted — data stays on your server)' : '') . ($ai['key_set'] ? '' : ' · <strong style="color:var(--gold)">no API key set</strong>')
+               : 'Enable by setting <code>ai_provider</code> in <a href="?v=settings" style="color:var(--gold)">Pricing &amp; Settings</a> (e.g. <code>ollama</code> for self-hosted/$0, or <code>groq</code>). Every run is logged in <code>ai_runs</code>.')
+           . (!empty($ai['issues']) ? '<div style="margin-top:8px;color:var(--gold)">' . htmlspecialchars(implode(' ', (array)$ai['issues'])) . '</div>' : '')
+           . '</div></div>';
+    }
   ?>
   <div class="kpi-grid">
     <div class="kpi"><div class="kpi-label">Applications</div><div class="kpi-value"><?= number_format($kpi['applications']) ?></div></div>
@@ -1539,9 +1562,13 @@ button.tiny:hover{border-color:var(--gold)}
         </form>
 
         <?php if (function_exists('mam_ai_enabled') && mam_ai_enabled('placement')): ?>
-          <h3 style="margin:18px 0 8px">AI placement assist <span class="muted" style="font-size:.7rem">(advisory)</span></h3>
-          <button type="button" class="btn ghost" id="aiPlaceBtn" data-app="<?= (int)$manageApp['id'] ?>">✨ Suggest pathway &amp; level</button>
+          <h3 style="margin:18px 0 8px">AI assist <span class="muted" style="font-size:.7rem">(advisory — a human decides)</span></h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn ghost" id="aiPlaceBtn" data-app="<?= (int)$manageApp['id'] ?>">✨ Suggest pathway &amp; level</button>
+            <button type="button" class="btn ghost" id="aiTriageBtn" data-app="<?= (int)$manageApp['id'] ?>">📋 Draft reviewer summary</button>
+          </div>
           <div id="aiPlaceOut" style="margin-top:10px;font-size:.82rem"></div>
+          <div id="aiTriageOut" style="margin-top:10px;font-size:.82rem"></div>
           <script>
           (function () {
             var btn = document.getElementById('aiPlaceBtn'), out = document.getElementById('aiPlaceOut');
@@ -1559,6 +1586,33 @@ button.tiny:hover{border-color:var(--gold)}
                     + '<div><strong>Pathway:</strong> ' + esc(rec.recommended_pathway || '—') + ' &nbsp; <strong>Level:</strong> ' + esc(rec.recommended_level || '—') + ' &nbsp; <span class="pill">' + esc(rec.confidence || '') + '</span></div>'
                     + '<div style="margin-top:6px;color:var(--muted)">' + esc(rec.rationale || '') + '</div>'
                     + '<div style="margin-top:6px;font-size:.68rem;color:var(--muted)">Advisory only · ' + esc(j.recommendation.provider || '') + ' · confirm at the entry assessment</div></div>';
+                })
+                .catch(function () { btn.disabled = false; btn.textContent = old; out.innerHTML = '<span style="color:#FCA5A5">Could not reach the AI service.</span>'; });
+            });
+          })();
+          // Reviewer triage summary — strengths, flags to verify, next action.
+          (function () {
+            var btn = document.getElementById('aiTriageBtn'), out = document.getElementById('aiTriageOut');
+            if (!btn) return;
+            function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
+            function list(items, color) {
+              if (!items || !items.length) return '';
+              return '<ul style="margin:4px 0 0 18px;padding:0;color:' + color + '">' + items.slice(0, 4).map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>';
+            }
+            btn.addEventListener('click', function () {
+              btn.disabled = true; var old = btn.textContent; btn.textContent = 'Reviewing…';
+              fetch('/api/admin/ai-triage?app_id=' + encodeURIComponent(btn.getAttribute('data-app')), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.json(); })
+                .then(function (j) {
+                  btn.disabled = false; btn.textContent = old;
+                  if (!j || !j.ok || !j.triage || !j.triage.json) { out.innerHTML = '<span style="color:var(--muted)">No summary available right now.</span>'; return; }
+                  var t = j.triage.json;
+                  out.innerHTML = '<div style="padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg)">'
+                    + '<div>' + esc(t.summary || '') + '</div>'
+                    + (t.strengths && t.strengths.length ? '<div style="margin-top:8px"><strong style="color:#34D399">Strengths</strong>' + list(t.strengths, 'var(--muted)') + '</div>' : '')
+                    + (t.flags && t.flags.length ? '<div style="margin-top:8px"><strong style="color:#FBBF24">Verify</strong>' + list(t.flags, 'var(--muted)') + '</div>' : '')
+                    + '<div style="margin-top:8px"><strong>Suggested:</strong> ' + esc(t.suggested_action || '—') + ' <span class="pill">' + esc(t.confidence || '') + '</span></div>'
+                    + '<div style="margin-top:6px;font-size:.68rem;color:var(--muted)">Advisory only · drafted by ' + esc(j.triage.provider || 'AI') + ' · never shown to the applicant</div></div>';
                 })
                 .catch(function () { btn.disabled = false; btn.textContent = old; out.innerHTML = '<span style="color:#FCA5A5">Could not reach the AI service.</span>'; });
             });

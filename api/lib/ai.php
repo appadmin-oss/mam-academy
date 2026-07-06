@@ -475,6 +475,62 @@ function mam_ai_placement_recommendation(int $applicationId, ?int $by = null): ?
 }
 
 /**
+ * Admissions triage (Application A4) — an ADVISORY reviewer summary for one
+ * application: strengths, flags to verify, suggested next action. Drafted for
+ * staff, never shown to the applicant, never written to the application; the
+ * run is audited in ai_runs. Uses the same anonymised fields as placement
+ * (choices + free-text experience/goals; no full name/email in the prompt).
+ * Returns ['json','provider','model'] or null when AI is off / unavailable.
+ */
+function mam_ai_triage_application(int $applicationId, ?int $by = null): ?array {
+    if (!mam_ai_enabled('triage')) return null;
+    try {
+        $a = mam_db_row(
+            "SELECT a.pathway, a.mode, a.discipline, a.experience, a.goals, a.status, a.readiness_signal,
+                    a.booking_fee_paid_at, c.age_range
+               FROM applications a LEFT JOIN customers c ON c.id = a.customer_id WHERE a.id = ?",
+            [$applicationId]
+        );
+        if (!$a) return null;
+
+        $schema = [
+            'type'       => 'object',
+            'properties' => [
+                'summary'          => ['type' => 'string'],
+                'strengths'        => ['type' => 'array', 'items' => ['type' => 'string']],
+                'flags'            => ['type' => 'array', 'items' => ['type' => 'string']],
+                'suggested_action' => ['type' => 'string'],
+                'confidence'       => ['type' => 'string'],
+            ],
+            'required' => ['summary', 'strengths', 'flags', 'suggested_action', 'confidence'],
+        ];
+        $prompt = "Triage this music-academy application for a human reviewer. "
+                . "Write 'summary' as 2-3 factual sentences. List up to 3 'strengths' and up to 3 'flags' "
+                . "(things the reviewer should verify or ask about — gaps, inconsistencies, unclear goals). "
+                . "'suggested_action' MUST be one of: fast-track review, standard review, request more info. "
+                . "'confidence' MUST be one of: low, medium, high. Base everything ONLY on the facts below; "
+                . "do not invent details. This is ADVISORY — a human decides.\n\n"
+                . "Pathway chosen: " . (($a['pathway'] ?? '') ?: 'unspecified')
+                . "; mode: " . (($a['mode'] ?? '') ?: 'unspecified')
+                . "; discipline: " . (($a['discipline'] ?? '') ?: 'unspecified')
+                . "; age range: " . (($a['age_range'] ?? '') ?: 'unspecified')
+                . "; application status: " . (($a['status'] ?? '') ?: 'submitted')
+                . "; readiness signal: " . (($a['readiness_signal'] ?? '') ?: 'n/a')
+                . "; booking fee paid: " . (!empty($a['booking_fee_paid_at']) ? 'yes' : 'no') . ".\n"
+                . "Stated experience: " . (($a['experience'] ?? '') ?: '(none)') . "\n"
+                . "Stated goals: " . (($a['goals'] ?? '') ?: '(none)');
+        $res = mam_ai_complete('triage', $prompt, [
+            'system'      => 'You are an experienced music-academy admissions reviewer. Summarise fairly, surface what a human should verify, and output strict JSON only.',
+            'schema'      => $schema,
+            'max_tokens'  => 450,
+            'reviewed_by' => $by,
+        ]);
+        if (empty($res['ok']) || !is_array($res['json'] ?? null)) return null;
+        return ['json' => $res['json'], 'provider' => $res['provider'], 'model' => $res['model']];
+    } catch (\Throwable $e) { return null; }
+}
+
+/**
  * Studio practice feedback (S3) — explain-the-score + next-drill for a Rhythm
  * Tap / Pitch Game run. Input is NON-PII (a tool key, a 0-100 score, numeric
  * metrics, weak-spot labels) so it's safe on any provider. Read-only, advisory.
