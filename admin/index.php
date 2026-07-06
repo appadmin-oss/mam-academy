@@ -435,7 +435,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 try { mam_db_insert('instructor_profiles', ['user_id' => $uid]); } catch (Throwable $e) {}
             }
             mam_audit('create', 'user', $uid, ['role' => $role, 'email' => $email]);
-            $flash = ['ok', 'User created · #' . $uid];
+            // Welcome the new user with their sign-in details (same template the
+            // password-reset flow uses) — an account isn't useful if nobody
+            // tells its owner it exists.
+            $mailed = false;
+            try {
+                $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . ($role === 'admin' ? '/admin/' : '/portal/login');
+                $mailed = mam_send($email, 'Your MAM Academy ' . $role . ' account is ready',
+                    mam_email_account_created($name, $email, $pass, $role, $loginUrl),
+                    'account_created', true);
+            } catch (Throwable $e) { /* account still created; surface below */ }
+            $flash = ['ok', 'User created · #' . $uid . ($mailed ? ' · welcome email sent' : ' · ⚠ welcome email failed — share the password manually')];
         }
         $_SESSION_FLASH = $flash;
         header('Location: ?v=users' . ($flash[0] === 'ok' ? '&ok=1' : '&err=' . urlencode($flash[1])));
