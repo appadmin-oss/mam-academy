@@ -669,7 +669,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $title,
             trim((string)($_POST['content'] ?? '')) ?: null
         );
-        header('Location: ' . $back . '&ok=1'); exit;
+        // Land back on the week that was just saved, not the top of the page.
+        header('Location: ' . $back . '&ok=1#wk' . max(1, (int)($_POST['week'] ?? 1))); exit;
     }
 
     // ─── Faculty applications: invite + status ───────────────────────────
@@ -2515,7 +2516,7 @@ button.tiny:hover{border-color:var(--gold)}
   <?php endif; ?>
 
   <div class="card">
-    <h3>Curriculum overview <span class="muted" style="font-weight:400;font-size:.8rem">— authored weeks per course &amp; level; click a cell to author it</span></h3>
+    <h3>1 · Pick a syllabus <span class="muted" style="font-weight:400;font-size:.8rem">— a number is weeks already authored, “·” is empty. Click any cell to open it below.</span></h3>
     <div style="padding:0 20px 16px;overflow-x:auto">
       <table class="curric-matrix">
         <thead><tr><th>Course</th>
@@ -2539,32 +2540,7 @@ button.tiny:hover{border-color:var(--gold)}
   </div>
 
   <div class="card">
-    <h3>Starter curriculum</h3>
-    <div style="padding:0 20px 18px">
-      <p class="muted" style="font-size:.85rem;line-height:1.6;margin:0 0 12px">
-        Load MAM's ready-made syllabus — transcribed from the <strong>KTAMS Young Musicians</strong> (foundation · pre-cert) and
-        <strong>Grand Musicians II</strong> (Grades 3–4 · certificate) documents: 8 course syllabi across Rhythm &amp; Pitch, Piano, Guitar, Voice and Drums,
-        each a full 12-week plan. It's <strong>non-destructive</strong> — weeks you've already authored are left untouched — so it's safe to run now and refine afterwards.
-      </p>
-      <form method="post" class="inline">
-        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-        <input type="hidden" name="action" value="seed_starter">
-        <button class="btn" type="submit"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Load starter curriculum</button>
-      </form>
-      <form method="post" class="inline" style="margin-left:8px" onsubmit="return confirm('Reset the starter weeks back to MAM\'s original content? This overwrites edits on those weeks.');">
-        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
-        <input type="hidden" name="action" value="seed_starter">
-        <input type="hidden" name="force" value="1">
-        <button class="btn ghost" type="submit" title="Overwrite the starter weeks back to the original document content">Reset to starter</button>
-      </form>
-      <?php if ($modulesAuthored === 0): ?>
-        <div class="muted" style="font-size:.78rem;margin-top:10px"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> No weeks authored yet — loading the starter is the quickest way to begin.</div>
-      <?php endif; ?>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Choose a course to author</h3>
+    <h3>…or choose it here</h3>
     <form method="get" class="form-grid">
       <input type="hidden" name="v" value="modules">
       <label>Course
@@ -2594,9 +2570,101 @@ button.tiny:hover{border-color:var(--gold)}
     </form>
   </div>
 
+  <?php
+  if ($selCourse !== ''):
+    $outline = mam_lms_course_outline($selCourse, $selLevel ?: null, $selProgram ?: null);
+    if (!$outline): ?>
+      <div class="card"><div class="empty" style="padding:20px">Course not found.</div></div>
+    <?php else:
+      $hid = '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($csrf) . '">'
+           . '<input type="hidden" name="course_code" value="' . htmlspecialchars($selCourse) . '">'
+           . '<input type="hidden" name="level_code" value="' . htmlspecialchars($selLevel) . '">'
+           . '<input type="hidden" name="program_code" value="' . htmlspecialchars($selProgram) . '">';
+    ?>
+      <?php $wkAuthored = count(array_filter($outline['weeks'], fn ($w) => !empty($w['id']))); $wkTotal = count($outline['weeks']); ?>
+      <div class="card">
+        <h3>2 · Author — <?= htmlspecialchars($outline['course']['name']) ?><?= $outline['level'] ? ' · ' . htmlspecialchars($outline['level']['name']) : '' ?>
+          <span class="muted" style="font-weight:400;font-size:0.8rem">— <?= $wkTotal ?>-week plan<?= $outline['program'] ? ' (' . htmlspecialchars($outline['program']['name']) . ')' : '' ?></span></h3>
+        <div style="padding:0 20px 4px;display:flex;align-items:center;gap:12px">
+          <div style="flex:1;height:8px;border-radius:4px;background:var(--bg);overflow:hidden"><div style="height:100%;width:<?= $wkTotal ? (int)round($wkAuthored / $wkTotal * 100) : 0 ?>%;background:linear-gradient(90deg,var(--gold),#FBBF24)"></div></div>
+          <span class="muted" style="font-size:.78rem;white-space:nowrap"><strong><?= $wkAuthored ?></strong> of <?= $wkTotal ?> weeks authored</span>
+        </div>
+        <div style="padding:0 20px 16px">
+          <form method="post" class="inline"><?= $hid ?><input type="hidden" name="action" value="module_scaffold"><button class="btn" type="submit">⚙ Scaffold missing weeks</button></form>
+          <span class="muted" style="margin-left:12px;font-size:0.82rem">Creates a placeholder row for every week (modules · revision · exam).</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding:0 20px 20px">
+        <?php foreach ($outline['weeks'] as $wk):
+          $isAuthored = !empty($wk['id']);
+          $kindColor = ['module' => 'var(--gold)', 'revision' => '#34D399', 'exam' => '#FB7185'][$wk['kind']] ?? 'var(--gold)';
+        ?>
+          <form method="post" id="wk<?= (int)$wk['week'] ?>" class="cm-week" style="display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-left:3px solid <?= $kindColor ?>;border-radius:10px;padding:12px;background:var(--bg);<?= $isAuthored ? '' : 'border-style:dashed;border-left-style:solid;opacity:.82' ?>">
+            <?= $hid ?>
+            <input type="hidden" name="action" value="module_save">
+            <input type="hidden" name="module_id" value="<?= (int)($wk['id'] ?? 0) ?>">
+            <div style="text-align:center;flex:0 0 46px">
+              <div class="muted" style="font-size:0.66rem;letter-spacing:0.1em;text-transform:uppercase">Week</div>
+              <input type="number" name="week" value="<?= (int)$wk['week'] ?>" min="1" class="tiny" style="width:46px;text-align:center">
+            </div>
+            <select name="kind" class="tiny" style="flex:0 0 100px;align-self:center">
+              <?php foreach (['module', 'revision', 'exam'] as $k): ?><option value="<?= $k ?>" <?= $k === $wk['kind'] ? 'selected' : '' ?>><?= $k ?></option><?php endforeach; ?>
+            </select>
+            <div style="flex:1;min-width:0">
+              <input name="title" value="<?= htmlspecialchars((string)($wk['title'] ?? '')) ?>" placeholder="<?= $wk['kind'] === 'exam' ? 'Final Examination' : ($wk['kind'] === 'revision' ? 'Revision week' : 'Week ' . $wk['week'] . ' — module title') ?>" style="width:100%;margin-bottom:6px">
+              <textarea name="content" rows="2" placeholder="What this week covers (optional)" style="width:100%;resize:vertical"><?= htmlspecialchars((string)($wk['content'] ?? '')) ?></textarea>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;align-self:center;text-align:center">
+              <button class="tiny cm-save" type="submit" style="opacity:.45" title="Edit the week to enable">Save</button>
+              <?php if (!$isAuthored): ?><span class="muted" style="font-size:.62rem;letter-spacing:.06em;text-transform:uppercase">not saved yet</span><?php endif; ?>
+            </div>
+        </form>
+        <?php if (!empty($wk['id'])): ?>
+          <form method="post" style="margin-top:-4px;text-align:right;padding-right:4px"><?= $hid ?><input type="hidden" name="action" value="module_delete"><input type="hidden" name="module_id" value="<?= (int)$wk['id'] ?>"><button class="tiny" type="submit" style="background:transparent;color:var(--muted);border:0;cursor:pointer;font-size:0.74rem">✕ remove week <?= (int)$wk['week'] ?></button></form>
+        <?php endif; ?>
+        <?php endforeach; ?>
+        </div>
+        <script>
+        // Enable each row's Save only once it's actually edited, so the wall of
+        // forms reads as "content" until you touch one.
+        document.querySelectorAll('.cm-week').forEach(function (f) {
+          var btn = f.querySelector('.cm-save');
+          f.addEventListener('input', function () { if (btn) { btn.style.opacity = '1'; btn.title = 'Save week'; f.style.borderColor = 'var(--gold)'; } });
+        });
+        </script>
+      </div>
+    <?php endif; ?>
+  <?php endif; ?>
+
+  <!-- ── Bulk tools: starter syllabus + import/export (kept below authoring — most days you never need them) ── -->
+  <div class="card">
+    <h3>Starter curriculum</h3>
+    <div style="padding:0 20px 18px">
+      <p class="muted" style="font-size:.85rem;line-height:1.6;margin:0 0 12px">
+        Load MAM's ready-made syllabus — transcribed from the <strong>KTAMS Young Musicians</strong> (foundation · pre-cert) and
+        <strong>Grand Musicians II</strong> (Grades 3–4 · certificate) documents: 8 course syllabi across Rhythm &amp; Pitch, Piano, Guitar, Voice and Drums,
+        each a full 12-week plan. It's <strong>non-destructive</strong> — weeks you've already authored are left untouched — so it's safe to run now and refine afterwards.
+      </p>
+      <form method="post" class="inline">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="seed_starter">
+        <button class="btn" type="submit"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Load starter curriculum</button>
+      </form>
+      <form method="post" class="inline" style="margin-left:8px" onsubmit="return confirm('Reset the starter weeks back to MAM\'s original content? This overwrites edits on those weeks.');">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="seed_starter">
+        <input type="hidden" name="force" value="1">
+        <button class="btn ghost" type="submit" title="Overwrite the starter weeks back to the original document content">Reset to starter</button>
+      </form>
+      <?php if ($modulesAuthored === 0): ?>
+        <div class="muted" style="font-size:.78rem;margin-top:10px"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> No weeks authored yet — loading the starter is the quickest way to begin.</div>
+      <?php endif; ?>
+    </div>
+  </div>
+
   <?php if ($selCourse !== ''): ?>
   <div class="card">
-    <h3>Import &amp; export this syllabus</h3>
+    <details>
+    <summary style="cursor:pointer;padding:16px 20px;font-weight:700;font-size:.95rem">⇅ Import &amp; export this syllabus <span class="muted" style="font-weight:400;font-size:.78rem">— spreadsheet round-trips, Google-Sheet URL import, JSON backups</span></summary>
     <div style="padding:0 20px 18px;display:flex;flex-direction:column;gap:16px">
       <div>
         <div class="muted" style="font-size:.82rem;margin-bottom:9px">Download the authored weeks to edit in a spreadsheet or back up, then re-import to apply. A re-import <strong>upserts by week</strong> — it refines existing weeks instead of duplicating them. JSON exports are portable between installs.</div>
@@ -2630,56 +2698,10 @@ button.tiny:hover{border-color:var(--gold)}
         <div class="muted" style="font-size:.74rem;line-height:1.6">Columns: <code>week</code> &amp; <code>title</code> (required); optional <code>kind</code> (module · revision · exam) and <code>content</code>. A row may also set <code>course_code</code> / <code>level_code</code> to target a different course in the same file. Without those, rows import into the selected course/level above.</div>
       </form>
     </div>
+    </details>
   </div>
   <?php endif; ?>
 
-  <?php
-  if ($selCourse !== ''):
-    $outline = mam_lms_course_outline($selCourse, $selLevel ?: null, $selProgram ?: null);
-    if (!$outline): ?>
-      <div class="card"><div class="empty" style="padding:20px">Course not found.</div></div>
-    <?php else:
-      $hid = '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($csrf) . '">'
-           . '<input type="hidden" name="course_code" value="' . htmlspecialchars($selCourse) . '">'
-           . '<input type="hidden" name="level_code" value="' . htmlspecialchars($selLevel) . '">'
-           . '<input type="hidden" name="program_code" value="' . htmlspecialchars($selProgram) . '">';
-    ?>
-      <div class="card">
-        <h3><?= htmlspecialchars($outline['course']['name']) ?><?= $outline['level'] ? ' · ' . htmlspecialchars($outline['level']['name']) : '' ?>
-          <span class="muted" style="font-weight:400;font-size:0.8rem">— <?= count($outline['weeks']) ?>-week plan<?= $outline['program'] ? ' (' . htmlspecialchars($outline['program']['name']) . ')' : '' ?></span></h3>
-        <div style="padding:0 20px 16px">
-          <form method="post" class="inline"><?= $hid ?><input type="hidden" name="action" value="module_scaffold"><button class="btn" type="submit">⚙ Scaffold missing weeks</button></form>
-          <span class="muted" style="margin-left:12px;font-size:0.82rem">Creates a placeholder row for every week (modules · revision · exam).</span>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:10px;padding:0 20px 20px">
-        <?php foreach ($outline['weeks'] as $wk): ?>
-          <form method="post" style="display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--bg)">
-            <?= $hid ?>
-            <input type="hidden" name="action" value="module_save">
-            <input type="hidden" name="module_id" value="<?= (int)($wk['id'] ?? 0) ?>">
-            <div style="text-align:center;flex:0 0 46px">
-              <div class="muted" style="font-size:0.66rem;letter-spacing:0.1em;text-transform:uppercase">Week</div>
-              <input type="number" name="week" value="<?= (int)$wk['week'] ?>" min="1" class="tiny" style="width:46px;text-align:center">
-            </div>
-            <select name="kind" class="tiny" style="flex:0 0 100px;align-self:center">
-              <?php foreach (['module', 'revision', 'exam'] as $k): ?><option value="<?= $k ?>" <?= $k === $wk['kind'] ? 'selected' : '' ?>><?= $k ?></option><?php endforeach; ?>
-            </select>
-            <div style="flex:1;min-width:0">
-              <input name="title" value="<?= htmlspecialchars((string)($wk['title'] ?? '')) ?>" placeholder="<?= $wk['kind'] === 'exam' ? 'Final Examination' : ($wk['kind'] === 'revision' ? 'Revision week' : 'Week ' . $wk['week'] . ' — module title') ?>" style="width:100%;margin-bottom:6px">
-              <textarea name="content" rows="2" placeholder="What this week covers (optional)" style="width:100%;resize:vertical"><?= htmlspecialchars((string)($wk['content'] ?? '')) ?></textarea>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;align-self:center">
-              <button class="tiny" type="submit">Save</button>
-            </div>
-        </form>
-        <?php if (!empty($wk['id'])): ?>
-          <form method="post" style="margin-top:-4px;text-align:right;padding-right:4px"><?= $hid ?><input type="hidden" name="action" value="module_delete"><input type="hidden" name="module_id" value="<?= (int)$wk['id'] ?>"><button class="tiny" type="submit" style="background:transparent;color:var(--muted);border:0;cursor:pointer;font-size:0.74rem">✕ remove week <?= (int)$wk['week'] ?></button></form>
-        <?php endif; ?>
-        <?php endforeach; ?>
-        </div>
-      </div>
-    <?php endif; ?>
-  <?php endif; ?>
 
 <?php elseif ($view === 'messages'): ?>
   <header class="top"><h1>Contact Messages</h1><a class="btn ghost" href="?v=export&type=messages.csv">⬇ Export</a></header>
