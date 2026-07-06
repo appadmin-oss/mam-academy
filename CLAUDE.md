@@ -138,6 +138,12 @@ real-money top-up/withdrawal). **Scoring tool before the notation showcase.**
   footer + a post-apply opt-in CTA on `thank-you.php`. Awarding still routes through the
   existing admin `set-student-type` (committee decides; capture-only here). Auditer
   scholarship-signal writer (`auditer_results`) is the next piece, not yet built.
+- ✅ **Student photos in the portal** — the application headshot auto-populates `users.avatar_url`
+  at provisioning (`mam_ensure_student_user`, + backfill), so a student's photo shows as their
+  portal avatar (was: initials only). Editable via `POST /api/student/avatar` + a "Your photo"
+  panel in the portal Profile tab (headshot uploader).
+- ✅ **Admin Media & Documents** — admin `?v=media` (new `media` manager cap): manage
+  `class_resources` (add/delete) + portal photos (clear); `GET /api/admin/media` aggregates them.
 - ✅ **#6 T&C** — clause 5 "Practice & the MAM metronome" in `terms.php`.
 - ✅ **#12 Wallet** — `wallet_ledger` (v32), `api/lib/wallet.php`, `POST /api/admin/wallet-credit`,
   `GET /api/student/wallet`, `POST /api/student/store-redeem`; student "Wallet" tab +
