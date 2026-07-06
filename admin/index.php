@@ -187,6 +187,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
         'wallet_credit' => 'users',
+        'module_proposal_review' => 'curriculum',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
@@ -658,6 +659,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             trim((string)($_POST['content'] ?? '')) ?: null
         );
         header('Location: ' . $back . '&ok=1'); exit;
+    }
+
+    // ─── Review a faculty curriculum proposal (approve → applied to modules) ──
+    if ($action === 'module_proposal_review') {
+        $pid = (int)($_POST['proposal_id'] ?? 0);
+        $approve = ($_POST['decision'] ?? '') === 'approve';
+        $note = substr(trim((string)($_POST['review_note'] ?? '')), 0, 500) ?: null;
+        $me = mam_current_user();
+        if ($pid > 0) {
+            try { mam_lms_review_proposal($pid, $approve, $me ? (int)$me['id'] : null, $note); }
+            catch (\Throwable $e) { header('Location: ?v=modules&err=' . urlencode('Could not review that proposal.')); exit; }
+        }
+        header('Location: ?v=modules&ok=1'); exit;
     }
 
     // ─── Load the bundled starter curriculum (from MAM's documents) ──
@@ -2322,7 +2336,37 @@ button.tiny:hover{border-color:var(--gold)}
     }
     $modulesAuthored = (int)mam_admin_scalar('SELECT COUNT(*) FROM modules');
     $ov = mam_lms_curriculum_overview();
+    $proposals = function_exists('mam_lms_pending_proposals') ? mam_lms_pending_proposals() : [];
   ?>
+
+  <?php if ($proposals): ?>
+  <div class="card" style="border-color:var(--gold)">
+    <h3>📝 Faculty curriculum proposals <span class="muted" style="font-weight:400;font-size:.8rem">— <?= count($proposals) ?> awaiting review. Approving applies the week to the live syllabus.</span></h3>
+    <table>
+      <thead><tr><th>Proposed by</th><th>Course / Level</th><th>Week</th><th>Title &amp; content</th><th>Decision</th></tr></thead>
+      <tbody>
+      <?php foreach ($proposals as $pr): ?>
+        <tr>
+          <td><?= htmlspecialchars((string)($pr['proposer_name'] ?? '—')) ?><br><span class="muted"><?= htmlspecialchars(substr((string)$pr['created_at'], 0, 16)) ?></span></td>
+          <td><?= htmlspecialchars((string)($pr['course_name'] ?? ('#' . (int)$pr['course_id']))) ?><?= $pr['level_name'] ? ' · ' . htmlspecialchars((string)$pr['level_name']) : '' ?></td>
+          <td>Wk <?= (int)$pr['week'] ?> <span class="pill"><?= htmlspecialchars((string)$pr['kind']) ?></span></td>
+          <td style="max-width:340px"><strong><?= htmlspecialchars((string)$pr['title']) ?></strong><?php if (!empty($pr['content'])): ?><br><span class="muted" style="font-size:.84rem"><?= nl2br(htmlspecialchars(substr((string)$pr['content'], 0, 400))) ?></span><?php endif; ?></td>
+          <td style="white-space:nowrap">
+            <form method="post" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <input type="hidden" name="action" value="module_proposal_review">
+              <input type="hidden" name="proposal_id" value="<?= (int)$pr['id'] ?>">
+              <input type="text" name="review_note" class="tiny" placeholder="note (optional)" maxlength="500" style="width:120px">
+              <button class="tiny" type="submit" name="decision" value="approve" style="border-color:#34D399;color:#34D399">Approve</button>
+              <button class="tiny" type="submit" name="decision" value="reject" style="border-color:#FCA5A5;color:#FCA5A5">Reject</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
 
   <div class="card">
     <h3>Curriculum overview <span class="muted" style="font-weight:400;font-size:.8rem">— authored weeks per course &amp; level; click a cell to author it</span></h3>

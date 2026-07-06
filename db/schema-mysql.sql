@@ -1023,3 +1023,23 @@ CREATE TABLE IF NOT EXISTS scholarship_applications (
   KEY idx_scholarship_status (status, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (34) ON DUPLICATE KEY UPDATE version = version;
+
+-- v35 — instructor curriculum proposals (admin-approved authoring)
+CREATE TABLE IF NOT EXISTS module_proposals (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  course_id    INT NOT NULL,
+  level_id     INT,
+  week         INT NOT NULL,
+  title        VARCHAR(200) NOT NULL,
+  kind         VARCHAR(16) NOT NULL DEFAULT 'module',
+  content      TEXT,
+  proposed_by  INT,
+  status       VARCHAR(16) NOT NULL DEFAULT 'pending',
+  review_note  TEXT,
+  reviewed_by  INT,
+  reviewed_at  DATETIME,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_modprop_status (status, id),
+  KEY idx_modprop_by (proposed_by, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (35) ON DUPLICATE KEY UPDATE version = version;

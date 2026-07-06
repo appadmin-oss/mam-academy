@@ -1008,6 +1008,70 @@ function mam_lms_delete_module(int $id): void {
     mam_audit('lms_module_delete', 'module', $id, []);
 }
 
+/* ── Curriculum proposals: faculty author, admin approves ──────────────────
+   Instructors don't write `modules` directly; they submit a proposal for a
+   week of a course/level they teach. An admin approves (→ upserted into
+   `modules`) or rejects. Keeps the canonical curriculum admin-gated. */
+
+/** Submit a curriculum proposal (status 'pending'). Returns the proposal id. */
+function mam_lms_propose_module(int $courseId, ?int $levelId, int $week, string $kind, string $title, ?string $content, ?int $by): int {
+    if (!in_array($kind, ['module', 'revision', 'exam'], true)) $kind = 'module';
+    $id = mam_db_insert('module_proposals', [
+        'course_id' => $courseId, 'level_id' => $levelId, 'week' => max(1, $week),
+        'kind' => $kind, 'title' => $title, 'content' => $content,
+        'proposed_by' => $by, 'status' => 'pending',
+    ]);
+    mam_audit('lms_module_propose', 'module_proposal', $id, ['course' => $courseId, 'week' => $week]);
+    return $id;
+}
+
+/** Proposals submitted by one instructor (newest first). */
+function mam_lms_instructor_proposals(int $instructorId, int $limit = 100): array {
+    $limit = max(1, min(200, $limit));
+    return mam_db_all(
+        "SELECT mp.*, c.name AS course_name, l.name AS level_name, ru.name AS reviewer_name
+           FROM module_proposals mp
+           LEFT JOIN courses c ON c.id = mp.course_id
+           LEFT JOIN levels l  ON l.id = mp.level_id
+           LEFT JOIN users ru  ON ru.id = mp.reviewed_by
+          WHERE mp.proposed_by = ? ORDER BY mp.id DESC LIMIT " . $limit,
+        [$instructorId]
+    );
+}
+
+/** Pending proposals awaiting admin review (with proposer + course names). */
+function mam_lms_pending_proposals(int $limit = 200): array {
+    $limit = max(1, min(500, $limit));
+    return mam_db_all(
+        "SELECT mp.*, c.name AS course_name, l.name AS level_name, pu.name AS proposer_name
+           FROM module_proposals mp
+           LEFT JOIN courses c ON c.id = mp.course_id
+           LEFT JOIN levels l  ON l.id = mp.level_id
+           LEFT JOIN users pu  ON pu.id = mp.proposed_by
+          WHERE mp.status = 'pending' ORDER BY mp.id DESC LIMIT " . $limit
+    );
+}
+
+/** Approve (→ upsert into `modules`) or reject a proposal. Idempotent: a
+ *  non-pending proposal is left untouched. Returns the updated proposal row. */
+function mam_lms_review_proposal(int $id, bool $approve, ?int $reviewer, ?string $note = null): array {
+    $p = mam_db_row('SELECT * FROM module_proposals WHERE id = ?', [$id]);
+    if (!$p) throw new InvalidArgumentException('proposal_not_found');
+    if ($p['status'] !== 'pending') return $p; // already decided — no-op
+
+    if ($approve) {
+        $existing = mam_lms_find_module_week((int)$p['course_id'], $p['level_id'] !== null ? (int)$p['level_id'] : null, (int)$p['week']);
+        mam_lms_save_module($existing, (int)$p['course_id'], $p['level_id'] !== null ? (int)$p['level_id'] : null,
+            (int)$p['week'], (string)$p['kind'], (string)$p['title'], $p['content']);
+    }
+    mam_db_update('module_proposals', [
+        'status' => $approve ? 'approved' : 'rejected',
+        'review_note' => $note, 'reviewed_by' => $reviewer, 'reviewed_at' => date('Y-m-d H:i:s'),
+    ], ['id' => $id]);
+    mam_audit($approve ? 'lms_module_proposal_approve' : 'lms_module_proposal_reject', 'module_proposal', $id, ['week' => $p['week']]);
+    return mam_db_row('SELECT * FROM module_proposals WHERE id = ?', [$id]);
+}
+
 /** Create the missing week rows for a course+level per the programme plan.
  *  Returns how many were created. Lets an admin scaffold a syllabus in a click. */
 function mam_lms_scaffold_modules(int $courseId, ?int $levelId, ?int $programId): int {

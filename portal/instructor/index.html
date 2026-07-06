@@ -289,9 +289,11 @@
         +   '<button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Schedule</button>'
         + '</form></section>'
         + '<div id="markArea"></div>'
-        + '<div id="cohortStandings"></div>';
+        + '<div id="cohortStandings"></div>'
+        + '<div id="cohortCurriculum"></div>';
       bindSessionList(cid);
       loadCohortStandings(cid);
+      loadCohortCurriculum(cid);
     }).catch(function () { area.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load sessions.') + '</div></section>'; });
   }
 
@@ -321,6 +323,58 @@
         + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Student</th><th>Course</th><th>Standing</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
       bindTabLinks();
     }).catch(function () { /* standings are additive — never block the sessions view */ });
+  }
+
+  // P2 curriculum authoring: for the selected cohort, show the week-by-week
+  // curriculum (context while teaching) plus a "propose a change" form. Proposals
+  // go to the admin for approval — nothing here writes the live syllabus.
+  var CUR_KIND = { module: 'Module', revision: 'Revision', exam: 'Examination' };
+  function loadCohortCurriculum(cid) {
+    var host = document.getElementById('cohortCurriculum');
+    if (!host) return;
+    API.request('instructor/curriculum?cohort_id=' + encodeURIComponent(cid), { method: 'GET' }).then(function (r) {
+      if (!document.getElementById('cohortCurriculum')) return; // cohort switched
+      var weeks = (r.outline && r.outline.weeks) || [];
+      var props = r.proposals || [];
+      var weekRows = weeks.length ? weeks.map(function (w) {
+        return '<tr><td data-label="Week">Wk ' + w.week + '</td>'
+          + '<td data-label="Kind"><span class="pill">' + P.escapeHtml(CUR_KIND[w.kind] || w.kind) + '</span></td>'
+          + '<td data-label="Title"><strong>' + P.escapeHtml(w.title || ('Week ' + w.week)) + '</strong>'
+          + (w.content ? '<br><span style="color:var(--text-muted);font-size:0.82rem">' + P.escapeHtml(w.content) + '</span>' : '') + '</td></tr>';
+      }).join('') : '<tr><td colspan="3" class="empty">No curriculum authored for this course yet.</td></tr>';
+
+      var propRows = props.length ? props.map(function (p) {
+        var tone = { pending: 'pending', approved: 'present', rejected: 'withdrawn' }[p.status] || 'pending';
+        return '<tr><td data-label="Week">Wk ' + p.week + '</td>'
+          + '<td data-label="Title">' + P.escapeHtml(p.title) + '</td>'
+          + '<td data-label="Status"><span class="pill ' + tone + '">' + P.escapeHtml(p.status) + '</span>'
+          + (p.review_note ? '<br><span style="color:var(--text-muted);font-size:0.8rem">' + P.escapeHtml(p.review_note) + '</span>' : '') + '</td></tr>';
+      }).join('') : '';
+
+      host.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Curriculum</h2>'
+        + '<span style="font-size:0.8rem;color:var(--text-muted)">' + P.escapeHtml((r.cohort && r.cohort.course_name) || '') + (r.cohort && r.cohort.level_name ? ' · ' + P.escapeHtml(r.cohort.level_name) : '') + '</span></div>'
+        + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Week</th><th>Kind</th><th>Focus</th></tr></thead><tbody>' + weekRows + '</tbody></table></div>'
+        + '<form id="curPropose" class="profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;border-top:1px solid var(--border)">'
+        +   '<div class="field" style="width:74px"><label>Week</label><input name="week" type="number" min="1" max="20" required></div>'
+        +   '<div class="field" style="width:120px"><label>Kind</label><select name="kind"><option value="module">Module</option><option value="revision">Revision</option><option value="exam">Exam</option></select></div>'
+        +   '<div class="field" style="flex:1;min-width:150px"><label>Title</label><input name="title" placeholder="e.g. Week 3 — Sight-reading" required></div>'
+        +   '<div class="field" style="flex:2;min-width:200px"><label>Focus / content</label><input name="content" placeholder="What this week covers" maxlength="4000"></div>'
+        +   '<button type="submit" class="btn btn-primary" style="padding:9px 14px"><i class="fa-solid fa-paper-plane"></i> Propose</button>'
+        + '</form>'
+        + (props.length ? '<div class="ptable-wrap" style="padding:0 12px 14px"><h3 style="margin:6px 8px;font-size:0.9rem">Your proposals</h3><table class="ptable"><thead><tr><th>Week</th><th>Title</th><th>Status</th></tr></thead><tbody>' + propRows + '</tbody></table></div>' : '')
+        + '<p style="margin:2px 18px 14px;font-size:0.78rem;color:var(--text-muted)">Proposals are reviewed by the Academy before they change the live curriculum.</p></section>';
+
+      var form = document.getElementById('curPropose');
+      form.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var wk = parseInt(form.elements.week.value, 10);
+        if (isNaN(wk) || !form.elements.title.value.trim()) return;
+        var btn = form.querySelector('button'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Sending…';
+        API.request('instructor/curriculum', { method: 'POST', body: { cohort_id: cid, week: wk, kind: form.elements.kind.value, title: form.elements.title.value.trim(), content: form.elements.content.value.trim() || undefined } })
+          .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Proposal sent for review.', 'success'); loadCohortCurriculum(cid); })
+          .catch(function () { btn.disabled = false; btn.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not send the proposal.', 'error'); });
+      });
+    }).catch(function () { /* curriculum is additive — never block the sessions view */ });
   }
 
   function bindSessionList(cid) {

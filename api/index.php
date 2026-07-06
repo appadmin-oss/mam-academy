@@ -174,6 +174,8 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->get ('/gradebook',        $f('instructor/gradebook.php'),       [mw_role('instructor', 'admin')]);
     $r->get ('/assessments',      $f('instructor/assessments.php'),     [mw_role('instructor', 'admin')]);
     $r->get ('/earnings',         $f('instructor/earnings.php'),        [mw_role('instructor', 'admin')]);
+    $r->get ('/curriculum',       $f('instructor/curriculum.php'),      [mw_role('instructor', 'admin')]);
+    $r->post('/curriculum',       $f('instructor/curriculum.php'),      [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('curriculum_propose', 40, 600)]);
     $r->post('/assess',           $f('instructor/assess.php'),          [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('assess', 120, 600)]);
     // LMS L2 — cohort scheduling + session attendance.
     $r->get ('/sessions',           $f('instructor/sessions.php'),           [mw_role('instructor', 'admin')]);

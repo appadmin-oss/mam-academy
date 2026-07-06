@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 34;
+const MAM_SCHEMA_TARGET = 35;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1063,6 +1063,29 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX idx_scholarship_email ON scholarship_applications(email);
             CREATE INDEX idx_scholarship_status ON scholarship_applications(status, id);
+        ",
+        // v35 — instructor curriculum proposals (portal upgrade P2 / curriculum
+        // authoring). Instructors propose a week's module for a course/level they
+        // teach; an admin approves (→ applied to `modules`) or rejects. Keeps the
+        // canonical `modules` table admin-gated while opening authoring to faculty.
+        35 => "
+            CREATE TABLE module_proposals (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              course_id INTEGER NOT NULL,
+              level_id INTEGER,
+              week INTEGER NOT NULL,
+              title TEXT NOT NULL,
+              kind TEXT NOT NULL DEFAULT 'module',
+              content TEXT,
+              proposed_by INTEGER,
+              status TEXT NOT NULL DEFAULT 'pending',
+              review_note TEXT,
+              reviewed_by INTEGER,
+              reviewed_at TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_modprop_status ON module_proposals(status, id);
+            CREATE INDEX idx_modprop_by ON module_proposals(proposed_by, id);
         ",
     ];
 
