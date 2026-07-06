@@ -752,6 +752,52 @@ function mam_lms_record_assessment(int $enrollmentId, string $typeCode, ?int $in
     return mam_lms_compute_result($enrollmentId, $instructorId);
 }
 
+/** One assessment row with its enrolment + type (for ownership checks and edits). */
+function mam_lms_assessment(int $assessmentId): ?array {
+    return mam_db_row(
+        "SELECT a.id, a.enrollment_id, a.type_id, a.score, a.max_score, a.week, a.notes,
+                t.code AS type_code, ce.instructor_id
+           FROM assessments a
+           JOIN course_enrollments ce ON ce.id = a.enrollment_id
+           LEFT JOIN assessment_types t ON t.id = a.type_id
+          WHERE a.id = ?",
+        [$assessmentId]
+    );
+}
+
+/** Correct a recorded assessment ("remark"): overwrite score/max/week/notes in
+ *  place — NOT another averaged row — then recompute. Audits the before→after so
+ *  a grade change is never silent. Returns ['enrollment_id','result']. */
+function mam_lms_update_assessment(int $assessmentId, ?int $by, float $score, float $maxScore = 100.0, ?int $week = null, ?string $notes = null): array {
+    $a = mam_lms_assessment($assessmentId);
+    if (!$a) throw new InvalidArgumentException('assessment_not_found');
+    if ($maxScore <= 0) $maxScore = 100.0;
+    $score = max(0.0, min($score, $maxScore));
+    $eid = (int)$a['enrollment_id'];
+    mam_db_update('assessments', [
+        'score' => $score, 'max_score' => $maxScore, 'week' => $week, 'notes' => $notes,
+    ], ['id' => $assessmentId]);
+    mam_audit('lms_assess_edit', 'course_enrollment', $eid, [
+        'assessment_id' => $assessmentId, 'type' => $a['type_code'],
+        'from' => ['score' => (float)$a['score'], 'max' => (float)$a['max_score']],
+        'to'   => ['score' => $score, 'max' => $maxScore],
+    ]);
+    return ['enrollment_id' => $eid, 'result' => mam_lms_compute_result($eid, $by)];
+}
+
+/** Void (delete) a recorded assessment, then recompute. Audits the removed value.
+ *  Returns ['enrollment_id','result']. */
+function mam_lms_delete_assessment(int $assessmentId, ?int $by): array {
+    $a = mam_lms_assessment($assessmentId);
+    if (!$a) throw new InvalidArgumentException('assessment_not_found');
+    $eid = (int)$a['enrollment_id'];
+    mam_db()->prepare('DELETE FROM assessments WHERE id = ?')->execute([$assessmentId]);
+    mam_audit('lms_assess_void', 'course_enrollment', $eid, [
+        'assessment_id' => $assessmentId, 'type' => $a['type_code'], 'score' => (float)$a['score'],
+    ]);
+    return ['enrollment_id' => $eid, 'result' => mam_lms_compute_result($eid, $by)];
+}
+
 /** An instructor's active course enrolments with student/course + current result. */
 function mam_lms_instructor_gradebook(int $instructorId): array {
     return mam_db_all(
@@ -770,12 +816,16 @@ function mam_lms_instructor_gradebook(int $instructorId): array {
     );
 }
 
-/** Every assessment recorded against an enrolment (newest first). */
+/** Every assessment recorded against an enrolment (newest first), with the
+ *  grader's name so the student sees who marked each component and when. */
 function mam_lms_enrollment_assessments(int $enrollmentId): array {
     return mam_db_all(
         "SELECT a.id, a.score, a.max_score, a.week, a.notes, a.created_at,
-                t.code AS type_code, t.name AS type_name, t.weight
-           FROM assessments a LEFT JOIN assessment_types t ON t.id = a.type_id
+                t.code AS type_code, t.name AS type_name, t.weight,
+                iu.name AS grader_name
+           FROM assessments a
+           LEFT JOIN assessment_types t ON t.id = a.type_id
+           LEFT JOIN users iu ON iu.id = a.instructor_id
           WHERE a.enrollment_id = ? ORDER BY a.created_at DESC",
         [$enrollmentId]
     );

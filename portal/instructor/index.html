@@ -387,14 +387,16 @@
       var cards = ens.map(function (e) {
         return '<div class="panel" data-eid="' + e.id + '" style="margin-bottom:14px">'
           + '<div class="panel-head"><h2 style="font-size:1rem">' + P.escapeHtml(e.student_name) + ' <span style="color:var(--text-muted);font-weight:500">— ' + P.escapeHtml(e.course_name) + (e.level_name ? ' · ' + P.escapeHtml(e.level_name) : '') + '</span></h2>'
-          + '<span class="gb-result">' + gradePill(e) + '</span></div>'
+          + '<span style="display:flex;align-items:center;gap:8px"><span class="gb-result">' + gradePill(e) + '</span>'
+          + '<button type="button" class="btn btn-ghost gb-marks-btn" style="padding:4px 10px;font-size:0.74rem"><i class="fa-solid fa-list-ol"></i> Marks</button></span></div>'
           + '<form class="gb-form profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
           +   '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type">' + typeOpts + '</select></div>'
           +   '<div class="field" style="width:84px"><label>Score</label><input name="score" type="number" min="0" step="0.5" required></div>'
           +   '<div class="field" style="width:74px"><label>Out of</label><input name="max" type="number" min="1" step="0.5" value="100"></div>'
           +   '<div class="field" style="width:70px"><label>Week</label><input name="week" type="number" min="1" max="12"></div>'
           +   '<button type="submit" class="btn btn-primary" style="padding:9px 14px"><i class="fa-solid fa-plus"></i> Record</button>'
-          + '</form></div>';
+          + '</form>'
+          + '<div class="gb-marks" hidden></div></div>';
       }).join('');
       content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Gradebook</h2><span style="font-size:0.8rem;color:var(--text-muted)">Pass mark ' + (gb.pass_mark || 50) + '%</span></div>'
         + '<div style="padding:0 22px 14px;color:var(--text-muted);font-size:0.86rem;line-height:1.55">Record weekly scores across the weighted components — results compute automatically and appear in each student\'s portal.</div></section>'
@@ -410,9 +412,8 @@
           var btn = form.querySelector('button'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
           API.request('instructor/assess', { method: 'POST', body: body }).then(function (r) {
             btn.disabled = false; btn.innerHTML = orig; form.reset(); form.elements.max.value = '100';
-            var res = r.result || {};
-            card.querySelector('.gb-result').innerHTML = gradePill({ total_score: res.total, grade: res.grade, outcome: res.outcome });
-            gbCache = null; // next open re-fetches fresh standings
+            gbApplyResult(card, r.result); gbCache = null; // next open re-fetches fresh standings
+            var box = card.querySelector('.gb-marks'); if (box && !box.hidden) gbLoadMarks(card);
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Score recorded.', 'success');
           }).catch(function (err) {
             btn.disabled = false; btn.innerHTML = orig;
@@ -421,8 +422,86 @@
           });
         });
       });
+      // Toggle the recorded-marks panel per card (loads on first open).
+      content.querySelectorAll('.gb-marks-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var card = btn.closest('[data-eid]'), box = card.querySelector('.gb-marks');
+          if (!box.hidden) { box.hidden = true; return; }
+          box.hidden = false; gbLoadMarks(card);
+        });
+      });
     }).catch(function () {
       content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load the gradebook.') + '</div></section>';
+    });
+  }
+
+  // Repaint a card's standing pill from a recomputed result.
+  function gbApplyResult(card, res) {
+    res = res || {};
+    var el = card.querySelector('.gb-result');
+    if (el) el.innerHTML = gradePill({ total_score: res.total, grade: res.grade, outcome: res.outcome });
+  }
+
+  // Load + render one enrolment's recorded marks with correct (remark) / void
+  // controls — so a mistaken score is fixed in place, never just averaged away.
+  function gbLoadMarks(card) {
+    var eid = card.getAttribute('data-eid'), box = card.querySelector('.gb-marks');
+    box.innerHTML = '<div class="empty-state" style="padding:14px"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading marks…</div>';
+    API.request('instructor/assessments?enrollment_id=' + encodeURIComponent(eid), { method: 'GET' }).then(function (r) {
+      var marks = r.assessments || [];
+      if (!marks.length) { box.innerHTML = '<div style="padding:10px 18px 16px;color:var(--text-muted);font-size:0.85rem">No marks recorded yet.</div>'; return; }
+      var rows = marks.map(function (m) {
+        var pct = m.max_score > 0 ? Math.round(m.score * 100 / m.max_score) : 0;
+        return '<tr data-aid="' + m.id + '" data-score="' + m.score + '" data-max="' + m.max_score + '" data-week="' + (m.week != null ? m.week : '') + '" data-notes="' + P.escapeHtml(String(m.notes || '')) + '">'
+          + '<td data-label="Component">' + P.escapeHtml(m.type_name || m.type_code || '—') + '</td>'
+          + '<td data-label="Score"><strong>' + m.score + '</strong> / ' + m.max_score + ' <span style="color:var(--text-muted)">(' + pct + '%)</span></td>'
+          + '<td data-label="Week">' + (m.week != null ? 'Wk ' + m.week : '—') + '</td>'
+          + '<td data-label="Note">' + (m.notes ? P.escapeHtml(m.notes) : '<span style="color:var(--text-muted)">—</span>') + '</td>'
+          + '<td data-label="" style="white-space:nowrap"><button type="button" class="btn btn-ghost gb-edit" style="padding:3px 9px;font-size:0.72rem">Edit</button> '
+          + '<button type="button" class="btn btn-danger gb-void" style="padding:3px 9px;font-size:0.72rem">Void</button></td></tr>';
+      }).join('');
+      box.innerHTML = '<div class="ptable-wrap" style="padding:0 12px 14px"><table class="ptable"><thead><tr><th>Component</th><th>Score</th><th>Week</th><th>Note</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
+        + '<p style="margin:2px 8px 0;font-size:0.78rem;color:var(--text-muted)">Editing corrects a mark in place; voiding removes it. Either way the result recomputes.</p></div>';
+      gbWireMarkActions(card, box);
+    }).catch(function () { box.innerHTML = '<div style="padding:12px 18px;color:#FB7185">Could not load marks.</div>'; });
+  }
+
+  function gbWireMarkActions(card, box) {
+    box.querySelectorAll('.gb-void').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var tr = b.closest('[data-aid]'), aid = parseInt(tr.getAttribute('data-aid'), 10);
+        if (!window.confirm('Void this mark? The result recomputes without it.')) return;
+        API.request('instructor/assess', { method: 'POST', body: { assessment_id: aid, action: 'void' } }).then(function (r) {
+          gbApplyResult(card, r.result); gbCache = null; gbLoadMarks(card);
+          if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Mark voided.', 'success');
+        }).catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not void the mark.', 'error'); });
+      });
+    });
+    box.querySelectorAll('.gb-edit').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var tr = b.closest('[data-aid]');
+        var typeName = tr.children[0].textContent;
+        var score = tr.getAttribute('data-score'), max = tr.getAttribute('data-max'), week = tr.getAttribute('data-week'), notes = tr.getAttribute('data-notes');
+        tr.innerHTML = '<td data-label="Component">' + P.escapeHtml(typeName) + '</td>'
+          + '<td data-label="Score"><input class="ed-score" type="number" min="0" step="0.5" value="' + P.escapeHtml(score) + '" style="width:62px"> / <input class="ed-max" type="number" min="1" step="0.5" value="' + P.escapeHtml(max) + '" style="width:56px"></td>'
+          + '<td data-label="Week"><input class="ed-week" type="number" min="1" max="12" value="' + P.escapeHtml(week) + '" style="width:50px"></td>'
+          + '<td data-label="Note"><input class="ed-notes" type="text" value="' + P.escapeHtml(notes) + '" style="width:130px" maxlength="300"></td>'
+          + '<td data-label="" style="white-space:nowrap"><button type="button" class="btn btn-primary ed-save" style="padding:3px 9px;font-size:0.72rem">Save</button> '
+          + '<button type="button" class="btn btn-ghost ed-cancel" style="padding:3px 9px;font-size:0.72rem">Cancel</button></td>';
+        tr.querySelector('.ed-cancel').addEventListener('click', function () { gbLoadMarks(card); });
+        tr.querySelector('.ed-save').addEventListener('click', function () {
+          var aid = parseInt(tr.getAttribute('data-aid'), 10);
+          var sc = parseFloat(tr.querySelector('.ed-score').value);
+          if (isNaN(sc)) return;
+          var body = { assessment_id: aid, score: sc, max_score: parseFloat(tr.querySelector('.ed-max').value) || 100 };
+          var wk = tr.querySelector('.ed-week').value; if (wk) body.week = parseInt(wk, 10);
+          var nt = tr.querySelector('.ed-notes').value; if (nt) body.notes = nt;
+          API.request('instructor/assess', { method: 'POST', body: body }).then(function (r) {
+            gbApplyResult(card, r.result); gbCache = null; gbLoadMarks(card);
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Mark corrected.', 'success');
+          }).catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update the mark.', 'error'); });
+        });
+      });
     });
   }
 

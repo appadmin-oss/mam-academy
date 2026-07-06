@@ -1,15 +1,43 @@
 <?php
 /**
  * POST /api/instructor/assess
- * Body: { enrollment_id:int, type:"<code>", score:number, max_score?:number,
- *         week?:int, notes?:string }
- * Records one weighted assessment score for a course enrolment the instructor
- * teaches (admins may grade any), then returns the recomputed result.
+ * Record a mark:  { enrollment_id, type:"<code>", score, max_score?, week?, notes? }
+ * Remark (edit):  { assessment_id, score, max_score?, week?, notes? }
+ * Void (delete):  { assessment_id, action:"void" }
+ *
+ * Records / corrects / voids one weighted assessment for a course enrolment the
+ * instructor teaches (admins may grade any), then returns the recomputed result.
+ * Editing overwrites the row in place — it does NOT add another averaged mark —
+ * so a mistaken score can be corrected, not just diluted. Every change is audited.
  */
 declare(strict_types=1);
 $u = mam_require_role('instructor', 'admin');
 
-$in    = mam_json_input();
+$in      = mam_json_input();
+$isAdmin = mam_user_has_role($u, 'admin');
+
+// ── Remark / void an existing assessment ──
+$aid = (int)($in['assessment_id'] ?? 0);
+if ($aid > 0) {
+    $a = mam_lms_assessment($aid);
+    if (!$a) mam_fail('assessment_not_found', 404);
+    if (!$isAdmin && (int)$a['instructor_id'] !== (int)$u['id']) mam_fail('forbidden', 403);
+
+    if (($in['action'] ?? '') === 'void') {
+        $r = mam_lms_delete_assessment($aid, (int)$u['id']);
+        mam_ok(['result' => $r['result'], 'voided' => true]);
+    }
+
+    $score = isset($in['score']) ? (float)$in['score'] : -1.0;
+    if ($score < 0) mam_fail('validation', 422, ['fields' => ['score']]);
+    $max   = isset($in['max_score']) && (float)$in['max_score'] > 0 ? (float)$in['max_score'] : 100.0;
+    $week  = isset($in['week']) ? max(0, (int)$in['week']) : null;
+    $notes = mam_str($in, 'notes', 300) ?: null;
+    $r = mam_lms_update_assessment($aid, (int)$u['id'], $score, $max, $week, $notes);
+    mam_ok(['result' => $r['result'], 'edited' => true]);
+}
+
+// ── Record a new mark ──
 $eid   = (int)($in['enrollment_id'] ?? 0);
 $type  = mam_str($in, 'type', 32);
 $score = isset($in['score']) ? (float)$in['score'] : -1.0;
@@ -23,7 +51,7 @@ if ($eid <= 0 || $type === '' || $score < 0) {
 
 $ce = mam_db_row('SELECT id, instructor_id FROM course_enrollments WHERE id = ?', [$eid]);
 if (!$ce) mam_fail('enrollment_not_found', 404);
-if (!mam_user_has_role($u, 'admin') && (int)$ce['instructor_id'] !== (int)$u['id']) {
+if (!$isAdmin && (int)$ce['instructor_id'] !== (int)$u['id']) {
     mam_fail('forbidden', 403);
 }
 

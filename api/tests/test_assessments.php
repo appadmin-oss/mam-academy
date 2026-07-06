@@ -64,3 +64,25 @@ t_ok($bad, 'unknown assessment type rejected');
 // Instructor gradebook lists the enrolment with its result.
 $gb = mam_lms_instructor_gradebook($iid);
 t_ok(count($gb) >= 3, 'gradebook lists the instructor\'s enrolments');
+
+// ── Remark: editing corrects a mark in place (does NOT average like a re-record).
+$side = mam_db_insert('users', ['email' => 't_remark@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Remark Me', 'status' => 'active']);
+$eid4 = mam_db_insert('course_enrollments', ['student_id' => $side, 'course_id' => $cid, 'status' => 'active', 'instructor_id' => $iid]);
+$rr = mam_lms_record_assessment($eid4, 'attendance', $iid, 40);
+t_near($rr['total'], 40.0, 'remark: initial attendance 40%');
+$aRow = mam_lms_enrollment_assessments($eid4)[0];
+t_ok(isset($aRow['grader_name']) && $aRow['grader_name'] === 'Grader', 'assessment surfaces the grader name');
+// Correct 40 → 90 by editing the SAME row: result becomes 90, not avg(40,90)=65.
+$ur = mam_lms_update_assessment((int)$aRow['id'], $iid, 90);
+t_near($ur['result']['total'], 90.0, 'remark: edit corrects to 90 (not averaged to 65)');
+t_eq(count(mam_lms_enrollment_assessments($eid4)), 1, 'remark: still one assessment row (edited in place)');
+
+// ── Void: deleting the only mark clears the result back to ungraded.
+$vr = mam_lms_delete_assessment((int)$aRow['id'], $iid);
+t_ok($vr['result']['total'] === null, 'void: removing the last mark clears the result');
+t_eq(count(mam_lms_enrollment_assessments($eid4)), 0, 'void: assessment row deleted');
+
+// ── Editing a missing assessment is rejected.
+$bad2 = false;
+try { mam_lms_update_assessment(99999999, $iid, 50); } catch (InvalidArgumentException $e) { $bad2 = true; }
+t_ok($bad2, 'editing an unknown assessment rejected');
