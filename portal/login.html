@@ -315,7 +315,10 @@
     .then(function (r) {
       if (r && r.authenticated && r.user) {
         var map = { admin: '/admin/', instructor: '/portal/instructor/', student: '/portal/student/' };
-        window.location.href = map[r.user.role] || '/';
+        var roles = (r.user.roles && r.user.roles.length) ? r.user.roles : [r.user.role];
+        var portals = roles.filter(function (role) { return map[role]; });
+        if (portals.length > 1) { window.location.href = '/portal/choose'; return; }  // let dual-role users choose
+        window.location.href = map[portals[0]] || '/';
       }
     })
     .catch(function () {});

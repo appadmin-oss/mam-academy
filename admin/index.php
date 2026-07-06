@@ -830,6 +830,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('That email is already taken by another user.')); exit;
         }
         mam_db_update('users', ['email' => $email, 'name' => $name, 'phone' => $phone, 'role' => $role, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $uid]);
+        // Secondary portal access (user_roles): a user can be both student +
+        // instructor. The primary role lives in users.role (folded in by
+        // mam_user_roles), so we only grant/revoke the OTHER portal role here.
+        $extra = array_map('strval', (array)($_POST['extra_roles'] ?? []));
+        foreach (['student', 'instructor'] as $rc) {
+            if ($rc === $role) continue; // primary role is authoritative, not a secondary grant
+            if (in_array($rc, $extra, true)) mam_user_ensure_role($uid, $rc);
+            else mam_user_remove_role($uid, $rc);
+        }
         // Sync the linked customer row so applications + emails stay consistent.
         $u = mam_db_row('SELECT customer_id FROM users WHERE id = ?', [$uid]);
         if (!empty($u['customer_id'])) {
@@ -1876,13 +1885,22 @@ button.tiny:hover{border-color:var(--gold)}
       <label>Email<input type="email" name="email" required value="<?= htmlspecialchars((string)($editUser['email'] ?? '')) ?>"></label>
       <label>Full name<input type="text" name="name" required value="<?= htmlspecialchars((string)($editUser['name'] ?? '')) ?>"></label>
       <label>Phone<input type="text" name="phone" value="<?= htmlspecialchars((string)($editUser['phone'] ?? '')) ?>"></label>
-      <label>Role
+      <label>Primary role
         <select name="role" required>
           <?php foreach (['student','instructor','admin'] as $r): ?>
             <option value="<?= $r ?>" <?= ($editUser['role'] ?? 'student') === $r ? 'selected' : '' ?>><?= ucfirst($r) ?></option>
           <?php endforeach; ?>
         </select>
       </label>
+      <?php if ($editUser): $heldRoles = mam_user_roles($editUser); ?>
+      <label>Additional access <span class="muted" style="font-weight:400">— a user can be both a student and an instructor; on login they choose where to go</span>
+        <span style="display:flex;gap:20px;margin-top:8px">
+          <?php foreach (['student' => 'Student portal', 'instructor' => 'Instructor portal'] as $rc => $rl): ?>
+            <label style="font-weight:400;display:flex;gap:7px;align-items:center;margin:0"><input type="checkbox" name="extra_roles[]" value="<?= $rc ?>" style="width:auto" <?= in_array($rc, $heldRoles, true) ? 'checked' : '' ?>> <?= $rl ?></label>
+          <?php endforeach; ?>
+        </span>
+      </label>
+      <?php endif; ?>
       <?php if (!$editUser): ?>
         <label>Temporary password<input type="text" name="password" minlength="8" required placeholder="≥ 8 chars"></label>
       <?php endif; ?>

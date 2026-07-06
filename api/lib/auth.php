@@ -138,6 +138,42 @@ function mam_user_ensure_role(int $userId, string $role): void {
     } catch (Throwable $e) { /* table not migrated yet — primary role still applies */ }
 }
 
+/** Remove a role from the multi-role join. Never touches the primary users.role
+ *  (that's edited separately), so this only revokes a *secondary* grant. */
+function mam_user_remove_role(int $userId, string $role): void {
+    if ($userId <= 0 || $role === '') return;
+    try {
+        mam_db()->prepare('DELETE FROM user_roles WHERE user_id = ? AND role = ?')->execute([$userId, $role]);
+    } catch (Throwable $e) { /* table not migrated yet — nothing to revoke */ }
+}
+
+/**
+ * The portal destinations a user can reach, one per distinct surface, in
+ * priority order. A user holding both student + instructor roles gets two
+ * entries → the caller shows a chooser. Admin maps to the admin dashboard.
+ * @return array<int,array{role:string,label:string,url:string}>
+ */
+function mam_portal_targets(array $roles): array {
+    $map = [
+        'admin'      => ['role' => 'admin',      'label' => 'Admin dashboard',   'url' => '/admin/'],
+        'instructor' => ['role' => 'instructor', 'label' => 'Instructor portal', 'url' => '/portal/instructor/'],
+        'student'    => ['role' => 'student',    'label' => 'Student portal',     'url' => '/portal/student/'],
+    ];
+    $out = [];
+    foreach ($map as $role => $t) {
+        if (in_array($role, $roles, true)) $out[] = $t;
+    }
+    return $out;
+}
+
+/** Where to send a user after login: their single portal, or the chooser when
+ *  they can reach more than one (e.g. someone who is both student + instructor). */
+function mam_post_login_redirect(array $roles): string {
+    $targets = mam_portal_targets($roles);
+    if (count($targets) > 1) return '/portal/choose';
+    return $targets[0]['url'] ?? '/portal/student/';
+}
+
 function mam_require_role(string ...$roles): array {
     $u = mam_require_user();
     if (!mam_user_has_role($u, ...$roles)) mam_fail('forbidden', 403);

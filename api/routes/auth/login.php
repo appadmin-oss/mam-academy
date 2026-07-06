@@ -26,21 +26,16 @@ if (mam_user_count() === 0) {
 $user = mam_login($email, $password, $remember);
 if (!$user) mam_fail('invalid_credentials', 401);
 
+$roles = mam_user_roles($user);
+
 mam_ok([
     'user' => [
         'id' => (int)$user['id'],
         'email' => $user['email'],
         'name' => $user['name'],
         'role' => $user['role'],
+        'roles' => $roles,
         'must_change_password' => (int)$user['must_change_password'] === 1,
     ],
-    'redirect' => mam_post_login_redirect($user['role']),
+    'redirect' => mam_post_login_redirect($roles),
 ]);
-
-function mam_post_login_redirect(string $role): string {
-    switch ($role) {
-        case 'admin':      return '/admin/';
-        case 'instructor': return '/portal/instructor/';
-        default:           return '/portal/student/';
-    }
-}

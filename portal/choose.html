@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Choose your portal — MAM Academy</title>
+<link rel="canonical" href="https://academy.mamcentre.org/portal/choose.html">
+<link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="/assets/css/main.css?v=20260617b">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260706a">
+<style>
+  .choose-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:48px 24px;background:radial-gradient(ellipse at top,rgba(224,138,26,0.08),transparent 50%),var(--bg)}
+  .choose-card{max-width:680px;width:100%;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-xl);padding:48px;text-align:center}
+  .choose-card h1{font-family:var(--font-serif);font-size:clamp(1.8rem,3vw,2.4rem);margin:8px 0 14px;color:var(--text)}
+  .choose-eye{font-size:0.78rem;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:8px}
+  .choose-lede{font-size:1.02rem;color:var(--text-soft);line-height:1.7;max-width:520px;margin:0 auto 36px}
+  .choose-paths{display:grid;grid-template-columns:1fr 1fr;gap:18px;text-align:left;margin-bottom:32px}
+  @media (max-width:560px){.choose-paths{grid-template-columns:1fr}.choose-card{padding:32px 24px}}
+  .choose-item{padding:24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--radius-md);display:flex;flex-direction:column;gap:10px;text-decoration:none;transition:all 0.3s var(--ease)}
+  .choose-item:hover{border-color:var(--border-gold);transform:translateY(-2px)}
+  .choose-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,rgba(224,138,26,0.18),rgba(251,191,36,0.08));border:1px solid rgba(251,191,36,0.3);display:flex;align-items:center;justify-content:center;color:var(--gold-bright);font-size:1.15rem}
+  .choose-title{font-size:1.05rem;font-weight:700;color:var(--text)}
+  .choose-desc{font-size:0.85rem;color:var(--text-muted);line-height:1.55}
+  .choose-go{margin-top:auto;color:var(--gold-bright);font-weight:700;font-size:0.85rem;display:inline-flex;align-items:center;gap:6px}
+  .choose-foot{padding-top:28px;border-top:1px solid var(--border);font-size:0.88rem;color:var(--text-muted)}
+  .choose-foot a{color:var(--gold-bright);font-weight:600}
+  .choose-loading{color:var(--text-muted);padding:20px}
+</style>
+</head>
+<body>
+<main class="choose-shell">
+  <div class="choose-card">
+    <img src="/mam-academy-logo.svg" alt="" style="width:54px;height:54px;border-radius:12px;margin:0 auto 8px" onerror="this.style.display='none'">
+    <div class="choose-eye">Welcome back</div>
+    <h1 id="choose-hi">Where would you like to go?</h1>
+    <p class="choose-lede">Your account has access to more than one space at MAM Academy. Pick where to head now — you can switch any time from the sidebar.</p>
+    <div class="choose-paths" id="choose-paths"><div class="choose-loading"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading your portals…</div></div>
+    <div class="choose-foot"><a href="#" data-logout>Sign out</a></div>
+  </div>
+</main>
+<script src="/assets/js/config.js?v=20260616h"></script>
+<script>
+(function () {
+  var META = {
+    admin:      { icon: 'shield-halved',   title: 'Admin dashboard',   desc: 'Manage applications, users, curriculum, payments and settings.', url: '/admin/' },
+    instructor: { icon: 'chalkboard-user', title: 'Instructor portal',  desc: 'Your cohorts, sessions, gradebook, feedback and earnings.',     url: '/portal/instructor/' },
+    student:    { icon: 'graduation-cap',  title: 'Student portal',     desc: 'Your learning, classes, results, assignments and payments.',    url: '/portal/student/' }
+  };
+  var ORDER = ['student', 'instructor', 'admin'];
+  var box = document.getElementById('choose-paths');
+
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  window.MAM_API.request('auth/me', { method: 'GET' }).then(function (r) {
+    if (!r || !r.authenticated || !r.user) { window.location.href = '/portal/login'; return; }
+    var roles = (r.user.roles && r.user.roles.length) ? r.user.roles : [r.user.role];
+    var portals = ORDER.filter(function (role) { return META[role] && roles.indexOf(role) >= 0; });
+    // Nothing to choose — go straight to the one (or only) portal.
+    if (portals.length <= 1) { window.location.href = (META[portals[0]] || META.student).url; return; }
+    var first = (r.user.name || '').split(' ')[0];
+    if (first) document.getElementById('choose-hi').textContent = 'Where to, ' + first + '?';
+    box.innerHTML = portals.map(function (role) {
+      var m = META[role];
+      return '<a class="choose-item" href="' + m.url + '">'
+        + '<div class="choose-icon"><i class="fa-solid fa-' + m.icon + '"></i></div>'
+        + '<div class="choose-title">' + esc(m.title) + '</div>'
+        + '<p class="choose-desc">' + esc(m.desc) + '</p>'
+        + '<span class="choose-go">Enter <i class="fa-solid fa-arrow-right"></i></span></a>';
+    }).join('');
+  }).catch(function () { window.location.href = '/portal/login'; });
+
+  document.querySelector('[data-logout]').addEventListener('click', function (e) {
+    e.preventDefault();
+    window.MAM_API.request('auth/logout', { method: 'POST' }).catch(function () {}).then(function () { window.location.href = '/portal/login'; });
+  });
+})();
+</script>
+</body>
+</html>

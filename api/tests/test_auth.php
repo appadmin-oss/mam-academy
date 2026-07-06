@@ -60,3 +60,22 @@ t_eq($pb['user']['avatar_url'], 'https://res.cloudinary.com/demo/image/upload/ch
 $cid4 = mam_db_insert('customers', ['email' => 't_noshot@x.dev', 'first_name' => 'Deb', 'last_name' => 'O']);
 $pn = mam_ensure_student_user((int)$cid4);
 t_ok(empty($pn['user']['avatar_url']), 'no headshot → no avatar set (portal falls back to initials)');
+
+// ── Dual-role portal chooser: a user who is both student + instructor gets a
+// choice; single-role users go straight to their portal. ──
+t_eq(mam_post_login_redirect(['student']), '/portal/student/', 'lone student → student portal');
+t_eq(mam_post_login_redirect(['instructor']), '/portal/instructor/', 'lone instructor → instructor portal');
+t_eq(mam_post_login_redirect(['admin']), '/admin/', 'lone admin → admin dashboard');
+t_eq(mam_post_login_redirect(['student', 'instructor']), '/portal/choose', 'student + instructor → chooser');
+t_eq(count(mam_portal_targets(['student', 'instructor'])), 2, 'dual-role user has two portal targets');
+t_eq(mam_post_login_redirect([]), '/portal/student/', 'no roles → safe student default');
+
+// Secondary-role grant/revoke round-trips through user_roles.
+$dr = mam_db_insert('users', ['email' => 't_dual@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Dual Role', 'status' => 'active']);
+mam_user_ensure_role($dr, 'instructor');
+$duser = mam_db_row('SELECT * FROM users WHERE id = ?', [$dr]);
+$roles = mam_user_roles($duser);
+t_ok(in_array('student', $roles, true) && in_array('instructor', $roles, true), 'granted user holds both student + instructor');
+t_eq(mam_post_login_redirect($roles), '/portal/choose', 'the dual-role user is routed to the chooser');
+mam_user_remove_role($dr, 'instructor');
+t_ok(!in_array('instructor', mam_user_roles(mam_db_row('SELECT * FROM users WHERE id = ?', [$dr])), true), 'revoking the secondary role removes it');

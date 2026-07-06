@@ -102,7 +102,11 @@
 
     requireAuth: function (allowedRoles) {
       return window.MAM_API.request('auth/me', { method: 'GET' }).then(function (r) {
-        if (!r.authenticated || (allowedRoles && allowedRoles.indexOf(r.user.role) < 0)) {
+        // Check ALL of the user's roles, not just the primary one, so a user who
+        // is e.g. both student + instructor isn't bounced from either portal.
+        var held = (r.user && r.user.roles && r.user.roles.length) ? r.user.roles : (r.user ? [r.user.role] : []);
+        var ok = !allowedRoles || held.some(function (role) { return allowedRoles.indexOf(role) >= 0; });
+        if (!r.authenticated || !ok) {
           window.location.href = '/portal/login?next=' + encodeURIComponent(window.location.pathname);
           throw new Error('unauthenticated');
         }

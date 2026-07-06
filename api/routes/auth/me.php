@@ -10,6 +10,7 @@ mam_ok([
         'email' => $u['email'],
         'name' => $u['name'],
         'role' => $u['role'],
+        'roles' => mam_user_roles($u),
         'avatar_url' => $u['avatar_url'],
         'must_change_password' => (int)$u['must_change_password'] === 1,
     ],
