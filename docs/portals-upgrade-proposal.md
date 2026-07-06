@@ -92,10 +92,10 @@ Overview · Applications · Payments · Users · Classes · **Enrollments** *(le
 
 ## 5 · Quick wins (ship now, low risk)
 
-1. **ARIA tab semantics + keyboard nav** on the existing `data-tab` controllers (both SPAs) — immediate a11y lift, no redesign.
-2. **Skeleton loaders** in place of bare "Loading…" text (shared helper).
-3. **De-duplicate the SPA helpers** (`escapeHtml`, tab switch, empty-state) into one `portal-kit.js` consumed by both portals.
-4. **Pagination** on the longest lists (attendance, applications, roster).
+1. ✅ **ARIA tab semantics + keyboard nav** on the existing `data-tab` controllers (both SPAs) — `P.enhanceTabs()` in `assets/js/portal.js` (role=tablist/tab/tabpanel, aria-selected, roving tabindex, arrow/Home/End nav, managed focus); invoked at boot in both portals.
+2. ✅ **Skeleton loaders** in place of bare "Loading…" text — both dashboards paint a KPI-row + panel skeleton (`.skeleton` shimmer) while the initial fetch is in flight; `aria-busy` on `#content` cleared once real content lands.
+3. ✅ **De-duplicate the SPA helpers** — the shared kit `assets/js/portal.js` (`window.MAM_PORTAL`/`P.*`) is the single home for `escapeHtml`, tab controller, panel/KPI/empty/skeleton, user card, notifications, and now `pagedTbody`; both SPAs consume it. (Two thin local `kpi()`/`empty()` wrappers remain per portal for legacy call sites; they're compatible aliases — collapse opportunistically.)
+4. ✅ **Pagination** on the longest lists — `P.pagedTbody(rows, colspan, {initial, noun})` renders the first N rows + a "Show all M" control, remainder collapsed and revealed via a delegated listener. Applied to student attendance (legacy + cohort sessions) and applications, and the instructor Students roster. Working tables (take-attendance) are intentionally left full.
 
 ---
 
