@@ -53,19 +53,18 @@ mam_after_response(function () use ($notify, $name, $email, $phone, $topic, $mes
     mam_send($notify, '[MAM Contact] ' . $topic, $body, 'contact_message', true, ['reply_to' => $email]);
     mam_send($email, 'Got your message — MAM Academy', mam_email_contact_autoresponse($name, $topic), 'contact_autoresponse', true);
 
-    // Teaching interest → automatically send the instructor application form
-    // (tokenized link; collects full details + headshot for faculty review).
+    // Teaching interest → queue a faculty-invite REQUEST for admin approval.
+    // The application form is only emailed once an admin approves it, so every
+    // candidate is deliberately let in — never auto-invited.
     if (preg_match('/faculty|teach/i', $topic)) {
-        $link = mam_faculty_apply_url(mam_faculty_invite_token($email));
+        try { mam_faculty_request($email, $name, 'contact'); } catch (\Throwable $e) { /* message itself is already saved */ }
         $first = htmlspecialchars(trim(explode(' ', trim($name))[0] ?: 'there'));
-        mam_send($email, 'Your MAM Academy instructor application form',
-            mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'Complete your instructor application — details + headshot.',
+        mam_send($email, 'Your teaching interest — MAM Academy',
+            mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'We received your interest in teaching at MAM.',
                 'reason' => 'You received this because you expressed interest in teaching at MAM Academy.',
                 'body' => "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px'>Thanks for your interest in teaching, $first</h2>"
-                    . "<p style='margin:0 0 10px'>The next step is our instructor application — it collects your teaching disciplines, experience, a short bio, your links/CV and a professional headshot, so the faculty team can review you properly.</p>"
-                    . "<p style='margin:0'>The link below is personal to you and valid for " . MAM_FACULTY_INVITE_DAYS . " days.</p>"
-                    . mam_email_button($link, 'Complete your application')]),
-            'faculty_invite', true);
+                    . "<p style='margin:0'>Our faculty team reviews every teaching request personally. Once approved, we'll email you a personal link to the full instructor application (details + headshot). It usually takes a day or two.</p>"]),
+            'faculty_interest_ack', true);
     }
 });
 

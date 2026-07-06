@@ -73,9 +73,13 @@
 
       <div class="fac-success" id="facDone" hidden>
         <div class="ic"><i class="fa-solid fa-check"></i></div>
-        <h2>Application received</h2>
-        <p style="color:var(--text-soft);line-height:1.65">Thank you — the faculty team will review your application and reach out about next steps. A confirmation email is on its way to you.</p>
-        <div style="margin-top:18px"><a class="btn btn-secondary" href="/"><i class="fa-solid fa-house"></i> Back to home</a></div>
+        <h2>Application received — one step left</h2>
+        <p style="color:var(--text-soft);line-height:1.65">Your application is with the faculty panel. <strong style="color:var(--text)">Now book your interview appointment</strong> so we can meet you — the panel confirms every instructor in person.</p>
+        <div style="margin-top:20px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+          <a class="btn btn-primary" id="facBookBtn" href="/book"><i class="fa-solid fa-calendar-check"></i> Book your appointment</a>
+          <a class="btn btn-secondary" href="/"><i class="fa-solid fa-house"></i> Back to home</a>
+        </div>
+        <p style="margin-top:14px;font-size:0.8rem;color:var(--text-muted)">We've also emailed you this booking link.</p>
       </div>
     </div>
   </div>
@@ -112,7 +116,12 @@
         });
       }
     })
-    .catch(function () { gateFail('This invitation link is invalid or has expired (links are valid for 14 days). Ask us for a fresh one — it takes a minute.'); });
+    .catch(function (e2) {
+      var code = (e2 && e2.body && e2.body.error) || '';
+      if (code === 'invite_used') gateFail('This link has already been used — each invitation works exactly once. If you need to update your application, ask us and we\'ll send a fresh link.');
+      else if (code === 'invite_expired') gateFail('This invitation has expired (links are valid for 7 days). Ask us for a fresh one — it takes a minute.');
+      else gateFail('This invitation link is invalid. Open the exact link from your email, or request a new invite.');
+    });
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -136,14 +145,16 @@
       cv_url: $('f-cv').value.trim(),
       headshot_url: ($('f-shot').value.trim() || headshotUrl),
       website: $('f-web').value
-    } }).then(function () {
+    } }).then(function (r) {
+      if (r && r.book_url) $('facBookBtn').href = r.book_url;
       form.hidden = true;
       $('facDone').hidden = false;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }).catch(function (e2) {
       btn.disabled = false; btn.innerHTML = orig;
       var code = (e2 && e2.body && e2.body.error) || '';
-      err.textContent = code === 'invite_invalid' ? 'Your invitation link expired mid-session — request a fresh invite via the contact page.'
+      err.textContent = code === 'invite_used' ? 'This link was already used to submit — each invitation works once. Ask us for a fresh link if you need to update anything.'
+        : code === 'invite_expired' || code === 'invite_invalid' ? 'Your invitation expired mid-session — request a fresh invite via the contact page.'
         : code === 'validation' ? 'Some fields look off — check the highlighted requirements (bio length, https links) and try again.'
         : 'Could not submit right now. Please try again in a moment.';
       err.classList.add('show');

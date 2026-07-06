@@ -187,7 +187,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
         'wallet_credit' => 'users',
-        'faculty_invite' => 'users', 'faculty_app_status' => 'users',
+        'faculty_invite' => 'users', 'faculty_app_status' => 'users', 'faculty_request_review' => 'users',
         'module_proposal_review' => 'curriculum',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
@@ -673,24 +673,31 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ' . $back . '&ok=1#wk' . max(1, (int)($_POST['week'] ?? 1))); exit;
     }
 
-    // ─── Faculty applications: invite + status ───────────────────────────
+    // ─── Faculty invites: approve/dismiss requests, direct invites, app status ──
     if ($action === 'faculty_invite') {
+        // Direct invite: create (or reuse) the request, approve it and send the
+        // single-use, 7-day link in one step.
         $email = strtolower(trim((string)($_POST['email'] ?? '')));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { header('Location: ?v=users&err=' . urlencode('Enter a valid email.') . '#faculty'); exit; }
-        $link = mam_faculty_apply_url(mam_faculty_invite_token($email));
+        $me = mam_current_user();
         $ok = false;
         try {
-            $ok = mam_send($email, 'Your MAM Academy instructor application form',
-                mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'Complete your instructor application — details + headshot.',
-                    'reason' => 'You received this because MAM Academy invited you to apply as an instructor.',
-                    'body' => "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px'>You're invited to teach at MAM</h2>"
-                        . "<p style='margin:0 0 10px'>Complete our instructor application — your teaching disciplines, experience, a short bio, links/CV and a professional headshot — so the faculty team can review you properly.</p>"
-                        . "<p style='margin:0'>This link is personal to you and valid for " . MAM_FACULTY_INVITE_DAYS . " days.</p>"
-                        . mam_email_button($link, 'Complete your application')]),
-                'faculty_invite', true);
+            $inv = mam_faculty_approve(mam_faculty_request($email, null, 'admin'), $me ? (int)$me['id'] : null);
+            if ($inv) $ok = mam_faculty_send_invite($inv);
         } catch (Throwable $e) { /* surfaced below */ }
-        mam_audit('faculty_invite', 'instructor_application', null, ['email' => $email, 'sent' => $ok]);
-        header('Location: ?v=users' . ($ok ? '&ok=1' : '&err=' . urlencode('Invite email failed to send — check mail settings.')) . '#faculty'); exit;
+        header('Location: ?v=users' . ($ok ? '&ok=' . urlencode('Invite sent — single-use link, valid ' . MAM_FACULTY_INVITE_DAYS . ' days.') : '&err=' . urlencode('Invite email failed to send — check mail settings.')) . '#faculty'); exit;
+    }
+    if ($action === 'faculty_request_review') {
+        $rid = (int)($_POST['invite_id'] ?? 0);
+        $decision = (string)($_POST['decision'] ?? '');
+        $me = mam_current_user();
+        if ($rid > 0 && $decision === 'approve') {
+            $ok = false;
+            try { $inv = mam_faculty_approve($rid, $me ? (int)$me['id'] : null); if ($inv) $ok = mam_faculty_send_invite($inv); } catch (Throwable $e) {}
+            header('Location: ?v=users' . ($ok ? '&ok=' . urlencode('Approved — application form emailed (single-use, ' . MAM_FACULTY_INVITE_DAYS . ' days).') : '&err=' . urlencode('Approved, but the email failed to send — use "Send form" to retry.')) . '#faculty'); exit;
+        }
+        if ($rid > 0 && $decision === 'dismiss') { mam_faculty_dismiss($rid, $me ? (int)$me['id'] : null); }
+        header('Location: ?v=users&ok=1#faculty'); exit;
     }
     if ($action === 'faculty_app_status') {
         $fid = (int)($_POST['app_id'] ?? 0);
@@ -2095,13 +2102,41 @@ button.tiny:hover{border-color:var(--gold)}
     <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
 
-  <!-- ── Faculty (instructor) applications ─────────────────────────────── -->
+  <!-- ── Faculty (instructor) pipeline: requests → invited → applications ── -->
+  <?php $facRequests = function_exists('mam_faculty_pending_requests') ? mam_faculty_pending_requests() : []; ?>
+  <?php if ($facRequests): ?>
+  <div class="card" style="border-color:var(--gold)">
+    <h3>🎓 Teaching requests <span class="muted" style="font-weight:400;font-size:.8rem">— <?= count($facRequests) ?> awaiting your approval. Approving emails a single-use application link (valid <?= (int)MAM_FACULTY_INVITE_DAYS ?> days); nothing is sent until you approve.</span></h3>
+    <table>
+      <thead><tr><th>From</th><th>Source</th><th>Requested</th><th>Decision</th></tr></thead>
+      <tbody>
+      <?php foreach ($facRequests as $fr): ?>
+        <tr>
+          <td><strong><?= htmlspecialchars((string)($fr['name'] ?: '—')) ?></strong><br><span class="muted"><?= htmlspecialchars((string)$fr['email']) ?></span></td>
+          <td><span class="pill"><?= htmlspecialchars((string)$fr['source']) ?></span></td>
+          <td class="muted"><?= htmlspecialchars(substr((string)$fr['created_at'], 0, 16)) ?></td>
+          <td style="white-space:nowrap">
+            <form class="inline" method="post" style="display:flex;gap:6px;align-items:center">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <input type="hidden" name="action" value="faculty_request_review">
+              <input type="hidden" name="invite_id" value="<?= (int)$fr['id'] ?>">
+              <button class="tiny" type="submit" name="decision" value="approve" style="border-color:#34D399;color:#34D399">Approve &amp; send form</button>
+              <button class="tiny" type="submit" name="decision" value="dismiss" style="border-color:#FCA5A5;color:#FCA5A5">Dismiss</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
+
   <div class="card" id="faculty">
     <h3>Faculty applications <span class="muted" style="font-weight:400;font-size:.8rem">— instructor candidates who completed the details + headshot form</span></h3>
-    <form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 20px 14px" title="Email someone the instructor application form (personal link, valid 14 days)">
+    <form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 20px 14px" title="Email someone the instructor application form directly (single-use link, valid <?= (int)MAM_FACULTY_INVITE_DAYS ?> days)">
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
       <input type="hidden" name="action" value="faculty_invite">
-      <span class="muted" style="font-size:.84rem">Invite an instructor to apply:</span>
+      <span class="muted" style="font-size:.84rem">Invite an instructor directly:</span>
       <input type="email" name="email" class="tiny" placeholder="their@email.com" required style="width:220px">
       <button class="tiny" type="submit">Send form</button>
     </form>

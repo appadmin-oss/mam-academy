@@ -1063,3 +1063,21 @@ CREATE TABLE IF NOT EXISTS instructor_applications (
   KEY idx_instrapp_status (status, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (36) ON DUPLICATE KEY UPDATE version = version;
+
+-- v37 — stateful faculty invites (approval-gated, single-use, 7-day expiry)
+CREATE TABLE IF NOT EXISTS faculty_invites (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  email      VARCHAR(190) NOT NULL,
+  name       VARCHAR(160),
+  source     VARCHAR(24) NOT NULL DEFAULT 'contact',
+  status     VARCHAR(24) NOT NULL DEFAULT 'requested',
+  nonce      VARCHAR(64),
+  expires_at DATETIME,
+  invited_by INT,
+  invited_at DATETIME,
+  used_at    DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_facinv_email (email),
+  KEY idx_facinv_status (status, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (37) ON DUPLICATE KEY UPDATE version = version;

@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 36;
+const MAM_SCHEMA_TARGET = 37;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1107,6 +1107,26 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX idx_instrapp_email ON instructor_applications(email);
             CREATE INDEX idx_instrapp_status ON instructor_applications(status, id);
+        ",
+        // v37 — faculty invites become stateful: requests queue for admin
+        // approval; an approved invite carries a single-use nonce (the form
+        // link is never reusable) and expires after 7 days.
+        37 => "
+            CREATE TABLE faculty_invites (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              email TEXT NOT NULL,
+              name TEXT,
+              source TEXT NOT NULL DEFAULT 'contact',
+              status TEXT NOT NULL DEFAULT 'requested',
+              nonce TEXT,
+              expires_at TEXT,
+              invited_by INTEGER,
+              invited_at TEXT,
+              used_at TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_facinv_email ON faculty_invites(email);
+            CREATE INDEX idx_facinv_status ON faculty_invites(status, id);
         ",
     ];
 
