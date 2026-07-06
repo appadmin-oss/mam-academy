@@ -24,6 +24,30 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="assets/css/main.css?v=20260617b">
+<style>
+  /* Applicant checklist — grouped, tickable (saved locally), printable. */
+  .chk-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:34px;text-align:left}
+  .chk-group{background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;padding:22px}
+  .chk-group h3{font-family:var(--font-serif);font-size:1.12rem;color:var(--text);margin:0 0 4px;display:flex;align-items:center;gap:10px}
+  .chk-group h3 i{color:var(--gold-bright);font-size:0.95rem}
+  .chk-group-sub{font-size:0.78rem;color:var(--text-muted);margin:0 0 14px}
+  .chk-item{display:flex;gap:11px;align-items:flex-start;padding:9px 10px;border-radius:10px;cursor:pointer;transition:background .2s}
+  .chk-item:hover{background:rgba(224,138,26,0.06)}
+  .chk-item input{width:17px;height:17px;margin-top:2px;accent-color:var(--gold,#E08A1A);flex-shrink:0;cursor:pointer}
+  .chk-item span{font-size:0.9rem;color:var(--text-soft);line-height:1.55}
+  .chk-item input:checked + span{color:var(--text-muted);text-decoration:line-through;text-decoration-color:var(--border-gold,rgba(224,138,26,.5))}
+  .chk-item .opt{display:inline-block;font-size:0.66rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--gold-bright);border:1px solid var(--border-gold,rgba(224,138,26,.4));border-radius:100px;padding:1px 8px;margin-left:6px;vertical-align:middle}
+  .chk-progress{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:26px}
+  .chk-progress strong{color:var(--gold-bright)}
+  .chk-fair{max-width:760px;margin:26px auto 0;display:flex;gap:12px;align-items:flex-start;background:rgba(224,138,26,0.06);border:1px dashed var(--border-gold,rgba(224,138,26,.4));border-radius:14px;padding:16px 18px;color:var(--text-soft);font-size:0.92rem;line-height:1.6;text-align:left}
+  .chk-fair i{color:var(--gold-bright);margin-top:3px;flex-shrink:0}
+  @media print{
+    header,footer,#preloader,.page-hero,.btn,#next-step,section:not(#checklist){display:none !important}
+    #checklist{padding:0 !important}
+    .chk-groups{grid-template-columns:1fr 1fr}
+    .chk-group{border:1px solid #999;break-inside:avoid}
+  }
+</style>
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
@@ -40,6 +64,7 @@
       <p class="page-hero-lede">Students at MAM Academy are <strong>not randomly placed</strong> into classes. They are <strong>intelligently assessed first</strong> — and placed into the right learning pathway and certification level.</p>
       <div class="page-hero-actions">
         <a href="apply" class="btn btn-primary"><i class="fa-solid fa-music"></i>Apply &amp; Book Auditer</a>
+        <a href="#checklist" class="btn btn-secondary"><i class="fa-solid fa-list-check"></i>Applicant checklist</a>
         <a href="https://auditer.mamcentre.org" target="_blank" rel="noopener" class="btn btn-secondary">auditer.mamcentre.org <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
       </div>
     </div>
@@ -97,7 +122,65 @@
     </div>
   </section>
 
-  <section style="background:var(--bg);padding:80px 24px;text-align:center">
+  <section id="checklist" style="background:var(--bg)">
+    <div class="container">
+      <div style="text-align:center;max-width:760px;margin:0 auto">
+        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Applicant Checklist<span class="line" style="transform:scaleX(-1)"></span></div>
+        <h2 class="section-title">Come <span class="highlight-gold">Fully Prepared</span></h2>
+        <p class="section-desc" style="margin:0 auto">Your audition measures both your <strong>talent</strong> and your <strong>readiness</strong> for professional and ministry opportunities. Tick things off as you prepare — your progress is saved on this device.</p>
+      </div>
+
+      <div class="chk-groups">
+        <div class="chk-group">
+          <h3><i class="fa-solid fa-id-card"></i>Documents &amp; identity</h3>
+          <p class="chk-group-sub">Who you are, on paper.</p>
+          <label class="chk-item"><input type="checkbox" data-chk="reg"><span>Completed registration form — your application reference confirms this.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="id"><span>Valid means of identification, where applicable.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="passport"><span>A recent passport photograph.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="bio"><span>A short personal profile or biography.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="headshot"><span>A professional headshot.<em class="opt">optional · encouraged</em></span></label>
+        </div>
+
+        <div class="chk-group">
+          <h3><i class="fa-solid fa-music"></i>Your performance</h3>
+          <p class="chk-group-sub">What you'll present to the panel.</p>
+          <label class="chk-item"><input type="checkbox" data-chk="piece"><span>One prepared performance piece — song or instrumental — within the specified time limit.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="contrast"><span>One contrasting piece, ready if the panel requests it.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="track"><span>Backing track on a flash drive or phone (if using one) — with <strong>no lead vocals</strong>.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="instrument"><span>Your personal musical instrument, where applicable.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="score"><span>Printed or digital lead sheet / score, if requested.</span></label>
+        </div>
+
+        <div class="chk-group">
+          <h3><i class="fa-solid fa-briefcase"></i>Professional materials</h3>
+          <p class="chk-group-sub">Expected for advanced categories; welcome from everyone.</p>
+          <label class="chk-item"><input type="checkbox" data-chk="cv"><span>Curriculum Vitae (CV) or music résumé.<em class="opt">advanced</em></span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="portfolio"><span>Portfolio of previous works — recordings, compositions, performances or productions.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="links"><span>Links to your social media or streaming platforms.<em class="opt">optional · recommended</em></span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="certs"><span>Evidence of previous training or certifications, if any.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="purpose"><span>A brief statement of purpose — why you're applying, and your career or ministry goals.</span></label>
+        </div>
+
+        <div class="chk-group">
+          <h3><i class="fa-solid fa-calendar-check"></i>On the day</h3>
+          <p class="chk-group-sub">How you show up matters.</p>
+          <label class="chk-item"><input type="checkbox" data-chk="tests"><span>Be ready for practical tests if required — sight-reading, ear training, improvisation, or an interview.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="attire"><span>Appropriate, neat, professional attire.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="early"><span>Arrive <strong>30–60 minutes</strong> before your scheduled audition time.</span></label>
+          <label class="chk-item"><input type="checkbox" data-chk="attitude"><span>A positive attitude, openness to feedback, and commitment to the <a href="terms" style="color:var(--gold-bright)">MAM Code of Conduct</a>.</span></label>
+        </div>
+      </div>
+
+      <div class="chk-progress">
+        <span class="section-desc" style="margin:0" id="chkCount"><strong>0</strong> of 19 ready</span>
+        <button type="button" class="btn btn-secondary" onclick="window.print()" style="padding:9px 18px;font-size:0.85rem"><i class="fa-solid fa-print"></i>Print checklist</button>
+      </div>
+
+      <p class="chk-fair"><i class="fa-solid fa-scale-balanced"></i><span><strong>Why we ask for all this:</strong> it ensures every applicant is evaluated fairly — on musicianship, professionalism, character, and preparedness, not just performance ability.</span></p>
+    </div>
+  </section>
+
+  <section style="background:var(--bg-surface);padding:80px 24px;text-align:center">
     <div class="container">
       <h2 class="section-title" style="margin:0 auto 18px">Get audited. <span class="highlight-gold">Get placed accurately.</span></h2>
       <p class="section-desc" style="margin:0 auto 30px">When you apply, you can book your Auditer session in the same flow.</p>
@@ -127,5 +210,31 @@
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260616h"></script>
 <script src="assets/js/main.js?v=20260617b"></script>
+<script>
+// Applicant checklist: tick-off state persists per device (localStorage). No
+// account needed — it's a preparation aid, not a submission.
+(function () {
+  var KEY = 'mam.auditer.checklist.v1';
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-chk]'));
+  var counter = document.getElementById('chkCount');
+  if (!boxes.length) return;
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) {}
+  function paint() {
+    var done = boxes.filter(function (b) { return b.checked; }).length;
+    if (counter) counter.innerHTML = '<strong>' + done + '</strong> of ' + boxes.length + ' ready' + (done === boxes.length ? ' — see you at the audition! 🎶' : '');
+  }
+  boxes.forEach(function (b) {
+    var id = b.getAttribute('data-chk');
+    if (saved[id]) b.checked = true;
+    b.addEventListener('change', function () {
+      saved[id] = b.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+      paint();
+    });
+  });
+  paint();
+})();
+</script>
 </body>
 </html>

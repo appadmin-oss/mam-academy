@@ -186,6 +186,10 @@ the notation showcase.**
   "unlock the full Studio" apply bridge for signed-out visitors (`studio-gate.js`).
 - ✅ **#11 How-it-works** — `how-it-works.php` (7-step journey; footer + sitemap + HowTo
   JSON-LD; clean URL via .htaccess).
+- ✅ **Auditer Applicant Checklist** — `auditer.php#checklist`: the 19 preparation items
+  (documents/identity, performance, professional materials, on-the-day) as a tickable,
+  localStorage-persisted, printable checklist. Deep-linked from thank-you, status, book,
+  how-it-works, and the student portal Auditer tab.
 - ✅ **#9/#10 QR attendance** — instructor shows a per-session QR (signed, day-scoped
   token via `mam_attendance_token`, `GET /api/instructor/attendance-qr`), enrolled
   students scan → `attend.php` → `POST /api/attendance/checkin` (`api/lib/attendance.php`,

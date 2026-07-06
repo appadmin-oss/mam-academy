@@ -22,6 +22,7 @@
       <div class="success-emoji" aria-hidden="true" style="background:transparent;border:none"><dotlottie-wc src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f389/lottie.json" speed="1" autoplay loop class="fx-lottie fx-xl" aria-hidden="true"></dotlottie-wc></div>
       <h1 class="success-h">Thank You!</h1>
       <p class="success-p">Your transaction has been received. Our team will contact you within <strong>24 hours</strong> to confirm your enrollment and schedule your MAM Auditer assessment.</p>
+      <p class="success-p" style="font-size:0.9rem;margin-top:-6px">While you wait: <a href="/auditer#checklist" style="color:var(--gold-bright);font-weight:600">prepare with the Auditer Applicant Checklist →</a></p>
       <div class="success-ref" id="refDisplay">Reference: pending</div>
       <p class="success-p" style="font-size:0.88rem;color:var(--text-muted)">A copy of your application is also stored in your browser. We'll email a full confirmation to the address you provided.</p>
       <div style="margin:24px auto 28px;max-width:480px;padding:18px 22px;background:rgba(224,138,26,0.08);border:1px solid var(--border-gold);border-radius:12px;font-size:0.88rem;color:var(--text-soft);line-height:1.65;text-align:left">

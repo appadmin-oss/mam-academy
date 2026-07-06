@@ -161,6 +161,10 @@
           <h3><i class="fa-solid fa-people-group"></i> Who you'll meet</h3>
           <p>An <strong>Admin Officer</strong> who walks you through onboarding, and the <strong>MAM Auditer Judges</strong> — our placement experts. 30 minutes. Bring your instrument (or your voice). Bring questions. You'll leave knowing exactly where you stand.</p>
         </div>
+        <div class="truth-card">
+          <h3><i class="fa-solid fa-list-check"></i> Come fully prepared</h3>
+          <p>Your audition measures talent <em>and</em> readiness — for professional and ministry opportunities alike. Work through the <a href="auditer#checklist" style="color:var(--gold-bright)">Applicant Checklist</a> before your session: documents, your prepared piece, backing track, portfolio, and arriving 30–60 minutes early.</p>
+        </div>
       </aside>
     </div>
 

@@ -68,6 +68,7 @@
         <div class="st-result" id="stResult" hidden></div>
       </div>
       <p class="st-muted" style="text-align:center;margin-top:18px">Need to finish applying? <a href="/apply">Continue your application →</a></p>
+      <p class="st-muted" style="text-align:center;margin-top:6px">Preparing for your audition? <a href="/auditer#checklist">Use the Applicant Checklist →</a></p>
       <p class="st-muted" style="text-align:center;margin-top:6px">Been placed after your MAM Auditer? <a href="/tuition" id="stTuitionLink">Pay your tuition →</a></p>
     </div>
   </section>
