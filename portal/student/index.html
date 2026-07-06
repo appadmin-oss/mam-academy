@@ -81,7 +81,7 @@
 </div>
 
 <script src="/assets/js/config.js?v=20260616h"></script>
-<script src="/assets/js/portal.js?v=20260615c"></script>
+<script src="/assets/js/portal.js?v=20260706a"></script>
 <!-- Headshot uploader — lets a student change their portal photo (Profile tab). -->
 <script src="/assets/js/headshot.js?v=20260615e" defer></script>
 <script src="/assets/js/studio-tools.js?v=20260612a"></script>
@@ -184,7 +184,7 @@
   function renderApplications() {
     var apps = data.applications || [];
     if (!apps.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('file-pen', 'No applications yet.') + '</div></section>'; return; }
-    var rows = apps.map(function (a) {
+    var rows = P.pagedTbody(apps.map(function (a) {
       return '<tr><td class="mono" data-label="Reference">' + P.escapeHtml(a.reference) + '</td>'
         + '<td data-label="Pathway · Mode">' + P.escapeHtml(a.pathway) + ' · ' + P.escapeHtml(a.mode || '—') + '</td>'
         + '<td data-label="Discipline">' + P.escapeHtml(a.discipline || '—') + '</td>'
@@ -192,7 +192,7 @@
         + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
         + '<td data-label="Submitted">' + P.fmtDateTime(a.created_at) + '</td>'
         + '<td data-label="Invoice"><a class="btn btn-ghost" style="padding:5px 12px;font-size:0.78rem" href="/api/invoice/' + encodeURIComponent(a.reference) + '" target="_blank" rel="noopener"><i class="fa-solid fa-file-invoice"></i> View</a></td></tr>';
-    }).join('');
+    }), 7, { initial: 12, noun: 'applications' });
     content.innerHTML = '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Reference</th><th>Pathway · Mode</th><th>Discipline</th><th>Total</th><th>Status</th><th>Submitted</th><th>Invoice</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
   }
 
@@ -592,11 +592,11 @@
     if (att.length) {
       var present = att.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
       var rate = Math.round(present / att.length * 100);
-      var rows = att.map(function (a) {
+      var rows = P.pagedTbody(att.map(function (a) {
         return '<tr><td data-label="Date">' + P.fmtDate(a.session_date) + '</td>'
           + '<td data-label="Class"><strong>' + P.escapeHtml(a.title || '—') + '</strong></td>'
           + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
-      }).join('');
+      }), 3, { initial: 15, noun: 'sessions' });
       legacy = '<section class="kpi-row">'
         + '<div class="kpi"><div class="kpi-label">Attendance rate</div><div class="kpi-value gold">' + rate + '%</div><div class="kpi-sub">across ' + att.length + ' session' + (att.length === 1 ? '' : 's') + '</div></div>'
         + '<div class="kpi"><div class="kpi-label">Present / Late</div><div class="kpi-value">' + present + '</div><div class="kpi-sub">of ' + att.length + ' recorded</div></div>'
@@ -613,11 +613,11 @@
       var area = document.getElementById('sessAttArea');
       if (!area) return;
       if (sa.length) {
-        var srows = sa.map(function (a) {
+        var srows = P.pagedTbody(sa.map(function (a) {
           return '<tr><td data-label="When">' + (a.scheduled_at ? P.escapeHtml(P.fmtDateTime(a.scheduled_at)) : '—') + '</td>'
             + '<td data-label="Cohort"><strong>' + P.escapeHtml(a.cohort_title || '—') + '</strong>' + (a.session_title ? ' · ' + P.escapeHtml(a.session_title) : '') + '</td>'
             + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
-        }).join('');
+        }), 3, { initial: 15, noun: 'sessions' });
         area.innerHTML = '<section class="panel"' + (att.length ? ' style="margin-top:18px"' : '') + '><div class="panel-head"><h2><i class="fa-solid fa-calendar-days" style="margin-right:8px;color:var(--gold-bright)"></i>Class sessions</h2></div>'
           + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>When</th><th>Cohort / Session</th><th>Status</th></tr></thead><tbody>' + srows + '</tbody></table></div></section>';
       } else if (!att.length) {

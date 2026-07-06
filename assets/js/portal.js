@@ -73,10 +73,32 @@
     return '<div class="panel-body" aria-busy="true" aria-label="Loading">' + s + '</div>';
   }
 
+  // Progressive disclosure for long tables. Given an array of <tr>…</tr> strings,
+  // returns tbody-inner HTML that shows only the first `opts.initial` rows plus a
+  // "Show all N" control; the remaining rows render collapsed (hidden) and reveal
+  // in one click (delegated handler wired in init()). Keeps big rosters/attendance
+  // lists fast to paint and easy to scan without a full pagination widget.
+  // `colspan` must span the table's columns so the control row sits flush.
+  var _pagerSeq = 0;
+  function pagedTbody(rows, colspan, opts) {
+    opts = opts || {};
+    var initial = opts.initial || 12;
+    rows = rows || [];
+    if (rows.length <= initial) return rows.join('');
+    var id = 'pg' + (_pagerSeq++);
+    var head = rows.slice(0, initial).join('');
+    var tail = rows.slice(initial).map(function (r) {
+      return r.replace(/^(\s*)<tr/i, '$1<tr hidden data-pg="' + id + '"');
+    }).join('');
+    var ctl = '<tr class="pager-ctl" data-pg-ctl="' + id + '"><td colspan="' + (colspan || 3) + '" style="text-align:center;padding:14px">'
+      + '<button type="button" class="btn btn-ghost" data-pg-more="' + id + '">Show all ' + rows.length + ' ' + escapeHtml(opts.noun || 'rows') + '</button></td></tr>';
+    return head + ctl + tail;
+  }
+
   window.MAM_PORTAL = {
     fmtDate: fmtDate, fmtDateTime: fmtDateTime, fmtMoney: fmtMoney, fmtUsd: fmtUsd, today: today,
     initials: initials, escapeHtml: escapeHtml,
-    kpi: uiKpi, empty: uiEmpty, panel: uiPanel, skeleton: uiSkeleton,
+    kpi: uiKpi, empty: uiEmpty, panel: uiPanel, skeleton: uiSkeleton, pagedTbody: pagedTbody,
 
     requireAuth: function (allowedRoles) {
       return window.MAM_API.request('auth/me', { method: 'GET' }).then(function (r) {
@@ -263,6 +285,15 @@
       // window.MAM_API already adds same-origin credentials + auto CSRF.
       // Wire up logout / sidebar / footer year on every portal page.
       $$('[data-action=logout]').forEach(function (b) { on(b, 'click', function (e) { e.preventDefault(); window.MAM_PORTAL.logout(); }); });
+      // Reveal collapsed rows for any pagedTbody() control (delegated, once).
+      on(document, 'click', function (e) {
+        var b = e.target.closest ? e.target.closest('[data-pg-more]') : null;
+        if (!b) return;
+        var id = b.getAttribute('data-pg-more');
+        $$('[data-pg="' + id + '"]').forEach(function (tr) { tr.hidden = false; });
+        var ctl = document.querySelector('[data-pg-ctl="' + id + '"]');
+        if (ctl && ctl.parentNode) ctl.parentNode.removeChild(ctl);
+      });
       window.MAM_PORTAL.sidebarToggle();
       window.MAM_PORTAL.notifications();
       $$('[data-year]').forEach(function (e) { e.textContent = new Date().getFullYear(); });

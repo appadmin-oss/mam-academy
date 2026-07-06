@@ -66,7 +66,7 @@
 </div>
 
 <script src="/assets/js/config.js?v=20260616h"></script>
-<script src="/assets/js/portal.js?v=20260615c"></script>
+<script src="/assets/js/portal.js?v=20260706a"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <!-- Self-hosted QR generator (MIT, qrcodejs) for the attendance check-in QR (#9/#10). -->
 <script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
@@ -624,14 +624,14 @@
     // De-duplicate (a student can appear once per class) for the roster list.
     var seen = {}, uniq = [];
     s.forEach(function (st) { if (!seen[st.id]) { seen[st.id] = 1; uniq.push(st); } });
-    var rows = uniq.map(function (st) {
+    var rows = P.pagedTbody(uniq.map(function (st) {
       return '<tr class="row-click" data-student="' + st.id + '" style="cursor:pointer">'
         + '<td data-label="Student"><strong>' + P.escapeHtml(st.name || '—') + '</strong></td>'
         + '<td data-label="Email"><a href="mailto:' + P.escapeHtml(st.email) + '" style="color:var(--gold-bright)" onclick="event.stopPropagation()">' + P.escapeHtml(st.email) + '</a></td>'
         + '<td data-label="Phone">' + P.escapeHtml(st.phone || '—') + '</td>'
         + '<td data-label="Class">' + P.escapeHtml(st.class_title || '—') + '</td>'
         + '<td data-label=""><span style="color:var(--gold-bright);font-size:0.8rem">View <i class="fa-solid fa-arrow-right"></i></span></td></tr>';
-    }).join('');
+    }), 5, { initial: 20, noun: 'students' });
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Roster <small style="color:var(--text-muted);font-weight:400">— click a student for their attendance history</small></h2>'
       + '<button type="button" class="panel-action" id="rosterCsv"><i class="fa-solid fa-download"></i> Roster CSV</button></div>'
       + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Student</th><th>Email</th><th>Phone</th><th>Class</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>'
