@@ -1311,6 +1311,16 @@ button.tiny:hover{border-color:var(--gold)}
     <?php endforeach; endif; ?>
   </div>
   <?php endif; ?>
+  <?php
+    // Version stamp — one glance answers "what build am I looking at?" when
+    // debugging or reporting an issue. UI version comes from config.js (the
+    // single source the front-end also exposes as MAM_CONFIG.uiVersion).
+    $uiVer = 'dev';
+    if (preg_match("/uiVersion:\s*'([^']+)'/", @file_get_contents(__DIR__ . '/../assets/js/config.js') ?: '', $vm)) $uiVer = $vm[1];
+  ?>
+  <div class="muted" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);font-size:.68rem;letter-spacing:.04em">
+    UI <?= htmlspecialchars($uiVer) ?> · API v<?= htmlspecialchars(defined('MAM_API_VERSION') ? MAM_API_VERSION : '1.0') ?> · schema v<?= (int)MAM_SCHEMA_TARGET ?>
+  </div>
 </aside>
 
 <main>

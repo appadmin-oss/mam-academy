@@ -182,8 +182,14 @@ foreach ($mam_libs as $lib) {
     require_once __DIR__ . '/' . $lib . '.php';
 }
 
+// ---------- API version ----------
+// Semantic major.minor for the JSON API. The major is what /api/v{N}/ pins;
+// bump the minor for additive changes, the major only on breaking ones.
+const MAM_API_VERSION = '1.0';
+
 // ---------- Response defaults ----------
 header('Content-Type: application/json; charset=utf-8');
+header('X-MAM-API-Version: ' . MAM_API_VERSION);
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 header('Cache-Control: no-store, no-cache, must-revalidate, private');

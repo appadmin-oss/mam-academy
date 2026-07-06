@@ -23,13 +23,14 @@ $debugToken = (string)mam_env('DEBUG_TOKEN', '');
 if (!$authorized && $debugToken !== '' && hash_equals($debugToken, (string)($_GET['key'] ?? ''))) $authorized = true;
 
 $out = [
-    'service' => 'mam-academy-api',
-    'time'    => date('c'),
-    'db'      => $dbOk ? 'ok' : 'down',
+    'service'     => 'mam-academy-api',
+    'api_version' => MAM_API_VERSION,
+    'time'        => date('c'),
+    'db'          => $dbOk ? 'ok' : 'down',
 ];
 
 if ($authorized) {
-    $out['version'] = '1.0.0';
+    $out['schema'] = (int)MAM_SCHEMA_TARGET;
     $out['env']     = mam_env('APP_ENV', 'production');
     $out['db_error'] = $dbErr;
     $out['features'] = [

@@ -7,6 +7,13 @@
  * ---------------------------------------------------------------
  */
 window.MAM_CONFIG = {
+  /* -------- Versions -------- */
+  // uiVersion identifies the shipped front-end build (shown in the admin
+  // footer, sent on support requests); apiVersion is the JSON-API major the
+  // clients in this bundle are written against (see X-MAM-API-Version).
+  uiVersion: '2026.07.06',
+  apiVersion: 'v1',
+
   /* -------- Site identity -------- */
   site: {
     name: 'MAM Academy',

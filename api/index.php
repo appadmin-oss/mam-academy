@@ -230,5 +230,14 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
 
 /* ─── Dispatch ─── */
 $route  = '/' . trim((string)($_GET['route'] ?? ''), '/');
+// Versioned prefix: /api/v1/... is an alias of the current (v1) surface, so
+// integrations can pin a major. An unknown major fails loudly instead of
+// silently hitting the wrong contract.
+if (preg_match('#^/v(\d+)(/.*)?$#', $route, $vm)) {
+    if ((int)$vm[1] !== (int)explode('.', MAM_API_VERSION)[0]) {
+        mam_fail('unsupported_api_version', 404, ['supported' => 'v' . explode('.', MAM_API_VERSION)[0], 'requested' => 'v' . $vm[1]]);
+    }
+    $route = ($vm[2] ?? '') !== '' ? $vm[2] : '/';
+}
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $r->dispatch($method, $route);
