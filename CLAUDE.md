@@ -100,7 +100,12 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    (what the student dashboard "Classes"/attendance + instructor roster read) vs newer
    `course_enrollments`+cohorts (Courses/Gradebook/Sessions). They are NOT reconciled —
    a student/instructor can appear in one and not the other. Converging them is a known
-   open item (portal-audit S2). Be deliberate about which one you touch.
+   open item (portal-audit S2). Be deliberate about which one you touch. **UI convergence
+   (P2) has begun** (dual-read, no data migration): the student **My Learning** tab is now
+   the unified learning hub (Courses & results + Weeks + certificates + classes + attendance
+   via shared `courseTableHtml`/`certPanelHtml`/`wireCourseActions`), and the instructor
+   **overview** lazily surfaces a "Cohorts & sessions" panel beside the legacy class views.
+   The legacy tabs still read both models as-is and remain until parity is verified.
 3. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
    ONLY from a trusted proxy (private + Cloudflare ranges by default; `TRUSTED_PROXY_CIDRS`
    to override). It's the rate-limit + audit IP key. Don't revert to blindly trusting headers.

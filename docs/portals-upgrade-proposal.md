@@ -58,9 +58,9 @@ Overview · Applications · Payments · Users · Classes · **Enrollments** *(le
 - *Low-risk:* refactor toward shared assets behind the existing markup; no behavioural change.
 
 ### P2 · Unify the learning view around cohorts *(rides LMS L1/L2)*
-- Collapse the student's **Classes + My Courses** into a single **"My Learning"** view keyed on the cohort (schedule/attendance/announcements *and* gradebook/results/certificate in one place). Likewise an instructor **"Teaching"** view per cohort.
-- Dual-read during migration (show the unified view behind a flag, keep the legacy tabs until parity is verified), then retire the duplicates — the same discipline used for the cohort backfill.
-- Admin: fold `Enrollments` + `Course Registrations` into one cohort-centric registrations view (the cohorts panel is the seed).
+- 🟡 **In progress.** The student **"My Learning"** tab is now the primary, self-sufficient learning hub: one view carrying the Courses & results table (inline Results/gradebook + Weeks/syllabus), certificates, the classes/schedule table, and an attendance summary — so a student rarely needs the separate Classes / My Courses tabs. Shared building blocks (`courseTableHtml`, `certPanelHtml`, `wireCourseActions`) keep My Learning and My Courses from drifting. On the instructor side, the overview now surfaces a lazy **"Cohorts & sessions"** panel (from `instructor/sessions`) beside the legacy Class fill / Recent attendance, linking into Sessions + Gradebook.
+- **Dual-read holds:** both enrollment models are still read as-is and the legacy Classes / My Courses (student) and Sessions / Gradebook (instructor) tabs remain. No data migration yet.
+- **Remaining:** a full per-cohort instructor "Teaching" view; parity verification; then retire the duplicate tabs. Admin: fold `Enrollments` + `Course Registrations` into one cohort-centric registrations view (the cohorts panel is the seed).
 
 ### P3 · Notifications + real-time *(rides the L3 automation spine)*
 - A **notification center** in every portal, fed by the `events` table (assignment set, graded, attendance marked, decision made, payment confirmed). Generalises today's lone assignment badge into one per-user inbox, with read state.
