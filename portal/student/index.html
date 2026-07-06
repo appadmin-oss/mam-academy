@@ -65,7 +65,18 @@
       <span>You're using a temporary password. <a href="#profile" data-tab="profile">Change it now →</a></span>
     </div>
 
-    <div id="content"><div class="empty-state"><i class="fa-solid fa-circle-notch fa-spin"></i>Loading your dashboard…</div></div>
+    <div id="content" aria-busy="true" aria-label="Loading your dashboard">
+      <section class="kpi-row">
+        <div class="kpi"><div class="skeleton" style="height:11px;width:55%;margin-bottom:12px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
+        <div class="kpi"><div class="skeleton" style="height:11px;width:55%;margin-bottom:12px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
+        <div class="kpi"><div class="skeleton" style="height:11px;width:55%;margin-bottom:12px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
+        <div class="kpi"><div class="skeleton" style="height:11px;width:55%;margin-bottom:12px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
+        <div class="kpi"><div class="skeleton" style="height:11px;width:55%;margin-bottom:12px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
+        <div class="kpi"><div class="skeleton" style="height:11px;width:55%;margin-bottom:12px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
+      </section>
+      <section class="panel"><div class="panel-body" style="display:grid;gap:14px"><div class="skeleton" style="height:14px;width:40%"></div><div class="skeleton" style="height:12px;width:92%"></div><div class="skeleton" style="height:12px;width:78%"></div></div></section>
+      <section class="panel"><div class="panel-body" style="display:grid;gap:14px"><div class="skeleton" style="height:14px;width:40%"></div><div class="skeleton" style="height:12px;width:88%"></div><div class="skeleton" style="height:12px;width:70%"></div></div></section>
+    </div>
   </main>
 </div>
 
@@ -947,6 +958,7 @@
       if (badge) { if (openCount) { badge.textContent = openCount; badge.hidden = false; } else { badge.hidden = true; } }
       var tab = (location.hash || '#overview').slice(1);
       if (!tabs[tab]) tab = 'overview';
+      content.removeAttribute('aria-busy');
       show(tab);
     });
   }

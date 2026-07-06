@@ -52,7 +52,16 @@
       <h1 id="pageTitle">Overview <small id="pageSub">Welcome back</small></h1>
       <div style="margin-left:auto"><span data-notif-bell></span></div>
     </header>
-    <div id="content"><div class="empty-state"><i class="fa-solid fa-circle-notch fa-spin"></i>Loading…</div></div>
+    <div id="content" aria-busy="true" aria-label="Loading your dashboard">
+      <section class="kpi-row">
+        <div class="kpi"><div class="skeleton" style="height:11px;width:55%;margin-bottom:12px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
+        <div class="kpi"><div class="skeleton" style="height:11px;width:55%;margin-bottom:12px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
+        <div class="kpi"><div class="skeleton" style="height:11px;width:55%;margin-bottom:12px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
+        <div class="kpi"><div class="skeleton" style="height:11px;width:55%;margin-bottom:12px"></div><div class="skeleton" style="height:28px;width:45%"></div></div>
+      </section>
+      <section class="panel"><div class="panel-body" style="display:grid;gap:14px"><div class="skeleton" style="height:14px;width:40%"></div><div class="skeleton" style="height:12px;width:92%"></div><div class="skeleton" style="height:12px;width:78%"></div></div></section>
+      <section class="panel"><div class="panel-body" style="display:grid;gap:14px"><div class="skeleton" style="height:14px;width:40%"></div><div class="skeleton" style="height:12px;width:88%"></div><div class="skeleton" style="height:12px;width:70%"></div></div></section>
+    </div>
   </main>
 </div>
 
@@ -880,6 +889,7 @@
       if (!tabs[tab]) tab = 'overview';
       // A temporary password must be changed first — land on Account.
       if (r.user && r.user.must_change_password) tab = 'account';
+      content.removeAttribute('aria-busy');
       show(tab);
     });
   }
