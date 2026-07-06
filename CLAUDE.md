@@ -186,6 +186,18 @@ the notation showcase.**
   "unlock the full Studio" apply bridge for signed-out visitors (`studio-gate.js`).
 - ✅ **#11 How-it-works** — `how-it-works.php` (7-step journey; footer + sitemap + HowTo
   JSON-LD; clean URL via .htaccess).
+- ✅ **Faculty pipeline** — teaching interest (contact topic) queues a `faculty_invites`
+  REQUEST (v37); admin approves (?v=users#faculty) → single-use, 7-day HMAC link to
+  `/instructor-apply` (details + headshot, v36 `instructor_applications`); submit consumes
+  the invite (never reusable) and directs the candidate to book their interview (/book).
+  Admin user-create emails credentials (`mam_email_account_created`).
+- ✅ **Versioning** — API: `MAM_API_VERSION` + `X-MAM-API-Version` header; `/api/v1/…`
+  aliases the current major, unknown majors 404. UI: `MAM_CONFIG.uiVersion`; both shown
+  in the admin sidebar (UI · API · schema).
+- ✅ **Admin UX layer** — nav badge counts + '⚡ Needs your attention' queue on Overview
+  (pending applications/registrations/unassigned/proposals/messages/faculty), toast
+  feedback for ?ok/?err (string values carry the message; URL cleaned after), '/' or
+  Ctrl+K focuses global search.
 - ✅ **Auditer Applicant Checklist** — `auditer.php#checklist`: the 19 preparation items
   (documents/identity, performance, professional materials, on-the-day) as a tickable,
   localStorage-persisted, printable checklist. Deep-linked from thank-you, status, book,

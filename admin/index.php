@@ -1223,6 +1223,22 @@ button.tiny:hover{border-color:var(--gold)}
 .chart-row .card{margin:0}
 .chart-row canvas{max-height:260px}
 @media(max-width:860px){.chart-row{grid-template-columns:1fr}}
+/* ── UX layer: pending-work badges, needs-attention queue, toast feedback ── */
+.nav-count{margin-left:auto;background:linear-gradient(135deg,var(--gold),#FBBF24);color:#1A120B;border-radius:100px;min-width:20px;height:18px;padding:0 6px;font-size:.66rem;font-weight:800;font-style:normal;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+nav a{display:flex;align-items:center}
+.needs{border-color:var(--gold)}
+.needs-list{display:flex;flex-direction:column;gap:0;padding:0 20px 16px}
+.needs-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--border);text-decoration:none;color:var(--text)}
+.needs-item:first-child{border-top:none}
+.needs-item:hover .needs-verb{background:var(--gold);color:#1A120B}
+.needs-n{min-width:34px;height:34px;border-radius:10px;background:rgba(232,150,31,0.14);border:1px solid var(--gold);color:var(--gold);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+.needs-label{flex:1;font-size:.9rem}
+.needs-verb{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--gold);color:var(--gold);border-radius:100px;padding:4px 12px;transition:all .15s}
+.mam-toast-stack{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.mam-toast{pointer-events:auto;display:flex;align-items:center;gap:10px;min-width:240px;max-width:380px;padding:12px 16px;border-radius:12px;font-size:.86rem;font-weight:600;box-shadow:0 12px 40px rgba(0,0,0,.45);transform:translateX(24px);opacity:0;transition:transform .3s cubic-bezier(.2,.9,.3,1.2),opacity .3s}
+.mam-toast.in{transform:none;opacity:1}
+.mam-toast.ok{background:#123B2C;border:1px solid #34D399;color:#A7F3D0}
+.mam-toast.err{background:#3B1219;border:1px solid #FB7185;color:#FECDD3}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -1239,6 +1255,20 @@ button.tiny:hover{border-color:var(--gold)}
   </div>
   <nav>
     <?php
+    // "What needs me" counts — the difference between a nav you wander and a
+    // nav that points. Each is a cheap COUNT, individually fault-tolerant so a
+    // missing table (older DB) never breaks the shell.
+    $navBadges = [];
+    $needs = [];   // [label, url, count, verb]
+    $cnt = function (string $sql): int { try { return (int)mam_db()->query($sql)->fetchColumn(); } catch (Throwable $e) { return 0; } };
+    if ($n = $cnt("SELECT COUNT(*) FROM applications WHERE status IN ('submitted','reviewing')")) { $navBadges['applications'] = $n; $needs[] = ['application' . ($n === 1 ? '' : 's') . ' awaiting a decision', '?v=applications', $n, 'Review']; }
+    if ($n = $cnt("SELECT COUNT(*) FROM course_enrollments WHERE status = 'pending'"))            { $navBadges['courseenroll'] = $n; $needs[] = ['course registration' . ($n === 1 ? '' : 's') . ' awaiting approval', '?v=courseenroll&ce=pending', $n, 'Approve']; }
+    if ($n = $cnt("SELECT COUNT(*) FROM course_enrollments WHERE instructor_id IS NULL AND status IN ('active','pending')")) { $needs[] = ['course student' . ($n === 1 ? '' : 's') . ' with no instructor', '?v=courseenroll&ce=unassigned', $n, 'Assign']; }
+    if ($n = $cnt("SELECT COUNT(*) FROM module_proposals WHERE status = 'pending'"))              { $navBadges['modules'] = $n; $needs[] = ['curriculum proposal' . ($n === 1 ? '' : 's') . ' from faculty', '?v=modules', $n, 'Review']; }
+    if ($n = $cnt("SELECT COUNT(*) FROM messages WHERE status = 'new'"))                          { $navBadges['messages'] = $n; $needs[] = ['unread message' . ($n === 1 ? '' : 's'), '?v=messages', $n, 'Read']; }
+    $fac = $cnt("SELECT COUNT(*) FROM faculty_invites WHERE status = 'requested'") + $cnt("SELECT COUNT(*) FROM instructor_applications WHERE status = 'submitted'");
+    if ($fac) { $navBadges['users'] = $fac; $needs[] = ['teaching request' . ($fac === 1 ? '' : 's') . ' / instructor application' . ($fac === 1 ? '' : 's'), '?v=users#faculty', $fac, 'Review']; }
+
     // Sidebar nav grouped by domain — [view => [label, FontAwesome icon]].
     // Grouping turns a flat 19-item list into a scannable structure.
     $navGroups = [
@@ -1266,8 +1296,9 @@ button.tiny:hover{border-color:var(--gold)}
         foreach ($items as $k => $meta) {
             if (!$canView($k)) continue;
             $cls = $view === $k ? 'active' : '';
+            $badge = !empty($navBadges[$k]) ? "<em class='nav-count'>" . (int)$navBadges[$k] . "</em>" : '';
             echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'>"
-               . "<i class='fa-solid fa-" . htmlspecialchars($meta[1]) . "' aria-hidden='true'></i><span>" . htmlspecialchars($meta[0]) . "</span></a>";
+               . "<i class='fa-solid fa-" . htmlspecialchars($meta[1]) . "' aria-hidden='true'></i><span>" . htmlspecialchars($meta[0]) . "</span>$badge</a>";
         }
     }
     if ($adminUser && mam_admin_tier($adminUser) === 'manager') {
@@ -1395,6 +1426,17 @@ button.tiny:hover{border-color:var(--gold)}
     if (preg_match('/uploadPreset:\s*\'\'/', $cfgJs)) $ops[] = '<code>cdn.uploadPreset</code> (assets/js/config.js) — applicant headshot upload is disabled';
     if (function_exists('mam_mail_readiness')) { $mr = mam_mail_readiness(); if (is_array($mr) && empty($mr['ready']) && !empty($mr['issues'])) $ops[] = 'Mail delivery: ' . htmlspecialchars(implode('; ', (array)$mr['issues'])); }
     if ($ops) echo '<div class="banner"><strong>ℹ️ Operational readiness</strong> — features waiting on configuration:<ul style="margin:8px 0 0 18px;padding:0">' . implode('', array_map(fn ($o) => '<li style="margin:3px 0">' . $o . '</li>', $ops)) . '</ul></div>';
+
+    // ── Needs attention — the work queue, front and centre ──
+    if (!empty($needs)) {
+        echo '<div class="card needs"><h3>⚡ Needs your attention <span class="muted" style="font-weight:400;font-size:.78rem">— everything pending across the academy, one list</span></h3><div class="needs-list">';
+        foreach ($needs as [$label, $url, $n, $verb]) {
+            echo '<a class="needs-item" href="' . htmlspecialchars($url) . '"><span class="needs-n">' . (int)$n . '</span><span class="needs-label">' . (int)$n . ' ' . htmlspecialchars($label) . '</span><span class="needs-verb">' . htmlspecialchars($verb) . '</span></a>';
+        }
+        echo '</div></div>';
+    } else {
+        echo '<div class="card"><div style="padding:16px 20px;color:var(--muted);font-size:.9rem">✅ Nothing is waiting on you — applications, registrations, proposals, messages and faculty requests are all clear.</div></div>';
+    }
 
     // ── AI assist status — what the gateway powers and whether it's live ──
     if (function_exists('mam_ai_readiness')) {
@@ -3436,5 +3478,39 @@ button.tiny:hover{border-color:var(--gold)}
   <p>Unknown view.</p>
 <?php endif; ?>
 </main>
+<script>
+(function () {
+  // Action feedback you can actually see: ?ok= / ?err= become toasts (the
+  // static banners remain for no-JS). String values carry the real message;
+  // the params are then stripped so refresh/back doesn't re-announce.
+  var params = new URLSearchParams(location.search);
+  function toast(msg, kind) {
+    var stack = document.querySelector('.mam-toast-stack');
+    if (!stack) { stack = document.createElement('div'); stack.className = 'mam-toast-stack'; document.body.appendChild(stack); }
+    var t = document.createElement('div');
+    t.className = 'mam-toast ' + kind;
+    t.setAttribute('role', 'status');
+    t.textContent = (kind === 'ok' ? '✓ ' : '⚠ ') + msg;
+    stack.appendChild(t);
+    requestAnimationFrame(function () { t.classList.add('in'); });
+    setTimeout(function () { t.classList.remove('in'); setTimeout(function () { t.remove(); }, 350); }, 4600);
+  }
+  var ok = params.get('ok'), err = params.get('err');
+  if (ok !== null) toast(ok && ok !== '1' ? ok : 'Saved.', 'ok');
+  if (err !== null && err !== '') toast(err, 'err');
+  if (ok !== null || err !== null) {
+    params.delete('ok'); params.delete('err');
+    try { history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash); } catch (e) {}
+  }
+  // Keyboard reach: '/' or Ctrl/Cmd+K jumps to the global search.
+  document.addEventListener('keydown', function (e) {
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
+    if (((e.key === '/' && !typing) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'))) {
+      var q = document.querySelector('aside input[type=search]');
+      if (q) { e.preventDefault(); q.focus(); q.select(); }
+    }
+  });
+})();
+</script>
 </body>
 </html>
