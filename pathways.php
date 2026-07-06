@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706c">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"ItemList","name":"MAM Academy Programmes &amp; Tuition","itemListElement":[
  {"@type":"ListItem","position":1,"item":{"@type":"Course","name":"Standard Programme","url":"https://academy.mamcentre.org/pathways#standard","description":"One course at your chosen level, with optional additional courses at 50% of the base fee.","provider":{"@type":"EducationalOrganization","name":"MAM Academy","sameAs":"https://academy.mamcentre.org/"},"offers":{"@type":"AggregateOffer","lowPrice":"120","priceCurrency":"USD","category":"Tuition"},"hasCourseInstance":[{"@type":"CourseInstance","courseMode":["online","onsite"]}]}},

@@ -185,10 +185,28 @@
     }
   }
 
+  // On a page with a hero, the hero already carries the primary CTAs — the
+  // sticky bar mounting at t=0 just covers them (worst on phones, where it
+  // stacked with the cookie banner and hid the whole hero card). Defer it
+  // until the hero has essentially scrolled away; pages without a hero keep
+  // the immediate mount.
+  function mountCtaBarPastHero() {
+    var hero = document.getElementById('hero') || document.querySelector('.page-hero');
+    if (!hero || typeof IntersectionObserver === 'undefined') { mountCtaBar(); return; }
+    var io = new IntersectionObserver(function (entries) {
+      var e = entries[0];
+      if (!e.isIntersecting || e.intersectionRatio <= 0.15) {
+        io.disconnect();
+        mountCtaBar();
+      }
+    }, { threshold: [0, 0.15] });
+    io.observe(hero);
+  }
+
   // ── Boot ──────────────────────────────────────────────────────────
   window._mamLoaded = nowMs();
   function boot() {
-    mountCtaBar();
+    mountCtaBarPastHero();
     armExitIntent();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
