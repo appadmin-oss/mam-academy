@@ -706,12 +706,27 @@
   // ============================================================
   // Cookie banner
   // ============================================================
+  // Shared bottom dock: the single fixed container that stacks the transient
+  // bottom sheets (cookie consent, lead CTA) so they never overlap or need
+  // per-component offset hacks. lead.js reuses it via window.mamDock.
+  function mamDock() {
+    var d = document.getElementById('mamDock');
+    if (!d) {
+      d = document.createElement('div');
+      d.id = 'mamDock';
+      d.className = 'mam-dock';
+      document.body.appendChild(d);
+    }
+    return d;
+  }
+  window.mamDock = mamDock;
+
   function initCookie() {
     var banner = $('#cookieBanner'); if (!banner) return;
-    if (Storage.getItem('mam.cookie')) return;
-    var root = document.documentElement;
-    setTimeout(function () { banner.classList.add('shown'); root.classList.add('cookie-open'); }, 1200);
-    function dismiss(v) { return function () { Storage.setItem('mam.cookie', v); banner.classList.remove('shown'); root.classList.remove('cookie-open'); }; }
+    if (Storage.getItem('mam.cookie')) { banner.remove(); return; }
+    mamDock().appendChild(banner);      // dock it — stacking handled by flex
+    setTimeout(function () { banner.classList.add('shown'); }, 1200);
+    function dismiss(v) { return function () { Storage.setItem('mam.cookie', v); banner.classList.remove('shown'); setTimeout(function () { banner.remove(); }, 380); }; }
     on($('#cookieAccept'),  'click', dismiss('accept'));
     on($('#cookieDecline'), 'click', dismiss('decline'));
   }
@@ -1186,7 +1201,7 @@
     // gutter is left to the floating "Apply Now" button.
     function cornerBlocked() {
       var vh = window.innerHeight || 800, blocked = false;
-      ['.cookie-banner.shown', '.mam-cta-bar.shown'].forEach(function (sel) {
+      ['.cookie-banner.shown', '.mam-cta-bar.is-in'].forEach(function (sel) {
         var el = document.querySelector(sel); if (!el) return;
         var r = el.getBoundingClientRect();
         if (r.height && r.bottom > vh - 40 && r.left < 110) blocked = true;

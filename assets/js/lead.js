@@ -56,7 +56,16 @@
         '</a>' +
         '<button type="button" class="mam-cta-bar-close" aria-label="Dismiss">&times;</button>' +
       '</div>';
-    document.body.appendChild(bar);
+    // Mount into the shared bottom dock (main.js) so the bar stacks cleanly
+    // with the cookie consent instead of overlapping it. Standalone fallback
+    // creates the same dock if main.js hasn't (load order is async).
+    var dock;
+    if (typeof window.mamDock === 'function') { dock = window.mamDock(); }
+    else {
+      dock = document.getElementById('mamDock');
+      if (!dock) { dock = document.createElement('div'); dock.id = 'mamDock'; dock.className = 'mam-dock'; document.body.appendChild(dock); }
+    }
+    dock.appendChild(bar);
     requestAnimationFrame(function () { bar.classList.add('is-in'); });
 
     bar.querySelector('.mam-cta-bar-close').addEventListener('click', function () {
