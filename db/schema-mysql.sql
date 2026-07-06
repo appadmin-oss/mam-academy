@@ -1043,3 +1043,23 @@ CREATE TABLE IF NOT EXISTS module_proposals (
   KEY idx_modprop_by (proposed_by, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (35) ON DUPLICATE KEY UPDATE version = version;
+
+-- v36 — instructor (faculty) applications (details + headshot form)
+CREATE TABLE IF NOT EXISTS instructor_applications (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  email            VARCHAR(190) NOT NULL,
+  full_name        VARCHAR(160),
+  phone            VARCHAR(40),
+  disciplines      VARCHAR(300),
+  experience_years INT,
+  bio              TEXT,
+  links            TEXT,
+  cv_url           VARCHAR(500),
+  headshot_url     VARCHAR(500),
+  status           VARCHAR(24) NOT NULL DEFAULT 'submitted',
+  ip               VARCHAR(64),
+  created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_instrapp_email (email),
+  KEY idx_instrapp_status (status, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (36) ON DUPLICATE KEY UPDATE version = version;

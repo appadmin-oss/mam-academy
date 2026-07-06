@@ -94,6 +94,9 @@ $r->post('/newsletter',  $f('newsletter.php'),  [mw_csrf(), mw_rate_limit('newsl
 $r->get ('/newsletter/unsubscribe', $f('newsletter-unsubscribe.php'), [mw_rate_limit('unsubscribe', 60, 600)]);
 $r->post('/newsletter/unsubscribe', $f('newsletter-unsubscribe.php'), [mw_rate_limit('unsubscribe', 60, 600)]);
 $r->post('/contact',     $f('contact.php'),     [mw_csrf(), mw_rate_limit('contact',     5,  600)]);
+// Instructor application form (emailed, tokenized invite — api/lib/faculty.php).
+$r->get ('/faculty-apply', $f('faculty-apply.php'), [mw_rate_limit('faculty_check', 30, 600)]);
+$r->post('/faculty-apply', $f('faculty-apply.php'), [mw_csrf(), mw_rate_limit('faculty_apply', 6, 600)]);
 
 /* ─── Payments ─── */
 $r->group('/payment', function (MamRouter $r) use ($f) {

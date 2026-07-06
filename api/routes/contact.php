@@ -52,6 +52,21 @@ mam_after_response(function () use ($notify, $name, $email, $phone, $topic, $mes
     );
     mam_send($notify, '[MAM Contact] ' . $topic, $body, 'contact_message', true, ['reply_to' => $email]);
     mam_send($email, 'Got your message — MAM Academy', mam_email_contact_autoresponse($name, $topic), 'contact_autoresponse', true);
+
+    // Teaching interest → automatically send the instructor application form
+    // (tokenized link; collects full details + headshot for faculty review).
+    if (preg_match('/faculty|teach/i', $topic)) {
+        $link = mam_faculty_apply_url(mam_faculty_invite_token($email));
+        $first = htmlspecialchars(trim(explode(' ', trim($name))[0] ?: 'there'));
+        mam_send($email, 'Your MAM Academy instructor application form',
+            mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'Complete your instructor application — details + headshot.',
+                'reason' => 'You received this because you expressed interest in teaching at MAM Academy.',
+                'body' => "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px'>Thanks for your interest in teaching, $first</h2>"
+                    . "<p style='margin:0 0 10px'>The next step is our instructor application — it collects your teaching disciplines, experience, a short bio, your links/CV and a professional headshot, so the faculty team can review you properly.</p>"
+                    . "<p style='margin:0'>The link below is personal to you and valid for " . MAM_FACULTY_INVITE_DAYS . " days.</p>"
+                    . mam_email_button($link, 'Complete your application')]),
+            'faculty_invite', true);
+    }
 });
 
 mam_audit('create', 'message', $id, ['email' => $email, 'topic' => $topic]);

@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 35;
+const MAM_SCHEMA_TARGET = 36;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1086,6 +1086,27 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX idx_modprop_status ON module_proposals(status, id);
             CREATE INDEX idx_modprop_by ON module_proposals(proposed_by, id);
+        ",
+        // v36 — instructor (faculty) applications: the details+headshot form a
+        // prospective instructor completes via their emailed invite link.
+        36 => "
+            CREATE TABLE instructor_applications (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              email TEXT NOT NULL,
+              full_name TEXT,
+              phone TEXT,
+              disciplines TEXT,
+              experience_years INTEGER,
+              bio TEXT,
+              links TEXT,
+              cv_url TEXT,
+              headshot_url TEXT,
+              status TEXT NOT NULL DEFAULT 'submitted',
+              ip TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_instrapp_email ON instructor_applications(email);
+            CREATE INDEX idx_instrapp_status ON instructor_applications(status, id);
         ",
     ];
 

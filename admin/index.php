@@ -187,6 +187,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
         'wallet_credit' => 'users',
+        'faculty_invite' => 'users', 'faculty_app_status' => 'users',
         'module_proposal_review' => 'curriculum',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
@@ -669,6 +670,35 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             trim((string)($_POST['content'] ?? '')) ?: null
         );
         header('Location: ' . $back . '&ok=1'); exit;
+    }
+
+    // ─── Faculty applications: invite + status ───────────────────────────
+    if ($action === 'faculty_invite') {
+        $email = strtolower(trim((string)($_POST['email'] ?? '')));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { header('Location: ?v=users&err=' . urlencode('Enter a valid email.') . '#faculty'); exit; }
+        $link = mam_faculty_apply_url(mam_faculty_invite_token($email));
+        $ok = false;
+        try {
+            $ok = mam_send($email, 'Your MAM Academy instructor application form',
+                mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'Complete your instructor application — details + headshot.',
+                    'reason' => 'You received this because MAM Academy invited you to apply as an instructor.',
+                    'body' => "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px'>You're invited to teach at MAM</h2>"
+                        . "<p style='margin:0 0 10px'>Complete our instructor application — your teaching disciplines, experience, a short bio, links/CV and a professional headshot — so the faculty team can review you properly.</p>"
+                        . "<p style='margin:0'>This link is personal to you and valid for " . MAM_FACULTY_INVITE_DAYS . " days.</p>"
+                        . mam_email_button($link, 'Complete your application')]),
+                'faculty_invite', true);
+        } catch (Throwable $e) { /* surfaced below */ }
+        mam_audit('faculty_invite', 'instructor_application', null, ['email' => $email, 'sent' => $ok]);
+        header('Location: ?v=users' . ($ok ? '&ok=1' : '&err=' . urlencode('Invite email failed to send — check mail settings.')) . '#faculty'); exit;
+    }
+    if ($action === 'faculty_app_status') {
+        $fid = (int)($_POST['app_id'] ?? 0);
+        $st  = (string)($_POST['status'] ?? '');
+        if ($fid > 0 && in_array($st, ['submitted', 'reviewing', 'approved', 'declined'], true)) {
+            mam_db_update('instructor_applications', ['status' => $st], ['id' => $fid]);
+            mam_audit('faculty_app_status', 'instructor_application', $fid, ['status' => $st]);
+        }
+        header('Location: ?v=users&ok=1#faculty'); exit;
     }
 
     // ─── Review a faculty curriculum proposal (approve → applied to modules) ──
@@ -2008,6 +2038,58 @@ button.tiny:hover{border-color:var(--gold)}
       </tbody>
     </table>
     <?= mam_admin_pager($page, $total, $perPage) ?>
+  </div>
+
+  <!-- ── Faculty (instructor) applications ─────────────────────────────── -->
+  <div class="card" id="faculty">
+    <h3>Faculty applications <span class="muted" style="font-weight:400;font-size:.8rem">— instructor candidates who completed the details + headshot form</span></h3>
+    <form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:0 20px 14px" title="Email someone the instructor application form (personal link, valid 14 days)">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="faculty_invite">
+      <span class="muted" style="font-size:.84rem">Invite an instructor to apply:</span>
+      <input type="email" name="email" class="tiny" placeholder="their@email.com" required style="width:220px">
+      <button class="tiny" type="submit">Send form</button>
+    </form>
+    <table>
+      <thead><tr><th>Candidate</th><th>Disciplines · Experience</th><th>Materials</th><th>Bio</th><th>Status</th></tr></thead>
+      <tbody>
+      <?php
+        $facApps = mam_admin_rows("SELECT * FROM instructor_applications ORDER BY (status='submitted') DESC, id DESC LIMIT 100");
+        if (!$facApps): ?><tr><td colspan="5" class="empty">No instructor applications yet. Teaching-interest contact messages are automatically sent the form; you can also invite someone above.</td></tr><?php endif;
+      foreach ($facApps as $fa): ?>
+        <tr>
+          <td>
+            <?php if (!empty($fa['headshot_url'])): ?><img src="<?= htmlspecialchars((string)$fa['headshot_url']) ?>" alt="" style="width:42px;height:42px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px"><?php endif; ?>
+            <strong><?= htmlspecialchars((string)($fa['full_name'] ?: '—')) ?></strong><br>
+            <span class="muted"><?= htmlspecialchars((string)$fa['email']) ?><?= $fa['phone'] ? ' · ' . htmlspecialchars((string)$fa['phone']) : '' ?></span><br>
+            <span class="muted" style="font-size:.76rem"><?= htmlspecialchars(substr((string)$fa['created_at'], 0, 16)) ?></span>
+          </td>
+          <td><?= htmlspecialchars((string)($fa['disciplines'] ?: '—')) ?><?= $fa['experience_years'] !== null ? '<br><span class="muted">' . (int)$fa['experience_years'] . ' yrs</span>' : '' ?></td>
+          <td style="white-space:nowrap">
+            <?php if (!empty($fa['cv_url'])): ?><a class="tiny btn ghost" href="<?= htmlspecialchars((string)$fa['cv_url']) ?>" target="_blank" rel="noopener">CV</a><?php endif; ?>
+            <?php if (!empty($fa['links'])): ?><span class="muted" style="font-size:.78rem;display:block;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="<?= htmlspecialchars((string)$fa['links']) ?>"><?= htmlspecialchars((string)$fa['links']) ?></span><?php endif; ?>
+          </td>
+          <td style="max-width:300px"><span class="muted" style="font-size:.82rem"><?= nl2br(htmlspecialchars(mb_substr((string)($fa['bio'] ?? ''), 0, 260))) ?><?= mb_strlen((string)($fa['bio'] ?? '')) > 260 ? '…' : '' ?></span></td>
+          <td style="white-space:nowrap">
+            <form class="inline" method="post" style="display:flex;gap:4px;align-items:center">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <input type="hidden" name="action" value="faculty_app_status">
+              <input type="hidden" name="app_id" value="<?= (int)$fa['id'] ?>">
+              <select name="status" class="tiny">
+                <?php foreach (['submitted','reviewing','approved','declined'] as $st): ?>
+                  <option value="<?= $st ?>" <?= $fa['status'] === $st ? 'selected' : '' ?>><?= $st ?></option>
+                <?php endforeach; ?>
+              </select>
+              <button class="tiny" type="submit">Save</button>
+            </form>
+            <?php if ($fa['status'] === 'approved' && !mam_db_row('SELECT id FROM users WHERE email = ?', [(string)$fa['email']])): ?>
+              <span class="muted" style="display:block;font-size:.74rem;margin-top:4px">→ create their instructor account above (welcome email sends automatically)</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
   </div>
 
 <?php elseif ($view === 'classes'): ?>

@@ -81,7 +81,7 @@
           </div>
           <div class="field-row">
             <div class="field"><label class="field-label" for="cf-phone">Phone</label><input type="tel" id="cf-phone" class="field-input" placeholder="+234…" autocomplete="tel" inputmode="tel"></div>
-            <div class="field"><label class="field-label" for="cf-topic">Topic <span class="req">*</span></label><div class="field-select-wrap"><select id="cf-topic" class="field-select" required><option value="">Select topic</option><option>Enrollment &amp; Pathways</option><option>MAM Auditer Assessment</option><option>MetaMusic Order</option><option>Power Play series</option><option>Crash Programmes</option><option>Partnerships &amp; Speaking</option><option>Press &amp; Media</option><option>Other</option></select><i class="fa-solid fa-chevron-down field-select-arrow"></i></div></div>
+            <div class="field"><label class="field-label" for="cf-topic">Topic <span class="req">*</span></label><div class="field-select-wrap"><select id="cf-topic" class="field-select" required><option value="">Select topic</option><option>Enrollment &amp; Pathways</option><option>MAM Auditer Assessment</option><option>MetaMusic Order</option><option>Power Play series</option><option>Crash Programmes</option><option>Teaching at MAM (Faculty)</option><option>Partnerships &amp; Speaking</option><option>Press &amp; Media</option><option>Other</option></select><i class="fa-solid fa-chevron-down field-select-arrow"></i></div></div>
           </div>
           <div class="field"><label class="field-label" for="cf-message">Message <span class="req">*</span></label><textarea id="cf-message" class="field-textarea" placeholder="Tell us how we can help…" required maxlength="2000"></textarea></div>
           <button type="submit" class="btn-step btn-step-next" id="cf-submit"><i class="fa-solid fa-paper-plane"></i>Send Message</button>
@@ -109,10 +109,24 @@ document.addEventListener('mam:ready', function () {
     'MetaMusic Order':          { icon: 'fire',           html: "The MetaMusic Order is a 12-week intensive. <a href='apply?pathway=meta-order'>Apply</a> or <a href='metamusic-order'>learn more</a>." },
     'Power Play series':        { icon: 'bolt',           html: "Catch the series at <a href='power-play'>the Power Play page</a>." },
     'Crash Programmes':         { icon: 'forward',        html: "6-week fast-track. <a href='crash'>See details</a> or <a href='apply?pathway=crash'>start an application</a>." },
+    'Teaching at MAM (Faculty)':{ icon: 'chalkboard-user',html: "Great — tell us your instrument(s)/discipline and a line about your experience. We'll automatically email you the full instructor application form (details + headshot)." },
     'Partnerships & Speaking':  { icon: 'handshake',      html: "Briefly include the organisation, timeline and audience size so we can route this to the right team." },
     'Press & Media':            { icon: 'newspaper',      html: 'For press kits and interview requests, please include your outlet and deadline.' }
   };
   var topicEl = document.getElementById('cf-topic');
+  // Deep-link prefill: ?topic=Faculty (and friends) preselects the matching option.
+  if (topicEl) {
+    try {
+      var wanted = new URLSearchParams(location.search).get('topic');
+      if (wanted) {
+        var lw = wanted.toLowerCase();
+        Array.prototype.forEach.call(topicEl.options, function (o) {
+          if (o.value && o.value.toLowerCase().indexOf(lw) >= 0) topicEl.value = o.value;
+        });
+        topicEl.dispatchEvent(new Event('change'));
+      }
+    } catch (e) {}
+  }
   if (topicEl) {
     topicEl.addEventListener('change', function () {
       var existing = document.getElementById('cf-topic-tip');
