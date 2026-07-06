@@ -551,10 +551,39 @@
       +   '<section class="panel"><div class="panel-head"><h2>Class fill</h2><a class="panel-action" href="#classes" data-tab="classes">All →</a></div>'
       +     '<div style="padding:10px 22px 18px">' + (classes.length ? classFillBars(classes) : empty('chalkboard-user', 'No classes assigned yet.')) + '</div></section>'
       + '</div>'
+      + '<div id="cohortSummary"></div>'
       + '<section class="panel"><div class="panel-head"><h2>Recent attendance</h2><a class="panel-action" href="#attendance" data-tab="attendance">All →</a></div>'
       + (att.length ? attendanceTable(att.slice(0,8)) : '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded yet.') + '</div>') + '</section>';
     bindTabLinks();
     drawAttChart(counts);
+    loadCohortSummary();
+  }
+
+  // P2 convergence: surface the v16 cohorts (Sessions + Gradebook world) right on
+  // the overview, so the instructor sees both the legacy classes above and their
+  // cohorts in one place. Best-effort + lazy — a failed fetch or empty result
+  // simply leaves the overview as-is; the dedicated Sessions/Gradebook tabs keep
+  // working (dual-read).
+  function loadCohortSummary() {
+    var host = document.getElementById('cohortSummary');
+    if (!host) return;
+    API.request('instructor/sessions', { method: 'GET' }).then(function (r) {
+      var cohorts = (r && r.cohorts) || [];
+      if (!cohorts.length || !document.getElementById('cohortSummary')) return;
+      var rows = cohorts.map(function (c) {
+        var name = c.title || c.course_name || ('Cohort #' + c.id);
+        return '<tr><td data-label="Cohort"><strong>' + P.escapeHtml(name) + '</strong>'
+          + (c.level_name ? '<br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(c.level_name) + '</span>' : '') + '</td>'
+          + '<td data-label="Course">' + P.escapeHtml(c.course_name || '—') + '</td>'
+          + '<td data-label="Students">' + (c.enrollment_count || 0) + '</td>'
+          + '<td data-label=""><a class="btn btn-ghost" href="#sessions" data-tab="sessions" style="padding:4px 11px;font-size:0.76rem"><i class="fa-solid fa-calendar-days"></i> Sessions</a> '
+          + '<a class="btn btn-ghost" href="#gradebook" data-tab="gradebook" style="padding:4px 11px;font-size:0.76rem"><i class="fa-solid fa-clipboard-list"></i> Grade</a></td></tr>';
+      }).join('');
+      host.innerHTML = '<section class="panel"><div class="panel-head"><h2>Cohorts &amp; sessions</h2>'
+        + '<a class="panel-action" href="#sessions" data-tab="sessions">Schedule →</a></div>'
+        + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Cohort</th><th>Course</th><th>Students</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+      bindTabLinks();
+    }).catch(function () { /* never disturb the overview */ });
   }
 
   function classFillBars(classes) {
