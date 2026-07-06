@@ -128,14 +128,38 @@
         + '<div class="portal-user-role">' + escapeHtml(user.role) + '</div></div>';
     },
 
+    /** Mobile drawer for the portal sidebar: scrim + body scroll-lock + Escape
+        + close-on-navigate + ARIA state. Desktop (>880px) is untouched. */
     sidebarToggle: function () {
       var btn = $('#sidebarToggle');
       var side = $('.portal-side');
       if (!btn || !side) return;
-      on(btn, 'click', function () { side.classList.toggle('open'); });
-      on(document, 'click', function (e) {
+      // Scrim behind the open drawer (created once, shared).
+      var scrim = document.createElement('div');
+      scrim.className = 'portal-scrim';
+      document.body.appendChild(scrim);
+      if (!side.id) side.id = 'portalSide';
+      btn.setAttribute('aria-controls', side.id);
+      btn.setAttribute('aria-expanded', 'false');
+      function setOpen(open) {
+        side.classList.toggle('open', open);
+        scrim.classList.toggle('show', open);
+        btn.setAttribute('aria-expanded', String(open));
+        document.body.style.overflow = open ? 'hidden' : '';
+      }
+      on(btn, 'click', function () { setOpen(!side.classList.contains('open')); });
+      on(scrim, 'click', function () { setOpen(false); });
+      on(document, 'keydown', function (e) { if (e.key === 'Escape' && side.classList.contains('open')) setOpen(false); });
+      // Tapping a nav item switches the SPA tab behind the drawer — close it so
+      // the user actually sees the tab they chose.
+      on(side, 'click', function (e) {
         if (window.innerWidth > 880) return;
-        if (!side.contains(e.target) && !btn.contains(e.target)) side.classList.remove('open');
+        if (e.target.closest && e.target.closest('a, button')) setOpen(false);
+      });
+      // Never strand an open drawer (and a locked body) across a rotate/resize
+      // to the desktop layout, where the drawer becomes a static column.
+      on(window, 'resize', function () {
+        if (window.innerWidth > 880 && side.classList.contains('open')) setOpen(false);
       });
     },
 

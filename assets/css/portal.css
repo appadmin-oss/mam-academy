@@ -71,19 +71,17 @@
 .mam-toast.error{border-color:#FCA5A5;color:#FECDD3}
 @keyframes tIn{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
 
-/* Mobile: keep the sidebar usable on smaller screens. Above the 880px MQ the
-   sidebar is a fixed-width column; below it slides in. */
-@media (max-width:880px){
-  .portal-shell{grid-template-columns:1fr}
-  .portal-side{position:fixed;inset:0 auto 0 0;width:80%;max-width:300px;transform:translateX(-100%);transition:transform .25s ease;z-index:50}
-  .portal-side.open{transform:translateX(0)}
-  .portal-side-toggle{display:inline-flex !important;align-items:center;gap:8px;padding:10px 14px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;color:var(--text);min-height:44px;margin-bottom:18px}
-}
-.portal-side-toggle{display:none}
+/* (Mobile drawer rules live in ONE canonical @media block further down —
+   previously two conflicting 880px blocks styled .portal-side differently.) */
+
+/* Scrim behind the mobile drawer: dims + blocks the page while the menu is
+   open (injected by P.sidebarToggle). Tap to close. */
+.portal-scrim{position:fixed;inset:0;background:rgba(10,7,4,0.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:999;opacity:0;visibility:hidden;transition:opacity .25s var(--ease),visibility .25s}
+.portal-scrim.show{opacity:1;visibility:visible}
 
 /* Reduced motion: respect the user's preference. */
 @media (prefers-reduced-motion:reduce){
-  .skeleton,.mam-toast,.portal-side{animation:none !important;transition:none !important}
+  .skeleton,.mam-toast,.portal-side,.portal-scrim{animation:none !important;transition:none !important}
 }
 
 /* ── End of priority-improvements block ── */
@@ -107,7 +105,12 @@
 .portal-nav-link.active{color:var(--gold-bright);background:linear-gradient(135deg,rgba(224,138,26,0.14),rgba(251,191,36,0.06));border-color:var(--border-gold)}
 .portal-nav-link i{width:18px;text-align:center}
 
+/* Flier accent: the vivid flame bar marks the active tab (echoes the brand
+   fliers' orange side-band). */
+.portal-nav-link.active{box-shadow:inset 3px 0 0 var(--flame,#E85D26)}
 .portal-side-foot{margin-top:24px;padding-top:18px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+/* Brand tagline at the foot of the sidebar — same line as the flier/footer. */
+.portal-tagline{margin-top:10px;padding:0 14px;font-family:var(--font-serif,Georgia,serif);font-style:italic;font-size:0.78rem;color:var(--text-muted);opacity:0.85}
 .portal-side-foot a,.portal-side-foot button{display:flex;align-items:center;gap:10px;padding:9px 14px;color:var(--text-muted);font-size:0.85rem;border-radius:var(--radius-sm);text-align:left;transition:color 0.2s}
 .portal-side-foot a:hover,.portal-side-foot button:hover{color:var(--gold-bright)}
 
@@ -207,11 +210,16 @@
 /* Mobile */
 @media (max-width:880px){
   .portal-shell{grid-template-columns:1fr}
-  .portal-side{position:fixed;left:0;top:0;bottom:0;width:280px;transform:translateX(-100%);transition:transform 0.3s var(--ease);z-index:1000;box-shadow:var(--shadow-lg)}
+  /* Drawer: dvh (mobile URL bar), safe-area padding, above the scrim. */
+  .portal-side{position:fixed;left:0;top:0;bottom:0;width:min(84vw,300px);height:100vh;height:100dvh;transform:translateX(-100%);transition:transform 0.3s var(--ease);z-index:1000;box-shadow:var(--shadow-lg);padding-bottom:max(24px,env(safe-area-inset-bottom));padding-left:max(16px,env(safe-area-inset-left))}
   .portal-side.open{transform:translateX(0)}
-  .portal-main{padding:24px 20px 64px}
-  .portal-side-toggle{display:flex !important}
+  .portal-main{padding:20px 16px calc(64px + env(safe-area-inset-bottom))}
+  /* Keep the menu button reachable after scrolling — it sticks to the top. */
+  .portal-side-toggle{display:flex !important;position:sticky;top:12px;z-index:40}
   .profile-form{grid-template-columns:1fr}
+  .portal-top h1{font-size:1.5rem}
+  .portal-top{gap:12px;margin-bottom:20px}
+  .portal-top .btn{padding:10px 14px;font-size:0.84rem}
 }
 .portal-side-toggle{display:none;align-items:center;gap:10px;padding:10px 16px;background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-weight:700;font-size:0.9rem;margin-bottom:14px}
 
