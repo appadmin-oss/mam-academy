@@ -2060,7 +2060,8 @@ button.tiny:hover{border-color:var(--gold)}
   </div>
 
 <?php elseif ($view === 'enrollments'): ?>
-  <header class="top"><h1>Enrollments</h1></header>
+  <header class="top"><h1>Enrollments <span class="muted" style="font-size:0.6em;font-weight:400">· legacy per-class roster</span></h1></header>
+  <div class="banner" style="background:rgba(224,138,26,0.08);border:1px solid var(--border)">These are the legacy <strong>class</strong> enrolments. Course registrations and cohorts (the unified view) live under <a href="?v=courseenroll" style="color:var(--gold)">Course Registrations →</a>. Both are read side-by-side there while the convergence settles.</div>
   <?php
     $students = mam_db_all("SELECT id, name, email FROM users WHERE role='student' AND status='active' ORDER BY name");
     $classList = mam_db_all("SELECT id, title, discipline FROM classes WHERE status='active' ORDER BY title");
@@ -2146,22 +2147,34 @@ button.tiny:hover{border-color:var(--gold)}
   <?php endif; ?>
   <?php $cohortList = function_exists('mam_lms_cohorts') ? mam_lms_cohorts() : []; ?>
   <?php if ($cohortList): ?>
+  <?php
+    // Cohort convergence (P2): a cohort backfilled from a legacy class carries a
+    // `legacy_class_id`. Fold the legacy `enrollments` count into the same row so
+    // this one panel shows the unified registration reality — v16 course
+    // enrolments AND the class enrolments that back the same cohort.
+    $legacyCounts = [];
+    foreach (mam_admin_rows("SELECT class_id, COUNT(*) AS n FROM enrollments WHERE status IN ('active','paused') GROUP BY class_id") as $lc) {
+        $legacyCounts[(int)$lc['class_id']] = (int)$lc['n'];
+    }
+  ?>
   <div class="card">
-    <h3>Cohorts <span class="muted" style="font-weight:400">· the unified &ldquo;scheduled run&rdquo; grouping (course &times; level &times; programme)</span></h3>
+    <h3>Cohorts <span class="muted" style="font-weight:400">· the unified &ldquo;scheduled run&rdquo; grouping (course &times; level &times; programme) — one place for course &amp; class registrations</span></h3>
     <table>
-      <thead><tr><th>Cohort</th><th>Course / Level</th><th>Instructor</th><th>Students</th><th>Status</th></tr></thead>
+      <thead><tr><th>Cohort</th><th>Course / Level</th><th>Instructor</th><th>Course students</th><th>Class enrolments</th><th>Status</th></tr></thead>
       <tbody>
-      <?php foreach ($cohortList as $co): ?>
+      <?php foreach ($cohortList as $co): $lcid = (int)($co['legacy_class_id'] ?? 0); ?>
         <tr>
-          <td><strong><?= htmlspecialchars((string)($co['title'] ?: ('Cohort #' . $co['id']))) ?></strong><?= !empty($co['legacy_class_id']) ? ' <span class="muted">(from class #' . (int)$co['legacy_class_id'] . ')</span>' : '' ?></td>
+          <td><strong><?= htmlspecialchars((string)($co['title'] ?: ('Cohort #' . $co['id']))) ?></strong><?= $lcid ? ' <span class="muted">(from class #' . $lcid . ')</span>' : '' ?></td>
           <td><?= htmlspecialchars((string)($co['course_name'] ?? $co['discipline'] ?? '—')) ?><?= !empty($co['level_name']) ? ' &middot; ' . htmlspecialchars((string)$co['level_name']) : '' ?></td>
           <td><?= htmlspecialchars((string)($co['instructor_name'] ?? '—')) ?></td>
           <td><?= (int)($co['enrollment_count'] ?? 0) ?></td>
+          <td><?php if ($lcid): ?><?= (int)($legacyCounts[$lcid] ?? 0) ?> <a href="?v=enrollments" class="muted" style="text-decoration:underline">manage</a><?php else: ?><span class="muted">—</span><?php endif; ?></td>
           <td><span class="pill <?= htmlspecialchars((string)$co['status']) ?>"><?= htmlspecialchars((string)$co['status']) ?></span></td>
         </tr>
       <?php endforeach; ?>
       </tbody>
     </table>
+    <p style="padding:4px 20px 16px;color:var(--muted);font-size:0.84rem;line-height:1.6">Course students come from course registrations (below); class enrolments are the legacy per-class roster (<a href="?v=enrollments" style="color:var(--gold)">Enrollments</a>). Cohorts converge both — no data migration.</p>
   </div>
   <?php endif; ?>
   <?php
