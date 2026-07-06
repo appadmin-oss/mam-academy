@@ -71,6 +71,8 @@
 
 <script src="/assets/js/config.js?v=20260616h"></script>
 <script src="/assets/js/portal.js?v=20260615c"></script>
+<!-- Headshot uploader — lets a student change their portal photo (Profile tab). -->
+<script src="/assets/js/headshot.js?v=20260615e" defer></script>
 <script src="/assets/js/studio-tools.js?v=20260612a"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <script>
@@ -833,7 +835,18 @@
 
   function renderProfile() {
     var u = data.user, c = data.customer || {};
-    content.innerHTML = '<section class="panel"><form class="profile-form" id="profileForm">'
+    var avInner = u.avatar_url ? '<img src="' + P.escapeHtml(u.avatar_url) + '" alt="">' : P.escapeHtml(P.initials(u.name || u.email));
+    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Your photo</h2></div>'
+      + '<div class="panel-body" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">'
+      +   '<div class="portal-avatar" id="pf-avatar" style="width:72px;height:72px;font-size:1.5rem;flex-shrink:0">' + avInner + '</div>'
+      +   '<div style="flex:1;min-width:200px">'
+      +     '<input type="file" id="pf-photo-file" accept="image/jpeg,image/png,image/webp" style="display:none">'
+      +     '<button type="button" class="btn btn-secondary" id="pf-photo-btn"><i class="fa-solid fa-camera"></i> Upload new photo</button>'
+      +     (u.avatar_url ? ' <button type="button" class="btn" id="pf-photo-remove" style="background:transparent;border:1px solid var(--border-strong)">Remove</button>' : '')
+      +     '<p class="empty-state" id="pf-photo-msg" style="margin:9px 0 0;text-align:left">A clear headshot (JPG, PNG or WebP). This shows across your portal.</p>'
+      +   '</div>'
+      + '</div></section>'
+      + '<section class="panel"><form class="profile-form" id="profileForm">'
       + '<div class="field"><label for="pf-name">Full name</label><input id="pf-name" value="' + P.escapeHtml(u.name || '') + '" required></div>'
       + '<div class="field"><label for="pf-phone">Phone</label><input id="pf-phone" type="tel" value="' + P.escapeHtml(u.phone || '') + '"></div>'
       + '<div class="field"><label>Email</label><input value="' + P.escapeHtml(u.email) + '" disabled></div>'
@@ -846,6 +859,32 @@
       + '<div class="actions"><button type="submit" class="btn btn-primary">Change password</button></div>'
       + '</form></section>'
       + '<section class="panel"><div class="panel-head"><h2>Active sessions</h2></div><div class="panel-body" data-sessions><p class="empty-state">Loading…</p></div></section>';
+    // Photo: upload via the headshot uploader (Cloudinary), save the URL to the
+    // student's avatar, and reflect it live in the sidebar. Degrades gracefully
+    // if the uploader/CDN isn't available.
+    var pfFile = document.getElementById('pf-photo-file'), pfBtn = document.getElementById('pf-photo-btn'), pfMsg = document.getElementById('pf-photo-msg');
+    function paintAvatar(url) {
+      var av = document.getElementById('pf-avatar');
+      if (av) av.innerHTML = url ? '<img src="' + P.escapeHtml(url) + '" alt="">' : P.escapeHtml(P.initials(u.name || u.email));
+      data.user.avatar_url = url || null;
+      P.mountUserCard({ name: u.name, email: u.email, role: 'student', avatar_url: url || null });
+    }
+    if (pfBtn && pfFile) pfBtn.addEventListener('click', function () { pfFile.click(); });
+    if (pfFile) pfFile.addEventListener('change', function () {
+      var f = pfFile.files && pfFile.files[0]; if (!f) return;
+      if (!window.MAM_HEADSHOT || !window.MAM_HEADSHOT.upload) { pfMsg.textContent = 'Photo upload is unavailable right now — please try later.'; return; }
+      pfMsg.textContent = 'Uploading…'; pfBtn.disabled = true;
+      window.MAM_HEADSHOT.upload(f)
+        .then(function (res) { var url = res && res.url; if (!url) throw new Error('no_url'); return API.request('student/avatar', { method: 'POST', body: { avatar_url: url } }); })
+        .then(function (r) { pfBtn.disabled = false; paintAvatar(r && r.avatar_url); pfMsg.textContent = 'Photo updated.'; if (window.MAM_DIALOG) MAM_DIALOG.toast('Photo updated.', 'success'); renderProfile(); })
+        .catch(function () { pfBtn.disabled = false; pfMsg.textContent = 'Could not update your photo. Please try a different image.'; });
+    });
+    var pfRemove = document.getElementById('pf-photo-remove');
+    if (pfRemove) pfRemove.addEventListener('click', function () {
+      API.request('student/avatar', { method: 'POST', body: { avatar_url: '' } })
+        .then(function () { paintAvatar(null); if (window.MAM_DIALOG) MAM_DIALOG.toast('Photo removed.', 'success'); renderProfile(); })
+        .catch(function () { if (window.MAM_DIALOG) MAM_DIALOG.toast('Could not remove the photo.', 'error'); });
+    });
     document.getElementById('profileForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var name = document.getElementById('pf-name').value.trim();

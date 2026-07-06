@@ -248,11 +248,22 @@ function mam_ensure_student_user(int $customerId): array {
     $cust = mam_db_row('SELECT * FROM customers WHERE id = ?', [$customerId]);
     if (!$cust) throw new RuntimeException('customer_not_found');
 
+    // The applicant's headshot (captured at application) becomes their portal
+    // avatar automatically — so a student's photo shows in the portal without any
+    // extra step. Editable later via POST /api/student/avatar.
+    $shot = mam_db_row(
+        "SELECT headshot_url FROM applications WHERE customer_id = ? AND headshot_url IS NOT NULL AND headshot_url <> '' ORDER BY id DESC LIMIT 1",
+        [$customerId]
+    );
+    $avatar = $shot ? (string)$shot['headshot_url'] : null;
+
     $existing = mam_db_row('SELECT * FROM users WHERE email = ?', [$cust['email']]);
     if ($existing) {
-        if (!$existing['customer_id']) {
-            mam_db_update('users', ['customer_id' => $customerId], ['id' => (int)$existing['id']]);
-        }
+        $patch = [];
+        if (!$existing['customer_id']) $patch['customer_id'] = $customerId;
+        // Backfill the avatar if the account never had one and a headshot exists.
+        if ($avatar && empty($existing['avatar_url'])) $patch['avatar_url'] = $avatar;
+        if ($patch) { mam_db_update('users', $patch, ['id' => (int)$existing['id']]); $existing = mam_db_row('SELECT * FROM users WHERE id = ?', [(int)$existing['id']]); }
         return ['user' => $existing, 'password' => null];
     }
 
@@ -264,6 +275,7 @@ function mam_ensure_student_user(int $customerId): array {
         'name'          => trim(($cust['first_name'] ?? '') . ' ' . ($cust['last_name'] ?? '')),
         'phone'         => $cust['phone'],
         'customer_id'   => $customerId,
+        'avatar_url'    => $avatar,
         'must_change_password' => 1,
     ]);
     $user = mam_db_row('SELECT * FROM users WHERE id = ?', [$userId]);

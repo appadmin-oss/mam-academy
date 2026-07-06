@@ -142,6 +142,7 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->post('/store-redeem',        $f('student/store-redeem.php'),        [mw_csrf(), mw_role('student'), mw_rate_limit('store_redeem', 20, 600)]);
     $r->post('/add-course',          $f('student/add-course.php'),          [mw_csrf(), mw_role('student'), mw_rate_limit('add_course', 30, 600)]);
     $r->post('/update-profile',      $f('student/update-profile.php'),      [mw_csrf(), mw_role('student')]);
+    $r->post('/avatar',              $f('student/avatar.php'),              [mw_csrf(), mw_role('student'), mw_rate_limit('student_avatar', 20, 600)]);
     $r->post('/practice-log',        $f('student/practice-log.php'),        [mw_csrf(), mw_role('student')]);
     $r->post('/assignment-complete', $f('student/assignment-complete.php'), [mw_csrf(), mw_role('student')]);
     // Per-component gradebook breakdown for one of the student's own courses.

@@ -42,3 +42,21 @@ t_ok(password_verify($p1['password'], $su['password_hash']), 'temp password veri
 $p2 = mam_ensure_student_user((int)$cid);
 t_ok($p2['password'] === null, 're-provisioning is idempotent (no new password)');
 t_eq((int)$p2['user']['id'], (int)$su['id'], 're-provision returns the same account');
+
+// ── The application headshot becomes the portal avatar automatically ──
+$cid2 = mam_db_insert('customers', ['email' => 't_shot@x.dev', 'first_name' => 'Bem', 'last_name' => 'T', 'phone' => '+2348111111']);
+mam_db_insert('applications', ['reference' => 'MAM-SHOT-1', 'customer_id' => $cid2, 'pathway' => 'standard', 'headshot_url' => 'https://res.cloudinary.com/demo/image/upload/bem.jpg', 'status' => 'submitted']);
+$ps = mam_ensure_student_user((int)$cid2);
+t_eq($ps['user']['avatar_url'], 'https://res.cloudinary.com/demo/image/upload/bem.jpg', 'the application headshot becomes the student avatar at provisioning');
+
+// Backfill: an existing avatar-less account gains the headshot on re-provision.
+$cid3 = mam_db_insert('customers', ['email' => 't_backfill@x.dev', 'first_name' => 'Chidi', 'last_name' => 'K']);
+mam_db_insert('users', ['email' => 't_backfill@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Chidi K', 'status' => 'active']);
+mam_db_insert('applications', ['reference' => 'MAM-SHOT-2', 'customer_id' => $cid3, 'pathway' => 'crash', 'headshot_url' => 'https://res.cloudinary.com/demo/image/upload/chidi.jpg', 'status' => 'submitted']);
+$pb = mam_ensure_student_user((int)$cid3);
+t_eq($pb['user']['avatar_url'], 'https://res.cloudinary.com/demo/image/upload/chidi.jpg', 'an avatar-less account is backfilled with the headshot');
+
+// No headshot → no avatar (initials fallback in the UI), never an error.
+$cid4 = mam_db_insert('customers', ['email' => 't_noshot@x.dev', 'first_name' => 'Deb', 'last_name' => 'O']);
+$pn = mam_ensure_student_user((int)$cid4);
+t_ok(empty($pn['user']['avatar_url']), 'no headshot → no avatar set (portal falls back to initials)');

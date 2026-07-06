@@ -8,9 +8,12 @@ declare(strict_types=1);
 t_group('attendance QR check-in');
 
 // ── Token: verifies, carries class + date, and is tamper-evident ──
-$tok = mam_attendance_token(42, '2026-07-05');
+// Use TODAY (a token is valid for its session day only), so the test isn't
+// fragile to the clock rolling past a hard-coded date.
+$today = date('Y-m-d');
+$tok = mam_attendance_token(42, $today);
 $v = mam_attendance_verify_token($tok);
-t_ok(is_array($v) && $v['class_id'] === 42 && $v['date'] === '2026-07-05', 'a fresh token verifies and carries class + date');
+t_ok(is_array($v) && $v['class_id'] === 42 && $v['date'] === $today, 'a fresh token verifies and carries class + date');
 t_ok(mam_attendance_verify_token($tok . 'x') === null, 'a tampered token is rejected');
 t_ok(mam_attendance_verify_token('not-a-token') === null, 'garbage is rejected');
 t_ok(mam_attendance_verify_token('') === null, 'empty is rejected');
