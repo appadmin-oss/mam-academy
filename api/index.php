@@ -213,6 +213,8 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // AI placement assist (L4 / A4) — advisory pathway/level suggestion for an
     // application. Operational (admissions); rate-limited; off unless ai_provider set.
     $r->get ('/placement',       $f('admin/placement.php'),      [mw_admin_cap('admissions'), mw_rate_limit('ai_placement', 30, 600)]);
+    // Media & documents library — aggregated class resources + portal photos.
+    $r->get ('/media',           $f('admin/media.php'),          [mw_admin_cap('media')]);
 });
 
 /* ─── Dispatch ─── */

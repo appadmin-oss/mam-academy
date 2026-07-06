@@ -162,6 +162,7 @@ function mam_admin_capabilities(): array {
     return [
         'view'          => 'manager',  // dashboards + read-only lists
         'enrollments'   => 'manager',  // approve / assign course registrations
+        'media'         => 'manager',  // media & documents library (class resources, photos)
         'admissions'    => 'manager',  // work the applications pipeline
         'messages'      => 'manager',  // contact messages
         'store_orders'  => 'manager',  // fulfil store orders

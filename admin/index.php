@@ -187,6 +187,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
         'wallet_credit' => 'users',
+        'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
@@ -234,6 +235,40 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             header('Location: ?v=users&err=' . urlencode($msg)); exit;
         }
         header('Location: ?v=users&ok=1'); exit;
+    }
+
+    // ── Media & Documents library (#media) ──────────────────────────────
+    // Add a class resource (document/media link) from admin, delete any
+    // resource, or clear a student's portal photo. All gated by the 'media' cap.
+    if ($action === 'resource_add') {
+        $classId = (int)($_POST['class_id'] ?? 0);
+        $title = mam_str($_POST, 'title', 200);
+        $url   = mam_str($_POST, 'url', 500);
+        $type  = mam_str($_POST, 'type', 16);
+        if (!in_array($type, ['link', 'sheet', 'video', 'doc'], true)) $type = 'link';
+        if ($classId <= 0 || $title === '' || !preg_match('#^https?://#i', $url)) { header('Location: ?v=media&err=' . urlencode('Pick a class and enter a title + a valid http(s) URL.')); exit; }
+        if (!mam_db_row('SELECT id FROM classes WHERE id = ?', [$classId])) { header('Location: ?v=media&err=' . urlencode('That class no longer exists.')); exit; }
+        $me = mam_current_user();
+        $newId = mam_db_insert('class_resources', ['class_id' => $classId, 'title' => $title, 'url' => $url, 'type' => $type, 'posted_by' => $me ? (int)$me['id'] : null]);
+        mam_audit('resource_add', 'class_resource', (int)$newId, ['class_id' => $classId, 'type' => $type]);
+        header('Location: ?v=media&ok=1'); exit;
+    }
+    if ($action === 'resource_delete') {
+        $rid = (int)($_POST['resource_id'] ?? 0);
+        if ($rid > 0 && mam_db_row('SELECT id FROM class_resources WHERE id = ?', [$rid])) {
+            mam_db()->prepare('DELETE FROM class_resources WHERE id = ?')->execute([$rid]);
+            mam_audit('resource_delete', 'class_resource', $rid);
+        }
+        header('Location: ?v=media&ok=1'); exit;
+    }
+    if ($action === 'avatar_clear') {
+        $uid = (int)($_POST['user_id'] ?? 0);
+        $target = $uid > 0 ? mam_db_row('SELECT id, role FROM users WHERE id = ?', [$uid]) : null;
+        if ($target) {
+            mam_db_update('users', ['avatar_url' => null], ['id' => $uid]);
+            mam_audit('avatar_clear', 'user', $uid, ['by' => 'admin']);
+        }
+        header('Location: ?v=media&ok=1'); exit;
     }
 
     // Self-service account: a session admin updates their own name/phone and,
@@ -1137,7 +1172,7 @@ button.tiny:hover{border-color:var(--gold)}
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'analytics' => ['Learning Analytics', 'chart-line']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'datarights' => ['Data Rights', 'shield-halved']],
@@ -1148,7 +1183,7 @@ button.tiny:hover{border-color:var(--gold)}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'datarights' => 'users'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'datarights' => 'users', 'media' => 'media'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -2573,6 +2608,105 @@ button.tiny:hover{border-color:var(--gold)}
       </form>
     </div>
   <?php endif; endif; ?>
+
+<?php elseif ($view === 'media'): ?>
+  <header class="top"><h1>Media &amp; Documents</h1></header>
+  <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Saved.</strong></div><?php endif; ?>
+  <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
+  <?php
+    $mediaClasses = mam_db_all("SELECT id, title FROM classes WHERE status = 'active' ORDER BY title");
+    $resPage = mam_admin_page();
+    $resTotal = (int)(mam_db_row('SELECT COUNT(*) AS n FROM class_resources')['n'] ?? 0);
+    $resOff = ($resPage - 1) * 50;
+    $resources = mam_db_all(
+      "SELECT r.id, r.title, r.url, r.type, r.created_at, c.title AS class_title, u.name AS poster
+         FROM class_resources r
+         LEFT JOIN classes c ON c.id = r.class_id
+         LEFT JOIN users u ON u.id = r.posted_by
+        ORDER BY r.id DESC LIMIT 50 OFFSET $resOff"
+    );
+    $photos = mam_db_all("SELECT id, name, email, role, avatar_url FROM users WHERE avatar_url IS NOT NULL AND avatar_url <> '' ORDER BY role, name LIMIT 120");
+    $shotCount = (int)(mam_db_row("SELECT COUNT(*) AS n FROM applications WHERE headshot_url IS NOT NULL AND headshot_url <> ''")['n'] ?? 0);
+    $typeIcon = ['link' => 'link', 'sheet' => 'file-lines', 'video' => 'video', 'doc' => 'file-pdf'];
+  ?>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:18px">
+    <div class="kpi"><div class="kpi-label">Documents &amp; resources</div><div class="kpi-value"><?= number_format($resTotal) ?></div></div>
+    <div class="kpi"><div class="kpi-label">Student &amp; staff photos</div><div class="kpi-value"><?= number_format(count($photos)) ?></div></div>
+    <div class="kpi"><div class="kpi-label">Applicant headshots</div><div class="kpi-value"><?= number_format($shotCount) ?></div></div>
+  </div>
+
+  <div class="card">
+    <h3>Add a document / resource</h3>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="resource_add">
+      <label>Class
+        <select name="class_id" required>
+          <option value="">Select a class</option>
+          <?php foreach ($mediaClasses as $mc): ?><option value="<?= (int)$mc['id'] ?>"><?= htmlspecialchars($mc['title']) ?></option><?php endforeach; ?>
+        </select>
+      </label>
+      <label>Title<input type="text" name="title" required maxlength="200" placeholder="e.g. Grade 3 scales PDF"></label>
+      <label>URL<input type="url" name="url" required maxlength="500" placeholder="https://…"></label>
+      <label>Type
+        <select name="type"><option value="link">Link</option><option value="sheet">Sheet music</option><option value="video">Video</option><option value="doc">Document</option></select>
+      </label>
+      <div class="actions" style="grid-column:1/-1"><button class="btn" type="submit">Add resource</button>
+        <?php if (!$mediaClasses): ?><span class="muted">Create a class first (Classes tab).</span><?php endif; ?>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>All documents &amp; resources</h3>
+    <table>
+      <thead><tr><th>Title</th><th>Class</th><th>Type</th><th>Added by</th><th>Added</th><th>Open</th><th></th></tr></thead>
+      <tbody>
+      <?php if (!$resources): ?><tr><td colspan="7" class="empty">No documents or resources yet.</td></tr><?php endif; ?>
+      <?php foreach ($resources as $r): ?>
+        <tr>
+          <td><strong><?= htmlspecialchars((string)$r['title']) ?></strong></td>
+          <td class="muted"><?= htmlspecialchars((string)($r['class_title'] ?? '—')) ?></td>
+          <td><span class="pill"><i class="fa-solid fa-<?= htmlspecialchars($typeIcon[$r['type']] ?? 'link') ?>" aria-hidden="true"></i> <?= htmlspecialchars((string)$r['type']) ?></span></td>
+          <td class="muted"><?= htmlspecialchars((string)($r['poster'] ?? '—')) ?></td>
+          <td class="muted"><?= htmlspecialchars(substr((string)$r['created_at'], 0, 16)) ?></td>
+          <td><a class="tiny btn ghost" href="<?= htmlspecialchars((string)$r['url']) ?>" target="_blank" rel="noopener">Open ↗</a></td>
+          <td>
+            <form class="inline" method="post" onsubmit="return confirm('Delete this resource?')">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <input type="hidden" name="action" value="resource_delete">
+              <input type="hidden" name="resource_id" value="<?= (int)$r['id'] ?>">
+              <button class="tiny" type="submit" style="background:rgba(244,63,94,0.14);color:#FCA5A5;border:1px solid rgba(244,63,94,0.4)">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?= mam_admin_pager($resPage, $resTotal, 50) ?>
+  </div>
+
+  <div class="card">
+    <h3>Photos (<?= count($photos) ?>)</h3>
+    <p class="muted" style="margin:0 0 14px">Student &amp; staff portal photos. A student's application headshot becomes their avatar automatically; clearing it here reverts them to initials until they upload a new one.</p>
+    <?php if (!$photos): ?><p class="empty">No photos on file yet.</p><?php else: ?>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px">
+      <?php foreach ($photos as $ph): ?>
+        <div style="text-align:center;padding:12px;border:1px solid var(--border);border-radius:12px">
+          <img src="<?= htmlspecialchars((string)$ph['avatar_url']) ?>" alt="" loading="lazy" style="width:84px;height:84px;border-radius:50%;object-fit:cover;background:var(--bg-raised)" onerror="this.style.opacity=.3">
+          <div style="font-weight:700;font-size:.85rem;margin-top:8px"><?= htmlspecialchars((string)($ph['name'] ?? '—')) ?></div>
+          <div class="muted" style="font-size:.72rem"><?= htmlspecialchars((string)$ph['role']) ?></div>
+          <form class="inline" method="post" style="margin-top:8px" onsubmit="return confirm('Remove this photo?')">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+            <input type="hidden" name="action" value="avatar_clear">
+            <input type="hidden" name="user_id" value="<?= (int)$ph['id'] ?>">
+            <button class="tiny" type="submit" style="background:transparent;border:1px solid var(--border-strong)">Clear</button>
+          </form>
+        </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+  </div>
 
 <?php elseif ($view === 'storeitems'):
     // List + create/edit form for store items. The form is the same one for
