@@ -128,9 +128,10 @@ holds an exclusive `flock`. See `docs/codebase-audit-2026-06-22.md` for the full
 
 ## Feature state — the "portal brief" (14 items)
 
-Decisions captured so far: **Wallet = admin-issued credits, store-only spend** (no
-real-money top-up/withdrawal). **Scoring tool before the notation showcase.**
-**Instructor pay model = still TBD** (don't build #7 earnings until decided).
+Decisions captured so far: **Wallet = INSTRUCTOR EARNINGS** (admin-recorded, read-only
+statement; no self top-up/withdrawal). **Students no longer have a wallet** — their
+money surface is the Payments tab (tuition/outstanding/receipts). **Scoring tool before
+the notation showcase.**
 
 - ✅ **#4 Scholarship tier** — `users.student_type` (NULL/''=paying, 'scholarship');
   `mam_user_is_scholarship`; invoice-exempt (`mam_invoice_is_scholarship`); audited
@@ -150,9 +151,12 @@ real-money top-up/withdrawal). **Scoring tool before the notation showcase.**
 - ✅ **Admin Media & Documents** — admin `?v=media` (new `media` manager cap): manage
   `class_resources` (add/delete) + portal photos (clear); `GET /api/admin/media` aggregates them.
 - ✅ **#6 T&C** — clause 5 "Practice & the MAM metronome" in `terms.php`.
-- ✅ **#12 Wallet** — `wallet_ledger` (v32), `api/lib/wallet.php`, `POST /api/admin/wallet-credit`,
-  `GET /api/student/wallet`, `POST /api/student/store-redeem`; student "Wallet" tab +
-  "Pay with credit" on pending orders. **TODO:** admin button to issue credit (endpoint ready).
+- ✅ **#12 Wallet → #7 Instructor earnings** — `wallet_ledger` (v32, user-keyed),
+  `api/lib/wallet.php`. Now tracks INSTRUCTOR EARNINGS: admin records via the users-table
+  "Earnings" form (`wallet_credit` action, reasons `earnings`/`earnings_adjust`); instructor
+  sees a read-only statement at `GET /api/instructor/earnings` (Earnings tab). The student
+  Wallet tab + "Pay with credit" were removed; `student/wallet` + `store-redeem` remain in
+  code but are unused by the UI (students have no wallet).
 - ✅ **#2/#3 verified** — no brand drift; admissions state machine
   (`mam_admissions_transition`) already enforced + audited; status routes are read-only.
 - ✅ **#1 Learning Readiness** (was "Eligibility"; reframed per flow-guide §6 as
@@ -189,7 +193,8 @@ real-money top-up/withdrawal). **Scoring tool before the notation showcase.**
   attendance model (enrollments+classes+attendance), not cohorts. QR rendered by a
   self-hosted MIT lib at `assets/js/vendor/qrcode.min.js` (CDN is CSP-blocked). The
   **metronome** half of #9 already existed as a studio tool.
-- ⏸ **#7 Instructor earnings** — blocked on pay-model decision.
+- ✅ **#7 Instructor earnings** — shipped as the repurposed wallet (see #12): admin-recorded
+  earnings statement in the instructor portal. Payout mechanics stay off-platform.
 - 🔬 **#14 Notation showcase** (audio→Classical/Contemporary/African 6-line, interactive,
   realistic playback) — large R&D; not a quick task. **#5 Google Drive video upload** —
   needs Drive API/OAuth credentials.

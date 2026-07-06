@@ -36,6 +36,7 @@
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
       <a class="portal-nav-link" href="#sessions" data-tab="sessions"><i class="fa-solid fa-calendar-days"></i>Teaching</a>
       <a class="portal-nav-link" href="#gradebook" data-tab="gradebook"><i class="fa-solid fa-graduation-cap"></i>Gradebook</a>
+      <a class="portal-nav-link" href="#earnings" data-tab="earnings"><i class="fa-solid fa-wallet"></i>Earnings</a>
       <a class="portal-nav-link" href="#announce" data-tab="announce"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#account" data-tab="account"><i class="fa-solid fa-user-gear"></i>Account</a>
       <a class="portal-nav-link" href="/studio" target="_blank" rel="noopener" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:18px"><i class="fa-solid fa-wand-magic-sparkles"></i>Practice Studio <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;margin-left:auto;opacity:0.7"></i></a>
@@ -76,7 +77,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], sessions: ['Teaching', 'One cohort at a time — sessions, attendance & standings'], gradebook: ['Gradebook', 'Grade students across the weighted components'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
+  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], sessions: ['Teaching', 'One cohort at a time — sessions, attendance & standings'], gradebook: ['Gradebook', 'Grade students across the weighted components'], earnings: ['Earnings', 'Your earnings statement from the Academy'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
   var data = null;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
 
@@ -94,6 +95,7 @@
     if (tab === 'attendance') return renderAttendance();
     if (tab === 'sessions') return renderSessions();
     if (tab === 'gradebook') return renderGradebook();
+    if (tab === 'earnings') return renderEarnings();
     if (tab === 'announce') return renderAnnounce();
     if (tab === 'account') return renderAccount();
   }
@@ -502,6 +504,33 @@
           }).catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update the mark.', 'error'); });
         });
       });
+    });
+  }
+
+  // Earnings — the instructor's wallet statement. Balance + ledger are recorded
+  // by the Academy admin (no self top-up); this is a read-only statement.
+  function renderEarnings() {
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + P.skeleton() + '</div></section>';
+    API.request('instructor/earnings', { method: 'GET' }).then(function (w) {
+      var bal = (w && w.balance_usd) || 0;
+      var ledger = (w && w.ledger) || [];
+      var rows = ledger.map(function (t) {
+        var pos = t.amount_cents >= 0;
+        var usd = Math.abs(t.amount_cents) / 100;
+        return '<tr><td data-label="When">' + P.fmtDateTime(t.created_at) + '</td>'
+          + '<td data-label="Detail">' + P.escapeHtml(t.reason_label || t.reason || '—') + (t.note ? '<br><span style="color:var(--text-muted);font-size:0.8rem">' + P.escapeHtml(t.note) + '</span>' : '') + '</td>'
+          + '<td data-label="Amount" style="color:' + (pos ? 'var(--gold-bright)' : 'var(--text-soft)') + ';font-weight:700">' + (pos ? '+' : '−') + P.fmtUsd(usd) + '</td>'
+          + '<td data-label="Balance">' + P.fmtUsd((t.balance_after_cents || 0) / 100) + '</td></tr>';
+      }).join('');
+      content.innerHTML = '<section class="panel" style="text-align:center;padding:8px 0 4px">'
+        + '<div style="font-size:0.74rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-muted)">Earnings balance</div>'
+        + '<div style="font:800 2.6rem/1 var(--font-display,inherit);color:var(--gold-bright);margin:8px 0">' + P.fmtUsd(bal) + '</div>'
+        + '<p style="font-size:0.84rem;color:var(--text-muted);max-width:480px;margin:0 auto 8px">Your earnings statement, recorded by the Academy. Payout arrangements are handled directly with the office.</p></section>'
+        + (ledger.length
+            ? '<section class="panel"><div class="panel-head"><h2>Statement</h2></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>When</th><th>Detail</th><th>Amount</th><th>Balance</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>'
+            : '<section class="panel"><div class="panel-body">' + empty('wallet', 'No earnings recorded yet. Amounts credited by the Academy will appear here.') + '</div></section>');
+    }).catch(function () {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('wallet', 'Could not load your earnings right now.') + '</div></section>';
     });
   }
 

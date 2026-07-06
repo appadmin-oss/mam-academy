@@ -90,10 +90,12 @@ function mam_wallet_history(int $userId, int $limit = 50): array {
 /** A friendly label for a ledger reason code (UI). */
 function mam_wallet_reason_label(string $reason): string {
     static $map = [
-        'admin_credit'  => 'Credit issued',
-        'admin_debit'   => 'Adjustment',
-        'store_redeem'  => 'Store purchase',
-        'store_refund'  => 'Store refund',
+        'admin_credit'    => 'Credit issued',
+        'admin_debit'     => 'Adjustment',
+        'store_redeem'    => 'Store purchase',
+        'store_refund'    => 'Store refund',
+        'earnings'        => 'Earnings',
+        'earnings_adjust' => 'Earnings adjustment',
     ];
     return $map[$reason] ?? ucfirst(str_replace('_', ' ', $reason));
 }
