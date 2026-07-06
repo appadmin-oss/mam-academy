@@ -12,18 +12,21 @@
 <meta property="og:title" content="Terms of Service — MAM Academy">
 <meta property="og:description" content="MAM Academy terms of service — the rules of enrolling and learning with us.">
 <meta property="og:url" content="https://academy.mamcentre.org/terms">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Terms+%26+Conditions&amp;s=The+agreement+behind+your+enrolment+-+clear+and+complete.&amp;e=Terms">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Terms of Service — MAM Academy">
 <meta name="twitter:description" content="MAM Academy terms of service — the rules of enrolling and learning with us.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=Terms+%26+Conditions&amp;s=The+agreement+behind+your+enrolment+-+clear+and+complete.&amp;e=Terms">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Terms","item":"https://academy.mamcentre.org/terms"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 <style>.legal{max-width:800px;margin:0 auto;padding:48px 24px 96px}.legal h2{font-family:var(--font-serif);font-size:1.38rem;margin:34px 0 12px;color:var(--text);padding-left:14px;border-left:3px solid var(--gold)}.legal p,.legal li{color:var(--text-soft);line-height:1.78;margin-bottom:12px;font-size:0.96rem}.legal ul{padding-left:18px;list-style:disc}.legal ul li{margin-bottom:6px}.legal a{color:var(--gold-bright);text-decoration:underline;text-underline-offset:2px}.legal strong{color:var(--text)}.legal-updated{display:inline-flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--text-muted);background:var(--bg-raised);border:1px solid var(--border);padding:6px 14px;border-radius:100px;margin-bottom:18px}.legal-updated i{color:var(--gold-bright)}</style>
 </head>
 <body>

@@ -17,13 +17,16 @@
 <meta property="og:title" content="MAM Academy — A Creative Intelligence &amp; Performance Academy">
 <meta property="og:description" content="Form a complete musician. Trinity-equivalent certification, the MAM Method, MAM Auditer entry assessment and the MetaMusic Order.">
 <meta property="og:url" content="https://academy.mamcentre.org/">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=MAM+Academy&amp;s=A+Creative+Intelligence+%26+Performance+Academy+%E2%80%94+online+worldwide+or+onsite+in+Lagos.&amp;e=Music+%C2%B7+Arts+%C2%B7+Mystery">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta property="og:site_name" content="MAM Academy">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="MAM Academy — Creative Intelligence &amp; Performance">
 <meta name="twitter:description" content="Form a complete musician. Trinity-equivalent certification &amp; the MAM Method.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=MAM+Academy&amp;s=A+Creative+Intelligence+%26+Performance+Academy+%E2%80%94+online+worldwide+or+onsite+in+Lagos.&amp;e=Music+%C2%B7+Arts+%C2%B7+Mystery">
 
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="apple-touch-icon" href="mam-academy-logo.svg">
@@ -34,7 +37,7 @@
 <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 
 <!-- The canonical #organization + #website entity now lives sitewide in
      partials/header.html (on every page). The page-specific Course/ItemList/

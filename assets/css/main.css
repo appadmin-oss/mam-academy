@@ -5,9 +5,6 @@
 :root{
   --gold:#E8961F;--gold-light:#F7A823;--gold-bright:#FCC647;--gold-pale:#FDE9A8;
   --red:#F0436A;--red-hot:#F75C7A;--orange:#F76A38;
-  /* Flier accent — the vivid flame orange of the brand fliers (editorial
-     side-band + joyful accents). Distinct from --gold: bands/accents only. */
-  --flame:#E85D26;--flame-deep:#D14E1D;
   --purple:#7C7DF5;--purple-deep:#5B4FE0;--emerald:#1FBF8F;
 
   /* Warm, candlelit dark — lighter & softer than near-black so it feels alive */
@@ -531,15 +528,8 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .curve-bottom{border-radius:0 0 clamp(28px,5vw,60px) clamp(28px,5vw,60px)}
 .page-hero::before{content:'';position:absolute;inset:0;background-image:var(--page-hero-img);background-size:cover;background-position:center;opacity:0.18;pointer-events:none}
 /* Layered backdrop: a warm gold glow at the crown over a deepening vignette —
-   gives every inner-page hero depth and focus without a bespoke image.
-   Two flier-inspired layers ride on top of the stack:
-   · --hero-band — the vivid flame side-band from the brand fliers (wide
-     screens only, so it never crowds content; set in the 1100px MQ below).
-   · a faint beamed-note watermark, bottom-left, echoing the flier's motif. */
-.page-hero::after{content:'';position:absolute;inset:0;background:var(--hero-band,none),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Cg fill='%23FCF8F3' fill-opacity='0.05'%3E%3Cellipse cx='75' cy='232' rx='30' ry='21' transform='rotate(-18 75 232)'/%3E%3Cellipse cx='196' cy='210' rx='30' ry='21' transform='rotate(-18 196 210)'/%3E%3Crect x='98' y='96' width='9' height='138'/%3E%3Crect x='219' y='74' width='9' height='138'/%3E%3Cpath d='M98 96 L228 74 L228 102 L98 124 Z'/%3E%3C/g%3E%3C/svg%3E") left -34px bottom -44px / 280px auto no-repeat,radial-gradient(ellipse 78% 62% at 50% -6%,rgba(232,150,31,0.16),transparent 58%),linear-gradient(180deg,rgba(18,13,8,0.42),rgba(18,13,8,0.78) 62%,var(--bg) 100%);pointer-events:none}
-@media (min-width:1100px){
-  .page-hero{--hero-band:linear-gradient(90deg,transparent calc(100% - clamp(48px,7vw,110px)),var(--flame,#E85D26) calc(100% - clamp(48px,7vw,110px)),var(--flame-deep,#D14E1D) 100%)}
-}
+   gives every inner-page hero depth and focus without a bespoke image. */
+.page-hero::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 78% 62% at 50% -6%,rgba(232,150,31,0.16),transparent 58%),linear-gradient(180deg,rgba(18,13,8,0.42),rgba(18,13,8,0.78) 62%,var(--bg) 100%);pointer-events:none}
 .page-hero-inner{position:relative;max-width:840px;margin:0 auto;text-align:center;z-index:1;display:flex;flex-direction:column;align-items:center}
 .page-hero-eyebrow{display:inline-flex;align-items:center;gap:9px;padding:7px 16px 7px 14px;background:rgba(224,138,26,0.1);border:1px solid var(--border-gold);border-radius:100px;font-size:0.72rem;font-weight:800;color:var(--gold-bright);letter-spacing:0.16em;text-transform:uppercase;margin-bottom:22px;backdrop-filter:blur(6px)}
 .page-hero-eyebrow::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--gold-bright);box-shadow:0 0 10px var(--gold-bright)}

@@ -13,12 +13,15 @@
 <meta property="og:title" content="Apply Now — MAM Academy | Smart Onboarding &amp; Secure Payment">
 <meta property="og:description" content="Complete your MAM Academy enrollment in five guided steps. Pay securely with Paystack, Flutterwave, Stripe or bank transfer.">
 <meta property="og:url" content="https://academy.mamcentre.org/apply">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Apply+to+MAM+Academy&amp;s=Five+guided+steps%2C+auto-saved.+Secure+your+seat+in+minutes.&amp;e=Applications+Open">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Apply Now — MAM Academy | Smart Onboarding &amp; Secure Payment">
 <meta name="twitter:description" content="Complete your MAM Academy enrollment in five guided steps. Pay securely with Paystack, Flutterwave, Stripe or bank transfer.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=Apply+to+MAM+Academy&amp;s=Five+guided+steps%2C+auto-saved.+Secure+your+seat+in+minutes.&amp;e=Applications+Open">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Apply","item":"https://academy.mamcentre.org/apply"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,7 +29,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 <link rel="stylesheet" href="assets/css/apply.css?v=20260617b">
 </head>
 <body>

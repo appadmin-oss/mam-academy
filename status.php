@@ -13,12 +13,15 @@
 <meta property="og:title" content="Application Status — MAM Academy">
 <meta property="og:description" content="Check where your MAM Academy application stands.">
 <meta property="og:url" content="https://academy.mamcentre.org/status">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Application+Status&amp;s=Track+your+application%2C+payment+and+placement+in+one+place.&amp;e=Status">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 <style>
   .st-wrap{max-width:620px;margin:0 auto}
   .st-card{background:#1A120B;border:1px solid rgba(224,138,26,.35);border-radius:16px;padding:26px 24px;box-shadow:0 12px 36px rgba(0,0,0,.28)}

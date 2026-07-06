@@ -12,18 +12,21 @@
 <meta property="og:title" content="MAM Crash Programmes — 6-Week Intensives | $70">
 <meta property="og:description" content="6-week professional intensives for fast-track learning. Instruments, Rhythm Intelligence, Performance Intelligence and MetaMusic. Online or onsite. $70.">
 <meta property="og:url" content="https://academy.mamcentre.org/crash">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Crash+Courses&amp;s=Short%2C+focused+programmes+to+level+up+a+specific+skill+fast.&amp;e=Fast+Track">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="MAM Crash Programmes — 6-Week Intensives | $70">
 <meta name="twitter:description" content="6-week professional intensives for fast-track learning. Instruments, Rhythm Intelligence, Performance Intelligence and MetaMusic. Online or onsite. $70.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=Crash+Courses&amp;s=Short%2C+focused+programmes+to+level+up+a+specific+skill+fast.&amp;e=Fast+Track">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Crash Programmes","item":"https://academy.mamcentre.org/crash"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Course","name":"MAM Crash Programme","url":"https://academy.mamcentre.org/crash",
  "description":"A 6-week accelerated music intensive at MAM Academy — one course, one tradition, 1 hour weekly. Instruments, Rhythm Intelligence, Performance Intelligence and MetaMusic. Online or onsite in Lagos.",

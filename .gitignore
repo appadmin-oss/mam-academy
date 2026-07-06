@@ -2,3 +2,4 @@ api/logs/*.log
 api/storage/mam.db*
 api/storage/.app_key
 api/.env
+api/storage/og/

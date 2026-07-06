@@ -58,6 +58,9 @@ $r->get('/course/outline', $f('course-outline.php'), [mw_rate_limit('course_outl
 // (applicants click the link in the email and view in their browser, where
 // "Save as PDF" + Print just work).
 $r->get('/invoice/:ref', $f('invoice.php'), [mw_rate_limit('invoice', 30, 60)]);
+// Auto-generated OG/social card (flier-style PNG). Disk-cached per unique
+// title/subtitle, so the rate limit only meets cold renders.
+$r->get('/og', $f('og-image.php'), [mw_rate_limit('og', 60, 300)]);
 $r->get('/policy/:ref',  $f('policy.php'),  [mw_rate_limit('policy',  30, 60)]);
 // Web-viewable, printable course/programme certificate (issued on a pass).
 $r->get('/certificate/:ref', $f('certificate.php'), [mw_rate_limit('certificate', 30, 60)]);

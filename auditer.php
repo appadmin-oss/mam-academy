@@ -12,18 +12,21 @@
 <meta property="og:title" content="MAM Auditer — Entry Assessment System | MAM Academy">
 <meta property="og:description" content="MAM Auditer is our structured entry assessment for new students. Get placed accurately into the right pathway — not guessed.">
 <meta property="og:url" content="https://academy.mamcentre.org/auditer">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Meet+the+MAM+Auditer&amp;s=Our+structured+entry+assessment+-+placed+accurately%2C+never+guessed.&amp;e=Entry+Assessment">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="MAM Auditer — Entry Assessment System | MAM Academy">
 <meta name="twitter:description" content="MAM Auditer is our structured entry assessment for new students. Get placed accurately into the right pathway — not guessed.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=Meet+the+MAM+Auditer&amp;s=Our+structured+entry+assessment+-+placed+accurately%2C+never+guessed.&amp;e=Entry+Assessment">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"MAM Auditer","item":"https://academy.mamcentre.org/auditer"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 <style>
   /* Applicant checklist — grouped, tickable (saved locally), printable. */
   .chk-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:34px;text-align:left}

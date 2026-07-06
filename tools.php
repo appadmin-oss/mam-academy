@@ -15,7 +15,10 @@
 <meta property="og:site_name" content="MAM Academy">
 <meta property="og:title" content="Free Online Music Practice Studio — Metronome, Tuner, Ear Training &amp; Rhythm Games">
 <meta property="og:description" content="A precise metronome, chromatic tuner, focus timer, ear-training drills and a beat maker — free in your browser. Plus Trinity-graded Rhythm Tap and the Pitch Game for MAM Academy students.">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Free+Practice+Studio&amp;s=Metronome%2C+tuner%2C+rhythm+and+pitch+trainers+-+free+for+everyone.&amp;e=Practice+Studio">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Free Online Music Practice Studio — MAM Academy">
 <meta name="twitter:description" content="Metronome, tuner, ear training, beat maker, Trinity-graded rhythm trainer and pitch game — free in your browser.">
@@ -34,7 +37,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 <style>
 .tools-shell{max-width:1180px;margin:0 auto;padding:32px 22px 96px}
 .tools-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:6px;background:var(--bg-surface);border:1px solid var(--border);border-radius:18px;margin:14px 0 26px;width:fit-content;max-width:100%}

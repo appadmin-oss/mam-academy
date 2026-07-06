@@ -13,19 +13,22 @@
 <meta property="og:title" content="Book a Session — MAM Academy">
 <meta property="og:description" content="Book your session with our Admin Officer and MAM Auditer Judges. A one-time $5 covers registration, your ID card, student file and a 30-minute MAM Auditer assessment.">
 <meta property="og:url" content="https://academy.mamcentre.org/book">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Book+Your+Auditer+Session&amp;s=30+minutes+with+the+Admin+Officer+and+the+MAM+Auditer+Judges.&amp;e=Reserve+a+Seat">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Book a Session — MAM Academy">
 <meta name="twitter:description" content="Book your session with our Admin Officer and MAM Auditer Judges. A one-time $5 covers registration, your ID card, student file and a 30-minute MAM Auditer assessment.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=Book+Your+Auditer+Session&amp;s=30+minutes+with+the+Admin+Officer+and+the+MAM+Auditer+Judges.&amp;e=Reserve+a+Seat">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Book a Session","item":"https://academy.mamcentre.org/book"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 <style>
 .book-shell{max-width:1040px;margin:0 auto;padding:40px 22px 96px}
 .book-eyebrow{display:inline-flex;align-items:center;gap:9px;padding:7px 16px;background:rgba(224,138,26,0.15);border:1px solid var(--border-gold);border-radius:100px;font-size:0.74rem;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:18px}

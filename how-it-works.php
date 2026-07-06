@@ -12,19 +12,22 @@
 <meta property="og:title" content="How It Works — MAM Academy | From First Visit to First Class">
 <meta property="og:description" content="Your MAM Academy journey, step by step: discover your path, apply, meet the MAM Auditer, get placed, enrol and start learning.">
 <meta property="og:url" content="https://academy.mamcentre.org/how-it-works">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=How+It+Works&amp;s=Your+journey+from+first+visit+to+first+class+-+no+guesswork.&amp;e=Your+Journey">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="How It Works — MAM Academy">
 <meta name="twitter:description" content="Your MAM Academy journey, step by step — from first visit to first class.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=How+It+Works&amp;s=Your+journey+from+first+visit+to+first+class+-+no+guesswork.&amp;e=Your+Journey">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"How It Works","item":"https://academy.mamcentre.org/how-it-works"}]}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"How to enrol at MAM Academy","description":"From first visit to first class at MAM Academy.","step":[{"@type":"HowToStep","position":1,"name":"Discover your path","text":"Explore the programmes, or let the free Learning Advisor on the apply page suggest a starting point."},{"@type":"HowToStep","position":2,"name":"Apply in minutes","text":"Complete the five-step guided application. It auto-saves, so you can pause and return anytime. A one-time booking fee reserves your seat."},{"@type":"HowToStep","position":3,"name":"Meet the MAM Auditer","text":"Prepare with the Applicant Checklist, then take the MAM Auditer, our structured entry assessment, so we place you in the right pathway and level from day one."},{"@type":"HowToStep","position":4,"name":"Get placed and receive your offer","text":"We confirm your pathway and starting level. Tuition is discussed after your Auditer assessment and is flexible."},{"@type":"HowToStep","position":5,"name":"Enrol","text":"Confirm your place and complete enrolment. Scholarship candidates are reviewed separately."},{"@type":"HowToStep","position":6,"name":"Open your student portal","text":"Access classes, your gradebook, the practice studio and more from your student portal."},{"@type":"HowToStep","position":7,"name":"Start learning","text":"Begin weekly lessons online or onsite in Lagos, with termly showcases and a supportive community."}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 <style>
   /* Self-contained journey layout — uses the site design tokens so it matches
      the dark-gold system in both the light and dark palettes. */

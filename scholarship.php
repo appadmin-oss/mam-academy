@@ -12,18 +12,21 @@
 <meta property="og:title" content="MAM Scholars Initiative — Scholarship Application">
 <meta property="og:description" content="We invest in exceptional musical potential and outstanding character. Apply to be considered for the MAM Scholars Initiative.">
 <meta property="og:url" content="https://academy.mamcentre.org/scholarship">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=MAM+Scholars+Initiative&amp;s=An+essay-based+scholarship+for+exceptional%2C+committed+musicians.&amp;e=Scholarship">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="MAM Scholars Initiative — MAM Academy">
 <meta name="twitter:description" content="We invest in exceptional musical potential and outstanding character.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=MAM+Scholars+Initiative&amp;s=An+essay-based+scholarship+for+exceptional%2C+committed+musicians.&amp;e=Scholarship">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"MAM Scholars Initiative","item":"https://academy.mamcentre.org/scholarship"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 <style>
   .sch-lead{max-width:720px;margin:0 auto 26px;text-align:center;color:var(--text-soft);font-size:1.05rem;line-height:1.75}
   .sch-lead strong{color:var(--gold-bright)}

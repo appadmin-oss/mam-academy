@@ -12,18 +12,21 @@
 <meta property="og:title" content="The Four Signature Schools — MAM Academy">
 <meta property="og:description" content="Instrumental Intelligence, Performance Intelligence, Rhythm Intelligence and MetaMusic &amp; Creative Consciousness — the four signature schools of MAM Academy.">
 <meta property="og:url" content="https://academy.mamcentre.org/schools">
-<meta property="og:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=The+Schools+of+MAM&amp;s=Instrument%2C+voice%2C+rhythm+and+thought+-+four+schools%2C+one+method.&amp;e=Our+Schools">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/png">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="The Four Signature Schools — MAM Academy">
 <meta name="twitter:description" content="Instrumental Intelligence, Performance Intelligence, Rhythm Intelligence and MetaMusic &amp; Creative Consciousness — the four signature schools of MAM Academy.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
+<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=The+Schools+of+MAM&amp;s=Instrument%2C+voice%2C+rhythm+and+thought+-+four+schools%2C+one+method.&amp;e=Our+Schools">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Schools","item":"https://academy.mamcentre.org/schools"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260706b">
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
