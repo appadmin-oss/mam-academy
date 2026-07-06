@@ -34,7 +34,7 @@
       <a class="portal-nav-link" href="#students" data-tab="students"><i class="fa-solid fa-users"></i>Students</a>
       <a class="portal-nav-link" href="#assignments" data-tab="assignments"><i class="fa-solid fa-list-check"></i>Assignments</a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
-      <a class="portal-nav-link" href="#sessions" data-tab="sessions"><i class="fa-solid fa-calendar-days"></i>Sessions</a>
+      <a class="portal-nav-link" href="#sessions" data-tab="sessions"><i class="fa-solid fa-calendar-days"></i>Teaching</a>
       <a class="portal-nav-link" href="#gradebook" data-tab="gradebook"><i class="fa-solid fa-graduation-cap"></i>Gradebook</a>
       <a class="portal-nav-link" href="#announce" data-tab="announce"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#account" data-tab="account"><i class="fa-solid fa-user-gear"></i>Account</a>
@@ -76,7 +76,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], sessions: ['Sessions', 'Schedule cohort sessions & take attendance'], gradebook: ['Gradebook', 'Grade students across the weighted components'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
+  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], sessions: ['Teaching', 'One cohort at a time — sessions, attendance & standings'], gradebook: ['Gradebook', 'Grade students across the weighted components'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
   var data = null;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
 
@@ -286,9 +286,39 @@
         +   '<div class="field" style="width:120px"><label>Kind</label><select name="kind"><option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option></select></div>'
         +   '<button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Schedule</button>'
         + '</form></section>'
-        + '<div id="markArea"></div>';
+        + '<div id="markArea"></div>'
+        + '<div id="cohortStandings"></div>';
       bindSessionList(cid);
+      loadCohortStandings(cid);
     }).catch(function () { area.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load sessions.') + '</div></section>'; });
+  }
+
+  // P2: within a cohort, show that cohort's students and their current standing
+  // (from the gradebook, matched by cohort_id) so Teaching unifies scheduling,
+  // attendance AND results per cohort. Grading itself stays in the Gradebook tab
+  // (one place for the interactive forms) — each row links straight there.
+  function loadCohortStandings(cid) {
+    var host = document.getElementById('cohortStandings');
+    if (!host) return;
+    loadGradebook().then(function (gb) {
+      if (!document.getElementById('cohortStandings')) return; // cohort switched
+      var ens = (gb.enrollments || []).filter(function (e) { return String(e.cohort_id) === String(cid); });
+      if (!ens.length) {
+        host.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Students &amp; standings</h2></div>'
+          + '<div class="panel-body">' + empty('graduation-cap', 'No course students linked to this cohort yet. Course grading appears here once an admin assigns their course to you.') + '</div></section>';
+        return;
+      }
+      var rows = ens.map(function (e) {
+        return '<tr><td data-label="Student"><strong>' + P.escapeHtml(e.student_name || e.student_email) + '</strong></td>'
+          + '<td data-label="Course">' + P.escapeHtml(e.course_name || '—') + (e.level_name ? ' · ' + P.escapeHtml(e.level_name) : '') + '</td>'
+          + '<td data-label="Standing">' + gradePill(e) + '</td>'
+          + '<td data-label=""><a class="btn btn-ghost" href="#gradebook" data-tab="gradebook" style="padding:4px 11px;font-size:0.76rem"><i class="fa-solid fa-clipboard-list"></i> Grade</a></td></tr>';
+      }).join('');
+      host.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Students &amp; standings</h2>'
+        + '<a class="panel-action" href="#gradebook" data-tab="gradebook">Gradebook →</a></div>'
+        + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Student</th><th>Course</th><th>Standing</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+      bindTabLinks();
+    }).catch(function () { /* standings are additive — never block the sessions view */ });
   }
 
   function bindSessionList(cid) {
@@ -576,11 +606,11 @@
           + (c.level_name ? '<br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(c.level_name) + '</span>' : '') + '</td>'
           + '<td data-label="Course">' + P.escapeHtml(c.course_name || '—') + '</td>'
           + '<td data-label="Students">' + (c.enrollment_count || 0) + '</td>'
-          + '<td data-label=""><a class="btn btn-ghost" href="#sessions" data-tab="sessions" style="padding:4px 11px;font-size:0.76rem"><i class="fa-solid fa-calendar-days"></i> Sessions</a> '
+          + '<td data-label=""><a class="btn btn-ghost" href="#sessions" data-tab="sessions" style="padding:4px 11px;font-size:0.76rem"><i class="fa-solid fa-chalkboard-user"></i> Teach</a> '
           + '<a class="btn btn-ghost" href="#gradebook" data-tab="gradebook" style="padding:4px 11px;font-size:0.76rem"><i class="fa-solid fa-clipboard-list"></i> Grade</a></td></tr>';
       }).join('');
       host.innerHTML = '<section class="panel"><div class="panel-head"><h2>Cohorts &amp; sessions</h2>'
-        + '<a class="panel-action" href="#sessions" data-tab="sessions">Schedule →</a></div>'
+        + '<a class="panel-action" href="#sessions" data-tab="sessions">Teaching →</a></div>'
         + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Cohort</th><th>Course</th><th>Students</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
       bindTabLinks();
     }).catch(function () { /* never disturb the overview */ });

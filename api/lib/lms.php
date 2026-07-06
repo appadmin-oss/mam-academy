@@ -755,7 +755,7 @@ function mam_lms_record_assessment(int $enrollmentId, string $typeCode, ?int $in
 /** An instructor's active course enrolments with student/course + current result. */
 function mam_lms_instructor_gradebook(int $instructorId): array {
     return mam_db_all(
-        "SELECT ce.id, ce.status,
+        "SELECT ce.id, ce.status, ce.cohort_id,
                 su.name AS student_name, su.email AS student_email,
                 c.name AS course_name, c.kind AS course_kind, l.name AS level_name,
                 r.total_score, r.grade, r.outcome
