@@ -137,10 +137,15 @@ function mam_payment_settle_store(string $ref): void {
         $r = mam_db_row('SELECT name, file_url FROM store_items WHERE sku = ?', [(string)$i['sku']]);
         if ($r && !empty($r['file_url'])) $links[] = ['name' => $r['name'], 'url' => (string)$r['file_url']];
     }
-    try {
-        mam_send((string)$order['customer_email'], 'MAM Academy Store — Order ' . $order['reference'] . ' confirmed',
-            mam_email_store_receipt($order, $items, $links), 'store_order_confirmed', true);
-    } catch (\Throwable $e) { mam_log('warn', 'store_email_failed', ['err' => $e->getMessage()]); }
+    // Governed by the 'store_receipt' automation (admin ?v=automations).
+    // Default on — pausing it settles the order silently (no receipt email).
+    if (!function_exists('mam_automation_on') || mam_automation_on('store_receipt')) {
+        if (function_exists('mam_automation_touch')) mam_automation_touch('store_receipt');
+        try {
+            mam_send((string)$order['customer_email'], 'MAM Academy Store — Order ' . $order['reference'] . ' confirmed',
+                mam_email_store_receipt($order, $items, $links), 'store_order_confirmed', true);
+        } catch (\Throwable $e) { mam_log('warn', 'store_email_failed', ['err' => $e->getMessage()]); }
+    }
 }
 
 /** Booking fee: stamp the paid time + email the confirmation. Does NOT enrol. */

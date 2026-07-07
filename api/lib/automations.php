@@ -44,7 +44,7 @@ function mam_automations_registry(): array {
             'action'  => 'Send the welcome & orientation sequence',
             'icon'    => 'envelope-open-text',
             'default' => true,
-            'live'    => false,
+            'live'    => true,
         ],
         'payment_retry' => [
             'group' => 'Admissions & payments',
@@ -68,7 +68,7 @@ function mam_automations_registry(): array {
             'action'  => 'Email a reminder to the student and guardian',
             'icon'    => 'clock',
             'default' => true,
-            'live'    => false,
+            'live'    => true,
         ],
         'week_drip' => [
             'group' => 'Learning',
@@ -84,7 +84,7 @@ function mam_automations_registry(): array {
             'action'  => 'Email the receipt and any certificate',
             'icon'    => 'receipt',
             'default' => true,
-            'live'    => false,
+            'live'    => true,
         ],
         'ktams_birthday' => [
             'group' => 'Commerce & delight',
@@ -92,7 +92,7 @@ function mam_automations_registry(): array {
             'action'  => 'Send a playful birthday note',
             'icon'    => 'cake-candles',
             'default' => true,
-            'live'    => false,
+            'live'    => true,
         ],
     ];
 }
@@ -199,4 +199,103 @@ function mam_automations_list(): array {
         ];
     }
     return $out;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Time-based sweeps — the ACTIONS for automations that fire on a
+ * schedule rather than at a request. Driven by the run-jobs cron; each is
+ * idempotent (dedup through the `events` log), gated by its flag, and never
+ * throws. See api/tools/run-jobs.php.
+ * ───────────────────────────────────────────────────────────── */
+
+/**
+ * 'session_reminder' — email every enrolled student a reminder for each cohort
+ * session scheduled within the next $withinHours (default 24). Deduped once per
+ * session via a 'session.reminded' event, so repeated cron passes never spam.
+ * Returns the number of sessions reminded.
+ */
+function mam_automation_session_reminder_sweep(int $withinHours = 24, int $limit = 100): int {
+    if (!function_exists('mam_db') || !mam_automation_on('session_reminder')) return 0;
+    $now   = date('Y-m-d H:i:s');
+    $until = date('Y-m-d H:i:s', time() + max(1, $withinHours) * 3600);
+    try {
+        $sessions = mam_db_all(
+            "SELECT cs.id, cs.cohort_id, cs.title, cs.scheduled_at
+               FROM class_sessions cs
+              WHERE cs.status = 'scheduled' AND cs.scheduled_at IS NOT NULL
+                AND cs.scheduled_at > ? AND cs.scheduled_at <= ?
+                AND NOT EXISTS (SELECT 1 FROM events e WHERE e.type = 'session.reminded' AND e.entity_id = cs.id)
+              ORDER BY cs.scheduled_at ASC LIMIT " . max(1, $limit),
+            [$now, $until]
+        );
+    } catch (\Throwable $e) { return 0; }
+    $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
+    $count = 0;
+    foreach ($sessions as $s) {
+        $sent = 0;
+        try {
+            $students = mam_db_all(
+                "SELECT DISTINCT u.name, u.email FROM course_enrollments ce
+                   JOIN users u ON u.id = ce.student_id
+                  WHERE ce.cohort_id = ? AND ce.status IN ('active', 'completed')
+                    AND u.email IS NOT NULL AND u.email <> ''",
+                [(int)$s['cohort_id']]
+            );
+            $whenLabel = date('l j M, g:i A', strtotime((string)$s['scheduled_at']));
+            foreach ($students as $st) {
+                if (function_exists('mam_send') && function_exists('mam_email_session_reminder')) {
+                    mam_send((string)$st['email'], 'Reminder: your MAM Academy session is coming up',
+                        mam_email_session_reminder((string)($st['name'] ?? ''), (string)($s['title'] ?? 'your session'), $whenLabel, $loginUrl),
+                        'session_reminder', true);
+                    $sent++;
+                }
+            }
+        } catch (\Throwable $e) { /* best-effort per session */ }
+        // Mark reminded once per session (even if 0 students) so a later pass
+        // never re-sends within the window.
+        if (function_exists('mam_event')) mam_event('session.reminded', 'class_session', (int)$s['id'], ['students' => $sent]);
+        if ($sent > 0) mam_automation_touch('session_reminder');
+        $count++;
+    }
+    return $count;
+}
+
+/**
+ * 'ktams_birthday' — send a playful note to each KTAMS (Kids @ MAM) student
+ * whose birthday is today. Deduped to once per calendar year via a
+ * 'ktams.birthday' event. Returns how many notes were sent.
+ */
+function mam_automation_ktams_birthday_sweep(int $limit = 200): int {
+    if (!function_exists('mam_db') || !mam_automation_on('ktams_birthday')) return 0;
+    $today     = date('m-d');
+    $yearStart = date('Y-01-01 00:00:00');
+    try {
+        $rows = mam_db_all(
+            "SELECT DISTINCT u.id, u.name, u.email, c.dob
+               FROM users u
+               JOIN customers c ON c.id = u.customer_id
+               JOIN applications a ON a.customer_id = c.id AND a.program_track = 'KTAMS'
+              WHERE u.role = 'student' AND u.status = 'active'
+                AND u.email IS NOT NULL AND u.email <> '' AND c.dob IS NOT NULL
+              LIMIT " . max(1, $limit)
+        );
+    } catch (\Throwable $e) { return 0; }
+    $count = 0;
+    foreach ($rows as $r) {
+        if (substr((string)$r['dob'], 5, 5) !== $today) continue; // month-day match (portable)
+        try {
+            if (mam_db_row("SELECT id FROM events WHERE type = 'ktams.birthday' AND entity_id = ? AND created_at >= ?", [(int)$r['id'], $yearStart])) continue;
+        } catch (\Throwable $e) { /* if the check fails, fall through and rely on the event write */ }
+        try {
+            if (function_exists('mam_send') && function_exists('mam_email_ktams_birthday')) {
+                $first = trim(explode(' ', (string)($r['name'] ?? ''))[0]);
+                mam_send((string)$r['email'], 'Happy birthday from MAM Academy! 🎂',
+                    mam_email_ktams_birthday($first), 'ktams_birthday', true);
+            }
+        } catch (\Throwable $e) { continue; }
+        if (function_exists('mam_event')) mam_event('ktams.birthday', 'user', (int)$r['id'], ['ymd' => date('Y-m-d')]);
+        mam_automation_touch('ktams_birthday');
+        $count++;
+    }
+    return $count;
 }

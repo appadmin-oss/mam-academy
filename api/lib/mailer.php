@@ -1020,6 +1020,47 @@ function mam_email_enrolled(string $name, string $className, string $schedule, s
 }
 
 /**
+ * Session reminder — sent ~24h before a scheduled class session by the
+ * 'session_reminder' automation sweep (api/lib/automations.php).
+ */
+function mam_email_session_reminder(string $name, string $sessionTitle, string $whenLabel, string $loginUrl): string {
+    $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);
+    $t = htmlspecialchars($sessionTitle ?: 'your session', ENT_QUOTES);
+    $w = htmlspecialchars($whenLabel, ENT_QUOTES);
+    $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>See you soon, $n</h2>
+      <p style='color:#4A3624;font-size:15px'>A friendly reminder that <strong style='color:#B8721B'>$t</strong> is coming up:</p>
+      <div style='background:#FBF4E8;border:1px dashed #B8721B;border-radius:10px;padding:14px 18px;text-align:center;color:#B8721B;font-weight:700;margin:16px 0'>$w</div>
+      <p style='color:#7A5C3D;font-size:14px'>Warm up a little beforehand and bring any questions from your practice. See you there!</p>
+      " . mam_email_button($loginUrl, 'Open my portal');
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'A reminder about your upcoming MAM Academy session.',
+        'reason' => 'You received this because you are enrolled in an upcoming MAM Academy session.',
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
+}
+
+/**
+ * Playful birthday note for a KTAMS (Kids @ MAM) student — sent by the
+ * 'ktams_birthday' automation sweep. Warm and kid-appropriate, on-brand.
+ */
+function mam_email_ktams_birthday(string $name): string {
+    $n = htmlspecialchars($name ?: 'superstar', ENT_QUOTES);
+    $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:24px;color:#1A120B'>Happy birthday, $n! 🎂</h2>
+      <p style='color:#4A3624;font-size:15px'>Everyone at MAM Academy is sending you the biggest, brightest birthday cheer. We hope your day is full of music, cake and fun! 🎶🎉</p>
+      <p style='color:#4A3624;font-size:15px'>Here's a little challenge for your special day: play your favourite piece for someone you love — they'll be your best audience yet.</p>
+      <p style='color:#7A5C3D;font-size:14px'>With love, your teachers at MAM Academy.</p>";
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'A birthday cheer from your friends at MAM Academy!',
+        'reason' => 'You received this birthday note because you are a MAM Academy (Kids @ MAM) student.',
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
+}
+
+/**
  * Recovery email for an application that was submitted but never paid.
  * Sent by the api/tools/recovery-email.php cron a day after abandonment.
  */

@@ -46,3 +46,37 @@ t_eq(mam_payment_settle_tuition($aid), 'portal_provision_automation_off', 'disab
 t_ok(!mam_db_row("SELECT id FROM users WHERE email = ?", ['auto-gate@example.com']), 'no student user was provisioned while off');
 t_eq(mam_db_row('SELECT status FROM applications WHERE id = ?', [$aid])['status'], 'paid', 'the application is still marked paid');
 mam_automation_set('payment_provision', true); // restore for any later tests
+
+// ── session_reminder sweep: emails a cohort's students once per session ──
+$coId = mam_db_insert('cohorts', ['title' => 'Reminder Cohort']);
+$sess = mam_db_insert('class_sessions', ['cohort_id' => $coId, 'title' => 'Strings Lab', 'scheduled_at' => date('Y-m-d H:i:s', time() + 7200), 'status' => 'scheduled']);
+$scid = mam_db_insert('customers', ['email' => 'rem-stu@example.com', 'first_name' => 'Remi', 'last_name' => 'Nder']);
+$suid = mam_db_insert('users', ['email' => 'rem-stu@example.com', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Remi Nder', 'status' => 'active', 'customer_id' => $scid]);
+mam_db_insert('course_enrollments', ['student_id' => $suid, 'course_id' => 1, 'cohort_id' => $coId, 'status' => 'active']);
+t_eq(mam_automation_session_reminder_sweep(24), 1, 'a session in the next 24h is reminded');
+t_eq(mam_automation_session_reminder_sweep(24), 0, 'the same session is not reminded twice (deduped)');
+t_ok(mam_db_row("SELECT id FROM events WHERE type = 'session.reminded' AND entity_id = ?", [$sess]) !== null, 'a reminder event is recorded for the session');
+
+// A far-future session is left alone.
+mam_db_insert('class_sessions', ['cohort_id' => $coId, 'title' => 'Next month', 'scheduled_at' => date('Y-m-d H:i:s', time() + 40 * 86400), 'status' => 'scheduled']);
+t_eq(mam_automation_session_reminder_sweep(24), 0, 'a session beyond the window is not reminded');
+
+// Disabled → no work even with a due session.
+mam_db_insert('class_sessions', ['cohort_id' => $coId, 'title' => 'Soon', 'scheduled_at' => date('Y-m-d H:i:s', time() + 3600), 'status' => 'scheduled']);
+mam_automation_set('session_reminder', false);
+t_eq(mam_automation_session_reminder_sweep(24), 0, 'a paused session_reminder does no work');
+mam_automation_set('session_reminder', true);
+
+// ── ktams_birthday sweep: a KTAMS student with a birthday today, once/year ──
+$bday = date('1998-m-d');
+$bcid = mam_db_insert('customers', ['email' => 'bday-kid@example.com', 'first_name' => 'Bibi', 'last_name' => 'Day', 'dob' => $bday]);
+$buid = mam_db_insert('users', ['email' => 'bday-kid@example.com', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Bibi Day', 'status' => 'active', 'customer_id' => $bcid]);
+mam_db_insert('applications', ['reference' => 'MAM-BDAY-1', 'customer_id' => $bcid, 'pathway' => 'metamusic', 'status' => 'enrolled', 'program_track' => 'KTAMS']);
+t_eq(mam_automation_ktams_birthday_sweep(), 1, "today's KTAMS birthday gets a note");
+t_eq(mam_automation_ktams_birthday_sweep(), 0, 'the birthday note is not re-sent the same year (deduped)');
+
+// A non-KTAMS student with a birthday today is not swept by this rule.
+$ncid = mam_db_insert('customers', ['email' => 'adult@example.com', 'first_name' => 'Ada', 'last_name' => 'Adult', 'dob' => $bday]);
+$nuid = mam_db_insert('users', ['email' => 'adult@example.com', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Ada Adult', 'status' => 'active', 'customer_id' => $ncid]);
+mam_db_insert('applications', ['reference' => 'MAM-BDAY-2', 'customer_id' => $ncid, 'pathway' => 'metamusic', 'status' => 'enrolled', 'program_track' => 'MAM']);
+t_eq(mam_automation_ktams_birthday_sweep(), 0, 'a non-KTAMS birthday is not swept by ktams_birthday');

@@ -249,6 +249,28 @@ function mam_lms_approve(int $enrollmentId, ?int $instructorId, int $adminId): v
     if ($instructorId) mam_db_update('course_enrollments', ['instructor_id' => $instructorId], ['id' => $enrollmentId]);
     mam_lms_transition($enrollmentId, 'active', $adminId, 'approved');
     mam_audit('lms_approve', 'course_enrollment', $enrollmentId, ['instructor' => $instructorId]);
+    // Welcome & orientation — governed by the 'enrol_welcome' automation
+    // (admin ?v=automations). Default on; best-effort so a mail hiccup never
+    // blocks the approval.
+    if (!function_exists('mam_automation_on') || mam_automation_on('enrol_welcome')) {
+        try {
+            $row = mam_db_row(
+                "SELECT u.name, u.email, c.name AS course_name
+                   FROM course_enrollments ce
+                   JOIN users u ON u.id = ce.student_id
+                   LEFT JOIN courses c ON c.id = ce.course_id
+                  WHERE ce.id = ?",
+                [$enrollmentId]
+            );
+            if ($row && !empty($row['email']) && function_exists('mam_send') && function_exists('mam_email_enrolled')) {
+                if (function_exists('mam_automation_touch')) mam_automation_touch('enrol_welcome');
+                $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
+                mam_send((string)$row['email'], 'Welcome to your MAM Academy course',
+                    mam_email_enrolled((string)($row['name'] ?? ''), (string)($row['course_name'] ?? 'your course'), '', $loginUrl),
+                    'enrol_welcome', true);
+            }
+        } catch (\Throwable $e) { mam_log('warn', 'enrol_welcome_failed', ['enrollment' => $enrollmentId, 'err' => $e->getMessage()]); }
+    }
 }
 
 /** The remembered instructor for a course (+level): exact course+level match
