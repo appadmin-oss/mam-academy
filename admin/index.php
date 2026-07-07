@@ -2828,6 +2828,44 @@ nav a{display:flex;align-items:center}
   </div>
   <?php endif; ?>
   <?php
+    // Curriculum proposal review drawer (redesign §3) — full proposal in a
+    // focused slide-in, shown when ?proposal=N.
+    $dpid = (int)($_GET['proposal'] ?? 0);
+    $drawerProp = null;
+    if ($dpid && function_exists('mam_lms_pending_proposals')) { foreach (mam_lms_pending_proposals() as $pp) { if ((int)$pp['id'] === $dpid) { $drawerProp = $pp; break; } } }
+    if ($drawerProp):
+  ?>
+  <div class="mam-drawer-scrim" data-param="proposal">
+  <aside class="mam-drawer" role="dialog" aria-modal="true" aria-label="Review curriculum proposal">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0 0 4px">Review proposal</h2>
+        <div class="muted" style="font-size:.84rem">From <?= htmlspecialchars((string)($drawerProp['proposer_name'] ?? '—')) ?> · <?= htmlspecialchars(substr((string)$drawerProp['created_at'], 0, 16)) ?></div>
+      </div>
+      <a class="btn ghost" href="?v=modules">✕ Close</a>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:14px 0">
+      <span class="pill" style="background:var(--raised)"><?= htmlspecialchars((string)($drawerProp['course_name'] ?? ('#' . (int)$drawerProp['course_id']))) ?><?= $drawerProp['level_name'] ? ' · ' . htmlspecialchars((string)$drawerProp['level_name']) : '' ?></span>
+      <span class="pill" style="background:var(--raised)">Week <?= (int)$drawerProp['week'] ?></span>
+      <span class="pill"><?= htmlspecialchars((string)$drawerProp['kind']) ?></span>
+    </div>
+    <h3 style="margin:0 0 6px"><?= htmlspecialchars((string)$drawerProp['title']) ?></h3>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;white-space:pre-wrap;line-height:1.6;font-size:.9rem;max-height:46vh;overflow:auto"><?= htmlspecialchars((string)($drawerProp['content'] ?? '')) ?: '<span class="muted">No content provided.</span>' ?></div>
+    <p class="muted" style="font-size:.82rem;margin:12px 0 4px">Approving applies this week to the live syllabus.</p>
+    <form method="post" style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="module_proposal_review">
+      <input type="hidden" name="proposal_id" value="<?= (int)$drawerProp['id'] ?>">
+      <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted)">Review note (optional)<input type="text" name="review_note" maxlength="500" placeholder="Feedback for the proposer…"></label>
+      <div style="display:flex;gap:10px">
+        <button class="btn" type="submit" name="decision" value="approve" style="flex:1">Approve &amp; apply</button>
+        <button class="btn ghost" type="submit" name="decision" value="reject" style="flex:1;border-color:rgba(240,86,126,.4);color:var(--red)">Reject</button>
+      </div>
+    </form>
+  </aside>
+  </div>
+  <?php endif; ?>
+  <?php
     if (isset($_GET['made'])) echo '<div class="banner ok">Scaffolded ' . (int)$_GET['made'] . ' week(s).</div>';
     if (isset($_GET['imp_c'])) {
         $ic = (int)$_GET['imp_c']; $iu = (int)($_GET['imp_u'] ?? 0); $is = (int)($_GET['imp_s'] ?? 0);
@@ -2859,6 +2897,7 @@ nav a{display:flex;align-items:center}
           <td>Wk <?= (int)$pr['week'] ?> <span class="pill"><?= htmlspecialchars((string)$pr['kind']) ?></span></td>
           <td style="max-width:340px"><strong><?= htmlspecialchars((string)$pr['title']) ?></strong><?php if (!empty($pr['content'])): ?><br><span class="muted" style="font-size:.84rem"><?= nl2br(htmlspecialchars(substr((string)$pr['content'], 0, 400))) ?></span><?php endif; ?></td>
           <td style="white-space:nowrap">
+            <a class="tiny btn ghost" href="?v=modules&proposal=<?= (int)$pr['id'] ?>" style="padding:5px 10px;margin-bottom:6px;display:inline-block">Review →</a>
             <form method="post" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="module_proposal_review">
