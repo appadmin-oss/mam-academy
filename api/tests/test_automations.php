@@ -81,6 +81,22 @@ $nuid = mam_db_insert('users', ['email' => 'adult@example.com', 'password_hash' 
 mam_db_insert('applications', ['reference' => 'MAM-BDAY-2', 'customer_id' => $ncid, 'pathway' => 'metamusic', 'status' => 'enrolled', 'program_track' => 'MAM']);
 t_eq(mam_automation_ktams_birthday_sweep(), 0, 'a non-KTAMS birthday is not swept by ktams_birthday');
 
+// ── week_drip: releasing the current week's module notifies cohort students ──
+$rp = mam_db_row("SELECT id FROM courses WHERE code = 'rhythm_pitch'");
+$courseId = (int)($rp['id'] ?? 0);
+$coId2 = mam_db_insert('cohorts', ['course_id' => $courseId, 'title' => 'Drip Cohort', 'starts_on' => date('Y-m-d', strtotime('-8 days')), 'status' => 'active']);
+mam_db_insert('modules', ['course_id' => $courseId, 'week' => 2, 'title' => 'Syncopation Basics', 'kind' => 'module']); // level_id NULL
+$dcid = mam_db_insert('customers', ['email' => 'drip-stu@example.com', 'first_name' => 'Deo', 'last_name' => 'Rip']);
+$duid = mam_db_insert('users', ['email' => 'drip-stu@example.com', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Deo Rip', 'status' => 'active', 'customer_id' => $dcid]);
+mam_db_insert('course_enrollments', ['student_id' => $duid, 'course_id' => $courseId, 'cohort_id' => $coId2, 'status' => 'active']);
+mam_automation_set('week_drip', true);
+t_eq(mam_automation_week_drip_sweep(), 1, 'the current-week module is released for the cohort');
+t_ok(mam_notifications_unread_count($duid) >= 1, 'the student is notified the module is live');
+t_eq(mam_automation_week_drip_sweep(), 0, 'the same week is not released twice (deduped)');
+mam_automation_set('week_drip', false);
+t_eq(mam_automation_week_drip_sweep(), 0, 'a paused week_drip does no work');
+mam_automation_set('week_drip', true);
+
 // ── auditer_placement: record a placement → student enrolled at the level ──
 // Uses the migration-seeded course/level codes (rhythm_pitch / precert).
 $pcid = mam_db_insert('customers', ['email' => 'placed@example.com', 'first_name' => 'Pia', 'last_name' => 'Laced']);

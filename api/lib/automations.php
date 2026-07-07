@@ -76,7 +76,7 @@ function mam_automations_registry(): array {
             'action'  => 'Release the next module (drip)',
             'icon'    => 'droplet',
             'default' => true,
-            'live'    => false,
+            'live'    => true,
         ],
         'store_receipt' => [
             'group' => 'Commerce & delight',
@@ -255,6 +255,71 @@ function mam_automation_session_reminder_sweep(int $withinHours = 24, int $limit
         // never re-sends within the window.
         if (function_exists('mam_event')) mam_event('session.reminded', 'class_session', (int)$s['id'], ['students' => $sent]);
         if ($sent > 0) mam_automation_touch('session_reminder');
+        $count++;
+    }
+    return $count;
+}
+
+/**
+ * 'week_drip' — as each active cohort enters a new course week, release that
+ * week's module by notifying the cohort's students. Forward-only (only the
+ * current week is released, never a backfill) and deduped once per (cohort,
+ * week) via a 'module.released' event. Returns how many modules were released.
+ */
+function mam_automation_week_drip_sweep(int $limit = 200): int {
+    if (!function_exists('mam_db') || !mam_automation_on('week_drip') || !function_exists('mam_notify')) return 0;
+    $today = strtotime(date('Y-m-d'));
+    try {
+        $cohorts = mam_db_all(
+            "SELECT id, course_id, level_id, title, starts_on FROM cohorts
+              WHERE status = 'active' AND course_id IS NOT NULL AND starts_on IS NOT NULL AND starts_on <> ''
+              LIMIT " . max(1, $limit)
+        );
+    } catch (\Throwable $e) { return 0; }
+    $count = 0;
+    foreach ($cohorts as $co) {
+        $start = strtotime((string)$co['starts_on']);
+        if ($start === false || $start > $today) continue;            // not started yet
+        $week = (int)floor(($today - $start) / (7 * 86400)) + 1;       // week containing today
+        if ($week < 1 || $week > 52) continue;
+
+        // The module for this course/level at the current week (if authored).
+        try {
+            if ($co['level_id'] !== null) {
+                $mod = mam_db_row('SELECT id, title FROM modules WHERE course_id = ? AND level_id = ? AND week = ?', [(int)$co['course_id'], (int)$co['level_id'], $week]);
+            } else {
+                $mod = mam_db_row('SELECT id, title FROM modules WHERE course_id = ? AND level_id IS NULL AND week = ?', [(int)$co['course_id'], $week]);
+            }
+        } catch (\Throwable $e) { continue; }
+        if (!$mod) continue;
+
+        // Deduped once per (cohort, week) — collect this cohort's released weeks.
+        $released = [];
+        try {
+            foreach (mam_db_all("SELECT payload FROM events WHERE type = 'module.released' AND entity = 'cohort' AND entity_id = ?", [(int)$co['id']]) as $ev) {
+                $p = json_decode((string)$ev['payload'], true);
+                if (is_array($p) && isset($p['week'])) $released[(int)$p['week']] = true;
+            }
+        } catch (\Throwable $e) { /* treat as none released */ }
+        if (isset($released[$week])) continue;
+
+        // Notify the cohort's active students that the week's module is live.
+        $sent = 0;
+        try {
+            $students = mam_db_all(
+                "SELECT DISTINCT student_id FROM course_enrollments WHERE cohort_id = ? AND status IN ('active', 'completed')",
+                [(int)$co['id']]
+            );
+            $title = 'Week ' . $week . ' is here: ' . (string)$mod['title'];
+            $body  = 'A new module is now available' . (!empty($co['title']) ? ' in ' . (string)$co['title'] : '') . '.';
+            foreach ($students as $s) {
+                mam_notify((int)$s['student_id'], 'module.released', $title, $body, '/portal/student/#learning');
+                $sent++;
+            }
+        } catch (\Throwable $e) { /* best-effort per cohort */ }
+
+        if (function_exists('mam_event')) mam_event('module.released', 'cohort', (int)$co['id'], ['week' => $week, 'module_id' => (int)$mod['id'], 'students' => $sent]);
+        mam_automation_touch('week_drip');
         $count++;
     }
     return $count;
