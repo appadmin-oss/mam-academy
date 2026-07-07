@@ -1692,7 +1692,7 @@ nav a{display:flex;align-items:center}
       $mLevels  = mam_db_all("SELECT code, name FROM levels ORDER BY sort_order");
       $mAutoPlacement = function_exists('mam_automation_on') ? mam_automation_on('auditer_placement') : true;
   ?>
-  <div class="mam-drawer-scrim" id="appDrawerScrim">
+  <div class="mam-drawer-scrim" id="appDrawerScrim" data-param="app">
   <aside class="mam-drawer" role="dialog" aria-modal="true" aria-label="Manage application">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div>
@@ -2399,7 +2399,73 @@ nav a{display:flex;align-items:center}
     $instructors = mam_db_all("SELECT id, name, email FROM users WHERE role='instructor' AND status='active' ORDER BY name");
     $editCid = (int)($_GET['edit'] ?? 0);
     $editClass = $editCid ? mam_db_row('SELECT * FROM classes WHERE id = ?', [$editCid]) : null;
+    // Class detail drawer (roster + attendance + linked curriculum) — shown when ?class=N.
+    $viewCid = (int)($_GET['class'] ?? 0);
+    $viewClass = $viewCid ? mam_db_row('SELECT c.*, u.name AS instructor_name FROM classes c LEFT JOIN users u ON u.id = c.instructor_id WHERE c.id = ?', [$viewCid]) : null;
+    if ($viewClass):
+      $roster = mam_db_all(
+        "SELECT u.name, u.email, e.status AS enr_status,
+                (SELECT COUNT(*) FROM attendance a WHERE a.enrollment_id = e.id AND a.status = 'present') AS present,
+                (SELECT COUNT(*) FROM attendance a WHERE a.enrollment_id = e.id) AS total
+           FROM enrollments e JOIN users u ON u.id = e.student_id
+          WHERE e.class_id = ? ORDER BY u.name", [$viewCid]);
+      $attCounts = ['present' => 0, 'absent' => 0, 'late' => 0, 'excused' => 0];
+      foreach (mam_db_all("SELECT a.status, COUNT(*) c FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id WHERE e.class_id = ? GROUP BY a.status", [$viewCid]) as $ac) { $attCounts[(string)$ac['status']] = (int)$ac['c']; }
+      $activeRoster = array_filter($roster, fn($r) => $r['enr_status'] === 'active');
+      $mailto = implode(',', array_filter(array_map(fn($r) => (string)$r['email'], $activeRoster)));
   ?>
+  <div class="mam-drawer-scrim" data-param="class">
+  <aside class="mam-drawer" role="dialog" aria-modal="true" aria-label="Class roster">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0 0 4px">Class roster <span class="mono muted" style="font-size:.8rem">#<?= (int)$viewClass['id'] ?></span></h2>
+        <div><strong><?= htmlspecialchars((string)$viewClass['title']) ?></strong></div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="pill" style="background:var(--raised)"><?= htmlspecialchars((string)($viewClass['discipline'] ?? '—')) ?></span>
+          <?php if (!empty($viewClass['mode'])): ?><span class="pill" style="background:var(--raised)"><?= htmlspecialchars((string)$viewClass['mode']) ?></span><?php endif; ?>
+          <span class="pill <?= htmlspecialchars((string)$viewClass['status']) ?>"><?= htmlspecialchars((string)$viewClass['status']) ?></span>
+        </div>
+      </div>
+      <a class="btn ghost" href="?v=classes">✕ Close</a>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin:16px 0">
+      <div class="kpi"><div class="kpi-label">Enrolled</div><div class="kpi-value"><?= count($activeRoster) ?></div></div>
+      <div class="kpi"><div class="kpi-label">Present</div><div class="kpi-value" style="color:var(--emerald)"><?= (int)$attCounts['present'] ?></div></div>
+      <div class="kpi"><div class="kpi-label">Absent</div><div class="kpi-value" style="color:var(--red)"><?= (int)$attCounts['absent'] ?></div></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:16px;font-size:.86rem">
+      <div><span class="muted">Instructor:</span> <?= htmlspecialchars((string)($viewClass['instructor_name'] ?? '— unassigned —')) ?></div>
+      <?php if (!empty($viewClass['schedule'])): ?><div><span class="muted">Schedule:</span> <?= htmlspecialchars((string)$viewClass['schedule']) ?></div><?php endif; ?>
+      <div><span class="muted">Capacity:</span> <?= (int)$viewClass['capacity'] ?></div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <a class="btn ghost" href="?v=classes&edit=<?= (int)$viewClass['id'] ?>"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit class</a>
+      <?php if ($mailto): ?><a class="btn ghost" href="mailto:?bcc=<?= htmlspecialchars(rawurlencode($mailto)) ?>"><i class="fa-solid fa-envelope" aria-hidden="true"></i> Message class</a><?php endif; ?>
+    </div>
+
+    <h3 style="margin:0 0 8px">Roster &amp; attendance</h3>
+    <?php if (!$roster): ?>
+      <p class="muted">No students enrolled yet. Enrol from <a href="?v=enrollments" style="color:var(--gold)">Enrollments →</a>.</p>
+    <?php else: ?>
+      <table>
+        <thead><tr><th>Student</th><th>Status</th><th>Attendance</th></tr></thead>
+        <tbody>
+        <?php foreach ($roster as $r): $rate = (int)$r['total'] > 0 ? round((int)$r['present'] / (int)$r['total'] * 100) : null; ?>
+          <tr>
+            <td><strong><?= htmlspecialchars((string)($r['name'] ?? '—')) ?></strong><br><span class="muted" style="font-size:.76rem"><?= htmlspecialchars((string)$r['email']) ?></span></td>
+            <td><span class="pill <?= htmlspecialchars((string)$r['enr_status']) ?>"><?= htmlspecialchars((string)$r['enr_status']) ?></span></td>
+            <td class="muted"><?= $rate === null ? '<span class="muted">no sessions</span>' : ($rate . '% · ' . (int)$r['present'] . '/' . (int)$r['total']) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </aside>
+  </div>
+  <?php endif; ?>
   <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Saved.</strong></div><?php endif; ?>
   <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
 
@@ -2476,6 +2542,7 @@ nav a{display:flex;align-items:center}
               </select>
               <button class="tiny" type="submit">Save</button>
             </form>
+            <a class="tiny btn ghost" style="margin-left:6px;padding:6px 10px" href="?v=classes&class=<?= (int)$c['id'] ?>">Roster</a>
             <a class="tiny btn ghost" style="margin-left:6px;padding:6px 10px" href="?v=classes&edit=<?= (int)$c['id'] ?>">Edit</a>
           </td>
         </tr>
@@ -3721,10 +3788,11 @@ nav a{display:flex;align-items:center}
   // Applications "Manage" renders as a right slide-in drawer (server-rendered
   // when ?app=N). Dismiss via scrim click or Esc → back to the list.
   (function () {
-    var scrim = document.getElementById('appDrawerScrim');
+    var scrim = document.querySelector('.mam-drawer-scrim');
     if (!scrim) return;
+    var param = scrim.getAttribute('data-param') || 'app';
     document.body.style.overflow = 'hidden';
-    function close() { var u = new URLSearchParams(location.search); u.delete('app'); location.href = '?' + u.toString(); }
+    function close() { var u = new URLSearchParams(location.search); u.delete(param); location.href = '?' + u.toString(); }
     scrim.addEventListener('mousedown', function (e) { if (e.target === scrim) close(); });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !document.querySelector('.cmdk-scrim.open')) close();
