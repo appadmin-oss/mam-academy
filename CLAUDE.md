@@ -112,8 +112,11 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
 4. **SSRF guard** for the curriculum remote-import is in `api/lib/lms.php`
    (`mam_lms_public_ips_for` / `mam_lms_fetch_url`): per-hop re-validation, `CURLOPT_RESOLVE`
    pinning, denies private/CGNAT/IETF-special ranges, ports 80/443 only. Keep it strict.
-5. **`auditer_results` has no writer.** The student Auditer tab now falls back to live
-   `mam_auditer_status()`; the detailed-report table is reserved for a future capture flow.
+5. **`auditer_results` capture flow.** `mam_auditer_record()` (`auditer.php`) is the
+   writer — admins capture a placement from the application detail card (`?v=applications&app=N`,
+   `record_placement` action). When the `auditer_placement` automation is on it also
+   ensures the student account + enrols them at the recommended level. The student Auditer
+   tab still falls back to live `mam_auditer_status()` for validity/booking state.
 6. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
 
 ## Security posture (don't weaken)

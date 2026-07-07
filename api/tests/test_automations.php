@@ -80,3 +80,24 @@ $ncid = mam_db_insert('customers', ['email' => 'adult@example.com', 'first_name'
 $nuid = mam_db_insert('users', ['email' => 'adult@example.com', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Ada Adult', 'status' => 'active', 'customer_id' => $ncid]);
 mam_db_insert('applications', ['reference' => 'MAM-BDAY-2', 'customer_id' => $ncid, 'pathway' => 'metamusic', 'status' => 'enrolled', 'program_track' => 'MAM']);
 t_eq(mam_automation_ktams_birthday_sweep(), 0, 'a non-KTAMS birthday is not swept by ktams_birthday');
+
+// ── auditer_placement: record a placement → student enrolled at the level ──
+// Uses the migration-seeded course/level codes (rhythm_pitch / precert).
+$pcid = mam_db_insert('customers', ['email' => 'placed@example.com', 'first_name' => 'Pia', 'last_name' => 'Laced']);
+mam_db_insert('applications', ['reference' => 'MAM-PLACE-1', 'customer_id' => $pcid, 'pathway' => 'metamusic', 'discipline' => 'Rhythm & Pitch Intelligence', 'status' => 'submitted']);
+mam_automation_set('auditer_placement', true);
+$rec = mam_auditer_record($pcid, 'metamusic', ['course_code' => 'rhythm_pitch', 'level_code' => 'precert', 'notes' => 'Strong ear']);
+t_ok($rec['result_id'] > 0, 'placement writes an auditer_results row');
+t_ok($rec['student_id'] > 0, 'placement resolves/provisions the student account');
+t_ok($rec['enrolled'] === true && $rec['enrollment_id'] > 0, 'auto-enrol creates a course enrolment at the level');
+t_ok(mam_db_row('SELECT id FROM auditer_results WHERE student_id = ?', [$rec['student_id']]) !== null, 'the placement result is persisted');
+t_ok(mam_db_row("SELECT ce.id FROM course_enrollments ce JOIN levels l ON l.id = ce.level_id WHERE ce.student_id = ? AND l.code = 'precert'", [$rec['student_id']]) !== null, 'the enrolment is at the recommended level');
+
+// Paused → capture only, no enrolment.
+$qcid = mam_db_insert('customers', ['email' => 'placed-off@example.com', 'first_name' => 'Qi', 'last_name' => 'Off']);
+mam_db_insert('applications', ['reference' => 'MAM-PLACE-2', 'customer_id' => $qcid, 'pathway' => 'metamusic', 'status' => 'submitted']);
+mam_automation_set('auditer_placement', false);
+$rec2 = mam_auditer_record($qcid, 'metamusic', ['course_code' => 'rhythm_pitch', 'level_code' => 'precert']);
+t_ok($rec2['result_id'] > 0 && $rec2['enrolled'] === false && $rec2['note'] === 'automation_off', 'paused auditer_placement records without enrolling');
+t_ok(mam_db_row('SELECT id FROM course_enrollments WHERE student_id = ?', [$rec2['student_id']]) === null, 'no enrolment while auto-enrol is paused');
+mam_automation_set('auditer_placement', true);

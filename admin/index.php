@@ -193,6 +193,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
         'automation_toggle' => 'settings',
+        'record_placement' => 'admissions',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
         'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
         // Destructive record deletions + bulk seeding are super-only — a manager
@@ -827,6 +828,33 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
         mam_audit('update_settings', 'settings', null, $saved);
         header('Location: ?v=settings&ok=1'); exit;
+    }
+
+    // Record a MAM Auditer placement for an application's student — writes the
+    // auditer_results row and (when the 'auditer_placement' automation is on)
+    // ensures the account + enrols them at the recommended level (see
+    // api/lib/auditer.php). Gated to the 'admissions' cap above.
+    if ($action === 'record_placement') {
+        $appId = (int)($_POST['app_id'] ?? 0);
+        $app   = $appId ? mam_db_row('SELECT id, customer_id, pathway FROM applications WHERE id = ?', [$appId]) : null;
+        if (!$app || !$app['customer_id']) { header('Location: ?v=applications&err=' . urlencode('Application or customer not found.')); exit; }
+        $courseCode = trim((string)($_POST['course_code'] ?? ''));
+        $levelCode  = trim((string)($_POST['level_code'] ?? ''));
+        if ($courseCode === '' || $levelCode === '') { header('Location: ?v=applications&app=' . $appId . '&err=' . urlencode('Pick a course and level.')); exit; }
+        try {
+            $res = mam_auditer_record((int)$app['customer_id'], (string)($app['pathway'] ?? ''), [
+                'course_code' => $courseCode,
+                'level_code'  => $levelCode,
+                'notes'       => (string)($_POST['notes'] ?? ''),
+                'audited_by'  => (int)($adminUser['id'] ?? 0),
+            ]);
+            $msg = $res['enrolled']
+                ? 'Placement recorded — student enrolled.'
+                : ($res['note'] === 'automation_off' ? 'Placement recorded (auto-enrol is paused).' : 'Placement recorded (' . $res['note'] . ').');
+            header('Location: ?v=applications&app=' . $appId . '&ok=' . urlencode($msg)); exit;
+        } catch (\Throwable $e) {
+            header('Location: ?v=applications&app=' . $appId . '&err=' . urlencode('Could not record placement.')); exit;
+        }
     }
 
     // Toggle a lifecycle automation on/off (super/settings only — gated above).
@@ -1612,6 +1640,9 @@ nav a{display:flex;align-items:center}
       $mNotes  = mam_admissions_notes($manageId);
       $mEvents = mam_admissions_events($manageId);
       $mStaff  = mam_lms_instructors();
+      $mCourses = mam_db_all("SELECT code, name FROM courses WHERE active = 1 ORDER BY sort_order, name");
+      $mLevels  = mam_db_all("SELECT code, name FROM levels ORDER BY sort_order");
+      $mAutoPlacement = function_exists('mam_automation_on') ? mam_automation_on('auditer_placement') : true;
   ?>
   <div class="card" style="border-color:var(--gold)">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
@@ -1747,6 +1778,37 @@ nav a{display:flex;align-items:center}
         <?php endforeach; endif; ?>
       </div>
     </div>
+
+    <h3 style="margin:18px 0 8px">MAM Auditer placement
+      <span class="muted" style="font-size:.72rem">— record the outcome<?= $mAutoPlacement ? ' · auto-enrols at the chosen level' : ' · auto-enrol paused (capture only)' ?></span>
+    </h3>
+    <?php if (!$mCourses): ?>
+      <p class="muted">Load the curriculum first (<a href="?v=modules" style="color:var(--gold)">Standard Curriculum → Seed starter</a>) so a placement can enrol the student into a course.</p>
+    <?php else: ?>
+      <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end;max-width:760px">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="record_placement">
+        <input type="hidden" name="app" value="<?= (int)$manageApp['id'] ?>">
+        <input type="hidden" name="app_id" value="<?= (int)$manageApp['id'] ?>">
+        <label>Recommended course
+          <select name="course_code" required>
+            <option value="">— pick a course —</option>
+            <?php foreach ($mCourses as $co): ?>
+              <option value="<?= htmlspecialchars((string)$co['code']) ?>" <?= (strtolower((string)($manageApp['discipline'] ?? '')) === strtolower((string)$co['name'])) ? 'selected' : '' ?>><?= htmlspecialchars((string)$co['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+        <label>Placement level
+          <select name="level_code" required>
+            <?php foreach ($mLevels as $lv): ?><option value="<?= htmlspecialchars((string)$lv['code']) ?>"><?= htmlspecialchars((string)$lv['name']) ?></option><?php endforeach; ?>
+          </select>
+        </label>
+        <label style="grid-column:1/-1">Notes <span class="muted">(optional — recorded with the placement)</span>
+          <input type="text" name="notes" maxlength="2000" placeholder="Placement observations…">
+        </label>
+        <button class="btn" type="submit"><?= $mAutoPlacement ? 'Record placement &amp; enrol' : 'Record placement' ?></button>
+      </form>
+    <?php endif; ?>
 
     <h3 style="margin:18px 0 8px">Status history</h3>
     <?php if (!$mEvents): ?>

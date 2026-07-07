@@ -60,7 +60,7 @@ function mam_automations_registry(): array {
             'action'  => 'Assign the level, enrol, and attach the curriculum',
             'icon'    => 'clipboard-check',
             'default' => true,
-            'live'    => false,
+            'live'    => true,
         ],
         'session_reminder' => [
             'group' => 'Learning',
