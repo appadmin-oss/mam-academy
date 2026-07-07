@@ -1342,6 +1342,15 @@ nav a{display:flex;align-items:center}
 .cmdk-item.sel,.cmdk-item:hover{background:rgba(232,150,31,.14)}
 .cmdk-empty{padding:22px 14px;text-align:center;color:var(--faint);font-size:.86rem}
 @media(prefers-reduced-motion:reduce){.cmdk{animation:none}.auto-switch .knob,.auto-switch .track{transition:none}}
+/* ── Drawer: right slide-in panel (Applications "Manage"), per the redesign ── */
+.mam-drawer-scrim{position:fixed;inset:0;z-index:9000;background:rgba(10,7,4,0.6);display:flex;justify-content:flex-end;animation:fadeIn .18s ease-out}
+.mam-drawer{width:min(480px,100%);height:100%;background:var(--panel);border-left:1px solid var(--border-strong);box-shadow:-26px 0 64px rgba(6,4,1,0.6);overflow:auto;padding:0 22px 40px;animation:drawerIn .22s cubic-bezier(.2,.8,.25,1)}
+.mam-drawer > div:first-child{position:sticky;top:0;background:var(--panel);margin:0 -22px 4px;padding:18px 22px;border-bottom:1px solid var(--border);z-index:2}
+.mam-drawer table{font-size:.8rem}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes drawerIn{from{transform:translateX(34px);opacity:.4}to{transform:none;opacity:1}}
+@media(max-width:640px){.mam-drawer{width:100%;border-left:0}}
+@media(prefers-reduced-motion:reduce){.mam-drawer,.mam-drawer-scrim{animation:none}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -1673,7 +1682,8 @@ nav a{display:flex;align-items:center}
       $mLevels  = mam_db_all("SELECT code, name FROM levels ORDER BY sort_order");
       $mAutoPlacement = function_exists('mam_automation_on') ? mam_automation_on('auditer_placement') : true;
   ?>
-  <div class="card" style="border-color:var(--gold)">
+  <div class="mam-drawer-scrim" id="appDrawerScrim">
+  <aside class="mam-drawer" role="dialog" aria-modal="true" aria-label="Manage application">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div>
         <h2 style="margin:0 0 4px">Manage application
@@ -1858,6 +1868,7 @@ nav a{display:flex;align-items:center}
         </tbody>
       </table>
     <?php endif; ?>
+  </aside>
   </div>
   <?php endif; ?>
   <div class="card">
@@ -3685,6 +3696,18 @@ nav a{display:flex;align-items:center}
     requestAnimationFrame(function () { t.classList.add('in'); });
     setTimeout(function () { t.classList.remove('in'); setTimeout(function () { t.remove(); }, 350); }, 4600);
   }
+  // Applications "Manage" renders as a right slide-in drawer (server-rendered
+  // when ?app=N). Dismiss via scrim click or Esc → back to the list.
+  (function () {
+    var scrim = document.getElementById('appDrawerScrim');
+    if (!scrim) return;
+    document.body.style.overflow = 'hidden';
+    function close() { var u = new URLSearchParams(location.search); u.delete('app'); location.href = '?' + u.toString(); }
+    scrim.addEventListener('mousedown', function (e) { if (e.target === scrim) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !document.querySelector('.cmdk-scrim.open')) close();
+    });
+  })();
   var ok = params.get('ok'), err = params.get('err');
   if (ok !== null) toast(ok && ok !== '1' ? ok : 'Saved.', 'ok');
   if (err !== null && err !== '') toast(err, 'err');
