@@ -1277,13 +1277,21 @@ button.tiny:hover{border-color:var(--gold)}
 .form-grid input:focus,.form-grid select:focus{outline:none;border-color:var(--gold)}
 .form-grid .full{grid-column:1/-1}
 .form-grid .actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;padding-top:6px}
+/* Mobile: the rail becomes an off-canvas drawer behind a hamburger (redesign
+   §10 — "sidebar collapses to a drawer"). */
+.nav-toggle{display:none;flex:0 0 auto;width:40px;height:40px;border-radius:10px;background:var(--panel);border:1px solid var(--border-strong);color:var(--text);cursor:pointer;align-items:center;justify-content:center;font-size:1rem}
+.nav-scrim{display:none;position:fixed;inset:0;z-index:9400;background:rgba(10,7,4,0.6)}
 @media(max-width:920px){
   body{grid-template-columns:1fr}
-  aside{position:static;height:auto}
+  aside{position:fixed;left:0;top:0;height:100vh;width:264px;z-index:9500;transform:translateX(-100%);transition:transform .22s ease;box-shadow:12px 0 44px rgba(0,0,0,0.5)}
+  body.nav-open aside{transform:none}
+  body.nav-open .nav-scrim{display:block}
+  .nav-toggle{display:inline-flex}
   main{padding:20px 16px}
   .top{flex-wrap:wrap;gap:10px}
   .form-grid{grid-template-columns:1fr}
 }
+@media(prefers-reduced-motion:reduce){aside{transition:none}}
 @media(max-width:520px){
   .kpi-grid{grid-template-columns:1fr 1fr}
   th,td{padding:9px 12px;font-size:0.82rem}
@@ -1465,6 +1473,7 @@ nav a{display:flex;align-items:center}
     UI <?= htmlspecialchars($uiVer) ?> · API v<?= htmlspecialchars(defined('MAM_API_VERSION') ? MAM_API_VERSION : '1.0') ?> · schema v<?= (int)MAM_SCHEMA_TARGET ?>
   </div>
 </aside>
+<div class="nav-scrim" id="navScrim" aria-hidden="true"></div>
 
 <main>
 <?php
@@ -1474,6 +1483,7 @@ nav a{display:flex;align-items:center}
   $atbInit  = strtoupper(substr(trim((string)($adminUser['name'] ?? $atbEmail)), 0, 1)) ?: 'M';
 ?>
 <div class="admin-topbar">
+  <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-controls="adminNav"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
   <div class="atb-title"><span class="dot" aria-hidden="true"></span><?= htmlspecialchars($atbLabel) ?></div>
   <button type="button" class="atb-search" id="atbSearch" aria-label="Search or jump to"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search or jump to…</span><kbd>⌘K</kbd></button>
   <div class="atb-right">
@@ -3696,6 +3706,18 @@ nav a{display:flex;align-items:center}
     requestAnimationFrame(function () { t.classList.add('in'); });
     setTimeout(function () { t.classList.remove('in'); setTimeout(function () { t.remove(); }, 350); }, 4600);
   }
+  // Mobile: hamburger toggles the off-canvas sidebar. A nav tap or scrim/Esc
+  // closes it.
+  (function () {
+    var t = document.getElementById('navToggle'), s = document.getElementById('navScrim');
+    if (!t) return;
+    function set(open) { document.body.classList.toggle('nav-open', open); t.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+    t.addEventListener('click', function () { set(!document.body.classList.contains('nav-open')); });
+    if (s) s.addEventListener('click', function () { set(false); });
+    var nav = document.querySelector('aside nav');
+    if (nav) nav.addEventListener('click', function (e) { if (e.target.closest('a')) set(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('nav-open')) set(false); });
+  })();
   // Applications "Manage" renders as a right slide-in drawer (server-rendered
   // when ?app=N). Dismiss via scrim click or Esc → back to the list.
   (function () {
