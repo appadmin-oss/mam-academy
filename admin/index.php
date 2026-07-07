@@ -1139,25 +1139,32 @@ $flashErr = $_GET['err'] ?? '';
 <!-- Font Awesome — the dashboard uses fa-* icons throughout (nav, tables, the
      notifications panel, the top bar); without this they render blank. -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+/* Redesign design system — the candlelit "MAM Redesign" language from the
+   prototype: warmer neutrals, calmer gold, Cormorant titles + Bebas numerals. */
 :root{
-  --bg:#0F0A06;--panel:#1A120B;--raised:#241710;--card:#2E2015;
-  --text:#FBF7F3;--muted:rgba(251,247,243,0.7);--faint:rgba(251,247,243,0.5);
-  --border:rgba(210,170,138,0.22);--gold:#FBBF24;--gold-2:#E08A1A;
-  --emerald:#10B981;--red:#F43F5E;--blue:#6366F1;
+  --bg:#1B140D;--panel:#251C13;--raised:#302517;--card:#3B2E1D;
+  --text:#FCF8F3;--muted:rgba(252,248,243,0.72);--faint:rgba(252,248,243,0.5);
+  --border:rgba(240,214,170,0.14);--border-strong:rgba(240,214,170,0.26);
+  --gold:#E8961F;--gold-2:#F7A823;--goldhi:#FCC647;
+  --emerald:#2FD39E;--red:#F0567E;--blue:#7FA9F0;--violet:#9A8BF2;
+  --r:14px;--r-l:20px;
+  --font-display:'Bebas Neue',Impact,sans-serif;--font-serif:'Cormorant Garamond',Georgia,serif;
 }
 html,body{height:100%}
-body{font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:grid;grid-template-columns:240px 1fr}
+body{font:14px/1.55 'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:radial-gradient(1200px 700px at 82% -12%,rgba(232,150,31,0.06),transparent 55%),var(--bg);color:var(--text);min-height:100vh;display:grid;grid-template-columns:244px 1fr}
 a{color:inherit;text-decoration:none}
 aside{background:var(--panel);border-right:1px solid var(--border);padding:18px 14px;position:sticky;top:0;height:100vh;overflow:auto}
 .brand{display:flex;align-items:center;gap:10px;padding:8px 10px 18px;border-bottom:1px solid var(--border);margin-bottom:14px}
-.brand .logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--gold),var(--gold-2));display:flex;align-items:center;justify-content:center;color:#1A120B;font-weight:900}
-.brand b{font-size:1rem;letter-spacing:0.04em}
-.brand small{display:block;color:var(--muted);font-size:0.74rem;letter-spacing:0.06em;text-transform:uppercase}
-nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;color:var(--muted);border-radius:8px;margin-bottom:2px;font-size:0.92rem}
-nav a:hover{background:rgba(255,255,255,0.04);color:var(--text)}
-nav a.active{background:linear-gradient(135deg,rgba(224,138,26,0.18),rgba(251,191,36,0.08));color:var(--gold);border:1px solid var(--border)}
+.brand .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--gold),var(--goldhi));display:flex;align-items:center;justify-content:center;color:#1A120B;font-weight:800;font-family:var(--font-display);font-size:1.3rem}
+.brand b{font-family:var(--font-display);font-size:1.2rem;letter-spacing:0.06em;font-weight:400}
+.brand small{display:block;color:var(--muted);font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase}
+nav a{display:flex;align-items:center;gap:11px;padding:10px 13px;color:var(--muted);border-radius:11px;margin-bottom:3px;font-size:0.9rem;font-weight:500;border:1px solid transparent}
+nav a:hover{background:var(--raised);color:var(--text)}
+nav a.active{background:linear-gradient(135deg,rgba(232,150,31,0.2),rgba(252,198,71,0.06));color:var(--goldhi);border:1px solid var(--border-strong);font-weight:600}
 nav a i{width:18px;text-align:center;font-size:0.88rem;opacity:0.8;flex:0 0 auto}
 nav a.active i{opacity:1;color:var(--gold)}
 /* Grouped sidebar: a quiet section label introduces each domain of the admin. */
@@ -1166,9 +1173,14 @@ nav a.active i{opacity:1;color:var(--gold)}
 .nav-note{margin-top:12px;padding:8px 11px;font-size:0.72rem;line-height:1.5;color:var(--muted);border:1px dashed var(--border);border-radius:8px}
 /* Access-level (RBAC tier) badges — make the admin's level explicit. */
 .tier-badge{display:inline-block;margin-top:6px;padding:2px 9px;border-radius:100px;font-size:0.6rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}
-.tier-super{background:linear-gradient(135deg,var(--red),#FB7185);color:#fff}
+.tier-super{background:linear-gradient(135deg,rgba(232,150,31,0.22),rgba(252,198,71,0.1));color:var(--goldhi);border:1px solid var(--border-strong)}
 .tier-manager{background:rgba(99,102,241,0.2);color:#A5B4FC;border:1px solid rgba(165,180,252,0.4)}
 .atb-tier{padding:3px 11px;border-radius:100px;font-size:0.64rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase}
+.admin-topbar .atb-search{flex:1;min-width:0;max-width:440px;margin:0 auto;display:flex;align-items:center;gap:10px;height:42px;padding:0 14px;background:var(--panel);border:1px solid var(--border-strong);border-radius:11px;color:var(--faint);cursor:pointer;font-size:0.88rem;font-family:inherit;transition:border-color .15s,color .15s}
+.admin-topbar .atb-search span{flex:1;text-align:left}
+.admin-topbar .atb-search kbd{font-size:0.66rem;padding:2px 7px;border:1px solid var(--border-strong);border-radius:6px;color:var(--faint);font-family:inherit}
+.admin-topbar .atb-search:hover{border-color:var(--gold);color:var(--muted)}
+@media(max-width:760px){.admin-topbar .atb-search span,.admin-topbar .atb-search kbd{display:none}.admin-topbar .atb-search{flex:0 0 auto;max-width:none}}
 /* Curriculum completeness matrix (Standard Curriculum overview). */
 .curric-matrix{width:100%;border-collapse:collapse;font-size:0.84rem;min-width:560px}
 .curric-matrix th{font-size:0.64rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);font-weight:700;text-align:center;padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -1193,21 +1205,21 @@ main{padding:0 36px 40px;overflow:auto}
 .admin-topbar .atb-user{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:0.82rem;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:4px}
 .admin-topbar .atb-user .av{width:28px;height:28px;border-radius:50%;flex:0 0 auto;background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.78rem}
 header.top{display:flex;align-items:center;justify-content:space-between;margin:0 0 26px;gap:18px;flex-wrap:wrap}
-header.top h1{font-size:1.45rem;font-weight:700;letter-spacing:-0.01em}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B;border-radius:8px;font-weight:700;font-size:0.85rem;border:none;cursor:pointer}
+header.top h1{font-family:var(--font-serif);font-size:2.1rem;font-weight:700;letter-spacing:0;line-height:1.05}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B;border-radius:11px;font-weight:700;font-size:0.85rem;border:none;cursor:pointer}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:36px}
-.kpi{padding:18px;background:var(--raised);border:1px solid var(--border);border-radius:12px}
-.kpi-label{font-size:0.72rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;font-weight:600}
-.kpi-value{font-size:1.7rem;font-weight:800;letter-spacing:-0.01em}
+.kpi{padding:18px 18px 16px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r)}
+.kpi-label{font-size:0.68rem;color:var(--faint);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-weight:700}
+.kpi-value{font-family:var(--font-display);font-size:2.3rem;font-weight:400;letter-spacing:0.01em;line-height:0.95}
 .kpi-value.gold{background:linear-gradient(135deg,var(--gold),var(--gold-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 /* Tables can be wide (9+ columns). The card is the horizontal scroll
    container; the h3 header is pinned via sticky so it doesn't pan with
    the table. Edge-fade backgrounds appear only when there's more to scroll. */
-.card{background:var(--raised);border:1px solid var(--border);border-radius:14px;margin-bottom:26px;overflow:hidden;overflow-x:auto;-webkit-overflow-scrolling:touch;
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-l);margin-bottom:26px;overflow:hidden;overflow-x:auto;-webkit-overflow-scrolling:touch;
   background-image:
-    linear-gradient(to right,var(--raised) 30%,rgba(0,0,0,0)),
-    linear-gradient(to right,rgba(0,0,0,0),var(--raised) 70%),
+    linear-gradient(to right,var(--panel) 30%,rgba(0,0,0,0)),
+    linear-gradient(to right,rgba(0,0,0,0),var(--panel) 70%),
     linear-gradient(to right,rgba(0,0,0,0.4),rgba(0,0,0,0)),
     linear-gradient(to left,rgba(0,0,0,0.4),rgba(0,0,0,0));
   background-position:0 0,100% 0,0 0,100% 0;
@@ -1215,7 +1227,7 @@ header.top h1{font-size:1.45rem;font-weight:700;letter-spacing:-0.01em}
   background-size:42px 100%,42px 100%,14px 100%,14px 100%;
   background-attachment:local,local,scroll,scroll;
 }
-.card h3{padding:16px 20px;font-size:0.95rem;font-weight:700;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;left:0;width:max-content;min-width:100%;background:var(--raised);z-index:2}
+.card h3{padding:16px 20px;font-size:0.95rem;font-weight:700;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;left:0;width:max-content;min-width:100%;background:var(--panel);z-index:2}
 .card > table{min-width:720px}
 table{width:100%;border-collapse:collapse;font-size:0.86rem}
 th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
@@ -1282,14 +1294,14 @@ button.tiny:hover{border-color:var(--gold)}
 .chart-row canvas{max-height:260px}
 @media(max-width:860px){.chart-row{grid-template-columns:1fr}}
 /* ── UX layer: pending-work badges, needs-attention queue, toast feedback ── */
-.nav-count{margin-left:auto;background:linear-gradient(135deg,var(--gold),#FBBF24);color:#1A120B;border-radius:100px;min-width:20px;height:18px;padding:0 6px;font-size:.66rem;font-weight:800;font-style:normal;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+.nav-count{margin-left:auto;background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B;border-radius:100px;min-width:22px;height:20px;padding:0 7px;font-size:.68rem;font-weight:800;font-style:normal;display:inline-flex;align-items:center;justify-content:center;line-height:1}
 nav a{display:flex;align-items:center}
 .needs{border-color:var(--gold)}
 .needs-list{display:flex;flex-direction:column;gap:0;padding:0 20px 16px}
 .needs-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--border);text-decoration:none;color:var(--text)}
 .needs-item:first-child{border-top:none}
 .needs-item:hover .needs-verb{background:var(--gold);color:#1A120B}
-.needs-n{min-width:34px;height:34px;border-radius:10px;background:rgba(232,150,31,0.14);border:1px solid var(--gold);color:var(--gold);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+.needs-n{min-width:40px;height:40px;border-radius:11px;background:var(--raised);border:1px solid var(--border-strong);color:var(--goldhi);font-family:var(--font-display);font-weight:400;display:flex;align-items:center;justify-content:center;font-size:1.35rem;flex-shrink:0}
 .needs-label{flex:1;font-size:.9rem}
 .needs-verb{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--gold);color:var(--gold);border-radius:100px;padding:4px 12px;transition:all .15s}
 .mam-toast-stack{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
@@ -1454,6 +1466,7 @@ nav a{display:flex;align-items:center}
 ?>
 <div class="admin-topbar">
   <div class="atb-title"><span class="dot" aria-hidden="true"></span><?= htmlspecialchars($atbLabel) ?></div>
+  <button type="button" class="atb-search" id="atbSearch" aria-label="Search or jump to"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search or jump to…</span><kbd>⌘K</kbd></button>
   <div class="atb-right">
     <?php $__atbTier = $adminUser ? mam_admin_tier($adminUser) : 'super'; ?>
     <span class="atb-tier tier-<?= htmlspecialchars($__atbTier) ?>" title="Your admin access level"><?= $__atbTier === 'super' ? 'Super admin' : 'Manager' ?></span>
@@ -3743,6 +3756,7 @@ nav a{display:flex;align-items:center}
     function go(i) { var e = results[i]; if (e) location.href = e.url; }
     function show() { open = true; scrim.classList.add('open'); input.value = ''; render(); setTimeout(function () { input.focus(); }, 0); }
     function hide() { open = false; scrim.classList.remove('open'); }
+    var sb = document.getElementById('atbSearch'); if (sb) sb.addEventListener('click', show);
     input.addEventListener('input', render);
     list.addEventListener('click', function (e) { var it = e.target.closest('.cmdk-item'); if (it) go(+it.getAttribute('data-i')); });
     scrim.addEventListener('mousedown', function (e) { if (e.target === scrim) hide(); });
