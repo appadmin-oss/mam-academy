@@ -142,6 +142,7 @@
     var html = ''
       + '<div class="portal-hello"><h2>' + (kid ? 'Hi ' + P.escapeHtml(firstName) + '! ' : greeting() + ', ' + P.escapeHtml(firstName) + ' ') + '<span aria-hidden="true">' + (kid ? '🎵' : '👋') + '</span>' + ((data.user && data.user.student_type === 'scholarship') ? ' <span class="pill" style="background:rgba(252,198,71,0.16);color:var(--gold-bright);font-size:0.62rem;vertical-align:middle">★ Scholarship</span>' : '') + '</h2>'
       +   '<p>' + (ps.streak ? 'You\'re on a <strong>' + ps.streak + '-day</strong> practice streak — ' + (kid ? 'amazing, keep going! 🌟' : 'keep the momentum going.') : (kid ? 'Ready to make some music today? Tap Practice to begin! 🎹' : 'Ready to practise? Log a session to start a streak.')) + '</p></div>'
+      + (kid ? kidHero(ps) : '')
       + '<section class="kpi-row">'
       + kpi('Practice streak', ps.streak + (ps.streak === 1 ? ' day' : ' days'), ps.streak ? 'On fire 🔥' : 'Start today', 'gold')
       + kpi('This week', (ps.weekMin >= 60 ? (Math.floor(ps.weekMin/60) + 'h ' + (ps.weekMin%60) + 'm') : ps.weekMin + ' min'), 'Goal progress ' + ps.goalPct + '%')
@@ -160,6 +161,32 @@
     content.innerHTML = html;
     bindTabLinks();
     loadAiNote();
+  }
+
+  // KTAMS kids get a playful practice hero + a Mon–Sun "week dots" streak strip
+  // (real practice data — see mam_practice_stats). No fabricated points: the
+  // dots light up on days a session was actually logged.
+  function kidHero(ps) {
+    var goal = Math.min(100, ps.goalPct || 0);
+    var dots = (ps.weekDays || []).map(function (d) {
+      var on = d.on, today = d.today;
+      return '<div class="kid-dot' + (on ? ' on' : '') + (today ? ' today' : '') + '" title="' + (on ? 'Practised' : 'No practice yet') + '">'
+        + '<span>' + (on ? '⭐' : '') + '</span><em>' + P.escapeHtml(d.d) + '</em></div>';
+    }).join('');
+    return '<section class="kid-hero">'
+      + '<a class="kid-play" href="#practice" data-tab="practice">'
+      +   '<span class="kid-play-note" aria-hidden="true">🎻</span>'
+      +   '<span class="kid-play-kicker">Today\'s practice</span>'
+      +   '<span class="kid-play-title">Let\'s play! 🎵</span>'
+      +   '<span class="kid-play-cta">Start <i class="fa-solid fa-play" aria-hidden="true"></i></span>'
+      + '</a>'
+      + '<div class="kid-streak">'
+      +   '<div class="kid-streak-top"><strong>🔥 ' + (ps.streak || 0) + '-day streak</strong>'
+      +     '<span>' + (ps.weekMin || 0) + ' min this week</span></div>'
+      +   '<div class="kid-bar"><div class="kid-bar-fill" style="width:' + goal + '%"></div></div>'
+      +   (dots ? '<div class="kid-dots">' + dots + '</div>' : '')
+      + '</div>'
+      + '</section>';
   }
 
   // Lazily fetch the AI progress note (api/lib/ai.php). Shows the card only when

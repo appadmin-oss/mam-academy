@@ -116,7 +116,7 @@ $courses = $soft(fn () => mam_lms_student_courses((int)$u['id']), []);
 $certificates = $soft(fn () => mam_lms_student_certificates((int)$u['id']), []);
 
 // Server-persisted practice stats (cross-device).
-$practice = $soft(fn () => mam_practice_stats((int)$u['id']), ['practice' => [], 'practiceStats' => ['streak' => 0, 'weekMin' => 0, 'total' => 0, 'sessions' => 0]]);
+$practice = $soft(fn () => mam_practice_stats((int)$u['id']), ['practice' => [], 'practiceStats' => ['streak' => 0, 'weekMin' => 0, 'total' => 0, 'sessions' => 0, 'weekDays' => []]]);
 
 // Progress roll-up for the overview card.
 // "Attended" = present OR late, matching the client's attendanceRate()/render —

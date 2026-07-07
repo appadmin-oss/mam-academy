@@ -314,3 +314,23 @@ body[data-variant="ktams"] .kpi-value.gold{animation:ktamsPulse 2.4s ease-in-out
 @media (prefers-reduced-motion:reduce){
   body[data-variant="ktams"] .kpi-value.gold{animation:none}
 }
+/* KTAMS playful overview hero — practice CTA + streak/week-dots (kids only). */
+body[data-variant="ktams"] .kid-hero{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-bottom:22px}
+@media (max-width:640px){body[data-variant="ktams"] .kid-hero{grid-template-columns:1fr}}
+body[data-variant="ktams"] .kid-play{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:2px;text-decoration:none;border-radius:24px;padding:22px 24px;color:#3A1030;background:linear-gradient(135deg,#FF6FA5,#FF9CC3);box-shadow:0 14px 30px rgba(255,111,165,.32);min-height:118px;justify-content:center;transition:transform .18s}
+body[data-variant="ktams"] .kid-play:hover{transform:translateY(-3px)}
+body[data-variant="ktams"] .kid-play-note{position:absolute;right:-6px;bottom:-14px;font-size:5rem;opacity:.28;line-height:1}
+body[data-variant="ktams"] .kid-play-kicker{font-size:.82rem;font-weight:700;opacity:.82}
+body[data-variant="ktams"] .kid-play-title{font-size:1.7rem;font-weight:800;line-height:1.05;margin:2px 0 8px}
+body[data-variant="ktams"] .kid-play-cta{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);color:#B0246A;padding:9px 16px;border-radius:100px;font-weight:800}
+body[data-variant="ktams"] .kid-streak{background:var(--panel,#2E1836);border:2px solid var(--border-gold,rgba(255,220,150,.24));border-radius:24px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;justify-content:center}
+body[data-variant="ktams"] .kid-streak-top{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:1.02rem}
+body[data-variant="ktams"] .kid-streak-top span{font-size:.82rem;color:var(--text-muted,rgba(255,247,238,.55));font-weight:600}
+body[data-variant="ktams"] .kid-bar{height:16px;border-radius:100px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid var(--border-gold,rgba(255,220,150,.24))}
+body[data-variant="ktams"] .kid-bar-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--gold,#FFB627),var(--gold-bright,#FFD35C));transition:width .4s}
+body[data-variant="ktams"] .kid-dots{display:flex;justify-content:space-between;gap:4px}
+body[data-variant="ktams"] .kid-dot{flex:1;text-align:center}
+body[data-variant="ktams"] .kid-dot span{display:flex;align-items:center;justify-content:center;height:34px;border-radius:12px;font-size:.9rem;background:rgba(255,255,255,.06);border:2px solid var(--border-gold,rgba(255,220,150,.2))}
+body[data-variant="ktams"] .kid-dot.on span{background:linear-gradient(135deg,var(--gold,#FFB627),var(--gold-bright,#FFD35C));border-color:transparent}
+body[data-variant="ktams"] .kid-dot.today span{box-shadow:0 0 0 2px var(--gold-bright,#FFD35C)}
+body[data-variant="ktams"] .kid-dot em{display:block;font-style:normal;font-size:.7rem;color:var(--text-muted,rgba(255,247,238,.55));margin-top:5px;font-weight:700}
