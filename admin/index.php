@@ -1593,7 +1593,7 @@ nav a{display:flex;align-items:center}
       // Wait for the deferred Chart.js CDN, but give up after ~3s so a blocked
       // CDN just leaves the (already-rendered) KPI cards rather than looping.
       if (typeof Chart === 'undefined') { if (tries++ < 25) setTimeout(draw, 120); return; }
-      var gold = '#E08A1A', green = '#34D399';
+      var gold = '#E8961F', green = '#34D399';
       var tc = document.getElementById('trendChart');
       if (tc) new Chart(tc.getContext('2d'), {
         data: {
@@ -2811,7 +2811,7 @@ nav a{display:flex;align-items:center}
         <h3>2 · Author — <?= htmlspecialchars($outline['course']['name']) ?><?= $outline['level'] ? ' · ' . htmlspecialchars($outline['level']['name']) : '' ?>
           <span class="muted" style="font-weight:400;font-size:0.8rem">— <?= $wkTotal ?>-week plan<?= $outline['program'] ? ' (' . htmlspecialchars($outline['program']['name']) . ')' : '' ?></span></h3>
         <div style="padding:0 20px 4px;display:flex;align-items:center;gap:12px">
-          <div style="flex:1;height:8px;border-radius:4px;background:var(--bg);overflow:hidden"><div style="height:100%;width:<?= $wkTotal ? (int)round($wkAuthored / $wkTotal * 100) : 0 ?>%;background:linear-gradient(90deg,var(--gold),#FBBF24)"></div></div>
+          <div style="flex:1;height:8px;border-radius:4px;background:var(--bg);overflow:hidden"><div style="height:100%;width:<?= $wkTotal ? (int)round($wkAuthored / $wkTotal * 100) : 0 ?>%;background:linear-gradient(90deg,var(--gold),var(--goldhi))"></div></div>
           <span class="muted" style="font-size:.78rem;white-space:nowrap"><strong><?= $wkAuthored ?></strong> of <?= $wkTotal ?> weeks authored</span>
         </div>
         <div style="padding:0 20px 16px">
