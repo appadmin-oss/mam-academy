@@ -1081,3 +1081,15 @@ CREATE TABLE IF NOT EXISTS faculty_invites (
   KEY idx_facinv_status (status, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (37) ON DUPLICATE KEY UPDATE version = version;
+
+-- v38 — lifecycle automations: admin-toggleable enable flag per rule
+-- (see api/lib/automations.php). Additive; unknown rules fall back to defaults.
+CREATE TABLE IF NOT EXISTS automations (
+  akey        VARCHAR(64) PRIMARY KEY,
+  enabled     TINYINT(1) NOT NULL DEFAULT 1,
+  params      TEXT,
+  last_run_at DATETIME NULL,
+  run_count   INT NOT NULL DEFAULT 0,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (38) ON DUPLICATE KEY UPDATE version = version;

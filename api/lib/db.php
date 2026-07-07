@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 37;
+const MAM_SCHEMA_TARGET = 38;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1127,6 +1127,19 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX idx_facinv_email ON faculty_invites(email);
             CREATE INDEX idx_facinv_status ON faculty_invites(status, id);
+        ",
+        // v38 — lifecycle automations: an admin-toggleable enable flag per rule
+        // (see api/lib/automations.php). One row per fired/edited rule; unknown
+        // rows fall back to the registry default, so this table is additive.
+        38 => "
+            CREATE TABLE automations (
+              akey        TEXT PRIMARY KEY,
+              enabled     INTEGER NOT NULL DEFAULT 1,
+              params      TEXT,
+              last_run_at TEXT,
+              run_count   INTEGER NOT NULL DEFAULT 0,
+              updated_at  TEXT DEFAULT (datetime('now'))
+            );
         ",
     ];
 

@@ -163,6 +163,13 @@ function mam_payment_settle_tuition(int $appId): ?string {
     mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $appId]);
     $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$appId]);
     if (!$app || !$app['customer_id']) return null;
+    // Governed by the 'payment_provision' automation (admin ?v=automations).
+    // Default on — turning it off marks the application paid but leaves portal
+    // provisioning + the welcome email to a manual step.
+    if (function_exists('mam_automation_on') && !mam_automation_on('payment_provision')) {
+        return 'portal_provision_automation_off';
+    }
+    if (function_exists('mam_automation_touch')) mam_automation_touch('payment_provision');
     try {
         $provision = mam_ensure_student_user((int)$app['customer_id']);
         if (empty($provision['password'])) return 'portal_already_provisioned';

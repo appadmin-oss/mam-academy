@@ -192,6 +192,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
+        'automation_toggle' => 'settings',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
         'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
         // Destructive record deletions + bulk seeding are super-only — a manager
@@ -828,6 +829,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=settings&ok=1'); exit;
     }
 
+    // Toggle a lifecycle automation on/off (super/settings only — gated above).
+    // The flag is honoured at each rule's trigger point (see api/lib/automations.php).
+    if ($action === 'automation_toggle') {
+        $key = (string)($_POST['key'] ?? '');
+        if (isset(mam_automations_registry()[$key])) {
+            $on = (string)($_POST['enabled'] ?? '') === '1';
+            mam_automation_set($key, $on);
+            mam_audit('automation_toggle', 'automation', null, ['key' => $key, 'enabled' => $on]);
+            header('Location: ?v=automations&ok=' . urlencode(($on ? 'Enabled' : 'Paused') . ' — ' . $key)); exit;
+        }
+        header('Location: ?v=automations&err=' . urlencode('Unknown automation.')); exit;
+    }
+
     if ($action === 'store_order_status') {
         $oid = (int)($_POST['order_id'] ?? 0);
         $status = (string)($_POST['status'] ?? '');
@@ -1239,6 +1253,39 @@ nav a{display:flex;align-items:center}
 .mam-toast.in{transform:none;opacity:1}
 .mam-toast.ok{background:#123B2C;border:1px solid #34D399;color:#A7F3D0}
 .mam-toast.err{background:#3B1219;border:1px solid #FB7185;color:#FECDD3}
+/* ── Automations: trigger→action rules with a no-JS toggle switch ── */
+.auto-rule{display:flex;align-items:center;gap:16px;padding:15px 20px;border-top:1px solid var(--border)}
+.auto-rule:first-child{border-top:none}
+.auto-ico{flex-shrink:0;width:40px;height:40px;border-radius:11px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:1rem}
+.auto-body{flex:1;min-width:0}
+.auto-trig{font-weight:700;font-size:.92rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.auto-act{color:var(--muted);font-size:.84rem;margin-top:2px}
+.auto-act i{color:var(--faint);margin:0 5px;font-size:.72rem}
+.auto-tag{font-size:.6rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:100px;border:1px solid}
+.auto-tag.live{color:#34D399;border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.1)}
+.auto-tag.planned{color:var(--faint);border-color:var(--border);background:var(--bg)}
+.auto-meta{font-size:.72rem;color:var(--faint);margin-top:3px}
+.auto-switch{flex-shrink:0;border:0;background:transparent;cursor:pointer;padding:0}
+.auto-switch .track{width:46px;height:26px;border-radius:100px;background:var(--card);border:1px solid var(--border);position:relative;transition:background .2s,border-color .2s}
+.auto-switch .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--faint);transition:transform .2s,background .2s}
+.auto-switch.on .track{background:linear-gradient(135deg,var(--gold),var(--gold-2));border-color:transparent}
+.auto-switch.on .knob{transform:translateX(20px);background:#1A120B}
+/* ── Command palette (⌘K) ── */
+.cmdk-scrim{position:fixed;inset:0;z-index:10000;background:rgba(10,7,4,.62);display:none;align-items:flex-start;justify-content:center;padding:12vh 16px 16px}
+.cmdk-scrim.open{display:flex}
+.cmdk{width:100%;max-width:560px;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 26px 80px rgba(0,0,0,.6);overflow:hidden;animation:cmdkIn .16s ease-out}
+@keyframes cmdkIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.cmdk-in{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.cmdk-in i{color:var(--faint)}
+.cmdk-in input{flex:1;background:transparent;border:0;outline:none;color:var(--ink);font-size:1rem}
+.cmdk-list{max-height:52vh;overflow:auto;padding:6px}
+.cmdk-sec{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:800;padding:10px 12px 4px}
+.cmdk-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;cursor:pointer;color:var(--text);font-size:.9rem}
+.cmdk-item i{width:18px;text-align:center;color:var(--gold)}
+.cmdk-item .tag{margin-left:auto;font-size:.64rem;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+.cmdk-item.sel,.cmdk-item:hover{background:rgba(232,150,31,.14)}
+.cmdk-empty{padding:22px 14px;text-align:center;color:var(--faint);font-size:.86rem}
+@media(prefers-reduced-motion:reduce){.cmdk{animation:none}.auto-switch .knob,.auto-switch .track{transition:none}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -1277,7 +1324,7 @@ nav a{display:flex;align-items:center}
       'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane']],
-      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'datarights' => ['Data Rights', 'shield-halved']],
+      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'automations' => ['Automations', 'robot'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'datarights' => ['Data Rights', 'shield-halved']],
       'Account'    => ['account' => ['My Account', 'circle-user']],
     ];
     // Flatten to a label map so the topbar title lookup keeps working.
@@ -1285,7 +1332,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'datarights' => 'users', 'media' => 'media'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'automations' => 'settings', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'datarights' => 'users', 'media' => 'media'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -3334,6 +3381,58 @@ nav a{display:flex;align-items:center}
     </form>
   </div>
 
+<?php elseif ($view === 'automations'):
+    // Lifecycle automations — the academy's "when X, do Y" rules, each with a
+    // persisted on/off flag honoured at its trigger point (api/lib/automations.php).
+    $autos = mam_automations_list();
+    $activeCount = mam_automations_active_count();
+    $totalCount  = count($autos);
+    $autoGroups  = [];
+    foreach ($autos as $a) { $autoGroups[$a['group']][] = $a; }
+?>
+  <header class="top">
+    <h1>Automations</h1>
+    <span class="pill" style="background:rgba(232,150,31,.14);color:var(--gold);font-weight:700"><?= (int)$activeCount ?> of <?= (int)$totalCount ?> active</span>
+  </header>
+  <div class="card" style="max-width:820px">
+    <div style="padding:16px 20px 4px;color:var(--muted);font-size:.9rem;line-height:1.6">
+      Each rule runs a small "when this happens, do that" behaviour. Pause one to stop it firing —
+      the flag takes effect immediately, everywhere the trigger runs. Rules tagged
+      <span class="auto-tag live" style="vertical-align:middle">live</span> act the moment their trigger fires;
+      <span class="auto-tag planned" style="vertical-align:middle">queued</span> rules persist their setting for the
+      background runner (<code>api/tools/run-jobs.php</code>) as each handler adopts it.
+    </div>
+  </div>
+  <?php foreach ($autoGroups as $groupName => $rules): ?>
+  <div class="card" style="max-width:820px">
+    <h3><?= htmlspecialchars($groupName) ?></h3>
+    <?php foreach ($rules as $a):
+      $on = (bool)$a['enabled'];
+      $lastRun = $a['last_run_at'] ? 'Last ran ' . htmlspecialchars(substr((string)$a['last_run_at'], 0, 16)) . ($a['run_count'] ? ' · ' . (int)$a['run_count'] . ' run' . ($a['run_count'] === 1 ? '' : 's') : '') : '';
+    ?>
+      <div class="auto-rule">
+        <span class="auto-ico"><i class="fa-solid fa-<?= htmlspecialchars($a['icon']) ?>" aria-hidden="true"></i></span>
+        <div class="auto-body">
+          <div class="auto-trig"><?= htmlspecialchars($a['trigger']) ?>
+            <span class="auto-tag <?= $a['live'] ? 'live' : 'planned' ?>"><?= $a['live'] ? 'live' : 'queued' ?></span>
+          </div>
+          <div class="auto-act"><i class="fa-solid fa-arrow-right-long" aria-hidden="true"></i><?= htmlspecialchars($a['action']) ?></div>
+          <?php if ($lastRun): ?><div class="auto-meta"><?= $lastRun ?></div><?php endif; ?>
+        </div>
+        <form method="post" action="" style="margin:0">
+          <?= mam_csrf_field() ?>
+          <input type="hidden" name="action" value="automation_toggle">
+          <input type="hidden" name="key" value="<?= htmlspecialchars($a['key']) ?>">
+          <input type="hidden" name="enabled" value="<?= $on ? '0' : '1' ?>">
+          <button type="submit" class="auto-switch <?= $on ? 'on' : '' ?>" role="switch" aria-checked="<?= $on ? 'true' : 'false' ?>" aria-label="<?= $on ? 'Pause' : 'Enable' ?> automation: <?= htmlspecialchars($a['trigger']) ?>">
+            <span class="track"><span class="knob"></span></span>
+          </button>
+        </form>
+      </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endforeach; ?>
+
 <?php elseif ($view === 'account'):
   $me = mam_current_user();
 ?>
@@ -3502,14 +3601,86 @@ nav a{display:flex;align-items:center}
     params.delete('ok'); params.delete('err');
     try { history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash); } catch (e) {}
   }
-  // Keyboard reach: '/' or Ctrl/Cmd+K jumps to the global search.
-  document.addEventListener('keydown', function (e) {
-    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
-    if (((e.key === '/' && !typing) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'))) {
-      var q = document.querySelector('aside input[type=search]');
-      if (q) { e.preventDefault(); q.focus(); q.select(); }
+  // ── Command palette (⌘K / Ctrl+K, or '/') ──────────────────────────
+  // Fuzzy-jump to any section the current admin can reach, run a quick action,
+  // or fall through to a full search. Fully keyboard-navigable (↑/↓/Enter/Esc).
+  var CMD = <?php
+    $cmdGo = [];
+    foreach ($navGroups as $__g => $__items) {
+      foreach ($__items as $__k => $__m) {
+        if (!$canView($__k)) continue;
+        $cmdGo[] = ['label' => $__m[0], 'icon' => $__m[1], 'url' => '?v=' . $__k, 'group' => 'Go to'];
+      }
     }
-  });
+    $cmdActions = [
+      ['label' => 'Export applications (CSV)', 'icon' => 'file-csv', 'url' => '?v=export&type=applications.csv', 'group' => 'Action'],
+      ['label' => 'Export payments (CSV)', 'icon' => 'file-csv', 'url' => '?v=export&type=payments.csv', 'group' => 'Action'],
+      ['label' => 'View public site', 'icon' => 'arrow-up-right-from-square', 'url' => '/', 'group' => 'Action'],
+    ];
+    echo json_encode(array_merge($cmdGo, $cmdActions), JSON_UNESCAPED_SLASHES);
+  ?>;
+  (function () {
+    var scrim = document.createElement('div'); scrim.className = 'cmdk-scrim'; scrim.setAttribute('role', 'dialog'); scrim.setAttribute('aria-modal', 'true');
+    scrim.innerHTML = '<div class="cmdk"><div class="cmdk-in"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>'
+      + '<input type="text" placeholder="Search or jump to…" aria-label="Command palette" autocomplete="off" spellcheck="false">'
+      + '<span style="font-size:.64rem;color:var(--faint);border:1px solid var(--border);border-radius:6px;padding:2px 6px">ESC</span></div>'
+      + '<div class="cmdk-list" role="listbox"></div></div>';
+    document.body.appendChild(scrim);
+    var input = scrim.querySelector('input'), list = scrim.querySelector('.cmdk-list');
+    var open = false, sel = 0, results = [];
+    function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    // Subsequence match — "sto" matches "Store Orders" — with a light score so
+    // tighter matches float up.
+    function score(q, s) {
+      q = q.toLowerCase(); s = s.toLowerCase();
+      if (!q) return 1;
+      if (s.indexOf(q) >= 0) return 100 - s.indexOf(q);
+      var qi = 0; for (var i = 0; i < s.length && qi < q.length; i++) if (s[i] === q[qi]) qi++;
+      return qi === q.length ? 1 : 0;
+    }
+    function render() {
+      var q = input.value.trim();
+      results = CMD.map(function (e) { return { e: e, sc: score(q, e.label) }; })
+                   .filter(function (r) { return r.sc > 0; })
+                   .sort(function (a, b) { return b.sc - a.sc; })
+                   .map(function (r) { return r.e; });
+      if (q) results.push({ label: 'Search for “' + q + '”', icon: 'magnifying-glass', url: '?v=search&q=' + encodeURIComponent(q), group: 'Search' });
+      sel = 0;
+      if (!results.length) { list.innerHTML = '<div class="cmdk-empty">No matches.</div>'; return; }
+      var html = '', lastGroup = '';
+      results.forEach(function (e, i) {
+        if (e.group !== lastGroup) { html += '<div class="cmdk-sec">' + esc(e.group) + '</div>'; lastGroup = e.group; }
+        html += '<div class="cmdk-item' + (i === sel ? ' sel' : '') + '" data-i="' + i + '" role="option">'
+             + '<i class="fa-solid fa-' + esc(e.icon) + '" aria-hidden="true"></i><span>' + esc(e.label) + '</span>'
+             + (e.group === 'Go to' ? '' : '<span class="tag">' + esc(e.group) + '</span>') + '</div>';
+      });
+      list.innerHTML = html;
+    }
+    function move(d) {
+      var items = list.querySelectorAll('.cmdk-item'); if (!items.length) return;
+      items[sel] && items[sel].classList.remove('sel');
+      sel = (sel + d + items.length) % items.length;
+      items[sel].classList.add('sel'); items[sel].scrollIntoView({ block: 'nearest' });
+    }
+    function go(i) { var e = results[i]; if (e) location.href = e.url; }
+    function show() { open = true; scrim.classList.add('open'); input.value = ''; render(); setTimeout(function () { input.focus(); }, 0); }
+    function hide() { open = false; scrim.classList.remove('open'); }
+    input.addEventListener('input', render);
+    list.addEventListener('click', function (e) { var it = e.target.closest('.cmdk-item'); if (it) go(+it.getAttribute('data-i')); });
+    scrim.addEventListener('mousedown', function (e) { if (e.target === scrim) hide(); });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); go(sel); }
+      else if (e.key === 'Escape') { e.preventDefault(); hide(); }
+    });
+    document.addEventListener('keydown', function (e) {
+      var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); open ? hide() : show(); }
+      else if (e.key === '/' && !typing && !open) { e.preventDefault(); show(); }
+      else if (e.key === 'Escape' && open) { hide(); }
+    });
+  })();
 })();
 </script>
 </body>
