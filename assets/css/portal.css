@@ -282,55 +282,53 @@
 .prog-sub{margin-top:7px;font-size:0.76rem;color:var(--text-muted)}
 
 /* ════════════════════════════════════════════════════════════════
-   KTAMS — child-friendly variant (under-16 "Kids @ MAM" students).
-   A brighter, rounder, larger-touch-target spin on the same dark theme
-   so it feels playful and easy for young learners without becoming a
-   different product. Applied via <body data-variant="ktams">.
+   KTAMS — "Kids @ MAM" variant (under-16 students). The SAME candlelit
+   product as the main portal — same palette, components and structure —
+   just kid-centered: a touch warmer, larger tap targets for young hands,
+   and one friendly practice hero on the overview. Deliberately NOT a
+   separate cutesy app. Applied via <body data-variant="ktams">.
    ════════════════════════════════════════════════════════════════ */
 body[data-variant="ktams"]{
-  --gold:#FFB02E;--gold-light:#FFC94D;--gold-bright:#FFD84D;
-  --emerald:#36E0A6;--purple:#9B8CFF;
+  /* A gentle, on-brand warm-up of the shared gold — not a new palette. */
+  --gold:#EEA02A;--gold-light:#F7B23A;--gold-bright:#FCC647;
 }
-body[data-variant="ktams"] .portal-brand-sub{color:var(--gold-bright);font-weight:800}
-body[data-variant="ktams"] .portal-nav-link{font-size:0.98rem;padding:13px 16px;border-radius:14px}
-body[data-variant="ktams"] .portal-nav-link i{font-size:1.05rem}
-body[data-variant="ktams"] .portal-top h1{font-size:2.2rem}
-/* Cheerful gradient hello banner */
-body[data-variant="ktams"] .portal-hello{background:linear-gradient(135deg,rgba(255,176,46,0.18),rgba(155,140,255,0.14));border:1px solid var(--border-gold);border-radius:20px;padding:20px 24px;margin-bottom:22px}
-body[data-variant="ktams"] .portal-hello h2{font-size:1.6rem}
-/* Bigger, rounder, livelier KPI tiles */
-body[data-variant="ktams"] .kpi{border-radius:20px;border-width:2px;text-align:center}
-body[data-variant="ktams"] .kpi-value{font-size:2.4rem}
-body[data-variant="ktams"] .panel{border-radius:20px}
-/* Friendlier, bigger buttons + tap targets for young hands */
+body[data-variant="ktams"] .portal-brand-sub{color:var(--gold-bright);font-weight:700}
+/* Slightly larger tap targets + type for young hands (a11y-friendly), while
+   keeping the main portal's shapes and rhythm. */
+body[data-variant="ktams"] .portal-nav-link{font-size:0.96rem;padding:12px 15px}
+body[data-variant="ktams"] .portal-top h1{font-size:1.9rem}
+body[data-variant="ktams"] .portal-hello{background:linear-gradient(135deg,rgba(238,160,42,0.16),rgba(238,160,42,0.05))}
+body[data-variant="ktams"] .kpi{text-align:center}
 body[data-variant="ktams"] .btn,
 body[data-variant="ktams"] button[type=submit],
-body[data-variant="ktams"] .asg-toggle{min-height:52px;font-size:1rem;border-radius:14px}
-body[data-variant="ktams"] .asg-card{border-radius:18px;border-width:2px}
-body[data-variant="ktams"] .asg-title{font-size:1.1rem}
-/* A little life on the streak number (respects reduced-motion below) */
-body[data-variant="ktams"] .kpi-value.gold{animation:ktamsPulse 2.4s ease-in-out infinite}
-@keyframes ktamsPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+body[data-variant="ktams"] .asg-toggle{min-height:50px;font-size:0.98rem}
+body[data-variant="ktams"] .asg-title{font-size:1.05rem}
+/* A little life on the streak number (respects reduced-motion below). */
+body[data-variant="ktams"] .kpi-value.gold{animation:ktamsPulse 2.6s ease-in-out infinite}
+@keyframes ktamsPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.045)}}
 @media (prefers-reduced-motion:reduce){
   body[data-variant="ktams"] .kpi-value.gold{animation:none}
 }
-/* KTAMS playful overview hero — practice CTA + streak/week-dots (kids only). */
-body[data-variant="ktams"] .kid-hero{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-bottom:22px}
+/* Kids overview hero — a warm practice CTA + streak/week-dots. Built from the
+   same surface/border/gold tokens as every other portal panel, so it reads as
+   part of the product, not a bolt-on. */
+body[data-variant="ktams"] .kid-hero{display:grid;grid-template-columns:1.05fr 1fr;gap:16px;margin-bottom:22px}
 @media (max-width:640px){body[data-variant="ktams"] .kid-hero{grid-template-columns:1fr}}
-body[data-variant="ktams"] .kid-play{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:2px;text-decoration:none;border-radius:24px;padding:22px 24px;color:#3A1030;background:linear-gradient(135deg,#FF6FA5,#FF9CC3);box-shadow:0 14px 30px rgba(255,111,165,.32);min-height:118px;justify-content:center;transition:transform .18s}
-body[data-variant="ktams"] .kid-play:hover{transform:translateY(-3px)}
-body[data-variant="ktams"] .kid-play-note{position:absolute;right:-6px;bottom:-14px;font-size:5rem;opacity:.28;line-height:1}
-body[data-variant="ktams"] .kid-play-kicker{font-size:.82rem;font-weight:700;opacity:.82}
-body[data-variant="ktams"] .kid-play-title{font-size:1.7rem;font-weight:800;line-height:1.05;margin:2px 0 8px}
-body[data-variant="ktams"] .kid-play-cta{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.85);color:#B0246A;padding:9px 16px;border-radius:100px;font-weight:800}
-body[data-variant="ktams"] .kid-streak{background:var(--panel,#2E1836);border:2px solid var(--border-gold,rgba(255,220,150,.24));border-radius:24px;padding:18px 20px;display:flex;flex-direction:column;gap:12px;justify-content:center}
-body[data-variant="ktams"] .kid-streak-top{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:1.02rem}
-body[data-variant="ktams"] .kid-streak-top span{font-size:.82rem;color:var(--text-muted,rgba(255,247,238,.55));font-weight:600}
-body[data-variant="ktams"] .kid-bar{height:16px;border-radius:100px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid var(--border-gold,rgba(255,220,150,.24))}
-body[data-variant="ktams"] .kid-bar-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--gold,#FFB627),var(--gold-bright,#FFD35C));transition:width .4s}
-body[data-variant="ktams"] .kid-dots{display:flex;justify-content:space-between;gap:4px}
+body[data-variant="ktams"] .kid-play{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:2px;text-decoration:none;border-radius:var(--radius-md);padding:22px 24px;color:#1A120B;background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:0 10px 28px rgba(232,150,31,.28);min-height:120px;justify-content:center;transition:transform .18s}
+body[data-variant="ktams"] .kid-play:hover{transform:translateY(-2px)}
+body[data-variant="ktams"] .kid-play:focus-visible{outline:3px solid var(--gold-bright);outline-offset:3px}
+body[data-variant="ktams"] .kid-play-note{position:absolute;right:2px;bottom:-10px;font-size:4.4rem;opacity:.22;line-height:1}
+body[data-variant="ktams"] .kid-play-kicker{font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.72}
+body[data-variant="ktams"] .kid-play-title{font-family:var(--font-display);font-size:1.7rem;font-weight:700;line-height:1.05;margin:2px 0 10px}
+body[data-variant="ktams"] .kid-play-cta{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;background:rgba(26,18,11,.14);color:#1A120B;padding:9px 16px;border-radius:100px;font-weight:800}
+body[data-variant="ktams"] .kid-streak{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:18px 20px;display:flex;flex-direction:column;gap:12px;justify-content:center}
+body[data-variant="ktams"] .kid-streak-top{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:1rem}
+body[data-variant="ktams"] .kid-streak-top span{font-size:.8rem;color:var(--text-muted);font-weight:600}
+body[data-variant="ktams"] .kid-bar{height:14px;border-radius:100px;background:var(--bg-raised);overflow:hidden;border:1px solid var(--border)}
+body[data-variant="ktams"] .kid-bar-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--gold),var(--gold-bright));transition:width .4s}
+body[data-variant="ktams"] .kid-dots{display:flex;justify-content:space-between;gap:5px}
 body[data-variant="ktams"] .kid-dot{flex:1;text-align:center}
-body[data-variant="ktams"] .kid-dot span{display:flex;align-items:center;justify-content:center;height:34px;border-radius:12px;font-size:.9rem;background:rgba(255,255,255,.06);border:2px solid var(--border-gold,rgba(255,220,150,.2))}
-body[data-variant="ktams"] .kid-dot.on span{background:linear-gradient(135deg,var(--gold,#FFB627),var(--gold-bright,#FFD35C));border-color:transparent}
-body[data-variant="ktams"] .kid-dot.today span{box-shadow:0 0 0 2px var(--gold-bright,#FFD35C)}
-body[data-variant="ktams"] .kid-dot em{display:block;font-style:normal;font-size:.7rem;color:var(--text-muted,rgba(255,247,238,.55));margin-top:5px;font-weight:700}
+body[data-variant="ktams"] .kid-dot span{display:flex;align-items:center;justify-content:center;height:32px;border-radius:10px;font-size:.85rem;background:var(--bg-raised);border:1px solid var(--border)}
+body[data-variant="ktams"] .kid-dot.on span{background:linear-gradient(135deg,var(--gold),var(--gold-bright));border-color:transparent}
+body[data-variant="ktams"] .kid-dot.today span{box-shadow:0 0 0 2px var(--gold-bright)}
+body[data-variant="ktams"] .kid-dot em{display:block;font-style:normal;font-size:.68rem;color:var(--text-muted);margin-top:5px;font-weight:700}
