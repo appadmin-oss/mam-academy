@@ -1266,7 +1266,7 @@ nav a{display:flex;align-items:center}
 .auto-tag.planned{color:var(--faint);border-color:var(--border);background:var(--bg)}
 .auto-meta{font-size:.72rem;color:var(--faint);margin-top:3px}
 .auto-switch{flex-shrink:0;border:0;background:transparent;cursor:pointer;padding:0}
-.auto-switch .track{width:46px;height:26px;border-radius:100px;background:var(--card);border:1px solid var(--border);position:relative;transition:background .2s,border-color .2s}
+.auto-switch .track{display:block;width:46px;height:26px;border-radius:100px;background:var(--card);border:1px solid var(--border);position:relative;transition:background .2s,border-color .2s}
 .auto-switch .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--faint);transition:transform .2s,background .2s}
 .auto-switch.on .track{background:linear-gradient(135deg,var(--gold),var(--gold-2));border-color:transparent}
 .auto-switch.on .knob{transform:translateX(20px);background:#1A120B}
@@ -1281,7 +1281,7 @@ nav a{display:flex;align-items:center}
 .cmdk-list{max-height:52vh;overflow:auto;padding:6px}
 .cmdk-sec{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:800;padding:10px 12px 4px}
 .cmdk-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;cursor:pointer;color:var(--text);font-size:.9rem}
-.cmdk-item i{width:18px;text-align:center;color:var(--gold)}
+.cmdk-item i{display:inline-block;width:18px;text-align:center;color:var(--gold)}
 .cmdk-item .tag{margin-left:auto;font-size:.64rem;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
 .cmdk-item.sel,.cmdk-item:hover{background:rgba(232,150,31,.14)}
 .cmdk-empty{padding:22px 14px;text-align:center;color:var(--faint);font-size:.86rem}
