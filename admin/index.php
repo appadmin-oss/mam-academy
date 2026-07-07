@@ -1234,7 +1234,23 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .muted{color:var(--muted)}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.82rem}
 form.inline{display:inline-flex;gap:6px;align-items:center}
+/* ── Base form controls: theme EVERY bare input/select/textarea in the content
+   area so inline forms (app decision, placement, assignee, notes, …) match the
+   dark UI instead of rendering as default white widgets. .form-grid / .tiny
+   variants keep their own tighter styling via higher specificity. ── */
+main input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]),
+main select, main textarea{
+  background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:8px;
+  font:inherit;font-size:0.9rem;padding:9px 11px;min-height:40px;max-width:100%;outline:none;
+  color-scheme:dark;transition:border-color .15s,box-shadow .15s}
+main textarea{min-height:64px;line-height:1.5;padding:10px 12px;resize:vertical}
+main input:not([type=hidden]):focus, main select:focus, main textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(251,191,36,0.18)}
+main input::placeholder, main textarea::placeholder{color:var(--faint,rgba(251,247,243,0.4))}
+main input[type=checkbox], main input[type=radio]{accent-color:var(--gold);min-height:0}
+main select option{background:var(--panel);color:var(--text)}
 select.tiny,input.tiny{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:0.78rem;padding:4px 6px}
+/* Keep compact inline controls compact even under the base rule above. */
+main select.tiny,main input.tiny{min-height:0;padding:4px 6px;font-size:0.78rem;border-radius:6px}
 button.tiny{padding:4px 8px;font-size:0.74rem;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer}
 button.tiny:hover{border-color:var(--gold)}
 .empty{padding:48px;text-align:center;color:var(--muted)}
