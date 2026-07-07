@@ -2781,6 +2781,53 @@ nav a{display:flex;align-items:center}
     $selCourse  = (string)($_GET['course'] ?? '');
     $selLevel   = (string)($_GET['level'] ?? '');
     $selProgram = (string)($_GET['program'] ?? '');
+    // Module edit drawer (redesign) — a focused, roomy editor for one week,
+    // shown when ?module=N. The inline week list remains for quick edits.
+    $drawerMid = (int)($_GET['module'] ?? 0);
+    $drawerMod = $drawerMid ? mam_db_row('SELECT * FROM modules WHERE id = ?', [$drawerMid]) : null;
+    $backUrl = '?v=modules&course=' . urlencode($selCourse) . '&level=' . urlencode($selLevel) . '&program=' . urlencode($selProgram);
+    if ($drawerMod):
+  ?>
+  <div class="mam-drawer-scrim" data-param="module">
+  <aside class="mam-drawer" role="dialog" aria-modal="true" aria-label="Edit module">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0 0 4px">Edit module <span class="mono muted" style="font-size:.8rem">week <?= (int)$drawerMod['week'] ?></span></h2>
+        <div class="muted" style="font-size:.84rem"><?= htmlspecialchars($selCourse) ?><?= $selLevel ? ' · ' . htmlspecialchars($selLevel) : '' ?></div>
+      </div>
+      <a class="btn ghost" href="<?= htmlspecialchars($backUrl) ?>">✕ Close</a>
+    </div>
+    <form method="post" style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="module_save">
+      <input type="hidden" name="module_id" value="<?= (int)$drawerMod['id'] ?>">
+      <input type="hidden" name="course_code" value="<?= htmlspecialchars($selCourse) ?>">
+      <input type="hidden" name="level_code" value="<?= htmlspecialchars($selLevel) ?>">
+      <input type="hidden" name="program_code" value="<?= htmlspecialchars($selProgram) ?>">
+      <div style="display:flex;gap:12px">
+        <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted);flex:0 0 90px">Week<input type="number" name="week" value="<?= (int)$drawerMod['week'] ?>" min="1"></label>
+        <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted);flex:1">Kind
+          <select name="kind">
+            <?php foreach (['module', 'revision', 'exam'] as $k): ?><option value="<?= $k ?>" <?= $k === $drawerMod['kind'] ? 'selected' : '' ?>><?= $k ?></option><?php endforeach; ?>
+          </select>
+        </label>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted)">Title<input name="title" value="<?= htmlspecialchars((string)($drawerMod['title'] ?? '')) ?>" placeholder="Module title"></label>
+      <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted)">Content &amp; learning objectives<textarea name="content" rows="12" placeholder="What this week covers…"><?= htmlspecialchars((string)($drawerMod['content'] ?? '')) ?></textarea></label>
+      <button class="btn" type="submit">Save module</button>
+    </form>
+    <form method="post" style="margin-top:14px;text-align:right">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="module_delete">
+      <input type="hidden" name="module_id" value="<?= (int)$drawerMod['id'] ?>">
+      <input type="hidden" name="course_code" value="<?= htmlspecialchars($selCourse) ?>">
+      <input type="hidden" name="level_code" value="<?= htmlspecialchars($selLevel) ?>">
+      <button class="tiny" type="submit" style="background:transparent;color:var(--red);border:1px solid rgba(240,86,126,.4)">Delete this week</button>
+    </form>
+  </aside>
+  </div>
+  <?php endif; ?>
+  <?php
     if (isset($_GET['made'])) echo '<div class="banner ok">Scaffolded ' . (int)$_GET['made'] . ' week(s).</div>';
     if (isset($_GET['imp_c'])) {
         $ic = (int)$_GET['imp_c']; $iu = (int)($_GET['imp_u'] ?? 0); $is = (int)($_GET['imp_s'] ?? 0);
@@ -2928,7 +2975,8 @@ nav a{display:flex;align-items:center}
             </div>
             <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;align-self:center;text-align:center">
               <button class="tiny cm-save" type="submit" style="opacity:.45" title="Edit the week to enable">Save</button>
-              <?php if (!$isAuthored): ?><span class="muted" style="font-size:.62rem;letter-spacing:.06em;text-transform:uppercase">not saved yet</span><?php endif; ?>
+              <?php if ($isAuthored): ?><a class="tiny btn ghost" href="?v=modules&course=<?= urlencode($selCourse) ?>&level=<?= urlencode($selLevel) ?>&program=<?= urlencode($selProgram) ?>&module=<?= (int)$wk['id'] ?>" style="padding:5px 8px" title="Open the focused editor"><i class="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"></i> Expand</a>
+              <?php else: ?><span class="muted" style="font-size:.62rem;letter-spacing:.06em;text-transform:uppercase">not saved yet</span><?php endif; ?>
             </div>
         </form>
         <?php if (!empty($wk['id'])): ?>
