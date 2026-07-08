@@ -300,6 +300,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=account&ok=1'); exit;
     }
 
+    // Bulk status change across selected applications — routes each through the
+    // audited admissions state machine; illegal transitions are skipped, not
+    // fatal. Provisioning stays a per-application step (drawer / single save).
+    if ($action === 'app_bulk_status') {
+        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)($_POST['ids'] ?? ''))))));
+        $status = (string)($_POST['status'] ?? '');
+        $valid = ['submitted', 'in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'];
+        if (!$ids || !in_array($status, $valid, true)) { header('Location: ?v=applications&err=' . urlencode('Select at least one application and a status.')); exit; }
+        $ok = 0; $skip = 0;
+        foreach (array_slice($ids, 0, 200) as $id) {
+            try { mam_admissions_transition($id, $status, ((int)($adminUser['id'] ?? 0)) ?: null, 'bulk update'); $ok++; }
+            catch (\Throwable $e) { $skip++; }
+        }
+        mam_audit('app_bulk_status', 'application', null, ['status' => $status, 'ok' => $ok, 'skipped' => $skip]);
+        header('Location: ?v=applications&ok=' . urlencode("Updated {$ok} application(s) to “{$status}”" . ($skip ? " · {$skip} skipped (not allowed from their stage)" : '') . '.')); exit;
+    }
+
     if ($action === 'app_status') {
         $id = (int)($_POST['id'] ?? 0);
         $status = $_POST['status'] ?? '';
@@ -1936,19 +1953,34 @@ nav a{display:flex;align-items:center}
   </div>
   <?php endif; ?>
   <div class="card">
+    <form method="post" id="appBulk" style="display:none;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--raised)">
+      <?= mam_csrf_field() ?>
+      <input type="hidden" name="action" value="app_bulk_status">
+      <input type="hidden" name="ids" id="appBulkIds">
+      <strong id="appBulkCount">0 selected</strong>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted)">Set status
+        <select name="status" required>
+          <option value="">—</option>
+          <?php foreach (['in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'] as $s): ?><option value="<?= $s ?>"><?= $s ?></option><?php endforeach; ?>
+        </select>
+      </label>
+      <button class="btn" type="submit">Apply to selected</button>
+      <button type="button" class="btn ghost" id="appBulkClear">Clear</button>
+    </form>
     <table class="stack">
-      <thead><tr><th>Photo</th><th>Reference</th><th>Student</th><th>Programme</th><th>Pathway · Mode</th><th>Course</th><th>Session</th><th>Age</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
+      <thead><tr><th style="width:36px"><input type="checkbox" id="appSelAll" aria-label="Select all applications"></th><th>Photo</th><th>Reference</th><th>Student</th><th>Programme</th><th>Pathway · Mode</th><th>Course</th><th>Session</th><th>Age</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
       <tbody>
       <?php
       $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM applications'); $off = ($page - 1) * $perPage;
       $rows = mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email, c.phone, c.sex, c.address, c.lga, c.state, c.country, c.age_range FROM applications a LEFT JOIN customers c ON c.id=a.customer_id ORDER BY a.created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
       if (!$rows): ?>
-        <tr><td colspan="12" class="empty">No applications yet</td></tr>
+        <tr><td colspan="13" class="empty">No applications yet</td></tr>
       <?php endif;
       $sessionLabels = ['toni' => 'TONI', 'medi' => 'MEDI', 'summer' => 'SUMMER', 'domi' => 'DOMI'];
       foreach ($rows as $r):
         $loc = implode(', ', array_filter([$r['lga'] ?? '', $r['state'] ?? '', $r['country'] ?? ''])); ?>
         <tr>
+          <td data-label="" style="width:36px"><input type="checkbox" class="appsel" value="<?= (int)$r['id'] ?>" aria-label="Select <?= htmlspecialchars((string)$r['reference']) ?>"></td>
           <td data-label="Photo">
             <?php if (!empty($r['headshot_url'])): ?>
               <a href="<?= htmlspecialchars($r['headshot_url']) ?>" target="_blank" rel="noopener"><img src="<?= htmlspecialchars($r['headshot_url']) ?>" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid var(--border-gold,#5a4327)"></a>
@@ -1999,6 +2031,25 @@ nav a{display:flex;align-items:center}
     </table>
     <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
+  <script>
+  (function () {
+    var bar = document.getElementById('appBulk'); if (!bar) return;
+    var all = document.getElementById('appSelAll'), ids = document.getElementById('appBulkIds'),
+        count = document.getElementById('appBulkCount'), clear = document.getElementById('appBulkClear');
+    function boxes() { return Array.prototype.slice.call(document.querySelectorAll('.appsel')); }
+    function selected() { return boxes().filter(function (b) { return b.checked; }); }
+    function refresh() {
+      var s = selected();
+      count.textContent = s.length + ' selected';
+      bar.style.display = s.length ? 'flex' : 'none';
+      if (all) { var n = boxes().length; all.checked = n > 0 && s.length === n; all.indeterminate = s.length > 0 && s.length < n; }
+    }
+    document.addEventListener('change', function (e) { if (e.target && e.target.classList && e.target.classList.contains('appsel')) refresh(); });
+    if (all) all.addEventListener('change', function () { boxes().forEach(function (b) { b.checked = all.checked; }); refresh(); });
+    if (clear) clear.addEventListener('click', function () { boxes().forEach(function (b) { b.checked = false; }); refresh(); });
+    bar.addEventListener('submit', function (e) { var s = selected(); if (!s.length) { e.preventDefault(); return; } ids.value = s.map(function (b) { return b.value; }).join(','); });
+  })();
+  </script>
 
 <?php elseif ($view === 'funnel'): ?>
   <?php
