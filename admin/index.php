@@ -1405,6 +1405,16 @@ nav a{display:flex;align-items:center}
 .cmdk-item .tag{margin-left:auto;font-size:.64rem;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
 .cmdk-item.sel,.cmdk-item:hover{background:rgba(232,150,31,.14)}
 .cmdk-empty{padding:22px 14px;text-align:center;color:var(--faint);font-size:.86rem}
+/* Keyboard-shortcuts help (press ?) */
+.kbd-scrim{position:fixed;inset:0;z-index:10000;background:rgba(10,7,4,.62);display:none;align-items:center;justify-content:center;padding:16px}
+.kbd-scrim.open{display:flex}
+.kbd-modal{width:100%;max-width:440px;background:var(--panel);border:1px solid var(--border-strong);border-radius:16px;box-shadow:0 26px 80px rgba(0,0,0,.6);padding:20px 22px;animation:cmdkIn .16s ease-out}
+.kbd-modal h2{font-family:var(--font-serif);font-size:1.4rem;margin:0 0 4px}
+.kbd-modal .sub{color:var(--faint);font-size:.82rem;margin:0 0 14px}
+.kbd-row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;border-top:1px solid var(--border)}
+.kbd-row span{color:var(--muted);font-size:.9rem}
+.kbd-row kbd{font-family:inherit;font-size:.74rem;background:var(--raised);border:1px solid var(--border-strong);border-radius:6px;padding:3px 9px;color:var(--goldhi);white-space:nowrap;font-weight:700}
+@media(prefers-reduced-motion:reduce){.kbd-modal{animation:none}}
 @media(prefers-reduced-motion:reduce){.cmdk{animation:none}.auto-switch .knob,.auto-switch .track{transition:none}}
 /* ── Drawer: right slide-in panel (Applications "Manage"), per the redesign ── */
 .mam-drawer-scrim{position:fixed;inset:0;z-index:9000;background:rgba(10,7,4,0.6);display:flex;justify-content:flex-end;animation:fadeIn .18s ease-out}
@@ -4107,6 +4117,35 @@ nav a{display:flex;align-items:center}
       else if (e.key === 'Escape' && open) { hide(); }
     });
   })();
+})();
+</script>
+<script>
+// Keyboard-shortcuts help — press ? (accessible modal; Esc/scrim closes, focus
+// returns to the opener).
+(function () {
+  var scrim = document.createElement('div');
+  scrim.className = 'kbd-scrim'; scrim.setAttribute('role', 'dialog'); scrim.setAttribute('aria-modal', 'true'); scrim.setAttribute('aria-label', 'Keyboard shortcuts');
+  var rows = [
+    ['⌘K  /  Ctrl K', 'Command palette — jump to any section or action'],
+    ['/', 'Open the command palette'],
+    ['?', 'Show this shortcuts help'],
+    ['Esc', 'Close the palette, a drawer, or this dialog']
+  ];
+  scrim.innerHTML = '<div class="kbd-modal"><h2>Keyboard shortcuts</h2><p class="sub">Move around MAM Admin without the mouse.</p>'
+    + rows.map(function (r) { return '<div class="kbd-row"><span>' + r[1] + '</span><kbd>' + r[0] + '</kbd></div>'; }).join('')
+    + '<div style="text-align:right;margin-top:16px"><button type="button" class="btn ghost" id="kbdClose">Close</button></div></div>';
+  document.body.appendChild(scrim);
+  var last = null;
+  function open() { last = document.activeElement; scrim.classList.add('open'); var b = document.getElementById('kbdClose'); if (b) b.focus(); }
+  function close() { scrim.classList.remove('open'); if (last && last.focus) last.focus(); }
+  scrim.addEventListener('mousedown', function (e) { if (e.target === scrim) close(); });
+  document.getElementById('kbdClose').addEventListener('click', close);
+  document.addEventListener('keydown', function (e) {
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
+    var openDialog = document.querySelector('.cmdk-scrim.open') || document.querySelector('.mam-drawer-scrim');
+    if (e.key === '?' && !typing && !openDialog && !scrim.classList.contains('open')) { e.preventDefault(); open(); }
+    else if (e.key === 'Escape' && scrim.classList.contains('open')) { e.preventDefault(); close(); }
+  });
 })();
 </script>
 </body>
