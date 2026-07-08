@@ -1205,6 +1205,9 @@ nav a.active i{opacity:1;color:var(--gold)}
 .admin-topbar .atb-search kbd{font-size:0.66rem;padding:2px 7px;border:1px solid var(--border-strong);border-radius:6px;color:var(--faint);font-family:inherit}
 .admin-topbar .atb-search:hover{border-color:var(--gold);color:var(--muted)}
 @media(max-width:760px){.admin-topbar .atb-search span,.admin-topbar .atb-search kbd{display:none}.admin-topbar .atb-search{flex:0 0 auto;max-width:none}}
+/* Mobile top bar: wrap instead of overflowing; trim the identity chips. */
+@media(max-width:640px){.admin-topbar{flex-wrap:wrap;gap:8px}.admin-topbar .atb-user{max-width:150px}.admin-topbar .atb-chip span,.admin-topbar .atb-chip{font-size:.78rem}}
+@media(max-width:460px){.admin-topbar .atb-user{display:none}}
 /* Curriculum completeness matrix (Standard Curriculum overview). */
 .curric-matrix{width:100%;border-collapse:collapse;font-size:0.84rem;min-width:560px}
 .curric-matrix th{font-size:0.64rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);font-weight:700;text-align:center;padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -1383,6 +1386,20 @@ nav a{display:flex;align-items:center}
 @keyframes drawerIn{from{transform:translateX(34px);opacity:.4}to{transform:none;opacity:1}}
 @media(max-width:640px){.mam-drawer{width:100%;border-left:0}}
 @media(prefers-reduced-motion:reduce){.mam-drawer,.mam-drawer-scrim{animation:none}}
+/* Mobile: opt-in tables (class="stack") become stacked cards — each row a
+   card, each cell labelled from data-label (redesign §10). */
+@media(max-width:640px){
+  table.stack{min-width:0!important;width:100%}
+  table.stack thead{display:none}
+  table.stack tbody{display:block}
+  table.stack tr{display:block;border:1px solid var(--border);border-radius:var(--r);padding:8px 2px;margin:0 4px 12px;background:var(--panel)}
+  table.stack td{display:block;border:0;padding:5px 14px;text-align:left}
+  table.stack td::before{content:attr(data-label);display:block;color:var(--faint);font-weight:700;font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+  table.stack td[data-label=""]::before{display:none}
+  table.stack td[data-label=""]{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}
+  table.stack tr:hover td{background:transparent}
+  table.stack td.empty{text-align:center}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -1907,7 +1924,7 @@ nav a{display:flex;align-items:center}
   </div>
   <?php endif; ?>
   <div class="card">
-    <table>
+    <table class="stack">
       <thead><tr><th>Photo</th><th>Reference</th><th>Student</th><th>Programme</th><th>Pathway · Mode</th><th>Course</th><th>Session</th><th>Age</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
       <tbody>
       <?php
@@ -1920,31 +1937,31 @@ nav a{display:flex;align-items:center}
       foreach ($rows as $r):
         $loc = implode(', ', array_filter([$r['lga'] ?? '', $r['state'] ?? '', $r['country'] ?? ''])); ?>
         <tr>
-          <td>
+          <td data-label="Photo">
             <?php if (!empty($r['headshot_url'])): ?>
               <a href="<?= htmlspecialchars($r['headshot_url']) ?>" target="_blank" rel="noopener"><img src="<?= htmlspecialchars($r['headshot_url']) ?>" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid var(--border-gold,#5a4327)"></a>
             <?php else: ?>
               <span class="muted" title="No headshot uploaded" style="display:inline-flex;width:40px;height:40px;border-radius:50%;align-items:center;justify-content:center;background:var(--panel);border:1px dashed var(--border)"><i class="fa-solid fa-user" aria-hidden="true"></i></span>
             <?php endif; ?>
           </td>
-          <td class="mono"><?= htmlspecialchars($r['reference']) ?></td>
-          <td><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong>
+          <td class="mono" data-label="Reference"><?= htmlspecialchars($r['reference']) ?></td>
+          <td data-label="Student"><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong>
             <?php if (!empty($r['sex'])): ?><span class="muted">· <?= htmlspecialchars(ucfirst((string)$r['sex'])) ?></span><?php endif; ?>
             <br><span class="muted"><?= htmlspecialchars((string)($r['email'] ?? '')) ?></span>
             <br><span class="muted"><?= htmlspecialchars((string)($r['phone'] ?? '')) ?></span>
             <?php if ($loc): ?><br><span class="muted"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <?= htmlspecialchars($loc) ?></span><?php endif; ?>
           </td>
-          <td class="muted"><?= htmlspecialchars((string)($r['program'] ?? '—')) ?></td>
-          <td><?= htmlspecialchars((string)($r['pathway'] ?? '')) ?> · <span class="muted"><?= htmlspecialchars((string)($r['mode'] ?? '')) ?></span></td>
-          <td><?= htmlspecialchars((string)($r['discipline'] ?? '')) ?></td>
-          <td><?php $s = strtolower((string)($r['session'] ?? '')); echo $s ? '<span class="pill">' . htmlspecialchars($sessionLabels[$s] ?? strtoupper($s)) . '</span>' : '<span class="muted">—</span>'; ?></td>
-          <td class="muted"><?= htmlspecialchars((string)($r['age_range'] ?? '')) ?></td>
-          <td>$<?= number_format((float)$r['total_usd'], 2) ?></td>
-          <td><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span>
+          <td class="muted" data-label="Programme"><?= htmlspecialchars((string)($r['program'] ?? '—')) ?></td>
+          <td data-label="Pathway · Mode"><?= htmlspecialchars((string)($r['pathway'] ?? '')) ?> · <span class="muted"><?= htmlspecialchars((string)($r['mode'] ?? '')) ?></span></td>
+          <td data-label="Course"><?= htmlspecialchars((string)($r['discipline'] ?? '')) ?></td>
+          <td data-label="Session"><?php $s = strtolower((string)($r['session'] ?? '')); echo $s ? '<span class="pill">' . htmlspecialchars($sessionLabels[$s] ?? strtoupper($s)) . '</span>' : '<span class="muted">—</span>'; ?></td>
+          <td class="muted" data-label="Age"><?= htmlspecialchars((string)($r['age_range'] ?? '')) ?></td>
+          <td data-label="Total">$<?= number_format((float)$r['total_usd'], 2) ?></td>
+          <td data-label="Status"><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span>
             <?php if (!empty($r['recovery_sent_at'])): ?><br><span class="muted" title="Recovery email sent" style="font-size:0.66rem"><i class="fa-solid fa-envelope-circle-check"></i> nudged</span><?php endif; ?>
           </td>
-          <td class="muted"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
-          <td style="white-space:nowrap">
+          <td class="muted" data-label="Created"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
+          <td data-label="" style="white-space:nowrap">
             <a class="tiny btn ghost" href="?v=applications&app=<?= (int)$r['id'] ?>" title="Open the admissions cockpit (decision, notes, assignee, history)">⚙ Manage</a>
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
