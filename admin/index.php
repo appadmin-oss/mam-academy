@@ -194,6 +194,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
         'automation_toggle' => 'settings',
+        'run_automations' => 'settings',
         'record_placement' => 'admissions',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
         'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
@@ -873,6 +874,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         } catch (\Throwable $e) {
             header('Location: ?v=applications&app=' . $appId . '&err=' . urlencode('Could not record placement.')); exit;
         }
+    }
+
+    // Run the scheduled automation sweeps on demand (the same ones the cron
+    // drains) — lets an admin trigger + see counts without server access.
+    if ($action === 'run_automations') {
+        $r = ['reminders' => 0, 'birthdays' => 0, 'drip' => 0];
+        if (function_exists('mam_automation_session_reminder_sweep')) $r['reminders'] = mam_automation_session_reminder_sweep();
+        if (function_exists('mam_automation_ktams_birthday_sweep'))   $r['birthdays'] = mam_automation_ktams_birthday_sweep();
+        if (function_exists('mam_automation_week_drip_sweep'))         $r['drip']      = mam_automation_week_drip_sweep();
+        mam_audit('run_automations', 'automation', null, $r);
+        header('Location: ?v=automations&ok=' . urlencode('Ran scheduled sweeps — ' . (int)$r['reminders'] . ' session reminder(s), ' . (int)$r['birthdays'] . ' birthday note(s), ' . (int)$r['drip'] . ' module drip(s).')); exit;
     }
 
     // Toggle a lifecycle automation on/off (super/settings only — gated above).
@@ -3718,7 +3730,14 @@ nav a{display:flex;align-items:center}
 ?>
   <header class="top">
     <h1>Automations</h1>
-    <span class="pill" style="background:rgba(232,150,31,.14);color:var(--gold);font-weight:700"><?= (int)$activeCount ?> of <?= (int)$totalCount ?> active</span>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span class="pill" style="background:rgba(232,150,31,.14);color:var(--gold);font-weight:700"><?= (int)$activeCount ?> of <?= (int)$totalCount ?> active</span>
+      <form method="post" style="margin:0">
+        <?= mam_csrf_field() ?>
+        <input type="hidden" name="action" value="run_automations">
+        <button class="btn ghost" type="submit" title="Run the scheduled sweeps (reminders, birthdays, drip) now — the same work the cron does"><i class="fa-solid fa-play" aria-hidden="true"></i> Run scheduled sweeps now</button>
+      </form>
+    </div>
   </header>
   <div class="card" style="max-width:820px">
     <div style="padding:16px 20px 4px;color:var(--muted);font-size:.9rem;line-height:1.6">
