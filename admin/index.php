@@ -2189,7 +2189,7 @@ nav a{display:flex;align-items:center}
   <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Done.</strong></div><?php endif; ?>
   <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
   <div class="card">
-    <table>
+    <table class="stack">
       <thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Provider Ref</th><th>Verified</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
       <?php
@@ -2198,15 +2198,15 @@ nav a{display:flex;align-items:center}
       if (!$rows): ?><tr><td colspan="9" class="empty">No payments yet</td></tr><?php endif;
       foreach ($rows as $r): ?>
         <tr>
-          <td class="mono"><?= htmlspecialchars($r['reference']) ?></td>
-          <td><span class="pill"><?= htmlspecialchars((string)($r['purpose'] ?? 'tuition')) ?></span></td>
-          <td><?= htmlspecialchars($r['provider']) ?></td>
-          <td><?= number_format((float)$r['amount']) ?> <?= htmlspecialchars($r['currency']) ?></td>
-          <td><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
-          <td class="mono muted"><?= htmlspecialchars((string)$r['provider_reference']) ?></td>
-          <td class="muted"><?= htmlspecialchars(substr((string)$r['verified_at'], 0, 16)) ?></td>
-          <td class="muted"><?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?></td>
-          <td>
+          <td class="mono" data-label="Reference"><?= htmlspecialchars($r['reference']) ?></td>
+          <td data-label="Purpose"><span class="pill"><?= htmlspecialchars((string)($r['purpose'] ?? 'tuition')) ?></span></td>
+          <td data-label="Provider"><?= htmlspecialchars($r['provider']) ?></td>
+          <td data-label="Amount"><?= number_format((float)$r['amount']) ?> <?= htmlspecialchars($r['currency']) ?></td>
+          <td data-label="Status"><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
+          <td class="mono muted" data-label="Provider Ref"><?= htmlspecialchars((string)$r['provider_reference']) ?></td>
+          <td class="muted" data-label="Verified"><?= htmlspecialchars(substr((string)$r['verified_at'], 0, 16)) ?></td>
+          <td class="muted" data-label="Created"><?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?></td>
+          <td data-label="">
             <?php if ($r['status'] === 'succeeded'): ?>
               <form method="post" onsubmit="return confirm('Mark this payment as REFUNDED? The customer\'s record (application or order) will be reversed accordingly. Process the actual refund with the provider separately.');" style="display:inline-flex;gap:6px;align-items:center">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -2282,7 +2282,7 @@ nav a{display:flex;align-items:center}
   </div>
   <div class="card">
     <h3>All users</h3>
-    <table>
+    <table class="stack">
       <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Created</th><th>Reset password</th><th></th></tr></thead>
       <tbody>
       <?php
@@ -2296,9 +2296,9 @@ nav a{display:flex;align-items:center}
       if (!$users): ?><tr><td colspan="8" class="empty">No users yet</td></tr><?php endif;
       foreach ($users as $u): ?>
         <tr>
-          <td><strong><?= htmlspecialchars((string)($u['name'] ?? '—')) ?></strong><br><span class="muted mono">#<?= (int)$u['id'] ?></span></td>
-          <td><?= htmlspecialchars($u['email']) ?><br><span class="muted"><?= htmlspecialchars((string)($u['phone'] ?? '')) ?></span></td>
-          <td><span class="pill <?= htmlspecialchars($u['role']) ?>"><?= htmlspecialchars($u['role']) ?></span>
+          <td data-label="Name"><strong><?= htmlspecialchars((string)($u['name'] ?? '—')) ?></strong><br><span class="muted mono">#<?= (int)$u['id'] ?></span></td>
+          <td data-label="Email"><?= htmlspecialchars($u['email']) ?><br><span class="muted"><?= htmlspecialchars((string)($u['phone'] ?? '')) ?></span></td>
+          <td data-label="Role"><span class="pill <?= htmlspecialchars($u['role']) ?>"><?= htmlspecialchars($u['role']) ?></span>
             <?php if ($u['role'] === 'admin'): ?>
               <form class="inline" method="post" style="margin-top:6px;display:flex;gap:4px;align-items:center" title="Admin access tier">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -2323,10 +2323,10 @@ nav a{display:flex;align-items:center}
               </form>
             <?php endif; ?>
           </td>
-          <td><span class="pill <?= htmlspecialchars($u['status']) ?>"><?= htmlspecialchars($u['status']) ?></span></td>
-          <td class="muted"><?= htmlspecialchars(substr((string)($u['last_login'] ?? ''), 0, 16)) ?></td>
-          <td class="muted"><?= htmlspecialchars(substr((string)$u['created_at'], 0, 16)) ?></td>
-          <td>
+          <td data-label="Status"><span class="pill <?= htmlspecialchars($u['status']) ?>"><?= htmlspecialchars($u['status']) ?></span></td>
+          <td class="muted" data-label="Last login"><?= htmlspecialchars(substr((string)($u['last_login'] ?? ''), 0, 16)) ?></td>
+          <td class="muted" data-label="Created"><?= htmlspecialchars(substr((string)$u['created_at'], 0, 16)) ?></td>
+          <td data-label="Reset password">
             <form class="inline" method="post">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_reset">
@@ -2335,7 +2335,7 @@ nav a{display:flex;align-items:center}
               <button class="tiny" type="submit">Reset</button>
             </form>
           </td>
-          <td>
+          <td data-label="">
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_status">
@@ -3517,7 +3517,7 @@ nav a{display:flex;align-items:center}
 ?>
   <h1>Store Orders</h1>
   <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Updated.</strong></div><?php endif; ?>
-  <table>
+  <table class="stack">
     <thead><tr><th>Reference</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
     <tbody>
     <?php foreach ($orders as $o):
@@ -3525,14 +3525,14 @@ nav a{display:flex;align-items:center}
       $summary = implode(', ', array_map(function($i){ return $i['name'] . '×' . $i['qty']; }, array_slice($its, 0, 3)));
     ?>
       <tr>
-        <td class="mono"><?= htmlspecialchars($o['reference']) ?></td>
-        <td>
+        <td class="mono" data-label="Reference"><?= htmlspecialchars($o['reference']) ?></td>
+        <td data-label="Customer">
           <strong><?= htmlspecialchars($o['customer_name']) ?></strong><br>
           <small style="color:var(--muted)"><?= htmlspecialchars($o['customer_email']) ?> <?= $o['customer_country'] ? '· ' . htmlspecialchars($o['customer_country']) : '' ?></small>
         </td>
-        <td><small><?= htmlspecialchars($summary) ?><?= count($its) > 3 ? '…' : '' ?></small></td>
-        <td>$<?= number_format((float)$o['total_usd'], 2) ?></td>
-        <td>
+        <td data-label="Items"><small><?= htmlspecialchars($summary) ?><?= count($its) > 3 ? '…' : '' ?></small></td>
+        <td data-label="Total">$<?= number_format((float)$o['total_usd'], 2) ?></td>
+        <td data-label="Status">
           <form method="POST" action="" style="display:flex;gap:6px">
             <?= mam_csrf_field() ?>
             <input type="hidden" name="action" value="store_order_status">
@@ -3544,8 +3544,8 @@ nav a{display:flex;align-items:center}
             </select>
           </form>
         </td>
-        <td><small><?= htmlspecialchars((string)$o['created_at']) ?></small></td>
-        <td><a class="btn" style="padding:6px 10px;font-size:0.78rem" href="#" onclick="alert(<?= htmlspecialchars(json_encode(json_encode($its, JSON_PRETTY_PRINT))) ?>);return false">View items</a></td>
+        <td data-label="Created"><small><?= htmlspecialchars((string)$o['created_at']) ?></small></td>
+        <td data-label=""><a class="btn" style="padding:6px 10px;font-size:0.78rem" href="#" onclick="alert(<?= htmlspecialchars(json_encode(json_encode($its, JSON_PRETTY_PRINT))) ?>);return false">View items</a></td>
       </tr>
     <?php endforeach; if (!$orders): ?><tr><td colspan="7" class="empty">No store orders yet.</td></tr><?php endif; ?>
     </tbody>
