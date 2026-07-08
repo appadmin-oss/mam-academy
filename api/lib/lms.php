@@ -1030,6 +1030,43 @@ function mam_lms_delete_module(int $id): void {
     mam_audit('lms_module_delete', 'module', $id, []);
 }
 
+/**
+ * Clone every authored week of a course from one level to another, upserting by
+ * the target (course, level, week) so re-running is idempotent (no duplicate
+ * weeks). Copies kind/title/content. Level code '' / 'general' / '_none' means
+ * the level-agnostic syllabus. Returns {created, updated, total}. Throws on an
+ * unknown course or a same-level clone.
+ */
+function mam_lms_clone_syllabus(string $courseCode, string $fromLevelCode, string $toLevelCode): array {
+    $out = ['created' => 0, 'updated' => 0, 'total' => 0];
+    if (trim($fromLevelCode) === trim($toLevelCode)) throw new InvalidArgumentException('same_level');
+    $course = mam_db_row('SELECT id FROM courses WHERE code = ?', [$courseCode]);
+    if (!$course) throw new InvalidArgumentException('course_not_found');
+    $courseId = (int)$course['id'];
+    $resolve = function (string $code): ?int {
+        $code = trim($code);
+        if ($code === '' || $code === 'general' || $code === '_none') return null;
+        $r = mam_db_row('SELECT id FROM levels WHERE code = ?', [$code]);
+        return $r ? (int)$r['id'] : null;
+    };
+    $fromId = $resolve($fromLevelCode);
+    $toId   = $resolve($toLevelCode);
+    $src = $fromId === null
+        ? mam_db_all('SELECT week, kind, title, content FROM modules WHERE course_id = ? AND level_id IS NULL ORDER BY week', [$courseId])
+        : mam_db_all('SELECT week, kind, title, content FROM modules WHERE course_id = ? AND level_id = ? ORDER BY week', [$courseId, $fromId]);
+    foreach ($src as $m) {
+        $week = (int)$m['week'];
+        $ex = $toId === null
+            ? mam_db_row('SELECT id FROM modules WHERE course_id = ? AND level_id IS NULL AND week = ?', [$courseId, $week])
+            : mam_db_row('SELECT id FROM modules WHERE course_id = ? AND level_id = ? AND week = ?', [$courseId, $toId, $week]);
+        mam_lms_save_module($ex ? (int)$ex['id'] : null, $courseId, $toId, $week, (string)$m['kind'], (string)$m['title'], $m['content'] !== null ? (string)$m['content'] : null);
+        if ($ex) $out['updated']++; else $out['created']++;
+        $out['total']++;
+    }
+    if ($out['total'] > 0) mam_audit('lms_clone_syllabus', 'course', $courseId, ['from' => $fromLevelCode, 'to' => $toLevelCode, 'total' => $out['total']]);
+    return $out;
+}
+
 /* ── Curriculum proposals: faculty author, admin approves ──────────────────
    Instructors don't write `modules` directly; they submit a proposal for a
    week of a course/level they teach. An admin approves (→ upserted into

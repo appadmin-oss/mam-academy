@@ -189,6 +189,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'wallet_credit' => 'users',
         'faculty_invite' => 'users', 'faculty_app_status' => 'users', 'faculty_request_review' => 'users',
         'module_proposal_review' => 'curriculum',
+        'curriculum_clone' => 'curriculum',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
@@ -712,6 +713,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     // ─── Review a faculty curriculum proposal (approve → applied to modules) ──
+    if ($action === 'curriculum_clone') {
+        $courseCode = (string)($_POST['course_code'] ?? '');
+        $fromLevel  = (string)($_POST['from_level'] ?? '');
+        $toLevel    = (string)($_POST['to_level'] ?? '');
+        $back = '?v=modules&course=' . urlencode($courseCode) . '&level=' . urlencode($toLevel);
+        if ($courseCode === '' || $toLevel === '' || $fromLevel === $toLevel) {
+            header('Location: ' . $back . '&err=' . urlencode('Pick a different target level to clone into.')); exit;
+        }
+        try {
+            $res = mam_lms_clone_syllabus($courseCode, $fromLevel, $toLevel);
+            if ($res['total'] === 0) { header('Location: ?v=modules&course=' . urlencode($courseCode) . '&level=' . urlencode($fromLevel) . '&err=' . urlencode('Nothing to clone — author the source level first.')); exit; }
+            header('Location: ' . $back . '&ok=' . urlencode('Cloned ' . $res['total'] . ' week' . ($res['total'] === 1 ? '' : 's') . ' — ' . $res['created'] . ' new, ' . $res['updated'] . ' updated.')); exit;
+        } catch (\Throwable $e) {
+            header('Location: ' . $back . '&err=' . urlencode('Could not clone that syllabus.')); exit;
+        }
+    }
+
     if ($action === 'module_proposal_review') {
         $pid = (int)($_POST['proposal_id'] ?? 0);
         $approve = ($_POST['decision'] ?? '') === 'approve';
@@ -1155,6 +1173,12 @@ $flashErr = $_GET['err'] ?? '';
   --font-display:'Bebas Neue',Impact,sans-serif;--font-serif:'Cormorant Garamond',Georgia,serif;
 }
 html,body{height:100%}
+/* Accessibility: visible keyboard focus everywhere + a skip link. */
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible,[role="switch"]:focus-visible{outline:2px solid var(--goldhi);outline-offset:2px;border-radius:8px}
+main:focus{outline:none}
+.skip-link{position:absolute;left:16px;top:-60px;z-index:10001;background:var(--goldhi);color:#1A120B;font-weight:800;padding:10px 16px;border-radius:10px;transition:top .18s}
+.skip-link:focus{top:12px}
+@media(prefers-reduced-motion:reduce){.skip-link{transition:none}}
 body{font:14px/1.55 'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:radial-gradient(1200px 700px at 82% -12%,rgba(232,150,31,0.06),transparent 55%),var(--bg);color:var(--text);min-height:100vh;display:grid;grid-template-columns:244px 1fr}
 a{color:inherit;text-decoration:none}
 aside{background:var(--panel);border-right:1px solid var(--border);padding:18px 14px;position:sticky;top:0;height:100vh;overflow:auto}
@@ -1363,6 +1387,7 @@ nav a{display:flex;align-items:center}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
+<a href="#main" class="skip-link">Skip to content</a>
 <aside>
   <div class="brand">
     <div class="logo">M</div>
@@ -1373,7 +1398,7 @@ nav a{display:flex;align-items:center}
       <span class="tier-badge tier-<?= htmlspecialchars($__tier) ?>"><?= $__tier === 'super' ? 'Super admin' : 'Manager' ?></span>
     </div>
   </div>
-  <nav>
+  <nav id="adminNav" aria-label="Admin sections">
     <?php
     // "What needs me" counts — the difference between a nav you wander and a
     // nav that points. Each is a cheap COUNT, individually fault-tolerant so a
@@ -1417,7 +1442,7 @@ nav a{display:flex;align-items:center}
             if (!$canView($k)) continue;
             $cls = $view === $k ? 'active' : '';
             $badge = !empty($navBadges[$k]) ? "<em class='nav-count'>" . (int)$navBadges[$k] . "</em>" : '';
-            echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'>"
+            echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'" . ($cls ? " aria-current='page'" : '') . ">"
                . "<i class='fa-solid fa-" . htmlspecialchars($meta[1]) . "' aria-hidden='true'></i><span>" . htmlspecialchars($meta[0]) . "</span>$badge</a>";
         }
     }
@@ -1475,7 +1500,7 @@ nav a{display:flex;align-items:center}
 </aside>
 <div class="nav-scrim" id="navScrim" aria-hidden="true"></div>
 
-<main>
+<main id="main" tabindex="-1">
 <?php
   // App-shell top bar — current section + account, sticky on scroll.
   $atbLabel = $links[$view] ?? ucfirst((string)$view);
@@ -2926,10 +2951,10 @@ nav a{display:flex;align-items:center}
           <tr>
             <td class="cm-course"><?= htmlspecialchars((string)$c['name']) ?><?php if (($c['kind'] ?? '') === 'core'): ?><span class="cm-core">core</span><?php endif; ?></td>
             <?php foreach ($ov['levels'] as $l): $n = (int)$c['levels'][(string)$l['code']]; ?>
-              <td><a class="cm-cell <?= $n ? 'on' : 'off' ?>" href="?v=modules&amp;course=<?= urlencode((string)$c['code']) ?>&amp;level=<?= urlencode((string)$l['code']) ?>" title="<?= htmlspecialchars((string)$c['name'] . ' · ' . (string)$l['name']) ?>"><?= $n ?: '·' ?></a></td>
+              <td><a class="cm-cell <?= $n ? 'on' : 'off' ?>" href="?v=modules&amp;course=<?= urlencode((string)$c['code']) ?>&amp;level=<?= urlencode((string)$l['code']) ?>" title="<?= htmlspecialchars((string)$c['name'] . ' · ' . (string)$l['name']) ?>" aria-label="<?= htmlspecialchars((string)$c['name'] . ' · ' . (string)$l['name'] . ': ' . ($n ? $n . ' week' . ($n === 1 ? '' : 's') . ' authored' : 'no weeks authored')) ?>"><?= $n ?: '·' ?></a></td>
             <?php endforeach; ?>
             <?php $ng = (int)$c['levels']['_none']; ?>
-            <td><a class="cm-cell <?= $ng ? 'on' : 'off' ?>" href="?v=modules&amp;course=<?= urlencode((string)$c['code']) ?>" title="<?= htmlspecialchars((string)$c['name']) ?> · level-agnostic"><?= $ng ?: '·' ?></a></td>
+            <td><a class="cm-cell <?= $ng ? 'on' : 'off' ?>" href="?v=modules&amp;course=<?= urlencode((string)$c['code']) ?>" title="<?= htmlspecialchars((string)$c['name']) ?> · level-agnostic" aria-label="<?= htmlspecialchars((string)$c['name'] . ' · general: ' . ($ng ? $ng . ' week' . ($ng === 1 ? '' : 's') . ' authored' : 'no weeks authored')) ?>"><?= $ng ?: '·' ?></a></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -3070,6 +3095,24 @@ nav a{display:flex;align-items:center}
         <div class="muted" style="font-size:.82rem;margin-bottom:9px">Download the authored weeks to edit in a spreadsheet or back up, then re-import to apply. A re-import <strong>upserts by week</strong> — it refines existing weeks instead of duplicating them. JSON exports are portable between installs.</div>
         <a class="btn ghost" href="?v=export&amp;type=curriculum.csv&amp;course=<?= urlencode($selCourse) ?>&amp;level=<?= urlencode($selLevel) ?>">⬇ Export CSV</a>
         <a class="btn ghost" href="?v=export&amp;type=curriculum&amp;course=<?= urlencode($selCourse) ?>&amp;level=<?= urlencode($selLevel) ?>">⬇ Export JSON</a>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:16px">
+        <div class="muted" style="font-size:.82rem;margin-bottom:9px">Clone this level's authored weeks into another level — upserts by week (safe to re-run), so it's a quick way to reuse a syllabus as a starting point.</div>
+        <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+          <input type="hidden" name="action" value="curriculum_clone">
+          <input type="hidden" name="course_code" value="<?= htmlspecialchars($selCourse) ?>">
+          <input type="hidden" name="from_level" value="<?= htmlspecialchars($selLevel) ?>">
+          <span class="muted" style="font-size:.85rem">Clone <strong><?= $selLevel !== '' ? htmlspecialchars($selLevel) : 'General' ?></strong> →</span>
+          <select name="to_level" required style="max-width:230px" aria-label="Target level to clone into">
+            <option value="">— target level —</option>
+            <?php foreach ($cat['levels'] as $l): if ((string)$l['code'] === $selLevel) continue; ?>
+              <option value="<?= htmlspecialchars((string)$l['code']) ?>"><?= htmlspecialchars((string)$l['name']) ?></option>
+            <?php endforeach; ?>
+            <?php if ($selLevel !== ''): ?><option value="general">General (level-agnostic)</option><?php endif; ?>
+          </select>
+          <button class="btn ghost" type="submit"><i class="fa-solid fa-copy" aria-hidden="true"></i> Clone syllabus</button>
+        </form>
       </div>
       <form method="post" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:11px;border-top:1px solid var(--border);padding-top:16px">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -3879,6 +3922,8 @@ nav a{display:flex;align-items:center}
     if (!scrim) return;
     var param = scrim.getAttribute('data-param') || 'app';
     document.body.style.overflow = 'hidden';
+    var panel = scrim.querySelector('.mam-drawer');
+    if (panel) { panel.setAttribute('tabindex', '-1'); setTimeout(function () { panel.focus(); }, 30); }
     function close() { var u = new URLSearchParams(location.search); u.delete(param); location.href = '?' + u.toString(); }
     scrim.addEventListener('mousedown', function (e) { if (e.target === scrim) close(); });
     document.addEventListener('keydown', function (e) {
@@ -3954,8 +3999,9 @@ nav a{display:flex;align-items:center}
       items[sel].classList.add('sel'); items[sel].scrollIntoView({ block: 'nearest' });
     }
     function go(i) { var e = results[i]; if (e) location.href = e.url; }
-    function show() { open = true; scrim.classList.add('open'); input.value = ''; render(); setTimeout(function () { input.focus(); }, 0); }
-    function hide() { open = false; scrim.classList.remove('open'); }
+    var lastFocus = null;
+    function show() { lastFocus = document.activeElement; open = true; scrim.classList.add('open'); input.value = ''; render(); setTimeout(function () { input.focus(); }, 0); }
+    function hide() { open = false; scrim.classList.remove('open'); if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus(); }
     var sb = document.getElementById('atbSearch'); if (sb) sb.addEventListener('click', show);
     input.addEventListener('input', render);
     list.addEventListener('click', function (e) { var it = e.target.closest('.cmdk-item'); if (it) go(+it.getAttribute('data-i')); });
@@ -3965,6 +4011,7 @@ nav a{display:flex;align-items:center}
       else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
       else if (e.key === 'Enter') { e.preventDefault(); go(sel); }
       else if (e.key === 'Escape') { e.preventDefault(); hide(); }
+      else if (e.key === 'Tab') { e.preventDefault(); } // trap focus in the palette
     });
     document.addEventListener('keydown', function (e) {
       var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
