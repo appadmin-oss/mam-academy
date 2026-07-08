@@ -201,6 +201,34 @@ the notation showcase.**
   (pending applications/registrations/unassigned/proposals/messages/faculty), toast
   feedback for ?ok/?err (string values carry the message; URL cleaned after), '/' or
   Ctrl+K focuses global search.
+- ✅ **Admin redesign (MAM Redesign design system)** — `admin/index.php` adopts the
+  prototype's tokens/type (warm `--bg:#1B140D` … `--gold:#E8961F`; Bebas/Cormorant/Inter;
+  radii 14/20). Grouped left nav (`#adminNav`, `aria-current`, gold-outline active pill,
+  live `nav-count` badges); top-bar search chip → **⌘K command palette** (focus-return,
+  Tab-trap); mobile off-canvas sidebar (hamburger + `.nav-scrim`); **stacked-card tables**
+  on Applications/Users/Payments/Store Orders (`table.stack` + `data-label`, `thead`
+  hidden on mobile); a **keyboard-shortcuts help overlay** (press `?`, `.kbd-scrim`); skip
+  link + `:focus-visible`. Detail **drawers** (`.mam-drawer` + generic `data-param`
+  dismiss) for Applications (`?app=`), Class (`?class=`), Module (`?module=`), Proposal
+  (`?proposal=`). Bulk status actions on Applications (`app_bulk_status`). Reusable
+  primitives: `.auto-switch` toggle, `.mam-drawer`, palette, `table.stack`.
+- ✅ **Lifecycle automations** — `api/lib/automations.php`: a registry of **8 rules**
+  (`payment_provision`, `enrol_welcome`, `payment_retry`, `auditer_placement`,
+  `session_reminder`, `week_drip`, `store_receipt`, `ktams_birthday`), each with a
+  persisted on/off flag (`automations` table, **schema v38**) honoured *at its trigger
+  point* — `mam_automation_on($key)` gates the behaviour in `payments.php` / `lms.php` /
+  `auditer.php`, and `mam_automation_touch()` records run telemetry (last-run + count).
+  Admin screen `?v=automations` (grouped cards, per-rule toggle + telemetry, "Run
+  scheduled sweeps now"). The three scheduled sweeps
+  (`mam_automation_session_reminder_sweep` / `_ktams_birthday_sweep` / `_week_drip_sweep`)
+  are events-deduped, never throw, and are wired into `api/tools/run-jobs.php` (the cron).
+  A new lib → add to BOTH `bootstrap.php`'s `$mam_libs` AND `api/tests/run.php` (gotcha #1).
+  Covered by `test_automations.php`.
+- ✅ **Curriculum clone across levels** — `mam_lms_clone_syllabus(courseCode, fromLevelCode,
+  toLevelCode)` (`lms.php`): copies a course's authored weeks between levels, idempotent
+  (upsert by week, never duplicates), throws on same-level / unknown-course. Admin action
+  `curriculum_clone`. Covered by `test_curriculum_clone.php` (which cleans up its fixture
+  course + modules so the shared test DB keeps its seeded catalogue count).
 - ✅ **Auditer Applicant Checklist** — `auditer.php#checklist`: the 19 preparation items
   (documents/identity, performance, professional materials, on-the-day) as a tickable,
   localStorage-persisted, printable checklist. Deep-linked from thank-you, status, book,
@@ -224,6 +252,6 @@ the notation showcase.**
 - Deploy/runbook: `DEPLOYMENT.md`. Env reference: `api/.env.example`.
 
 ## Workflow
-- Branch for this work: `claude/friendly-tesla-qe0d6z`. Commit + push there; don't open
+- Branch for this work: `claude/pensive-fermi-st9hvv`. Commit + push there; don't open
   PRs unless asked. Keep `php api/tests/run.php` green and add tests for new behavior.
 - Don't put model identifiers in commits/code/docs.
