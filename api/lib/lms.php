@@ -554,8 +554,14 @@ function mam_lms_student_session_attendance(int $studentId, ?int $cohortId = nul
  *  enrolment they teach, or one assigned directly to them. With counts. */
 function mam_lms_instructor_cohorts(int $instructorId): array {
     return mam_db_all(
-        "SELECT co.id, co.title, co.status, c.name AS course_name, l.name AS level_name,
+        "SELECT co.id, co.title, co.status, co.legacy_class_id, c.name AS course_name, l.name AS level_name,
                 (SELECT COUNT(*) FROM course_enrollments ce WHERE ce.cohort_id = co.id) AS enrollment_count,
+                -- Cohort convergence (P2): a cohort backfilled from a legacy class
+                -- carries legacy_class_id. Surface its class roster count so a
+                -- backfilled cohort no longer misreads as '0 students'. Read-only
+                -- fold — mirrors the admin Cohorts panel; the mark sheet still uses
+                -- course_enrollments (legacy members are marked via My Classes).
+                (SELECT COUNT(*) FROM enrollments e WHERE e.class_id = co.legacy_class_id AND e.status IN ('active','paused')) AS legacy_count,
                 (SELECT COUNT(*) FROM class_sessions cs WHERE cs.cohort_id = co.id) AS session_count
            FROM cohorts co
            LEFT JOIN courses c ON c.id = co.course_id

@@ -36,3 +36,22 @@ t_ok($sheet[0]['status'] === null, 'student is unmarked until attendance is take
 mam_lms_mark_attendance($sid, $stu, 'present', $ins);
 $sheet2 = mam_lms_session_mark_sheet($sid, $cid);
 t_eq($sheet2[0]['status'], 'present', 'mark sheet reflects the recorded attendance');
+
+// ── Legacy-count fold (P2 convergence, read-only) ──
+// A cohort backfilled from a legacy class carries legacy_class_id. Its class
+// roster must surface as legacy_count so a backfilled cohort no longer misreads
+// as "0 students"; the course-enrolment mark-sheet stays course_enrollments-only.
+$legClass = mam_db_insert('classes', ['title' => 'Legacy Strings', 'instructor_id' => $ins, 'status' => 'active']);
+$legStu1  = mam_db_insert('users', ['email' => 't_isch_leg1@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Leg One', 'status' => 'active']);
+$legStu2  = mam_db_insert('users', ['email' => 't_isch_leg2@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Leg Two', 'status' => 'active']);
+mam_db_insert('enrollments', ['student_id' => $legStu1, 'class_id' => $legClass, 'status' => 'active']);
+mam_db_insert('enrollments', ['student_id' => $legStu2, 'class_id' => $legClass, 'status' => 'paused']);
+mam_db_insert('enrollments', ['student_id' => $stu,     'class_id' => $legClass, 'status' => 'cancelled']); // excluded
+$legCohort = mam_lms_create_cohort(['title' => 'Backfilled Strings', 'instructor_id' => $ins]);
+mam_db_update('cohorts', ['legacy_class_id' => $legClass], ['id' => $legCohort]);
+$byId = [];
+foreach (mam_lms_instructor_cohorts($ins) as $c) { $byId[(int)$c['id']] = $c; }
+t_ok(isset($byId[$legCohort]), 'the backfilled cohort is listed for its instructor');
+t_eq((int)$byId[$legCohort]['legacy_count'], 2, 'legacy_count folds active+paused class enrolments (cancelled excluded)');
+t_eq((int)$byId[$legCohort]['enrollment_count'], 0, 'a backfilled cohort with no course enrolments reports 0 course students');
+t_eq((int)$byId[$cid]['legacy_count'], 0, 'a cohort with no legacy class has legacy_count 0');

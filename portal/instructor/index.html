@@ -764,10 +764,16 @@
       if (!cohorts.length || !document.getElementById('cohortSummary')) return;
       var rows = cohorts.map(function (c) {
         var name = c.title || c.course_name || ('Cohort #' + c.id);
+        // Dual-read: total = course enrolments + the legacy class roster of a
+        // backfilled cohort, so it never misreads as 0. Break the mix out when
+        // both are present (legacy members are graded via the Classes tab).
+        var courseN = c.enrollment_count || 0, legacyN = c.legacy_count || 0;
+        var students = (courseN + legacyN)
+          + (legacyN ? ' <span style="color:var(--text-muted);font-size:0.74rem" title="' + courseN + ' course · ' + legacyN + ' from the legacy class">(' + courseN + ' course · ' + legacyN + ' class)</span>' : '');
         return '<tr><td data-label="Cohort"><strong>' + P.escapeHtml(name) + '</strong>'
           + (c.level_name ? '<br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(c.level_name) + '</span>' : '') + '</td>'
           + '<td data-label="Course">' + P.escapeHtml(c.course_name || '—') + '</td>'
-          + '<td data-label="Students">' + (c.enrollment_count || 0) + '</td>'
+          + '<td data-label="Students">' + students + '</td>'
           + '<td data-label=""><a class="btn btn-ghost" href="#sessions" data-tab="sessions" style="padding:4px 11px;font-size:0.76rem"><i class="fa-solid fa-chalkboard-user"></i> Teach</a> '
           + '<a class="btn btn-ghost" href="#gradebook" data-tab="gradebook" style="padding:4px 11px;font-size:0.76rem"><i class="fa-solid fa-clipboard-list"></i> Grade</a></td></tr>';
       }).join('');
