@@ -294,8 +294,13 @@ the notation showcase.**
   `docs/drive-apps-script.md`. New lib → in BOTH `bootstrap.php` `$mam_libs` AND
   `run.php` (gotcha #1). Covered by `test_drive.php` (signing, guards, byte-for-byte
   upload→fetch round-trip).
-- 🔬 **#14 Notation showcase** (audio→Classical/Contemporary/African 6-line, interactive,
-  realistic playback) — large R&D; not a quick task. The last open brief item.
+- 🚧 **#14 Notation showcase** — **milestone 1 shipped**: `notation.php` + `assets/js/notation.js`
+  render one melody in THREE systems (Classical 5-line treble staff, Contemporary piano-roll,
+  African **MAM 6-line** tone grid) from a note model, with Web Audio playback + per-note
+  highlight, tempo, a system switcher and example melodies. All self-drawn SVG + a small synth
+  (no CDN libs — CSP-safe). Linked in footer + sitemap; clean URL `/notation`. **Milestone 2
+  (open):** live audio→notation capture (mic/DSP pitch+rhythm detection to build the note model,
+  likely feeding off the studio's existing pitch scoring). This is the last open brief item.
 
 ## Where to look
 - Audits: `docs/codebase-audit-2026-06-22.md` (security/correctness),
