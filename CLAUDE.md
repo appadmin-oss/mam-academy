@@ -129,11 +129,13 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    schema change was needed). **Announcements converge too (schema v39):**
    `announcements.cohort_id` (nullable) lets an instructor post to a cohort;
    `mam_student_announcements()` (`lms.php`) unions class-enrolled AND cohort-enrolled
-   announcements so a course-only student finally sees updates. **Still class-keyed
-   (genuine schema changes, not yet done):** `class_resources` (its `class_id` is NOT NULL,
-   so a cohort resource needs a table rebuild — awkward with `PRAGMA foreign_keys = ON`,
-   which can't toggle inside the migration transaction), and the QR self-check-in
-   (`attendance.php`, legacy attendance model). Those are the remaining convergence items.
+   announcements so a course-only student finally sees updates. **Resources converge too
+   (schema v40):** `class_resources` was rebuilt to make `class_id` nullable and add
+   `cohort_id` — a SQLite table rebuild that's safe with `PRAGMA foreign_keys = ON` only
+   because `class_resources` is a leaf table (no inbound FKs); `mam_student_resources()`
+   unions both models. **Only remaining divergence:** the QR self-check-in (`attendance.php`)
+   still writes the legacy attendance model — a cohort/session equivalent (signed token →
+   `session_attendance`) is the last piece.
    ⚠️ **SQLite compound-query gotcha** (bit twice building the announcement union): a
    `UNION`'s `ORDER BY` must reference **explicitly-aliased** result columns (`an.id AS id`,
    `an.created_at AS created_at`) — a bare `an.created_at`/`id` raises "ORDER BY term does
