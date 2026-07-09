@@ -126,9 +126,18 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    students: `POST /api/instructor/assignment` accepts `cohort_id` (fans out to the cohort
    roster) and its single-student ownership check accepts a shared `course_enrollment`
    (assignments are per-student — `assignments.student_id`, `class_id` optional — so no
-   schema change was needed). **Still class-keyed (a genuine schema change, not yet done):**
-   `announcements` and `class_resources` (both keyed to `classes`), and the QR self-check-in
+   schema change was needed). **Announcements converge too (schema v39):**
+   `announcements.cohort_id` (nullable) lets an instructor post to a cohort;
+   `mam_student_announcements()` (`lms.php`) unions class-enrolled AND cohort-enrolled
+   announcements so a course-only student finally sees updates. **Still class-keyed
+   (genuine schema changes, not yet done):** `class_resources` (its `class_id` is NOT NULL,
+   so a cohort resource needs a table rebuild — awkward with `PRAGMA foreign_keys = ON`,
+   which can't toggle inside the migration transaction), and the QR self-check-in
    (`attendance.php`, legacy attendance model). Those are the remaining convergence items.
+   ⚠️ **SQLite compound-query gotcha** (bit twice building the announcement union): a
+   `UNION`'s `ORDER BY` must reference **explicitly-aliased** result columns (`an.id AS id`,
+   `an.created_at AS created_at`) — a bare `an.created_at`/`id` raises "ORDER BY term does
+   not match any column" — and needs an `id` tiebreak to be deterministic when timestamps tie.
 3. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
    ONLY from a trusted proxy (private + Cloudflare ranges by default; `TRUSTED_PROXY_CIDRS`
    to override). It's the rate-limit + audit IP key. Don't revert to blindly trusting headers.
