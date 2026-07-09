@@ -118,6 +118,17 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    idempotent, audited, and **requires the cohort to map to a real course** (course_id is
    NOT NULL) — a purely-legacy cohort must be course-mapped first. It's the one sanctioned
    bridge that writes across the models; everything else stays dual-read.
+   **Since then, two more read paths converged:** the instructor **student drill-down**
+   (`GET /api/instructor/student`) now dual-reads — it returns the courses/cohorts the
+   caller teaches the student in (not just legacy classes), grants access when EITHER
+   model is shared (was legacy-only → 403 for a course-only student), and folds shared-cohort
+   `session_attendance` into the summary. And **assignments** now target cohorts + course-only
+   students: `POST /api/instructor/assignment` accepts `cohort_id` (fans out to the cohort
+   roster) and its single-student ownership check accepts a shared `course_enrollment`
+   (assignments are per-student — `assignments.student_id`, `class_id` optional — so no
+   schema change was needed). **Still class-keyed (a genuine schema change, not yet done):**
+   `announcements` and `class_resources` (both keyed to `classes`), and the QR self-check-in
+   (`attendance.php`, legacy attendance model). Those are the remaining convergence items.
 3. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
    ONLY from a trusted proxy (private + Cloudflare ranges by default; `TRUSTED_PROXY_CIDRS`
    to override). It's the rate-limit + audit IP key. Don't revert to blindly trusting headers.
