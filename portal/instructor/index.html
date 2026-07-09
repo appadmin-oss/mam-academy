@@ -896,7 +896,7 @@
     box.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading ' + P.escapeHtml(name) + '…') + '</div></section>';
     box.scrollIntoView({ behavior: 'smooth', block: 'start' });
     API.request('instructor/student?id=' + encodeURIComponent(id)).then(function (r) {
-      var sm = r.summary || {}, att = r.attendance || [], enr = r.enrollments || [];
+      var sm = r.summary || {}, att = r.attendance || [], enr = r.enrollments || [], courses = r.courses || [], sess = r.session_attendance || [];
       var total = (sm.present || 0) + (sm.late || 0) + (sm.absent || 0) + (sm.excused || 0);
       var rate = total ? Math.round(((sm.present || 0) + (sm.late || 0)) / total * 100) : null;
       var attRows = att.length ? att.map(function (a) {
@@ -905,6 +905,16 @@
           + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
           + '<td data-label="Notes" style="color:var(--text-muted);font-size:0.82rem">' + P.escapeHtml(a.notes || '') + '</td></tr>';
       }).join('') : '';
+      // Dual-read: cohort session attendance (its own table when present).
+      var sessRows = sess.length ? sess.map(function (a) {
+        return '<tr><td data-label="When">' + (a.scheduled_at ? P.escapeHtml(P.fmtDateTime(a.scheduled_at)) : '—') + '</td>'
+          + '<td data-label="Cohort / Session"><strong>' + P.escapeHtml(a.cohort_title || '—') + '</strong>' + (a.session_title ? ' · ' + P.escapeHtml(a.session_title) : '') + '</td>'
+          + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
+          + '<td data-label="Notes" style="color:var(--text-muted);font-size:0.82rem">' + P.escapeHtml(a.notes || '') + '</td></tr>';
+      }).join('') : '';
+      // "Enrolled in" line spans both models: legacy classes + courses (badged).
+      var enrolledBits = enr.map(function (e) { return P.escapeHtml(e.title); })
+        .concat(courses.map(function (c) { return P.escapeHtml(c.course_name) + (c.level_name ? ' (' + P.escapeHtml(c.level_name) + ')' : '') + ' <span style="color:var(--gold-bright);font-size:0.72rem">· course</span>'; }));
       box.innerHTML = '<section class="panel" style="margin-top:18px">'
         + '<div class="panel-head"><h2>' + P.escapeHtml(r.student.name || name) + '</h2><a class="panel-action" href="mailto:' + P.escapeHtml(r.student.email) + '">Email →</a></div>'
         + '<div style="padding:14px 22px"><section class="kpi-row">'
@@ -913,8 +923,10 @@
         +   kpi('Late', sm.late || 0, 'sessions')
         +   kpi('Absent', sm.absent || 0, 'sessions')
         + '</section>'
-        + '<p style="color:var(--text-muted);font-size:0.85rem;margin:4px 0 0">Enrolled in: ' + (enr.length ? enr.map(function (e) { return P.escapeHtml(e.title); }).join(', ') : '—') + '</p></div>'
-        + (att.length ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th><th>Notes</th></tr></thead><tbody>' + attRows + '</tbody></table></div>' : '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded for this student yet.') + '</div>')
+        + '<p style="color:var(--text-muted);font-size:0.85rem;margin:4px 0 0">Enrolled in: ' + (enrolledBits.length ? enrolledBits.join(', ') : '—') + '</p></div>'
+        + (att.length ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th><th>Notes</th></tr></thead><tbody>' + attRows + '</tbody></table></div>' : '')
+        + (sess.length ? '<div class="panel-head" style="padding-top:8px"><h2 style="font-size:0.98rem">Cohort sessions</h2></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>When</th><th>Cohort / Session</th><th>Status</th><th>Notes</th></tr></thead><tbody>' + sessRows + '</tbody></table></div>' : '')
+        + (!att.length && !sess.length ? '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded for this student yet.') + '</div>' : '')
         + '</section>';
       box.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }).catch(function () {
