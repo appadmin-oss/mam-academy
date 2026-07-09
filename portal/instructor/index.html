@@ -104,12 +104,10 @@
     var classes = (data.classes || []).filter(function (c) { return c.status === 'active'; });
     var students = data.students || [];
     var asg = data.assignments || [];
-    if (!classes.length && !students.length) {
-      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('list-check', 'Add students to a class first — then you can set assignments.') + '</div></section>';
-      return;
-    }
     var clsOpts = classes.map(function (c) { return '<option value="class:' + c.id + '">Whole class — ' + P.escapeHtml(c.title) + '</option>'; }).join('');
     var stuOpts = students.map(function (s) { return '<option value="student:' + s.id + '">' + P.escapeHtml(s.name) + (s.class_title ? ' (' + P.escapeHtml(s.class_title) + ')' : '') + '</option>'; }).join('');
+    // Dual-read: cohorts (course_enrollments) are added lazily below, so a
+    // cohort/course-only instructor can still assign work.
     var targetSel = '<select id="asg-target" required>'
       + (clsOpts ? '<optgroup label="Classes">' + clsOpts + '</optgroup>' : '')
       + (stuOpts ? '<optgroup label="Students">' + stuOpts + '</optgroup>' : '')
@@ -165,7 +163,9 @@
       if (!title) return;
       var tgt = (document.getElementById('asg-target').value || '').split(':');
       var body = { title: title, instructions: document.getElementById('asg-instr').value.trim(), due_on: document.getElementById('asg-due').value || null };
-      if (tgt[0] === 'class') body.class_id = parseInt(tgt[1], 10); else body.student_id = parseInt(tgt[1], 10);
+      if (tgt[0] === 'class') body.class_id = parseInt(tgt[1], 10);
+      else if (tgt[0] === 'cohort') body.cohort_id = parseInt(tgt[1], 10);
+      else body.student_id = parseInt(tgt[1], 10);
       var btn = e.target.querySelector('button'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
       API.request('instructor/assignment', { method: 'POST', body: body }).then(function (r) {
         var n = r.created || 1;
@@ -176,6 +176,29 @@
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not set: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not set.'));
       });
     });
+
+    // Dual-read: lazily add the instructor's cohorts as assignment targets, so
+    // a cohort/course-only student can be set work. Best-effort — a failed
+    // fetch just leaves the legacy class/student targets in place.
+    API.request('instructor/sessions', { method: 'GET' }).then(function (r) {
+      var cohorts = (r && r.cohorts) || [];
+      var sel = document.getElementById('asg-target');
+      if (!sel) return;
+      if (cohorts.length) {
+        var og = document.createElement('optgroup'); og.label = 'Cohorts';
+        cohorts.forEach(function (c) {
+          var o = document.createElement('option');
+          o.value = 'cohort:' + c.id;
+          o.textContent = 'Whole cohort — ' + (c.title || c.course_name || ('Cohort #' + c.id));
+          og.appendChild(o);
+        });
+        sel.insertBefore(og, sel.firstChild);
+      }
+      if (!sel.options.length) {
+        var form = document.getElementById('asgForm');
+        if (form) form.innerHTML = empty('list-check', 'Add students to a class or cohort first — then you can set assignments.');
+      }
+    }).catch(function () { /* leave legacy targets as-is */ });
   }
 
   // ── Submissions review + feedback (L2) ──
