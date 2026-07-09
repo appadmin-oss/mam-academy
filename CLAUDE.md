@@ -133,9 +133,15 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    (schema v40):** `class_resources` was rebuilt to make `class_id` nullable and add
    `cohort_id` — a SQLite table rebuild that's safe with `PRAGMA foreign_keys = ON` only
    because `class_resources` is a leaf table (no inbound FKs); `mam_student_resources()`
-   unions both models. **Only remaining divergence:** the QR self-check-in (`attendance.php`)
-   still writes the legacy attendance model — a cohort/session equivalent (signed token →
-   `session_attendance`) is the last piece.
+   unions both models. **QR self-check-in converged too:** a session-scoped twin
+   (`mam_attendance_session_token`/`_verify_session_token`/`_session_self_checkin` in
+   `attendance.php`; `GET /api/instructor/session-attendance-qr` + `POST /api/attendance/session-checkin`;
+   `attend.php` reads `?stoken=`) writes `session_attendance`, enrolment-gated on
+   `course_enrollments`, idempotent, never downgrades. Its token uses a distinct `sess:`
+   grammar so it can't cross-verify with the legacy class token. **With that, the
+   portal-audit S2 divergence is fully closed** — every student/instructor read+write path
+   now spans both enrollment models (dual-read everywhere; `cohort_converge` the one
+   sanctioned cross-model write).
    ⚠️ **SQLite compound-query gotcha** (bit twice building the announcement union): a
    `UNION`'s `ORDER BY` must reference **explicitly-aliased** result columns (`an.id AS id`,
    `an.created_at AS created_at`) — a bare `an.created_at`/`id` raises "ORDER BY term does
