@@ -125,6 +125,8 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
 
 /* ─── Attendance QR self-check-in (student scans the instructor's session QR; #9/#10) ─── */
 $r->post('/attendance/checkin', $f('attendance-checkin.php'), [mw_csrf(), mw_role('student'), mw_rate_limit('attendance_checkin', 30, 600)]);
+// Cohort-model twin: self-check-in against a class_session → session_attendance (P2).
+$r->post('/attendance/session-checkin', $f('attendance-session-checkin.php'), [mw_csrf(), mw_role('student'), mw_rate_limit('attendance_checkin', 30, 600)]);
 
 /* ─── Studio AI practice feedback (any signed-in user; S3) ─── */
 $r->post('/studio/feedback', $f('studio/feedback.php'), [mw_csrf(), mw_user(), mw_rate_limit('studio_feedback', 60, 600)]);
@@ -188,6 +190,8 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/sessions',           $f('instructor/sessions.php'),           [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->get ('/session-attendance', $f('instructor/session-attendance.php'), [mw_role('instructor', 'admin')]);
     $r->post('/session-attendance', $f('instructor/session-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('sess_att', 240, 600)]);
+    // Per-session QR check-in token for a cohort session (P2 twin of attendance-qr).
+    $r->get ('/session-attendance-qr', $f('instructor/session-attendance-qr.php'), [mw_role('instructor', 'admin')]);
     // Submissions review + feedback (LMS L2) + AI grading assist (L4).
     $r->get ('/submissions',        $f('instructor/submissions.php'),     [mw_role('instructor', 'admin')]);
     $r->post('/feedback',           $f('instructor/feedback.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);

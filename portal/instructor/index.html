@@ -298,6 +298,7 @@
       var rows = sessions.length ? sessions.map(function (s) {
         var when = s.scheduled_at ? P.escapeHtml(P.fmtDateTime(s.scheduled_at)) : '<span style="color:var(--text-muted)">unscheduled</span>';
         var actions = '<button class="btn" data-mark="' + s.id + '"><i class="fa-solid fa-clipboard-check"></i> Attendance</button>';
+        if (s.status !== 'cancelled') actions += ' <button class="btn" data-sess-qr="' + s.id + '"><i class="fa-solid fa-qrcode"></i> QR</button>';
         if (s.status === 'scheduled') actions += ' <button class="btn" data-sess-status="' + s.id + '|held">Held</button> <button class="btn" data-sess-status="' + s.id + '|cancelled">Cancel</button>';
         return '<tr><td>' + P.escapeHtml(s.title || ('Session #' + s.id)) + '</td><td>' + when + '</td><td>' + P.escapeHtml(s.kind) + '</td><td><span class="pill ' + P.escapeHtml(s.status) + '">' + P.escapeHtml(s.status) + '</span></td><td>' + actions + '</td></tr>';
       }).join('') : '<tr><td colspan="5" class="empty">No sessions yet — schedule one below.</td></tr>';
@@ -421,6 +422,40 @@
     document.querySelectorAll('[data-mark]').forEach(function (b) {
       b.addEventListener('click', function () { openMarkSheet(parseInt(b.getAttribute('data-mark'), 10)); });
     });
+    document.querySelectorAll('[data-sess-qr]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-sess-qr'), 10);
+        var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        API.request('instructor/session-attendance-qr?session_id=' + sid, { method: 'GET' })
+          .then(function (r) { b.disabled = false; b.innerHTML = orig; sessionQrModal(r); })
+          .catch(function () { b.disabled = false; b.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not load the QR', 'error'); });
+      });
+    });
+  }
+
+  // Cohort-session check-in QR (P2). Standalone twin of renderAttendance's class
+  // QR modal; students scan it to self-check-in against session_attendance.
+  function sessionQrModal(r) {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,7,4,.78);backdrop-filter:blur(4px)';
+    var qrOk = (typeof QRCode !== 'undefined');
+    var label = (r.cohort_title || 'Cohort') + (r.session_title ? ' · ' + r.session_title : '');
+    ov.innerHTML = '<style>#sess-qr-canvas img{width:210px!important;height:210px!important;display:block;flex:none}#sess-qr-canvas canvas{display:none}</style>'
+      + '<div role="dialog" aria-modal="true" aria-label="Session check-in QR" style="max-width:400px;width:100%;text-align:center;background:var(--bg-surface);border:1px solid var(--border-gold);border-radius:18px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.5)">'
+      + '<h3 style="font-family:var(--font-serif,Georgia,serif);margin:0 0 4px;color:var(--text)">Scan to check in</h3>'
+      + '<p style="color:var(--text-muted);font-size:.85rem;margin:0 0 14px">' + P.escapeHtml(label) + ' &middot; ' + P.escapeHtml(r.date || '') + '</p>'
+      + (qrOk ? '<div id="sess-qr-canvas" style="display:inline-block;background:#fff;padding:14px;border-radius:12px;margin:0 auto;line-height:0"></div>' : '')
+      + '<p style="color:var(--text-soft);font-size:.78rem;margin:14px 0 0;word-break:break-all"><a href="' + encodeURI(r.url || '') + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">' + P.escapeHtml(r.url || '') + '</a></p>'
+      + '<p style="color:var(--text-muted);font-size:.76rem;margin:8px 0 0">Enrolled students sign in and scan &mdash; valid for the session day only.</p>'
+      + '<button type="button" data-qr-close class="btn" style="margin-top:16px"><i class="fa-solid fa-xmark"></i> Close</button>'
+      + '</div>';
+    document.body.appendChild(ov);
+    if (qrOk) { try { new QRCode(ov.querySelector('#sess-qr-canvas'), { text: r.url, width: 210, height: 210, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {} }
+    function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    ov.querySelector('[data-qr-close]').addEventListener('click', close);
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+    document.addEventListener('keydown', onKey);
   }
 
   function openMarkSheet(sid) {
