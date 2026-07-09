@@ -673,12 +673,16 @@
 
     // Resources now converge too (P2): the audience select carries class:/cohort:
     // values; cohort options are added lazily below alongside the announce select.
+    var driveOn = !!data.drive_enabled;
     var resFormSection = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Share a resource</h2></div>'
       + '<form id="resForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">'
       +   '<div class="field"><label for="res-target">Audience</label><select id="res-target" required>' + (annOpts ? '<optgroup label="Classes">' + annOpts + '</optgroup>' : '') + '</select></div>'
       +   '<div class="field"><label for="res-type">Type</label><select id="res-type"><option value="link">Link</option><option value="sheet">Sheet music</option><option value="video">Video</option><option value="doc">Document</option></select></div>'
       +   '<div class="field" style="grid-column:1/-1"><label for="res-title">Title</label><input id="res-title" maxlength="200" required placeholder="e.g. Week 3 scales sheet"></div>'
-      +   '<div class="field" style="grid-column:1/-1"><label for="res-url">URL (https://…)</label><input id="res-url" type="url" required placeholder="https://…"></div>'
+      + (driveOn
+          ? '<div class="field" style="grid-column:1/-1"><label for="res-file"><i class="fa-solid fa-cloud-arrow-up"></i> Upload a file <span style="color:var(--text-muted);font-weight:400">— video, PDF, audio or image (stored in the Academy Drive)</span></label><input id="res-file" type="file" accept="video/*,audio/*,image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"></div>'
+            + '<div class="field" style="grid-column:1/-1"><label for="res-url">…or paste a URL</label><input id="res-url" type="url" placeholder="https://…"></div>'
+          : '<div class="field" style="grid-column:1/-1"><label for="res-url">URL (https://…)</label><input id="res-url" type="url" required placeholder="https://…"></div>')
       +   '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paperclip"></i> Add resource</button></div>'
       + '</form></section>';
 
@@ -736,21 +740,36 @@
     var resForm = document.getElementById('resForm');
     if (resForm) resForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      var url = document.getElementById('res-url').value.trim();
+      var urlEl = document.getElementById('res-url');
+      var url = urlEl ? urlEl.value.trim() : '';
       var title = document.getElementById('res-title').value.trim();
-      if (!url || !title) return;
+      var fileEl = document.getElementById('res-file');
+      var file = fileEl && fileEl.files && fileEl.files[0];
+      if (!title) return;
       var rtgt = (document.getElementById('res-target').value || '').split(':');
-      var rbody = { type: document.getElementById('res-type').value, title: title, url: url };
-      if (rtgt[0] === 'cohort') rbody.cohort_id = parseInt(rtgt[1], 10); else rbody.class_id = parseInt(rtgt[1], 10);
-      var btn = e.target.querySelector('button'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Adding…';
-      API.request('instructor/resource', { method: 'POST', body: rbody }).then(function () {
-        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Resource added.', 'success') : alert('Added.'));
-        return load();
-      }).catch(function (err) {
-        btn.disabled = false; btn.innerHTML = orig;
-        var c = err.body && err.body.error;
-        (window.MAM_DIALOG ? window.MAM_DIALOG.toast(c === 'validation' ? 'Check the title and a valid https URL.' : 'Could not add resource.', 'error') : alert('Could not add.'));
-      });
+      var setTarget = function (o) { if (rtgt[0] === 'cohort') o.cohort_id = parseInt(rtgt[1], 10); else o.class_id = parseInt(rtgt[1], 10); return o; };
+      var btn = e.target.querySelector('button'); var orig = btn.innerHTML;
+      var fail = function (err) { btn.disabled = false; btn.innerHTML = orig; var c = err && err.body && err.body.error; var d = err && err.body && err.body.detail; (window.MAM_DIALOG ? window.MAM_DIALOG.toast(d || (c === 'validation' ? 'Check the title and a valid https URL.' : 'Could not add resource.'), 'error') : alert('Could not add.')); };
+      var done = function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Resource added.', 'success') : alert('Added.')); return load(); };
+
+      if (file) {
+        // #5: upload the chosen file to Drive, then it's stored as a resource.
+        var max = 256 * 1024 * 1024;
+        if (file.size > max) { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('That file is over the 256 MB limit.', 'error') : alert('Too large.')); return; }
+        btn.disabled = true; btn.innerHTML = 'Uploading…';
+        var reader = new FileReader();
+        reader.onload = function () {
+          var b64 = String(reader.result || '').split(',')[1] || '';
+          API.request('instructor/drive-upload', { method: 'POST', body: setTarget({ name: file.name, mime: file.type || 'application/octet-stream', data: b64, title: title }) })
+            .then(done).catch(fail);
+        };
+        reader.onerror = function () { fail({ body: { detail: 'Could not read that file.' } }); };
+        reader.readAsDataURL(file);
+        return;
+      }
+      if (!url) { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Choose a file or paste a URL.', 'error') : alert('Choose a file or paste a URL.')); return; }
+      btn.disabled = true; btn.innerHTML = 'Adding…';
+      API.request('instructor/resource', { method: 'POST', body: setTarget({ type: document.getElementById('res-type').value, title: title, url: url }) }).then(done).catch(fail);
     });
   }
 

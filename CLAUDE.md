@@ -282,9 +282,20 @@ the notation showcase.**
   **metronome** half of #9 already existed as a studio tool.
 - ✅ **#7 Instructor earnings** — shipped as the repurposed wallet (see #12): admin-recorded
   earnings statement in the instructor portal. Payout mechanics stay off-platform.
+- ✅ **#5 Google Drive file upload** — via a Google **Apps Script web app**, NO OAuth /
+  Drive API credentials. `api/lib/drive.php` signs each request (HMAC over ts+action+body)
+  to the admin-configured web-app URL: `mam_drive_upload()` writes bytes → Drive (link-shared)
+  → returns view/download URLs; `mam_drive_fetch()` pulls bytes back for an access-gated
+  proxy. Instructor uploads (`POST /api/instructor/drive-upload`) store the file as a
+  **dual-read learning resource** (course-only students get it too); the file stays
+  fetchable via the stored view URL OR the gated proxy `GET /api/drive/file?rid=N`
+  (visibility-checked per role). Off until `drive_webapp_url`+`drive_shared_secret` set
+  (`DRIVE_TRANSPORT=mock` = in-process store for dev/tests). Deploy guide:
+  `docs/drive-apps-script.md`. New lib → in BOTH `bootstrap.php` `$mam_libs` AND
+  `run.php` (gotcha #1). Covered by `test_drive.php` (signing, guards, byte-for-byte
+  upload→fetch round-trip).
 - 🔬 **#14 Notation showcase** (audio→Classical/Contemporary/African 6-line, interactive,
-  realistic playback) — large R&D; not a quick task. **#5 Google Drive video upload** —
-  needs Drive API/OAuth credentials.
+  realistic playback) — large R&D; not a quick task. The last open brief item.
 
 ## Where to look
 - Audits: `docs/codebase-audit-2026-06-22.md` (security/correctness),

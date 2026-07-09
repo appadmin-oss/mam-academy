@@ -74,4 +74,7 @@ mam_ok([
     'announcements' => $announcements,
     'resources' => $resources,
     'assignments' => $assignments,
+    // #5: whether file uploads to Drive are configured (drives the resource
+    // form's file uploader; off → the URL-only path is shown).
+    'drive_enabled' => function_exists('mam_drive_enabled') ? mam_drive_enabled() : false,
 ]);

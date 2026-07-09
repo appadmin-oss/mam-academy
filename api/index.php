@@ -128,6 +128,9 @@ $r->post('/attendance/checkin', $f('attendance-checkin.php'), [mw_csrf(), mw_rol
 // Cohort-model twin: self-check-in against a class_session → session_attendance (P2).
 $r->post('/attendance/session-checkin', $f('attendance-session-checkin.php'), [mw_csrf(), mw_role('student'), mw_rate_limit('attendance_checkin', 30, 600)]);
 
+/* ─── Drive file proxy: access-gated fetch of a Drive-backed resource (#5) ─── */
+$r->get('/drive/file', $f('drive-file.php'), [mw_rate_limit('drive_file', 120, 600)]);
+
 /* ─── Studio AI practice feedback (any signed-in user; S3) ─── */
 $r->post('/studio/feedback', $f('studio/feedback.php'), [mw_csrf(), mw_user(), mw_rate_limit('studio_feedback', 60, 600)]);
 
@@ -176,6 +179,8 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/resource',         $f('instructor/resource.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
+    // File upload to Drive via the Apps Script gateway (#5) → stored as a resource.
+    $r->post('/drive-upload',     $f('instructor/drive-upload.php'),    [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('drive_upload', 40, 600)]);
     $r->post('/assignment',        $f('instructor/assignment.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/assignment-delete', $f('instructor/assignment-delete.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
     // LMS gradebook — weekly weighted assessments → auto-computed results.
