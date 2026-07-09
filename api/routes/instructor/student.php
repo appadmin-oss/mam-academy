@@ -20,8 +20,13 @@ if (!$student) mam_fail('not_found', 404);
 // Scope to the caller's own teaching unless they're an admin. Both scopes are
 // built from an (int)-cast id, so there's no injection surface.
 $isAdmin = $u['role'] === 'admin';
-$scope   = $isAdmin ? '' : ' AND c.instructor_id = ' . (int)$u['id'];
-$cscope  = $isAdmin ? '' : ' AND ce.instructor_id = ' . (int)$u['id'];
+$meId    = (int)$u['id'];
+$scope   = $isAdmin ? '' : ' AND c.instructor_id = ' . $meId;
+// A course the caller teaches: either assigned as the enrolment's instructor OR
+// the owner of its cohort. course_enrollments.instructor_id is often NULL (set
+// later by admin), so cohort ownership must also grant the drill-down — matching
+// mam_lms_instructor_owns_cohort — else a legitimately-teaching instructor 403s.
+$cscope  = $isAdmin ? '' : ' AND (ce.instructor_id = ' . $meId . ' OR coh.instructor_id = ' . $meId . ')';
 
 $enrollments = mam_db_all(
     "SELECT e.id AS enrollment_id, e.status, c.title, c.discipline, c.mode, c.schedule

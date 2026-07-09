@@ -166,7 +166,7 @@ function mam_student_announcements(int $studentId, int $limit = 20): array {
            JOIN classes c ON c.id = an.class_id
            JOIN enrollments e ON e.class_id = c.id
            LEFT JOIN users usr ON usr.id = an.author_id
-          WHERE e.student_id = ?
+          WHERE e.student_id = ? AND e.status IN ('active','paused')
          UNION
          SELECT an.id AS id, an.title, an.body, an.created_at AS created_at, coh.title AS class_title, usr.name AS author
            FROM announcements an
@@ -192,7 +192,7 @@ function mam_student_resources(int $studentId, int $limit = 50): array {
            FROM class_resources r
            JOIN classes c ON c.id = r.class_id
            JOIN enrollments e ON e.class_id = c.id
-          WHERE e.student_id = ?
+          WHERE e.student_id = ? AND e.status IN ('active','paused')
          UNION
          SELECT r.id AS id, r.title, r.url, r.type, r.created_at AS created_at, coh.title AS class_title
            FROM class_resources r

@@ -1098,6 +1098,7 @@ INSERT INTO schema_version (version) VALUES (38) ON DUPLICATE KEY UPDATE version
 -- well as a legacy class, so a course/cohort-only student sees their updates.
 ALTER TABLE announcements ADD COLUMN cohort_id INT NULL;
 ALTER TABLE announcements ADD KEY idx_announcements_cohort (cohort_id);
+ALTER TABLE announcements ADD CONSTRAINT fk_ann_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE;
 INSERT INTO schema_version (version) VALUES (39) ON DUPLICATE KEY UPDATE version = version;
 
 -- v40 — resource convergence (P2): a learning resource may attach to a COHORT as

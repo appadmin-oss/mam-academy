@@ -50,6 +50,12 @@ $dropStu = mam_db_insert('users', ['email' => 't_ann_drop@x.dev', 'password_hash
 mam_db_insert('course_enrollments', ['student_id' => $dropStu, 'course_id' => $pianoId, 'cohort_id' => $coId, 'status' => 'cancelled']);
 t_eq(count(mam_student_announcements($dropStu)), 0, 'a cancelled cohort enrolment does not receive announcements');
 
+// A cancelled LEGACY class enrolment likewise stops delivery (both branches
+// filter enrolment status consistently — no updates to a dropped student).
+$legDrop = mam_db_insert('users', ['email' => 't_ann_legdrop@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Leg Drop', 'status' => 'active']);
+mam_db_insert('enrollments', ['student_id' => $legDrop, 'class_id' => $legClass, 'status' => 'cancelled']);
+t_eq(count(mam_student_announcements($legDrop)), 0, 'a cancelled legacy class enrolment does not receive announcements');
+
 // ── Learning resources — same dual-read across class + cohort (P2, v40) ──
 t_group('learning resources (dual-read visibility)');
 
@@ -73,3 +79,4 @@ mam_db_insert('class_resources', ['cohort_id' => $otherCohort, 'title' => 'Other
 $rtitles = array_map(fn($r) => $r['title'], mam_student_resources($stuId));
 t_ok(!in_array('Other cohort res', $rtitles, true), 'a resource on another cohort does not leak');
 t_eq(count(mam_student_resources($dropStu)), 0, 'a cancelled cohort enrolment receives no resources');
+t_eq(count(mam_student_resources($legDrop)), 0, 'a cancelled legacy class enrolment receives no resources');
