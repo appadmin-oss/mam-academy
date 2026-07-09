@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
+<meta http-equiv="Permissions-Policy" content="microphone=(self), camera=(), geolocation=(), interest-cohort=()">
 <title>Music Notation Showcase — Classical, Contemporary &amp; African 6-line | MAM Academy</title>
 <meta name="description" content="See one melody written three ways — a Classical 5-line staff, a contemporary piano-roll, and the MAM African 6-line tone grid — and play it back in your browser, watching each system light up in time.">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -69,6 +70,13 @@
 .nt-ex span{font-size:0.74rem;color:var(--text-muted)}
 .nt-note{}
 .nt-render+.nt-note,p.nt-note{color:var(--text-muted);font-size:0.88rem;line-height:1.6;margin:20px auto 0;max-width:680px;text-align:center}
+.nt-empty{display:flex;align-items:center;justify-content:center;gap:10px;min-height:160px;color:var(--text-muted);font-size:0.95rem;text-align:center;padding:0 16px}
+.nt-empty i{color:var(--gold-bright);font-size:1.3rem}
+.nt-capture{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:16px 0 0;padding:14px 16px;background:rgba(224,138,26,0.06);border:1px solid var(--border-gold);border-radius:14px}
+.nt-rec{min-height:44px}
+.nt-rec.recording{background:rgba(244,63,94,0.16);border:1px solid rgba(244,63,94,0.5);color:#FCA5A5;animation:nt-pulse 1.1s ease-in-out infinite}
+@keyframes nt-pulse{0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,.4)}50%{box-shadow:0 0 0 6px rgba(244,63,94,0)}}
+.nt-rec-status{color:var(--text-muted);font-size:0.86rem}
 @media (max-width:640px){.nt-controls{justify-content:center}.nt-svg{min-width:460px}}
 </style>
 </head>

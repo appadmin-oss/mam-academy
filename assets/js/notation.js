@@ -34,9 +34,83 @@
     return e;
   }
   function midiToFreq(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function freqToMidi(f) { return 69 + 12 * Math.log2(f / 440); }
   function diatonicStep(m) { return Math.floor(m / 12) * 7 + PC_STEP[m % 12]; }
   function noteName(m) { return NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1); }
   function durClass(b) { return b >= 4 ? 'whole' : b >= 2 ? 'half' : b >= 1 ? 'quarter' : 'eighth'; }
+
+  /* ── Audio → notation capture (milestone 2) ────────────────────────────────
+     A self-contained monophonic pitch detector (autocorrelation + parabolic
+     interpolation — no external library, so the page stays CSP-safe) plus a
+     segmenter that turns a stream of per-frame pitch samples into a note model.
+     Both are pure functions so they can be unit-tested in Node. */
+
+  // Estimate fundamental frequency of a time-domain frame. Returns {hz,clarity}
+  // or null when the frame is unvoiced (too quiet / no clear period).
+  function detectPitchAC(buf, sampleRate) {
+    var n = buf.length, i, rms = 0;
+    for (i = 0; i < n; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / n);
+    if (rms < 0.01) return null; // silence
+    // Plausible period range: 70 Hz .. 1100 Hz.
+    var maxLag = Math.min(n - 1, Math.floor(sampleRate / 70));
+    var minLag = Math.max(2, Math.floor(sampleRate / 1100));
+    var bestLag = -1, bestCorr = 0, corrAtZero = 0;
+    for (i = 0; i < n; i++) corrAtZero += buf[i] * buf[i];
+    if (corrAtZero === 0) return null;
+    var lag, prev = 0, foundDip = false;
+    for (lag = minLag; lag <= maxLag; lag++) {
+      var c = 0;
+      for (i = 0; i < n - lag; i++) c += buf[i] * buf[i + lag];
+      var norm = c / corrAtZero;
+      // Wait until the autocorrelation has dipped below zero once (skip the
+      // trivial peak at lag≈0) before accepting a maximum.
+      if (!foundDip && norm < 0) foundDip = true;
+      if (foundDip && norm > bestCorr) { bestCorr = norm; bestLag = lag; }
+      prev = norm;
+    }
+    if (bestLag < 0 || bestCorr < 0.5) return null; // no confident period
+    // Parabolic interpolation around the peak for sub-sample precision.
+    var y1 = acf_(buf, bestLag - 1, n), y2 = acf_(buf, bestLag, n), y3 = acf_(buf, bestLag + 1, n);
+    var denom = (y1 - 2 * y2 + y3);
+    var shift = denom !== 0 ? 0.5 * (y1 - y3) / denom : 0;
+    var period = bestLag + shift;
+    if (period <= 0) return null;
+    return { hz: sampleRate / period, clarity: bestCorr };
+  }
+  function acf_(buf, lag, n) { if (lag < 1) lag = 1; var c = 0; for (var i = 0; i < n - lag; i++) c += buf[i] * buf[i + lag]; return c; }
+
+  // Turn per-frame samples [{t(ms), midi(float)|null}] into a note model at a
+  // given tempo. Rounds to semitones, merges stable runs, drops blips shorter
+  // than minMs, and quantises each note's duration to the nearest beat value.
+  function framesToNotes(frames, tempoBpm, opts) {
+    opts = opts || {};
+    var minMs = opts.minMs || 90, beatMs = 60000 / (tempoBpm || 100);
+    // 1) collapse frames into runs of equal rounded pitch (null = rest).
+    var runs = [], cur = null;
+    frames.forEach(function (f) {
+      var key = (f.midi == null) ? null : Math.round(f.midi);
+      if (cur && cur.key === key) { cur.end = f.t; }
+      else { if (cur) runs.push(cur); cur = { key: key, start: f.t, end: f.t }; }
+    });
+    if (cur) runs.push(cur);
+    // 2) drop sub-minMs runs; merge a dropped run into a neighbour if it splits
+    //    two identical pitches.
+    var kept = runs.filter(function (r) { return (r.end - r.start) >= minMs; });
+    // 3) quantise durations to the nearest sensible beat value.
+    var choices = [0.5, 1, 1.5, 2, 3, 4];
+    var notes = [];
+    kept.forEach(function (r) {
+      var beats = (r.end - r.start) / beatMs;
+      var best = choices[0], bd = Infinity;
+      choices.forEach(function (c) { var d = Math.abs(c - beats); if (d < bd) { bd = d; best = c; } });
+      notes.push({ midi: r.key, beats: best });
+    });
+    // trim leading/trailing rests
+    while (notes.length && notes[0].midi == null) notes.shift();
+    while (notes.length && notes[notes.length - 1].midi == null) notes.pop();
+    return notes;
+  }
 
   // ── Example melodies ──────────────────────────────────────────────────────
   var EXAMPLES = [
@@ -58,7 +132,9 @@
       title: 'Bell ostinato (12/8 feel)', key: 'F major', tempo: 132, timeSig: [4, 4],
       notes: [[65, 0.5], [69, 0.5], [72, 0.5], [69, 0.5], [65, 0.5], [72, 0.5], [69, 0.5], [65, 0.5], [67, 1], [null, 1]]
         .map(function (n) { return { midi: n[0], beats: n[1] }; })
-    }
+    },
+    // Milestone 2: filled in live by mic capture (empty until you record).
+    { title: 'Your melody', key: 'record below', tempo: 100, timeSig: [4, 4], notes: [], captured: true }
   ];
 
   // ── Renderers ─────────────────────────────────────────────────────────────
@@ -211,6 +287,45 @@
     tick();
   };
 
+  // ── Recorder (mic capture → per-frame pitch samples) ──────────────────────
+  function Recorder() { this.stream = null; this.ac = null; this.analyser = null; this.raf = null; this.frames = []; this.t0 = 0; }
+  Recorder.prototype.start = function (onFrame) {
+    var self = this;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.reject(new Error('unsupported'));
+    return navigator.mediaDevices.getUserMedia({ audio: { noiseSuppression: true, echoCancellation: true, autoGainControl: true } }).then(function (s) {
+      self.stream = s;
+      var AC = window.AudioContext || window.webkitAudioContext;
+      self.ac = new AC();
+      var src = self.ac.createMediaStreamSource(s);
+      self.analyser = self.ac.createAnalyser(); self.analyser.fftSize = 2048;
+      var tbuf = new Float32Array(self.analyser.fftSize);
+      src.connect(self.analyser); // sink only — never routed to output (no feedback)
+      self.frames = []; self.t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      var last = -1;
+      function loop() {
+        self.analyser.getFloatTimeDomainData(tbuf);
+        var now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        if (now - last >= 40) { // ~25 samples/sec
+          last = now;
+          var p = detectPitchAC(tbuf, self.ac.sampleRate);
+          var midi = p ? freqToMidi(p.hz) : null;
+          if (midi != null && (midi < 40 || midi > 96)) midi = null; // melodic range guard
+          self.frames.push({ t: now - self.t0, midi: midi });
+          if (onFrame) onFrame(midi);
+        }
+        self.raf = requestAnimationFrame(loop);
+      }
+      loop();
+      return true;
+    });
+  };
+  Recorder.prototype.stop = function () {
+    if (this.raf) { cancelAnimationFrame(this.raf); this.raf = null; }
+    if (this.stream) { this.stream.getTracks().forEach(function (t) { t.stop(); }); this.stream = null; }
+    if (this.ac) { try { this.ac.close(); } catch (e) {} this.ac = null; }
+    var f = this.frames; this.frames = []; return f;
+  };
+
   // ── UI wiring ────────────────────────────────────────────────────────────
   function boot() {
     var root = document.getElementById('ntApp');
@@ -236,8 +351,12 @@
       + '</div>'
       + '<div class="nt-stage"><div class="nt-title" id="ntTitle"></div><div class="nt-render" id="ntRender" tabindex="0"></div></div>'
       + '<div class="nt-examples"><span class="nt-ex-label">Try a melody:</span>' + examplesHtml + '</div>'
+      + '<div class="nt-capture">'
+      +   '<button type="button" class="nt-rec btn"><i class="fa-solid fa-microphone" aria-hidden="true"></i> <span class="nt-rec-label">Record a melody</span></button>'
+      +   '<span class="nt-rec-status" aria-live="polite"></span>'
+      + '</div>'
       + '<p class="nt-note">One melody, three ways to read it — play it back and watch each system light up in time. '
-      + 'Live audio→notation capture is coming next; for now, explore these examples.</p>';
+      + 'Or <strong>record</strong> a short tune (sing or play, monophonic) and watch it transcribed live into all three systems.</p>';
 
     var renderBox = root.querySelector('#ntRender');
     var titleBox = root.querySelector('#ntTitle');
@@ -249,6 +368,10 @@
       var mel = EXAMPLES[state.melIndex];
       titleBox.textContent = mel.title + ' · ' + mel.key;
       renderBox.innerHTML = '';
+      if (!mel.notes || !mel.notes.length) {
+        renderBox.innerHTML = '<div class="nt-empty"><i class="fa-solid fa-microphone-lines" aria-hidden="true"></i> Record a melody below and it will appear here in all three systems.</div>';
+        return;
+      }
       renderBox.appendChild(RENDERERS[state.system](mel));
     }
     function setIndex(i) {
@@ -290,11 +413,49 @@
       root.querySelector('.nt-tempo-val').textContent = state.tempo;
     });
 
+    // ── Capture (milestone 2): record → transcribe into the captured slot ──
+    var recorder = new Recorder(), recording = false;
+    var capIndex = EXAMPLES.length - 1; // the { captured:true } slot
+    var recBtn = root.querySelector('.nt-rec');
+    var recLabel = root.querySelector('.nt-rec-label');
+    var recIcon = recBtn.querySelector('i');
+    var recStatus = root.querySelector('.nt-rec-status');
+
+    function finishRec() {
+      var frames = recorder.stop();
+      recording = false; recBtn.classList.remove('recording'); recLabel.textContent = 'Record a melody'; recIcon.className = 'fa-solid fa-microphone';
+      var notes = framesToNotes(frames, state.tempo);
+      var sung = notes.filter(function (n) { return n.midi != null; }).length;
+      if (!sung) { recStatus.textContent = 'No clear notes detected — try again, a bit louder and more sustained.'; return; }
+      EXAMPLES[capIndex].notes = notes;
+      EXAMPLES[capIndex].key = 'your capture';
+      state.melIndex = capIndex;
+      root.querySelectorAll('.nt-ex').forEach(function (x) { x.classList.remove('active'); });
+      var chip = root.querySelector('.nt-ex[data-ex="' + capIndex + '"]'); if (chip) chip.classList.add('active');
+      recStatus.textContent = 'Transcribed ' + sung + ' note' + (sung === 1 ? '' : 's') + ' — shown above in all three systems. Press play to hear it.';
+      draw();
+    }
+    recBtn.addEventListener('click', function () {
+      if (recording) { finishRec(); return; }
+      player.stop(); stopUI();
+      recStatus.textContent = 'Starting microphone…';
+      recorder.start(function (midi) { recStatus.textContent = midi != null ? ('♪ hearing ' + noteName(Math.round(midi))) : 'listening…'; })
+        .then(function () { recording = true; recBtn.classList.add('recording'); recLabel.textContent = 'Stop & transcribe'; recIcon.className = 'fa-solid fa-stop'; recStatus.textContent = 'Recording — sing or play a short melody, then stop.'; })
+        .catch(function (err) { recStatus.textContent = (err && err.name === 'NotAllowedError') ? 'Microphone permission was denied.' : 'Microphone is not available in this browser.'; });
+    });
+
     root.querySelector('.nt-ex').classList.add('active');
     draw();
   }
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  // Pure helpers exposed for Node self-tests (detector + segmenter).
+  var api = { detectPitchAC: detectPitchAC, framesToNotes: framesToNotes, midiToFreq: midiToFreq, freqToMidi: freqToMidi };
+  if (typeof window !== 'undefined') window.MAM_NOTATION = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  }
 })();

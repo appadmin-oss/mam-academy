@@ -294,13 +294,18 @@ the notation showcase.**
   `docs/drive-apps-script.md`. New lib → in BOTH `bootstrap.php` `$mam_libs` AND
   `run.php` (gotcha #1). Covered by `test_drive.php` (signing, guards, byte-for-byte
   upload→fetch round-trip).
-- 🚧 **#14 Notation showcase** — **milestone 1 shipped**: `notation.php` + `assets/js/notation.js`
-  render one melody in THREE systems (Classical 5-line treble staff, Contemporary piano-roll,
-  African **MAM 6-line** tone grid) from a note model, with Web Audio playback + per-note
-  highlight, tempo, a system switcher and example melodies. All self-drawn SVG + a small synth
-  (no CDN libs — CSP-safe). Linked in footer + sitemap; clean URL `/notation`. **Milestone 2
-  (open):** live audio→notation capture (mic/DSP pitch+rhythm detection to build the note model,
-  likely feeding off the studio's existing pitch scoring). This is the last open brief item.
+- ✅ **#14 Notation showcase** — `notation.php` + `assets/js/notation.js`. **M1:** renders one
+  melody in THREE systems (Classical 5-line treble staff, Contemporary piano-roll, African
+  **MAM 6-line** tone grid) from a note model, with Web Audio playback + per-note highlight,
+  tempo, system switcher and example melodies. **M2 (live audio→notation):** a self-contained
+  autocorrelation pitch detector (`detectPitchAC`) + a frame→note segmenter/quantiser
+  (`framesToNotes`) turn mic input into a note model that feeds the same renderers — a "Record
+  a melody" control transcribes a sung/played monophonic tune into all three systems live.
+  NO external libraries (the studio's pitchy is a CDN import — deliberately NOT reused here to
+  keep the page CSP-safe/self-hosted); mic needs the `Permissions-Policy: microphone=(self)`
+  meta. The pure DSP+segmenter are Node-testable (`assets/js/notation.selftest.cjs`, wired into
+  CI's JS job); the browser flow (permission/record/stop/graceful-empty) is Playwright-verified.
+  Linked in footer + sitemap; clean URL `/notation`. All 14 brief items now shipped.
 
 ## Where to look
 - Audits: `docs/codebase-audit-2026-06-22.md` (security/correctness),
