@@ -190,6 +190,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'faculty_invite' => 'users', 'faculty_app_status' => 'users', 'faculty_request_review' => 'users',
         'module_proposal_review' => 'curriculum',
         'curriculum_clone' => 'curriculum',
+        'cohort_converge' => 'settings',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
@@ -746,6 +747,25 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         } catch (\Throwable $e) {
             header('Location: ' . $back . '&err=' . urlencode('Could not clone that syllabus.')); exit;
         }
+    }
+
+    // Cohort convergence (P2 write-path): reconcile a backfilled cohort's legacy
+    // class roster into course_enrollments so those students become gradable +
+    // markable in the cohort tools. Additive + idempotent (mam_lms_*).
+    if ($action === 'cohort_converge') {
+        $cohortId = (int)($_POST['cohort_id'] ?? 0);
+        if ($cohortId <= 0) { header('Location: ?v=courseenroll&err=' . urlencode('Pick a cohort to converge.')); exit; }
+        try {
+            $r = mam_lms_converge_cohort_enrollments($cohortId, ((int)($adminUser['id'] ?? 0)) ?: null);
+        } catch (\Throwable $e) {
+            header('Location: ?v=courseenroll&err=' . urlencode('Could not converge that cohort.')); exit;
+        }
+        if ($r['reason'] === 'no_course_mapping') { header('Location: ?v=courseenroll&err=' . urlencode('Map this cohort to a course first — then converge its class roster.')); exit; }
+        if ($r['reason'] === 'not_backfilled')   { header('Location: ?v=courseenroll&err=' . urlencode('That cohort has no legacy class to converge.')); exit; }
+        $made = (int)$r['converged'] + (int)$r['linked'];
+        header('Location: ?v=courseenroll&ok=' . urlencode($made
+            ? ('Converged the legacy roster — ' . (int)$r['converged'] . ' enrolled, ' . (int)$r['linked'] . ' linked' . ($r['skipped'] ? ', ' . (int)$r['skipped'] . ' already enrolled' : '') . '.')
+            : 'Nothing to converge — the class roster is already enrolled.')); exit;
     }
 
     if ($action === 'module_proposal_review') {
@@ -2768,21 +2788,35 @@ nav a{display:flex;align-items:center}
   <div class="card">
     <h3>Cohorts <span class="muted" style="font-weight:400">· the unified &ldquo;scheduled run&rdquo; grouping (course &times; level &times; programme) — one place for course &amp; class registrations</span></h3>
     <table>
-      <thead><tr><th>Cohort</th><th>Course / Level</th><th>Instructor</th><th>Course students</th><th>Class enrolments</th><th>Status</th></tr></thead>
+      <thead><tr><th>Cohort</th><th>Course / Level</th><th>Instructor</th><th>Course students</th><th>Class enrolments</th><th>Status</th><th>Converge</th></tr></thead>
       <tbody>
-      <?php foreach ($cohortList as $co): $lcid = (int)($co['legacy_class_id'] ?? 0); ?>
+      <?php foreach ($cohortList as $co): $lcid = (int)($co['legacy_class_id'] ?? 0); $legCount = (int)($legacyCounts[$lcid] ?? 0); $hasCourse = !empty($co['course_name']); ?>
         <tr>
           <td><strong><?= htmlspecialchars((string)($co['title'] ?: ('Cohort #' . $co['id']))) ?></strong><?= $lcid ? ' <span class="muted">(from class #' . $lcid . ')</span>' : '' ?></td>
           <td><?= htmlspecialchars((string)($co['course_name'] ?? $co['discipline'] ?? '—')) ?><?= !empty($co['level_name']) ? ' &middot; ' . htmlspecialchars((string)$co['level_name']) : '' ?></td>
           <td><?= htmlspecialchars((string)($co['instructor_name'] ?? '—')) ?></td>
           <td><?= (int)($co['enrollment_count'] ?? 0) ?></td>
-          <td><?php if ($lcid): ?><?= (int)($legacyCounts[$lcid] ?? 0) ?> <a href="?v=enrollments" class="muted" style="text-decoration:underline">manage</a><?php else: ?><span class="muted">—</span><?php endif; ?></td>
+          <td><?php if ($lcid): ?><?= $legCount ?> <a href="?v=enrollments" class="muted" style="text-decoration:underline">manage</a><?php else: ?><span class="muted">—</span><?php endif; ?></td>
           <td><span class="pill <?= htmlspecialchars((string)$co['status']) ?>"><?= htmlspecialchars((string)$co['status']) ?></span></td>
+          <td>
+            <?php if ($lcid && $legCount && $hasCourse): ?>
+              <form method="post" style="margin:0" onsubmit="return confirm('Create course enrolments for this cohort\'s legacy class roster? This is additive and idempotent — it never removes or duplicates enrolments.');">
+                <?= mam_csrf_field() ?>
+                <input type="hidden" name="action" value="cohort_converge">
+                <input type="hidden" name="cohort_id" value="<?= (int)$co['id'] ?>">
+                <button class="btn ghost" type="submit" title="Enrol this cohort's legacy class roster into course_enrollments so they're gradable + markable in the cohort tools"><i class="fa-solid fa-code-merge" aria-hidden="true"></i> Converge</button>
+              </form>
+            <?php elseif ($lcid && $legCount && !$hasCourse): ?>
+              <span class="muted" title="A cohort must map to a course before its legacy roster can be converged">Map a course first</span>
+            <?php else: ?>
+              <span class="muted">—</span>
+            <?php endif; ?>
+          </td>
         </tr>
       <?php endforeach; ?>
       </tbody>
     </table>
-    <p style="padding:4px 20px 16px;color:var(--muted);font-size:0.84rem;line-height:1.6">Course students come from course registrations (below); class enrolments are the legacy per-class roster (<a href="?v=enrollments" style="color:var(--gold)">Enrollments</a>). Cohorts converge both — no data migration.</p>
+    <p style="padding:4px 20px 16px;color:var(--muted);font-size:0.84rem;line-height:1.6">Course students come from course registrations (below); class enrolments are the legacy per-class roster (<a href="?v=enrollments" style="color:var(--gold)">Enrollments</a>). Cohorts converge both. <strong>Converge</strong> enrols a backfilled cohort's legacy class roster into course records so those students become gradable + markable in the cohort tools — additive and idempotent, safe to re-run.</p>
   </div>
   <?php endif; ?>
   <?php

@@ -595,6 +595,80 @@ function mam_lms_cohort_roster(int $cohortId): array {
     );
 }
 
+/**
+ * Cohort convergence (P2, WRITE-PATH) — reconcile a backfilled cohort's LEGACY
+ * class roster into `course_enrollments`, so those students become fully
+ * gradable + markable in the cohort tools (Gradebook / session mark-sheet),
+ * not just visible as a count. This is the deliberate one-way reconciliation
+ * the codebase otherwise avoids: strictly additive, idempotent, audited — it
+ * never deletes, downgrades, or duplicates an enrolment.
+ *
+ * A row is created only for a legacy (active/paused) class member who has no
+ * active/pending course enrolment in this cohort's (course, level); if they
+ * already have a matching enrolment that isn't linked to the cohort, it is
+ * linked rather than duplicated.
+ *
+ * Requires the cohort to map to a real course — `course_enrollments.course_id`
+ * is NOT NULL, so a purely-legacy cohort must be course-mapped by an admin
+ * first (returns reason 'no_course_mapping', converges nothing).
+ *
+ * @return array{converged:int,linked:int,skipped:int,total:int,reason:?string}
+ */
+function mam_lms_converge_cohort_enrollments(int $cohortId, ?int $actorId = null): array {
+    $none = ['converged' => 0, 'linked' => 0, 'skipped' => 0, 'total' => 0];
+    $co = mam_db_row('SELECT id, course_id, level_id, program_id, instructor_id, legacy_class_id FROM cohorts WHERE id = ?', [$cohortId]);
+    if (!$co) throw new InvalidArgumentException('cohort_not_found');
+    $legacyClassId = (int)($co['legacy_class_id'] ?? 0);
+    if ($legacyClassId <= 0) return $none + ['reason' => 'not_backfilled'];
+    $courseId = (int)($co['course_id'] ?? 0);
+    if ($courseId <= 0) return $none + ['reason' => 'no_course_mapping'];
+
+    $levelId   = $co['level_id']      !== null ? (int)$co['level_id']      : null;
+    $programId = $co['program_id']    !== null ? (int)$co['program_id']    : null;
+    $instrId   = $co['instructor_id'] !== null ? (int)$co['instructor_id'] : null;
+
+    $legacy = mam_db_all(
+        "SELECT DISTINCT e.student_id FROM enrollments e
+          WHERE e.class_id = ? AND e.status IN ('active','paused')",
+        [$legacyClassId]
+    );
+    $converged = 0; $linked = 0; $skipped = 0;
+    foreach ($legacy as $row) {
+        $sid = (int)$row['student_id'];
+        // Existing active/pending enrolment in the SAME course+level? (bare
+        // level_id compare so INTEGER affinity coerces the bound param — see the
+        // note in mam_lms_add_course.)
+        if ($levelId === null) {
+            $existing = mam_db_row("SELECT id, cohort_id FROM course_enrollments WHERE student_id = ? AND course_id = ? AND level_id IS NULL AND status IN ('pending','active')", [$sid, $courseId]);
+        } else {
+            $existing = mam_db_row("SELECT id, cohort_id FROM course_enrollments WHERE student_id = ? AND course_id = ? AND level_id = ? AND status IN ('pending','active')", [$sid, $courseId, $levelId]);
+        }
+        if ($existing) {
+            // Already enrolled — link it to this cohort if it's floating, else leave it.
+            if (empty($existing['cohort_id'])) { mam_lms_link_enrollment_cohort((int)$existing['id'], $cohortId); $linked++; }
+            else { $skipped++; }
+            continue;
+        }
+        $id = mam_db_insert('course_enrollments', [
+            'student_id'    => $sid,
+            'course_id'     => $courseId,
+            'level_id'      => $levelId,
+            'program_id'    => $programId,
+            'instructor_id' => $instrId,
+            'cohort_id'     => $cohortId,
+            'status'        => 'active',
+            'approved_by'   => $actorId,
+            'approved_at'   => date('Y-m-d H:i:s'),
+        ]);
+        mam_lms_log_event($id, null, 'active', $actorId, 'converged_from_legacy_class_' . $legacyClassId);
+        $converged++;
+    }
+    if ($converged || $linked) {
+        mam_audit('lms_cohort_converge', 'cohort', $cohortId, ['converged' => $converged, 'linked' => $linked, 'skipped' => $skipped, 'legacy_class_id' => $legacyClassId]);
+    }
+    return ['converged' => $converged, 'linked' => $linked, 'skipped' => $skipped, 'total' => $converged + $linked + $skipped, 'reason' => null];
+}
+
 /** The mark sheet for a session: every enrolled student with their attendance
  *  status for that session (null where not yet marked). */
 function mam_lms_session_mark_sheet(int $sessionId, int $cohortId): array {
