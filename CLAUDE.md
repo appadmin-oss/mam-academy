@@ -106,6 +106,18 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    via shared `courseTableHtml`/`certPanelHtml`/`wireCourseActions`), and the instructor
    **overview** lazily surfaces a "Cohorts & sessions" panel beside the legacy class views.
    The legacy tabs still read both models as-is and remain until parity is verified.
+   **More convergence since:** the student **Overview** now dual-reads too (an "Active
+   learning" KPI + panel counting active classes AND active course enrolments, plus a
+   session-attendance fold-in) so a course-only student isn't shown an empty overview.
+   The instructor "Cohorts & sessions" panel folds the legacy class roster count of a
+   backfilled cohort (`mam_lms_instructor_cohorts` returns `legacy_count`) so it never
+   misreads as 0. And there is now an **opt-in write-path reconciliation** —
+   `mam_lms_converge_cohort_enrollments($cohortId)` (admin `cohort_converge` on
+   `?v=courseenroll`, settings cap) enrols a backfilled cohort's legacy roster into
+   `course_enrollments` so those students become gradable/markable; it's additive,
+   idempotent, audited, and **requires the cohort to map to a real course** (course_id is
+   NOT NULL) — a purely-legacy cohort must be course-mapped first. It's the one sanctioned
+   bridge that writes across the models; everything else stays dual-read.
 3. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
    ONLY from a trusted proxy (private + Cloudflare ranges by default; `TRUSTED_PROXY_CIDRS`
    to override). It's the rate-limit + audit IP key. Don't revert to blindly trusting headers.
