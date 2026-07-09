@@ -1093,3 +1093,9 @@ CREATE TABLE IF NOT EXISTS automations (
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (38) ON DUPLICATE KEY UPDATE version = version;
+
+-- v39 — announcement convergence (P2): an announcement may target a COHORT as
+-- well as a legacy class, so a course/cohort-only student sees their updates.
+ALTER TABLE announcements ADD COLUMN cohort_id INT NULL;
+ALTER TABLE announcements ADD KEY idx_announcements_cohort (cohort_id);
+INSERT INTO schema_version (version) VALUES (39) ON DUPLICATE KEY UPDATE version = version;

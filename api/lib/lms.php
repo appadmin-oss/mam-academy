@@ -151,6 +151,34 @@ function mam_lms_finalize(int $enrollmentId, ?int $by = null): array {
 
 /** A student's course enrolments, with course/level/programme/instructor names
  *  and any finalized result. Newest first. */
+/**
+ * Announcements visible to a student — from any LEGACY class OR cohort they're
+ * enrolled in (dual-read, P2). `class_title` carries the class OR cohort name so
+ * the portal renders unchanged. Newest first, capped. The compound query aliases
+ * `created_at` explicitly: a UNION's ORDER BY must reference a result-set column
+ * name (SQLite rejects a bare `an.created_at` here).
+ */
+function mam_student_announcements(int $studentId, int $limit = 20): array {
+    $limit = max(1, min(100, $limit));
+    return mam_db_all(
+        "SELECT an.id AS id, an.title, an.body, an.created_at AS created_at, c.title AS class_title, usr.name AS author
+           FROM announcements an
+           JOIN classes c ON c.id = an.class_id
+           JOIN enrollments e ON e.class_id = c.id
+           LEFT JOIN users usr ON usr.id = an.author_id
+          WHERE e.student_id = ?
+         UNION
+         SELECT an.id AS id, an.title, an.body, an.created_at AS created_at, coh.title AS class_title, usr.name AS author
+           FROM announcements an
+           JOIN cohorts coh ON coh.id = an.cohort_id
+           JOIN course_enrollments ce ON ce.cohort_id = coh.id
+           LEFT JOIN users usr ON usr.id = an.author_id
+          WHERE ce.student_id = ? AND ce.status IN ('active','completed')
+          ORDER BY created_at DESC, id DESC LIMIT " . $limit,
+        [$studentId, $studentId]
+    );
+}
+
 function mam_lms_student_courses(int $studentId): array {
     return mam_db_all(
         "SELECT ce.id, ce.status, ce.created_at, ce.approved_at,

@@ -76,16 +76,9 @@ $auditer = $soft(fn () => mam_db_row('SELECT * FROM auditer_results WHERE studen
 // real, current status — student-exempt / valid-until / expired / not-taken.
 $auditerStatus = $soft(fn () => $u['customer_id'] ? mam_auditer_status((int)$u['customer_id']) : null, null);
 
-// Announcements from any class the student is enrolled in.
-$announcements = $soft(fn () => mam_db_all(
-    "SELECT an.id, an.title, an.body, an.created_at, c.title AS class_title, usr.name AS author
-       FROM announcements an
-       JOIN classes c ON c.id = an.class_id
-       JOIN enrollments e ON e.class_id = c.id
-       LEFT JOIN users usr ON usr.id = an.author_id
-      WHERE e.student_id = ? ORDER BY an.created_at DESC LIMIT 20",
-    [(int)$u['id']]
-), []);
+// Announcements from any class OR cohort the student is enrolled in (dual-read,
+// P2): a course/cohort-only student now sees their instructor's updates too.
+$announcements = $soft(fn () => mam_student_announcements((int)$u['id']), []);
 
 // Learning resources for any class the student is enrolled in.
 $resources = $soft(fn () => mam_db_all(

@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 38;
+const MAM_SCHEMA_TARGET = 39;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1140,6 +1140,13 @@ function mam_db_migrate(PDO $db): void {
               run_count   INTEGER NOT NULL DEFAULT 0,
               updated_at  TEXT DEFAULT (datetime('now'))
             );
+        ",
+        // Convergence (P2): let an announcement target a COHORT as well as a
+        // legacy class, so a course/cohort-only student sees their instructor's
+        // updates. class_id is already nullable; cohort_id is the parallel link.
+        39 => "
+            ALTER TABLE announcements ADD COLUMN cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE;
+            CREATE INDEX idx_announcements_cohort ON announcements(cohort_id);
         ",
     ];
 

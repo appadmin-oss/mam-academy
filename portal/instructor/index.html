@@ -614,8 +614,11 @@
   function renderAnnounce() {
     var classes = (data.classes || []).filter(function (c) { return c.status === 'active'; });
     var anns = data.announcements || [];
-    if (!classes.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('bullhorn', 'You need an active class before you can post an announcement.') + '</div></section>'; return; }
+    // Class options (bare id) drive the class-only resource form; the announce
+    // audience select uses prefixed values (class:/cohort:) and gains cohort
+    // options lazily below, so a cohort-only instructor can still announce.
     var opts = classes.map(function (c) { return '<option value="' + c.id + '">' + P.escapeHtml(c.title) + '</option>'; }).join('');
+    var annOpts = classes.map(function (c) { return '<option value="class:' + c.id + '">' + P.escapeHtml(c.title) + '</option>'; }).join('');
     var list = anns.length ? anns.map(function (a) {
       return '<div style="padding:14px 16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised);margin-bottom:10px">'
         + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong style="color:var(--text)">' + P.escapeHtml(a.title || 'Announcement') + '</strong>'
@@ -633,33 +636,60 @@
         + '<a href="' + P.escapeHtml(r.url) + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.8rem">Open <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>';
     }).join('') : '<div class="panel-body">' + empty('folder-open', 'No resources yet. Share a link, sheet or video above.') + '</div>';
 
+    // Resources stay per-class for now (class_resources is class-keyed); show a
+    // note instead of a broken empty select when the instructor has no class.
+    var resFormSection = classes.length
+      ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Share a resource</h2></div>'
+        + '<form id="resForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">'
+        +   '<div class="field"><label for="res-class">Class</label><select id="res-class" required>' + opts + '</select></div>'
+        +   '<div class="field"><label for="res-type">Type</label><select id="res-type"><option value="link">Link</option><option value="sheet">Sheet music</option><option value="video">Video</option><option value="doc">Document</option></select></div>'
+        +   '<div class="field" style="grid-column:1/-1"><label for="res-title">Title</label><input id="res-title" maxlength="200" required placeholder="e.g. Week 3 scales sheet"></div>'
+        +   '<div class="field" style="grid-column:1/-1"><label for="res-url">URL (https://…)</label><input id="res-url" type="url" required placeholder="https://…"></div>'
+        +   '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paperclip"></i> Add resource</button></div>'
+        + '</form></section>'
+      : '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Share a resource</h2></div><div class="panel-body">' + empty('folder-open', 'Resources are attached per class for now — available once you have an active class.') + '</div></section>';
+
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Post an announcement</h2></div>'
       + '<form id="annForm" class="profile-form" style="padding:18px 22px;display:grid;gap:14px">'
-      +   '<div class="field"><label for="ann-class">Class</label><select id="ann-class" required>' + opts + '</select></div>'
+      +   '<div class="field"><label for="ann-target">Audience</label><select id="ann-target" required>' + (annOpts ? '<optgroup label="Classes">' + annOpts + '</optgroup>' : '') + '</select></div>'
       +   '<div class="field"><label for="ann-title">Title</label><input id="ann-title" maxlength="160" placeholder="e.g. Recital this Friday"></div>'
       +   '<div class="field"><label for="ann-body">Message</label><textarea id="ann-body" rows="4" required placeholder="What should your students know?"></textarea></div>'
-      +   '<div class="actions"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Post to class</button></div>'
+      +   '<div class="actions"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Post announcement</button></div>'
       + '</form></section>'
       + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Posted announcements</h2></div><div style="padding:14px 18px">' + list + '</div></section>'
-      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Share a resource</h2></div>'
-      + '<form id="resForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">'
-      +   '<div class="field"><label for="res-class">Class</label><select id="res-class" required>' + opts + '</select></div>'
-      +   '<div class="field"><label for="res-type">Type</label><select id="res-type"><option value="link">Link</option><option value="sheet">Sheet music</option><option value="video">Video</option><option value="doc">Document</option></select></div>'
-      +   '<div class="field" style="grid-column:1/-1"><label for="res-title">Title</label><input id="res-title" maxlength="200" required placeholder="e.g. Week 3 scales sheet"></div>'
-      +   '<div class="field" style="grid-column:1/-1"><label for="res-url">URL (https://…)</label><input id="res-url" type="url" required placeholder="https://…"></div>'
-      +   '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paperclip"></i> Add resource</button></div>'
-      + '</form></section>'
+      + resFormSection
       + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Shared resources</h2></div><div style="padding:14px 18px">' + resList + '</div></section>';
+
+    // Dual-read: lazily add the instructor's cohorts as announcement audiences.
+    API.request('instructor/sessions', { method: 'GET' }).then(function (r) {
+      var cohorts = (r && r.cohorts) || [];
+      var sel = document.getElementById('ann-target');
+      if (!sel) return;
+      if (cohorts.length) {
+        var og = document.createElement('optgroup'); og.label = 'Cohorts';
+        cohorts.forEach(function (c) {
+          var o = document.createElement('option');
+          o.value = 'cohort:' + c.id;
+          o.textContent = c.title || c.course_name || ('Cohort #' + c.id);
+          og.appendChild(o);
+        });
+        sel.appendChild(og);
+      }
+      if (!sel.options.length) {
+        var form = document.getElementById('annForm');
+        if (form) form.innerHTML = empty('bullhorn', 'You need an active class or cohort before you can post an announcement.');
+      }
+    }).catch(function () { /* leave class targets as-is */ });
+
     document.getElementById('annForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var body = document.getElementById('ann-body').value.trim();
       if (!body) return;
+      var tgt = (document.getElementById('ann-target').value || '').split(':');
+      var payload = { title: document.getElementById('ann-title').value.trim(), body: body };
+      if (tgt[0] === 'cohort') payload.cohort_id = parseInt(tgt[1], 10); else payload.class_id = parseInt(tgt[1], 10);
       var btn = e.target.querySelector('button'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Posting…';
-      API.request('instructor/announce', { method: 'POST', body: {
-        class_id: document.getElementById('ann-class').value,
-        title: document.getElementById('ann-title').value.trim(),
-        body: body
-      } }).then(function () {
+      API.request('instructor/announce', { method: 'POST', body: payload }).then(function () {
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Announcement posted.', 'success') : alert('Posted.'));
         return load();
       }).catch(function (err) {
@@ -667,7 +697,8 @@
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not post: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not post.'));
       });
     });
-    document.getElementById('resForm').addEventListener('submit', function (e) {
+    var resForm = document.getElementById('resForm');
+    if (resForm) resForm.addEventListener('submit', function (e) {
       e.preventDefault();
       var url = document.getElementById('res-url').value.trim();
       var title = document.getElementById('res-title').value.trim();
