@@ -80,15 +80,8 @@ $auditerStatus = $soft(fn () => $u['customer_id'] ? mam_auditer_status((int)$u['
 // P2): a course/cohort-only student now sees their instructor's updates too.
 $announcements = $soft(fn () => mam_student_announcements((int)$u['id']), []);
 
-// Learning resources for any class the student is enrolled in.
-$resources = $soft(fn () => mam_db_all(
-    "SELECT r.id, r.title, r.url, r.type, r.created_at, c.title AS class_title
-       FROM class_resources r
-       JOIN classes c ON c.id = r.class_id
-       JOIN enrollments e ON e.class_id = c.id
-      WHERE e.student_id = ? ORDER BY r.created_at DESC LIMIT 50",
-    [(int)$u['id']]
-), []);
+// Learning resources for any class OR cohort the student is enrolled in (P2).
+$resources = $soft(fn () => mam_student_resources((int)$u['id']), []);
 
 // Assignments set by instructors (open first, then by due date).
 $assignments = $soft(fn () => mam_db_all(

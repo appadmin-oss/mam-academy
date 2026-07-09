@@ -1099,3 +1099,11 @@ INSERT INTO schema_version (version) VALUES (38) ON DUPLICATE KEY UPDATE version
 ALTER TABLE announcements ADD COLUMN cohort_id INT NULL;
 ALTER TABLE announcements ADD KEY idx_announcements_cohort (cohort_id);
 INSERT INTO schema_version (version) VALUES (39) ON DUPLICATE KEY UPDATE version = version;
+
+-- v40 — resource convergence (P2): a learning resource may attach to a COHORT as
+-- well as a legacy class. class_id becomes nullable (a cohort resource has none).
+ALTER TABLE class_resources MODIFY class_id INT NULL;
+ALTER TABLE class_resources ADD COLUMN cohort_id INT NULL;
+ALTER TABLE class_resources ADD KEY idx_class_resources_cohort (cohort_id);
+ALTER TABLE class_resources ADD CONSTRAINT fk_res_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE;
+INSERT INTO schema_version (version) VALUES (40) ON DUPLICATE KEY UPDATE version = version;

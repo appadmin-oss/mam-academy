@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 39;
+const MAM_SCHEMA_TARGET = 40;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1147,6 +1147,28 @@ function mam_db_migrate(PDO $db): void {
         39 => "
             ALTER TABLE announcements ADD COLUMN cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE;
             CREATE INDEX idx_announcements_cohort ON announcements(cohort_id);
+        ",
+        // Convergence (P2): let a learning resource attach to a COHORT as well as
+        // a legacy class. class_resources.class_id was NOT NULL, so we rebuild the
+        // table to make it nullable and add cohort_id. Safe with foreign_keys=ON:
+        // class_resources is a leaf table (nothing references it), so DROP/RENAME
+        // won't cascade or orphan any inbound reference.
+        40 => "
+            CREATE TABLE class_resources_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              class_id INTEGER REFERENCES classes(id) ON DELETE CASCADE,
+              cohort_id INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+              title TEXT NOT NULL,
+              url TEXT NOT NULL,
+              type TEXT,
+              posted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            INSERT INTO class_resources_new (id, class_id, title, url, type, posted_by, created_at)
+              SELECT id, class_id, title, url, type, posted_by, created_at FROM class_resources;
+            DROP TABLE class_resources;
+            ALTER TABLE class_resources_new RENAME TO class_resources;
+            CREATE INDEX idx_class_resources_cohort ON class_resources(cohort_id);
         ",
     ];
 

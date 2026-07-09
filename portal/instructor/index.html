@@ -636,18 +636,16 @@
         + '<a href="' + P.escapeHtml(r.url) + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.8rem">Open <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>';
     }).join('') : '<div class="panel-body">' + empty('folder-open', 'No resources yet. Share a link, sheet or video above.') + '</div>';
 
-    // Resources stay per-class for now (class_resources is class-keyed); show a
-    // note instead of a broken empty select when the instructor has no class.
-    var resFormSection = classes.length
-      ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Share a resource</h2></div>'
-        + '<form id="resForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">'
-        +   '<div class="field"><label for="res-class">Class</label><select id="res-class" required>' + opts + '</select></div>'
-        +   '<div class="field"><label for="res-type">Type</label><select id="res-type"><option value="link">Link</option><option value="sheet">Sheet music</option><option value="video">Video</option><option value="doc">Document</option></select></div>'
-        +   '<div class="field" style="grid-column:1/-1"><label for="res-title">Title</label><input id="res-title" maxlength="200" required placeholder="e.g. Week 3 scales sheet"></div>'
-        +   '<div class="field" style="grid-column:1/-1"><label for="res-url">URL (https://…)</label><input id="res-url" type="url" required placeholder="https://…"></div>'
-        +   '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paperclip"></i> Add resource</button></div>'
-        + '</form></section>'
-      : '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Share a resource</h2></div><div class="panel-body">' + empty('folder-open', 'Resources are attached per class for now — available once you have an active class.') + '</div></section>';
+    // Resources now converge too (P2): the audience select carries class:/cohort:
+    // values; cohort options are added lazily below alongside the announce select.
+    var resFormSection = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Share a resource</h2></div>'
+      + '<form id="resForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">'
+      +   '<div class="field"><label for="res-target">Audience</label><select id="res-target" required>' + (annOpts ? '<optgroup label="Classes">' + annOpts + '</optgroup>' : '') + '</select></div>'
+      +   '<div class="field"><label for="res-type">Type</label><select id="res-type"><option value="link">Link</option><option value="sheet">Sheet music</option><option value="video">Video</option><option value="doc">Document</option></select></div>'
+      +   '<div class="field" style="grid-column:1/-1"><label for="res-title">Title</label><input id="res-title" maxlength="200" required placeholder="e.g. Week 3 scales sheet"></div>'
+      +   '<div class="field" style="grid-column:1/-1"><label for="res-url">URL (https://…)</label><input id="res-url" type="url" required placeholder="https://…"></div>'
+      +   '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paperclip"></i> Add resource</button></div>'
+      + '</form></section>';
 
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Post an announcement</h2></div>'
       + '<form id="annForm" class="profile-form" style="padding:18px 22px;display:grid;gap:14px">'
@@ -660,25 +658,28 @@
       + resFormSection
       + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Shared resources</h2></div><div style="padding:14px 18px">' + resList + '</div></section>';
 
-    // Dual-read: lazily add the instructor's cohorts as announcement audiences.
+    // Dual-read: lazily add the instructor's cohorts as announcement + resource
+    // audiences, so a cohort/course-only instructor can post to them.
     API.request('instructor/sessions', { method: 'GET' }).then(function (r) {
       var cohorts = (r && r.cohorts) || [];
-      var sel = document.getElementById('ann-target');
-      if (!sel) return;
-      if (cohorts.length) {
-        var og = document.createElement('optgroup'); og.label = 'Cohorts';
-        cohorts.forEach(function (c) {
-          var o = document.createElement('option');
-          o.value = 'cohort:' + c.id;
-          o.textContent = c.title || c.course_name || ('Cohort #' + c.id);
-          og.appendChild(o);
-        });
-        sel.appendChild(og);
-      }
-      if (!sel.options.length) {
-        var form = document.getElementById('annForm');
-        if (form) form.innerHTML = empty('bullhorn', 'You need an active class or cohort before you can post an announcement.');
-      }
+      ['ann-target', 'res-target'].forEach(function (selId) {
+        var sel = document.getElementById(selId);
+        if (!sel) return;
+        if (cohorts.length) {
+          var og = document.createElement('optgroup'); og.label = 'Cohorts';
+          cohorts.forEach(function (c) {
+            var o = document.createElement('option');
+            o.value = 'cohort:' + c.id;
+            o.textContent = c.title || c.course_name || ('Cohort #' + c.id);
+            og.appendChild(o);
+          });
+          sel.appendChild(og);
+        }
+        if (!sel.options.length) {
+          var form = sel.closest('form');
+          if (form) form.innerHTML = empty(selId === 'ann-target' ? 'bullhorn' : 'folder-open', 'You need an active class or cohort first.');
+        }
+      });
     }).catch(function () { /* leave class targets as-is */ });
 
     document.getElementById('annForm').addEventListener('submit', function (e) {
@@ -703,12 +704,11 @@
       var url = document.getElementById('res-url').value.trim();
       var title = document.getElementById('res-title').value.trim();
       if (!url || !title) return;
+      var rtgt = (document.getElementById('res-target').value || '').split(':');
+      var rbody = { type: document.getElementById('res-type').value, title: title, url: url };
+      if (rtgt[0] === 'cohort') rbody.cohort_id = parseInt(rtgt[1], 10); else rbody.class_id = parseInt(rtgt[1], 10);
       var btn = e.target.querySelector('button'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Adding…';
-      API.request('instructor/resource', { method: 'POST', body: {
-        class_id: document.getElementById('res-class').value,
-        type: document.getElementById('res-type').value,
-        title: title, url: url
-      } }).then(function () {
+      API.request('instructor/resource', { method: 'POST', body: rbody }).then(function () {
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Resource added.', 'success') : alert('Added.'));
         return load();
       }).catch(function (err) {

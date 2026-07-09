@@ -49,3 +49,27 @@ t_eq($legSeen[0]['class_title'], 'Legacy Class', 'legacy announcements carry the
 $dropStu = mam_db_insert('users', ['email' => 't_ann_drop@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Drop Stu', 'status' => 'active']);
 mam_db_insert('course_enrollments', ['student_id' => $dropStu, 'course_id' => $pianoId, 'cohort_id' => $coId, 'status' => 'cancelled']);
 t_eq(count(mam_student_announcements($dropStu)), 0, 'a cancelled cohort enrolment does not receive announcements');
+
+// ── Learning resources — same dual-read across class + cohort (P2, v40) ──
+t_group('learning resources (dual-read visibility)');
+
+// class_id must now be nullable (v40 rebuild) so a cohort resource can exist.
+$cohortRes = mam_db_insert('class_resources', ['cohort_id' => $coId, 'title' => 'Scales PDF', 'url' => 'https://x.dev/scales.pdf', 'type' => 'sheet', 'posted_by' => $insId]);
+t_ok($cohortRes > 0, 'a cohort resource inserts with a NULL class_id (class_id nullable after v40)');
+
+$res = mam_student_resources($stuId);
+t_eq(count($res), 1, 'a cohort resource reaches the course-only student');
+t_eq($res[0]['class_title'], 'Announce Cohort', 'the resource carries the cohort name');
+t_eq($res[0]['type'], 'sheet', 'the resource type comes through');
+
+// Legacy class resource still reaches a class-enrolled student.
+mam_db_insert('class_resources', ['class_id' => $legClass, 'title' => 'Class handout', 'url' => 'https://x.dev/h.pdf', 'type' => 'doc', 'posted_by' => $insId]);
+$legRes = mam_student_resources($legStu);
+t_eq(count($legRes), 1, 'the legacy class resource path still delivers');
+t_eq($legRes[0]['class_title'], 'Legacy Class', 'legacy resources carry the class title');
+
+// No cross-cohort leak, and a cancelled enrolment gets nothing.
+mam_db_insert('class_resources', ['cohort_id' => $otherCohort, 'title' => 'Other cohort res', 'url' => 'https://x.dev/o.pdf', 'type' => 'link', 'posted_by' => $insId]);
+$rtitles = array_map(fn($r) => $r['title'], mam_student_resources($stuId));
+t_ok(!in_array('Other cohort res', $rtitles, true), 'a resource on another cohort does not leak');
+t_eq(count(mam_student_resources($dropStu)), 0, 'a cancelled cohort enrolment receives no resources');

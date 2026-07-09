@@ -179,6 +179,31 @@ function mam_student_announcements(int $studentId, int $limit = 20): array {
     );
 }
 
+/**
+ * Learning resources visible to a student — from any LEGACY class OR cohort they
+ * are enrolled in (dual-read, P2). `class_title` carries the class OR cohort name.
+ * Same compound-query rules as mam_student_announcements(): alias the ORDER BY
+ * columns explicitly and tiebreak on id.
+ */
+function mam_student_resources(int $studentId, int $limit = 50): array {
+    $limit = max(1, min(200, $limit));
+    return mam_db_all(
+        "SELECT r.id AS id, r.title, r.url, r.type, r.created_at AS created_at, c.title AS class_title
+           FROM class_resources r
+           JOIN classes c ON c.id = r.class_id
+           JOIN enrollments e ON e.class_id = c.id
+          WHERE e.student_id = ?
+         UNION
+         SELECT r.id AS id, r.title, r.url, r.type, r.created_at AS created_at, coh.title AS class_title
+           FROM class_resources r
+           JOIN cohorts coh ON coh.id = r.cohort_id
+           JOIN course_enrollments ce ON ce.cohort_id = coh.id
+          WHERE ce.student_id = ? AND ce.status IN ('active','completed')
+          ORDER BY created_at DESC, id DESC LIMIT " . $limit,
+        [$studentId, $studentId]
+    );
+}
+
 function mam_lms_student_courses(int $studentId): array {
     return mam_db_all(
         "SELECT ce.id, ce.status, ce.created_at, ce.approved_at,
