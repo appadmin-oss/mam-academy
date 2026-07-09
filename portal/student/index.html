@@ -132,6 +132,26 @@
 
   function renderOverview() {
     var apps = data.applications || [], pays = data.payments || [], enr = data.enrollments || [], att = data.attendance || [];
+    var courses = data.courses || [];
+    // Dual-read (portal-audit S2): the Overview must reflect BOTH enrollment
+    // models, so a course-only student (course_enrollments, no legacy class)
+    // isn't shown an empty overview that contradicts My Learning one tab over.
+    var activeClasses = enr.filter(function (e){return e.enrollment_status==='active';}).length;
+    var activeCourses = courses.filter(function (c){return c.status==='active';}).length;
+    var activeLearning = activeClasses + activeCourses;
+    var learnSub = (activeClasses || activeCourses)
+      ? [activeClasses ? activeClasses + ' class' + (activeClasses===1?'':'es') : '', activeCourses ? activeCourses + ' course' + (activeCourses===1?'':'s') : ''].filter(Boolean).join(' · ')
+      : 'None active yet';
+    // Body for the "active learning" panel — both models, side by side, each
+    // labelled only when both are present so it never looks cluttered.
+    var subLabel = function (t) { return '<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:2px 2px 8px;font-weight:700">' + t + '</div>'; };
+    var learnBody;
+    if (enr.length || courses.length) {
+      learnBody = (enr.length ? (courses.length ? subLabel('Classes') : '') + renderClassTable(enr.slice(0, 5)) : '')
+        + (courses.length ? (enr.length ? subLabel('Courses') : '') + courseTableHtml(courses.slice(0, 5)) : '');
+    } else {
+      learnBody = empty('music', 'No active classes or courses yet.');
+    }
     var paid = pays.filter(function (p) { return p.status === 'succeeded'; }).length;
     var firstName = ((data.user && data.user.name) || '').split(' ')[0] || 'there';
     var ps = data.practice_stats || (STUDIO ? STUDIO.practiceStats() : { streak: 0, weekMin: 0 });
@@ -146,9 +166,9 @@
       + '<section class="kpi-row">'
       + kpi('Practice streak', ps.streak + (ps.streak === 1 ? ' day' : ' days'), ps.streak ? 'On fire 🔥' : 'Start today', 'gold')
       + kpi('This week', (ps.weekMin >= 60 ? (Math.floor(ps.weekMin/60) + 'h ' + (ps.weekMin%60) + 'm') : ps.weekMin + ' min'), 'Goal progress ' + ps.goalPct + '%')
-      + kpi('Active Classes', enr.filter(function (e){return e.enrollment_status==='active';}).length, 'Enrolled now')
+      + kpi('Active learning', activeLearning, learnSub)
       + kpi('Assignments', (prog.assignments_done || 0) + '/' + (prog.assignments_total || 0), prog.assignments_open ? prog.assignments_open + ' to do' : (prog.assignments_total ? 'All done 🎉' : 'None yet'))
-      + kpi('Attendance', rate === null ? '—' : (rate + '%'), rate === null ? 'No sessions yet' : 'present across ' + att.length + ' sessions')
+      + kpi('Attendance', rate === null ? '—' : (rate + '%'), rate === null ? 'No sessions yet' : 'present across ' + att.length + ' sessions', '', 'ovAttKpi')
       + kpi('Applications', apps.length, apps.length ? apps[0].pathway : 'None yet')
       + '</section>'
       + progressPanel(prog, ps)
@@ -156,11 +176,34 @@
       + '<section class="panel"><div class="panel-head"><h2>Latest application</h2><a class="panel-action" href="#applications" data-tab="applications">All →</a></div>'
       // Don't nudge an already-enrolled student (classes or courses) to "start an application".
       + '<div class="panel-body">' + (apps[0] ? appRowFull(apps[0]) : empty('file-pen', (enr.length || (data.courses && data.courses.length)) ? 'No applications on file.' : 'No applications yet — start one.')) + '</div></section>'
-      + '<section class="panel"><div class="panel-head"><h2>Upcoming &amp; active classes</h2><a class="panel-action" href="#classes" data-tab="classes">All →</a></div>'
-      + '<div class="panel-body">' + (enr.length ? renderClassTable(enr.slice(0,5)) : empty('music', 'No active classes yet.')) + '</div></section>';
+      + '<section class="panel"><div class="panel-head"><h2>Upcoming &amp; active learning</h2><a class="panel-action" href="#learning" data-tab="learning">All →</a></div>'
+      + '<div class="panel-body">' + learnBody + '</div>'
+      + (courses.length ? '<div id="ovLearnOutline" style="margin:0 22px 18px"></div>' : '')
+      + '</section>';
     content.innerHTML = html;
     bindTabLinks();
+    if (courses.length) wireCourseActions('ovLearnOutline');
     loadAiNote();
+    loadOverviewSessionAttendance(att);
+  }
+
+  // Dual-read (portal-audit S2): fold cohort session attendance into the
+  // Overview attendance KPI so it agrees with the Attendance tab. Best-effort
+  // and non-blocking — like loadAiNote, it never disturbs the overview.
+  function loadOverviewSessionAttendance(att) {
+    if (!API) return;
+    API.request('student/session-attendance', { method: 'GET' }).then(function (r) {
+      var sa = (r && r.attendance) || [];
+      if (!sa.length) return;
+      var tile = document.getElementById('ovAttKpi');
+      if (!tile) return;
+      var combined = (att || []).concat(sa);
+      var present = combined.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
+      var rate = combined.length ? Math.round(present / combined.length * 100) : null;
+      var val = tile.querySelector('.kpi-value'), sub = tile.querySelector('.kpi-sub');
+      if (val) val.textContent = rate === null ? '—' : (rate + '%');
+      if (sub) sub.textContent = rate === null ? 'No sessions yet' : ('present across ' + combined.length + ' sessions');
+    }).catch(function () { /* never disrupt the overview */ });
   }
 
   // KTAMS kids get a playful practice hero + a Mon–Sun "week dots" streak strip
@@ -915,8 +958,8 @@
     P.mountSessions();
   }
 
-  function kpi(label, value, sub, cls) {
-    return '<div class="kpi"><div class="kpi-label">' + P.escapeHtml(label) + '</div><div class="kpi-value ' + (cls || '') + '">' + value + '</div><div class="kpi-sub">' + P.escapeHtml(sub || '') + '</div></div>';
+  function kpi(label, value, sub, cls, id) {
+    return '<div class="kpi"' + (id ? ' id="' + id + '"' : '') + '><div class="kpi-label">' + P.escapeHtml(label) + '</div><div class="kpi-value ' + (cls || '') + '">' + value + '</div><div class="kpi-sub">' + P.escapeHtml(sub || '') + '</div></div>';
   }
   function empty(icon, text) { return '<div class="empty-state"><i class="fa-solid fa-' + icon + '"></i>' + text + '</div>'; }
   function appRowFull(a) {
