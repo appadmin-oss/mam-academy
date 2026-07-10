@@ -46,5 +46,26 @@ var h = N.framesToNotes(held, 100);
 ok(h.length === 1 && h[0].midi === 67, 'leading rest trimmed, one note kept');
 ok(h[0].beats === 2, 'a ~1200 ms note → 2 beats (half note)');
 
+// ── Onset detection: two re-articulated same-pitch notes split (M2) ──
+// 500 ms of C4 (loud), a short quiet gap, then 500 ms of C4 again.
+var reart = [];
+for (t = 0; t < 500; t += 40) reart.push({ t: t, midi: 60, rms: 0.08 });
+for (t = 500; t < 620; t += 40) reart.push({ t: t, midi: null, rms: 0.004 }); // gap below gateLo
+for (t = 620; t < 1120; t += 40) reart.push({ t: t, midi: 60, rms: 0.08 });
+var split = N.framesToNotes(reart, 100);
+var pitched = split.filter(function (n) { return n.midi != null; });
+ok(pitched.length === 2 && pitched[0].midi === 60 && pitched[1].midi === 60, 'a re-articulated same-pitch note splits into two (onset detection) — got ' + pitched.length);
+// Without energy data, a CONTINUOUS same pitch stays one note (legato / back-compat).
+var cont = []; for (t = 0; t < 1000; t += 40) cont.push({ t: t, midi: 60 }); // no rms, no gap
+ok(N.framesToNotes(cont, 100).filter(function (n) { return n.midi != null; }).length === 1, 'without energy data, a continuous same pitch is one note (back-compat)');
+
+// ── Tempo estimation from the performance (M2) ──
+// Notes of ~600, 600, 300, 1200 ms → base beat ≈ 600 ms → ~100 BPM.
+function sustain(list) { var fr = [], tt = 0; list.forEach(function (seg) { for (var k = 0; k < seg.ms; k += 40) fr.push({ t: tt + k, midi: seg.midi, rms: seg.midi == null ? 0.004 : 0.08 }); tt += seg.ms; }); return fr; }
+var perf = sustain([{ midi: 60, ms: 600 }, { midi: 62, ms: 600 }, { midi: 64, ms: 300 }, { midi: 65, ms: 1200 }]);
+var bpm = N.estimateTempo(perf, {});
+near(bpm, 100, 8, 'estimated tempo is ~100 BPM from 600/300/1200 ms notes');
+ok(N.estimateTempo([], {}) === 100, 'empty capture falls back to 100 BPM');
+
 console.log(fails === 0 ? '\nPASS' : '\nFAIL: ' + fails + ' assertion(s)');
 process.exit(fails === 0 ? 0 : 1);

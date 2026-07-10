@@ -85,31 +85,72 @@
   // than minMs, and quantises each note's duration to the nearest beat value.
   function framesToNotes(frames, tempoBpm, opts) {
     opts = opts || {};
-    var minMs = opts.minMs || 90, beatMs = 60000 / (tempoBpm || 100);
-    // 1) collapse frames into runs of equal rounded pitch (null = rest).
-    var runs = [], cur = null;
-    frames.forEach(function (f) {
-      var key = (f.midi == null) ? null : Math.round(f.midi);
-      if (cur && cur.key === key) { cur.end = f.t; }
-      else { if (cur) runs.push(cur); cur = { key: key, start: f.t, end: f.t }; }
-    });
-    if (cur) runs.push(cur);
-    // 2) drop sub-minMs runs; merge a dropped run into a neighbour if it splits
-    //    two identical pitches.
-    var kept = runs.filter(function (r) { return (r.end - r.start) >= minMs; });
-    // 3) quantise durations to the nearest sensible beat value.
+    var beatMs = 60000 / (tempoBpm || 100);
+    var kept = segmentFrames(frames, opts);
+    // Quantise each segment's duration to the nearest sensible beat value.
     var choices = [0.5, 1, 1.5, 2, 3, 4];
-    var notes = [];
-    kept.forEach(function (r) {
-      var beats = (r.end - r.start) / beatMs;
-      var best = choices[0], bd = Infinity;
+    var notes = kept.map(function (r) {
+      var beats = (r.end - r.start) / beatMs, best = choices[0], bd = Infinity;
       choices.forEach(function (c) { var d = Math.abs(c - beats); if (d < bd) { bd = d; best = c; } });
-      notes.push({ midi: r.key, beats: best });
+      return { midi: r.key, beats: best };
     });
     // trim leading/trailing rests
     while (notes.length && notes[0].midi == null) notes.shift();
     while (notes.length && notes[notes.length - 1].midi == null) notes.pop();
     return notes;
+  }
+
+  // Segment per-frame samples into runs of stable pitch. Uses onset detection
+  // (an energy gate with hysteresis) when frames carry `rms`, so a RE-ARTICULATED
+  // same-pitch note starts a new segment instead of merging; pitch per segment is
+  // the median of its frames (robust to a few stray frames). Sub-minMs runs are
+  // dropped as noise. Returns [{key:midi|null, start, end}].
+  function segmentFrames(frames, opts) {
+    opts = opts || {};
+    var minMs = opts.minMs || 90;
+    var gateHi = opts.gateHi != null ? opts.gateHi : 0.02;
+    var gateLo = opts.gateLo != null ? opts.gateLo : 0.01;
+    var hasRms = frames.some(function (f) { return f.rms != null; });
+    var runs = [], cur = null, gatedOff = true;
+    frames.forEach(function (f) {
+      var key = (f.midi == null) ? null : Math.round(f.midi);
+      var onset = false;
+      if (hasRms) {
+        var e = f.rms || 0;
+        if (e < gateLo) gatedOff = true;
+        if (e >= gateHi && gatedOff) { onset = true; gatedOff = false; }
+      }
+      if (!cur || cur.key !== key || onset) {
+        if (cur) runs.push(cur);
+        cur = { key: key, start: f.t, end: f.t, pitches: (key == null ? [] : [f.midi]) };
+      } else { cur.end = f.t; if (key != null) cur.pitches.push(f.midi); }
+    });
+    if (cur) runs.push(cur);
+    runs.forEach(function (r) {
+      if (r.pitches.length) { var a = r.pitches.slice().sort(function (x, y) { return x - y; }); r.key = Math.round(a[Math.floor(a.length / 2)]); }
+    });
+    return runs.filter(function (r) { return (r.end - r.start) >= minMs; });
+  }
+
+  // Estimate tempo (BPM) from a captured performance: segment it, then grid-
+  // search the tempo whose beat best explains the note durations as simple beat
+  // fractions (½,1,1½,2,3,4). Pure + testable. Returns a BPM in [min,max].
+  function estimateTempo(frames, opts) {
+    opts = opts || {};
+    var lo = opts.min || 60, hi = opts.max || 180, fallback = opts.fallback || 100;
+    var durs = segmentFrames(frames, opts).filter(function (r) { return r.key != null; }).map(function (r) { return r.end - r.start; }).filter(function (d) { return d > 0; });
+    if (!durs.length) return fallback;
+    var choices = [0.5, 1, 1.5, 2, 3, 4], best = fallback, bestErr = Infinity;
+    for (var bpm = lo; bpm <= hi; bpm++) {
+      var beatMs = 60000 / bpm, err = 0;
+      durs.forEach(function (d) {
+        var b = d / beatMs, be = Infinity;
+        choices.forEach(function (c) { be = Math.min(be, Math.abs(c - b)); });
+        err += be * Math.max(1, d / beatMs); // weight longer notes a touch more
+      });
+      if (err < bestErr - 1e-9) { bestErr = err; best = bpm; }
+    }
+    return best;
   }
 
   // ── Example melodies ──────────────────────────────────────────────────────
@@ -307,10 +348,11 @@
         var now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
         if (now - last >= 40) { // ~25 samples/sec
           last = now;
+          var rms = 0; for (var j = 0; j < tbuf.length; j++) rms += tbuf[j] * tbuf[j]; rms = Math.sqrt(rms / tbuf.length);
           var p = detectPitchAC(tbuf, self.ac.sampleRate);
           var midi = p ? freqToMidi(p.hz) : null;
           if (midi != null && (midi < 40 || midi > 96)) midi = null; // melodic range guard
-          self.frames.push({ t: now - self.t0, midi: midi });
+          self.frames.push({ t: now - self.t0, midi: midi, rms: rms });
           if (onFrame) onFrame(midi);
         }
         self.raf = requestAnimationFrame(loop);
@@ -424,15 +466,22 @@
     function finishRec() {
       var frames = recorder.stop();
       recording = false; recBtn.classList.remove('recording'); recLabel.textContent = 'Record a melody'; recIcon.className = 'fa-solid fa-microphone';
-      var notes = framesToNotes(frames, state.tempo);
+      // Estimate the tempo from the performance, then transcribe against it and
+      // reflect it in the tempo control so playback matches what was sung.
+      var tempo = estimateTempo(frames, { fallback: state.tempo });
+      var notes = framesToNotes(frames, tempo);
       var sung = notes.filter(function (n) { return n.midi != null; }).length;
       if (!sung) { recStatus.textContent = 'No clear notes detected — try again, a bit louder and more sustained.'; return; }
+      state.tempo = tempo;
+      range.value = Math.max(50, Math.min(180, tempo));
+      root.querySelector('.nt-tempo-val').textContent = tempo;
       EXAMPLES[capIndex].notes = notes;
-      EXAMPLES[capIndex].key = 'your capture';
+      EXAMPLES[capIndex].tempo = tempo;
+      EXAMPLES[capIndex].key = 'your capture · ~' + tempo + ' BPM';
       state.melIndex = capIndex;
       root.querySelectorAll('.nt-ex').forEach(function (x) { x.classList.remove('active'); });
       var chip = root.querySelector('.nt-ex[data-ex="' + capIndex + '"]'); if (chip) chip.classList.add('active');
-      recStatus.textContent = 'Transcribed ' + sung + ' note' + (sung === 1 ? '' : 's') + ' — shown above in all three systems. Press play to hear it.';
+      recStatus.textContent = 'Transcribed ' + sung + ' note' + (sung === 1 ? '' : 's') + ' at ~' + tempo + ' BPM — shown above in all three systems. Press play to hear it.';
       draw();
     }
     recBtn.addEventListener('click', function () {
@@ -451,7 +500,7 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   // Pure helpers exposed for Node self-tests (detector + segmenter).
-  var api = { detectPitchAC: detectPitchAC, framesToNotes: framesToNotes, midiToFreq: midiToFreq, freqToMidi: freqToMidi };
+  var api = { detectPitchAC: detectPitchAC, framesToNotes: framesToNotes, segmentFrames: segmentFrames, estimateTempo: estimateTempo, midiToFreq: midiToFreq, freqToMidi: freqToMidi };
   if (typeof window !== 'undefined') window.MAM_NOTATION = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 
