@@ -269,6 +269,15 @@ the notation showcase.**
   (upsert by week, never duplicates), throws on same-level / unknown-course. Admin action
   `curriculum_clone`. Covered by `test_curriculum_clone.php` (which cleans up its fixture
   course + modules so the shared test DB keeps its seeded catalogue count).
+- ✅ **Admin course creation + PDF curriculum** — `mam_lms_create_course(code,name,kind,desc)`
+  (`lms.php`, validates slug code + unique + name; kind core|elective; audited) behind admin
+  action `course_create` (cap `curriculum`) with an "Add a new course" form on `?v=modules`;
+  on success it deep-links into authoring the new course's weeks. **PDF download:**
+  `?v=export&type=curriculum.pdf&course=…&level=…` renders a branded, print-optimised HTML
+  curriculum (cover + colour-coded week cards) the browser saves as a standard PDF via
+  window.print() — NO PDF library (`@page` + `@media print`; toolbar hidden in print;
+  `?print=1` auto-opens the dialog). Buttons in the authoring card + import/export panel.
+  `mam_lms_create_course` covered by `test_curriculum_clone.php` (fixtures cleaned up).
 - ✅ **Auditer Applicant Checklist** — `auditer.php#checklist`: the 19 preparation items
   (documents/identity, performance, professional materials, on-the-day) as a tickable,
   localStorage-persisted, printable checklist. Deep-linked from thank-you, status, book,

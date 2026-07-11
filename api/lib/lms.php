@@ -31,6 +31,32 @@ function mam_lms_auto_approve(): bool {
     return (int)mam_setting_num('lms_auto_approve', 0) === 1;
 }
 
+/**
+ * Create a new curriculum course (admin authoring). Validates a unique slug-ish
+ * code + a name; kind ∈ {core, elective}. Auto-assigns sort_order to the end
+ * when not given. Returns ['id'=>int,'code'=>string]. Throws
+ * InvalidArgumentException('bad_code'|'bad_name'|'duplicate_code').
+ */
+function mam_lms_create_course(string $code, string $name, string $kind = 'elective', ?string $description = null, ?int $sortOrder = null): array {
+    $code = strtolower(trim($code));
+    $name = trim($name);
+    if (!preg_match('/^[a-z0-9][a-z0-9_]{1,40}$/', $code)) throw new InvalidArgumentException('bad_code');
+    if ($name === '' || mb_strlen($name) > 120) throw new InvalidArgumentException('bad_name');
+    if (!in_array($kind, ['core', 'elective'], true)) $kind = 'elective';
+    if (mam_db_row('SELECT id FROM courses WHERE code = ?', [$code])) throw new InvalidArgumentException('duplicate_code');
+    if ($sortOrder === null) { $mx = mam_db_row('SELECT MAX(sort_order) m FROM courses'); $sortOrder = (int)($mx['m'] ?? 0) + 1; }
+    $id = mam_db_insert('courses', [
+        'code'        => $code,
+        'name'        => $name,
+        'kind'        => $kind,
+        'description' => ($description !== null && trim($description) !== '') ? trim($description) : null,
+        'sort_order'  => $sortOrder,
+        'active'      => 1,
+    ]);
+    mam_audit('lms_course_create', 'course', (int)$id, ['code' => $code, 'name' => $name, 'kind' => $kind]);
+    return ['id' => (int)$id, 'code' => $code];
+}
+
 /* ─────────────────────────── Enrolment lifecycle ─────────────────────────
    An enrolment moves through an ENFORCED state machine, not free text. Every
    change is appended to enrolment_events (who/when/why) so the lifecycle is

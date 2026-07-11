@@ -137,6 +137,75 @@ if ($view === 'export') {
         exit;
     }
 
+    // Standard curriculum as a printable PDF: a branded, print-optimised HTML
+    // document the browser turns into a proper PDF via "Save as PDF" (no PDF
+    // library needed). Opens in a new tab; ?print=1 auto-opens the print dialog.
+    if ($type === 'curriculum.pdf') {
+        if ($adminUser && !mam_admin_can($adminUser, 'curriculum')) { http_response_code(403); echo 'Forbidden — super-admin only.'; exit; }
+        $cc = trim((string)($_GET['course'] ?? ''));
+        $course = $cc !== '' ? mam_db_row('SELECT id, code, name, description, kind FROM courses WHERE code = ?', [$cc]) : null;
+        if (!$course) { http_response_code(404); echo 'Course not found.'; exit; }
+        $lc = trim((string)($_GET['level'] ?? ''));
+        $level = $lc !== '' ? mam_db_row('SELECT id, name FROM levels WHERE code = ?', [$lc]) : null;
+        $modules = mam_lms_export_modules((int)$course['id'], $level ? (int)$level['id'] : null);
+        usort($modules, fn ($a, $b) => ($a['week'] <=> $b['week']));
+        mam_audit('curriculum_export', 'course', (int)$course['id'], ['level' => $lc ?: null, 'count' => count($modules), 'format' => 'pdf']);
+        $kindColor = ['module' => '#E8961F', 'revision' => '#34D399', 'exam' => '#FB7185'];
+        $h = fn ($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+        header('Content-Type: text/html; charset=utf-8');
+        ?><!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= $h($course['name']) ?><?= $level ? ' · ' . $h($level['name']) : '' ?> — MAM Academy Curriculum</title>
+<style>
+  :root{--gold:#E8961F;--ink:#1B140D;--muted:#6b5d4a;--line:#e4d8c4}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;color:var(--ink);background:#f4efe7;line-height:1.55}
+  .doc{max-width:820px;margin:0 auto;background:#fff;padding:40px 46px}
+  .bar{position:sticky;top:0;display:flex;gap:10px;justify-content:flex-end;background:#241c13;padding:12px 20px}
+  .bar button,.bar a{font:600 14px/1 inherit;padding:10px 16px;border-radius:8px;border:0;cursor:pointer;text-decoration:none}
+  .bar button{background:var(--gold);color:#1a120b}
+  .bar a{background:transparent;color:#f4efe7;border:1px solid rgba(244,239,231,.4)}
+  .brand{font:800 13px/1 inherit;letter-spacing:.28em;text-transform:uppercase;color:var(--gold)}
+  h1{font-size:30px;margin:6px 0 2px}
+  .sub{color:var(--muted);font-size:15px;margin:0 0 4px}
+  .meta{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin:14px 0 0;border-top:2px solid var(--gold);padding-top:12px}
+  .desc{margin:18px 0 6px;font-size:15px;color:#3a3025}
+  .wk{border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:8px;padding:14px 18px;margin:14px 0;page-break-inside:avoid}
+  .wk-h{display:flex;align-items:baseline;gap:10px;margin:0 0 6px}
+  .wk-n{font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .badge{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:100px;color:#fff}
+  .wk-t{font-size:18px;font-weight:700;margin:2px 0 6px}
+  .wk-c{font-size:14px;color:#3a3025;white-space:pre-wrap}
+  .empty{padding:30px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:8px}
+  .foot{margin-top:26px;border-top:1px solid var(--line);padding-top:12px;color:var(--muted);font-size:12px;text-align:center}
+  @media print{ .bar{display:none} body{background:#fff} .doc{max-width:none;padding:0} @page{size:A4;margin:16mm} }
+</style></head><body>
+<div class="bar"><a href="?v=modules&course=<?= $h(rawurlencode($course['code'])) ?>&level=<?= $h(rawurlencode($lc)) ?>">← Back</a><button onclick="window.print()">⬇ Save as PDF / Print</button></div>
+<div class="doc">
+  <div class="brand">MAM Academy · Standard Curriculum</div>
+  <h1><?= $h($course['name']) ?></h1>
+  <p class="sub"><?= $level ? $h($level['name']) . ' level' : 'All levels' ?><?= ($course['kind'] ?? '') === 'core' ? ' · Core course' : '' ?></p>
+  <div class="meta">
+    <span><strong><?= count($modules) ?></strong> week<?= count($modules) === 1 ? '' : 's' ?> authored</span>
+    <span>Course code: <strong><?= $h($course['code']) ?></strong></span>
+    <span>Generated <?= $h(date('j M Y')) ?></span>
+  </div>
+  <?php if (!empty($course['description'])): ?><p class="desc"><?= $h($course['description']) ?></p><?php endif; ?>
+  <?php if (!$modules): ?>
+    <div class="empty">No weeks have been authored for this syllabus yet.</div>
+  <?php else: foreach ($modules as $m): $col = $kindColor[$m['kind']] ?? '#E8961F'; ?>
+    <div class="wk">
+      <div class="wk-h"><span class="wk-n">Week <?= (int)$m['week'] ?></span><span class="badge" style="background:<?= $h($col) ?>"><?= $h($m['kind']) ?></span></div>
+      <div class="wk-t"><?= $h($m['title'] ?: ('Week ' . (int)$m['week'])) ?></div>
+      <?php if (!empty($m['content'])): ?><div class="wk-c"><?= $h($m['content']) ?></div><?php endif; ?>
+    </div>
+  <?php endforeach; endif; ?>
+  <div class="foot">MAM Academy — Music, Arts &amp; Mystery · academy.mamcentre.org · This curriculum is indicative and may be refined.</div>
+</div>
+<?php if (!empty($_GET['print'])): ?><script>window.addEventListener('load',function(){setTimeout(function(){window.print();},250);});</script><?php endif; ?>
+</body></html><?php
+        exit;
+    }
+
     $filename = preg_replace('/[^A-Za-z0-9._-]/', '', basename($type));
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -190,6 +259,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'faculty_invite' => 'users', 'faculty_app_status' => 'users', 'faculty_request_review' => 'users',
         'module_proposal_review' => 'curriculum',
         'curriculum_clone' => 'curriculum',
+        'course_create' => 'curriculum',
         'cohort_converge' => 'settings',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
@@ -766,6 +836,24 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=courseenroll&ok=' . urlencode($made
             ? ('Converged the legacy roster — ' . (int)$r['converged'] . ' enrolled, ' . (int)$r['linked'] . ' linked' . ($r['skipped'] ? ', ' . (int)$r['skipped'] . ' already enrolled' : '') . '.')
             : 'Nothing to converge — the class roster is already enrolled.')); exit;
+    }
+
+    // Add a new course to the curriculum catalogue (admin authoring).
+    if ($action === 'course_create') {
+        $code = (string)($_POST['code'] ?? '');
+        $name = (string)($_POST['name'] ?? '');
+        $kind = (string)($_POST['kind'] ?? 'elective');
+        $desc = (string)($_POST['description'] ?? '');
+        try {
+            $res = mam_lms_create_course($code, $name, $kind, $desc);
+        } catch (\InvalidArgumentException $e) {
+            $msg = ['bad_code' => 'Use a short lowercase code — letters, numbers and underscores (e.g. music_theory).', 'bad_name' => 'Enter a course name (up to 120 characters).', 'duplicate_code' => 'A course with that code already exists.'][$e->getMessage()] ?? 'Could not create that course.';
+            header('Location: ?v=modules&err=' . urlencode($msg)); exit;
+        } catch (\Throwable $e) {
+            header('Location: ?v=modules&err=' . urlencode('Could not create that course.')); exit;
+        }
+        // Jump straight into authoring the new course's syllabus.
+        header('Location: ?v=modules&course=' . urlencode($res['code']) . '&ok=' . urlencode('Course created — author its weeks below.')); exit;
     }
 
     if ($action === 'module_proposal_review') {
@@ -3118,6 +3206,25 @@ nav a{display:flex;align-items:center}
     </form>
   </div>
 
+  <div class="card">
+    <details <?= (isset($_GET['err']) && $selCourse === '') ? 'open' : '' ?>>
+      <summary style="cursor:pointer;padding:16px 20px;font-weight:700;font-size:.95rem">➕ Add a new course <span class="muted" style="font-weight:400;font-size:.78rem">— create it here, then author its weekly syllabus</span></summary>
+      <form method="post" class="form-grid" style="padding:0 20px 18px">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="course_create">
+        <label>Course name
+          <input type="text" name="name" required maxlength="120" placeholder="e.g. Music Theory"></label>
+        <label>Code <span class="muted" style="font-weight:400">(lowercase, no spaces)</span>
+          <input type="text" name="code" required maxlength="42" pattern="[a-z0-9][a-z0-9_]{1,40}" placeholder="e.g. music_theory" title="lowercase letters, numbers and underscores"></label>
+        <label>Kind
+          <select name="kind"><option value="elective">elective</option><option value="core">core</option></select></label>
+        <label style="grid-column:1/-1">Description <span class="muted" style="font-weight:400">(optional)</span>
+          <textarea name="description" rows="2" maxlength="500" placeholder="A one-line summary for the catalogue and the PDF cover"></textarea></label>
+        <div style="grid-column:1/-1"><button class="btn" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create course</button></div>
+      </form>
+    </details>
+  </div>
+
   <?php
   if ($selCourse !== ''):
     $outline = mam_lms_course_outline($selCourse, $selLevel ?: null, $selProgram ?: null);
@@ -3139,6 +3246,7 @@ nav a{display:flex;align-items:center}
         </div>
         <div style="padding:0 20px 16px">
           <form method="post" class="inline"><?= $hid ?><input type="hidden" name="action" value="module_scaffold"><button class="btn" type="submit">⚙ Scaffold missing weeks</button></form>
+          <a class="btn ghost" href="?v=export&amp;type=curriculum.pdf&amp;course=<?= urlencode($selCourse) ?>&amp;level=<?= urlencode($selLevel) ?>" target="_blank" rel="noopener" style="margin-left:8px"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Download PDF curriculum</a>
           <span class="muted" style="margin-left:12px;font-size:0.82rem">Creates a placeholder row for every week (modules · revision · exam).</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:10px;padding:0 20px 20px">
@@ -3219,6 +3327,7 @@ nav a{display:flex;align-items:center}
         <div class="muted" style="font-size:.82rem;margin-bottom:9px">Download the authored weeks to edit in a spreadsheet or back up, then re-import to apply. A re-import <strong>upserts by week</strong> — it refines existing weeks instead of duplicating them. JSON exports are portable between installs.</div>
         <a class="btn ghost" href="?v=export&amp;type=curriculum.csv&amp;course=<?= urlencode($selCourse) ?>&amp;level=<?= urlencode($selLevel) ?>">⬇ Export CSV</a>
         <a class="btn ghost" href="?v=export&amp;type=curriculum&amp;course=<?= urlencode($selCourse) ?>&amp;level=<?= urlencode($selLevel) ?>">⬇ Export JSON</a>
+        <a class="btn" href="?v=export&amp;type=curriculum.pdf&amp;course=<?= urlencode($selCourse) ?>&amp;level=<?= urlencode($selLevel) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i> Download PDF</a>
       </div>
       <div style="border-top:1px solid var(--border);padding-top:16px">
         <div class="muted" style="font-size:.82rem;margin-bottom:9px">Clone this level's authored weeks into another level — upserts by week (safe to re-run), so it's a quick way to reuse a syllabus as a starting point.</div>
