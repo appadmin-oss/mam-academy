@@ -320,8 +320,8 @@ function mam_validate_application(array $in): array {
     $out['discipline'] = mam_str($in, 'discipline', 32);
     if (!mam_in($out['discipline'], $allowedDisc)) $errors[] = 'discipline';
 
-    $out['sex'] = mam_str($in, 'sex', 12);
-    if (!mam_in($out['sex'], ['female','male'])) $errors[] = 'sex';
+    $out['sex'] = mam_str($in, 'sex', 20);
+    if (!mam_in($out['sex'], ['female','male','prefer-not-to-say'])) $errors[] = 'sex';
 
     $out['address'] = mam_str($in, 'address', 200);
     if ($out['address'] === '' || strlen($out['address']) < 3) $errors[] = 'address';
@@ -407,6 +407,13 @@ function mam_validate_application(array $in): array {
 
     if (!empty($errors)) mam_fail('validation', 422, ['fields' => $errors]);
 
+    // KTAMS (under-16): the policy signature must match the guardian's name
+    if ($out['programTrack'] === 'KTAMS' && !empty($out['parentName']) && ($out['policySignedName'] ?? '') !== '') {
+        if (mb_strtolower(trim($out['policySignedName'])) !== mb_strtolower(trim($out['parentName']))) {
+            mam_fail('validation', 422, ['fields' => ['policySignedName']]);
+        }
+    }
+
     return $out;
 }
 
@@ -481,6 +488,97 @@ function mam_application_readiness(array $args): array {
     if (!$reasons) $reasons[] = 'Meets our readiness guidance';
 
     return ['signal' => $signal, 'reasons' => $reasons];
+}
+
+/**
+ * Validate and sanitise a summer programme application payload.
+ * Age is checked against admin-configured summer_min_age / summer_max_age.
+ * Returns the clean validated array; calls mam_fail() on any violation.
+ */
+function mam_validate_summer_application(array $src): array {
+    // Always-required fields (independent of age)
+    $always = [
+        'firstName'       => 'First name',
+        'lastName'        => 'Last name',
+        'email'           => 'Email',
+        'phone'           => 'Phone number',
+        'dob'             => 'Date of birth',
+        'policySignedName'=> 'Signature',
+    ];
+    $errors = [];
+    foreach ($always as $field => $label) {
+        if (empty($src[$field]) || trim((string)$src[$field]) === '') {
+            $errors[] = $field; // field name — client maps to inline error element
+        }
+    }
+    if (empty($src['policyAgreed'])) $errors[] = 'policyAgreed';
+    if ($errors) mam_fail('validation_error', 422, ['errors' => $errors]);
+
+    $email = filter_var(trim((string)$src['email']), FILTER_VALIDATE_EMAIL);
+    if (!$email) mam_fail('invalid_email', 422);
+
+    $dob = trim((string)$src['dob']);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob)) mam_fail('invalid_dob', 422);
+    $age = 0;
+    try {
+        $dobDt = new DateTimeImmutable($dob);
+        $age   = (int)$dobDt->diff(new DateTimeImmutable())->y;
+    } catch (Throwable $e) {
+        mam_fail('invalid_dob', 422);
+    }
+
+    $minAge = (int)mam_setting_num('summer_min_age', 8);
+    $maxAge = (int)mam_setting_num('summer_max_age', 18);
+    if ($minAge > 0 && $age < $minAge) mam_fail('age_too_young', 422, ['min_age' => $minAge, 'your_age' => $age]);
+    if ($maxAge > 0 && $age > $maxAge) mam_fail('age_too_old',   422, ['max_age' => $maxAge, 'your_age' => $age]);
+
+    // Guardian contact is required for minors (under 18) only
+    $isMinor = $age < 18;
+    if ($isMinor) {
+        $guardErrors = [];
+        if (empty($src['guardianName'])  || trim((string)$src['guardianName'])  === '') $guardErrors[] = 'guardianName';
+        if (empty($src['guardianPhone']) || trim((string)$src['guardianPhone']) === '') $guardErrors[] = 'guardianPhone';
+        if ($guardErrors) mam_fail('validation_error', 422, ['errors' => $guardErrors]);
+        // Signature must match the guardian's name (case-insensitive, trimmed)
+        $sigNorm   = mb_strtolower(trim((string)($src['policySignedName'] ?? '')));
+        $guardNorm = mb_strtolower(trim((string)$src['guardianName']));
+        if ($sigNorm !== $guardNorm) {
+            mam_fail('validation_error', 422, ['errors' => ["The electronic signature must match the guardian's full name."]]);
+        }
+    }
+
+    // Validate headshot URL if provided (must be an https Cloudinary URL or empty)
+    $rawHs = trim((string)($src['headshotUrl'] ?? ''));
+    $headshotUrl = '';
+    if ($rawHs !== '') {
+        $hsUrl = filter_var($rawHs, FILTER_VALIDATE_URL);
+        if ($hsUrl && preg_match('#^https://#i', $hsUrl)) {
+            $headshotUrl = substr($hsUrl, 0, 500);
+        }
+    }
+
+    $validSex = ['male', 'female', 'prefer-not-to-say'];
+    return [
+        'firstName'       => trim(substr((string)$src['firstName'],        0, 80)),
+        'lastName'        => trim(substr((string)$src['lastName'],         0, 80)),
+        'email'           => $email,
+        'phone'           => trim(substr((string)($src['phone'] ?? ''),    0, 30)),
+        'dob'             => $dob,
+        'ageAtSubmission' => $age,
+        'sex'             => in_array($src['sex'] ?? '', $validSex, true) ? (string)$src['sex'] : null,
+        'country'         => trim(substr((string)($src['country'] ?? ''),  0, 60)),
+        'city'            => trim(substr((string)($src['city']    ?? ''),  0, 80)),
+        'guardianName'    => $isMinor ? trim(substr((string)$src['guardianName'],  0, 160)) : trim(substr((string)($src['guardianName'] ?? ''),  0, 160)),
+        'guardianPhone'   => $isMinor ? trim(substr((string)$src['guardianPhone'], 0, 30))  : trim(substr((string)($src['guardianPhone'] ?? ''), 0, 30)),
+        'guardianEmail'   => filter_var(trim((string)($src['guardianEmail'] ?? '')), FILTER_VALIDATE_EMAIL) ?: '',
+        'discipline'      => trim(substr((string)($src['discipline']  ?? ''), 0, 100)),
+        'experience'      => trim(substr((string)($src['experience']  ?? ''), 0, 500)),
+        'goals'           => trim(substr((string)($src['goals']       ?? ''), 0, 1000)),
+        'referrer'        => trim(substr((string)($src['referrer']    ?? ''), 0, 200)),
+        'policyAgreed'    => 1,
+        'policySignedName'=> trim(substr((string)$src['policySignedName'], 0, 160)),
+        'headshotUrl'     => $headshotUrl,
+    ];
 }
 
 /**

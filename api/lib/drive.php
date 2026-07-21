@@ -52,6 +52,10 @@ function mam_drive_max_bytes(): int { return max(1, (int)mam_setting_num('drive_
 function mam_drive_mime_ok(string $mime): bool {
     $mime = strtolower(trim($mime));
     if ($mime === '') return false;
+    // SVG (and XML that renders as SVG) is an active document — it can carry
+    // <script> and would run on our origin when the proxy serves it inline.
+    // Exclude it from the media prefixes below; raster/video/audio are inert.
+    if (in_array($mime, ['image/svg+xml', 'image/svg'], true)) return false;
     foreach (['video/', 'audio/', 'image/'] as $p) if (strpos($mime, $p) === 0) return true;
     return in_array($mime, [
         'application/pdf', 'application/msword',

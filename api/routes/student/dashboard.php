@@ -61,7 +61,7 @@ $storeOrders = $orderEmails ? $soft(fn () => mam_db_all(
 ), []) : [];
 
 $enrollments = $soft(fn () => mam_db_all(
-    'SELECT e.id, e.status AS enrollment_status, e.enrolled_at, c.title, c.discipline, c.pathway, c.mode, c.schedule, c.starts_on, u.name AS instructor_name FROM enrollments e JOIN classes c ON c.id = e.class_id LEFT JOIN users u ON u.id = c.instructor_id WHERE e.student_id = ? ORDER BY c.starts_on DESC',
+    'SELECT e.id, e.status AS enrollment_status, e.enrolled_at, c.title, c.discipline, c.pathway, c.mode, c.schedule, c.starts_on, c.meeting_link, u.name AS instructor_name FROM enrollments e JOIN classes c ON c.id = e.class_id LEFT JOIN users u ON u.id = c.instructor_id WHERE e.student_id = ? ORDER BY c.starts_on DESC',
     [(int)$u['id']]
 ), []);
 

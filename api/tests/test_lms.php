@@ -8,7 +8,7 @@ $iid = mam_db_insert('users', ['email' => 't_ins@x.dev', 'password_hash' => 'x',
 
 $cat = mam_lms_catalog();
 t_eq(count($cat['courses']), 12, 'catalogue exposes 12 courses');
-t_eq(count($cat['programs']), 4, 'catalogue exposes 4 programmes');
+t_eq(count($cat['programs']), 5, 'catalogue exposes 5 programmes');
 t_ok($cat['courses'][0]['kind'] === 'core', 'core courses sort first');
 
 // Manual policy by default → pending.

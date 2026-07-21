@@ -600,7 +600,8 @@
         var wrap = $('#countdown');
         if (wrap && !wrap.dataset.cdOpen) {
           wrap.dataset.cdOpen = '1';
-          wrap.innerHTML = '<div class="countdown-open" style="padding:14px 22px;border:1px solid var(--border-gold,rgba(224,138,26,.45));border-radius:12px;color:var(--gold-bright,#FCC647);font-weight:800;letter-spacing:0.04em"><i class="fa-solid fa-door-open" aria-hidden="true"></i> ' + (intake.label ? intake.label + ' intake is underway' : 'Enrolment is open') + ' — applications are reviewed weekly.</div>';
+          var intakeLbl = intake.label ? String(intake.label).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }) + ' intake is underway' : 'Enrolment is open';
+          wrap.innerHTML = '<div class="countdown-open" style="padding:14px 22px;border:1px solid var(--border-gold,rgba(224,138,26,.45));border-radius:12px;color:var(--gold-bright,#FCC647);font-weight:800;letter-spacing:0.04em"><i class="fa-solid fa-door-open" aria-hidden="true"></i> ' + intakeLbl + ' — applications are reviewed weekly.</div>';
         }
         return true; // done — caller stops the interval
       }
@@ -787,6 +788,12 @@
         else if (BIG[cur] && converted >= 1000) p.textContent = Math.round(converted / 1000) + 'k';
         else p.textContent = Math.round(converted).toLocaleString();
       });
+      // Inline prose amounts — <span data-amt-usd="X"> anywhere on the page.
+      // Painted as a complete symbol+number string so the element can stand alone
+      // in prose without a separate data-cur-sym sibling.
+      $$('[data-amt-usd]').forEach(function (el) {
+        el.textContent = CCY.format(parseFloat(el.getAttribute('data-amt-usd')), cur);
+      });
       if (typeof initNavPricing === 'function') initNavPricing(); // keep the key-based nav chips in the same currency
       if (persist !== false) Storage.setItem('mam.currency', cur);
     }
@@ -956,13 +963,15 @@
       links.forEach(function (el) { var host = (el.closest && el.closest('[data-scholarship-host]')) || el; host.style.display = 'none'; });
       return;
     }
-    var url = s.url || '#';
+    // Scheme-guard the admin-configured URL before it enters href sinks below:
+    // allow http(s) and root-relative (not protocol-relative //), else neutralise.
+    var url = (/^(https?:\/\/|\/(?!\/))/i.test(String(s.url || '')) ? s.url : '#');
     var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
     injectScholarshipStyles();
     banners.forEach(function (el) {
       var v = el.getAttribute('data-scholarship-banner') || 'full';
       if (v === 'compact') {
-        el.innerHTML = '<a class="scholar-compact" href="' + url + '">'
+        el.innerHTML = '<a class="scholar-compact" href="' + esc(url) + '">'
           + '<span class="scholar-compact-ic"><i class="fa-solid fa-hand-holding-heart"></i></span>'
           + '<span class="scholar-compact-tx"><strong>' + esc(s.cta) + '</strong><span>' + esc(s.short) + '</span></span>'
           + '<i class="fa-solid fa-arrow-right scholar-compact-arr"></i></a>';
@@ -975,7 +984,7 @@
           + (s.eyebrow ? '<div class="scholar-band-eyebrow">' + esc(s.eyebrow) + '</div>' : '')
           + '<h2 class="scholar-band-title">' + esc(s.title) + '</h2>'
           + '<p class="scholar-band-blurb">' + esc(s.blurb) + '</p></div>'
-          + '<div class="scholar-band-act"><a class="btn btn-primary btn-large" href="' + url + '"><i class="fa-solid fa-graduation-cap"></i>' + esc(s.cta) + '</a></div>'
+          + '<div class="scholar-band-act"><a class="btn btn-primary btn-large" href="' + esc(url) + '"><i class="fa-solid fa-graduation-cap"></i>' + esc(s.cta) + '</a></div>'
           + '</div></div>';
       }
     });

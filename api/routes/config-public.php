@@ -56,4 +56,35 @@ mam_ok([
     'compulsory_fee_usd'      => mam_compulsory_fee(),       // Certified flat add-on
     'grand_discount_pct'      => mam_grand_discount_pct(),   // Grand = 3×base − this
     'programme_from_prices'   => mam_programme_from_prices(),// "from $X" display
+    // CDN (Cloudinary) — admin-editable so the cloud name and upload preset can
+    // be set without a code deploy. config.js patches MAM_CONFIG.cdn with these
+    // values on page load; headshot.js reads them at upload time.
+    'cdn' => [
+        'cloudName'    => (string)mam_setting('cloudinary_cloud_name', ''),
+        'uploadPreset' => (string)mam_setting('cloudinary_upload_preset', ''),
+    ],
+    // Summer Programme public config — drives /summer display and the chooser on
+    // /apply. All values are admin-editable via the "Summer Programme" settings group.
+    'summer' => [
+        'enabled'      => mam_setting('summer_app_open', '') !== '' && mam_setting('summer_app_close', '') !== '',
+        'active'       => (function (): bool {
+            $open  = mam_setting('summer_app_open',  '');
+            $close = mam_setting('summer_app_close', '');
+            if (!$open || !$close) return false;
+            $today = date('Y-m-d');
+            return $today >= $open && $today <= $close;
+        })(),
+        'progName'     => (string)mam_setting('summer_prog_name',         'MAM Summer Music Camp'),
+        'tagline'      => (string)mam_setting('summer_tagline',           ''),
+        'sessionStart' => (string)mam_setting('summer_session_start',     ''),
+        'sessionEnd'   => (string)mam_setting('summer_session_end',       ''),
+        'appOpen'      => (string)mam_setting('summer_app_open',          ''),
+        'appClose'     => (string)mam_setting('summer_app_close',         ''),
+        'minAge'       => (int)mam_setting_num('summer_min_age',           8),
+        'maxAge'       => (int)mam_setting_num('summer_max_age',          18),
+        'fee'          => (float)mam_setting_num('summer_fee',             0),
+        'location'     => (string)mam_setting('summer_location',          ''),
+        'mainProgName' => (string)mam_setting('main_prog_chooser_name',   'Full Year Programmes'),
+        'mainProgDesc' => (string)mam_setting('main_prog_chooser_desc',   ''),
+    ],
 ]);

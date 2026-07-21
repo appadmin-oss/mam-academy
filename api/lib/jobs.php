@@ -76,6 +76,17 @@ function mam_job_handlers(): array {
             mam_app_draft_nudge_sweep();
             return true;
         },
+
+        // Post-session progress report deadline check (v46).
+        // Runs 2 hrs after a session is marked 'held'. For every active student
+        // in the cohort without a submitted report, records an instructor fine.
+        'progress_report_deadline' => function (array $p): bool {
+            $sessionId = (int)($p['session_id'] ?? 0);
+            if ($sessionId < 1) return true; // nothing to do
+            if (!function_exists('mam_progress_report_deadline_check')) return false;
+            mam_progress_report_deadline_check($sessionId);
+            return true;
+        },
     ];
 }
 

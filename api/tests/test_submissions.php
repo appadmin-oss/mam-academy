@@ -30,6 +30,11 @@ $threw = false; try { mam_lms_submit($aid, $other, 'https://x'); } catch (Runtim
 t_ok($threw, 'submitting to someone else\'s assignment throws not_your_assignment');
 $threw = false; try { mam_lms_submit(99999, $stu, 'https://x'); } catch (RuntimeException $e) { $threw = $e->getMessage() === 'assignment_not_found'; }
 t_ok($threw, 'submitting to a missing assignment throws assignment_not_found');
+// A non-http(s) artifact URL is rejected (it would land in an instructor-facing href).
+$threw = false; try { mam_lms_submit($aid, $stu, 'javascript:alert(document.cookie)'); } catch (RuntimeException $e) { $threw = $e->getMessage() === 'invalid_url'; }
+t_ok($threw, 'a javascript: artifact URL is rejected with invalid_url');
+$threw = false; try { mam_lms_submit($aid, $stu, 'data:text/html,<script>alert(1)</script>'); } catch (RuntimeException $e) { $threw = $e->getMessage() === 'invalid_url'; }
+t_ok($threw, 'a data: artifact URL is rejected with invalid_url');
 
 // ── Listing ──
 t_eq(count(mam_lms_assignment_submissions($aid)), 2, 'assignment submissions lists both attempts');

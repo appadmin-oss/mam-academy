@@ -166,7 +166,7 @@
       <div class="pw-head">
         <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Choose a programme<span class="line" style="transform:scaleX(-1)"></span></div>
         <h2 class="section-title" style="margin:0 auto 12px">Three ways to study</h2>
-        <p class="section-desc">Every programme runs across all four levels, and your level sets the base fee. <strong>Certified</strong> adds a flat <strong>$120</strong> for its four compulsory courses; <strong>Grand</strong> covers all three expressions at 3× the base with <strong>13% off</strong>. Prices below start at the Pre-Certificate level — use the estimator for your exact figure.</p>
+        <p class="section-desc">Every programme runs across all four levels, and your level sets the base fee. <strong>Certified</strong> adds a flat <strong><span data-amt-usd="120">$120</span></strong> for its four compulsory courses; <strong>Grand</strong> covers all three expressions at 3× the base with <strong>13% off</strong>. Prices below start at the Pre-Certificate level — use the estimator for your exact figure.</p>
         <div class="currency-toggle" role="group" aria-label="Display currency" style="margin-top:18px">
           <button class="currency-btn active" data-currency="USD">USD</button>
           <button class="currency-btn" data-currency="NGN">NGN</button>
@@ -199,10 +199,10 @@
           <h3 class="prog-name">Certified</h3>
           <p class="prog-tag">Your major plus the four compulsory courses — up to 5 courses in total.</p>
           <div class="prog-price"><span class="from">from</span><span class="cur" data-cur-sym>$</span><span data-price="240">240</span></div>
-          <div class="prog-note">$120 base + $120 compulsory · Pre-Certificate</div>
+          <div class="prog-note"><span data-amt-usd="120">$120</span> base + <span data-amt-usd="120">$120</span> compulsory · Pre-Certificate</div>
           <ul class="prog-feats">
             <li><i class="fa-solid fa-check"></i>Up to <strong>5 courses</strong> at a time</li>
-            <li><i class="fa-solid fa-check"></i>Includes 4 compulsory courses (the $120 fee)</li>
+            <li><i class="fa-solid fa-check"></i>Includes 4 compulsory courses (the <span data-amt-usd="120">$120</span> fee)</li>
             <li><i class="fa-solid fa-check"></i>One expression: African, Contemporary or Classical</li>
             <li><i class="fa-solid fa-check"></i>Progresses across all four certification levels</li>
           </ul>

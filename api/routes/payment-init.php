@@ -32,7 +32,10 @@ if (!in_array($purpose, ['booking_fee', 'tuition', 'store'], true)) $purpose = '
 if ($purpose === 'store') {
     $order = mam_db_row('SELECT * FROM store_orders WHERE reference = ?', [$ref]);
     if (!$order) mam_fail('order_not_found', 404);
-    if (($order['status'] ?? '') === 'paid') {
+    // A settled order is any of: paid, delivered (digital auto-fulfilled), or
+    // oversold (settled but unfulfillable). All mean "already charged" — don't
+    // route the customer back into a redundant provider charge.
+    if (in_array($order['status'] ?? '', ['paid', 'delivered', 'oversold'], true)) {
         mam_ok(['already_paid' => true, 'purpose' => 'store', 'reference' => $ref]);
     }
     $payRef = $ref;

@@ -40,13 +40,28 @@ $got = mam_drive_fetch($fileId);
 if (!$got['ok']) mam_fail('fetch_failed', 502, ['detail' => $got['error']]);
 
 if (!headers_sent()) {
-    header('Content-Type: ' . ($got['mime'] ?: 'application/octet-stream'));
+    $mime = strtolower((string)($got['mime'] ?: 'application/octet-stream'));
+    // Content types that execute script when opened as a top-level document.
+    // Never serve these inline from our own origin — a crafted SVG/HTML/XML
+    // upload would otherwise run JS on the academy origin (stored XSS). Force a
+    // download and neutralise the declared type for them.
+    $active = strpos($mime, 'html') !== false || in_array($mime, [
+        'image/svg+xml', 'image/svg', 'text/xml', 'application/xml',
+        'application/xhtml+xml', 'text/html',
+    ], true);
+    $serveType   = $active ? 'application/octet-stream' : ($got['mime'] ?: 'application/octet-stream');
+    $disposition = $active ? 'attachment' : 'inline';
+    header('Content-Type: ' . $serveType);
     header('Content-Length: ' . $got['size']);
-    // Inline so browsers preview media/PDF; the filename is sanitised.
+    // Inline (for inert media/PDF) or attachment (for active types); filename sanitised.
     $fname = preg_replace('/[^A-Za-z0-9._ -]/', '', (string)($got['name'] ?: $res['title'] ?: 'file')) ?: 'file';
-    header('Content-Disposition: inline; filename="' . $fname . '"');
+    header('Content-Disposition: ' . $disposition . '; filename="' . $fname . '"');
     header('Cache-Control: private, max-age=300');
     header('X-Content-Type-Options: nosniff');
+    // Belt-and-braces: sandbox the proxied bytes so they can neither execute
+    // script nor load subresources, whatever the declared type (defends rows
+    // uploaded before the mime allowlist was tightened).
+    header("Content-Security-Policy: default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox");
 }
 echo $got['data'];
 exit;

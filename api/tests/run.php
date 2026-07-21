@@ -72,6 +72,10 @@ require $ROOT . '/lib/drive.php';           // Google Drive gateway via Apps Scr
 require $ROOT . '/lib/scholarship.php';     // MAM Scholars Initiative (§2c)
 require $ROOT . '/lib/faculty.php';         // instructor applications + invite tokens
 require $ROOT . '/lib/automations.php';     // lifecycle automation toggles
+require $ROOT . '/lib/support.php';         // feedback, surveys, support tickets
+require $ROOT . '/lib/progress.php';        // lesson records + parent progress tokens
+require $ROOT . '/lib/progress-reports.php'; // post-session progress reports + fines (v46)
+require $ROOT . '/lib/idempotency.php';      // idempotency cache helpers (v51)
 
 require __DIR__ . '/assert.php';
 

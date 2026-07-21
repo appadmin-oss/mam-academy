@@ -14,12 +14,13 @@ $u  = mam_require_role('instructor', 'admin');
 $sid = (int)($_GET['id'] ?? 0);
 if (!$sid) mam_fail('validation', 422, ['fields' => ['id']]);
 
-$student = mam_db_row("SELECT id, name, email, phone FROM users WHERE id = ? AND role = 'student'", [$sid]);
+$isAdmin = $u['role'] === 'admin';
+
+$student = mam_db_row("SELECT id, name, email, phone, enrollment_ref FROM users WHERE id = ? AND role = 'student'", [$sid]);
 if (!$student) mam_fail('not_found', 404);
 
-// Scope to the caller's own teaching unless they're an admin. Both scopes are
-// built from an (int)-cast id, so there's no injection surface.
-$isAdmin = $u['role'] === 'admin';
+// Instructors only see name + enrollment_ref — contact details are admin-only.
+if (!$isAdmin) unset($student['email'], $student['phone']);
 $meId    = (int)$u['id'];
 $scope   = $isAdmin ? '' : ' AND c.instructor_id = ' . $meId;
 // A course the caller teaches: either assigned as the enrolment's instructor OR

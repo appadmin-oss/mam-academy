@@ -633,7 +633,7 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .how-step{position:relative;padding:32px 28px;border-radius:var(--radius-lg);background:var(--bg-surface);border:1px solid var(--border);transition:all 0.3s var(--ease);z-index:1;display:flex;flex-direction:column}
 .how-step:hover{transform:translateY(-4px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
 .how-step-num{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-family:var(--font-display);font-size:1.7rem;line-height:54px;text-align:center;margin-bottom:20px;box-shadow:0 8px 24px rgba(224,138,26,0.3),0 0 0 6px var(--bg-surface)}
-.how-step-title{font-family:var(--font-serif);font-size:1.35rem;font-weight:700;color:var(--text);margin-bottom:8px;line-height:1.25}
+.how-step-title{font-family:var(--font-serif);font-size:1.35rem;font-weight:700;color:var(--text);margin-bottom:8px;line-height:1.25;text-wrap:balance}
 .how-step-desc{font-size:0.92rem;color:var(--text-soft);line-height:1.7;margin-bottom:18px;flex:1}
 .how-step-link{display:inline-flex;align-items:center;gap:8px;color:var(--gold-bright);font-weight:700;font-size:0.85rem;letter-spacing:0.04em}
 .how-step-link i{transition:transform 0.2s var(--ease)}
@@ -650,7 +650,7 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .mode-img::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(18,13,8,0.1) 30%,rgba(18,13,8,0.9))}
 .mode-badge{position:absolute;top:18px;left:18px;padding:6px 14px;background:rgba(18,13,8,0.85);backdrop-filter:blur(10px);border:1px solid var(--border-gold);border-radius:100px;font-size:0.72rem;font-weight:800;color:var(--gold-bright);letter-spacing:0.14em;text-transform:uppercase;z-index:2}
 .mode-content{padding:32px}
-.mode-title{font-family:var(--font-serif);font-size:1.8rem;font-weight:700;margin-bottom:10px;line-height:1.2}
+.mode-title{font-family:var(--font-serif);font-size:1.8rem;font-weight:700;margin-bottom:10px;line-height:1.2;text-wrap:balance}
 .mode-desc{font-size:0.95rem;color:var(--text-soft);line-height:1.7;margin-bottom:20px}
 .mode-features{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:24px}
 .mode-feat{display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--text-soft)}
@@ -691,7 +691,7 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .school-card[data-school="B"] .school-icon{background:linear-gradient(135deg,rgba(225,29,72,0.2),rgba(240,90,40,0.1));border-color:rgba(225,29,72,0.4);color:#F87171}
 .school-card[data-school="C"] .school-icon{background:linear-gradient(135deg,rgba(16,185,129,0.2),rgba(52,211,153,0.1));border-color:rgba(52,211,153,0.4);color:#34D399}
 .school-card[data-school="D"] .school-icon{background:linear-gradient(135deg,rgba(99,102,241,0.25),rgba(165,180,252,0.12));border-color:rgba(165,180,252,0.4);color:#A5B4FC}
-.school-name{font-family:var(--font-serif);font-size:1.6rem;font-weight:700;color:var(--text);margin-bottom:6px;line-height:1.2}
+.school-name{font-family:var(--font-serif);font-size:1.6rem;font-weight:700;color:var(--text);margin-bottom:6px;line-height:1.2;text-wrap:balance}
 .school-tagline{font-size:0.82rem;color:var(--gold-bright);letter-spacing:0.06em;text-transform:uppercase;font-weight:700;margin-bottom:16px}
 .school-card[data-school="B"] .school-tagline{color:#FB7185}
 .school-card[data-school="C"] .school-tagline{color:#34D399}
@@ -805,7 +805,7 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .cta-inner{max-width:760px;margin:0 auto;text-align:center;position:relative}
 .cta-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;background:rgba(225,29,72,0.12);border:1px solid rgba(225,29,72,0.4);border-radius:100px;font-size:0.78rem;font-weight:800;color:#FB7185;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:24px}
 .cta-badge-dot{width:8px;height:8px;border-radius:50%;background:#FB7185;animation:pulseDot 1.4s ease-in-out infinite}
-.cta-title{font-family:var(--font-serif);font-size:clamp(2rem,5vw,3.4rem);font-weight:700;line-height:1.1;margin-bottom:16px}
+.cta-title{font-family:var(--font-serif);font-size:clamp(2rem,5vw,3.4rem);font-weight:700;line-height:1.1;margin-bottom:16px;text-wrap:balance}
 .cta-desc{font-size:1.05rem;color:var(--text-soft);margin-bottom:36px;line-height:1.7}
 .countdown-wrap{display:flex;justify-content:center;gap:14px;margin-bottom:36px;flex-wrap:wrap}
 .countdown-unit{display:flex;flex-direction:column;align-items:center;gap:6px}
@@ -1463,3 +1463,37 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 .to-top.show{opacity:1;visibility:visible;transform:translateY(0) scale(1)}
 .to-top:hover{background:rgba(224,138,26,.2);box-shadow:0 12px 34px rgba(224,138,26,.32);transform:translateY(-2px) scale(1)}
 @media (prefers-reduced-motion:reduce){.to-top{transition:opacity .2s linear,visibility .2s}.to-top,.to-top.show,.to-top:hover{transform:none}}
+
+/* ── Site-wide polish (UI/UX pass) ──────────────────────────────── */
+
+/* Button press/active state — tactile click feedback that was missing */
+.btn:active,.btn-primary:active{transform:translateY(1px);box-shadow:0 2px 8px rgba(224,138,26,0.2)}
+.btn-secondary:active{transform:translateY(1px)}
+.btn-nav-cta:active{transform:translateY(0);box-shadow:0 2px 10px rgba(224,138,26,0.3)}
+.btn-signup:active{transform:translateY(1px);filter:brightness(0.94)}
+.floating-enroll-btn:active{transform:translateY(-1px);filter:brightness(0.92)}
+.t-arrow:active{transform:scale(0.92)}
+
+/* Scroll offset for hash-linked headings — prevents them sliding under
+   the sticky navbar when a nav anchor or in-page link is followed. */
+[id]{scroll-margin-top:calc(var(--nav-h,72px) + 20px)}
+
+/* Tabular-nums: keeps counters and prices visually stable as digits change */
+.stat-number,.countdown-num,.program-price{font-variant-numeric:tabular-nums}
+
+/* Next-step card titles can wrap awkwardly — balance prevents orphans */
+.next-step-title{text-wrap:balance}
+
+/* FAQ answer max-width prevents very long lines on wide screens,
+   and the underline offset makes links legible against the dark ground. */
+.faq-answer-inner{max-width:72ch}
+.faq-answer-inner a{text-underline-offset:3px;text-decoration-thickness:1px}
+
+/* Testimonial quotes: balance avoids a single hanging word on the last line */
+.testimonial-quote{text-wrap:balance}
+
+/* Reduced-motion: cancel any new transform transitions we introduced */
+@media (prefers-reduced-motion:reduce){
+  .btn:active,.btn-primary:active,.btn-secondary:active,
+  .btn-nav-cta:active,.btn-signup:active,.floating-enroll-btn:active{transform:none}
+}

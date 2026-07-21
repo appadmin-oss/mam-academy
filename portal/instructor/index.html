@@ -217,7 +217,7 @@
       var icon = { audio: 'volume-high', video: 'video', pdf: 'file-pdf', image: 'image', link: 'link' };
       var cards = subs.map(function (s) {
         return '<div class="panel" data-subid="' + s.id + '" style="margin-bottom:14px"><div class="panel-head"><h2 style="font-size:0.98rem">' + P.escapeHtml(s.student_name) + ' <span class="pill ' + P.escapeHtml(s.status) + '" style="margin-left:6px">' + P.escapeHtml(s.status) + '</span></h2>'
-          + (s.artifact_url ? '<a href="' + P.escapeHtml(s.artifact_url) + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.85rem"><i class="fa-solid fa-' + (icon[s.artifact_kind] || 'link') + '" style="margin-right:5px"></i>open ↗</a>' : '') + '</div>'
+          + (s.artifact_url ? '<a href="' + P.escapeHtml(/^https?:\/\//i.test(s.artifact_url) ? s.artifact_url : '#') + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.85rem"><i class="fa-solid fa-' + (icon[s.artifact_kind] || 'link') + '" style="margin-right:5px"></i>open ↗</a>' : '') + '</div>'
           + '<form class="fb-form profile-form" style="padding:14px 18px;display:grid;gap:10px">'
           +   '<div class="field"><label>Feedback</label><textarea name="comments" rows="2" placeholder="What worked, what to fix…">' + P.escapeHtml(s.feedback_comments || '') + '</textarea></div>'
           +   '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><select name="outcome"><option value="accepted"' + (s.feedback_outcome === 'accepted' ? ' selected' : '') + '>Accept</option><option value="revise"' + (s.feedback_outcome === 'revise' ? ' selected' : '') + '>Revise &amp; resubmit</option></select>'
@@ -296,26 +296,78 @@
     API.request('instructor/sessions?cohort_id=' + encodeURIComponent(cid), { method: 'GET' }).then(function (r) {
       var sessions = r.sessions || [];
       var rows = sessions.length ? sessions.map(function (s) {
-        var when = s.scheduled_at ? P.escapeHtml(P.fmtDateTime(s.scheduled_at)) : '<span style="color:var(--text-muted)">unscheduled</span>';
+        var gcalUrl = s.scheduled_at ? (function(){
+          var st = new Date(s.scheduled_at.replace(' ','T')+'Z');
+          if(isNaN(st.getTime())) return null;
+          var en = new Date(st.getTime()+(parseInt(s.duration_min,10)||60)*60000);
+          function f(d){return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';}
+          return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(s.title||'Session')+'&dates='+f(st)+'/'+f(en)+'&location='+encodeURIComponent('MAM Academy');
+        })() : null;
+        var calIcon = gcalUrl ? ' <a href="'+gcalUrl+'" target="_blank" rel="noopener" title="Add to Google Calendar" style="color:var(--gold-bright);font-size:.78rem;margin-left:4px"><i class="fa-solid fa-calendar-plus"></i></a>' : '';
+        var when = s.scheduled_at ? P.escapeHtml(P.fmtDateTime(s.scheduled_at))+calIcon : '<span style="color:var(--text-muted)">unscheduled</span>';
+        var hasNotes = !!(s.lesson_notes || s.topics || s.learning_outcomes);
+        var notesBtnLabel = hasNotes ? '📝 Notes' : '📝 Notes';
         var actions = '<button class="btn" data-mark="' + s.id + '"><i class="fa-solid fa-clipboard-check"></i> Attendance</button>';
         if (s.status !== 'cancelled') actions += ' <button class="btn" data-sess-qr="' + s.id + '"><i class="fa-solid fa-qrcode"></i> QR</button>';
-        if (s.status === 'scheduled') actions += ' <button class="btn" data-sess-status="' + s.id + '|held">Held</button> <button class="btn" data-sess-status="' + s.id + '|cancelled">Cancel</button>';
-        return '<tr><td>' + P.escapeHtml(s.title || ('Session #' + s.id)) + '</td><td>' + when + '</td><td>' + P.escapeHtml(s.kind) + '</td><td><span class="pill ' + P.escapeHtml(s.status) + '">' + P.escapeHtml(s.status) + '</span></td><td>' + actions + '</td></tr>';
+        if (s.status !== 'scheduled' || s.scheduled_at) actions += ' <button class="btn btn-ghost" data-lesson-notes="' + s.id + '" style="' + (hasNotes ? 'border-color:var(--gold-bright);color:var(--gold-bright)' : '') + '">' + notesBtnLabel + '</button>';
+        if (s.status === 'scheduled') {
+          actions += ' <button class="btn btn-ghost" data-reschedule="' + s.id + '" title="Reschedule"><i class="fa-solid fa-calendar-pen"></i></button>';
+          actions += ' <button class="btn" data-sess-status="' + s.id + '|held">Held</button>';
+          actions += ' <button class="btn btn-ghost" data-sess-status="' + s.id + '|cancelled" style="color:var(--red,#ef4444)">Cancel</button>';
+        }
+        if (s.status === 'held') {
+          actions += ' <button class="btn btn-ghost" data-progress-report="' + s.id + '" style="color:var(--gold-bright);border-color:var(--gold-bright)"><i class="fa-solid fa-clipboard-list"></i> Reports</button>';
+        }
+        var subName = s.substitute_name ? (' <span style="font-size:.72rem;color:var(--gold-bright)">sub: ' + P.escapeHtml(s.substitute_name) + '</span>') : '';
+        var roomStr = s.room ? (' <span style="font-size:.7rem;color:var(--text-muted)"><i class="fa-solid fa-location-dot"></i> ' + P.escapeHtml(s.room) + '</span>') : '';
+        return '<tr data-sess-id="' + s.id + '"><td>' + P.escapeHtml(s.title || ('Session #' + s.id)) + subName + '</td><td>' + when + roomStr + '</td><td>' + P.escapeHtml(s.kind) + '</td><td><span class="pill ' + P.escapeHtml(s.status) + '">' + P.escapeHtml(s.status) + '</span></td><td style="white-space:nowrap">' + actions + '</td></tr>';
       }).join('') : '<tr><td colspan="5" class="empty">No sessions yet — schedule one below.</td></tr>';
-      area.innerHTML = '<section class="panel"><div class="panel-head"><h2>Sessions</h2></div>'
+      var fc = r.fill_count || {};
+      var capBar = (fc.capacity && fc.capacity < 999) ? ('<div style="display:flex;align-items:center;gap:10px;padding:10px 18px;background:var(--surface-secondary);border-bottom:1px solid var(--border)">'
+        + '<div style="flex:1;background:var(--border);border-radius:6px;height:8px"><div style="width:' + Math.min(100, Math.round((fc.enrolled||0)/(fc.capacity)*100)) + '%;height:100%;background:' + (fc.is_full ? '#F87171' : fc.enrolled/(fc.capacity)>=0.8?'#FBBF24':'#34D399') + ';border-radius:6px"></div></div>'
+        + '<span style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">' + (fc.enrolled||0) + ' / ' + fc.capacity + ' enrolled'
+        + (fc.waitlist_count ? ' · <span style="color:var(--gold)">' + fc.waitlist_count + ' waiting</span>' : '') + '</span></div>') : '';
+      area.innerHTML = '<section class="panel"><div class="panel-head"><h2>Sessions</h2>'
+        + '<div style="display:flex;gap:6px"><button class="panel-action" onclick="document.getElementById(\'bulkPanel\').style.display = document.getElementById(\'bulkPanel\').style.display===\'none\'?\'block\':\'none\'"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate term</button></div></div>'
+        + capBar
         + '<table><thead><tr><th>Session</th><th>When</th><th>Kind</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></section>'
-        + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Schedule a session</h2></div>'
+        + '<div id="bulkPanel" style="display:none">'
+        + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--gold-bright)"></i> Generate Term Sessions</h2></div>'
+        + '<div class="profile-form" style="padding:14px 18px">'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+        + '<div class="field"><label>From</label><input id="bsFrom" type="date"></div>'
+        + '<div class="field"><label>To</label><input id="bsTo" type="date"></div>'
+        + '<div class="field"><label>Time</label><input id="bsT" type="time" value="09:00"></div>'
+        + '<div class="field"><label>Duration (min)</label><input id="bsD" type="number" value="60" min="15" max="480"></div>'
+        + '</div>'
+        + '<div class="field" style="margin-top:10px"><label>Days</label><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">'
+        + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(function(d,i){ return '<label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" class="bsDay" value="' + i + '"' + (i===1||i===3?' checked':'') + '>' + d + '</label>'; }).join('')
+        + '</div></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">'
+        + '<div class="field"><label>Title prefix</label><input id="bsPfx" placeholder="Week, Session…" value="Week"></div>'
+        + '<div class="field"><label>Room / location</label><input id="bsRoom" placeholder="Studio A…"></div>'
+        + '<div class="field"><label>Kind</label><select id="bsKnd"><option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option></select></div>'
+        + '<div class="field"><label>Skip dates <span style="font-weight:400;color:var(--text-muted)">(Y-m-d, comma-sep)</span></label><input id="bsSkip" placeholder="2026-12-25"></div>'
+        + '</div>'
+        + '<div id="bsPreviewLine" style="font-size:.82rem;color:var(--text-muted);margin:10px 0"></div>'
+        + '<div style="display:flex;gap:8px;margin-top:4px">'
+        + '<button class="btn" onclick="bulkPreview(' + cid + ')"><i class="fa-solid fa-eye"></i> Preview</button>'
+        + '<button class="btn btn-primary" id="bsGenBtn" onclick="bulkGenerate(' + cid + ')"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate</button>'
+        + '<button class="btn btn-ghost" onclick="document.getElementById(\'bulkPanel\').style.display=\'none\'">Cancel</button>'
+        + '</div></div></section></div>'
+        + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Schedule a single session</h2></div>'
         + '<form id="sessForm" class="profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
         +   '<div class="field" style="flex:1;min-width:160px"><label>Title</label><input name="title" placeholder="e.g. Week 1 — Scales"></div>'
         +   '<div class="field"><label>Date &amp; time</label><input name="scheduled_at" type="datetime-local"></div>'
         +   '<div class="field" style="width:90px"><label>Minutes</label><input name="duration_min" type="number" min="1" value="60"></div>'
+        +   '<div class="field" style="width:80px"><label>Room</label><input name="room" placeholder="Studio A"></div>'
         +   '<div class="field" style="width:120px"><label>Kind</label><select name="kind"><option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option></select></div>'
         +   '<button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Schedule</button>'
         + '</form></section>'
         + '<div id="markArea"></div>'
         + '<div id="cohortStandings"></div>'
         + '<div id="cohortCurriculum"></div>';
-      bindSessionList(cid);
+      bindSessionList(cid, sessions);
       loadCohortStandings(cid);
       loadCohortCurriculum(cid);
     }).catch(function () { area.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load sessions.') + '</div></section>'; });
@@ -401,15 +453,87 @@
     }).catch(function () { /* curriculum is additive — never block the sessions view */ });
   }
 
-  function bindSessionList(cid) {
+  function bindSessionList(cid, sessions) {
+    var sessMap = {};
+    (sessions || []).forEach(function (s) { sessMap[s.id] = s; });
+
+    // Lesson notes editor
+    document.querySelectorAll('[data-lesson-notes]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-lesson-notes'), 10);
+        var s = sessMap[sid] || {};
+        var area = document.getElementById('markArea');
+        if (!area) return;
+        var formId = 'lnForm_' + sid;
+        area.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>📝 Lesson Record — ' + P.escapeHtml(s.title || 'Session #' + sid) + '</h2></div>'
+          + '<form id="' + formId + '" class="profile-form" style="padding:16px 20px;display:flex;flex-direction:column;gap:14px">'
+          + '<div class="field"><label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;display:block">Topics covered <span style="color:var(--text-muted);font-size:0.75rem">(brief list)</span></label>'
+          + '<input name="topics" placeholder="e.g. C major scale, chord inversions, sight-reading" style="width:100%" value="' + P.escapeHtml(s.topics || '') + '"></div>'
+          + '<div class="field"><label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;display:block">Lesson notes <span style="color:var(--text-muted);font-size:0.75rem">(what was taught, how the student responded)</span></label>'
+          + '<textarea name="lesson_notes" rows="4" placeholder="Describe what was covered this session, student performance, any challenges…" style="width:100%;resize:vertical">' + P.escapeHtml(s.lesson_notes || '') + '</textarea></div>'
+          + '<div class="field"><label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;display:block">Learning outcomes <span style="color:var(--text-muted);font-size:0.75rem">(what the student achieved)</span></label>'
+          + '<textarea name="learning_outcomes" rows="3" placeholder="e.g. Student can now play the C major scale with correct fingering at 80bpm" style="width:100%;resize:vertical">' + P.escapeHtml(s.learning_outcomes || '') + '</textarea></div>'
+          + '<div style="display:flex;gap:10px;align-items:center"><button type="submit" class="btn btn-primary">Save Lesson Record</button><button type="button" id="lnCancel" class="btn btn-ghost">Cancel</button><span id="lnMsg" style="font-size:0.85rem;color:var(--text-muted)"></span></div>'
+          + '</form></section>';
+        document.getElementById('lnCancel').addEventListener('click', function () { area.innerHTML = ''; });
+        document.getElementById(formId).addEventListener('submit', function (e) {
+          e.preventDefault();
+          var btn2 = e.target.querySelector('button[type=submit]'), msg = document.getElementById('lnMsg');
+          btn2.disabled = true; btn2.textContent = 'Saving…';
+          API.request('instructor/lesson-record', { method: 'POST', body: {
+            session_id: sid,
+            topics: e.target.elements.topics.value,
+            lesson_notes: e.target.elements.lesson_notes.value,
+            learning_outcomes: e.target.elements.learning_outcomes.value,
+          }}).then(function () {
+            btn2.disabled = false; btn2.textContent = 'Save Lesson Record';
+            msg.textContent = 'Saved.';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Lesson record saved.', 'success');
+            // Refresh session list so the Notes button reflects the saved state
+            setTimeout(function () { loadCohortSessions(cid); }, 800);
+          }).catch(function () {
+            btn2.disabled = false; btn2.textContent = 'Save Lesson Record';
+            msg.textContent = 'Could not save. Try again.';
+          });
+        });
+      });
+    });
+
     var form = document.getElementById('sessForm');
     if (form) form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var btn = form.querySelector('button'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Scheduling…';
-      var body = { action: 'create', cohort_id: cid, title: form.elements.title.value, scheduled_at: form.elements.scheduled_at.value, duration_min: parseInt(form.elements.duration_min.value, 10) || 60, kind: form.elements.kind.value };
+      var btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Scheduling…';
+      var body = { action: 'create', cohort_id: cid, title: form.elements.title.value, scheduled_at: form.elements.scheduled_at.value, duration_min: parseInt(form.elements.duration_min.value, 10) || 60, kind: form.elements.kind.value, room: form.elements.room.value };
       API.request('instructor/sessions', { method: 'POST', body: body })
-        .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Session scheduled.', 'success'); loadCohortSessions(cid); })
-        .catch(function () { btn.disabled = false; btn.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not schedule.', 'error'); });
+        .then(function (r) {
+          btn.disabled = false; btn.textContent = 'Schedule';
+          if (r.conflicts && r.conflicts.length) {
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('⚠ Scheduled, but conflicts with ' + r.conflicts.length + ' other session(s).', 'warn');
+          } else if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Session scheduled.', 'success');
+          loadCohortSessions(cid);
+        })
+        .catch(function () { btn.disabled = false; btn.textContent = 'Schedule'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not schedule.', 'error'); });
+    });
+
+    // Reschedule buttons
+    document.querySelectorAll('[data-reschedule]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-reschedule'), 10);
+        var s = sessMap[sid] || {};
+        var defAt = (s.scheduled_at || '').slice(0, 16);
+        var newAt = prompt('New date/time for "' + (s.title || 'Session #' + sid) + '":\n(YYYY-MM-DDTHH:MM)', defAt);
+        if (!newAt || newAt === defAt) return;
+        var reason = prompt('Reason for rescheduling (optional):') || null;
+        b.disabled = true;
+        API.request('instructor/sessions', { method: 'POST', body: { action: 'reschedule', session_id: sid, scheduled_at: newAt.replace('T', ' ') + ':00', reason: reason } })
+          .then(function (r) {
+            if (r.conflicts && r.conflicts.length) {
+              if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Rescheduled — but conflicts with ' + r.conflicts.length + ' other session(s).', 'warn');
+            } else if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Session rescheduled.', 'success');
+            loadCohortSessions(cid);
+          })
+          .catch(function () { b.disabled = false; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not reschedule.', 'error'); });
+      });
     });
     document.querySelectorAll('[data-sess-status]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -431,7 +555,146 @@
           .catch(function () { b.disabled = false; b.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not load the QR', 'error'); });
       });
     });
+
+    document.querySelectorAll('[data-progress-report]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-progress-report'), 10);
+        var area = document.getElementById('markArea');
+        if (!area) return;
+        var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        API.request('instructor/progress-report?session_id=' + sid, { method: 'GET' })
+          .then(function (d) {
+            b.disabled = false; b.innerHTML = orig;
+            openProgressReportPanel(area, sid, d, cid);
+          })
+          .catch(function () {
+            b.disabled = false; b.innerHTML = orig;
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not load progress reports.', 'error');
+          });
+      });
+    });
   }
+
+  function openProgressReportPanel(area, sid, d, cid) {
+    var students = d.students || [];
+    var reports  = d.reports || {};
+    var template = d.template;
+    var session  = d.session || {};
+    var sessionTitle = P.escapeHtml(session.title || ('Session #' + sid));
+
+    if (!students.length) {
+      area.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>📋 Progress Reports — ' + sessionTitle + '</h2></div>'
+        + '<div class="panel-body">' + empty('users', 'No students enrolled in this cohort.') + '</div></section>';
+      return;
+    }
+
+    function buildQuestionField(q, i, existing) {
+      var val = existing ? (existing[q.label] || '') : '';
+      var lbl = '<label style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:4px">' + P.escapeHtml(q.label) + (q.required ? ' <span style="color:var(--red,#ef4444)">*</span>' : '') + '</label>';
+      if (q.type === 'textarea') return lbl + '<textarea name="q_' + i + '" rows="2" style="width:100%;resize:vertical" data-label="' + P.escapeHtml(q.label) + '"' + (q.required?' required':'') + '>' + P.escapeHtml(String(val)) + '</textarea>';
+      if (q.type === 'rating')   return lbl + '<select name="q_' + i + '" data-label="' + P.escapeHtml(q.label) + '"' + (q.required?' required':'') + '><option value="">—</option>' + [1,2,3,4,5].map(function(n){ return '<option value="' + n + '"' + (val==n?' selected':'') + '>' + n + ' ★</option>'; }).join('') + '</select>';
+      if (q.type === 'select')   return lbl + '<select name="q_' + i + '" data-label="' + P.escapeHtml(q.label) + '"' + (q.required?' required':'') + '><option value="">—</option>' + (q.options||[]).map(function(o){ return '<option value="' + P.escapeHtml(o) + '"' + (val===o?' selected':'') + '>' + P.escapeHtml(o) + '</option>'; }).join('') + '</select>';
+      return lbl + '<input type="text" name="q_' + i + '" data-label="' + P.escapeHtml(q.label) + '" value="' + P.escapeHtml(String(val)) + '"' + (q.required?' required':'') + ' style="width:100%">';
+    }
+
+    var qs = template ? (template.questions || []) : [];
+    var noTemplate = !template ? '<div style="background:rgba(232,150,31,.08);border-left:3px solid var(--gold-bright);padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:14px;font-size:.84rem;color:var(--gold-bright)"><i class="fa-solid fa-triangle-exclamation"></i> No active progress report template. Only the narrative will be available. Set one up in Admin → Form Builder.</div>' : '';
+
+    var cards = students.map(function (st) {
+      var existing = reports[st.id] || null;
+      var isDone   = !!(existing && existing.email_sent);
+      var doneTag  = isDone ? '<span class="pill" style="background:rgba(52,211,153,.12);color:#34D399;font-size:.68rem"><i class="fa-solid fa-check"></i> Sent</span>' : '';
+      var formId   = 'pr_form_' + sid + '_' + st.id;
+      var qFields  = qs.length ? qs.map(function(q,i){ return '<div style="margin-bottom:10px">' + buildQuestionField(q, i, existing ? existing.answers : null) + '</div>'; }).join('') : '';
+      var narr     = existing ? (existing.narrative || '') : '';
+      return '<div class="card" style="margin-bottom:12px;padding:16px 18px">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+        + '<div><strong>' + P.escapeHtml(st.name) + '</strong><span style="font-size:.75rem;color:var(--text-muted);margin-left:8px">' + P.escapeHtml(st.enrollment_ref || '') + '</span></div>'
+        + doneTag + '</div>'
+        + (isDone && !existing ? '' :
+           '<form id="' + formId + '" data-sid="' + sid + '" data-stuid="' + st.id + '">'
+           + noTemplate + qFields
+           + '<div style="margin-top:10px"><label style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:4px">Instructor note (optional narrative)</label>'
+           + '<textarea name="narrative" rows="2" style="width:100%;resize:vertical">' + P.escapeHtml(narr) + '</textarea></div>'
+           + '<div style="margin-top:10px;display:flex;gap:8px;align-items:center">'
+           + '<button type="submit" class="btn btn-primary" style="font-size:.82rem"><i class="fa-solid fa-paper-plane"></i> ' + (existing ? 'Update & Resend' : 'Submit & Send Email') + '</button>'
+           + '<span class="pr-msg" style="font-size:.8rem;color:var(--text-muted)"></span>'
+           + '</div></form>')
+        + '</div>';
+    }).join('');
+
+    area.innerHTML = '<section class="panel" style="margin-top:18px">'
+      + '<div class="panel-head"><h2>📋 Progress Reports — ' + sessionTitle + '</h2>'
+      + '<button class="panel-action" onclick="document.getElementById(\'markArea\').innerHTML=\'\'">Close</button></div>'
+      + '<div style="padding:16px 18px">' + cards + '</div></section>';
+
+    area.querySelectorAll('[id^="pr_form_"]').forEach(function (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var sessId  = parseInt(form.dataset.sid, 10);
+        var stuId   = parseInt(form.dataset.stuid, 10);
+        var answers = {};
+        form.querySelectorAll('[data-label]').forEach(function (el) { answers[el.dataset.label] = el.value; });
+        var narrative = form.elements.narrative ? form.elements.narrative.value.trim() : '';
+        var btn = form.querySelector('button[type=submit]'), msg = form.querySelector('.pr-msg');
+        btn.disabled = true; btn.textContent = 'Sending…';
+        API.request('instructor/progress-report', { method: 'POST', body: { session_id: sessId, student_id: stuId, answers: answers, narrative: narrative || null } })
+          .then(function (r) {
+            btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Sent';
+            if (msg) msg.textContent = r.email_sent ? 'Email sent.' : 'Saved (email could not be sent).';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Progress report sent.', 'success');
+          })
+          .catch(function () {
+            btn.disabled = false; btn.textContent = 'Submit & Send Email';
+            if (msg) msg.textContent = 'Could not submit. Try again.';
+          });
+      });
+    });
+  }
+
+  // Bulk session generation helpers (for the Generate Term panel in the sessions view).
+  function _getBulkPayload(cid) {
+    var days = [];
+    document.querySelectorAll('.bsDay:checked').forEach(function (cb) { days.push(parseInt(cb.value, 10)); });
+    var skip = (document.getElementById('bsSkip') && document.getElementById('bsSkip').value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    return {
+      cohort_id: cid,
+      start_date: document.getElementById('bsFrom') ? document.getElementById('bsFrom').value : '',
+      end_date: document.getElementById('bsTo') ? document.getElementById('bsTo').value : '',
+      day_of_week: days,
+      time_of_day: document.getElementById('bsT') ? document.getElementById('bsT').value : '09:00',
+      duration_min: parseInt(document.getElementById('bsD') ? document.getElementById('bsD').value : '60', 10) || 60,
+      kind: document.getElementById('bsKnd') ? document.getElementById('bsKnd').value : 'class',
+      title_prefix: document.getElementById('bsPfx') ? document.getElementById('bsPfx').value.trim() : '',
+      room: document.getElementById('bsRoom') ? document.getElementById('bsRoom').value.trim() : '',
+      skip_dates: skip,
+    };
+  }
+  window.bulkPreview = function (cid) {
+    var prev = document.getElementById('bsPreviewLine');
+    if (prev) prev.textContent = 'Computing…';
+    var body = _getBulkPayload(cid); body.action = 'preview';
+    API.request('instructor/sessions', { method: 'POST', body: body })
+      .then(function (r) {
+        if (prev) prev.textContent = r.count + ' session' + (r.count === 1 ? '' : 's') + ' would be created'
+          + (r.dates && r.dates.length ? ': ' + r.dates.slice(0, 5).join(', ') + (r.count > 5 ? '…' : '') : '') + '.';
+      }).catch(function () { if (prev) prev.textContent = 'Preview failed.'; });
+  };
+  window.bulkGenerate = function (cid) {
+    if (!confirm('Generate sessions for this cohort?')) return;
+    var btn = document.getElementById('bsGenBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Generating…'; }
+    var body = _getBulkPayload(cid); body.action = 'bulk_create';
+    API.request('instructor/sessions', { method: 'POST', body: body })
+      .then(function (r) {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate'; }
+        if (window.MAM_DIALOG) window.MAM_DIALOG.toast(r.count + ' sessions created.', 'success');
+        loadCohortSessions(cid);
+      }).catch(function () {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate'; }
+        if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not generate sessions.', 'error');
+      });
+  };
 
   // Cohort-session check-in QR (P2). Standalone twin of renderAttendance's class
   // QR modal; students scan it to self-check-in against session_attendance.
@@ -492,68 +755,129 @@
   function renderGradebook() {
     content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('clipboard-list', 'Loading gradebook…') + '</div></section>';
     loadGradebook().then(function (gb) {
-      var ens = gb.enrollments || [], types = gb.types || [];
+      var ens = gb.enrollments || [], types = gb.types || [], passmark = gb.pass_mark || 50;
       if (!ens.length) {
         content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('graduation-cap', 'No course students assigned yet. When an admin approves a student\'s course and assigns it to you, they appear here to grade.') + '</div></section>';
         return;
       }
       var typeOpts = types.map(function (t) { return '<option value="' + P.escapeHtml(t.code) + '">' + P.escapeHtml(t.name) + ' (' + t.weight + '%)</option>'; }).join('');
-      var cards = ens.map(function (e) {
-        return '<div class="panel" data-eid="' + e.id + '" style="margin-bottom:14px">'
-          + '<div class="panel-head"><h2 style="font-size:1rem">' + P.escapeHtml(e.student_name) + ' <span style="color:var(--text-muted);font-weight:500">— ' + P.escapeHtml(e.course_name) + (e.level_name ? ' · ' + P.escapeHtml(e.level_name) : '') + '</span></h2>'
-          + '<span style="display:flex;align-items:center;gap:8px"><span class="gb-result">' + gradePill(e) + '</span>'
-          + '<button type="button" class="btn btn-ghost gb-marks-btn" style="padding:4px 10px;font-size:0.74rem"><i class="fa-solid fa-list-ol"></i> Marks</button></span></div>'
+
+      // Build cohort index (preserving order from API, which sorts by cohort title)
+      var cohortMap = {}, cohortOrder = [];
+      ens.forEach(function (e) {
+        var key = String(e.cohort_id || 0);
+        if (!cohortMap[key]) {
+          cohortMap[key] = e.cohort_title || (e.cohort_id ? 'Cohort #' + e.cohort_id : 'Ungrouped');
+          cohortOrder.push(key);
+        }
+      });
+
+      function makeProgressBar(score, outcome) {
+        var pct = score != null ? Math.min(100, Math.round(score)) : 0;
+        var fillCol = score == null ? 'var(--border)' : (outcome === 'pass' ? '#34D399' : '#F87171');
+        var pmPct   = Math.min(100, passmark);
+        return '<div style="position:relative;height:6px;background:var(--border);border-radius:3px;margin-top:6px;width:100%;max-width:220px">'
+          + '<div class="gb-progress-inner" style="position:absolute;inset:0;right:auto;width:' + pct + '%;background:' + fillCol + ';border-radius:3px;transition:width .3s"></div>'
+          + '<div style="position:absolute;top:-3px;left:' + pmPct + '%;width:2px;height:12px;background:rgba(128,128,128,.45);border-radius:1px" title="Pass mark ' + passmark + '%"></div>'
+          + '</div>';
+      }
+
+      function buildCard(e) {
+        return '<div class="panel" data-eid="' + e.id + '" style="margin-bottom:8px">'
+          + '<div class="panel-head" style="align-items:flex-start;gap:10px">'
+          + '<div style="flex:1;min-width:0"><h2 style="font-size:.97rem;margin:0">' + P.escapeHtml(e.student_name)
+          + '<span style="color:var(--text-muted);font-weight:500"> — ' + P.escapeHtml(e.course_name) + (e.level_name ? ' · ' + P.escapeHtml(e.level_name) : '') + '</span></h2>'
+          + makeProgressBar(e.total_score, e.outcome) + '</div>'
+          + '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:2px"><span class="gb-result">' + gradePill(e) + '</span>'
+          + '<button type="button" class="btn btn-ghost gb-marks-btn" style="padding:4px 10px;font-size:.74rem"><i class="fa-solid fa-list-ol"></i> Marks</button></span></div>'
           + '<form class="gb-form profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
-          +   '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type">' + typeOpts + '</select></div>'
-          +   '<div class="field" style="width:84px"><label>Score</label><input name="score" type="number" min="0" step="0.5" required></div>'
-          +   '<div class="field" style="width:74px"><label>Out of</label><input name="max" type="number" min="1" step="0.5" value="100"></div>'
-          +   '<div class="field" style="width:70px"><label>Week</label><input name="week" type="number" min="1" max="12"></div>'
-          +   '<button type="submit" class="btn btn-primary" style="padding:9px 14px"><i class="fa-solid fa-plus"></i> Record</button>'
+          + '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type">' + typeOpts + '</select></div>'
+          + '<div class="field" style="width:84px"><label>Score</label><input name="score" type="number" min="0" step="0.5" required></div>'
+          + '<div class="field" style="width:74px"><label>Out of</label><input name="max" type="number" min="1" step="0.5" value="100"></div>'
+          + '<div class="field" style="width:70px"><label>Week</label><input name="week" type="number" min="1" max="12"></div>'
+          + '<button type="submit" class="btn btn-primary" style="padding:9px 14px"><i class="fa-solid fa-plus"></i> Record</button>'
           + '</form>'
           + '<div class="gb-marks" hidden></div></div>';
-      }).join('');
-      content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Gradebook</h2><span style="font-size:0.8rem;color:var(--text-muted)">Pass mark ' + (gb.pass_mark || 50) + '%</span></div>'
-        + '<div style="padding:0 22px 14px;color:var(--text-muted);font-size:0.86rem;line-height:1.55">Record weekly scores across the weighted components — results compute automatically and appear in each student\'s portal.</div></section>'
-        + cards;
-      content.querySelectorAll('.gb-form').forEach(function (form) {
-        form.addEventListener('submit', function (ev) {
-          ev.preventDefault();
-          var card = form.closest('[data-eid]');
-          var score = parseFloat(form.elements.score.value);
-          if (isNaN(score)) return;
-          var body = { enrollment_id: parseInt(card.getAttribute('data-eid'), 10), type: form.elements.type.value, score: score, max_score: parseFloat(form.elements.max.value) || 100 };
-          if (form.elements.week.value) body.week = parseInt(form.elements.week.value, 10);
-          var btn = form.querySelector('button'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
-          API.request('instructor/assess', { method: 'POST', body: body }).then(function (r) {
-            btn.disabled = false; btn.innerHTML = orig; form.reset(); form.elements.max.value = '100';
-            gbApplyResult(card, r.result); gbCache = null; // next open re-fetches fresh standings
-            var box = card.querySelector('.gb-marks'); if (box && !box.hidden) gbLoadMarks(card);
-            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Score recorded.', 'success');
-          }).catch(function (err) {
-            btn.disabled = false; btn.innerHTML = orig;
-            var msg = (err && err.body && err.body.error) || 'try again';
-            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not record: ' + msg, 'error'); else alert('Could not record the score.');
+      }
+
+      function paintView(filter) {
+        var visible = filter ? ens.filter(function (e) { return String(e.cohort_id || 0) === String(filter); }) : ens;
+
+        var filterOpts = '<option value="">All cohorts (' + ens.length + ')</option>'
+          + cohortOrder.map(function (k) {
+            var cnt = ens.filter(function (e) { return String(e.cohort_id || 0) === k; }).length;
+            return '<option value="' + k + '"' + (filter === k ? ' selected' : '') + '>' + P.escapeHtml(cohortMap[k]) + ' (' + cnt + ')</option>';
+          }).join('');
+
+        var headerHtml = '<section class="panel"><div class="panel-head"><h2>Gradebook</h2><span style="font-size:.8rem;color:var(--text-muted)">Pass mark ' + passmark + '%</span></div>'
+          + '<div style="padding:10px 22px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+          + '<label style="margin:0;display:flex;align-items:center;gap:8px;font-weight:500"><i class="fa-solid fa-filter" style="color:var(--text-muted);font-size:.78rem"></i>'
+          + '<select id="gbCohortFilter" style="min-width:200px">' + filterOpts + '</select></label>'
+          + '<span style="font-size:.82rem;color:var(--text-muted)">' + visible.length + ' student' + (visible.length !== 1 ? 's' : '') + '</span>'
+          + '</div></section>';
+
+        var cardsHtml = cohortOrder.map(function (key) {
+          var group = visible.filter(function (e) { return String(e.cohort_id || 0) === key; });
+          if (!group.length) return '';
+          var passed   = group.filter(function (e) { return e.outcome === 'pass'; }).length;
+          var graded   = group.filter(function (e) { return e.total_score != null; }).length;
+          return '<div style="margin-bottom:22px">'
+            + '<div style="padding:6px 4px 8px;font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;display:flex;gap:12px;align-items:center">'
+            + P.escapeHtml(cohortMap[key])
+            + '<span style="font-weight:400">' + group.length + ' student' + (group.length !== 1 ? 's' : '')
+            + (graded ? ' · ' + passed + '/' + graded + ' passing' : '') + '</span></div>'
+            + group.map(buildCard).join('') + '</div>';
+        }).join('') || '<section class="panel"><div class="panel-body">' + empty('graduation-cap', 'No students in this cohort.') + '</div></section>';
+
+        content.innerHTML = headerHtml + cardsHtml;
+        document.getElementById('gbCohortFilter').addEventListener('change', function () { paintView(this.value); });
+
+        content.querySelectorAll('.gb-form').forEach(function (form) {
+          form.addEventListener('submit', function (ev) {
+            ev.preventDefault();
+            var card = form.closest('[data-eid]');
+            var score = parseFloat(form.elements.score.value);
+            if (isNaN(score)) return;
+            var body = { enrollment_id: parseInt(card.getAttribute('data-eid'), 10), type: form.elements.type.value, score: score, max_score: parseFloat(form.elements.max.value) || 100 };
+            if (form.elements.week.value) body.week = parseInt(form.elements.week.value, 10);
+            var btn = form.querySelector('button[type=submit]'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
+            API.request('instructor/assess', { method: 'POST', body: body }).then(function (r) {
+              btn.disabled = false; btn.innerHTML = orig; form.reset(); form.elements.max.value = '100';
+              gbApplyResult(card, r.result); gbCache = null;
+              var box = card.querySelector('.gb-marks'); if (box && !box.hidden) gbLoadMarks(card);
+              if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Score recorded.', 'success');
+            }).catch(function (err) {
+              btn.disabled = false; btn.innerHTML = orig;
+              var msg = (err && err.body && err.body.error) || 'try again';
+              if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not record: ' + msg, 'error'); else alert('Could not record the score.');
+            });
           });
         });
-      });
-      // Toggle the recorded-marks panel per card (loads on first open).
-      content.querySelectorAll('.gb-marks-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var card = btn.closest('[data-eid]'), box = card.querySelector('.gb-marks');
-          if (!box.hidden) { box.hidden = true; return; }
-          box.hidden = false; gbLoadMarks(card);
+        content.querySelectorAll('.gb-marks-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var card = btn.closest('[data-eid]'), box = card.querySelector('.gb-marks');
+            if (!box.hidden) { box.hidden = true; return; }
+            box.hidden = false; gbLoadMarks(card);
+          });
         });
-      });
+      }
+
+      paintView('');
     }).catch(function () {
       content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load the gradebook.') + '</div></section>';
     });
   }
 
-  // Repaint a card's standing pill from a recomputed result.
+  // Repaint a card's standing pill and progress bar from a recomputed result.
   function gbApplyResult(card, res) {
     res = res || {};
-    var el = card.querySelector('.gb-result');
-    if (el) el.innerHTML = gradePill({ total_score: res.total, grade: res.grade, outcome: res.outcome });
+    var pill = card.querySelector('.gb-result');
+    if (pill) pill.innerHTML = gradePill({ total_score: res.total, grade: res.grade, outcome: res.outcome });
+    var bar = card.querySelector('.gb-progress-inner');
+    if (bar && res.total != null) {
+      bar.style.width = Math.min(100, Math.round(res.total)) + '%';
+      bar.style.background = res.outcome === 'pass' ? '#34D399' : '#F87171';
+    }
   }
 
   // Load + render one enrolment's recorded marks with correct (remark) / void

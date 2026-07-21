@@ -1,3 +1,24 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__ . '/api/lib/bootstrap.php';
+header_remove('Content-Type');
+header('Content-Type: text/html; charset=utf-8');
+if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
+
+$today       = date('Y-m-d');
+$_sumOpen    = (string)mam_setting('summer_app_open',  '');
+$_sumClose   = (string)mam_setting('summer_app_close', '');
+$showChooser = $_sumOpen !== '' && $_sumClose !== '' && $today >= $_sumOpen && $today <= $_sumClose;
+if ($showChooser) {
+    $sumProgName  = (string)mam_setting('summer_prog_name',         'MAM Summer Music Camp');
+    $sumTagline   = (string)mam_setting('summer_tagline',           '');
+    $sumFee       = (float)mam_setting_num('summer_fee',             0);
+    $sumMinAge    = (int)mam_setting_num('summer_min_age',           8);
+    $sumMaxAge    = (int)mam_setting_num('summer_max_age',          18);
+    $mainProgName = (string)mam_setting('main_prog_chooser_name',   'Full Year Programmes');
+    $mainProgDesc = (string)mam_setting('main_prog_chooser_desc',   'Apply to our year-round music academy. Choose your programme, mode, and level.');
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -31,6 +52,44 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
 <link rel="stylesheet" href="assets/css/main.css?v=20260706d">
 <link rel="stylesheet" href="assets/css/apply.css?v=20260617b">
+<style>
+/* ── Programme Chooser ───────────────────────────── */
+.prog-chooser{padding:clamp(40px,7vw,72px) 20px;background:linear-gradient(180deg,#0C0703 0%,#120B05 100%)}
+.pc-shell{max-width:720px;margin:0 auto;text-align:center}
+.pc-eyebrow{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#B09070;margin-bottom:10px}
+.pc-title{font-family:'Cinzel',serif;color:#fff;font-size:clamp(1.4rem,4vw,2rem);margin:0 0 10px}
+.pc-sub{color:#9a8264;font-size:.93rem;line-height:1.65;margin:0 0 32px;max-width:480px;margin-left:auto;margin-right:auto}
+.pc-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:520px){.pc-grid{grid-template-columns:1fr}}
+.pc-card{
+  display:flex;flex-direction:column;align-items:flex-start;gap:10px;
+  background:#1A120B;border:1.5px solid rgba(224,138,26,.22);
+  border-radius:18px;padding:clamp(20px,4vw,28px);
+  text-align:left;cursor:pointer;text-decoration:none;
+  transition:transform .18s,box-shadow .18s,border-color .18s;
+}
+.pc-card:hover,.pc-card:focus-visible{
+  transform:translateY(-4px);
+  box-shadow:0 16px 40px rgba(0,0,0,.35);
+}
+.pc-card--summer{border-color:rgba(251,191,36,.35)}
+.pc-card--summer:hover,.pc-card--summer:focus-visible{border-color:#FBBF24;box-shadow:0 16px 40px rgba(251,191,36,.2)}
+.pc-card--regular:hover,.pc-card--regular:focus-visible{border-color:rgba(224,138,26,.6);box-shadow:0 16px 40px rgba(224,138,26,.15)}
+.pc-card-badge{
+  background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;
+  font-size:.65rem;font-weight:800;letter-spacing:.08em;padding:3px 10px;
+  border-radius:20px;text-transform:uppercase;
+}
+.pc-card-icon{font-size:2rem;line-height:1}
+.pc-card-title{font-family:'Cinzel',serif;color:#fff;font-size:1.05rem;font-weight:700;margin:0}
+.pc-card-desc{color:#9a8264;font-size:.84rem;line-height:1.6;margin:0;flex:1}
+.pc-card-fee{color:#FBBF24;font-size:.82rem;font-weight:700}
+.pc-card-cta{
+  margin-top:6px;display:inline-flex;align-items:center;gap:7px;
+  color:#FBBF24;font-size:.84rem;font-weight:700;
+}
+.pc-card--regular .pc-card-cta{color:#E08A1A}
+</style>
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
@@ -60,7 +119,33 @@
     </div>
   </header>
 
-  <section class="apply-shell" aria-label="Application form">
+<?php if ($showChooser): ?>
+  <section class="prog-chooser" id="progChooser" aria-label="Choose your application track">
+    <div class="pc-shell">
+      <div class="pc-eyebrow">Where are you headed?</div>
+      <h2 class="pc-title">Two paths, one Academy</h2>
+      <p class="pc-sub">Tell us which programme you're applying for and we'll take you to the right form.</p>
+      <div class="pc-grid">
+        <a href="/summer" class="pc-card pc-card--summer">
+          <div class="pc-card-badge">Summer <?= date('Y') ?></div>
+          <div class="pc-card-icon">☀️</div>
+          <div class="pc-card-title"><?= htmlspecialchars($sumProgName) ?></div>
+          <div class="pc-card-desc"><?= $sumTagline ? htmlspecialchars($sumTagline) : 'An intensive summer music experience for ages ' . $sumMinAge . '–' . $sumMaxAge . '.' ?></div>
+          <?php if ($sumFee > 0): ?><div class="pc-card-fee">From $<?= number_format($sumFee, 0) ?></div><?php endif; ?>
+          <div class="pc-card-cta">Apply now <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>
+        </a>
+        <button type="button" class="pc-card pc-card--regular" id="pcChooseRegular">
+          <div class="pc-card-icon">🎓</div>
+          <div class="pc-card-title"><?= htmlspecialchars($mainProgName) ?></div>
+          <div class="pc-card-desc"><?= htmlspecialchars($mainProgDesc) ?></div>
+          <div class="pc-card-cta">Continue <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>
+        </button>
+      </div>
+    </div>
+  </section>
+<?php endif; ?>
+
+  <section class="apply-shell" id="applyShell" aria-label="Application form"<?php if ($showChooser): ?> hidden<?php endif; ?>>
     <!-- Find Your Path — the Learning Advisor. JS-only enhancement: it stays
          hidden (and the wizard below works normally) unless apply-discovery.js
          opens it for an undecided applicant. Hand-off is the wizard's own
@@ -340,6 +425,7 @@
           <div class="sex-row">
             <label class="sex-pill"><input type="radio" name="sex" value="female"><i class="fa-solid fa-venus"></i>Female</label>
             <label class="sex-pill"><input type="radio" name="sex" value="male"><i class="fa-solid fa-mars"></i>Male</label>
+            <label class="sex-pill"><input type="radio" name="sex" value="prefer-not-to-say">Prefer not to say</label>
           </div>
           <div class="field-error" id="err-sex"><i class="fa-solid fa-circle-exclamation"></i><span>Please select</span></div>
         </div>
@@ -491,7 +577,7 @@
           <label class="field-label">Registration</label>
           <label class="choice-card">
             <input type="checkbox" id="includeRegistration" checked>
-            <div class="choice-card-head"><span class="choice-card-title">Registration &amp; Student File</span><span class="choice-card-price">+$5</span></div>
+            <div class="choice-card-head"><span class="choice-card-title">Registration &amp; Student File</span><span class="choice-card-price">+<span data-amt-usd="5">$5</span></span></div>
             <span class="choice-card-desc">One-time onboarding, hard-copy student file &amp; academy documentation. Certification is included in your programme fee.</span>
             <span class="choice-card-icon"></span>
           </label>
@@ -643,5 +729,20 @@
 <script src="assets/js/headshot.js?v=20260615e"></script>
 <script src="assets/js/apply.js?v=20260617a"></script>
 <script src="assets/js/apply-discovery.js?v=20260703a"></script>
+<?php if ($showChooser): ?>
+<script>
+(function () {
+  var btn = document.getElementById('pcChooseRegular');
+  var chooser = document.getElementById('progChooser');
+  var shell   = document.getElementById('applyShell');
+  if (!btn || !shell) return;
+  btn.addEventListener('click', function () {
+    if (chooser) { chooser.style.display = 'none'; }
+    shell.hidden = false;
+    shell.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+})();
+</script>
+<?php endif; ?>
 </body>
 </html>

@@ -202,27 +202,27 @@
                 <div class="col-label">Certified Musician</div>
                 <div class="col-name">One tradition</div>
                 <div class="col-trinity">All four levels · 12 weeks</div>
-                <div class="col-price">from $240<small></small></div>
+                <div class="col-price">from <span data-cur-sym>$</span><span data-price="240">240</span><small></small></div>
               </th>
               <th scope="col" class="col-head premium">
                 <span class="col-tag tag-premium" style="display:inline-flex;align-items:center;gap:4px"><iconify-icon icon="fluent-emoji:trophy" width="13" aria-hidden="true"></iconify-icon>Flagship</span>
                 <div class="col-label">Grand Musician</div>
                 <div class="col-name">All three traditions</div>
                 <div class="col-trinity">All four levels · 12 weeks · 13% off</div>
-                <div class="col-price">from $313<small></small></div>
+                <div class="col-price">from <span data-cur-sym>$</span><span data-price="313">313</span><small></small></div>
               </th>
               <th scope="col" class="col-head">
                 <div class="col-label">Crash</div>
                 <div class="col-name">Intensive</div>
                 <div class="col-trinity">6 weeks · any school</div>
-                <div class="col-price">$70<small>/flat</small></div>
+                <div class="col-price"><span data-cur-sym>$</span><span data-price="70">70</span><small>/flat</small></div>
               </th>
               <th scope="col" class="col-head premium">
                 <span class="col-tag tag-premium" style="display:inline-flex;align-items:center;gap:4px"><iconify-icon icon="fluent-emoji:fire" width="13" aria-hidden="true"></iconify-icon>Premium</span>
                 <div class="col-label">MetaMusic Order</div>
                 <div class="col-name">Civilization Architect</div>
                 <div class="col-trinity">12 weeks · post-graduate</div>
-                <div class="col-price">$60<small>/12wk</small></div>
+                <div class="col-price"><span data-cur-sym>$</span><span data-price="60">60</span><small>/12wk</small></div>
               </th>
             </tr>
           </thead>
@@ -291,7 +291,7 @@
               <td><span class="compare-check">Order commission</span></td>
             </tr>
             <tr>
-              <th scope="row" class="row-head">Registration fee (+$5)</th>
+              <th scope="row" class="row-head">Registration fee (+<span data-amt-usd="5">$5</span>)</th>
               <td class="featured-col">Once</td>
               <td>Once</td>
               <td>Once</td>

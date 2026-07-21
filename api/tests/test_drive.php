@@ -32,6 +32,7 @@ t_eq(mam_drive_upload('x.mp4', 'video/mp4', '')['error'], 'empty_file', 'an empt
 t_eq(mam_drive_upload('x.exe', 'application/x-msdownload', 'MZ...')['error'], 'mime_not_allowed', 'a disallowed mime is rejected');
 t_ok(mam_drive_mime_ok('video/mp4') && mam_drive_mime_ok('application/pdf') && mam_drive_mime_ok('image/png'), 'media + pdf mimes are allowed');
 t_ok(!mam_drive_mime_ok('application/x-sh') && !mam_drive_mime_ok(''), 'scripts and empty mimes are not allowed');
+t_ok(!mam_drive_mime_ok('image/svg+xml') && !mam_drive_mime_ok('IMAGE/SVG+XML'), 'active SVG images are rejected (would run script if served inline)');
 mam_setting_set('drive_max_mb', 1);
 t_eq(mam_drive_upload('big.mp4', 'video/mp4', str_repeat('x', 1024 * 1024 + 10))['error'], 'too_large', 'a file over the cap is rejected');
 mam_setting_set('drive_max_mb', 256);

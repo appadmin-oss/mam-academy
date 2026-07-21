@@ -374,6 +374,11 @@
         var pa = $('#policyAgree');
         if (!pa || !pa.checked) { var pe = $('#err-policyAgree'); if (pe) pe.classList.add('shown'); ok = false; if (!first) first = pa; }
         check('policySignName', (data.policySignName || '').trim().length > 1);
+        if (data.programTrack === 'KTAMS') {
+          var gn = (data.parentName || '').trim().toLowerCase();
+          var sn = (data.policySignName || '').trim().toLowerCase();
+          if (gn && sn && sn !== gn) check('policySignName', false);
+        }
         var consentEl = $('#consent');
         if (!consentEl || !consentEl.checked) { var c = $('#err-consent'); if (c) c.classList.add('shown'); ok = false; }
       }
@@ -443,9 +448,9 @@
       cur = cur || data.currency || 'USD';
       // Single source of truth: local-currency formatting via MAM_CCY (config.js).
       if (window.MAM_CCY) return MAM_CCY.format(usd, cur);
+      // Fallback: MAM_CCY not yet ready (unlikely given script load order).
       var rate = (cfg.currency.rates && cfg.currency.rates[cur]) || 1;
-      var sym = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' }[cur] || '$';
-      return sym + Math.round(usd * rate).toLocaleString('en-US');
+      return (cur + ' ') + Math.round(usd * rate).toLocaleString('en-US');
     }
     function updateSummary() {
       updateProgrammeUI();
@@ -566,6 +571,11 @@
       var isKid = data.programTrack === 'KTAMS';
       var gf = $('#guardianField'); if (gf) gf.hidden = !isKid;
       if (!isKid) clearError('parentName');
+      // Update signature prompt so it reflects who must sign
+      var sigEl = $('#policySignName');
+      if (sigEl) sigEl.placeholder = isKid ? "Guardian's full legal name" : 'Your full legal name';
+      var sigErrMsg = document.querySelector('#err-policySignName span');
+      if (sigErrMsg) sigErrMsg.textContent = isKid ? "Signature must match the guardian's name" : 'Type your full name to sign the policy';
 
       // Live age-band readout under the DOB picker — gives the applicant
       // immediate, visible confirmation that the date they entered places

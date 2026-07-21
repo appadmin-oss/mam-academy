@@ -518,6 +518,14 @@ window.MAM_CDN = (function () {
         if (j.currency_rates && C.currency) C.currency.rates = Object.assign({}, C.currency.rates, j.currency_rates);
         // Real receiving bank account for the apply/store transfer panels.
         if (j.bank) C.bank = j.bank;
+        // CDN (Cloudinary) config — admin-editable so the cloud name and
+        // upload preset can be set without a code deploy. Patched here so
+        // headshot.js upload() and MAM_CDN both see the live values.
+        if (j.cdn && typeof j.cdn === 'object') {
+          if (!C.cdn) C.cdn = {};
+          if (j.cdn.cloudName)    C.cdn.cloudName    = j.cdn.cloudName;
+          if (j.cdn.uploadPreset) C.cdn.uploadPreset = j.cdn.uploadPreset;
+        }
         try { document.dispatchEvent(new CustomEvent('mam:config', { detail: j })); } catch (e) {}
       })
       .catch(function () { /* defaults already in place */ });
@@ -630,4 +638,23 @@ window.MAM_CCY = (function () {
   }
 
   return { COUNTRY: COUNTRY, detect: detect, fromCountry: fromCountry, rate: rate, symbol: symbol, format: format, known: known, rates: rates, ngn: ngn, settlementNote: settlementNote, settlementText: settlementText };
+})();
+
+/* -------- Lazy-load cdn.js ------------------------------------------------
+   MAM_CDN (image URL rewriting via Cloudinary fetch) is used by main.js and
+   portal pages. We inject it here so every page that already loads config.js
+   gets it without touching individual HTML files. Loads async so it never
+   blocks first paint; cdn.js sets window.MAM_CDN once executed, and main.js
+   guards with typeof MAM_CDN.rewriteAll before calling it. */
+(function () {
+  try {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    var s = document.createElement('script');
+    // Resolve from the same path prefix as config.js itself.
+    var self = (document.currentScript && document.currentScript.src) || '';
+    var base = self ? self.replace(/config\.js[^/]*$/, '') : '/assets/js/';
+    s.src = base + 'cdn.js?v=20260718a';
+    s.async = true;
+    document.head.appendChild(s);
+  } catch (e) {}
 })();

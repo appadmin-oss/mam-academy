@@ -35,6 +35,9 @@ mam_user_ensure_role($id, $role);
 if ($role === 'instructor') {
     mam_db_insert('instructor_profiles', ['user_id' => $id]);
 }
+if ($role === 'student') {
+    try { mam_enrollment_ref_generate($id); } catch (Throwable $e) { /* non-fatal — admin can trigger later */ }
+}
 
 $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
 // The user already exists; a mail issue must not fail the admin action.

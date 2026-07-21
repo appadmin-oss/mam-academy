@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 40;
+const MAM_SCHEMA_TARGET = 54;
 
 /**
  * Open (and cache) the PDO connection.
@@ -39,9 +39,8 @@ function mam_db(): PDO {
         if ($driver === 'mysql') {
             $pdo->exec("SET NAMES utf8mb4");
             $pdo->exec("SET SESSION sql_mode='STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION'");
+            mam_db_migrate_mysql($pdo);
         }
-        // Migrations on non-SQLite drivers are applied manually from the
-        // shipped schema file in db/. Skip auto-migrate here.
         return $pdo;
     }
 
@@ -73,6 +72,120 @@ function mam_db_migrate_mysql(PDO $db): void {
     try { $db->exec("CREATE TABLE IF NOT EXISTS schema_version (version INT PRIMARY KEY)"); } catch (Throwable $e) {}
     $current = 0;
     try { $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0); } catch (Throwable $e) {}
+
+    // Always verify and repair critical columns — runs even when schema_version
+    // is already at target. Catches columns that were never applied on this host
+    // (partial deploy, manual version bump, etc). information_schema check is
+    // a cheap metadata query; ALTER TABLE only fires when the column is absent.
+    try {
+        $criticalRepairs = [
+            'course_enrollments' => [
+                'cohort_id'      => "ALTER TABLE course_enrollments ADD COLUMN cohort_id INT NULL",
+            ],
+            'users' => [
+                'enrollment_ref' => "ALTER TABLE users ADD COLUMN enrollment_ref VARCHAR(32) NULL",
+                'admin_tier'     => "ALTER TABLE users ADD COLUMN admin_tier VARCHAR(16) NULL",
+                'student_type'   => "ALTER TABLE users ADD COLUMN student_type VARCHAR(16) NULL",
+            ],
+            // Application columns that were missing from MySQL when they existed in SQLite,
+            // causing every application submission to 500 (the root cause of the v49 incident).
+            // Plain ALTER TABLE — 1060 (duplicate column) is caught below.
+            'applications' => [
+                'program'        => "ALTER TABLE applications ADD COLUMN program        VARCHAR(64)  NULL",
+                'headshot_url'   => "ALTER TABLE applications ADD COLUMN headshot_url   VARCHAR(500) NULL",
+                'session'        => "ALTER TABLE applications ADD COLUMN session        VARCHAR(16)  NULL",
+                'idempotency_key'=> "ALTER TABLE applications ADD COLUMN idempotency_key VARCHAR(80) NULL",
+                'level'          => "ALTER TABLE applications ADD COLUMN level         VARCHAR(16)  NULL",
+                'expression'     => "ALTER TABLE applications ADD COLUMN expression    VARCHAR(16)  NULL",
+                'extra_courses'  => "ALTER TABLE applications ADD COLUMN extra_courses INT DEFAULT 0",
+                'courses_label'  => "ALTER TABLE applications ADD COLUMN courses_label VARCHAR(400) NULL",
+                'readiness_signal' => "ALTER TABLE applications ADD COLUMN readiness_signal VARCHAR(16) NULL",
+                'program_track'  => "ALTER TABLE applications ADD COLUMN program_track VARCHAR(64)  NULL",
+                'assignee_id'    => "ALTER TABLE applications ADD COLUMN assignee_id INT NULL",
+                'booking_fee_paid_at' => "ALTER TABLE applications ADD COLUMN booking_fee_paid_at DATETIME NULL",
+            ],
+            // class_sessions columns added in v43 (lesson_notes/topics/outcomes) and v45
+            // (substitute_id, rescheduled_from, cancellation_reason, room). The v45 block
+            // is a single multi-clause ALTER that fails atomically with 1060 on re-runs,
+            // meaning its FK constraints don't re-execute, but they're added on first run.
+            // criticalRepairs guarantees the columns exist regardless.
+            'class_sessions' => [
+                'lesson_notes'        => "ALTER TABLE class_sessions ADD COLUMN lesson_notes        TEXT         NULL",
+                'substitute_id'       => "ALTER TABLE class_sessions ADD COLUMN substitute_id       INT          NULL",
+                'rescheduled_from'    => "ALTER TABLE class_sessions ADD COLUMN rescheduled_from    INT          NULL",
+                'cancellation_reason' => "ALTER TABLE class_sessions ADD COLUMN cancellation_reason TEXT         NULL",
+                'room'                => "ALTER TABLE class_sessions ADD COLUMN room                VARCHAR(120) NULL",
+            ],
+            // cohorts scheduling columns added in v45.
+            'cohorts' => [
+                'schedule_days'    => "ALTER TABLE cohorts ADD COLUMN schedule_days    VARCHAR(20) NULL",
+                'schedule_time'    => "ALTER TABLE cohorts ADD COLUMN schedule_time    VARCHAR(8)  NULL",
+                'session_duration' => "ALTER TABLE cohorts ADD COLUMN session_duration INT DEFAULT 60",
+            ],
+            // announcements.cohort_id (v39) enables course-only students to see
+            // instructor announcements; without it mam_student_announcements() 500s.
+            'announcements' => [
+                'cohort_id' => "ALTER TABLE announcements ADD COLUMN cohort_id INT NULL",
+            ],
+            // class_resources.cohort_id (v40) — makes class_id nullable and adds cohort_id
+            // so resources are visible to course-only students.
+            'class_resources' => [
+                'cohort_id' => "ALTER TABLE class_resources ADD COLUMN cohort_id INT NULL",
+            ],
+            // store_items.available_locations (v9) — absence breaks the store page.
+            'store_items' => [
+                'available_locations' => "ALTER TABLE store_items ADD COLUMN available_locations TEXT NULL",
+            ],
+            // summer_applications.headshot_url (v53) — optional applicant photo URL.
+            'summer_applications' => [
+                'headshot_url' => "ALTER TABLE summer_applications ADD COLUMN headshot_url VARCHAR(500) NULL",
+            ],
+            // classes.meeting_link (v54) — Zoom/Meet/Teams URL for online classes.
+            'classes' => [
+                'meeting_link' => "ALTER TABLE classes ADD COLUMN meeting_link VARCHAR(500) NULL",
+            ],
+        ];
+        foreach ($criticalRepairs as $tbl => $columns) {
+            $have = $db->query("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = " . $db->quote($tbl))->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($columns as $col => $ddl) {
+                if (!in_array($col, $have, true)) {
+                    try {
+                        $db->exec($ddl);
+                        mam_log('info', 'mysql_column_repaired', ['table' => $tbl, 'col' => $col]);
+                    } catch (\Throwable $ex) {
+                        mam_log('error', 'mysql_column_repair_failed', ['table' => $tbl, 'col' => $col, 'err' => $ex->getMessage()]);
+                    }
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        mam_log('warn', 'mysql_column_check_failed', ['err' => $e->getMessage()]);
+    }
+
+    // Seed the default course catalogue if the table is empty (e.g. on a host
+    // where schema-mysql.sql was applied manually before the seed rows existed).
+    // INSERT IGNORE skips duplicates, so this is always safe to run.
+    try {
+        $hasCourses = (int)$db->query("SELECT COUNT(*) FROM courses")->fetchColumn();
+        if ($hasCourses === 0) {
+            $db->exec("INSERT IGNORE INTO courses (code, name, kind, sort_order) VALUES
+                ('rhythm_pitch','Rhythm & Pitch Intelligence','core',1),
+                ('performance_etiquette','Performance Etiquette','core',2),
+                ('meta_music','Meta Music','core',3),
+                ('theory','Theory of Music','core',4),
+                ('piano','Piano','elective',10),
+                ('voice','Voice','elective',11),
+                ('guitar','Guitar','elective',12),
+                ('drums','Drums','elective',13),
+                ('saxophone','Saxophone','elective',14),
+                ('music_production','Music Production','elective',15),
+                ('songwriting','Songwriting','elective',16),
+                ('conducting','Conducting','elective',17)");
+            mam_log('info', 'courses_auto_seeded', ['count' => 12]);
+        }
+    } catch (\Throwable $e) {
+        mam_log('warn', 'courses_seed_check_failed', ['err' => $e->getMessage()]);
+    }
 
     $target = MAM_SCHEMA_TARGET;
     if ($current >= $target) return;
@@ -129,10 +242,26 @@ function mam_db_migrate_mysql(PDO $db): void {
     // depends on actually exist and log an ERROR naming any that don't.
     try {
         $required = [
-            'applications' => ['booking_fee_paid_at', 'program', 'headshot_url', 'session', 'idempotency_key', 'level', 'expression', 'extra_courses', 'courses_label', 'assignee_id', 'program_track'],
-            'payments'     => ['purpose'],
-            'users'        => ['admin_tier', 'student_type'],
+            'applications'   => ['booking_fee_paid_at', 'program', 'headshot_url', 'session', 'idempotency_key', 'level', 'expression', 'extra_courses', 'courses_label', 'assignee_id', 'program_track', 'readiness_signal'],
+            'payments'       => ['purpose'],
+            'users'          => ['admin_tier', 'student_type', 'enrollment_ref'],
             'course_enrollments' => ['cohort_id'],
+            // Recent features (v39–v50). A missing column here means the CREATE/ALTER
+            // silently failed on MySQL (e.g. TEXT literal DEFAULT, or MariaDB-only
+            // `IF NOT EXISTS`) and the dependent portal endpoints will 500. Listing a
+            // column of each table also detects a wholly-missing table (no columns → all flagged).
+            'store_items'     => ['available_locations'],
+            'surveys'         => ['kind', 'questions_json'],
+            'progress_reports'=> ['answers_json', 'session_id'],
+            'class_sessions'  => ['substitute_id', 'room', 'lesson_notes', 'rescheduled_from', 'cancellation_reason'],
+            'class_waitlist'  => ['position'],
+            'assessments'     => ['score'],
+            'results'         => ['grade'],
+            'cohorts'         => ['schedule_days', 'schedule_time', 'session_duration'],
+            'announcements'   => ['cohort_id'],
+            'class_resources'     => ['cohort_id'],
+            'summer_applications' => ['reference', 'email', 'status', 'guardian_name'],
+            'classes'             => ['meeting_link'],
         ];
         $missing = [];
         foreach ($required as $table => $cols) {
@@ -142,6 +271,14 @@ function mam_db_migrate_mysql(PDO $db): void {
         if ($missing) {
             mam_log('error', 'mysql_migration_missing_columns', ['missing' => $missing, 'hint' => 'A migration DDL did not apply — the schema is incomplete and dependent endpoints will 500.']);
         }
+        // Record the server flavour + sql_mode once per migration. This is the
+        // fastest way to diagnose "works in SQLite, 500s in prod": MySQL 8 vs
+        // MariaDB decides whether MariaDB-only DDL applied, and ONLY_FULL_GROUP_BY
+        // / STRICT_TRANS_TABLES in sql_mode explain read/write 500s that SQLite
+        // (which ignores both) never surfaces.
+        $ver  = (string)($db->query('SELECT VERSION()')->fetchColumn() ?: '');
+        $mode = (string)($db->query('SELECT @@SESSION.sql_mode')->fetchColumn() ?: '');
+        mam_log('info', 'mysql_server_profile', ['version' => $ver, 'sql_mode' => $mode]);
     } catch (Throwable $e) {
         mam_log('warn', 'mysql_migration_verify_failed', ['err' => $e->getMessage()]);
     }
@@ -1170,6 +1307,299 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE class_resources_new RENAME TO class_resources;
             CREATE INDEX idx_class_resources_cohort ON class_resources(cohort_id);
         ",
+        // Enterprise curriculum: KTAMS as a first-class program + program_courses
+        // join table linking each course to the program(s) it belongs to, with a
+        // preferred level and display order. Seeded with the known associations
+        // (KTAMS → drums/guitar/piano at precert; others → all active courses).
+        41 => "
+            INSERT OR IGNORE INTO programs (code, name, weeks, revision_week, exam_week, requires_core, certification, sort_order, active)
+            VALUES ('ktams', 'KTAMS Young Musicians', 12, 11, 12, 0, 'participation', 0, 1);
+
+            CREATE TABLE IF NOT EXISTS program_courses (
+              program_id INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+              course_id  INTEGER NOT NULL REFERENCES courses(id)  ON DELETE CASCADE,
+              level_code TEXT,
+              sort_order INTEGER NOT NULL DEFAULT 0,
+              PRIMARY KEY (program_id, course_id)
+            );
+
+            INSERT OR IGNORE INTO program_courses (program_id, course_id, level_code, sort_order)
+              SELECT p.id, c.id, 'precert', c.sort_order
+              FROM programs p, courses c
+              WHERE p.code = 'ktams' AND c.code IN ('drums','guitar','piano');
+
+            INSERT OR IGNORE INTO program_courses (program_id, course_id, sort_order)
+              SELECT p.id, c.id, c.sort_order
+              FROM programs p, courses c
+              WHERE p.code IN ('crash','standard','certified','grand') AND c.active = 1;
+        ",
+
+        42 => "
+            CREATE TABLE IF NOT EXISTS student_feedback (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+              category TEXT NOT NULL DEFAULT 'general',
+              subject TEXT,
+              body TEXT NOT NULL,
+              enrollment_id INTEGER REFERENCES enrollments(id) ON DELETE SET NULL,
+              course_enrollment_id INTEGER REFERENCES course_enrollments(id) ON DELETE SET NULL,
+              is_anonymous INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_sfeedback_student ON student_feedback(student_id);
+            CREATE INDEX IF NOT EXISTS idx_sfeedback_created ON student_feedback(created_at);
+
+            CREATE TABLE IF NOT EXISTS surveys (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              title TEXT NOT NULL,
+              description TEXT,
+              questions_json TEXT NOT NULL DEFAULT '[]',
+              status TEXT NOT NULL DEFAULT 'draft',
+              target_track TEXT,
+              created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              closes_at TEXT,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS survey_responses (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              survey_id INTEGER NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              answers_json TEXT NOT NULL DEFAULT '{}',
+              submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(survey_id, student_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS support_tickets (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              reference TEXT NOT NULL UNIQUE,
+              category TEXT NOT NULL DEFAULT 'general',
+              subject TEXT NOT NULL,
+              body TEXT NOT NULL,
+              status TEXT NOT NULL DEFAULT 'open',
+              priority TEXT NOT NULL DEFAULT 'normal',
+              assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              resolved_at TEXT,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_tickets_student ON support_tickets(student_id);
+            CREATE INDEX IF NOT EXISTS idx_tickets_status ON support_tickets(status);
+
+            CREATE TABLE IF NOT EXISTS ticket_messages (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              ticket_id INTEGER NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+              author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              body TEXT NOT NULL,
+              is_internal INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_ticket_msgs_ticket ON ticket_messages(ticket_id);
+        ",
+
+        // v43 — Lesson record system + shareable parent progress reports.
+        // Lesson notes/topics/outcomes land on class_sessions (the existing
+        // session row is already per-cohort, so instructor writes one record
+        // per session). progress_report_tokens lets admin generate a
+        // signed-but-public link for a parent to monitor a specific student's
+        // progress without needing a login.
+        43 => "
+            ALTER TABLE class_sessions ADD COLUMN lesson_notes TEXT;
+            ALTER TABLE class_sessions ADD COLUMN topics TEXT;
+            ALTER TABLE class_sessions ADD COLUMN learning_outcomes TEXT;
+
+            CREATE TABLE IF NOT EXISTS progress_report_tokens (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              token TEXT NOT NULL UNIQUE,
+              label TEXT,
+              scope TEXT NOT NULL DEFAULT 'all',
+              expires_at TEXT,
+              created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              accessed_count INTEGER NOT NULL DEFAULT 0,
+              last_accessed_at TEXT,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_prt_token ON progress_report_tokens(token);
+            CREATE INDEX IF NOT EXISTS idx_prt_student ON progress_report_tokens(student_id);
+        ",
+
+        // v44 — Student enrollment references (parent portal access).
+        // Each student receives a stable, human-readable enrollment ID in the
+        // format MAM/YY/NNN (standard) or JE/MAM/YY/NNN (KTAMS program).
+        // Parents can look up their child's progress by this ID at /parent,
+        // without a login or a one-time token.
+        44 => "
+            ALTER TABLE users ADD COLUMN enrollment_ref TEXT;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_users_enrollment_ref ON users(enrollment_ref);
+        ",
+
+        // v45 — Enterprise scheduling: waitlist, session audit trail, substitute
+        // instructor, reschedule tracking, and structured cohort schedule fields.
+        // class_waitlist:  ordered queue of students for full cohorts; promotes on
+        //                  vacancy (auto-enrol).
+        // session_history: append-only audit log of every field change on a session
+        //                  (reschedule, sub-instructor assign, cancellation reason).
+        // New class_sessions columns: substitute_id, rescheduled_from, cancellation_reason, room.
+        // New cohorts columns: schedule_days, schedule_time, session_duration (structured
+        //                      meeting pattern — replaces free-text meeting_pattern).
+        45 => "
+            CREATE TABLE IF NOT EXISTS class_waitlist (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              cohort_id INTEGER NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,
+              position INTEGER NOT NULL,
+              status TEXT NOT NULL DEFAULT 'waiting',
+              notified_at TEXT,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(student_id, cohort_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_waitlist_cohort ON class_waitlist(cohort_id, position);
+            CREATE INDEX IF NOT EXISTS idx_waitlist_student ON class_waitlist(student_id);
+
+            CREATE TABLE IF NOT EXISTS session_history (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              session_id INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+              field_changed TEXT NOT NULL,
+              old_value TEXT,
+              new_value TEXT,
+              reason TEXT,
+              changed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              changed_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_session_history_session ON session_history(session_id);
+
+            ALTER TABLE class_sessions ADD COLUMN substitute_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+            ALTER TABLE class_sessions ADD COLUMN rescheduled_from INTEGER REFERENCES class_sessions(id) ON DELETE SET NULL;
+            ALTER TABLE class_sessions ADD COLUMN cancellation_reason TEXT;
+            ALTER TABLE class_sessions ADD COLUMN room TEXT;
+
+            ALTER TABLE cohorts ADD COLUMN schedule_days TEXT;
+            ALTER TABLE cohorts ADD COLUMN schedule_time TEXT;
+            ALTER TABLE cohorts ADD COLUMN session_duration INTEGER DEFAULT 60;
+        ",
+
+        // v46 — Post-session progress reports + instructor fine system + form builder AI.
+        // progress_reports: instructor-submitted per-student report after each held session.
+        //   - email_sent flag prevents duplicate sends; deadline enforced by a 2-hr job.
+        // instructor_fines: records a financial penalty when no report submitted in time.
+        // surveys.kind: distinguishes general student surveys from progress report templates.
+        46 => "
+            ALTER TABLE surveys ADD COLUMN kind TEXT NOT NULL DEFAULT 'survey';
+
+            CREATE TABLE IF NOT EXISTS progress_reports (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              session_id    INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+              student_id    INTEGER NOT NULL REFERENCES users(id)          ON DELETE CASCADE,
+              instructor_id INTEGER NOT NULL REFERENCES users(id)          ON DELETE CASCADE,
+              form_id       INTEGER REFERENCES surveys(id) ON DELETE SET NULL,
+              answers_json  TEXT NOT NULL DEFAULT '{}',
+              narrative     TEXT,
+              email_sent    INTEGER NOT NULL DEFAULT 0,
+              email_sent_at TEXT,
+              submitted_at  TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(session_id, student_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_pr_session    ON progress_reports(session_id);
+            CREATE INDEX IF NOT EXISTS idx_pr_student    ON progress_reports(student_id);
+            CREATE INDEX IF NOT EXISTS idx_pr_instructor ON progress_reports(instructor_id);
+
+            CREATE TABLE IF NOT EXISTS instructor_fines (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              instructor_id INTEGER NOT NULL REFERENCES users(id)          ON DELETE CASCADE,
+              session_id    INTEGER REFERENCES class_sessions(id)          ON DELETE SET NULL,
+              reason        TEXT NOT NULL DEFAULT 'late_progress_report',
+              amount_kobo   INTEGER NOT NULL DEFAULT 0,
+              status        TEXT NOT NULL DEFAULT 'pending',
+              created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+              resolved_at   TEXT,
+              resolved_by   INTEGER REFERENCES users(id) ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_fines_instructor ON instructor_fines(instructor_id);
+        ",
+
+        // v47 — Fines resolution note: lets admin record why a fine was waived or resolved.
+        47 => "
+            ALTER TABLE instructor_fines ADD COLUMN resolution_note TEXT;
+        ",
+        // v48 — No-op on SQLite (it already built v42/v46 objects correctly).
+        // Its purpose is to bump MAM_SCHEMA_TARGET so a MySQL install (which
+        // migrates by re-exec'ing schema-mysql.sql when behind) re-applies the
+        // file after the MySQL-8 DDL fixes in v9/v46 (TEXT literal DEFAULT and
+        // `ADD COLUMN IF NOT EXISTS`, which had silently failed there and left
+        // store_items / progress_reports / surveys.kind missing while the
+        // version still read 47). Re-exec is idempotent, so it self-heals prod.
+        48 => "SELECT 1;",
+
+        // v49 — No-op on SQLite (level/expression/extra_courses/courses_label on
+        // applications were already added by earlier SQLite migrations). This bump
+        // triggers a re-exec of schema-mysql.sql on MySQL installs that are behind,
+        // which adds the four ALTER TABLE statements that add those columns — they
+        // were missing from MySQL, causing every application submission to 500.
+        49 => "SELECT 1;",
+
+        // v50 — No-op on SQLite. On MySQL, re-execs schema-mysql.sql which now
+        // includes a v50 block with plain ADD COLUMN (no IF NOT EXISTS) for the
+        // application columns plus class_sessions/cohorts/announcements/class_resources
+        // columns. Fixes any MySQL 8 installs where v49's IF NOT EXISTS syntax
+        // raised error 1064 and left columns absent while advancing schema_version.
+        50 => "SELECT 1;",
+
+        // v51 — idempotency_cache table (api/lib/idempotency.php).
+        // Keyed by (scope, idem_key); entries expire after 24 h.
+        51 => "CREATE TABLE IF NOT EXISTS idempotency_cache (
+          idem_key      TEXT    NOT NULL,
+          scope         TEXT    NOT NULL,
+          response_json TEXT    NOT NULL,
+          created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (idem_key, scope)
+        );",
+
+        // v52 — summer_applications: separate table for the Summer Programme.
+        // References use SUM- prefix to distinguish from regular MAM- applications.
+        // No customer_id FK (summer applicants are not necessarily enrolled students).
+        52 => "
+            CREATE TABLE IF NOT EXISTS summer_applications (
+              id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+              reference          TEXT    NOT NULL UNIQUE,
+              first_name         TEXT    NOT NULL,
+              last_name          TEXT    NOT NULL,
+              email              TEXT    NOT NULL,
+              phone              TEXT,
+              dob                TEXT    NOT NULL,
+              age_at_submission  INTEGER,
+              sex                TEXT,
+              country            TEXT,
+              city               TEXT,
+              guardian_name      TEXT,
+              guardian_phone     TEXT,
+              guardian_email     TEXT,
+              discipline         TEXT,
+              experience         TEXT,
+              goals              TEXT,
+              referrer           TEXT,
+              policy_agreed      INTEGER NOT NULL DEFAULT 0,
+              policy_signed_name TEXT,
+              policy_signed_at   TEXT,
+              session_year       INTEGER,
+              fee_snapshot_usd   REAL,
+              status             TEXT    NOT NULL DEFAULT 'submitted',
+              notes              TEXT,
+              source             TEXT,
+              ip                 TEXT,
+              user_agent         TEXT,
+              created_at         TEXT    NOT NULL DEFAULT (datetime('now')),
+              updated_at         TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_summer_apps_email   ON summer_applications(email);
+            CREATE INDEX IF NOT EXISTS idx_summer_apps_status  ON summer_applications(status, id);
+            CREATE INDEX IF NOT EXISTS idx_summer_apps_created ON summer_applications(created_at);
+        ",
+        53 => "ALTER TABLE summer_applications ADD COLUMN headshot_url TEXT",
+        54 => "ALTER TABLE classes ADD COLUMN meeting_link TEXT",
     ];
 
     foreach ($migrations as $version => $sql) {

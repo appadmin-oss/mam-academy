@@ -175,7 +175,7 @@
       <a class="next-step-card" href="apply?pathway=crash" style="border-color:var(--gold-bright);background:linear-gradient(135deg,rgba(224,138,26,0.12),var(--bg-surface))">
         <div class="next-step-eyebrow"><span class="num">→</span>Ready to begin · 6 weeks</div>
         <div class="next-step-title">Apply for a Crash Programme <i class="fa-solid fa-arrow-right"></i></div>
-        <p class="next-step-desc">Pick your instrument or stream. Online or onsite. $70 covers the full 6-week intensive — no extra fees.</p>
+        <p class="next-step-desc">Pick your instrument or stream. Online or onsite. <span data-amt-usd="70">$70</span> covers the full 6-week intensive — no extra fees.</p>
         <div class="next-step-meta">
           <span><i class="fa-solid fa-bolt"></i>6 weeks</span>
           <span><i class="fa-solid fa-globe"></i>Online or onsite</span>

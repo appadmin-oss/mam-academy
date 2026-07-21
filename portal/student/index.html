@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="/assets/css/portal.css?v=20260706c">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
 </head>
 <body>
 <div class="portal-shell">
@@ -34,6 +35,7 @@
       <a class="portal-nav-link" href="#learning" data-tab="learning"><i class="fa-solid fa-graduation-cap"></i>My Learning</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
       <a class="portal-nav-link" href="#courses" data-tab="courses"><i class="fa-solid fa-layer-group"></i>My Courses</a>
+      <a class="portal-nav-link" href="#curriculum" data-tab="curriculum"><i class="fa-solid fa-book-open"></i>Curriculum</a>
       <a class="portal-nav-link" href="#assignments" data-tab="assignments"><i class="fa-solid fa-list-check"></i>Assignments <span class="nav-badge" id="asgBadge" hidden></span></a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-calendar-check"></i>Attendance</a>
       <a class="portal-nav-link" href="#announcements" data-tab="announcements"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
@@ -43,6 +45,8 @@
       <a class="portal-nav-link" href="#orders" data-tab="orders"><i class="fa-solid fa-bag-shopping"></i>Store Orders</a>
       <a class="portal-nav-link" href="#auditer" data-tab="auditer"><i class="fa-solid fa-clipboard-check"></i>MAM Auditer</a>
       <a class="portal-nav-link" href="#profile" data-tab="profile"><i class="fa-solid fa-user"></i>Profile</a>
+      <a class="portal-nav-link" href="#progress" data-tab="progress"><i class="fa-solid fa-chart-line"></i>My Progress</a>
+      <a class="portal-nav-link" href="#support" data-tab="support"><i class="fa-solid fa-headset"></i>Support <span class="nav-badge" id="supportBadge" hidden></span></a>
       <a class="portal-nav-link" href="/studio" target="_blank" rel="noopener" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:18px"><i class="fa-solid fa-wand-magic-sparkles"></i>Practice Studio <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;margin-left:auto;opacity:0.7"></i></a>
     </nav>
     <div class="portal-side-foot">
@@ -56,7 +60,11 @@
 
     <header class="portal-top">
       <h1 id="pageTitle">Overview <small id="pageSub">Welcome back</small></h1>
-      <div style="display:flex;align-items:center;gap:10px"><span data-notif-bell></span><a class="btn btn-primary" href="/apply"><i class="fa-solid fa-plus"></i>New Application</a></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div id="portalClock" style="font-family:var(--font-display,inherit);font-size:0.82rem;color:var(--text-muted);letter-spacing:0.04em;min-width:72px;text-align:right;line-height:1.2;display:none" aria-live="off" aria-atomic="true"></div>
+        <span data-notif-bell></span>
+        <a class="btn btn-primary" href="/apply"><i class="fa-solid fa-plus"></i>New Application</a>
+      </div>
     </header>
 
     <div id="pwBanner" class="portal-banner" style="display:none">
@@ -91,7 +99,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], classes: ['Classes', 'Your active enrollments'], courses: ['My Courses', 'Add and track your courses'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
@@ -111,6 +119,7 @@
     if (tab === 'learning') return renderLearning();
     if (tab === 'classes') return renderClasses();
     if (tab === 'courses') return renderCourses();
+    if (tab === 'curriculum') return renderCurriculum();
     if (tab === 'assignments') return renderAssignments();
     if (tab === 'attendance') return renderAttendance();
     if (tab === 'announcements') return renderAnnouncements();
@@ -118,6 +127,8 @@
     if (tab === 'orders') return renderOrders();
     if (tab === 'auditer') return renderAuditer();
     if (tab === 'profile') return renderProfile();
+    if (tab === 'support') return renderSupport();
+    if (tab === 'progress') return renderProgress();
   }
 
   function greeting() {
@@ -185,6 +196,7 @@
     if (courses.length) wireCourseActions('ovLearnOutline');
     loadAiNote();
     loadOverviewSessionAttendance(att);
+    loadOverviewSurveyBanner();
   }
 
   // Dual-read (portal-audit S2): fold cohort session attendance into the
@@ -206,9 +218,32 @@
     }).catch(function () { /* never disrupt the overview */ });
   }
 
+  // Non-blocking survey banner: if there are active unanswered surveys, inject a
+  // gold call-to-action strip into the overview above the KPIs.
+  function loadOverviewSurveyBanner() {
+    if (!API) return;
+    API.request('student/surveys', { method: 'GET' }).then(function (r) {
+      var pending = (r && r.surveys || []).filter(function (s) { return !s.responded; });
+      var badge = document.getElementById('supportBadge');
+      if (badge) { if (pending.length) { badge.textContent = pending.length; badge.hidden = false; } else { badge.hidden = true; } }
+      if (!pending.length) return;
+      var existing = document.getElementById('ovSurveyBanner');
+      if (existing) return;
+      var banner = document.createElement('div');
+      banner.id = 'ovSurveyBanner';
+      banner.style.cssText = 'background:rgba(224,138,26,0.12);border:1px solid var(--border-gold);border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap';
+      banner.innerHTML = '<i class="fa-solid fa-clipboard-question" style="color:var(--gold-bright);font-size:1.3rem"></i>'
+        + '<span style="flex:1;color:var(--text);font-size:0.93rem"><strong>' + pending.length + ' survey' + (pending.length > 1 ? 's' : '') + '</strong> waiting for your input — your feedback shapes MAM Academy.</span>'
+        + '<a href="#support" data-tab="support" class="btn btn-primary" style="padding:8px 16px;font-size:0.84rem">Take survey →</a>';
+      var kpiRow = content.querySelector('.kpi-row');
+      if (kpiRow) content.insertBefore(banner, kpiRow);
+    }).catch(function () { /* non-blocking */ });
+  }
+
   // KTAMS kids get a playful practice hero + a Mon–Sun "week dots" streak strip
   // (real practice data — see mam_practice_stats). No fabricated points: the
   // dots light up on days a session was actually logged.
+  // Also shows the 4-level KTAMS progression roadmap (pre-cert → cert → pre-diploma → diploma).
   function kidHero(ps) {
     var goal = Math.min(100, ps.goalPct || 0);
     var dots = (ps.weekDays || []).map(function (d) {
@@ -216,6 +251,29 @@
       return '<div class="kid-dot' + (on ? ' on' : '') + (today ? ' today' : '') + '" title="' + (on ? 'Practised' : 'No practice yet') + '">'
         + '<span>' + (on ? '⭐' : '') + '</span><em>' + P.escapeHtml(d.d) + '</em></div>';
     }).join('');
+
+    // Level roadmap — derive current level from enrolled courses
+    var courses = (data && data.courses) || [];
+    var levelOrder = ['precert', 'cert', 'prediploma', 'diploma'];
+    var levelLabels = { precert: 'Pre-Cert', cert: 'Certificate', prediploma: 'Pre-Diploma', diploma: 'Diploma' };
+    var levelIcons  = { precert: '🌱', cert: '🌟', prediploma: '🎓', diploma: '🏆' };
+    var activeLevel = '';
+    courses.forEach(function (c) { if (c.status === 'active' && c.level_code) activeLevel = c.level_code; });
+    var currentIdx = levelOrder.indexOf(activeLevel);
+    var roadmapHtml = levelOrder.map(function (lv, idx) {
+      var done    = currentIdx >= 0 && idx < currentIdx;
+      var current = idx === currentIdx;
+      var locked  = currentIdx < 0 ? (idx > 0) : idx > currentIdx;
+      var col     = done ? 'var(--emerald,#1FBF8F)' : (current ? 'var(--gold-bright)' : 'rgba(255,255,255,.18)');
+      var textCol = locked ? 'var(--text-muted)' : 'var(--text)';
+      return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:56px">'
+        + '<div style="width:36px;height:36px;border-radius:50%;background:' + col + ';display:grid;place-items:center;font-size:1.1rem;transition:background .3s">' + (done ? '✓' : levelIcons[lv]) + '</div>'
+        + '<div style="font-size:0.64rem;font-weight:700;text-align:center;color:' + textCol + ';line-height:1.2">' + levelLabels[lv] + '</div>'
+        + (current ? '<div style="font-size:0.58rem;color:var(--gold-bright);font-weight:700">YOU ARE HERE</div>' : '')
+        + '</div>'
+        + (idx < levelOrder.length - 1 ? '<div style="flex:1;height:2px;background:' + (done ? 'var(--emerald,#1FBF8F)' : 'rgba(255,255,255,.12)') + ';align-self:center;margin-bottom:20px;margin-top:0;max-width:30px;min-width:8px"></div>' : '');
+    }).join('');
+
     return '<section class="kid-hero">'
       + '<a class="kid-play" href="#practice" data-tab="practice">'
       +   '<span class="kid-play-note" aria-hidden="true">🎻</span>'
@@ -228,6 +286,10 @@
       +     '<span>' + (ps.weekMin || 0) + ' min this week</span></div>'
       +   '<div class="kid-bar"><div class="kid-bar-fill" style="width:' + goal + '%"></div></div>'
       +   (dots ? '<div class="kid-dots">' + dots + '</div>' : '')
+      +   '<div style="margin-top:14px;padding:12px 14px;border-radius:10px;background:rgba(0,0,0,.2)">'
+      +     '<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px">Your KTAMS journey</div>'
+      +     '<div style="display:flex;align-items:center;gap:0">' + roadmapHtml + '</div>'
+      +   '</div>'
       + '</div>'
       + '</section>';
   }
@@ -266,8 +328,284 @@
 
   function renderClasses() {
     var enr = data.enrollments || [];
-    if (!enr.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('music', 'No active enrollments yet. Your instructor will add you to a class soon.') + '</div></section>'; return; }
-    content.innerHTML = '<section class="panel">' + renderClassTable(enr) + '</section>';
+    var att = data.attendance || [];
+
+    // Per-class attendance rate from legacy attendance records
+    var attByClass = {};
+    att.forEach(function (a) {
+      var k = a.title || '';
+      if (!attByClass[k]) attByClass[k] = { present: 0, total: 0 };
+      attByClass[k].total++;
+      if (a.status === 'present' || a.status === 'late') attByClass[k].present++;
+    });
+
+    var classCards = enr.length ? enr.map(function (e) {
+      var ar = attByClass[e.title];
+      var rateHtml = ar && ar.total ? '<div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:0.77rem;color:var(--text-muted);margin-bottom:4px"><span>Attendance</span><strong style="color:var(--text)">' + Math.round(ar.present / ar.total * 100) + '%</strong></div><div style="height:4px;background:rgba(255,255,255,.1);border-radius:3px"><div style="height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold-bright),#FBBF24);width:' + Math.min(100, Math.round(ar.present / ar.total * 100)) + '%"></div></div><div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px">' + ar.present + ' of ' + ar.total + ' sessions attended</div></div>' : '';
+      var statusColor = e.enrollment_status === 'active' ? 'var(--emerald,#1FBF8F)' : 'var(--text-muted)';
+      var isOnline = e.mode && (e.mode.toLowerCase() === 'online' || e.mode.toLowerCase() === 'hybrid');
+      var meetingUrl = (e.meeting_link && /^https:\/\//i.test(e.meeting_link)) ? e.meeting_link : '';
+      var joinBtn = (isOnline && meetingUrl)
+        ? '<a href="' + P.escapeHtml(meetingUrl) + '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:9px 18px;background:var(--gold-bright);color:#1A120B;border-radius:8px;font-size:0.82rem;font-weight:700;text-decoration:none;letter-spacing:.04em"><i class="fa-solid fa-video" aria-hidden="true"></i> Join class</a>'
+        : '';
+      return '<div style="padding:18px 20px;border:1px solid var(--border);border-radius:14px;background:var(--bg-raised)">'
+        + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">'
+        +   '<div style="flex:1;min-width:0">'
+        +     '<div style="font-weight:700;font-size:1.02rem;color:var(--text)">' + P.escapeHtml(e.title) + '</div>'
+        +     '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">' + P.escapeHtml(e.discipline || '') + (e.pathway ? ' · ' + P.escapeHtml(e.pathway) : '') + '</div>'
+        +   '</div>'
+        +   '<span class="pill ' + P.escapeHtml(e.enrollment_status) + '" style="flex-shrink:0">' + P.escapeHtml(e.enrollment_status) + '</span>'
+        + '</div>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 20px;margin-top:14px;font-size:0.84rem">'
+        +   '<div><span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);font-weight:600;margin-bottom:2px">Instructor</span><span style="color:var(--text)">' + P.escapeHtml(e.instructor_name || 'TBA') + '</span></div>'
+        +   '<div><span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);font-weight:600;margin-bottom:2px">Schedule</span><span style="color:var(--text)">' + P.escapeHtml(e.schedule || '—') + '</span></div>'
+        +   '<div><span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);font-weight:600;margin-bottom:2px">Mode</span><span style="color:var(--text)">' + P.escapeHtml(e.mode || '—') + '</span></div>'
+        +   (e.starts_on ? '<div><span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);font-weight:600;margin-bottom:2px">Started</span><span style="color:var(--text)">' + P.fmtDate(e.starts_on) + '</span></div>' : '')
+        + '</div>'
+        + joinBtn
+        + rateHtml
+        + '</div>';
+    }).join('') : '<div class="panel-body">' + empty('music', 'No active enrollments yet. Your instructor will add you to a class soon.') + '</div>';
+
+    content.innerHTML = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-music" style="margin-right:8px;color:var(--gold-bright)"></i>My Classes</h2></div>'
+      + '<div style="padding:14px 18px;display:grid;gap:12px">' + classCards + '</div></section>'
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-calendar-days" style="margin-right:8px;color:var(--gold-bright)"></i>Upcoming Sessions</h2></div><div id="upcomingSessions"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading…') + '</div></div></section>';
+
+    // Load upcoming cohort sessions asynchronously
+    API.request('student/upcoming-sessions', { method: 'GET' }).then(function (r) {
+      var sess = r.sessions || [];
+      var area = document.getElementById('upcomingSessions'); if (!area) return;
+      if (!sess.length) { area.innerHTML = '<div class="panel-body">' + empty('calendar-days', 'No upcoming sessions scheduled yet. Check back soon.') + '</div>'; return; }
+      area.innerHTML = '<div style="padding:12px 18px;display:grid;gap:10px">' + sess.map(function (s) {
+        var ts = s.scheduled_at ? new Date(s.scheduled_at).getTime() : null;
+        var diff = ts ? ts - Date.now() : null;
+        var urgency = diff === null ? 'var(--text-muted)' : (diff < 36e5 ? 'var(--gold-bright)' : (diff < 864e5 ? '#FBBF24' : 'var(--text-muted)'));
+        var dayLabel = diff === null ? '' : (diff < 0 ? 'Now' : diff < 36e5 ? 'Soon' : (diff < 864e5 ? 'Today' : (diff < 1728e5 ? 'Tomorrow' : '')));
+        return '<div style="display:flex;gap:14px;align-items:flex-start;padding:13px 16px;border:1px solid ' + (diff !== null && diff < 36e5 ? 'rgba(224,138,26,.4)' : 'var(--border)') + ';border-radius:12px;background:var(--bg-raised)">'
+          + '<div style="flex:0 0 46px;text-align:center;padding-top:2px">'
+          +   '<i class="fa-solid fa-calendar-day" style="font-size:1.3rem;color:' + urgency + '"></i>'
+          +   (dayLabel ? '<div style="font-size:0.62rem;color:' + urgency + ';font-weight:700;margin-top:3px;white-space:nowrap">' + dayLabel + '</div>' : '')
+          +   (ts ? sessionCountdownHtml(s.scheduled_at) : '')
+          + '</div>'
+          + '<div style="flex:1;min-width:0">'
+          +   '<div style="font-weight:700;color:var(--text)">' + P.escapeHtml(s.cohort_title || s.session_title || 'Session') + (s.session_title && s.cohort_title ? ' <span style="color:var(--text-muted);font-weight:500">· ' + P.escapeHtml(s.session_title) + '</span>' : '') + '</div>'
+          +   (s.course_name ? '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px">' + P.escapeHtml(s.course_name) + '</div>' : '')
+          +   '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">'
+          +     (s.scheduled_at ? '<i class="fa-regular fa-clock" style="margin-right:4px"></i>' + P.escapeHtml(P.fmtDateTime(s.scheduled_at)) : '')
+          +     (s.duration_min ? ' · ' + s.duration_min + ' min' : '')
+          +     (s.mode ? ' · ' + P.escapeHtml(s.mode) : '')
+          +     (s.location ? ' · <i class="fa-solid fa-location-dot" style="margin-right:3px"></i>' + P.escapeHtml(s.location) : '')
+          +   '</div>'
+          +   (s.notes ? '<div style="margin-top:6px;font-size:0.82rem;color:var(--text-soft);line-height:1.5">' + P.escapeHtml(s.notes) + '</div>' : '')
+          +   (gcalLink(s) ? '<div style="margin-top:8px"><a href="' + gcalLink(s) + '" target="_blank" rel="noopener" style="font-size:0.77rem;color:var(--gold-bright);text-decoration:none"><i class="fa-solid fa-calendar-plus" style="margin-right:4px"></i>Add to Google Calendar</a></div>' : '')
+          + '</div></div>';
+      }).join('') + '</div>';
+    }).catch(function () {
+      var area = document.getElementById('upcomingSessions'); if (area) area.innerHTML = '<div class="panel-body">' + empty('calendar-days', 'No upcoming sessions scheduled yet.') + '</div>';
+    });
+  }
+
+  /* ── Google Calendar link helper ───────────────────────────────────────── */
+  function gcalLink(s) {
+    var raw = (s.scheduled_at || '').replace(' ', 'T');
+    if (!raw) return null;
+    var start = new Date(raw + (raw.slice(-1) === 'Z' ? '' : 'Z'));
+    if (isNaN(start.getTime())) return null;
+    var end = new Date(start.getTime() + (parseInt(s.duration_min, 10) || 60) * 60000);
+    function utcFmt(d) { return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z'; }
+    var title = s.title || s.session_title || s.cohort_title || 'MAM Academy Session';
+    var desc  = [s.cohort_title || s.course_name || '', s.instructor_name ? 'Instructor: '+s.instructor_name : ''].filter(Boolean).join('\n');
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+         + '&text=' + encodeURIComponent(title)
+         + '&dates=' + utcFmt(start) + '/' + utcFmt(end)
+         + (desc ? '&details=' + encodeURIComponent(desc) : '')
+         + '&location=' + encodeURIComponent('MAM Academy');
+  }
+
+  /* ── Live clock + session countdown engine ─────────────────────────────── */
+  var _clockTick = null;
+  function startClock() {
+    var el = document.getElementById('portalClock');
+    if (!el) return;
+    function tick() {
+      var now = new Date();
+      var h = now.getHours(), m = now.getMinutes();
+      var ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      var timeStr = h + ':' + (m < 10 ? '0' : '') + m + ' ' + ampm;
+      var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      el.innerHTML = '<span style="display:block;font-size:0.68rem;color:var(--text-muted)">' + days[now.getDay()] + ' ' + now.getDate() + '</span>' + timeStr;
+      el.style.display = 'block';
+      // Update all live countdown spans
+      document.querySelectorAll('[data-countdown]').forEach(function (span) {
+        var ts = parseInt(span.getAttribute('data-countdown'), 10);
+        if (!ts) return;
+        var diff = ts - Date.now();
+        span.textContent = fmtCountdown(diff);
+        // Colour urgency
+        if (diff < 0) { span.style.color = 'var(--text-muted)'; span.textContent = 'Started'; }
+        else if (diff < 36e5)  span.style.color = 'var(--gold-bright)';   // < 1h
+        else if (diff < 864e5) span.style.color = '#FBBF24';              // < 1d
+        else span.style.color = 'var(--text-muted)';
+      });
+    }
+    tick();
+    if (_clockTick) clearInterval(_clockTick);
+    _clockTick = setInterval(tick, 1000);
+  }
+  function fmtCountdown(ms) {
+    if (ms < 0) return 'Started';
+    var s = Math.floor(ms / 1000);
+    var d = Math.floor(s / 86400); s -= d * 86400;
+    var h = Math.floor(s / 3600);  s -= h * 3600;
+    var m = Math.floor(s / 60);    s -= m * 60;
+    if (d > 1)  return 'in ' + d + 'd ' + h + 'h';
+    if (d === 1) return 'in 1d ' + h + 'h';
+    if (h > 0)  return 'in ' + h + 'h ' + m + 'm';
+    if (m > 0)  return 'in ' + m + 'm ' + s + 's';
+    return 'in ' + s + 's';
+  }
+  function sessionCountdownHtml(scheduledAt) {
+    if (!scheduledAt) return '';
+    var ts = new Date(scheduledAt).getTime();
+    var diff = ts - Date.now();
+    var col = diff < 0 ? 'var(--text-muted)' : (diff < 36e5 ? 'var(--gold-bright)' : (diff < 864e5 ? '#FBBF24' : 'var(--text-muted)'));
+    return '<span data-countdown="' + ts + '" style="font-size:0.72rem;font-weight:700;color:' + col + ';display:block;margin-top:3px">' + fmtCountdown(diff) + '</span>';
+  }
+
+  /* ── Curriculum tab — programme-aware full syllabus ────────────────────── */
+  var curriculumCache = {};   // keyed by programme code
+  var currActiveProg  = '';
+
+  function renderCurriculum(forceCode) {
+    var courses = data.courses || [];
+
+    // Build ordered list of unique enrolled programmes
+    var seenCodes = {}, enrolledProgs = [];
+    courses.forEach(function (c) {
+      if (c.program_code && !seenCodes[c.program_code]) {
+        seenCodes[c.program_code] = true;
+        enrolledProgs.push({ code: c.program_code, name: c.program_name || c.program_code });
+      }
+    });
+
+    var targetCode = forceCode || currActiveProg || (enrolledProgs[0] && enrolledProgs[0].code) || '';
+    currActiveProg = targetCode;
+
+    // Programme switcher pills (only when enrolled in 2+ programmes)
+    var switcherHtml = '';
+    if (enrolledProgs.length > 1) {
+      switcherHtml = '<div style="display:flex;flex-wrap:wrap;gap:8px;padding:14px 18px 0">'
+        + enrolledProgs.map(function (pg) {
+            var active = pg.code === targetCode;
+            return '<button type="button" class="curr-prog-pill" data-prog="' + P.escapeHtml(pg.code) + '" style="padding:6px 14px;border-radius:100px;font-size:0.82rem;font-weight:600;cursor:pointer;border:1px solid ' + (active ? 'var(--gold-bright)' : 'var(--border)') + ';background:' + (active ? 'rgba(224,138,26,.18)' : 'var(--bg-raised)') + ';color:' + (active ? 'var(--gold-bright)' : 'var(--text-muted)') + '">' + P.escapeHtml(pg.name) + '</button>';
+          }).join('')
+        + '</div>';
+    }
+
+    function paintCurriculum(cur) {
+      var prog = (cur && cur.program) || {};
+      var certLabel = { participation: 'Certificate of Participation', completion: 'Certificate of Completion', internal: 'Internal Certification', internal_diploma: 'Diploma & Internal Cert' }[prog.certification] || (prog.certification || '');
+
+      var switcherSection = switcherHtml ? '<div style="border-bottom:1px solid var(--border)">' + switcherHtml + '</div>' : '';
+
+      if (!cur) {
+        content.innerHTML = '<section class="panel">' + switcherSection + '<div class="panel-body">' + empty('book-open', 'No curriculum found for this programme yet.') + '</div></section>';
+        wireCurrSwitcher();
+        return;
+      }
+
+      var headerHtml = '<div style="padding:18px 22px 14px' + (switcherSection ? '' : ';border-bottom:1px solid var(--border)') + '">'
+        + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap">'
+        +   '<div>'
+        +     '<h2 style="margin:0 0 4px;font-size:1.18rem">' + P.escapeHtml(prog.name || 'Programme') + '</h2>'
+        +     '<div style="font-size:0.82rem;color:var(--text-muted)">'
+        +       P.escapeHtml(prog.weeks ? prog.weeks + '-week programme' : '')
+        +       (certLabel ? ' · ' + P.escapeHtml(certLabel) : '')
+        +       ' · ' + (cur.total_courses || 0) + ' course' + ((cur.total_courses || 0) === 1 ? '' : 's')
+        +     '</div>'
+        +   '</div>'
+        +   '<button type="button" class="btn btn-ghost" id="currPrintBtn" style="padding:8px 16px;font-size:0.82rem;flex-shrink:0">'
+        +     '<i class="fa-solid fa-print" style="color:var(--gold-bright);margin-right:6px"></i>Print / Save PDF'
+        +   '</button>'
+        + '</div></div>';
+
+      var tone  = { module: '#7C7DF5', revision: '#1FBF8F', exam: '#F0436A' };
+      var wkLbl = { module: 'Module', revision: 'Revision', exam: 'Examination' };
+
+      var coursesHtml = (cur.courses || []).map(function (co) {
+        var wks = co.weeks || [];
+        var course = co.course || {}, level = co.level || null;
+        var isEnrolled = courses.some(function (c) { return c.course_code === course.code; });
+        var doneWks = wks.filter(function (w) { return w.title; }).length;
+        var weeksHtml = wks.map(function (w) {
+          var col = tone[w.kind] || tone.module;
+          return '<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:9px;background:var(--bg-surface)">'
+            + '<div style="flex:0 0 36px;text-align:center"><div style="font-family:var(--font-display,inherit);font-size:1.2rem;line-height:1;color:var(--gold-bright)">' + w.week + '</div>'
+            + '<div style="font-size:0.58rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted)">wk</div></div>'
+            + '<div style="flex:1;min-width:0">'
+            +   '<span style="display:inline-block;font-size:0.6rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:' + col + ';border:1px solid ' + col + '55;border-radius:100px;padding:1px 7px;margin-bottom:4px">' + (wkLbl[w.kind] || w.kind) + '</span>'
+            +   '<div style="font-weight:600;color:var(--text);font-size:0.9rem">' + P.escapeHtml(w.title || ('Week ' + w.week)) + '</div>'
+            +   (w.content ? '<div style="color:var(--text-muted);font-size:0.82rem;margin-top:2px;line-height:1.5">' + P.escapeHtml(w.content) + '</div>' : '')
+            + '</div></div>';
+        }).join('');
+        var prog2wks = (cur.program && cur.program.weeks) ? parseInt(cur.program.weeks, 10) : wks.length;
+        var pct = prog2wks > 0 ? Math.min(100, Math.round(doneWks / prog2wks * 100)) : 0;
+        return '<details class="curr-course" style="border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px">'
+          + '<summary style="padding:14px 18px;cursor:pointer;display:flex;align-items:center;gap:12px;background:var(--bg-raised);list-style:none">'
+          +   '<span style="flex:1;font-weight:700;color:var(--text)">' + P.escapeHtml(course.name || '') + (level ? ' <span style="color:var(--text-muted);font-weight:500;font-size:0.88rem">· ' + P.escapeHtml(level.name) + '</span>' : '') + '</span>'
+          +   (isEnrolled ? '<span class="pill active" style="font-size:0.72rem;margin-right:4px">Enrolled</span>' : '')
+          +   '<span style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap">' + wks.length + ' wks · ' + pct + '% authored</span>'
+          +   '<i class="fa-solid fa-chevron-down" style="color:var(--text-muted);font-size:0.75rem;transition:transform .2s;margin-left:4px"></i>'
+          + '</summary>'
+          + '<div style="padding:12px 14px;display:grid;gap:8px;background:var(--bg-surface)">'
+          +   (weeksHtml || '<div style="text-align:center;padding:16px;color:var(--text-muted);font-style:italic;font-size:0.85rem">Modules being authored — check back soon.</div>')
+          + '</div></details>';
+      }).join('');
+
+      content.innerHTML = '<section class="panel" style="overflow:visible">'
+        + switcherSection
+        + '<div style="border-bottom:1px solid var(--border)">' + headerHtml + '</div>'
+        + '<div style="padding:16px 18px">' + (coursesHtml || empty('book-open', 'No courses linked to this programme yet.')) + '</div>'
+        + '</section>';
+
+      wireCurrSwitcher();
+
+      content.querySelectorAll('.curr-course').forEach(function (d) {
+        d.addEventListener('toggle', function () {
+          var ico = d.querySelector('.fa-chevron-down');
+          if (ico) ico.style.transform = d.open ? 'rotate(180deg)' : '';
+        });
+      });
+      var printBtn = document.getElementById('currPrintBtn');
+      if (printBtn) printBtn.addEventListener('click', function () {
+        content.querySelectorAll('.curr-course').forEach(function (d) { d.open = true; });
+        setTimeout(function () { window.print(); }, 100);
+      });
+    }
+
+    function wireCurrSwitcher() {
+      content.querySelectorAll('.curr-prog-pill').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var code = btn.getAttribute('data-prog');
+          if (!code || code === currActiveProg) return;
+          renderCurriculum(code);
+        });
+      });
+    }
+
+    if (!targetCode) {
+      content.innerHTML = '<section class="panel">' + switcherHtml + '<div class="panel-body">' + empty('book-open', 'No programme enrolled. Enrol in a course with a programme to see your full syllabus here.') + '</div></section>';
+      wireCurrSwitcher();
+      return;
+    }
+
+    if (curriculumCache[targetCode]) { paintCurriculum(curriculumCache[targetCode]); return; }
+
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading curriculum…') + '</div></section>';
+    API.request('student/curriculum?program=' + encodeURIComponent(targetCode), { method: 'GET' })
+      .then(function (r) { curriculumCache[targetCode] = r.curriculum; paintCurriculum(r.curriculum); })
+      .catch(function () { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-exclamation', 'Could not load the curriculum. Please try again.') + '</div></section>'; });
   }
 
   // ── My Learning (P2) — the cohort/course-centric hub that unifies courses,
@@ -389,6 +727,7 @@
     var certHtml = certPanelHtml(data.certificates || []);
 
     content.innerHTML = certHtml
+      + '<div id="waitlistPanel"></div>'
       + '<section class="panel"><div class="panel-head"><h2>My courses</h2>'
       +   '<button class="btn btn-ghost" id="addCourseToggle" style="padding:7px 14px;font-size:0.82rem"><i class="fa-solid fa-plus"></i> Add course</button></div>'
       +   list + '</section>'
@@ -444,9 +783,37 @@
         });
     });
 
-    // Per-course syllabus + results (gradebook breakdown) — fetched on demand
-    // so the final grade is never a black box. Renders into #courseOutline.
+    // Per-course syllabus + results (gradebook breakdown) — fetched on demand.
     wireCourseActions('courseOutline');
+
+    // Load waitlist positions (additive, non-blocking).
+    API.request('student/waitlist', { method: 'GET' })
+      .then(function (r) {
+        var wl = r.waitlists || [];
+        var panel = document.getElementById('waitlistPanel');
+        if (!panel || !wl.length) return;
+        var rows = wl.map(function (w) {
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border)">'
+            + '<div style="flex:1"><div style="font-weight:600">' + P.escapeHtml(w.cohort_title || w.course_name || 'Cohort') + '</div>'
+            + (w.level_name ? '<div style="font-size:.8rem;color:var(--text-muted)">' + P.escapeHtml(w.level_name) + '</div>' : '') + '</div>'
+            + '<div style="text-align:center;min-width:60px"><div style="font-size:1.3rem;font-weight:700;color:var(--gold-bright)">#' + (w.position || '?') + '</div>'
+            + '<div style="font-size:.7rem;color:var(--text-muted)">on waitlist</div></div>'
+            + '<button class="btn btn-ghost" style="font-size:.78rem;padding:5px 10px" data-wl-leave="' + w.cohort_id + '"><i class="fa-solid fa-arrow-right-from-bracket"></i> Leave</button>'
+            + '</div>';
+        }).join('');
+        panel.innerHTML = '<section class="panel" style="margin-bottom:18px"><div class="panel-head"><h2><i class="fa-solid fa-hourglass-half" style="color:var(--gold-bright)"></i> My Waitlists</h2></div>'
+          + '<div style="font-size:.83rem;color:var(--text-muted);padding:6px 14px 4px">You\'re queued for classes that are currently full. You\'ll be enrolled automatically when a spot opens.</div>'
+          + rows + '</section>';
+        document.querySelectorAll('[data-wl-leave]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            if (!confirm('Leave this waitlist?')) return;
+            var cid = parseInt(btn.getAttribute('data-wl-leave'), 10);
+            API.request('student/waitlist', { method: 'POST', body: { action: 'leave', cohort_id: cid } })
+              .then(function () { renderCourses(); })
+              .catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not leave the waitlist.', 'error'); });
+          });
+        });
+      }).catch(function () { /* waitlist is additive — never block */ });
   }
   function resultsHtml(r) {
     var e = (r && r.enrollment) || {};
@@ -635,7 +1002,7 @@
     var label = { submitted: 'Submitted — awaiting feedback', accepted: 'Accepted ✓', needs_resubmission: 'Revise & resubmit' }[s.status] || s.status;
     var color = s.status === 'accepted' ? 'var(--emerald)' : (s.status === 'needs_resubmission' ? '#FB7185' : 'var(--gold-bright)');
     var h = '<div style="margin-top:6px;font-size:0.84rem"><strong style="color:' + color + '">' + P.escapeHtml(label) + '</strong>';
-    if (s.artifact_url) h += ' · <a href="' + P.escapeHtml(s.artifact_url) + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">your submission ↗</a>';
+    if (s.artifact_url) h += ' · <a href="' + P.escapeHtml(/^https?:\/\//i.test(s.artifact_url) ? s.artifact_url : '#') + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">your submission ↗</a>';
     if (s.feedback_comments) h += '<div style="margin-top:4px;color:var(--text-soft);line-height:1.5"><i class="fa-solid fa-comment" style="margin-right:5px;color:var(--gold-bright)"></i>' + P.escapeHtml(s.feedback_comments) + (s.feedback_by ? ' — ' + P.escapeHtml(s.feedback_by) : '') + '</div>';
     return h + '</div>';
   }
@@ -958,6 +1325,621 @@
     P.mountSessions();
   }
 
+  /* ─── My Progress ───────────────────────────────────────────────────── */
+  var _progressCache = null;
+
+  function renderProgress() {
+    content.innerHTML = spinnerHtml('Loading your progress report…');
+    if (_progressCache) { _renderProgressData(_progressCache); return; }
+    API.request('student/progress', { method: 'GET' }).then(function (d) {
+      _progressCache = d;
+      _renderProgressData(d);
+    }).catch(function () {
+      content.innerHTML = '<section class="panel"><div class="panel-body"><p style="color:var(--danger)">Could not load progress report.</p></div></section>';
+    });
+  }
+
+  function _renderProgressData(d) {
+    var s             = d.student || {};
+    var summary       = d.class_summary || [];
+    var sessions      = d.sessions || [];
+    var upcoming      = d.upcoming_sessions || [];
+    var assessments   = d.assessments || [];
+    var results       = d.results || [];
+    var certs         = d.certificates || [];
+    var tokens        = d.tokens || [];
+    var practiceMin   = d.total_practice_min || 0;
+
+    var totalSess = sessions.length;
+    var present   = sessions.filter(function(x){return x.attendance_status==='present'||x.attendance_status==='late';}).length;
+    var rate      = totalSess ? Math.round(present/totalSess*100) : null;
+
+    function fmtMin(m) { if(!m)return '0 min'; if(m<60)return m+' min'; return Math.floor(m/60)+'h '+(m%60?(m%60)+'m':''); }
+    function scoreColor(p) { return p>=70?'#4caf50':p>=50?'var(--gold-bright)':'var(--danger)'; }
+
+    var html = '';
+
+    // ── Enrollment ID card ──────────────────────────────────────
+    var ref = s.enrollment_ref || '';
+    html += '<section class="panel" style="background:linear-gradient(135deg,#1B140D 0%,#2d1f0e 100%);border-color:#333;margin-bottom:16px">'
+      + '<div class="panel-body" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">'
+      + '<div style="flex:1;min-width:200px">'
+      + '<div style="color:rgba(255,255,255,0.55);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Your Student ID</div>'
+      + '<div style="font-size:1.8rem;font-weight:700;color:var(--gold-bright);letter-spacing:0.04em;font-family:monospace" id="enrollRefDisplay">'
+      + (ref ? P.escapeHtml(ref) : '<span style="color:rgba(255,255,255,0.3);font-size:1rem">Generating…</span>')
+      + '</div>'
+      + '<div style="color:rgba(255,255,255,0.45);font-size:0.78rem;margin-top:4px">Show this QR code or ID to your instructor for attendance. Anyone with the ID can view your progress report.</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'
+      + (ref ? '<button class="btn" id="copyRefBtn" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:0.8rem" onclick="copyEnrollRef()"><i class="fa-solid fa-copy"></i> Copy ID</button>' : '')
+      + '<a href="/learner-report?id=' + encodeURIComponent(ref) + '" target="_blank" rel="noopener" class="btn" style="background:var(--gold-bright);color:#1B140D;font-weight:700;font-size:0.8rem" ' + (ref?'':'hidden') + '><i class="fa-solid fa-external-link"></i> View Report</a>'
+      + '</div>'
+      + '</div>'
+      + (ref ? '<div id="student-id-qr" style="background:#fff;padding:8px;border-radius:10px;flex-shrink:0;align-self:center" title="Scan to view your progress report"></div>' : '')
+      + '</div></section>';
+
+    // ── KPI row ─────────────────────────────────────────────────
+    function kpiCard(val, lbl, icon) {
+      return '<div class="kpi-card"><div style="font-size:1rem;color:var(--gold-bright);margin-bottom:4px"><i class="fa-solid ' + P.escapeHtml(icon) + '"></i></div>'
+        + '<div style="font-family:var(--font-heading);font-size:1.6rem;font-weight:700;color:var(--gold-bright)">' + P.escapeHtml(String(val)) + '</div>'
+        + '<div style="font-size:0.74rem;color:var(--text-muted);margin-top:2px">' + P.escapeHtml(lbl) + '</div></div>';
+    }
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px">'
+      + kpiCard(rate !== null ? rate+'%' : '—', 'Attendance Rate', 'fa-chart-bar')
+      + kpiCard(present + (totalSess ? '/'+totalSess : ''), 'Sessions Attended', 'fa-clipboard-check')
+      + kpiCard(upcoming.length, 'Upcoming', 'fa-calendar-days')
+      + kpiCard(assessments.length, 'Assessments', 'fa-star')
+      + kpiCard(certs.length || '—', 'Certificates', 'fa-medal')
+      + kpiCard(practiceMin ? fmtMin(practiceMin) : '—', 'Practice Logged', 'fa-music')
+      + '</div>';
+
+    // ── Class Summary ────────────────────────────────────────────
+    if (summary.length) {
+      var cards = summary.map(function(c) {
+        var name  = c.cohort_title || c.class_name || 'Class';
+        var sub   = [c.course_name, c.level_name||c.level, c.instructor_name].filter(Boolean).join(' · ');
+        var total = parseInt(c.total_sessions||c.total_marked||0, 10);
+        var att   = parseInt(c.attended||0, 10);
+        var abs   = parseInt(c.absent||0, 10);
+        var pct   = c.attendance_rate != null ? Math.round(Number(c.attendance_rate)) : null;
+        var col   = pct == null ? 'var(--border)' : pct >= 75 ? '#4caf50' : pct >= 50 ? 'var(--gold-bright)' : 'var(--danger)';
+        return '<div style="border:1px solid var(--border);border-radius:10px;padding:14px">'
+          + '<div style="font-weight:700;font-size:0.9rem;margin-bottom:2px">' + P.escapeHtml(name) + '</div>'
+          + (sub ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:8px">' + P.escapeHtml(sub) + '</div>' : '')
+          + '<div style="display:flex;gap:14px;font-size:0.8rem">'
+          + '<div><strong style="color:' + col + '">' + (pct != null ? P.escapeHtml(pct+'%') : '—') + '</strong><br><span style="color:var(--text-muted)">rate</span></div>'
+          + '<div><strong>' + att + '</strong><br><span style="color:var(--text-muted)">attended</span></div>'
+          + '<div><strong>' + total + '</strong><br><span style="color:var(--text-muted)">total</span></div>'
+          + (abs ? '<div><strong style="color:var(--danger)">' + abs + '</strong><br><span style="color:var(--text-muted)">absent</span></div>' : '')
+          + '</div></div>';
+      }).join('');
+      html += '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-chalkboard-teacher" style="color:var(--gold-bright);margin-right:6px"></i>Class Summary</h2></div>'
+            + '<div class="panel-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">' + cards + '</div></section>';
+    }
+
+    // ── Lesson Timeline ──────────────────────────────────────────
+    if (sessions.length) {
+      var tlRows = sessions.slice(0, 20).map(function(ses) {
+        var att  = P.escapeHtml(ses.attendance_status || 'unmarked');
+        var col  = {present:'#4caf50',late:'#e8961f',absent:'var(--danger)'}[ses.attendance_status] || 'var(--border)';
+        var hasNotes = ses.topics || ses.lesson_notes || ses.learning_outcomes;
+        var notes = '';
+        if (ses.topics) notes += '<div style="margin-bottom:6px"><div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--gold-bright);margin-bottom:2px">Topics</div>' + P.escapeHtml(ses.topics) + '</div>';
+        if (ses.lesson_notes) notes += '<div style="margin-bottom:6px"><div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--gold-bright);margin-bottom:2px">Lesson Notes</div>' + P.escapeHtml(ses.lesson_notes) + '</div>';
+        if (ses.learning_outcomes) notes += '<div><div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--gold-bright);margin-bottom:2px">Learning Outcomes</div>' + P.escapeHtml(ses.learning_outcomes) + '</div>';
+        return '<div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)">'
+          + '<div style="display:flex;flex-direction:column;align-items:center;padding-top:4px">'
+          + '<div style="width:10px;height:10px;border-radius:50%;background:' + col + ';flex-shrink:0"></div>'
+          + '</div>'
+          + '<div style="flex:1;min-width:0">'
+          + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+          + '<span style="font-weight:600;font-size:0.9rem">' + P.escapeHtml(ses.title||'Session') + '</span>'
+          + '<span class="pill ' + att + '">' + att + '</span></div>'
+          + '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px">' + P.escapeHtml(P.fmtDateTime ? P.fmtDateTime(ses.scheduled_at) : (ses.scheduled_at||'')) + (ses.instructor_name ? ' · ' + P.escapeHtml(ses.instructor_name) : '') + '</div>'
+          + (hasNotes ? '<div style="margin-top:8px;padding:10px 12px;background:var(--gold-faint,rgba(232,150,31,0.08));border-radius:8px;font-size:0.83rem">' + notes + '</div>' : '')
+          + '</div></div>';
+      }).join('');
+      html += '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-book-open" style="color:var(--gold-bright);margin-right:6px"></i>Lesson Timeline</h2></div>'
+            + '<div class="panel-body" style="padding-top:0">' + tlRows + '</div></section>';
+    }
+
+    // ── Upcoming Sessions ────────────────────────────────────────
+    if (upcoming.length) {
+      var upRows = upcoming.slice(0,8).map(function(u) {
+        var gcal = gcalLink(u);
+        return '<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">'
+          + '<div style="min-width:44px;text-align:center;background:rgba(232,150,31,0.1);border-radius:8px;padding:5px 6px">'
+          + '<div style="font-size:1.2rem;font-weight:700;color:var(--gold-bright);line-height:1">'
+          + P.escapeHtml(u.scheduled_at ? new Date(u.scheduled_at.replace(' ','T')+'Z').getDate().toString().padStart(2,'0') : '?') + '</div>'
+          + '<div style="font-size:0.65rem;text-transform:uppercase;color:var(--text-muted)">'
+          + P.escapeHtml(u.scheduled_at ? new Date(u.scheduled_at.replace(' ','T')+'Z').toLocaleDateString('en-GB',{month:'short'}).toUpperCase() : '') + '</div></div>'
+          + '<div style="flex:1"><div style="font-weight:600;font-size:0.9rem">' + P.escapeHtml(u.title||'Session') + '</div>'
+          + '<div style="font-size:0.78rem;color:var(--text-muted)">' + P.escapeHtml(u.cohort_title||'') + (u.duration_min ? ' · ' + parseInt(u.duration_min,10) + 'min' : '') + '</div>'
+          + (gcal ? '<a href="' + gcal + '" target="_blank" rel="noopener" style="font-size:0.72rem;color:var(--gold-bright);text-decoration:none"><i class="fa-solid fa-calendar-plus" style="margin-right:3px"></i>Add to Google Calendar</a>' : '')
+          + '</div></div>';
+      }).join('');
+      html += '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-calendar-days" style="color:var(--gold-bright);margin-right:6px"></i>Upcoming Sessions</h2></div>'
+            + '<div class="panel-body" style="padding-top:0">' + upRows + '</div></section>';
+    }
+
+    // ── Assessment Records ───────────────────────────────────────
+    if (assessments.length) {
+      var assRows = assessments.slice(0,15).map(function(a) {
+        var pct = (a.max_score > 0 && a.score !== null) ? Math.round(a.score/a.max_score*100) : null;
+        var col = pct != null ? scoreColor(pct) : 'var(--text-muted)';
+        return '<tr><td>' + P.escapeHtml(a.course_name||'—') + '</td>'
+          + '<td>' + P.escapeHtml(a.type_name||'—') + '</td>'
+          + '<td>' + (a.week ? 'Wk ' + parseInt(a.week, 10) : '—') + '</td>'
+          + '<td><strong style="color:' + col + '">' + (pct !== null ? pct+'%' : '—') + '</strong>'
+          + (pct !== null ? '<div style="height:5px;background:var(--border);border-radius:3px;margin-top:3px"><div style="width:'+Math.min(100,pct)+'%;height:100%;border-radius:3px;background:'+col+'"></div></div>' : '')
+          + '</td>'
+          + '<td style="font-size:0.8rem;color:var(--text-muted)">' + P.escapeHtml(P.fmtDate ? P.fmtDate(a.created_at) : (a.created_at||'').split(' ')[0]) + '</td></tr>';
+      }).join('');
+      html += '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-star" style="color:var(--gold-bright);margin-right:6px"></i>Assessment Records</h2></div>'
+            + '<div class="panel-body" style="padding:0"><table style="width:100%;border-collapse:collapse;font-size:0.87rem">'
+            + '<thead><tr style="border-bottom:1.5px solid var(--border)"><th style="padding:8px 14px;font-size:0.74rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted)">Course</th><th style="padding:8px 14px;font-size:0.74rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted)">Type</th><th style="padding:8px 14px;font-size:0.74rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted)">Week</th><th style="padding:8px 14px;font-size:0.74rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted)">Score</th><th style="padding:8px 14px;font-size:0.74rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted)">Date</th></tr></thead>'
+            + '<tbody>' + assRows + '</tbody></table></div></section>';
+    }
+
+    // ── Certificates ─────────────────────────────────────────────
+    if (certs.length) {
+      var certRows = certs.map(function(c) {
+        return '<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border)">'
+          + '<div style="width:36px;height:36px;border-radius:8px;background:rgba(232,150,31,0.1);display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--gold-bright)"><i class="fa-solid fa-medal"></i></div>'
+          + '<div><div style="font-weight:600;font-size:0.9rem">' + P.escapeHtml(c.title||(c.kind||'Certificate')) + '</div>'
+          + '<div style="font-size:0.78rem;color:var(--text-muted)">' + P.escapeHtml([c.program_name,c.level_name].filter(Boolean).join(' · ')) + (c.issued_at ? ' · ' + (c.issued_at.split(' ')[0]||c.issued_at) : '') + '</div></div></div>';
+      }).join('');
+      html += '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-medal" style="color:var(--gold-bright);margin-right:6px"></i>Certificates &amp; Achievements</h2></div>' + certRows + '</section>';
+    }
+
+    // ── Session Progress Reports (instructor-submitted, lazy-loaded) ────
+    html += '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-clipboard-list" style="color:var(--gold-bright);margin-right:6px"></i>Session Progress Reports</h2></div>'
+      + '<div class="panel-body" id="sessionReportsSection">' + spinnerHtml('Loading session reports…') + '</div></section>';
+
+    // ── Guardian Sharing ──────────────────────────────────────────
+    html += '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-share-nodes" style="color:var(--gold-bright);margin-right:6px"></i>Share with Guardian</h2></div>'
+      + '<div class="panel-body">'
+      + '<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px">Generate a secure link to share your full progress dashboard with a guardian or family member. Links expire automatically.</p>'
+      + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">'
+      + '<div style="flex:1;min-width:150px"><label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px">Label (optional)</label><input id="tokenLabel" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg)" placeholder="e.g. Mum, Dad…"></div>'
+      + '<div style="width:110px"><label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px">Expires in</label><select id="tokenDays" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg)"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="180">6 months</option><option value="365">1 year</option></select></div>'
+      + '<button class="btn btn-primary" onclick="generateProgressToken()"><i class="fa-solid fa-link"></i> Generate Link</button>'
+      + '</div>'
+      + '<div id="tokenResult" style="display:none;padding:12px 14px;background:var(--panel-bg,#1e160e);border:1px solid var(--border);border-radius:8px;margin-bottom:14px">'
+      + '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px">Shareable link (copy and send to your guardian):</div>'
+      + '<div style="display:flex;gap:8px;align-items:center">'
+      + '<code id="tokenUrl" style="flex:1;font-size:0.8rem;word-break:break-all;color:var(--gold-bright)"></code>'
+      + '<button class="btn" style="flex-shrink:0;font-size:0.8rem" onclick="copyTokenUrl()"><i class="fa-solid fa-copy"></i> Copy</button>'
+      + '</div></div>'
+      + '<div id="tokenList">' + _renderTokenList(tokens) + '</div>'
+      + '</div></section>';
+
+    content.innerHTML = html;
+
+    // Render student's personal QR code (encodes their learner-report URL).
+    if (ref) {
+      var qrEl = document.getElementById('student-id-qr');
+      if (qrEl && typeof QRCode !== 'undefined') {
+        try {
+          new QRCode(qrEl, {
+            text: window.location.origin + '/learner-report?id=' + encodeURIComponent(ref),
+            width: 120, height: 120,
+            correctLevel: QRCode.CorrectLevel.M
+          });
+        } catch (e) {}
+      }
+    }
+
+    // Lazy-load per-session instructor reports after the main paint.
+    (function () {
+      var el = document.getElementById('sessionReportsSection');
+      if (!el) return;
+      API.request('student/session-reports', { method: 'GET' }).then(function (r) {
+        var rpts = r.reports || [];
+        if (!rpts.length) {
+          el.innerHTML = '<p style="font-size:0.84rem;color:var(--text-muted)">No session reports from your instructor yet.</p>';
+          return;
+        }
+        el.innerHTML = rpts.map(function (rpt) {
+          var date    = (rpt.session_at || rpt.submitted_at || '').slice(0, 16);
+          var cohort  = P.escapeHtml(rpt.cohort_title || '—');
+          var instr   = P.escapeHtml(rpt.instructor_name || '—');
+          var kindLbl = { class:'Class', exam:'Exam', revision:'Revision', makeup:'Makeup' }[rpt.session_kind] || P.escapeHtml(rpt.session_kind || '');
+          var narr    = rpt.narrative ? '<p style="font-size:0.85rem;line-height:1.55;color:var(--text);margin:10px 0 4px">' + P.escapeHtml(rpt.narrative) + '</p>' : '';
+          var answers = rpt.answers && Object.keys(rpt.answers).length
+            ? '<div style="margin-top:8px">' + Object.entries(rpt.answers).map(function(kv){
+                return '<div style="font-size:0.8rem;margin-bottom:5px"><span style="color:var(--text-muted)">' + P.escapeHtml(kv[0]) + ':</span> <strong>' + P.escapeHtml(String(kv[1])) + '</strong></div>';
+              }).join('') + '</div>'
+            : '';
+          return '<div style="border-bottom:1px solid var(--border);padding:12px 0">'
+            + '<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px">'
+            + '<span style="font-weight:600;font-size:0.88rem">' + P.escapeHtml(date) + '</span>'
+            + '<span class="pill" style="font-size:0.72rem">' + kindLbl + '</span>'
+            + '<span style="font-size:0.8rem;color:var(--text-muted)">' + cohort + ' &mdash; ' + instr + '</span>'
+            + '</div>'
+            + narr + answers
+            + '</div>';
+        }).join('');
+      }).catch(function () {
+        var el2 = document.getElementById('sessionReportsSection');
+        if (el2) el2.innerHTML = '<p style="font-size:0.83rem;color:var(--danger)">Could not load session reports.</p>';
+      });
+    })();
+  }
+
+  function _renderTokenList(tokens) {
+    if (!tokens.length) return '<p style="font-size:0.82rem;color:var(--text-muted)">No active links yet.</p>';
+    return '<div style="margin-top:4px"><div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">Existing Links</div>'
+      + tokens.map(function(t) {
+          var exp = t.expires_at ? t.expires_at.split(' ')[0] : 'No expiry';
+          var accessed = t.accessed_count ? t.accessed_count + ' view' + (t.accessed_count>1?'s':'') : 'Not yet viewed';
+          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.83rem">'
+            + '<div style="flex:1"><strong>' + P.escapeHtml(t.label||'Unnamed') + '</strong> <span style="color:var(--text-muted);font-size:0.75rem">· expires ' + P.escapeHtml(exp) + ' · ' + P.escapeHtml(accessed) + '</span></div>'
+            + '<button class="btn" style="font-size:0.75rem;padding:4px 10px;color:var(--danger);background:transparent;border:1px solid var(--danger)" onclick="revokeProgressToken(' + t.id + ')"><i class="fa-solid fa-trash"></i></button>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  }
+
+  window.copyEnrollRef = function() {
+    var ref = document.getElementById('enrollRefDisplay');
+    if (!ref) return;
+    navigator.clipboard.writeText(ref.textContent.trim()).then(function() {
+      var btn = document.getElementById('copyRefBtn');
+      if (btn) { btn.textContent = '✓ Copied!'; setTimeout(function(){ btn.innerHTML = '<i class="fa-solid fa-copy"></i> Copy ID'; }, 2000); }
+    });
+  };
+
+  window.generateProgressToken = function() {
+    var label = document.getElementById('tokenLabel').value.trim();
+    var days  = parseInt(document.getElementById('tokenDays').value, 10);
+    API.request('student/progress', { method: 'POST', body: { action: 'generate_token', label: label || 'Guardian', expires_days: days } })
+      .then(function(r) {
+        var urlEl = document.getElementById('tokenUrl');
+        urlEl.textContent = r.url;
+        document.getElementById('tokenResult').style.display = 'block';
+        if (_progressCache) _progressCache.tokens = _progressCache.tokens || [];
+        // Refresh token list after a moment
+        setTimeout(function() {
+          API.request('student/progress', { method: 'GET' }).then(function(d) {
+            _progressCache = d;
+            document.getElementById('tokenList').innerHTML = _renderTokenList(d.tokens || []);
+          });
+        }, 600);
+      }).catch(function() {
+        if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not generate link. Try again.', 'error');
+      });
+  };
+
+  window.copyTokenUrl = function() {
+    var url = document.getElementById('tokenUrl').textContent.trim();
+    navigator.clipboard.writeText(url).then(function() {
+      if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Link copied to clipboard.', 'success');
+    });
+  };
+
+  window.revokeProgressToken = function(tokenId) {
+    if (!confirm('Revoke this link? Anyone using it will lose access immediately.')) return;
+    API.request('student/progress', { method: 'POST', body: { action: 'revoke_token', token_id: tokenId } })
+      .then(function() {
+        if (_progressCache) _progressCache.tokens = (_progressCache.tokens||[]).filter(function(t){return t.id!==tokenId;});
+        document.getElementById('tokenList').innerHTML = _renderTokenList((_progressCache||{}).tokens||[]);
+        if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Link revoked.', 'success');
+      }).catch(function() {
+        if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not revoke. Try again.', 'error');
+      });
+  };
+
+  /* ─── Support Hub ────────────────────────────────────────────────────── */
+  // Support has three sections rendered on demand; state is kept in closure vars
+  // so switching sub-tabs doesn't re-fetch if already loaded.
+  var _supportCache = { feedback: null, surveys: null, tickets: null };
+  var _supportActiveTicket = null; // ticket id being viewed
+
+  function renderSupport(subTab) {
+    subTab = subTab || 'feedback';
+    var tabs2 = [
+      { id: 'feedback', icon: 'star',            label: 'Feedback' },
+      { id: 'surveys',  icon: 'clipboard-question', label: 'Surveys' },
+      { id: 'tickets',  icon: 'ticket',           label: 'Help Tickets' },
+    ];
+    var switcher = '<div class="pill-row" style="margin-bottom:20px">'
+      + tabs2.map(function (t) {
+          return '<button class="pill' + (t.id === subTab ? ' active' : '') + '" data-support-tab="' + t.id + '" style="cursor:pointer">'
+            + '<i class="fa-solid fa-' + t.id + ' fa-' + t.icon + '" style="margin-right:5px"></i>' + t.label + '</button>';
+        }).join('') + '</div>';
+
+    content.innerHTML = '<div id="supportInner"><div style="padding:2px 0 4px">' + switcher + '</div><div id="supportBody">' + spinnerHtml() + '</div></div>';
+    content.querySelector('#supportInner').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-support-tab]');
+      if (btn) { renderSupport(btn.getAttribute('data-support-tab')); return; }
+      var ub = e.target.closest('[data-ticket-id]');
+      if (ub) { _supportActiveTicket = parseInt(ub.getAttribute('data-ticket-id'), 10); renderSupportTicketThread(); return; }
+      if (e.target.closest('[data-back-tickets]')) { _supportActiveTicket = null; renderSupportTicketList(); return; }
+      if (e.target.closest('#sfSubmitBtn'))    { submitFeedback(); return; }
+      if (e.target.closest('[data-survey-submit]')) { submitSurvey(parseInt(e.target.closest('[data-survey-submit]').getAttribute('data-survey-submit'), 10)); return; }
+      if (e.target.closest('#tkCreateBtn'))    { showTicketForm(); return; }
+      if (e.target.closest('#tkCancelBtn'))    { renderSupportTicketList(); return; }
+      if (e.target.closest('#tkSubmitBtn'))    { submitTicket(); return; }
+      if (e.target.closest('#tkReplyBtn'))     { submitTicketReply(); return; }
+      var star = e.target.closest('[data-star]');
+      if (star && star.closest('#sfStars')) { setStar(parseInt(star.getAttribute('data-star'), 10)); return; }
+    });
+
+    if (subTab === 'feedback') renderSupportFeedback();
+    else if (subTab === 'surveys') renderSupportSurveys();
+    else renderSupportTicketList();
+  }
+
+  function spinnerHtml() { return '<div style="padding:40px;text-align:center;color:var(--text-muted)"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:1.6rem;color:var(--gold-bright)"></i></div>'; }
+
+  /* — Feedback — */
+  var _sfRating = 0;
+  function setStar(n) {
+    _sfRating = n;
+    var stars = document.querySelectorAll('#sfStars [data-star]');
+    stars.forEach(function (s) {
+      var v = parseInt(s.getAttribute('data-star'), 10);
+      s.style.color = v <= n ? 'var(--gold-bright)' : 'var(--border)';
+      s.style.transform = v <= n ? 'scale(1.15)' : 'scale(1)';
+    });
+  }
+  function renderSupportFeedback() {
+    var body = document.getElementById('supportBody');
+    if (!body) return;
+    body.innerHTML = spinnerHtml();
+    var fetcher = _supportCache.feedback
+      ? Promise.resolve(_supportCache.feedback)
+      : API.request('student/feedback', { method: 'GET' });
+    fetcher.then(function (r) {
+      _supportCache.feedback = r;
+      var history = (r.feedback || []);
+      var histHtml = '';
+      if (history.length) {
+        histHtml = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Your feedback history</h2></div><div class="panel-body" style="padding:0">'
+          + history.map(function (f) {
+              var stars = '★'.repeat(f.rating) + '☆'.repeat(5 - f.rating);
+              return '<div style="padding:14px 20px;border-bottom:1px solid var(--border)">'
+                + '<div style="display:flex;gap:10px;align-items:center;margin-bottom:4px"><span style="color:var(--gold-bright);letter-spacing:1px">' + stars + '</span><span class="pill" style="font-size:0.72rem">' + P.escapeHtml(f.category) + '</span><span style="margin-left:auto;font-size:0.8rem;color:var(--text-muted)">' + P.fmtDate(f.created_at) + '</span></div>'
+                + (f.subject ? '<div style="font-size:0.9rem;font-weight:600;margin-bottom:2px">' + P.escapeHtml(f.subject) + '</div>' : '')
+                + '<div style="font-size:0.87rem;color:var(--text-soft);line-height:1.55">' + P.escapeHtml(f.body) + '</div></div>';
+            }).join('') + '</div></section>';
+      }
+      body.innerHTML = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-star" style="margin-right:8px;color:var(--gold-bright)"></i>Rate your experience</h2></div>'
+        + '<div class="panel-body"><div id="sfStars" style="display:flex;gap:6px;margin-bottom:14px">'
+        + [1,2,3,4,5].map(function (n) { return '<button data-star="' + n + '" style="background:none;border:none;font-size:2rem;cursor:pointer;color:var(--border);transition:color .15s,transform .15s" aria-label="' + n + ' star">★</button>'; }).join('')
+        + '</div>'
+        + '<div class="field" style="margin-bottom:10px"><label for="sfCat" style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px">Category</label>'
+        + '<select id="sfCat" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem">'
+        + '<option value="general">General</option><option value="teaching">Teaching quality</option><option value="content">Course content</option><option value="admin">Administration</option><option value="facilities">Facilities</option></select></div>'
+        + '<div class="field" style="margin-bottom:10px"><label for="sfSubject" style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px">Subject (optional)</label><input id="sfSubject" placeholder="e.g. Week 4 drum session" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem;box-sizing:border-box"></div>'
+        + '<div class="field" style="margin-bottom:14px"><label for="sfBody" style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px">Your feedback <span style="color:var(--gold-bright)">*</span></label><textarea id="sfBody" rows="4" placeholder="Tell us what went well or what we can improve…" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem;box-sizing:border-box;resize:vertical"></textarea></div>'
+        + '<label style="display:flex;align-items:center;gap:8px;font-size:0.87rem;color:var(--text-soft);margin-bottom:16px;cursor:pointer"><input type="checkbox" id="sfAnon"> Submit anonymously</label>'
+        + '<button id="sfSubmitBtn" class="btn btn-primary">Submit Feedback</button><span id="sfMsg" style="margin-left:12px;font-size:0.87rem;color:var(--text-muted)"></span>'
+        + '</div></section>' + histHtml;
+    }).catch(function () { body.innerHTML = '<div class="panel-body">' + empty('circle-exclamation', 'Could not load feedback. Please try again.') + '</div>'; });
+  }
+  function submitFeedback() {
+    var rating = _sfRating;
+    var body = (document.getElementById('sfBody') || {}).value || '';
+    var msg = document.getElementById('sfMsg');
+    if (!rating) { if (msg) { msg.textContent = 'Please select a star rating.'; msg.style.color = '#e05252'; } return; }
+    if (!body.trim()) { if (msg) { msg.textContent = 'Please enter your feedback.'; msg.style.color = '#e05252'; } return; }
+    var btn = document.getElementById('sfSubmitBtn');
+    if (btn) btn.disabled = true;
+    var payload = {
+      rating: rating,
+      body: body.trim(),
+      category: (document.getElementById('sfCat') || {}).value || 'general',
+      subject: ((document.getElementById('sfSubject') || {}).value || '').trim() || null,
+      is_anonymous: (document.getElementById('sfAnon') || {}).checked ? 1 : 0,
+    };
+    API.request('student/feedback', { method: 'POST', body: payload }).then(function () {
+      _supportCache.feedback = null; _sfRating = 0;
+      if (window.MAM_DIALOG) MAM_DIALOG.toast('Thank you for your feedback!', 'success');
+      renderSupportFeedback();
+    }).catch(function (e) {
+      if (btn) btn.disabled = false;
+      if (msg) { msg.textContent = (e && e.message) || 'Could not submit. Please try again.'; msg.style.color = '#e05252'; }
+    });
+  }
+
+  /* — Surveys — */
+  function renderSupportSurveys() {
+    var body = document.getElementById('supportBody');
+    if (!body) return;
+    body.innerHTML = spinnerHtml();
+    var fetcher = _supportCache.surveys
+      ? Promise.resolve(_supportCache.surveys)
+      : API.request('student/surveys', { method: 'GET' });
+    fetcher.then(function (r) {
+      _supportCache.surveys = r;
+      var surveys = r.surveys || [];
+      if (!surveys.length) { body.innerHTML = '<section class="panel"><div class="panel-body">' + empty('clipboard-question', 'No active surveys right now. Check back soon.') + '</div></section>'; return; }
+      body.innerHTML = surveys.map(function (s) {
+        var qs = s.questions || [];
+        if (s.responded) {
+          return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h2>' + P.escapeHtml(s.title) + '</h2><span class="pill" style="background:rgba(76,175,80,0.15);color:#4caf50;font-size:0.75rem">✓ Completed</span></div>'
+            + (s.description ? '<div class="panel-body" style="padding-bottom:4px"><p style="color:var(--text-soft);font-size:0.9rem;margin:0">' + P.escapeHtml(s.description) + '</p></div>' : '') + '</section>';
+        }
+        var questions = qs.map(function (q, qi) {
+          var qid = 'sq_' + s.id + '_' + qi;
+          var input = '';
+          if (q.type === 'rating') {
+            input = '<div style="display:flex;gap:4px">' + [1,2,3,4,5].map(function (n) {
+              return '<button type="button" data-sq-star="' + n + '" data-sq-q="' + qi + '" data-sq-sid="' + s.id + '" style="background:none;border:none;font-size:1.6rem;cursor:pointer;color:var(--border)" aria-label="' + n + '">★</button>';
+            }).join('') + '</div>';
+          } else if (q.type === 'select' && q.options) {
+            input = '<select id="' + qid + '" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem"><option value="">Select…</option>'
+              + q.options.map(function (o) { return '<option value="' + P.escapeHtml(o) + '">' + P.escapeHtml(o) + '</option>'; }).join('') + '</select>';
+          } else if (q.type === 'long_text') {
+            input = '<textarea id="' + qid + '" rows="3" placeholder="Your answer…" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem;box-sizing:border-box;resize:vertical"></textarea>';
+          } else {
+            input = '<input id="' + qid + '" type="text" placeholder="Your answer…" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem;box-sizing:border-box">';
+          }
+          return '<div style="margin-bottom:14px"><label for="' + qid + '" style="font-size:0.9rem;font-weight:600;display:block;margin-bottom:6px">' + (qi + 1) + '. ' + P.escapeHtml(q.text || '') + (q.required ? ' <span style="color:var(--gold-bright)">*</span>' : '') + '</label>' + input + '</div>';
+        }).join('');
+        return '<section class="panel" style="margin-bottom:16px" data-survey-id="' + s.id + '"><div class="panel-head"><h2>' + P.escapeHtml(s.title) + '</h2>'
+          + (s.closes_at ? '<span style="font-size:0.78rem;color:var(--text-muted)">Closes ' + P.fmtDate(s.closes_at) + '</span>' : '') + '</div>'
+          + (s.description ? '<div style="padding:12px 22px 0"><p style="color:var(--text-soft);font-size:0.9rem;margin:0;line-height:1.5">' + P.escapeHtml(s.description) + '</p></div>' : '')
+          + '<div class="panel-body" style="padding-top:12px">' + questions + '<button class="btn btn-primary" data-survey-submit="' + s.id + '" style="margin-top:6px">Submit Survey</button><span class="survey-msg-' + s.id + '" style="margin-left:12px;font-size:0.87rem;color:var(--text-muted)"></span></div></section>';
+      }).join('');
+      // Wire inline rating star click for survey questions
+      body.addEventListener('click', function (e) {
+        var sb = e.target.closest('[data-sq-star]');
+        if (!sb) return;
+        var n = parseInt(sb.getAttribute('data-sq-star'), 10);
+        var sid = sb.getAttribute('data-sq-sid');
+        var qi = sb.getAttribute('data-sq-q');
+        var row = sb.parentElement;
+        row.querySelectorAll('[data-sq-star]').forEach(function (b) {
+          var v = parseInt(b.getAttribute('data-sq-star'), 10);
+          b.style.color = v <= n ? 'var(--gold-bright)' : 'var(--border)';
+        });
+        row.setAttribute('data-sq-value', n);
+        row.setAttribute('data-sq-q-index', qi);
+      }, { once: true });
+    }).catch(function () { body.innerHTML = '<div class="panel-body">' + empty('circle-exclamation', 'Could not load surveys. Please try again.') + '</div>'; });
+  }
+  function submitSurvey(surveyId) {
+    var panel = document.querySelector('[data-survey-id="' + surveyId + '"]');
+    if (!panel) return;
+    var msgEl = panel.querySelector('.survey-msg-' + surveyId);
+    var qs = (_supportCache.surveys && _supportCache.surveys.surveys || []).find(function (s) { return s.id == surveyId; });
+    if (!qs) return;
+    var answers = {};
+    var ok = true;
+    (qs.questions || []).forEach(function (q, qi) {
+      var qid = 'sq_' + surveyId + '_' + qi;
+      var val = '';
+      if (q.type === 'rating') {
+        var row = panel.querySelector('[data-sq-q="' + qi + '"]') && panel.querySelector('[data-sq-q="' + qi + '"]').parentElement;
+        val = row ? (row.getAttribute('data-sq-value') || '') : '';
+      } else {
+        var el = panel.querySelector('#' + qid);
+        val = el ? el.value.trim() : '';
+      }
+      if (q.required && !val) { ok = false; }
+      answers[qi] = val;
+    });
+    if (!ok) { if (msgEl) { msgEl.textContent = 'Please answer all required questions.'; msgEl.style.color = '#e05252'; } return; }
+    var btn = panel.querySelector('[data-survey-submit]');
+    if (btn) btn.disabled = true;
+    API.request('student/surveys', { method: 'POST', body: { survey_id: surveyId, answers: answers } }).then(function () {
+      _supportCache.surveys = null;
+      if (window.MAM_DIALOG) MAM_DIALOG.toast('Survey submitted — thank you!', 'success');
+      var badge = document.getElementById('supportBadge');
+      if (badge) { var cur = parseInt(badge.textContent || '0', 10) - 1; if (cur > 0) badge.textContent = cur; else badge.hidden = true; }
+      renderSupportSurveys();
+    }).catch(function (e) {
+      if (btn) btn.disabled = false;
+      var msg = (e && e.error) === 'already_responded' ? 'Already submitted.' : 'Could not submit. Please try again.';
+      if (msgEl) { msgEl.textContent = msg; msgEl.style.color = '#e05252'; }
+    });
+  }
+
+  /* — Tickets — */
+  function renderSupportTicketList() {
+    _supportActiveTicket = null;
+    var body = document.getElementById('supportBody');
+    if (!body) return;
+    body.innerHTML = spinnerHtml();
+    API.request('student/tickets', { method: 'GET' }).then(function (r) {
+      _supportCache.tickets = r;
+      var tickets = r.tickets || [];
+      var statusColor = { open: 'var(--gold-bright)', in_progress: '#4a9eff', resolved: '#4caf50', closed: 'var(--text-muted)' };
+      var listHtml = tickets.length
+        ? '<div style="margin-top:4px">' + tickets.map(function (t) {
+            var sc = statusColor[t.status] || 'var(--text-muted)';
+            return '<div data-ticket-id="' + t.id + '" style="padding:14px 20px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onmouseover="this.style.background=\'var(--bg-hover)\'" onmouseout="this.style.background=\'\'">'
+              + '<div style="display:flex;gap:10px;align-items:center;margin-bottom:3px"><span class="mono" style="font-size:0.8rem;color:var(--gold-bright)">' + P.escapeHtml(t.reference) + '</span><span class="pill" style="background:rgba(0,0,0,0.2);color:' + sc + ';font-size:0.7rem">' + P.escapeHtml(t.status) + '</span><span class="pill" style="font-size:0.7rem">' + P.escapeHtml(t.category) + '</span><span style="margin-left:auto;font-size:0.78rem;color:var(--text-muted)">' + P.fmtDate(t.created_at) + '</span></div>'
+              + '<div style="font-size:0.92rem;font-weight:600;margin-bottom:2px">' + P.escapeHtml(t.subject) + '</div>'
+              + '<div style="font-size:0.82rem;color:var(--text-muted)">' + (t.message_count || 0) + ' message' + ((t.message_count || 0) !== 1 ? 's' : '') + (t.updated_at ? ' · Updated ' + P.fmtDate(t.updated_at) : '') + '</div></div>';
+          }).join('') + '</div>'
+        : '<div class="panel-body">' + empty('ticket', 'No support tickets yet. Raise one if you need help.') + '</div>';
+      body.innerHTML = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-ticket" style="margin-right:8px;color:var(--gold-bright)"></i>Your Tickets</h2><button id="tkCreateBtn" class="btn btn-primary" style="padding:7px 14px;font-size:0.83rem"><i class="fa-solid fa-plus" style="margin-right:5px"></i>New Ticket</button></div>' + listHtml + '</section>';
+    }).catch(function () { body.innerHTML = '<div class="panel-body">' + empty('circle-exclamation', 'Could not load tickets. Please try again.') + '</div>'; });
+  }
+  function showTicketForm() {
+    var body = document.getElementById('supportBody');
+    if (!body) return;
+    body.innerHTML = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-plus" style="margin-right:8px;color:var(--gold-bright)"></i>New Support Ticket</h2></div><div class="panel-body">'
+      + '<div class="field" style="margin-bottom:10px"><label for="tkCat" style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px">Category</label><select id="tkCat" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem"><option value="general">General enquiry</option><option value="technical">Technical issue</option><option value="billing">Billing / payments</option><option value="scheduling">Scheduling</option><option value="complaint">Complaint</option><option value="other">Other</option></select></div>'
+      + '<div class="field" style="margin-bottom:10px"><label for="tkPriority" style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px">Priority</label><select id="tkPriority" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem"><option value="normal">Normal</option><option value="low">Low</option><option value="high">High — urgent issue</option></select></div>'
+      + '<div class="field" style="margin-bottom:10px"><label for="tkSubject" style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px">Subject <span style="color:var(--gold-bright)">*</span></label><input id="tkSubject" type="text" placeholder="Brief summary" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem;box-sizing:border-box"></div>'
+      + '<div class="field" style="margin-bottom:16px"><label for="tkBody" style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:4px">Details <span style="color:var(--gold-bright)">*</span></label><textarea id="tkBody" rows="5" placeholder="Describe the issue in detail…" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem;box-sizing:border-box;resize:vertical"></textarea></div>'
+      + '<div style="display:flex;gap:10px;align-items:center"><button id="tkSubmitBtn" class="btn btn-primary">Submit Ticket</button><button id="tkCancelBtn" class="btn btn-ghost">Cancel</button><span id="tkMsg" style="font-size:0.87rem;color:var(--text-muted)"></span></div>'
+      + '</div></section>';
+  }
+  function submitTicket() {
+    var subject = (document.getElementById('tkSubject') || {}).value || '';
+    var body    = (document.getElementById('tkBody')    || {}).value || '';
+    var msg = document.getElementById('tkMsg');
+    if (!subject.trim()) { if (msg) { msg.textContent = 'Please enter a subject.'; msg.style.color = '#e05252'; } return; }
+    if (!body.trim())    { if (msg) { msg.textContent = 'Please describe the issue.'; msg.style.color = '#e05252'; } return; }
+    var btn = document.getElementById('tkSubmitBtn'); if (btn) btn.disabled = true;
+    var payload = {
+      category: (document.getElementById('tkCat')      || {}).value || 'general',
+      priority: (document.getElementById('tkPriority') || {}).value || 'normal',
+      subject:  subject.trim(),
+      body:     body.trim(),
+    };
+    API.request('student/tickets', { method: 'POST', body: payload }).then(function (r) {
+      _supportCache.tickets = null;
+      if (window.MAM_DIALOG) MAM_DIALOG.toast('Ticket ' + (r.reference || '') + ' submitted — we\'ll be in touch!', 'success');
+      _supportActiveTicket = r.ticket_id || null;
+      if (_supportActiveTicket) renderSupportTicketThread();
+      else renderSupportTicketList();
+    }).catch(function (e) {
+      if (btn) btn.disabled = false;
+      if (msg) { msg.textContent = (e && e.message) || 'Could not submit. Please try again.'; msg.style.color = '#e05252'; }
+    });
+  }
+  function renderSupportTicketThread() {
+    var body = document.getElementById('supportBody');
+    if (!body || !_supportActiveTicket) return;
+    body.innerHTML = spinnerHtml();
+    API.request('student/tickets?id=' + _supportActiveTicket, { method: 'GET' }).then(function (r) {
+      var t = r.ticket;
+      if (!t) { body.innerHTML = '<div class="panel-body">' + empty('circle-exclamation', 'Ticket not found.') + '</div>'; return; }
+      var sc = { open: 'var(--gold-bright)', in_progress: '#4a9eff', resolved: '#4caf50', closed: 'var(--text-muted)' }[t.status] || 'var(--text-muted)';
+      var msgs = (t.messages || []).map(function (m) {
+        var isStaff = m.author_role === 'admin' || m.author_role === 'instructor';
+        var align = isStaff ? 'left' : 'right';
+        var bg = isStaff ? 'var(--bg-card)' : 'rgba(224,138,26,0.1)';
+        return '<div style="display:flex;justify-content:' + (isStaff ? 'flex-start' : 'flex-end') + ';margin-bottom:12px">'
+          + '<div style="max-width:80%;background:' + bg + ';border:1px solid var(--border);border-radius:12px;padding:12px 16px">'
+          + '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px">' + P.escapeHtml(m.author_name || 'Staff') + ' · ' + P.fmtDateTime(m.created_at) + '</div>'
+          + '<div style="font-size:0.9rem;line-height:1.55;white-space:pre-wrap">' + P.escapeHtml(m.body) + '</div></div></div>';
+      }).join('');
+      var isOpen = t.status === 'open' || t.status === 'in_progress';
+      var replyArea = isOpen
+        ? '<div style="margin-top:16px;padding:16px 20px;border-top:1px solid var(--border)"><textarea id="tkReplyBody" rows="3" placeholder="Add a reply…" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:0.9rem;box-sizing:border-box;resize:vertical;margin-bottom:10px"></textarea><div style="display:flex;gap:10px;align-items:center"><button id="tkReplyBtn" class="btn btn-primary" style="font-size:0.85rem">Send Reply</button><span id="tkReplyMsg" style="font-size:0.85rem;color:var(--text-muted)"></span></div></div>'
+        : '<div style="padding:12px 20px;color:var(--text-muted);font-size:0.87rem;border-top:1px solid var(--border)">This ticket is ' + P.escapeHtml(t.status) + '. Contact us to reopen.</div>';
+      body.innerHTML = '<section class="panel"><div class="panel-head">'
+        + '<button data-back-tickets class="btn btn-ghost" style="padding:6px 10px;font-size:0.82rem;margin-right:8px"><i class="fa-solid fa-arrow-left"></i></button>'
+        + '<div><div class="mono" style="font-size:0.8rem;color:var(--gold-bright)">' + P.escapeHtml(t.reference) + '</div><div style="font-weight:700">' + P.escapeHtml(t.subject) + '</div></div>'
+        + '<span class="pill" style="background:rgba(0,0,0,0.2);color:' + sc + ';font-size:0.75rem;margin-left:auto">' + P.escapeHtml(t.status) + '</span></div>'
+        + '<div style="padding:16px 20px"><div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:4px">Category: ' + P.escapeHtml(t.category) + ' · Priority: ' + P.escapeHtml(t.priority) + ' · Opened ' + P.fmtDate(t.created_at) + '</div>'
+        + '<div style="font-size:0.9rem;line-height:1.55;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:8px;white-space:pre-wrap">' + P.escapeHtml(t.body) + '</div></div>'
+        + (msgs ? '<div style="padding:0 20px">' + msgs + '</div>' : '')
+        + replyArea + '</section>';
+    }).catch(function () { body.innerHTML = '<div class="panel-body">' + empty('circle-exclamation', 'Could not load ticket. Please try again.') + '</div>'; });
+  }
+  function submitTicketReply() {
+    var bodyEl = document.getElementById('tkReplyBody');
+    var msgEl = document.getElementById('tkReplyMsg');
+    var body = bodyEl ? bodyEl.value.trim() : '';
+    if (!body) { if (msgEl) { msgEl.textContent = 'Please enter a reply.'; msgEl.style.color = '#e05252'; } return; }
+    var btn = document.getElementById('tkReplyBtn'); if (btn) btn.disabled = true;
+    API.request('student/tickets?reply=1', { method: 'POST', body: { ticket_id: _supportActiveTicket, body: body } }).then(function () {
+      renderSupportTicketThread();
+    }).catch(function (e) {
+      if (btn) btn.disabled = false;
+      if (msgEl) { msgEl.textContent = (e && e.message) || 'Could not send reply. Please try again.'; msgEl.style.color = '#e05252'; }
+    });
+  }
+  /* ────────────────────────────────────────────────────────────────────── */
+
   function kpi(label, value, sub, cls, id) {
     return '<div class="kpi"' + (id ? ' id="' + id + '"' : '') + '><div class="kpi-label">' + P.escapeHtml(label) + '</div><div class="kpi-value ' + (cls || '') + '">' + value + '</div><div class="kpi-sub">' + P.escapeHtml(sub || '') + '</div></div>';
   }
@@ -1008,6 +1990,7 @@
 
   P.requireAuth(['student']).then(function () {
     P.init();
+    startClock();
     bindTabLinks();
     syncTabs = P.enhanceTabs({ onActivate: show });
     return load();
