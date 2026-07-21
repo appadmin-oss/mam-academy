@@ -718,16 +718,12 @@ function mam_email_scholarship_block(): string {
  * button looks right across Gmail, Apple Mail, Outlook desktop and mobile.
  */
 function mam_email_button(string $url, string $label, string $accent = ''): string {
-    // Dark capsule, gold uppercase tracking, single primary action. The same
-    // CTA style used in the application-confirmation rebuild — kept here so
-    // every template's CTA is visually consistent. The legacy $accent arg is
-    // ignored (kept for backwards-compatible signatures).
     $u = htmlspecialchars($url, ENT_QUOTES);
     $l = htmlspecialchars($label, ENT_QUOTES);
     return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="left" style="margin:24px 0"><tr>'
-      . '<td align="left" bgcolor="#1A120B" style="border-radius:12px">'
-      . '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="' . $u . '" style="height:54px;v-text-anchor:middle;width:300px;" arcsize="14%" strokecolor="#1A120B" fillcolor="#1A120B"><w:anchorlock/><center style="color:#FBBF24;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;letter-spacing:0.12em">' . strtoupper($l) . '&nbsp;&rarr;</center></v:roundrect><![endif]-->'
-      . '<!--[if !mso]><!--><a href="' . $u . '" style="display:inline-block;padding:18px 36px;background:#1A120B;color:#FBBF24;border-radius:12px;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;font-weight:700;text-decoration:none;letter-spacing:0.12em;text-transform:uppercase;font-size:13.5px">' . $l . '&nbsp;&rarr;</a><!--<![endif]-->'
+      . '<td align="left" bgcolor="#C17B2A" style="border-radius:8px">'
+      . '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="' . $u . '" style="height:46px;v-text-anchor:middle;width:260px;" arcsize="9%" strokecolor="#C17B2A" fillcolor="#C17B2A"><w:anchorlock/><center style="color:#141413;font-family:Arial,sans-serif;font-size:14px;font-weight:600">' . $l . ' &rarr;</center></v:roundrect><![endif]-->'
+      . '<!--[if !mso]><!--><a href="' . $u . '" style="display:inline-block;padding:13px 24px;background:#C17B2A;color:#141413;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;font-weight:600;text-decoration:none;font-size:14px">' . $l . ' &rarr;</a><!--<![endif]-->'
       . '</td></tr></table>';
 }
 
@@ -803,15 +799,24 @@ function mam_email_layout(array $o): string {
     $marketing = !empty($o['unsubscribe']);
     $year      = date('Y');
     $appUrl    = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
-    $logo      = mam_email_logo_png_b64();
-    $logoImg   = $logo !== ''
-        ? '<img src="' . $logo . '" width="60" height="60" alt="MAM Academy" style="display:block;margin:0 auto 14px;width:60px;height:60px;border:0;outline:none">'
-        : '';
+
+    // Logo: admin-configurable hosted image URL. Falls back to text wordmark when blank.
+    $logoUrl = mam_setting('email_logo_url', '');
+    $safeLogoUrl = '';
+    if ($logoUrl !== '') {
+        $s = strtolower(substr($logoUrl, 0, 8));
+        if ($s === 'https://' || substr($s, 0, 7) === 'http://') {
+            $safeLogoUrl = htmlspecialchars($logoUrl, ENT_QUOTES);
+        }
+    }
+
+    // Promotional banner: inserted after the header rule when an active banner exists.
+    $bannerRow = mam_email_active_banner();
 
     $unsubLine = $marketing
-        ? '<p style="margin:14px 0 0;font-size:11.5px;color:#9A8264;line-height:1.7">' . $reason
-          . ' <a href="{{UNSUB_URL}}" style="color:#B8721B">Unsubscribe</a> any time — we honour every request promptly. Transactional messages are unaffected.</p>'
-        : '<p style="margin:14px 0 0;font-size:11.5px;color:#9A8264;line-height:1.7">' . $reason . '</p>';
+        ? '<p style="margin:8px 0 0;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;font-size:12px;color:#8a8578;line-height:1.6">' . $reason
+          . ' <a href="{{UNSUB_URL}}" style="color:#8a8578">Unsubscribe here</a> &mdash; we honour every request promptly.</p>'
+        : '<p style="margin:8px 0 0;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;font-size:12px;color:#8a8578;line-height:1.6">' . $reason . '</p>';
 
     return '<!doctype html><html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">'
       . '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -820,51 +825,63 @@ function mam_email_layout(array $o): string {
       . '<title>MAM Academy</title>'
       . '<!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->'
       . '<style>'
-      . 'body{margin:0;padding:0;width:100%!important;background:#F6F1E8;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}'
+      . 'body{margin:0;padding:0;width:100%!important;background:#f0eee6;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}'
       . 'table{border-collapse:collapse}td{mso-line-height-rule:exactly}'
       . 'img{border:0;line-height:100%;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;max-width:100%;height:auto}'
-      . 'a{color:#B8721B;text-decoration:none}'
-      . 'a.btn:hover{background:#000!important}'
-      // Force light scheme in clients that respect the meta. Gmail dark mode
-      // still applies a tint; this minimises damage.
-      . '@media (prefers-color-scheme:dark){body{background:#F6F1E8!important}}'
+      . 'a{color:#C17B2A;text-decoration:none}'
+      . '@media(prefers-color-scheme:dark){body{background:#f0eee6!important}}'
       . '@media only screen and (max-width:600px){'
-      . '  .container{width:100%!important;border-radius:0!important;margin:0!important}'
-      . '  .px{padding-left:24px!important;padding-right:24px!important}'
-      . '  .py{padding-top:28px!important;padding-bottom:28px!important}'
-      . '  .h1{font-size:26px!important;line-height:1.22!important}'
-      . '  .h2{font-size:18px!important}'
-      . '  .stack{display:block!important;width:100%!important;padding:0!important;border-left:0!important;border-top:1px solid #ECE0CC!important;padding-top:14px!important;margin-top:14px!important}'
+      . '.container{width:100%!important;border-radius:0!important;margin:0!important}'
+      . '.px{padding-left:24px!important;padding-right:24px!important}'
+      . '.h1{font-size:24px!important;line-height:1.25!important}'
+      . '.h2{font-size:18px!important}'
+      . '.stack{display:block!important;width:100%!important;padding:0!important;border-left:0!important;border-top:1px solid #e8e6dd!important;padding-top:14px!important;margin-top:14px!important}'
       . '}'
       . '</style></head>'
-      . '<body style="margin:0;padding:24px 0;background:#F6F1E8;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif">'
-      . '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#F6F1E8">' . $preheader . '&#8203;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;</div>'
-      . '<center style="width:100%;background:#F6F1E8">'
-      . '<!--[if mso]><table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="620"><tr><td><![endif]-->'
-      . '<table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="100%" class="container" style="max-width:620px;margin:0 auto;background:#FFFFFF;border-radius:18px;overflow:hidden;box-shadow:0 12px 36px rgba(26,18,11,0.10)">'
-      // Branded dark header band — logo badge + gold-accented wordmark + tagline.
-      // Solid hexes only (dark-mode-inverter safe); the gold rule is the accent.
-      . '<tr><td style="background:#161009;padding:34px 44px 28px;text-align:center;border-bottom:3px solid #B8721B">'
-      .   $logoImg
-      .   '<div style="font-family:Georgia,\'Times New Roman\',serif;font-size:23px;letter-spacing:0.18em;color:#FFFFFF;font-weight:bold">MAM ACADEMY</div>'
-      .   '<div style="margin:9px 0 0;font-size:10px;letter-spacing:0.34em;text-transform:uppercase;color:#FBBF24;font-weight:700">Music &middot; Arts &middot; Mastery</div>'
-      . '</td></tr>'
-      // Body (templates inject their content here)
-      . '<tr><td class="px py" style="padding:32px 44px 36px;color:#4A3624;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;line-height:1.7;font-size:15px">'
+      . '<body style="margin:0;padding:0;background:#f0eee6">'
+      . '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#f0eee6">' . $preheader . '&#8203;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;</div>'
+      . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f0eee6;padding:40px 0"><tr><td align="center">'
+      . '<!--[if mso]><table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" width="560"><tr><td><![endif]-->'
+      . '<table role="presentation" width="560" cellpadding="0" cellspacing="0" class="container" style="width:560px;max-width:90%;background:#faf9f5;border-radius:12px">'
+
+      // Header: image logo when configured, text wordmark as fallback
+      . ($safeLogoUrl !== ''
+          ? '<tr><td style="padding:32px 44px 0 44px;line-height:0">'
+            . '<img src="' . $safeLogoUrl . '" alt="MAM Academy" '
+            .   'style="max-height:48px;height:auto;max-width:200px;width:auto;display:block;border:0">'
+            . '</td></tr>'
+          : '<tr><td style="padding:36px 44px 0 44px">'
+            . '<p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif;font-size:13px;font-weight:600;letter-spacing:0.3px;color:#C17B2A">MAM ACADEMY</p>'
+            . '</td></tr>')
+
+      // Rule
+      . '<tr><td style="padding:18px 44px 0 44px"><hr style="border:none;border-top:1px solid #e8e6dd;margin:0"></td></tr>'
+
+      // Promotional banner — only rendered when an active banner is scheduled today
+      . $bannerRow
+
+      // Body — Georgia for an editorial, personal feel; individual templates can override inline
+      . '<tr><td class="px" style="padding:28px 44px 36px 44px;font-family:Georgia,\'Iowan Old Style\',\'Times New Roman\',serif;font-size:16px;line-height:1.7;color:#3d3929">'
       .   $inner
       . '</td></tr>'
-      // Footer (warm-paper tint, restrained)
-      . '<tr><td class="px" style="padding:20px 44px 32px;background:#FBF7F0;border-top:1px solid #ECE0CC">'
-      .   '<p style="margin:0;font-size:11.5px;color:#9A8264;line-height:1.7"><strong style="color:#4A3624">MAM Academy</strong> &mdash; a programme of MAM Centre.<br>2 Oremeji Street, Egbeda, Lagos, Nigeria<br>'
-      .   '<a href="mailto:academy@mamcentre.org" style="color:#B8721B">academy@mamcentre.org</a> &middot; +234 704 444 6517 &middot; '
-      .   '<a href="' . htmlspecialchars($appUrl, ENT_QUOTES) . '/privacy" style="color:#B8721B">Privacy</a> &middot; '
-      .   '<a href="' . htmlspecialchars($appUrl, ENT_QUOTES) . '" style="color:#B8721B">academy.mamcentre.org</a></p>'
+
+      // Footer rule
+      . '<tr><td style="padding:0 44px"><hr style="border:none;border-top:1px solid #e8e6dd;margin:0"></td></tr>'
+
+      // Footer
+      . '<tr><td class="px" style="padding:18px 44px 36px 44px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Helvetica,Arial,sans-serif">'
+      .   '<p style="margin:0 0 8px 0;font-size:12px;color:#8a8578;line-height:1.6"><strong style="color:#6a655d">MAM Academy</strong> &mdash; a programme of MAM Centre.<br>'
+      .   '2 Oremeji Street, Egbeda, Lagos, Nigeria &middot; <a href="mailto:academy@mamcentre.org" style="color:#8a8578">academy@mamcentre.org</a> &middot; +234 704 444 6517</p>'
+      .   '<p style="margin:0 0 0;font-size:12px;color:#8a8578;line-height:1.6">'
+      .   '<a href="' . htmlspecialchars($appUrl, ENT_QUOTES) . '/privacy" style="color:#8a8578">Privacy</a> &middot; '
+      .   '<a href="' . htmlspecialchars($appUrl, ENT_QUOTES) . '" style="color:#8a8578">academy.mamcentre.org</a></p>'
       .   $unsubLine
-      .   '<p style="margin:10px 0 0;font-size:10.5px;color:#BAA787;letter-spacing:0.06em">&copy; ' . $year . ' MAM Centre &middot; Crafting the Timeless in Time</p>'
+      .   '<p style="margin:10px 0 0;font-size:11px;color:#a09888;letter-spacing:0.04em">&copy; ' . $year . ' MAM Centre &middot; Crafting the Timeless in Time</p>'
       . '</td></tr>'
+
       . '</table>'
       . '<!--[if mso]></td></tr></table><![endif]-->'
-      . '</center></body></html>';
+      . '</td></tr></table></body></html>';
 }
 
 /**
@@ -1469,140 +1486,157 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
       . '<title>Invoice ' . $invNo . ' — MAM Academy</title>'
       . '<meta name="viewport" content="width=device-width,initial-scale=1">'
       . '<style>'
-      . ':root{--ink:#1A120B;--muted:#6b6b6b;--faint:#9a9a9a;--line:#ece7e0;--gold:#E08A1A;--gold2:#FBBF24;--paper:#fff;--wash:#FBF8F4}'
+      . ':root{--ink:#1A120B;--muted:#7A6A56;--faint:#A09080;--hair:#E2D9CC;--gold:#C17B2A;--paper:#FDFCF9;--wash:#F6F1E8}'
       . '@page{size:A4;margin:0}'
       . '*{box-sizing:border-box}'
       . 'body{margin:0;font-family:Inter,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:#EDE9E3;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:14px;line-height:1.5}'
-      . '.sheet{max-width:840px;margin:28px auto;background:var(--paper);border:1px solid #e4ddd2;border-radius:6px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.10)}'
-      . '.print-bar{padding:12px 46px 0;text-align:right}'
-      . '.btn-print{display:inline-flex;align-items:center;gap:7px;background:var(--ink);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;text-transform:uppercase}'
-      . '.btn-print:hover{opacity:.8}'
-      . '.head{background:#0E0A06;color:#fff;padding:30px 46px;display:flex;justify-content:space-between;align-items:center;gap:24px;border-bottom:3px solid var(--gold)}'
-      . '.brand{display:flex;align-items:center;gap:14px}'
-      . '.brand .logo{width:56px;height:56px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;padding:7px}'
-      . '.brand .logo img{width:100%;height:auto;display:block}'
-      . '.brand .nm{font-family:Georgia,serif;font-weight:700;font-size:19px;letter-spacing:.02em;line-height:1.15}'
-      . '.brand .nm small{display:block;font-family:Inter,Arial,sans-serif;font-weight:600;font-size:10.5px;letter-spacing:.22em;color:var(--gold2);text-transform:uppercase;margin-top:3px}'
-      . '.head .addr{font-size:12px;line-height:1.6;color:#d9cfc4;text-align:right;max-width:260px}'
-      . '.head .addr .tag{display:block;margin-top:7px;font-size:10.5px;letter-spacing:.05em;color:#9c8d7d}'
-      . '.title{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;padding:30px 46px 20px;border-bottom:1px solid var(--line)}'
-      . '.title h1{margin:0;font-size:52px;line-height:.92;letter-spacing:.03em;text-transform:uppercase;color:var(--ink);font-weight:800}'
-      . '.title h1 em{color:var(--gold);font-style:normal}'
-      . '.title .pill{display:inline-block;margin-top:10px;font-size:11px;letter-spacing:.04em;color:#7a5a2a;background:var(--wash);border:1px solid #f0e2cf;border-radius:999px;padding:5px 13px}'
-      . '.title .meta{border-left:2px solid var(--line);padding-left:20px;font-size:13px;color:var(--muted);text-align:right;line-height:2}'
-      . '.title .meta b{color:var(--ink)}'
-      . '.body{padding:24px 46px 28px}'
-      . '.who{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px}'
-      . '.who .col{border:1px solid var(--line);border-top:3px solid rgba(224,138,26,.35);border-radius:10px;padding:14px 18px}'
-      . '.who .col .label{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:7px}'
-      . '.who .col p{margin:3px 0;font-size:13.5px;line-height:1.5}'
-      . '.who .col .nm{font-size:15px;font-weight:700}'
-      . '.summary{padding:13px 18px;background:rgba(224,138,26,.05);border:1px solid rgba(224,138,26,.2);border-left:3px solid var(--gold);border-radius:10px;margin-bottom:24px;font-size:12.5px;color:#4a4036;line-height:1.7}'
-      . '.summary b{color:var(--ink)}'
-      . '.sec{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:800;margin:0 0 10px}'
-      . 'table.items{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:13px;border:1px solid var(--line)}'
-      . 'table.items thead th{text-align:left;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7a5218;background:rgba(224,138,26,.07);border-bottom:2px solid rgba(224,138,26,.22);padding:11px 14px}'
-      . 'table.items thead th.r{text-align:right}'
-      . 'table.items tbody td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}'
-      . 'table.items tbody tr:last-child td{border-bottom:0}'
-      . 'table.items tbody tr:nth-child(even) td{background:#FCFAF7}'
-      . 'table.items tbody td.r{text-align:right;font-variant-numeric:tabular-nums}'
-      . 'table.items tbody td b{font-size:13px}'
-      . 'table.items tbody td .desc{display:block;color:var(--faint);font-size:11.5px;margin-top:3px}'
-      . '.duenow{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#C47A1C 0%,var(--gold2) 100%);color:#1A120B;border-radius:12px;padding:18px 26px;margin:8px 0 28px;box-shadow:0 4px 18px rgba(224,138,26,.28)}'
-      . '.duenow .lbl{font-weight:800;letter-spacing:.07em;text-transform:uppercase;font-size:12px;opacity:.8}'
-      . '.duenow .amt{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em}'
-      . '.tuition{display:flex;justify-content:space-between;align-items:center;gap:16px;background:var(--wash);border:1px dashed #e3cba6;border-radius:12px;padding:16px 22px;margin-bottom:26px}'
-      . '.tuition .t-main{font-size:13.5px;color:#4a4036;line-height:1.55}'
-      . '.tuition .t-main b{color:var(--ink)}'
-      . '.tuition .t-amt{text-align:right;white-space:nowrap}'
-      . '.tuition .t-amt .v{font-size:22px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}'
-      . '.tuition .t-amt .c{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}'
-      . '.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:24px}'
-      . '.card{background:var(--wash);border:1px solid var(--line);border-radius:12px;padding:16px 18px}'
-      . '.card h4{margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);font-weight:700}'
-      . '.card p{margin:0;font-size:12px;color:#4a4036;line-height:1.6}'
-      . '.bankrow{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dotted var(--line)}'
-      . '.bankrow:last-child{border-bottom:0}.bankrow span{color:var(--muted)}.bankrow b{color:var(--ink)}'
-      . '.sign{display:flex;justify-content:flex-end;padding-top:8px;margin-bottom:22px}'
-      . '.sign .sig{text-align:right;min-width:220px;border-top:1px solid var(--ink);padding-top:7px}'
-      . '.sign .sig .nm{font-size:13.5px;font-weight:600}.sign .sig .role{font-size:11.5px;color:var(--gold);font-weight:700;margin-top:2px}'
-      . '.foot{background:#0E0A06;color:#8a7a6a;text-align:center;padding:16px 22px;font-size:12px;letter-spacing:.02em}'
-      . '@media print{.print-bar{display:none}body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none;border-radius:0}}'
-      . '@media (max-width:560px){.print-bar,.head,.title,.body{padding-left:22px;padding-right:22px}.who,.grid2{grid-template-columns:1fr}.title{flex-direction:column;align-items:flex-start;gap:10px}.title .meta{text-align:left;border-left:none;border-top:1px solid var(--line);padding:12px 0 0}}'
+      . '.sheet{max-width:840px;margin:28px auto;background:var(--paper);border-left:5px solid var(--gold);border-radius:0 8px 8px 0;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.11)}'
+      . '.print-bar{padding:16px 52px 0;text-align:right}'
+      . '.btn-p{display:inline-flex;align-items:center;gap:7px;background:var(--ink);color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;text-transform:uppercase}'
+      . '.btn-p:hover{opacity:.85}'
+      . '.mast{display:flex;justify-content:space-between;align-items:flex-start;gap:32px;padding:28px 52px 26px}'
+      . '.inv-word{font-family:Georgia,"Times New Roman",serif;font-size:64px;font-weight:700;letter-spacing:-.01em;line-height:.95;color:var(--ink);margin:0}'
+      . '.inv-tag{margin-top:10px;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}'
+      . '.mast-right{text-align:right}'
+      . '.brand{display:flex;align-items:center;gap:11px;justify-content:flex-end;margin-bottom:10px}'
+      . '.logo-box{width:42px;height:42px;background:var(--ink);border-radius:8px;display:flex;align-items:center;justify-content:center;padding:6px;flex-shrink:0}'
+      . '.logo-box img{width:100%;height:auto;display:block}'
+      . '.brand-copy{text-align:right}'
+      . '.brand-nm{font-family:Georgia,serif;font-size:15.5px;font-weight:700;letter-spacing:.01em;line-height:1.2}'
+      . '.brand-sub{font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-top:2px;font-weight:600}'
+      . '.issuer{font-size:11.5px;line-height:1.7;color:var(--muted)}'
+      . '.issuer .tax{display:block;margin-top:4px;font-size:9.5px;letter-spacing:.06em;color:var(--faint)}'
+      . '.hdivide{height:1px;background:var(--hair);margin:0 52px}'
+      . '.body{padding:28px 52px 38px}'
+      . '.info-row{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:26px;padding-bottom:26px;border-bottom:1px solid var(--hair)}'
+      . '.fl{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:7px;font-weight:600}'
+      . '.bill-nm{font-size:15px;font-weight:700;margin-bottom:5px}'
+      . '.bill-dt{font-size:13px;color:var(--muted);line-height:1.55}'
+      . '.meta-stack{display:flex;flex-direction:column;gap:6px}'
+      . '.mr{display:flex;justify-content:space-between;gap:16px;font-size:12.5px}'
+      . '.mr span{color:var(--muted)}'
+      . '.mr b{color:var(--ink);font-weight:600}'
+      . '.ref-val{color:var(--gold)}'
+      . '.prog-pill{background:var(--wash);border-left:3px solid var(--gold);border-radius:0 6px 6px 0;padding:11px 16px;margin-bottom:26px;font-size:12.5px;color:var(--muted);line-height:1.65}'
+      . '.prog-pill b{color:var(--ink)}'
+      . '.sec-eye{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:11px}'
+      . '.sec-eye2{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:11px}'
+      . 'table.it{width:100%;border-collapse:collapse;font-size:13px}'
+      . 'table.it thead th{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:0 0 10px;border-bottom:1px solid var(--hair);text-align:left}'
+      . 'table.it thead th.r{text-align:right}'
+      . 'table.it tbody td{padding:13px 0;border-bottom:1px solid var(--hair);vertical-align:top}'
+      . 'table.it tbody tr:last-child td{border-bottom:none}'
+      . 'table.it tbody td.r{text-align:right;font-variant-numeric:tabular-nums}'
+      . 'table.it td .nm{font-weight:600;color:var(--ink);display:block}'
+      . 'table.it td .sub{display:block;font-size:11px;color:var(--faint);margin-top:3px}'
+      . '.total-row{display:flex;justify-content:flex-end;padding:18px 0 26px;border-top:1px solid var(--hair)}'
+      . '.total-box .tl{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}'
+      . '.total-box .ta{font-family:Georgia,"Times New Roman",serif;font-size:38px;font-weight:700;letter-spacing:-.01em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}'
+      . '.tuit-row{display:flex;justify-content:space-between;align-items:center;gap:16px;border:1px solid var(--hair);border-left:3px solid var(--hair);border-radius:0 6px 6px 0;padding:14px 18px;margin-bottom:28px;background:var(--wash)}'
+      . '.tuit-desc{font-size:13px;color:var(--muted);line-height:1.55}'
+      . '.tuit-desc b{color:var(--ink)}'
+      . '.tuit-val{text-align:right;white-space:nowrap}'
+      . '.tuit-num{font-family:Georgia,serif;font-size:26px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}'
+      . '.tuit-cur{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-top:3px}'
+      . '.pay-row{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}'
+      . '.pay-col h4{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin:0 0 10px}'
+      . '.bkrow{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-bottom:1px dotted var(--hair)}'
+      . '.bkrow:last-of-type{border-bottom:none}'
+      . '.bkrow span{color:var(--muted)}'
+      . '.bkrow b{color:var(--ink);font-weight:600}'
+      . '.pay-note{margin-top:8px;font-size:11px;color:var(--faint);line-height:1.6}'
+      . '.terms-txt{font-size:12px;color:var(--muted);line-height:1.65}'
+      . '.sign{display:flex;justify-content:flex-end;padding-top:4px;margin-bottom:20px}'
+      . '.sig{text-align:right;min-width:200px;border-top:1px solid var(--ink);padding-top:8px}'
+      . '.sig .snm{font-size:13px;font-weight:600}'
+      . '.sig .srl{font-size:11px;color:var(--gold);font-weight:600;margin-top:3px;letter-spacing:.04em}'
+      . '.foot{border-top:1px solid var(--hair);padding:14px 52px;font-size:11px;color:var(--faint);text-align:center;line-height:1.8}'
+      . '@media print{.print-bar{display:none}body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none;border-radius:0;border-left-width:4px}}'
+      . '@media(max-width:580px){.mast,.body{padding-left:24px;padding-right:24px}.hdivide{margin:0 24px}.mast{flex-direction:column;gap:16px}.mast-right{text-align:left}.brand{justify-content:flex-start}.brand-copy{text-align:left}.issuer{text-align:left}.info-row,.pay-row{grid-template-columns:1fr}.total-row{justify-content:flex-start}.tuit-row{flex-direction:column;align-items:flex-start}}'
       . '</style></head><body>'
       . '<div class="sheet">'
 
-      // Print button (hidden on print)
-      . '<div class="print-bar"><button class="btn-print" onclick="window.print()">&#9113; Print / Save as PDF</button></div>'
+      . '<div class="print-bar"><button class="btn-p" onclick="window.print()">&#9113; Print / Save as PDF</button></div>'
 
-      // Header
-      . '<div class="head">'
-      .   '<div class="brand">'
-      .     '<div class="logo"><img src="' . $logoUrl . '" alt="MAM Academy"></div>'
-      .     '<div class="nm">MAM Academy<small>Music · Arts · Mastery</small></div>'
+      // Masthead: large serif title left, brand + issuer right
+      . '<div class="mast">'
+      .   '<div>'
+      .     '<h1 class="inv-word">Invoice</h1>'
+      .     '<div class="inv-tag">Booking confirmation &amp; tuition estimate</div>'
       .   '</div>'
-      .   '<div class="addr">2 Abolude / Oremeji Street,<br>Bakery B/S, Egbeda, Lagos<span class="tag">TAX ID · 119 491 230001</span></div>'
+      .   '<div class="mast-right">'
+      .     '<div class="brand">'
+      .       '<div class="brand-copy"><div class="brand-nm">MAM Academy</div><div class="brand-sub">Music &middot; Arts &middot; Mastery</div></div>'
+      .       '<div class="logo-box"><img src="' . $logoUrl . '" alt="MAM Academy"></div>'
+      .     '</div>'
+      .     '<div class="issuer">2 Abolude / Oremeji Street, Bakery B/S<br>Egbeda, Lagos, Nigeria<span class="tax">TAX ID &middot; 119 491 230001</span></div>'
+      .   '</div>'
       . '</div>'
 
-      // Title + meta
-      . '<div class="title">'
-      .   '<div><h1><em>I</em>nvoice</h1><div class="pill">Booking confirmation &amp; tuition estimate</div></div>'
-      .   '<div class="meta">Invoice &nbsp;<b>' . $invNo . '</b><br>Date &nbsp;<b>' . $dateLong . '</b><br>Ref &nbsp;<b style="color:var(--gold)">' . $ref . '</b></div>'
-      . '</div>'
+      . '<div class="hdivide"></div>'
 
       . '<div class="body">'
-      // Billed-to + contact
-      .   '<div class="who">'
-      .     '<div class="col"><div class="label">Billed to</div>'
-      .       '<p class="nm">' . $name . '</p><p>' . $loc . '</p></div>'
-      .     '<div class="col"><div class="label">Contact</div>'
-      .       '<p>' . ($phone ?: '—') . '</p><p>' . ($email ?: '—') . '</p></div>'
+
+      // Billed-to + invoice details
+      .   '<div class="info-row">'
+      .     '<div><div class="fl">Billed to</div>'
+      .       '<div class="bill-nm">' . $name . '</div>'
+      .       '<div class="bill-dt">' . $loc . ($phone ? '<br>' . $phone : '') . ($email ? '<br>' . $email : '') . '</div>'
+      .     '</div>'
+      .     '<div><div class="fl">Invoice details</div>'
+      .       '<div class="meta-stack">'
+      .         '<div class="mr"><span>Invoice number</span><b>' . $invNo . '</b></div>'
+      .         '<div class="mr"><span>Date</span><b>' . $dateLong . '</b></div>'
+      .         '<div class="mr"><span>Reference</span><b><span class="ref-val">' . $ref . '</span></b></div>'
+      .       '</div>'
+      .     '</div>'
       .   '</div>'
 
       // Programme summary
-      .   '<div class="summary">'
-      .     '<b>Programme:</b> ' . htmlspecialchars($pathwayName) . ($pathwaySub ? ' &middot; <span style="color:var(--muted)">' . htmlspecialchars($pathwaySub) . '</span>' : '')
+      .   '<div class="prog-pill">'
+      .     '<b>Programme:</b> ' . htmlspecialchars($pathwayName) . ($pathwaySub ? ' &middot; <span style="color:var(--faint)">' . htmlspecialchars($pathwaySub) . '</span>' : '')
       .     '<br><b>Track:</b> ' . $track . ' &middot; <b>Mode:</b> ' . $mode . ' &middot; <b>Discipline:</b> ' . $disc
       .   '</div>'
 
-      // Due now — booking & assessment
-      .   '<p class="sec">Due now — booking &amp; assessment</p>'
-      .   '<table class="items"><thead><tr><th>Item / Description</th><th class="r" style="width:50px">Qty</th><th class="r" style="width:100px">Unit price</th><th class="r" style="width:110px">Amount</th></tr></thead><tbody>'
-      .     '<tr><td><b>Registration &amp; admission</b><span class="desc">Application processing &amp; admission</span></td><td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
-      .     '<tr><td><b>MAM Academy student ID card</b><span class="desc">Physical ID issued at the Centre</span></td><td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
-      .     '<tr><td><b>Student file</b><span class="desc">Onboarding documentation kept on record</span></td><td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
-      .     '<tr><td><b>MAM Auditer assessment</b><span class="desc">30-minute placement session with our judges</span></td><td class="r">1</td><td class="r">' . $fmt($remainder) . '</td><td class="r">' . $fmt($remainder) . '</td></tr>'
+      // Due now line items
+      .   '<div class="sec-eye">Due now &mdash; booking &amp; assessment</div>'
+      .   '<table class="it"><thead><tr><th>Item</th><th class="r" style="width:50px">Qty</th><th class="r" style="width:90px">Unit</th><th class="r" style="width:100px">Amount</th></tr></thead><tbody>'
+      .     '<tr><td><span class="nm">Registration &amp; admission</span><span class="sub">Application processing &amp; admission</span></td><td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
+      .     '<tr><td><span class="nm">MAM Academy student ID card</span><span class="sub">Physical ID issued at the Centre</span></td><td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
+      .     '<tr><td><span class="nm">Student file</span><span class="sub">Onboarding documentation kept on record</span></td><td class="r">1</td><td class="r">' . $fmt($each) . '</td><td class="r">' . $fmt($each) . '</td></tr>'
+      .     '<tr><td><span class="nm">MAM Auditer assessment</span><span class="sub">30-minute placement session with our judges</span></td><td class="r">1</td><td class="r">' . $fmt($remainder) . '</td><td class="r">' . $fmt($remainder) . '</td></tr>'
       .   '</tbody></table>'
-      .   '<div class="duenow"><span class="lbl">Total due now</span><span class="amt">' . $label . '</span></div>'
+
+      // Total
+      .   '<div class="total-row"><div class="total-box"><div class="tl">Total due now</div><div class="ta">' . $label . '</div></div></div>'
 
       // Estimated tuition
-      .   '<p class="sec">Estimated tuition</p>'
-      .   '<div class="tuition">'
-      .     '<div class="t-main"><b>Programme tuition — payable after placement.</b><br>This is an estimate for the ' . htmlspecialchars($pathwayName) . ' programme. It is <b>not payable now</b>: your exact tuition is confirmed after the MAM Auditer judges place you, and flexible plans are available.</div>'
-      .     '<div class="t-amt"><div class="v">' . $tuitionMain . '</div><div class="c">USD' . $tuitionAlt . '</div></div>'
+      .   '<div class="sec-eye2">Estimated tuition</div>'
+      .   '<div class="tuit-row">'
+      .     '<div class="tuit-desc"><b>Programme tuition &mdash; payable after placement.</b><br>This is an estimate for the ' . htmlspecialchars($pathwayName) . ' programme. It is <b>not payable now</b>: your exact tuition is confirmed after the MAM Auditer judges place you, and flexible plans are available.</div>'
+      .     '<div class="tuit-val"><div class="tuit-num">' . $tuitionMain . '</div><div class="tuit-cur">USD' . $tuitionAlt . '</div></div>'
       .   '</div>'
 
       // Payment details + terms
-      .   '<div class="grid2">'
-      .     '<div class="card"><h4>Bank transfer</h4>'
-      .       ($bankName !== '' ? '<div class="bankrow"><span>Bank</span><b>' . $bankName . '</b></div>' : '')
-      .       '<div class="bankrow"><span>Account name</span><b>' . $acctName . '</b></div>'
-      .       '<div class="bankrow"><span>Account number</span><b>' . $acctNo . '</b></div>'
-      .       '<p style="margin-top:9px;color:var(--faint);font-size:11px">Use your reference <b>' . $ref . '</b> as the transfer narration, or pay by card via the link in your email.</p>'
+      .   '<div class="pay-row">'
+      .     '<div class="pay-col"><h4>Bank transfer</h4>'
+      .       ($bankName !== '' ? '<div class="bkrow"><span>Bank</span><b>' . $bankName . '</b></div>' : '')
+      .       '<div class="bkrow"><span>Account name</span><b>' . $acctName . '</b></div>'
+      .       '<div class="bkrow"><span>Account number</span><b>' . $acctNo . '</b></div>'
+      .       '<p class="pay-note">Use reference <b style="color:var(--ink)">' . $ref . '</b> as the transfer narration, or pay by card via the link in your email.</p>'
       .     '</div>'
-      .     '<div class="card"><h4>Terms &amp; conditions</h4>'
-      .       '<p>The booking-confirmation fee is due before your scheduled session and is final once paid. Tuition is billed separately, only after the MAM Auditer judges have placed you. Other terms follow the academy class policy.</p>'
+      .     '<div class="pay-col"><h4>Terms &amp; conditions</h4>'
+      .       '<p class="terms-txt">The booking-confirmation fee is due before your scheduled session and is final once paid. Tuition is billed separately, only after the MAM Auditer judges have placed you. Other terms follow the academy class policy.</p>'
       .     '</div>'
       .   '</div>'
 
       // Signature
-      .   '<div class="sign"><div class="sig"><div class="nm">' . $finName . '</div><div class="role">Finance Manager</div></div></div>'
+      .   '<div class="sign"><div class="sig"><div class="snm">' . $finName . '</div><div class="srl">Finance Manager</div></div></div>'
 
       .   mam_email_scholarship_block()
       . '</div>'
 
-      . '<div class="foot">academy@mamcentre.org &nbsp;·&nbsp; academy.mamcentre.org &nbsp;·&nbsp; +234 704 444 6517</div>'
+      . '<div class="foot">academy@mamcentre.org &nbsp;&middot;&nbsp; academy.mamcentre.org &nbsp;&middot;&nbsp; +234 704 444 6517</div>'
       . '</div></body></html>';
 }
 
@@ -1667,142 +1701,152 @@ function mam_programme_invoice_html(array $app, array $customer, string $invoice
       . '<title>Invoice ' . $invNo . ' — MAM Academy</title>'
       . '<meta name="viewport" content="width=device-width,initial-scale=1">'
       . '<style>'
-      . ':root{--ink:#1A120B;--muted:#6b5c4e;--faint:#9a8e84;--line:#ece7e0;--gold:#B8721B;--paper:#fff;--wash:#FBF8F4}'
+      . ':root{--ink:#1A120B;--muted:#7A6A56;--faint:#A09080;--hair:#E2D9CC;--gold:#C17B2A;--paper:#FDFCF9;--wash:#F6F1E8}'
       . '@page{size:A4;margin:0}'
       . '*{box-sizing:border-box}'
       . 'body{margin:0;font-family:Inter,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:#EDE9E3;font-size:14px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
-      . '.sheet{max-width:800px;margin:28px auto;background:var(--paper);border:1px solid #ddd7ce;border-radius:6px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.09)}'
-      . '.topbar{height:7px;background:linear-gradient(90deg,#1A120B 0%,#6b3a0e 40%,var(--gold) 70%,#FBBF24 100%)}'
-      . '.print-bar2{padding:12px 48px 0;text-align:right}'
-      . '.btn-print2{display:inline-flex;align-items:center;gap:7px;background:#1A120B;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;text-transform:uppercase}'
-      . '.btn-print2:hover{opacity:.8}'
-      . '.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:28px 48px 24px;border-bottom:1px solid var(--line)}'
-      . '.brand{display:flex;align-items:center;gap:12px}'
-      . '.logo-wrap{width:50px;height:50px;border-radius:10px;background:#1A120B;display:flex;align-items:center;justify-content:center;padding:7px;flex-shrink:0}'
-      . '.logo-wrap img{width:100%;height:auto;display:block}'
-      . '.brand-nm{font-family:Georgia,serif;font-weight:700;font-size:17px;letter-spacing:.02em;line-height:1.2}'
-      . '.brand-sub{font-size:10px;letter-spacing:.22em;color:var(--gold);text-transform:uppercase;margin-top:3px;font-weight:600}'
-      . '.issuer{font-size:12px;line-height:1.7;color:var(--muted);text-align:right}'
-      . '.body{padding:0 48px 36px}'
-      . '.title-row{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding:30px 0 22px;border-bottom:1px solid var(--line)}'
-      . '.inv-title{margin:0;font-size:40px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);line-height:1}'
-      . '.inv-meta{text-align:right;font-size:13px;line-height:1.85;color:var(--muted)}'
-      . '.inv-meta b{color:var(--ink)}'
-      . '.status-pill{display:inline-block;margin-top:8px;padding:6px 16px;border-radius:999px;font-size:11.5px;letter-spacing:.1em;font-weight:800;text-transform:uppercase;border:1.5px solid currentColor}'
-      . '.bill-row{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:22px 0 24px;border-bottom:1px solid var(--line)}'
-      . '.bill-col .lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}'
-      . '.bill-col .nm{font-size:15px;font-weight:700;margin-bottom:3px}'
-      . '.bill-col p{margin:2px 0;font-size:13px;color:var(--muted)}'
-      . '.prog-box{background:var(--wash);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:8px;padding:13px 16px;margin:22px 0 20px;font-size:12.5px;line-height:1.7;color:var(--muted)}'
-      . '.prog-box b{color:var(--ink)}'
-      . 'table.items{width:100%;border-collapse:collapse;margin-bottom:6px}'
-      . 'table.items thead th{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:0 0 8px;border-bottom:1px solid var(--line);text-align:left}'
-      . 'table.items thead th.r{text-align:right}'
-      . 'table.items tbody td{padding:13px 0;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:top}'
-      . 'table.items tbody tr:last-child td{border-bottom:none}'
-      . 'table.items tbody td.r{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}'
-      . 'table.items tbody td .desc{display:block;font-size:11.5px;color:var(--faint);margin-top:3px}'
-      . '.total-row{display:flex;justify-content:flex-end;margin:4px 0 26px}'
-      . '.total-box{text-align:right;min-width:240px;background:var(--wash);border:1px solid var(--line);border-radius:12px;padding:16px 20px}'
-      . '.total-box .line{display:flex;justify-content:space-between;gap:40px;font-size:13px;padding:4px 0;color:var(--muted)}'
-      . '.total-box .total{display:flex;justify-content:space-between;gap:40px;font-size:22px;font-weight:800;padding:12px 0 0;border-top:2px solid var(--ink);margin-top:8px}'
-      . '.total-box .total span:last-child{font-variant-numeric:tabular-nums}'
-      . '.pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}'
-      . '.pay-card{background:var(--wash);border:1px solid var(--line);border-radius:10px;padding:16px 18px}'
-      . '.pay-card h4{margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);font-weight:700}'
-      . '.bank-row{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px dotted var(--line)}'
-      . '.bank-row:last-child{border:none}.bank-row span{color:var(--muted)}.bank-row b{color:var(--ink)}'
-      . '.pay-card p{margin:0;font-size:12px;color:var(--muted);line-height:1.6}'
-      . '.sign{display:flex;justify-content:flex-end;padding-top:6px;margin-bottom:20px}'
-      . '.sig-block{text-align:right;min-width:200px;border-top:1px solid var(--ink);padding-top:7px}'
-      . '.sig-block .nm{font-size:13px;font-weight:600}.sig-block .role{font-size:11px;color:var(--gold);font-weight:700;margin-top:2px}'
-      . '.foot{background:#0E0A06;color:#8a7a6a;text-align:center;padding:14px;font-size:11.5px;letter-spacing:.02em}'
+      . '.sheet{max-width:800px;margin:28px auto;background:var(--paper);border-left:5px solid var(--gold);border-radius:0 8px 8px 0;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.11)}'
+      . '.print-bar{padding:16px 52px 0;text-align:right}'
+      . '.btn-p{display:inline-flex;align-items:center;gap:7px;background:var(--ink);color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:11px;font-weight:700;letter-spacing:.08em;cursor:pointer;text-transform:uppercase}'
+      . '.btn-p:hover{opacity:.85}'
+      . '.mast{display:flex;justify-content:space-between;align-items:flex-start;gap:32px;padding:28px 52px 26px}'
+      . '.inv-word{font-family:Georgia,"Times New Roman",serif;font-size:64px;font-weight:700;letter-spacing:-.01em;line-height:.95;color:var(--ink);margin:0}'
+      . '.status-badge{display:inline-flex;align-items:center;margin-top:12px;padding:5px 14px;border-radius:999px;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}'
+      . '.mast-right{text-align:right}'
+      . '.brand{display:flex;align-items:center;gap:11px;justify-content:flex-end;margin-bottom:10px}'
+      . '.logo-box{width:42px;height:42px;background:var(--ink);border-radius:8px;display:flex;align-items:center;justify-content:center;padding:6px;flex-shrink:0}'
+      . '.logo-box img{width:100%;height:auto;display:block}'
+      . '.brand-copy{text-align:right}'
+      . '.brand-nm{font-family:Georgia,serif;font-size:15.5px;font-weight:700;letter-spacing:.01em;line-height:1.2}'
+      . '.brand-sub{font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-top:2px;font-weight:600}'
+      . '.issuer{font-size:11.5px;line-height:1.7;color:var(--muted)}'
+      . '.issuer .tax{display:block;margin-top:4px;font-size:9.5px;letter-spacing:.06em;color:var(--faint)}'
+      . '.hdivide{height:1px;background:var(--hair);margin:0 52px}'
+      . '.body{padding:28px 52px 38px}'
+      . '.info-row{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:26px;padding-bottom:26px;border-bottom:1px solid var(--hair)}'
+      . '.fl{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:7px;font-weight:600}'
+      . '.bill-nm{font-size:15px;font-weight:700;margin-bottom:5px}'
+      . '.bill-dt{font-size:13px;color:var(--muted);line-height:1.55}'
+      . '.meta-stack{display:flex;flex-direction:column;gap:6px}'
+      . '.mr{display:flex;justify-content:space-between;gap:16px;font-size:12.5px}'
+      . '.mr span{color:var(--muted)}'
+      . '.mr b{color:var(--ink);font-weight:600}'
+      . '.ref-val{color:var(--gold)}'
+      . '.prog-pill{background:var(--wash);border-left:3px solid var(--gold);border-radius:0 6px 6px 0;padding:11px 16px;margin-bottom:26px;font-size:12.5px;color:var(--muted);line-height:1.65}'
+      . '.prog-pill b{color:var(--ink)}'
+      . 'table.it{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:4px}'
+      . 'table.it thead th{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:0 0 10px;border-bottom:1px solid var(--hair);text-align:left}'
+      . 'table.it thead th.r{text-align:right}'
+      . 'table.it tbody td{padding:13px 0;border-bottom:1px solid var(--hair);vertical-align:top}'
+      . 'table.it tbody tr:last-child td{border-bottom:none}'
+      . 'table.it tbody td.r{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}'
+      . 'table.it td .nm{font-weight:600;color:var(--ink);display:block}'
+      . 'table.it td .sub{display:block;font-size:11px;color:var(--faint);margin-top:3px}'
+      . '.totals-block{display:flex;justify-content:flex-end;margin:4px 0 28px}'
+      . '.total-box{min-width:240px;background:var(--wash);border:1px solid var(--hair);border-radius:8px;padding:16px 20px}'
+      . '.tline{display:flex;justify-content:space-between;gap:32px;font-size:12.5px;padding:4px 0;color:var(--muted)}'
+      . '.tgrand{display:flex;justify-content:space-between;gap:32px;font-family:Georgia,serif;font-size:28px;font-weight:700;padding:12px 0 0;border-top:2px solid var(--ink);margin-top:8px;color:var(--ink)}'
+      . '.tgrand span:last-child{font-variant-numeric:tabular-nums;letter-spacing:-.01em}'
+      . '.pay-row{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}'
+      . '.pay-col h4{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:700;margin:0 0 10px}'
+      . '.bkrow{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;border-bottom:1px dotted var(--hair)}'
+      . '.bkrow:last-of-type{border-bottom:none}'
+      . '.bkrow span{color:var(--muted)}'
+      . '.bkrow b{color:var(--ink);font-weight:600}'
+      . '.pay-note{margin-top:8px;font-size:11px;color:var(--faint);line-height:1.6}'
+      . '.terms-txt{font-size:12px;color:var(--muted);line-height:1.65}'
+      . '.sign{display:flex;justify-content:flex-end;padding-top:4px;margin-bottom:20px}'
+      . '.sig{text-align:right;min-width:200px;border-top:1px solid var(--ink);padding-top:8px}'
+      . '.sig .snm{font-size:13px;font-weight:600}'
+      . '.sig .srl{font-size:11px;color:var(--gold);font-weight:600;margin-top:3px;letter-spacing:.04em}'
+      . '.foot{border-top:1px solid var(--hair);padding:14px 52px;font-size:11px;color:var(--faint);text-align:center;line-height:1.8}'
       . '.foot a{color:var(--gold);text-decoration:none}'
-      . '@media print{.print-bar2{display:none}body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none;border-radius:0}}'
-      . '@media(max-width:560px){.print-bar2,.hd,.body{padding-left:20px;padding-right:20px}.bill-row,.pay-grid{grid-template-columns:1fr}.title-row{flex-direction:column;align-items:flex-start}}'
+      . '@media print{.print-bar{display:none}body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none;border-radius:0;border-left-width:4px}}'
+      . '@media(max-width:580px){.mast,.body{padding-left:24px;padding-right:24px}.hdivide{margin:0 24px}.mast{flex-direction:column;gap:16px}.mast-right{text-align:left}.brand{justify-content:flex-start}.brand-copy{text-align:left}.issuer{text-align:left}.info-row,.pay-row{grid-template-columns:1fr}.totals-block{justify-content:flex-start}}'
       . '</style></head><body>'
       . '<div class="sheet">'
-      . '<div class="topbar"></div>'
-      . '<div class="print-bar2"><button class="btn-print2" onclick="window.print()">&#9113; Print / Save as PDF</button></div>'
 
-      // Header
-      . '<div class="hd">'
-      .   '<div class="brand">'
-      .     '<div class="logo-wrap"><img src="' . $logoUrl . '" alt="MAM Academy"></div>'
-      .     '<div><div class="brand-nm">MAM Academy</div><div class="brand-sub">Music · Arts · Mastery</div></div>'
+      . '<div class="print-bar"><button class="btn-p" onclick="window.print()">&#9113; Print / Save as PDF</button></div>'
+
+      // Masthead: large serif "Invoice" + status badge left; brand + issuer right
+      . '<div class="mast">'
+      .   '<div>'
+      .     '<h1 class="inv-word">Invoice</h1>'
+      .     '<div class="status-badge" style="background:' . ($isPaid ? '#DCFCE7' : '#FEF3C7') . ';color:' . $statusColor . '">' . $statusLabel . '</div>'
       .   '</div>'
-      .   '<div class="issuer">2 Abolude / Oremeji Street, Bakery B/S<br>Egbeda, Lagos, Nigeria<br>'
-      .     '<a href="mailto:academy@mamcentre.org" style="color:var(--gold);text-decoration:none">academy@mamcentre.org</a><br>'
-      .     '<span style="font-size:10px;color:var(--faint)">TAX ID · 119 491 230001</span></div>'
+      .   '<div class="mast-right">'
+      .     '<div class="brand">'
+      .       '<div class="brand-copy"><div class="brand-nm">MAM Academy</div><div class="brand-sub">Music &middot; Arts &middot; Mastery</div></div>'
+      .       '<div class="logo-box"><img src="' . $logoUrl . '" alt="MAM Academy"></div>'
+      .     '</div>'
+      .     '<div class="issuer">2 Abolude / Oremeji Street, Bakery B/S<br>Egbeda, Lagos, Nigeria<br>'
+      .       '<a href="mailto:academy@mamcentre.org" style="color:var(--gold);text-decoration:none">academy@mamcentre.org</a>'
+      .       '<span class="tax">TAX ID &middot; 119 491 230001</span></div>'
+      .   '</div>'
       . '</div>'
+
+      . '<div class="hdivide"></div>'
 
       . '<div class="body">'
 
-      // Invoice title + meta
-      . '<div class="title-row">'
-      .   '<h1 class="inv-title">Invoice</h1>'
-      .   '<div class="inv-meta">'
-      .     'No. &nbsp;<b>' . $invNo . '</b><br>'
-      .     'Date &nbsp;<b>' . $dateDisp . '</b><br>'
-      .     'Ref &nbsp;<b style="color:var(--gold)">' . $ref . '</b>'
-      .     ($session ? '<br>Session &nbsp;<b>' . $session . '</b>' : '')
-      .     '<br><span class="status-pill" style="background:' . ($isPaid ? '#DCFCE7' : '#FEF3C7') . ';color:' . $statusColor . '">' . $statusLabel . '</span>'
+      // Billed-to + invoice details
+      .   '<div class="info-row">'
+      .     '<div><div class="fl">Bill to</div>'
+      .       '<div class="bill-nm">' . $name . '</div>'
+      .       '<div class="bill-dt">' . $loc . ($phone ? '<br>' . $phone : '') . ($email ? '<br>' . $email : '') . '</div>'
+      .     '</div>'
+      .     '<div><div class="fl">Invoice details</div>'
+      .       '<div class="meta-stack">'
+      .         '<div class="mr"><span>Invoice number</span><b>' . $invNo . '</b></div>'
+      .         '<div class="mr"><span>Date</span><b>' . $dateDisp . '</b></div>'
+      .         '<div class="mr"><span>Reference</span><b><span class="ref-val">' . $ref . '</span></b></div>'
+      .         ($session ? '<div class="mr"><span>Session</span><b>' . $session . '</b></div>' : '')
+      .       '</div>'
+      .     '</div>'
       .   '</div>'
-      . '</div>'
 
-      // Billed to
-      . '<div class="bill-row">'
-      .   '<div class="bill-col"><div class="lbl">Bill to</div><div class="nm">' . $name . '</div>'
-      .     ($loc ? '<p>' . $loc . '</p>' : '')
+      // Programme summary
+      .   '<div class="prog-pill">'
+      .     '<b>Programme:</b> ' . $pathwayLabel
+      .     ($modeLabel ? ' &nbsp;&middot;&nbsp; <b>Mode:</b> ' . $modeLabel : '')
+      .     ($levelLabel ? ' &nbsp;&middot;&nbsp; <b>Level:</b> ' . $levelLabel : '')
+      .     ($discLabel  ? ' &nbsp;&middot;&nbsp; <b>Discipline:</b> ' . $discLabel : '')
       .   '</div>'
-      .   '<div class="bill-col"><div class="lbl">Contact</div>'
-      .     ($phone ? '<p>' . $phone . '</p>' : '')
-      .     ($email ? '<p>' . $email . '</p>' : '')
-      .   '</div>'
-      . '</div>'
-
-      // Programme summary pill
-      . '<div class="prog-box">'
-      .   '<b>Programme:</b> ' . $pathwayLabel
-      .   ($modeLabel ? ' &nbsp;&middot;&nbsp; <b>Mode:</b> ' . $modeLabel : '')
-      .   ($levelLabel ? ' &nbsp;&middot;&nbsp; <b>Level:</b> ' . $levelLabel : '')
-      .   ($discLabel  ? ' &nbsp;&middot;&nbsp; <b>Discipline:</b> ' . $discLabel : '')
-      . '</div>'
 
       // Line items
-      . '<table class="items"><thead><tr><th>Description</th><th class="r" style="width:60px">Qty</th><th class="r" style="width:110px">Amount</th></tr></thead><tbody>'
-      . '<tr><td><b>' . $pathwayLabel . '</b>'
-      .   '<span class="desc">Programme tuition' . ($session ? ' · ' . $session . ' intake' : '') . ($modeLabel ? ' · ' . $modeLabel : '') . '</span>'
-      . '</td><td class="r">1</td><td class="r">' . $fmt($programmeAmt > 0 ? $programmeAmt : $tuitionUsd) . '</td></tr>'
-      . ($regFee > 0 ? '<tr><td><b>Registration fee</b><span class="desc">One-time onboarding &amp; student ID card</span></td><td class="r">1</td><td class="r">' . $fmt($regFee) . '</td></tr>' : '')
-      . '</tbody></table>'
+      .   '<table class="it"><thead><tr><th>Description</th><th class="r" style="width:60px">Qty</th><th class="r" style="width:110px">Amount</th></tr></thead><tbody>'
+      .   '<tr><td><span class="nm">' . $pathwayLabel . '</span>'
+      .     '<span class="sub">Programme tuition' . ($session ? ' &middot; ' . $session . ' intake' : '') . ($modeLabel ? ' &middot; ' . $modeLabel : '') . '</span>'
+      .   '</td><td class="r">1</td><td class="r">' . $fmt($programmeAmt > 0 ? $programmeAmt : $tuitionUsd) . '</td></tr>'
+      .   ($regFee > 0 ? '<tr><td><span class="nm">Registration fee</span><span class="sub">One-time onboarding &amp; student ID card</span></td><td class="r">1</td><td class="r">' . $fmt($regFee) . '</td></tr>' : '')
+      .   '</tbody></table>'
 
       // Total
-      . '<div class="total-row"><div class="total-box">'
-      . ($regFee > 0 ? '<div class="line"><span>Programme tuition</span><span>' . $fmt($programmeAmt > 0 ? $programmeAmt : $tuitionUsd) . '</span></div>'
-      .   '<div class="line"><span>Registration fee</span><span>' . $fmt($regFee) . '</span></div>' : '')
-      . '<div class="total"><span>Total (USD)</span><span>' . $fmt($tuitionUsd) . '</span></div>'
-      . '</div></div>'
+      .   '<div class="totals-block"><div class="total-box">'
+      .   ($regFee > 0 ? '<div class="tline"><span>Programme tuition</span><span>' . $fmt($programmeAmt > 0 ? $programmeAmt : $tuitionUsd) . '</span></div>'
+      .     '<div class="tline"><span>Registration fee</span><span>' . $fmt($regFee) . '</span></div>' : '')
+      .   '<div class="tgrand"><span>Total (USD)</span><span>' . $fmt($tuitionUsd) . '</span></div>'
+      .   '</div></div>'
 
-      // Payment details
-      . '<div class="pay-grid">'
-      .   '<div class="pay-card"><h4>Bank transfer</h4>'
-      .     ($bankName !== '' ? '<div class="bank-row"><span>Bank</span><b>' . $bankName . '</b></div>' : '')
-      .     '<div class="bank-row"><span>Account name</span><b>' . $acctName . '</b></div>'
-      .     '<div class="bank-row"><span>Account number</span><b>' . $acctNo . '</b></div>'
-      .     '<p style="margin-top:9px;font-size:11px">Use reference <b style="color:var(--ink)">' . $ref . '</b> as the narration.<br>'
-      .     'Online payment: <a href="' . htmlspecialchars($appUrl . '/tuition?ref=' . rawurlencode((string)$app['reference']), ENT_QUOTES) . '" style="color:var(--gold)">pay by card →</a></p>'
+      // Payment details + terms
+      .   '<div class="pay-row">'
+      .     '<div class="pay-col"><h4>Bank transfer</h4>'
+      .       ($bankName !== '' ? '<div class="bkrow"><span>Bank</span><b>' . $bankName . '</b></div>' : '')
+      .       '<div class="bkrow"><span>Account name</span><b>' . $acctName . '</b></div>'
+      .       '<div class="bkrow"><span>Account number</span><b>' . $acctNo . '</b></div>'
+      .       '<p class="pay-note">Use reference <b style="color:var(--ink)">' . $ref . '</b> as the narration.<br>'
+      .       'Online: <a href="' . htmlspecialchars($appUrl . '/tuition?ref=' . rawurlencode((string)$app['reference']), ENT_QUOTES) . '" style="color:var(--gold)">pay by card &rarr;</a></p>'
+      .     '</div>'
+      .     '<div class="pay-col"><h4>Payment terms</h4>'
+      .       '<p class="terms-txt">This invoice covers programme tuition at MAM Academy. Payment is due before the term start date. Instalment plans are available &mdash; contact the finance office to arrange one. All fees are in US dollars; bank transfer equivalents follow the rate quoted by your remitting institution.</p>'
+      .     '</div>'
       .   '</div>'
-      .   '<div class="pay-card"><h4>Payment terms</h4>'
-      .     '<p>This invoice covers programme tuition at MAM Academy. Payment is due before the term start date. Instalment plans are available — contact the finance office to arrange one. All fees are in US dollars; bank transfer equivalents follow the rate quoted by your remitting institution.</p>'
-      .   '</div>'
-      . '</div>'
 
       // Signature
-      . '<div class="sign"><div class="sig-block"><div class="nm">' . $finName . '</div><div class="role">Finance Manager</div></div></div>'
+      .   '<div class="sign"><div class="sig"><div class="snm">' . $finName . '</div><div class="srl">Finance Manager</div></div></div>'
 
       . '</div>'
-      . '<div class="foot">MAM Academy &nbsp;·&nbsp; academy.mamcentre.org &nbsp;·&nbsp; academy@mamcentre.org &nbsp;·&nbsp; +234 704 444 6517</div>'
+      . '<div class="foot">MAM Academy &nbsp;&middot;&nbsp; academy.mamcentre.org &nbsp;&middot;&nbsp; <a href="mailto:academy@mamcentre.org">academy@mamcentre.org</a> &nbsp;&middot;&nbsp; +234 704 444 6517</div>'
       . '</div></body></html>';
 }
 

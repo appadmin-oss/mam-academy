@@ -483,6 +483,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
+        'save_email_branding' => 'settings',
+        'save_promo_banner' => 'settings',
+        'delete_promo_banner' => 'settings',
         'automation_toggle' => 'settings',
         'run_automations' => 'settings',
         'record_placement' => 'admissions',
@@ -1444,6 +1447,61 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=settings&ok=1'); exit;
     }
 
+    if ($action === 'save_email_branding') {
+        $url = trim((string)($_POST['email_logo_url'] ?? ''));
+        if ($url !== '') {
+            $s = strtolower(substr($url, 0, 8));
+            if ($s !== 'https://' && substr($s, 0, 7) !== 'http://') { $url = ''; }
+            else { $url = mb_substr($url, 0, 500); }
+        }
+        mam_setting_set('email_logo_url', $url);
+        mam_audit('save_email_branding', 'settings', null, ['email_logo_url' => $url]);
+        header('Location: ?v=email-branding&ok=1'); exit;
+    }
+
+    if ($action === 'save_promo_banner') {
+        $id       = (int)($_POST['banner_id'] ?? 0);
+        $title    = mb_substr(trim((string)($_POST['banner_title']    ?? '')), 0, 200);
+        $body     = mb_substr(trim((string)($_POST['banner_body']     ?? '')), 0, 1000);
+        $ctaLabel = mb_substr(trim((string)($_POST['banner_cta_label'] ?? '')), 0, 100);
+        $ctaUrl   = mb_substr(trim((string)($_POST['banner_cta_url']   ?? '')), 0, 500);
+        $bgColor  = preg_match('/^#[0-9A-Fa-f]{6}$/', (string)($_POST['banner_bg_color'] ?? ''))
+            ? (string)$_POST['banner_bg_color'] : '#FEF3C7';
+        $active   = !empty($_POST['banner_active']) ? 1 : 0;
+        $startsAt = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_POST['banner_starts_at'] ?? ''))
+            ? (string)$_POST['banner_starts_at'] : null;
+        $endsAt   = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_POST['banner_ends_at'] ?? ''))
+            ? (string)$_POST['banner_ends_at'] : null;
+        if ($title === '' || $body === '') {
+            header('Location: ?v=email-branding&err=' . urlencode('Title and banner text are required.')); exit;
+        }
+        $now = date('Y-m-d H:i:s');
+        if ($id > 0 && mam_db_row('SELECT id FROM promo_banners WHERE id = ?', [$id])) {
+            mam_db_update('promo_banners', [
+                'title' => $title, 'body' => $body, 'cta_label' => $ctaLabel,
+                'cta_url' => $ctaUrl, 'bg_color' => $bgColor, 'active' => $active,
+                'starts_at' => $startsAt, 'ends_at' => $endsAt, 'updated_at' => $now,
+            ], ['id' => $id]);
+            mam_audit('update_promo_banner', 'promo_banner', $id, ['title' => $title]);
+        } else {
+            mam_db()->prepare(
+                'INSERT INTO promo_banners (title,body,cta_label,cta_url,bg_color,active,starts_at,ends_at,created_at,updated_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?)'
+            )->execute([$title, $body, $ctaLabel, $ctaUrl, $bgColor, $active, $startsAt, $endsAt, $now, $now]);
+            mam_audit('create_promo_banner', 'promo_banner', null, ['title' => $title]);
+        }
+        header('Location: ?v=email-branding&ok=1'); exit;
+    }
+
+    if ($action === 'delete_promo_banner') {
+        $id = (int)($_POST['banner_id'] ?? 0);
+        if ($id > 0) {
+            mam_db()->prepare('DELETE FROM promo_banners WHERE id = ?')->execute([$id]);
+            mam_audit('delete_promo_banner', 'promo_banner', $id, []);
+        }
+        header('Location: ?v=email-branding&ok=1'); exit;
+    }
+
     // Record a MAM Auditer placement for an application's student — writes the
     // auditer_results row and (when the 'auditer_placement' automation is on)
     // ensures the account + enrols them at the recommended level (see
@@ -2078,7 +2136,7 @@ nav a{display:flex;align-items:center}
       'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
-      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
+      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
       'Account'    => ['account' => ['My Account', 'circle-user']],
     ];
     // Flatten to a label map so the topbar title lookup keeps working.
@@ -2086,7 +2144,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -6651,6 +6709,181 @@ nav a{display:flex;align-items:center}
       <?php else: ?><p class="muted">No matching store orders.</p><?php endif; ?>
     </div>
   <?php endif; ?>
+
+<?php elseif ($view === 'email-branding'):
+    $emailLogo = mam_setting('email_logo_url', '');
+    $banners   = mam_db_all('SELECT * FROM promo_banners ORDER BY starts_at DESC, id DESC');
+    $today     = date('Y-m-d');
+?>
+  <header class="top"><h1>Email Branding</h1></header>
+  <?php if (isset($_GET['ok'])): ?>
+    <div class="banner ok">Saved.</div>
+  <?php elseif (isset($_GET['err'])): ?>
+    <div class="banner err"><?= htmlspecialchars((string)$_GET['err']) ?></div>
+  <?php endif; ?>
+
+  <div class="card" style="max-width:700px">
+    <h2 style="margin:0 0 6px;font-size:1.05rem">Email Logo</h2>
+    <p class="muted" style="margin:0 0 18px;font-size:0.85rem">
+      Shown in every outgoing email in place of the text wordmark. Provide a direct URL to a hosted
+      PNG or JPG — no SVG (not supported by email clients). Leave blank to keep the text wordmark.
+    </p>
+    <form method="POST" action="">
+      <?= mam_csrf_field() ?>
+      <input type="hidden" name="action" value="save_email_branding">
+      <label style="display:block">
+        <span style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--muted)">Logo URL</span>
+        <input type="url" name="email_logo_url" value="<?= htmlspecialchars($emailLogo) ?>"
+               placeholder="https://cdn.example.com/mam-logo.png" style="width:100%;max-width:500px">
+      </label>
+      <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
+        <button class="btn" type="submit">Save logo</button>
+        <?php if ($emailLogo): ?>
+          <span class="muted" style="font-size:0.8rem">Current: <code><?= htmlspecialchars(mb_strimwidth($emailLogo, 0, 60, '…')) ?></code></span>
+        <?php endif; ?>
+      </div>
+    </form>
+  </div>
+
+  <div class="card" style="max-width:960px">
+    <h2 style="margin:0 0 8px;font-size:1.05rem">Promotional Banners</h2>
+    <p class="muted" style="margin:0 0 20px;font-size:0.85rem">
+      A banner appears after the header rule in every outgoing email during the configured window.
+      When multiple banners are active, the most recently started one wins.
+    </p>
+
+    <?php if ($banners): ?>
+    <table class="stack" style="margin-bottom:28px">
+      <thead><tr><th>Title</th><th>Dates</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      <?php foreach ($banners as $b):
+          $live = $b['active'] == 1
+              && ($b['starts_at'] === null || $b['starts_at'] <= $today)
+              && ($b['ends_at']   === null || $b['ends_at']   >= $today);
+      ?>
+        <tr>
+          <td data-label="Title">
+            <strong><?= htmlspecialchars((string)$b['title']) ?></strong>
+            <div class="muted" style="font-size:0.8rem;margin-top:2px"><?= htmlspecialchars(mb_strimwidth((string)$b['body'], 0, 70, '…')) ?></div>
+          </td>
+          <td data-label="Dates">
+            <?php if ($b['starts_at'] || $b['ends_at']): ?>
+              <?= htmlspecialchars((string)($b['starts_at'] ?? '—')) ?> &rarr; <?= htmlspecialchars((string)($b['ends_at'] ?? 'no end')) ?>
+            <?php else: ?><span class="muted">Always active</span><?php endif; ?>
+          </td>
+          <td data-label="Status">
+            <?php if (!$b['active']): ?>
+              <span class="pill" style="background:#6b7280;color:#fff">Inactive</span>
+            <?php elseif ($live): ?>
+              <span class="pill" style="background:#16a34a;color:#fff">Live now</span>
+            <?php elseif ($b['starts_at'] && $b['starts_at'] > $today): ?>
+              <span class="pill" style="background:#d97706;color:#fff">Scheduled</span>
+            <?php else: ?>
+              <span class="pill" style="background:#6b7280;color:#fff">Ended</span>
+            <?php endif; ?>
+          </td>
+          <td data-label="Actions" style="white-space:nowrap">
+            <button type="button" class="btn btn-sm"
+              onclick="ebEdit(<?= (int)$b['id'] ?>,<?= htmlspecialchars(json_encode($b, JSON_HEX_QUOT|JSON_HEX_TAG), ENT_QUOTES) ?>)">Edit</button>
+            <form method="POST" action="" style="display:inline"
+                  onsubmit="return confirm('Delete “<?= htmlspecialchars(addslashes((string)$b['title'])) ?>”?')">
+              <?= mam_csrf_field() ?>
+              <input type="hidden" name="action" value="delete_promo_banner">
+              <input type="hidden" name="banner_id" value="<?= (int)$b['id'] ?>">
+              <button class="btn btn-sm" type="submit" style="background:#dc2626;border-color:#dc2626;color:#fff">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php else: ?>
+      <p class="muted" style="margin:0 0 24px">No banners yet. Create one below.</p>
+    <?php endif; ?>
+
+    <h3 id="ebFormTitle" style="margin:0 0 16px;font-size:0.95rem;border-top:1px solid var(--border);padding-top:20px">Create new banner</h3>
+    <form method="POST" action="" id="ebForm">
+      <?= mam_csrf_field() ?>
+      <input type="hidden" name="action" value="save_promo_banner">
+      <input type="hidden" name="banner_id" id="ebBannerId" value="">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+        <label style="grid-column:1/-1">
+          <span style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--muted)">Title (internal label)</span>
+          <input type="text" name="banner_title" id="ebTitle" placeholder="e.g. Summer 2026 campaign" style="width:100%" required>
+        </label>
+        <label style="grid-column:1/-1">
+          <span style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--muted)">Banner text</span>
+          <textarea name="banner_body" id="ebBody" rows="3" required
+            placeholder="e.g. Summer camp applications are now open. Secure your spot before places run out."
+            style="width:100%;resize:vertical"></textarea>
+        </label>
+        <label>
+          <span style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--muted)">CTA button label (optional)</span>
+          <input type="text" name="banner_cta_label" id="ebCtaLabel" placeholder="e.g. Apply now" style="width:100%">
+        </label>
+        <label>
+          <span style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--muted)">CTA button URL (optional)</span>
+          <input type="url" name="banner_cta_url" id="ebCtaUrl" placeholder="https://…" style="width:100%">
+        </label>
+        <label>
+          <span style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--muted)">Start date (leave blank for no start restriction)</span>
+          <input type="date" name="banner_starts_at" id="ebStartsAt" style="width:100%">
+        </label>
+        <label>
+          <span style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--muted)">End date (leave blank for no expiry)</span>
+          <input type="date" name="banner_ends_at" id="ebEndsAt" style="width:100%">
+        </label>
+        <label>
+          <span style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--muted)">Background color</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="color" name="banner_bg_color" id="ebBgColor" value="#FEF3C7"
+                   style="width:44px;height:34px;padding:2px;cursor:pointer;border:1px solid var(--border,#3a2818);border-radius:6px;background:none">
+            <code id="ebBgHex" style="font-size:0.82rem;color:var(--muted)">#FEF3C7</code>
+          </div>
+        </label>
+        <label style="display:flex;align-items:center;gap:10px;padding-top:24px">
+          <input type="checkbox" name="banner_active" id="ebActive" value="1" checked style="width:16px;height:16px;cursor:pointer">
+          <span style="font-size:0.9rem">Active</span>
+        </label>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn" type="submit" id="ebSubmitBtn">Create banner</button>
+        <button type="button" class="btn" id="ebCancelBtn" style="display:none" onclick="ebReset()">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+  function ebEdit(id, b) {
+    document.getElementById('ebFormTitle').textContent = 'Edit banner';
+    document.getElementById('ebSubmitBtn').textContent = 'Save changes';
+    document.getElementById('ebCancelBtn').style.display = '';
+    document.getElementById('ebBannerId').value  = id;
+    document.getElementById('ebTitle').value     = b.title     || '';
+    document.getElementById('ebBody').value      = b.body      || '';
+    document.getElementById('ebCtaLabel').value  = b.cta_label || '';
+    document.getElementById('ebCtaUrl').value    = b.cta_url   || '';
+    document.getElementById('ebStartsAt').value  = b.starts_at || '';
+    document.getElementById('ebEndsAt').value    = b.ends_at   || '';
+    var bg = b.bg_color || '#FEF3C7';
+    document.getElementById('ebBgColor').value   = bg;
+    document.getElementById('ebBgHex').textContent = bg;
+    document.getElementById('ebActive').checked  = b.active == 1;
+    document.getElementById('ebForm').scrollIntoView({behavior:'smooth'});
+  }
+  function ebReset() {
+    document.getElementById('ebFormTitle').textContent = 'Create new banner';
+    document.getElementById('ebSubmitBtn').textContent = 'Create banner';
+    document.getElementById('ebCancelBtn').style.display = 'none';
+    document.getElementById('ebBannerId').value = '';
+    document.getElementById('ebForm').reset();
+    document.getElementById('ebBgHex').textContent = '#FEF3C7';
+    document.getElementById('ebActive').checked = true;
+  }
+  document.getElementById('ebBgColor').addEventListener('input', function() {
+    document.getElementById('ebBgHex').textContent = this.value;
+  });
+  </script>
 
 <?php else: ?>
   <p>Unknown view.</p>

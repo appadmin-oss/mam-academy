@@ -76,6 +76,7 @@ require $ROOT . '/lib/support.php';         // feedback, surveys, support ticket
 require $ROOT . '/lib/progress.php';        // lesson records + parent progress tokens
 require $ROOT . '/lib/progress-reports.php'; // post-session progress reports + fines (v46)
 require $ROOT . '/lib/idempotency.php';      // idempotency cache helpers (v51)
+require $ROOT . '/lib/promo.php';            // promotional email banner helpers (v55)
 
 require __DIR__ . '/assert.php';
 

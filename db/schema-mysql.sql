@@ -1511,3 +1511,20 @@ INSERT INTO schema_version (version) VALUES (53) ON DUPLICATE KEY UPDATE version
 -- v54: meeting_link on classes — Zoom/Meet/Teams URL for online/hybrid classes.
 ALTER TABLE classes ADD COLUMN meeting_link VARCHAR(500) NULL;
 INSERT INTO schema_version (version) VALUES (54) ON DUPLICATE KEY UPDATE version = version;
+
+-- v55: promo_banners — admin-configurable promotional email banner with date-range gating.
+CREATE TABLE IF NOT EXISTS promo_banners (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  title      VARCHAR(200) NOT NULL,
+  body       TEXT         NOT NULL,
+  cta_label  VARCHAR(100) NOT NULL DEFAULT '',
+  cta_url    VARCHAR(500) NOT NULL DEFAULT '',
+  bg_color   VARCHAR(20)  NOT NULL DEFAULT '#FEF3C7',
+  active     TINYINT(1)   NOT NULL DEFAULT 1,
+  starts_at  DATE         NULL,
+  ends_at    DATE         NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_promo_active (active, starts_at, ends_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (55) ON DUPLICATE KEY UPDATE version = version;

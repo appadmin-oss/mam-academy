@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 54;
+const MAM_SCHEMA_TARGET = 55;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1600,6 +1600,27 @@ function mam_db_migrate(PDO $db): void {
         ",
         53 => "ALTER TABLE summer_applications ADD COLUMN headshot_url TEXT",
         54 => "ALTER TABLE classes ADD COLUMN meeting_link TEXT",
+
+        // v55: promo_banners — admin-configurable promotional email banner with
+        // optional date-range gating. Multiple banners can exist; only one is live
+        // at a time (most recently started active banner within the window wins).
+        55 => "
+            CREATE TABLE IF NOT EXISTS promo_banners (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              title      TEXT NOT NULL,
+              body       TEXT NOT NULL DEFAULT '',
+              cta_label  TEXT NOT NULL DEFAULT '',
+              cta_url    TEXT NOT NULL DEFAULT '',
+              bg_color   TEXT NOT NULL DEFAULT '#FEF3C7',
+              active     INTEGER NOT NULL DEFAULT 1,
+              starts_at  TEXT,
+              ends_at    TEXT,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_promo_banners_active
+              ON promo_banners(active, starts_at, ends_at);
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {
