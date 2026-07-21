@@ -45,6 +45,9 @@ DirectoryIndex index.php index.html index.htm
   # existing email links / bookmarks / sitemaps don't 404.
   RewriteRule ^studio/?$ tools.php [L]
 
+  # ID card pages: /card/{serial} → card.php?serial={serial}
+  RewriteRule ^card/([A-Za-z0-9-]+)/?$ card.php?serial=$1 [L,QSA]
+
   # 1. External redirect: strip .html / .php from the URL so the clean URL is
   #    canonical (good for SEO, avoids duplicate content). %{THE_REQUEST} guards
   #    so it only fires on the original browser request, never the internal

@@ -98,6 +98,12 @@ function mam_lms_transition(int $enrollmentId, string $to, ?int $by = null, ?str
 
     mam_lms_log_event($enrollmentId, $from, $to, $by, $reason);
     mam_audit('lms_transition', 'course_enrollment', $enrollmentId, ['from' => $from, 'to' => $to, 'reason' => $reason]);
+
+    // Automation #9: issue ID card when enrolment activates.
+    if ($to === 'active' && mam_automation_on('id_card_issue')) {
+        mam_card_mint_for_enrollment($enrollmentId);
+    }
+
     return ['ok' => true, 'changed' => true, 'from' => $from, 'to' => $to];
 }
 

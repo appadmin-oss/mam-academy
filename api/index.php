@@ -197,6 +197,8 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     // Waitlist: join or leave a cohort queue when class is at capacity.
     $r->get ('/waitlist',            $f('student/waitlist.php'),            [mw_role('student')]);
     $r->post('/waitlist',            $f('student/waitlist.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('student_waitlist', 20, 600)]);
+    // ID card: student views their own card serial and QR payload.
+    $r->get ('/my-card',             $f('student/my-card.php'),             [mw_role('student')]);
 });
 
 /* ─── Instructor portal ─── */
@@ -228,6 +230,8 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/session-attendance', $f('instructor/session-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('sess_att', 240, 600)]);
     // Per-session QR check-in token for a cohort session (P2 twin of attendance-qr).
     $r->get ('/session-attendance-qr', $f('instructor/session-attendance-qr.php'), [mw_role('instructor', 'admin')]);
+    // ID card scan: instructor scans a student's card QR to mark attendance.
+    $r->post('/card-scan', $f('instructor/card-scan.php'), [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('card_scan', 240, 600)]);
     $r->post('/lesson-record',         $f('instructor/lesson-record.php'),          [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('lesson_record', 60, 600)]);
     // Post-session progress report (v46): per-student form → email + 2-hr deadline fine.
     $r->get ('/progress-report',       $f('instructor/progress-report.php'),        [mw_role('instructor', 'admin')]);
@@ -291,6 +295,9 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // Summer programme admin: list applications + update status.
     $r->get ('/summer',         $f('admin/summer.php'), [mw_admin_cap('view')]);
     $r->post('/summer/status',  $f('admin/summer.php'), [mw_csrf(), mw_admin_cap('view')]);
+    // ID cards: list all cards + admin actions (reissue, revoke, mark printed).
+    $r->get ('/id-cards',       $f('admin/id-cards.php'), [mw_admin_cap('enrollments')]);
+    $r->post('/id-cards',       $f('admin/id-cards.php'), [mw_csrf(), mw_admin_cap('enrollments')]);
 });
 
 /* ─── Dispatch ─── */

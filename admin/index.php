@@ -2133,7 +2133,7 @@ nav a{display:flex;align-items:center}
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
@@ -2144,7 +2144,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -6709,6 +6709,180 @@ nav a{display:flex;align-items:center}
       <?php else: ?><p class="muted">No matching store orders.</p><?php endif; ?>
     </div>
   <?php endif; ?>
+
+<?php elseif ($view === 'id-cards'):
+    $appUrl = rtrim((string)mam_env('APP_URL', ''), '/');
+?>
+  <header class="top"><h1>ID Cards</h1></header>
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <input type="text" id="icSearch" placeholder="Search name, email, serial…" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px">
+      <select id="icStatus" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px">
+        <option value="">All statuses</option>
+        <option value="active">Active</option>
+        <option value="revoked">Revoked</option>
+      </select>
+      <select id="icRole" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px">
+        <option value="">All roles</option>
+        <option value="student">Student</option>
+        <option value="instructor">Instructor</option>
+      </select>
+      <button class="btn-sm btn-outline" onclick="icLoad(1)">Search</button>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="stack" id="icTable">
+      <thead><tr>
+        <th>Holder</th>
+        <th>Serial</th>
+        <th>Role</th>
+        <th>Session / Programme</th>
+        <th>Issued</th>
+        <th>Printed</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr></thead>
+      <tbody id="icTbody"><tr><td colspan="8" style="padding:32px;text-align:center;color:var(--muted)">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <div id="icPager" style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap"></div>
+
+  <div id="icConfirmModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;align-items:center;justify-content:center">
+    <div style="background:var(--bg2);border-radius:14px;padding:28px 24px;max-width:380px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.3)">
+      <h3 id="icModalTitle" style="margin:0 0 12px;color:var(--fg)">Confirm</h3>
+      <p id="icModalBody" style="margin:0 0 24px;color:var(--muted);font-size:14px"></p>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn-sm btn-outline" onclick="document.getElementById('icConfirmModal').style.display='none'">Cancel</button>
+        <button class="btn-sm" id="icModalConfirm" style="background:var(--danger,#B91C1C);color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:600;cursor:pointer">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  var API    = '<?= $appUrl ?>/api';
+  var CARD_URL = '<?= $appUrl ?>/card/';
+  var csrfToken = (document.cookie.match(/(?:^|; )mam_csrf=([^;]+)/) || [])[1] || '';
+  var currentPage = 1;
+
+  function icLoad(page) {
+    currentPage = page || 1;
+    var q      = document.getElementById('icSearch').value.trim();
+    var status = document.getElementById('icStatus').value;
+    var role   = document.getElementById('icRole').value;
+    var params = new URLSearchParams({page: currentPage});
+    if (q)      params.set('q',      q);
+    if (status) params.set('status', status);
+    if (role)   params.set('role',   role);
+    fetch(API + '/admin/id-cards?' + params)
+      .then(r => r.json()).then(function(d) {
+        var tb = document.getElementById('icTbody');
+        if (!d.ok || !d.cards || !d.cards.length) {
+          tb.innerHTML = '<tr><td colspan="8" style="padding:32px;text-align:center;color:var(--muted)">No cards found.</td></tr>';
+          document.getElementById('icPager').innerHTML = '';
+          return;
+        }
+        tb.innerHTML = d.cards.map(function(c) {
+          var statusBadge = c.status === 'active'
+            ? '<span class="badge badge-green">Active</span>'
+            : '<span class="badge badge-red">Revoked</span>';
+          var printedBadge = c.printed_at
+            ? '<span class="badge badge-grey">Printed</span>'
+            : '<span style="color:var(--muted);font-size:12px">Not printed</span>';
+          var actions = [
+            '<a href="' + CARD_URL + encodeURIComponent(c.serial) + '" target="_blank" class="btn-sm btn-outline" style="font-size:12px">View</a>',
+          ];
+          if (c.status === 'active') {
+            actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icConfirm(\'reissue\','+c.id+',\''+escHtml(c.holder_name)+'\',\''+escHtml(c.serial)+'\')">Reissue</button>');
+            actions.push('<button class="btn-sm" style="font-size:12px;background:var(--danger,#B91C1C);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer" onclick="icConfirm(\'revoke\','+c.id+',\''+escHtml(c.holder_name)+'\',\''+escHtml(c.serial)+'\')">Revoke</button>');
+            if (!c.printed_at) {
+              actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icAction(\'mark_printed\','+c.id+',null)">Mark Printed</button>');
+            }
+          }
+          return '<tr>'
+            + '<td data-label="Holder"><strong>' + escHtml(c.holder_name) + '</strong><br><span style="font-size:12px;color:var(--muted)">' + escHtml(c.holder_email||'') + '</span></td>'
+            + '<td data-label="Serial"><code style="font-size:13px;letter-spacing:1px">' + escHtml(c.serial) + '</code></td>'
+            + '<td data-label="Role" style="text-transform:capitalize">' + escHtml(c.role) + '</td>'
+            + '<td data-label="Programme">' + escHtml(c.session_code||'—') + '</td>'
+            + '<td data-label="Issued">' + (c.issued_at ? c.issued_at.substring(0,10) : '—') + '</td>'
+            + '<td data-label="Printed">' + printedBadge + '</td>'
+            + '<td data-label="Status">' + statusBadge + '</td>'
+            + '<td data-label="Actions" style="white-space:nowrap">' + actions.join(' ') + '</td>'
+            + '</tr>';
+        }).join('');
+
+        // Pagination
+        var pg = document.getElementById('icPager');
+        if (d.pages <= 1) { pg.innerHTML = ''; return; }
+        var html = '';
+        for (var i = 1; i <= d.pages; i++) {
+          html += '<button class="btn-sm ' + (i === d.page ? 'btn-primary' : 'btn-outline') + '" onclick="icLoad(' + i + ')">' + i + '</button>';
+        }
+        pg.innerHTML = html;
+      }).catch(function(e) {
+        document.getElementById('icTbody').innerHTML = '<tr><td colspan="8" style="padding:24px;color:var(--danger)">Error loading cards.</td></tr>';
+      });
+  }
+
+  function icConfirm(action, cardId, holderName, serial) {
+    var modal = document.getElementById('icConfirmModal');
+    var titles = { reissue: 'Reissue Card', revoke: 'Revoke Card' };
+    var bodies = {
+      reissue: 'Reissue the card for <strong>' + escHtml(holderName) + '</strong> (' + escHtml(serial) + ')? Their current card will be revoked and a new one emailed to them.',
+      revoke:  'Revoke the card for <strong>' + escHtml(holderName) + '</strong> (' + escHtml(serial) + ')? This is immediate — the card will stop working for attendance.',
+    };
+    document.getElementById('icModalTitle').textContent = titles[action] || 'Confirm';
+    document.getElementById('icModalBody').innerHTML    = bodies[action] || '';
+    document.getElementById('icModalConfirm').onclick   = function() {
+      modal.style.display = 'none';
+      icAction(action, cardId, null);
+    };
+    modal.style.display = 'flex';
+  }
+
+  function icAction(action, cardId, reason) {
+    fetch(API + '/admin/id-cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({ action: action, card_id: cardId, reason: reason }),
+    }).then(r => r.json()).then(function(d) {
+      if (d.ok) {
+        if (action === 'reissue' && d.new_serial) {
+          showToast('Card reissued. New serial: ' + d.new_serial, 'success');
+        } else {
+          showToast('Done.', 'success');
+        }
+        icLoad(currentPage);
+      } else {
+        showToast(d.message || 'Action failed.', 'error');
+      }
+    });
+  }
+
+  function escHtml(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function showToast(msg, type) {
+    var t = document.createElement('div');
+    t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:' + (type==='success'?'#1A120B':'#B91C1C') + ';color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.25)';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function(){ t.remove(); }, 3500);
+  }
+
+  // Expose for inline onclick handlers
+  window.icLoad    = icLoad;
+  window.icConfirm = icConfirm;
+  window.icAction  = icAction;
+
+  // Trigger on Enter in the search box
+  document.getElementById('icSearch').addEventListener('keydown', function(e){ if (e.key === 'Enter') icLoad(1); });
+
+  icLoad(1);
+})();
+</script>
 
 <?php elseif ($view === 'email-branding'):
     $emailLogo = mam_setting('email_logo_url', '');

@@ -94,6 +94,14 @@ function mam_automations_registry(): array {
             'default' => true,
             'live'    => true,
         ],
+        'id_card_issue' => [
+            'group'   => 'Identity',
+            'trigger' => 'A student or instructor is enrolled or activated',
+            'action'  => 'Issue an ID card and email it (PDF + image)',
+            'icon'    => 'id-card',
+            'default' => true,
+            'live'    => true,
+        ],
     ];
 }
 

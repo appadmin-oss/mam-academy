@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 55;
+const MAM_SCHEMA_TARGET = 56;
 
 /**
  * Open (and cache) the PDO connection.
@@ -262,6 +262,8 @@ function mam_db_migrate_mysql(PDO $db): void {
             'class_resources'     => ['cohort_id'],
             'summer_applications' => ['reference', 'email', 'status', 'guardian_name'],
             'classes'             => ['meeting_link'],
+            'id_cards'            => ['serial', 'status', 'role', 'issued_at'],
+            'card_scans'          => ['card_id', 'raw_serial', 'result'],
         ];
         $missing = [];
         foreach ($required as $table => $cols) {
@@ -1620,6 +1622,49 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX IF NOT EXISTS idx_promo_banners_active
               ON promo_banners(active, starts_at, ends_at);
+        ",
+
+        // v56: id_cards + card_scans — student/instructor ID cards with HMAC-signed
+        // QR codes. card_scans logs every scan attempt (valid or not) for audit.
+        56 => "
+            CREATE TABLE IF NOT EXISTS id_cards (
+              id             INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id        INTEGER REFERENCES users(id) ON DELETE CASCADE,
+              summer_app_id  INTEGER REFERENCES summer_applications(id) ON DELETE CASCADE,
+              role           TEXT NOT NULL DEFAULT 'student',
+              serial         TEXT NOT NULL UNIQUE,
+              version        INTEGER NOT NULL DEFAULT 1,
+              status         TEXT NOT NULL DEFAULT 'active',
+              session_code   TEXT NOT NULL DEFAULT '',
+              photo_url      TEXT,
+              issued_at      TEXT NOT NULL,
+              printed_at     TEXT,
+              revoked_at     TEXT,
+              revoke_reason  TEXT,
+              created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_id_cards_user
+              ON id_cards(user_id, status);
+            CREATE INDEX IF NOT EXISTS idx_id_cards_summer
+              ON id_cards(summer_app_id, status);
+            CREATE INDEX IF NOT EXISTS idx_id_cards_serial
+              ON id_cards(serial);
+
+            CREATE TABLE IF NOT EXISTS card_scans (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              card_id     INTEGER REFERENCES id_cards(id) ON DELETE SET NULL,
+              raw_serial  TEXT NOT NULL,
+              session_id  INTEGER,
+              class_id    INTEGER,
+              scanned_by  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              result      TEXT NOT NULL,
+              scanned_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_card_scans_card
+              ON card_scans(card_id);
+            CREATE INDEX IF NOT EXISTS idx_card_scans_session
+              ON card_scans(session_id);
         ",
     ];
 

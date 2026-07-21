@@ -1528,3 +1528,39 @@ CREATE TABLE IF NOT EXISTS promo_banners (
   KEY idx_promo_active (active, starts_at, ends_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (55) ON DUPLICATE KEY UPDATE version = version;
+
+-- v56: id_cards + card_scans — student/instructor ID cards with HMAC-signed QR codes.
+CREATE TABLE IF NOT EXISTS id_cards (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  user_id        INT          NULL,
+  summer_app_id  INT          NULL,
+  role           VARCHAR(20)  NOT NULL DEFAULT 'student',
+  serial         VARCHAR(20)  NOT NULL UNIQUE,
+  version        TINYINT      NOT NULL DEFAULT 1,
+  status         VARCHAR(16)  NOT NULL DEFAULT 'active',
+  session_code   VARCHAR(120) NOT NULL DEFAULT '',
+  photo_url      VARCHAR(500) NULL,
+  issued_at      DATETIME     NOT NULL,
+  printed_at     DATETIME     NULL,
+  revoked_at     DATETIME     NULL,
+  revoke_reason  TEXT         NULL,
+  created_by     INT          NULL,
+  created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_id_cards_user   (user_id, status),
+  KEY idx_id_cards_summer (summer_app_id, status),
+  KEY idx_id_cards_serial (serial)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS card_scans (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  card_id     INT          NULL,
+  raw_serial  VARCHAR(20)  NOT NULL,
+  session_id  INT          NULL,
+  class_id    INT          NULL,
+  scanned_by  INT          NOT NULL,
+  result      VARCHAR(32)  NOT NULL,
+  scanned_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_card_scans_card    (card_id),
+  KEY idx_card_scans_session (session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (56) ON DUPLICATE KEY UPDATE version = version;

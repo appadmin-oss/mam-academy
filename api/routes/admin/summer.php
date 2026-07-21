@@ -22,6 +22,12 @@ if ($method === 'POST') {
         ['id' => $id]
     );
     mam_audit('update', 'summer_application', $id, ['from' => $app['status'], 'to' => $status]);
+
+    // Automation #9: issue ID card when summer application is enrolled.
+    if ($status === 'enrolled' && $app['status'] !== 'enrolled' && mam_automation_on('id_card_issue')) {
+        mam_card_mint_for_summer_app($id);
+    }
+
     mam_ok(['ok' => true, 'reference' => $app['reference'], 'status' => $status]);
 }
 
