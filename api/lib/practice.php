@@ -29,8 +29,18 @@ function mam_practice_stats(int $studentId): array {
     $cur = date('Y-m-d');
     if (!isset($days[$cur])) $cur = date('Y-m-d', strtotime('-1 day')); // grace for "today not yet logged"
     while (isset($days[$cur])) { $streak++; $cur = date('Y-m-d', strtotime($cur . ' -1 day')); }
+    // This week's practice as a Mon–Sun strip (real data) — powers the KTAMS
+    // kids "week dots" and any weekly tracker. Each: day initial + whether a
+    // session was logged that day + whether it's today.
+    $dow = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    $monday = date('Y-m-d', strtotime('monday this week'));
+    $weekDays = [];
+    for ($i = 0; $i < 7; $i++) {
+        $dt = date('Y-m-d', strtotime($monday . ' +' . $i . ' day'));
+        $weekDays[] = ['d' => $dow[$i], 'on' => isset($days[$dt]), 'today' => $dt === date('Y-m-d')];
+    }
     return [
         'practice'      => $rows,
-        'practiceStats' => ['streak' => $streak, 'weekMin' => $weekMin, 'total' => $total, 'sessions' => count($rows)],
+        'practiceStats' => ['streak' => $streak, 'weekMin' => $weekMin, 'total' => $total, 'sessions' => count($rows), 'weekDays' => $weekDays],
     ];
 }

@@ -42,8 +42,12 @@ CREATE TABLE IF NOT EXISTS applications (
   customer_id            INT NULL,
   pathway                VARCHAR(32) NOT NULL,
   mode                   VARCHAR(16),
+  level                  VARCHAR(16),
+  expression             VARCHAR(16),
   program                VARCHAR(40),
   discipline             VARCHAR(32),
+  extra_courses          INT DEFAULT 0,
+  courses_label          VARCHAR(400),
   session                VARCHAR(12),
   headshot_url           VARCHAR(500),
   experience             VARCHAR(32),
@@ -323,7 +327,10 @@ CREATE TABLE IF NOT EXISTS store_items (
   delivery_type       VARCHAR(24)   NOT NULL DEFAULT 'instant',
   availability        VARCHAR(16)   NOT NULL DEFAULT 'in_stock',
   stock               INT           DEFAULT -1,
-  available_locations TEXT          DEFAULT '*',
+  -- MySQL rejects a literal DEFAULT on TEXT/BLOB (error 1101) — see the
+  -- documented gotcha. Nullable, no default; the store code treats NULL/empty
+  -- as '*' (everywhere). SQLite keeps its own DEFAULT in the db.php migration.
+  available_locations TEXT,
   price_usd           DECIMAL(10,2) NOT NULL,
   currency            VARCHAR(8)    DEFAULT 'USD',
   images              TEXT,
@@ -502,6 +509,7 @@ CREATE TABLE IF NOT EXISTS programs (
   active        TINYINT(1) NOT NULL DEFAULT 1
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO programs (code,name,weeks,revision_week,exam_week,requires_core,certification,sort_order) VALUES
+  ('ktams','KTAMS Young Musicians',12,11,12,0,'participation',0),
   ('crash','Crash Program',6,NULL,6,0,'participation',1),
   ('standard','Standard Program',12,11,12,0,'completion',2),
   ('certified','Certified Program',12,11,12,1,'internal',3),
@@ -545,6 +553,25 @@ INSERT INTO courses (code,name,kind,sort_order) VALUES
   ('songwriting','Songwriting','elective',16),
   ('conducting','Conducting','elective',17)
 ON DUPLICATE KEY UPDATE code = code;
+
+CREATE TABLE IF NOT EXISTS program_courses (
+  program_id INT NOT NULL,
+  course_id  INT NOT NULL,
+  level_code VARCHAR(32) NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (program_id, course_id),
+  CONSTRAINT fk_pc_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pc_course  FOREIGN KEY (course_id)  REFERENCES courses(id)  ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO program_courses (program_id, course_id, level_code, sort_order)
+  SELECT p.id, c.id, 'precert', c.sort_order
+  FROM programs p JOIN courses c ON c.code IN ('drums','guitar','piano')
+  WHERE p.code = 'ktams';
+INSERT IGNORE INTO program_courses (program_id, course_id, sort_order)
+  SELECT p.id, c.id, c.sort_order
+  FROM programs p CROSS JOIN courses c
+  WHERE p.code IN ('crash','standard','certified','grand') AND c.active = 1;
+INSERT INTO schema_version (version) VALUES (41) ON DUPLICATE KEY UPDATE version = version;
 
 CREATE TABLE IF NOT EXISTS modules (
   id        INT AUTO_INCREMENT PRIMARY KEY,
@@ -1081,3 +1108,406 @@ CREATE TABLE IF NOT EXISTS faculty_invites (
   KEY idx_facinv_status (status, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (37) ON DUPLICATE KEY UPDATE version = version;
+
+-- v38 — lifecycle automations: admin-toggleable enable flag per rule
+-- (see api/lib/automations.php). Additive; unknown rules fall back to defaults.
+CREATE TABLE IF NOT EXISTS automations (
+  akey        VARCHAR(64) PRIMARY KEY,
+  enabled     TINYINT(1) NOT NULL DEFAULT 1,
+  params      TEXT,
+  last_run_at DATETIME NULL,
+  run_count   INT NOT NULL DEFAULT 0,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (38) ON DUPLICATE KEY UPDATE version = version;
+
+-- v39 — announcement convergence (P2): an announcement may target a COHORT as
+-- well as a legacy class, so a course/cohort-only student sees their updates.
+ALTER TABLE announcements ADD COLUMN cohort_id INT NULL;
+ALTER TABLE announcements ADD KEY idx_announcements_cohort (cohort_id);
+ALTER TABLE announcements ADD CONSTRAINT fk_ann_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE;
+INSERT INTO schema_version (version) VALUES (39) ON DUPLICATE KEY UPDATE version = version;
+
+-- v40 — resource convergence (P2): a learning resource may attach to a COHORT as
+-- well as a legacy class. class_id becomes nullable (a cohort resource has none).
+ALTER TABLE class_resources MODIFY class_id INT NULL;
+ALTER TABLE class_resources ADD COLUMN cohort_id INT NULL;
+ALTER TABLE class_resources ADD KEY idx_class_resources_cohort (cohort_id);
+ALTER TABLE class_resources ADD CONSTRAINT fk_res_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE;
+INSERT INTO schema_version (version) VALUES (40) ON DUPLICATE KEY UPDATE version = version;
+
+-- v41 — KTAMS as first-class programme + program_courses join table linking each
+-- course to the programme(s) it belongs to, with preferred level and display order.
+INSERT IGNORE INTO programs (code, name, weeks, revision_week, exam_week, requires_core, certification, sort_order, active)
+VALUES ('ktams', 'KTAMS Young Musicians', 12, 11, 12, 0, 'participation', 0, 1);
+
+CREATE TABLE IF NOT EXISTS program_courses (
+  program_id INT NOT NULL,
+  course_id  INT NOT NULL,
+  level_code VARCHAR(24),
+  sort_order INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (program_id, course_id),
+  CONSTRAINT fk_pc_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pc_course  FOREIGN KEY (course_id)  REFERENCES courses(id)  ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO program_courses (program_id, course_id, level_code, sort_order)
+  SELECT p.id, c.id, 'precert', c.sort_order
+  FROM programs p, courses c
+  WHERE p.code = 'ktams' AND c.code IN ('drums','guitar','piano');
+
+INSERT IGNORE INTO program_courses (program_id, course_id, sort_order)
+  SELECT p.id, c.id, c.sort_order
+  FROM programs p, courses c
+  WHERE p.code IN ('crash','standard','certified','grand') AND c.active = 1;
+
+INSERT INTO schema_version (version) VALUES (41) ON DUPLICATE KEY UPDATE version = version;
+
+-- v42 — Support hub: student feedback, surveys + responses, support tickets + messages.
+CREATE TABLE IF NOT EXISTS student_feedback (
+  id                   INT AUTO_INCREMENT PRIMARY KEY,
+  student_id           INT NOT NULL,
+  rating               TINYINT NOT NULL,
+  category             VARCHAR(64) NOT NULL DEFAULT 'general',
+  subject              VARCHAR(255),
+  body                 TEXT NOT NULL,
+  enrollment_id        INT,
+  course_enrollment_id INT,
+  is_anonymous         TINYINT(1) NOT NULL DEFAULT 0,
+  created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_sfeedback_rating CHECK (rating BETWEEN 1 AND 5),
+  KEY idx_sfeedback_student (student_id),
+  KEY idx_sfeedback_created (created_at),
+  CONSTRAINT fk_sfeedback_student  FOREIGN KEY (student_id)           REFERENCES users(id)              ON DELETE CASCADE,
+  CONSTRAINT fk_sfeedback_enroll   FOREIGN KEY (enrollment_id)        REFERENCES enrollments(id)        ON DELETE SET NULL,
+  CONSTRAINT fk_sfeedback_cenroll  FOREIGN KEY (course_enrollment_id) REFERENCES course_enrollments(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS surveys (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  title          VARCHAR(255) NOT NULL,
+  description    TEXT,
+  questions_json LONGTEXT NOT NULL,
+  status         VARCHAR(24) NOT NULL DEFAULT 'draft',
+  target_track   VARCHAR(64),
+  created_by     INT,
+  closes_at      DATETIME,
+  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_surveys_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS survey_responses (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  survey_id    INT NOT NULL,
+  student_id   INT NOT NULL,
+  answers_json LONGTEXT NOT NULL,
+  submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_survey_response (survey_id, student_id),
+  CONSTRAINT fk_sresp_survey  FOREIGN KEY (survey_id)  REFERENCES surveys(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sresp_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  student_id  INT NOT NULL,
+  reference   VARCHAR(24) NOT NULL UNIQUE,
+  category    VARCHAR(64) NOT NULL DEFAULT 'general',
+  subject     VARCHAR(255) NOT NULL,
+  body        TEXT NOT NULL,
+  status      VARCHAR(24) NOT NULL DEFAULT 'open',
+  priority    VARCHAR(24) NOT NULL DEFAULT 'normal',
+  assigned_to INT,
+  resolved_at DATETIME,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_tickets_student (student_id),
+  KEY idx_tickets_status  (status),
+  CONSTRAINT fk_tickets_student  FOREIGN KEY (student_id)  REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tickets_assignee FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ticket_messages (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  ticket_id   INT NOT NULL,
+  author_id   INT NOT NULL,
+  body        TEXT NOT NULL,
+  is_internal TINYINT(1) NOT NULL DEFAULT 0,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_ticket_msgs_ticket (ticket_id),
+  CONSTRAINT fk_tmsg_ticket FOREIGN KEY (ticket_id) REFERENCES support_tickets(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tmsg_author FOREIGN KEY (author_id)  REFERENCES users(id)           ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (42) ON DUPLICATE KEY UPDATE version = version;
+
+-- v43 — Lesson records on class_sessions + shareable parent progress report tokens.
+ALTER TABLE class_sessions ADD COLUMN lesson_notes TEXT;
+ALTER TABLE class_sessions ADD COLUMN topics TEXT;
+ALTER TABLE class_sessions ADD COLUMN learning_outcomes TEXT;
+
+CREATE TABLE IF NOT EXISTS progress_report_tokens (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  student_id       INT NOT NULL,
+  token            VARCHAR(64) NOT NULL UNIQUE,
+  label            VARCHAR(255),
+  scope            VARCHAR(32) NOT NULL DEFAULT 'all',
+  expires_at       DATETIME,
+  created_by       INT,
+  accessed_count   INT NOT NULL DEFAULT 0,
+  last_accessed_at DATETIME,
+  created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_prt_student (student_id),
+  CONSTRAINT fk_prt_student    FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_prt_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (43) ON DUPLICATE KEY UPDATE version = version;
+
+
+-- v44 — Student enrollment references
+ALTER TABLE users ADD COLUMN enrollment_ref VARCHAR(32) NULL;
+CREATE UNIQUE INDEX idx_users_enrollment_ref ON users(enrollment_ref);
+
+INSERT INTO schema_version (version) VALUES (44) ON DUPLICATE KEY UPDATE version = version;
+
+
+-- v45 — Enterprise scheduling: waitlist, session audit trail, substitutes, structured schedules.
+CREATE TABLE IF NOT EXISTS class_waitlist (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT NOT NULL,
+  cohort_id  INT NOT NULL,
+  position   INT NOT NULL,
+  status     VARCHAR(16) NOT NULL DEFAULT 'waiting',
+  notified_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_waitlist (student_id, cohort_id),
+  KEY idx_waitlist_cohort  (cohort_id, position),
+  KEY idx_waitlist_student (student_id),
+  CONSTRAINT fk_wl_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_wl_cohort  FOREIGN KEY (cohort_id)  REFERENCES cohorts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS session_history (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  session_id    INT NOT NULL,
+  field_changed VARCHAR(64) NOT NULL,
+  old_value     TEXT,
+  new_value     TEXT,
+  reason        TEXT,
+  changed_by    INT,
+  changed_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_sh_session (session_id),
+  CONSTRAINT fk_sh_session    FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sh_changed_by FOREIGN KEY (changed_by) REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE class_sessions
+  ADD COLUMN substitute_id      INT          NULL AFTER created_by,
+  ADD COLUMN rescheduled_from   INT          NULL AFTER substitute_id,
+  ADD COLUMN cancellation_reason TEXT        NULL AFTER rescheduled_from,
+  ADD COLUMN room               VARCHAR(120) NULL AFTER cancellation_reason,
+  ADD CONSTRAINT fk_cs_substitute    FOREIGN KEY (substitute_id)    REFERENCES users(id)          ON DELETE SET NULL,
+  ADD CONSTRAINT fk_cs_reschd_from   FOREIGN KEY (rescheduled_from) REFERENCES class_sessions(id) ON DELETE SET NULL;
+
+ALTER TABLE cohorts
+  ADD COLUMN schedule_days     VARCHAR(20) NULL AFTER meeting_pattern,
+  ADD COLUMN schedule_time     VARCHAR(8)  NULL AFTER schedule_days,
+  ADD COLUMN session_duration  INT         NULL DEFAULT 60 AFTER schedule_time;
+
+INSERT INTO schema_version (version) VALUES (45) ON DUPLICATE KEY UPDATE version = version;
+
+
+-- v46 — Post-session progress reports, instructor fines, form builder AI.
+-- NOTE: `ADD COLUMN IF NOT EXISTS` is MariaDB-only — MySQL 8 raises a syntax
+-- error (1064), which the migration runner does NOT treat as expected, so the
+-- column silently never landed while schema_version still advanced. Use a plain
+-- ADD COLUMN: on first apply it creates the column; on re-run it errors 1060
+-- (duplicate column), which the runner tolerates like every other ALTER here.
+ALTER TABLE surveys ADD COLUMN kind VARCHAR(32) NOT NULL DEFAULT 'survey';
+
+CREATE TABLE IF NOT EXISTS progress_reports (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  session_id    INT NOT NULL,
+  student_id    INT NOT NULL,
+  instructor_id INT NOT NULL,
+  form_id       INT NULL,
+  -- MySQL rejects a literal DEFAULT on TEXT (error 1101), which would fail this
+  -- whole CREATE and leave progress_reports missing. Drop the default — the
+  -- writer always supplies answers_json, and readers coalesce NULL to '{}'.
+  answers_json  TEXT NOT NULL,
+  narrative     TEXT NULL,
+  email_sent    TINYINT(1) NOT NULL DEFAULT 0,
+  email_sent_at DATETIME NULL,
+  submitted_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_pr (session_id, student_id),
+  KEY idx_pr_session    (session_id),
+  KEY idx_pr_student    (student_id),
+  KEY idx_pr_instructor (instructor_id),
+  CONSTRAINT fk_pr_session    FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pr_student    FOREIGN KEY (student_id)    REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_pr_instructor FOREIGN KEY (instructor_id) REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_pr_form       FOREIGN KEY (form_id)       REFERENCES surveys(id)        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS instructor_fines (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  instructor_id INT NOT NULL,
+  session_id    INT NULL,
+  reason        VARCHAR(100) NOT NULL DEFAULT 'late_progress_report',
+  amount_kobo   INT NOT NULL DEFAULT 0,
+  status        VARCHAR(16) NOT NULL DEFAULT 'pending',
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  resolved_at   DATETIME NULL,
+  resolved_by   INT NULL,
+  KEY idx_fines_instructor (instructor_id),
+  CONSTRAINT fk_fine_instructor FOREIGN KEY (instructor_id) REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_fine_session    FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_fine_resolved   FOREIGN KEY (resolved_by)   REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO schema_version (version) VALUES (46) ON DUPLICATE KEY UPDATE version = version;
+
+-- v47: fines resolution note
+ALTER TABLE instructor_fines ADD COLUMN resolution_note TEXT NULL;
+INSERT INTO schema_version (version) VALUES (47) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- v48 — Repair pass for MySQL-8 DDL that silently failed on earlier applies.
+-- The whole file is re-exec'd (idempotently) whenever schema_version is behind
+-- MAM_SCHEMA_TARGET, so bumping to 48 re-runs the corrected v9/v46 statements:
+--   • store_items.available_locations was `TEXT DEFAULT '*'` and
+--   • progress_reports.answers_json was `TEXT NOT NULL DEFAULT '{}'`
+--     — MySQL rejects a literal DEFAULT on TEXT (error 1101), so those CREATEs
+--     failed and the tables never existed on MySQL.
+--   • surveys.kind used `ADD COLUMN IF NOT EXISTS` (MariaDB-only; MySQL 8 → 1064).
+-- Those definitions are now portable above; the CREATE TABLE IF NOT EXISTS /
+-- tolerated-duplicate ALTER re-runs recreate whatever was missing. These extra
+-- guards make the repair explicit and order-independent.
+CREATE TABLE IF NOT EXISTS progress_reports (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  session_id    INT NOT NULL,
+  student_id    INT NOT NULL,
+  instructor_id INT NOT NULL,
+  form_id       INT NULL,
+  answers_json  TEXT NOT NULL,
+  narrative     TEXT NULL,
+  email_sent    TINYINT(1) NOT NULL DEFAULT 0,
+  email_sent_at DATETIME NULL,
+  submitted_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_pr (session_id, student_id),
+  KEY idx_pr_session    (session_id),
+  KEY idx_pr_student    (student_id),
+  KEY idx_pr_instructor (instructor_id),
+  CONSTRAINT fk_pr_session    FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pr_student    FOREIGN KEY (student_id)    REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_pr_instructor FOREIGN KEY (instructor_id) REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_pr_form       FOREIGN KEY (form_id)       REFERENCES surveys(id)        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE surveys      ADD COLUMN kind VARCHAR(32) NOT NULL DEFAULT 'survey';
+ALTER TABLE store_items  ADD COLUMN available_locations TEXT;
+-- Normalize collation on tables created without explicit COLLATE so they all
+-- use utf8mb4_unicode_ci. Mismatched collations cause error 1271 when these
+-- tables appear together in a UNION query on MariaDB.
+ALTER TABLE users              CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE classes            CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE cohorts            CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE course_enrollments CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE announcements      CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE class_resources    CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (48) ON DUPLICATE KEY UPDATE version = version;
+
+-- v49: add application columns that exist in SQLite but were never in the MySQL schema,
+-- causing POST /api/application to 500 on every submission in production.
+-- Plain ADD COLUMN (no IF NOT EXISTS) — MySQL 8 rejects the IF NOT EXISTS syntax
+-- (error 1064, which is NOT in the tolerated list and caused v49 to fail silently on
+-- MySQL 8 while still bumping schema_version). 1060 (duplicate column) is tolerated,
+-- so re-runs are safe. The CREATE TABLE above already includes these columns for
+-- fresh installs; these ALTERs handle upgrades from pre-v13 installs.
+ALTER TABLE applications ADD COLUMN level         VARCHAR(16) NULL;
+ALTER TABLE applications ADD COLUMN expression    VARCHAR(16) NULL;
+ALTER TABLE applications ADD COLUMN extra_courses INT DEFAULT 0;
+ALTER TABLE applications ADD COLUMN courses_label VARCHAR(400) NULL;
+INSERT INTO schema_version (version) VALUES (49) ON DUPLICATE KEY UPDATE version = version;
+
+-- v50: repair pass for MySQL 8 installs where v49's IF NOT EXISTS raised error 1064
+-- and left the four application columns absent even though schema_version advanced
+-- to 49. Plain ADD COLUMN tolerates 1060 on re-runs and adds columns where missing.
+-- Also adds cohort/session/announcement/resource columns that criticalRepairs now
+-- covers but that could have been missed on partial or manual deploys.
+ALTER TABLE applications    ADD COLUMN level              VARCHAR(16)  NULL;
+ALTER TABLE applications    ADD COLUMN expression         VARCHAR(16)  NULL;
+ALTER TABLE applications    ADD COLUMN extra_courses      INT DEFAULT 0;
+ALTER TABLE applications    ADD COLUMN courses_label      VARCHAR(400) NULL;
+ALTER TABLE class_sessions  ADD COLUMN lesson_notes       TEXT         NULL;
+ALTER TABLE class_sessions  ADD COLUMN substitute_id      INT          NULL;
+ALTER TABLE class_sessions  ADD COLUMN rescheduled_from   INT          NULL;
+ALTER TABLE class_sessions  ADD COLUMN cancellation_reason TEXT        NULL;
+ALTER TABLE class_sessions  ADD COLUMN room               VARCHAR(120) NULL;
+ALTER TABLE cohorts         ADD COLUMN schedule_days      VARCHAR(20)  NULL;
+ALTER TABLE cohorts         ADD COLUMN schedule_time      VARCHAR(8)   NULL;
+ALTER TABLE cohorts         ADD COLUMN session_duration   INT DEFAULT 60;
+ALTER TABLE announcements   ADD COLUMN cohort_id          INT          NULL;
+ALTER TABLE class_resources ADD COLUMN cohort_id          INT          NULL;
+ALTER TABLE instructor_fines ADD COLUMN resolution_note   TEXT         NULL;
+INSERT INTO schema_version (version) VALUES (50) ON DUPLICATE KEY UPDATE version = version;
+
+-- v51: idempotency_cache table for the shared idempotency layer (api/lib/idempotency.php).
+-- Keyed by (scope, idem_key) so application and payment keys never collide.
+-- Entries expire after 24 h; the cron purges them via mam_idempotency_purge().
+CREATE TABLE IF NOT EXISTS idempotency_cache (
+  idem_key      VARCHAR(80)  NOT NULL,
+  scope         VARCHAR(64)  NOT NULL,
+  response_json TEXT         NOT NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (idem_key, scope),
+  KEY idx_idem_created (created_at)
+);
+INSERT INTO schema_version (version) VALUES (51) ON DUPLICATE KEY UPDATE version = version;
+
+-- v52: summer_applications — separate table for the Summer Programme.
+-- References use the SUM- prefix to distinguish from regular MAM- applications.
+-- No customer_id FK: summer applicants are not necessarily enrolled students.
+CREATE TABLE IF NOT EXISTS summer_applications (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  reference           VARCHAR(40)   NOT NULL UNIQUE,
+  first_name          VARCHAR(100)  NOT NULL,
+  last_name           VARCHAR(100)  NOT NULL,
+  email               VARCHAR(200)  NOT NULL,
+  phone               VARCHAR(30),
+  dob                 DATE          NOT NULL,
+  age_at_submission   TINYINT UNSIGNED,
+  sex                 VARCHAR(16),
+  country             VARCHAR(60),
+  city                VARCHAR(80),
+  guardian_name       VARCHAR(160),
+  guardian_phone      VARCHAR(30),
+  guardian_email      VARCHAR(200),
+  discipline          VARCHAR(100),
+  experience          TEXT,
+  goals               TEXT,
+  referrer            VARCHAR(200),
+  policy_agreed       TINYINT(1)    NOT NULL DEFAULT 0,
+  policy_signed_name  VARCHAR(160),
+  policy_signed_at    DATETIME,
+  session_year        YEAR,
+  fee_snapshot_usd    DECIMAL(10,2),
+  status              VARCHAR(20)   NOT NULL DEFAULT 'submitted',
+  notes               TEXT,
+  source              VARCHAR(200),
+  ip                  VARCHAR(45),
+  user_agent          VARCHAR(240),
+  created_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_summer_apps_email   (email),
+  KEY idx_summer_apps_status  (status, id),
+  KEY idx_summer_apps_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (52) ON DUPLICATE KEY UPDATE version = version;
+
+ALTER TABLE summer_applications ADD COLUMN headshot_url VARCHAR(500) NULL;
+INSERT INTO schema_version (version) VALUES (53) ON DUPLICATE KEY UPDATE version = version;
+
+-- v54: meeting_link on classes — Zoom/Meet/Teams URL for online/hybrid classes.
+ALTER TABLE classes ADD COLUMN meeting_link VARCHAR(500) NULL;
+INSERT INTO schema_version (version) VALUES (54) ON DUPLICATE KEY UPDATE version = version;

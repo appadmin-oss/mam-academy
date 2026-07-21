@@ -284,3 +284,53 @@ function mam_app_draft_nudge_sweep(int $minHours = 24, int $maxHours = 168, int 
     } catch (\Throwable $e) { /* best-effort */ }
     return $sent;
 }
+
+// ── Summer Programme ───────────────────────────────────────────────────────
+
+/**
+ * Map a raw summer_applications.status to a display stage + next-step message.
+ */
+function mam_summer_application_stage(string $status): array {
+    static $map = [
+        'confirmed'  => ['stage' => 'confirmed',  'label' => 'Confirmed',          'next' => "Your spot is confirmed! Watch your email for the programme schedule, packing list, and what to bring."],
+        'waitlisted' => ['stage' => 'waitlisted', 'label' => 'On the waitlist',    'next' => "You're on our waitlist. We'll reach out as soon as a spot opens up — thank you for your patience."],
+        'enrolled'   => ['stage' => 'enrolled',   'label' => 'Enrolled',           'next' => "You're officially enrolled! Check your email for arrival instructions and programme materials."],
+        'cancelled'  => ['stage' => 'closed',     'label' => 'Cancelled',          'next' => "This application has been cancelled. Please contact us if you have any questions."],
+        'rejected'   => ['stage' => 'closed',     'label' => 'Not accepted',       'next' => "We're unable to offer a spot this season. Contact us for more information."],
+    ];
+    return $map[$status] ?? [
+        'stage' => 'received',
+        'label' => 'Application received',
+        'next'  => "We've received your application for the " . mam_setting('summer_prog_name', 'MAM Summer Music Camp') . "! Our team will review it and be in touch shortly.",
+    ];
+}
+
+/**
+ * Look up a summer application by reference + email (both required to prevent
+ * enumeration). Returns null when not found or email doesn't match.
+ */
+function mam_summer_application_status(string $reference, string $email): ?array {
+    $row = mam_db_row(
+        'SELECT * FROM summer_applications WHERE reference = ? AND LOWER(email) = LOWER(?)',
+        [trim($reference), trim($email)]
+    );
+    if (!$row) return null;
+
+    $stage = mam_summer_application_stage((string)($row['status'] ?? 'submitted'));
+    return [
+        'reference'    => (string)$row['reference'],
+        'first_name'   => (string)$row['first_name'],
+        'last_name'    => (string)($row['last_name'] ?? ''),
+        'programme'    => mam_setting('summer_prog_name', 'MAM Summer Music Camp'),
+        'session_start'=> mam_setting('summer_session_start', ''),
+        'session_end'  => mam_setting('summer_session_end', ''),
+        'session_year' => (int)($row['session_year'] ?? date('Y')),
+        'status'       => (string)$row['status'],
+        'stage'        => $stage['stage'],
+        'stage_label'  => $stage['label'],
+        'next_step'    => $stage['next'],
+        'submitted_at'  => (string)$row['created_at'],
+        'headshot_url'  => (string)($row['headshot_url'] ?? ''),
+        'is_summer'     => true,
+    ];
+}

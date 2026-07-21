@@ -42,6 +42,18 @@ if (function_exists('mam_app_draft_nudge_sweep')) {
     printf("draft nudge: emailed %d\n", mam_app_draft_nudge_sweep());
 }
 
+// Session reminders (24h out) + KTAMS birthday notes — each gated by its
+// automation flag (admin ?v=automations) and deduped through the events log.
+if (function_exists('mam_automation_session_reminder_sweep')) {
+    printf("reminders  : sessions reminded %d\n", mam_automation_session_reminder_sweep());
+}
+if (function_exists('mam_automation_ktams_birthday_sweep')) {
+    printf("birthdays  : KTAMS notes sent %d\n", mam_automation_ktams_birthday_sweep());
+}
+if (function_exists('mam_automation_week_drip_sweep')) {
+    printf("week drip  : modules released %d\n", mam_automation_week_drip_sweep());
+}
+
 // Warm the live FX cache here (the one place that's allowed to hit the network)
 // so the public display endpoint and the charge path both read the SAME cached
 // rate — the UI's "approx ₦…" can't disagree with what's charged.

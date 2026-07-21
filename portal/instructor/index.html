@@ -104,12 +104,10 @@
     var classes = (data.classes || []).filter(function (c) { return c.status === 'active'; });
     var students = data.students || [];
     var asg = data.assignments || [];
-    if (!classes.length && !students.length) {
-      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('list-check', 'Add students to a class first — then you can set assignments.') + '</div></section>';
-      return;
-    }
     var clsOpts = classes.map(function (c) { return '<option value="class:' + c.id + '">Whole class — ' + P.escapeHtml(c.title) + '</option>'; }).join('');
     var stuOpts = students.map(function (s) { return '<option value="student:' + s.id + '">' + P.escapeHtml(s.name) + (s.class_title ? ' (' + P.escapeHtml(s.class_title) + ')' : '') + '</option>'; }).join('');
+    // Dual-read: cohorts (course_enrollments) are added lazily below, so a
+    // cohort/course-only instructor can still assign work.
     var targetSel = '<select id="asg-target" required>'
       + (clsOpts ? '<optgroup label="Classes">' + clsOpts + '</optgroup>' : '')
       + (stuOpts ? '<optgroup label="Students">' + stuOpts + '</optgroup>' : '')
@@ -165,7 +163,9 @@
       if (!title) return;
       var tgt = (document.getElementById('asg-target').value || '').split(':');
       var body = { title: title, instructions: document.getElementById('asg-instr').value.trim(), due_on: document.getElementById('asg-due').value || null };
-      if (tgt[0] === 'class') body.class_id = parseInt(tgt[1], 10); else body.student_id = parseInt(tgt[1], 10);
+      if (tgt[0] === 'class') body.class_id = parseInt(tgt[1], 10);
+      else if (tgt[0] === 'cohort') body.cohort_id = parseInt(tgt[1], 10);
+      else body.student_id = parseInt(tgt[1], 10);
       var btn = e.target.querySelector('button'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
       API.request('instructor/assignment', { method: 'POST', body: body }).then(function (r) {
         var n = r.created || 1;
@@ -176,6 +176,29 @@
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not set: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not set.'));
       });
     });
+
+    // Dual-read: lazily add the instructor's cohorts as assignment targets, so
+    // a cohort/course-only student can be set work. Best-effort — a failed
+    // fetch just leaves the legacy class/student targets in place.
+    API.request('instructor/sessions', { method: 'GET' }).then(function (r) {
+      var cohorts = (r && r.cohorts) || [];
+      var sel = document.getElementById('asg-target');
+      if (!sel) return;
+      if (cohorts.length) {
+        var og = document.createElement('optgroup'); og.label = 'Cohorts';
+        cohorts.forEach(function (c) {
+          var o = document.createElement('option');
+          o.value = 'cohort:' + c.id;
+          o.textContent = 'Whole cohort — ' + (c.title || c.course_name || ('Cohort #' + c.id));
+          og.appendChild(o);
+        });
+        sel.insertBefore(og, sel.firstChild);
+      }
+      if (!sel.options.length) {
+        var form = document.getElementById('asgForm');
+        if (form) form.innerHTML = empty('list-check', 'Add students to a class or cohort first — then you can set assignments.');
+      }
+    }).catch(function () { /* leave legacy targets as-is */ });
   }
 
   // ── Submissions review + feedback (L2) ──
@@ -194,7 +217,7 @@
       var icon = { audio: 'volume-high', video: 'video', pdf: 'file-pdf', image: 'image', link: 'link' };
       var cards = subs.map(function (s) {
         return '<div class="panel" data-subid="' + s.id + '" style="margin-bottom:14px"><div class="panel-head"><h2 style="font-size:0.98rem">' + P.escapeHtml(s.student_name) + ' <span class="pill ' + P.escapeHtml(s.status) + '" style="margin-left:6px">' + P.escapeHtml(s.status) + '</span></h2>'
-          + (s.artifact_url ? '<a href="' + P.escapeHtml(s.artifact_url) + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.85rem"><i class="fa-solid fa-' + (icon[s.artifact_kind] || 'link') + '" style="margin-right:5px"></i>open ↗</a>' : '') + '</div>'
+          + (s.artifact_url ? '<a href="' + P.escapeHtml(/^https?:\/\//i.test(s.artifact_url) ? s.artifact_url : '#') + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.85rem"><i class="fa-solid fa-' + (icon[s.artifact_kind] || 'link') + '" style="margin-right:5px"></i>open ↗</a>' : '') + '</div>'
           + '<form class="fb-form profile-form" style="padding:14px 18px;display:grid;gap:10px">'
           +   '<div class="field"><label>Feedback</label><textarea name="comments" rows="2" placeholder="What worked, what to fix…">' + P.escapeHtml(s.feedback_comments || '') + '</textarea></div>'
           +   '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><select name="outcome"><option value="accepted"' + (s.feedback_outcome === 'accepted' ? ' selected' : '') + '>Accept</option><option value="revise"' + (s.feedback_outcome === 'revise' ? ' selected' : '') + '>Revise &amp; resubmit</option></select>'
@@ -273,25 +296,78 @@
     API.request('instructor/sessions?cohort_id=' + encodeURIComponent(cid), { method: 'GET' }).then(function (r) {
       var sessions = r.sessions || [];
       var rows = sessions.length ? sessions.map(function (s) {
-        var when = s.scheduled_at ? P.escapeHtml(P.fmtDateTime(s.scheduled_at)) : '<span style="color:var(--text-muted)">unscheduled</span>';
+        var gcalUrl = s.scheduled_at ? (function(){
+          var st = new Date(s.scheduled_at.replace(' ','T')+'Z');
+          if(isNaN(st.getTime())) return null;
+          var en = new Date(st.getTime()+(parseInt(s.duration_min,10)||60)*60000);
+          function f(d){return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';}
+          return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(s.title||'Session')+'&dates='+f(st)+'/'+f(en)+'&location='+encodeURIComponent('MAM Academy');
+        })() : null;
+        var calIcon = gcalUrl ? ' <a href="'+gcalUrl+'" target="_blank" rel="noopener" title="Add to Google Calendar" style="color:var(--gold-bright);font-size:.78rem;margin-left:4px"><i class="fa-solid fa-calendar-plus"></i></a>' : '';
+        var when = s.scheduled_at ? P.escapeHtml(P.fmtDateTime(s.scheduled_at))+calIcon : '<span style="color:var(--text-muted)">unscheduled</span>';
+        var hasNotes = !!(s.lesson_notes || s.topics || s.learning_outcomes);
+        var notesBtnLabel = hasNotes ? '📝 Notes' : '📝 Notes';
         var actions = '<button class="btn" data-mark="' + s.id + '"><i class="fa-solid fa-clipboard-check"></i> Attendance</button>';
-        if (s.status === 'scheduled') actions += ' <button class="btn" data-sess-status="' + s.id + '|held">Held</button> <button class="btn" data-sess-status="' + s.id + '|cancelled">Cancel</button>';
-        return '<tr><td>' + P.escapeHtml(s.title || ('Session #' + s.id)) + '</td><td>' + when + '</td><td>' + P.escapeHtml(s.kind) + '</td><td><span class="pill ' + P.escapeHtml(s.status) + '">' + P.escapeHtml(s.status) + '</span></td><td>' + actions + '</td></tr>';
+        if (s.status !== 'cancelled') actions += ' <button class="btn" data-sess-qr="' + s.id + '"><i class="fa-solid fa-qrcode"></i> QR</button>';
+        if (s.status !== 'scheduled' || s.scheduled_at) actions += ' <button class="btn btn-ghost" data-lesson-notes="' + s.id + '" style="' + (hasNotes ? 'border-color:var(--gold-bright);color:var(--gold-bright)' : '') + '">' + notesBtnLabel + '</button>';
+        if (s.status === 'scheduled') {
+          actions += ' <button class="btn btn-ghost" data-reschedule="' + s.id + '" title="Reschedule"><i class="fa-solid fa-calendar-pen"></i></button>';
+          actions += ' <button class="btn" data-sess-status="' + s.id + '|held">Held</button>';
+          actions += ' <button class="btn btn-ghost" data-sess-status="' + s.id + '|cancelled" style="color:var(--red,#ef4444)">Cancel</button>';
+        }
+        if (s.status === 'held') {
+          actions += ' <button class="btn btn-ghost" data-progress-report="' + s.id + '" style="color:var(--gold-bright);border-color:var(--gold-bright)"><i class="fa-solid fa-clipboard-list"></i> Reports</button>';
+        }
+        var subName = s.substitute_name ? (' <span style="font-size:.72rem;color:var(--gold-bright)">sub: ' + P.escapeHtml(s.substitute_name) + '</span>') : '';
+        var roomStr = s.room ? (' <span style="font-size:.7rem;color:var(--text-muted)"><i class="fa-solid fa-location-dot"></i> ' + P.escapeHtml(s.room) + '</span>') : '';
+        return '<tr data-sess-id="' + s.id + '"><td>' + P.escapeHtml(s.title || ('Session #' + s.id)) + subName + '</td><td>' + when + roomStr + '</td><td>' + P.escapeHtml(s.kind) + '</td><td><span class="pill ' + P.escapeHtml(s.status) + '">' + P.escapeHtml(s.status) + '</span></td><td style="white-space:nowrap">' + actions + '</td></tr>';
       }).join('') : '<tr><td colspan="5" class="empty">No sessions yet — schedule one below.</td></tr>';
-      area.innerHTML = '<section class="panel"><div class="panel-head"><h2>Sessions</h2></div>'
+      var fc = r.fill_count || {};
+      var capBar = (fc.capacity && fc.capacity < 999) ? ('<div style="display:flex;align-items:center;gap:10px;padding:10px 18px;background:var(--surface-secondary);border-bottom:1px solid var(--border)">'
+        + '<div style="flex:1;background:var(--border);border-radius:6px;height:8px"><div style="width:' + Math.min(100, Math.round((fc.enrolled||0)/(fc.capacity)*100)) + '%;height:100%;background:' + (fc.is_full ? '#F87171' : fc.enrolled/(fc.capacity)>=0.8?'#FBBF24':'#34D399') + ';border-radius:6px"></div></div>'
+        + '<span style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">' + (fc.enrolled||0) + ' / ' + fc.capacity + ' enrolled'
+        + (fc.waitlist_count ? ' · <span style="color:var(--gold)">' + fc.waitlist_count + ' waiting</span>' : '') + '</span></div>') : '';
+      area.innerHTML = '<section class="panel"><div class="panel-head"><h2>Sessions</h2>'
+        + '<div style="display:flex;gap:6px"><button class="panel-action" onclick="document.getElementById(\'bulkPanel\').style.display = document.getElementById(\'bulkPanel\').style.display===\'none\'?\'block\':\'none\'"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate term</button></div></div>'
+        + capBar
         + '<table><thead><tr><th>Session</th><th>When</th><th>Kind</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></section>'
-        + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Schedule a session</h2></div>'
+        + '<div id="bulkPanel" style="display:none">'
+        + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--gold-bright)"></i> Generate Term Sessions</h2></div>'
+        + '<div class="profile-form" style="padding:14px 18px">'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+        + '<div class="field"><label>From</label><input id="bsFrom" type="date"></div>'
+        + '<div class="field"><label>To</label><input id="bsTo" type="date"></div>'
+        + '<div class="field"><label>Time</label><input id="bsT" type="time" value="09:00"></div>'
+        + '<div class="field"><label>Duration (min)</label><input id="bsD" type="number" value="60" min="15" max="480"></div>'
+        + '</div>'
+        + '<div class="field" style="margin-top:10px"><label>Days</label><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">'
+        + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(function(d,i){ return '<label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" class="bsDay" value="' + i + '"' + (i===1||i===3?' checked':'') + '>' + d + '</label>'; }).join('')
+        + '</div></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">'
+        + '<div class="field"><label>Title prefix</label><input id="bsPfx" placeholder="Week, Session…" value="Week"></div>'
+        + '<div class="field"><label>Room / location</label><input id="bsRoom" placeholder="Studio A…"></div>'
+        + '<div class="field"><label>Kind</label><select id="bsKnd"><option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option></select></div>'
+        + '<div class="field"><label>Skip dates <span style="font-weight:400;color:var(--text-muted)">(Y-m-d, comma-sep)</span></label><input id="bsSkip" placeholder="2026-12-25"></div>'
+        + '</div>'
+        + '<div id="bsPreviewLine" style="font-size:.82rem;color:var(--text-muted);margin:10px 0"></div>'
+        + '<div style="display:flex;gap:8px;margin-top:4px">'
+        + '<button class="btn" onclick="bulkPreview(' + cid + ')"><i class="fa-solid fa-eye"></i> Preview</button>'
+        + '<button class="btn btn-primary" id="bsGenBtn" onclick="bulkGenerate(' + cid + ')"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate</button>'
+        + '<button class="btn btn-ghost" onclick="document.getElementById(\'bulkPanel\').style.display=\'none\'">Cancel</button>'
+        + '</div></div></section></div>'
+        + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Schedule a single session</h2></div>'
         + '<form id="sessForm" class="profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
         +   '<div class="field" style="flex:1;min-width:160px"><label>Title</label><input name="title" placeholder="e.g. Week 1 — Scales"></div>'
         +   '<div class="field"><label>Date &amp; time</label><input name="scheduled_at" type="datetime-local"></div>'
         +   '<div class="field" style="width:90px"><label>Minutes</label><input name="duration_min" type="number" min="1" value="60"></div>'
+        +   '<div class="field" style="width:80px"><label>Room</label><input name="room" placeholder="Studio A"></div>'
         +   '<div class="field" style="width:120px"><label>Kind</label><select name="kind"><option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option></select></div>'
         +   '<button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Schedule</button>'
         + '</form></section>'
         + '<div id="markArea"></div>'
         + '<div id="cohortStandings"></div>'
         + '<div id="cohortCurriculum"></div>';
-      bindSessionList(cid);
+      bindSessionList(cid, sessions);
       loadCohortStandings(cid);
       loadCohortCurriculum(cid);
     }).catch(function () { area.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load sessions.') + '</div></section>'; });
@@ -377,15 +453,87 @@
     }).catch(function () { /* curriculum is additive — never block the sessions view */ });
   }
 
-  function bindSessionList(cid) {
+  function bindSessionList(cid, sessions) {
+    var sessMap = {};
+    (sessions || []).forEach(function (s) { sessMap[s.id] = s; });
+
+    // Lesson notes editor
+    document.querySelectorAll('[data-lesson-notes]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-lesson-notes'), 10);
+        var s = sessMap[sid] || {};
+        var area = document.getElementById('markArea');
+        if (!area) return;
+        var formId = 'lnForm_' + sid;
+        area.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>📝 Lesson Record — ' + P.escapeHtml(s.title || 'Session #' + sid) + '</h2></div>'
+          + '<form id="' + formId + '" class="profile-form" style="padding:16px 20px;display:flex;flex-direction:column;gap:14px">'
+          + '<div class="field"><label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;display:block">Topics covered <span style="color:var(--text-muted);font-size:0.75rem">(brief list)</span></label>'
+          + '<input name="topics" placeholder="e.g. C major scale, chord inversions, sight-reading" style="width:100%" value="' + P.escapeHtml(s.topics || '') + '"></div>'
+          + '<div class="field"><label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;display:block">Lesson notes <span style="color:var(--text-muted);font-size:0.75rem">(what was taught, how the student responded)</span></label>'
+          + '<textarea name="lesson_notes" rows="4" placeholder="Describe what was covered this session, student performance, any challenges…" style="width:100%;resize:vertical">' + P.escapeHtml(s.lesson_notes || '') + '</textarea></div>'
+          + '<div class="field"><label style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;display:block">Learning outcomes <span style="color:var(--text-muted);font-size:0.75rem">(what the student achieved)</span></label>'
+          + '<textarea name="learning_outcomes" rows="3" placeholder="e.g. Student can now play the C major scale with correct fingering at 80bpm" style="width:100%;resize:vertical">' + P.escapeHtml(s.learning_outcomes || '') + '</textarea></div>'
+          + '<div style="display:flex;gap:10px;align-items:center"><button type="submit" class="btn btn-primary">Save Lesson Record</button><button type="button" id="lnCancel" class="btn btn-ghost">Cancel</button><span id="lnMsg" style="font-size:0.85rem;color:var(--text-muted)"></span></div>'
+          + '</form></section>';
+        document.getElementById('lnCancel').addEventListener('click', function () { area.innerHTML = ''; });
+        document.getElementById(formId).addEventListener('submit', function (e) {
+          e.preventDefault();
+          var btn2 = e.target.querySelector('button[type=submit]'), msg = document.getElementById('lnMsg');
+          btn2.disabled = true; btn2.textContent = 'Saving…';
+          API.request('instructor/lesson-record', { method: 'POST', body: {
+            session_id: sid,
+            topics: e.target.elements.topics.value,
+            lesson_notes: e.target.elements.lesson_notes.value,
+            learning_outcomes: e.target.elements.learning_outcomes.value,
+          }}).then(function () {
+            btn2.disabled = false; btn2.textContent = 'Save Lesson Record';
+            msg.textContent = 'Saved.';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Lesson record saved.', 'success');
+            // Refresh session list so the Notes button reflects the saved state
+            setTimeout(function () { loadCohortSessions(cid); }, 800);
+          }).catch(function () {
+            btn2.disabled = false; btn2.textContent = 'Save Lesson Record';
+            msg.textContent = 'Could not save. Try again.';
+          });
+        });
+      });
+    });
+
     var form = document.getElementById('sessForm');
     if (form) form.addEventListener('submit', function (e) {
       e.preventDefault();
-      var btn = form.querySelector('button'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Scheduling…';
-      var body = { action: 'create', cohort_id: cid, title: form.elements.title.value, scheduled_at: form.elements.scheduled_at.value, duration_min: parseInt(form.elements.duration_min.value, 10) || 60, kind: form.elements.kind.value };
+      var btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Scheduling…';
+      var body = { action: 'create', cohort_id: cid, title: form.elements.title.value, scheduled_at: form.elements.scheduled_at.value, duration_min: parseInt(form.elements.duration_min.value, 10) || 60, kind: form.elements.kind.value, room: form.elements.room.value };
       API.request('instructor/sessions', { method: 'POST', body: body })
-        .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Session scheduled.', 'success'); loadCohortSessions(cid); })
-        .catch(function () { btn.disabled = false; btn.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not schedule.', 'error'); });
+        .then(function (r) {
+          btn.disabled = false; btn.textContent = 'Schedule';
+          if (r.conflicts && r.conflicts.length) {
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('⚠ Scheduled, but conflicts with ' + r.conflicts.length + ' other session(s).', 'warn');
+          } else if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Session scheduled.', 'success');
+          loadCohortSessions(cid);
+        })
+        .catch(function () { btn.disabled = false; btn.textContent = 'Schedule'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not schedule.', 'error'); });
+    });
+
+    // Reschedule buttons
+    document.querySelectorAll('[data-reschedule]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-reschedule'), 10);
+        var s = sessMap[sid] || {};
+        var defAt = (s.scheduled_at || '').slice(0, 16);
+        var newAt = prompt('New date/time for "' + (s.title || 'Session #' + sid) + '":\n(YYYY-MM-DDTHH:MM)', defAt);
+        if (!newAt || newAt === defAt) return;
+        var reason = prompt('Reason for rescheduling (optional):') || null;
+        b.disabled = true;
+        API.request('instructor/sessions', { method: 'POST', body: { action: 'reschedule', session_id: sid, scheduled_at: newAt.replace('T', ' ') + ':00', reason: reason } })
+          .then(function (r) {
+            if (r.conflicts && r.conflicts.length) {
+              if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Rescheduled — but conflicts with ' + r.conflicts.length + ' other session(s).', 'warn');
+            } else if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Session rescheduled.', 'success');
+            loadCohortSessions(cid);
+          })
+          .catch(function () { b.disabled = false; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not reschedule.', 'error'); });
+      });
     });
     document.querySelectorAll('[data-sess-status]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -398,6 +546,179 @@
     document.querySelectorAll('[data-mark]').forEach(function (b) {
       b.addEventListener('click', function () { openMarkSheet(parseInt(b.getAttribute('data-mark'), 10)); });
     });
+    document.querySelectorAll('[data-sess-qr]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-sess-qr'), 10);
+        var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        API.request('instructor/session-attendance-qr?session_id=' + sid, { method: 'GET' })
+          .then(function (r) { b.disabled = false; b.innerHTML = orig; sessionQrModal(r); })
+          .catch(function () { b.disabled = false; b.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not load the QR', 'error'); });
+      });
+    });
+
+    document.querySelectorAll('[data-progress-report]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-progress-report'), 10);
+        var area = document.getElementById('markArea');
+        if (!area) return;
+        var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        API.request('instructor/progress-report?session_id=' + sid, { method: 'GET' })
+          .then(function (d) {
+            b.disabled = false; b.innerHTML = orig;
+            openProgressReportPanel(area, sid, d, cid);
+          })
+          .catch(function () {
+            b.disabled = false; b.innerHTML = orig;
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not load progress reports.', 'error');
+          });
+      });
+    });
+  }
+
+  function openProgressReportPanel(area, sid, d, cid) {
+    var students = d.students || [];
+    var reports  = d.reports || {};
+    var template = d.template;
+    var session  = d.session || {};
+    var sessionTitle = P.escapeHtml(session.title || ('Session #' + sid));
+
+    if (!students.length) {
+      area.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>📋 Progress Reports — ' + sessionTitle + '</h2></div>'
+        + '<div class="panel-body">' + empty('users', 'No students enrolled in this cohort.') + '</div></section>';
+      return;
+    }
+
+    function buildQuestionField(q, i, existing) {
+      var val = existing ? (existing[q.label] || '') : '';
+      var lbl = '<label style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:4px">' + P.escapeHtml(q.label) + (q.required ? ' <span style="color:var(--red,#ef4444)">*</span>' : '') + '</label>';
+      if (q.type === 'textarea') return lbl + '<textarea name="q_' + i + '" rows="2" style="width:100%;resize:vertical" data-label="' + P.escapeHtml(q.label) + '"' + (q.required?' required':'') + '>' + P.escapeHtml(String(val)) + '</textarea>';
+      if (q.type === 'rating')   return lbl + '<select name="q_' + i + '" data-label="' + P.escapeHtml(q.label) + '"' + (q.required?' required':'') + '><option value="">—</option>' + [1,2,3,4,5].map(function(n){ return '<option value="' + n + '"' + (val==n?' selected':'') + '>' + n + ' ★</option>'; }).join('') + '</select>';
+      if (q.type === 'select')   return lbl + '<select name="q_' + i + '" data-label="' + P.escapeHtml(q.label) + '"' + (q.required?' required':'') + '><option value="">—</option>' + (q.options||[]).map(function(o){ return '<option value="' + P.escapeHtml(o) + '"' + (val===o?' selected':'') + '>' + P.escapeHtml(o) + '</option>'; }).join('') + '</select>';
+      return lbl + '<input type="text" name="q_' + i + '" data-label="' + P.escapeHtml(q.label) + '" value="' + P.escapeHtml(String(val)) + '"' + (q.required?' required':'') + ' style="width:100%">';
+    }
+
+    var qs = template ? (template.questions || []) : [];
+    var noTemplate = !template ? '<div style="background:rgba(232,150,31,.08);border-left:3px solid var(--gold-bright);padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:14px;font-size:.84rem;color:var(--gold-bright)"><i class="fa-solid fa-triangle-exclamation"></i> No active progress report template. Only the narrative will be available. Set one up in Admin → Form Builder.</div>' : '';
+
+    var cards = students.map(function (st) {
+      var existing = reports[st.id] || null;
+      var isDone   = !!(existing && existing.email_sent);
+      var doneTag  = isDone ? '<span class="pill" style="background:rgba(52,211,153,.12);color:#34D399;font-size:.68rem"><i class="fa-solid fa-check"></i> Sent</span>' : '';
+      var formId   = 'pr_form_' + sid + '_' + st.id;
+      var qFields  = qs.length ? qs.map(function(q,i){ return '<div style="margin-bottom:10px">' + buildQuestionField(q, i, existing ? existing.answers : null) + '</div>'; }).join('') : '';
+      var narr     = existing ? (existing.narrative || '') : '';
+      return '<div class="card" style="margin-bottom:12px;padding:16px 18px">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">'
+        + '<div><strong>' + P.escapeHtml(st.name) + '</strong><span style="font-size:.75rem;color:var(--text-muted);margin-left:8px">' + P.escapeHtml(st.enrollment_ref || '') + '</span></div>'
+        + doneTag + '</div>'
+        + (isDone && !existing ? '' :
+           '<form id="' + formId + '" data-sid="' + sid + '" data-stuid="' + st.id + '">'
+           + noTemplate + qFields
+           + '<div style="margin-top:10px"><label style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:4px">Instructor note (optional narrative)</label>'
+           + '<textarea name="narrative" rows="2" style="width:100%;resize:vertical">' + P.escapeHtml(narr) + '</textarea></div>'
+           + '<div style="margin-top:10px;display:flex;gap:8px;align-items:center">'
+           + '<button type="submit" class="btn btn-primary" style="font-size:.82rem"><i class="fa-solid fa-paper-plane"></i> ' + (existing ? 'Update & Resend' : 'Submit & Send Email') + '</button>'
+           + '<span class="pr-msg" style="font-size:.8rem;color:var(--text-muted)"></span>'
+           + '</div></form>')
+        + '</div>';
+    }).join('');
+
+    area.innerHTML = '<section class="panel" style="margin-top:18px">'
+      + '<div class="panel-head"><h2>📋 Progress Reports — ' + sessionTitle + '</h2>'
+      + '<button class="panel-action" onclick="document.getElementById(\'markArea\').innerHTML=\'\'">Close</button></div>'
+      + '<div style="padding:16px 18px">' + cards + '</div></section>';
+
+    area.querySelectorAll('[id^="pr_form_"]').forEach(function (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var sessId  = parseInt(form.dataset.sid, 10);
+        var stuId   = parseInt(form.dataset.stuid, 10);
+        var answers = {};
+        form.querySelectorAll('[data-label]').forEach(function (el) { answers[el.dataset.label] = el.value; });
+        var narrative = form.elements.narrative ? form.elements.narrative.value.trim() : '';
+        var btn = form.querySelector('button[type=submit]'), msg = form.querySelector('.pr-msg');
+        btn.disabled = true; btn.textContent = 'Sending…';
+        API.request('instructor/progress-report', { method: 'POST', body: { session_id: sessId, student_id: stuId, answers: answers, narrative: narrative || null } })
+          .then(function (r) {
+            btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Sent';
+            if (msg) msg.textContent = r.email_sent ? 'Email sent.' : 'Saved (email could not be sent).';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Progress report sent.', 'success');
+          })
+          .catch(function () {
+            btn.disabled = false; btn.textContent = 'Submit & Send Email';
+            if (msg) msg.textContent = 'Could not submit. Try again.';
+          });
+      });
+    });
+  }
+
+  // Bulk session generation helpers (for the Generate Term panel in the sessions view).
+  function _getBulkPayload(cid) {
+    var days = [];
+    document.querySelectorAll('.bsDay:checked').forEach(function (cb) { days.push(parseInt(cb.value, 10)); });
+    var skip = (document.getElementById('bsSkip') && document.getElementById('bsSkip').value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    return {
+      cohort_id: cid,
+      start_date: document.getElementById('bsFrom') ? document.getElementById('bsFrom').value : '',
+      end_date: document.getElementById('bsTo') ? document.getElementById('bsTo').value : '',
+      day_of_week: days,
+      time_of_day: document.getElementById('bsT') ? document.getElementById('bsT').value : '09:00',
+      duration_min: parseInt(document.getElementById('bsD') ? document.getElementById('bsD').value : '60', 10) || 60,
+      kind: document.getElementById('bsKnd') ? document.getElementById('bsKnd').value : 'class',
+      title_prefix: document.getElementById('bsPfx') ? document.getElementById('bsPfx').value.trim() : '',
+      room: document.getElementById('bsRoom') ? document.getElementById('bsRoom').value.trim() : '',
+      skip_dates: skip,
+    };
+  }
+  window.bulkPreview = function (cid) {
+    var prev = document.getElementById('bsPreviewLine');
+    if (prev) prev.textContent = 'Computing…';
+    var body = _getBulkPayload(cid); body.action = 'preview';
+    API.request('instructor/sessions', { method: 'POST', body: body })
+      .then(function (r) {
+        if (prev) prev.textContent = r.count + ' session' + (r.count === 1 ? '' : 's') + ' would be created'
+          + (r.dates && r.dates.length ? ': ' + r.dates.slice(0, 5).join(', ') + (r.count > 5 ? '…' : '') : '') + '.';
+      }).catch(function () { if (prev) prev.textContent = 'Preview failed.'; });
+  };
+  window.bulkGenerate = function (cid) {
+    if (!confirm('Generate sessions for this cohort?')) return;
+    var btn = document.getElementById('bsGenBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Generating…'; }
+    var body = _getBulkPayload(cid); body.action = 'bulk_create';
+    API.request('instructor/sessions', { method: 'POST', body: body })
+      .then(function (r) {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate'; }
+        if (window.MAM_DIALOG) window.MAM_DIALOG.toast(r.count + ' sessions created.', 'success');
+        loadCohortSessions(cid);
+      }).catch(function () {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate'; }
+        if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not generate sessions.', 'error');
+      });
+  };
+
+  // Cohort-session check-in QR (P2). Standalone twin of renderAttendance's class
+  // QR modal; students scan it to self-check-in against session_attendance.
+  function sessionQrModal(r) {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(10,7,4,.78);backdrop-filter:blur(4px)';
+    var qrOk = (typeof QRCode !== 'undefined');
+    var label = (r.cohort_title || 'Cohort') + (r.session_title ? ' · ' + r.session_title : '');
+    ov.innerHTML = '<style>#sess-qr-canvas img{width:210px!important;height:210px!important;display:block;flex:none}#sess-qr-canvas canvas{display:none}</style>'
+      + '<div role="dialog" aria-modal="true" aria-label="Session check-in QR" style="max-width:400px;width:100%;text-align:center;background:var(--bg-surface);border:1px solid var(--border-gold);border-radius:18px;padding:26px 24px;box-shadow:0 30px 70px rgba(0,0,0,.5)">'
+      + '<h3 style="font-family:var(--font-serif,Georgia,serif);margin:0 0 4px;color:var(--text)">Scan to check in</h3>'
+      + '<p style="color:var(--text-muted);font-size:.85rem;margin:0 0 14px">' + P.escapeHtml(label) + ' &middot; ' + P.escapeHtml(r.date || '') + '</p>'
+      + (qrOk ? '<div id="sess-qr-canvas" style="display:inline-block;background:#fff;padding:14px;border-radius:12px;margin:0 auto;line-height:0"></div>' : '')
+      + '<p style="color:var(--text-soft);font-size:.78rem;margin:14px 0 0;word-break:break-all"><a href="' + encodeURI(r.url || '') + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">' + P.escapeHtml(r.url || '') + '</a></p>'
+      + '<p style="color:var(--text-muted);font-size:.76rem;margin:8px 0 0">Enrolled students sign in and scan &mdash; valid for the session day only.</p>'
+      + '<button type="button" data-qr-close class="btn" style="margin-top:16px"><i class="fa-solid fa-xmark"></i> Close</button>'
+      + '</div>';
+    document.body.appendChild(ov);
+    if (qrOk) { try { new QRCode(ov.querySelector('#sess-qr-canvas'), { text: r.url, width: 210, height: 210, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {} }
+    function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    ov.querySelector('[data-qr-close]').addEventListener('click', close);
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+    document.addEventListener('keydown', onKey);
   }
 
   function openMarkSheet(sid) {
@@ -434,68 +755,129 @@
   function renderGradebook() {
     content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('clipboard-list', 'Loading gradebook…') + '</div></section>';
     loadGradebook().then(function (gb) {
-      var ens = gb.enrollments || [], types = gb.types || [];
+      var ens = gb.enrollments || [], types = gb.types || [], passmark = gb.pass_mark || 50;
       if (!ens.length) {
         content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('graduation-cap', 'No course students assigned yet. When an admin approves a student\'s course and assigns it to you, they appear here to grade.') + '</div></section>';
         return;
       }
       var typeOpts = types.map(function (t) { return '<option value="' + P.escapeHtml(t.code) + '">' + P.escapeHtml(t.name) + ' (' + t.weight + '%)</option>'; }).join('');
-      var cards = ens.map(function (e) {
-        return '<div class="panel" data-eid="' + e.id + '" style="margin-bottom:14px">'
-          + '<div class="panel-head"><h2 style="font-size:1rem">' + P.escapeHtml(e.student_name) + ' <span style="color:var(--text-muted);font-weight:500">— ' + P.escapeHtml(e.course_name) + (e.level_name ? ' · ' + P.escapeHtml(e.level_name) : '') + '</span></h2>'
-          + '<span style="display:flex;align-items:center;gap:8px"><span class="gb-result">' + gradePill(e) + '</span>'
-          + '<button type="button" class="btn btn-ghost gb-marks-btn" style="padding:4px 10px;font-size:0.74rem"><i class="fa-solid fa-list-ol"></i> Marks</button></span></div>'
+
+      // Build cohort index (preserving order from API, which sorts by cohort title)
+      var cohortMap = {}, cohortOrder = [];
+      ens.forEach(function (e) {
+        var key = String(e.cohort_id || 0);
+        if (!cohortMap[key]) {
+          cohortMap[key] = e.cohort_title || (e.cohort_id ? 'Cohort #' + e.cohort_id : 'Ungrouped');
+          cohortOrder.push(key);
+        }
+      });
+
+      function makeProgressBar(score, outcome) {
+        var pct = score != null ? Math.min(100, Math.round(score)) : 0;
+        var fillCol = score == null ? 'var(--border)' : (outcome === 'pass' ? '#34D399' : '#F87171');
+        var pmPct   = Math.min(100, passmark);
+        return '<div style="position:relative;height:6px;background:var(--border);border-radius:3px;margin-top:6px;width:100%;max-width:220px">'
+          + '<div class="gb-progress-inner" style="position:absolute;inset:0;right:auto;width:' + pct + '%;background:' + fillCol + ';border-radius:3px;transition:width .3s"></div>'
+          + '<div style="position:absolute;top:-3px;left:' + pmPct + '%;width:2px;height:12px;background:rgba(128,128,128,.45);border-radius:1px" title="Pass mark ' + passmark + '%"></div>'
+          + '</div>';
+      }
+
+      function buildCard(e) {
+        return '<div class="panel" data-eid="' + e.id + '" style="margin-bottom:8px">'
+          + '<div class="panel-head" style="align-items:flex-start;gap:10px">'
+          + '<div style="flex:1;min-width:0"><h2 style="font-size:.97rem;margin:0">' + P.escapeHtml(e.student_name)
+          + '<span style="color:var(--text-muted);font-weight:500"> — ' + P.escapeHtml(e.course_name) + (e.level_name ? ' · ' + P.escapeHtml(e.level_name) : '') + '</span></h2>'
+          + makeProgressBar(e.total_score, e.outcome) + '</div>'
+          + '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:2px"><span class="gb-result">' + gradePill(e) + '</span>'
+          + '<button type="button" class="btn btn-ghost gb-marks-btn" style="padding:4px 10px;font-size:.74rem"><i class="fa-solid fa-list-ol"></i> Marks</button></span></div>'
           + '<form class="gb-form profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
-          +   '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type">' + typeOpts + '</select></div>'
-          +   '<div class="field" style="width:84px"><label>Score</label><input name="score" type="number" min="0" step="0.5" required></div>'
-          +   '<div class="field" style="width:74px"><label>Out of</label><input name="max" type="number" min="1" step="0.5" value="100"></div>'
-          +   '<div class="field" style="width:70px"><label>Week</label><input name="week" type="number" min="1" max="12"></div>'
-          +   '<button type="submit" class="btn btn-primary" style="padding:9px 14px"><i class="fa-solid fa-plus"></i> Record</button>'
+          + '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type">' + typeOpts + '</select></div>'
+          + '<div class="field" style="width:84px"><label>Score</label><input name="score" type="number" min="0" step="0.5" required></div>'
+          + '<div class="field" style="width:74px"><label>Out of</label><input name="max" type="number" min="1" step="0.5" value="100"></div>'
+          + '<div class="field" style="width:70px"><label>Week</label><input name="week" type="number" min="1" max="12"></div>'
+          + '<button type="submit" class="btn btn-primary" style="padding:9px 14px"><i class="fa-solid fa-plus"></i> Record</button>'
           + '</form>'
           + '<div class="gb-marks" hidden></div></div>';
-      }).join('');
-      content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Gradebook</h2><span style="font-size:0.8rem;color:var(--text-muted)">Pass mark ' + (gb.pass_mark || 50) + '%</span></div>'
-        + '<div style="padding:0 22px 14px;color:var(--text-muted);font-size:0.86rem;line-height:1.55">Record weekly scores across the weighted components — results compute automatically and appear in each student\'s portal.</div></section>'
-        + cards;
-      content.querySelectorAll('.gb-form').forEach(function (form) {
-        form.addEventListener('submit', function (ev) {
-          ev.preventDefault();
-          var card = form.closest('[data-eid]');
-          var score = parseFloat(form.elements.score.value);
-          if (isNaN(score)) return;
-          var body = { enrollment_id: parseInt(card.getAttribute('data-eid'), 10), type: form.elements.type.value, score: score, max_score: parseFloat(form.elements.max.value) || 100 };
-          if (form.elements.week.value) body.week = parseInt(form.elements.week.value, 10);
-          var btn = form.querySelector('button'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
-          API.request('instructor/assess', { method: 'POST', body: body }).then(function (r) {
-            btn.disabled = false; btn.innerHTML = orig; form.reset(); form.elements.max.value = '100';
-            gbApplyResult(card, r.result); gbCache = null; // next open re-fetches fresh standings
-            var box = card.querySelector('.gb-marks'); if (box && !box.hidden) gbLoadMarks(card);
-            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Score recorded.', 'success');
-          }).catch(function (err) {
-            btn.disabled = false; btn.innerHTML = orig;
-            var msg = (err && err.body && err.body.error) || 'try again';
-            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not record: ' + msg, 'error'); else alert('Could not record the score.');
+      }
+
+      function paintView(filter) {
+        var visible = filter ? ens.filter(function (e) { return String(e.cohort_id || 0) === String(filter); }) : ens;
+
+        var filterOpts = '<option value="">All cohorts (' + ens.length + ')</option>'
+          + cohortOrder.map(function (k) {
+            var cnt = ens.filter(function (e) { return String(e.cohort_id || 0) === k; }).length;
+            return '<option value="' + k + '"' + (filter === k ? ' selected' : '') + '>' + P.escapeHtml(cohortMap[k]) + ' (' + cnt + ')</option>';
+          }).join('');
+
+        var headerHtml = '<section class="panel"><div class="panel-head"><h2>Gradebook</h2><span style="font-size:.8rem;color:var(--text-muted)">Pass mark ' + passmark + '%</span></div>'
+          + '<div style="padding:10px 22px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+          + '<label style="margin:0;display:flex;align-items:center;gap:8px;font-weight:500"><i class="fa-solid fa-filter" style="color:var(--text-muted);font-size:.78rem"></i>'
+          + '<select id="gbCohortFilter" style="min-width:200px">' + filterOpts + '</select></label>'
+          + '<span style="font-size:.82rem;color:var(--text-muted)">' + visible.length + ' student' + (visible.length !== 1 ? 's' : '') + '</span>'
+          + '</div></section>';
+
+        var cardsHtml = cohortOrder.map(function (key) {
+          var group = visible.filter(function (e) { return String(e.cohort_id || 0) === key; });
+          if (!group.length) return '';
+          var passed   = group.filter(function (e) { return e.outcome === 'pass'; }).length;
+          var graded   = group.filter(function (e) { return e.total_score != null; }).length;
+          return '<div style="margin-bottom:22px">'
+            + '<div style="padding:6px 4px 8px;font-size:.78rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;display:flex;gap:12px;align-items:center">'
+            + P.escapeHtml(cohortMap[key])
+            + '<span style="font-weight:400">' + group.length + ' student' + (group.length !== 1 ? 's' : '')
+            + (graded ? ' · ' + passed + '/' + graded + ' passing' : '') + '</span></div>'
+            + group.map(buildCard).join('') + '</div>';
+        }).join('') || '<section class="panel"><div class="panel-body">' + empty('graduation-cap', 'No students in this cohort.') + '</div></section>';
+
+        content.innerHTML = headerHtml + cardsHtml;
+        document.getElementById('gbCohortFilter').addEventListener('change', function () { paintView(this.value); });
+
+        content.querySelectorAll('.gb-form').forEach(function (form) {
+          form.addEventListener('submit', function (ev) {
+            ev.preventDefault();
+            var card = form.closest('[data-eid]');
+            var score = parseFloat(form.elements.score.value);
+            if (isNaN(score)) return;
+            var body = { enrollment_id: parseInt(card.getAttribute('data-eid'), 10), type: form.elements.type.value, score: score, max_score: parseFloat(form.elements.max.value) || 100 };
+            if (form.elements.week.value) body.week = parseInt(form.elements.week.value, 10);
+            var btn = form.querySelector('button[type=submit]'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
+            API.request('instructor/assess', { method: 'POST', body: body }).then(function (r) {
+              btn.disabled = false; btn.innerHTML = orig; form.reset(); form.elements.max.value = '100';
+              gbApplyResult(card, r.result); gbCache = null;
+              var box = card.querySelector('.gb-marks'); if (box && !box.hidden) gbLoadMarks(card);
+              if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Score recorded.', 'success');
+            }).catch(function (err) {
+              btn.disabled = false; btn.innerHTML = orig;
+              var msg = (err && err.body && err.body.error) || 'try again';
+              if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not record: ' + msg, 'error'); else alert('Could not record the score.');
+            });
           });
         });
-      });
-      // Toggle the recorded-marks panel per card (loads on first open).
-      content.querySelectorAll('.gb-marks-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var card = btn.closest('[data-eid]'), box = card.querySelector('.gb-marks');
-          if (!box.hidden) { box.hidden = true; return; }
-          box.hidden = false; gbLoadMarks(card);
+        content.querySelectorAll('.gb-marks-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var card = btn.closest('[data-eid]'), box = card.querySelector('.gb-marks');
+            if (!box.hidden) { box.hidden = true; return; }
+            box.hidden = false; gbLoadMarks(card);
+          });
         });
-      });
+      }
+
+      paintView('');
     }).catch(function () {
       content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load the gradebook.') + '</div></section>';
     });
   }
 
-  // Repaint a card's standing pill from a recomputed result.
+  // Repaint a card's standing pill and progress bar from a recomputed result.
   function gbApplyResult(card, res) {
     res = res || {};
-    var el = card.querySelector('.gb-result');
-    if (el) el.innerHTML = gradePill({ total_score: res.total, grade: res.grade, outcome: res.outcome });
+    var pill = card.querySelector('.gb-result');
+    if (pill) pill.innerHTML = gradePill({ total_score: res.total, grade: res.grade, outcome: res.outcome });
+    var bar = card.querySelector('.gb-progress-inner');
+    if (bar && res.total != null) {
+      bar.style.width = Math.min(100, Math.round(res.total)) + '%';
+      bar.style.background = res.outcome === 'pass' ? '#34D399' : '#F87171';
+    }
   }
 
   // Load + render one enrolment's recorded marks with correct (remark) / void
@@ -591,8 +973,11 @@
   function renderAnnounce() {
     var classes = (data.classes || []).filter(function (c) { return c.status === 'active'; });
     var anns = data.announcements || [];
-    if (!classes.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('bullhorn', 'You need an active class before you can post an announcement.') + '</div></section>'; return; }
+    // Class options (bare id) drive the class-only resource form; the announce
+    // audience select uses prefixed values (class:/cohort:) and gains cohort
+    // options lazily below, so a cohort-only instructor can still announce.
     var opts = classes.map(function (c) { return '<option value="' + c.id + '">' + P.escapeHtml(c.title) + '</option>'; }).join('');
+    var annOpts = classes.map(function (c) { return '<option value="class:' + c.id + '">' + P.escapeHtml(c.title) + '</option>'; }).join('');
     var list = anns.length ? anns.map(function (a) {
       return '<div style="padding:14px 16px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised);margin-bottom:10px">'
         + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><strong style="color:var(--text)">' + P.escapeHtml(a.title || 'Announcement') + '</strong>'
@@ -610,33 +995,65 @@
         + '<a href="' + P.escapeHtml(r.url) + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.8rem">Open <i class="fa-solid fa-arrow-up-right-from-square"></i></a></div>';
     }).join('') : '<div class="panel-body">' + empty('folder-open', 'No resources yet. Share a link, sheet or video above.') + '</div>';
 
-    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Post an announcement</h2></div>'
-      + '<form id="annForm" class="profile-form" style="padding:18px 22px;display:grid;gap:14px">'
-      +   '<div class="field"><label for="ann-class">Class</label><select id="ann-class" required>' + opts + '</select></div>'
-      +   '<div class="field"><label for="ann-title">Title</label><input id="ann-title" maxlength="160" placeholder="e.g. Recital this Friday"></div>'
-      +   '<div class="field"><label for="ann-body">Message</label><textarea id="ann-body" rows="4" required placeholder="What should your students know?"></textarea></div>'
-      +   '<div class="actions"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Post to class</button></div>'
-      + '</form></section>'
-      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Posted announcements</h2></div><div style="padding:14px 18px">' + list + '</div></section>'
-      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Share a resource</h2></div>'
+    // Resources now converge too (P2): the audience select carries class:/cohort:
+    // values; cohort options are added lazily below alongside the announce select.
+    var driveOn = !!data.drive_enabled;
+    var resFormSection = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Share a resource</h2></div>'
       + '<form id="resForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">'
-      +   '<div class="field"><label for="res-class">Class</label><select id="res-class" required>' + opts + '</select></div>'
+      +   '<div class="field"><label for="res-target">Audience</label><select id="res-target" required>' + (annOpts ? '<optgroup label="Classes">' + annOpts + '</optgroup>' : '') + '</select></div>'
       +   '<div class="field"><label for="res-type">Type</label><select id="res-type"><option value="link">Link</option><option value="sheet">Sheet music</option><option value="video">Video</option><option value="doc">Document</option></select></div>'
       +   '<div class="field" style="grid-column:1/-1"><label for="res-title">Title</label><input id="res-title" maxlength="200" required placeholder="e.g. Week 3 scales sheet"></div>'
-      +   '<div class="field" style="grid-column:1/-1"><label for="res-url">URL (https://…)</label><input id="res-url" type="url" required placeholder="https://…"></div>'
+      + (driveOn
+          ? '<div class="field" style="grid-column:1/-1"><label for="res-file"><i class="fa-solid fa-cloud-arrow-up"></i> Upload a file <span style="color:var(--text-muted);font-weight:400">— video, PDF, audio or image (stored in the Academy Drive)</span></label><input id="res-file" type="file" accept="video/*,audio/*,image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"></div>'
+            + '<div class="field" style="grid-column:1/-1"><label for="res-url">…or paste a URL</label><input id="res-url" type="url" placeholder="https://…"></div>'
+          : '<div class="field" style="grid-column:1/-1"><label for="res-url">URL (https://…)</label><input id="res-url" type="url" required placeholder="https://…"></div>')
       +   '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paperclip"></i> Add resource</button></div>'
+      + '</form></section>';
+
+    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Post an announcement</h2></div>'
+      + '<form id="annForm" class="profile-form" style="padding:18px 22px;display:grid;gap:14px">'
+      +   '<div class="field"><label for="ann-target">Audience</label><select id="ann-target" required>' + (annOpts ? '<optgroup label="Classes">' + annOpts + '</optgroup>' : '') + '</select></div>'
+      +   '<div class="field"><label for="ann-title">Title</label><input id="ann-title" maxlength="160" placeholder="e.g. Recital this Friday"></div>'
+      +   '<div class="field"><label for="ann-body">Message</label><textarea id="ann-body" rows="4" required placeholder="What should your students know?"></textarea></div>'
+      +   '<div class="actions"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i> Post announcement</button></div>'
       + '</form></section>'
+      + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Posted announcements</h2></div><div style="padding:14px 18px">' + list + '</div></section>'
+      + resFormSection
       + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Shared resources</h2></div><div style="padding:14px 18px">' + resList + '</div></section>';
+
+    // Dual-read: lazily add the instructor's cohorts as announcement + resource
+    // audiences, so a cohort/course-only instructor can post to them.
+    API.request('instructor/sessions', { method: 'GET' }).then(function (r) {
+      var cohorts = (r && r.cohorts) || [];
+      ['ann-target', 'res-target'].forEach(function (selId) {
+        var sel = document.getElementById(selId);
+        if (!sel) return;
+        if (cohorts.length) {
+          var og = document.createElement('optgroup'); og.label = 'Cohorts';
+          cohorts.forEach(function (c) {
+            var o = document.createElement('option');
+            o.value = 'cohort:' + c.id;
+            o.textContent = c.title || c.course_name || ('Cohort #' + c.id);
+            og.appendChild(o);
+          });
+          sel.appendChild(og);
+        }
+        if (!sel.options.length) {
+          var form = sel.closest('form');
+          if (form) form.innerHTML = empty(selId === 'ann-target' ? 'bullhorn' : 'folder-open', 'You need an active class or cohort first.');
+        }
+      });
+    }).catch(function () { /* leave class targets as-is */ });
+
     document.getElementById('annForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var body = document.getElementById('ann-body').value.trim();
       if (!body) return;
+      var tgt = (document.getElementById('ann-target').value || '').split(':');
+      var payload = { title: document.getElementById('ann-title').value.trim(), body: body };
+      if (tgt[0] === 'cohort') payload.cohort_id = parseInt(tgt[1], 10); else payload.class_id = parseInt(tgt[1], 10);
       var btn = e.target.querySelector('button'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Posting…';
-      API.request('instructor/announce', { method: 'POST', body: {
-        class_id: document.getElementById('ann-class').value,
-        title: document.getElementById('ann-title').value.trim(),
-        body: body
-      } }).then(function () {
+      API.request('instructor/announce', { method: 'POST', body: payload }).then(function () {
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Announcement posted.', 'success') : alert('Posted.'));
         return load();
       }).catch(function (err) {
@@ -644,24 +1061,39 @@
         (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not post: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not post.'));
       });
     });
-    document.getElementById('resForm').addEventListener('submit', function (e) {
+    var resForm = document.getElementById('resForm');
+    if (resForm) resForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      var url = document.getElementById('res-url').value.trim();
+      var urlEl = document.getElementById('res-url');
+      var url = urlEl ? urlEl.value.trim() : '';
       var title = document.getElementById('res-title').value.trim();
-      if (!url || !title) return;
-      var btn = e.target.querySelector('button'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Adding…';
-      API.request('instructor/resource', { method: 'POST', body: {
-        class_id: document.getElementById('res-class').value,
-        type: document.getElementById('res-type').value,
-        title: title, url: url
-      } }).then(function () {
-        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Resource added.', 'success') : alert('Added.'));
-        return load();
-      }).catch(function (err) {
-        btn.disabled = false; btn.innerHTML = orig;
-        var c = err.body && err.body.error;
-        (window.MAM_DIALOG ? window.MAM_DIALOG.toast(c === 'validation' ? 'Check the title and a valid https URL.' : 'Could not add resource.', 'error') : alert('Could not add.'));
-      });
+      var fileEl = document.getElementById('res-file');
+      var file = fileEl && fileEl.files && fileEl.files[0];
+      if (!title) return;
+      var rtgt = (document.getElementById('res-target').value || '').split(':');
+      var setTarget = function (o) { if (rtgt[0] === 'cohort') o.cohort_id = parseInt(rtgt[1], 10); else o.class_id = parseInt(rtgt[1], 10); return o; };
+      var btn = e.target.querySelector('button'); var orig = btn.innerHTML;
+      var fail = function (err) { btn.disabled = false; btn.innerHTML = orig; var c = err && err.body && err.body.error; var d = err && err.body && err.body.detail; (window.MAM_DIALOG ? window.MAM_DIALOG.toast(d || (c === 'validation' ? 'Check the title and a valid https URL.' : 'Could not add resource.'), 'error') : alert('Could not add.')); };
+      var done = function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Resource added.', 'success') : alert('Added.')); return load(); };
+
+      if (file) {
+        // #5: upload the chosen file to Drive, then it's stored as a resource.
+        var max = 256 * 1024 * 1024;
+        if (file.size > max) { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('That file is over the 256 MB limit.', 'error') : alert('Too large.')); return; }
+        btn.disabled = true; btn.innerHTML = 'Uploading…';
+        var reader = new FileReader();
+        reader.onload = function () {
+          var b64 = String(reader.result || '').split(',')[1] || '';
+          API.request('instructor/drive-upload', { method: 'POST', body: setTarget({ name: file.name, mime: file.type || 'application/octet-stream', data: b64, title: title }) })
+            .then(done).catch(fail);
+        };
+        reader.onerror = function () { fail({ body: { detail: 'Could not read that file.' } }); };
+        reader.readAsDataURL(file);
+        return;
+      }
+      if (!url) { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Choose a file or paste a URL.', 'error') : alert('Choose a file or paste a URL.')); return; }
+      btn.disabled = true; btn.innerHTML = 'Adding…';
+      API.request('instructor/resource', { method: 'POST', body: setTarget({ type: document.getElementById('res-type').value, title: title, url: url }) }).then(done).catch(fail);
     });
   }
 
@@ -764,10 +1196,16 @@
       if (!cohorts.length || !document.getElementById('cohortSummary')) return;
       var rows = cohorts.map(function (c) {
         var name = c.title || c.course_name || ('Cohort #' + c.id);
+        // Dual-read: total = course enrolments + the legacy class roster of a
+        // backfilled cohort, so it never misreads as 0. Break the mix out when
+        // both are present (legacy members are graded via the Classes tab).
+        var courseN = c.enrollment_count || 0, legacyN = c.legacy_count || 0;
+        var students = (courseN + legacyN)
+          + (legacyN ? ' <span style="color:var(--text-muted);font-size:0.74rem" title="' + courseN + ' course · ' + legacyN + ' from the legacy class">(' + courseN + ' course · ' + legacyN + ' class)</span>' : '');
         return '<tr><td data-label="Cohort"><strong>' + P.escapeHtml(name) + '</strong>'
           + (c.level_name ? '<br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(c.level_name) + '</span>' : '') + '</td>'
           + '<td data-label="Course">' + P.escapeHtml(c.course_name || '—') + '</td>'
-          + '<td data-label="Students">' + (c.enrollment_count || 0) + '</td>'
+          + '<td data-label="Students">' + students + '</td>'
           + '<td data-label=""><a class="btn btn-ghost" href="#sessions" data-tab="sessions" style="padding:4px 11px;font-size:0.76rem"><i class="fa-solid fa-chalkboard-user"></i> Teach</a> '
           + '<a class="btn btn-ghost" href="#gradebook" data-tab="gradebook" style="padding:4px 11px;font-size:0.76rem"><i class="fa-solid fa-clipboard-list"></i> Grade</a></td></tr>';
       }).join('');
@@ -890,7 +1328,7 @@
     box.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading ' + P.escapeHtml(name) + '…') + '</div></section>';
     box.scrollIntoView({ behavior: 'smooth', block: 'start' });
     API.request('instructor/student?id=' + encodeURIComponent(id)).then(function (r) {
-      var sm = r.summary || {}, att = r.attendance || [], enr = r.enrollments || [];
+      var sm = r.summary || {}, att = r.attendance || [], enr = r.enrollments || [], courses = r.courses || [], sess = r.session_attendance || [];
       var total = (sm.present || 0) + (sm.late || 0) + (sm.absent || 0) + (sm.excused || 0);
       var rate = total ? Math.round(((sm.present || 0) + (sm.late || 0)) / total * 100) : null;
       var attRows = att.length ? att.map(function (a) {
@@ -899,6 +1337,16 @@
           + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
           + '<td data-label="Notes" style="color:var(--text-muted);font-size:0.82rem">' + P.escapeHtml(a.notes || '') + '</td></tr>';
       }).join('') : '';
+      // Dual-read: cohort session attendance (its own table when present).
+      var sessRows = sess.length ? sess.map(function (a) {
+        return '<tr><td data-label="When">' + (a.scheduled_at ? P.escapeHtml(P.fmtDateTime(a.scheduled_at)) : '—') + '</td>'
+          + '<td data-label="Cohort / Session"><strong>' + P.escapeHtml(a.cohort_title || '—') + '</strong>' + (a.session_title ? ' · ' + P.escapeHtml(a.session_title) : '') + '</td>'
+          + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td>'
+          + '<td data-label="Notes" style="color:var(--text-muted);font-size:0.82rem">' + P.escapeHtml(a.notes || '') + '</td></tr>';
+      }).join('') : '';
+      // "Enrolled in" line spans both models: legacy classes + courses (badged).
+      var enrolledBits = enr.map(function (e) { return P.escapeHtml(e.title); })
+        .concat(courses.map(function (c) { return P.escapeHtml(c.course_name) + (c.level_name ? ' (' + P.escapeHtml(c.level_name) + ')' : '') + ' <span style="color:var(--gold-bright);font-size:0.72rem">· course</span>'; }));
       box.innerHTML = '<section class="panel" style="margin-top:18px">'
         + '<div class="panel-head"><h2>' + P.escapeHtml(r.student.name || name) + '</h2><a class="panel-action" href="mailto:' + P.escapeHtml(r.student.email) + '">Email →</a></div>'
         + '<div style="padding:14px 22px"><section class="kpi-row">'
@@ -907,8 +1355,10 @@
         +   kpi('Late', sm.late || 0, 'sessions')
         +   kpi('Absent', sm.absent || 0, 'sessions')
         + '</section>'
-        + '<p style="color:var(--text-muted);font-size:0.85rem;margin:4px 0 0">Enrolled in: ' + (enr.length ? enr.map(function (e) { return P.escapeHtml(e.title); }).join(', ') : '—') + '</p></div>'
-        + (att.length ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th><th>Notes</th></tr></thead><tbody>' + attRows + '</tbody></table></div>' : '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded for this student yet.') + '</div>')
+        + '<p style="color:var(--text-muted);font-size:0.85rem;margin:4px 0 0">Enrolled in: ' + (enrolledBits.length ? enrolledBits.join(', ') : '—') + '</p></div>'
+        + (att.length ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th><th>Notes</th></tr></thead><tbody>' + attRows + '</tbody></table></div>' : '')
+        + (sess.length ? '<div class="panel-head" style="padding-top:8px"><h2 style="font-size:0.98rem">Cohort sessions</h2></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>When</th><th>Cohort / Session</th><th>Status</th><th>Notes</th></tr></thead><tbody>' + sessRows + '</tbody></table></div>' : '')
+        + (!att.length && !sess.length ? '<div class="panel-body">' + empty('clipboard-list', 'No attendance recorded for this student yet.') + '</div>' : '')
         + '</section>';
       box.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }).catch(function () {

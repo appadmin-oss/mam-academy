@@ -72,21 +72,19 @@ function mam_booking_tier(?string $country = null): array {
 
     $tier = $tiers[$country] ?? $tiers['DEFAULT'];
     $tier['country'] = $country;
-    // Carry the equivalent NGN so the payment provider (which charges in NGN
-    // via Paystack) and the email/invoice can show "approx ₦7,500" disclosure.
-    $usdRate = mam_usd_to_ngn_rate();
-    // Quick conversion: amount in tier currency → USD → NGN.
-    // For NGN, amount IS already NGN.
+    // Derive the NGN charge from the SAME live, bounds-checked FX used everywhere
+    // else (payment-init charges `amount_ngn` in NGN via Paystack — so this is the
+    // real charge, not a display-only estimate). `mam_currency_rates()` is a
+    // units-per-USD map, so USD = amount / rate[cur], then NGN = USD * rate[NGN].
+    $rates   = mam_currency_rates();
+    $usdRate = ($rates['NGN'] ?? 0) > 0 ? (float)$rates['NGN'] : mam_usd_to_ngn_rate(); // NGN per USD
     $cur = $tier['currency'];
     if ($cur === 'NGN') {
         $tier['amount_ngn'] = (int)$tier['amount'];
         $tier['amount_usd'] = round($tier['amount'] / max(1, $usdRate), 2);
     } else {
-        // Rough cross-rate via USD. For currencies other than USD, this is a
-        // display-only approximation — actual charge is in tier currency.
-        $crossToUsd = ['USD' => 1, 'GBP' => 1.27, 'EUR' => 1.08, 'CAD' => 0.73, 'AUD' => 0.66, 'GHS' => 0.065, 'KES' => 0.0077, 'ZAR' => 0.054];
-        $rate = $crossToUsd[$cur] ?? 1;
-        $tier['amount_usd'] = round($tier['amount'] * $rate, 2);
+        $perUsd = $rates[$cur] ?? null; // units of $cur per 1 USD
+        $tier['amount_usd'] = ($perUsd && $perUsd > 0) ? round($tier['amount'] / $perUsd, 2) : (float)$tier['amount'];
         $tier['amount_ngn'] = (int)round($tier['amount_usd'] * $usdRate);
     }
     return $tier;

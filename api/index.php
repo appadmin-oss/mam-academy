@@ -57,7 +57,8 @@ $r->get('/course/outline', $f('course-outline.php'), [mw_rate_limit('course_outl
 // most mail clients render as source code with proper standalone pages
 // (applicants click the link in the email and view in their browser, where
 // "Save as PDF" + Print just work).
-$r->get('/invoice/:ref', $f('invoice.php'), [mw_rate_limit('invoice', 30, 60)]);
+$r->get('/invoice/:ref',         $f('invoice.php'),         [mw_rate_limit('invoice', 30, 60)]);
+$r->get('/tuition-invoice/:ref', $f('tuition-invoice.php'), [mw_rate_limit('invoice', 30, 60)]);
 // Auto-generated OG/social card (flier-style PNG). Disk-cached per unique
 // title/subtitle, so the rate limit only meets cold renders.
 $r->get('/og', $f('og-image.php'), [mw_rate_limit('og', 60, 300)]);
@@ -77,6 +78,9 @@ $r->post('/scholarship/apply',  $f('scholarship-apply.php'),  [mw_csrf(), mw_rat
 $r->get ('/scholarship/status', $f('scholarship-status.php'), [mw_rate_limit('scholarship_status', 30, 600)]);
 // Public applicant status lookup (reference + matching email; rate-limited).
 $r->get ('/application/status', $f('application/status.php'), [mw_rate_limit('app_status', 30, 600)]);
+// Summer Programme — public application form + status lookup.
+$r->post('/summer/apply',  $f('summer/apply.php'),  [mw_csrf(), mw_rate_limit('summer_apply', 8, 600)]);
+$r->get ('/summer/status', $f('summer/status.php'), [mw_rate_limit('summer_status', 30, 600)]);
 // Gated tuition lookup for the /tuition payment page (reference + matching email).
 $r->get ('/tuition/status', $f('tuition-status.php'), [mw_rate_limit('tuition_status', 30, 600)]);
 // Server-side resumable application drafts + magic-link (A1).
@@ -125,6 +129,17 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
 
 /* ─── Attendance QR self-check-in (student scans the instructor's session QR; #9/#10) ─── */
 $r->post('/attendance/checkin', $f('attendance-checkin.php'), [mw_csrf(), mw_role('student'), mw_rate_limit('attendance_checkin', 30, 600)]);
+// Cohort-model twin: self-check-in against a class_session → session_attendance (P2).
+$r->post('/attendance/session-checkin', $f('attendance-session-checkin.php'), [mw_csrf(), mw_role('student'), mw_rate_limit('attendance_checkin', 30, 600)]);
+
+/* ─── Drive file proxy: access-gated fetch of a Drive-backed resource (#5) ─── */
+$r->get('/drive/file', $f('drive-file.php'), [mw_rate_limit('drive_file', 120, 600)]);
+
+/* ─── Public progress report (token-gated, no auth required) ─── */
+$r->get('/report',         $f('report.php'),         [mw_rate_limit('progress_report', 60, 600)]);
+// Learner progress lookup by enrollment ref (public, no login required).
+// Rate-limited tightly (5 per min per IP) to deter enumeration.
+$r->get('/learner-lookup', $f('learner-lookup.php'), [mw_rate_limit('learner_lookup', 5, 60)]);
 
 /* ─── Studio AI practice feedback (any signed-in user; S3) ─── */
 $r->post('/studio/feedback', $f('studio/feedback.php'), [mw_csrf(), mw_user(), mw_rate_limit('studio_feedback', 60, 600)]);
@@ -162,6 +177,26 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     // Submissions against assignments (LMS L2).
     $r->post('/submit',              $f('student/submit.php'),              [mw_csrf(), mw_role('student'), mw_rate_limit('submit', 60, 600)]);
     $r->get ('/submissions',         $f('student/submissions.php'),         [mw_role('student')]);
+    // Full programme curriculum for the Curriculum tab.
+    $r->get ('/curriculum',          $f('student/curriculum.php'),          [mw_role('student'), mw_rate_limit('student_curriculum', 30, 60)]);
+    // Upcoming class sessions from LMS L2 cohorts.
+    $r->get ('/upcoming-sessions',   $f('student/upcoming-sessions.php'),   [mw_role('student')]);
+    // Support hub: feedback, surveys, tickets.
+    $r->get ('/feedback',            $f('student/feedback.php'),            [mw_role('student')]);
+    $r->post('/feedback',            $f('student/feedback.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('feedback', 20, 600)]);
+    $r->get ('/surveys',             $f('student/surveys.php'),             [mw_role('student')]);
+    $r->post('/surveys',             $f('student/surveys.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('survey_respond', 30, 600)]);
+    $r->get ('/tickets',             $f('student/tickets.php'),             [mw_role('student')]);
+    $r->post('/tickets',             $f('student/tickets.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('ticket_create', 10, 600)]);
+    // Own progress report — same data as the public report but authenticated.
+    // Also handles enrollment-ref generation and token management.
+    $r->get ('/progress',            $f('student/progress.php'),            [mw_role('student')]);
+    $r->post('/progress',            $f('student/progress.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('student_progress', 20, 600)]);
+    // Per-session instructor-submitted progress reports for the student.
+    $r->get ('/session-reports',     $f('student/session-reports.php'),     [mw_role('student')]);
+    // Waitlist: join or leave a cohort queue when class is at capacity.
+    $r->get ('/waitlist',            $f('student/waitlist.php'),            [mw_role('student')]);
+    $r->post('/waitlist',            $f('student/waitlist.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('student_waitlist', 20, 600)]);
 });
 
 /* ─── Instructor portal ─── */
@@ -174,8 +209,11 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/resource',         $f('instructor/resource.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
+    // File upload to Drive via the Apps Script gateway (#5) → stored as a resource.
+    $r->post('/drive-upload',     $f('instructor/drive-upload.php'),    [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('drive_upload', 40, 600)]);
     $r->post('/assignment',        $f('instructor/assignment.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/assignment-delete', $f('instructor/assignment-delete.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
+    $r->post('/assignment-update', $f('instructor/assignment-update.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
     // LMS gradebook — weekly weighted assessments → auto-computed results.
     $r->get ('/gradebook',        $f('instructor/gradebook.php'),       [mw_role('instructor', 'admin')]);
     $r->get ('/assessments',      $f('instructor/assessments.php'),     [mw_role('instructor', 'admin')]);
@@ -188,6 +226,12 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/sessions',           $f('instructor/sessions.php'),           [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->get ('/session-attendance', $f('instructor/session-attendance.php'), [mw_role('instructor', 'admin')]);
     $r->post('/session-attendance', $f('instructor/session-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('sess_att', 240, 600)]);
+    // Per-session QR check-in token for a cohort session (P2 twin of attendance-qr).
+    $r->get ('/session-attendance-qr', $f('instructor/session-attendance-qr.php'), [mw_role('instructor', 'admin')]);
+    $r->post('/lesson-record',         $f('instructor/lesson-record.php'),          [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('lesson_record', 60, 600)]);
+    // Post-session progress report (v46): per-student form → email + 2-hr deadline fine.
+    $r->get ('/progress-report',       $f('instructor/progress-report.php'),        [mw_role('instructor', 'admin')]);
+    $r->post('/progress-report',       $f('instructor/progress-report.php'),        [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('progress_report', 120, 600)]);
     // Submissions review + feedback (LMS L2) + AI grading assist (L4).
     $r->get ('/submissions',        $f('instructor/submissions.php'),     [mw_role('instructor', 'admin')]);
     $r->post('/feedback',           $f('instructor/feedback.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
@@ -207,6 +251,9 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->get ('/mail-log',        $f('admin/mail-log.php'),       [mw_admin_cap('view')]);
     $r->post('/mail-retry',      $f('admin/mail-retry.php'),     [mw_csrf(), mw_admin_cap('mail'), mw_rate_limit('mail_retry', 30, 600)]);
     $r->post('/migrate',         $f('admin/migrate.php'),        [mw_csrf(), mw_admin_cap('migrate'), mw_rate_limit('migrate', 5, 300)]);
+    // Form builder + AI generation (v46): survey & progress-report templates.
+    $r->get ('/survey-forms', $f('admin/survey-forms.php'), [mw_admin_cap('content')]);
+    $r->post('/survey-forms', $f('admin/survey-forms.php'), [mw_csrf(), mw_admin_cap('content'), mw_rate_limit('survey_forms', 30, 600)]);
     // Store catalogue admin CRUD (one file dispatches by method).
     $r->get ('/store/items',     $f('admin/store-items.php'),    [mw_admin_cap('view')]);
     $r->post('/store/items',     $f('admin/store-items.php'),    [mw_csrf(), mw_admin_cap('store_catalog')]);
@@ -226,6 +273,24 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->get ('/ai-triage',       $f('admin/ai-triage.php'),      [mw_admin_cap('admissions'), mw_rate_limit('ai_triage', 30, 600)]);
     // Media & documents library — aggregated class resources + portal photos.
     $r->get ('/media',           $f('admin/media.php'),          [mw_admin_cap('media')]);
+    // Support hub — feedback, surveys, tickets (operational; super for full access).
+    $r->get ('/support',         $f('admin/support.php'),        [mw_admin_cap('view')]);
+    $r->post('/support',         $f('admin/support.php'),        [mw_csrf(), mw_admin_cap('support'), mw_rate_limit('admin_support', 60, 600)]);
+    // Progress report token management (admin generates learner links).
+    $r->get ('/progress-report', $f('admin/progress-report.php'), [mw_admin_cap('view')]);
+    $r->post('/progress-report', $f('admin/progress-report.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('progress_token', 30, 600)]);
+    // Instructor fine management.
+    $r->get ('/fines', $f('admin/fines.php'), [mw_admin_cap('view')]);
+    $r->post('/fines', $f('admin/fines.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_fines', 60, 600)]);
+    // Enterprise scheduling: academy-wide calendar + cohort waitlist management.
+    $r->get ('/schedule', $f('admin/schedule.php'),  [mw_admin_cap('view')]);
+    $r->get ('/waitlist', $f('admin/waitlist.php'),  [mw_admin_cap('enrollments')]);
+    $r->post('/waitlist', $f('admin/waitlist.php'),  [mw_csrf(), mw_admin_cap('enrollments')]);
+    // On-demand self-heal: re-runs criticalRepairs + required-column verification; returns status report.
+    $r->get ('/heal',     $f('admin/heal.php'),      [mw_admin_cap('settings'), mw_rate_limit('admin_heal', 10, 300)]);
+    // Summer programme admin: list applications + update status.
+    $r->get ('/summer',         $f('admin/summer.php'), [mw_admin_cap('view')]);
+    $r->post('/summer/status',  $f('admin/summer.php'), [mw_csrf(), mw_admin_cap('view')]);
 });
 
 /* ─── Dispatch ─── */

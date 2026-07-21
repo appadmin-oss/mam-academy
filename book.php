@@ -153,12 +153,12 @@
 
       <aside class="truth">
         <div class="truth-card callout">
-          <h3><i class="fa-solid fa-handshake-angle"></i> Why we ask for $5</h3>
-          <p>Plenty of academies ask you to pay tuition before they've even met you. We don't. The $5 is a <strong>good-faith confirmation</strong> — it earns you a real conversation, a real assessment and a real seat. It's also exactly what your registration, ID card and student file <em>actually cost us</em> to issue. Nothing more.</p>
+          <h3><i class="fa-solid fa-handshake-angle"></i> Why we ask for <span data-amt-usd="5">$5</span></h3>
+          <p>Plenty of academies ask you to pay tuition before they've even met you. We don't. The <span data-amt-usd="5">$5</span> is a <strong>good-faith confirmation</strong> — it earns you a real conversation, a real assessment and a real seat. It's also exactly what your registration, ID card and student file <em>actually cost us</em> to issue. Nothing more.</p>
         </div>
         <div class="truth-card">
           <h3><i class="fa-solid fa-eye"></i> Total transparency</h3>
-          <p>The $5 is final and strictly non-refundable after 24 hours per our class policy. It does <strong>not</strong> include tuition — tuition is discussed and agreed only after the MAM Auditer Judges have placed you accurately. We will never spring a surprise charge on you.</p>
+          <p>The <span data-amt-usd="5">$5</span> is final and strictly non-refundable after 24 hours per our class policy. It does <strong>not</strong> include tuition — tuition is discussed and agreed only after the MAM Auditer Judges have placed you accurately. We will never spring a surprise charge on you.</p>
         </div>
         <div class="truth-card">
           <h3><i class="fa-solid fa-people-group"></i> Who you'll meet</h3>
@@ -211,8 +211,7 @@
     var price = document.getElementById('gatePrice');
     if (price) {
       // Symbol only — the amount is the server's charge-currency figure, never re-converted (display == charge).
-      var sym = (window.MAM_CCY ? MAM_CCY.symbol(feeTier.currency) : '')
-        || ({USD:'$',NGN:'₦',GBP:'£',EUR:'€',CAD:'CA$',AUD:'AU$',GHS:'GH₵',KES:'KSh',ZAR:'R'})[feeTier.currency] || '';
+      var sym = (window.MAM_CCY ? MAM_CCY.symbol(feeTier.currency) : (feeTier.currency + ' ')) || '';
       var amount = Number(feeTier.amount).toLocaleString();
       price.innerHTML = '<span class="currency">' + sym + '</span><b>' + amount + '</b><span class="unit">' + feeTier.currency + ' &middot; one-time</span>';
     }
@@ -267,6 +266,9 @@
   function renderUnlocked(j){
     $('#unlockedName').textContent = j.name || 'there';
     var url = j.embed_url || (window.MAM_CONFIG && window.MAM_CONFIG.booking && window.MAM_CONFIG.booking.embedUrl) || '';
+    // Scheme-guard before the URL enters an iframe src / link href (match the
+    // rest of the codebase's URL-sink convention). Only http(s) is a booking calendar.
+    if (url && !/^https?:\/\//i.test(String(url))) url = '';
     var fr = $('#bookFrame'), fb = $('#bookFallback'), tab = $('#bookOpenTab');
     if (url) {
       fr.src = url; tab.href = url;

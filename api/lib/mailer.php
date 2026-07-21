@@ -1020,6 +1020,47 @@ function mam_email_enrolled(string $name, string $className, string $schedule, s
 }
 
 /**
+ * Session reminder — sent ~24h before a scheduled class session by the
+ * 'session_reminder' automation sweep (api/lib/automations.php).
+ */
+function mam_email_session_reminder(string $name, string $sessionTitle, string $whenLabel, string $loginUrl): string {
+    $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);
+    $t = htmlspecialchars($sessionTitle ?: 'your session', ENT_QUOTES);
+    $w = htmlspecialchars($whenLabel, ENT_QUOTES);
+    $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>See you soon, $n</h2>
+      <p style='color:#4A3624;font-size:15px'>A friendly reminder that <strong style='color:#B8721B'>$t</strong> is coming up:</p>
+      <div style='background:#FBF4E8;border:1px dashed #B8721B;border-radius:10px;padding:14px 18px;text-align:center;color:#B8721B;font-weight:700;margin:16px 0'>$w</div>
+      <p style='color:#7A5C3D;font-size:14px'>Warm up a little beforehand and bring any questions from your practice. See you there!</p>
+      " . mam_email_button($loginUrl, 'Open my portal');
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'A reminder about your upcoming MAM Academy session.',
+        'reason' => 'You received this because you are enrolled in an upcoming MAM Academy session.',
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
+}
+
+/**
+ * Playful birthday note for a KTAMS (Kids @ MAM) student — sent by the
+ * 'ktams_birthday' automation sweep. Warm and kid-appropriate, on-brand.
+ */
+function mam_email_ktams_birthday(string $name): string {
+    $n = htmlspecialchars($name ?: 'superstar', ENT_QUOTES);
+    $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:24px;color:#1A120B'>Happy birthday, $n! 🎂</h2>
+      <p style='color:#4A3624;font-size:15px'>Everyone at MAM Academy is sending you the biggest, brightest birthday cheer. We hope your day is full of music, cake and fun! 🎶🎉</p>
+      <p style='color:#4A3624;font-size:15px'>Here's a little challenge for your special day: play your favourite piece for someone you love — they'll be your best audience yet.</p>
+      <p style='color:#7A5C3D;font-size:14px'>With love, your teachers at MAM Academy.</p>";
+    return mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'A birthday cheer from your friends at MAM Academy!',
+        'reason' => 'You received this birthday note because you are a MAM Academy (Kids @ MAM) student.',
+        'unsubscribe' => true,
+        'body' => $inner,
+    ]);
+}
+
+/**
  * Recovery email for an application that was submitted but never paid.
  * Sent by the api/tools/recovery-email.php cron a day after abandonment.
  */
@@ -1433,6 +1474,9 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
       . '*{box-sizing:border-box}'
       . 'body{margin:0;font-family:Inter,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:#EDE9E3;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:14px;line-height:1.5}'
       . '.sheet{max-width:840px;margin:28px auto;background:var(--paper);border:1px solid #e4ddd2;border-radius:6px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.10)}'
+      . '.print-bar{padding:12px 46px 0;text-align:right}'
+      . '.btn-print{display:inline-flex;align-items:center;gap:7px;background:var(--ink);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;text-transform:uppercase}'
+      . '.btn-print:hover{opacity:.8}'
       . '.head{background:#0E0A06;color:#fff;padding:30px 46px;display:flex;justify-content:space-between;align-items:center;gap:24px;border-bottom:3px solid var(--gold)}'
       . '.brand{display:flex;align-items:center;gap:14px}'
       . '.brand .logo{width:56px;height:56px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;padding:7px}'
@@ -1440,25 +1484,24 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
       . '.brand .nm{font-family:Georgia,serif;font-weight:700;font-size:19px;letter-spacing:.02em;line-height:1.15}'
       . '.brand .nm small{display:block;font-family:Inter,Arial,sans-serif;font-weight:600;font-size:10.5px;letter-spacing:.22em;color:var(--gold2);text-transform:uppercase;margin-top:3px}'
       . '.head .addr{font-size:12px;line-height:1.6;color:#d9cfc4;text-align:right;max-width:260px}'
-      . '.head .addr .tag{display:inline-block;margin-top:7px;font-size:10.5px;letter-spacing:.05em;color:#9c8d7d}'
-      . '.title{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;padding:34px 46px 20px}'
-      . '.title h1{margin:0;font-size:46px;line-height:.95;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);font-weight:800}'
-      . '.title h1 .amp{color:var(--gold)}'
-      . '.title .pill{display:inline-block;margin-top:10px;font-size:11.5px;letter-spacing:.04em;color:#7a5a2a;background:var(--wash);border:1px solid #f0e2cf;border-radius:999px;padding:5px 12px}'
-      . '.title .meta{border-left:2px solid #ece7e0;padding-left:18px}'
-      . '.title .meta{font-size:13px;color:var(--muted);text-align:right;line-height:1.8}'
+      . '.head .addr .tag{display:block;margin-top:7px;font-size:10.5px;letter-spacing:.05em;color:#9c8d7d}'
+      . '.title{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;padding:30px 46px 20px;border-bottom:1px solid var(--line)}'
+      . '.title h1{margin:0;font-size:52px;line-height:.92;letter-spacing:.03em;text-transform:uppercase;color:var(--ink);font-weight:800}'
+      . '.title h1 em{color:var(--gold);font-style:normal}'
+      . '.title .pill{display:inline-block;margin-top:10px;font-size:11px;letter-spacing:.04em;color:#7a5a2a;background:var(--wash);border:1px solid #f0e2cf;border-radius:999px;padding:5px 13px}'
+      . '.title .meta{border-left:2px solid var(--line);padding-left:20px;font-size:13px;color:var(--muted);text-align:right;line-height:2}'
       . '.title .meta b{color:var(--ink)}'
-      . '.body{padding:0 46px 28px}'
+      . '.body{padding:24px 46px 28px}'
       . '.who{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px}'
-      . '.who .col{background:var(--wash);border:1px solid var(--line);border-radius:12px;padding:14px 18px}'
-      . '.who .col .label{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}'
+      . '.who .col{border:1px solid var(--line);border-top:3px solid rgba(224,138,26,.35);border-radius:10px;padding:14px 18px}'
+      . '.who .col .label{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em;margin-bottom:7px}'
       . '.who .col p{margin:3px 0;font-size:13.5px;line-height:1.5}'
       . '.who .col .nm{font-size:15px;font-weight:700}'
-      . '.summary{padding:13px 18px;background:#fff;border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;margin-bottom:24px;font-size:12.5px;color:#4a4036;line-height:1.7}'
+      . '.summary{padding:13px 18px;background:rgba(224,138,26,.05);border:1px solid rgba(224,138,26,.2);border-left:3px solid var(--gold);border-radius:10px;margin-bottom:24px;font-size:12.5px;color:#4a4036;line-height:1.7}'
       . '.summary b{color:var(--ink)}'
-      . '.sec{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);font-weight:800;margin:0 0 10px}'
+      . '.sec{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:800;margin:0 0 10px}'
       . 'table.items{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:13px;border:1px solid var(--line)}'
-      . 'table.items thead th{text-align:left;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:#1A120B;padding:12px 14px}'
+      . 'table.items thead th{text-align:left;font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#7a5218;background:rgba(224,138,26,.07);border-bottom:2px solid rgba(224,138,26,.22);padding:11px 14px}'
       . 'table.items thead th.r{text-align:right}'
       . 'table.items tbody td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:top}'
       . 'table.items tbody tr:last-child td{border-bottom:0}'
@@ -1466,9 +1509,9 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
       . 'table.items tbody td.r{text-align:right;font-variant-numeric:tabular-nums}'
       . 'table.items tbody td b{font-size:13px}'
       . 'table.items tbody td .desc{display:block;color:var(--faint);font-size:11.5px;margin-top:3px}'
-      . '.duenow{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(120deg,var(--gold),var(--gold2));color:#1A120B;border-radius:12px;padding:15px 22px;margin:8px 0 26px}'
-      . '.duenow .lbl{font-weight:800;letter-spacing:.06em;text-transform:uppercase;font-size:13px}'
-      . '.duenow .amt{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}'
+      . '.duenow{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#C47A1C 0%,var(--gold2) 100%);color:#1A120B;border-radius:12px;padding:18px 26px;margin:8px 0 28px;box-shadow:0 4px 18px rgba(224,138,26,.28)}'
+      . '.duenow .lbl{font-weight:800;letter-spacing:.07em;text-transform:uppercase;font-size:12px;opacity:.8}'
+      . '.duenow .amt{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em}'
       . '.tuition{display:flex;justify-content:space-between;align-items:center;gap:16px;background:var(--wash);border:1px dashed #e3cba6;border-radius:12px;padding:16px 22px;margin-bottom:26px}'
       . '.tuition .t-main{font-size:13.5px;color:#4a4036;line-height:1.55}'
       . '.tuition .t-main b{color:var(--ink)}'
@@ -1476,19 +1519,22 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
       . '.tuition .t-amt .v{font-size:22px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}'
       . '.tuition .t-amt .c{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}'
       . '.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:24px}'
-      . '.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px}'
-      . '.card h4{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold)}'
+      . '.card{background:var(--wash);border:1px solid var(--line);border-radius:12px;padding:16px 18px}'
+      . '.card h4{margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);font-weight:700}'
       . '.card p{margin:0;font-size:12px;color:#4a4036;line-height:1.6}'
       . '.bankrow{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px dotted var(--line)}'
       . '.bankrow:last-child{border-bottom:0}.bankrow span{color:var(--muted)}.bankrow b{color:var(--ink)}'
       . '.sign{display:flex;justify-content:flex-end;padding-top:8px;margin-bottom:22px}'
       . '.sign .sig{text-align:right;min-width:220px;border-top:1px solid var(--ink);padding-top:7px}'
       . '.sign .sig .nm{font-size:13.5px;font-weight:600}.sign .sig .role{font-size:11.5px;color:var(--gold);font-weight:700;margin-top:2px}'
-      . '.foot{background:#161009;color:#cdbfb0;text-align:center;padding:15px 22px;font-size:12px;letter-spacing:.02em}'
-      . '@media print{body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none;border-radius:0}}'
-      . '@media (max-width:560px){.head,.title,.body{padding-left:22px;padding-right:22px}.who,.grid2{grid-template-columns:1fr}.title{flex-direction:column;align-items:flex-start;gap:10px}.title .meta{text-align:left}}'
+      . '.foot{background:#0E0A06;color:#8a7a6a;text-align:center;padding:16px 22px;font-size:12px;letter-spacing:.02em}'
+      . '@media print{.print-bar{display:none}body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none;border-radius:0}}'
+      . '@media (max-width:560px){.print-bar,.head,.title,.body{padding-left:22px;padding-right:22px}.who,.grid2{grid-template-columns:1fr}.title{flex-direction:column;align-items:flex-start;gap:10px}.title .meta{text-align:left;border-left:none;border-top:1px solid var(--line);padding:12px 0 0}}'
       . '</style></head><body>'
       . '<div class="sheet">'
+
+      // Print button (hidden on print)
+      . '<div class="print-bar"><button class="btn-print" onclick="window.print()">&#9113; Print / Save as PDF</button></div>'
 
       // Header
       . '<div class="head">'
@@ -1501,8 +1547,8 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
 
       // Title + meta
       . '<div class="title">'
-      .   '<div><h1>Invoice</h1><div class="pill">Booking confirmation &amp; tuition estimate</div></div>'
-      .   '<div class="meta">Invoice <b>' . $invNo . '</b><br>Date <b>' . $dateLong . '</b><br>Ref <b style="color:var(--gold)">' . $ref . '</b></div>'
+      .   '<div><h1><em>I</em>nvoice</h1><div class="pill">Booking confirmation &amp; tuition estimate</div></div>'
+      .   '<div class="meta">Invoice &nbsp;<b>' . $invNo . '</b><br>Date &nbsp;<b>' . $dateLong . '</b><br>Ref &nbsp;<b style="color:var(--gold)">' . $ref . '</b></div>'
       . '</div>'
 
       . '<div class="body">'
@@ -1557,6 +1603,206 @@ function mam_invoice_print_html(array $app, array $customer, array $tier, string
       . '</div>'
 
       . '<div class="foot">academy@mamcentre.org &nbsp;·&nbsp; academy.mamcentre.org &nbsp;·&nbsp; +234 704 444 6517</div>'
+      . '</div></body></html>';
+}
+
+/**
+ * Standard programme invoice — a clean business invoice for the full programme
+ * tuition. This is distinct from mam_invoice_print_html() (the booking
+ * confirmation / assessment-fee document). Use this when the client needs a
+ * proper invoice showing the course cost as the billable line item, e.g. for
+ * corporate reimbursement, accounting records, or a formal payment request.
+ *
+ * Layout: issuer block, billed-to block, itemised line table (programme +
+ * optional registration), total, payment instructions, payment status stamp.
+ * Accessible at GET /api/tuition-invoice/{reference}.
+ */
+function mam_programme_invoice_html(array $app, array $customer, string $invoiceNumber): string {
+    $name    = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')), ENT_QUOTES);
+    $email   = htmlspecialchars((string)($customer['email'] ?? ''), ENT_QUOTES);
+    $phone   = htmlspecialchars((string)($customer['phone'] ?? ''), ENT_QUOTES);
+    $loc     = htmlspecialchars(trim(implode(', ', array_filter([
+        $customer['address'] ?? '', $customer['lga'] ?? '', $customer['state'] ?? '', $customer['country'] ?? ''
+    ]))) ?: 'Nigeria', ENT_QUOTES);
+    $ref      = htmlspecialchars((string)$app['reference'], ENT_QUOTES);
+    $invNo    = htmlspecialchars($invoiceNumber, ENT_QUOTES);
+    $dateIso  = substr((string)($app['created_at'] ?? date('Y-m-d')), 0, 10);
+    $dateDisp = htmlspecialchars(date('j F Y', strtotime($dateIso) ?: time()), ENT_QUOTES);
+    $isPaid   = in_array((string)($app['status'] ?? ''), ['paid', 'enrolled', 'accepted'], true);
+
+    $pathwayMap = [
+        'standard'           => 'Standard Programme',
+        'certified-musician' => 'Certified Musician Programme',
+        'grand-musician'     => 'Grand Musician Programme',
+        'crash'              => 'Crash Programme (6-week)',
+        'meta-order'         => 'The MetaMusic Order',
+        'pre-cert'  => 'Pre-Certification', 'cert' => 'Certification',
+        'pre-dip'   => 'Pre-Diploma',        'diploma' => 'Diploma',
+    ];
+    $pathwayLabel = htmlspecialchars($pathwayMap[$app['pathway'] ?? ''] ?? ucwords(str_replace('-', ' ', (string)($app['pathway'] ?? '—'))), ENT_QUOTES);
+    $modeLabel    = htmlspecialchars(ucfirst((string)($app['mode'] ?? '')), ENT_QUOTES);
+    $levelLabel   = htmlspecialchars((string)($app['level'] ?? ''), ENT_QUOTES);
+    $discLabel    = htmlspecialchars(ucwords(str_replace('-', ' ', (string)($app['discipline'] ?? ''))), ENT_QUOTES);
+    $session      = htmlspecialchars(strtoupper((string)($app['session'] ?? '')), ENT_QUOTES);
+
+    $tuitionUsd   = (float)($app['total_usd'] ?? 0);
+    $regFee       = (bool)($app['include_registration'] ?? false) ? (float)mam_setting_num('registration_fee', 5) : 0;
+    $programmeAmt = $tuitionUsd - $regFee;
+
+    $bankName = htmlspecialchars((string)mam_setting('invoice_bank_name', ''), ENT_QUOTES);
+    $acctName = htmlspecialchars((string)mam_setting('invoice_account_name', 'The Just Folks Limited'), ENT_QUOTES);
+    $acctNo   = htmlspecialchars((string)mam_setting('invoice_account_number', '0117579643'), ENT_QUOTES);
+    $finName  = htmlspecialchars((string)mam_setting('invoice_finance_name', 'Anuoluwapo O. Ogunbanjo'), ENT_QUOTES);
+    $logoUrl  = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/mam-academy-logo.svg', ENT_QUOTES);
+    $appUrl   = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
+
+    $fmt = function (float $n): string {
+        return '$' . number_format($n, 2);
+    };
+
+    $statusLabel = $isPaid ? 'PAID' : 'AMOUNT DUE';
+    $statusColor = $isPaid ? '#16A34A' : '#B8721B';
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+      . '<title>Invoice ' . $invNo . ' — MAM Academy</title>'
+      . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+      . '<style>'
+      . ':root{--ink:#1A120B;--muted:#6b5c4e;--faint:#9a8e84;--line:#ece7e0;--gold:#B8721B;--paper:#fff;--wash:#FBF8F4}'
+      . '@page{size:A4;margin:0}'
+      . '*{box-sizing:border-box}'
+      . 'body{margin:0;font-family:Inter,-apple-system,Segoe UI,Arial,sans-serif;color:var(--ink);background:#EDE9E3;font-size:14px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+      . '.sheet{max-width:800px;margin:28px auto;background:var(--paper);border:1px solid #ddd7ce;border-radius:6px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.09)}'
+      . '.topbar{height:7px;background:linear-gradient(90deg,#1A120B 0%,#6b3a0e 40%,var(--gold) 70%,#FBBF24 100%)}'
+      . '.print-bar2{padding:12px 48px 0;text-align:right}'
+      . '.btn-print2{display:inline-flex;align-items:center;gap:7px;background:#1A120B;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;text-transform:uppercase}'
+      . '.btn-print2:hover{opacity:.8}'
+      . '.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:28px 48px 24px;border-bottom:1px solid var(--line)}'
+      . '.brand{display:flex;align-items:center;gap:12px}'
+      . '.logo-wrap{width:50px;height:50px;border-radius:10px;background:#1A120B;display:flex;align-items:center;justify-content:center;padding:7px;flex-shrink:0}'
+      . '.logo-wrap img{width:100%;height:auto;display:block}'
+      . '.brand-nm{font-family:Georgia,serif;font-weight:700;font-size:17px;letter-spacing:.02em;line-height:1.2}'
+      . '.brand-sub{font-size:10px;letter-spacing:.22em;color:var(--gold);text-transform:uppercase;margin-top:3px;font-weight:600}'
+      . '.issuer{font-size:12px;line-height:1.7;color:var(--muted);text-align:right}'
+      . '.body{padding:0 48px 36px}'
+      . '.title-row{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding:30px 0 22px;border-bottom:1px solid var(--line)}'
+      . '.inv-title{margin:0;font-size:40px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);line-height:1}'
+      . '.inv-meta{text-align:right;font-size:13px;line-height:1.85;color:var(--muted)}'
+      . '.inv-meta b{color:var(--ink)}'
+      . '.status-pill{display:inline-block;margin-top:8px;padding:6px 16px;border-radius:999px;font-size:11.5px;letter-spacing:.1em;font-weight:800;text-transform:uppercase;border:1.5px solid currentColor}'
+      . '.bill-row{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:22px 0 24px;border-bottom:1px solid var(--line)}'
+      . '.bill-col .lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:6px}'
+      . '.bill-col .nm{font-size:15px;font-weight:700;margin-bottom:3px}'
+      . '.bill-col p{margin:2px 0;font-size:13px;color:var(--muted)}'
+      . '.prog-box{background:var(--wash);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:8px;padding:13px 16px;margin:22px 0 20px;font-size:12.5px;line-height:1.7;color:var(--muted)}'
+      . '.prog-box b{color:var(--ink)}'
+      . 'table.items{width:100%;border-collapse:collapse;margin-bottom:6px}'
+      . 'table.items thead th{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:0 0 8px;border-bottom:1px solid var(--line);text-align:left}'
+      . 'table.items thead th.r{text-align:right}'
+      . 'table.items tbody td{padding:13px 0;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:top}'
+      . 'table.items tbody tr:last-child td{border-bottom:none}'
+      . 'table.items tbody td.r{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}'
+      . 'table.items tbody td .desc{display:block;font-size:11.5px;color:var(--faint);margin-top:3px}'
+      . '.total-row{display:flex;justify-content:flex-end;margin:4px 0 26px}'
+      . '.total-box{text-align:right;min-width:240px;background:var(--wash);border:1px solid var(--line);border-radius:12px;padding:16px 20px}'
+      . '.total-box .line{display:flex;justify-content:space-between;gap:40px;font-size:13px;padding:4px 0;color:var(--muted)}'
+      . '.total-box .total{display:flex;justify-content:space-between;gap:40px;font-size:22px;font-weight:800;padding:12px 0 0;border-top:2px solid var(--ink);margin-top:8px}'
+      . '.total-box .total span:last-child{font-variant-numeric:tabular-nums}'
+      . '.pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}'
+      . '.pay-card{background:var(--wash);border:1px solid var(--line);border-radius:10px;padding:16px 18px}'
+      . '.pay-card h4{margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);font-weight:700}'
+      . '.bank-row{display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;border-bottom:1px dotted var(--line)}'
+      . '.bank-row:last-child{border:none}.bank-row span{color:var(--muted)}.bank-row b{color:var(--ink)}'
+      . '.pay-card p{margin:0;font-size:12px;color:var(--muted);line-height:1.6}'
+      . '.sign{display:flex;justify-content:flex-end;padding-top:6px;margin-bottom:20px}'
+      . '.sig-block{text-align:right;min-width:200px;border-top:1px solid var(--ink);padding-top:7px}'
+      . '.sig-block .nm{font-size:13px;font-weight:600}.sig-block .role{font-size:11px;color:var(--gold);font-weight:700;margin-top:2px}'
+      . '.foot{background:#0E0A06;color:#8a7a6a;text-align:center;padding:14px;font-size:11.5px;letter-spacing:.02em}'
+      . '.foot a{color:var(--gold);text-decoration:none}'
+      . '@media print{.print-bar2{display:none}body{background:#fff}.sheet{box-shadow:none;margin:0;max-width:none;border-radius:0}}'
+      . '@media(max-width:560px){.print-bar2,.hd,.body{padding-left:20px;padding-right:20px}.bill-row,.pay-grid{grid-template-columns:1fr}.title-row{flex-direction:column;align-items:flex-start}}'
+      . '</style></head><body>'
+      . '<div class="sheet">'
+      . '<div class="topbar"></div>'
+      . '<div class="print-bar2"><button class="btn-print2" onclick="window.print()">&#9113; Print / Save as PDF</button></div>'
+
+      // Header
+      . '<div class="hd">'
+      .   '<div class="brand">'
+      .     '<div class="logo-wrap"><img src="' . $logoUrl . '" alt="MAM Academy"></div>'
+      .     '<div><div class="brand-nm">MAM Academy</div><div class="brand-sub">Music · Arts · Mastery</div></div>'
+      .   '</div>'
+      .   '<div class="issuer">2 Abolude / Oremeji Street, Bakery B/S<br>Egbeda, Lagos, Nigeria<br>'
+      .     '<a href="mailto:academy@mamcentre.org" style="color:var(--gold);text-decoration:none">academy@mamcentre.org</a><br>'
+      .     '<span style="font-size:10px;color:var(--faint)">TAX ID · 119 491 230001</span></div>'
+      . '</div>'
+
+      . '<div class="body">'
+
+      // Invoice title + meta
+      . '<div class="title-row">'
+      .   '<h1 class="inv-title">Invoice</h1>'
+      .   '<div class="inv-meta">'
+      .     'No. &nbsp;<b>' . $invNo . '</b><br>'
+      .     'Date &nbsp;<b>' . $dateDisp . '</b><br>'
+      .     'Ref &nbsp;<b style="color:var(--gold)">' . $ref . '</b>'
+      .     ($session ? '<br>Session &nbsp;<b>' . $session . '</b>' : '')
+      .     '<br><span class="status-pill" style="background:' . ($isPaid ? '#DCFCE7' : '#FEF3C7') . ';color:' . $statusColor . '">' . $statusLabel . '</span>'
+      .   '</div>'
+      . '</div>'
+
+      // Billed to
+      . '<div class="bill-row">'
+      .   '<div class="bill-col"><div class="lbl">Bill to</div><div class="nm">' . $name . '</div>'
+      .     ($loc ? '<p>' . $loc . '</p>' : '')
+      .   '</div>'
+      .   '<div class="bill-col"><div class="lbl">Contact</div>'
+      .     ($phone ? '<p>' . $phone . '</p>' : '')
+      .     ($email ? '<p>' . $email . '</p>' : '')
+      .   '</div>'
+      . '</div>'
+
+      // Programme summary pill
+      . '<div class="prog-box">'
+      .   '<b>Programme:</b> ' . $pathwayLabel
+      .   ($modeLabel ? ' &nbsp;&middot;&nbsp; <b>Mode:</b> ' . $modeLabel : '')
+      .   ($levelLabel ? ' &nbsp;&middot;&nbsp; <b>Level:</b> ' . $levelLabel : '')
+      .   ($discLabel  ? ' &nbsp;&middot;&nbsp; <b>Discipline:</b> ' . $discLabel : '')
+      . '</div>'
+
+      // Line items
+      . '<table class="items"><thead><tr><th>Description</th><th class="r" style="width:60px">Qty</th><th class="r" style="width:110px">Amount</th></tr></thead><tbody>'
+      . '<tr><td><b>' . $pathwayLabel . '</b>'
+      .   '<span class="desc">Programme tuition' . ($session ? ' · ' . $session . ' intake' : '') . ($modeLabel ? ' · ' . $modeLabel : '') . '</span>'
+      . '</td><td class="r">1</td><td class="r">' . $fmt($programmeAmt > 0 ? $programmeAmt : $tuitionUsd) . '</td></tr>'
+      . ($regFee > 0 ? '<tr><td><b>Registration fee</b><span class="desc">One-time onboarding &amp; student ID card</span></td><td class="r">1</td><td class="r">' . $fmt($regFee) . '</td></tr>' : '')
+      . '</tbody></table>'
+
+      // Total
+      . '<div class="total-row"><div class="total-box">'
+      . ($regFee > 0 ? '<div class="line"><span>Programme tuition</span><span>' . $fmt($programmeAmt > 0 ? $programmeAmt : $tuitionUsd) . '</span></div>'
+      .   '<div class="line"><span>Registration fee</span><span>' . $fmt($regFee) . '</span></div>' : '')
+      . '<div class="total"><span>Total (USD)</span><span>' . $fmt($tuitionUsd) . '</span></div>'
+      . '</div></div>'
+
+      // Payment details
+      . '<div class="pay-grid">'
+      .   '<div class="pay-card"><h4>Bank transfer</h4>'
+      .     ($bankName !== '' ? '<div class="bank-row"><span>Bank</span><b>' . $bankName . '</b></div>' : '')
+      .     '<div class="bank-row"><span>Account name</span><b>' . $acctName . '</b></div>'
+      .     '<div class="bank-row"><span>Account number</span><b>' . $acctNo . '</b></div>'
+      .     '<p style="margin-top:9px;font-size:11px">Use reference <b style="color:var(--ink)">' . $ref . '</b> as the narration.<br>'
+      .     'Online payment: <a href="' . htmlspecialchars($appUrl . '/tuition?ref=' . rawurlencode((string)$app['reference']), ENT_QUOTES) . '" style="color:var(--gold)">pay by card →</a></p>'
+      .   '</div>'
+      .   '<div class="pay-card"><h4>Payment terms</h4>'
+      .     '<p>This invoice covers programme tuition at MAM Academy. Payment is due before the term start date. Instalment plans are available — contact the finance office to arrange one. All fees are in US dollars; bank transfer equivalents follow the rate quoted by your remitting institution.</p>'
+      .   '</div>'
+      . '</div>'
+
+      // Signature
+      . '<div class="sign"><div class="sig-block"><div class="nm">' . $finName . '</div><div class="role">Finance Manager</div></div></div>'
+
+      . '</div>'
+      . '<div class="foot">MAM Academy &nbsp;·&nbsp; academy.mamcentre.org &nbsp;·&nbsp; academy@mamcentre.org &nbsp;·&nbsp; +234 704 444 6517</div>'
       . '</div></body></html>';
 }
 
@@ -1764,5 +2010,68 @@ function mam_email_policy(string $mode, string $signedName, string $reference): 
         'preheader' => 'Your MAM Academy class policy agreement — please keep for your records.',
         'reason' => 'You received this because you agreed to the class policy when applying to MAM Academy.',
         'body' => $inner,
+    ]);
+}
+
+/**
+ * Summer programme application confirmation email.
+ * Sent immediately after POST /api/summer/apply succeeds.
+ */
+function mam_email_summer_confirmation(array $app): string {
+    $name     = htmlspecialchars(trim($app['first_name'] ?? '') . ' ' . trim($app['last_name'] ?? ''), ENT_QUOTES);
+    $ref      = htmlspecialchars((string)($app['reference'] ?? ''), ENT_QUOTES);
+    $prog     = htmlspecialchars(mam_setting('summer_prog_name', 'MAM Summer Music Camp'), ENT_QUOTES);
+    $start    = (string)mam_setting('summer_session_start', '');
+    $end      = (string)mam_setting('summer_session_end', '');
+    $location = htmlspecialchars(mam_setting('summer_location', ''), ENT_QUOTES);
+    $contact  = htmlspecialchars(mam_setting('summer_contact_email', ''), ENT_QUOTES);
+    $fee      = (float)mam_setting_num('summer_fee', 0);
+    $minAge   = (int)mam_setting_num('summer_min_age', 8);
+    $maxAge   = (int)mam_setting_num('summer_max_age', 18);
+
+    $dateRange = '';
+    if ($start && $end) {
+        try {
+            $s = new DateTimeImmutable($start); $e = new DateTimeImmutable($end);
+            $dateRange = $s->format('F j') . ' – ' . $e->format('F j, Y');
+        } catch (Throwable $ignored) {}
+    } elseif ($start) {
+        try { $dateRange = (new DateTimeImmutable($start))->format('F j, Y'); } catch (Throwable $ignored) {}
+    }
+
+    $detailRows = '';
+    if ($dateRange) $detailRows .= "<tr><td style='padding:6px 0;color:#7A5C3D;font-size:13px;width:130px'>Programme dates</td><td style='padding:6px 0;color:#1A120B;font-size:13px'><strong>$dateRange</strong></td></tr>";
+    if ($location) $detailRows .= "<tr><td style='padding:6px 0;color:#7A5C3D;font-size:13px'>Location</td><td style='padding:6px 0;color:#1A120B;font-size:13px'><strong>$location</strong></td></tr>";
+    if ($fee > 0)  $detailRows .= "<tr><td style='padding:6px 0;color:#7A5C3D;font-size:13px'>Programme fee</td><td style='padding:6px 0;color:#1A120B;font-size:13px'><strong>USD $" . number_format($fee, 2) . "</strong></td></tr>";
+    if ($minAge)   $detailRows .= "<tr><td style='padding:6px 0;color:#7A5C3D;font-size:13px'>Age range</td><td style='padding:6px 0;color:#1A120B;font-size:13px'><strong>$minAge" . ($maxAge > 0 ? "–$maxAge" : '+') . " years</strong></td></tr>";
+    $detailRows .= "<tr><td style='padding:6px 0;color:#7A5C3D;font-size:13px'>Reference</td><td style='padding:6px 0;color:#1A120B;font-size:13px'><strong>$ref</strong></td></tr>";
+
+    $statusUrl = htmlspecialchars(rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/status', ENT_QUOTES);
+    $contactBlock = $contact ? "<p style='margin:20px 0 0;color:#7A5C3D;font-size:13px'>Have a question? Reply to this email or reach us at <a href='mailto:$contact' style='color:#E08A1A'>$contact</a>.</p>" : '';
+
+    $inner = "
+      <h2 style='font-family:Georgia,serif;margin:0 0 4px;font-size:20px;color:#1A120B'>Application received, $name!</h2>
+      <p style='color:#7A5C3D;font-size:14px;margin:0 0 22px;line-height:1.6'>
+        Thank you for applying to the <strong>$prog</strong>. We've received your application
+        and our team will be in touch soon to confirm your spot.
+      </p>
+      " . ($detailRows ? "<table role='presentation' cellpadding='0' cellspacing='0' border='0' style='width:100%;border-top:1px solid #F0E4D0;border-bottom:1px solid #F0E4D0;margin-bottom:22px;padding:8px 0'>$detailRows</table>" : '') . "
+      <p style='color:#7A5C3D;font-size:13px;margin:0 0 8px'>What happens next:</p>
+      <ol style='margin:0 0 22px;padding-left:18px;color:#1A120B;font-size:13px;line-height:1.8'>
+        <li>Our team reviews your application (usually within 2–3 business days).</li>
+        <li>You'll receive a confirmation email with your spot details.</li>
+        <li>Further instructions (schedule, what to bring, etc.) follow closer to the start date.</li>
+      </ol>
+      <p style='margin:0 0 16px'>
+        <a href='$statusUrl?ref=" . rawurlencode($ref) . "' style='display:inline-block;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;font-weight:800;font-size:14px;padding:12px 24px;border-radius:8px;text-decoration:none'>Check application status →</a>
+      </p>
+      $contactBlock
+      <p style='margin:24px 0 0;color:#7A5C3D;font-size:13px'>MAM Academy — Music, Arts, Mystery</p>
+    ";
+    return mam_email_layout([
+        'header'    => 'MAM SUMMER',
+        'preheader' => "We've received your application for $prog. Your reference is $ref.",
+        'reason'    => 'You received this because you applied to the MAM Summer Music Camp.',
+        'body'      => $inner,
     ]);
 }

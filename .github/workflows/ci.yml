@@ -51,3 +51,5 @@ jobs:
           for f in $(find assets/js -name '*.js' -o -name '*.cjs'); do
             node --check "$f"
           done
+      - name: Notation capture self-test (pitch detector + segmenter)
+        run: node assets/js/notation.selftest.cjs

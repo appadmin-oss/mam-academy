@@ -86,25 +86,30 @@
   // ---- Currency: show prices in the user's local currency unless they've
   // modified it. Mirrors the site engine — saved override ('mam.currency') wins,
   // else detect from locale; convert the USD base via the live FX cache. --------
-  var SYM = { USD: '$', NGN: '₦', GBP: '£', EUR: '€' };
   function curPref() {
-    try { var s = localStorage.getItem('mam.currency'); if (s && SYM[s]) return s; } catch (e) {}
-    var region = (navigator.language || '').split('-')[1];
-    return ({ NG: 'NGN', GB: 'GBP', US: 'USD', IE: 'EUR', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR', NL: 'EUR' })[region] || 'USD';
+    // Honour the saved user choice from the site-wide currency switcher.
+    try { var s = localStorage.getItem('mam.currency'); if (s) return s; } catch (e) {}
+    // Delegate to MAM_CCY when available (it handles locale + geo-IP detection).
+    if (window.MAM_CCY) return MAM_CCY.detect();
+    // Minimal fallback: locale region → currency for the most common markets.
+    var region = ((navigator.language || '').split('-')[1] || '').toUpperCase();
+    return ({ NG: 'NGN', GH: 'GHS', KE: 'KES', ZA: 'ZAR', UG: 'UGX',
+              GB: 'GBP', US: 'USD', CA: 'CAD', AU: 'AUD',
+              IE: 'EUR', DE: 'EUR', FR: 'EUR', ES: 'EUR', IT: 'EUR', NL: 'EUR' })[region] || 'USD';
   }
   function fxRates() {
-    var base = { USD: 1, NGN: 1500, GBP: 0.79, EUR: 0.92 };
+    var base = { USD: 1, NGN: 1500, GBP: 0.79, EUR: 0.92, GHS: 15, KES: 129, ZAR: 18, CAD: 1.37, AUD: 1.52 };
     try { var c = JSON.parse(localStorage.getItem('mam.fx') || 'null'); if (c && c.rates) return Object.assign(base, c.rates); } catch (e) {}
     try { if (window.MAM_CONFIG && MAM_CONFIG.currency && MAM_CONFIG.currency.rates) return Object.assign(base, MAM_CONFIG.currency.rates); } catch (e) {}
     return base;
   }
   function money(usd) {
     // Single source of truth: local-currency formatting via MAM_CCY (config.js).
-    if (window.MAM_CCY) return MAM_CCY.format(usd);
+    if (window.MAM_CCY) return MAM_CCY.format(usd, MAM_CCY.detect());
+    // Fallback when MAM_CCY unavailable.
     var cur = curPref(), r = fxRates();
     var v = usd * (r[cur] || 1);
-    var n = cur === 'NGN' ? Math.round(v / 50) * 50 : Math.round(v);
-    return (SYM[cur] || cur + ' ') + n.toLocaleString();
+    return (window.MAM_CCY ? MAM_CCY.symbol(cur) : (cur + ' ')) + Math.round(v).toLocaleString();
   }
 
   // Each option adds weights to programmes and may set a wizard field. `because`

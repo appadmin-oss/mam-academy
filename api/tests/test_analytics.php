@@ -38,7 +38,7 @@ $cohort = mam_lms_create_cohort(['title' => 'Analytics Cohort']);
 // sets cohort_id on the enrolment, and mam_lms_mark_attendance now enforces
 // roster membership (an instructor can't mark an off-roster student).
 mam_db()->prepare("UPDATE course_enrollments SET cohort_id = ? WHERE student_id IN (?, ?) AND status = 'active'")->execute([$cohort, $good, $sam]);
-$sess   = mam_lms_create_session($cohort, ['title' => 'Lesson 1', 'scheduled_at' => '2026-07-20 17:00']);
+$sess   = mam_lms_create_session($cohort, ['title' => 'Lesson 1', 'scheduled_at' => '2030-03-10 17:00']);
 mam_lms_mark_attendance($sess, $good, 'present', $ins);
 $hEnr = (int)mam_db_row("SELECT id FROM course_enrollments WHERE student_id = ? AND status='active'", [$good])['id'];
 mam_db_insert('assessments', ['enrollment_id' => $hEnr, 'instructor_id' => $ins, 'week' => 1, 'score' => 90, 'max_score' => 100]);
@@ -47,9 +47,9 @@ mam_db_insert('submissions', ['assignment_id' => $hAsg, 'student_id' => $good, '
 mam_db_insert('practice_logs', ['student_id' => $good, 'minutes' => 40, 'focus' => 'scales', 'logged_on' => date('Y-m-d')]);
 
 // Sparse Sam: low attendance (1 present, 3 absent = 25%) → flagged.
-$sess2 = mam_lms_create_session($cohort, ['title' => 'Lesson 2', 'scheduled_at' => '2026-07-21 17:00']);
-$sess3 = mam_lms_create_session($cohort, ['title' => 'Lesson 3', 'scheduled_at' => '2026-07-22 17:00']);
-$sess4 = mam_lms_create_session($cohort, ['title' => 'Lesson 4', 'scheduled_at' => '2026-07-23 17:00']);
+$sess2 = mam_lms_create_session($cohort, ['title' => 'Lesson 2', 'scheduled_at' => '2030-03-11 17:00']);
+$sess3 = mam_lms_create_session($cohort, ['title' => 'Lesson 3', 'scheduled_at' => '2030-03-12 17:00']);
+$sess4 = mam_lms_create_session($cohort, ['title' => 'Lesson 4', 'scheduled_at' => '2030-03-13 17:00']);
 mam_lms_mark_attendance($sess,  $sam, 'present', $ins);
 mam_lms_mark_attendance($sess2, $sam, 'absent', $ins);
 mam_lms_mark_attendance($sess3, $sam, 'absent', $ins);

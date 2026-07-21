@@ -56,9 +56,20 @@ try {
         $status = $data['status'] ?? null;
         // Confirm amount AND currency — guard against a tampered inline amount.
         $currencyOk = strtoupper((string)($data['currency'] ?? 'NGN')) === 'NGN';
-        $ok = ($status === 'successful' && $currencyOk && (float)($data['amount'] ?? 0) >= (float)$payment['amount']);
+        // Bind the verified transaction to THIS payment WITHOUT being brittle.
+        // `transaction_id` is client-supplied, so `verify_by_id` can return ANY
+        // successful charge — but we must not hard-fail a genuine verification
+        // just because a provider omits/normalises tx_ref. So reject ONLY the
+        // replay attack: a verified tx_ref that names a DIFFERENT, real payment
+        // (pay once → settle someone else's obligation). A matching, empty, or
+        // unknown tx_ref is not a cross-payment replay and proceeds normally.
+        $verifiedRef = (string)($data['tx_ref'] ?? '');
+        $crossBound  = $verifiedRef !== ''
+            && strcasecmp($verifiedRef, $ref) !== 0
+            && mam_db_row('SELECT 1 FROM payments WHERE reference = ?', [$verifiedRef]) !== null;
+        $ok = ($status === 'successful' && $currencyOk && !$crossBound && (float)($data['amount'] ?? 0) >= (float)$payment['amount']);
         if ($status === 'successful' && !$ok) {
-            mam_log('warn', 'flw_amount_or_currency_mismatch', ['ref' => $ref, 'paid' => $data['amount'] ?? 0, 'expected' => $payment['amount'], 'currency' => $data['currency'] ?? '']);
+            mam_log('warn', 'flw_amount_or_currency_mismatch', ['ref' => $ref, 'paid' => $data['amount'] ?? 0, 'expected' => $payment['amount'], 'currency' => $data['currency'] ?? '', 'tx_ref' => $verifiedRef, 'cross_bound' => $crossBound]);
         }
         $providerRef = $data['tx_ref'] ?? ($data['flw_ref'] ?? $ref);
     } else {

@@ -13,6 +13,7 @@ $aid = (int)($in['assignment_id'] ?? 0);
 $url = trim((string)($in['artifact_url'] ?? ''));
 if ($aid <= 0) mam_fail('validation', 422, ['fields' => ['assignment_id']]);
 if ($url === '') mam_fail('validation', 422, ['fields' => ['artifact_url']]);
+if (!preg_match('#^https?://#i', $url)) mam_fail('validation', 422, ['fields' => ['artifact_url'], 'hint' => 'Enter an http(s) link.']);
 
 try {
     $id = mam_lms_submit($aid, (int)$u['id'], $url, [
@@ -22,5 +23,6 @@ try {
     mam_ok(['submitted' => true, 'submission_id' => $id]);
 } catch (RuntimeException $e) {
     $m = $e->getMessage();
+    if ($m === 'invalid_url') mam_fail('validation', 422, ['fields' => ['artifact_url']]);
     mam_fail($m, $m === 'assignment_not_found' ? 404 : 403);
 }

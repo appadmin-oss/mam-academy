@@ -514,3 +514,31 @@ body.mam-advisor-open #applyMobileBar{display:none!important}
 .readiness-note.tone-foundation i{color:var(--gold-bright)}
 .readiness-note.tone-review{border-color:rgba(96,165,250,0.4);background:rgba(96,165,250,0.09)}
 .readiness-note.tone-review i{color:#60A5FA}
+
+/* ── Apply-form polish (UI/UX pass) ─────────────────────────────── */
+
+/* btn-step press state — the gold "Next" button now has tactile feedback */
+.btn-step-next:active:not(:disabled){
+  transform:translateY(1px);
+  box-shadow:0 2px 8px rgba(224,138,26,0.25)
+}
+.btn-step-back:active:not(:disabled){transform:translateY(1px)}
+.btn-pay:active:not(:disabled){transform:translateY(0);filter:brightness(0.94)}
+
+/* choice-card: subtle upward float on hover so cards feel interactive */
+.choice-card:hover:not(.is-disabled){transform:translateY(-2px)}
+
+/* adv-opt: give the quiz options an active/press state too */
+.adv-opt:active:not(:disabled){transform:translateY(0)}
+
+/* Tabular-nums: the price display in choice-card-price won't shift layout
+   when amounts change between cards of different price magnitudes. */
+.choice-card-price,.amb-total,.summary-total span:last-child{
+  font-variant-numeric:tabular-nums
+}
+
+/* Reduced-motion: cancel the new hover transforms */
+@media (prefers-reduced-motion:reduce){
+  .btn-step-next:active,.btn-step-back:active,.btn-pay:active{transform:none}
+  .choice-card:hover:not(.is-disabled){transform:none}
+}

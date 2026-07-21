@@ -580,11 +580,11 @@
 
           <!-- Transport -->
           <div class="sp-transport">
-            <button type="button" class="sp-tx-btn" id="spRew" title="Rewind 10s"><i class="fa-solid fa-backward"></i></button>
-            <button type="button" class="sp-tx-btn sp-tx-play" id="spPlay" title="Play / pause">
-              <i class="fa-solid fa-play" id="spPlayIcon"></i>
+            <button type="button" class="sp-tx-btn" id="spRew" title="Rewind 10s" aria-label="Rewind 10 seconds"><i class="fa-solid fa-backward" aria-hidden="true"></i></button>
+            <button type="button" class="sp-tx-btn sp-tx-play" id="spPlay" title="Play / pause" aria-label="Play or pause">
+              <i class="fa-solid fa-play" id="spPlayIcon" aria-hidden="true"></i>
             </button>
-            <button type="button" class="sp-tx-btn" id="spFwd" title="Forward 10s"><i class="fa-solid fa-forward"></i></button>
+            <button type="button" class="sp-tx-btn" id="spFwd" title="Forward 10s" aria-label="Forward 10 seconds"><i class="fa-solid fa-forward" aria-hidden="true"></i></button>
             <span class="sp-tx-sep"></span>
             <button type="button" class="sp-tx-btn sp-tx-loop" id="spLoopBtn" title="Set A/B loop points">
               <i class="fa-solid fa-repeat"></i> <span id="spLoopLabel">A–B</span>

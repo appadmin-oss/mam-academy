@@ -7,8 +7,11 @@ $classId = (int)($in['class_id'] ?? 0);
 $applicationId = isset($in['application_id']) ? (int)$in['application_id'] : null;
 if (!$studentId || !$classId) mam_fail('validation', 422, ['fields' => ['student_id', 'class_id']]);
 
+$admin   = mam_current_user();
+$adminId = (int)($admin['id'] ?? 0);
+
 $student = mam_db_row("SELECT id, name, email FROM users WHERE id = ? AND role = 'student'", [$studentId]);
-$class = mam_db_row('SELECT id, title, schedule FROM classes WHERE id = ?', [$classId]);
+$class   = mam_db_row('SELECT id, title, schedule, instructor_id, discipline FROM classes WHERE id = ?', [$classId]);
 if (!$student || !$class) mam_fail('not_found', 404);
 
 try {
@@ -23,6 +26,44 @@ try {
         mam_fail('already_enrolled', 409);
     }
     throw $e;
+}
+
+// Dual-write: also ensure a course_enrollments record exists so the student
+// appears in the instructor's gradebook and can be assessed. Uses the class's
+// discipline as the course code and class's instructor_id as the assignee.
+// Skipped silently if the discipline doesn't map to an active course.
+if (!empty($class['discipline'])) {
+    $ceId = 0;
+    try {
+        $ceRow = mam_lms_add_course($studentId, (string)$class['discipline']);
+        $ceId  = (int)$ceRow['id'];
+    } catch (RuntimeException $e) {
+        if ($e->getMessage() === 'already_enrolled') {
+            // Payment settle already created one; find it.
+            $existing = mam_db_row(
+                "SELECT ce.id FROM course_enrollments ce
+                   JOIN courses c ON c.id = ce.course_id
+                  WHERE ce.student_id = ? AND c.code = ? AND ce.status IN ('pending','active')",
+                [$studentId, (string)$class['discipline']]
+            );
+            $ceId = $existing ? (int)$existing['id'] : 0;
+        }
+        // course_not_found → class discipline doesn't map to a course yet; skip
+    } catch (\Throwable $e) {
+        mam_log('warn', 'enroll_ce_skip', ['student' => $studentId, 'discipline' => $class['discipline'], 'err' => $e->getMessage()]);
+    }
+
+    if ($ceId > 0 && !empty($class['instructor_id'])) {
+        $instrId = (int)$class['instructor_id'];
+        try {
+            // approve() sets instructor_id + transitions pending → active.
+            mam_lms_approve($ceId, $instrId, $adminId);
+        } catch (\Throwable $e) {
+            // Already active (e.g. auto-approved) — just set the instructor.
+            try { mam_db_update('course_enrollments', ['instructor_id' => $instrId], ['id' => $ceId]); }
+            catch (\Throwable $e2) {}
+        }
+    }
 }
 
 if (!empty($student['email'])) {

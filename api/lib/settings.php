@@ -144,5 +144,42 @@ function mam_settings_schema(): array {
         ['Academy (LMS)',           'lms_auto_approve',         'Auto-approve course additions (1=on, 0=manual review)', 0, ''],
         ['Academy (LMS)',           'lms_pass_mark',            'Pass mark for course results', 50, '%'],
         ['Academy (LMS)',           'lms_auto_promote',         'Auto-advance a passed course to the next level on completion (1=on, 0=manual)', 0, ''],
+        // CDN (Cloudinary) — image delivery and headshot uploads.
+        // cloudinary_cloud_name:    your Cloudinary cloud name (e.g. "mam-academy").
+        //   When set, every public <img> on the site is served via Cloudinary's
+        //   /image/fetch/ pipeline (f_auto + q_auto), saving bandwidth and serving
+        //   WebP/AVIF to browsers that support it. Leave blank to disable the CDN.
+        // cloudinary_upload_preset: an UNSIGNED upload preset from Cloudinary →
+        //   Settings → Upload → "Upload presets" (mode = Unsigned, allowed formats
+        //   = jpg,png,webp, folder restriction = mam-academy/headshots).
+        //   When set, the apply form and portal photo tab upload directly from the
+        //   applicant's browser to Cloudinary, and the returned URL is saved as
+        //   applications.headshot_url / users.avatar_url. Leave blank to disable
+        //   in-browser headshot upload (staff can request photos manually).
+        ['CDN (Cloudinary)',        'cloudinary_cloud_name',    'Cloudinary cloud name (e.g. mam-academy)', '', ''],
+        ['CDN (Cloudinary)',        'cloudinary_upload_preset', 'Unsigned upload preset for headshots (create in Cloudinary → Upload → Presets)', '', ''],
+        // ── Summer Programme ───────────────────────────────────────────────────
+        // Dates use YYYY-MM-DD format. The chooser appears on /apply when today
+        // is within [summer_app_open, summer_app_close]. The form is live within
+        // that same window. summer_session_* are the actual programme run dates,
+        // shown to applicants on /summer. Age limits are inclusive; set max to 0
+        // to impose no upper bound.
+        ['Summer Programme', 'summer_prog_name',          'Programme name shown on all pages', 'MAM Summer Music Camp', ''],
+        ['Summer Programme', 'summer_tagline',             'Short tagline (one sentence)', '', ''],
+        ['Summer Programme', 'summer_description',         'Full description paragraph shown on /summer', '', ''],
+        ['Summer Programme', 'summer_highlights',          'Key programme highlights, one per line (displayed as bullet points)', '', ''],
+        ['Summer Programme', 'summer_disciplines',         'Disciplines / instruments offered, one per line', '', ''],
+        ['Summer Programme', 'summer_session_start',       'Session start date (YYYY-MM-DD) — the actual programme dates', '', ''],
+        ['Summer Programme', 'summer_session_end',         'Session end date (YYYY-MM-DD)', '', ''],
+        ['Summer Programme', 'summer_app_open',            'Applications open date — chooser appears on /apply from this date (YYYY-MM-DD)', '', ''],
+        ['Summer Programme', 'summer_app_close',           'Applications close date (YYYY-MM-DD)', '', ''],
+        ['Summer Programme', 'summer_min_age',             'Minimum age in years (inclusive)', '8', ''],
+        ['Summer Programme', 'summer_max_age',             'Maximum age in years (inclusive) — set 0 for no upper limit', '18', ''],
+        ['Summer Programme', 'summer_fee',                 'Programme fee', '0', '$'],
+        ['Summer Programme', 'summer_capacity',            'Maximum participants — 0 means unlimited', '0', ''],
+        ['Summer Programme', 'summer_location',            'Location / venue name', '', ''],
+        ['Summer Programme', 'summer_contact_email',       'Contact email shown on /summer for enquiries', '', ''],
+        ['Summer Programme', 'main_prog_chooser_name',     'Name for the regular admission on the chooser card (e.g. "Full Year Programmes")', 'Full Year Programmes', ''],
+        ['Summer Programme', 'main_prog_chooser_desc',     'Short description for the regular admission chooser card', 'Apply to our year-round music academy. Choose your programme, mode, and level.', ''],
     ];
 }

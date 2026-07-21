@@ -1,9 +1,9 @@
 <?php
 /**
  * POST /api/admin/wallet-credit  {user_id, amount_usd, note?}
- * Issue (or adjust) a student's internal store credit. Positive amount_usd adds
- * credit; negative deducts it (never below zero — server-validated). Audited.
- * Admin-issued only — this is the sole way credits enter the system.
+ * Record instructor earnings (or an earnings adjustment). Positive amount_usd
+ * adds earnings; negative deducts (never below zero — server-validated). Audited.
+ * Admin-issued only; the wallet now tracks INSTRUCTOR EARNINGS, not student credit.
  */
 declare(strict_types=1);
 
@@ -19,15 +19,15 @@ if (abs($amountUsd) > 100000) mam_fail('amount_too_large', 422);
 
 $target = mam_db_row('SELECT id, role FROM users WHERE id = ?', [$uid]);
 if (!$target) mam_fail('user_not_found', 404);
-if (!mam_user_has_role($target, 'student')) mam_fail('not_a_student', 422, ['detail' => 'Wallet credit applies to students.']);
+if (!mam_user_has_role($target, 'instructor')) mam_fail('not_an_instructor', 422, ['detail' => 'Earnings apply to instructors.']);
 
 $cents  = (int) round($amountUsd * 100);
-$reason = $cents >= 0 ? 'admin_credit' : 'admin_debit';
+$reason = $cents >= 0 ? 'earnings' : 'earnings_adjust';
 
 try {
     $balance = mam_wallet_post($uid, $cents, $reason, $me ? (int)$me['id'] : null, null, $note);
 } catch (\RuntimeException $e) {
-    if ($e->getMessage() === 'insufficient_credit') mam_fail('insufficient_credit', 409, ['detail' => 'That deduction would overdraw the wallet.']);
+    if ($e->getMessage() === 'insufficient_credit') mam_fail('insufficient_credit', 409, ['detail' => 'That deduction would take earnings below $0.']);
     throw $e;
 }
 

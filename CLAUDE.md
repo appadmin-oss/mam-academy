@@ -106,14 +106,57 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    via shared `courseTableHtml`/`certPanelHtml`/`wireCourseActions`), and the instructor
    **overview** lazily surfaces a "Cohorts & sessions" panel beside the legacy class views.
    The legacy tabs still read both models as-is and remain until parity is verified.
+   **More convergence since:** the student **Overview** now dual-reads too (an "Active
+   learning" KPI + panel counting active classes AND active course enrolments, plus a
+   session-attendance fold-in) so a course-only student isn't shown an empty overview.
+   The instructor "Cohorts & sessions" panel folds the legacy class roster count of a
+   backfilled cohort (`mam_lms_instructor_cohorts` returns `legacy_count`) so it never
+   misreads as 0. And there is now an **opt-in write-path reconciliation** —
+   `mam_lms_converge_cohort_enrollments($cohortId)` (admin `cohort_converge` on
+   `?v=courseenroll`, settings cap) enrols a backfilled cohort's legacy roster into
+   `course_enrollments` so those students become gradable/markable; it's additive,
+   idempotent, audited, and **requires the cohort to map to a real course** (course_id is
+   NOT NULL) — a purely-legacy cohort must be course-mapped first. It's the one sanctioned
+   bridge that writes across the models; everything else stays dual-read.
+   **Since then, two more read paths converged:** the instructor **student drill-down**
+   (`GET /api/instructor/student`) now dual-reads — it returns the courses/cohorts the
+   caller teaches the student in (not just legacy classes), grants access when EITHER
+   model is shared (was legacy-only → 403 for a course-only student), and folds shared-cohort
+   `session_attendance` into the summary. And **assignments** now target cohorts + course-only
+   students: `POST /api/instructor/assignment` accepts `cohort_id` (fans out to the cohort
+   roster) and its single-student ownership check accepts a shared `course_enrollment`
+   (assignments are per-student — `assignments.student_id`, `class_id` optional — so no
+   schema change was needed). **Announcements converge too (schema v39):**
+   `announcements.cohort_id` (nullable) lets an instructor post to a cohort;
+   `mam_student_announcements()` (`lms.php`) unions class-enrolled AND cohort-enrolled
+   announcements so a course-only student finally sees updates. **Resources converge too
+   (schema v40):** `class_resources` was rebuilt to make `class_id` nullable and add
+   `cohort_id` — a SQLite table rebuild that's safe with `PRAGMA foreign_keys = ON` only
+   because `class_resources` is a leaf table (no inbound FKs); `mam_student_resources()`
+   unions both models. **QR self-check-in converged too:** a session-scoped twin
+   (`mam_attendance_session_token`/`_verify_session_token`/`_session_self_checkin` in
+   `attendance.php`; `GET /api/instructor/session-attendance-qr` + `POST /api/attendance/session-checkin`;
+   `attend.php` reads `?stoken=`) writes `session_attendance`, enrolment-gated on
+   `course_enrollments`, idempotent, never downgrades. Its token uses a distinct `sess:`
+   grammar so it can't cross-verify with the legacy class token. **With that, the
+   portal-audit S2 divergence is fully closed** — every student/instructor read+write path
+   now spans both enrollment models (dual-read everywhere; `cohort_converge` the one
+   sanctioned cross-model write).
+   ⚠️ **SQLite compound-query gotcha** (bit twice building the announcement union): a
+   `UNION`'s `ORDER BY` must reference **explicitly-aliased** result columns (`an.id AS id`,
+   `an.created_at AS created_at`) — a bare `an.created_at`/`id` raises "ORDER BY term does
+   not match any column" — and needs an `id` tiebreak to be deterministic when timestamps tie.
 3. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
    ONLY from a trusted proxy (private + Cloudflare ranges by default; `TRUSTED_PROXY_CIDRS`
    to override). It's the rate-limit + audit IP key. Don't revert to blindly trusting headers.
 4. **SSRF guard** for the curriculum remote-import is in `api/lib/lms.php`
    (`mam_lms_public_ips_for` / `mam_lms_fetch_url`): per-hop re-validation, `CURLOPT_RESOLVE`
    pinning, denies private/CGNAT/IETF-special ranges, ports 80/443 only. Keep it strict.
-5. **`auditer_results` has no writer.** The student Auditer tab now falls back to live
-   `mam_auditer_status()`; the detailed-report table is reserved for a future capture flow.
+5. **`auditer_results` capture flow.** `mam_auditer_record()` (`auditer.php`) is the
+   writer — admins capture a placement from the application detail card (`?v=applications&app=N`,
+   `record_placement` action). When the `auditer_placement` automation is on it also
+   ensures the student account + enrols them at the recommended level. The student Auditer
+   tab still falls back to live `mam_auditer_status()` for validity/booking state.
 6. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
 
 ## Security posture (don't weaken)
@@ -198,6 +241,34 @@ the notation showcase.**
   (pending applications/registrations/unassigned/proposals/messages/faculty), toast
   feedback for ?ok/?err (string values carry the message; URL cleaned after), '/' or
   Ctrl+K focuses global search.
+- ✅ **Admin redesign (MAM Redesign design system)** — `admin/index.php` adopts the
+  prototype's tokens/type (warm `--bg:#1B140D` … `--gold:#E8961F`; Bebas/Cormorant/Inter;
+  radii 14/20). Grouped left nav (`#adminNav`, `aria-current`, gold-outline active pill,
+  live `nav-count` badges); top-bar search chip → **⌘K command palette** (focus-return,
+  Tab-trap); mobile off-canvas sidebar (hamburger + `.nav-scrim`); **stacked-card tables**
+  on Applications/Users/Payments/Store Orders (`table.stack` + `data-label`, `thead`
+  hidden on mobile); a **keyboard-shortcuts help overlay** (press `?`, `.kbd-scrim`); skip
+  link + `:focus-visible`. Detail **drawers** (`.mam-drawer` + generic `data-param`
+  dismiss) for Applications (`?app=`), Class (`?class=`), Module (`?module=`), Proposal
+  (`?proposal=`). Bulk status actions on Applications (`app_bulk_status`). Reusable
+  primitives: `.auto-switch` toggle, `.mam-drawer`, palette, `table.stack`.
+- ✅ **Lifecycle automations** — `api/lib/automations.php`: a registry of **8 rules**
+  (`payment_provision`, `enrol_welcome`, `payment_retry`, `auditer_placement`,
+  `session_reminder`, `week_drip`, `store_receipt`, `ktams_birthday`), each with a
+  persisted on/off flag (`automations` table, **schema v38**) honoured *at its trigger
+  point* — `mam_automation_on($key)` gates the behaviour in `payments.php` / `lms.php` /
+  `auditer.php`, and `mam_automation_touch()` records run telemetry (last-run + count).
+  Admin screen `?v=automations` (grouped cards, per-rule toggle + telemetry, "Run
+  scheduled sweeps now"). The three scheduled sweeps
+  (`mam_automation_session_reminder_sweep` / `_ktams_birthday_sweep` / `_week_drip_sweep`)
+  are events-deduped, never throw, and are wired into `api/tools/run-jobs.php` (the cron).
+  A new lib → add to BOTH `bootstrap.php`'s `$mam_libs` AND `api/tests/run.php` (gotcha #1).
+  Covered by `test_automations.php`.
+- ✅ **Curriculum clone across levels** — `mam_lms_clone_syllabus(courseCode, fromLevelCode,
+  toLevelCode)` (`lms.php`): copies a course's authored weeks between levels, idempotent
+  (upsert by week, never duplicates), throws on same-level / unknown-course. Admin action
+  `curriculum_clone`. Covered by `test_curriculum_clone.php` (which cleans up its fixture
+  course + modules so the shared test DB keeps its seeded catalogue count).
 - ✅ **Auditer Applicant Checklist** — `auditer.php#checklist`: the 19 preparation items
   (documents/identity, performance, professional materials, on-the-day) as a tickable,
   localStorage-persisted, printable checklist. Deep-linked from thank-you, status, book,
@@ -211,9 +282,30 @@ the notation showcase.**
   **metronome** half of #9 already existed as a studio tool.
 - ✅ **#7 Instructor earnings** — shipped as the repurposed wallet (see #12): admin-recorded
   earnings statement in the instructor portal. Payout mechanics stay off-platform.
-- 🔬 **#14 Notation showcase** (audio→Classical/Contemporary/African 6-line, interactive,
-  realistic playback) — large R&D; not a quick task. **#5 Google Drive video upload** —
-  needs Drive API/OAuth credentials.
+- ✅ **#5 Google Drive file upload** — via a Google **Apps Script web app**, NO OAuth /
+  Drive API credentials. `api/lib/drive.php` signs each request (HMAC over ts+action+body)
+  to the admin-configured web-app URL: `mam_drive_upload()` writes bytes → Drive (link-shared)
+  → returns view/download URLs; `mam_drive_fetch()` pulls bytes back for an access-gated
+  proxy. Instructor uploads (`POST /api/instructor/drive-upload`) store the file as a
+  **dual-read learning resource** (course-only students get it too); the file stays
+  fetchable via the stored view URL OR the gated proxy `GET /api/drive/file?rid=N`
+  (visibility-checked per role). Off until `drive_webapp_url`+`drive_shared_secret` set
+  (`DRIVE_TRANSPORT=mock` = in-process store for dev/tests). Deploy guide:
+  `docs/drive-apps-script.md`. New lib → in BOTH `bootstrap.php` `$mam_libs` AND
+  `run.php` (gotcha #1). Covered by `test_drive.php` (signing, guards, byte-for-byte
+  upload→fetch round-trip).
+- ✅ **#14 Notation showcase** — `notation.php` + `assets/js/notation.js`. **M1:** renders one
+  melody in THREE systems (Classical 5-line treble staff, Contemporary piano-roll, African
+  **MAM 6-line** tone grid) from a note model, with Web Audio playback + per-note highlight,
+  tempo, system switcher and example melodies. **M2 (live audio→notation):** a self-contained
+  autocorrelation pitch detector (`detectPitchAC`) + a frame→note segmenter/quantiser
+  (`framesToNotes`) turn mic input into a note model that feeds the same renderers — a "Record
+  a melody" control transcribes a sung/played monophonic tune into all three systems live.
+  NO external libraries (the studio's pitchy is a CDN import — deliberately NOT reused here to
+  keep the page CSP-safe/self-hosted); mic needs the `Permissions-Policy: microphone=(self)`
+  meta. The pure DSP+segmenter are Node-testable (`assets/js/notation.selftest.cjs`, wired into
+  CI's JS job); the browser flow (permission/record/stop/graceful-empty) is Playwright-verified.
+  Linked in footer + sitemap; clean URL `/notation`. All 14 brief items now shipped.
 
 ## Where to look
 - Audits: `docs/codebase-audit-2026-06-22.md` (security/correctness),
@@ -221,6 +313,6 @@ the notation showcase.**
 - Deploy/runbook: `DEPLOYMENT.md`. Env reference: `api/.env.example`.
 
 ## Workflow
-- Branch for this work: `claude/friendly-tesla-qe0d6z`. Commit + push there; don't open
+- Branch for this work: `claude/pensive-fermi-st9hvv`. Commit + push there; don't open
   PRs unless asked. Keep `php api/tests/run.php` green and add tests for new behavior.
 - Don't put model identifiers in commits/code/docs.

@@ -209,6 +209,8 @@ function mam_admin_capabilities(): array {
         'mail'          => 'super',    // mail test / retry
         'migrate'       => 'super',    // run DB migrations
         'rbac'          => 'super',    // assign admin tiers
+        'support'       => 'manager',  // feedback, surveys, support tickets
+        'content'       => 'super',    // survey-form templates, session-report forms
     ];
 }
 

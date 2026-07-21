@@ -20,6 +20,26 @@
 declare(strict_types=1);
 
 /**
+ * Merge an admin marker into an existing provider_response value.
+ *
+ * provider_response is a JSON column on MySQL/MariaDB. Plain-text appends
+ * (e.g. concatenating a note string) are rejected with CONSTRAINT error 4025.
+ * This helper decodes the existing value, wraps any legacy plain-text in a
+ * JSON envelope (_raw key), merges in the $marker array, and returns valid JSON.
+ */
+function mam_payment_response_merge(?string $existing, array $marker): string {
+    $obj = [];
+    if ($existing !== null && $existing !== '') {
+        $decoded = json_decode($existing, true);
+        $obj = is_array($decoded) ? $decoded : ['_raw' => $existing];
+    }
+    foreach ($marker as $k => $v) {
+        $obj[$k] = $v;
+    }
+    return (string)json_encode($obj, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+/**
  * @param array       $payment      the payments row (must have reference, purpose, application_id, amount)
  * @param array|null  $providerData the verified provider payload (for storage)
  * @param string      $rawResponse  raw provider response JSON (for audit)
@@ -137,10 +157,15 @@ function mam_payment_settle_store(string $ref): void {
         $r = mam_db_row('SELECT name, file_url FROM store_items WHERE sku = ?', [(string)$i['sku']]);
         if ($r && !empty($r['file_url'])) $links[] = ['name' => $r['name'], 'url' => (string)$r['file_url']];
     }
-    try {
-        mam_send((string)$order['customer_email'], 'MAM Academy Store — Order ' . $order['reference'] . ' confirmed',
-            mam_email_store_receipt($order, $items, $links), 'store_order_confirmed', true);
-    } catch (\Throwable $e) { mam_log('warn', 'store_email_failed', ['err' => $e->getMessage()]); }
+    // Governed by the 'store_receipt' automation (admin ?v=automations).
+    // Default on — pausing it settles the order silently (no receipt email).
+    if (!function_exists('mam_automation_on') || mam_automation_on('store_receipt')) {
+        if (function_exists('mam_automation_touch')) mam_automation_touch('store_receipt');
+        try {
+            mam_send((string)$order['customer_email'], 'MAM Academy Store — Order ' . $order['reference'] . ' confirmed',
+                mam_email_store_receipt($order, $items, $links), 'store_order_confirmed', true);
+        } catch (\Throwable $e) { mam_log('warn', 'store_email_failed', ['err' => $e->getMessage()]); }
+    }
 }
 
 /** Booking fee: stamp the paid time + email the confirmation. Does NOT enrol. */
@@ -163,8 +188,70 @@ function mam_payment_settle_tuition(int $appId): ?string {
     mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $appId]);
     $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$appId]);
     if (!$app || !$app['customer_id']) return null;
+    // Governed by the 'payment_provision' automation (admin ?v=automations).
+    // Default on — turning it off marks the application paid but leaves portal
+    // provisioning + the welcome email to a manual step.
+    if (function_exists('mam_automation_on') && !mam_automation_on('payment_provision')) {
+        return 'portal_provision_automation_off';
+    }
+    if (function_exists('mam_automation_touch')) mam_automation_touch('payment_provision');
     try {
-        $provision = mam_ensure_student_user((int)$app['customer_id']);
+        $provision  = mam_ensure_student_user((int)$app['customer_id']);
+        $studentId  = (int)($provision['user']['id'] ?? 0);
+
+        // Generate the stable enrollment ref (MAM/YY/NNN) — used for QR codes,
+        // attendance lookup and the learner-report page. Idempotent: skipped if already set.
+        if ($studentId > 0 && function_exists('mam_enrollment_ref_generate')) {
+            try { mam_enrollment_ref_generate($studentId); } catch (\Throwable $e) { /* non-fatal */ }
+        }
+
+        // Auto-enroll in the applied discipline's primary course and immediately
+        // activate it so the student appears in the instructor's gradebook.
+        // course_not_found (no matching course code) is silently skipped.
+        // already_enrolled finds the existing record and re-approves it so a
+        // retried payment doesn't leave the enrollment in limbo.
+        if ($studentId > 0 && !empty($app['discipline'])) {
+            $ceId = 0;
+            try {
+                $ceRow = mam_lms_add_course($studentId, (string)$app['discipline'], $app['level'] ?? null);
+                $ceId  = (int)$ceRow['id'];
+                mam_audit('auto_enroll', 'course_enrollment', $studentId, [
+                    'course'  => $app['discipline'],
+                    'level'   => $app['level'] ?? null,
+                    'app_id'  => $appId,
+                ]);
+            } catch (RuntimeException $e) {
+                if ($e->getMessage() === 'already_enrolled') {
+                    // A previous payment attempt or manual enrol already created it.
+                    $existing = mam_db_row(
+                        "SELECT ce.id FROM course_enrollments ce
+                           JOIN courses c ON c.id = ce.course_id
+                          WHERE ce.student_id = ? AND c.code = ? AND ce.status IN ('pending','active') LIMIT 1",
+                        [$studentId, (string)$app['discipline']]
+                    );
+                    $ceId = $existing ? (int)$existing['id'] : 0;
+                } else {
+                    mam_log('info', 'auto_enroll_skip', [
+                        'student_id' => $studentId,
+                        'course'     => $app['discipline'],
+                        'reason'     => $e->getMessage(),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                mam_log('info', 'auto_enroll_skip', [
+                    'student_id' => $studentId,
+                    'course'     => $app['discipline'],
+                    'reason'     => $e->getMessage(),
+                ]);
+            }
+            if ($ceId > 0) {
+                // null instructor → system uses the remembered instructor for this
+                // course/level from instructor_assignments (set via curriculum workflow).
+                try { mam_lms_approve($ceId, null, 0); }
+                catch (\Throwable $e) { mam_log('info', 'auto_enroll_approve_skip', ['ce_id' => $ceId, 'reason' => $e->getMessage()]); }
+            }
+        }
+
         if (empty($provision['password'])) return 'portal_already_provisioned';
         $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
         $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';

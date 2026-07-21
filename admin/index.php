@@ -137,6 +137,288 @@ if ($view === 'export') {
         exit;
     }
 
+    // Programme curriculum PDF — print-ready HTML; browser Print → Save as PDF.
+    if ($type === 'curriculum.pdf') {
+        if ($adminUser && !mam_admin_can($adminUser, 'curriculum')) { http_response_code(403); echo 'Forbidden.'; exit; }
+        $pc   = trim((string)($_GET['program'] ?? ''));
+        $lc   = trim((string)($_GET['level'] ?? ''));
+        $prog = $pc !== '' ? mam_db_row('SELECT * FROM programs WHERE code = ?', [$pc]) : null;
+        if (!$prog) { http_response_code(404); echo 'Programme not found.'; exit; }
+        $curriculum  = mam_lms_full_program_curriculum($pc);
+        $progName    = (string)$prog['name'];
+        $progWeeks   = max(1, (int)$prog['weeks']);
+        $certLabels  = ['participation' => 'Certificate of Participation', 'completion' => 'Certificate of Completion', 'internal' => 'Internal Certification', 'internal_diploma' => 'Internal Certification & Diploma Transcript'];
+        $certLabel   = $certLabels[$prog['certification'] ?? ''] ?? 'Certificate';
+        $totalAuthored = 0; $totalPossible = 0;
+        $courses = $curriculum['courses'] ?? [];
+        foreach ($courses as $c) { $authoredW = count(array_filter($c['weeks'] ?? [], fn($w) => !empty($w['title']))); $totalAuthored += $authoredW; $totalPossible += $progWeeks; }
+        mam_audit('curriculum_pdf_export', 'program', (int)$prog['id'], ['level' => $lc ?: null]);
+        header_remove('Content-Type');
+        header('Content-Type: text/html; charset=utf-8');
+        $edition = 'Edition ' . date('Y') . '.' . date('n');
+        $genDate = date('j F Y');
+        ?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title><?= htmlspecialchars($progName) ?> Curriculum — MAM Academy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* ── Tokens ── */
+:root{
+  --gold:#E8961F;--gold2:#F7A823;--ink:#1B140D;--warm:#3B2E1D;--smoke:#5C4A3A;
+  --rule:#DFD0C0;--bg:#FDFAF6;--tag-bg:#F5EDE2;
+  --core-bg:#FEF3C7;--core-fg:#92400E;
+  --elec-bg:#E0F2FE;--elec-fg:#075985;
+  --rev-bg:#D1FAE5;--rev-fg:#065F46;
+  --exam-bg:#FEE2E2;--exam-fg:#991B1B;
+  --f-display:'Cormorant Garamond',Georgia,serif;
+  --f-body:'Inter',-apple-system,sans-serif;
+}
+/* ── Base ── */
+html{font-size:10.5pt}
+body{font-family:var(--f-body);color:var(--ink);background:var(--bg);line-height:1.55}
+a{color:inherit;text-decoration:none}
+
+/* ── Print page setup ── */
+@page{
+  size:A4;margin:18mm 16mm 22mm;
+  @bottom-left{content:'MAM Academy — ' attr(data-prog);font-size:7.5pt;color:#888;font-family:var(--f-body)}
+  @bottom-center{content:counter(page) ' / ' counter(pages);font-size:7.5pt;color:#888;font-family:var(--f-body)}
+  @bottom-right{content:attr(data-edition);font-size:7.5pt;color:#888;font-family:var(--f-body)}
+}
+@page cover{margin:0;@bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:none}}
+@page toc{margin:18mm 16mm 22mm}
+
+/* ── No-print control bar ── */
+.no-print{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:10px;
+  padding:12px 24px;background:var(--ink);box-shadow:0 2px 16px rgba(0,0,0,.25)}
+.no-print h2{font-family:var(--f-display);font-size:1.1rem;font-weight:700;color:#fff;flex:1;letter-spacing:.03em}
+.no-print button{padding:8px 18px;border-radius:8px;border:none;font-family:var(--f-body);font-size:.88rem;font-weight:700;cursor:pointer;transition:opacity .15s}
+.btn-pdf{background:var(--gold);color:var(--ink)}
+.btn-pdf:hover{opacity:.9}
+.btn-close{background:transparent;color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.2)}
+.btn-close:hover{color:#fff;border-color:rgba(255,255,255,.5)}
+@media print{.no-print{display:none!important}}
+
+/* ── Cover page ── */
+.cover{
+  page:cover;page-break-after:always;
+  position:relative;min-height:100vh;display:flex;flex-direction:column;
+  background:#fff;overflow:hidden
+}
+.cover-stripe{
+  position:absolute;top:0;left:0;right:0;height:8px;
+  background:linear-gradient(90deg,var(--gold),var(--gold2),var(--gold))
+}
+.cover-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:64px 56px}
+.cover-eyebrow{font-family:var(--f-body);font-size:8pt;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin-bottom:20px}
+.cover h1{font-family:var(--f-display);font-size:44pt;font-weight:700;color:var(--ink);line-height:1.0;letter-spacing:-.5pt;margin-bottom:12px}
+.cover-sub{font-family:var(--f-display);font-size:17pt;font-weight:600;font-style:italic;color:var(--smoke);margin-bottom:36px}
+.cover-rule{width:56px;height:3px;background:var(--gold);margin-bottom:36px}
+.cover-meta{display:flex;flex-wrap:wrap;gap:10px}
+.cover-meta span{display:inline-flex;align-items:center;gap:6px;background:var(--tag-bg);color:var(--smoke);font-size:8.5pt;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid var(--rule)}
+.cover-stats{margin-top:40px;padding-top:32px;border-top:1px solid var(--rule);display:flex;gap:40px}
+.cover-stat-n{font-family:var(--f-display);font-size:32pt;font-weight:700;color:var(--ink);line-height:1}
+.cover-stat-l{font-size:8pt;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--smoke);margin-top:4px}
+.cover-footer{padding:28px 56px;display:flex;align-items:center;gap:12px;border-top:1px solid var(--rule)}
+.cover-monogram{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--gold),var(--gold2));display:flex;align-items:center;justify-content:center;color:var(--ink);font-family:var(--f-display);font-size:1.2rem;font-weight:700;flex:0 0 auto}
+.cover-brand{font-size:8pt;color:var(--smoke)}
+.cover-brand strong{display:block;font-weight:700;color:var(--ink);letter-spacing:.04em}
+
+/* ── Table of contents ── */
+.toc{page:toc;page-break-after:always;padding:48px 56px}
+.toc h2{font-family:var(--f-display);font-size:22pt;font-weight:700;color:var(--ink);margin-bottom:6px}
+.toc-rule{width:40px;height:2px;background:var(--gold);margin:14px 0 28px}
+.toc-row{display:flex;align-items:baseline;gap:8px;padding:10px 0;border-bottom:1px dashed var(--rule)}
+.toc-row:last-child{border-bottom:none}
+.toc-idx{font-family:var(--f-display);font-size:11pt;font-weight:700;color:var(--gold);min-width:28px}
+.toc-name{font-size:10.5pt;font-weight:600;flex:1}
+.toc-dots{flex:1;border-bottom:1px dotted var(--rule);min-width:20px;align-self:center;margin:0 10px}
+.toc-badge{font-size:7.5pt;padding:2px 8px;border-radius:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.toc-core{background:var(--core-bg);color:var(--core-fg)}
+.toc-elec{background:var(--elec-bg);color:var(--elec-fg)}
+.toc-progress{font-size:8pt;color:var(--smoke)}
+
+/* ── Course sections ── */
+.course-section{padding:40px 56px;page-break-inside:avoid}
+.course-section+.course-section{border-top:3px solid var(--rule);page-break-before:always}
+.course-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:6px}
+.course-num{font-family:var(--f-display);font-size:10pt;font-weight:700;color:var(--gold);min-width:28px;line-height:1.8}
+.course-title{font-family:var(--f-display);font-size:22pt;font-weight:700;color:var(--ink);flex:1;line-height:1.1}
+.course-badge{font-size:7.5pt;padding:3px 9px;border-radius:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;align-self:flex-start;margin-top:6px}
+.course-desc{font-size:9pt;color:var(--smoke);line-height:1.6;margin:10px 0 16px 42px}
+.course-level{display:inline-flex;align-items:center;gap:6px;background:var(--tag-bg);color:var(--smoke);font-size:8pt;font-weight:600;padding:3px 10px;border-radius:14px;margin:0 0 16px 42px}
+.course-progress{display:flex;align-items:center;gap:12px;margin:0 0 20px 42px}
+.progress-bar-wrap{flex:1;height:5px;background:var(--rule);border-radius:3px;max-width:200px}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:3px}
+.progress-label{font-size:8pt;color:var(--smoke);white-space:nowrap}
+
+/* ── Week table ── */
+table.weeks{width:100%;border-collapse:collapse;font-size:9pt;margin-left:42px;width:calc(100% - 42px)}
+table.weeks th{
+  text-align:left;padding:7px 10px;
+  background:var(--ink);color:#fff;
+  font-size:7.5pt;font-weight:700;letter-spacing:.08em;text-transform:uppercase
+}
+table.weeks thead th:first-child{border-radius:0}
+table.weeks td{padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+table.weeks tr.authored td{background:#fff}
+table.weeks tr.unwritten td{background:#FAF7F3;color:#aaa}
+table.weeks tr:last-child td{border-bottom:none}
+.wk-num{font-family:var(--f-display);font-size:12pt;font-weight:700;color:var(--gold);white-space:nowrap;width:44px;line-height:1.4}
+.wk-num.unwritten{color:var(--rule)}
+.wk-badge{display:inline-block;font-size:7pt;padding:2px 7px;border-radius:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.kind-module{background:var(--elec-bg);color:var(--elec-fg)}
+.kind-revision{background:var(--rev-bg);color:var(--rev-fg)}
+.kind-exam{background:var(--exam-bg);color:var(--exam-fg)}
+.kind-empty{background:var(--tag-bg);color:#bbb}
+.wk-title{font-weight:600;line-height:1.35}
+.wk-content{font-size:8.5pt;color:var(--smoke);line-height:1.45;margin-top:4px}
+.no-modules-note{font-size:9pt;color:#bbb;font-style:italic;margin:16px 0 0 42px}
+
+/* ── Empty curriculum state ── */
+.no-courses{padding:48px 56px;color:#bbb;font-style:italic}
+
+/* ── Print-only running footer (fallback for @page) ── */
+.print-footer{display:none}
+@media print{
+  .print-footer{display:flex;justify-content:space-between;font-size:7.5pt;color:#aaa;padding:0;margin-top:40px;border-top:1px solid var(--rule)}
+  body{background:#fff}
+  .cover-body{padding:64px 56px}
+}
+</style>
+</head>
+<body data-prog="<?= htmlspecialchars($progName) ?>" data-edition="<?= htmlspecialchars($edition) ?>">
+
+<!-- ── Screen toolbar (hidden on print) ── -->
+<div class="no-print">
+  <h2><?= htmlspecialchars($progName) ?> — Curriculum</h2>
+  <button class="btn-pdf" onclick="window.print()">↓ Save as PDF</button>
+  <button class="btn-close" onclick="window.close()">✕ Close</button>
+</div>
+
+<!-- ── Cover page ── -->
+<div class="cover">
+  <div class="cover-stripe"></div>
+  <div class="cover-body">
+    <div class="cover-eyebrow">MAM Academy · Official Curriculum Document</div>
+    <h1><?= htmlspecialchars($progName) ?></h1>
+    <div class="cover-sub"><?= $lc !== '' ? htmlspecialchars(ucwords($lc)) . ' Level · ' : '' ?>Standard Programme Curriculum</div>
+    <div class="cover-rule"></div>
+    <div class="cover-meta">
+      <span><?= (int)$prog['weeks'] ?> weeks</span>
+      <span><?= htmlspecialchars($certLabel) ?></span>
+      <?php if ($prog['requires_core']): ?><span>Core track required</span><?php endif; ?>
+      <?php if ($courses): ?><span><?= count($courses) ?> course<?= count($courses) === 1 ? '' : 's' ?></span><?php endif; ?>
+      <span>Generated <?= $genDate ?></span>
+    </div>
+    <?php if ($totalPossible > 0): ?>
+    <div class="cover-stats">
+      <div><div class="cover-stat-n"><?= $totalAuthored ?></div><div class="cover-stat-l">Weeks authored</div></div>
+      <div><div class="cover-stat-n"><?= $totalPossible ?></div><div class="cover-stat-l">Total weeks</div></div>
+      <div><div class="cover-stat-n"><?= $totalPossible > 0 ? round($totalAuthored / $totalPossible * 100) : 0 ?>%</div><div class="cover-stat-l">Complete</div></div>
+    </div>
+    <?php endif; ?>
+  </div>
+  <div class="cover-footer">
+    <div class="cover-monogram">M</div>
+    <div class="cover-brand"><strong>MAM ACADEMY</strong>Music, Arts &amp; Mystery · academy.mamcentre.org</div>
+    <div style="margin-left:auto;font-size:8pt;color:var(--smoke)"><?= htmlspecialchars($edition) ?></div>
+  </div>
+</div>
+
+<!-- ── Table of Contents ── -->
+<?php if ($courses): ?>
+<div class="toc">
+  <h2>Contents</h2>
+  <div class="toc-rule"></div>
+  <?php foreach ($courses as $i => $c):
+    $cName     = (string)($c['course']['name'] ?? '');
+    $cKind     = (string)($c['course']['kind'] ?? 'elective');
+    $cAuthored = count(array_filter($c['weeks'] ?? [], fn($w) => !empty($w['title'])));
+  ?>
+  <div class="toc-row">
+    <span class="toc-idx"><?= $i + 1 ?></span>
+    <span class="toc-name"><?= htmlspecialchars($cName) ?></span>
+    <span class="toc-badge <?= $cKind === 'core' ? 'toc-core' : 'toc-elec' ?>"><?= htmlspecialchars($cKind) ?></span>
+    <span class="toc-dots"></span>
+    <span class="toc-progress"><?= $cAuthored ?> / <?= $progWeeks ?> wks</span>
+  </div>
+  <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<!-- ── Course sections ── -->
+<?php if (!$courses): ?>
+  <div class="no-courses">No courses are linked to this programme yet. Visit the Programme Catalogue to add courses.</div>
+<?php else: foreach ($courses as $i => $c):
+  $cName     = (string)($c['course']['name'] ?? '');
+  $cKind     = (string)($c['course']['kind'] ?? 'elective');
+  $cDesc     = (string)($c['course']['description'] ?? '');
+  $cLevel    = $c['level']['name'] ?? '';
+  $weeksData = $c['weeks'] ?? [];
+  $authored  = array_filter($weeksData, fn($w) => !empty($w['title']));
+  $authCount = count($authored);
+  $pct       = $progWeeks > 0 ? min(100, round($authCount / $progWeeks * 100)) : 0;
+  $weeksByN  = [];
+  foreach ($weeksData as $w) { $weeksByN[(int)$w['week']] = $w; }
+?>
+<div class="course-section">
+  <div class="course-header">
+    <span class="course-num"><?= str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT) ?></span>
+    <span class="course-title"><?= htmlspecialchars($cName) ?></span>
+    <span class="course-badge <?= $cKind === 'core' ? '' : '' ?>" style="background:<?= $cKind === 'core' ? 'var(--core-bg);color:var(--core-fg)' : 'var(--elec-bg);color:var(--elec-fg)' ?>"><?= htmlspecialchars($cKind) ?></span>
+  </div>
+  <?php if ($cDesc): ?><p class="course-desc"><?= htmlspecialchars($cDesc) ?></p><?php endif; ?>
+  <?php if ($cLevel): ?><div class="course-level">Level: <?= htmlspecialchars($cLevel) ?></div><?php endif; ?>
+  <div class="course-progress">
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:<?= $pct ?>%"></div></div>
+    <span class="progress-label"><?= $authCount ?> of <?= $progWeeks ?> weeks authored (<?= $pct ?>%)</span>
+  </div>
+  <?php if (!$weeksData && !$authCount): ?>
+    <p class="no-modules-note">No weeks authored for this course yet.</p>
+  <?php else: ?>
+  <table class="weeks">
+    <thead><tr><th>Wk</th><th>Type</th><th>Title &amp; Content</th></tr></thead>
+    <tbody>
+    <?php for ($wn = 1; $wn <= $progWeeks; $wn++):
+      $w = $weeksByN[$wn] ?? null;
+      $hasContent = $w && !empty($w['title']);
+      $kind = $hasContent ? (string)($w['kind'] ?? 'module') : '';
+    ?>
+      <tr class="<?= $hasContent ? 'authored' : 'unwritten' ?>">
+        <td class="wk-num <?= $hasContent ? '' : 'unwritten' ?>"><?= $wn ?></td>
+        <td><?php if ($hasContent): ?><span class="wk-badge kind-<?= htmlspecialchars($kind) ?>"><?= htmlspecialchars($kind) ?></span><?php else: ?><span class="wk-badge kind-empty">—</span><?php endif; ?></td>
+        <td>
+          <?php if ($hasContent): ?>
+            <div class="wk-title"><?= htmlspecialchars((string)$w['title']) ?></div>
+            <?php if (!empty($w['content'])): ?><div class="wk-content"><?= nl2br(htmlspecialchars(substr((string)$w['content'], 0, 700))) ?></div><?php endif; ?>
+          <?php else: ?>
+            <span style="color:#ccc;font-size:8.5pt">Not yet authored</span>
+          <?php endif; ?>
+        </td>
+      </tr>
+    <?php endfor; ?>
+    </tbody>
+  </table>
+  <?php endif; ?>
+</div>
+<?php endforeach; endif; ?>
+
+<script>
+window.onload = function() {
+  if (window.opener || window.history.length <= 1) {
+    setTimeout(function(){ window.print(); }, 500);
+  }
+};
+</script>
+</body></html><?php exit; }
+
     $filename = preg_replace('/[^A-Za-z0-9._-]/', '', basename($type));
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -189,15 +471,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'wallet_credit' => 'users',
         'faculty_invite' => 'users', 'faculty_app_status' => 'users', 'faculty_request_review' => 'users',
         'module_proposal_review' => 'curriculum',
+        'curriculum_clone' => 'curriculum',
+        'course_create' => 'curriculum', 'course_update' => 'curriculum', 'course_toggle' => 'curriculum',
+        'program_create' => 'curriculum', 'program_update' => 'curriculum',
+        'link_course' => 'curriculum', 'unlink_course' => 'curriculum',
+        'cohort_converge' => 'settings', 'cohort_create' => 'curriculum', 'cohort_edit' => 'curriculum',
+        'bridge_legacy_enrollments' => 'settings',
+        'module_save' => 'curriculum', 'module_delete' => 'curriculum',
+        'module_scaffold' => 'curriculum', 'module_import' => 'curriculum',
+        'set_student_type' => 'users',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
+        'automation_toggle' => 'settings',
+        'run_automations' => 'settings',
+        'record_placement' => 'admissions',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
         'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
         // Destructive record deletions + bulk seeding are super-only — a manager
         // must not be able to permanently remove applications/classes/enrolments.
         'app_delete' => 'settings', 'class_delete' => 'settings',
         'enrollment_delete' => 'settings', 'seed_starter' => 'settings',
+        'survey_create' => 'support', 'survey_status' => 'support',
+        'ticket_reply' => 'support', 'ticket_assign' => 'support', 'ticket_resolve' => 'support',
     ];
     if (isset($actionCaps[$action]) && $adminUser && !mam_admin_can($adminUser, $actionCaps[$action])) {
         header('Location: ?err=' . urlencode('Your admin level does not permit that action.')); exit;
@@ -238,6 +534,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             header('Location: ?v=users&err=' . urlencode($msg)); exit;
         }
         header('Location: ?v=users&ok=1'); exit;
+    }
+
+    // ── Scholarship / student-type toggle ────────────────────────────────
+    if ($action === 'set_student_type') {
+        $uid  = (int)($_POST['user_id'] ?? 0);
+        $type = strtolower(trim((string)($_POST['student_type'] ?? '')));
+        if (!in_array($type, ['scholarship', 'paying'], true)) {
+            header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Invalid type value.')); exit;
+        }
+        $target = mam_db_row('SELECT id, role FROM users WHERE id = ?', [$uid]);
+        if (!$target || !mam_user_has_role($target, 'student')) {
+            header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Scholarship tier applies to students only.')); exit;
+        }
+        mam_db_update('users', ['student_type' => $type === 'scholarship' ? 'scholarship' : null], ['id' => $uid]);
+        mam_audit('set_student_type', 'user', $uid, ['type' => $type]);
+        header('Location: ?v=users&edit=' . $uid . '&ok=1'); exit;
     }
 
     // ── Media & Documents library (#media) ──────────────────────────────
@@ -294,6 +606,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         mam_db_update('users', $upd, ['id' => (int)$me['id']]);
         mam_audit('update', 'user', (int)$me['id'], ['self_account' => true, 'password_changed' => isset($upd['password_hash'])]);
         header('Location: ?v=account&ok=1'); exit;
+    }
+
+    // Bulk status change across selected applications — routes each through the
+    // audited admissions state machine; illegal transitions are skipped, not
+    // fatal. Provisioning stays a per-application step (drawer / single save).
+    if ($action === 'app_bulk_status') {
+        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)($_POST['ids'] ?? ''))))));
+        $status = (string)($_POST['status'] ?? '');
+        $valid = ['submitted', 'in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'];
+        if (!$ids || !in_array($status, $valid, true)) { header('Location: ?v=applications&err=' . urlencode('Select at least one application and a status.')); exit; }
+        $ok = 0; $skip = 0;
+        foreach (array_slice($ids, 0, 200) as $id) {
+            try { mam_admissions_transition($id, $status, ((int)($adminUser['id'] ?? 0)) ?: null, 'bulk update'); $ok++; }
+            catch (\Throwable $e) { $skip++; }
+        }
+        mam_audit('app_bulk_status', 'application', null, ['status' => $status, 'ok' => $ok, 'skipped' => $skip]);
+        header('Location: ?v=applications&ok=' . urlencode("Updated {$ok} application(s) to “{$status}”" . ($skip ? " · {$skip} skipped (not allowed from their stage)" : '') . '.')); exit;
     }
 
     if ($action === 'app_status') {
@@ -504,6 +833,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $schedule    = trim((string)($_POST['schedule'] ?? '')) ?: null;
         $capacity    = max(1, (int)($_POST['capacity'] ?? 12));
         $startsOn    = trim((string)($_POST['starts_on'] ?? '')) ?: null;
+        $rawLink     = trim((string)($_POST['meeting_link'] ?? ''));
+        $meetingLink = null;
+        if ($rawLink !== '') {
+            $validated = filter_var($rawLink, FILTER_VALIDATE_URL);
+            if ($validated && preg_match('#^https://#i', $validated)) {
+                $meetingLink = substr($validated, 0, 500);
+            }
+        }
         if ($title === '' || $discipline === '') {
             header('Location: ?v=classes&err=' . urlencode('Title and discipline are required.'));
             exit;
@@ -511,7 +848,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $cid = mam_db_insert('classes', [
             'title' => $title, 'discipline' => $discipline, 'pathway' => $pathway,
             'instructor_id' => $instructor, 'mode' => $mode, 'schedule' => $schedule,
-            'capacity' => $capacity, 'starts_on' => $startsOn,
+            'capacity' => $capacity, 'starts_on' => $startsOn, 'meeting_link' => $meetingLink,
         ]);
         mam_audit('create', 'class', $cid, ['title' => $title]);
         header('Location: ?v=classes&ok=1');
@@ -569,30 +906,124 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     // ─── LMS course registrations: approve + assign instructor ───────
     if ($action === 'course_approve') {
-        $ceid   = (int)($_POST['enrollment_id'] ?? 0);
-        $iid    = (int)($_POST['instructor_id'] ?? 0);
-        $status = (string)($_POST['status'] ?? 'active');
-        if (!in_array($status, ['active', 'pending', 'completed', 'withdrawn'], true)) $status = 'active';
+        $ceid    = (int)($_POST['enrollment_id'] ?? 0);
+        $iid     = (int)($_POST['instructor_id'] ?? 0);
+        $status  = (string)($_POST['status'] ?? 'active');
+        $actorId = (int)($adminUser['id'] ?? 0);
         if (!$ceid || !mam_db_row('SELECT id FROM course_enrollments WHERE id = ?', [$ceid])) {
             header('Location: ?v=courseenroll&err=' . urlencode('Course registration not found.')); exit;
         }
+        // Instructor assignment can accompany any status change — do it first so
+        // subsequent lifecycle functions see the updated instructor.
+        if ($iid) mam_db_update('course_enrollments', ['instructor_id' => $iid], ['id' => $ceid]);
+
         if ($status === 'active') {
-            mam_lms_approve($ceid, $iid ?: null, (int)($adminUser['id'] ?? 0));
-        } else {
-            $upd = ['status' => $status]; if ($iid) $upd['instructor_id'] = $iid;
-            mam_db_update('course_enrollments', $upd, ['id' => $ceid]);
-            mam_audit('lms_status', 'course_enrollment', $ceid, ['status' => $status]);
-            // Completing a passed course auto-issues its programme certificate
-            // and (when policy allows) advances it to the next level.
-            if ($status === 'completed') {
-                $cert = mam_lms_issue_for_enrollment($ceid, (int)($adminUser['id'] ?? 0));
-                if (mam_lms_auto_promote()) mam_lms_promote_enrollment($ceid, (int)($adminUser['id'] ?? 0));
+            mam_lms_approve($ceid, $iid ?: null, $actorId);
+        } elseif ($status === 'withdrawn') {
+            // Route through the state machine so the transition is logged to
+            // enrolment_events and illegal moves are rejected rather than silently
+            // written (a withdrawn→active reversal belongs in the audit trail).
+            try { mam_lms_withdraw($ceid, $actorId); }
+            catch (RuntimeException $e) {
+                header('Location: ?v=courseenroll&err=' . urlencode('Cannot withdraw: ' . $e->getMessage())); exit;
+            }
+        } elseif (in_array($status, ['completed', 'failed'], true)) {
+            // mam_lms_finalize() computes the gradebook result, rejects ungraded
+            // enrollments (not_graded → 422-friendly message), fires the
+            // enrolment.finalized event, notifies the student, and enqueues
+            // auto-promotion — none of those ran through the old raw-UPDATE path.
+            try {
+                $fin  = mam_lms_finalize($ceid, $actorId);
+                $cert = mam_lms_issue_for_enrollment($ceid, $actorId);
                 if ($cert && !empty($cert['issued'])) {
                     header('Location: ?v=courseenroll&cert=' . urlencode($cert['reference'])); exit;
                 }
+            } catch (RuntimeException $e) {
+                $msg = $e->getMessage() === 'not_graded'
+                    ? 'No grades on record yet — score the student in the Gradebook before finalizing.'
+                    : 'Cannot finalize: ' . $e->getMessage();
+                header('Location: ?v=courseenroll&err=' . urlencode($msg)); exit;
             }
+        } else {
+            header('Location: ?v=courseenroll&err=' . urlencode('Invalid status — finalize from the Gradebook or use Withdraw.')); exit;
         }
         header('Location: ?v=courseenroll&ok=1'); exit;
+    }
+
+    // ─── Bridge all active legacy class enrollments into course_enrollments ─
+    if ($action === 'bridge_legacy_enrollments') {
+        $bridged = 0; $skipped = 0; $errors = [];
+        $rows = mam_db_all(
+            "SELECT e.student_id, cl.discipline, cl.instructor_id
+               FROM enrollments e
+               JOIN classes cl ON cl.id = e.class_id
+              WHERE e.status = 'active' AND cl.discipline IS NOT NULL AND cl.discipline <> ''
+              ORDER BY e.student_id"
+        );
+        $adminId = (int)($adminUser['id'] ?? 0);
+        foreach ($rows as $row) {
+            $sid   = (int)$row['student_id'];
+            $disc  = (string)$row['discipline'];
+            $iid   = (int)($row['instructor_id'] ?? 0);
+            $ceId  = 0;
+            try {
+                $ceRow = mam_lms_add_course($sid, $disc);
+                $ceId  = (int)$ceRow['id'];
+                $bridged++;
+            } catch (RuntimeException $e) {
+                if ($e->getMessage() === 'already_enrolled') {
+                    $ex = mam_db_row("SELECT ce.id FROM course_enrollments ce JOIN courses c ON c.id = ce.course_id WHERE ce.student_id = ? AND c.code = ? AND ce.status IN ('pending','active') LIMIT 1", [$sid, $disc]);
+                    $ceId = $ex ? (int)$ex['id'] : 0;
+                    $skipped++;
+                } else {
+                    $errors[] = "student $sid / $disc: " . $e->getMessage();
+                }
+            } catch (\Throwable $e) {
+                $errors[] = "student $sid / $disc: " . $e->getMessage();
+            }
+            if ($ceId > 0) {
+                try { mam_lms_approve($ceId, $iid ?: null, $adminId); }
+                catch (\Throwable $e) { /* already active */ }
+            }
+        }
+        $msg = "Bridged $bridged" . ($skipped ? ", $skipped already linked" : '') . ($errors ? ', ' . count($errors) . ' failed (see logs)' : '') . ' legacy class enrollment' . ($bridged + $skipped + count($errors) !== 1 ? 's' : '') . '.';
+        foreach ($errors as $err) mam_log('warn', 'bridge_legacy_error', ['detail' => $err]);
+        mam_audit('bridge_legacy_enrollments', 'course_enrollments', 0, ['bridged' => $bridged, 'skipped' => $skipped, 'errors' => count($errors)]);
+        header('Location: ?v=courseenroll&ok=' . urlencode($msg)); exit;
+    }
+
+    // ─── Assign / add a course to a student from the user-edit view ────
+    if ($action === 'student_course_assign') {
+        $uid  = (int)($_POST['user_id'] ?? 0);
+        $code = trim((string)($_POST['course_code'] ?? ''));
+        $iid  = (int)($_POST['instructor_id'] ?? 0);
+        if (!$uid || !$code) { header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Select a course.')); exit; }
+        $student = mam_db_row("SELECT id FROM users WHERE id = ?", [$uid]);
+        if (!$student) { header('Location: ?v=users&err=' . urlencode('Student not found.')); exit; }
+        $ceId = 0;
+        try {
+            $ceRow = mam_lms_add_course($uid, $code);
+            $ceId  = (int)$ceRow['id'];
+        } catch (RuntimeException $e) {
+            if ($e->getMessage() === 'already_enrolled') {
+                $existing = mam_db_row(
+                    "SELECT ce.id FROM course_enrollments ce JOIN courses c ON c.id = ce.course_id
+                      WHERE ce.student_id = ? AND c.code = ? AND ce.status IN ('pending','active') LIMIT 1",
+                    [$uid, $code]
+                );
+                $ceId = $existing ? (int)$existing['id'] : 0;
+            } else {
+                header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode($e->getMessage() === 'course_not_found' ? 'Course not found — check the course catalogue.' : $e->getMessage())); exit;
+            }
+        } catch (\Throwable $e) {
+            header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Could not add course: ' . $e->getMessage())); exit;
+        }
+        if ($ceId > 0) {
+            try { mam_lms_approve($ceId, $iid ?: null, (int)($adminUser['id'] ?? 0)); }
+            catch (\Throwable $e) { /* already active — instructor_id updated regardless */ }
+            mam_audit('admin_course_assign', 'course_enrollment', $ceId, ['student' => $uid, 'course' => $code, 'instructor' => $iid]);
+        }
+        header('Location: ?v=users&edit=' . $uid . '&ok=1'); exit;
     }
 
     // Manually advance a passed enrolment to the same course at the next level.
@@ -710,6 +1141,107 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     // ─── Review a faculty curriculum proposal (approve → applied to modules) ──
+    if ($action === 'curriculum_clone') {
+        $courseCode = (string)($_POST['course_code'] ?? '');
+        $fromLevel  = (string)($_POST['from_level'] ?? '');
+        $toLevel    = (string)($_POST['to_level'] ?? '');
+        $back = '?v=modules&course=' . urlencode($courseCode) . '&level=' . urlencode($toLevel);
+        if ($courseCode === '' || $toLevel === '' || $fromLevel === $toLevel) {
+            header('Location: ' . $back . '&err=' . urlencode('Pick a different target level to clone into.')); exit;
+        }
+        try {
+            $res = mam_lms_clone_syllabus($courseCode, $fromLevel, $toLevel);
+            if ($res['total'] === 0) { header('Location: ?v=modules&course=' . urlencode($courseCode) . '&level=' . urlencode($fromLevel) . '&err=' . urlencode('Nothing to clone — author the source level first.')); exit; }
+            header('Location: ' . $back . '&ok=' . urlencode('Cloned ' . $res['total'] . ' week' . ($res['total'] === 1 ? '' : 's') . ' — ' . $res['created'] . ' new, ' . $res['updated'] . ' updated.')); exit;
+        } catch (\Throwable $e) {
+            header('Location: ' . $back . '&err=' . urlencode('Could not clone that syllabus.')); exit;
+        }
+    }
+
+    // Cohort convergence (P2 write-path): reconcile a backfilled cohort's legacy
+    // class roster into course_enrollments so those students become gradable +
+    // markable in the cohort tools. Additive + idempotent (mam_lms_*).
+    if ($action === 'waitlist_promote') {
+        $cohortId = (int)($_POST['cohort_id'] ?? 0);
+        $force    = !empty($_POST['force']);
+        if ($cohortId <= 0) { header('Location: ?v=courseenroll&err=' . urlencode('Missing cohort.')); exit; }
+        try {
+            $promoted = mam_lms_waitlist_promote($cohortId, ((int)($adminUser['id'] ?? 0)) ?: null, $force);
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() === 'cohort_full') {
+                header('Location: ?v=courseenroll&err=' . urlencode('Cohort is full. Use "Force promote" to override the capacity limit.')); exit;
+            }
+            header('Location: ?v=courseenroll&err=' . urlencode('Could not promote waitlist student.')); exit;
+        }
+        header('Location: ?v=courseenroll&ok=' . urlencode($promoted ? 'Promoted student #' . $promoted . ' from the waitlist.' : 'Waitlist is empty.')); exit;
+    }
+
+    if ($action === 'cohort_converge') {
+        $cohortId = (int)($_POST['cohort_id'] ?? 0);
+        if ($cohortId <= 0) { header('Location: ?v=courseenroll&err=' . urlencode('Pick a cohort to converge.')); exit; }
+        try {
+            $r = mam_lms_converge_cohort_enrollments($cohortId, ((int)($adminUser['id'] ?? 0)) ?: null);
+        } catch (\Throwable $e) {
+            header('Location: ?v=courseenroll&err=' . urlencode('Could not converge that cohort.')); exit;
+        }
+        if ($r['reason'] === 'no_course_mapping') { header('Location: ?v=courseenroll&err=' . urlencode('Map this cohort to a course first — then converge its class roster.')); exit; }
+        if ($r['reason'] === 'not_backfilled')   { header('Location: ?v=courseenroll&err=' . urlencode('That cohort has no legacy class to converge.')); exit; }
+        $made = (int)$r['converged'] + (int)$r['linked'];
+        header('Location: ?v=courseenroll&ok=' . urlencode($made
+            ? ('Converged the legacy roster — ' . (int)$r['converged'] . ' enrolled, ' . (int)$r['linked'] . ' linked' . ($r['skipped'] ? ', ' . (int)$r['skipped'] . ' already enrolled' : '') . '.')
+            : 'Nothing to converge — the class roster is already enrolled.')); exit;
+    }
+
+    if ($action === 'cohort_create') {
+        $title   = substr(trim((string)($_POST['title'] ?? '')), 0, 200);
+        $cid     = (int)($_POST['course_id'] ?? 0) ?: null;
+        $iid     = (int)($_POST['instructor_id'] ?? 0) ?: null;
+        $cap     = max(1, min(500, (int)($_POST['capacity'] ?? 12)));
+        $starts  = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_POST['starts_on'] ?? '')) ? $_POST['starts_on'] : null;
+        $ends    = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_POST['ends_on']   ?? '')) ? $_POST['ends_on']   : null;
+        $term    = substr(trim((string)($_POST['term'] ?? '')), 0, 60) ?: null;
+        if ($title === '') { header('Location: ?v=courseenroll&err=' . urlencode('Cohort title is required.')); exit; }
+        $newId = mam_lms_create_cohort([
+            'title'         => $title,
+            'course_id'     => $cid,
+            'instructor_id' => $iid,
+            'capacity'      => $cap,
+            'starts_on'     => $starts,
+            'ends_on'       => $ends,
+            'term'          => $term,
+            'status'        => 'active',
+        ]);
+        header('Location: ?v=courseenroll&ok=' . urlencode('Cohort #' . $newId . ' created.')); exit;
+    }
+
+    if ($action === 'cohort_edit') {
+        $cohortId = (int)($_POST['cohort_id'] ?? 0);
+        if ($cohortId <= 0) { header('Location: ?v=courseenroll&err=' . urlencode('Invalid cohort.')); exit; }
+        if (!mam_db_row('SELECT id FROM cohorts WHERE id = ?', [$cohortId])) { header('Location: ?v=courseenroll&err=' . urlencode('Cohort not found.')); exit; }
+        $updates = [];
+        $title = substr(trim((string)($_POST['title'] ?? '')), 0, 200);
+        if ($title !== '') $updates['title'] = $title;
+        $cid = (int)($_POST['course_id'] ?? 0);
+        if ($cid > 0) $updates['course_id'] = $cid;
+        $iid = (int)($_POST['instructor_id'] ?? 0);
+        $updates['instructor_id'] = $iid > 0 ? $iid : null;
+        $cap = (int)($_POST['capacity'] ?? 0);
+        if ($cap > 0) $updates['capacity'] = max(1, min(500, $cap));
+        $starts = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_POST['starts_on'] ?? '')) ? $_POST['starts_on'] : null;
+        $ends   = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_POST['ends_on']   ?? '')) ? $_POST['ends_on']   : null;
+        if ($starts !== null) $updates['starts_on'] = $starts;
+        if ($ends   !== null) $updates['ends_on']   = $ends;
+        $term = substr(trim((string)($_POST['term'] ?? '')), 0, 60);
+        if ($term !== '') $updates['term'] = $term;
+        $status = $_POST['status'] ?? '';
+        if (in_array($status, ['active','inactive','archived'], true)) $updates['status'] = $status;
+        if ($updates) {
+            mam_db_update('cohorts', $updates, ['id' => $cohortId]);
+            mam_audit('cohort_edit', 'cohort', $cohortId, $updates);
+        }
+        header('Location: ?v=courseenroll&ok=' . urlencode('Cohort #' . $cohortId . ' updated.')); exit;
+    }
+
     if ($action === 'module_proposal_review') {
         $pid = (int)($_POST['proposal_id'] ?? 0);
         $approve = ($_POST['decision'] ?? '') === 'approve';
@@ -729,6 +1261,90 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $c = 0; $u = 0;
         foreach ($res as $r) { $c += (int)($r['created'] ?? 0); $u += (int)($r['updated'] ?? 0); }
         header('Location: ?v=modules&seed_c=' . $c . '&seed_u=' . $u . '&seed_n=' . count($res)); exit;
+    }
+
+    // ─── Enterprise curriculum management (v41) ──────────────────────
+    if ($action === 'course_create') {
+        $code = trim((string)($_POST['code'] ?? ''));
+        $name = trim((string)($_POST['name'] ?? ''));
+        if ($code === '' || $name === '') { header('Location: ?v=programs&err=' . urlencode('Code and name are required.')); exit; }
+        try {
+            mam_lms_create_course($code, $name, (string)($_POST['kind'] ?? 'elective'), trim((string)($_POST['description'] ?? '')) ?: null, (int)($_POST['sort_order'] ?? 99));
+            header('Location: ?v=programs&ok=' . urlencode('Course "' . $name . '" created.')); exit;
+        } catch (RuntimeException $e) {
+            header('Location: ?v=programs&err=' . urlencode('A course with that code already exists.')); exit;
+        }
+    }
+
+    if ($action === 'course_update') {
+        $cid = (int)($_POST['course_id'] ?? 0);
+        if ($cid < 1) { header('Location: ?v=programs&err=' . urlencode('Invalid course.')); exit; }
+        mam_lms_update_course($cid, [
+            'name'        => trim((string)($_POST['name'] ?? '')),
+            'kind'        => (string)($_POST['kind'] ?? 'elective'),
+            'description' => trim((string)($_POST['description'] ?? '')) ?: null,
+            'sort_order'  => (int)($_POST['sort_order'] ?? 99),
+        ]);
+        header('Location: ?v=programs&ok=' . urlencode('Course updated.')); exit;
+    }
+
+    if ($action === 'course_toggle') {
+        $cid = (int)($_POST['course_id'] ?? 0);
+        if ($cid < 1) { header('Location: ?v=programs&err=' . urlencode('Invalid course.')); exit; }
+        $row = mam_db_row('SELECT id, active FROM courses WHERE id = ?', [$cid]);
+        if ($row) mam_lms_update_course($cid, ['active' => (int)$row['active'] ? 0 : 1]);
+        header('Location: ?v=programs&ok=1'); exit;
+    }
+
+    if ($action === 'program_create') {
+        $code = trim((string)($_POST['code'] ?? ''));
+        $name = trim((string)($_POST['name'] ?? ''));
+        if ($code === '' || $name === '') { header('Location: ?v=programs&err=' . urlencode('Code and name are required.')); exit; }
+        try {
+            mam_lms_create_program(
+                $code, $name, (int)($_POST['weeks'] ?? 12),
+                (int)($_POST['revision_week'] ?? 0) ?: null,
+                (int)($_POST['exam_week'] ?? 0) ?: null,
+                !empty($_POST['requires_core']),
+                (string)($_POST['certification'] ?? 'completion'),
+                (int)($_POST['sort_order'] ?? 99)
+            );
+            header('Location: ?v=programs&ok=' . urlencode('Programme "' . $name . '" created.')); exit;
+        } catch (RuntimeException $e) {
+            header('Location: ?v=programs&err=' . urlencode('A programme with that code already exists.')); exit;
+        }
+    }
+
+    if ($action === 'program_update') {
+        $pid = (int)($_POST['program_id'] ?? 0);
+        if ($pid < 1) { header('Location: ?v=programs&err=' . urlencode('Invalid programme.')); exit; }
+        mam_lms_update_program($pid, [
+            'name'          => trim((string)($_POST['name'] ?? '')),
+            'weeks'         => (int)($_POST['weeks'] ?? 12),
+            'revision_week' => (int)($_POST['revision_week'] ?? 0) ?: null,
+            'exam_week'     => (int)($_POST['exam_week'] ?? 0) ?: null,
+            'requires_core' => !empty($_POST['requires_core']),
+            'certification' => (string)($_POST['certification'] ?? 'completion'),
+            'sort_order'    => (int)($_POST['sort_order'] ?? 99),
+        ]);
+        header('Location: ?v=programs&ok=' . urlencode('Programme updated.')); exit;
+    }
+
+    if ($action === 'link_course') {
+        $cid = (int)($_POST['course_id'] ?? 0);
+        $pid = (int)($_POST['program_id'] ?? 0);
+        if ($cid < 1 || $pid < 1) { header('Location: ?v=programs&err=' . urlencode('Select a course to add.')); exit; }
+        try {
+            mam_lms_link_course_to_program($cid, $pid, trim((string)($_POST['level_code'] ?? '')) ?: null, (int)($_POST['sort_order'] ?? 99));
+        } catch (InvalidArgumentException $e) { /* not found — silently ignore */ }
+        header('Location: ?v=programs&prog=' . $pid . '&ok=' . urlencode('Course linked.')); exit;
+    }
+
+    if ($action === 'unlink_course') {
+        $cid = (int)($_POST['course_id'] ?? 0);
+        $pid = (int)($_POST['program_id'] ?? 0);
+        if ($cid > 0 && $pid > 0) mam_lms_unlink_course_from_program($cid, $pid);
+        header('Location: ?v=programs&prog=' . $pid . '&ok=' . urlencode('Course removed.')); exit;
     }
 
     // ─── Store / Library CRUD ────────────────────────────────────────
@@ -828,6 +1444,57 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=settings&ok=1'); exit;
     }
 
+    // Record a MAM Auditer placement for an application's student — writes the
+    // auditer_results row and (when the 'auditer_placement' automation is on)
+    // ensures the account + enrols them at the recommended level (see
+    // api/lib/auditer.php). Gated to the 'admissions' cap above.
+    if ($action === 'record_placement') {
+        $appId = (int)($_POST['app_id'] ?? 0);
+        $app   = $appId ? mam_db_row('SELECT id, customer_id, pathway FROM applications WHERE id = ?', [$appId]) : null;
+        if (!$app || !$app['customer_id']) { header('Location: ?v=applications&err=' . urlencode('Application or customer not found.')); exit; }
+        $courseCode = trim((string)($_POST['course_code'] ?? ''));
+        $levelCode  = trim((string)($_POST['level_code'] ?? ''));
+        if ($courseCode === '' || $levelCode === '') { header('Location: ?v=applications&app=' . $appId . '&err=' . urlencode('Pick a course and level.')); exit; }
+        try {
+            $res = mam_auditer_record((int)$app['customer_id'], (string)($app['pathway'] ?? ''), [
+                'course_code' => $courseCode,
+                'level_code'  => $levelCode,
+                'notes'       => (string)($_POST['notes'] ?? ''),
+                'audited_by'  => (int)($adminUser['id'] ?? 0),
+            ]);
+            $msg = $res['enrolled']
+                ? 'Placement recorded — student enrolled.'
+                : ($res['note'] === 'automation_off' ? 'Placement recorded (auto-enrol is paused).' : 'Placement recorded (' . $res['note'] . ').');
+            header('Location: ?v=applications&app=' . $appId . '&ok=' . urlencode($msg)); exit;
+        } catch (\Throwable $e) {
+            header('Location: ?v=applications&app=' . $appId . '&err=' . urlencode('Could not record placement.')); exit;
+        }
+    }
+
+    // Run the scheduled automation sweeps on demand (the same ones the cron
+    // drains) — lets an admin trigger + see counts without server access.
+    if ($action === 'run_automations') {
+        $r = ['reminders' => 0, 'birthdays' => 0, 'drip' => 0];
+        if (function_exists('mam_automation_session_reminder_sweep')) $r['reminders'] = mam_automation_session_reminder_sweep();
+        if (function_exists('mam_automation_ktams_birthday_sweep'))   $r['birthdays'] = mam_automation_ktams_birthday_sweep();
+        if (function_exists('mam_automation_week_drip_sweep'))         $r['drip']      = mam_automation_week_drip_sweep();
+        mam_audit('run_automations', 'automation', null, $r);
+        header('Location: ?v=automations&ok=' . urlencode('Ran scheduled sweeps — ' . (int)$r['reminders'] . ' session reminder(s), ' . (int)$r['birthdays'] . ' birthday note(s), ' . (int)$r['drip'] . ' module drip(s).')); exit;
+    }
+
+    // Toggle a lifecycle automation on/off (super/settings only — gated above).
+    // The flag is honoured at each rule's trigger point (see api/lib/automations.php).
+    if ($action === 'automation_toggle') {
+        $key = (string)($_POST['key'] ?? '');
+        if (isset(mam_automations_registry()[$key])) {
+            $on = (string)($_POST['enabled'] ?? '') === '1';
+            mam_automation_set($key, $on);
+            mam_audit('automation_toggle', 'automation', null, ['key' => $key, 'enabled' => $on]);
+            header('Location: ?v=automations&ok=' . urlencode(($on ? 'Enabled' : 'Paused') . ' — ' . $key)); exit;
+        }
+        header('Location: ?v=automations&err=' . urlencode('Unknown automation.')); exit;
+    }
+
     if ($action === 'store_order_status') {
         $oid = (int)($_POST['order_id'] ?? 0);
         $status = (string)($_POST['status'] ?? '');
@@ -921,6 +1588,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($action === 'class_edit') {
         $cid = (int)($_POST['class_id'] ?? 0);
         if (!$cid) { header('Location: ?v=classes&err=' . urlencode('Missing class_id')); exit; }
+        $rawLink2 = trim((string)($_POST['meeting_link'] ?? ''));
+        $meetingLink2 = null;
+        if ($rawLink2 !== '') {
+            $validated2 = filter_var($rawLink2, FILTER_VALIDATE_URL);
+            if ($validated2 && preg_match('#^https://#i', $validated2)) {
+                $meetingLink2 = substr($validated2, 0, 500);
+            }
+        }
         $upd = [
             'title'         => trim((string)($_POST['title'] ?? '')),
             'discipline'    => trim((string)($_POST['discipline'] ?? '')),
@@ -930,6 +1605,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             'capacity'      => (int)($_POST['capacity'] ?? 0),
             'starts_on'     => trim((string)($_POST['starts_on'] ?? '')) ?: null,
             'schedule'      => trim((string)($_POST['schedule'] ?? '')) ?: null,
+            'meeting_link'  => $meetingLink2,
         ];
         if ($upd['title'] === '' || $upd['discipline'] === '') {
             header('Location: ?v=classes&edit=' . $cid . '&err=' . urlencode('Title and discipline are required.')); exit;
@@ -950,9 +1626,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!$pid) { header('Location: ?v=payments&err=' . urlencode('Missing payment_id')); exit; }
         $p = mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid]);
         if (!$p) { header('Location: ?v=payments&err=' . urlencode('Payment not found')); exit; }
+        // provider_response is a JSON column on MySQL/MariaDB — appending plain
+        // text produces invalid JSON and the write is rejected (error 4025). Merge
+        // the admin marker into a valid JSON object instead.
+        $prObj = mam_payment_response_merge($p['provider_response'] ?? null, ['admin_refund' => ['note' => $note, 'at' => date('c')]]);
         mam_db_update('payments', [
             'status' => 'refunded',
-            'provider_response' => trim(((string)$p['provider_response']) . "\nREFUNDED: " . $note),
+            'provider_response' => $prObj,
             'updated_at' => date('Y-m-d H:i:s'),
         ], ['id' => $pid]);
         // Reverse the related subject so the customer portal reflects reality.
@@ -985,7 +1665,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
         mam_db_update('payments', [
             'status'            => 'succeeded',
-            'provider_response' => trim(((string)$p['provider_response']) . "\nCONFIRMED BY ADMIN: " . $note . ' on ' . date('c')),
+            'provider_response' => mam_payment_response_merge($p['provider_response'] ?? null, ['admin_confirm' => ['note' => $note, 'at' => date('c')]]),
             'verified_at'       => date('Y-m-d H:i:s'),
             'updated_at'        => date('Y-m-d H:i:s'),
         ], ['id' => $pid]);
@@ -1007,7 +1687,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         } elseif ($purpose === 'booking_fee' && !empty($p['application_id'])) {
             mam_db_update('applications', ['booking_fee_paid_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$p['application_id']]);
         } elseif (!empty($p['application_id'])) {
-            mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$p['application_id']]);
+            // Provision student portal + auto-enroll + generate enrollment ref,
+            // exactly as the automatic webhook path does via mam_payment_verify.
+            $settleTag = mam_payment_settle_tuition((int)$p['application_id']);
+            mam_log('info', 'bank_confirm_settle', ['payment_id' => $pid, 'app_id' => $p['application_id'], 'result' => $settleTag]);
         }
         mam_audit('payment_confirm_bank', 'payment', $pid, ['note' => $note, 'purpose' => $purpose]);
         header('Location: ?v=payments&ok=1'); exit;
@@ -1092,30 +1775,44 @@ $flashErr = $_GET['err'] ?? '';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta name="csrf-token" content="<?= htmlspecialchars($csrf) ?>">
 <title>MAM Admin — <?= htmlspecialchars($view) ?></title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <!-- Font Awesome — the dashboard uses fa-* icons throughout (nav, tables, the
      notifications panel, the top bar); without this they render blank. -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+/* Redesign design system — the candlelit "MAM Redesign" language from the
+   prototype: warmer neutrals, calmer gold, Cormorant titles + Bebas numerals. */
 :root{
-  --bg:#0F0A06;--panel:#1A120B;--raised:#241710;--card:#2E2015;
-  --text:#FBF7F3;--muted:rgba(251,247,243,0.7);--faint:rgba(251,247,243,0.5);
-  --border:rgba(210,170,138,0.22);--gold:#FBBF24;--gold-2:#E08A1A;
-  --emerald:#10B981;--red:#F43F5E;--blue:#6366F1;
+  --bg:#1B140D;--panel:#251C13;--raised:#302517;--card:#3B2E1D;
+  --text:#FCF8F3;--muted:rgba(252,248,243,0.72);--faint:rgba(252,248,243,0.5);
+  --border:rgba(240,214,170,0.14);--border-strong:rgba(240,214,170,0.26);
+  --gold:#E8961F;--gold-2:#F7A823;--goldhi:#FCC647;
+  --emerald:#2FD39E;--red:#F0567E;--blue:#7FA9F0;--violet:#9A8BF2;
+  --r:14px;--r-l:20px;
+  --font-display:'Bebas Neue',Impact,sans-serif;--font-serif:'Cormorant Garamond',Georgia,serif;
 }
 html,body{height:100%}
-body{font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:grid;grid-template-columns:240px 1fr}
+/* Accessibility: visible keyboard focus everywhere + a skip link. */
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible,[role="switch"]:focus-visible{outline:2px solid var(--goldhi);outline-offset:2px;border-radius:8px}
+main:focus{outline:none}
+.skip-link{position:absolute;left:16px;top:-60px;z-index:10001;background:var(--goldhi);color:#1A120B;font-weight:800;padding:10px 16px;border-radius:10px;transition:top .18s}
+.skip-link:focus{top:12px}
+@media(prefers-reduced-motion:reduce){.skip-link{transition:none}}
+body{font:14px/1.55 'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:radial-gradient(1200px 700px at 82% -12%,rgba(232,150,31,0.06),transparent 55%),var(--bg);color:var(--text);height:100vh;overflow:hidden;display:grid;grid-template-columns:244px 1fr}
 a{color:inherit;text-decoration:none}
-aside{background:var(--panel);border-right:1px solid var(--border);padding:18px 14px;position:sticky;top:0;height:100vh;overflow:auto}
+aside{background:var(--panel);border-right:1px solid var(--border);padding:18px 14px;height:100vh;overflow:auto}
 .brand{display:flex;align-items:center;gap:10px;padding:8px 10px 18px;border-bottom:1px solid var(--border);margin-bottom:14px}
-.brand .logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--gold),var(--gold-2));display:flex;align-items:center;justify-content:center;color:#1A120B;font-weight:900}
-.brand b{font-size:1rem;letter-spacing:0.04em}
-.brand small{display:block;color:var(--muted);font-size:0.74rem;letter-spacing:0.06em;text-transform:uppercase}
-nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;color:var(--muted);border-radius:8px;margin-bottom:2px;font-size:0.92rem}
-nav a:hover{background:rgba(255,255,255,0.04);color:var(--text)}
-nav a.active{background:linear-gradient(135deg,rgba(224,138,26,0.18),rgba(251,191,36,0.08));color:var(--gold);border:1px solid var(--border)}
+.brand .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--gold),var(--goldhi));display:flex;align-items:center;justify-content:center;color:#1A120B;font-weight:800;font-family:var(--font-display);font-size:1.3rem}
+.brand b{font-family:var(--font-display);font-size:1.2rem;letter-spacing:0.06em;font-weight:400}
+.brand small{display:block;color:var(--muted);font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase}
+nav a{display:flex;align-items:center;gap:11px;padding:10px 13px;color:var(--muted);border-radius:11px;margin-bottom:3px;font-size:0.9rem;font-weight:500;border:1px solid transparent}
+nav a:hover{background:var(--raised);color:var(--text)}
+nav a.active{background:linear-gradient(135deg,rgba(232,150,31,0.2),rgba(252,198,71,0.06));color:var(--goldhi);border:1px solid var(--border-strong);font-weight:600}
 nav a i{width:18px;text-align:center;font-size:0.88rem;opacity:0.8;flex:0 0 auto}
 nav a.active i{opacity:1;color:var(--gold)}
 /* Grouped sidebar: a quiet section label introduces each domain of the admin. */
@@ -1124,9 +1821,17 @@ nav a.active i{opacity:1;color:var(--gold)}
 .nav-note{margin-top:12px;padding:8px 11px;font-size:0.72rem;line-height:1.5;color:var(--muted);border:1px dashed var(--border);border-radius:8px}
 /* Access-level (RBAC tier) badges — make the admin's level explicit. */
 .tier-badge{display:inline-block;margin-top:6px;padding:2px 9px;border-radius:100px;font-size:0.6rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}
-.tier-super{background:linear-gradient(135deg,var(--red),#FB7185);color:#fff}
+.tier-super{background:linear-gradient(135deg,rgba(232,150,31,0.22),rgba(252,198,71,0.1));color:var(--goldhi);border:1px solid var(--border-strong)}
 .tier-manager{background:rgba(99,102,241,0.2);color:#A5B4FC;border:1px solid rgba(165,180,252,0.4)}
 .atb-tier{padding:3px 11px;border-radius:100px;font-size:0.64rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase}
+.admin-topbar .atb-search{flex:1;min-width:0;max-width:440px;margin:0 auto;display:flex;align-items:center;gap:10px;height:42px;padding:0 14px;background:var(--panel);border:1px solid var(--border-strong);border-radius:11px;color:var(--faint);cursor:pointer;font-size:0.88rem;font-family:inherit;transition:border-color .15s,color .15s}
+.admin-topbar .atb-search span{flex:1;text-align:left}
+.admin-topbar .atb-search kbd{font-size:0.66rem;padding:2px 7px;border:1px solid var(--border-strong);border-radius:6px;color:var(--faint);font-family:inherit}
+.admin-topbar .atb-search:hover{border-color:var(--gold);color:var(--muted)}
+@media(max-width:760px){.admin-topbar .atb-search span,.admin-topbar .atb-search kbd{display:none}.admin-topbar .atb-search{flex:0 0 auto;max-width:none}}
+/* Mobile top bar: wrap instead of overflowing; trim the identity chips. */
+@media(max-width:640px){.admin-topbar{flex-wrap:wrap;gap:8px}.admin-topbar .atb-user{max-width:150px}.admin-topbar .atb-chip span,.admin-topbar .atb-chip{font-size:.78rem}}
+@media(max-width:460px){.admin-topbar .atb-user{display:none}}
 /* Curriculum completeness matrix (Standard Curriculum overview). */
 .curric-matrix{width:100%;border-collapse:collapse;font-size:0.84rem;min-width:560px}
 .curric-matrix th{font-size:0.64rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);font-weight:700;text-align:center;padding:8px 6px;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -1138,7 +1843,7 @@ nav a.active i{opacity:1;color:var(--gold)}
 .cm-cell.on{background:linear-gradient(135deg,rgba(224,138,26,0.22),rgba(251,191,36,0.10));color:var(--gold);border:1px solid rgba(245,168,35,0.45)}
 .cm-cell.off{color:var(--muted);border:1px solid var(--border)}
 .cm-cell:hover{border-color:var(--gold);color:var(--gold);transform:translateY(-1px)}
-main{padding:0 36px 40px;overflow:auto}
+main{padding:0 36px 40px;overflow:auto;height:100vh}
 /* Sticky app-shell top bar — page title left, account + view-site right. Bleeds
    to main's horizontal padding and frosts on scroll. */
 .admin-topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:16px;
@@ -1151,21 +1856,25 @@ main{padding:0 36px 40px;overflow:auto}
 .admin-topbar .atb-user{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:0.82rem;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:4px}
 .admin-topbar .atb-user .av{width:28px;height:28px;border-radius:50%;flex:0 0 auto;background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.78rem}
 header.top{display:flex;align-items:center;justify-content:space-between;margin:0 0 26px;gap:18px;flex-wrap:wrap}
-header.top h1{font-size:1.45rem;font-weight:700;letter-spacing:-0.01em}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B;border-radius:8px;font-weight:700;font-size:0.85rem;border:none;cursor:pointer}
+header.top h1{font-family:var(--font-serif);font-size:2.1rem;font-weight:700;letter-spacing:0;line-height:1.05}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B;border-radius:11px;font-weight:700;font-size:0.85rem;border:none;cursor:pointer;transition:filter 0.15s,transform 0.12s,box-shadow 0.15s}
+.btn:hover{filter:brightness(1.06);transform:translateY(-1px);box-shadow:0 4px 14px rgba(224,138,26,0.35)}
+.btn:active{filter:brightness(0.94);transform:translateY(1px);box-shadow:none}
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn.ghost:hover{border-color:var(--gold);color:var(--gold);background:rgba(224,138,26,0.06);box-shadow:none;filter:none}
+.btn.ghost:active{transform:translateY(1px)}
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:36px}
-.kpi{padding:18px;background:var(--raised);border:1px solid var(--border);border-radius:12px}
-.kpi-label{font-size:0.72rem;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;font-weight:600}
-.kpi-value{font-size:1.7rem;font-weight:800;letter-spacing:-0.01em}
+.kpi{padding:18px 18px 16px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r)}
+.kpi-label{font-size:0.68rem;color:var(--faint);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-weight:700}
+.kpi-value{font-family:var(--font-display);font-size:2.3rem;font-weight:400;letter-spacing:0.01em;line-height:0.95;font-variant-numeric:tabular-nums}
 .kpi-value.gold{background:linear-gradient(135deg,var(--gold),var(--gold-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 /* Tables can be wide (9+ columns). The card is the horizontal scroll
    container; the h3 header is pinned via sticky so it doesn't pan with
    the table. Edge-fade backgrounds appear only when there's more to scroll. */
-.card{background:var(--raised);border:1px solid var(--border);border-radius:14px;margin-bottom:26px;overflow:hidden;overflow-x:auto;-webkit-overflow-scrolling:touch;
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-l);margin-bottom:26px;overflow:hidden;overflow-x:auto;-webkit-overflow-scrolling:touch;
   background-image:
-    linear-gradient(to right,var(--raised) 30%,rgba(0,0,0,0)),
-    linear-gradient(to right,rgba(0,0,0,0),var(--raised) 70%),
+    linear-gradient(to right,var(--panel) 30%,rgba(0,0,0,0)),
+    linear-gradient(to right,rgba(0,0,0,0),var(--panel) 70%),
     linear-gradient(to right,rgba(0,0,0,0.4),rgba(0,0,0,0)),
     linear-gradient(to left,rgba(0,0,0,0.4),rgba(0,0,0,0));
   background-position:0 0,100% 0,0 0,100% 0;
@@ -1173,12 +1882,12 @@ header.top h1{font-size:1.45rem;font-weight:700;letter-spacing:-0.01em}
   background-size:42px 100%,42px 100%,14px 100%,14px 100%;
   background-attachment:local,local,scroll,scroll;
 }
-.card h3{padding:16px 20px;font-size:0.95rem;font-weight:700;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;left:0;width:max-content;min-width:100%;background:var(--raised);z-index:2}
+.card h3{padding:16px 20px;font-size:0.95rem;font-weight:700;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;left:0;width:max-content;min-width:100%;background:var(--panel);z-index:2}
 .card > table{min-width:720px}
 table{width:100%;border-collapse:collapse;font-size:0.86rem}
 th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
 th{color:var(--muted);font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;background:var(--panel);white-space:nowrap}
-tr:hover td{background:rgba(255,255,255,0.02)}
+tr:hover td{background:rgba(255,255,255,0.04)}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:lowercase}
 .pill.submitted,.pill.received{background:rgba(99,102,241,0.18);color:#A5B4FC}
 .pill.paid,.pill.processed,.pill.succeeded,.pill.active,.pill.subscribed{background:rgba(16,185,129,0.18);color:#34D399}
@@ -1192,7 +1901,23 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 .muted{color:var(--muted)}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.82rem}
 form.inline{display:inline-flex;gap:6px;align-items:center}
+/* ── Base form controls: theme EVERY bare input/select/textarea in the content
+   area so inline forms (app decision, placement, assignee, notes, …) match the
+   dark UI instead of rendering as default white widgets. .form-grid / .tiny
+   variants keep their own tighter styling via higher specificity. ── */
+main input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file]),
+main select, main textarea{
+  background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:8px;
+  font:inherit;font-size:0.9rem;padding:9px 11px;min-height:40px;max-width:100%;outline:none;
+  color-scheme:dark;transition:border-color .15s,box-shadow .15s}
+main textarea{min-height:64px;line-height:1.5;padding:10px 12px;resize:vertical}
+main input:not([type=hidden]):focus, main select:focus, main textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(251,191,36,0.18)}
+main input::placeholder, main textarea::placeholder{color:var(--faint,rgba(251,247,243,0.4))}
+main input[type=checkbox], main input[type=radio]{accent-color:var(--gold);min-height:0}
+main select option{background:var(--panel);color:var(--text)}
 select.tiny,input.tiny{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:0.78rem;padding:4px 6px}
+/* Keep compact inline controls compact even under the base rule above. */
+main select.tiny,main input.tiny{min-height:0;padding:4px 6px;font-size:0.78rem;border-radius:6px}
 button.tiny{padding:4px 8px;font-size:0.74rem;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer}
 button.tiny:hover{border-color:var(--gold)}
 .empty{padding:48px;text-align:center;color:var(--muted)}
@@ -1207,13 +1932,21 @@ button.tiny:hover{border-color:var(--gold)}
 .form-grid input:focus,.form-grid select:focus{outline:none;border-color:var(--gold)}
 .form-grid .full{grid-column:1/-1}
 .form-grid .actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;padding-top:6px}
+/* Mobile: the rail becomes an off-canvas drawer behind a hamburger (redesign
+   §10 — "sidebar collapses to a drawer"). */
+.nav-toggle{display:none;flex:0 0 auto;width:40px;height:40px;border-radius:10px;background:var(--panel);border:1px solid var(--border-strong);color:var(--text);cursor:pointer;align-items:center;justify-content:center;font-size:1rem}
+.nav-scrim{display:none;position:fixed;inset:0;z-index:9400;background:rgba(10,7,4,0.6)}
 @media(max-width:920px){
   body{grid-template-columns:1fr}
-  aside{position:static;height:auto}
-  main{padding:20px 16px}
+  aside{position:fixed;left:0;top:0;height:100vh;width:264px;z-index:9500;transform:translateX(-100%);transition:transform .22s ease;box-shadow:12px 0 44px rgba(0,0,0,0.5)}
+  body.nav-open aside{transform:none}
+  body.nav-open .nav-scrim{display:block}
+  .nav-toggle{display:inline-flex}
+  main{padding:20px 16px;height:100vh}
   .top{flex-wrap:wrap;gap:10px}
   .form-grid{grid-template-columns:1fr}
 }
+@media(prefers-reduced-motion:reduce){aside{transition:none}}
 @media(max-width:520px){
   .kpi-grid{grid-template-columns:1fr 1fr}
   th,td{padding:9px 12px;font-size:0.82rem}
@@ -1224,14 +1957,14 @@ button.tiny:hover{border-color:var(--gold)}
 .chart-row canvas{max-height:260px}
 @media(max-width:860px){.chart-row{grid-template-columns:1fr}}
 /* ── UX layer: pending-work badges, needs-attention queue, toast feedback ── */
-.nav-count{margin-left:auto;background:linear-gradient(135deg,var(--gold),#FBBF24);color:#1A120B;border-radius:100px;min-width:20px;height:18px;padding:0 6px;font-size:.66rem;font-weight:800;font-style:normal;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+.nav-count{margin-left:auto;background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B;border-radius:100px;min-width:22px;height:20px;padding:0 7px;font-size:.68rem;font-weight:800;font-style:normal;display:inline-flex;align-items:center;justify-content:center;line-height:1}
 nav a{display:flex;align-items:center}
 .needs{border-color:var(--gold)}
 .needs-list{display:flex;flex-direction:column;gap:0;padding:0 20px 16px}
 .needs-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--border);text-decoration:none;color:var(--text)}
 .needs-item:first-child{border-top:none}
 .needs-item:hover .needs-verb{background:var(--gold);color:#1A120B}
-.needs-n{min-width:34px;height:34px;border-radius:10px;background:rgba(232,150,31,0.14);border:1px solid var(--gold);color:var(--gold);font-weight:800;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0}
+.needs-n{min-width:40px;height:40px;border-radius:11px;background:var(--raised);border:1px solid var(--border-strong);color:var(--goldhi);font-family:var(--font-display);font-weight:400;display:flex;align-items:center;justify-content:center;font-size:1.35rem;flex-shrink:0}
 .needs-label{flex:1;font-size:.9rem}
 .needs-verb{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;border:1px solid var(--gold);color:var(--gold);border-radius:100px;padding:4px 12px;transition:all .15s}
 .mam-toast-stack{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
@@ -1239,10 +1972,77 @@ nav a{display:flex;align-items:center}
 .mam-toast.in{transform:none;opacity:1}
 .mam-toast.ok{background:#123B2C;border:1px solid #34D399;color:#A7F3D0}
 .mam-toast.err{background:#3B1219;border:1px solid #FB7185;color:#FECDD3}
+/* ── Automations: trigger→action rules with a no-JS toggle switch ── */
+.auto-rule{display:flex;align-items:center;gap:16px;padding:15px 20px;border-top:1px solid var(--border)}
+.auto-rule:first-child{border-top:none}
+.auto-ico{flex-shrink:0;width:40px;height:40px;border-radius:11px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:1rem}
+.auto-body{flex:1;min-width:0}
+.auto-trig{font-weight:700;font-size:.92rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.auto-act{color:var(--muted);font-size:.84rem;margin-top:2px}
+.auto-act i{color:var(--faint);margin:0 5px;font-size:.72rem}
+.auto-tag{font-size:.6rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:100px;border:1px solid}
+.auto-tag.live{color:#34D399;border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.1)}
+.auto-tag.planned{color:var(--faint);border-color:var(--border);background:var(--bg)}
+.auto-meta{font-size:.72rem;color:var(--faint);margin-top:3px}
+.auto-switch{flex-shrink:0;border:0;background:transparent;cursor:pointer;padding:0}
+.auto-switch .track{display:block;width:46px;height:26px;border-radius:100px;background:var(--card);border:1px solid var(--border);position:relative;transition:background .2s,border-color .2s}
+.auto-switch .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--faint);transition:transform .2s,background .2s}
+.auto-switch.on .track{background:linear-gradient(135deg,var(--gold),var(--gold-2));border-color:transparent}
+.auto-switch.on .knob{transform:translateX(20px);background:#1A120B}
+/* ── Command palette (⌘K) ── */
+.cmdk-scrim{position:fixed;inset:0;z-index:10000;background:rgba(10,7,4,.62);display:none;align-items:flex-start;justify-content:center;padding:12vh 16px 16px}
+.cmdk-scrim.open{display:flex}
+.cmdk{width:100%;max-width:560px;background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 26px 80px rgba(0,0,0,.6);overflow:hidden;animation:cmdkIn .16s ease-out}
+@keyframes cmdkIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.cmdk-in{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.cmdk-in i{color:var(--faint)}
+.cmdk-in input{flex:1;background:transparent;border:0;outline:none;color:var(--ink);font-size:1rem}
+.cmdk-list{max-height:52vh;overflow:auto;padding:6px}
+.cmdk-sec{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:800;padding:10px 12px 4px}
+.cmdk-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;cursor:pointer;color:var(--text);font-size:.9rem}
+.cmdk-item i{display:inline-block;width:18px;text-align:center;color:var(--gold)}
+.cmdk-item .tag{margin-left:auto;font-size:.64rem;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+.cmdk-item.sel,.cmdk-item:hover{background:rgba(232,150,31,.14)}
+.cmdk-empty{padding:22px 14px;text-align:center;color:var(--faint);font-size:.86rem}
+/* Keyboard-shortcuts help (press ?) */
+.kbd-scrim{position:fixed;inset:0;z-index:10000;background:rgba(10,7,4,.62);display:none;align-items:center;justify-content:center;padding:16px}
+.kbd-scrim.open{display:flex}
+.kbd-modal{width:100%;max-width:440px;background:var(--panel);border:1px solid var(--border-strong);border-radius:16px;box-shadow:0 26px 80px rgba(0,0,0,.6);padding:20px 22px;animation:cmdkIn .16s ease-out}
+.kbd-modal h2{font-family:var(--font-serif);font-size:1.4rem;margin:0 0 4px}
+.kbd-modal .sub{color:var(--faint);font-size:.82rem;margin:0 0 14px}
+.kbd-row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;border-top:1px solid var(--border)}
+.kbd-row span{color:var(--muted);font-size:.9rem}
+.kbd-row kbd{font-family:inherit;font-size:.74rem;background:var(--raised);border:1px solid var(--border-strong);border-radius:6px;padding:3px 9px;color:var(--goldhi);white-space:nowrap;font-weight:700}
+@media(prefers-reduced-motion:reduce){.kbd-modal{animation:none}}
+@media(prefers-reduced-motion:reduce){.cmdk{animation:none}.auto-switch .knob,.auto-switch .track{transition:none}}
+/* ── Drawer: right slide-in panel (Applications "Manage"), per the redesign ── */
+.mam-drawer-scrim{position:fixed;inset:0;z-index:9000;background:rgba(10,7,4,0.6);display:flex;justify-content:flex-end;animation:fadeIn .18s ease-out}
+.mam-drawer{width:min(480px,100%);height:100%;background:var(--panel);border-left:1px solid var(--border-strong);box-shadow:-26px 0 64px rgba(6,4,1,0.6);overflow:auto;padding:0 22px 40px;animation:drawerIn .22s cubic-bezier(.2,.8,.25,1)}
+.mam-drawer > div:first-child{position:sticky;top:0;background:var(--panel);margin:0 -22px 4px;padding:18px 22px;border-bottom:1px solid var(--border);z-index:2}
+.mam-drawer table{font-size:.8rem}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes drawerIn{from{transform:translateX(34px);opacity:.4}to{transform:none;opacity:1}}
+@media(max-width:640px){.mam-drawer{width:100%;border-left:0}}
+@media(prefers-reduced-motion:reduce){.mam-drawer,.mam-drawer-scrim{animation:none}}
+/* Mobile: opt-in tables (class="stack") become stacked cards — each row a
+   card, each cell labelled from data-label (redesign §10). */
+@media(max-width:640px){
+  table.stack{min-width:0!important;width:100%}
+  table.stack thead{display:none}
+  table.stack tbody{display:block}
+  table.stack tr{display:block;border:1px solid var(--border);border-radius:var(--r);padding:8px 2px;margin:0 4px 12px;background:var(--panel)}
+  table.stack td{display:block;border:0;padding:5px 14px;text-align:left}
+  table.stack td::before{content:attr(data-label);display:block;color:var(--faint);font-weight:700;font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+  table.stack td[data-label=""]::before{display:none}
+  table.stack td[data-label=""]{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}
+  table.stack tr:hover td{background:transparent}
+  table.stack td.empty{text-align:center}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
+<a href="#main" class="skip-link">Skip to content</a>
 <aside>
   <div class="brand">
     <div class="logo">M</div>
@@ -1253,7 +2053,7 @@ nav a{display:flex;align-items:center}
       <span class="tier-badge tier-<?= htmlspecialchars($__tier) ?>"><?= $__tier === 'super' ? 'Super admin' : 'Manager' ?></span>
     </div>
   </div>
-  <nav>
+  <nav id="adminNav" aria-label="Admin sections">
     <?php
     // "What needs me" counts — the difference between a nav you wander and a
     // nav that points. Each is a cheap COUNT, individually fault-tolerant so a
@@ -1268,16 +2068,17 @@ nav a{display:flex;align-items:center}
     if ($n = $cnt("SELECT COUNT(*) FROM messages WHERE status = 'new'"))                          { $navBadges['messages'] = $n; $needs[] = ['unread message' . ($n === 1 ? '' : 's'), '?v=messages', $n, 'Read']; }
     $fac = $cnt("SELECT COUNT(*) FROM faculty_invites WHERE status = 'requested'") + $cnt("SELECT COUNT(*) FROM instructor_applications WHERE status = 'submitted'");
     if ($fac) { $navBadges['users'] = $fac; $needs[] = ['teaching request' . ($fac === 1 ? '' : 's') . ' / instructor application' . ($fac === 1 ? '' : 's'), '?v=users#faculty', $fac, 'Review']; }
+    if ($n = $cnt("SELECT COUNT(*) FROM support_tickets WHERE status IN ('open','in_progress')")) { $navBadges['support'] = $n; $needs[] = ['open support ticket' . ($n === 1 ? '' : 's'), '?v=support', $n, 'Respond']; }
 
     // Sidebar nav grouped by domain — [view => [label, FontAwesome icon]].
     // Grouping turns a flat 19-item list into a scannable structure.
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
-      'Admissions' => ['applications' => ['Applications', 'file-lines'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line']],
+      'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open']],
-      'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane']],
-      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'datarights' => ['Data Rights', 'shield-halved']],
+      'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
+      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
       'Account'    => ['account' => ['My Account', 'circle-user']],
     ];
     // Flatten to a label map so the topbar title lookup keeps working.
@@ -1285,7 +2086,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'datarights' => 'users', 'media' => 'media'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -1297,7 +2098,7 @@ nav a{display:flex;align-items:center}
             if (!$canView($k)) continue;
             $cls = $view === $k ? 'active' : '';
             $badge = !empty($navBadges[$k]) ? "<em class='nav-count'>" . (int)$navBadges[$k] . "</em>" : '';
-            echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'>"
+            echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'" . ($cls ? " aria-current='page'" : '') . ">"
                . "<i class='fa-solid fa-" . htmlspecialchars($meta[1]) . "' aria-hidden='true'></i><span>" . htmlspecialchars($meta[0]) . "</span>$badge</a>";
         }
     }
@@ -1353,8 +2154,9 @@ nav a{display:flex;align-items:center}
     UI <?= htmlspecialchars($uiVer) ?> · API v<?= htmlspecialchars(defined('MAM_API_VERSION') ? MAM_API_VERSION : '1.0') ?> · schema v<?= (int)MAM_SCHEMA_TARGET ?>
   </div>
 </aside>
+<div class="nav-scrim" id="navScrim" aria-hidden="true"></div>
 
-<main>
+<main id="main" tabindex="-1">
 <?php
   // App-shell top bar — current section + account, sticky on scroll.
   $atbLabel = $links[$view] ?? ucfirst((string)$view);
@@ -1362,7 +2164,9 @@ nav a{display:flex;align-items:center}
   $atbInit  = strtoupper(substr(trim((string)($adminUser['name'] ?? $atbEmail)), 0, 1)) ?: 'M';
 ?>
 <div class="admin-topbar">
+  <button type="button" class="nav-toggle" id="navToggle" aria-label="Open menu" aria-controls="adminNav"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
   <div class="atb-title"><span class="dot" aria-hidden="true"></span><?= htmlspecialchars($atbLabel) ?></div>
+  <button type="button" class="atb-search" id="atbSearch" aria-label="Search or jump to"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><span>Search or jump to…</span><kbd>⌘K</kbd></button>
   <div class="atb-right">
     <?php $__atbTier = $adminUser ? mam_admin_tier($adminUser) : 'super'; ?>
     <span class="atb-tier tier-<?= htmlspecialchars($__atbTier) ?>" title="Your admin access level"><?= $__atbTier === 'super' ? 'Super admin' : 'Manager' ?></span>
@@ -1416,14 +2220,17 @@ nav a{display:flex;align-items:center}
     if (!$health['paystack'] && !$health['flw']) echo '<div class="banner warn">⚠️ No payment provider configured. Set <code>PAYSTACK_SECRET_KEY</code> or <code>FLW_SECRET_KEY</code>.</div>';
     if (!$health['smtp']) echo '<div class="banner">ℹ️ SMTP not configured — outgoing mail falls back to PHP <code>mail()</code>.</div>';
     // Operational readiness: config that silently degrades a feature when left
-    // empty. Server-side values come from .env; the client-side ones live in
-    // assets/js/config.js, so we string-scan that file for its known defaults.
+    // empty. Server-side values come from .env or the admin settings table.
     $ops = [];
     if (!mam_env('BOOKING_EMBED_URL')) $ops[] = '<code>BOOKING_EMBED_URL</code> (api/.env) — paid bookers see “calendar is being set up” instead of the scheduler';
     $cfgJs = @file_get_contents(__DIR__ . '/../assets/js/config.js') ?: '';
-    if (preg_match('/meetUrl:\s*\'\'/', $cfgJs))      $ops[] = '<code>powerPlay.meetUrl</code> (assets/js/config.js) — Power Play page has no join link';
-    if (preg_match('/cloudName:\s*\'\'/', $cfgJs))    $ops[] = '<code>cdn.cloudName</code> (assets/js/config.js) — image CDN is a no-op';
-    if (preg_match('/uploadPreset:\s*\'\'/', $cfgJs)) $ops[] = '<code>cdn.uploadPreset</code> (assets/js/config.js) — applicant headshot upload is disabled';
+    if (preg_match('/meetUrl:\s*\'\'/', $cfgJs)) $ops[] = '<code>powerPlay.meetUrl</code> (assets/js/config.js) — Power Play page has no join link';
+    // CDN readiness: these are now DB settings (admin-editable in Pricing & Settings),
+    // not static config.js values — check the DB, not the file.
+    if (!mam_setting('cloudinary_cloud_name', ''))
+        $ops[] = '<code>cloudinary_cloud_name</code> (<a href=”?v=settings” style=”color:var(--gold)”>Pricing &amp; Settings → CDN</a>) — Cloudinary image CDN is disabled; enter your cloud name (found at the top of your Cloudinary dashboard)';
+    if (!mam_setting('cloudinary_upload_preset', ''))
+        $ops[] = '<code>cloudinary_upload_preset</code> (<a href=”?v=settings” style=”color:var(--gold)”>Pricing &amp; Settings → CDN</a>) — headshot photos won\'t upload without this; in Cloudinary go to <strong>Settings → Upload → Upload presets</strong>, create an <strong>Unsigned</strong> preset, and paste its name here';
     if (function_exists('mam_mail_readiness')) { $mr = mam_mail_readiness(); if (is_array($mr) && empty($mr['ready']) && !empty($mr['issues'])) $ops[] = 'Mail delivery: ' . htmlspecialchars(implode('; ', (array)$mr['issues'])); }
     if ($ops) echo '<div class="banner"><strong>ℹ️ Operational readiness</strong> — features waiting on configuration:<ul style="margin:8px 0 0 18px;padding:0">' . implode('', array_map(fn ($o) => '<li style="margin:3px 0">' . $o . '</li>', $ops)) . '</ul></div>';
 
@@ -1489,7 +2296,7 @@ nav a{display:flex;align-items:center}
       // Wait for the deferred Chart.js CDN, but give up after ~3s so a blocked
       // CDN just leaves the (already-rendered) KPI cards rather than looping.
       if (typeof Chart === 'undefined') { if (tries++ < 25) setTimeout(draw, 120); return; }
-      var gold = '#E08A1A', green = '#34D399';
+      var gold = '#E8961F', green = '#34D399';
       var tc = document.getElementById('trendChart');
       if (tc) new Chart(tc.getContext('2d'), {
         data: {
@@ -1565,8 +2372,12 @@ nav a{display:flex;align-items:center}
       $mNotes  = mam_admissions_notes($manageId);
       $mEvents = mam_admissions_events($manageId);
       $mStaff  = mam_lms_instructors();
+      $mCourses = mam_db_all("SELECT code, name FROM courses WHERE active = 1 ORDER BY sort_order, name");
+      $mLevels  = mam_db_all("SELECT code, name FROM levels ORDER BY sort_order");
+      $mAutoPlacement = function_exists('mam_automation_on') ? mam_automation_on('auditer_placement') : true;
   ?>
-  <div class="card" style="border-color:var(--gold)">
+  <div class="mam-drawer-scrim" id="appDrawerScrim" data-param="app">
+  <aside class="mam-drawer" role="dialog" aria-modal="true" aria-label="Manage application">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
       <div>
         <h2 style="margin:0 0 4px">Manage application
@@ -1701,6 +2512,37 @@ nav a{display:flex;align-items:center}
       </div>
     </div>
 
+    <h3 style="margin:18px 0 8px">MAM Auditer placement
+      <span class="muted" style="font-size:.72rem">— record the outcome<?= $mAutoPlacement ? ' · auto-enrols at the chosen level' : ' · auto-enrol paused (capture only)' ?></span>
+    </h3>
+    <?php if (!$mCourses): ?>
+      <p class="muted">Load the curriculum first (<a href="?v=modules" style="color:var(--gold)">Standard Curriculum → Seed starter</a>) so a placement can enrol the student into a course.</p>
+    <?php else: ?>
+      <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end;max-width:760px">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="record_placement">
+        <input type="hidden" name="app" value="<?= (int)$manageApp['id'] ?>">
+        <input type="hidden" name="app_id" value="<?= (int)$manageApp['id'] ?>">
+        <label>Recommended course
+          <select name="course_code" required>
+            <option value="">— pick a course —</option>
+            <?php foreach ($mCourses as $co): ?>
+              <option value="<?= htmlspecialchars((string)$co['code']) ?>" <?= (strtolower((string)($manageApp['discipline'] ?? '')) === strtolower((string)$co['name'])) ? 'selected' : '' ?>><?= htmlspecialchars((string)$co['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+        <label>Placement level
+          <select name="level_code" required>
+            <?php foreach ($mLevels as $lv): ?><option value="<?= htmlspecialchars((string)$lv['code']) ?>"><?= htmlspecialchars((string)$lv['name']) ?></option><?php endforeach; ?>
+          </select>
+        </label>
+        <label style="grid-column:1/-1">Notes <span class="muted">(optional — recorded with the placement)</span>
+          <input type="text" name="notes" maxlength="2000" placeholder="Placement observations…">
+        </label>
+        <button class="btn" type="submit"><?= $mAutoPlacement ? 'Record placement &amp; enrol' : 'Record placement' ?></button>
+      </form>
+    <?php endif; ?>
+
     <h3 style="margin:18px 0 8px">Status history</h3>
     <?php if (!$mEvents): ?>
       <p class="muted">No status changes recorded yet.</p>
@@ -1720,47 +2562,72 @@ nav a{display:flex;align-items:center}
         </tbody>
       </table>
     <?php endif; ?>
+
+    <h3 style="margin:18px 0 8px">Documents</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn ghost" href="/api/tuition-invoice/<?= rawurlencode((string)$manageApp['reference']) ?>" target="_blank" rel="noopener">📄 Programme Invoice</a>
+      <a class="btn ghost" href="/api/invoice/<?= rawurlencode((string)$manageApp['reference']) ?>" target="_blank" rel="noopener">📋 Booking Confirmation</a>
+      <?php if (!empty($manageApp['policy_mode'])): ?>
+        <a class="btn ghost" href="/api/policy/<?= rawurlencode((string)$manageApp['reference']) ?>" target="_blank" rel="noopener">📝 Signed Policy</a>
+      <?php endif; ?>
+    </div>
+  </aside>
   </div>
   <?php endif; ?>
   <div class="card">
-    <table>
-      <thead><tr><th>Photo</th><th>Reference</th><th>Student</th><th>Programme</th><th>Pathway · Mode</th><th>Course</th><th>Session</th><th>Age</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
+    <form method="post" id="appBulk" style="display:none;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--raised)">
+      <?= mam_csrf_field() ?>
+      <input type="hidden" name="action" value="app_bulk_status">
+      <input type="hidden" name="ids" id="appBulkIds">
+      <strong id="appBulkCount">0 selected</strong>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted)">Set status
+        <select name="status" required>
+          <option value="">—</option>
+          <?php foreach (['in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'] as $s): ?><option value="<?= $s ?>"><?= $s ?></option><?php endforeach; ?>
+        </select>
+      </label>
+      <button class="btn" type="submit">Apply to selected</button>
+      <button type="button" class="btn ghost" id="appBulkClear">Clear</button>
+    </form>
+    <table class="stack">
+      <thead><tr><th style="width:36px"><input type="checkbox" id="appSelAll" aria-label="Select all applications"></th><th>Photo</th><th>Reference</th><th>Student</th><th>Programme</th><th>Pathway · Mode</th><th>Course</th><th>Session</th><th>Age</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
       <tbody>
       <?php
       $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM applications'); $off = ($page - 1) * $perPage;
       $rows = mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email, c.phone, c.sex, c.address, c.lga, c.state, c.country, c.age_range FROM applications a LEFT JOIN customers c ON c.id=a.customer_id ORDER BY a.created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
       if (!$rows): ?>
-        <tr><td colspan="12" class="empty">No applications yet</td></tr>
+        <tr><td colspan="13" class="empty">No applications yet</td></tr>
       <?php endif;
       $sessionLabels = ['toni' => 'TONI', 'medi' => 'MEDI', 'summer' => 'SUMMER', 'domi' => 'DOMI'];
       foreach ($rows as $r):
         $loc = implode(', ', array_filter([$r['lga'] ?? '', $r['state'] ?? '', $r['country'] ?? ''])); ?>
         <tr>
-          <td>
+          <td data-label="" style="width:36px"><input type="checkbox" class="appsel" value="<?= (int)$r['id'] ?>" aria-label="Select <?= htmlspecialchars((string)$r['reference']) ?>"></td>
+          <td data-label="Photo">
             <?php if (!empty($r['headshot_url'])): ?>
               <a href="<?= htmlspecialchars($r['headshot_url']) ?>" target="_blank" rel="noopener"><img src="<?= htmlspecialchars($r['headshot_url']) ?>" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid var(--border-gold,#5a4327)"></a>
             <?php else: ?>
               <span class="muted" title="No headshot uploaded" style="display:inline-flex;width:40px;height:40px;border-radius:50%;align-items:center;justify-content:center;background:var(--panel);border:1px dashed var(--border)"><i class="fa-solid fa-user" aria-hidden="true"></i></span>
             <?php endif; ?>
           </td>
-          <td class="mono"><?= htmlspecialchars($r['reference']) ?></td>
-          <td><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong>
+          <td class="mono" data-label="Reference"><?= htmlspecialchars($r['reference']) ?></td>
+          <td data-label="Student"><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong>
             <?php if (!empty($r['sex'])): ?><span class="muted">· <?= htmlspecialchars(ucfirst((string)$r['sex'])) ?></span><?php endif; ?>
             <br><span class="muted"><?= htmlspecialchars((string)($r['email'] ?? '')) ?></span>
             <br><span class="muted"><?= htmlspecialchars((string)($r['phone'] ?? '')) ?></span>
             <?php if ($loc): ?><br><span class="muted"><i class="fa-solid fa-location-dot" aria-hidden="true"></i> <?= htmlspecialchars($loc) ?></span><?php endif; ?>
           </td>
-          <td class="muted"><?= htmlspecialchars((string)($r['program'] ?? '—')) ?></td>
-          <td><?= htmlspecialchars((string)($r['pathway'] ?? '')) ?> · <span class="muted"><?= htmlspecialchars((string)($r['mode'] ?? '')) ?></span></td>
-          <td><?= htmlspecialchars((string)($r['discipline'] ?? '')) ?></td>
-          <td><?php $s = strtolower((string)($r['session'] ?? '')); echo $s ? '<span class="pill">' . htmlspecialchars($sessionLabels[$s] ?? strtoupper($s)) . '</span>' : '<span class="muted">—</span>'; ?></td>
-          <td class="muted"><?= htmlspecialchars((string)($r['age_range'] ?? '')) ?></td>
-          <td>$<?= number_format((float)$r['total_usd'], 2) ?></td>
-          <td><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span>
+          <td class="muted" data-label="Programme"><?= htmlspecialchars((string)($r['program'] ?? '—')) ?></td>
+          <td data-label="Pathway · Mode"><?= htmlspecialchars((string)($r['pathway'] ?? '')) ?> · <span class="muted"><?= htmlspecialchars((string)($r['mode'] ?? '')) ?></span></td>
+          <td data-label="Course"><?= htmlspecialchars((string)($r['discipline'] ?? '')) ?></td>
+          <td data-label="Session"><?php $s = strtolower((string)($r['session'] ?? '')); echo $s ? '<span class="pill">' . htmlspecialchars($sessionLabels[$s] ?? strtoupper($s)) . '</span>' : '<span class="muted">—</span>'; ?></td>
+          <td class="muted" data-label="Age"><?= htmlspecialchars((string)($r['age_range'] ?? '')) ?></td>
+          <td data-label="Total">$<?= number_format((float)$r['total_usd'], 2) ?></td>
+          <td data-label="Status"><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span>
             <?php if (!empty($r['recovery_sent_at'])): ?><br><span class="muted" title="Recovery email sent" style="font-size:0.66rem"><i class="fa-solid fa-envelope-circle-check"></i> nudged</span><?php endif; ?>
           </td>
-          <td class="muted"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
-          <td style="white-space:nowrap">
+          <td class="muted" data-label="Created"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
+          <td data-label="" style="white-space:nowrap">
             <a class="tiny btn ghost" href="?v=applications&app=<?= (int)$r['id'] ?>" title="Open the admissions cockpit (decision, notes, assignee, history)">⚙ Manage</a>
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -1786,6 +2653,25 @@ nav a{display:flex;align-items:center}
     </table>
     <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
+  <script>
+  (function () {
+    var bar = document.getElementById('appBulk'); if (!bar) return;
+    var all = document.getElementById('appSelAll'), ids = document.getElementById('appBulkIds'),
+        count = document.getElementById('appBulkCount'), clear = document.getElementById('appBulkClear');
+    function boxes() { return Array.prototype.slice.call(document.querySelectorAll('.appsel')); }
+    function selected() { return boxes().filter(function (b) { return b.checked; }); }
+    function refresh() {
+      var s = selected();
+      count.textContent = s.length + ' selected';
+      bar.style.display = s.length ? 'flex' : 'none';
+      if (all) { var n = boxes().length; all.checked = n > 0 && s.length === n; all.indeterminate = s.length > 0 && s.length < n; }
+    }
+    document.addEventListener('change', function (e) { if (e.target && e.target.classList && e.target.classList.contains('appsel')) refresh(); });
+    if (all) all.addEventListener('change', function () { boxes().forEach(function (b) { b.checked = all.checked; }); refresh(); });
+    if (clear) clear.addEventListener('click', function () { boxes().forEach(function (b) { b.checked = false; }); refresh(); });
+    bar.addEventListener('submit', function (e) { var s = selected(); if (!s.length) { e.preventDefault(); return; } ids.value = s.map(function (b) { return b.value; }).join(','); });
+  })();
+  </script>
 
 <?php elseif ($view === 'funnel'): ?>
   <?php
@@ -1904,6 +2790,212 @@ nav a{display:flex;align-items:center}
 
   <?php endif; ?>
 
+<?php elseif ($view === 'summer'): ?>
+  <?php
+    $sPage   = max(1, (int)($_GET['pg']     ?? 1));
+    $sStatus = trim((string)($_GET['status'] ?? ''));
+    $sQ      = trim((string)($_GET['q']      ?? ''));
+    $sPerPage = 40;
+    $sOffset  = ($sPage - 1) * $sPerPage;
+    $sValid   = ['submitted','confirmed','waitlisted','enrolled','cancelled','rejected'];
+    if ($sStatus && !in_array($sStatus, $sValid, true)) $sStatus = '';
+
+    $where = []; $bind = [];
+    if ($sStatus)  { $where[] = 'status = ?';                            $bind[] = $sStatus; }
+    if ($sQ !== '') { $where[] = "(LOWER(email) LIKE ? OR LOWER(first_name||' '||last_name) LIKE ? OR reference LIKE ?)";
+                      $like = '%' . strtolower($sQ) . '%'; $bind[] = $like; $bind[] = $like; $bind[] = $like; }
+    $wSql   = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+
+    $sTotal = (int)(mam_db_row('SELECT COUNT(*) AS n FROM summer_applications' . $wSql, $bind)['n'] ?? 0);
+    $sPages = max(1, (int)ceil($sTotal / $sPerPage));
+    $sList  = mam_db_all('SELECT id, reference, first_name, last_name, email, discipline, age_at_submission, status, created_at FROM summer_applications' . $wSql . ' ORDER BY id DESC LIMIT ' . $sPerPage . ' OFFSET ' . $sOffset, $bind);
+
+    $sProg  = (string)mam_setting('summer_prog_name', 'MAM Summer Music Camp');
+    $sUrl   = function (array $extra) use ($sStatus, $sQ, $sPage): string {
+        $p = ['v' => 'summer'];
+        if ($sStatus) $p['status'] = $sStatus;
+        if ($sQ)      $p['q']      = $sQ;
+        if ($sPage > 1) $p['pg']   = $sPage;
+        foreach ($extra as $k => $v) { if ($v === '' || $v === null) unset($p[$k]); else $p[$k] = $v; }
+        return '?' . http_build_query($p);
+    };
+
+    $sBadge = function (string $st): string {
+        $map = ['submitted'=>'muted','confirmed'=>'confirmed','waitlisted'=>'waitlisted',
+                'enrolled'=>'enrolled','cancelled'=>'expired','rejected'=>'expired'];
+        $cls = $map[$st] ?? 'muted';
+        return '<span class="pill ' . htmlspecialchars($cls) . '">' . htmlspecialchars($st) . '</span>';
+    };
+
+    // Handle inline status update (JS-less fallback — the JS route is api/routes/admin/summer.php)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && mam_admin_has_cap('view')) {
+        mam_check_csrf();
+        $updId  = (int)($_POST['id']     ?? 0);
+        $updSt  = trim((string)($_POST['status'] ?? ''));
+        if ($updId && in_array($updSt, $sValid, true)) {
+            mam_db_run('UPDATE summer_applications SET status = ?, updated_at = ? WHERE id = ?',
+                       [$updSt, date('Y-m-d H:i:s'), $updId]);
+            mam_audit('update', 'summer_application', $updId, ['status' => $updSt]);
+            header('Location: ' . $sUrl([]) . '&ok=1');
+            exit;
+        }
+    }
+  ?>
+  <header class="top">
+    <h1>Summer Programme — <?= htmlspecialchars($sProg) ?></h1>
+    <a class="btn ghost" href="/summer" target="_blank" rel="noopener">View public page ↗</a>
+  </header>
+
+  <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Status updated.</strong></div><?php endif; ?>
+
+  <!-- KPIs -->
+  <?php
+    $sCounts = mam_db_all('SELECT status, COUNT(*) AS n FROM summer_applications GROUP BY status ORDER BY n DESC', []);
+    $sByStatus = [];
+    foreach ($sCounts as $r) $sByStatus[$r['status']] = (int)$r['n'];
+    $sAllTotal = array_sum($sByStatus);
+  ?>
+  <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:8px">
+    <div class="kpi"><div class="kpi-label">Total applications</div><div class="kpi-value"><?= number_format($sAllTotal) ?></div></div>
+    <?php foreach (['submitted'=>'Pending review','confirmed'=>'Confirmed','enrolled'=>'Enrolled','waitlisted'=>'Waitlisted'] as $st => $lbl): ?>
+      <?php if ($sByStatus[$st] ?? 0): ?>
+        <div class="kpi">
+          <div class="kpi-label"><?= htmlspecialchars($lbl) ?></div>
+          <div class="kpi-value"><?= number_format($sByStatus[$st]) ?></div>
+        </div>
+      <?php endif; ?>
+    <?php endforeach; ?>
+  </div>
+
+  <!-- Search + filter -->
+  <form class="card" method="get" style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+    <input type="hidden" name="v" value="summer">
+    <input type="search" name="q" value="<?= htmlspecialchars($sQ) ?>" placeholder="Search name or email…" style="flex:1;min-width:180px">
+    <select name="status" style="min-width:160px">
+      <option value="">All statuses</option>
+      <?php foreach ($sValid as $st): ?>
+        <option value="<?= htmlspecialchars($st) ?>"<?= $sStatus === $st ? ' selected' : '' ?>><?= ucfirst(htmlspecialchars($st)) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <button class="btn" type="submit">Filter</button>
+    <?php if ($sStatus || $sQ): ?><a class="btn ghost" href="?v=summer">Clear</a><?php endif; ?>
+    <span class="muted" style="font-size:.8rem;margin-left:auto"><?= number_format($sTotal) ?> result<?= $sTotal !== 1 ? 's' : '' ?></span>
+  </form>
+
+  <!-- Applications table -->
+  <?php if (!$sList): ?>
+    <div class="card"><p class="empty">No summer applications yet<?= ($sStatus || $sQ) ? ' matching these filters' : '' ?>.</p></div>
+  <?php else: ?>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="stack">
+      <thead><tr>
+        <th>Reference</th><th>Applicant</th><th>Email</th><th>Discipline</th><th>Age</th><th>Status</th><th>Applied</th><th></th>
+      </tr></thead>
+      <tbody>
+      <?php foreach ($sList as $sa): ?>
+        <tr>
+          <td data-label="Reference"><span class="mono" style="font-size:.8rem"><?= htmlspecialchars((string)$sa['reference']) ?></span></td>
+          <td data-label="Applicant"><strong><?= htmlspecialchars(trim($sa['first_name'] . ' ' . $sa['last_name'])) ?></strong></td>
+          <td data-label="Email"><?= htmlspecialchars((string)$sa['email']) ?></td>
+          <td data-label="Discipline"><?= htmlspecialchars((string)($sa['discipline'] ?? '—')) ?></td>
+          <td data-label="Age"><?= (int)($sa['age_at_submission'] ?? 0) ?: '—' ?></td>
+          <td data-label="Status"><?= $sBadge((string)$sa['status']) ?></td>
+          <td data-label="Applied" class="muted" style="font-size:.78rem"><?= htmlspecialchars(substr((string)$sa['created_at'], 0, 10)) ?></td>
+          <td><a class="btn ghost" style="font-size:.78rem;padding:4px 10px" href="?v=summer&app=<?= (int)$sa['id'] ?>">Manage</a></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <?php if ($sPages > 1): ?>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <?php if ($sPage > 1): ?><a class="btn ghost" href="<?= htmlspecialchars($sUrl(['pg' => $sPage - 1])) ?>">← Prev</a><?php endif; ?>
+      <span class="muted" style="line-height:2">Page <?= $sPage ?> of <?= $sPages ?></span>
+      <?php if ($sPage < $sPages): ?><a class="btn ghost" href="<?= htmlspecialchars($sUrl(['pg' => $sPage + 1])) ?>">Next →</a><?php endif; ?>
+    </div>
+  <?php endif; ?>
+  <?php endif; ?>
+
+  <!-- Application detail drawer -->
+  <?php
+    $saId  = (int)($_GET['app'] ?? 0);
+    $saRow = $saId ? mam_db_row('SELECT * FROM summer_applications WHERE id = ?', [$saId]) : null;
+    if ($saRow):
+  ?>
+  <div class="mam-drawer-scrim" id="summerDrawerScrim" data-param="app">
+  <aside class="mam-drawer" role="dialog" aria-modal="true" aria-label="Summer application">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:flex-start;gap:14px">
+        <?php if (!empty($saRow['headshot_url'])): ?>
+        <img src="<?= htmlspecialchars((string)$saRow['headshot_url']) ?>" alt="Applicant photo"
+             style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid var(--gold);flex-shrink:0">
+        <?php endif; ?>
+        <div>
+          <h2 style="margin:0 0 4px">Summer application
+            <span class="mono muted" style="font-size:.78rem"><?= htmlspecialchars((string)$saRow['reference']) ?></span>
+          </h2>
+          <div><strong><?= htmlspecialchars(trim($saRow['first_name'] . ' ' . $saRow['last_name'])) ?></strong>
+            <span class="muted"> · <?= htmlspecialchars((string)$saRow['email']) ?></span></div>
+          <div style="margin-top:6px"><?= $sBadge((string)$saRow['status']) ?></div>
+        </div>
+      </div>
+      <a class="btn ghost" href="<?= htmlspecialchars($sUrl(['app' => ''])) ?>">✕ Close</a>
+    </div>
+
+    <!-- Detail grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin:18px 0;font-size:.86rem">
+      <?php $saField = function (string $l, $v) { if ($v === null || $v === '') return; echo '<div><span class="muted">' . htmlspecialchars($l) . '</span><br><strong>' . htmlspecialchars((string)$v) . '</strong></div>'; }; ?>
+      <?php $saField('Date of birth', $saRow['dob']); ?>
+      <?php $saField('Age at application', $saRow['age_at_submission']); ?>
+      <?php $saField('Phone', $saRow['phone']); ?>
+      <?php $saField('Sex', $saRow['sex']); ?>
+      <?php $saField('Country', $saRow['country']); ?>
+      <?php $saField('City', $saRow['city']); ?>
+      <?php $saField('Discipline', $saRow['discipline']); ?>
+      <?php $saField('Session year', $saRow['session_year']); ?>
+      <?php $saField('Guardian name', $saRow['guardian_name']); ?>
+      <?php $saField('Guardian phone', $saRow['guardian_phone']); ?>
+      <?php $saField('Guardian email', $saRow['guardian_email']); ?>
+      <?php $saField('Applied', substr((string)$saRow['created_at'], 0, 16)); ?>
+    </div>
+    <?php if ($saRow['experience']): ?>
+      <div style="margin-bottom:10px"><div class="muted" style="font-size:.78rem;margin-bottom:4px">Musical experience</div>
+        <div style="font-size:.88rem;line-height:1.65"><?= nl2br(htmlspecialchars((string)$saRow['experience'])) ?></div></div>
+    <?php endif; ?>
+    <?php if ($saRow['goals']): ?>
+      <div style="margin-bottom:14px"><div class="muted" style="font-size:.78rem;margin-bottom:4px">Goals</div>
+        <div style="font-size:.88rem;line-height:1.65"><?= nl2br(htmlspecialchars((string)$saRow['goals'])) ?></div></div>
+    <?php endif; ?>
+
+    <!-- Status update -->
+    <form method="post" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <input type="hidden" name="_csrf" value="<?= htmlspecialchars(mam_csrf_token()) ?>">
+      <input type="hidden" name="id" value="<?= (int)$saRow['id'] ?>">
+      <select name="status" style="flex:1;min-width:150px">
+        <?php foreach ($sValid as $st): ?>
+          <option value="<?= htmlspecialchars($st) ?>"<?= (string)$saRow['status'] === $st ? ' selected' : '' ?>><?= ucfirst(htmlspecialchars($st)) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <button class="btn" type="submit">Update status</button>
+    </form>
+  </aside>
+  </div>
+  <script>
+  (function () {
+    var scrim = document.getElementById('summerDrawerScrim');
+    if (!scrim) return;
+    scrim.addEventListener('click', function (e) {
+      if (e.target === scrim) { location.href = <?= json_encode($sUrl(['app' => ''])) ?>; }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { location.href = <?= json_encode($sUrl(['app' => ''])) ?>; }
+    });
+  })();
+  </script>
+  <?php endif; ?>
+
 <?php elseif ($view === 'analytics'): ?>
   <?php
     $an   = mam_analytics_overview();
@@ -1980,6 +3072,78 @@ nav a{display:flex;align-items:center}
     <?php endif; ?>
   </div>
 
+<?php elseif ($view === 'fines'): ?>
+  <?php
+    $finesFilter = in_array($_GET['status'] ?? '', ['pending','resolved','waived']) ? (string)$_GET['status'] : '';
+    $finesList   = function_exists('mam_instructor_fines') ? mam_instructor_fines(200, $finesFilter) : [];
+    // Counts always over the full set so the filter pills show accurate numbers.
+    $allFinesForCount = $finesFilter !== '' && function_exists('mam_instructor_fines') ? mam_instructor_fines(5000, '') : $finesList;
+    $finesCounts = ['pending' => 0, 'resolved' => 0, 'waived' => 0];
+    foreach ($allFinesForCount as $f) {
+        $st = (string)($f['status'] ?? 'pending');
+        if (array_key_exists($st, $finesCounts)) $finesCounts[$st]++;
+    }
+  ?>
+  <header class="top">
+    <h1>Instructor Fines</h1>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <?php foreach ([''=>'All','pending'=>'Pending','resolved'=>'Resolved','waived'=>'Waived'] as $fs => $fl): ?>
+        <a class="btn ghost tiny<?= $finesFilter===$fs?' btn-primary':'' ?>" href="?v=fines<?= $fs!==''?'&status='.urlencode($fs):'' ?>"><?= htmlspecialchars($fl) ?></a>
+      <?php endforeach; ?>
+    </div>
+  </header>
+  <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin:6px 0 18px">
+    <div class="kpi"><div class="kpi-label">Pending</div><div class="kpi-value" style="color:var(--danger)"><?= number_format($finesCounts['pending']) ?></div><div class="muted" style="font-size:.7rem">awaiting action</div></div>
+    <div class="kpi"><div class="kpi-label">Resolved</div><div class="kpi-value" style="color:#4caf50"><?= number_format($finesCounts['resolved']) ?></div><div class="muted" style="font-size:.7rem">handled</div></div>
+    <div class="kpi"><div class="kpi-label">Waived</div><div class="kpi-value" style="color:var(--muted)"><?= number_format($finesCounts['waived']) ?></div><div class="muted" style="font-size:.7rem">excused</div></div>
+  </div>
+  <div class="card" style="overflow-x:auto">
+    <?php if (!$finesList): ?>
+      <p class="muted"><?= $finesFilter ? 'No <strong>' . htmlspecialchars($finesFilter) . '</strong> fines.' : 'No instructor fines recorded yet.' ?></p>
+    <?php else: ?>
+    <table class="stack">
+      <thead><tr>
+        <th>Instructor</th><th>Session</th><th>Cohort</th><th>Reason</th><th>Amount</th><th>Status</th><th>Recorded</th><th style="width:180px"></th>
+      </tr></thead>
+      <tbody>
+      <?php foreach ($finesList as $f):
+          $fst    = (string)($f['status'] ?? 'pending');
+          $amt    = (int)($f['amount_kobo'] ?? 0);
+          $amtFmt = $amt > 0 ? '&#8358;' . number_format($amt / 100, 2) : '<span class="muted" style="font-size:.78rem">Flag only</span>';
+          $reasonMap = ['late_progress_report' => 'Late progress report'];
+          $reasonFmt = htmlspecialchars($reasonMap[$f['reason'] ?? ''] ?? (string)($f['reason'] ?? 'Unknown'));
+          $sessDate  = !empty($f['session_at']) ? substr((string)$f['session_at'], 0, 16) : '—';
+          $stColor   = ['pending' => 'var(--danger)', 'resolved' => '#4caf50', 'waived' => 'var(--muted)'][$fst] ?? 'var(--ink)';
+          $note      = (string)($f['resolution_note'] ?? '');
+      ?>
+        <tr id="fine-row-<?= (int)$f['id'] ?>">
+          <td data-label="Instructor">
+            <strong><?= htmlspecialchars($f['instructor_name'] ?? '—') ?></strong><br>
+            <span class="muted mono" style="font-size:.72rem"><?= htmlspecialchars($f['instructor_email'] ?? '') ?></span>
+          </td>
+          <td data-label="Session"><?= htmlspecialchars($sessDate) ?></td>
+          <td data-label="Cohort"><?= htmlspecialchars($f['cohort_title'] ?? '—') ?></td>
+          <td data-label="Reason"><?= $reasonFmt ?></td>
+          <td data-label="Amount"><?= $amtFmt ?></td>
+          <td data-label="Status"><span style="color:<?= $stColor ?>;font-weight:600"><?= htmlspecialchars(ucfirst($fst)) ?></span></td>
+          <td data-label="Recorded"><span class="muted" style="font-size:.78rem"><?= htmlspecialchars(substr((string)($f['created_at'] ?? ''), 0, 10)) ?></span></td>
+          <td>
+            <?php if ($fst === 'pending'): ?>
+              <button class="tiny btn" style="color:#fff;background:#4caf50;border:0" onclick="fineAct(<?= (int)$f['id'] ?>,'resolve')">Resolve</button>
+              <button class="tiny btn ghost" style="color:var(--muted);margin-left:4px" onclick="fineAct(<?= (int)$f['id'] ?>,'waive')">Waive</button>
+            <?php elseif ($note !== ''): ?>
+              <span class="muted" style="font-size:.75rem" title="<?= htmlspecialchars($note) ?>"><i class="fa-solid fa-circle-info"></i> <?= htmlspecialchars(mb_strlen($note) > 32 ? mb_substr($note, 0, 30) . '…' : $note) ?></span>
+            <?php else: ?>
+              <span class="muted" style="font-size:.75rem">—</span>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php endif; ?>
+  </div>
+
 <?php elseif ($view === 'payments'): ?>
   <header class="top">
     <h1>Payments</h1>
@@ -1988,7 +3152,7 @@ nav a{display:flex;align-items:center}
   <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Done.</strong></div><?php endif; ?>
   <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
   <div class="card">
-    <table>
+    <table class="stack">
       <thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Provider Ref</th><th>Verified</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
       <?php
@@ -1997,15 +3161,15 @@ nav a{display:flex;align-items:center}
       if (!$rows): ?><tr><td colspan="9" class="empty">No payments yet</td></tr><?php endif;
       foreach ($rows as $r): ?>
         <tr>
-          <td class="mono"><?= htmlspecialchars($r['reference']) ?></td>
-          <td><span class="pill"><?= htmlspecialchars((string)($r['purpose'] ?? 'tuition')) ?></span></td>
-          <td><?= htmlspecialchars($r['provider']) ?></td>
-          <td><?= number_format((float)$r['amount']) ?> <?= htmlspecialchars($r['currency']) ?></td>
-          <td><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
-          <td class="mono muted"><?= htmlspecialchars((string)$r['provider_reference']) ?></td>
-          <td class="muted"><?= htmlspecialchars(substr((string)$r['verified_at'], 0, 16)) ?></td>
-          <td class="muted"><?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?></td>
-          <td>
+          <td class="mono" data-label="Reference"><?= htmlspecialchars($r['reference']) ?></td>
+          <td data-label="Purpose"><span class="pill"><?= htmlspecialchars((string)($r['purpose'] ?? 'tuition')) ?></span></td>
+          <td data-label="Provider"><?= htmlspecialchars($r['provider']) ?></td>
+          <td data-label="Amount"><?= number_format((float)$r['amount']) ?> <?= htmlspecialchars($r['currency']) ?></td>
+          <td data-label="Status"><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
+          <td class="mono muted" data-label="Provider Ref"><?= htmlspecialchars((string)$r['provider_reference']) ?></td>
+          <td class="muted" data-label="Verified"><?= htmlspecialchars(substr((string)$r['verified_at'], 0, 16)) ?></td>
+          <td class="muted" data-label="Created"><?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?></td>
+          <td data-label="">
             <?php if ($r['status'] === 'succeeded'): ?>
               <form method="post" onsubmit="return confirm('Mark this payment as REFUNDED? The customer\'s record (application or order) will be reversed accordingly. Process the actual refund with the provider separately.');" style="display:inline-flex;gap:6px;align-items:center">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -2034,7 +3198,11 @@ nav a{display:flex;align-items:center}
 <?php elseif ($view === 'users'): ?>
   <header class="top">
     <h1>Users</h1>
-    <a class="btn ghost" href="?v=export&type=users.csv">⬇ Export CSV</a>
+    <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+      <button class="btn ghost tiny" id="usersViewCardBtn" onclick="setUsersView('card')" title="Card view"><i class="fa-solid fa-grip"></i></button>
+      <button class="btn ghost tiny" id="usersViewListBtn" onclick="setUsersView('list')" title="List view"><i class="fa-solid fa-list"></i></button>
+      <a class="btn ghost" href="?v=export&type=users.csv">⬇ Export CSV</a>
+    </div>
   </header>
   <?php
     // Edit user — if ?edit=N is set we render this card hydrated with the row,
@@ -2079,9 +3247,137 @@ nav a{display:flex;align-items:center}
       </div>
     </form>
   </div>
+
+  <?php if ($editUser && in_array('student', mam_user_roles($editUser), true)):
+    $studentCE = [];
+    try {
+        $studentCE = mam_db_all(
+            "SELECT ce.id, ce.status, c.title AS course_title, c.code AS course_code,
+                    l.name AS level_name, u.name AS instructor_name
+               FROM course_enrollments ce
+               JOIN courses c ON c.id = ce.course_id
+               LEFT JOIN levels l ON l.id = ce.level_id
+               LEFT JOIN users u ON u.id = ce.instructor_id
+              WHERE ce.student_id = ?
+              ORDER BY ce.created_at DESC",
+            [(int)$editUser['id']]
+        );
+    } catch (\Throwable $e) {}
+    $ceCourses = [];
+    try { $ceCourses = mam_db_all("SELECT code, name FROM courses WHERE active = 1 ORDER BY name"); } catch (\Throwable $e) {}
+    $ceInstrs = [];
+    try { $ceInstrs = mam_db_all("SELECT id, name FROM users WHERE role = 'instructor' ORDER BY name"); } catch (\Throwable $e) {}
+  ?>
   <div class="card">
-    <h3>All users</h3>
-    <table>
+    <h3>Course enrollments</h3>
+    <?php if ($studentCE): ?>
+    <table class="stack" style="margin-bottom:20px">
+      <thead><tr><th>Course</th><th>Level</th><th>Instructor</th><th>Status</th></tr></thead>
+      <tbody>
+      <?php foreach ($studentCE as $ce): ?>
+        <tr>
+          <td data-label="Course"><?= htmlspecialchars((string)$ce['course_title']) ?> <span class="muted"><?= htmlspecialchars((string)$ce['course_code']) ?></span></td>
+          <td data-label="Level"><?= htmlspecialchars((string)($ce['level_name'] ?? '—')) ?></td>
+          <td data-label="Instructor"><?= htmlspecialchars((string)($ce['instructor_name'] ?? '—')) ?></td>
+          <td data-label="Status"><span class="pill <?= htmlspecialchars((string)$ce['status']) ?>"><?= htmlspecialchars((string)$ce['status']) ?></span></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php else: ?><p class="empty" style="margin-bottom:16px">No course enrollments yet.</p><?php endif; ?>
+    <?php if ($ceCourses): ?>
+    <details><summary style="cursor:pointer;font-weight:600;color:var(--gold)">+ Assign a course</summary>
+    <form method="post" class="form-grid" style="margin-top:14px">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="student_course_assign">
+      <input type="hidden" name="user_id" value="<?= (int)$editUser['id'] ?>">
+      <label>Course
+        <select name="course_code" required>
+          <option value="">— select a course —</option>
+          <?php foreach ($ceCourses as $co): ?>
+            <option value="<?= htmlspecialchars((string)$co['code']) ?>"><?= htmlspecialchars((string)$co['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <?php if ($ceInstrs): ?>
+      <label>Instructor <span class="muted" style="font-weight:400">— leave blank to use the course default</span>
+        <select name="instructor_id">
+          <option value="0">— course default —</option>
+          <?php foreach ($ceInstrs as $ins): ?>
+            <option value="<?= (int)$ins['id'] ?>"><?= htmlspecialchars((string)$ins['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <?php endif; ?>
+      <div class="actions"><button class="btn" type="submit">Add &amp; activate</button></div>
+    </form>
+    </details>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($editUser && in_array('student', mam_user_roles($editUser), true)):
+    $schType = (string)(mam_db_row('SELECT student_type FROM users WHERE id = ?', [(int)$editUser['id']])['student_type'] ?? '');
+    $isScholar = ($schType === 'scholarship');
+  ?>
+  <div class="card">
+    <h3>Scholarship tier</h3>
+    <p class="muted" style="margin:0 0 14px">Scholarship students are billing-exempt — invoicing and auto-expiry skip them. Every grant or revoke is audited.</p>
+    <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+      <span>Status: <strong><?= $isScholar ? '<span style="color:var(--gold)">MAM Scholar ✦</span>' : '<span class="muted">Fee-paying</span>' ?></strong></span>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="set_student_type">
+        <input type="hidden" name="user_id" value="<?= (int)$editUser['id'] ?>">
+        <input type="hidden" name="student_type" value="<?= $isScholar ? 'paying' : 'scholarship' ?>">
+        <button class="btn <?= $isScholar ? 'ghost' : '' ?>" type="submit">
+          <?= $isScholar ? 'Revoke scholarship' : 'Grant MAM scholarship' ?>
+        </button>
+      </form>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($editUser && in_array('instructor', mam_user_roles($editUser), true)):
+    $ledger = mam_wallet_history((int)$editUser['id'], 30);
+    $ledgerBal = mam_wallet_balance((int)$editUser['id']);
+  ?>
+  <div class="card">
+    <h3>Earnings ledger <span class="muted" style="font-size:.82rem;font-weight:400">last 30 entries</span></h3>
+    <p style="margin:0 0 14px;font-size:.85rem">Balance: <strong>$<?= number_format($ledgerBal / 100, 2) ?></strong></p>
+    <?php if ($ledger): ?>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:4px 10px 6px 0;color:var(--muted);font-weight:600">Date</th>
+        <th style="text-align:left;padding:4px 10px 6px;color:var(--muted);font-weight:600">Type</th>
+        <th style="text-align:left;padding:4px 10px 6px;color:var(--muted);font-weight:600">Note</th>
+        <th style="text-align:right;padding:4px 0 6px 10px;color:var(--muted);font-weight:600">Amount</th>
+        <th style="text-align:right;padding:4px 0 6px 10px;color:var(--muted);font-weight:600">Balance</th>
+      </tr></thead>
+      <tbody>
+      <?php foreach ($ledger as $row): $pos = $row['amount_cents'] >= 0; ?>
+        <tr style="border-bottom:1px solid var(--border-faint,#2a1e15)">
+          <td style="padding:7px 10px 7px 0;color:var(--muted)" class="mono"><?= htmlspecialchars(substr((string)$row['created_at'], 0, 16)) ?></td>
+          <td style="padding:7px 10px"><?= htmlspecialchars(mam_wallet_reason_label((string)$row['reason'])) ?></td>
+          <td style="padding:7px 10px;color:var(--muted)"><?= htmlspecialchars((string)($row['note'] ?? '')) ?></td>
+          <td style="padding:7px 0 7px 10px;text-align:right;font-variant-numeric:tabular-nums;color:<?= $pos ? '#4ADE80' : '#F87171' ?>;font-weight:600"><?= $pos ? '+' : '' ?>$<?= number_format(abs($row['amount_cents']) / 100, 2) ?></td>
+          <td style="padding:7px 0 7px 10px;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)">$<?= number_format($row['balance_after_cents'] / 100, 2) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+    <?php else: ?>
+      <p class="muted">No earnings recorded yet.</p>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+
+  <div class="card">
+    <h3>All users <button type="button" class="btn btn-ghost" style="font-size:.78rem;margin-left:12px;vertical-align:middle" onclick="backfillEnrollRefs(this)" title="Generate MAM/YY/NNN IDs for all active students who are missing one"><i class="fa-solid fa-id-card"></i> Backfill student IDs</button></h3>
+    <div id="usersTableView">
+    <table class="stack">
       <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Created</th><th>Reset password</th><th></th></tr></thead>
       <tbody>
       <?php
@@ -2091,13 +3387,13 @@ nav a{display:flex;align-items:center}
       $perPage = 50; $page = mam_admin_page();
       $total = (int)(mam_db_row("SELECT COUNT(*) AS n FROM users $where", $params)['n'] ?? 0);
       $off = ($page - 1) * $perPage;
-      $users = mam_db_all("SELECT id, email, name, phone, role, status, last_login, created_at, admin_tier FROM users $where ORDER BY created_at DESC LIMIT $perPage OFFSET $off", $params);
+      $users = mam_db_all("SELECT id, email, name, phone, role, status, last_login, created_at, admin_tier, enrollment_ref FROM users $where ORDER BY created_at DESC LIMIT $perPage OFFSET $off", $params);
       if (!$users): ?><tr><td colspan="8" class="empty">No users yet</td></tr><?php endif;
       foreach ($users as $u): ?>
         <tr>
-          <td><strong><?= htmlspecialchars((string)($u['name'] ?? '—')) ?></strong><br><span class="muted mono">#<?= (int)$u['id'] ?></span></td>
-          <td><?= htmlspecialchars($u['email']) ?><br><span class="muted"><?= htmlspecialchars((string)($u['phone'] ?? '')) ?></span></td>
-          <td><span class="pill <?= htmlspecialchars($u['role']) ?>"><?= htmlspecialchars($u['role']) ?></span>
+          <td data-label="Name"><strong><?= htmlspecialchars((string)($u['name'] ?? '—')) ?></strong><br><span class="muted mono">#<?= (int)$u['id'] ?><?php if (!empty($u['enrollment_ref'])): ?> · <span style="color:var(--gold-bright);letter-spacing:0.04em" title="Student enrollment ID"><?= htmlspecialchars((string)$u['enrollment_ref']) ?></span><?php elseif ($u['role']==='student'): ?> · <button class="tiny btn ghost" style="padding:2px 7px;font-size:0.72rem" onclick="generateEnrollRef(<?= (int)$u['id'] ?>,this)" title="Generate enrollment ID for this student">Assign ID</button><?php endif; ?></span></td>
+          <td data-label="Email"><?= htmlspecialchars($u['email']) ?><br><span class="muted"><?= htmlspecialchars((string)($u['phone'] ?? '')) ?></span></td>
+          <td data-label="Role"><span class="pill <?= htmlspecialchars($u['role']) ?>"><?= htmlspecialchars($u['role']) ?></span>
             <?php if ($u['role'] === 'admin'): ?>
               <form class="inline" method="post" style="margin-top:6px;display:flex;gap:4px;align-items:center" title="Admin access tier">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -2122,10 +3418,10 @@ nav a{display:flex;align-items:center}
               </form>
             <?php endif; ?>
           </td>
-          <td><span class="pill <?= htmlspecialchars($u['status']) ?>"><?= htmlspecialchars($u['status']) ?></span></td>
-          <td class="muted"><?= htmlspecialchars(substr((string)($u['last_login'] ?? ''), 0, 16)) ?></td>
-          <td class="muted"><?= htmlspecialchars(substr((string)$u['created_at'], 0, 16)) ?></td>
-          <td>
+          <td data-label="Status"><span class="pill <?= htmlspecialchars($u['status']) ?>"><?= htmlspecialchars($u['status']) ?></span></td>
+          <td class="muted" data-label="Last login"><?= htmlspecialchars(substr((string)($u['last_login'] ?? ''), 0, 16)) ?></td>
+          <td class="muted" data-label="Created"><?= htmlspecialchars(substr((string)$u['created_at'], 0, 16)) ?></td>
+          <td data-label="Reset password">
             <form class="inline" method="post">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_reset">
@@ -2134,7 +3430,7 @@ nav a{display:flex;align-items:center}
               <button class="tiny" type="submit">Reset</button>
             </form>
           </td>
-          <td>
+          <td data-label="">
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_status">
@@ -2146,13 +3442,70 @@ nav a{display:flex;align-items:center}
               <button class="tiny" type="submit">Save</button>
             </form>
             <a class="tiny btn ghost" style="margin-left:6px;padding:6px 10px" href="?v=users&edit=<?= (int)$u['id'] ?>">Edit</a>
+            <?php if ($u['role'] === 'student'): ?>
+            <button class="tiny btn ghost" style="margin-left:6px;padding:6px 10px" onclick="genProgressLink(<?= (int)$u['id'] ?>,<?= htmlspecialchars(json_encode($u['name'] ?? 'Student')) ?>)" title="Generate shareable learner progress report link"><i class="fa-solid fa-link"></i> Progress Link</button>
+            <?php endif; ?>
           </td>
         </tr>
       <?php endforeach; ?>
       </tbody>
     </table>
     <?= mam_admin_pager($page, $total, $perPage) ?>
-  </div>
+    </div><!-- #usersTableView -->
+
+    <div id="usersCardView" style="display:none">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:4px 0">
+        <?php foreach ($users as $u): ?>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:42px;height:42px;border-radius:50%;background:var(--gold-light);color:var(--gold);font-weight:700;font-size:1.1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+              <?= htmlspecialchars(mb_strtoupper(mb_substr((string)($u['name'] ?? '?'), 0, 1))) ?>
+            </div>
+            <div style="min-width:0">
+              <div style="font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= htmlspecialchars((string)($u['name'] ?? '—')) ?></div>
+              <div style="font-size:.74rem;color:var(--muted)">#<?= (int)$u['id'] ?><?php if (!empty($u['enrollment_ref'])): ?> · <span style="color:var(--gold-bright);letter-spacing:.04em"><?= htmlspecialchars((string)$u['enrollment_ref']) ?></span><?php endif; ?></div>
+            </div>
+          </div>
+          <div style="font-size:.82rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= htmlspecialchars($u['email']) ?></div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <span class="pill <?= htmlspecialchars($u['role']) ?>"><?= htmlspecialchars($u['role']) ?></span>
+            <span class="pill <?= htmlspecialchars($u['status']) ?>"><?= htmlspecialchars($u['status']) ?></span>
+          </div>
+          <?php if (!empty($u['last_login'])): ?>
+          <div style="font-size:.72rem;color:var(--muted)">Last login: <?= htmlspecialchars(substr((string)$u['last_login'], 0, 16)) ?></div>
+          <?php endif; ?>
+          <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
+            <a class="tiny btn ghost" href="?v=users&edit=<?= (int)$u['id'] ?>">Edit</a>
+            <?php if ($u['role'] === 'student'): ?>
+              <?php if (empty($u['enrollment_ref'])): ?>
+              <button class="tiny btn ghost" onclick="generateEnrollRef(<?= (int)$u['id'] ?>,this)" title="Generate enrollment ID">Assign ID</button>
+              <?php endif; ?>
+              <button class="tiny btn ghost" onclick="genProgressLink(<?= (int)$u['id'] ?>,<?= htmlspecialchars(json_encode($u['name'] ?? 'Student')) ?>)" title="Progress report link"><i class="fa-solid fa-link"></i></button>
+            <?php endif; ?>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <?= mam_admin_pager($page, $total, $perPage) ?>
+    </div><!-- #usersCardView -->
+  </div><!-- .card All users -->
+  <script>
+  (function(){
+    function setUsersView(v) {
+      localStorage.setItem('mam_users_view', v);
+      var tv = document.getElementById('usersTableView');
+      var cv = document.getElementById('usersCardView');
+      var lb = document.getElementById('usersViewListBtn');
+      var cb = document.getElementById('usersViewCardBtn');
+      if (tv) tv.style.display = v === 'list' ? '' : 'none';
+      if (cv) cv.style.display = v === 'card' ? '' : 'none';
+      if (lb) lb.style.opacity = v === 'list' ? '1' : '.45';
+      if (cb) cb.style.opacity = v === 'card' ? '1' : '.45';
+    }
+    window.setUsersView = setUsersView;
+    setUsersView(localStorage.getItem('mam_users_view') || 'list');
+  })();
+  </script>
 
   <!-- ── Faculty (instructor) pipeline: requests → invited → applications ── -->
   <?php $facRequests = function_exists('mam_faculty_pending_requests') ? mam_faculty_pending_requests() : []; ?>
@@ -2240,7 +3593,74 @@ nav a{display:flex;align-items:center}
     $instructors = mam_db_all("SELECT id, name, email FROM users WHERE role='instructor' AND status='active' ORDER BY name");
     $editCid = (int)($_GET['edit'] ?? 0);
     $editClass = $editCid ? mam_db_row('SELECT * FROM classes WHERE id = ?', [$editCid]) : null;
+    // Class detail drawer (roster + attendance + linked curriculum) — shown when ?class=N.
+    $viewCid = (int)($_GET['class'] ?? 0);
+    $viewClass = $viewCid ? mam_db_row('SELECT c.*, u.name AS instructor_name FROM classes c LEFT JOIN users u ON u.id = c.instructor_id WHERE c.id = ?', [$viewCid]) : null;
+    if ($viewClass):
+      $roster = mam_db_all(
+        "SELECT u.name, u.email, e.status AS enr_status,
+                (SELECT COUNT(*) FROM attendance a WHERE a.enrollment_id = e.id AND a.status = 'present') AS present,
+                (SELECT COUNT(*) FROM attendance a WHERE a.enrollment_id = e.id) AS total
+           FROM enrollments e JOIN users u ON u.id = e.student_id
+          WHERE e.class_id = ? ORDER BY u.name", [$viewCid]);
+      $attCounts = ['present' => 0, 'absent' => 0, 'late' => 0, 'excused' => 0];
+      foreach (mam_db_all("SELECT a.status, COUNT(*) c FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id WHERE e.class_id = ? GROUP BY a.status", [$viewCid]) as $ac) { $attCounts[(string)$ac['status']] = (int)$ac['c']; }
+      $activeRoster = array_filter($roster, fn($r) => $r['enr_status'] === 'active');
+      $mailto = implode(',', array_filter(array_map(fn($r) => (string)$r['email'], $activeRoster)));
   ?>
+  <div class="mam-drawer-scrim" data-param="class">
+  <aside class="mam-drawer" role="dialog" aria-modal="true" aria-label="Class roster">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0 0 4px">Class roster <span class="mono muted" style="font-size:.8rem">#<?= (int)$viewClass['id'] ?></span></h2>
+        <div><strong><?= htmlspecialchars((string)$viewClass['title']) ?></strong></div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="pill" style="background:var(--raised)"><?= htmlspecialchars((string)($viewClass['discipline'] ?? '—')) ?></span>
+          <?php if (!empty($viewClass['mode'])): ?><span class="pill" style="background:var(--raised)"><?= htmlspecialchars((string)$viewClass['mode']) ?></span><?php endif; ?>
+          <span class="pill <?= htmlspecialchars((string)$viewClass['status']) ?>"><?= htmlspecialchars((string)$viewClass['status']) ?></span>
+        </div>
+      </div>
+      <a class="btn ghost" href="?v=classes">✕ Close</a>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin:16px 0">
+      <div class="kpi"><div class="kpi-label">Enrolled</div><div class="kpi-value"><?= count($activeRoster) ?></div></div>
+      <div class="kpi"><div class="kpi-label">Present</div><div class="kpi-value" style="color:var(--emerald)"><?= (int)$attCounts['present'] ?></div></div>
+      <div class="kpi"><div class="kpi-label">Absent</div><div class="kpi-value" style="color:var(--red)"><?= (int)$attCounts['absent'] ?></div></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:16px;font-size:.86rem">
+      <div><span class="muted">Instructor:</span> <?= htmlspecialchars((string)($viewClass['instructor_name'] ?? '— unassigned —')) ?></div>
+      <?php if (!empty($viewClass['schedule'])): ?><div><span class="muted">Schedule:</span> <?= htmlspecialchars((string)$viewClass['schedule']) ?></div><?php endif; ?>
+      <div><span class="muted">Capacity:</span> <?= (int)$viewClass['capacity'] ?></div>
+      <?php if (!empty($viewClass['meeting_link'])): ?><div><span class="muted">Meeting link:</span> <a href="<?= htmlspecialchars((string)$viewClass['meeting_link']) ?>" target="_blank" rel="noopener noreferrer" style="color:var(--gold)">Join class ↗</a></div><?php endif; ?>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <a class="btn ghost" href="?v=classes&edit=<?= (int)$viewClass['id'] ?>"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit class</a>
+      <?php if ($mailto): ?><a class="btn ghost" href="mailto:?bcc=<?= htmlspecialchars(rawurlencode($mailto)) ?>"><i class="fa-solid fa-envelope" aria-hidden="true"></i> Message class</a><?php endif; ?>
+    </div>
+
+    <h3 style="margin:0 0 8px">Roster &amp; attendance</h3>
+    <?php if (!$roster): ?>
+      <p class="muted">No students enrolled yet. Enrol from <a href="?v=enrollments" style="color:var(--gold)">Enrollments →</a>.</p>
+    <?php else: ?>
+      <table>
+        <thead><tr><th>Student</th><th>Status</th><th>Attendance</th></tr></thead>
+        <tbody>
+        <?php foreach ($roster as $r): $rate = (int)$r['total'] > 0 ? round((int)$r['present'] / (int)$r['total'] * 100) : null; ?>
+          <tr>
+            <td><strong><?= htmlspecialchars((string)($r['name'] ?? '—')) ?></strong><br><span class="muted" style="font-size:.76rem"><?= htmlspecialchars((string)$r['email']) ?></span></td>
+            <td><span class="pill <?= htmlspecialchars((string)$r['enr_status']) ?>"><?= htmlspecialchars((string)$r['enr_status']) ?></span></td>
+            <td class="muted"><?= $rate === null ? '<span class="muted">no sessions</span>' : ($rate . '% · ' . (int)$r['present'] . '/' . (int)$r['total']) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    <?php endif; ?>
+  </aside>
+  </div>
+  <?php endif; ?>
   <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Saved.</strong></div><?php endif; ?>
   <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
 
@@ -2277,6 +3697,7 @@ nav a{display:flex;align-items:center}
       <label>Capacity<input type="number" name="capacity" value="<?= htmlspecialchars((string)($editClass['capacity'] ?? 12)) ?>" min="1" max="500"></label>
       <label>Starts on<input type="date" name="starts_on" value="<?= htmlspecialchars(substr((string)($editClass['starts_on'] ?? ''), 0, 10)) ?>"></label>
       <label class="full">Schedule<input type="text" name="schedule" placeholder="Sat 10:00–11:30, Wed 18:00–19:00" value="<?= htmlspecialchars((string)($editClass['schedule'] ?? '')) ?>"></label>
+      <label class="full">Meeting link <small class="muted">(Online/Hybrid only — https:// URL)</small><input type="url" name="meeting_link" placeholder="https://zoom.us/j/…" value="<?= htmlspecialchars((string)($editClass['meeting_link'] ?? '')) ?>"></label>
       <div class="actions">
         <button class="btn" type="submit"><?= $editClass ? 'Save changes' : 'Create class' ?></button>
         <?php if ($editClass): ?><a class="btn ghost" href="?v=classes">Cancel</a><?php endif; ?>
@@ -2317,6 +3738,7 @@ nav a{display:flex;align-items:center}
               </select>
               <button class="tiny" type="submit">Save</button>
             </form>
+            <a class="tiny btn ghost" style="margin-left:6px;padding:6px 10px" href="?v=classes&class=<?= (int)$c['id'] ?>">Roster</a>
             <a class="tiny btn ghost" style="margin-left:6px;padding:6px 10px" href="?v=classes&edit=<?= (int)$c['id'] ?>">Edit</a>
           </td>
         </tr>
@@ -2400,6 +3822,187 @@ nav a{display:flex;align-items:center}
     </table>
   </div>
 
+<?php elseif ($view === 'schedule'): ?>
+  <?php
+    // Week navigation: ?week=YYYY-Www (ISO week) or default = current week.
+    $isoWeek = isset($_GET['week']) && preg_match('/^\d{4}-W\d{2}$/', (string)$_GET['week']) ? (string)$_GET['week'] : date('o-\WW');
+    [$isoYear, $isoWn] = explode('-W', $isoWeek);
+    $weekMon = new DateTimeImmutable();
+    $weekMon = $weekMon->setISODate((int)$isoYear, (int)$isoWn, 1); // Monday
+    $weekSun = $weekMon->modify('+6 days');
+    $prevWeek = $weekMon->modify('-7 days')->format('o-\WW');
+    $nextWeek = $weekMon->modify('+7 days')->format('o-\WW');
+    $schedSessions = function_exists('mam_lms_schedule_range')
+        ? mam_lms_schedule_range($weekMon->format('Y-m-d'), $weekSun->format('Y-m-d'))
+        : [];
+    // Group sessions by Y-m-d.
+    $byDay = [];
+    foreach ($schedSessions as $s) {
+        $d = substr((string)($s['scheduled_at'] ?? ''), 0, 10);
+        if ($d) $byDay[$d][] = $s;
+    }
+    $kindColors = ['class' => '#34D399', 'exam' => '#F87171', 'revision' => '#60A5FA', 'makeup' => '#FBBF24'];
+  ?>
+  <header class="top">
+    <h1>Class Schedule</h1>
+    <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+      <a class="btn ghost tiny" href="?v=schedule&week=<?= htmlspecialchars($prevWeek) ?>"><i class="fa-solid fa-chevron-left"></i></a>
+      <a class="btn ghost tiny" href="?v=schedule">This week</a>
+      <a class="btn ghost tiny" href="?v=schedule&week=<?= htmlspecialchars($nextWeek) ?>"><i class="fa-solid fa-chevron-right"></i></a>
+      <button class="btn btn-primary tiny" onclick="adminSchedModal.open()"><i class="fa-solid fa-plus"></i> New Session</button>
+    </div>
+  </header>
+  <div class="card" style="overflow-x:auto">
+    <div style="display:flex;gap:4px;min-width:700px">
+    <?php
+    $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    for ($i = 0; $i < 7; $i++):
+        $day     = $weekMon->modify("+$i days");
+        $dayKey  = $day->format('Y-m-d');
+        $isToday = $dayKey === date('Y-m-d');
+        $sessions = $byDay[$dayKey] ?? [];
+    ?>
+      <div style="flex:1;min-width:110px;border-right:1px solid var(--border);padding:0 6px">
+        <div style="text-align:center;padding:10px 0 8px;font-size:.75rem;font-weight:700;color:<?= $isToday ? 'var(--gold)' : 'var(--muted)' ?>;text-transform:uppercase;letter-spacing:.06em">
+          <?= htmlspecialchars($days[$i]) ?><br>
+          <span style="font-size:1.05rem;color:<?= $isToday ? 'var(--gold)' : 'var(--ink)' ?>"><?= $day->format('j') ?></span>
+        </div>
+        <?php if (!$sessions): ?>
+          <div style="font-size:.7rem;color:var(--muted);text-align:center;padding:10px 0">—</div>
+        <?php else: foreach ($sessions as $s):
+            $km   = $kindColors[$s['kind'] ?? 'class'] ?? '#34D399';
+            $stat = (string)($s['status'] ?? 'scheduled');
+            $time = substr((string)($s['scheduled_at'] ?? ''), 11, 5);
+            $sub  = !empty($s['substitute_name']) ? '🔄 ' . $s['substitute_name'] : ($s['instructor_name'] ?? '—');
+        ?>
+          <div style="background:var(--raised);border:1px solid var(--border);border-left:3px solid <?= htmlspecialchars($km) ?>;border-radius:7px;padding:6px 7px;margin-bottom:5px;font-size:.72rem;<?= $stat === 'cancelled' ? 'opacity:.45;text-decoration:line-through' : '' ?>">
+            <div style="font-weight:700;line-height:1.2;margin-bottom:2px"><?= htmlspecialchars($s['title'] ?: ($s['cohort_title'] ?: 'Session #' . $s['id'])) ?></div>
+            <div style="color:var(--muted)"><?= htmlspecialchars($time) ?><?= !empty($s['duration_min']) ? ' · ' . (int)$s['duration_min'] . 'min' : '' ?></div>
+            <div style="color:var(--muted);margin-top:2px"><?= htmlspecialchars($sub) ?></div>
+            <?php if (!empty($s['room']) || !empty($s['location'])): ?>
+            <div style="color:var(--muted);margin-top:1px"><i class="fa-solid fa-location-dot" style="font-size:.65rem"></i> <?= htmlspecialchars($s['room'] ?: $s['location']) ?></div>
+            <?php endif; ?>
+            <div style="margin-top:3px"><span style="background:<?= htmlspecialchars($km) ?>22;color:<?= htmlspecialchars($km) ?>;font-size:.6rem;padding:1px 5px;border-radius:4px;text-transform:uppercase"><?= htmlspecialchars($s['kind'] ?? 'class') ?></span></div>
+          </div>
+        <?php endforeach; endif; ?>
+      </div>
+    <?php endfor; ?>
+    </div>
+    <div style="padding:12px 6px 6px;font-size:.78rem;color:var(--muted)">
+      <?= count($schedSessions) ?> session<?= count($schedSessions) !== 1 ? 's' : '' ?> this week (<?= htmlspecialchars($weekMon->format('M j')) ?> – <?= htmlspecialchars($weekSun->format('M j, Y')) ?>)
+      &nbsp;·&nbsp; <a href="?v=courseenroll" style="color:var(--gold)">Manage cohorts →</a>
+    </div>
+  </div>
+  <?php if (empty($schedSessions)): ?>
+    <div class="card" style="text-align:center;padding:32px;color:var(--muted)"><i class="fa-solid fa-calendar-xmark" style="font-size:2rem;display:block;margin-bottom:12px;opacity:.4"></i>No sessions scheduled this week. <button class="btn ghost" style="margin-top:10px" onclick="adminSchedModal.open()">Schedule a session</button></div>
+  <?php endif; ?>
+
+  <!-- New Session modal -->
+  <div id="adminSchedOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;align-items:center;justify-content:center">
+    <div style="background:var(--raised);border-radius:12px;padding:28px 24px;max-width:480px;width:90%;max-height:90vh;overflow-y:auto;position:relative">
+      <h3 style="margin:0 0 18px">Schedule a Session</h3>
+      <form id="adminSchedForm" class="form-grid">
+        <label>Cohort
+          <select id="assCohort" required>
+            <option value="">Loading cohorts…</option>
+          </select>
+        </label>
+        <label>Title <span class="muted" style="font-weight:400">(optional)</span>
+          <input type="text" id="assTitle" placeholder="e.g. Week 3 Class">
+        </label>
+        <label>Date &amp; Time
+          <input type="datetime-local" id="assSchedAt" required>
+        </label>
+        <label>Duration (minutes)
+          <input type="number" id="assDur" value="60" min="15" max="480">
+        </label>
+        <label>Kind
+          <select id="assKind">
+            <option value="class">Class</option>
+            <option value="exam">Exam</option>
+            <option value="revision">Revision</option>
+            <option value="makeup">Makeup</option>
+          </select>
+        </label>
+        <label>Location <span class="muted" style="font-weight:400">(optional)</span>
+          <input type="text" id="assLoc" placeholder="e.g. Main Hall">
+        </label>
+        <label>Room <span class="muted" style="font-weight:400">(optional)</span>
+          <input type="text" id="assRoom" placeholder="e.g. Room 4">
+        </label>
+        <div class="actions" style="margin-top:4px">
+          <button class="btn" type="button" id="assSubmitBtn" onclick="adminSchedSubmit()">Create Session</button>
+          <button class="btn ghost" type="button" onclick="adminSchedModal.close()">Cancel</button>
+        </div>
+        <div id="assErr" style="color:#F87171;font-size:.82rem;display:none;margin-top:6px"></div>
+      </form>
+    </div>
+  </div>
+  <script>
+  var _adminCsrf = (document.querySelector('meta[name=csrf-token]')||{}).content || '';
+  (function(){
+    var overlay = document.getElementById('adminSchedOverlay');
+    var cohortSel = document.getElementById('assCohort');
+    var cohortsLoaded = false;
+    window.adminSchedModal = {
+      open: function() {
+        overlay.style.display = 'flex';
+        document.getElementById('assErr').style.display = 'none';
+        document.getElementById('assSubmitBtn').disabled = false;
+        document.getElementById('assSubmitBtn').textContent = 'Create Session';
+        if (!cohortsLoaded) {
+          fetch('/api/instructor/sessions', {credentials:'same-origin'})
+            .then(function(r){return r.json();})
+            .then(function(d){
+              cohortsLoaded = true;
+              var list = d.cohorts || [];
+              if (!list.length) { cohortSel.innerHTML='<option value="">No cohorts found</option>'; return; }
+              cohortSel.innerHTML = '<option value="">— choose cohort —</option>' +
+                list.map(function(c){return '<option value="'+parseInt(c.id,10)+'">'+c.title.replace(/</g,'&lt;')+'</option>';}).join('');
+            })
+            .catch(function(){cohortSel.innerHTML='<option value="">Error loading cohorts</option>';});
+        }
+      },
+      close: function() { overlay.style.display = 'none'; }
+    };
+    overlay.addEventListener('click', function(e){ if(e.target===overlay) adminSchedModal.close(); });
+  })();
+  function adminSchedSubmit() {
+    var btn = document.getElementById('assSubmitBtn');
+    var err = document.getElementById('assErr');
+    var cohortId = parseInt(document.getElementById('assCohort').value, 10);
+    var schedAt  = document.getElementById('assSchedAt').value;
+    if (!cohortId || !schedAt) { err.textContent = 'Please choose a cohort and date/time.'; err.style.display='block'; return; }
+    err.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Creating…';
+    var payload = {
+      action: 'create',
+      cohort_id: cohortId,
+      scheduled_at: schedAt,
+      duration_min: parseInt(document.getElementById('assDur').value, 10) || 60,
+      kind: document.getElementById('assKind').value
+    };
+    var t = (document.getElementById('assTitle').value || '').trim();
+    var l = (document.getElementById('assLoc').value || '').trim();
+    var r = (document.getElementById('assRoom').value || '').trim();
+    if (t) payload.title    = t;
+    if (l) payload.location = l;
+    if (r) payload.room     = r;
+    fetch('/api/instructor/sessions', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type':'application/json','X-CSRF-Token':_adminCsrf},
+      body: JSON.stringify(payload)
+    })
+    .then(function(res){return res.json().then(function(d){return {ok:res.ok,d:d};});})
+    .then(function(x){
+      if (!x.ok) { err.textContent = (x.d && x.d.error) ? x.d.error : 'Failed to create session.'; err.style.display='block'; btn.disabled=false; btn.textContent='Create Session'; return; }
+      window.location.reload();
+    })
+    .catch(function(){ err.textContent='Network error.'; err.style.display='block'; btn.disabled=false; btn.textContent='Create Session'; });
+  }
+  </script>
+
 <?php elseif ($view === 'courseenroll'): ?>
   <header class="top"><h1>Course Registrations</h1></header>
   <?php if (!empty($_GET['cert'])): ?>
@@ -2424,25 +4027,282 @@ nav a{display:flex;align-items:center}
         $legacyCounts[(int)$lc['class_id']] = (int)$lc['n'];
     }
   ?>
+  <?php
+    // Pre-compute fill counts and waitlist counts for all cohorts.
+    $coFillMap = []; $coWaitMap = [];
+    foreach ($cohortList as $co) {
+        $cid = (int)$co['id'];
+        try { $fc = mam_lms_cohort_fill_count($cid); $coFillMap[$cid] = $fc; $coWaitMap[$cid] = (int)$fc['waitlist_count']; } catch (Throwable $e) {}
+    }
+  ?>
+  <?php
+    $editCohortId = (int)($_GET['edit_cohort'] ?? 0);
+    $editCohort   = $editCohortId > 0 ? mam_db_row('SELECT * FROM cohorts WHERE id = ?', [$editCohortId]) : null;
+    $courseOpts   = mam_db_all("SELECT id, name FROM courses WHERE active = 1 ORDER BY name");
+    $instrOpts    = mam_db_all("SELECT id, name FROM users WHERE role = 'instructor' AND status = 'active' ORDER BY name");
+  ?>
+  <?php if ($editCohort): ?>
+  <div class="card" style="border-color:var(--border-gold)">
+    <h3 style="margin:0 0 14px">Edit cohort #<?= $editCohortId ?></h3>
+    <form method="post" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <?= mam_csrf_field() ?>
+      <input type="hidden" name="action" value="cohort_edit">
+      <input type="hidden" name="cohort_id" value="<?= $editCohortId ?>">
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600;grid-column:1/-1">Title
+        <input type="text" name="title" value="<?= htmlspecialchars((string)($editCohort['title'] ?? '')) ?>" maxlength="200" required style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Course
+        <select name="course_id" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+          <option value="">— none —</option>
+          <?php foreach ($courseOpts as $c): ?>
+            <option value="<?= (int)$c['id'] ?>" <?= (int)($editCohort['course_id'] ?? 0) === (int)$c['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string)$c['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Instructor
+        <select name="instructor_id" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+          <option value="">— unassigned —</option>
+          <?php foreach ($instrOpts as $i): ?>
+            <option value="<?= (int)$i['id'] ?>" <?= (int)($editCohort['instructor_id'] ?? 0) === (int)$i['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string)$i['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Capacity
+        <input type="number" name="capacity" min="1" max="500" value="<?= (int)($editCohort['capacity'] ?? 12) ?>" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Term
+        <input type="text" name="term" value="<?= htmlspecialchars((string)($editCohort['term'] ?? '')) ?>" maxlength="60" placeholder="e.g. Jan 2026" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Start date
+        <input type="date" name="starts_on" value="<?= htmlspecialchars((string)($editCohort['starts_on'] ?? '')) ?>" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">End date
+        <input type="date" name="ends_on" value="<?= htmlspecialchars((string)($editCohort['ends_on'] ?? '')) ?>" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Status
+        <select name="status" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+          <?php foreach (['active','inactive','archived'] as $st): ?>
+            <option value="<?= $st ?>" <?= ($editCohort['status'] ?? 'active') === $st ? 'selected' : '' ?>><?= ucfirst($st) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <div style="grid-column:1/-1;display:flex;gap:8px;margin-top:4px">
+        <button class="btn" type="submit">Save changes</button>
+        <a class="btn ghost" href="?v=courseenroll">Cancel</a>
+      </div>
+    </form>
+  </div>
+  <?php endif; ?>
+
   <div class="card">
-    <h3>Cohorts <span class="muted" style="font-weight:400">· the unified &ldquo;scheduled run&rdquo; grouping (course &times; level &times; programme) — one place for course &amp; class registrations</span></h3>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 4px 6px">
+      <h3 style="margin:0">Cohorts <span class="muted" style="font-weight:400">· the unified &ldquo;scheduled run&rdquo; grouping</span></h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <a class="btn ghost tiny" href="?v=schedule"><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Schedule Calendar</a>
+        <button class="btn tiny" type="button" onclick="document.getElementById('newCohortForm').hidden=!document.getElementById('newCohortForm').hidden" title="Create a new cohort"><i class="fa-solid fa-plus"></i> New cohort</button>
+      </div>
+    </div>
+    <div id="newCohortForm" hidden style="border:1px solid var(--border-gold);border-radius:10px;padding:16px 18px;margin:8px 0 16px;background:var(--surface)">
+      <h4 style="margin:0 0 12px;font-size:.9rem">Create cohort</h4>
+      <form method="post" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <?= mam_csrf_field() ?>
+        <input type="hidden" name="action" value="cohort_create">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600;grid-column:1/-1">Title <span style="font-weight:400;color:var(--muted)">(required)</span>
+          <input type="text" name="title" required maxlength="200" placeholder="e.g. Piano — Cert I · Jan 2026" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Course
+          <select name="course_id" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+            <option value="">— none —</option>
+            <?php foreach ($courseOpts as $c): ?>
+              <option value="<?= (int)$c['id'] ?>"><?= htmlspecialchars((string)$c['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Instructor
+          <select name="instructor_id" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+            <option value="">— unassigned —</option>
+            <?php foreach ($instrOpts as $i): ?>
+              <option value="<?= (int)$i['id'] ?>"><?= htmlspecialchars((string)$i['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Capacity
+          <input type="number" name="capacity" min="1" max="500" value="12" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Term
+          <input type="text" name="term" maxlength="60" placeholder="e.g. Jan 2026" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Start date
+          <input type="date" name="starts_on" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">End date
+          <input type="date" name="ends_on" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+        </label>
+        <div style="grid-column:1/-1;margin-top:4px">
+          <button class="btn" type="submit">Create cohort</button>
+        </div>
+      </form>
+    </div>
     <table>
-      <thead><tr><th>Cohort</th><th>Course / Level</th><th>Instructor</th><th>Course students</th><th>Class enrolments</th><th>Status</th></tr></thead>
+      <thead><tr><th>Cohort</th><th>Course / Level</th><th>Instructor</th><th>Capacity</th><th>Waitlist</th><th>Sessions</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
-      <?php foreach ($cohortList as $co): $lcid = (int)($co['legacy_class_id'] ?? 0); ?>
+      <?php foreach ($cohortList as $co):
+        $cid     = (int)$co['id'];
+        $lcid    = (int)($co['legacy_class_id'] ?? 0);
+        $legCount = (int)($legacyCounts[$lcid] ?? 0);
+        $hasCourse = !empty($co['course_name']);
+        $fc      = $coFillMap[$cid] ?? null;
+        $enrolled = $fc ? (int)$fc['enrolled'] : (int)($co['enrollment_count'] ?? 0);
+        $capacity = $fc ? (int)$fc['capacity'] : (int)($co['capacity'] ?? 999);
+        $isFull   = $fc ? $fc['is_full'] : false;
+        $wlCount  = $coWaitMap[$cid] ?? 0;
+        $sessCount = (int)($co['session_count'] ?? 0);
+        $fillColor = $capacity < 999 ? ($isFull ? '#F87171' : ($enrolled / $capacity >= 0.8 ? '#FBBF24' : '#34D399')) : 'var(--muted)';
+      ?>
         <tr>
-          <td><strong><?= htmlspecialchars((string)($co['title'] ?: ('Cohort #' . $co['id']))) ?></strong><?= $lcid ? ' <span class="muted">(from class #' . $lcid . ')</span>' : '' ?></td>
-          <td><?= htmlspecialchars((string)($co['course_name'] ?? $co['discipline'] ?? '—')) ?><?= !empty($co['level_name']) ? ' &middot; ' . htmlspecialchars((string)$co['level_name']) : '' ?></td>
+          <td><strong><?= htmlspecialchars((string)($co['title'] ?: ('Cohort #' . $co['id']))) ?></strong><?= $lcid ? '<br><span class="muted" style="font-size:.74rem">from class #' . $lcid . '</span>' : '' ?></td>
+          <td><?= htmlspecialchars((string)($co['course_name'] ?? $co['discipline'] ?? '—')) ?><?= !empty($co['level_name']) ? '<br><span class="muted" style="font-size:.8rem">' . htmlspecialchars((string)$co['level_name']) . '</span>' : '' ?></td>
           <td><?= htmlspecialchars((string)($co['instructor_name'] ?? '—')) ?></td>
-          <td><?= (int)($co['enrollment_count'] ?? 0) ?></td>
-          <td><?php if ($lcid): ?><?= (int)($legacyCounts[$lcid] ?? 0) ?> <a href="?v=enrollments" class="muted" style="text-decoration:underline">manage</a><?php else: ?><span class="muted">—</span><?php endif; ?></td>
+          <td>
+            <span style="font-weight:600;color:<?= $fillColor ?>"><?= $enrolled ?></span><?= $capacity < 999 ? '<span class="muted">/' . $capacity . '</span>' : '<span class="muted"> enrolled</span>' ?>
+            <?php if ($isFull): ?><br><span style="font-size:.7rem;color:#F87171">Full</span><?php endif; ?>
+          </td>
+          <td>
+            <?php if ($wlCount > 0): ?>
+              <span style="color:var(--gold);font-weight:600"><?= $wlCount ?></span> <span class="muted" style="font-size:.78rem">waiting</span>
+              <form method="post" style="display:inline;margin-left:4px">
+                <?= mam_csrf_field() ?>
+                <input type="hidden" name="action" value="waitlist_promote">
+                <input type="hidden" name="cohort_id" value="<?= $cid ?>">
+                <button class="btn ghost" type="submit" style="padding:2px 7px;font-size:.72rem" title="Enrol the next waiting student (respects capacity)" onclick="return confirm('Enrol the next student from the waitlist?')"><i class="fa-solid fa-arrow-up-from-bracket"></i> Promote</button>
+              </form>
+              <?php if ($isFull): ?>
+              <form method="post" style="display:inline;margin-left:2px">
+                <?= mam_csrf_field() ?>
+                <input type="hidden" name="action" value="waitlist_promote">
+                <input type="hidden" name="cohort_id" value="<?= $cid ?>">
+                <input type="hidden" name="force" value="1">
+                <button class="btn ghost" type="submit" style="padding:2px 7px;font-size:.72rem;border-color:#F87171;color:#F87171" title="Force-enrol next student even though cohort is over capacity" onclick="return confirm('Force-promote from waitlist — this will exceed the cohort capacity. Continue?')"><i class="fa-solid fa-bolt"></i> Force</button>
+              </form>
+              <?php endif; ?>
+            <?php else: ?>
+              <span class="muted">—</span>
+            <?php endif; ?>
+          </td>
+          <td><?= $sessCount ?> <a href="?v=schedule" style="color:var(--muted);font-size:.76rem" title="View schedule"><i class="fa-solid fa-calendar-week"></i></a></td>
           <td><span class="pill <?= htmlspecialchars((string)$co['status']) ?>"><?= htmlspecialchars((string)$co['status']) ?></span></td>
+          <td style="white-space:nowrap">
+            <?php if ($lcid && $legCount && $hasCourse): ?>
+              <form method="post" style="display:inline;margin:0" onsubmit="return confirm('Create course enrolments for this cohort\'s legacy class roster? Additive and idempotent.');">
+                <?= mam_csrf_field() ?>
+                <input type="hidden" name="action" value="cohort_converge">
+                <input type="hidden" name="cohort_id" value="<?= $cid ?>">
+                <button class="btn ghost tiny" type="submit" title="Converge legacy roster"><i class="fa-solid fa-code-merge" aria-hidden="true"></i></button>
+              </form>
+            <?php endif; ?>
+            <button class="btn ghost tiny" onclick="openBulkScheduler(<?= $cid ?>, <?= htmlspecialchars(json_encode($co['title'] ?: 'Cohort #'.$cid)) ?>)" title="Generate sessions for a term"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+            <a class="btn ghost tiny" href="?v=courseenroll&edit_cohort=<?= $cid ?>" title="Edit cohort"><i class="fa-solid fa-pen-to-square"></i></a>
+          </td>
         </tr>
       <?php endforeach; ?>
       </tbody>
     </table>
-    <p style="padding:4px 20px 16px;color:var(--muted);font-size:0.84rem;line-height:1.6">Course students come from course registrations (below); class enrolments are the legacy per-class roster (<a href="?v=enrollments" style="color:var(--gold)">Enrollments</a>). Cohorts converge both — no data migration.</p>
+    <p style="padding:4px 20px 16px;color:var(--muted);font-size:0.84rem;line-height:1.6">Course students come from course registrations (below); class enrolments are the legacy per-class roster (<a href="?v=enrollments" style="color:var(--gold)">Enrollments</a>). <strong>Converge</strong> enrols a backfilled cohort's legacy class roster into course records. <strong><i class="fa-solid fa-wand-magic-sparkles"></i></strong> generates a full term's sessions in one step.</p>
   </div>
+
+  <!-- Bulk session scheduler modal -->
+  <div id="bulkSchedModal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(10,7,4,.75);display:none;align-items:center;justify-content:center;padding:20px">
+    <div style="background:var(--surface);border:1px solid var(--border-gold);border-radius:18px;padding:28px 26px;max-width:520px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.5)">
+      <h3 style="margin:0 0 4px;color:var(--ink)"><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--gold)"></i> Generate Sessions</h3>
+      <p id="bulkSchedSubtitle" style="color:var(--muted);font-size:.83rem;margin:0 0 18px"></p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">From<input type="date" id="bsStart" style="padding:8px;border-radius:7px;border:1px solid var(--border)"></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">To<input type="date" id="bsEnd" style="padding:8px;border-radius:7px;border:1px solid var(--border)"></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">Time<input type="time" id="bsTime" value="09:00" style="padding:8px;border-radius:7px;border:1px solid var(--border)"></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">Duration (min)<input type="number" id="bsDur" value="60" min="15" max="480" style="padding:8px;border-radius:7px;border:1px solid var(--border)"></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600;grid-column:1/-1">Title prefix <span style="font-weight:400;color:var(--muted)">(e.g. "Week" → "Week 1", "Week 2"…)</span><input type="text" id="bsPrefix" placeholder="Session" style="padding:8px;border-radius:7px;border:1px solid var(--border)"></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600;grid-column:1/-1">Room / location<input type="text" id="bsRoom" placeholder="Studio A, Room 101…" style="padding:8px;border-radius:7px;border:1px solid var(--border)"></label>
+        <div style="grid-column:1/-1">
+          <div style="font-size:.8rem;font-weight:600;margin-bottom:6px">Days of week</div>
+          <div id="bsDays" style="display:flex;gap:6px;flex-wrap:wrap">
+            <?php foreach (['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as $di => $dl): ?>
+              <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;cursor:pointer">
+                <input type="checkbox" name="bsDay" value="<?= $di ?>" <?= in_array($di, [1, 3]) ? 'checked' : '' ?>><?= htmlspecialchars($dl) ?>
+              </label>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">Kind
+          <select id="bsKind" style="padding:8px;border-radius:7px;border:1px solid var(--border)">
+            <option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:.8rem;font-weight:600">Skip dates <span style="font-weight:400;color:var(--muted)">(comma-separated Y-m-d)</span><input type="text" id="bsSkip" placeholder="2026-12-25, 2027-01-01" style="padding:8px;border-radius:7px;border:1px solid var(--border)"></label>
+      </div>
+      <div id="bsPreview" style="margin:14px 0 0;font-size:.8rem;color:var(--muted)"></div>
+      <div style="display:flex;gap:10px;margin-top:18px">
+        <button class="btn" onclick="runBulkPreview()" style="background:var(--raised);color:var(--ink)"><i class="fa-solid fa-eye"></i> Preview</button>
+        <button class="btn btn-primary" onclick="runBulkCreate()" id="bsCreateBtn"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate</button>
+        <button class="btn ghost" onclick="closeBulkScheduler()" style="margin-left:auto">Cancel</button>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function(){
+    var _cohortId = null;
+    window.openBulkScheduler = function(cid, title) {
+      _cohortId = cid;
+      document.getElementById('bulkSchedSubtitle').textContent = title;
+      document.getElementById('bulkSchedModal').style.display = 'flex';
+      // default dates: today to +12 weeks
+      var d = new Date(); document.getElementById('bsStart').value = d.toISOString().slice(0,10);
+      d.setDate(d.getDate() + 84); document.getElementById('bsEnd').value = d.toISOString().slice(0,10);
+      document.getElementById('bsPreview').textContent = '';
+    };
+    window.closeBulkScheduler = function() { document.getElementById('bulkSchedModal').style.display = 'none'; };
+    function getBulkPayload() {
+      var days = [];
+      document.querySelectorAll('input[name="bsDay"]:checked').forEach(function(cb){ days.push(parseInt(cb.value, 10)); });
+      var skip = (document.getElementById('bsSkip').value || '').split(',').map(function(s){return s.trim();}).filter(Boolean);
+      return {
+        cohort_id: _cohortId, start_date: document.getElementById('bsStart').value,
+        end_date: document.getElementById('bsEnd').value, day_of_week: days,
+        time_of_day: document.getElementById('bsTime').value, duration_min: parseInt(document.getElementById('bsDur').value, 10) || 60,
+        kind: document.getElementById('bsKind').value, title_prefix: document.getElementById('bsPrefix').value.trim(),
+        room: document.getElementById('bsRoom').value.trim(), skip_dates: skip,
+      };
+    }
+    window.runBulkPreview = function() {
+      var prev = document.getElementById('bsPreview');
+      prev.textContent = 'Computing…';
+      var payload = getBulkPayload(); payload.action = 'preview';
+      var t = document.querySelector('meta[name=csrf-token]') ? document.querySelector('meta[name=csrf-token]').content : '';
+      fetch('/api/instructor/sessions', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': t },
+        body: JSON.stringify(payload) })
+        .then(function(r){ return r.json(); }).then(function(j){
+          if (j.ok) prev.textContent = j.count + ' session' + (j.count === 1 ? '' : 's') + ' would be created: ' + (j.dates || []).slice(0, 5).join(', ') + (j.count > 5 ? '…' : '');
+          else prev.textContent = 'Error: ' + (j.error || 'unknown');
+        }).catch(function(){ prev.textContent = 'Preview failed.'; });
+    };
+    window.runBulkCreate = function() {
+      if (!confirm('Generate sessions for this cohort? This cannot be undone in bulk.')) return;
+      var btn = document.getElementById('bsCreateBtn');
+      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Generating…';
+      var payload = getBulkPayload(); payload.action = 'bulk_create';
+      var t = document.querySelector('meta[name=csrf-token]') ? document.querySelector('meta[name=csrf-token]').content : '';
+      fetch('/api/instructor/sessions', { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': t },
+        body: JSON.stringify(payload) })
+        .then(function(r){ return r.json(); }).then(function(j){
+          btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate';
+          if (j.ok) { closeBulkScheduler(); window.location = '?v=schedule'; }
+          else alert('Error: ' + (j.error || j.detail || 'unknown'));
+        }).catch(function(){ btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate'; alert('Request failed.'); });
+    };
+    document.getElementById('bulkSchedModal').addEventListener('click', function(e){ if(e.target===this) closeBulkScheduler(); });
+  })();
+  </script>
   <?php endif; ?>
   <?php
     $autoApprove = (int)mam_setting_num('lms_auto_approve', 0) === 1;
@@ -2459,35 +4319,61 @@ nav a{display:flex;align-items:center}
     $where = '';
     if ($ceFilter === 'pending')         $where = "WHERE ce.status = 'pending'";
     elseif ($ceFilter === 'unassigned')  $where = "WHERE ce.instructor_id IS NULL AND ce.status IN ('active','pending')";
-    $ces = mam_admin_rows(
-      "SELECT ce.id, ce.status, ce.created_at, ce.instructor_id,
+    // Try with grade columns first; fall back silently if results table not yet created.
+    $cesCore = "SELECT ce.id, ce.status, ce.created_at, ce.instructor_id,
               c.name AS course_name, c.kind AS course_kind,
               l.code AS level_code, l.name AS level_name, p.name AS program_name,
-              su.name AS student_name, su.email AS student_email,
-              r.grade AS result_grade, r.outcome AS result_outcome,
+              su.name AS student_name, su.email AS student_email";
+    $cesJoin = "FROM course_enrollments ce
+         JOIN courses c ON c.id = ce.course_id
+         LEFT JOIN levels l ON l.id = ce.level_id
+         LEFT JOIN programs p ON p.id = ce.program_id
+         JOIN users su ON su.id = ce.student_id";
+    $cesTail = "$where ORDER BY (ce.status = 'pending') DESC, (ce.instructor_id IS NULL) DESC, ce.created_at DESC LIMIT 400";
+    try {
+        $ces = mam_db_all("$cesCore, r.grade AS result_grade, r.outcome AS result_outcome,
               (SELECT cr.reference FROM certificates cr
                  WHERE cr.student_id = ce.student_id AND cr.program_id = ce.program_id
                    AND (cr.level_id = ce.level_id OR (cr.level_id IS NULL AND ce.level_id IS NULL))
                  LIMIT 1) AS cert_ref
-         FROM course_enrollments ce
-         JOIN courses c ON c.id = ce.course_id
-         LEFT JOIN levels l ON l.id = ce.level_id
-         LEFT JOIN programs p ON p.id = ce.program_id
-         LEFT JOIN results r ON r.enrollment_id = ce.id
-         JOIN users su ON su.id = ce.student_id
-         $where
-         ORDER BY (ce.status = 'pending') DESC, (ce.instructor_id IS NULL) DESC, ce.created_at DESC LIMIT 400"
-    );
+         $cesJoin LEFT JOIN results r ON r.enrollment_id = ce.id $cesTail");
+    } catch (\Throwable $e) {
+        // results or certificates table missing — return core columns only
+        $ces = mam_admin_rows("$cesCore, NULL AS result_grade, NULL AS result_outcome, NULL AS cert_ref $cesJoin $cesTail");
+    }
     $pendingCount    = (int)mam_admin_scalar("SELECT COUNT(*) FROM course_enrollments WHERE status='pending'");
     $unassignedCount = (int)mam_admin_scalar("SELECT COUNT(*) FROM course_enrollments WHERE instructor_id IS NULL AND status IN ('active','pending')");
   ?>
   <div class="card">
     <h3>Approval policy</h3>
-    <p style="padding:0 20px 16px;color:var(--muted);font-size:0.86rem;line-height:1.6">
+    <p style="padding:0 20px 12px;color:var(--muted);font-size:0.86rem;line-height:1.6">
       Course additions are currently <strong style="color:var(--gold)"><?= $autoApprove ? 'auto-approved' : 'manually reviewed' ?></strong>.
       Toggle <code>lms_auto_approve</code> in <a href="?v=settings" style="color:var(--gold)">Pricing &amp; Settings</a>.
       <?php if ($pendingCount): ?><br><strong style="color:var(--gold)"><?= $pendingCount ?></strong> registration<?= $pendingCount === 1 ? '' : 's' ?> awaiting review.<?php endif; ?>
     </p>
+    <?php
+      // Count legacy class enrollments that aren't yet linked to course_enrollments
+      $unlinkedLegacy = mam_admin_scalar(
+          "SELECT COUNT(*) FROM enrollments e
+             JOIN classes cl ON cl.id = e.class_id
+            WHERE e.status = 'active' AND cl.discipline IS NOT NULL AND cl.discipline <> ''
+              AND NOT EXISTS (
+                SELECT 1 FROM course_enrollments ce
+                  JOIN courses c ON c.id = ce.course_id
+                 WHERE ce.student_id = e.student_id AND c.code = cl.discipline AND ce.status IN ('pending','active')
+              )"
+      );
+    ?>
+    <?php if ($unlinkedLegacy > 0): ?>
+    <div style="padding:0 20px 16px">
+      <p style="color:var(--muted);font-size:.85rem;margin:0 0 10px"><strong style="color:var(--gold)"><?= (int)$unlinkedLegacy ?></strong> legacy class enrollment<?= $unlinkedLegacy !== 1 ? 's' : '' ?> not yet linked to course registrations. Sync them so they appear here and in the gradebook.</p>
+      <form method="post" style="display:inline">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="bridge_legacy_enrollments">
+        <button class="btn" type="submit" onclick="return confirm('Sync <?= (int)$unlinkedLegacy ?> legacy enrollment<?= $unlinkedLegacy !== 1 ? 's' : '' ?> into course registrations?')">Sync legacy class enrollments →</button>
+      </form>
+    </div>
+    <?php endif; ?>
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 4px 6px">
@@ -2545,16 +4431,515 @@ nav a{display:flex;align-items:center}
     </table>
   </div>
 
-<?php elseif ($view === 'modules'): ?>
+<?php elseif ($view === 'programs'): ?>
+  <?php
+    $allProgs     = mam_lms_all_programs_with_courses();
+    $allCourses   = mam_db_all('SELECT * FROM courses ORDER BY sort_order, name');
+    $focusProg    = (int)($_GET['prog'] ?? 0);
+    $certOptions  = ['participation' => 'Certificate of Participation', 'completion' => 'Certificate of Completion', 'internal' => 'Internal Certification', 'internal_diploma' => 'Diploma & Internal Cert'];
+    $levelOptions = ['precert' => 'Pre-Cert', 'cert' => 'Certificate', 'prediploma' => 'Pre-Diploma', 'diploma' => 'Diploma'];
+    $kindOptions  = ['core' => 'Core', 'elective' => 'Elective'];
+    // Pre-compute total authored weeks per programme (sum of module_count across all linked courses)
+    $progStats = [];
+    foreach ($allProgs as $pg) {
+        $authored = array_sum(array_column($pg['courses'], 'module_count'));
+        $possible = max(1, (int)$pg['weeks']) * max(1, count($pg['courses']));
+        $pct = $possible > 0 ? min(100, round($authored / $possible * 100)) : 0;
+        $progStats[(int)$pg['id']] = ['authored' => $authored, 'possible' => $possible, 'pct' => $pct, 'course_count' => count($pg['courses'])];
+    }
+  ?>
+  <style>
+  /* ── Programme Catalogue styles ── */
+  .prog-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+  .prog-tab{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:10px;font-size:.84rem;font-weight:600;border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:all .15s;text-decoration:none}
+  .prog-tab:hover{border-color:var(--gold);color:var(--text)}
+  .prog-tab.active{background:linear-gradient(135deg,rgba(232,150,31,.2),rgba(252,198,71,.06));color:var(--goldhi);border-color:var(--border-strong)}
+  .prog-tab .prog-tab-n{background:rgba(232,150,31,.15);color:var(--gold);font-size:.72rem;padding:1px 6px;border-radius:6px}
+  .prog-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-l);margin-bottom:20px;overflow:hidden}
+  .prog-card-head{padding:18px 22px 14px;border-bottom:1px solid var(--border)}
+  .prog-card-title-row{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .prog-card-name{font-size:1.08rem;font-weight:700;flex:1;min-width:180px}
+  .prog-card-meta{font-size:.78rem;color:var(--muted);margin-top:2px}
+  .prog-actions{display:flex;gap:7px;flex-wrap:wrap;flex-shrink:0}
+  .prog-progress{display:flex;align-items:center;gap:10px}
+  .prog-progress-bar{flex:1;height:5px;background:rgba(255,255,255,.1);border-radius:3px;max-width:200px;min-width:80px}
+  .prog-progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-2));border-radius:3px;transition:width .4s ease}
+  .prog-progress-label{font-size:.75rem;color:var(--muted);white-space:nowrap}
+  .prog-course-table td,.prog-course-table th{padding:10px 14px;font-size:.84rem}
+  .prog-course-table th{font-size:.68rem}
+  .prog-week-bar{display:inline-flex;gap:2px;align-items:center}
+  .prog-week-pip{width:7px;height:7px;border-radius:2px;background:var(--border)}
+  .prog-week-pip.done{background:var(--gold)}
+  .course-kind-core{display:inline-block;font-size:.68rem;padding:2px 7px;border-radius:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:#FEF3C7;color:#92400E}
+  .course-kind-elec{display:inline-block;font-size:.68rem;padding:2px 7px;border-radius:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:#E0F2FE;color:#075985}
+  .prog-empty-courses{padding:20px 22px;color:var(--muted);font-style:italic;font-size:.88rem;text-align:center;border-top:1px solid var(--border)}
+  .prog-add-course{padding:14px 22px;border-top:1px solid var(--border);background:rgba(0,0,0,.1)}
+  .prog-edit-form{padding:18px 22px;background:rgba(0,0,0,.15);border-top:1px solid var(--border)}
+  .prog-edit-form .fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end}
+  /* ── Toast ── */
+  .toast{position:fixed;bottom:28px;right:28px;z-index:9999;padding:14px 20px;border-radius:12px;font-size:.88rem;font-weight:600;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:toastIn .25s ease forwards}
+  .toast.ok{background:rgba(16,185,129,.18);border:1px solid rgba(52,211,153,.55);color:#A7F3D0}
+  .toast.err{background:rgba(244,63,94,.18);border:1px solid rgba(251,113,133,.55);color:#FECDD3}
+  @keyframes toastIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+  /* ── Course catalogue search ── */
+  .course-search-wrap{padding:14px 20px 0}
+  #courseSearch{width:100%;max-width:340px;padding:8px 12px;background:var(--raised);border:1px solid var(--border);border-radius:9px;color:var(--text);font:inherit;font-size:.88rem}
+  #courseSearch:focus{outline:none;border-color:var(--gold)}
+  .course-catalogue-row.hidden-search{display:none}
+  .no-search-results{display:none;padding:24px;text-align:center;color:var(--muted);font-style:italic;font-size:.88rem}
+  </style>
+
   <header class="top">
-    <h1>Standard Curriculum</h1>
-    <span class="muted" style="font-size:.82rem">Author the week-by-week syllabus per course &amp; level · scaffold · import / export</span>
+    <h1>Programme Catalogue</h1>
+    <span class="muted" style="font-size:.82rem">Manage programmes, course assignments &amp; PDF exports</span>
   </header>
+
+  <?php /* ── Auto-dismiss toasts ── */ ?>
+  <?php if (isset($_GET['ok'])): ?>
+  <div class="toast ok" id="flashToast"><i class="fa-solid fa-check-circle" aria-hidden="true"></i> <?= htmlspecialchars($_GET['ok'] === '1' ? 'Saved.' : (string)$_GET['ok']) ?></div>
+  <?php elseif (isset($_GET['err'])): ?>
+  <div class="toast err" id="flashToast"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> <?= htmlspecialchars((string)$_GET['err']) ?></div>
+  <?php endif; ?>
+  <script>
+  (function(){var t=document.getElementById('flashToast');if(!t)return;setTimeout(function(){t.style.transition='opacity .4s';t.style.opacity='0';setTimeout(function(){t.remove();},420);},4000);})();
+  </script>
+
+  <?php /* ── Programme tabs ── */ ?>
+  <div class="prog-tabs">
+    <a class="prog-tab <?= $focusProg === 0 ? 'active' : '' ?>" href="?v=programs">All <span class="prog-tab-n"><?= count($allProgs) ?></span></a>
+    <?php foreach ($allProgs as $pg): $ps = $progStats[(int)$pg['id']] ?? []; ?>
+      <a class="prog-tab <?= $focusProg === (int)$pg['id'] ? 'active' : '' ?>" href="?v=programs&prog=<?= (int)$pg['id'] ?>">
+        <?= htmlspecialchars((string)$pg['name']) ?>
+        <?php if (!$pg['active']): ?><span style="opacity:.45;font-size:.7em">(off)</span><?php endif; ?>
+        <?php if (!empty($ps['course_count'])): ?><span class="prog-tab-n"><?= (int)$ps['course_count'] ?></span><?php endif; ?>
+      </a>
+    <?php endforeach; ?>
+  </div>
+
+  <?php foreach ($allProgs as $pg):
+    if ($focusProg && (int)$pg['id'] !== $focusProg) continue;
+    $pgCourseIds = array_column($pg['courses'], 'course_id');
+    $ps = $progStats[(int)$pg['id']] ?? ['authored' => 0, 'possible' => 0, 'pct' => 0, 'course_count' => 0];
+    $unlinked = array_values(array_filter($allCourses, fn($c) => !in_array((int)$c['id'], $pgCourseIds, true)));
+  ?>
+  <div class="prog-card">
+    <div class="prog-card-head">
+      <div class="prog-card-title-row">
+        <div style="flex:1;min-width:180px">
+          <div class="prog-card-name">
+            <?= htmlspecialchars((string)$pg['name']) ?>
+            <?php if (!$pg['active']): ?><span class="pill cancelled" style="font-size:.62rem;vertical-align:middle;margin-left:6px">inactive</span><?php endif; ?>
+          </div>
+          <div class="prog-card-meta">
+            <span><?= htmlspecialchars(strtoupper((string)$pg['code'])) ?></span> ·
+            <span><?= (int)$pg['weeks'] ?> weeks</span> ·
+            <span><?= htmlspecialchars($certOptions[$pg['certification'] ?? ''] ?? (string)($pg['certification'] ?? '')) ?></span>
+            <?php if ($pg['requires_core']): ?> · <span>Core required</span><?php endif; ?>
+          </div>
+        </div>
+        <div class="prog-actions">
+          <a class="tiny btn ghost" href="?v=export&type=curriculum.pdf&program=<?= urlencode((string)$pg['code']) ?>" target="_blank" title="Download PDF curriculum"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i> PDF</a>
+          <a class="tiny btn ghost" href="?v=modules&program=<?= urlencode((string)$pg['code']) ?>" title="Author weekly modules"><i class="fa-solid fa-book-open" aria-hidden="true"></i> Author</a>
+          <button class="tiny btn ghost" onclick="var e=document.getElementById('prog-edit-<?= (int)$pg['id'] ?>');e.hidden=!e.hidden" type="button"><i class="fa-solid fa-pencil" aria-hidden="true"></i> Edit</button>
+        </div>
+      </div>
+      <?php if ($ps['possible'] > 0): ?>
+      <div class="prog-progress">
+        <div class="prog-progress-bar"><div class="prog-progress-fill" style="width:<?= $ps['pct'] ?>%"></div></div>
+        <span class="prog-progress-label"><?= $ps['authored'] ?> of <?= $ps['possible'] ?> module weeks authored (<?= $ps['pct'] ?>%)</span>
+      </div>
+      <?php endif; ?>
+    </div>
+
+    <?php /* ── Edit form (hidden by default) ── */ ?>
+    <div id="prog-edit-<?= (int)$pg['id'] ?>" hidden class="prog-edit-form">
+      <form method="post" class="fg">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="program_update">
+        <input type="hidden" name="program_id" value="<?= (int)$pg['id'] ?>">
+        <label class="form-grid" style="grid-column:1/-1;padding:0;display:block">
+          <span class="muted" style="font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;font-weight:600">Name</span>
+          <input name="name" value="<?= htmlspecialchars((string)$pg['name']) ?>" required style="width:100%;margin-top:4px">
+        </label>
+        <label><span class="muted" style="font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Total weeks</span>
+          <input type="number" name="weeks" value="<?= (int)$pg['weeks'] ?>" min="1" max="104"></label>
+        <label><span class="muted" style="font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Revision week</span>
+          <input type="number" name="revision_week" value="<?= (int)($pg['revision_week'] ?? 0) ?: '' ?>" min="1" placeholder="none"></label>
+        <label><span class="muted" style="font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Exam week</span>
+          <input type="number" name="exam_week" value="<?= (int)($pg['exam_week'] ?? 0) ?: '' ?>" min="1" placeholder="none"></label>
+        <label><span class="muted" style="font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Certification</span>
+          <select name="certification">
+            <?php foreach ($certOptions as $cv => $cl): ?><option value="<?= $cv ?>" <?= ($pg['certification'] ?? '') === $cv ? 'selected' : '' ?>><?= htmlspecialchars($cl) ?></option><?php endforeach; ?>
+          </select></label>
+        <label><span class="muted" style="font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;font-weight:600;display:block;margin-bottom:4px">Sort order</span>
+          <input type="number" name="sort_order" value="<?= (int)$pg['sort_order'] ?>"></label>
+        <label style="display:flex;align-items:center;gap:7px;align-self:flex-end;padding-bottom:10px">
+          <input type="checkbox" name="requires_core" value="1" <?= !empty($pg['requires_core']) ? 'checked' : '' ?>>
+          <span style="font-size:.88rem">Requires core courses</span>
+        </label>
+        <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:0">
+          <button class="btn" type="submit" style="align-self:flex-end">Save changes</button>
+          <button class="btn ghost" type="button" style="align-self:flex-end" onclick="document.getElementById('prog-edit-<?= (int)$pg['id'] ?>').hidden=true">Cancel</button>
+        </div>
+      </form>
+    </div>
+
+    <?php /* ── Linked courses ── */ ?>
+    <?php if (empty($pg['courses'])): ?>
+      <div class="prog-empty-courses">
+        <i class="fa-solid fa-book-open" aria-hidden="true" style="opacity:.4;display:block;font-size:1.4rem;margin-bottom:8px"></i>
+        No courses linked yet — use the form below to add your first course.
+      </div>
+    <?php else: ?>
+    <div style="overflow-x:auto">
+    <table class="prog-course-table" style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:10px 22px 10px 22px;color:var(--muted);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Course</th>
+          <th style="text-align:left;padding:10px 14px;color:var(--muted);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Kind</th>
+          <th style="text-align:left;padding:10px 14px;color:var(--muted);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Level</th>
+          <th style="text-align:left;padding:10px 14px;color:var(--muted);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Progress</th>
+          <th style="padding:10px 22px 10px 14px"></th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php foreach ($pg['courses'] as $pc):
+        $mcnt = (int)($pc['module_count'] ?? 0);
+        $mmax = max(1, (int)$pg['weeks']);
+        $mpct = min(100, round($mcnt / $mmax * 100));
+        $pips = min(12, $mmax);
+        $done = round($mcnt / $mmax * $pips);
+      ?>
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:12px 22px">
+            <strong><?= htmlspecialchars((string)($pc['name'] ?? '')) ?></strong>
+            <span class="muted" style="font-size:.76rem;margin-left:6px"><?= htmlspecialchars((string)($pc['code'] ?? '')) ?></span>
+          </td>
+          <td style="padding:12px 14px">
+            <span class="<?= ($pc['kind'] ?? '') === 'core' ? 'course-kind-core' : 'course-kind-elec' ?>"><?= htmlspecialchars((string)($pc['kind'] ?? 'elective')) ?></span>
+          </td>
+          <td style="padding:12px 14px;color:var(--muted);font-size:.84rem">
+            <?= htmlspecialchars($levelOptions[$pc['level_code'] ?? ''] ?? (empty($pc['level_code']) ? 'Any' : (string)$pc['level_code'])) ?>
+          </td>
+          <td style="padding:12px 14px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="prog-week-bar">
+                <?php for ($p = 0; $p < $pips; $p++): ?><span class="prog-week-pip <?= $p < $done ? 'done' : '' ?>"></span><?php endfor; ?>
+              </div>
+              <span class="muted" style="font-size:.75rem;white-space:nowrap"><?= $mcnt ?>/<?= $mmax ?> wks</span>
+            </div>
+          </td>
+          <td style="padding:12px 22px 12px 14px;white-space:nowrap;text-align:right">
+            <a class="tiny btn ghost" href="?v=modules&course=<?= urlencode((string)($pc['code'] ?? '')) ?>&program=<?= urlencode((string)$pg['code']) ?>">Edit modules</a>
+            <form method="post" class="inline" style="margin-left:6px" onsubmit="return confirm('Remove <?= addslashes(htmlspecialchars((string)($pc['name'] ?? 'this course'))) ?> from <?= addslashes(htmlspecialchars((string)$pg['name'])) ?>?')">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <input type="hidden" name="action" value="unlink_course">
+              <input type="hidden" name="course_id" value="<?= (int)($pc['course_id'] ?? 0) ?>">
+              <input type="hidden" name="program_id" value="<?= (int)$pg['id'] ?>">
+              <button class="tiny btn ghost" type="submit" style="color:var(--red)">Remove</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+    <?php endif; ?>
+
+    <?php /* ── Add course ── */ ?>
+    <?php if ($unlinked): ?>
+    <div class="prog-add-course">
+      <details>
+        <summary style="cursor:pointer;font-size:.84rem;color:var(--gold);font-weight:600;list-style:none;display:flex;align-items:center;gap:7px">
+          <i class="fa-solid fa-plus" aria-hidden="true" style="font-size:.75rem"></i> Add course to <?= htmlspecialchars((string)$pg['name']) ?>
+        </summary>
+        <form method="post" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:14px">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+          <input type="hidden" name="action" value="link_course">
+          <input type="hidden" name="program_id" value="<?= (int)$pg['id'] ?>">
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:.76rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Course
+            <select name="course_id" required style="min-width:200px">
+              <option value="">— select —</option>
+              <?php foreach ($unlinked as $uc): ?><option value="<?= (int)$uc['id'] ?>"><?= htmlspecialchars((string)$uc['name']) ?> (<?= htmlspecialchars((string)$uc['code']) ?>)</option><?php endforeach; ?>
+            </select></label>
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:.76rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Preferred level
+            <select name="level_code">
+              <option value="">Any level</option>
+              <?php foreach ($levelOptions as $lv => $ll): ?><option value="<?= $lv ?>"><?= htmlspecialchars($ll) ?></option><?php endforeach; ?>
+            </select></label>
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:.76rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Sort order
+            <input type="number" name="sort_order" value="99" min="0" style="width:80px"></label>
+          <button class="btn" type="submit" style="align-self:flex-end">Add</button>
+        </form>
+      </details>
+    </div>
+    <?php else: ?>
+      <div style="padding:12px 22px;font-size:.82rem;color:var(--muted);border-top:1px solid var(--border)">All available courses are already linked to this programme.</div>
+    <?php endif; ?>
+  </div>
+  <?php endforeach; ?>
+
+  <?php /* ── New Programme ── */ ?>
+  <div class="card">
+    <h3 style="display:flex;align-items:center;gap:8px"><i class="fa-solid fa-plus" aria-hidden="true" style="color:var(--gold);font-size:.85em"></i> New Programme</h3>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="program_create">
+      <label>Code <small class="muted" style="font-weight:400;letter-spacing:0;text-transform:none">(unique slug)</small>
+        <input name="code" placeholder="grand" required pattern="[a-z0-9_]+" autocomplete="off"></label>
+      <label class="full">Name
+        <input name="name" placeholder="Grand Musicians II" required></label>
+      <label>Total weeks<input type="number" name="weeks" value="12" min="1" max="104"></label>
+      <label>Revision week<input type="number" name="revision_week" placeholder="none" min="1"></label>
+      <label>Exam week<input type="number" name="exam_week" placeholder="none" min="1"></label>
+      <label>Certification
+        <select name="certification">
+          <?php foreach ($certOptions as $cv => $cl): ?><option value="<?= $cv ?>" <?= $cv === 'completion' ? 'selected' : '' ?>><?= htmlspecialchars($cl) ?></option><?php endforeach; ?>
+        </select></label>
+      <label>Sort order<input type="number" name="sort_order" value="99"></label>
+      <label style="flex-direction:row;align-items:center;gap:8px;align-self:flex-end;padding-bottom:10px">
+        <input type="checkbox" name="requires_core" value="1" style="width:auto;min-height:0">
+        <span style="font-size:.88rem;font-weight:500;text-transform:none;letter-spacing:0;color:var(--text)">Requires core courses</span>
+      </label>
+      <div class="actions"><button class="btn" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create Programme</button></div>
+    </form>
+  </div>
+
+  <?php /* ── Course Catalogue ── */ ?>
+  <div class="card">
+    <h3>Course Catalogue
+      <button class="tiny btn ghost" onclick="var f=document.getElementById('new-course-form');f.hidden=!f.hidden" type="button" style="font-size:.78rem"><i class="fa-solid fa-plus" aria-hidden="true"></i> New course</button>
+    </h3>
+
+    <div id="new-course-form" hidden style="padding:18px 20px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.12)">
+      <h4 style="font-size:.9rem;margin-bottom:14px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.07em">New course</h4>
+      <form method="post" class="form-grid" style="padding:0">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="course_create">
+        <label>Code <small class="muted" style="font-weight:400;letter-spacing:0;text-transform:none">(e.g. piano)</small>
+          <input name="code" placeholder="piano" required pattern="[a-z0-9_]+" autocomplete="off"></label>
+        <label class="full">Name<input name="name" placeholder="Piano" required></label>
+        <label>Kind<select name="kind"><option value="elective">Elective</option><option value="core">Core</option></select></label>
+        <label>Sort order<input type="number" name="sort_order" value="99"></label>
+        <label class="full">Description <small class="muted" style="font-weight:400;letter-spacing:0;text-transform:none">(optional)</small>
+          <input name="description" placeholder="Short description…"></label>
+        <div class="actions"><button class="btn" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create</button></div>
+      </form>
+    </div>
+
+    <div class="course-search-wrap">
+      <input type="search" id="courseSearch" placeholder="Filter courses by name or code…" autocomplete="off" aria-label="Search courses">
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;font-size:.86rem">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:10px 20px;color:var(--muted);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Course</th>
+          <th style="text-align:left;padding:10px 14px;color:var(--muted);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Kind</th>
+          <th style="text-align:left;padding:10px 14px;color:var(--muted);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Programmes</th>
+          <th style="text-align:left;padding:10px 14px;color:var(--muted);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Status</th>
+          <th style="padding:10px 20px 10px 14px"></th>
+        </tr>
+      </thead>
+      <tbody id="courseTableBody">
+      <?php foreach ($allCourses as $co):
+        $inProgs = array_filter($allProgs, fn($pg) => in_array((int)$co['id'], array_column($pg['courses'], 'course_id'), true));
+        $searchVal = strtolower((string)$co['name'] . ' ' . (string)$co['code'] . ' ' . (string)($co['description'] ?? ''));
+      ?>
+        <tr class="course-catalogue-row" data-search="<?= htmlspecialchars($searchVal) ?>" style="border-bottom:1px solid var(--border)">
+          <td style="padding:12px 20px">
+            <strong><?= htmlspecialchars((string)$co['name']) ?></strong>
+            <span class="muted" style="font-size:.76rem;margin-left:6px"><?= htmlspecialchars((string)$co['code']) ?></span>
+            <?php if (!empty($co['description'])): ?><br><span class="muted" style="font-size:.76rem"><?= htmlspecialchars(substr((string)$co['description'], 0, 90)) ?></span><?php endif; ?>
+          </td>
+          <td style="padding:12px 14px">
+            <span class="<?= ($co['kind'] ?? '') === 'core' ? 'course-kind-core' : 'course-kind-elec' ?>"><?= htmlspecialchars((string)($co['kind'] ?? 'elective')) ?></span>
+          </td>
+          <td style="padding:12px 14px;font-size:.82rem;color:var(--muted)">
+            <?php if ($inProgs): ?>
+              <?= implode('<br>', array_map(fn($p) => '<span style="white-space:nowrap">' . htmlspecialchars((string)$p['name']) . '</span>', $inProgs)) ?>
+            <?php else: ?><span style="color:var(--faint);font-style:italic">Not linked</span><?php endif; ?>
+          </td>
+          <td style="padding:12px 14px">
+            <?php if ($co['active']): ?><span class="pill active">Active</span><?php else: ?><span class="pill cancelled">Inactive</span><?php endif; ?>
+          </td>
+          <td style="padding:12px 20px 12px 14px;white-space:nowrap;text-align:right">
+            <button class="tiny btn ghost" onclick="var r=document.getElementById('ce-<?= (int)$co['id'] ?>');r.hidden=!r.hidden" type="button">Edit</button>
+            <form method="post" class="inline" style="margin:0 4px">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <input type="hidden" name="action" value="course_toggle">
+              <input type="hidden" name="course_id" value="<?= (int)$co['id'] ?>">
+              <button class="tiny btn ghost" type="submit"><?= $co['active'] ? 'Deactivate' : 'Activate' ?></button>
+            </form>
+            <a class="tiny btn ghost" href="?v=modules&course=<?= urlencode((string)$co['code']) ?>">Modules</a>
+          </td>
+        </tr>
+        <tr id="ce-<?= (int)$co['id'] ?>" hidden style="background:rgba(0,0,0,.12)">
+          <td colspan="5" style="padding:0">
+            <form method="post" class="form-grid" style="padding:16px 20px">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <input type="hidden" name="action" value="course_update">
+              <input type="hidden" name="course_id" value="<?= (int)$co['id'] ?>">
+              <label class="full">Name<input name="name" value="<?= htmlspecialchars((string)$co['name']) ?>" required></label>
+              <label>Kind<select name="kind">
+                <?php foreach ($kindOptions as $kv => $kl): ?><option value="<?= $kv ?>" <?= ($co['kind'] ?? '') === $kv ? 'selected' : '' ?>><?= $kl ?></option><?php endforeach; ?>
+              </select></label>
+              <label>Sort order<input type="number" name="sort_order" value="<?= (int)($co['sort_order'] ?? 0) ?>"></label>
+              <label class="full">Description<input name="description" value="<?= htmlspecialchars((string)($co['description'] ?? '')) ?>"></label>
+              <div class="actions">
+                <button class="btn ghost" type="button" onclick="document.getElementById('ce-<?= (int)$co['id'] ?>').hidden=true">Cancel</button>
+                <button class="btn" type="submit">Save changes</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <p class="no-search-results" id="noSearchResults">No courses match your search.</p>
+  </div>
+
+  <script>
+  (function(){
+    var inp = document.getElementById('courseSearch');
+    var rows = document.querySelectorAll('.course-catalogue-row');
+    var none = document.getElementById('noSearchResults');
+    if (!inp) return;
+    inp.addEventListener('input', function() {
+      var q = inp.value.toLowerCase().trim();
+      var shown = 0;
+      rows.forEach(function(r) {
+        var match = !q || (r.dataset.search || '').indexOf(q) !== -1;
+        r.classList.toggle('hidden-search', !match);
+        // also hide the edit row below
+        var editRow = r.nextElementSibling;
+        if (editRow && editRow.id && editRow.id.startsWith('ce-')) editRow.classList.toggle('hidden-search', !match);
+        if (match) shown++;
+      });
+      none.style.display = shown === 0 ? 'block' : 'none';
+    });
+  })();
+  </script>
+
+<?php elseif ($view === 'modules'): ?>
   <?php
     $cat        = mam_lms_catalog();
     $selCourse  = (string)($_GET['course'] ?? '');
     $selLevel   = (string)($_GET['level'] ?? '');
     $selProgram = (string)($_GET['program'] ?? '');
+    $selProgRow = $selProgram !== '' ? mam_db_row('SELECT * FROM programs WHERE code = ?', [$selProgram]) : null;
+    $selCourseRow = $selCourse !== '' ? mam_db_row('SELECT * FROM courses WHERE code = ?', [$selCourse]) : null;
+  ?>
+  <?php if ($selProgRow || $selCourseRow): ?>
+  <div style="display:flex;align-items:center;gap:6px;font-size:.82rem;color:var(--muted);margin-bottom:14px;flex-wrap:wrap">
+    <a href="?v=programs" style="color:var(--gold)"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Programme Catalogue</a>
+    <?php if ($selProgRow): ?>
+      <span style="opacity:.5">›</span>
+      <a href="?v=programs&prog=<?= (int)$selProgRow['id'] ?>" style="color:var(--muted)"><?= htmlspecialchars((string)$selProgRow['name']) ?></a>
+    <?php endif; ?>
+    <?php if ($selCourseRow): ?>
+      <span style="opacity:.5">›</span>
+      <span style="color:var(--text)"><?= htmlspecialchars((string)$selCourseRow['name']) ?></span>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
+  <header class="top">
+    <div>
+      <h1><?php if ($selCourseRow): ?><?= htmlspecialchars((string)$selCourseRow['name']) ?><?php else: ?>Standard Curriculum<?php endif; ?></h1>
+      <span class="muted" style="font-size:.82rem">
+        <?php if ($selProgRow && $selCourseRow): ?>
+          <?= htmlspecialchars((string)$selProgRow['name']) ?> · week-by-week authoring
+        <?php else: ?>Author the week-by-week syllabus per course &amp; level · scaffold · import / export<?php endif; ?>
+      </span>
+    </div>
+    <?php if (!$selCourseRow): ?><a class="btn ghost" href="?v=programs" style="margin-left:auto"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Programme Catalogue</a><?php endif; ?>
+  </header>
+  <?php
+    // Module edit drawer (redesign) — a focused, roomy editor for one week,
+    // shown when ?module=N. The inline week list remains for quick edits.
+    $drawerMid = (int)($_GET['module'] ?? 0);
+    $drawerMod = $drawerMid ? mam_db_row('SELECT * FROM modules WHERE id = ?', [$drawerMid]) : null;
+    $backUrl = '?v=modules&course=' . urlencode($selCourse) . '&level=' . urlencode($selLevel) . '&program=' . urlencode($selProgram);
+    if ($drawerMod):
+  ?>
+  <div class="mam-drawer-scrim" data-param="module">
+  <aside class="mam-drawer" role="dialog" aria-modal="true" aria-label="Edit module">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0 0 4px">Edit module <span class="mono muted" style="font-size:.8rem">week <?= (int)$drawerMod['week'] ?></span></h2>
+        <div class="muted" style="font-size:.84rem"><?= htmlspecialchars($selCourse) ?><?= $selLevel ? ' · ' . htmlspecialchars($selLevel) : '' ?></div>
+      </div>
+      <a class="btn ghost" href="<?= htmlspecialchars($backUrl) ?>">✕ Close</a>
+    </div>
+    <form method="post" style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="module_save">
+      <input type="hidden" name="module_id" value="<?= (int)$drawerMod['id'] ?>">
+      <input type="hidden" name="course_code" value="<?= htmlspecialchars($selCourse) ?>">
+      <input type="hidden" name="level_code" value="<?= htmlspecialchars($selLevel) ?>">
+      <input type="hidden" name="program_code" value="<?= htmlspecialchars($selProgram) ?>">
+      <div style="display:flex;gap:12px">
+        <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted);flex:0 0 90px">Week<input type="number" name="week" value="<?= (int)$drawerMod['week'] ?>" min="1"></label>
+        <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted);flex:1">Kind
+          <select name="kind">
+            <?php foreach (['module', 'revision', 'exam'] as $k): ?><option value="<?= $k ?>" <?= $k === $drawerMod['kind'] ? 'selected' : '' ?>><?= $k ?></option><?php endforeach; ?>
+          </select>
+        </label>
+      </div>
+      <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted)">Title<input name="title" value="<?= htmlspecialchars((string)($drawerMod['title'] ?? '')) ?>" placeholder="Module title"></label>
+      <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted)">Content &amp; learning objectives<textarea name="content" rows="12" placeholder="What this week covers…"><?= htmlspecialchars((string)($drawerMod['content'] ?? '')) ?></textarea></label>
+      <button class="btn" type="submit">Save module</button>
+    </form>
+    <form method="post" style="margin-top:14px;text-align:right">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="module_delete">
+      <input type="hidden" name="module_id" value="<?= (int)$drawerMod['id'] ?>">
+      <input type="hidden" name="course_code" value="<?= htmlspecialchars($selCourse) ?>">
+      <input type="hidden" name="level_code" value="<?= htmlspecialchars($selLevel) ?>">
+      <button class="tiny" type="submit" style="background:transparent;color:var(--red);border:1px solid rgba(240,86,126,.4)">Delete this week</button>
+    </form>
+  </aside>
+  </div>
+  <?php endif; ?>
+  <?php
+    // Curriculum proposal review drawer (redesign §3) — full proposal in a
+    // focused slide-in, shown when ?proposal=N.
+    $dpid = (int)($_GET['proposal'] ?? 0);
+    $drawerProp = null;
+    if ($dpid && function_exists('mam_lms_pending_proposals')) { foreach (mam_lms_pending_proposals() as $pp) { if ((int)$pp['id'] === $dpid) { $drawerProp = $pp; break; } } }
+    if ($drawerProp):
+  ?>
+  <div class="mam-drawer-scrim" data-param="proposal">
+  <aside class="mam-drawer" role="dialog" aria-modal="true" aria-label="Review curriculum proposal">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0 0 4px">Review proposal</h2>
+        <div class="muted" style="font-size:.84rem">From <?= htmlspecialchars((string)($drawerProp['proposer_name'] ?? '—')) ?> · <?= htmlspecialchars(substr((string)$drawerProp['created_at'], 0, 16)) ?></div>
+      </div>
+      <a class="btn ghost" href="?v=modules">✕ Close</a>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:14px 0">
+      <span class="pill" style="background:var(--raised)"><?= htmlspecialchars((string)($drawerProp['course_name'] ?? ('#' . (int)$drawerProp['course_id']))) ?><?= $drawerProp['level_name'] ? ' · ' . htmlspecialchars((string)$drawerProp['level_name']) : '' ?></span>
+      <span class="pill" style="background:var(--raised)">Week <?= (int)$drawerProp['week'] ?></span>
+      <span class="pill"><?= htmlspecialchars((string)$drawerProp['kind']) ?></span>
+    </div>
+    <h3 style="margin:0 0 6px"><?= htmlspecialchars((string)$drawerProp['title']) ?></h3>
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px 16px;white-space:pre-wrap;line-height:1.6;font-size:.9rem;max-height:46vh;overflow:auto"><?= htmlspecialchars((string)($drawerProp['content'] ?? '')) ?: '<span class="muted">No content provided.</span>' ?></div>
+    <p class="muted" style="font-size:.82rem;margin:12px 0 4px">Approving applies this week to the live syllabus.</p>
+    <form method="post" style="display:flex;flex-direction:column;gap:10px;margin-top:6px">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="module_proposal_review">
+      <input type="hidden" name="proposal_id" value="<?= (int)$drawerProp['id'] ?>">
+      <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted)">Review note (optional)<input type="text" name="review_note" maxlength="500" placeholder="Feedback for the proposer…"></label>
+      <div style="display:flex;gap:10px">
+        <button class="btn" type="submit" name="decision" value="approve" style="flex:1">Approve &amp; apply</button>
+        <button class="btn ghost" type="submit" name="decision" value="reject" style="flex:1;border-color:rgba(240,86,126,.4);color:var(--red)">Reject</button>
+      </div>
+    </form>
+  </aside>
+  </div>
+  <?php endif; ?>
+  <?php
     if (isset($_GET['made'])) echo '<div class="banner ok">Scaffolded ' . (int)$_GET['made'] . ' week(s).</div>';
     if (isset($_GET['imp_c'])) {
         $ic = (int)$_GET['imp_c']; $iu = (int)($_GET['imp_u'] ?? 0); $is = (int)($_GET['imp_s'] ?? 0);
@@ -2586,6 +4971,7 @@ nav a{display:flex;align-items:center}
           <td>Wk <?= (int)$pr['week'] ?> <span class="pill"><?= htmlspecialchars((string)$pr['kind']) ?></span></td>
           <td style="max-width:340px"><strong><?= htmlspecialchars((string)$pr['title']) ?></strong><?php if (!empty($pr['content'])): ?><br><span class="muted" style="font-size:.84rem"><?= nl2br(htmlspecialchars(substr((string)$pr['content'], 0, 400))) ?></span><?php endif; ?></td>
           <td style="white-space:nowrap">
+            <a class="tiny btn ghost" href="?v=modules&proposal=<?= (int)$pr['id'] ?>" style="padding:5px 10px;margin-bottom:6px;display:inline-block">Review →</a>
             <form method="post" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="module_proposal_review">
@@ -2614,10 +5000,10 @@ nav a{display:flex;align-items:center}
           <tr>
             <td class="cm-course"><?= htmlspecialchars((string)$c['name']) ?><?php if (($c['kind'] ?? '') === 'core'): ?><span class="cm-core">core</span><?php endif; ?></td>
             <?php foreach ($ov['levels'] as $l): $n = (int)$c['levels'][(string)$l['code']]; ?>
-              <td><a class="cm-cell <?= $n ? 'on' : 'off' ?>" href="?v=modules&amp;course=<?= urlencode((string)$c['code']) ?>&amp;level=<?= urlencode((string)$l['code']) ?>" title="<?= htmlspecialchars((string)$c['name'] . ' · ' . (string)$l['name']) ?>"><?= $n ?: '·' ?></a></td>
+              <td><a class="cm-cell <?= $n ? 'on' : 'off' ?>" href="?v=modules&amp;course=<?= urlencode((string)$c['code']) ?>&amp;level=<?= urlencode((string)$l['code']) ?>" title="<?= htmlspecialchars((string)$c['name'] . ' · ' . (string)$l['name']) ?>" aria-label="<?= htmlspecialchars((string)$c['name'] . ' · ' . (string)$l['name'] . ': ' . ($n ? $n . ' week' . ($n === 1 ? '' : 's') . ' authored' : 'no weeks authored')) ?>"><?= $n ?: '·' ?></a></td>
             <?php endforeach; ?>
             <?php $ng = (int)$c['levels']['_none']; ?>
-            <td><a class="cm-cell <?= $ng ? 'on' : 'off' ?>" href="?v=modules&amp;course=<?= urlencode((string)$c['code']) ?>" title="<?= htmlspecialchars((string)$c['name']) ?> · level-agnostic"><?= $ng ?: '·' ?></a></td>
+            <td><a class="cm-cell <?= $ng ? 'on' : 'off' ?>" href="?v=modules&amp;course=<?= urlencode((string)$c['code']) ?>" title="<?= htmlspecialchars((string)$c['name']) ?> · level-agnostic" aria-label="<?= htmlspecialchars((string)$c['name'] . ' · general: ' . ($ng ? $ng . ' week' . ($ng === 1 ? '' : 's') . ' authored' : 'no weeks authored')) ?>"><?= $ng ?: '·' ?></a></td>
           </tr>
         <?php endforeach; ?>
         </tbody>
@@ -2631,7 +5017,7 @@ nav a{display:flex;align-items:center}
     <form method="get" class="form-grid">
       <input type="hidden" name="v" value="modules">
       <label>Course
-        <select name="course" required onchange="this.form.submit()">
+        <select name="course" required>
           <option value="">— choose a course —</option>
           <?php foreach ($cat['courses'] as $c): ?>
             <option value="<?= htmlspecialchars($c['code']) ?>" <?= $c['code'] === $selCourse ? 'selected' : '' ?>><?= htmlspecialchars($c['name']) ?> · <?= htmlspecialchars($c['kind']) ?></option>
@@ -2639,7 +5025,7 @@ nav a{display:flex;align-items:center}
         </select>
       </label>
       <label>Level
-        <select name="level" onchange="this.form.submit()">
+        <select name="level">
           <option value="">— level-agnostic —</option>
           <?php foreach ($cat['levels'] as $l): ?>
             <option value="<?= htmlspecialchars($l['code']) ?>" <?= $l['code'] === $selLevel ? 'selected' : '' ?>><?= htmlspecialchars($l['name']) ?></option>
@@ -2647,13 +5033,14 @@ nav a{display:flex;align-items:center}
         </select>
       </label>
       <label>Programme frame
-        <select name="program" onchange="this.form.submit()">
+        <select name="program">
           <option value="">12-week (default)</option>
           <?php foreach ($cat['programs'] as $p): ?>
             <option value="<?= htmlspecialchars($p['code']) ?>" <?= $p['code'] === $selProgram ? 'selected' : '' ?>><?= htmlspecialchars($p['name']) ?> · <?= (int)$p['weeks'] ?>wk</option>
           <?php endforeach; ?>
         </select>
       </label>
+      <div><button type="submit" class="btn btn-primary" style="margin-top:22px">View Curriculum</button></div>
     </form>
   </div>
 
@@ -2673,7 +5060,7 @@ nav a{display:flex;align-items:center}
         <h3>2 · Author — <?= htmlspecialchars($outline['course']['name']) ?><?= $outline['level'] ? ' · ' . htmlspecialchars($outline['level']['name']) : '' ?>
           <span class="muted" style="font-weight:400;font-size:0.8rem">— <?= $wkTotal ?>-week plan<?= $outline['program'] ? ' (' . htmlspecialchars($outline['program']['name']) . ')' : '' ?></span></h3>
         <div style="padding:0 20px 4px;display:flex;align-items:center;gap:12px">
-          <div style="flex:1;height:8px;border-radius:4px;background:var(--bg);overflow:hidden"><div style="height:100%;width:<?= $wkTotal ? (int)round($wkAuthored / $wkTotal * 100) : 0 ?>%;background:linear-gradient(90deg,var(--gold),#FBBF24)"></div></div>
+          <div style="flex:1;height:8px;border-radius:4px;background:var(--bg);overflow:hidden"><div style="height:100%;width:<?= $wkTotal ? (int)round($wkAuthored / $wkTotal * 100) : 0 ?>%;background:linear-gradient(90deg,var(--gold),var(--goldhi))"></div></div>
           <span class="muted" style="font-size:.78rem;white-space:nowrap"><strong><?= $wkAuthored ?></strong> of <?= $wkTotal ?> weeks authored</span>
         </div>
         <div style="padding:0 20px 16px">
@@ -2702,7 +5089,8 @@ nav a{display:flex;align-items:center}
             </div>
             <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;align-self:center;text-align:center">
               <button class="tiny cm-save" type="submit" style="opacity:.45" title="Edit the week to enable">Save</button>
-              <?php if (!$isAuthored): ?><span class="muted" style="font-size:.62rem;letter-spacing:.06em;text-transform:uppercase">not saved yet</span><?php endif; ?>
+              <?php if ($isAuthored): ?><a class="tiny btn ghost" href="?v=modules&course=<?= urlencode($selCourse) ?>&level=<?= urlencode($selLevel) ?>&program=<?= urlencode($selProgram) ?>&module=<?= (int)$wk['id'] ?>" style="padding:5px 8px" title="Open the focused editor"><i class="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"></i> Expand</a>
+              <?php else: ?><span class="muted" style="font-size:.62rem;letter-spacing:.06em;text-transform:uppercase">not saved yet</span><?php endif; ?>
             </div>
         </form>
         <?php if (!empty($wk['id'])): ?>
@@ -2757,6 +5145,24 @@ nav a{display:flex;align-items:center}
         <div class="muted" style="font-size:.82rem;margin-bottom:9px">Download the authored weeks to edit in a spreadsheet or back up, then re-import to apply. A re-import <strong>upserts by week</strong> — it refines existing weeks instead of duplicating them. JSON exports are portable between installs.</div>
         <a class="btn ghost" href="?v=export&amp;type=curriculum.csv&amp;course=<?= urlencode($selCourse) ?>&amp;level=<?= urlencode($selLevel) ?>">⬇ Export CSV</a>
         <a class="btn ghost" href="?v=export&amp;type=curriculum&amp;course=<?= urlencode($selCourse) ?>&amp;level=<?= urlencode($selLevel) ?>">⬇ Export JSON</a>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:16px">
+        <div class="muted" style="font-size:.82rem;margin-bottom:9px">Clone this level's authored weeks into another level — upserts by week (safe to re-run), so it's a quick way to reuse a syllabus as a starting point.</div>
+        <form method="post" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+          <input type="hidden" name="action" value="curriculum_clone">
+          <input type="hidden" name="course_code" value="<?= htmlspecialchars($selCourse) ?>">
+          <input type="hidden" name="from_level" value="<?= htmlspecialchars($selLevel) ?>">
+          <span class="muted" style="font-size:.85rem">Clone <strong><?= $selLevel !== '' ? htmlspecialchars($selLevel) : 'General' ?></strong> →</span>
+          <select name="to_level" required style="max-width:230px" aria-label="Target level to clone into">
+            <option value="">— target level —</option>
+            <?php foreach ($cat['levels'] as $l): if ((string)$l['code'] === $selLevel) continue; ?>
+              <option value="<?= htmlspecialchars((string)$l['code']) ?>"><?= htmlspecialchars((string)$l['name']) ?></option>
+            <?php endforeach; ?>
+            <?php if ($selLevel !== ''): ?><option value="general">General (level-agnostic)</option><?php endif; ?>
+          </select>
+          <button class="btn ghost" type="submit"><i class="fa-solid fa-copy" aria-hidden="true"></i> Clone syllabus</button>
+        </form>
       </div>
       <form method="post" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:11px;border-top:1px solid var(--border);padding-top:16px">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -2866,6 +5272,342 @@ nav a{display:flex;align-items:center}
     <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
 
+<?php elseif ($view === 'support'):
+  /* ── Support Hub ──────────────────────────────────────────────────────
+     Three sections selectable via ?sv=tickets|surveys|feedback (default: tickets).
+     All data loaded server-side; reply/assign/resolve POSTs go to /api/admin/support. */
+  $sv = (string)($_GET['sv'] ?? 'tickets');
+  if (!in_array($sv, ['tickets','surveys','feedback'], true)) $sv = 'tickets';
+  $svTab = fn($id, $lbl) => '<a href="?v=support&sv=' . $id . '" class="btn' . ($sv === $id ? '' : ' ghost') . '" style="font-size:0.82rem">' . $lbl . '</a>';
+?>
+  <header class="top">
+    <h1><i class="fa-solid fa-headset" style="margin-right:10px;color:var(--gold)"></i>Support Hub</h1>
+    <div style="display:flex;gap:6px"><?= $svTab('tickets','🎫 Tickets') ?><?= $svTab('surveys','📋 Surveys') ?><?= $svTab('feedback','⭐ Feedback') ?></div>
+  </header>
+
+<?php if ($sv === 'tickets'):
+  $tkStatus = (string)($_GET['ts'] ?? '');
+  if (!in_array($tkStatus, ['','open','in_progress','resolved','closed'], true)) $tkStatus = '';
+  $tkId = (int)($_GET['tk'] ?? 0);
+  if ($tkId > 0):
+    $tk = mam_db_row("SELECT t.*, s.name AS student_name, s.email AS student_email, a.name AS assigned_to_name
+      FROM support_tickets t JOIN users s ON s.id = t.student_id LEFT JOIN users a ON a.id = t.assigned_to
+      WHERE t.id = ?", [$tkId]);
+    if ($tk):
+      $msgs = mam_db_all("SELECT m.id, m.body, m.is_internal, m.created_at, u.name AS author_name, u.role AS author_role
+        FROM ticket_messages m JOIN users u ON u.id = m.author_id WHERE m.ticket_id = ? ORDER BY m.created_at ASC", [$tkId]);
+      $staffUsers = mam_db_all("SELECT id, name FROM users WHERE role = 'admin' ORDER BY name");
+      $sc = ['open' => '#e09a1a', 'in_progress' => '#4a9eff', 'resolved' => '#4caf50', 'closed' => '#999'][$tk['status']] ?? '#999';
+?>
+  <a href="?v=support&sv=tickets&ts=<?= htmlspecialchars($tkStatus) ?>" style="display:inline-flex;align-items:center;gap:6px;color:var(--gold);font-size:0.87rem;margin-bottom:14px"><i class="fa-solid fa-arrow-left"></i> All tickets</a>
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start">
+    <div>
+      <div class="card" style="padding:20px 24px;margin-bottom:16px">
+        <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1">
+            <div style="font-family:var(--font-mono,monospace);font-size:0.82rem;color:var(--gold);margin-bottom:3px"><?= htmlspecialchars($tk['reference']) ?></div>
+            <div style="font-size:1.15rem;font-weight:700;margin-bottom:4px"><?= htmlspecialchars($tk['subject']) ?></div>
+            <div style="font-size:0.82rem;color:var(--muted)">
+              From <strong><?= htmlspecialchars($tk['student_name']) ?></strong> (<?= htmlspecialchars($tk['student_email']) ?>)
+              · <?= htmlspecialchars($tk['category']) ?> · Priority: <?= htmlspecialchars($tk['priority']) ?>
+              · Opened <?= htmlspecialchars(substr($tk['created_at'], 0, 16)) ?>
+              <?= $tk['assigned_to_name'] ? ' · Assigned to ' . htmlspecialchars($tk['assigned_to_name']) : '' ?>
+            </div>
+          </div>
+          <span class="pill" style="background:rgba(0,0,0,0.15);color:<?= $sc ?>"><?= htmlspecialchars($tk['status']) ?></span>
+        </div>
+        <div style="margin-top:14px;padding:14px 16px;background:var(--bg-alt,#f9f9f9);border-radius:8px;font-size:0.9rem;line-height:1.6;white-space:pre-wrap"><?= htmlspecialchars($tk['body']) ?></div>
+      </div>
+      <?php foreach ($msgs as $m):
+        $isInternal = (int)$m['is_internal'] === 1;
+        $isStaff = in_array($m['author_role'], ['admin','instructor'], true);
+        $bg = $isInternal ? 'rgba(255,200,60,0.1)' : ($isStaff ? '#f3f4f6' : 'rgba(224,138,26,0.08)');
+        $border = $isInternal ? '1px dashed #e09a1a' : '1px solid var(--border)';
+      ?>
+        <div class="card" style="padding:14px 18px;margin-bottom:10px;background:<?= $bg ?>;border:<?= $border ?>">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:0.8rem;font-weight:600"><?= htmlspecialchars($m['author_name']) ?> <span class="pill" style="font-size:0.68rem"><?= htmlspecialchars($m['author_role']) ?></span><?= $isInternal ? ' <span class="pill" style="font-size:0.68rem;background:rgba(255,200,60,0.2);color:#8a6a00">internal</span>' : '' ?></span>
+            <span style="font-size:0.78rem;color:var(--muted)"><?= htmlspecialchars(substr($m['created_at'], 0, 16)) ?></span>
+          </div>
+          <div style="font-size:0.9rem;line-height:1.55;white-space:pre-wrap"><?= htmlspecialchars($m['body']) ?></div>
+        </div>
+      <?php endforeach; ?>
+      <!-- Reply form -->
+      <?php if ($tk['status'] !== 'closed'): ?>
+      <div class="card" style="padding:18px 22px">
+        <h3 style="margin:0 0 12px;font-size:0.95rem">Reply</h3>
+        <form id="tkReplyForm" style="display:flex;flex-direction:column;gap:10px">
+          <input type="hidden" name="ticket_id" value="<?= (int)$tkId ?>">
+          <textarea name="body" rows="4" placeholder="Your reply to the student…" style="padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.9rem;resize:vertical"></textarea>
+          <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem"><input type="checkbox" name="internal" value="1"> Internal note (not shown to student)</label>
+          <div style="display:flex;gap:8px"><button type="submit" class="btn" style="font-size:0.84rem">Send Reply</button><span id="tkReplyMsg" style="font-size:0.84rem;color:var(--muted)"></span></div>
+        </form>
+      </div>
+      <?php endif; ?>
+    </div>
+    <!-- Sidebar: quick actions -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="card" style="padding:16px 18px">
+        <h3 style="margin:0 0 12px;font-size:0.88rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted)">Actions</h3>
+        <?php if ($tk['status'] !== 'resolved' && $tk['status'] !== 'closed'): ?>
+        <form id="tkResolveForm" style="margin-bottom:8px"><input type="hidden" name="ticket_id" value="<?= (int)$tkId ?>"><button type="submit" class="btn" style="width:100%;font-size:0.83rem"><i class="fa-solid fa-circle-check" style="margin-right:5px;color:#4caf50"></i>Mark Resolved</button></form>
+        <?php endif; ?>
+        <form id="tkAssignForm" style="display:flex;flex-direction:column;gap:6px">
+          <input type="hidden" name="ticket_id" value="<?= (int)$tkId ?>">
+          <select name="assigned_to" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-size:0.84rem">
+            <option value="0">Unassigned</option>
+            <?php foreach ($staffUsers as $su): ?>
+            <option value="<?= (int)$su['id'] ?>" <?= (int)$tk['assigned_to'] === (int)$su['id'] ? 'selected' : '' ?>><?= htmlspecialchars($su['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <button type="submit" class="btn ghost" style="font-size:0.82rem">Assign</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var csrf = null;
+    function getToken() { return fetch('/api/csrf', { credentials: 'include' }).then(r => r.json()).then(j => { csrf = j.token; }); }
+    getToken();
+    function apiPost(body) {
+      return (csrf ? Promise.resolve() : getToken()).then(function () {
+        return fetch('/api/admin/support', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body) }).then(r => r.json());
+      });
+    }
+    var replyForm = document.getElementById('tkReplyForm');
+    if (replyForm) replyForm.addEventListener('submit', function (e) {
+      e.preventDefault(); var fd = new FormData(replyForm);
+      var btn = replyForm.querySelector('button[type=submit]'), msg = document.getElementById('tkReplyMsg');
+      btn.disabled = true; btn.textContent = 'Sending…';
+      apiPost({ action: 'ticket_reply', ticket_id: parseInt(fd.get('ticket_id'), 10), body: fd.get('body'), internal: fd.get('internal') === '1' })
+        .then(function () { location.reload(); })
+        .catch(function (e) { btn.disabled = false; btn.textContent = 'Send Reply'; msg.textContent = 'Error: ' + (e && e.error || 'try again'); });
+    });
+    var resolveForm = document.getElementById('tkResolveForm');
+    if (resolveForm) resolveForm.addEventListener('submit', function (e) {
+      e.preventDefault(); var fd = new FormData(resolveForm);
+      if (!confirm('Mark this ticket as resolved?')) return;
+      apiPost({ action: 'ticket_resolve', ticket_id: parseInt(fd.get('ticket_id'), 10) }).then(function () { location.reload(); });
+    });
+    var assignForm = document.getElementById('tkAssignForm');
+    if (assignForm) assignForm.addEventListener('submit', function (e) {
+      e.preventDefault(); var fd = new FormData(assignForm);
+      apiPost({ action: 'ticket_assign', ticket_id: parseInt(fd.get('ticket_id'), 10), assigned_to: parseInt(fd.get('assigned_to'), 10) || 0 }).then(function () { location.reload(); });
+    });
+  })();
+  </script>
+<?php else: echo '<div class="card empty">Ticket not found.</div>'; endif;
+  else: // ticket list
+  $tkList = mam_tickets_admin($tkStatus);
+  $sc2 = ['open' => '#e09a1a', 'in_progress' => '#4a9eff', 'resolved' => '#4caf50', 'closed' => '#999'];
+?>
+  <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+    <?php foreach ([''=>'All', 'open'=>'Open', 'in_progress'=>'In Progress', 'resolved'=>'Resolved', 'closed'=>'Closed'] as $s => $l): ?>
+    <a href="?v=support&sv=tickets&ts=<?= urlencode($s) ?>" class="btn <?= $tkStatus === $s ? '' : 'ghost' ?>" style="font-size:0.81rem"><?= htmlspecialchars($l) ?></a>
+    <?php endforeach; ?>
+  </div>
+  <?php if (!$tkList): ?><div class="card"><p class="empty">No tickets<?= $tkStatus ? ' with status "' . htmlspecialchars($tkStatus) . '"' : '' ?>.</p></div><?php else: ?>
+  <div class="card" style="padding:0">
+    <table>
+      <thead><tr><th>Ref</th><th>Student</th><th>Subject</th><th>Category</th><th>Priority</th><th>Status</th><th>Assigned</th><th>Updated</th></tr></thead>
+      <tbody>
+      <?php foreach ($tkList as $t): $sc3 = $sc2[$t['status']] ?? '#999'; ?>
+        <tr>
+          <td><a href="?v=support&sv=tickets&tk=<?= (int)$t['id'] ?>" class="mono" style="color:var(--gold);font-size:0.82rem"><?= htmlspecialchars($t['reference']) ?></a></td>
+          <td><?= htmlspecialchars($t['student_name'] ?? '—') ?><br><span class="muted" style="font-size:0.78rem"><?= htmlspecialchars($t['student_email'] ?? '') ?></span></td>
+          <td><a href="?v=support&sv=tickets&tk=<?= (int)$t['id'] ?>" style="font-weight:600"><?= htmlspecialchars($t['subject']) ?></a></td>
+          <td class="muted"><?= htmlspecialchars($t['category']) ?></td>
+          <td class="muted"><?= htmlspecialchars($t['priority']) ?></td>
+          <td><span class="pill" style="background:rgba(0,0,0,0.12);color:<?= $sc3 ?>"><?= htmlspecialchars($t['status']) ?></span></td>
+          <td class="muted" style="font-size:0.84rem"><?= htmlspecialchars($t['assigned_to_name'] ?? '—') ?></td>
+          <td class="muted" style="font-size:0.82rem"><?= htmlspecialchars(substr($t['updated_at'] ?? $t['created_at'], 0, 16)) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
+
+<?php endif; // sv=tickets ?>
+
+<?php elseif ($sv === 'surveys'):
+  $surveyId = (int)($_GET['sid'] ?? 0);
+  if ($surveyId > 0):
+    try { $results = mam_survey_results($surveyId); } catch (Throwable $e) { $results = null; }
+    $surveyRow = mam_db_row('SELECT * FROM surveys WHERE id = ?', [$surveyId]);
+?>
+  <a href="?v=support&sv=surveys" style="display:inline-flex;align-items:center;gap:6px;color:var(--gold);font-size:0.87rem;margin-bottom:14px"><i class="fa-solid fa-arrow-left"></i> All surveys</a>
+  <?php if ($results && $surveyRow): ?>
+  <div class="card" style="padding:20px 24px;margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
+      <div>
+        <h2 style="margin:0 0 4px"><?= htmlspecialchars($surveyRow['title']) ?></h2>
+        <?= $surveyRow['description'] ? '<p style="color:var(--muted);font-size:0.88rem;margin:0">' . htmlspecialchars($surveyRow['description']) . '</p>' : '' ?>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:1.6rem;font-weight:700;color:var(--gold)"><?= (int)$results['response_count'] ?></div>
+        <div style="font-size:0.8rem;color:var(--muted)">responses</div>
+        <span class="pill <?= htmlspecialchars($surveyRow['status']) ?>" style="margin-top:4px;display:inline-block"><?= htmlspecialchars($surveyRow['status']) ?></span>
+      </div>
+    </div>
+    <form id="surveyStatusForm" style="margin-top:14px;display:flex;gap:6px;align-items:center">
+      <select name="status" style="padding:7px 10px;border-radius:8px;border:1px solid var(--border);font-size:0.84rem">
+        <option value="draft" <?= $surveyRow['status'] === 'draft' ? 'selected' : '' ?>>Draft</option>
+        <option value="active" <?= $surveyRow['status'] === 'active' ? 'selected' : '' ?>>Active</option>
+        <option value="closed" <?= $surveyRow['status'] === 'closed' ? 'selected' : '' ?>>Closed</option>
+      </select>
+      <button type="submit" class="btn ghost" style="font-size:0.82rem">Update status</button>
+      <span id="surveyStatusMsg" style="font-size:0.82rem;color:var(--muted)"></span>
+    </form>
+  </div>
+  <?php foreach ($results['by_question'] as $qi => $q): ?>
+  <div class="card" style="padding:16px 20px;margin-bottom:12px">
+    <h3 style="margin:0 0 10px;font-size:0.95rem"><?= (int)$qi + 1 ?>. <?= htmlspecialchars($q['text']) ?></h3>
+    <?php if ($q['type'] === 'rating' && !empty($q['distribution'])): ?>
+      <div style="font-size:1.4rem;font-weight:700;color:var(--gold);margin-bottom:8px"><?= number_format((float)($q['avg'] ?? 0), 1) ?> / 5</div>
+      <?php foreach ($q['distribution'] as $star => $c): ?>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:0.87rem">
+          <span style="width:16px;text-align:right"><?= (int)$star ?>★</span>
+          <div style="flex:1;height:8px;background:var(--border);border-radius:4px"><div style="height:100%;background:var(--gold);border-radius:4px;width:<?= $results['response_count'] > 0 ? round((int)$c / $results['response_count'] * 100) : 0 ?>%"></div></div>
+          <span style="width:24px;color:var(--muted)"><?= (int)$c ?></span>
+        </div>
+      <?php endforeach; ?>
+    <?php elseif (!empty($q['answers'])): ?>
+      <ul style="margin:0;padding-left:18px;font-size:0.88rem;color:var(--text-soft,#555)">
+        <?php foreach (array_slice($q['answers'], 0, 50) as $ans): ?>
+          <li style="margin-bottom:3px"><?= htmlspecialchars((string)$ans) ?></li>
+        <?php endforeach; ?>
+      </ul>
+    <?php endif; ?>
+  </div>
+  <?php endforeach; ?>
+  <?php else: ?><div class="card empty">Survey not found.</div><?php endif; ?>
+  <script>
+  (function () {
+    var csrf = null;
+    function getToken() { return fetch('/api/csrf', { credentials: 'include' }).then(r => r.json()).then(j => { csrf = j.token; }); }
+    getToken();
+    var sf = document.getElementById('surveyStatusForm');
+    if (sf) sf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      (csrf ? Promise.resolve() : getToken()).then(function () {
+        return fetch('/api/admin/support', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify({ action: 'survey_status', survey_id: <?= (int)$surveyId ?>, status: sf.querySelector('[name=status]').value }) }).then(r => r.json());
+      }).then(function () { document.getElementById('surveyStatusMsg').textContent = 'Updated.'; }).catch(function (e) { document.getElementById('surveyStatusMsg').textContent = 'Error.'; });
+    });
+  })();
+  </script>
+<?php else: // survey list
+  $surveys = mam_surveys_admin();
+?>
+  <!-- Create survey form -->
+  <details class="card" style="padding:18px 22px;margin-bottom:18px">
+    <summary style="font-weight:700;cursor:pointer;font-size:0.95rem"><i class="fa-solid fa-plus" style="margin-right:6px;color:var(--gold)"></i>Create New Survey</summary>
+    <form id="createSurveyForm" style="margin-top:16px;display:flex;flex-direction:column;gap:10px">
+      <input name="title" type="text" placeholder="Survey title *" style="padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.9rem" required>
+      <textarea name="description" rows="2" placeholder="Description (optional)" style="padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.9rem;resize:vertical"></textarea>
+      <select name="target_track" style="padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.9rem">
+        <option value="">All students</option>
+        <option value="MAM">MAM students only</option>
+        <option value="KTAMS">KTAMS students only</option>
+      </select>
+      <input name="closes_at" type="datetime-local" style="padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.9rem">
+      <p style="margin:4px 0 0;font-size:0.82rem;color:var(--muted)">Add questions below (one per line) in the format: <code>text|type|option1,option2</code><br>Types: <code>text</code>, <code>long_text</code>, <code>rating</code>, <code>select</code></p>
+      <textarea id="surveyQsRaw" rows="5" placeholder="e.g.&#10;How would you rate this month's classes?|rating&#10;Which course do you enjoy most?|select|Piano,Drums,Guitar&#10;Any other feedback?|long_text" style="padding:9px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.85rem;resize:vertical;font-family:monospace"></textarea>
+      <div style="display:flex;gap:8px"><button type="submit" class="btn">Create Survey</button><span id="createSurveyMsg" style="font-size:0.84rem;color:var(--muted)"></span></div>
+    </form>
+  </details>
+  <?php if (!$surveys): ?><div class="card"><p class="empty">No surveys yet — create one above.</p></div><?php else: ?>
+  <div class="card" style="padding:0">
+    <table>
+      <thead><tr><th>Title</th><th>Target</th><th>Status</th><th>Responses</th><th>Closes</th><th>Created</th></tr></thead>
+      <tbody>
+      <?php foreach ($surveys as $sv2):
+        $rcount = (int)mam_db()->query("SELECT COUNT(*) FROM survey_responses WHERE survey_id = " . (int)$sv2['id'])->fetchColumn();
+      ?>
+        <tr>
+          <td><a href="?v=support&sv=surveys&sid=<?= (int)$sv2['id'] ?>" style="font-weight:600"><?= htmlspecialchars($sv2['title']) ?></a></td>
+          <td class="muted"><?= htmlspecialchars($sv2['target_track'] ?: 'All') ?></td>
+          <td><span class="pill <?= htmlspecialchars($sv2['status']) ?>"><?= htmlspecialchars($sv2['status']) ?></span></td>
+          <td><?= $rcount ?></td>
+          <td class="muted"><?= $sv2['closes_at'] ? htmlspecialchars(substr($sv2['closes_at'], 0, 10)) : '—' ?></td>
+          <td class="muted"><?= htmlspecialchars(substr($sv2['created_at'], 0, 10)) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
+  <script>
+  (function () {
+    var csrf = null;
+    function getToken() { return fetch('/api/csrf', { credentials: 'include' }).then(r => r.json()).then(j => { csrf = j.token; }); }
+    getToken();
+    document.getElementById('createSurveyForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var title = e.target.title.value.trim();
+      var rawQs = document.getElementById('surveyQsRaw').value.trim();
+      if (!title || !rawQs) { document.getElementById('createSurveyMsg').textContent = 'Title and questions required.'; return; }
+      var questions = rawQs.split('\n').filter(Boolean).map(function (line) {
+        var parts = line.split('|'); var text = parts[0].trim(), type = (parts[1] || 'text').trim();
+        var opts = parts[2] ? parts[2].split(',').map(function (o) { return o.trim(); }) : undefined;
+        var q = { text: text, type: type, required: true };
+        if (opts) q.options = opts;
+        return q;
+      });
+      var btn = e.target.querySelector('button'), msg = document.getElementById('createSurveyMsg');
+      btn.disabled = true; btn.textContent = 'Creating…';
+      var closes = e.target.closes_at.value || null;
+      (csrf ? Promise.resolve() : getToken()).then(function () {
+        return fetch('/api/admin/support', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify({ action: 'survey_create', title: title, description: e.target.description.value.trim() || null, questions: questions, target_track: e.target.target_track.value || null, closes_at: closes }) }).then(r => r.json());
+      }).then(function (r) {
+        if (r.id) location.href = '?v=support&sv=surveys&sid=' + r.id;
+        else { btn.disabled = false; btn.textContent = 'Create Survey'; msg.textContent = r.error || 'Created.'; }
+      }).catch(function () { btn.disabled = false; btn.textContent = 'Create Survey'; msg.textContent = 'Error — try again.'; });
+    });
+  })();
+  </script>
+<?php endif; // survey list/detail ?>
+
+<?php else: // sv === 'feedback'
+  $fbAgg = mam_feedback_aggregate();
+  $fbRecent = $fbAgg['recent'] ?? [];
+  $fbByCat = $fbAgg['by_category'] ?? [];
+?>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:20px">
+    <?php foreach ($fbByCat as $cat => $d): ?>
+    <div class="card" style="padding:16px;text-align:center">
+      <div style="font-size:1.6rem;font-weight:700;color:var(--gold)"><?= number_format((float)($d['avg_rating'] ?? 0), 1) ?>★</div>
+      <div style="font-size:0.82rem;text-transform:capitalize;margin-top:2px"><?= htmlspecialchars($cat) ?></div>
+      <div style="font-size:0.78rem;color:var(--muted)"><?= (int)($d['count'] ?? 0) ?> response<?= (int)($d['count'] ?? 0) !== 1 ? 's' : '' ?></div>
+    </div>
+    <?php endforeach; ?>
+    <?php if (!$fbByCat): ?><div class="card"><p class="empty">No feedback yet.</p></div><?php endif; ?>
+  </div>
+  <?php if ($fbRecent): ?>
+  <div class="card" style="padding:0">
+    <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-weight:700;font-size:0.9rem">Recent feedback</div>
+    <table>
+      <thead><tr><th>Student</th><th>Rating</th><th>Category</th><th>Subject</th><th>Feedback</th><th>Date</th></tr></thead>
+      <tbody>
+      <?php foreach ($fbRecent as $fb):
+        $stars = str_repeat('★', (int)$fb['rating']) . str_repeat('☆', max(0, 5 - (int)$fb['rating']));
+      ?>
+        <tr>
+          <td><?= (int)$fb['is_anonymous'] ? '<em style="color:var(--muted)">Anonymous</em>' : htmlspecialchars($fb['student_name'] ?? '—') ?></td>
+          <td style="color:var(--gold);letter-spacing:1px"><?= htmlspecialchars($stars) ?></td>
+          <td class="muted"><?= htmlspecialchars($fb['category']) ?></td>
+          <td><?= htmlspecialchars($fb['subject'] ?? '—') ?></td>
+          <td style="max-width:320px;font-size:0.87rem;color:var(--text-soft,#555)"><?= htmlspecialchars(mb_substr($fb['body'], 0, 200)) ?><?= mb_strlen($fb['body']) > 200 ? '…' : '' ?></td>
+          <td class="muted"><?= htmlspecialchars(substr($fb['created_at'], 0, 10)) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
+<?php endif; // sv=feedback ?>
+
 <?php elseif ($view === 'audit'): ?>
   <header class="top"><h1>Audit Log</h1></header>
   <div class="card">
@@ -2887,6 +5629,90 @@ nav a{display:flex;align-items:center}
       </tbody>
     </table>
     <?= mam_admin_pager($page, $total, $perPage) ?>
+  </div>
+
+<?php elseif ($view === 'logs'):
+  // Tail the most recent app-YYYY-MM-DD.log file. Strict allow-list on the
+  // date param prevents any path traversal.
+  $logDir  = MAM_LOGS;
+  $reqDate = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['date'] ?? '')) ? $_GET['date'] : date('Y-m-d');
+  $logFile = $logDir . '/app-' . $reqDate . '.log';
+  $level   = in_array($_GET['level'] ?? '', ['info','warn','error',''], true) ? ($_GET['level'] ?? '') : '';
+
+  // Collect available log dates (files matching the pattern, newest first).
+  $availDates = [];
+  if (is_dir($logDir)) {
+      foreach (glob($logDir . '/app-????-??-??.log') ?: [] as $f) {
+          if (preg_match('/app-(\d{4}-\d{2}-\d{2})\.log$/', $f, $m)) $availDates[] = $m[1];
+      }
+      rsort($availDates);
+  }
+
+  // Read up to 500 lines from the chosen file (tail-style for large files).
+  $lines = [];
+  if (is_file($logFile) && is_readable($logFile)) {
+      $raw = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+      $raw = array_slice($raw, -500);
+      foreach (array_reverse($raw) as $ln) {
+          $row = json_decode($ln, true);
+          if (!is_array($row)) continue;
+          if ($level !== '' && ($row['level'] ?? '') !== $level) continue;
+          $lines[] = $row;
+      }
+  }
+?>
+  <header class="top"><h1>App Logs</h1></header>
+  <div class="card" style="padding-bottom:6px">
+    <form method="get" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+      <input type="hidden" name="v" value="logs">
+      <label style="display:flex;flex-direction:column;gap:3px;font-size:.8rem;font-weight:600">Date
+        <select name="date" style="padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+          <?php foreach ($availDates as $d): ?>
+            <option value="<?= htmlspecialchars($d) ?>" <?= $d === $reqDate ? 'selected' : '' ?>><?= htmlspecialchars($d) ?></option>
+          <?php endforeach; ?>
+          <?php if (!$availDates): ?><option value="<?= htmlspecialchars($reqDate) ?>" selected><?= htmlspecialchars($reqDate) ?></option><?php endif; ?>
+        </select>
+      </label>
+      <label style="display:flex;flex-direction:column;gap:3px;font-size:.8rem;font-weight:600">Level
+        <select name="level" style="padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+          <option value="" <?= $level === '' ? 'selected' : '' ?>>All</option>
+          <option value="info"  <?= $level === 'info'  ? 'selected' : '' ?>>info</option>
+          <option value="warn"  <?= $level === 'warn'  ? 'selected' : '' ?>>warn</option>
+          <option value="error" <?= $level === 'error' ? 'selected' : '' ?>>error</option>
+        </select>
+      </label>
+      <button class="btn" type="submit">Filter</button>
+    </form>
+    <?php if (!$lines): ?>
+      <p class="empty">No log entries found<?= $level ? ' at level "' . htmlspecialchars($level) . '"' : '' ?> for <?= htmlspecialchars($reqDate) ?>.</p>
+    <?php else: ?>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="text-align:left;padding:4px 10px 6px 0;color:var(--muted);white-space:nowrap">Time</th>
+        <th style="text-align:left;padding:4px 8px 6px;color:var(--muted)">Level</th>
+        <th style="text-align:left;padding:4px 8px 6px;color:var(--muted)">Event</th>
+        <th style="text-align:left;padding:4px 8px 6px;color:var(--muted)">IP</th>
+        <th style="text-align:left;padding:4px 0 6px 8px;color:var(--muted)">Meta</th>
+      </tr></thead>
+      <tbody>
+      <?php foreach ($lines as $row):
+        $lv = (string)($row['level'] ?? 'info');
+        $lvColor = $lv === 'error' ? '#F87171' : ($lv === 'warn' ? '#FBBF24' : 'var(--muted)');
+      ?>
+        <tr style="border-bottom:1px solid var(--border-faint,#2a1e15);vertical-align:top">
+          <td style="padding:5px 10px 5px 0;color:var(--muted);white-space:nowrap" class="mono"><?= htmlspecialchars(substr((string)($row['ts'] ?? ''), 0, 19)) ?></td>
+          <td style="padding:5px 8px;font-weight:700;color:<?= $lvColor ?>;white-space:nowrap"><?= htmlspecialchars($lv) ?></td>
+          <td style="padding:5px 8px;font-weight:600"><?= htmlspecialchars((string)($row['event'] ?? '')) ?></td>
+          <td style="padding:5px 8px;color:var(--muted)" class="mono"><?= htmlspecialchars((string)($row['ip'] ?? '')) ?></td>
+          <td style="padding:5px 0 5px 8px;color:var(--muted);max-width:420px;word-break:break-all" class="json-pop"><?= htmlspecialchars(json_encode($row['meta'] ?? [], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+    <p style="padding:8px 0 0;font-size:.74rem;color:var(--muted)">Showing up to 500 most-recent entries (newest first) · Log file: <span class="mono">app-<?= htmlspecialchars($reqDate) ?>.log</span></p>
+    <?php endif; ?>
   </div>
 
 <?php elseif ($view === 'datarights'): ?>
@@ -3144,7 +5970,7 @@ nav a{display:flex;align-items:center}
 ?>
   <h1>Store Orders</h1>
   <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Updated.</strong></div><?php endif; ?>
-  <table>
+  <table class="stack">
     <thead><tr><th>Reference</th><th>Customer</th><th>Items</th><th>Total</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
     <tbody>
     <?php foreach ($orders as $o):
@@ -3152,14 +5978,14 @@ nav a{display:flex;align-items:center}
       $summary = implode(', ', array_map(function($i){ return $i['name'] . '×' . $i['qty']; }, array_slice($its, 0, 3)));
     ?>
       <tr>
-        <td class="mono"><?= htmlspecialchars($o['reference']) ?></td>
-        <td>
+        <td class="mono" data-label="Reference"><?= htmlspecialchars($o['reference']) ?></td>
+        <td data-label="Customer">
           <strong><?= htmlspecialchars($o['customer_name']) ?></strong><br>
           <small style="color:var(--muted)"><?= htmlspecialchars($o['customer_email']) ?> <?= $o['customer_country'] ? '· ' . htmlspecialchars($o['customer_country']) : '' ?></small>
         </td>
-        <td><small><?= htmlspecialchars($summary) ?><?= count($its) > 3 ? '…' : '' ?></small></td>
-        <td>$<?= number_format((float)$o['total_usd'], 2) ?></td>
-        <td>
+        <td data-label="Items"><small><?= htmlspecialchars($summary) ?><?= count($its) > 3 ? '…' : '' ?></small></td>
+        <td data-label="Total">$<?= number_format((float)$o['total_usd'], 2) ?></td>
+        <td data-label="Status">
           <form method="POST" action="" style="display:flex;gap:6px">
             <?= mam_csrf_field() ?>
             <input type="hidden" name="action" value="store_order_status">
@@ -3171,8 +5997,8 @@ nav a{display:flex;align-items:center}
             </select>
           </form>
         </td>
-        <td><small><?= htmlspecialchars((string)$o['created_at']) ?></small></td>
-        <td><a class="btn" style="padding:6px 10px;font-size:0.78rem" href="#" onclick="alert(<?= htmlspecialchars(json_encode(json_encode($its, JSON_PRETTY_PRINT))) ?>);return false">View items</a></td>
+        <td data-label="Created"><small><?= htmlspecialchars((string)$o['created_at']) ?></small></td>
+        <td data-label=""><a class="btn" style="padding:6px 10px;font-size:0.78rem" href="#" onclick="alert(<?= htmlspecialchars(json_encode(json_encode($its, JSON_PRETTY_PRINT))) ?>);return false">View items</a></td>
       </tr>
     <?php endforeach; if (!$orders): ?><tr><td colspan="7" class="empty">No store orders yet.</td></tr><?php endif; ?>
     </tbody>
@@ -3308,6 +6134,16 @@ nav a{display:flex;align-items:center}
       <input type="hidden" name="action" value="save_settings">
       <?php foreach ($groups as $groupName => $fields): ?>
         <h3 style="margin:22px 0 12px;color:var(--gold);font-size:0.92rem;letter-spacing:0.04em;text-transform:uppercase"><?= htmlspecialchars($groupName) ?></h3>
+        <?php if ($groupName === 'CDN (Cloudinary)'): ?>
+        <div style="background:rgba(232,150,31,.06);border:1px solid rgba(232,150,31,.2);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:0.83rem;line-height:1.7;color:var(--muted)">
+          <strong style="color:var(--gold)">Two values are required</strong> — both must be filled in for headshot uploads to work:<br>
+          <ol style="margin:8px 0 8px 18px;padding:0">
+            <li><strong style="color:var(--ink)">Cloud name</strong> — find it on your <a href="https://console.cloudinary.com/" target="_blank" rel="noopener" style="color:var(--gold)">Cloudinary dashboard</a> (top-left, e.g. <code>mam-academy</code>).</li>
+            <li><strong style="color:var(--ink)">Upload preset</strong> — in Cloudinary go to <strong>Settings → Upload → Upload presets</strong>, click <em>Add upload preset</em>, set <em>Signing mode</em> to <strong>Unsigned</strong>, save, then copy the preset name here.</li>
+          </ol>
+          Without the preset name, photos are validated locally but <strong>not stored</strong> in Cloudinary.
+        </div>
+        <?php endif; ?>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
           <?php foreach ($fields as $f):
             $val = $cur[$f['key']] ?? $f['default'];
@@ -3333,6 +6169,348 @@ nav a{display:flex;align-items:center}
       </div>
     </form>
   </div>
+
+<?php elseif ($view === 'automations'):
+    // Lifecycle automations — the academy's "when X, do Y" rules, each with a
+    // persisted on/off flag honoured at its trigger point (api/lib/automations.php).
+    $autos = mam_automations_list();
+    $activeCount = mam_automations_active_count();
+    $totalCount  = count($autos);
+    $autoGroups  = [];
+    foreach ($autos as $a) { $autoGroups[$a['group']][] = $a; }
+?>
+  <header class="top">
+    <h1>Automations</h1>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span class="pill" style="background:rgba(232,150,31,.14);color:var(--gold);font-weight:700"><?= (int)$activeCount ?> of <?= (int)$totalCount ?> active</span>
+      <form method="post" style="margin:0">
+        <?= mam_csrf_field() ?>
+        <input type="hidden" name="action" value="run_automations">
+        <button class="btn ghost" type="submit" title="Run the scheduled sweeps (reminders, birthdays, drip) now — the same work the cron does"><i class="fa-solid fa-play" aria-hidden="true"></i> Run scheduled sweeps now</button>
+      </form>
+    </div>
+  </header>
+  <div class="card" style="max-width:820px">
+    <div style="padding:16px 20px 4px;color:var(--muted);font-size:.9rem;line-height:1.6">
+      Each rule runs a small "when this happens, do that" behaviour. Pause one to stop it firing —
+      the flag takes effect immediately, everywhere the trigger runs. Rules tagged
+      <span class="auto-tag live" style="vertical-align:middle">live</span> act the moment their trigger fires;
+      <span class="auto-tag planned" style="vertical-align:middle">queued</span> rules persist their setting for the
+      background runner (<code>api/tools/run-jobs.php</code>) as each handler adopts it.
+    </div>
+  </div>
+  <?php foreach ($autoGroups as $groupName => $rules): ?>
+  <div class="card" style="max-width:820px">
+    <h3><?= htmlspecialchars($groupName) ?></h3>
+    <?php foreach ($rules as $a):
+      $on = (bool)$a['enabled'];
+      $lastRun = $a['last_run_at'] ? 'Last ran ' . htmlspecialchars(substr((string)$a['last_run_at'], 0, 16)) . ($a['run_count'] ? ' · ' . (int)$a['run_count'] . ' run' . ($a['run_count'] === 1 ? '' : 's') : '') : '';
+    ?>
+      <div class="auto-rule">
+        <span class="auto-ico"><i class="fa-solid fa-<?= htmlspecialchars($a['icon']) ?>" aria-hidden="true"></i></span>
+        <div class="auto-body">
+          <div class="auto-trig"><?= htmlspecialchars($a['trigger']) ?>
+            <span class="auto-tag <?= $a['live'] ? 'live' : 'planned' ?>"><?= $a['live'] ? 'live' : 'queued' ?></span>
+          </div>
+          <div class="auto-act"><i class="fa-solid fa-arrow-right-long" aria-hidden="true"></i><?= htmlspecialchars($a['action']) ?></div>
+          <?php if ($lastRun): ?><div class="auto-meta"><?= $lastRun ?></div><?php endif; ?>
+        </div>
+        <form method="post" action="" style="margin:0">
+          <?= mam_csrf_field() ?>
+          <input type="hidden" name="action" value="automation_toggle">
+          <input type="hidden" name="key" value="<?= htmlspecialchars($a['key']) ?>">
+          <input type="hidden" name="enabled" value="<?= $on ? '0' : '1' ?>">
+          <button type="submit" class="auto-switch <?= $on ? 'on' : '' ?>" role="switch" aria-checked="<?= $on ? 'true' : 'false' ?>" aria-label="<?= $on ? 'Pause' : 'Enable' ?> automation: <?= htmlspecialchars($a['trigger']) ?>">
+            <span class="track"><span class="knob"></span></span>
+          </button>
+        </form>
+      </div>
+    <?php endforeach; ?>
+  </div>
+  <?php endforeach; ?>
+
+<?php elseif ($view === 'forms'): ?>
+  <!-- ── Form Builder (v46) ──────────────────────────────────────────────── -->
+  <header class="top">
+    <h1><i class="fa-solid fa-wpforms" style="margin-right:9px;color:var(--gold)"></i>Form Builder</h1>
+    <button class="btn btn-primary tiny" onclick="fbNewForm()"><i class="fa-solid fa-plus"></i> New Form</button>
+  </header>
+  <div id="fbMsg" style="display:none" class="banner ok"></div>
+
+  <!-- Two-column layout: form list + editor -->
+  <div style="display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start">
+    <!-- Left: form list -->
+    <div>
+      <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center">
+        <select id="fbKindFilter" onchange="fbLoadForms()" class="input" style="flex:1;font-size:.82rem;padding:6px 8px">
+          <option value="">All types</option>
+          <option value="progress_report">Progress Reports</option>
+          <option value="survey">Surveys</option>
+        </select>
+      </div>
+      <div id="fbList" style="display:flex;flex-direction:column;gap:8px">
+        <div class="muted" style="padding:14px;text-align:center">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Right: editor panel -->
+    <div id="fbEditor" style="display:none">
+      <div class="card" style="padding:20px">
+        <h3 id="fbEdTitle" style="margin:0 0 16px;font-size:1rem">New Form</h3>
+        <input type="hidden" id="fbId" value="">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div>
+            <label style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px">Title</label>
+            <input id="fbTitle" class="input" type="text" placeholder="e.g. Post-Session Report" style="width:100%;box-sizing:border-box">
+          </div>
+          <div>
+            <label style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px">Kind</label>
+            <select id="fbKind" class="input" style="width:100%;box-sizing:border-box">
+              <option value="progress_report">Progress Report</option>
+              <option value="survey">Survey</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px">Description (optional)</label>
+          <textarea id="fbDesc" class="input" rows="2" placeholder="Short description of what this form captures" style="width:100%;box-sizing:border-box;resize:vertical"></textarea>
+        </div>
+
+        <!-- AI Generate -->
+        <div style="background:rgba(232,150,31,.07);border:1px solid rgba(232,150,31,.25);border-radius:10px;padding:14px;margin-bottom:16px">
+          <div style="font-size:.78rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Generate</div>
+          <textarea id="fbAiPrompt" class="input" rows="2" placeholder="Describe what you want the form to assess, e.g. 'Piano lesson progress for a beginner student, including technique, rhythm, and practice habits'" style="width:100%;box-sizing:border-box;resize:vertical;margin-bottom:8px"></textarea>
+          <button class="btn ghost tiny" onclick="fbAiGenerate()" id="fbAiBtn"><i class="fa-solid fa-sparkles"></i> Generate questions</button>
+          <span id="fbAiStatus" style="font-size:.78rem;color:var(--muted);margin-left:10px"></span>
+        </div>
+
+        <!-- Questions -->
+        <div style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <span style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Questions</span>
+            <button class="btn ghost tiny" onclick="fbAddQuestion()"><i class="fa-solid fa-plus"></i> Add field</button>
+          </div>
+          <div id="fbQuestions" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div id="fbNoQ" style="color:var(--muted);font-size:.83rem;padding:10px;text-align:center;border:1px dashed var(--border);border-radius:8px">No questions yet — add one or use AI generate.</div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="fbSave()"><i class="fa-solid fa-floppy-disk"></i> Save Form</button>
+          <button id="fbSetActiveBtn" class="btn ghost" onclick="fbSetActive()" style="display:none"><i class="fa-solid fa-star"></i> Set as Active Template</button>
+          <button class="btn ghost" onclick="fbCancel()">Cancel</button>
+          <button id="fbDeleteBtn" class="btn ghost" onclick="fbDelete()" style="display:none;color:#F87171;border-color:#F87171"><i class="fa-solid fa-trash"></i> Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function() {
+  var _forms = [];
+
+  function api(method, body) {
+    var opts = { method: method, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': (document.cookie.match(/mam_csrf=([^;]+)/) || ['',''])[1] } };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch('/api/admin/survey-forms', opts).then(function(r){ return r.json(); });
+  }
+
+  window.fbLoadForms = function() {
+    var kind = document.getElementById('fbKindFilter').value;
+    var url = '/api/admin/survey-forms' + (kind ? '?kind=' + encodeURIComponent(kind) : '');
+    fetch(url).then(function(r){ return r.json(); }).then(function(d){
+      _forms = d.forms || [];
+      renderList();
+    });
+  };
+
+  function renderList() {
+    var list = document.getElementById('fbList');
+    if (!_forms.length) { list.innerHTML = '<div class="muted" style="padding:14px;text-align:center">No forms yet.</div>'; return; }
+    list.innerHTML = _forms.map(function(f) {
+      var kindPill = f.kind === 'progress_report'
+        ? '<span class="pill" style="background:rgba(52,211,153,.12);color:#34D399;font-size:.68rem">Progress Report</span>'
+        : '<span class="pill" style="background:rgba(96,165,250,.12);color:#60A5FA;font-size:.68rem">Survey</span>';
+      var activePill = f.status === 'active'
+        ? '<span class="pill" style="background:rgba(232,150,31,.14);color:var(--gold);font-size:.68rem">Active</span>' : '';
+      return '<div onclick="fbEditForm(' + f.id + ')" style="cursor:pointer;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--card);transition:border-color .15s" onmouseenter="this.style.borderColor=\'var(--gold)\'" onmouseleave="this.style.borderColor=\'var(--border)\'">'
+        + '<div style="font-weight:600;font-size:.9rem;margin-bottom:4px">' + escapeHtml(f.title) + '</div>'
+        + '<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">' + kindPill + activePill
+        + '<span style="font-size:.72rem;color:var(--muted)">' + (f.response_count || 0) + ' response' + (f.response_count == 1 ? '' : 's') + '</span>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  window.fbNewForm = function() {
+    document.getElementById('fbId').value = '';
+    document.getElementById('fbTitle').value = '';
+    document.getElementById('fbKind').value = 'progress_report';
+    document.getElementById('fbDesc').value = '';
+    document.getElementById('fbAiPrompt').value = '';
+    document.getElementById('fbSetActiveBtn').style.display = 'none';
+    document.getElementById('fbDeleteBtn').style.display = 'none';
+    document.getElementById('fbEdTitle').textContent = 'New Form';
+    renderQuestions([]);
+    document.getElementById('fbEditor').style.display = 'block';
+  };
+
+  window.fbEditForm = function(id) {
+    var f = _forms.find(function(x){ return x.id == id; });
+    if (!f) return;
+    document.getElementById('fbId').value = f.id;
+    document.getElementById('fbTitle').value = f.title || '';
+    document.getElementById('fbKind').value = f.kind || 'survey';
+    document.getElementById('fbDesc').value = f.description || '';
+    document.getElementById('fbAiPrompt').value = '';
+    document.getElementById('fbEdTitle').textContent = 'Edit: ' + escapeHtml(f.title);
+    document.getElementById('fbSetActiveBtn').style.display = f.kind === 'progress_report' ? '' : 'none';
+    document.getElementById('fbDeleteBtn').style.display = '';
+    renderQuestions(f.questions || []);
+    document.getElementById('fbEditor').style.display = 'block';
+  };
+
+  window.fbCancel = function() {
+    document.getElementById('fbEditor').style.display = 'none';
+  };
+
+  /* ── Questions ── */
+  var _questions = [];
+
+  function renderQuestions(qs) {
+    _questions = qs.map(function(q){ return Object.assign({}, q); });
+    paintQuestions();
+  }
+
+  function paintQuestions() {
+    var wrap = document.getElementById('fbQuestions');
+    var noQ  = document.getElementById('fbNoQ');
+    if (!_questions.length) { wrap.innerHTML = ''; noQ.style.display = ''; return; }
+    noQ.style.display = 'none';
+    wrap.innerHTML = _questions.map(function(q, i) {
+      var optRow = (q.type === 'select' || q.type === 'checkbox')
+        ? '<div style="margin-top:6px"><label style="font-size:.74rem;color:var(--muted)">Options (one per line)</label><textarea data-qi="' + i + '" data-f="options" class="input" rows="2" style="width:100%;box-sizing:border-box;margin-top:3px;font-size:.8rem;resize:vertical">' + escapeHtml((q.options || []).join('\n')) + '</textarea></div>' : '';
+      return '<div style="border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface)">'
+        + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:start">'
+        + '<input data-qi="' + i + '" data-f="label" value="' + escapeHtml(q.label || '') + '" class="input" placeholder="Question text" style="font-size:.85rem">'
+        + '<select data-qi="' + i + '" data-f="type" class="input" style="font-size:.82rem;width:110px" onchange="fbQTypeChange(this,' + i + ')">'
+        + ['text','textarea','rating','select','checkbox'].map(function(t){ return '<option value="' + t + '"' + (q.type===t?' selected':'') + '>' + t + '</option>'; }).join('')
+        + '</select>'
+        + '<div style="display:flex;gap:6px;align-items:center">'
+        + '<label style="font-size:.78rem;white-space:nowrap;display:flex;gap:4px;align-items:center"><input type="checkbox" data-qi="' + i + '" data-f="required"' + (q.required?' checked':'') + ' onchange="fbQField(this)"> Required</label>'
+        + '<button onclick="fbRemoveQ(' + i + ')" style="background:none;border:none;color:var(--muted);cursor:pointer;padding:2px 4px;font-size:.9rem" title="Remove">✕</button>'
+        + '</div></div>'
+        + optRow + '</div>';
+    }).join('');
+    wrap.querySelectorAll('input[data-f],textarea[data-f],select[data-f]').forEach(function(el) {
+      if (el.dataset.f !== 'type' && el.dataset.f !== 'required') {
+        el.addEventListener('input', function(){ fbQField(el); });
+      } else if (el.dataset.f === 'type') {
+        // already has onchange
+      }
+    });
+  }
+
+  window.fbQTypeChange = function(sel, i) {
+    _questions[i].type = sel.value;
+    if (sel.value !== 'select' && sel.value !== 'checkbox') delete _questions[i].options;
+    paintQuestions();
+  };
+
+  window.fbQField = function(el) {
+    var i = parseInt(el.dataset.qi, 10);
+    var f = el.dataset.f;
+    if (f === 'required') { _questions[i].required = el.checked; }
+    else if (f === 'options') { _questions[i].options = el.value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean); }
+    else { _questions[i][f] = el.value; }
+  };
+
+  window.fbRemoveQ = function(i) {
+    _questions.splice(i, 1);
+    paintQuestions();
+  };
+
+  window.fbAddQuestion = function() {
+    _questions.push({ label: '', type: 'text', required: false });
+    paintQuestions();
+    document.getElementById('fbNoQ').style.display = 'none';
+  };
+
+  /* ── AI Generate ── */
+  window.fbAiGenerate = function() {
+    var prompt = document.getElementById('fbAiPrompt').value.trim();
+    if (!prompt) { fbShowMsg('Enter a prompt first.', 'err'); return; }
+    var btn = document.getElementById('fbAiBtn');
+    var status = document.getElementById('fbAiStatus');
+    btn.disabled = true; status.textContent = 'Generating…';
+    api('POST', { action: 'ai_generate', prompt: prompt, kind: document.getElementById('fbKind').value })
+      .then(function(d) {
+        btn.disabled = false;
+        if (!d.ok) { status.textContent = 'Error: ' + (d.message || 'AI unavailable'); return; }
+        status.textContent = 'Generated ' + d.questions.length + ' question(s) via ' + (d.model || d.provider || 'AI');
+        renderQuestions(d.questions);
+      }).catch(function() { btn.disabled = false; status.textContent = 'Request failed.'; });
+  };
+
+  /* ── Save ── */
+  window.fbSave = function() {
+    // Flush any un-blur inputs
+    document.getElementById('fbQuestions').querySelectorAll('input[data-f],textarea[data-f]').forEach(function(el){
+      if (el.type !== 'checkbox') { var i = parseInt(el.dataset.qi,10); var f = el.dataset.f; if (f==='options') _questions[i].options = el.value.split('\n').map(function(s){return s.trim();}).filter(Boolean); else _questions[i][f] = el.value; }
+    });
+    var id = document.getElementById('fbId').value;
+    var body = {
+      title:       document.getElementById('fbTitle').value.trim(),
+      description: document.getElementById('fbDesc').value.trim() || null,
+      kind:        document.getElementById('fbKind').value,
+      questions:   _questions,
+    };
+    if (!body.title) { fbShowMsg('Title is required.', 'err'); return; }
+    if (id) { body.action = 'update'; body.id = parseInt(id, 10); }
+    else     { body.action = 'create'; }
+    api('POST', body).then(function(d) {
+      if (!d.ok) { fbShowMsg(d.message || 'Save failed.', 'err'); return; }
+      fbShowMsg(id ? 'Form saved.' : 'Form created.', 'ok');
+      if (!id && d.id) document.getElementById('fbId').value = d.id;
+      fbLoadForms();
+    }).catch(function(){ fbShowMsg('Save failed.', 'err'); });
+  };
+
+  /* ── Set Active ── */
+  window.fbSetActive = function() {
+    var id = parseInt(document.getElementById('fbId').value, 10);
+    if (!id) return;
+    api('POST', { action: 'set_active', id: id }).then(function(d) {
+      if (d.ok) { fbShowMsg('Set as active progress report template.', 'ok'); fbLoadForms(); }
+      else fbShowMsg(d.message || 'Failed.', 'err');
+    });
+  };
+
+  /* ── Delete ── */
+  window.fbDelete = function() {
+    var id = parseInt(document.getElementById('fbId').value, 10);
+    if (!id || !confirm('Delete this form? This cannot be undone.')) return;
+    api('POST', { action: 'delete', id: id }).then(function(d) {
+      if (d.ok) { fbShowMsg('Form deleted.', 'ok'); document.getElementById('fbEditor').style.display = 'none'; fbLoadForms(); }
+      else fbShowMsg(d.message || 'Delete failed.', 'err');
+    });
+  };
+
+  function fbShowMsg(msg, type) {
+    var el = document.getElementById('fbMsg');
+    el.textContent = msg;
+    el.className = 'banner ' + (type === 'err' ? 'err' : 'ok');
+    el.style.display = '';
+    clearTimeout(el._t);
+    el._t = setTimeout(function(){ el.style.display = 'none'; }, 4000);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Init
+  fbLoadForms();
+})();
+</script>
 
 <?php elseif ($view === 'account'):
   $me = mam_current_user();
@@ -3495,6 +6673,33 @@ nav a{display:flex;align-items:center}
     requestAnimationFrame(function () { t.classList.add('in'); });
     setTimeout(function () { t.classList.remove('in'); setTimeout(function () { t.remove(); }, 350); }, 4600);
   }
+  // Mobile: hamburger toggles the off-canvas sidebar. A nav tap or scrim/Esc
+  // closes it.
+  (function () {
+    var t = document.getElementById('navToggle'), s = document.getElementById('navScrim');
+    if (!t) return;
+    function set(open) { document.body.classList.toggle('nav-open', open); t.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+    t.addEventListener('click', function () { set(!document.body.classList.contains('nav-open')); });
+    if (s) s.addEventListener('click', function () { set(false); });
+    var nav = document.querySelector('aside nav');
+    if (nav) nav.addEventListener('click', function (e) { if (e.target.closest('a')) set(false); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('nav-open')) set(false); });
+  })();
+  // Applications "Manage" renders as a right slide-in drawer (server-rendered
+  // when ?app=N). Dismiss via scrim click or Esc → back to the list.
+  (function () {
+    var scrim = document.querySelector('.mam-drawer-scrim');
+    if (!scrim) return;
+    var param = scrim.getAttribute('data-param') || 'app';
+    document.body.style.overflow = 'hidden';
+    var panel = scrim.querySelector('.mam-drawer');
+    if (panel) { panel.setAttribute('tabindex', '-1'); setTimeout(function () { panel.focus(); }, 30); }
+    function close() { var u = new URLSearchParams(location.search); u.delete(param); location.href = '?' + u.toString(); }
+    scrim.addEventListener('mousedown', function (e) { if (e.target === scrim) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !document.querySelector('.cmdk-scrim.open')) close();
+    });
+  })();
   var ok = params.get('ok'), err = params.get('err');
   if (ok !== null) toast(ok && ok !== '1' ? ok : 'Saved.', 'ok');
   if (err !== null && err !== '') toast(err, 'err');
@@ -3502,15 +6707,242 @@ nav a{display:flex;align-items:center}
     params.delete('ok'); params.delete('err');
     try { history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash); } catch (e) {}
   }
-  // Keyboard reach: '/' or Ctrl/Cmd+K jumps to the global search.
+  // ── Command palette (⌘K / Ctrl+K, or '/') ──────────────────────────
+  // Fuzzy-jump to any section the current admin can reach, run a quick action,
+  // or fall through to a full search. Fully keyboard-navigable (↑/↓/Enter/Esc).
+  var CMD = <?php
+    $cmdGo = [];
+    foreach ($navGroups as $__g => $__items) {
+      foreach ($__items as $__k => $__m) {
+        if (!$canView($__k)) continue;
+        $cmdGo[] = ['label' => $__m[0], 'icon' => $__m[1], 'url' => '?v=' . $__k, 'group' => 'Go to'];
+      }
+    }
+    $cmdActions = [
+      ['label' => 'Export applications (CSV)', 'icon' => 'file-csv', 'url' => '?v=export&type=applications.csv', 'group' => 'Action'],
+      ['label' => 'Export payments (CSV)', 'icon' => 'file-csv', 'url' => '?v=export&type=payments.csv', 'group' => 'Action'],
+      ['label' => 'View public site', 'icon' => 'arrow-up-right-from-square', 'url' => '/', 'group' => 'Action'],
+    ];
+    echo json_encode(array_merge($cmdGo, $cmdActions), JSON_UNESCAPED_SLASHES);
+  ?>;
+  (function () {
+    var scrim = document.createElement('div'); scrim.className = 'cmdk-scrim'; scrim.setAttribute('role', 'dialog'); scrim.setAttribute('aria-modal', 'true');
+    scrim.innerHTML = '<div class="cmdk"><div class="cmdk-in"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>'
+      + '<input type="text" placeholder="Search or jump to…" aria-label="Command palette" autocomplete="off" spellcheck="false">'
+      + '<span style="font-size:.64rem;color:var(--faint);border:1px solid var(--border);border-radius:6px;padding:2px 6px">ESC</span></div>'
+      + '<div class="cmdk-list" role="listbox"></div></div>';
+    document.body.appendChild(scrim);
+    var input = scrim.querySelector('input'), list = scrim.querySelector('.cmdk-list');
+    var open = false, sel = 0, results = [];
+    function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    // Subsequence match — "sto" matches "Store Orders" — with a light score so
+    // tighter matches float up.
+    function score(q, s) {
+      q = q.toLowerCase(); s = s.toLowerCase();
+      if (!q) return 1;
+      if (s.indexOf(q) >= 0) return 100 - s.indexOf(q);
+      var qi = 0; for (var i = 0; i < s.length && qi < q.length; i++) if (s[i] === q[qi]) qi++;
+      return qi === q.length ? 1 : 0;
+    }
+    function render() {
+      var q = input.value.trim();
+      results = CMD.map(function (e) { return { e: e, sc: score(q, e.label) }; })
+                   .filter(function (r) { return r.sc > 0; })
+                   .sort(function (a, b) { return b.sc - a.sc; })
+                   .map(function (r) { return r.e; });
+      if (q) results.push({ label: 'Search for “' + q + '”', icon: 'magnifying-glass', url: '?v=search&q=' + encodeURIComponent(q), group: 'Search' });
+      sel = 0;
+      if (!results.length) { list.innerHTML = '<div class="cmdk-empty">No matches.</div>'; return; }
+      var html = '', lastGroup = '';
+      results.forEach(function (e, i) {
+        if (e.group !== lastGroup) { html += '<div class="cmdk-sec">' + esc(e.group) + '</div>'; lastGroup = e.group; }
+        html += '<div class="cmdk-item' + (i === sel ? ' sel' : '') + '" data-i="' + i + '" role="option">'
+             + '<i class="fa-solid fa-' + esc(e.icon) + '" aria-hidden="true"></i><span>' + esc(e.label) + '</span>'
+             + (e.group === 'Go to' ? '' : '<span class="tag">' + esc(e.group) + '</span>') + '</div>';
+      });
+      list.innerHTML = html;
+    }
+    function move(d) {
+      var items = list.querySelectorAll('.cmdk-item'); if (!items.length) return;
+      items[sel] && items[sel].classList.remove('sel');
+      sel = (sel + d + items.length) % items.length;
+      items[sel].classList.add('sel'); items[sel].scrollIntoView({ block: 'nearest' });
+    }
+    function go(i) { var e = results[i]; if (e) location.href = e.url; }
+    var lastFocus = null;
+    function show() { lastFocus = document.activeElement; open = true; scrim.classList.add('open'); input.value = ''; render(); setTimeout(function () { input.focus(); }, 0); }
+    function hide() { open = false; scrim.classList.remove('open'); if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus(); }
+    var sb = document.getElementById('atbSearch'); if (sb) sb.addEventListener('click', show);
+    input.addEventListener('input', render);
+    list.addEventListener('click', function (e) { var it = e.target.closest('.cmdk-item'); if (it) go(+it.getAttribute('data-i')); });
+    scrim.addEventListener('mousedown', function (e) { if (e.target === scrim) hide(); });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); go(sel); }
+      else if (e.key === 'Escape') { e.preventDefault(); hide(); }
+      else if (e.key === 'Tab') { e.preventDefault(); } // trap focus in the palette
+    });
+    document.addEventListener('keydown', function (e) {
+      var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); open ? hide() : show(); }
+      else if (e.key === '/' && !typing && !open) { e.preventDefault(); show(); }
+      else if (e.key === 'Escape' && open) { hide(); }
+    });
+  })();
+})();
+</script>
+<script>
+// Keyboard-shortcuts help — press ? (accessible modal; Esc/scrim closes, focus
+// returns to the opener).
+(function () {
+  var scrim = document.createElement('div');
+  scrim.className = 'kbd-scrim'; scrim.setAttribute('role', 'dialog'); scrim.setAttribute('aria-modal', 'true'); scrim.setAttribute('aria-label', 'Keyboard shortcuts');
+  var rows = [
+    ['⌘K  /  Ctrl K', 'Command palette — jump to any section or action'],
+    ['/', 'Open the command palette'],
+    ['?', 'Show this shortcuts help'],
+    ['Esc', 'Close the palette, a drawer, or this dialog']
+  ];
+  scrim.innerHTML = '<div class="kbd-modal"><h2>Keyboard shortcuts</h2><p class="sub">Move around MAM Admin without the mouse.</p>'
+    + rows.map(function (r) { return '<div class="kbd-row"><span>' + r[1] + '</span><kbd>' + r[0] + '</kbd></div>'; }).join('')
+    + '<div style="text-align:right;margin-top:16px"><button type="button" class="btn ghost" id="kbdClose">Close</button></div></div>';
+  document.body.appendChild(scrim);
+  var last = null;
+  function open() { last = document.activeElement; scrim.classList.add('open'); var b = document.getElementById('kbdClose'); if (b) b.focus(); }
+  function close() { scrim.classList.remove('open'); if (last && last.focus) last.focus(); }
+  scrim.addEventListener('mousedown', function (e) { if (e.target === scrim) close(); });
+  document.getElementById('kbdClose').addEventListener('click', close);
   document.addEventListener('keydown', function (e) {
     var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
-    if (((e.key === '/' && !typing) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'))) {
-      var q = document.querySelector('aside input[type=search]');
-      if (q) { e.preventDefault(); q.focus(); q.select(); }
-    }
+    var openDialog = document.querySelector('.cmdk-scrim.open') || document.querySelector('.mam-drawer-scrim');
+    if (e.key === '?' && !typing && !openDialog && !scrim.classList.contains('open')) { e.preventDefault(); open(); }
+    else if (e.key === 'Escape' && scrim.classList.contains('open')) { e.preventDefault(); close(); }
   });
 })();
+
+/* ── Generate shareable learner progress report link ──────────────────── */
+window.genProgressLink = function (studentId, studentName) {
+  var label = prompt('Progress report label for ' + studentName + ':\n(e.g. "Sent to Mr. Balogun — July 2026")', 'Learner report — ' + new Date().toLocaleDateString('en-GB', {month:'short',year:'numeric'}));
+  if (label === null) return;
+  var expiresIn = prompt('Expiry (days from today, blank = never):','90');
+  var expiresAt = null;
+  if (expiresIn && parseInt(expiresIn, 10) > 0) {
+    var d = new Date(); d.setDate(d.getDate() + parseInt(expiresIn, 10));
+    expiresAt = d.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  var btn = event.target.closest('button');
+  // Disable and restore without innerHTML — use a data attribute to track state
+  function setBusy(b) { if (btn) { btn.disabled = true; btn.setAttribute('data-orig-label', btn.textContent); btn.textContent = '…'; } }
+  function setIdle(b) { if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-label') || 'Progress Link'; } }
+  setBusy();
+
+  // Use the CSRF from the page's meta or fall back to a fresh fetch
+  function doPost(t) {
+    fetch('/api/admin/progress-report', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': t },
+      body: JSON.stringify({ action: 'generate', student_id: studentId, label: label, expires_at: expiresAt })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      setIdle();
+      if (!j.ok || !j.url) { alert('Error: ' + (j.error || 'unknown')); return; }
+      var msg = 'Progress report link generated!\n\n' + j.url + '\n\nThe student\'s enrollment ID can also be used at /learner-report\n\n(Click OK to copy the link.)';
+      if (window.confirm(msg)) {
+        navigator.clipboard ? navigator.clipboard.writeText(j.url) : (function(){var ta=document.createElement('textarea');ta.value=j.url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);})();
+      }
+    }).catch(function (e) {
+      setIdle();
+      alert('Could not generate link: ' + e.message);
+    });
+  }
+
+  if (token) { doPost(token); return; }
+  fetch('/api/csrf', { credentials: 'same-origin' }).then(r => r.json()).then(j => doPost(j.token)).catch(function () {
+    if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-label') || 'Progress Link'; }
+    alert('Could not get security token. Try refreshing the page.');
+  });
+};
+
+/* ── Instructor fine resolve / waive ──────────────────────────────────── */
+window.fineAct = function (fineId, action) {
+  var label = action === 'resolve' ? 'Resolve' : 'Waive';
+  var note  = prompt(label + ' fine #' + fineId + ' — add a note (optional):', '');
+  if (note === null) return;
+  var btn = event.target;
+  btn.disabled = true;
+  var csrf = (document.cookie.match(/mam_csrf=([^;]+)/) || ['',''])[1];
+  fetch('/api/admin/fines', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+    body: JSON.stringify({ action: action, fine_id: fineId, note: note })
+  }).then(function (r) { return r.json(); }).then(function (j) {
+    if (j.ok) {
+      var row = document.getElementById('fine-row-' + fineId);
+      if (row) row.style.opacity = '0.4';
+      location.reload();
+    } else {
+      btn.disabled = false;
+      alert('Error: ' + (j.error || 'unknown'));
+    }
+  }).catch(function (e) { btn.disabled = false; alert('Request failed: ' + e.message); });
+};
+
+/* ── Assign enrollment reference to a student who doesn't have one yet ─── */
+window.generateEnrollRef = function (studentId, btn) {
+  btn.disabled = true; btn.textContent = '…';
+  function doPost(t) {
+    fetch('/api/admin/progress-report', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': t },
+      body: JSON.stringify({ action: 'generate_ref', student_id: studentId })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok || !j.enrollment_ref) {
+        btn.disabled = false; btn.textContent = 'Assign ID';
+        alert('Error: ' + (j.error || 'unknown'));
+        return;
+      }
+      // Replace the button with the new ref inline, no page reload
+      var refSpan = document.createElement('span');
+      refSpan.style.cssText = 'color:var(--gold-bright);letter-spacing:0.04em';
+      refSpan.title = 'Student enrollment ID';
+      refSpan.textContent = j.enrollment_ref;
+      btn.parentNode.replaceChild(refSpan, btn);
+    }).catch(function (e) {
+      btn.disabled = false; btn.textContent = 'Assign ID';
+      alert('Could not assign ID: ' + e.message);
+    });
+  }
+  if (typeof token !== 'undefined' && token) { doPost(token); return; }
+  fetch('/api/csrf', { credentials: 'same-origin' }).then(function(r){return r.json();}).then(function(j){doPost(j.token);}).catch(function(){
+    btn.disabled = false; btn.textContent = 'Assign ID';
+    alert('Could not get security token.');
+  });
+};
+
+/* ── Bulk-generate enrollment refs for all students missing one ─────────── */
+window.backfillEnrollRefs = function (btn) {
+  if (!confirm('Generate MAM/YY/NNN IDs for all active students who don\'t have one yet?')) return;
+  btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Working…';
+  var t = (document.cookie.match(/mam_csrf=([^;]+)/) || ['',''])[1];
+  fetch('/api/admin/progress-report', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': t },
+    body: JSON.stringify({ action: 'backfill_refs' })
+  }).then(function (r) { return r.json(); }).then(function (j) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-id-card"></i> Backfill student IDs';
+    if (!j.ok) { alert('Error: ' + (j.error || 'unknown')); return; }
+    alert('Done — ' + j.generated + ' ID' + (j.generated !== 1 ? 's' : '') + ' generated' + (j.errors ? ', ' + j.errors + ' errors (see server log)' : '') + '.');
+    if (j.generated > 0) location.reload();
+  }).catch(function (e) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-id-card"></i> Backfill student IDs';
+    alert('Could not run backfill: ' + e.message);
+  });
+};
 </script>
 </body>
 </html>

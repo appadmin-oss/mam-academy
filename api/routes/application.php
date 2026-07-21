@@ -144,7 +144,12 @@ try {
 } catch (Throwable $e) {
     if ($db->inTransaction()) $db->rollBack();
     mam_log('error', 'application_failed', ['err' => $e->getMessage()]);
-    mam_fail('save_failed', 500);
+    // Expose the raw DB error in non-production so the operator can identify
+    // which column is missing without digging into server logs.
+    $extra = mam_env('APP_ENV', 'production') !== 'production'
+        ? ['debug' => $e->getMessage()]
+        : [];
+    mam_fail('save_failed', 500, $extra);
 }
 
 // Send confirmation + policy + admin notice AFTER the client has its JSON

@@ -54,7 +54,9 @@
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  function token() { try { return new URLSearchParams(location.search).get('token') || ''; } catch (e) { return ''; } }
+  function qp(k) { try { return new URLSearchParams(location.search).get(k) || ''; } catch (e) { return ''; } }
+  function token() { return qp('token'); }
+  function sessionToken() { return qp('stoken'); }
 
   function render(kind, title, msg, meta, actions) {
     var icon = $('attendIcon'); icon.className = 'attend-icon ' + kind;
@@ -74,7 +76,11 @@
   var portalBtn = '<a class="btn btn-secondary" href="/portal/student/"><i class="fa-solid fa-table-columns"></i> My portal</a>';
 
   function boot() {
-    var tok = token();
+    // A cohort-session QR uses ?stoken= (writes session_attendance); a legacy
+    // class QR uses ?token= (writes the class attendance table). Same UI.
+    var stok = sessionToken();
+    var tok = stok || token();
+    var endpoint = stok ? 'attendance/session-checkin' : 'attendance/checkin';
     if (!tok) { render('err', 'Nothing to check in to', 'This link is missing its check-in code. Please scan the QR your instructor is showing.', null, [portalBtn]); return; }
     if (!window.MAM_API || !window.MAM_AUTH) { render('err', 'Something went wrong', 'Please reload the page and try again.', null, []); return; }
 
@@ -87,7 +93,7 @@
         render('err', 'Students only', 'Attendance check-in is for enrolled students. You’re signed in as ' + st.role + '.', null, []);
         return;
       }
-      window.MAM_API.request('attendance/checkin', { method: 'POST', body: { token: tok } })
+      window.MAM_API.request(endpoint, { method: 'POST', body: { token: tok } })
         .then(function (r) {
           var when = r && r.date ? r.date : '';
           var cls = r && r.class_title ? r.class_title : 'your class';

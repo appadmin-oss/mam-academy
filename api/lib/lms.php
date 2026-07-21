@@ -151,6 +151,59 @@ function mam_lms_finalize(int $enrollmentId, ?int $by = null): array {
 
 /** A student's course enrolments, with course/level/programme/instructor names
  *  and any finalized result. Newest first. */
+/**
+ * Announcements visible to a student — from any LEGACY class OR cohort they're
+ * enrolled in (dual-read, P2). `class_title` carries the class OR cohort name so
+ * the portal renders unchanged. Newest first, capped. The compound query aliases
+ * `created_at` explicitly: a UNION's ORDER BY must reference a result-set column
+ * name (SQLite rejects a bare `an.created_at` here).
+ */
+function mam_student_announcements(int $studentId, int $limit = 20): array {
+    $limit = max(1, min(100, $limit));
+    return mam_db_all(
+        "SELECT an.id AS id, an.title, an.body, an.created_at AS created_at, c.title AS class_title, usr.name AS author
+           FROM announcements an
+           JOIN classes c ON c.id = an.class_id
+           JOIN enrollments e ON e.class_id = c.id
+           LEFT JOIN users usr ON usr.id = an.author_id
+          WHERE e.student_id = ? AND e.status IN ('active','paused')
+         UNION
+         SELECT an.id AS id, an.title, an.body, an.created_at AS created_at, coh.title AS class_title, usr.name AS author
+           FROM announcements an
+           JOIN cohorts coh ON coh.id = an.cohort_id
+           JOIN course_enrollments ce ON ce.cohort_id = coh.id
+           LEFT JOIN users usr ON usr.id = an.author_id
+          WHERE ce.student_id = ? AND ce.status IN ('active','completed')
+          ORDER BY created_at DESC, id DESC LIMIT " . $limit,
+        [$studentId, $studentId]
+    );
+}
+
+/**
+ * Learning resources visible to a student — from any LEGACY class OR cohort they
+ * are enrolled in (dual-read, P2). `class_title` carries the class OR cohort name.
+ * Same compound-query rules as mam_student_announcements(): alias the ORDER BY
+ * columns explicitly and tiebreak on id.
+ */
+function mam_student_resources(int $studentId, int $limit = 50): array {
+    $limit = max(1, min(200, $limit));
+    return mam_db_all(
+        "SELECT r.id AS id, r.title, r.url, r.type, r.created_at AS created_at, c.title AS class_title
+           FROM class_resources r
+           JOIN classes c ON c.id = r.class_id
+           JOIN enrollments e ON e.class_id = c.id
+          WHERE e.student_id = ? AND e.status IN ('active','paused')
+         UNION
+         SELECT r.id AS id, r.title, r.url, r.type, r.created_at AS created_at, coh.title AS class_title
+           FROM class_resources r
+           JOIN cohorts coh ON coh.id = r.cohort_id
+           JOIN course_enrollments ce ON ce.cohort_id = coh.id
+          WHERE ce.student_id = ? AND ce.status IN ('active','completed')
+          ORDER BY created_at DESC, id DESC LIMIT " . $limit,
+        [$studentId, $studentId]
+    );
+}
+
 function mam_lms_student_courses(int $studentId): array {
     return mam_db_all(
         "SELECT ce.id, ce.status, ce.created_at, ce.approved_at,
@@ -249,6 +302,28 @@ function mam_lms_approve(int $enrollmentId, ?int $instructorId, int $adminId): v
     if ($instructorId) mam_db_update('course_enrollments', ['instructor_id' => $instructorId], ['id' => $enrollmentId]);
     mam_lms_transition($enrollmentId, 'active', $adminId, 'approved');
     mam_audit('lms_approve', 'course_enrollment', $enrollmentId, ['instructor' => $instructorId]);
+    // Welcome & orientation — governed by the 'enrol_welcome' automation
+    // (admin ?v=automations). Default on; best-effort so a mail hiccup never
+    // blocks the approval.
+    if (!function_exists('mam_automation_on') || mam_automation_on('enrol_welcome')) {
+        try {
+            $row = mam_db_row(
+                "SELECT u.name, u.email, c.name AS course_name
+                   FROM course_enrollments ce
+                   JOIN users u ON u.id = ce.student_id
+                   LEFT JOIN courses c ON c.id = ce.course_id
+                  WHERE ce.id = ?",
+                [$enrollmentId]
+            );
+            if ($row && !empty($row['email']) && function_exists('mam_send') && function_exists('mam_email_enrolled')) {
+                if (function_exists('mam_automation_touch')) mam_automation_touch('enrol_welcome');
+                $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
+                mam_send((string)$row['email'], 'Welcome to your MAM Academy course',
+                    mam_email_enrolled((string)($row['name'] ?? ''), (string)($row['course_name'] ?? 'your course'), '', $loginUrl),
+                    'enrol_welcome', true);
+            }
+        } catch (\Throwable $e) { mam_log('warn', 'enrol_welcome_failed', ['enrollment' => $enrollmentId, 'err' => $e->getMessage()]); }
+    }
 }
 
 /** The remembered instructor for a course (+level): exact course+level match
@@ -423,6 +498,7 @@ function mam_lms_create_session(int $cohortId, array $d): int {
         'duration_min' => isset($d['duration_min']) ? max(1, (int)$d['duration_min']) : 60,
         'kind'         => $kind,
         'location'     => $d['location'] ?? null,
+        'room'         => $d['room'] ?? null,
         'status'       => 'scheduled',
         'notes'        => $d['notes'] ?? null,
         'created_by'   => isset($d['created_by']) ? (int)$d['created_by'] : null,
@@ -532,8 +608,14 @@ function mam_lms_student_session_attendance(int $studentId, ?int $cohortId = nul
  *  enrolment they teach, or one assigned directly to them. With counts. */
 function mam_lms_instructor_cohorts(int $instructorId): array {
     return mam_db_all(
-        "SELECT co.id, co.title, co.status, c.name AS course_name, l.name AS level_name,
+        "SELECT co.id, co.title, co.status, co.legacy_class_id, c.name AS course_name, l.name AS level_name,
                 (SELECT COUNT(*) FROM course_enrollments ce WHERE ce.cohort_id = co.id) AS enrollment_count,
+                -- Cohort convergence (P2): a cohort backfilled from a legacy class
+                -- carries legacy_class_id. Surface its class roster count so a
+                -- backfilled cohort no longer misreads as '0 students'. Read-only
+                -- fold — mirrors the admin Cohorts panel; the mark sheet still uses
+                -- course_enrollments (legacy members are marked via My Classes).
+                (SELECT COUNT(*) FROM enrollments e WHERE e.class_id = co.legacy_class_id AND e.status IN ('active','paused')) AS legacy_count,
                 (SELECT COUNT(*) FROM class_sessions cs WHERE cs.cohort_id = co.id) AS session_count
            FROM cohorts co
            LEFT JOIN courses c ON c.id = co.course_id
@@ -567,6 +649,80 @@ function mam_lms_cohort_roster(int $cohortId): array {
     );
 }
 
+/**
+ * Cohort convergence (P2, WRITE-PATH) — reconcile a backfilled cohort's LEGACY
+ * class roster into `course_enrollments`, so those students become fully
+ * gradable + markable in the cohort tools (Gradebook / session mark-sheet),
+ * not just visible as a count. This is the deliberate one-way reconciliation
+ * the codebase otherwise avoids: strictly additive, idempotent, audited — it
+ * never deletes, downgrades, or duplicates an enrolment.
+ *
+ * A row is created only for a legacy (active/paused) class member who has no
+ * active/pending course enrolment in this cohort's (course, level); if they
+ * already have a matching enrolment that isn't linked to the cohort, it is
+ * linked rather than duplicated.
+ *
+ * Requires the cohort to map to a real course — `course_enrollments.course_id`
+ * is NOT NULL, so a purely-legacy cohort must be course-mapped by an admin
+ * first (returns reason 'no_course_mapping', converges nothing).
+ *
+ * @return array{converged:int,linked:int,skipped:int,total:int,reason:?string}
+ */
+function mam_lms_converge_cohort_enrollments(int $cohortId, ?int $actorId = null): array {
+    $none = ['converged' => 0, 'linked' => 0, 'skipped' => 0, 'total' => 0];
+    $co = mam_db_row('SELECT id, course_id, level_id, program_id, instructor_id, legacy_class_id FROM cohorts WHERE id = ?', [$cohortId]);
+    if (!$co) throw new InvalidArgumentException('cohort_not_found');
+    $legacyClassId = (int)($co['legacy_class_id'] ?? 0);
+    if ($legacyClassId <= 0) return $none + ['reason' => 'not_backfilled'];
+    $courseId = (int)($co['course_id'] ?? 0);
+    if ($courseId <= 0) return $none + ['reason' => 'no_course_mapping'];
+
+    $levelId   = $co['level_id']      !== null ? (int)$co['level_id']      : null;
+    $programId = $co['program_id']    !== null ? (int)$co['program_id']    : null;
+    $instrId   = $co['instructor_id'] !== null ? (int)$co['instructor_id'] : null;
+
+    $legacy = mam_db_all(
+        "SELECT DISTINCT e.student_id FROM enrollments e
+          WHERE e.class_id = ? AND e.status IN ('active','paused')",
+        [$legacyClassId]
+    );
+    $converged = 0; $linked = 0; $skipped = 0;
+    foreach ($legacy as $row) {
+        $sid = (int)$row['student_id'];
+        // Existing active/pending enrolment in the SAME course+level? (bare
+        // level_id compare so INTEGER affinity coerces the bound param — see the
+        // note in mam_lms_add_course.)
+        if ($levelId === null) {
+            $existing = mam_db_row("SELECT id, cohort_id FROM course_enrollments WHERE student_id = ? AND course_id = ? AND level_id IS NULL AND status IN ('pending','active')", [$sid, $courseId]);
+        } else {
+            $existing = mam_db_row("SELECT id, cohort_id FROM course_enrollments WHERE student_id = ? AND course_id = ? AND level_id = ? AND status IN ('pending','active')", [$sid, $courseId, $levelId]);
+        }
+        if ($existing) {
+            // Already enrolled — link it to this cohort if it's floating, else leave it.
+            if (empty($existing['cohort_id'])) { mam_lms_link_enrollment_cohort((int)$existing['id'], $cohortId); $linked++; }
+            else { $skipped++; }
+            continue;
+        }
+        $id = mam_db_insert('course_enrollments', [
+            'student_id'    => $sid,
+            'course_id'     => $courseId,
+            'level_id'      => $levelId,
+            'program_id'    => $programId,
+            'instructor_id' => $instrId,
+            'cohort_id'     => $cohortId,
+            'status'        => 'active',
+            'approved_by'   => $actorId,
+            'approved_at'   => date('Y-m-d H:i:s'),
+        ]);
+        mam_lms_log_event($id, null, 'active', $actorId, 'converged_from_legacy_class_' . $legacyClassId);
+        $converged++;
+    }
+    if ($converged || $linked) {
+        mam_audit('lms_cohort_converge', 'cohort', $cohortId, ['converged' => $converged, 'linked' => $linked, 'skipped' => $skipped, 'legacy_class_id' => $legacyClassId]);
+    }
+    return ['converged' => $converged, 'linked' => $linked, 'skipped' => $skipped, 'total' => $converged + $linked + $skipped, 'reason' => null];
+}
+
 /** The mark sheet for a session: every enrolled student with their attendance
  *  status for that session (null where not yet marked). */
 function mam_lms_session_mark_sheet(int $sessionId, int $cohortId): array {
@@ -596,6 +752,12 @@ function mam_lms_submit(int $assignmentId, int $studentId, string $artifactUrl, 
     $a = mam_db_row('SELECT id, student_id FROM assignments WHERE id = ?', [$assignmentId]);
     if (!$a) throw new RuntimeException('assignment_not_found');
     if ((int)$a['student_id'] !== $studentId) throw new RuntimeException('not_your_assignment');
+    // The artifact URL is later rendered into an instructor-facing <a href>. Only
+    // http(s) links may be stored — reject javascript:/data:/other schemes at the
+    // source so no unsafe scheme can reach the href (mirrors the resource route).
+    if ($artifactUrl !== '' && !preg_match('#^https?://#i', $artifactUrl)) {
+        throw new RuntimeException('invalid_url');
+    }
     $kind = (string)($opts['artifact_kind'] ?? 'link');
     if (!in_array($kind, ['link', 'audio', 'video', 'pdf', 'image'], true)) $kind = 'link';
     $id = mam_db_insert('submissions', [
@@ -800,20 +962,63 @@ function mam_lms_delete_assessment(int $assessmentId, ?int $by): array {
 
 /** An instructor's active course enrolments with student/course + current result. */
 function mam_lms_instructor_gradebook(int $instructorId): array {
-    return mam_db_all(
-        "SELECT ce.id, ce.status, ce.cohort_id,
-                su.name AS student_name, su.email AS student_email,
-                c.name AS course_name, c.kind AS course_kind, l.name AS level_name,
-                r.total_score, r.grade, r.outcome
-           FROM course_enrollments ce
-           JOIN users su       ON su.id = ce.student_id
-           JOIN courses c      ON c.id = ce.course_id
-           LEFT JOIN levels l  ON l.id = ce.level_id
-           LEFT JOIN results r ON r.enrollment_id = ce.id
-          WHERE ce.instructor_id = ? AND ce.status = 'active'
-          ORDER BY su.name, c.name",
-        [$instructorId]
-    );
+    // Primary query — requires cohort_id column (added in v19).
+    // Falls back to a cohort-free variant when the column is absent on
+    // un-migrated MySQL; callers handle null cohort_id gracefully.
+    try {
+        return mam_db_all(
+            "SELECT ce.id, ce.status, ce.cohort_id,
+                    co.title AS cohort_title,
+                    su.name AS student_name,
+                    c.name AS course_name, c.kind AS course_kind, l.name AS level_name,
+                    r.total_score, r.grade, r.outcome
+               FROM course_enrollments ce
+               JOIN users su        ON su.id = ce.student_id
+               JOIN courses c       ON c.id = ce.course_id
+               LEFT JOIN cohorts co ON co.id = ce.cohort_id
+               LEFT JOIN levels l   ON l.id = ce.level_id
+               LEFT JOIN results r  ON r.enrollment_id = ce.id
+              WHERE ce.instructor_id = ? AND ce.status = 'active'
+              ORDER BY co.title, su.name, c.name",
+            [$instructorId]
+        );
+    } catch (\Throwable $e) {
+        mam_log('warn', 'gradebook_primary_failed', ['err' => $e->getMessage()]);
+        // Second attempt: drop cohort_id (column may be absent), keep results JOIN.
+        try {
+            return mam_db_all(
+                "SELECT ce.id, ce.status, NULL AS cohort_id, NULL AS cohort_title,
+                        su.name AS student_name,
+                        c.name AS course_name, c.kind AS course_kind, l.name AS level_name,
+                        r.total_score, r.grade, r.outcome
+                   FROM course_enrollments ce
+                   JOIN users su        ON su.id = ce.student_id
+                   JOIN courses c       ON c.id = ce.course_id
+                   LEFT JOIN levels l   ON l.id = ce.level_id
+                   LEFT JOIN results r  ON r.enrollment_id = ce.id
+                  WHERE ce.instructor_id = ? AND ce.status = 'active'
+                  ORDER BY su.name, c.name",
+                [$instructorId]
+            );
+        } catch (\Throwable $e2) {
+            // Third attempt: results table also absent (un-migrated host).
+            // Returns rows with null scores; the UI shows "—" until migration runs.
+            mam_log('warn', 'gradebook_results_table_missing', ['err' => $e2->getMessage()]);
+            return mam_db_all(
+                "SELECT ce.id, ce.status, NULL AS cohort_id, NULL AS cohort_title,
+                        su.name AS student_name,
+                        c.name AS course_name, c.kind AS course_kind, l.name AS level_name,
+                        NULL AS total_score, NULL AS grade, NULL AS outcome
+                   FROM course_enrollments ce
+                   JOIN users su ON su.id = ce.student_id
+                   JOIN courses c ON c.id = ce.course_id
+                   LEFT JOIN levels l ON l.id = ce.level_id
+                  WHERE ce.instructor_id = ? AND ce.status = 'active'
+                  ORDER BY su.name, c.name",
+                [$instructorId]
+            );
+        }
+    }
 }
 
 /** Every assessment recorded against an enrolment (newest first), with the
@@ -1006,6 +1211,43 @@ function mam_lms_save_module(?int $id, int $courseId, ?int $levelId, int $week, 
 function mam_lms_delete_module(int $id): void {
     mam_db()->prepare('DELETE FROM modules WHERE id = ?')->execute([$id]);
     mam_audit('lms_module_delete', 'module', $id, []);
+}
+
+/**
+ * Clone every authored week of a course from one level to another, upserting by
+ * the target (course, level, week) so re-running is idempotent (no duplicate
+ * weeks). Copies kind/title/content. Level code '' / 'general' / '_none' means
+ * the level-agnostic syllabus. Returns {created, updated, total}. Throws on an
+ * unknown course or a same-level clone.
+ */
+function mam_lms_clone_syllabus(string $courseCode, string $fromLevelCode, string $toLevelCode): array {
+    $out = ['created' => 0, 'updated' => 0, 'total' => 0];
+    if (trim($fromLevelCode) === trim($toLevelCode)) throw new InvalidArgumentException('same_level');
+    $course = mam_db_row('SELECT id FROM courses WHERE code = ?', [$courseCode]);
+    if (!$course) throw new InvalidArgumentException('course_not_found');
+    $courseId = (int)$course['id'];
+    $resolve = function (string $code): ?int {
+        $code = trim($code);
+        if ($code === '' || $code === 'general' || $code === '_none') return null;
+        $r = mam_db_row('SELECT id FROM levels WHERE code = ?', [$code]);
+        return $r ? (int)$r['id'] : null;
+    };
+    $fromId = $resolve($fromLevelCode);
+    $toId   = $resolve($toLevelCode);
+    $src = $fromId === null
+        ? mam_db_all('SELECT week, kind, title, content FROM modules WHERE course_id = ? AND level_id IS NULL ORDER BY week', [$courseId])
+        : mam_db_all('SELECT week, kind, title, content FROM modules WHERE course_id = ? AND level_id = ? ORDER BY week', [$courseId, $fromId]);
+    foreach ($src as $m) {
+        $week = (int)$m['week'];
+        $ex = $toId === null
+            ? mam_db_row('SELECT id FROM modules WHERE course_id = ? AND level_id IS NULL AND week = ?', [$courseId, $week])
+            : mam_db_row('SELECT id FROM modules WHERE course_id = ? AND level_id = ? AND week = ?', [$courseId, $toId, $week]);
+        mam_lms_save_module($ex ? (int)$ex['id'] : null, $courseId, $toId, $week, (string)$m['kind'], (string)$m['title'], $m['content'] !== null ? (string)$m['content'] : null);
+        if ($ex) $out['updated']++; else $out['created']++;
+        $out['total']++;
+    }
+    if ($out['total'] > 0) mam_audit('lms_clone_syllabus', 'course', $courseId, ['from' => $fromLevelCode, 'to' => $toLevelCode, 'total' => $out['total']]);
+    return $out;
 }
 
 /* ── Curriculum proposals: faculty author, admin approves ──────────────────
@@ -1503,4 +1745,548 @@ function mam_lms_promote_enrollment(int $enrollmentId, ?int $by = null): ?array 
     catch (Throwable $e2) { /* best-effort */ }
     mam_audit('lms_promote', 'course_enrollment', $id, ['from' => $enrollmentId, 'to_level' => $next['code']]);
     return ['enrollment_id' => $id, 'level' => (string)$next['code'], 'created' => true];
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Enterprise curriculum management — course CRUD, program CRUD, program-
+   course linking, and full-curriculum export (schema v41).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Create a new course. Code is normalised (lowercase, non-alnum → underscore).
+ *  Throws RuntimeException('duplicate_code') on collision. Returns course id. */
+function mam_lms_create_course(string $code, string $name, string $kind, ?string $description, int $sortOrder = 99): int {
+    $code = strtolower(trim((string)preg_replace('/[^a-z0-9]+/', '_', strtolower(trim($code))), '_'));
+    if ($code === '') throw new InvalidArgumentException('invalid_code');
+    if (trim($name) === '') throw new InvalidArgumentException('empty_name');
+    if (!in_array($kind, ['core', 'elective'], true)) $kind = 'elective';
+    if (mam_db_row('SELECT id FROM courses WHERE code = ?', [$code])) throw new RuntimeException('duplicate_code');
+    $id = mam_db_insert('courses', [
+        'code' => $code, 'name' => trim($name), 'kind' => $kind,
+        'description' => $description !== null && trim($description) !== '' ? trim($description) : null,
+        'sort_order' => max(0, $sortOrder), 'active' => 1,
+    ]);
+    mam_audit('lms_course_create', 'course', $id, ['code' => $code, 'name' => $name, 'kind' => $kind]);
+    return $id;
+}
+
+/** Update editable course fields (name, kind, description, sort_order, active). */
+function mam_lms_update_course(int $courseId, array $data): void {
+    $allowed = ['name', 'kind', 'description', 'sort_order', 'active'];
+    $update  = [];
+    foreach ($allowed as $k) {
+        if (!array_key_exists($k, $data)) continue;
+        if ($k === 'kind' && !in_array($data[$k], ['core', 'elective'], true)) continue;
+        if ($k === 'name' && trim((string)$data[$k]) === '') continue;
+        $update[$k] = $data[$k];
+    }
+    if (!$update) return;
+    mam_db_update('courses', $update, ['id' => $courseId]);
+    mam_audit('lms_course_update', 'course', $courseId, $update);
+}
+
+/** Create a new programme. Code is normalised. Throws RuntimeException('duplicate_code').
+ *  Returns programme id. */
+function mam_lms_create_program(string $code, string $name, int $weeks, ?int $revisionWeek, ?int $examWeek, bool $requiresCore, string $certification, int $sortOrder = 99): int {
+    $code = strtolower(trim((string)preg_replace('/[^a-z0-9]+/', '_', strtolower(trim($code))), '_'));
+    if ($code === '') throw new InvalidArgumentException('invalid_code');
+    if (trim($name) === '') throw new InvalidArgumentException('empty_name');
+    if (mam_db_row('SELECT id FROM programs WHERE code = ?', [$code])) throw new RuntimeException('duplicate_code');
+    $validCerts = ['participation', 'completion', 'internal', 'internal_diploma'];
+    if (!in_array($certification, $validCerts, true)) $certification = 'completion';
+    $id = mam_db_insert('programs', [
+        'code' => $code, 'name' => trim($name), 'weeks' => max(1, $weeks),
+        'revision_week' => $revisionWeek, 'exam_week' => $examWeek,
+        'requires_core' => $requiresCore ? 1 : 0, 'certification' => $certification,
+        'sort_order' => max(0, $sortOrder), 'active' => 1,
+    ]);
+    mam_audit('lms_program_create', 'program', $id, ['code' => $code, 'name' => $name]);
+    return $id;
+}
+
+/** Update editable programme fields. */
+function mam_lms_update_program(int $programId, array $data): void {
+    $allowed = ['name', 'weeks', 'revision_week', 'exam_week', 'requires_core', 'certification', 'sort_order', 'active'];
+    $validCerts = ['participation', 'completion', 'internal', 'internal_diploma'];
+    $update = [];
+    foreach ($allowed as $k) {
+        if (!array_key_exists($k, $data)) continue;
+        if ($k === 'name' && trim((string)$data[$k]) === '') continue;
+        if ($k === 'certification' && !in_array($data[$k], $validCerts, true)) continue;
+        $update[$k] = $data[$k];
+    }
+    if (!$update) return;
+    mam_db_update('programs', $update, ['id' => $programId]);
+    mam_audit('lms_program_update', 'program', $programId, $update);
+}
+
+/** Courses linked to a programme (ordered by sort_order), with authored-week
+ *  count at the preferred level. N+1 is fine — at most ~20 courses per programme. */
+function mam_lms_program_courses(int $programId): array {
+    $rows = mam_db_all(
+        "SELECT c.id AS course_id, c.code, c.name, c.kind, c.active,
+                pc.level_code, pc.sort_order
+           FROM program_courses pc
+           JOIN courses c ON c.id = pc.course_id
+          WHERE pc.program_id = ?
+          ORDER BY pc.sort_order, c.sort_order, c.name",
+        [$programId]
+    );
+    foreach ($rows as &$row) {
+        $lc  = $row['level_code'];
+        $cid = (int)$row['course_id'];
+        if ($lc !== null && $lc !== '') {
+            $lev = mam_db_row('SELECT id FROM levels WHERE code = ?', [$lc]);
+            $lid = $lev ? (int)$lev['id'] : null;
+        } else {
+            $lid = null;
+        }
+        $n = $lid !== null
+            ? mam_db_row('SELECT COUNT(*) AS n FROM modules WHERE course_id = ? AND level_id = ?', [$cid, $lid])
+            : mam_db_row('SELECT COUNT(*) AS n FROM modules WHERE course_id = ? AND level_id IS NULL', [$cid]);
+        $row['module_count'] = (int)($n['n'] ?? 0);
+    }
+    unset($row);
+    return $rows;
+}
+
+/** All programmes (ordered), each with their linked courses. */
+function mam_lms_all_programs_with_courses(): array {
+    $programs = mam_db_all('SELECT * FROM programs ORDER BY sort_order, name');
+    foreach ($programs as &$p) {
+        $p['courses'] = mam_lms_program_courses((int)$p['id']);
+    }
+    unset($p);
+    return $programs;
+}
+
+/** Link a course to a programme with a preferred level and display order.
+ *  Upserts — re-linking updates level_code + sort_order. */
+function mam_lms_link_course_to_program(int $courseId, int $programId, ?string $levelCode, int $sortOrder = 99): void {
+    if (!mam_db_row('SELECT id FROM courses WHERE id = ?', [$courseId]))  throw new InvalidArgumentException('course_not_found');
+    if (!mam_db_row('SELECT id FROM programs WHERE id = ?', [$programId])) throw new InvalidArgumentException('program_not_found');
+    $lc = ($levelCode !== null && trim($levelCode) !== '') ? trim($levelCode) : null;
+    if (mam_db_row('SELECT 1 FROM program_courses WHERE program_id = ? AND course_id = ?', [$programId, $courseId])) {
+        mam_db()->prepare('UPDATE program_courses SET level_code = ?, sort_order = ? WHERE program_id = ? AND course_id = ?')
+                ->execute([$lc, $sortOrder, $programId, $courseId]);
+    } else {
+        mam_db()->prepare('INSERT INTO program_courses (program_id, course_id, level_code, sort_order) VALUES (?, ?, ?, ?)')
+                ->execute([$programId, $courseId, $lc, $sortOrder]);
+    }
+    mam_audit('lms_link_course_program', 'program', $programId, ['course' => $courseId, 'level' => $lc]);
+}
+
+/** Remove a course from a programme. */
+function mam_lms_unlink_course_from_program(int $courseId, int $programId): void {
+    mam_db()->prepare('DELETE FROM program_courses WHERE program_id = ? AND course_id = ?')->execute([$programId, $courseId]);
+    mam_audit('lms_unlink_course_program', 'program', $programId, ['course' => $courseId]);
+}
+
+/** Full curriculum data for a programme: each linked course with its complete
+ *  week-by-week outline at the course's preferred level. Returns null for an
+ *  unknown programme code. */
+function mam_lms_full_program_curriculum(string $programCode): ?array {
+    $prog = mam_db_row('SELECT * FROM programs WHERE code = ?', [$programCode]);
+    if (!$prog) return null;
+    $pc = mam_lms_program_courses((int)$prog['id']);
+    $courses = [];
+    foreach ($pc as $row) {
+        $outline = mam_lms_course_outline((string)$row['code'], $row['level_code'] ?: null, $programCode);
+        if ($outline) {
+            $courses[] = array_merge(['preferred_level' => $row['level_code']], $outline);
+        }
+    }
+    return ['program' => $prog, 'courses' => $courses, 'total_courses' => count($courses)];
+}
+
+/* ─────────────────────────── Enterprise scheduling (v45) ──────────────────
+   Waitlist, bulk session generation, conflict detection, reschedule audit,
+   and substitute instructor — the production-grade scheduling primitives. */
+
+/** How full a cohort currently is.
+ *  @return array{enrolled:int,capacity:int,available:int,waitlist_count:int,is_full:bool} */
+function mam_lms_cohort_fill_count(int $cohortId): array {
+    $co = mam_db_row('SELECT capacity FROM cohorts WHERE id = ?', [$cohortId]);
+    if (!$co) throw new RuntimeException('cohort_not_found');
+    $enrolled = (int)(mam_db_row(
+        "SELECT COUNT(*) AS n FROM course_enrollments WHERE cohort_id = ? AND status IN ('active','pending')",
+        [$cohortId]
+    )['n'] ?? 0);
+    $capacity  = $co['capacity'] !== null ? (int)$co['capacity'] : 999;
+    $waitlist  = (int)(mam_db_row(
+        "SELECT COUNT(*) AS n FROM class_waitlist WHERE cohort_id = ? AND status = 'waiting'",
+        [$cohortId]
+    )['n'] ?? 0);
+    $available = max(0, $capacity - $enrolled);
+    return [
+        'enrolled'       => $enrolled,
+        'capacity'       => $capacity,
+        'available'      => $available,
+        'waitlist_count' => $waitlist,
+        'is_full'        => $available === 0,
+    ];
+}
+
+/** Add a student to the waitlist for a cohort. Idempotent if already waiting.
+ *  Returns position (1-based). Throws cohort_not_found / already_enrolled. */
+function mam_lms_waitlist_add(int $cohortId, int $studentId): int {
+    if (!mam_db_row('SELECT id FROM cohorts WHERE id = ?', [$cohortId])) throw new RuntimeException('cohort_not_found');
+    if (mam_db_row(
+        "SELECT id FROM course_enrollments WHERE cohort_id = ? AND student_id = ? AND status IN ('active','pending')",
+        [$cohortId, $studentId]
+    )) throw new RuntimeException('already_enrolled');
+
+    // The read-MAX(position)-then-insert below must be atomic: two concurrent
+    // joins would otherwise compute the same position and corrupt the ordering.
+    // Wrap it in a transaction (house pattern — see wallet.php), tolerating an
+    // outer transaction the caller may already hold.
+    $db  = mam_db();
+    $own = !$db->inTransaction();
+    if ($own) $db->beginTransaction();
+    try {
+        $existing = mam_db_row(
+            'SELECT id, position, status FROM class_waitlist WHERE cohort_id = ? AND student_id = ?',
+            [$cohortId, $studentId]
+        );
+        if ($existing && (string)$existing['status'] === 'waiting') {
+            if ($own) $db->commit();
+            return (int)$existing['position'];
+        }
+
+        $nextPos = (int)(mam_db_row(
+            "SELECT IFNULL(MAX(position), 0) + 1 AS p FROM class_waitlist WHERE cohort_id = ? AND status = 'waiting'",
+            [$cohortId]
+        )['p'] ?? 1);
+        $now = date('Y-m-d H:i:s');
+        if ($existing) {
+            mam_db_update('class_waitlist',
+                ['position' => $nextPos, 'status' => 'waiting', 'updated_at' => $now],
+                ['id' => (int)$existing['id']]
+            );
+        } else {
+            mam_db_insert('class_waitlist', [
+                'student_id' => $studentId,
+                'cohort_id'  => $cohortId,
+                'position'   => $nextPos,
+                'status'     => 'waiting',
+            ]);
+        }
+        if ($own) $db->commit();
+    } catch (\Throwable $e) {
+        if ($own && $db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+    mam_audit('lms_waitlist_add', 'cohort', $cohortId, ['student' => $studentId, 'position' => $nextPos]);
+    return $nextPos;
+}
+
+/** Remove a student from the waiting list. Re-numbers remaining positions. */
+function mam_lms_waitlist_remove(int $cohortId, int $studentId): void {
+    $row = mam_db_row(
+        "SELECT id, position FROM class_waitlist WHERE cohort_id = ? AND student_id = ? AND status = 'waiting'",
+        [$cohortId, $studentId]
+    );
+    if (!$row) return;
+    mam_db_update('class_waitlist',
+        ['status' => 'withdrawn', 'updated_at' => date('Y-m-d H:i:s')],
+        ['id' => (int)$row['id']]
+    );
+    $pos = (int)$row['position'];
+    mam_db()->prepare(
+        "UPDATE class_waitlist SET position = position - 1 WHERE cohort_id = ? AND status = 'waiting' AND position > ?"
+    )->execute([$cohortId, $pos]);
+    mam_audit('lms_waitlist_remove', 'cohort', $cohortId, ['student' => $studentId]);
+}
+
+/** Promote the next waiting student into the cohort.
+ *  Returns the student_id promoted, or null if waitlist is empty.
+ *  Refuses to over-fill a cohort past capacity unless $force is set (admin
+ *  override) — throws 'cohort_full' otherwise. */
+function mam_lms_waitlist_promote(int $cohortId, ?int $actorId = null, bool $force = false): ?int {
+    $next = mam_db_row(
+        "SELECT id, student_id FROM class_waitlist WHERE cohort_id = ? AND status = 'waiting' ORDER BY position ASC LIMIT 1",
+        [$cohortId]
+    );
+    if (!$next) return null;
+    if (!$force && mam_lms_cohort_fill_count($cohortId)['available'] < 1) {
+        throw new RuntimeException('cohort_full');
+    }
+    $studentId = (int)$next['student_id'];
+    $co = mam_db_row('SELECT course_id, level_id, program_id, instructor_id FROM cohorts WHERE id = ?', [$cohortId]);
+    if (!$co || !$co['course_id']) return null;
+    $courseId  = (int)$co['course_id'];
+    $levelId   = $co['level_id']      !== null ? (int)$co['level_id']      : null;
+    $programId = $co['program_id']    !== null ? (int)$co['program_id']    : null;
+    $instrId   = $co['instructor_id'] !== null ? (int)$co['instructor_id'] : null;
+
+    // Enrol the promoted student directly into THIS cohort. (The old code called
+    // mam_lms_add_course with the cohort_id in the courseCode slot — a type/arg
+    // mismatch that fatally errored under strict_types AND would have resolved
+    // the wrong cohort. We mirror the converge path instead.) Bare level_id
+    // compare so INTEGER affinity coerces the bound param (see mam_lms_add_course).
+    if ($levelId === null) {
+        $existing = mam_db_row("SELECT id, cohort_id FROM course_enrollments WHERE student_id = ? AND course_id = ? AND level_id IS NULL AND status IN ('pending','active')", [$studentId, $courseId]);
+    } else {
+        $existing = mam_db_row("SELECT id, cohort_id FROM course_enrollments WHERE student_id = ? AND course_id = ? AND level_id = ? AND status IN ('pending','active')", [$studentId, $courseId, $levelId]);
+    }
+    if ($existing) {
+        // Already enrolled in this course+level — link a floating enrolment to
+        // this cohort; otherwise leave the existing enrolment as-is.
+        if (empty($existing['cohort_id'])) mam_lms_link_enrollment_cohort((int)$existing['id'], $cohortId);
+    } else {
+        $enrId = mam_db_insert('course_enrollments', [
+            'student_id'    => $studentId,
+            'course_id'     => $courseId,
+            'level_id'      => $levelId,
+            'program_id'    => $programId,
+            'instructor_id' => $instrId,
+            'cohort_id'     => $cohortId,
+            'status'        => 'active',
+            'approved_by'   => $actorId,
+            'approved_at'   => date('Y-m-d H:i:s'),
+        ]);
+        mam_lms_log_event($enrId, null, 'active', $actorId, 'waitlist_promoted');
+    }
+    mam_db_update('class_waitlist', ['status' => 'promoted', 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$next['id']]);
+    mam_db()->prepare(
+        "UPDATE class_waitlist SET position = position - 1 WHERE cohort_id = ? AND status = 'waiting'"
+    )->execute([$cohortId]);
+    mam_audit('lms_waitlist_promote', 'cohort', $cohortId, ['student' => $studentId, 'by' => $actorId]);
+    return $studentId;
+}
+
+/** Waitlist entry for one student in one cohort. Null if not on list. */
+function mam_lms_waitlist_status(int $cohortId, int $studentId): ?array {
+    return mam_db_row(
+        'SELECT position, status, created_at FROM class_waitlist WHERE cohort_id = ? AND student_id = ?',
+        [$cohortId, $studentId]
+    ) ?: null;
+}
+
+/** All waiting students for a cohort (admin view). */
+function mam_lms_waitlist_for_cohort(int $cohortId): array {
+    return mam_db_all(
+        "SELECT wl.id, wl.position, wl.status, wl.created_at, wl.notified_at,
+                u.id AS student_id, u.name AS student_name, u.email AS student_email
+           FROM class_waitlist wl JOIN users u ON u.id = wl.student_id
+          WHERE wl.cohort_id = ? AND wl.status = 'waiting'
+          ORDER BY wl.position ASC",
+        [$cohortId]
+    );
+}
+
+/** All cohorts a student is currently waiting for. */
+function mam_lms_student_waitlists(int $studentId): array {
+    return mam_db_all(
+        "SELECT wl.cohort_id, wl.position, wl.status, wl.created_at,
+                co.title AS cohort_title, c.name AS course_name, l.name AS level_name
+           FROM class_waitlist wl
+           JOIN cohorts co       ON co.id = wl.cohort_id
+           LEFT JOIN courses c   ON c.id  = co.course_id
+           LEFT JOIN levels  l   ON l.id  = co.level_id
+          WHERE wl.student_id = ? AND wl.status = 'waiting'
+          ORDER BY wl.created_at ASC",
+        [$studentId]
+    );
+}
+
+/** Bulk-create sessions for a cohort from a recurrence rule. Returns created IDs.
+ *
+ *  Rule keys: start_date, end_date, day_of_week (int|int[], 0=Sun..6=Sat),
+ *  time_of_day (HH:MM), duration_min, kind, title_prefix, location, room,
+ *  skip_dates (string[]).  Hard-capped at 104 sessions per call.
+ *
+ *  Returns ['session_ids' => int[], 'conflicts' => array[]] — conflicts is a
+ *  warn-only list of proposed slots that overlap an existing session on the
+ *  same instructor or room (creation is not blocked; the UI surfaces them). */
+function mam_lms_bulk_create_sessions(int $cohortId, array $rule, int $actorId): array {
+    $co = mam_db_row('SELECT id, instructor_id FROM cohorts WHERE id = ?', [$cohortId]);
+    if (!$co) throw new RuntimeException('cohort_not_found');
+    try {
+        $start = new DateTimeImmutable($rule['start_date'] ?? 'now');
+        $end   = new DateTimeImmutable($rule['end_date']   ?? 'now');
+    } catch (\Throwable $e) {
+        throw new InvalidArgumentException('start_date and end_date must be valid dates');
+    }
+    if ($end < $start) throw new InvalidArgumentException('end_date must be >= start_date');
+
+    $rawDays = $rule['day_of_week'] ?? [];
+    if (!is_array($rawDays)) $rawDays = [$rawDays];
+    $days = array_values(array_unique(
+        array_filter(array_map('intval', $rawDays), fn($d) => $d >= 0 && $d <= 6)
+    ));
+    if (empty($days)) throw new InvalidArgumentException('at least one day_of_week required');
+
+    $timeOfDay   = preg_match('/^\d{2}:\d{2}$/', (string)($rule['time_of_day'] ?? '')) ? (string)$rule['time_of_day'] : '09:00';
+    $durationMin = isset($rule['duration_min']) ? max(1, (int)$rule['duration_min']) : 60;
+    $kind        = (string)($rule['kind'] ?? 'class');
+    if (!in_array($kind, ['class', 'exam', 'revision', 'makeup'], true)) $kind = 'class';
+    $titlePrefix = isset($rule['title_prefix']) ? trim((string)$rule['title_prefix']) : '';
+    $location    = (isset($rule['location']) && $rule['location'] !== '') ? (string)$rule['location'] : null;
+    $room        = (isset($rule['room'])     && $rule['room']     !== '') ? (string)$rule['room']     : null;
+    $skipDates   = isset($rule['skip_dates']) && is_array($rule['skip_dates'])
+        ? array_fill_keys($rule['skip_dates'], true) : [];
+
+    $instructorId = $co['instructor_id'] !== null ? (int)$co['instructor_id'] : 0;
+    $ids = [];
+    $conflicts = [];
+    $cur = $start;
+    $num = 1;
+    while ($cur <= $end && count($ids) < 104) {
+        $dow = (int)$cur->format('w');
+        $ds  = $cur->format('Y-m-d');
+        if (in_array($dow, $days, true) && !isset($skipDates[$ds])) {
+            $scheduledAt = $ds . ' ' . $timeOfDay . ':00';
+            // Warn (don't block) on instructor/room clashes for this slot. Run
+            // BEFORE inserting so sibling slots in this same batch aren't flagged.
+            if ($instructorId > 0 || $room !== null) {
+                $hit = mam_lms_detect_conflicts($instructorId, $scheduledAt, $durationMin, null, $room);
+                if ($hit) $conflicts[] = ['date' => $ds, 'scheduled_at' => $scheduledAt, 'with' => $hit];
+            }
+            $id = mam_lms_create_session($cohortId, [
+                'title'        => $titlePrefix !== '' ? $titlePrefix . ' ' . $num : null,
+                'scheduled_at' => $scheduledAt,
+                'duration_min' => $durationMin,
+                'kind'         => $kind,
+                'location'     => $location,
+                'room'         => $room,
+                'created_by'   => $actorId,
+            ]);
+            $ids[] = $id;
+            $num++;
+        }
+        $cur = $cur->modify('+1 day');
+    }
+    mam_audit('lms_bulk_create_sessions', 'cohort', $cohortId, ['count' => count($ids), 'conflicts' => count($conflicts), 'by' => $actorId]);
+    return ['session_ids' => $ids, 'conflicts' => $conflicts];
+}
+
+/** Preview dates (Y-m-d) that a bulk rule would generate — no DB writes. */
+function mam_lms_bulk_sessions_preview(array $rule): array {
+    try {
+        $start = new DateTimeImmutable($rule['start_date'] ?? 'now');
+        $end   = new DateTimeImmutable($rule['end_date']   ?? 'now');
+    } catch (\Throwable $e) { return []; }
+    if ($end < $start) return [];
+    $rawDays = $rule['day_of_week'] ?? [];
+    if (!is_array($rawDays)) $rawDays = [$rawDays];
+    $days = array_values(array_unique(array_filter(array_map('intval', $rawDays), fn($d) => $d >= 0 && $d <= 6)));
+    $skipDates = isset($rule['skip_dates']) && is_array($rule['skip_dates'])
+        ? array_fill_keys($rule['skip_dates'], true) : [];
+    $dates = [];
+    $cur = $start;
+    while ($cur <= $end && count($dates) < 104) {
+        $ds = $cur->format('Y-m-d');
+        if (in_array((int)$cur->format('w'), $days, true) && !isset($skipDates[$ds])) $dates[] = $ds;
+        $cur = $cur->modify('+1 day');
+    }
+    return $dates;
+}
+
+/** Detect scheduling conflicts (overlapping scheduled sessions).
+ *  Flags a session that overlaps in time AND clashes on a resource:
+ *    - the same instructor (as cohort owner, creator, OR substitute), or
+ *    - the same $room (when a room is given).
+ *  Returns array of conflicting sessions — empty = safe to schedule. */
+function mam_lms_detect_conflicts(int $instructorId, string $scheduledAt, int $durationMin, ?int $excludeSessionId = null, ?string $room = null): array {
+    if (!$scheduledAt) return [];
+    $endAt = date('Y-m-d H:i:s', strtotime($scheduledAt) + $durationMin * 60);
+    $sessEndExpr = mam_db_driver() === 'mysql'
+        ? 'DATE_ADD(cs.scheduled_at, INTERVAL cs.duration_min MINUTE)'
+        : "datetime(cs.scheduled_at, '+' || cs.duration_min || ' minutes')";
+
+    // Resource-clash clause: same instructor (owner/creator/substitute) or, when
+    // a room is supplied, the same room (so two cohorts can't share a room+time).
+    $room = ($room !== null && trim($room) !== '') ? trim($room) : null;
+    $clash = 'co.instructor_id = ? OR cs.created_by = ? OR cs.substitute_id = ?';
+    $args  = [$instructorId, $instructorId, $instructorId];
+    if ($room !== null) { $clash .= ' OR (cs.room IS NOT NULL AND cs.room = ?)'; $args[] = $room; }
+
+    $sql  = "SELECT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.room, co.title AS cohort_title
+               FROM class_sessions cs
+               JOIN cohorts co ON co.id = cs.cohort_id
+              WHERE ($clash)
+                AND cs.status = 'scheduled'
+                AND cs.scheduled_at IS NOT NULL
+                AND cs.scheduled_at < ?
+                AND $sessEndExpr > ?";
+    $args[] = $endAt;
+    $args[] = $scheduledAt;
+    if ($excludeSessionId !== null) { $sql .= ' AND cs.id != ?'; $args[] = $excludeSessionId; }
+    return mam_db_all($sql, $args);
+}
+
+/** Reschedule a session: move scheduled_at and write an audit entry.
+ *  Throws session_not_found | illegal_transition (must be status=scheduled). */
+function mam_lms_reschedule_session(int $sessionId, string $newScheduledAt, ?string $reason, int $actorId): void {
+    $sess = mam_db_row('SELECT id, scheduled_at, status FROM class_sessions WHERE id = ?', [$sessionId]);
+    if (!$sess) throw new RuntimeException('session_not_found');
+    if ((string)$sess['status'] !== 'scheduled') throw new RuntimeException('illegal_transition');
+    $old = $sess['scheduled_at'];
+    mam_db_update('class_sessions', ['scheduled_at' => $newScheduledAt], ['id' => $sessionId]);
+    mam_db_insert('session_history', [
+        'session_id'    => $sessionId,
+        'field_changed' => 'scheduled_at',
+        'old_value'     => $old,
+        'new_value'     => $newScheduledAt,
+        'reason'        => $reason,
+        'changed_by'    => $actorId,
+    ]);
+    mam_audit('lms_session_reschedule', 'class_session', $sessionId, ['from' => $old, 'to' => $newScheduledAt, 'by' => $actorId]);
+}
+
+/** Assign or clear the substitute instructor for a session. */
+function mam_lms_set_session_substitute(int $sessionId, ?int $subId, int $actorId): void {
+    $sess = mam_db_row('SELECT id, substitute_id FROM class_sessions WHERE id = ?', [$sessionId]);
+    if (!$sess) throw new RuntimeException('session_not_found');
+    mam_db_update('class_sessions', ['substitute_id' => $subId], ['id' => $sessionId]);
+    mam_db_insert('session_history', [
+        'session_id'    => $sessionId,
+        'field_changed' => 'substitute_id',
+        'old_value'     => $sess['substitute_id'] !== null ? (string)$sess['substitute_id'] : null,
+        'new_value'     => $subId !== null ? (string)$subId : null,
+        'reason'        => null,
+        'changed_by'    => $actorId,
+    ]);
+    mam_audit('lms_session_substitute', 'class_session', $sessionId, ['sub' => $subId, 'by' => $actorId]);
+}
+
+/** Full change history for a session, newest first. */
+function mam_lms_session_history(int $sessionId): array {
+    return mam_db_all(
+        "SELECT sh.*, u.name AS changed_by_name
+           FROM session_history sh LEFT JOIN users u ON u.id = sh.changed_by
+          WHERE sh.session_id = ? ORDER BY sh.changed_at DESC",
+        [$sessionId]
+    );
+}
+
+/** All sessions across cohorts in a date range — admin schedule overview.
+ *  Returns sessions enriched with cohort/instructor/substitute info. */
+function mam_lms_schedule_range(string $from, string $to): array {
+    return mam_db_all(
+        "SELECT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.kind, cs.status, cs.room, cs.location,
+                co.id AS cohort_id, co.title AS cohort_title,
+                c.name AS course_name, l.name AS level_name,
+                u.name AS instructor_name,
+                su.name AS substitute_name
+           FROM class_sessions cs
+           JOIN cohorts co       ON co.id  = cs.cohort_id
+           LEFT JOIN courses c   ON c.id   = co.course_id
+           LEFT JOIN levels  l   ON l.id   = co.level_id
+           LEFT JOIN users   u   ON u.id   = co.instructor_id
+           LEFT JOIN users   su  ON su.id  = cs.substitute_id
+          WHERE cs.scheduled_at >= ? AND cs.scheduled_at <= ?
+          ORDER BY cs.scheduled_at ASC, cs.id ASC",
+        [$from . ' 00:00:00', $to . ' 23:59:59']
+    );
+}
+
+/** Update a cohort's structured schedule fields. */
+function mam_lms_update_cohort_schedule(int $cohortId, array $data): void {
+    if (!mam_db_row('SELECT id FROM cohorts WHERE id = ?', [$cohortId])) throw new RuntimeException('cohort_not_found');
+    $upd = [];
+    if (array_key_exists('schedule_days', $data))    $upd['schedule_days']    = $data['schedule_days']    !== '' ? (string)$data['schedule_days']    : null;
+    if (array_key_exists('schedule_time', $data))    $upd['schedule_time']    = preg_match('/^\d{2}:\d{2}$/', (string)($data['schedule_time'] ?? '')) ? (string)$data['schedule_time'] : null;
+    if (array_key_exists('session_duration', $data)) $upd['session_duration'] = max(1, (int)$data['session_duration']);
+    if (!empty($upd)) mam_db_update('cohorts', $upd, ['id' => $cohortId]);
 }
