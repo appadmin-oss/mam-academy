@@ -3920,13 +3920,13 @@ nav a{display:flex;align-items:center}
         $isToday = $dayKey === date('Y-m-d');
         $sessions = $byDay[$dayKey] ?? [];
     ?>
-      <div style="flex:1;min-width:110px;border-right:1px solid var(--border);padding:0 6px">
-        <div style="text-align:center;padding:10px 0 8px;font-size:.75rem;font-weight:700;color:<?= $isToday ? 'var(--gold)' : 'var(--muted)' ?>;text-transform:uppercase;letter-spacing:.06em">
+      <div style="flex:1;min-width:110px;border-right:1px solid var(--border);padding:0 6px<?= $isToday ? ';background:rgba(232,150,31,.05);border-radius:8px' : '' ?>">
+        <div onclick="adminSchedModal.open('<?= $day->format('Y-m-d') ?>')" title="Add session on <?= htmlspecialchars($days[$i] . ' ' . $day->format('M j')) ?>" style="text-align:center;padding:10px 0 8px;font-size:.75rem;font-weight:700;color:<?= $isToday ? 'var(--gold)' : 'var(--muted)' ?>;text-transform:uppercase;letter-spacing:.06em;cursor:pointer;user-select:none">
           <?= htmlspecialchars($days[$i]) ?><br>
           <span style="font-size:1.05rem;color:<?= $isToday ? 'var(--gold)' : 'var(--ink)' ?>"><?= $day->format('j') ?></span>
         </div>
         <?php if (!$sessions): ?>
-          <div style="font-size:.7rem;color:var(--muted);text-align:center;padding:10px 0">—</div>
+          <div onclick="adminSchedModal.open('<?= $day->format('Y-m-d') ?>')" style="font-size:.95rem;color:var(--border);text-align:center;padding:14px 0;cursor:pointer;border-radius:6px;transition:color .15s" onmouseenter="this.style.color='var(--gold)'" onmouseleave="this.style.color='var(--border)'">+</div>
         <?php else: foreach ($sessions as $s):
             $km   = $kindColors[$s['kind'] ?? 'class'] ?? '#34D399';
             $stat = (string)($s['status'] ?? 'scheduled');

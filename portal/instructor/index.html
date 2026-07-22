@@ -39,6 +39,7 @@
       <a class="portal-nav-link" href="#earnings" data-tab="earnings"><i class="fa-solid fa-wallet"></i>Earnings</a>
       <a class="portal-nav-link" href="#announce" data-tab="announce"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#account" data-tab="account"><i class="fa-solid fa-user-gear"></i>Account</a>
+      <a class="portal-nav-link" href="#handbook" data-tab="handbook"><i class="fa-solid fa-book-bookmark"></i>Handbook</a>
       <a class="portal-nav-link" href="/studio" target="_blank" rel="noopener" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:18px"><i class="fa-solid fa-wand-magic-sparkles"></i>Practice Studio <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;margin-left:auto;opacity:0.7"></i></a>
     </nav>
     <div class="portal-side-foot">
@@ -77,7 +78,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], sessions: ['Teaching', 'One cohort at a time — sessions, attendance & standings'], gradebook: ['Gradebook', 'Grade students across the weighted components'], earnings: ['Earnings', 'Your earnings statement from the Academy'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'] };
+  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], sessions: ['Teaching', 'One cohort at a time — sessions, attendance & standings'], gradebook: ['Gradebook', 'Grade students across the weighted components'], earnings: ['Earnings', 'Your earnings statement from the Academy'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
   var data = null;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
 
@@ -98,6 +99,7 @@
     if (tab === 'earnings') return renderEarnings();
     if (tab === 'announce') return renderAnnounce();
     if (tab === 'account') return renderAccount();
+    if (tab === 'handbook') return renderHandbook();
   }
 
   function renderAssignments() {
@@ -1615,6 +1617,86 @@
       content.removeAttribute('aria-busy');
       show(tab);
     });
+  }
+
+  function renderHandbook() {
+    var css = '<style>'
+      + '.hb-wrap{max-width:720px}'
+      + '.hb-acc{border-radius:10px;border:1px solid var(--border);background:var(--raised);margin-bottom:10px;overflow:hidden}'
+      + '.hb-acc>summary{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;list-style:none;font-weight:600;font-size:.88rem;gap:8px;border-bottom:1px solid transparent;transition:background .15s}'
+      + '.hb-acc>summary::-webkit-details-marker{display:none}'
+      + '.hb-acc[open]>summary{border-bottom-color:var(--border)}'
+      + '.hb-acc>summary:hover{background:rgba(255,255,255,.03)}'
+      + '.hb-chev{font-size:.68rem;color:var(--text-muted);transition:transform .2s;flex-shrink:0}'
+      + '.hb-acc[open]>summary .hb-chev{transform:rotate(90deg)}'
+      + '.hb-ptag{font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);border:1px solid var(--border);border-radius:4px;padding:2px 7px;white-space:nowrap}'
+      + '.hb-body{padding:4px 18px 18px;font-size:.84rem;line-height:1.7}'
+      + '.hb-stat{display:inline-flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:12px 20px;min-width:100px;text-align:center}'
+      + '.hb-stat .n{font-size:1.9rem;font-weight:700;color:var(--gold-bright,#E8961F);line-height:1}'
+      + '.hb-stat .l{font-size:.66rem;color:var(--text-muted);margin-top:4px;line-height:1.35}'
+      + '.hb-list{list-style:none;padding:0;margin:10px 0 0}'
+      + '.hb-list li{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}'
+      + '.hb-list li:last-child{border-bottom:none}'
+      + '.hb-list li i{color:var(--gold-bright,#E8961F);margin-top:2px;flex-shrink:0;width:14px}'
+      + '.hb-warn{background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.22);border-radius:8px;padding:11px 14px;margin:10px 0 0;font-size:.82rem;line-height:1.6}'
+      + '.hb-info{background:rgba(232,150,31,.07);border:1px solid rgba(232,150,31,.2);border-radius:8px;padding:11px 14px;margin:10px 0 0;font-size:.82rem;line-height:1.6}'
+      + '</style>';
+    content.innerHTML = css
+      + '<div class="hb-wrap">'
+      + '<section class="panel" style="margin-bottom:14px"><div style="padding:18px 22px;display:flex;gap:14px;align-items:center">'
+      + '<i class="fa-solid fa-book-bookmark" style="font-size:1.4rem;color:var(--gold-bright,#E8961F);flex-shrink:0"></i>'
+      + '<div><div style="font-weight:700;font-size:.95rem">MAM Academy — Instructor Handbook</div>'
+      + '<div style="color:var(--text-muted);font-size:.76rem;margin-top:3px">Effective 28 August 2025 &nbsp;·&nbsp; By accepting your role, you agreed to uphold every provision in this Handbook.</div>'
+      + '</div></div></section>'
+
+      + '<details class="hb-acc" open>'
+      + '<summary><span style="display:flex;align-items:center;gap:8px"><span class="hb-ptag">Part I</span> Your Role &amp; Teaching Model</span><i class="fa-solid fa-chevron-right hb-chev"></i></summary>'
+      + '<div class="hb-body">'
+      + '<p>MAM Academy uses a <strong>Student-Led Guided Learning Model</strong>. You serve primarily as a <strong>facilitator, coach, mentor and academic guide</strong> — not the primary presenter or lecturer.</p>'
+      + '<div style="display:flex;gap:10px;margin:14px 0;flex-wrap:wrap">'
+      + '<div class="hb-stat"><span class="n">70%</span><span class="l">Student-led time<br>you facilitate</span></div>'
+      + '<div class="hb-stat"><span class="n">30%</span><span class="l">Your guidance,<br>corrections &amp; coaching</span></div>'
+      + '</div>'
+      + '<ul class="hb-list">'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span><strong>Orientation session:</strong> You deliver the first session of each course — covering learning objectives, course structure, assessment methods and expectations.</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span><strong>Subsequent sessions:</strong> Students are expected to have studied the assigned module independently. They take primary responsibility for presenting, demonstrating, explaining, discussing or performing it. You guide, correct and coach throughout.</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Sessions are designed to: assess student understanding, encourage peer learning, provide supervised practice, identify misconceptions and learning gaps, deliver critique and coaching, and build communication, confidence and creativity.</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Students may request clarification via the portal, email, or brief follow-up sessions of approximately <strong>20–30 minutes</strong> — subject to your availability and Academy guidelines.</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Students who arrive unprepared may have their eligibility for assessments, public performances, exhibitions or certification affected. You are expected to uphold this standard.</span></li>'
+      + '</ul>'
+      + '<div class="hb-info"><i class="fa-solid fa-lightbulb" style="margin-right:7px"></i><strong>Theory courses:</strong> Students submit written summaries at least 48 hours before class. Review submissions and use them to structure the session discussion.</div>'
+      + '</div></details>'
+
+      + '<details class="hb-acc" open>'
+      + '<summary><span style="display:flex;align-items:center;gap:8px"><span class="hb-ptag">Part VII</span> Your Responsibilities</span><i class="fa-solid fa-chevron-right hb-chev"></i></summary>'
+      + '<div class="hb-body">'
+      + '<ul class="hb-list">'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Demonstrate professionalism in all Academy interactions</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Mentor students fairly, without bias or favouritism</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Provide academic guidance appropriate to each student\'s level</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Assess work objectively and provide constructive feedback</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Maintain appropriate records (attendance, marks, lesson notes)</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Encourage independent learning as a core professional skill</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Uphold Academy values in all conduct inside and outside sessions</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Protect the reputation and standards of MAM Academy</span></li>'
+      + '</ul>'
+      + '</div></details>'
+
+      + '<details class="hb-acc">'
+      + '<summary><span style="display:flex;align-items:center;gap:8px"><span class="hb-ptag">Student Policy</span> What Students Are Required to Do</span><i class="fa-solid fa-chevron-right hb-chev"></i></summary>'
+      + '<div class="hb-body">'
+      + '<p style="color:var(--text-muted);font-size:.82rem;margin-bottom:10px">Understanding student obligations helps you set and enforce the right expectations.</p>'
+      + '<ul class="hb-list">'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Arrive having studied the assigned module — sessions are not for first introductions to new content</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Maintain a minimum of <strong>75% attendance</strong> across all contact sessions, rehearsals, workshops and assessments</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Complete all assignments by stated deadlines — repeated failure triggers graduated corrective measures (verbal warning → ₦500 fine → ₦1,000 fine → suspension)</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Use the Student Portal regularly and act on Academy communications</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Maintain honesty — AI and online tools are permitted as learning aids, but all submitted work and performances must reflect the student\'s own competence</span></li>'
+      + '</ul>'
+      + '<div class="hb-warn"><i class="fa-solid fa-triangle-exclamation" style="margin-right:7px"></i>Students who consistently ignore instructions or refuse to comply with Academy procedures may be excluded from public performances, concerts, exhibitions, recitals, graduation events and certification exercises.</div>'
+      + '</div></details>'
+
+      + '</div>';
   }
 
   P.requireAuth(['instructor', 'admin']).then(function () {

@@ -47,6 +47,7 @@
       <a class="portal-nav-link" href="#profile" data-tab="profile"><i class="fa-solid fa-user"></i>Profile</a>
       <a class="portal-nav-link" href="#progress" data-tab="progress"><i class="fa-solid fa-chart-line"></i>My Progress</a>
       <a class="portal-nav-link" href="#support" data-tab="support"><i class="fa-solid fa-headset"></i>Support <span class="nav-badge" id="supportBadge" hidden></span></a>
+      <a class="portal-nav-link" href="#handbook" data-tab="handbook"><i class="fa-solid fa-book-bookmark"></i>Handbook</a>
       <a class="portal-nav-link" href="/studio" target="_blank" rel="noopener" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:18px"><i class="fa-solid fa-wand-magic-sparkles"></i>Practice Studio <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;margin-left:auto;opacity:0.7"></i></a>
     </nav>
     <div class="portal-side-foot">
@@ -99,7 +100,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
@@ -129,6 +130,7 @@
     if (tab === 'profile') return renderProfile();
     if (tab === 'support') return renderSupport();
     if (tab === 'progress') return renderProgress();
+    if (tab === 'handbook') return renderHandbook();
   }
 
   function greeting() {
@@ -1988,11 +1990,134 @@
     });
   }
 
+  function renderHandbook() {
+    var css = '<style>'
+      + '.hb-wrap{max-width:720px}'
+      + '.hb-acc{border-radius:10px;border:1px solid var(--border);background:var(--raised);margin-bottom:10px;overflow:hidden}'
+      + '.hb-acc>summary{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;list-style:none;font-weight:600;font-size:.88rem;gap:8px;border-bottom:1px solid transparent;transition:background .15s}'
+      + '.hb-acc>summary::-webkit-details-marker{display:none}'
+      + '.hb-acc[open]>summary{border-bottom-color:var(--border)}'
+      + '.hb-acc>summary:hover{background:rgba(255,255,255,.03)}'
+      + '.hb-chev{font-size:.68rem;color:var(--text-muted);transition:transform .2s;flex-shrink:0}'
+      + '.hb-acc[open]>.hb-chev,.hb-acc[open]>summary .hb-chev{transform:rotate(90deg)}'
+      + '.hb-ptag{font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);border:1px solid var(--border);border-radius:4px;padding:2px 7px;white-space:nowrap}'
+      + '.hb-body{padding:4px 18px 18px;font-size:.84rem;line-height:1.7}'
+      + '.hb-stat{display:inline-flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:12px 20px;min-width:100px;text-align:center}'
+      + '.hb-stat .n{font-size:1.9rem;font-weight:700;color:var(--gold-bright,#E8961F);line-height:1}'
+      + '.hb-stat .l{font-size:.66rem;color:var(--text-muted);margin-top:4px;line-height:1.35}'
+      + '.hb-list{list-style:none;padding:0;margin:10px 0 0}'
+      + '.hb-list li{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}'
+      + '.hb-list li:last-child{border-bottom:none}'
+      + '.hb-list li i{color:var(--gold-bright,#E8961F);margin-top:2px;flex-shrink:0;width:14px}'
+      + '.hb-ladder{display:flex;flex-direction:column;gap:6px;margin-top:12px}'
+      + '.hb-rung{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid var(--border);font-size:.83rem}'
+      + '.hb-step{font-size:.6rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:4px;white-space:nowrap;flex-shrink:0;margin-top:1px}'
+      + '.s1 .hb-step{background:rgba(52,211,153,.15);color:#34D399}'
+      + '.s2 .hb-step{background:rgba(251,191,36,.15);color:#FBBF24}'
+      + '.s3 .hb-step{background:rgba(251,146,60,.15);color:#FB923C}'
+      + '.s4 .hb-step{background:rgba(248,113,113,.15);color:#F87171}'
+      + '.hb-warn{background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.22);border-radius:8px;padding:11px 14px;margin:12px 0 0;font-size:.82rem;line-height:1.6}'
+      + '.hb-info{background:rgba(232,150,31,.07);border:1px solid rgba(232,150,31,.2);border-radius:8px;padding:11px 14px;margin:10px 0 0;font-size:.82rem;line-height:1.6}'
+      + '</style>';
+    content.innerHTML = css
+      + '<div class="hb-wrap">'
+      + '<section class="panel" style="margin-bottom:14px"><div style="padding:18px 22px;display:flex;gap:14px;align-items:center">'
+      + '<i class="fa-solid fa-book-bookmark" style="font-size:1.4rem;color:var(--gold-bright,#E8961F);flex-shrink:0"></i>'
+      + '<div><div style="font-weight:700;font-size:.95rem">MAM Academy — Student Handbook</div>'
+      + '<div style="color:var(--text-muted);font-size:.76rem;margin-top:3px">Effective 28 August 2025 &nbsp;·&nbsp; By enrolling, you agreed to comply with every provision in this Handbook.</div>'
+      + '</div></div></section>'
+
+      + '<details class="hb-acc" open>'
+      + '<summary><span style="display:flex;align-items:center;gap:8px"><span class="hb-ptag">Part I</span> Learning Model &amp; Contact Sessions</span><i class="fa-solid fa-chevron-right hb-chev"></i></summary>'
+      + '<div class="hb-body">'
+      + '<p>MAM Academy uses a <strong>Student-Led Guided Learning Model</strong>. Instructors serve as facilitators, coaches and mentors — not primary lecturers. Your active participation is the core of every session.</p>'
+      + '<div style="display:flex;gap:10px;margin:14px 0;flex-wrap:wrap">'
+      + '<div class="hb-stat"><span class="n">70%</span><span class="l">Student-led<br>time per session</span></div>'
+      + '<div class="hb-stat"><span class="n">30%</span><span class="l">Instructor guidance,<br>coaching &amp; feedback</span></div>'
+      + '</div>'
+      + '<ul class="hb-list">'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Each course begins with an <strong>orientation session</strong> delivered by your instructor — covering learning objectives, course structure, assessments and expectations.</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>After orientation, you are expected to study each prescribed module <strong>independently, before</strong> every scheduled session.</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>In sessions you take <strong>primary responsibility</strong> for presenting, explaining, demonstrating, discussing or performing the assigned module. You lead ~70%; the instructor guides, corrects and coaches.</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Sessions are designed to: assess your understanding, encourage peer learning, provide supervised practice, identify gaps, give instructor critique and strengthen communication, confidence and creativity.</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Use all available resources — portal, books, YouTube, AI tools — as <em>learning aids</em>. All submitted work and performances must reflect <strong>your own</strong> understanding and competence. Academic dishonesty may result in disciplinary action.</span></li>'
+      + '<li><i class="fa-solid fa-circle-dot"></i><span>Seek clarification whenever needed. You may request brief follow-up Q&amp;A sessions of approximately <strong>20–30 minutes</strong>, subject to instructor availability.</span></li>'
+      + '</ul>'
+      + '<div class="hb-warn"><i class="fa-solid fa-triangle-exclamation" style="margin-right:7px"></i>Failure to prepare adequately may affect participation, academic progress, eligibility for assessments, public performances, exhibitions or certification.</div>'
+      + '<div class="hb-info"><i class="fa-solid fa-file-lines" style="margin-right:7px"></i><strong>Theory-based courses:</strong> Written summaries or reflections must be submitted at least <strong>48 hours before</strong> class to <em>academy@mamcentre.org</em> or through the Student Portal.</div>'
+      + '</div></details>'
+
+      + '<details class="hb-acc" open>'
+      + '<summary><span style="display:flex;align-items:center;gap:8px"><span class="hb-ptag">Part II</span> Your Responsibilities</span><i class="fa-solid fa-chevron-right hb-chev"></i></summary>'
+      + '<div class="hb-body">'
+      + '<ul class="hb-list">'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Attend classes punctually</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Maintain a minimum attendance of <strong>75%</strong></span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Study assigned modules before each session</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Complete all assignments within stipulated deadlines</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Regularly use the Student Portal</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Monitor Academy announcements — not checking is not an excuse</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Respect instructors and fellow students</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Maintain honesty and academic integrity</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Protect Academy property</span></li>'
+      + '<li><i class="fa-solid fa-circle-check"></i><span>Comply with all Academy rules and official communications</span></li>'
+      + '</ul>'
+      + '</div></details>'
+
+      + '<details class="hb-acc">'
+      + '<summary><span style="display:flex;align-items:center;gap:8px"><span class="hb-ptag">Part III</span> Attendance</span><i class="fa-solid fa-chevron-right hb-chev"></i></summary>'
+      + '<div class="hb-body">'
+      + '<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;margin-bottom:12px">'
+      + '<div class="hb-stat"><span class="n">75%</span><span class="l">Minimum attendance<br>required</span></div>'
+      + '<div style="font-size:.83rem;flex:1;min-width:200px;padding-top:4px">Tracked for contact sessions, practical classes, rehearsals, mentoring sessions, workshops, performances, assessments and every compulsory Academy activity.</div>'
+      + '</div>'
+      + '<p style="font-weight:600;font-size:.83rem;margin-bottom:6px">Falling below 75% may result in:</p>'
+      + '<ul class="hb-list">'
+      + '<li><i class="fa-solid fa-circle-xmark" style="color:#F87171"></i><span>Ineligibility for examinations</span></li>'
+      + '<li><i class="fa-solid fa-circle-xmark" style="color:#F87171"></i><span>Exclusion from concerts, exhibitions, recitals or showcases</span></li>'
+      + '<li><i class="fa-solid fa-circle-xmark" style="color:#F87171"></i><span>Loss of eligibility for certification</span></li>'
+      + '<li><i class="fa-solid fa-circle-xmark" style="color:#F87171"></i><span>Required to repeat modules before progression</span></li>'
+      + '</ul>'
+      + '<p style="margin-top:10px;font-size:.8rem;color:var(--text-muted)">Approved medical or emergency absences should be communicated promptly and may require supporting evidence.</p>'
+      + '</div></details>'
+
+      + '<details class="hb-acc">'
+      + '<summary><span style="display:flex;align-items:center;gap:8px"><span class="hb-ptag">Part IV</span> Assignments &amp; Instruction Compliance</span><i class="fa-solid fa-chevron-right hb-chev"></i></summary>'
+      + '<div class="hb-body">'
+      + '<p>Assignments are compulsory. Failure to complete them without an approved reason is academic non-compliance and attracts the same corrective measures as other violations.</p>'
+      + '<p style="margin-top:8px">Repeated non-compliance may affect: <strong>promotion, certification, scholarship consideration, exhibitions, public performances, graduation</strong> and Academy representation.</p>'
+      + '<div class="hb-info"><i class="fa-solid fa-quote-left" style="margin-right:7px"></i><em>"Obedience to instruction is the foundation of excellence in public performance. Talent without discipline cannot produce professional excellence."</em></div>'
+      + '</div></details>'
+
+      + '<details class="hb-acc">'
+      + '<summary><span style="display:flex;align-items:center;gap:8px"><span class="hb-ptag">Part V</span> Corrective Measures</span><i class="fa-solid fa-chevron-right hb-chev"></i></summary>'
+      + '<div class="hb-body">'
+      + '<p style="margin-bottom:12px">The Academy believes correction should precede punishment. Where a student repeatedly fails to comply, graduated measures apply:</p>'
+      + '<div class="hb-ladder">'
+      + '<div class="hb-rung s1"><span class="hb-step">1st</span><span>Verbal advisory &amp; written warning</span></div>'
+      + '<div class="hb-rung s2"><span class="hb-step">2nd</span><span>Administrative fine — <strong>₦500</strong></span></div>'
+      + '<div class="hb-rung s3"><span class="hb-step">3rd</span><span>Administrative fine — <strong>₦1,000</strong></span></div>'
+      + '<div class="hb-rung s4"><span class="hb-step">4th</span><span>One-week suspension &nbsp;·&nbsp; Fine of <strong>₦3,000</strong> &nbsp;·&nbsp; All outstanding assignments completed before resumption</span></div>'
+      + '</div>'
+      + '<p style="margin-top:12px;font-size:.8rem;color:var(--text-muted)">During suspension: no classes, Academy activities, rehearsals or performances. Portal access may be suspended until all outstanding work is completed and formally approved by the Academy.</p>'
+      + '</div></details>'
+
+      + '<details class="hb-acc">'
+      + '<summary><span style="display:flex;align-items:center;gap:8px"><span class="hb-ptag">Part VI</span> Payments &amp; Refunds</span><i class="fa-solid fa-chevron-right hb-chev"></i></summary>'
+      + '<div class="hb-body">'
+      + '<p>Students shall pay all required fees according to the published payment schedule. Outstanding obligations may restrict access to services, assessments or certifications.</p>'
+      + '<div class="hb-warn"><i class="fa-solid fa-triangle-exclamation" style="margin-right:7px"></i><strong>Non-refundable once commenced.</strong> All payments — including registration, tuition, studio and administrative fees — are final and non-refundable once your programme or onboarding has commenced. Exceptions apply only where law expressly grants a right of cancellation. Refer to the Academy\'s Terms of Service for the complete refund policy.</div>'
+      + '</div></details>'
+
+      + '</div>';
+  }
+
   P.requireAuth(['student']).then(function () {
     P.init();
     startClock();
     bindTabLinks();
     syncTabs = P.enhanceTabs({ onActivate: show });
+
     return load();
   }).catch(function (e) {
     if (e.message !== 'unauthenticated') {
