@@ -179,6 +179,56 @@ try {
         mam_ok(['ok' => true]);
     }
 
+    /* ── set_meeting_link ── */
+    if ($action === 'set_meeting_link') {
+        $sid  = (int)($in['session_id'] ?? 0);
+        $link = trim((string)($in['meeting_link'] ?? ''));
+        if ($sid < 1) mam_fail('validation', 422, ['fields' => ['session_id']]);
+        if (!$ownsSession($sid)) mam_fail('forbidden', 403);
+        if ($link !== '' && !preg_match('#^https?://#i', $link)) mam_fail('invalid_url', 422, ['detail' => 'Meeting link must start with https://']);
+        mam_db_update('class_sessions', ['meeting_link' => $link !== '' ? $link : null], ['id' => $sid]);
+        mam_audit('set_meeting_link', 'class_session', $sid, ['link_set' => ($link !== '')]);
+        mam_ok(['ok' => true]);
+    }
+
+    /* ── send_reminder (students only; admin route adds instructor) ── */
+    if ($action === 'send_reminder') {
+        $sid = (int)($in['session_id'] ?? 0);
+        if ($sid < 1) mam_fail('validation', 422, ['fields' => ['session_id']]);
+        $sess = mam_lms_session($sid);
+        if (!$sess) mam_fail('session_not_found', 404);
+        if (!$ownsCohort((int)$sess['cohort_id'])) mam_fail('forbidden', 403);
+
+        $appUrl    = rtrim((string)mam_env('APP_URL', ''), '/');
+        $loginUrl  = $appUrl . '/portal/login';
+        $joinUrl   = !empty($sess['meeting_link']) ? $appUrl . '/session/' . $sid . '/join' : '';
+        $title     = (string)($sess['title'] ?: 'your session');
+        $whenLabel = !empty($sess['scheduled_at'])
+            ? date('l j M, g:i A T', strtotime((string)$sess['scheduled_at']))
+            : 'upcoming';
+
+        $students = mam_db_all(
+            "SELECT DISTINCT u.name, u.email FROM course_enrollments ce
+               JOIN users u ON u.id = ce.student_id
+              WHERE ce.cohort_id = ? AND ce.status IN ('active','completed')
+                AND u.email IS NOT NULL AND u.email <> ''",
+            [(int)$sess['cohort_id']]
+        );
+        $sent = 0;
+        foreach ($students as $st) {
+            mam_send(
+                (string)$st['email'],
+                'Reminder: ' . $title . ' is coming up',
+                mam_email_session_reminder((string)($st['name'] ?? ''), $title, $whenLabel, $loginUrl, $joinUrl),
+                'session_reminder_manual', true
+            );
+            $sent++;
+        }
+        mam_event('session.reminder_manual', 'class_session', $sid, ['sent_by' => $me, 'students' => $sent]);
+        mam_audit('send_reminder', 'class_session', $sid, ['students' => $sent]);
+        mam_ok(['sent' => $sent]);
+    }
+
     /* ── status ── */
     if ($action === 'status') {
         $sid = (int)($in['session_id'] ?? 0);

@@ -1037,24 +1037,54 @@ function mam_email_enrolled(string $name, string $className, string $schedule, s
 }
 
 /**
- * Session reminder — sent ~24h before a scheduled class session by the
- * 'session_reminder' automation sweep (api/lib/automations.php).
+ * Session reminder — sent by the automated sweep or on demand by instructors/admins.
+ *
+ * $meetingUrl  Optional redirect URL (e.g. https://academy.mamcentre.org/session/N/join).
+ *              Pass the auth-gated academy redirect, not the raw Zoom/Meet link.
+ * $role        'student' (default) or 'instructor' — changes the subject copy.
  */
-function mam_email_session_reminder(string $name, string $sessionTitle, string $whenLabel, string $loginUrl): string {
+function mam_email_session_reminder(
+    string $name,
+    string $sessionTitle,
+    string $whenLabel,
+    string $loginUrl,
+    string $meetingUrl = '',
+    string $role = 'student'
+): string {
     $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);
     $t = htmlspecialchars($sessionTitle ?: 'your session', ENT_QUOTES);
     $w = htmlspecialchars($whenLabel, ENT_QUOTES);
-    $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>See you soon, $n</h2>
-      <p style='color:#4A3624;font-size:15px'>A friendly reminder that <strong style='color:#B8721B'>$t</strong> is coming up:</p>
-      <div style='background:#FBF4E8;border:1px dashed #B8721B;border-radius:10px;padding:14px 18px;text-align:center;color:#B8721B;font-weight:700;margin:16px 0'>$w</div>
-      <p style='color:#7A5C3D;font-size:14px'>Warm up a little beforehand and bring any questions from your practice. See you there!</p>
-      " . mam_email_button($loginUrl, 'Open my portal');
+
+    $joinBtn = '';
+    if ($meetingUrl !== '') {
+        $joinBtn = "<div style='margin:14px 0 4px'>" . mam_email_button($meetingUrl, 'Join the session', '#27AE60') . "</div>";
+    }
+
+    if ($role === 'instructor') {
+        $portalUrl = str_contains($loginUrl, '?') ? $loginUrl . '&role=instructor' : $loginUrl . '?role=instructor';
+        $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>Coming up: $t</h2>
+          <p style='color:#4A3624;font-size:15px'>Hi $n — a reminder that you have a session scheduled:</p>
+          <div style='background:#FBF4E8;border:1px dashed #B8721B;border-radius:10px;padding:14px 18px;text-align:center;color:#B8721B;font-weight:700;margin:16px 0'>$w</div>
+          <p style='color:#7A5C3D;font-size:14px'>Warm up the room and be ready for your students. See you there!</p>
+          $joinBtn" . mam_email_button($loginUrl, 'Open instructor portal');
+        $preheader = 'Reminder: you have a session coming up — ' . ($sessionTitle ?: 'your session') . '.';
+        $reason = 'You received this because you are the instructor for an upcoming MAM Academy session.';
+    } else {
+        $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>See you soon, $n</h2>
+          <p style='color:#4A3624;font-size:15px'>A friendly reminder that <strong style='color:#B8721B'>$t</strong> is coming up:</p>
+          <div style='background:#FBF4E8;border:1px dashed #B8721B;border-radius:10px;padding:14px 18px;text-align:center;color:#B8721B;font-weight:700;margin:16px 0'>$w</div>
+          <p style='color:#7A5C3D;font-size:14px'>Warm up a little beforehand and bring any questions from your practice. See you there!</p>
+          $joinBtn" . mam_email_button($loginUrl, 'Open my portal');
+        $preheader = 'A reminder about your upcoming MAM Academy session.';
+        $reason = 'You received this because you are enrolled in an upcoming MAM Academy session.';
+    }
+
     return mam_email_layout([
-        'header' => 'MAM ACADEMY',
-        'preheader' => 'A reminder about your upcoming MAM Academy session.',
-        'reason' => 'You received this because you are enrolled in an upcoming MAM Academy session.',
+        'header'      => 'MAM ACADEMY',
+        'preheader'   => $preheader,
+        'reason'      => $reason,
         'unsubscribe' => true,
-        'body' => $inner,
+        'body'        => $inner,
     ]);
 }
 

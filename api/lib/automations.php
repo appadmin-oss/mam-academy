@@ -228,7 +228,7 @@ function mam_automation_session_reminder_sweep(int $withinHours = 24, int $limit
     $until = date('Y-m-d H:i:s', time() + max(1, $withinHours) * 3600);
     try {
         $sessions = mam_db_all(
-            "SELECT cs.id, cs.cohort_id, cs.title, cs.scheduled_at
+            "SELECT cs.id, cs.cohort_id, cs.title, cs.scheduled_at, cs.meeting_link
                FROM class_sessions cs
               WHERE cs.status = 'scheduled' AND cs.scheduled_at IS NOT NULL
                 AND cs.scheduled_at > ? AND cs.scheduled_at <= ?
@@ -237,10 +237,13 @@ function mam_automation_session_reminder_sweep(int $withinHours = 24, int $limit
             [$now, $until]
         );
     } catch (\Throwable $e) { return 0; }
-    $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
+    $appUrl   = rtrim((string)mam_env('APP_URL', ''), '/');
+    $loginUrl = $appUrl . '/portal/login';
     $count = 0;
     foreach ($sessions as $s) {
         $sent = 0;
+        // Use the academy-hosted redirect URL so the raw meeting URL stays server-side.
+        $joinUrl = !empty($s['meeting_link']) ? $appUrl . '/session/' . (int)$s['id'] . '/join' : '';
         try {
             $students = mam_db_all(
                 "SELECT DISTINCT u.name, u.email FROM course_enrollments ce
@@ -253,7 +256,7 @@ function mam_automation_session_reminder_sweep(int $withinHours = 24, int $limit
             foreach ($students as $st) {
                 if (function_exists('mam_send') && function_exists('mam_email_session_reminder')) {
                     mam_send((string)$st['email'], 'Reminder: your MAM Academy session is coming up',
-                        mam_email_session_reminder((string)($st['name'] ?? ''), (string)($s['title'] ?? 'your session'), $whenLabel, $loginUrl),
+                        mam_email_session_reminder((string)($st['name'] ?? ''), (string)($s['title'] ?? 'your session'), $whenLabel, $loginUrl, $joinUrl),
                         'session_reminder', true);
                     $sent++;
                 }

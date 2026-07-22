@@ -3940,7 +3940,16 @@ nav a{display:flex;align-items:center}
             <?php if (!empty($s['room']) || !empty($s['location'])): ?>
             <div style="color:var(--muted);margin-top:1px"><i class="fa-solid fa-location-dot" style="font-size:.65rem"></i> <?= htmlspecialchars($s['room'] ?: $s['location']) ?></div>
             <?php endif; ?>
-            <div style="margin-top:3px"><span style="background:<?= htmlspecialchars($km) ?>22;color:<?= htmlspecialchars($km) ?>;font-size:.6rem;padding:1px 5px;border-radius:4px;text-transform:uppercase"><?= htmlspecialchars($s['kind'] ?? 'class') ?></span></div>
+            <div style="display:flex;align-items:center;gap:4px;margin-top:4px;flex-wrap:wrap">
+              <span style="background:<?= htmlspecialchars($km) ?>22;color:<?= htmlspecialchars($km) ?>;font-size:.6rem;padding:1px 5px;border-radius:4px;text-transform:uppercase"><?= htmlspecialchars($s['kind'] ?? 'class') ?></span>
+              <?php if ($stat !== 'cancelled'): ?>
+              <button onclick="schedRemind(<?= (int)$s['id'] ?>,this)" title="Send reminder to instructor + students" style="background:none;border:none;cursor:pointer;padding:1px 4px;border-radius:4px;color:var(--gold);font-size:.65rem;line-height:1" <?= $stat === 'cancelled' ? 'disabled' : '' ?>><i class="fa-solid fa-bell"></i></button>
+              <button onclick="schedLinkModal(<?= (int)$s['id'] ?>,<?= json_encode($s['meeting_link'] ?? '') ?>)" title="Set meeting link" style="background:none;border:none;cursor:pointer;padding:1px 4px;border-radius:4px;font-size:.65rem;line-height:1;color:<?= !empty($s['meeting_link']) ? '#34D399' : 'var(--muted)' ?>"><i class="fa-solid fa-link"></i></button>
+              <?php if (!empty($s['meeting_link'])): ?>
+              <a href="/session/<?= (int)$s['id'] ?>/join" target="_blank" title="Test join link" style="color:#34D399;font-size:.65rem;padding:1px 3px"><i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+              <?php endif; ?>
+              <?php endif; ?>
+            </div>
           </div>
         <?php endforeach; endif; ?>
       </div>
@@ -4058,6 +4067,77 @@ nav a{display:flex;align-items:center}
       window.location.reload();
     })
     .catch(function(){ err.textContent='Network error.'; err.style.display='block'; btn.disabled=false; btn.textContent='Create Session'; });
+  }
+
+  // Send reminder (instructor + all enrolled students)
+  function schedRemind(sessionId, btn) {
+    var orig = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    fetch('/api/admin/session-remind', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type':'application/json','X-CSRF-Token':_adminCsrf},
+      body: JSON.stringify({action:'send', session_id: sessionId})
+    })
+    .then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});})
+    .then(function(x){
+      btn.disabled = false; btn.innerHTML = orig;
+      if (!x.ok) { alert('Could not send reminder: ' + ((x.d && x.d.error) || 'unknown error')); return; }
+      var n = x.d.sent || 0;
+      var i = x.d.instructor_notified ? ' + instructor' : '';
+      var msg = 'Reminder sent to ' + n + ' student' + (n !== 1 ? 's' : '') + i + '.';
+      if (typeof showToast === 'function') showToast(msg, 'success'); else alert(msg);
+    })
+    .catch(function(){ btn.disabled=false; btn.innerHTML=orig; alert('Network error.'); });
+  }
+
+  // Set / clear meeting link modal
+  (function(){
+    var overlay = document.createElement('div');
+    overlay.id = 'linkOverlay';
+    overlay.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;align-items:center;justify-content:center';
+    overlay.innerHTML = '<div style="background:var(--raised);border-radius:12px;padding:26px 22px;max-width:440px;width:90%;position:relative">'
+      + '<h3 style="margin:0 0 14px;font-size:1rem">Meeting link for this session</h3>'
+      + '<p style="color:var(--muted);font-size:.83rem;margin-bottom:12px">Paste your Zoom, Meet, or Teams URL. Students and the instructor will be redirected to it via the academy site.</p>'
+      + '<input id="linkInput" type="url" placeholder="https://zoom.us/j/..." style="width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:.9rem;background:var(--bg);color:var(--ink)">'
+      + '<div id="linkErr" style="color:#F87171;font-size:.8rem;margin-top:6px;display:none"></div>'
+      + '<div style="display:flex;gap:8px;margin-top:16px">'
+      +   '<button id="linkSaveBtn" class="btn" onclick="schedLinkSave()">Save link</button>'
+      +   '<button class="btn ghost" onclick="schedLinkClose()">Cancel</button>'
+      +   '<button class="btn ghost" style="margin-left:auto;color:#F87171" onclick="schedLinkSave(true)">Remove link</button>'
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', function(e){ if (e.target === overlay) schedLinkClose(); });
+  })();
+  var _schedLinkSessionId = 0;
+  function schedLinkModal(sessionId, current) {
+    _schedLinkSessionId = sessionId;
+    document.getElementById('linkInput').value = current || '';
+    document.getElementById('linkErr').style.display = 'none';
+    document.getElementById('linkOverlay').style.display = 'flex';
+    setTimeout(function(){ document.getElementById('linkInput').focus(); }, 50);
+  }
+  function schedLinkClose() { document.getElementById('linkOverlay').style.display = 'none'; }
+  function schedLinkSave(remove) {
+    var link = remove ? '' : (document.getElementById('linkInput').value || '').trim();
+    var errEl = document.getElementById('linkErr');
+    if (link !== '' && !/^https?:\/\//i.test(link)) { errEl.textContent = 'URL must start with https://'; errEl.style.display='block'; return; }
+    errEl.style.display = 'none';
+    var btn = document.getElementById('linkSaveBtn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    fetch('/api/admin/session-remind', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type':'application/json','X-CSRF-Token':_adminCsrf},
+      body: JSON.stringify({action:'set_link', session_id: _schedLinkSessionId, meeting_link: link})
+    })
+    .then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});})
+    .then(function(x){
+      btn.disabled=false; btn.textContent='Save link';
+      if (!x.ok){ errEl.textContent = (x.d && x.d.error) || 'Failed to save.'; errEl.style.display='block'; return; }
+      schedLinkClose();
+      window.location.reload();
+    })
+    .catch(function(){ btn.disabled=false; btn.textContent='Save link'; errEl.textContent='Network error.'; errEl.style.display='block'; });
   }
   </script>
 

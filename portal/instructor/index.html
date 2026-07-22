@@ -312,12 +312,15 @@
         if (s.status !== 'scheduled' || s.scheduled_at) actions += ' <button class="btn btn-ghost" data-lesson-notes="' + s.id + '" style="' + (hasNotes ? 'border-color:var(--gold-bright);color:var(--gold-bright)' : '') + '">' + notesBtnLabel + '</button>';
         if (s.status === 'scheduled') {
           actions += ' <button class="btn btn-ghost" data-reschedule="' + s.id + '" title="Reschedule"><i class="fa-solid fa-calendar-pen"></i></button>';
+          actions += ' <button class="btn btn-ghost" data-send-reminder="' + s.id + '" title="Send reminder to enrolled students"><i class="fa-solid fa-bell"></i></button>';
           actions += ' <button class="btn" data-sess-status="' + s.id + '|held">Held</button>';
           actions += ' <button class="btn btn-ghost" data-sess-status="' + s.id + '|cancelled" style="color:var(--red,#ef4444)">Cancel</button>';
         }
         if (s.status === 'held') {
           actions += ' <button class="btn btn-ghost" data-progress-report="' + s.id + '" style="color:var(--gold-bright);border-color:var(--gold-bright)"><i class="fa-solid fa-clipboard-list"></i> Reports</button>';
         }
+        var linkLabel = s.meeting_link ? '<i class="fa-solid fa-link" style="color:#34D399"></i>' : '<i class="fa-solid fa-link"></i>';
+        actions += ' <button class="btn btn-ghost" data-set-meeting-link="' + s.id + '" data-current-link="' + P.escapeHtml(s.meeting_link || '') + '" title="' + (s.meeting_link ? 'Change meeting link' : 'Set meeting link') + '">' + linkLabel + '</button>';
         var subName = s.substitute_name ? (' <span style="font-size:.72rem;color:var(--gold-bright)">sub: ' + P.escapeHtml(s.substitute_name) + '</span>') : '';
         var roomStr = s.room ? (' <span style="font-size:.7rem;color:var(--text-muted)"><i class="fa-solid fa-location-dot"></i> ' + P.escapeHtml(s.room) + '</span>') : '';
         return '<tr data-sess-id="' + s.id + '"><td>' + P.escapeHtml(s.title || ('Session #' + s.id)) + subName + '</td><td>' + when + roomStr + '</td><td>' + P.escapeHtml(s.kind) + '</td><td><span class="pill ' + P.escapeHtml(s.status) + '">' + P.escapeHtml(s.status) + '</span></td><td style="white-space:nowrap">' + actions + '</td></tr>';
@@ -570,6 +573,55 @@
           .catch(function () {
             b.disabled = false; b.innerHTML = orig;
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not load progress reports.', 'error');
+          });
+      });
+    });
+
+    // Send reminder to enrolled students for this session
+    document.querySelectorAll('[data-send-reminder]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-send-reminder'), 10);
+        var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        API.request('instructor/sessions', { method: 'POST', body: { action: 'send_reminder', session_id: sid } })
+          .then(function (r) {
+            b.disabled = false; b.innerHTML = orig;
+            var n = r.sent || 0;
+            var msg = 'Reminder sent to ' + n + ' student' + (n !== 1 ? 's' : '') + '.';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'success'); else alert(msg);
+          })
+          .catch(function (err) {
+            b.disabled = false; b.innerHTML = orig;
+            var msg = (err && err.body && err.body.error) ? err.body.error : 'Could not send reminder.';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'error'); else alert(msg);
+          });
+      });
+    });
+
+    // Set / clear meeting link for a session
+    document.querySelectorAll('[data-set-meeting-link]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid     = parseInt(b.getAttribute('data-set-meeting-link'), 10);
+        var current = b.getAttribute('data-current-link') || '';
+        var url = window.prompt('Meeting link for this session (Zoom, Meet, etc.).\nLeave blank to remove.', current);
+        if (url === null) return; // cancelled
+        url = url.trim();
+        if (url !== '' && !/^https?:\/\//i.test(url)) {
+          if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Link must start with https://', 'error');
+          else alert('Link must start with https://');
+          return;
+        }
+        var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        API.request('instructor/sessions', { method: 'POST', body: { action: 'set_meeting_link', session_id: sid, meeting_link: url } })
+          .then(function () {
+            b.disabled = false; b.innerHTML = orig;
+            var msg = url ? 'Meeting link saved.' : 'Meeting link removed.';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'success'); else alert(msg);
+            loadCohortSessions(cid);
+          })
+          .catch(function (err) {
+            b.disabled = false; b.innerHTML = orig;
+            var msg = (err && err.body && err.body.error) ? err.body.error : 'Could not save link.';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'error'); else alert(msg);
           });
       });
     });

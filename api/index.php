@@ -296,8 +296,9 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->get ('/summer',         $f('admin/summer.php'), [mw_admin_cap('view')]);
     $r->post('/summer/status',  $f('admin/summer.php'), [mw_csrf(), mw_admin_cap('view')]);
     // ID cards: list all cards + admin actions (reissue, revoke, mark printed).
-    $r->get ('/id-cards',       $f('admin/id-cards.php'), [mw_admin_cap('enrollments')]);
-    $r->post('/id-cards',       $f('admin/id-cards.php'), [mw_csrf(), mw_admin_cap('enrollments')]);
+    $r->get ('/id-cards',       $f('admin/id-cards.php'),      [mw_admin_cap('enrollments')]);
+    $r->post('/id-cards',       $f('admin/id-cards.php'),      [mw_csrf(), mw_admin_cap('enrollments')]);
+    $r->post('/session-remind', $f('admin/session-remind.php'), [mw_csrf(), mw_admin_cap('enrollments')]);
 });
 
 /* ─── Dispatch ─── */

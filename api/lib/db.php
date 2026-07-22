@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 56;
+const MAM_SCHEMA_TARGET = 57;
 
 /**
  * Open (and cache) the PDO connection.
@@ -109,12 +109,14 @@ function mam_db_migrate_mysql(PDO $db): void {
             // is a single multi-clause ALTER that fails atomically with 1060 on re-runs,
             // meaning its FK constraints don't re-execute, but they're added on first run.
             // criticalRepairs guarantees the columns exist regardless.
+            // v57 adds meeting_link for the auth-gated join redirect.
             'class_sessions' => [
                 'lesson_notes'        => "ALTER TABLE class_sessions ADD COLUMN lesson_notes        TEXT         NULL",
                 'substitute_id'       => "ALTER TABLE class_sessions ADD COLUMN substitute_id       INT          NULL",
                 'rescheduled_from'    => "ALTER TABLE class_sessions ADD COLUMN rescheduled_from    INT          NULL",
                 'cancellation_reason' => "ALTER TABLE class_sessions ADD COLUMN cancellation_reason TEXT         NULL",
                 'room'                => "ALTER TABLE class_sessions ADD COLUMN room                VARCHAR(120) NULL",
+                'meeting_link'        => "ALTER TABLE class_sessions ADD COLUMN meeting_link        VARCHAR(500) NULL",
             ],
             // cohorts scheduling columns added in v45.
             'cohorts' => [
@@ -1666,6 +1668,8 @@ function mam_db_migrate(PDO $db): void {
             CREATE INDEX IF NOT EXISTS idx_card_scans_session
               ON card_scans(session_id);
         ",
+
+        57 => "ALTER TABLE class_sessions ADD COLUMN meeting_link TEXT;",
     ];
 
     foreach ($migrations as $version => $sql) {

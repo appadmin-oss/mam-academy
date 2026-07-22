@@ -1564,3 +1564,5 @@ CREATE TABLE IF NOT EXISTS card_scans (
   KEY idx_card_scans_session (session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (56) ON DUPLICATE KEY UPDATE version = version;
+ALTER TABLE class_sessions ADD COLUMN IF NOT EXISTS meeting_link VARCHAR(500) NULL;
+INSERT INTO schema_version (version) VALUES (57) ON DUPLICATE KEY UPDATE version = version;

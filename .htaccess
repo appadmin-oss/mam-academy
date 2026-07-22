@@ -48,6 +48,10 @@ DirectoryIndex index.php index.html index.htm
   # ID card pages: /card/{serial} → card.php?serial={serial}
   RewriteRule ^card/([A-Za-z0-9-]+)/?$ card.php?serial=$1 [L,QSA]
 
+  # Meeting link redirects: /session/{id}/join and /class/{id}/join → join.php
+  RewriteRule ^session/([0-9]+)/join/?$ join.php?type=session&id=$1 [L,QSA]
+  RewriteRule ^class/([0-9]+)/join/?$   join.php?type=class&id=$1   [L,QSA]
+
   # 1. External redirect: strip .html / .php from the URL so the clean URL is
   #    canonical (good for SEO, avoids duplicate content). %{THE_REQUEST} guards
   #    so it only fires on the original browser request, never the internal
