@@ -264,46 +264,106 @@ function mam_card_mint_for_summer_app(int $summerAppId): ?array {
 }
 
 /**
- * Generate a GD placeholder PNG for the card email attachment.
- * Returns null if GD is unavailable (email is still sent without PNG).
+ * Compute the human-readable display ID shown on the card face.
+ * Format: MAM/0{yy}/{id:04d}  e.g. MAM/026/0229 for card #229 issued in 2026.
+ */
+function mam_card_display_id(array $card): string {
+    $yy = substr((string)$card['issued_at'], 2, 2); // e.g. "26" from "2026-..."
+    $id = str_pad((string)(int)$card['id'], 4, '0', STR_PAD_LEFT);
+    return 'MAM/0' . $yy . '/' . $id;
+}
+
+/**
+ * Generate a GD PNG for the card email attachment.
+ * Portrait card matching the branded design: white upper half, orange lower half,
+ * circular photo at the boundary. Returns null if GD is unavailable.
  */
 function mam_card_generate_png(array $card, string $name): ?string {
     if (!function_exists('imagecreatetruecolor')) return null;
-    $w = 638; $h = 402; // CR80 landscape ~1.585:1
+    $w = 540; $h = 720; // 3:4 portrait
     $img = imagecreatetruecolor($w, $h);
     if ($img === false) return null;
 
-    $cPaper = imagecolorallocate($img, 253, 252, 249);
-    $cInk   = imagecolorallocate($img, 26,  18,  11);
-    $cGold  = imagecolorallocate($img, 193, 123, 42);
-    $cMuted = imagecolorallocate($img, 130, 112, 88);
-    $cDark  = imagecolorallocate($img, 33,  26,  19);
+    $cWhite  = imagecolorallocate($img, 255, 255, 255);
+    $cOrange = imagecolorallocate($img, 240, 123, 26);
+    $cDark   = imagecolorallocate($img, 26,  18,  11);
+    $cGrey   = imagecolorallocate($img, 200, 190, 178);
+    $cMutedO = imagecolorallocate($img, 255, 220, 180); // muted on orange
 
-    imagefill($img, 0, 0, $cPaper);
-    // Amber left rail
-    imagefilledrectangle($img, 0, 0, 6, $h - 1, $cGold);
-    // Dark header band
-    imagefilledrectangle($img, 7, 0, $w - 1, 66, $cDark);
+    // White background
+    imagefill($img, 0, 0, $cWhite);
 
-    // Header text
-    imagestring($img, 5, 22, 18, 'MAM ACADEMY', $cGold);
-    imagestring($img, 3, 22, 44, strtoupper((string)$card['role']), $cMuted);
+    // Orange lower section with V-notch for photo
+    $midX   = (int)($w / 2);
+    $topY   = (int)($h * 0.50); // orange top edge (straight)
+    $notchY = (int)($h * 0.44); // notch dip (photo center)
+    $notchR = (int)($w * 0.18); // half-width of V notch
 
-    // Holder name
-    imagestring($img, 5, 22, 95,  $name, $cInk);
+    $pts = [
+        0,                        $topY,
+        $midX - $notchR * 2,      $topY,
+        $midX - $notchR,          $notchY + (int)($h * 0.02),
+        $midX,                    $notchY,
+        $midX + $notchR,          $notchY + (int)($h * 0.02),
+        $midX + $notchR * 2,      $topY,
+        $w,                       $topY,
+        $w,                       $h,
+        0,                        $h,
+    ];
+    imagefilledpolygon($img, $pts, $cOrange);
 
-    // Serial
-    imagestring($img, 4, 22, 145, (string)$card['serial'], $cInk);
-    imagestring($img, 2, 22, 168, 'ID CARD SERIAL', $cMuted);
+    // MAM ACADEMY text at top
+    $mamText = 'MAM ACADEMY';
+    $textX = (int)(($w - strlen($mamText) * imagefontwidth(5)) / 2);
+    imagestring($img, 5, max(20, $textX), 28, $mamText, $cDark);
+    $subText = 'Mystery  \xB7  Art  \xB7  Music';
+    imagestring($img, 2, (int)(($w - strlen($subText) * imagefontwidth(2)) / 2), 54, $subText, $cGrey);
 
-    // Session / programme label
-    if (!empty($card['session_code'])) {
-        imagestring($img, 2, 22, 198, (string)$card['session_code'], $cMuted);
+    // Photo circle (if available)
+    $photoUrl = !empty($card['photo_url']) ? (string)$card['photo_url'] : null;
+    $photoCX = $midX;
+    $photoCY = $notchY;
+    $photoR  = (int)($w * 0.14);
+    if ($photoUrl !== null) {
+        $data = @file_get_contents($photoUrl);
+        if ($data) {
+            $src = @imagecreatefromstring($data);
+            if ($src) {
+                $sw = imagesx($src); $sh = imagesy($src);
+                $sz = (int)($photoR * 2);
+                $tmp = imagecreatetruecolor($sz, $sz);
+                imagecopyresampled($tmp, $src, 0, 0, 0, 0, $sz, $sz, $sw, $sh);
+                // Apply circular clip using pixel scan
+                $cTrans = imagecolorallocate($tmp, 255, 255, 255);
+                for ($py = 0; $py < $sz; $py++) {
+                    for ($px = 0; $px < $sz; $px++) {
+                        $dx = $px - $photoR; $dy = $py - $photoR;
+                        if (($dx * $dx + $dy * $dy) > ($photoR * $photoR)) {
+                            imagesetpixel($tmp, $px, $py, $cTrans);
+                        }
+                    }
+                }
+                imagecopy($img, $tmp, $photoCX - $photoR, $photoCY - $photoR, 0, 0, $sz, $sz);
+                imagedestroy($tmp);
+                imagedestroy($src);
+            }
+        }
     }
+    // Photo white ring
+    imageellipse($img, $photoCX, $photoCY, $photoR * 2 + 6, $photoR * 2 + 6, $cWhite);
+    imageellipse($img, $photoCX, $photoCY, $photoR * 2 + 4, $photoR * 2 + 4, $cWhite);
 
-    // Bottom note
-    $appUrl = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
-    imagestring($img, 1, 22, 382, 'Show this card at each session  |  ' . $appUrl, $cMuted);
+    // Name in orange area
+    $nameParts = explode(' ', $name, 2);
+    $first = strtoupper($nameParts[0] ?? $name);
+    $last  = strtoupper($nameParts[1] ?? '');
+    imagestring($img, 4, 60, (int)($h * 0.55), $first, $cWhite);
+    imagestring($img, 5, 60, (int)($h * 0.61), $last,  $cWhite);
+    imagestring($img, 3, 60, (int)($h * 0.68), 'S T U D E N T', $cMutedO);
+
+    // Display ID at bottom
+    $displayId = mam_card_display_id($card);
+    imagestring($img, 3, 60, (int)($h * 0.87), $displayId, $cMutedO);
 
     ob_start();
     imagepng($img);
