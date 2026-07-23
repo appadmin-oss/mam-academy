@@ -359,8 +359,8 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260706a"></script>
-<script src="assets/js/main.js?v=20260706a"></script>
+<script src="assets/js/config.js?v=20260723a"></script>
+<script src="assets/js/main.js?v=20260723a"></script>
 <script>
 /* Live tuition estimator — mirrors mam_compute_application_price() exactly,
    reading the admin-editable values from MAM_CONFIG so it never drifts from

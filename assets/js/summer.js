@@ -205,7 +205,7 @@
 
     var api = window.MAM_API;
     var p = api
-      ? api.request('summer/apply', { method: 'POST', body: JSON.stringify(payload) })
+      ? api.request('summer/apply', { method: 'POST', body: payload })
       : fetch('/api/summer/apply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

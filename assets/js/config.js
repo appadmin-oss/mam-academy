@@ -576,6 +576,41 @@ window.MAM_CCY = (function () {
   var ZERO_DEC = { NGN:1, JPY:1, UGX:1, TZS:1, RWF:1, KES:1, GHS:1, MWK:1, XAF:1, XOF:1 };
 
   function ls(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function ss(k)    { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+  function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
+
+  // Session-scoped geo-IP result. Distinct from the user's explicit 'mam.currency'
+  // choice: a saved choice always wins, but the geo guess is authoritative over the
+  // (often wrong) browser-locale guess. Cached per session so we look up once.
+  var GEO_KEY = 'mam.ccy.geo';
+  var _geo = null, _geoTried = false;
+  function geoCached() {
+    if (_geo) return _geo;
+    var v = ss(GEO_KEY);
+    if (v && known(v)) return (_geo = v);
+    return null;
+  }
+  // Record a geo-detected currency as the authoritative guess and tell every
+  // painter to refresh. No-op if the visitor has made an explicit choice.
+  function setDetected(cur) {
+    if (!known(cur) || ls('mam.currency')) return;
+    _geo = cur; ssSet(GEO_KEY, cur);
+    try { document.dispatchEvent(new CustomEvent('mam:currency', { detail: { currency: cur } })); } catch (e) {}
+  }
+  function setCountry(code) { var c = fromCountry(code); if (c) setDetected(c); }
+  // One-time geo-IP lookup (free, key-less). ipapi returns the currency code
+  // directly; we accept any we can price. Fires only when there's no explicit
+  // choice and no cached geo result yet.
+  function refineByGeo() {
+    if (_geoTried) return; _geoTried = true;
+    if (ls('mam.currency') || geoCached()) return;
+    try {
+      fetch('https://ipapi.co/currency/', { mode: 'cors' })
+        .then(function (r) { return r.text(); })
+        .then(function (c) { setDetected((c || '').trim().toUpperCase()); })
+        .catch(function () {});
+    } catch (e) {}
+  }
 
   function rates() {
     var out = {}; for (var k in FALLBACK) out[k] = FALLBACK[k];
@@ -592,7 +627,13 @@ window.MAM_CCY = (function () {
   // main.js can upgrade this via setCountry().)
   function detect() {
     var saved = ls('mam.currency');
-    if (saved && known(saved)) return saved;
+    if (saved && known(saved)) return saved;      // explicit choice always wins
+    var g = geoCached();
+    if (g) return g;                              // geo-IP result (accurate, session-cached)
+    // No explicit choice and no geo result yet — kick off a one-time IP lookup
+    // whose result (via mam:currency) will refine every painter on this and
+    // later pages. Meanwhile fall back to the browser-locale / timezone guess.
+    refineByGeo();
     var region = ((navigator.language || navigator.userLanguage || '').split('-')[1] || '').toUpperCase();
     var byLocale = COUNTRY[region];
     if (byLocale && known(byLocale)) return byLocale;
@@ -637,7 +678,7 @@ window.MAM_CCY = (function () {
     return symbol(cur) + n.toLocaleString('en-US', ZERO_DEC[cur] ? {} : { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   }
 
-  return { COUNTRY: COUNTRY, detect: detect, fromCountry: fromCountry, rate: rate, symbol: symbol, format: format, known: known, rates: rates, ngn: ngn, settlementNote: settlementNote, settlementText: settlementText };
+  return { COUNTRY: COUNTRY, detect: detect, fromCountry: fromCountry, setCountry: setCountry, setDetected: setDetected, rate: rate, symbol: symbol, format: format, known: known, rates: rates, ngn: ngn, settlementNote: settlementNote, settlementText: settlementText };
 })();
 
 /* -------- Lazy-load cdn.js ------------------------------------------------

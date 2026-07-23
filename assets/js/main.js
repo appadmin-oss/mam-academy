@@ -805,6 +805,13 @@
     // Re-render when config.js hydrates the server's authoritative rate map.
     document.addEventListener('mam:config', function () { setCur(current, false); });
 
+    // Re-render when MAM_CCY's async geo-IP lookup refines the detected currency
+    // (only fires when the visitor hasn't made an explicit choice). This keeps
+    // every money surface on the same currency the moment location resolves.
+    document.addEventListener('mam:currency', function () {
+      if (!Storage.getItem('mam.currency')) setCur(CCY.detect(), false);
+    });
+
     // 1) Live, auto-updating rates — free, key-less, cached 24h in localStorage
     //    ('mam.fx', which MAM_CCY reads). The server map still wins where present.
     (function loadRates() {
@@ -822,15 +829,10 @@
         }).catch(function () { /* keep fallback rates */ });
     })();
 
-    // 2) Refine the location guess with a free geo-IP lookup — only when the
-    //    visitor hasn't explicitly chosen a currency. ipapi returns the currency
-    //    code directly; accept any we can price, else stay on the local guess.
-    if (!Storage.getItem('mam.currency')) {
-      fetch('https://ipapi.co/currency/', { mode: 'cors' })
-        .then(function (r) { return r.text(); })
-        .then(function (c) { c = (c || '').trim().toUpperCase(); if (!Storage.getItem('mam.currency') && CCY.known(c)) setCur(c, false); })
-        .catch(function () {});
-    }
+    // 2) Location refinement (free geo-IP lookup) is owned by MAM_CCY (config.js)
+    //    so it runs once site-wide and feeds MAM_CCY.detect() — the single source
+    //    of truth every money surface reads. CCY.detect() above already triggered
+    //    it; we just repaint via the mam:currency listener when it resolves.
   }
 
   // ============================================================

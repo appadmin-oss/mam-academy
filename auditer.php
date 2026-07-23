@@ -211,8 +211,8 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260706a"></script>
-<script src="assets/js/main.js?v=20260706a"></script>
+<script src="assets/js/config.js?v=20260723a"></script>
+<script src="assets/js/main.js?v=20260723a"></script>
 <script>
 // Applicant checklist: tick-off state persists per device (localStorage). No
 // account needed — it's a preparation aid, not a submission.

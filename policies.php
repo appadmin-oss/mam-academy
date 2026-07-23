@@ -371,8 +371,8 @@
   </section>
 </main>
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260706a"></script>
-<script src="assets/js/main.js?v=20260706a"></script>
+<script src="assets/js/config.js?v=20260723a"></script>
+<script src="assets/js/main.js?v=20260723a"></script>
 <script>
 (function(){
   // ── Tab nav ──
@@ -512,6 +512,9 @@
       if(v&&v!==seen){seen=v;activate(detect());}
     },900);
     try{window.addEventListener('storage',function(e){if(e.key==='mam.fx'||e.key==='mam.currency') activate(detect());});}catch(e){}
+    // MAM_CCY's async geo-IP lookup fires this once location resolves — repaint
+    // fines & fees in the accurate local currency, consistent with the rest of the site.
+    try{document.addEventListener('mam:currency',function(){activate(detect());});}catch(e){}
   }
 
   function init(){buildSwitcher();bindTabs();activate(detect());watchFx();}
