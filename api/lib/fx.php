@@ -107,6 +107,19 @@ function mam_currency_rates(bool $allowFetch = false): array {
 }
 
 /**
+ * Admin money display: Naira primary + the original USD in small muted text.
+ * Amounts are stored in USD (the accounting unit); this converts for display at
+ * the current charge rate (read-only — no network hit during a page render),
+ * static-cached for the request. Returns HTML (uses admin's .muted class).
+ */
+function mam_admin_money(float $usd): string {
+    static $rate = null;
+    if ($rate === null) $rate = mam_usd_to_ngn_rate(false);
+    return '&#8358;' . number_format($usd * $rate)
+         . ' <span class="muted" style="font-size:.82em">$' . number_format($usd, 2) . '</span>';
+}
+
+/**
  * The effective USD→NGN rate to charge/convert at. Resolution order:
  *   1. fx_auto disabled  → static fallback rate.
  *   2. fresh cached live rates (< TTL) → use them (no network hit).

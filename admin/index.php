@@ -2402,7 +2402,7 @@ nav a{display:flex;align-items:center}
   <div class="card">
     <h3>Recent Applications</h3>
     <table>
-      <thead><tr><th>Reference</th><th>Student</th><th>Pathway</th><th>Mode</th><th>USD</th><th>Status</th><th>When</th></tr></thead>
+      <thead><tr><th>Reference</th><th>Student</th><th>Pathway</th><th>Mode</th><th>Amount</th><th>Status</th><th>When</th></tr></thead>
       <tbody>
       <?php foreach (mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email FROM applications a LEFT JOIN customers c ON c.id=a.customer_id ORDER BY a.created_at DESC LIMIT 10') as $r): ?>
         <tr>
@@ -2410,7 +2410,7 @@ nav a{display:flex;align-items:center}
           <td><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong><br><span class="muted"><?= htmlspecialchars((string)($r['email'] ?? '')) ?></span></td>
           <td><?= htmlspecialchars((string)($r['pathway'] ?? '')) ?></td>
           <td class="muted"><?= htmlspecialchars((string)($r['mode'] ?? '')) ?></td>
-          <td>$<?= number_format((float)$r['total_usd'], 0) ?></td>
+          <td data-label="Amount"><?= mam_admin_money((float)$r['total_usd']) ?></td>
           <td><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
           <td class="muted"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
         </tr>
@@ -2690,7 +2690,7 @@ nav a{display:flex;align-items:center}
           <td data-label="Course"><?= htmlspecialchars((string)($r['discipline'] ?? '')) ?></td>
           <td data-label="Session"><?php $s = strtolower((string)($r['session'] ?? '')); echo $s ? '<span class="pill">' . htmlspecialchars($sessionLabels[$s] ?? strtoupper($s)) . '</span>' : '<span class="muted">—</span>'; ?></td>
           <td class="muted" data-label="Age"><?= htmlspecialchars((string)($r['age_range'] ?? '')) ?></td>
-          <td data-label="Total">$<?= number_format((float)$r['total_usd'], 2) ?></td>
+          <td data-label="Total"><?= mam_admin_money((float)$r['total_usd']) ?></td>
           <td data-label="Status"><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span>
             <?php if (!empty($r['recovery_sent_at'])): ?><br><span class="muted" title="Recovery email sent" style="font-size:0.66rem"><i class="fa-solid fa-envelope-circle-check"></i> nudged</span><?php endif; ?>
           </td>
@@ -6093,7 +6093,7 @@ nav a{display:flex;align-items:center}
         <td class="mono"><?= htmlspecialchars($i['sku']) ?></td>
         <td><?= htmlspecialchars($i['name']) ?></td>
         <td><?= htmlspecialchars($i['goods_type']) ?></td>
-        <td>$<?= number_format((float)$i['price_usd'], 2) ?> <?= htmlspecialchars($i['currency'] ?? '') ?></td>
+        <td><?= mam_admin_money((float)$i['price_usd']) ?></td>
         <td><?= htmlspecialchars($i['category'] ?? '') ?></td>
         <td><?= (int)$i['stock'] === -1 ? '∞' : (int)$i['stock'] ?></td>
         <td><?= htmlspecialchars(str_replace('_',' ', $i['availability'])) ?></td>
@@ -6132,7 +6132,7 @@ nav a{display:flex;align-items:center}
           <small style="color:var(--muted)"><?= htmlspecialchars($o['customer_email']) ?> <?= $o['customer_country'] ? '· ' . htmlspecialchars($o['customer_country']) : '' ?></small>
         </td>
         <td data-label="Items"><small><?= htmlspecialchars($summary) ?><?= count($its) > 3 ? '…' : '' ?></small></td>
-        <td data-label="Total">$<?= number_format((float)$o['total_usd'], 2) ?></td>
+        <td data-label="Total"><?= mam_admin_money((float)$o['total_usd']) ?></td>
         <td data-label="Status">
           <form method="POST" action="" style="display:flex;gap:6px">
             <?= mam_csrf_field() ?>
@@ -6793,7 +6793,7 @@ nav a{display:flex;align-items:center}
         <?php foreach ($orders as $o): ?><tr>
           <td class="mono"><?= htmlspecialchars((string)$o['reference']) ?></td>
           <td class="mono"><?= htmlspecialchars((string)$o['customer_email']) ?></td>
-          <td>$<?= number_format((float)$o['total_usd'], 0) ?></td>
+          <td><?= mam_admin_money((float)$o['total_usd']) ?></td>
           <td><span class="pill"><?= htmlspecialchars((string)$o['status']) ?></span></td>
         </tr><?php endforeach; ?></tbody></table>
       <?php else: ?><p class="muted">No matching store orders.</p><?php endif; ?>
