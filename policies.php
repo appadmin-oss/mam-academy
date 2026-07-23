@@ -28,34 +28,51 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="assets/css/main.css?v=20260706d">
 <style>
-/* ── Page wrapper ── */
-.legal{max-width:860px;margin:0 auto;padding:48px 24px 96px}
-.legal-intro{color:var(--text-soft);line-height:1.8;font-size:1rem;margin-bottom:8px}
+/* ═══ Standard policy-page layout: sticky contents rail + document column ═══ */
+.legal{max-width:1160px;margin:0 auto;padding:44px 24px 96px;display:grid;grid-template-columns:236px minmax(0,1fr);gap:0 60px;align-items:start}
+.policy-main{min-width:0;max-width:760px}
 
-/* ── Tab nav ── */
-.policy-tabs{display:inline-flex;gap:4px;margin:28px 0 0;padding:5px;background:var(--bg-raised);border:1px solid var(--border);border-radius:100px;flex-wrap:wrap}
-.policy-tab{padding:10px 22px;border-radius:100px;font-size:.88rem;font-weight:700;color:var(--text-muted);transition:all .2s var(--ease);cursor:pointer;border:0;background:transparent}
-.policy-tab.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#231a12}
+/* ── Contents rail (sticky, desktop only) ── */
+.policy-toc{position:sticky;top:100px;align-self:start}
+.policy-toc-label{font-size:.62rem;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:14px}
+.policy-toc a{display:block;font-size:.83rem;line-height:1.35;color:var(--text-muted);text-decoration:none;padding:8px 0 8px 14px;border-left:2px solid var(--border);transition:color .16s,border-color .16s,background .16s}
+.policy-toc a:hover{color:var(--text-soft);border-left-color:var(--border-strong)}
+.policy-toc a.toc-active{color:var(--gold-bright);border-left-color:var(--gold);font-weight:600}
+.policy-toc-meta{margin-top:22px;padding-top:18px;border-top:1px solid var(--border);font-size:.74rem;line-height:1.7;color:var(--text-faint)}
+.policy-toc-meta strong{color:var(--text-muted);display:block;font-weight:600}
+.policy-toc-meta a{color:var(--gold-bright);text-decoration:none}
 
-/* ── Section animation ── */
-.policy-doc{display:none;animation:fadeUp .35s var(--ease)}
+/* ── Document meta header + intro ── */
+.policy-meta{display:inline-flex;align-items:center;gap:9px;font-size:.78rem;color:var(--text-muted);background:var(--bg-raised);border:1px solid var(--border);padding:6px 15px;border-radius:100px;margin-bottom:20px}
+.policy-meta i{color:var(--gold-bright)}
+.legal-intro{color:var(--text-soft);line-height:1.82;font-size:1.02rem;margin-bottom:8px}
+
+/* ── Segmented policy selector ── */
+.policy-tabs{display:inline-flex;gap:3px;margin:30px 0 0;padding:4px;background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap}
+.policy-tab{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:9px;font-size:.85rem;font-weight:600;color:var(--text-muted);transition:all .18s var(--ease);cursor:pointer;border:0;background:transparent;font-family:var(--font-body)}
+.policy-tab:hover{color:var(--text-soft)}
+.policy-tab.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#231a12;box-shadow:var(--shadow-sm)}
+.policy-tab i{font-size:.9em}
+
+/* ── Section reveal ── */
+.policy-doc{display:none;animation:fadeUp .32s var(--ease)}
 .policy-doc.active{display:block}
-@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
 /* ── Section headings ── */
-.policy-doc h2,.policy-static h2{font-family:var(--font-serif);font-size:1.7rem;margin:26px 0 4px;color:var(--text)}
-.policy-doc .sub,.policy-static .sub{color:var(--gold-bright);font-style:italic;font-family:var(--font-serif);font-size:1.05rem;margin-bottom:20px}
+.policy-doc>h2,.policy-static>h2{font-family:var(--font-serif);font-size:1.62rem;font-weight:700;margin:8px 0 3px;color:var(--text);letter-spacing:.01em}
+.policy-doc>.sub,.policy-static>.sub{color:var(--text-muted);font-family:var(--font-serif);font-style:italic;font-size:1.02rem;margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid var(--border)}
 
-/* ── Rule cards ── */
-.rule{display:flex;gap:18px;padding:20px 6px 20px 18px;border-bottom:1px solid var(--border);margin-left:-18px;border-left:3px solid transparent;transition:border-color .18s;position:relative}
+/* ── Numbered clauses (document style, not cards) ── */
+.rule{display:flex;gap:16px;padding:16px 0;border-bottom:1px solid var(--border)}
 .rule:last-child{border-bottom:none}
-.rule:hover{border-left-color:rgba(232,150,31,.55)}
-.rule-n{flex-shrink:0;width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,rgba(245,168,35,.18),rgba(252,198,71,.06));border:1px solid var(--border-gold);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);color:var(--gold-bright);font-size:1.05rem}
+.rule-n{flex-shrink:0;width:26px;height:26px;border-radius:7px;background:var(--bg-raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-body);font-weight:700;color:var(--text-muted);font-size:.82rem;font-variant-numeric:tabular-nums;transition:all .16s}
+.rule:hover .rule-n{border-color:var(--border-gold);color:var(--gold-bright)}
 .rule-b{flex:1;min-width:0}
-.rule-b strong{display:block;color:var(--text);font-size:1rem;margin-bottom:6px}
-.rule-b span{color:var(--text-soft);line-height:1.78;font-size:.94rem}
-/* Fine-bearing rules: amber tint on the rule number badge */
-.rule:has(.fine) .rule-n{background:linear-gradient(135deg,rgba(232,150,31,.28),rgba(252,198,71,.1));border-color:rgba(232,150,31,.45)}
+.rule-b strong{display:block;color:var(--text);font-size:.98rem;margin-bottom:5px;font-weight:600}
+.rule-b span{color:var(--text-soft);line-height:1.78;font-size:.93rem}
+/* Fine-bearing clauses: gold marker so penalties are scannable */
+.rule:has(.fine) .rule-n{background:rgba(232,150,31,.14);border-color:var(--border-gold);color:var(--gold-bright)}
 
 /* ── Fine pill (policy penalty amounts — NGN contractual base) ── */
 .fine{display:inline-flex;align-items:center;gap:3px;padding:2px 9px 2px 6px;border-radius:6px;background:rgba(232,150,31,.12);border:1px solid rgba(232,150,31,.32);color:var(--gold-bright);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:.87em;vertical-align:baseline;cursor:default}
@@ -65,12 +82,12 @@
 .amt{display:inline-flex;align-items:center;padding:2px 9px;border-radius:6px;background:rgba(252,198,71,.1);border:1px solid rgba(252,198,71,.25);color:var(--gold-bright);font-weight:700;white-space:nowrap;font-size:.9em;cursor:default}
 
 /* ── Always-visible fees block ── */
-.policy-static{display:block;margin:4px 0 8px;padding:26px 28px;background:linear-gradient(160deg,rgba(224,138,26,.08),var(--bg-surface));border:1px solid var(--border-gold);border-radius:var(--radius-md)}
-.policy-static .sub{margin-bottom:16px}
+.policy-static{display:block;margin:0 0 8px;padding:28px 30px;background:linear-gradient(160deg,rgba(224,138,26,.07),var(--bg-surface));border:1px solid var(--border-gold);border-radius:var(--radius-md);scroll-margin-top:96px}
+.policy-selector-anchor{scroll-margin-top:96px}
 
 /* ── Currency switcher ── */
-.policy-currency{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin:20px 0 22px;padding:12px 16px;background:var(--bg-surface);border:1px solid var(--border);border-radius:14px}
-.pc-label{font-size:.77rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);white-space:nowrap}
+.policy-currency{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin:18px 0 24px;padding:12px 16px;background:var(--bg-surface);border:1px solid var(--border);border-radius:12px}
+.pc-label{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);white-space:nowrap}
 .pc-switch{display:inline-flex;gap:4px;padding:4px;background:var(--bg-raised);border:1px solid var(--border);border-radius:100px}
 .pc-switch .currency-btn{padding:6px 12px;border-radius:100px;font-size:.8rem;font-weight:800;color:var(--text-muted);background:transparent;border:0;cursor:pointer;letter-spacing:.02em;transition:all .18s var(--ease)}
 .pc-switch .currency-btn.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
@@ -79,14 +96,20 @@
 .pc-dot.live{background:#5cb85c}
 
 /* ── Policy footer ── */
-.policy-foot{margin-top:32px;padding:20px 24px;border-radius:var(--radius-md);background:var(--bg-surface);border:1px solid var(--border);color:var(--text-muted);font-size:.88rem;line-height:1.78}
+.policy-foot{margin-top:34px;padding:22px 24px;border-radius:var(--radius-md);background:var(--bg-surface);border:1px solid var(--border);color:var(--text-muted);font-size:.88rem;line-height:1.78}
 .policy-foot a{color:var(--gold-bright);text-decoration:underline}
 
-/* ── Mobile ── */
+/* ── Responsive ── */
+@media(max-width:900px){
+  .legal{grid-template-columns:1fr;gap:0}
+  .policy-toc{display:none}
+}
 @media(max-width:540px){
-  .rule{padding:16px 4px 16px 14px;margin-left:-14px;gap:13px}
-  .rule-n{width:30px;height:30px;border-radius:8px;font-size:.9rem}
-  .policy-static{padding:18px 18px}
+  .legal{padding:32px 18px 72px}
+  .rule{padding:14px 0;gap:12px}
+  .rule-n{width:24px;height:24px;font-size:.78rem}
+  .policy-static{padding:20px 18px}
+  .policy-tab{padding:8px 13px;font-size:.8rem}
   .pc-switch .currency-btn{padding:5px 9px;font-size:.76rem}
   .policy-currency{gap:8px 10px}
 }
@@ -142,9 +165,24 @@
   </header>
 
   <section class="legal">
+    <aside class="policy-toc" aria-label="On this page">
+      <div class="policy-toc-label">On this page</div>
+      <a href="#pol-fees" data-toc="fees">Fees, Registration &amp; Certification</a>
+      <a href="#pol-selector" data-toc="online">Online / Home Classes</a>
+      <a href="#pol-selector" data-toc="onsite">Onsite Classes</a>
+      <a href="#pol-selector" data-toc="handbook">Student &amp; Instructor Handbook</a>
+      <div class="policy-toc-meta">
+        <strong>Effective 28 August 2025</strong>
+        Governed by the laws of the Federal Republic of Nigeria.<br><br>
+        <a href="terms">Terms of Service</a> &nbsp;·&nbsp; <a href="privacy">Privacy</a>
+      </div>
+    </aside>
+
+    <div class="policy-main">
+    <div class="policy-meta"><i class="fa-solid fa-file-contract"></i> Effective 28 August 2025 &nbsp;·&nbsp; MAM Academy, Lagos</div>
     <p class="legal-intro">MAM Academy is committed to cultivating a structured, respectful and inspiring learning environment for every student. The policies below define the standards we uphold and the commitments we ask every student to honour. They are carefully designed to protect your learning experience, ensure fairness across all programmes, and give our instructors the conditions they need to teach at the highest level. Please read them carefully — you formally accept the applicable policy when you enrol, and we send you a confirmed copy by email.</p>
 
-    <article class="policy-static" aria-label="Fees, registration and certification">
+    <article class="policy-static" id="pol-fees" aria-label="Fees, registration and certification">
       <h2>Fees, Registration &amp; Certification</h2>
       <div class="sub">Applies to every student — online and onsite</div>
       <div class="rule"><div class="rule-n">1</div><div class="rule-b"><strong>Registration &amp; Onboarding</strong><span>A one-time, non-refundable registration fee of <span class="amt" data-amt-usd="5">$5</span> is required to open your student file and begin the onboarding process. This fee covers administrative processing, welcome materials and your initial placement into the Academy system. It is payable once and does not recur.</span></div></div>
@@ -159,7 +197,7 @@
       <div class="rule"><div class="rule-n">10</div><div class="rule-b"><strong>Payment Policy &amp; Non-Refundable Fees</strong><span>All payments to MAM Academy — including registration, programme tuition, supporting-course fees and resource charges — are final and non-refundable once your programme or onboarding process has commenced. This policy reflects the Academy's commitment of instructor time, studio resources and administrative capacity from the moment enrolment is confirmed. Exceptions apply only where applicable law expressly grants you a cancellation or refund right. Please refer to our <a href="terms">Terms of Service</a> for the complete refund position and a statement of your statutory rights.</span></div></div>
     </article>
 
-    <div class="policy-tabs" role="tablist" aria-label="Policy type">
+    <div class="policy-tabs policy-selector-anchor" id="pol-selector" role="tablist" aria-label="Policy type">
       <button class="policy-tab active" data-doc="online" role="tab" aria-selected="true"><i class="fa-solid fa-globe"></i> Online / Home</button>
       <button class="policy-tab" data-doc="onsite" role="tab" aria-selected="false"><i class="fa-solid fa-location-dot"></i> Onsite (Lagos)</button>
       <button class="policy-tab" data-doc="handbook" role="tab" aria-selected="false"><i class="fa-solid fa-book-bookmark"></i> Handbook</button>
@@ -368,6 +406,7 @@
       By enrolling you join us in crafting a timeless legacy of growth, excellence and achievement.<br>
       <strong>Academic Director</strong> · MAM Centre, 2 Oremeji Street, Egbeda, Lagos · <a href="mailto:academy@mamcentre.org">academy@mamcentre.org</a> · +234-704-444-6517
     </div>
+    </div><!-- .policy-main -->
   </section>
 </main>
 <?php include __DIR__ . '/partials/footer.html'; ?>
@@ -378,15 +417,45 @@
   // ── Tab nav ──
   function bindTabs(){
     var tabs=document.querySelectorAll('.policy-tab'),docs=document.querySelectorAll('.policy-doc');
+    var tocLinks=document.querySelectorAll('.policy-toc a[data-toc]');
     if(!tabs.length) return;
+
+    // Reflect the active document in the sticky contents rail. 'fees' is the
+    // always-visible block (no tab), so it never carries the doc-active state.
+    function syncToc(activeDoc){
+      tocLinks.forEach(function(a){
+        var k=a.getAttribute('data-toc');
+        a.classList.toggle('toc-active', k===activeDoc);
+      });
+    }
+    function switchDoc(k){
+      tabs.forEach(function(x){var on=x.getAttribute('data-doc')===k;x.classList.toggle('active',on);x.setAttribute('aria-selected',String(on));});
+      docs.forEach(function(d){d.classList.toggle('active',d.getAttribute('data-doc')===k);});
+      syncToc(k);
+    }
     tabs.forEach(function(t){
-      t.addEventListener('click',function(){
-        var k=t.getAttribute('data-doc');
-        tabs.forEach(function(x){var on=x===t;x.classList.toggle('active',on);x.setAttribute('aria-selected',String(on));});
-        docs.forEach(function(d){d.classList.toggle('active',d.getAttribute('data-doc')===k);});
+      t.addEventListener('click',function(){ switchDoc(t.getAttribute('data-doc')); });
+    });
+
+    // Contents rail: 'fees' just scrolls to the always-visible block; the doc
+    // links switch the selector then scroll it into view.
+    tocLinks.forEach(function(a){
+      a.addEventListener('click',function(e){
+        var k=a.getAttribute('data-toc');
+        e.preventDefault();
+        if(k==='fees'){
+          var f=document.getElementById('pol-fees'); if(f) f.scrollIntoView({behavior:'smooth',block:'start'});
+          syncToc('');
+          return;
+        }
+        switchDoc(k);
+        var sel=document.getElementById('pol-selector'); if(sel) sel.scrollIntoView({behavior:'smooth',block:'start'});
       });
     });
-    if(location.hash==='#onsite'){var b=document.querySelector('.policy-tab[data-doc="onsite"]');b&&b.click();}
+
+    if(location.hash==='#onsite'){ switchDoc('onsite'); }
+    else if(location.hash==='#handbook'){ switchDoc('handbook'); }
+    else { syncToc('online'); }
   }
 
   // ── Currency helpers — delegate to MAM_CCY (config.js) when present ──
