@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>Class Policies — MAM Academy</title>
-<meta name="description" content="MAM Academy class policies for online/home and onsite classes — punctuality, attendance, assignments, certification and payments.">
+<title>Class Policies &amp; Handbook — MAM Academy</title>
+<meta name="description" content="MAM Academy class policies and student &amp; instructor handbook — learning model, attendance, assignments, conduct, and payments.">
 <link rel="canonical" href="https://academy.mamcentre.org/policies">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="MAM Academy">
@@ -90,6 +90,42 @@
   .pc-switch .currency-btn{padding:5px 9px;font-size:.76rem}
   .policy-currency{gap:8px 10px}
 }
+
+/* ── Handbook tab components ────────────────────────────── */
+.hb-datepill{display:inline-flex;align-items:center;gap:8px;font-size:.78rem;color:var(--text-muted);background:var(--bg-raised);border:1px solid var(--border);padding:5px 13px;border-radius:100px;margin-bottom:20px}
+.hb-datepill i{color:var(--gold-bright)}
+.hb-part{border-top:1px solid var(--border);padding-top:40px;margin-top:32px;scroll-margin-top:80px}
+.hb-part:first-child{border-top:none;padding-top:0;margin-top:0}
+.hb-eyebrow{font-size:.61rem;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:5px}
+.hb-heading{font-family:var(--font-serif);font-size:clamp(1.3rem,2.5vw,1.75rem);font-weight:700;color:var(--text);margin:0 0 20px;line-height:1.18}
+.hb-sec{font-family:var(--font-serif);font-size:1.02rem;font-weight:700;color:var(--text);padding-left:13px;border-left:3px solid var(--gold);margin:24px 0 10px;line-height:1.35}
+.hb-p{color:var(--text-soft);line-height:1.78;margin-bottom:10px;font-size:.93rem}
+.hb-p strong{color:var(--text)}
+.hb-link{color:var(--gold-bright);text-decoration:underline;text-underline-offset:2px}
+/* stat callouts */
+.stat-row{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.stat-box{background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;padding:15px 20px;text-align:center;min-width:100px;flex-shrink:0}
+.stat-box .sn{font-family:var(--font-display);font-size:2.1rem;color:var(--gold-bright);line-height:1;letter-spacing:.03em}
+.stat-box .sl{font-size:.67rem;color:var(--text-muted);margin-top:4px;line-height:1.4}
+/* checklist */
+.hb-list{list-style:none;padding:0;margin:10px 0}
+.hb-list li{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);font-size:.91rem;color:var(--text-soft);line-height:1.6}
+.hb-list li:last-child{border-bottom:none}
+.hb-list li .lico{flex-shrink:0;margin-top:3px;font-size:.8rem;width:14px;text-align:center}
+/* discipline ladder */
+.disc-ladder{display:flex;flex-direction:column;gap:6px;margin:14px 0}
+.disc-rung{display:flex;align-items:flex-start;gap:13px;padding:12px 15px;border-radius:10px;border:1px solid var(--border);font-size:.87rem;color:var(--text-soft);line-height:1.55}
+.disc-badge{font-size:.57rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;padding:3px 8px;border-radius:4px;white-space:nowrap;flex-shrink:0;margin-top:3px}
+.disc-rung.d1{background:rgba(52,211,153,.05)}.disc-rung.d1 .disc-badge{background:rgba(52,211,153,.15);color:#34D399}
+.disc-rung.d2{background:rgba(251,191,36,.05)}.disc-rung.d2 .disc-badge{background:rgba(251,191,36,.15);color:#FBBF24}
+.disc-rung.d3{background:rgba(251,146,60,.06)}.disc-rung.d3 .disc-badge{background:rgba(251,146,60,.18);color:#FB923C}
+.disc-rung.d4{background:rgba(248,113,113,.06)}.disc-rung.d4 .disc-badge{background:rgba(248,113,113,.18);color:#F87171}
+/* alerts */
+.hb-alert{display:flex;gap:12px;padding:13px 15px;border-radius:10px;font-size:.87rem;line-height:1.65;margin:12px 0;color:var(--text-soft)}
+.hb-alert i{flex-shrink:0;margin-top:2px;font-size:.9rem}
+.hb-alert.warn{background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.22)}.hb-alert.warn i{color:#F87171}
+.hb-alert.info{background:rgba(232,150,31,.07);border:1px solid rgba(232,150,31,.2)}.hb-alert.info i{color:var(--gold-bright)}
+.hb-alert.note{background:var(--bg-raised);border:1px solid var(--border)}.hb-alert.note i{color:var(--gold-bright)}
 </style>
 </head>
 <body>
@@ -126,6 +162,7 @@
     <div class="policy-tabs" role="tablist" aria-label="Policy type">
       <button class="policy-tab active" data-doc="online" role="tab" aria-selected="true"><i class="fa-solid fa-globe"></i> Online / Home</button>
       <button class="policy-tab" data-doc="onsite" role="tab" aria-selected="false"><i class="fa-solid fa-location-dot"></i> Onsite (Lagos)</button>
+      <button class="policy-tab" data-doc="handbook" role="tab" aria-selected="false"><i class="fa-solid fa-book-bookmark"></i> Handbook</button>
     </div>
 
     <div class="policy-currency" id="policyCurrency" role="region" aria-label="Display currency">
@@ -162,6 +199,169 @@
       <div class="rule"><div class="rule-n">7</div><div class="rule-b"><strong>Certification</strong><span>A certificate of completion is awarded upon the successful completion of a thorough revision session followed by a formal examination. The certificate reflects the student's discipline, level of achievement and year of completion and is issued under the authority of MAM Academy. Students who fail to appear for assessments, withdraw from the programme or are found to have breached Academy policies during the programme cycle are not eligible for certification.</span></div></div>
       <div class="rule"><div class="rule-n">8</div><div class="rule-b"><strong>Daily Practice Commitment</strong><span>Structured, purposeful daily practice is the foundation of musical development and is an expectation of every student enrolled with MAM Academy. Students should set aside dedicated practice time each day to consolidate and internalise the concepts taught in class. The Academy's instructors monitor practice progress as part of the weekly lesson remark system, and consistent practice forms a component of the student's overall assessment.</span></div></div>
       <div class="rule"><div class="rule-n">9</div><div class="rule-b"><strong>Payment Policy</strong><span>All fees paid to MAM Academy — including registration, tuition, supporting-course fees and resource charges — are non-refundable once your programme or onboarding has commenced, as the Academy commits instructor time, studio availability and administrative resources from the moment enrolment is confirmed. Exceptions apply only where applicable law expressly provides a refund or cancellation right. Please see our <a href="terms">Terms of Service</a> for the complete position and a statement of your statutory rights.</span></div></div>
+    </article>
+
+    <article class="policy-doc" data-doc="handbook">
+      <div class="hb-datepill"><i class="fa-solid fa-bookmark"></i> Effective 28 August 2025 &nbsp;·&nbsp; MAM Academy, Lagos</div>
+      <p class="hb-p">This Handbook sets out the academic standards, personal responsibilities, and conduct expectations that apply to every student and instructor at MAM Academy. It is binding from your first session. Ignorance of these provisions is not a defence in any conduct or compliance matter.</p>
+
+      <!-- Part I -->
+      <div class="hb-part">
+        <div class="hb-eyebrow">Part I</div>
+        <h2 class="hb-heading">Learning Model &amp; Contact Sessions</h2>
+
+        <h3 class="hb-sec">§1 — The Student-Led Guided Learning Model</h3>
+        <p class="hb-p">MAM Academy operates a <strong>student-led guided learning model</strong>. Sessions are a space to demonstrate, deepen, and refine what you have already prepared — not to encounter material for the first time. Every student must undertake meaningful preparation before arriving at each session.</p>
+        <div class="stat-row">
+          <div class="stat-box"><div class="sn">70%</div><div class="sl">Student-led engagement per session</div></div>
+          <div class="stat-box"><div class="sn">30%</div><div class="sl">Instructor guidance &amp; facilitation</div></div>
+        </div>
+        <div class="hb-alert info"><i class="fa-solid fa-lightbulb"></i><div>Your first obligation is to your own study. MAM Academy equips and challenges you — it does not substitute for the independent work that happens between sessions.</div></div>
+
+        <h3 class="hb-sec">§2 — Contact Session Types</h3>
+        <ul class="hb-list">
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Weekly Contact Sessions</strong> — the primary learning session, student-led and instructor-facilitated</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Review Sessions</strong> — periodic assessments of progress across the current module</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Follow-Up / Clarification Sessions</strong> — 20–30 minute slots booked by the student for targeted questions after independent study; these are not full teaching sessions and require their own preparation</span></li>
+        </ul>
+
+        <h3 class="hb-sec">§3 — Session Conduct</h3>
+        <ul class="hb-list">
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Demonstrate preparation on the week's material</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Lead discussion and practical exploration of the topic</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Present questions that require the instructor's expertise — not questions answerable by self-study</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Apply feedback in real time and document action points</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Maintain discipline: punctuality, attentiveness, no mobile-device use except for reference</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Communicate at least 24 hours in advance if unable to attend</span></li>
+        </ul>
+        <div class="hb-alert note"><i class="fa-solid fa-robot"></i><div><strong>AI Use Policy</strong> — You may use AI tools for reference and exploration, but not as a substitute for independent study or practice. Work submitted or demonstrated in sessions must represent your own genuine effort. Presenting AI-generated output as personal work is a disciplinary matter.</div></div>
+
+        <h3 class="hb-sec">§4 — Theory-Based Courses</h3>
+        <p class="hb-p">Written or recorded submissions for theory-based modules must be made within <strong>48 hours</strong> of the session in which the work was set. Late submissions may be marked zero at the instructor's discretion.</p>
+        <div class="stat-row">
+          <div class="stat-box"><div class="sn">48h</div><div class="sl">Submission window for theory-based module work</div></div>
+        </div>
+      </div>
+
+      <!-- Part II -->
+      <div class="hb-part">
+        <div class="hb-eyebrow">Part II</div>
+        <h2 class="hb-heading">Student Responsibilities</h2>
+        <p class="hb-p">Enrolment at MAM Academy carries obligations beyond attendance. Each student commits to the following from their first session:</p>
+        <ul class="hb-list">
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Pre-session preparation</strong> — study materials, listen to references, and practise required exercises before every session</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Portal use</strong> — access the student portal regularly; check schedules, submitted work, results, and announcements</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Academic honesty</strong> — all submitted work must be your own; no plagiarism or misrepresentation of AI-assisted content</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Respectful conduct</strong> — treat instructors, classmates, and staff with courtesy at all times, in session and online</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Materials access</strong> — secure all required textbooks, instruments and digital tools before programme commencement, or within the first week</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Punctuality</strong> — arrive on time; late arrival of more than 10 minutes counts as an absence unless the instructor permits otherwise</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Communication</strong> — notify your instructor and the Academy at least 24 hours before any absence; extended absence requires written notice</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Feedback acceptance</strong> — receive instructor feedback with openness; challenge respectfully through proper channels, not in the moment of delivery</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Academy values</strong> — uphold the principles of discipline, honour and respect that define the MAM community</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Financial obligations</strong> — maintain your fee account in good standing; contact the Academy promptly if you anticipate difficulty meeting a payment</span></li>
+        </ul>
+      </div>
+
+      <!-- Part III -->
+      <div class="hb-part">
+        <div class="hb-eyebrow">Part III</div>
+        <h2 class="hb-heading">Attendance</h2>
+        <div class="stat-row">
+          <div class="stat-box"><div class="sn">75%</div><div class="sl">Minimum attendance per module cycle</div></div>
+        </div>
+        <p class="hb-p">Students must attend a minimum of <strong>75% of scheduled sessions</strong> within each module cycle. Falling below this threshold results in:</p>
+        <ul class="hb-list">
+          <li><i class="fa-solid fa-triangle-exclamation lico" style="color:#FB923C"></i><span>Ineligibility for module completion certification for that cycle</span></li>
+          <li><i class="fa-solid fa-triangle-exclamation lico" style="color:#FB923C"></i><span>A formal attendance notice issued by the Academy</span></li>
+          <li><i class="fa-solid fa-triangle-exclamation lico" style="color:#FB923C"></i><span>A mandatory review meeting before re-enrolment in the next cycle</span></li>
+          <li><i class="fa-solid fa-triangle-exclamation lico" style="color:#FB923C"></i><span>Continued non-attendance may be treated as withdrawal; fees forfeited per the Payments policy</span></li>
+        </ul>
+        <div class="hb-alert note"><i class="fa-solid fa-calendar-check"></i><div>Attendance is recorded by your instructor at the close of each session. QR self-check-in supplements instructor records, but the instructor's mark is final.</div></div>
+      </div>
+
+      <!-- Part IV -->
+      <div class="hb-part">
+        <div class="hb-eyebrow">Part IV</div>
+        <h2 class="hb-heading">Assignments &amp; Instruction Compliance</h2>
+
+        <h3 class="hb-sec">§5 — Assignment Policy</h3>
+        <ul class="hb-list">
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Submit by the deadline communicated at the time of setting</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Submit via the student portal unless the instructor specifies otherwise in writing</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Present work that reflects genuine personal effort — not copied, AI-generated, or reproduced from another student's submission</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Accept and action feedback; re-submission of revised work may be required at the instructor's discretion</span></li>
+        </ul>
+
+        <h3 class="hb-sec">§6 — Instruction Compliance</h3>
+        <p class="hb-p">Students are required to follow all reasonable academic and administrative instructions issued by MAM Academy staff. Persistent non-compliance is a disciplinary matter handled through the Corrective Measures framework below.</p>
+      </div>
+
+      <!-- Part V -->
+      <div class="hb-part">
+        <div class="hb-eyebrow">Part V</div>
+        <h2 class="hb-heading">Corrective Measures</h2>
+        <p class="hb-p">MAM Academy addresses conduct and compliance concerns through a structured, proportionate framework. Each instance is documented in the student's record.</p>
+        <div class="disc-ladder">
+          <div class="disc-rung d1"><span class="disc-badge">1st instance</span><span><strong>Verbal advisory</strong> — a private conversation with the instructor or Academy coordinator. A written record is made. No formal penalty.</span></div>
+          <div class="disc-rung d2"><span class="disc-badge">2nd instance</span><span><strong>Written warning + fine of <span class="fine" data-fine-ngn="500" data-fine-usd="0.50">₦500</span></strong> — a formal written notice is issued and the fine is posted to the student's account.</span></div>
+          <div class="disc-rung d3"><span class="disc-badge">3rd instance</span><span><strong>Written warning + fine of <span class="fine" data-fine-ngn="1000" data-fine-usd="1">₦1,000</span></strong> — a second formal notice is issued; a review meeting with Academy management may be required.</span></div>
+          <div class="disc-rung d4"><span class="disc-badge">4th+ instance</span><span><strong>Fine of <span class="fine" data-fine-ngn="3000" data-fine-usd="2">₦3,000</span> and possible suspension</strong> — the Academy reserves the right to suspend the student pending a full conduct review.</span></div>
+        </div>
+        <div class="hb-alert warn"><i class="fa-solid fa-circle-exclamation"></i><div>Suspension removes the student from all scheduled sessions and freezes portal access for the duration of the review. Fees are not paused or refunded during a suspension period.</div></div>
+        <p class="hb-p">Severe single instances — including physical aggression, theft, harassment, or deliberate submission of another student's work — may bypass the graduated ladder and result in immediate suspension or expulsion without refund.</p>
+      </div>
+
+      <!-- Part VI -->
+      <div class="hb-part">
+        <div class="hb-eyebrow">Part VI</div>
+        <h2 class="hb-heading">Payments &amp; Withdrawal</h2>
+
+        <h3 class="hb-sec">§7 — Payment Policy</h3>
+        <p class="hb-p">Programme fees must be paid in full — or the agreed instalment settled — before or on the first day of each programme cycle. Overdue accounts attract a late-payment notice; continued non-payment may result in suspension of portal access and exclusion from sessions until the account is settled.</p>
+        <ul class="hb-list">
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>The booking fee is separate from tuition and is not credited against it</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Agreed payment plans must be honoured on the agreed schedule</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span>Receipts and account statements are available at any time in the student portal under <strong>Payments</strong></span></li>
+        </ul>
+
+        <h3 class="hb-sec">§8 — Refund &amp; Withdrawal</h3>
+        <div class="hb-alert warn"><i class="fa-solid fa-triangle-exclamation"></i><div><strong>Fees are non-refundable once a programme has commenced</strong> — this applies to programme fees, registration fees, and the booking fee. See <a href="terms" class="hb-link">Terms of Service §3</a> for the full refund policy and your statutory rights.</div></div>
+        <p class="hb-p">As an alternative to withdrawal, enrolled students may apply to pause their programme for up to four weeks per cycle. Approval is at the Academy's discretion and must be requested in writing before the pause begins. Write to <a href="mailto:academy@mamcentre.org" class="hb-link">academy@mamcentre.org</a>.</p>
+      </div>
+
+      <!-- Part VII -->
+      <div class="hb-part">
+        <div class="hb-eyebrow">Part VII</div>
+        <h2 class="hb-heading">Instructor Responsibilities</h2>
+        <p class="hb-p">Instructors at MAM Academy are mentors, facilitators, and role models. By accepting an instructional appointment, each instructor commits to:</p>
+        <ul class="hb-list">
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Professionalism</strong> — punctuality, preparation, and discipline at every session; conduct consistent with the Academy's standards at all times</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Fair mentoring</strong> — equal commitment to every student regardless of background, level or pace of progress</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Faithful facilitation</strong> — honour the 30% instructor role; resist the temptation to front-load sessions with lecture content</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Objective assessment</strong> — grade and provide feedback on student work impartially and constructively; apply Academy rubrics consistently</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Record keeping</strong> — mark attendance promptly and submit session notes and grades by the deadlines published in the instructor portal</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Independent learning support</strong> — actively encourage students to develop autonomy; do not create intellectual or practical dependency</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Academy values</strong> — model discipline, honour and respect; address student misconduct through proper channels rather than informally</span></li>
+          <li><i class="fa-solid fa-circle-check lico" style="color:var(--gold-bright)"></i><span><strong>Reputation</strong> — do not make public statements about students, other instructors, or the Academy that could cause reputational harm</span></li>
+        </ul>
+        <div class="hb-alert info"><i class="fa-solid fa-chalkboard-user"></i><div>Instructor appointments are reviewed periodically. Persistent non-compliance with these responsibilities may result in the Academy terminating the instructional arrangement.</div></div>
+      </div>
+
+      <!-- Part VIII -->
+      <div class="hb-part">
+        <div class="hb-eyebrow">Part VIII</div>
+        <h2 class="hb-heading">General Provisions</h2>
+
+        <h3 class="hb-sec">§9 — Amendments</h3>
+        <p class="hb-p">MAM Academy reserves the right to amend this Handbook at any time. Material changes will be communicated through the student and instructor portals with at least seven days' notice before taking effect. Continued enrolment or instructional appointment after the effective date constitutes acceptance of the revised terms.</p>
+
+        <h3 class="hb-sec">§10 — Failure to Read</h3>
+        <p class="hb-p">All enrolled students and instructors are considered to have read and understood this Handbook from their first session. The Academy will not accept ignorance of these provisions as a mitigating factor in any conduct or compliance matter covered here.</p>
+
+        <div class="hb-alert note"><i class="fa-solid fa-handshake"></i><div><strong>Statement of Commitment</strong> — Joining MAM Academy is a voluntary choice and a meaningful commitment. We hold ourselves to the same standards we ask of you: quality instruction, honest feedback, and a learning environment built on mutual respect.</div></div>
+
+        <p class="hb-p" style="margin-top:20px">Questions about this Handbook: <a href="mailto:academy@mamcentre.org" class="hb-link">academy@mamcentre.org</a></p>
+      </div>
     </article>
 
     <div class="policy-foot">
