@@ -45,6 +45,34 @@ if ($method === 'POST') {
         mam_ok(['ok' => true, 'action' => 'mark_printed']);
     }
 
+    // Resend the existing card email WITHOUT reissuing (keeps the same serial).
+    if ($action === 'resend') {
+        $card = mam_db_row('SELECT * FROM id_cards WHERE id = ?', [$cardId]);
+        if (!$card) mam_fail('not_found', 404);
+        $to = mam_card_recipient($card);
+        if (!$to['email']) mam_fail('no_email', 422, ['message' => 'This card has no email address on file to send to.']);
+        mam_after_response(fn() => mam_card_resend($cardId));
+        mam_ok(['ok' => true, 'action' => 'resent', 'email' => $to['email']]);
+    }
+
+    // Edit the card photo (and optionally the holder's profile avatar), with an
+    // optional resend so the holder gets the corrected card straight away.
+    if ($action === 'set_photo') {
+        $photoUrl   = trim((string)($input['photo_url'] ?? ''));
+        $syncAvatar = !empty($input['sync_avatar']);
+        $resend     = !empty($input['resend']);
+        try {
+            $card = mam_card_set_photo($cardId, $photoUrl, $syncAvatar);
+        } catch (RuntimeException $e) {
+            if ($e->getMessage() === 'invalid_photo_url') {
+                mam_fail('invalid_photo_url', 422, ['message' => 'The photo must be a valid https:// image URL.']);
+            }
+            mam_fail('not_found', 404);
+        }
+        if ($resend) mam_after_response(fn() => mam_card_resend($cardId));
+        mam_ok(['ok' => true, 'action' => 'photo_updated', 'photo_url' => $card['photo_url'], 'resent' => $resend]);
+    }
+
     mam_fail('invalid_action', 422);
 }
 
@@ -76,7 +104,7 @@ $total = (int)(mam_db_row(
 $rows = mam_db_all(
     "SELECT ic.id, ic.serial, ic.role, ic.status, ic.session_code,
             ic.issued_at, ic.printed_at, ic.revoked_at, ic.revoke_reason,
-            ic.user_id, ic.summer_app_id, ic.version,
+            ic.user_id, ic.summer_app_id, ic.version, ic.photo_url,
             u.name AS user_name, u.email AS user_email, u.avatar_url AS user_photo,
             sa.first_name AS sa_first, sa.last_name AS sa_last, sa.email AS sa_email
        FROM id_cards ic
@@ -106,6 +134,7 @@ $cards = array_map(function (array $r): array {
         'holder_name'  => $name ?: 'Unknown',
         'holder_email' => $email,
         'holder_photo' => $r['user_photo'],
+        'photo_url'    => $r['photo_url'],
     ];
 }, $rows);
 

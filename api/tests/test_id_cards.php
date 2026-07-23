@@ -133,7 +133,53 @@ t_ok(str_contains($pdf, '%%EOF'),      'PDF ends with %%EOF');
 t_ok(str_contains($pdf, 'Alice Smith'), 'PDF contains holder name');
 t_ok(str_contains($pdf, (string)$sumCard['serial']), 'PDF contains serial');
 
+t_group('ID cards — recipient resolution');
+
+mam_db()->exec("DELETE FROM id_cards");
+$recipUserId = (int)(mam_db()->query("INSERT INTO users (name, email, password_hash, role, created_at) VALUES ('Recip Test','recip_test@mam.test','x','student','2026-01-01') RETURNING id")->fetchColumn() ?: 0);
+if (!$recipUserId) { mam_db()->exec("INSERT INTO users (name, email, password_hash, role, created_at) VALUES ('Recip Test','recip_test@mam.test','x','student','2026-01-01')"); $recipUserId = (int)mam_db()->lastInsertId(); }
+$recipCard = mam_card_mint($recipUserId, null, 'student', 'RECIP-2026');
+$recip = mam_card_recipient($recipCard);
+t_ok($recip['email'] === 'recip_test@mam.test', 'recipient email resolved from users');
+t_ok($recip['name']  === 'Recip Test',          'recipient name resolved from users');
+
+t_group('ID cards — edit photo');
+
+$photoCard = mam_card_set_photo((int)$recipCard['id'], 'https://cdn.example.com/new-photo.jpg', false);
+t_ok($photoCard['photo_url'] === 'https://cdn.example.com/new-photo.jpg', 'photo_url updated on card');
+$userAfter = mam_db_row('SELECT avatar_url FROM users WHERE id = ?', [$recipUserId]);
+t_ok(empty($userAfter['avatar_url']), 'avatar NOT synced when sync_avatar is false');
+
+$photoCard2 = mam_card_set_photo((int)$recipCard['id'], 'https://cdn.example.com/synced.jpg', true);
+$userAfter2 = mam_db_row('SELECT avatar_url FROM users WHERE id = ?', [$recipUserId]);
+t_ok($userAfter2['avatar_url'] === 'https://cdn.example.com/synced.jpg', 'avatar synced when sync_avatar is true');
+
+$cleared = mam_card_set_photo((int)$recipCard['id'], '', false);
+t_ok($cleared['photo_url'] === null, 'empty url clears the card photo');
+
+$threw = false;
+try { mam_card_set_photo((int)$recipCard['id'], 'http://insecure.example.com/x.jpg', false); }
+catch (RuntimeException $e) { $threw = ($e->getMessage() === 'invalid_photo_url'); }
+t_ok($threw, 'non-https photo URL is rejected');
+
+$threw2 = false;
+try { mam_card_set_photo((int)$recipCard['id'], 'not-a-url', false); }
+catch (RuntimeException $e) { $threw2 = ($e->getMessage() === 'invalid_photo_url'); }
+t_ok($threw2, 'malformed photo URL is rejected');
+
+t_group('ID cards — issue for user (approval delivery path)');
+
+mam_db()->exec("DELETE FROM id_cards");
+$issueUserId = (int)(mam_db()->query("INSERT INTO users (name, email, password_hash, role, created_at) VALUES ('Issue Test','issue_test@mam.test','x','student','2026-01-01') RETURNING id")->fetchColumn() ?: 0);
+if (!$issueUserId) { mam_db()->exec("INSERT INTO users (name, email, password_hash, role, created_at) VALUES ('Issue Test','issue_test@mam.test','x','student','2026-01-01')"); $issueUserId = (int)mam_db()->lastInsertId(); }
+$issued = mam_card_issue_for_user($issueUserId, 'student', 'CONTEMPORARY');
+t_ok($issued !== null,                          'issue_for_user returns a card');
+t_ok((int)$issued['user_id'] === $issueUserId,  'issued card linked to the user');
+t_ok($issued['status'] === 'active',            'issued card is active');
+$issuedAgain = mam_card_issue_for_user($issueUserId, 'student', 'OTHER');
+t_ok($issuedAgain !== null && $issuedAgain['id'] === $issued['id'], 'issue_for_user is idempotent');
+
 // Cleanup test data.
 mam_db()->exec("DELETE FROM id_cards");
 mam_db()->exec("DELETE FROM summer_applications WHERE reference = 'SUM-TEST-001'");
-mam_db()->exec("DELETE FROM users WHERE email = 'card_test@mam.test'");
+mam_db()->exec("DELETE FROM users WHERE email IN ('card_test@mam.test','recip_test@mam.test','issue_test@mam.test')");

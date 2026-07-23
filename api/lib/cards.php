@@ -474,3 +474,88 @@ function mam_card_send_email(array $card, string $email, string $name): void {
     ]);
     mam_automation_touch('id_card_issue');
 }
+
+/**
+ * Resolve the holder's email + display name for a card row.
+ * Returns ['email' => string|null, 'name' => string].
+ */
+function mam_card_recipient(array $card): array {
+    $email = null;
+    if ($card['user_id'] !== null) {
+        $u = mam_db_row('SELECT email FROM users WHERE id = ?', [(int)$card['user_id']]);
+        if ($u && !empty($u['email'])) $email = (string)$u['email'];
+    }
+    if ($email === null && $card['summer_app_id'] !== null) {
+        $a = mam_db_row('SELECT email FROM summer_applications WHERE id = ?', [(int)$card['summer_app_id']]);
+        if ($a && !empty($a['email'])) $email = (string)$a['email'];
+    }
+    return ['email' => $email, 'name' => mam_card_holder_name($card)];
+}
+
+/**
+ * Resend the issuance email for an existing card WITHOUT changing its serial.
+ * Re-reads the card fresh so a just-edited photo is reflected in the attachments.
+ * Returns true if an email was dispatched, false if the card has no email.
+ * Throws only if the card id is unknown.
+ */
+function mam_card_resend(int $cardId): bool {
+    $card = mam_db_row('SELECT * FROM id_cards WHERE id = ?', [$cardId]);
+    if (!$card) throw new RuntimeException('id_card: card not found');
+    $to = mam_card_recipient($card);
+    if (!$to['email']) return false;
+    mam_card_send_email($card, $to['email'], $to['name']);
+    mam_audit('resend', 'id_card', $cardId, []);
+    return true;
+}
+
+/**
+ * Replace the photo shown on a card. $photoUrl must be an https URL, or empty
+ * to clear it. The photo is NOT part of the QR signature (only serial+identity+
+ * version are), so no version bump is needed and existing scans keep working.
+ * Optionally mirrors the new photo to the holder's portal avatar so the card and
+ * portal stay in sync. Returns the updated card row.
+ * Throws RuntimeException('invalid_photo_url') on a bad URL, or 'id_card: card
+ * not found' on an unknown id.
+ */
+function mam_card_set_photo(int $cardId, string $photoUrl, bool $syncAvatar = false): array {
+    $card = mam_db_row('SELECT * FROM id_cards WHERE id = ?', [$cardId]);
+    if (!$card) throw new RuntimeException('id_card: card not found');
+    $photoUrl = trim($photoUrl);
+    if ($photoUrl !== '') {
+        $valid = filter_var($photoUrl, FILTER_VALIDATE_URL);
+        if (!$valid || !preg_match('#^https://#i', $photoUrl)) {
+            throw new RuntimeException('invalid_photo_url');
+        }
+        $photoUrl = substr($photoUrl, 0, 500);
+    }
+    mam_db_update('id_cards', ['photo_url' => $photoUrl !== '' ? $photoUrl : null], ['id' => $cardId]);
+    if ($syncAvatar && $card['user_id'] !== null) {
+        mam_db_update('users', ['avatar_url' => $photoUrl !== '' ? $photoUrl : null], ['id' => (int)$card['user_id']]);
+    }
+    mam_audit('set_photo', 'id_card', $cardId, ['sync_avatar' => $syncAvatar]);
+    return mam_db_row('SELECT * FROM id_cards WHERE id = ?', [$cardId]) ?: $card;
+}
+
+/**
+ * Issue (mint idempotently) + email an ID card for a portal user, independent of
+ * any course enrolment. This is the delivery point for a regular application:
+ * when an admin approves it, the provisioned student reliably gets a card — the
+ * enrolment-activation path (mam_card_mint_for_enrollment) still covers students
+ * who arrive through a paid course enrolment. Idempotent, gated by the caller,
+ * never throws. Returns the card (new or existing), or null on failure.
+ */
+function mam_card_issue_for_user(int $userId, string $role = 'student', string $sessionCode = ''): ?array {
+    try {
+        $card = mam_card_mint($userId, null, $role, $sessionCode);
+        mam_after_response(function () use ($card, $userId) {
+            $u = mam_db_row('SELECT name, email FROM users WHERE id = ?', [$userId]);
+            if ($u && !empty($u['email'])) {
+                mam_card_send_email($card, (string)$u['email'], (string)$u['name']);
+            }
+        });
+        return $card;
+    } catch (Throwable $e) {
+        mam_log('warn', 'id_card_issue_user_failed', ['user_id' => $userId, 'err' => $e->getMessage()]);
+        return null;
+    }
+}

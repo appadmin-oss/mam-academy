@@ -669,6 +669,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                                   . "</td></tr></table></body></html>";
                             @mam_send_mail($customer['email'], 'Your MAM Academy student portal is ready', $body, true);
                         }
+                        // Issue + email the student ID card on approval (idempotent;
+                        // gated by the id_card_issue automation). This makes approval a
+                        // reliable delivery point for a normal application, mirroring the
+                        // enrolment-activation path — so no approved student is left
+                        // without a card just because they didn't come through a paid
+                        // course enrolment.
+                        if (!empty($prov['user']['id']) && function_exists('mam_card_issue_for_user')
+                            && (!function_exists('mam_automation_on') || mam_automation_on('id_card_issue'))) {
+                            mam_card_issue_for_user((int)$prov['user']['id'], 'student', (string)($app['pathway'] ?? ''));
+                        }
                     } catch (Throwable $e) {
                         mam_log('warn', 'admin_provision_failed', ['app_id' => $id, 'err' => $e->getMessage()]);
                     }
@@ -6839,6 +6849,34 @@ nav a{display:flex;align-items:center}
     </div>
   </div>
 
+  <div id="icPhotoModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;align-items:center;justify-content:center">
+    <div style="background:var(--bg2);border-radius:14px;padding:26px 24px;max-width:440px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,0.3)">
+      <h3 style="margin:0 0 4px;color:var(--fg)">Edit card photo</h3>
+      <p id="icPhotoWho" style="margin:0 0 18px;color:var(--muted);font-size:13px"></p>
+      <div style="display:flex;gap:16px;align-items:flex-start">
+        <div style="flex-shrink:0">
+          <img id="icPhotoPreview" alt="" style="width:88px;height:88px;border-radius:12px;object-fit:cover;background:var(--bg);border:1px solid var(--border)">
+          <div id="icPhotoNoImg" style="width:88px;height:88px;border-radius:12px;background:var(--bg);border:1px dashed var(--border);display:none;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center">No photo</div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px">Image URL (https)</label>
+          <input type="url" id="icPhotoUrl" placeholder="https://…/photo.jpg" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:13px">
+          <p style="margin:6px 0 0;color:var(--muted);font-size:11px;line-height:1.5">Paste a hosted image URL. Leave blank to remove the photo (the card then shows the holder's initials).</p>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13px;color:var(--fg);cursor:pointer">
+        <input type="checkbox" id="icPhotoSync" checked> Also update their portal profile photo
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--fg);cursor:pointer">
+        <input type="checkbox" id="icPhotoResend" checked> Resend the updated ID card email
+      </label>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:22px">
+        <button class="btn-sm btn-outline" onclick="document.getElementById('icPhotoModal').style.display='none'">Cancel</button>
+        <button class="btn-sm btn-primary" id="icPhotoSave">Save photo</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 (function(){
   var API    = '<?= $appUrl ?>/api';
@@ -6874,6 +6912,8 @@ nav a{display:flex;align-items:center}
             '<a href="' + CARD_URL + encodeURIComponent(c.serial) + '" target="_blank" class="btn-sm btn-outline" style="font-size:12px">View</a>',
           ];
           if (c.status === 'active') {
+            actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icResend('+c.id+',\''+escHtml(c.holder_name)+'\')">Resend</button>');
+            actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icEditPhoto('+c.id+',\''+escHtml(c.holder_name)+'\',\''+escHtml(c.photo_url||c.holder_photo||'')+'\','+(c.user_id?'true':'false')+')">Edit photo</button>');
             actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icConfirm(\'reissue\','+c.id+',\''+escHtml(c.holder_name)+'\',\''+escHtml(c.serial)+'\')">Reissue</button>');
             actions.push('<button class="btn-sm" style="font-size:12px;background:var(--danger,#B91C1C);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer" onclick="icConfirm(\'revoke\','+c.id+',\''+escHtml(c.holder_name)+'\',\''+escHtml(c.serial)+'\')">Revoke</button>');
             if (!c.printed_at) {
@@ -6914,7 +6954,9 @@ nav a{display:flex;align-items:center}
     };
     document.getElementById('icModalTitle').textContent = titles[action] || 'Confirm';
     document.getElementById('icModalBody').innerHTML    = bodies[action] || '';
-    document.getElementById('icModalConfirm').onclick   = function() {
+    var cbtn = document.getElementById('icModalConfirm');
+    cbtn.style.background = 'var(--danger,#B91C1C)'; // reissue/revoke are destructive
+    cbtn.onclick = function() {
       modal.style.display = 'none';
       icAction(action, cardId, null);
     };
@@ -6940,6 +6982,63 @@ nav a{display:flex;align-items:center}
     });
   }
 
+  // Resend the current card (no reissue — same serial) after a quick confirm.
+  function icResend(cardId, holderName) {
+    var modal = document.getElementById('icConfirmModal');
+    document.getElementById('icModalTitle').textContent = 'Resend ID card';
+    document.getElementById('icModalBody').innerHTML = 'Email the current ID card to <strong>' + escHtml(holderName) + '</strong> again? The serial stays the same.';
+    var btn = document.getElementById('icModalConfirm');
+    btn.style.background = ''; // use default primary, not danger red
+    btn.onclick = function () { modal.style.display = 'none'; icAction('resend', cardId, null); };
+    modal.style.display = 'flex';
+  }
+
+  // Photo editor — preview + URL, with optional avatar sync and resend.
+  var icPhotoCardId = 0;
+  function icEditPhoto(cardId, holderName, currentUrl, hasUser) {
+    icPhotoCardId = cardId;
+    document.getElementById('icPhotoWho').textContent = 'For ' + holderName;
+    var url = currentUrl || '';
+    document.getElementById('icPhotoUrl').value = url;
+    icPhotoPreview(url);
+    var sync = document.getElementById('icPhotoSync');
+    sync.checked = !!hasUser; sync.disabled = !hasUser;
+    document.getElementById('icPhotoResend').checked = true;
+    document.getElementById('icPhotoModal').style.display = 'flex';
+  }
+  function icPhotoPreview(url) {
+    var img = document.getElementById('icPhotoPreview');
+    var ph  = document.getElementById('icPhotoNoImg');
+    if (url && /^https:\/\//i.test(url)) {
+      img.src = url; img.style.display = ''; ph.style.display = 'none';
+      img.onerror = function () { img.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = 'Preview failed'; };
+    } else {
+      img.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = url ? 'Must be https' : 'No photo';
+    }
+  }
+  function icSavePhoto() {
+    var url    = document.getElementById('icPhotoUrl').value.trim();
+    var sync   = document.getElementById('icPhotoSync').checked;
+    var resend = document.getElementById('icPhotoResend').checked;
+    if (url && !/^https:\/\//i.test(url)) { showToast('Photo URL must start with https://', 'error'); return; }
+    var btn = document.getElementById('icPhotoSave');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    fetch(API + '/admin/id-cards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({ action: 'set_photo', card_id: icPhotoCardId, photo_url: url, sync_avatar: sync, resend: resend }),
+    }).then(r => r.json()).then(function (d) {
+      btn.disabled = false; btn.textContent = 'Save photo';
+      if (d.ok) {
+        document.getElementById('icPhotoModal').style.display = 'none';
+        showToast('Photo updated' + (d.resent ? ' and card resent.' : '.'), 'success');
+        icLoad(currentPage);
+      } else {
+        showToast(d.message || 'Could not update photo.', 'error');
+      }
+    }).catch(function () { btn.disabled = false; btn.textContent = 'Save photo'; showToast('Network error.', 'error'); });
+  }
+
   function escHtml(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -6953,9 +7052,15 @@ nav a{display:flex;align-items:center}
   }
 
   // Expose for inline onclick handlers
-  window.icLoad    = icLoad;
-  window.icConfirm = icConfirm;
-  window.icAction  = icAction;
+  window.icLoad      = icLoad;
+  window.icConfirm   = icConfirm;
+  window.icAction    = icAction;
+  window.icResend    = icResend;
+  window.icEditPhoto = icEditPhoto;
+
+  // Photo modal wiring
+  document.getElementById('icPhotoSave').addEventListener('click', icSavePhoto);
+  document.getElementById('icPhotoUrl').addEventListener('input', function(){ icPhotoPreview(this.value.trim()); });
 
   // Trigger on Enter in the search box
   document.getElementById('icSearch').addEventListener('keydown', function(e){ if (e.key === 'Enter') icLoad(1); });

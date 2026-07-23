@@ -39,6 +39,10 @@ function mam_ok($data = [], $status = 200) { throw new RuntimeException('mam_ok:
 function mam_log(...$a) {}
 function mam_audit(...$a) {}
 function mam_client_ip() { return '127.0.0.1'; }
+// Real impl (bootstrap.php) defers to after the HTTP response; in tests we
+// no-op so mint-trigger helpers that queue an email (cards.php) are exercisable
+// without attempting to send mail.
+if (!function_exists('mam_after_response')) { function mam_after_response(callable $fn): void {} }
 
 // ---- Library under test ----------------------------------------------------
 require $ROOT . '/lib/db.php';
