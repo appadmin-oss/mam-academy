@@ -14,6 +14,75 @@
  */
 declare(strict_types=1);
 
+/**
+ * The single live promo row (active + within its date window), or null.
+ * Shared by the email banner, the public banner, and the discount engine.
+ * Defensive if the table is missing. (Not statically cached: it's a single
+ * indexed lookup, and caching would break correctness if a promo is created
+ * or expires within a process — and test isolation.)
+ */
+function mam_promo_active(): ?array {
+    $today = date('Y-m-d');
+    try {
+        return mam_db_row(
+            "SELECT * FROM promo_banners
+              WHERE active = 1
+                AND (starts_at IS NULL OR starts_at <= ?)
+                AND (ends_at   IS NULL OR ends_at   >= ?)
+              ORDER BY starts_at DESC, id DESC LIMIT 1",
+            [$today, $today]
+        ) ?: null;
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
+/** The live promo IF it's opted into the public site (public = 1), else null. */
+function mam_promo_active_public(): ?array {
+    $p = mam_promo_active();
+    return ($p && (int)($p['public'] ?? 0) === 1) ? $p : null;
+}
+
+/**
+ * The discount percent (0–90) a live PUBLIC promo grants for a given context.
+ * $context is 'tuition' or 'store'; applies_to 'all' (or empty) matches both.
+ * Returns 0 when there's no live public promo, no discount, or it doesn't apply
+ * to this context — so callers can multiply unconditionally.
+ */
+function mam_promo_discount_percent(string $context): int {
+    $p = mam_promo_active_public();
+    if (!$p) return 0;
+    $pct = (int)($p['discount_percent'] ?? 0);
+    if ($pct <= 0) return 0;
+    $applies = trim((string)($p['applies_to'] ?? 'all'));
+    if ($applies === '' || $applies === 'all' || $applies === $context) {
+        return max(0, min(90, $pct));
+    }
+    return 0;
+}
+
+/**
+ * Public-safe JSON payload for the live public promo (for GET /api/promo/active
+ * and the site banner), or null. Never leaks internal-only columns.
+ */
+function mam_promo_public_payload(): ?array {
+    $p = mam_promo_active_public();
+    if (!$p) return null;
+    $ctaUrl = trim((string)($p['cta_url'] ?? ''));
+    if ($ctaUrl !== '' && !preg_match('#^https?://|^/#i', $ctaUrl)) $ctaUrl = '';
+    return [
+        'title'            => (string)($p['title'] ?? ''),
+        'body'             => (string)($p['body'] ?? ''),
+        'discount_percent' => (int)($p['discount_percent'] ?? 0),
+        'applies_to'       => trim((string)($p['applies_to'] ?? 'all')) ?: 'all',
+        'cta_label'        => (string)($p['cta_label'] ?? ''),
+        'cta_url'          => $ctaUrl,
+        'bg_color'         => preg_match('/^#[0-9A-Fa-f]{6}$/', (string)($p['bg_color'] ?? '')) ? (string)$p['bg_color'] : '#FEF3C7',
+        // Countdown target: end of the promo's last valid day (local server date).
+        'ends_at'          => ($p['ends_at'] ?? null) ? ((string)$p['ends_at'] . 'T23:59:59') : null,
+    ];
+}
+
 function mam_email_active_banner(): string {
     $today = date('Y-m-d');
     $sql = "SELECT * FROM promo_banners

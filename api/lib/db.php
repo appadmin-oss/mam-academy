@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 57;
+const MAM_SCHEMA_TARGET = 58;
 
 /**
  * Open (and cache) the PDO connection.
@@ -145,6 +145,12 @@ function mam_db_migrate_mysql(PDO $db): void {
             // classes.meeting_link (v54) — Zoom/Meet/Teams URL for online classes.
             'classes' => [
                 'meeting_link' => "ALTER TABLE classes ADD COLUMN meeting_link VARCHAR(500) NULL",
+            ],
+            // promo_banners public-promo mode (v58) — time-limited discount.
+            'promo_banners' => [
+                'public'           => "ALTER TABLE promo_banners ADD COLUMN public INT NOT NULL DEFAULT 0",
+                'discount_percent' => "ALTER TABLE promo_banners ADD COLUMN discount_percent INT NOT NULL DEFAULT 0",
+                'applies_to'       => "ALTER TABLE promo_banners ADD COLUMN applies_to VARCHAR(16) NULL",
             ],
         ];
         foreach ($criticalRepairs as $tbl => $columns) {
@@ -1670,6 +1676,16 @@ function mam_db_migrate(PDO $db): void {
         ",
 
         57 => "ALTER TABLE class_sessions ADD COLUMN meeting_link TEXT;",
+
+        // v58: public-site promo mode for promo_banners — a time-limited discount
+        // (banner + server-enforced % off tuition/store checkout). Reuses the
+        // existing active/starts_at/ends_at window; `public` opts a banner into
+        // the public site, `discount_percent` + `applies_to` drive the discount.
+        58 => "
+            ALTER TABLE promo_banners ADD COLUMN public INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE promo_banners ADD COLUMN discount_percent INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE promo_banners ADD COLUMN applies_to TEXT;
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

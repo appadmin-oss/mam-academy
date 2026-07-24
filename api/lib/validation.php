@@ -110,6 +110,18 @@ function mam_compute_application_price(array $args): array {
     if ($onlineApplies && $mode === 'online') {
         $adjusted = $subtotal * (1 + mam_online_surcharge_pct() / 100);
     }
+
+    // Time-limited promo (server-enforced): a live PUBLIC promo that applies to
+    // tuition takes a % off the tuition subtotal, before the fixed registration
+    // fee (registration is never discounted). function_exists guards the call
+    // since promo.php loads after this lib; a 0% result leaves pricing untouched.
+    $promoPct    = function_exists('mam_promo_discount_percent') ? mam_promo_discount_percent('tuition') : 0;
+    $promoAmount = 0.0;
+    if ($promoPct > 0 && $adjusted > 0) {
+        $promoAmount = $adjusted * $promoPct / 100;
+        $adjusted   -= $promoAmount;
+    }
+
     $registration = $reg ? mam_registration_fee() : 0.0;
 
     // Prices are always presented as flat, whole-dollar amounts (no decimals).
@@ -117,6 +129,7 @@ function mam_compute_application_price(array $args): array {
     // the displayed and charged totals match exactly.
     $r0 = static function ($n) { return round((float)$n, 0); };
     $adjusted      = $r0($adjusted);
+    $promoAmount   = $r0($promoAmount);
     $registration  = $r0($registration);
     $total         = $adjusted + $registration;
     return [
@@ -128,6 +141,8 @@ function mam_compute_application_price(array $args): array {
         'pre_discount'    => $preDiscount === null ? null : $r0($preDiscount),
         'discount_pct'    => $r0($discountPct),
         'discount_amount' => $r0($discountAmount),
+        'promo_pct'       => (int)$promoPct,
+        'promo_amount'    => $promoAmount,
         'subtotal'        => $adjusted,
         'registration'    => $registration,
         'total'           => $total,

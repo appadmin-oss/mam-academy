@@ -1274,12 +1274,88 @@
     if (top) top.classList.add('active');
   }
 
+  // Site-wide promo bar: a live PUBLIC promo (banner + live countdown), fetched
+  // from the authoritative API. Self-contained, CSP-safe (no external deps),
+  // dismissible per session. The server enforces the actual discount at checkout;
+  // this only announces it.
+  function initPromoBanner() {
+    var base = (window.MAM_CONFIG && MAM_CONFIG.api && MAM_CONFIG.api.base) || '/api';
+    fetch(base + '/promo/active', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.ok || !j.active || !j.promo) return;
+        var p = j.promo;
+        var key = 'mam.promo.dismissed', sig = (p.title || p.body || '1');
+        try { if (sessionStorage.getItem(key) === sig) return; } catch (e) {}
+        var endTs = p.ends_at ? new Date(p.ends_at).getTime() : 0;
+        if (endTs && endTs <= Date.now()) return; // already expired
+
+        // One-time structural CSS (inline styles carry the admin-set colour).
+        if (!document.getElementById('mam-promo-css')) {
+          var st = document.createElement('style'); st.id = 'mam-promo-css';
+          st.textContent =
+            '.mam-promo-bar{position:relative;z-index:60;display:flex;align-items:center;gap:12px;'
+            + 'padding:9px 16px;color:#231a12;font-family:var(--font-body,Inter,sans-serif);'
+            + 'font-size:.86rem;line-height:1.35;border-bottom:1px solid rgba(0,0,0,.14)}'
+            + '.mam-promo-inner{flex:1;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;'
+            + 'gap:4px 10px;text-align:center;max-width:1180px;margin:0 auto}'
+            + '.mam-promo-msg{font-weight:600}'
+            + '.mam-promo-count{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}'
+            + '.mam-promo-cta{background:#231a12;color:#fff;text-decoration:none;padding:5px 14px;'
+            + 'border-radius:100px;font-weight:700;font-size:.8rem;white-space:nowrap}'
+            + '.mam-promo-cta:hover{opacity:.9}'
+            + '.mam-promo-x{flex-shrink:0;background:transparent;border:0;color:#231a12;font-size:1.3rem;'
+            + 'line-height:1;cursor:pointer;padding:0 4px;opacity:.65}.mam-promo-x:hover{opacity:1}';
+          document.head.appendChild(st);
+        }
+
+        var bar = document.createElement('div');
+        bar.className = 'mam-promo-bar';
+        bar.setAttribute('role', 'region'); bar.setAttribute('aria-label', 'Promotion');
+        bar.style.background = /^#[0-9A-Fa-f]{6}$/.test(p.bg_color || '') ? p.bg_color : '#FEF3C7';
+
+        var inner = document.createElement('div'); inner.className = 'mam-promo-inner';
+        var msg = document.createElement('span'); msg.className = 'mam-promo-msg';
+        msg.textContent = (p.discount_percent > 0 ? p.discount_percent + '% off — ' : '') + (p.body || '');
+        var count = document.createElement('span'); count.className = 'mam-promo-count';
+        inner.appendChild(msg); inner.appendChild(count);
+        if (p.cta_label && p.cta_url) {
+          var a = document.createElement('a'); a.className = 'mam-promo-cta';
+          a.href = p.cta_url; a.textContent = p.cta_label;
+          inner.appendChild(a);
+        }
+        var close = document.createElement('button');
+        close.className = 'mam-promo-x'; close.type = 'button';
+        close.setAttribute('aria-label', 'Dismiss offer'); close.textContent = '×';
+        var iv;
+        function dismiss() { bar.remove(); if (iv) clearInterval(iv); }
+        close.addEventListener('click', function () {
+          dismiss();
+          try { sessionStorage.setItem(key, sig); } catch (e) {}
+        });
+        bar.appendChild(inner); bar.appendChild(close);
+        document.body.insertBefore(bar, document.body.firstChild);
+
+        function pad(n) { return (n < 10 ? '0' : '') + n; }
+        function tick() {
+          if (!endTs) { count.textContent = ''; return; }
+          var d = endTs - Date.now();
+          if (d <= 0) { dismiss(); return; }
+          var h = Math.floor(d / 3.6e6), m = Math.floor((d % 3.6e6) / 6e4), s = Math.floor((d % 6e4) / 1000);
+          count.textContent = '· ends in ' + (h > 0 ? h + 'h ' : '') + pad(m) + 'm ' + pad(s) + 's';
+        }
+        tick();
+        if (endTs) iv = setInterval(tick, 1000);
+      })
+      .catch(function () { /* promo bar is best-effort; never block the page */ });
+  }
+
   function boot() {
     // Each init is isolated: a throw in one (e.g. the nav) must never stop the
     // others from running — otherwise a single failure could, for example,
     // leave the scroll-reveal section headers stuck at opacity:0.
     [initPreloader, initNav, initAuthNav, initActiveNav, initHero, initSmoothScroll, initFaq, initAnimations,
-     initCountdown, initTestimonials, initCookie, initToolbar, initCurrency,
+     initCountdown, initTestimonials, initCookie, initToolbar, initCurrency, initPromoBanner,
      initNewsletter, initFilters, initImageFallback, initYear, initScholarship,
      initFooterWordmark, initNavPricing, initGraphics, initBackToTop].forEach(function (fn) {
       try { fn(); } catch (e) { if (window.console) console.error('[MAM] init failed:', fn.name, e); }

@@ -153,6 +153,6 @@
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 
-<script src="assets/js/main.js?v=20260723a"></script>
+<script src="assets/js/main.js?v=20260724a"></script>
 </body>
 </html>

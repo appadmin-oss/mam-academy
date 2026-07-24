@@ -1521,6 +1521,9 @@ CREATE TABLE IF NOT EXISTS promo_banners (
   cta_url    VARCHAR(500) NOT NULL DEFAULT '',
   bg_color   VARCHAR(20)  NOT NULL DEFAULT '#FEF3C7',
   active     TINYINT(1)   NOT NULL DEFAULT 1,
+  public           TINYINT(1) NOT NULL DEFAULT 0,
+  discount_percent INT        NOT NULL DEFAULT 0,
+  applies_to       VARCHAR(16) NULL,
   starts_at  DATE         NULL,
   ends_at    DATE         NULL,
   created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1566,3 +1569,9 @@ CREATE TABLE IF NOT EXISTS card_scans (
 INSERT INTO schema_version (version) VALUES (56) ON DUPLICATE KEY UPDATE version = version;
 ALTER TABLE class_sessions ADD COLUMN IF NOT EXISTS meeting_link VARCHAR(500) NULL;
 INSERT INTO schema_version (version) VALUES (57) ON DUPLICATE KEY UPDATE version = version;
+
+-- v58: public-site promo mode (banner + time-limited discount) on promo_banners.
+ALTER TABLE promo_banners ADD COLUMN IF NOT EXISTS public TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE promo_banners ADD COLUMN IF NOT EXISTS discount_percent INT NOT NULL DEFAULT 0;
+ALTER TABLE promo_banners ADD COLUMN IF NOT EXISTS applies_to VARCHAR(16) NULL;
+INSERT INTO schema_version (version) VALUES (58) ON DUPLICATE KEY UPDATE version = version;

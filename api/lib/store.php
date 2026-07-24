@@ -75,13 +75,27 @@ function mam_store_compute_totals(array $cart, string $country): array {
     $hasPhysical = false;
     foreach ($items as $i) if (($i['goods_type'] ?? '') === 'physical') { $hasPhysical = true; break; }
     $shipping = $hasPhysical ? mam_setting_num('store_shipping_flat_usd', 5) : 0.00;
+
+    // Time-limited promo (server-enforced): a live PUBLIC promo applying to the
+    // store takes a % off the goods subtotal (and its tax proportionally);
+    // shipping is never discounted. 0% leaves totals untouched.
+    $promoPct = function_exists('mam_promo_discount_percent') ? mam_promo_discount_percent('store') : 0;
+    $promoDiscount = 0.0;
+    if ($promoPct > 0 && $subtotal > 0) {
+        $promoDiscount = round($subtotal * $promoPct / 100, 2);
+        $subtotal      = round($subtotal - $promoDiscount, 2);
+        $tax           = round($tax * (1 - $promoPct / 100), 2);
+    }
+
     $total = round($subtotal + $tax + $shipping, 2);
     return [
-        'items'        => $items,
-        'subtotal_usd' => round($subtotal, 2),
-        'tax_usd'      => round($tax, 2),
-        'shipping_usd' => $shipping,
-        'total_usd'    => $total,
+        'items'         => $items,
+        'subtotal_usd'  => round($subtotal, 2),
+        'tax_usd'       => round($tax, 2),
+        'shipping_usd'  => $shipping,
+        'promo_pct'     => (int)$promoPct,
+        'promo_discount_usd' => round($promoDiscount, 2),
+        'total_usd'     => $total,
     ];
 }
 
