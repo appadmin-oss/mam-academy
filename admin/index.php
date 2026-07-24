@@ -690,6 +690,34 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         exit;
     }
 
+    // Summer programme: update an application's status, and issue the ID card
+    // when it transitions to 'enrolled'. Server-form twin of the JS route
+    // POST /api/admin/summer/status. (The old inline ?v=summer handler called
+    // three non-existent helpers and sent the CSRF token under the wrong field
+    // name, so status updates 403'd and no card was ever minted.)
+    if ($action === 'summer_set_status') {
+        $sid   = (int)($_POST['id'] ?? 0);
+        $sst   = trim((string)($_POST['status'] ?? ''));
+        $valid = ['submitted', 'confirmed', 'waitlisted', 'enrolled', 'cancelled', 'rejected'];
+        $back  = '?v=summer' . (((int)($_POST['app'] ?? 0)) ? '&app=' . (int)$_POST['app'] : '');
+        if ($sid && in_array($sst, $valid, true)) {
+            $prev = mam_db_row('SELECT status FROM summer_applications WHERE id = ?', [$sid]);
+            if ($prev) {
+                mam_db_update('summer_applications', ['status' => $sst, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $sid]);
+                mam_audit('update', 'summer_application', $sid, ['from' => $prev['status'], 'to' => $sst]);
+                // Issue + email the ID card on the transition INTO 'enrolled'
+                // (idempotent; gated by the id_card_issue automation).
+                if ($sst === 'enrolled' && $prev['status'] !== 'enrolled'
+                    && function_exists('mam_card_mint_for_summer_app')
+                    && (!function_exists('mam_automation_on') || mam_automation_on('id_card_issue'))) {
+                    mam_card_mint_for_summer_app($sid);
+                }
+                header('Location: ' . $back . '&ok=' . urlencode('Status updated.')); exit;
+            }
+        }
+        header('Location: ' . $back . '&err=' . urlencode('Could not update status — pick a valid status.')); exit;
+    }
+
     // Admissions pipeline (A2): internal notes + assignee. Both are operational
     // (omitted from the super-only $actionCaps map) so admissions managers can
     // triage. actor/author ids fall back to null for break-glass Basic-Auth.
@@ -1478,6 +1506,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $bgColor  = preg_match('/^#[0-9A-Fa-f]{6}$/', (string)($_POST['banner_bg_color'] ?? ''))
             ? (string)$_POST['banner_bg_color'] : '#FEF3C7';
         $active   = !empty($_POST['banner_active']) ? 1 : 0;
+        $public   = !empty($_POST['banner_public']) ? 1 : 0;
+        $discount = max(0, min(90, (int)($_POST['banner_discount_percent'] ?? 0)));
+        $appliesTo = in_array((string)($_POST['banner_applies_to'] ?? ''), ['all', 'tuition', 'store'], true)
+            ? (string)$_POST['banner_applies_to'] : 'all';
         $startsAt = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_POST['banner_starts_at'] ?? ''))
             ? (string)$_POST['banner_starts_at'] : null;
         $endsAt   = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_POST['banner_ends_at'] ?? ''))
@@ -1490,15 +1522,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             mam_db_update('promo_banners', [
                 'title' => $title, 'body' => $body, 'cta_label' => $ctaLabel,
                 'cta_url' => $ctaUrl, 'bg_color' => $bgColor, 'active' => $active,
+                'public' => $public, 'discount_percent' => $discount, 'applies_to' => $appliesTo,
                 'starts_at' => $startsAt, 'ends_at' => $endsAt, 'updated_at' => $now,
             ], ['id' => $id]);
-            mam_audit('update_promo_banner', 'promo_banner', $id, ['title' => $title]);
+            mam_audit('update_promo_banner', 'promo_banner', $id, ['title' => $title, 'public' => $public, 'discount' => $discount]);
         } else {
             mam_db()->prepare(
-                'INSERT INTO promo_banners (title,body,cta_label,cta_url,bg_color,active,starts_at,ends_at,created_at,updated_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?)'
-            )->execute([$title, $body, $ctaLabel, $ctaUrl, $bgColor, $active, $startsAt, $endsAt, $now, $now]);
-            mam_audit('create_promo_banner', 'promo_banner', null, ['title' => $title]);
+                'INSERT INTO promo_banners (title,body,cta_label,cta_url,bg_color,active,public,discount_percent,applies_to,starts_at,ends_at,created_at,updated_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
+            )->execute([$title, $body, $ctaLabel, $ctaUrl, $bgColor, $active, $public, $discount, $appliesTo, $startsAt, $endsAt, $now, $now]);
+            mam_audit('create_promo_banner', 'promo_banner', null, ['title' => $title, 'public' => $public, 'discount' => $discount]);
         }
         header('Location: ?v=email-branding&ok=1'); exit;
     }
@@ -2895,19 +2928,9 @@ nav a{display:flex;align-items:center}
         return '<span class="pill ' . htmlspecialchars($cls) . '">' . htmlspecialchars($st) . '</span>';
     };
 
-    // Handle inline status update (JS-less fallback — the JS route is api/routes/admin/summer.php)
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && mam_admin_has_cap('view')) {
-        mam_check_csrf();
-        $updId  = (int)($_POST['id']     ?? 0);
-        $updSt  = trim((string)($_POST['status'] ?? ''));
-        if ($updId && in_array($updSt, $sValid, true)) {
-            mam_db_run('UPDATE summer_applications SET status = ?, updated_at = ? WHERE id = ?',
-                       [$updSt, date('Y-m-d H:i:s'), $updId]);
-            mam_audit('update', 'summer_application', $updId, ['status' => $updSt]);
-            header('Location: ' . $sUrl([]) . '&ok=1');
-            exit;
-        }
-    }
+    // Status updates POST to the global action dispatcher (action=summer_set_status),
+    // which updates the row AND issues the ID card on enrolment. See the handler
+    // near app_status. (This view no longer handles the POST itself.)
   ?>
   <header class="top">
     <h1>Summer Programme — <?= htmlspecialchars($sProg) ?></h1>
@@ -3039,8 +3062,10 @@ nav a{display:flex;align-items:center}
 
     <!-- Status update -->
     <form method="post" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
-      <input type="hidden" name="_csrf" value="<?= htmlspecialchars(mam_csrf_token()) ?>">
+      <?= mam_csrf_field() ?>
+      <input type="hidden" name="action" value="summer_set_status">
       <input type="hidden" name="id" value="<?= (int)$saRow['id'] ?>">
+      <input type="hidden" name="app" value="<?= (int)$saRow['id'] ?>">
       <select name="status" style="flex:1;min-width:150px">
         <?php foreach ($sValid as $st): ?>
           <option value="<?= htmlspecialchars($st) ?>"<?= (string)$saRow['status'] === $st ? ' selected' : '' ?>><?= ucfirst(htmlspecialchars($st)) ?></option>
@@ -7204,6 +7229,27 @@ nav a{display:flex;align-items:center}
           <input type="checkbox" name="banner_active" id="ebActive" value="1" checked style="width:16px;height:16px;cursor:pointer">
           <span style="font-size:0.9rem">Active</span>
         </label>
+
+        <div style="grid-column:1/-1;border-top:1px solid var(--border);padding-top:16px;margin-top:2px">
+          <div style="font-size:0.82rem;font-weight:700;color:var(--gold,#E8961F);margin-bottom:4px">Public site promo (optional)</div>
+          <p class="muted" style="margin:0 0 12px;font-size:0.8rem">Turn this banner into a live offer on the public website — a countdown bar plus a discount applied automatically at checkout for the dates above. The <strong>End date</strong> is the countdown target.</p>
+        </div>
+        <label style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" name="banner_public" id="ebPublic" value="1" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-size:0.9rem">Show on public site</span>
+        </label>
+        <label>
+          <span style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--muted)">Discount %</span>
+          <input type="number" name="banner_discount_percent" id="ebDiscount" min="0" max="90" step="1" value="0" style="width:100%">
+        </label>
+        <label>
+          <span style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--muted)">Discount applies to</span>
+          <select name="banner_applies_to" id="ebAppliesTo" style="width:100%">
+            <option value="all">Tuition &amp; store</option>
+            <option value="tuition">Tuition only</option>
+            <option value="store">Store only</option>
+          </select>
+        </label>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <button class="btn" type="submit" id="ebSubmitBtn">Create banner</button>
@@ -7228,6 +7274,9 @@ nav a{display:flex;align-items:center}
     document.getElementById('ebBgColor').value   = bg;
     document.getElementById('ebBgHex').textContent = bg;
     document.getElementById('ebActive').checked  = b.active == 1;
+    document.getElementById('ebPublic').checked   = b.public == 1;
+    document.getElementById('ebDiscount').value   = (b.discount_percent != null ? b.discount_percent : 0);
+    document.getElementById('ebAppliesTo').value  = b.applies_to || 'all';
     document.getElementById('ebForm').scrollIntoView({behavior:'smooth'});
   }
   function ebReset() {
@@ -7238,6 +7287,9 @@ nav a{display:flex;align-items:center}
     document.getElementById('ebForm').reset();
     document.getElementById('ebBgHex').textContent = '#FEF3C7';
     document.getElementById('ebActive').checked = true;
+    document.getElementById('ebPublic').checked = false;
+    document.getElementById('ebDiscount').value = 0;
+    document.getElementById('ebAppliesTo').value = 'all';
   }
   document.getElementById('ebBgColor').addEventListener('input', function() {
     document.getElementById('ebBgHex').textContent = this.value;

@@ -11,7 +11,7 @@ if ($method === 'POST') {
     $input = mam_json_input();
     $id     = (int)($input['id'] ?? 0);
     $status = (string)($input['status'] ?? '');
-    $valid  = ['submitted', 'confirmed', 'waitlisted', 'enrolled', 'cancelled'];
+    $valid  = ['submitted', 'confirmed', 'waitlisted', 'enrolled', 'cancelled', 'rejected'];
     if (!$id || !in_array($status, $valid, true)) mam_fail('invalid_params', 422);
 
     $app = mam_db_row('SELECT id, reference, status FROM summer_applications WHERE id = ?', [$id]);
