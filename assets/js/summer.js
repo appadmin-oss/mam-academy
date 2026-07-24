@@ -198,8 +198,12 @@
     }
 
     var origText = submitBtn.textContent;
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting…';
+    if (window.MAM_FORMS) MAM_FORMS.setBusy(submitBtn, 'Submitting…');
+    else { submitBtn.disabled = true; submitBtn.textContent = 'Submitting…'; }
+    function unbusy() {
+      if (window.MAM_FORMS) MAM_FORMS.resetBusy(submitBtn);
+      else { submitBtn.disabled = false; submitBtn.textContent = origText; }
+    }
 
     var payload = collectPayload();
 
@@ -213,8 +217,7 @@
         }).then(function (r) { return r.json(); });
 
     p.then(function (res) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = origText;
+      unbusy();
       if (res && res.ok && res.reference) {
         form.style.display = 'none';
         var ageNotice = document.querySelector('.su-age-notice');
@@ -226,8 +229,7 @@
         handleServerError(res);
       }
     }).catch(function (e) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = origText;
+      unbusy();
       handleServerError((e && e.body) ? e.body : null);
     });
   });

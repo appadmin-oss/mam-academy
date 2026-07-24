@@ -99,7 +99,7 @@
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260723a"></script>
-<script src="assets/js/main.js?v=20260724a"></script>
+<script src="assets/js/main.js?v=20260724b"></script>
 <script>
 /* FAQPage structured data — built from the rendered Q&A items so it can never
    drift from the visible content. Eligible for FAQ rich results in search. */

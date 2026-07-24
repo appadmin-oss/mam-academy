@@ -207,6 +207,75 @@
   window.MAM_STORAGE = Storage;
 
   // ============================================================
+  // MAM_FORMS — shared form-UX kit
+  // A single, consistent implementation of the busy-button + error affordances
+  // that every form on the site had been re-coding by hand (7+ copies of
+  // disable+spinner+label; divergent spinner markup). Opt-in per form; safe to
+  // call even when the design tokens aren't present.
+  // ============================================================
+  window.MAM_FORMS = (function () {
+    // One tiny keyframe/spinner definition, injected once, usable anywhere.
+    var cssInjected = false;
+    function ensureCss() {
+      if (cssInjected) return; cssInjected = true;
+      var st = document.createElement('style'); st.id = 'mam-forms-css';
+      st.textContent =
+        '.mam-spin{display:inline-block;width:1em;height:1em;vertical-align:-0.15em;margin-right:.5em;'
+        + 'border:2px solid currentColor;border-right-color:transparent;border-radius:50%;'
+        + 'animation:mam-spin .6s linear infinite}'
+        + '@keyframes mam-spin{to{transform:rotate(360deg)}}'
+        + '@media (prefers-reduced-motion:reduce){.mam-spin{animation-duration:1.4s}}'
+        + '.is-busy{cursor:progress!important;opacity:.85}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+
+    // Disable a button and show a spinner + label; remembers the prior label.
+    function setBusy(btn, label) {
+      if (!btn) return;
+      ensureCss();
+      if (btn.getAttribute('data-mam-orig') === null || btn.getAttribute('data-mam-orig') === undefined) {
+        btn.setAttribute('data-mam-orig', btn.innerHTML);
+      }
+      btn.disabled = true;
+      btn.classList.add('is-busy');
+      btn.setAttribute('aria-busy', 'true');
+      btn.innerHTML = '<span class="mam-spin" aria-hidden="true"></span>' + (label || 'Working…');
+    }
+    // Restore a button to its pre-busy label + enabled state.
+    function resetBusy(btn) {
+      if (!btn) return;
+      var orig = btn.getAttribute('data-mam-orig');
+      if (orig !== null) { btn.innerHTML = orig; btn.removeAttribute('data-mam-orig'); }
+      btn.disabled = false;
+      btn.classList.remove('is-busy');
+      btn.removeAttribute('aria-busy');
+    }
+    // Scroll to + focus the first invalid/errored control in a form.
+    function focusFirstError(form) {
+      if (!form) return;
+      var el = form.querySelector('.error, .has-error, [aria-invalid="true"], :invalid');
+      if (!el) return;
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+      try { el.focus({ preventScroll: true }); } catch (e) { if (el.focus) el.focus(); }
+    }
+    // Announce a transient status message to screen readers via a shared,
+    // visually-hidden polite live region (created on first use).
+    var liveRegion = null;
+    function announce(msg) {
+      if (!liveRegion) {
+        liveRegion = document.createElement('div');
+        liveRegion.setAttribute('aria-live', 'polite');
+        liveRegion.setAttribute('role', 'status');
+        liveRegion.style.cssText = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0';
+        document.body.appendChild(liveRegion);
+      }
+      liveRegion.textContent = '';
+      setTimeout(function () { liveRegion.textContent = String(msg || ''); }, 30);
+    }
+    return { setBusy: setBusy, resetBusy: resetBusy, focusFirstError: focusFirstError, announce: announce };
+  })();
+
+  // ============================================================
   // Partials — load shared header & footer
   // ============================================================
   function loadPartial(id, file) {
@@ -342,11 +411,35 @@
     });
 
     // Promote every error message to a screen-reader live region so
-    // appearing/changing text is announced.
-    $$('.field-error, .form-error').forEach(function (el) {
+    // appearing/changing text is announced. Covers all of the form-error
+    // conventions in use across the site (apply.css `.field-error`/`.form-error`,
+    // the inline `.su-field-error` on summer/checkout/tuition, scholarship's
+    // feedback banner, instructor-apply's `#facErr`) so no form's errors go
+    // silent to assistive tech.
+    $$('.field-error, .form-error, .su-field-error, .sch-feedback, #facErr, [data-error-live]').forEach(function (el) {
       if (!el.getAttribute('role')) el.setAttribute('role', 'alert');
       if (!el.getAttribute('aria-live')) el.setAttribute('aria-live', 'polite');
     });
+
+    // Universal "focus the first invalid field" behaviour: browsers fire a
+    // (non-bubbling) `invalid` event per field when a form fails native HTML5
+    // validation on submit. Caught in the capture phase, this scrolls to and
+    // focuses the first offending control — a consistent recovery UX for every
+    // form that uses `required`/`type=email`/etc., with no per-form wiring.
+    var invalidRAF = 0, firstInvalid = null;
+    document.addEventListener('invalid', function (e) {
+      var el = e.target;
+      if (!el || !el.focus) return;
+      if (!firstInvalid) firstInvalid = el;
+      if (invalidRAF) return;
+      invalidRAF = requestAnimationFrame(function () {
+        invalidRAF = 0;
+        var target = firstInvalid; firstInvalid = null;
+        if (!target) return;
+        try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e2) {}
+        try { target.focus({ preventScroll: true }); } catch (e2) { target.focus(); }
+      });
+    }, true);
 
     $$('[data-mobile-toggle]').forEach(function (btn) {
       on(btn, 'click', function () {
