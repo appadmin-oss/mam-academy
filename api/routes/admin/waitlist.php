@@ -58,5 +58,8 @@ try {
     if ($msg === 'cohort_not_found') mam_fail('cohort_not_found', 404);
     if ($msg === 'already_enrolled') mam_fail('already_enrolled', 409);
     if ($msg === 'cohort_full') mam_fail('cohort_full', 409, ['hint' => 'Cohort is at capacity — pass force to override.']);
+    // Promote refuses rather than silently consuming a queue entry; surface why.
+    if ($msg === 'no_course_mapping') mam_fail('no_course_mapping', 409, ['hint' => 'Map this cohort to a course before promoting — nothing can be enrolled without one.']);
+    if ($msg === 'enrolled_elsewhere') mam_fail('enrolled_elsewhere', 409, ['hint' => 'That student already has a live enrolment for this course in another cohort. Move or withdraw it first; they stay queued.']);
     mam_fail('error', 400, ['detail' => $msg]);
 }

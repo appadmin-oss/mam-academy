@@ -223,12 +223,10 @@ function mam_payment_settle_tuition(int $appId): ?string {
             } catch (RuntimeException $e) {
                 if ($e->getMessage() === 'already_enrolled') {
                     // A previous payment attempt or manual enrol already created it.
-                    $existing = mam_db_row(
-                        "SELECT ce.id FROM course_enrollments ce
-                           JOIN courses c ON c.id = ce.course_id
-                          WHERE ce.student_id = ? AND c.code = ? AND ce.status IN ('pending','active') LIMIT 1",
-                        [$studentId, (string)$app['discipline']]
-                    );
+                    // Resolve LEVEL-AWARE: an unordered, level-blind lookup here
+                    // could return (and then activate) the enrolment for a
+                    // different level than the one just paid for.
+                    $existing = mam_lms_find_enrollment($studentId, (string)$app['discipline'], $app['level'] ?? null);
                     $ceId = $existing ? (int)$existing['id'] : 0;
                 } else {
                     mam_log('info', 'auto_enroll_skip', [
@@ -247,7 +245,10 @@ function mam_payment_settle_tuition(int $appId): ?string {
             if ($ceId > 0) {
                 // null instructor → system uses the remembered instructor for this
                 // course/level from instructor_assignments (set via curriculum workflow).
-                try { mam_lms_approve($ceId, null, 0); }
+                // null actor (not 0) → this is a system action; 0 is not a valid
+                // users(id) and would violate the enrolment_events FK, silently
+                // costing the pending→active row its lifecycle audit entry.
+                try { mam_lms_approve($ceId, null, null); }
                 catch (\Throwable $e) { mam_log('info', 'auto_enroll_approve_skip', ['ce_id' => $ceId, 'reason' => $e->getMessage()]); }
             }
         }

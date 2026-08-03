@@ -34,18 +34,21 @@ try {
 // Skipped silently if the discipline doesn't map to an active course.
 if (!empty($class['discipline'])) {
     $ceId = 0;
+    $ceWaitlist = null;
     try {
         $ceRow = mam_lms_add_course($studentId, (string)$class['discipline']);
-        $ceId  = (int)$ceRow['id'];
+        // A full course cohort diverts to its waitlist ('id' is null then). The
+        // LEGACY class enrolment above still stands — only the course/gradebook
+        // side is queued — so report it rather than letting it pass unnoticed.
+        if (($ceRow['status'] ?? '') === 'waitlisted') {
+            $ceWaitlist = ['cohort_id' => (int)$ceRow['cohort_id'], 'position' => (int)$ceRow['position']];
+        }
+        $ceId = (int)($ceRow['id'] ?? 0);
     } catch (RuntimeException $e) {
         if ($e->getMessage() === 'already_enrolled') {
-            // Payment settle already created one; find it.
-            $existing = mam_db_row(
-                "SELECT ce.id FROM course_enrollments ce
-                   JOIN courses c ON c.id = ce.course_id
-                  WHERE ce.student_id = ? AND c.code = ? AND ce.status IN ('pending','active')",
-                [$studentId, (string)$class['discipline']]
-            );
+            // Payment settle already created one; find it (deterministically —
+            // the old unordered lookup could return another level's enrolment).
+            $existing = mam_lms_find_enrollment($studentId, (string)$class['discipline']);
             $ceId = $existing ? (int)$existing['id'] : 0;
         }
         // course_not_found → class discipline doesn't map to a course yet; skip
@@ -76,4 +79,4 @@ if (!empty($student['email'])) {
 }
 
 mam_audit('enroll', 'student', $studentId, ['class_id' => $classId]);
-mam_ok(['enrollment_id' => $id]);
+mam_ok(['enrollment_id' => $id, 'course_waitlist' => $ceWaitlist ?? null]);

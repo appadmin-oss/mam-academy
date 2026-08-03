@@ -334,3 +334,154 @@ function mam_summer_application_status(string $reference, string $email): ?array
         'is_summer'     => true,
     ];
 }
+
+/**
+ * Is the summer application window open on $today (Y-m-d)?
+ *
+ * Each bound is honoured INDEPENDENTLY. The previous inline guard only ran when
+ * both settings were present, so configuring just `summer_app_close` (the usual
+ * "we close on the 30th" case) left applications open forever. An empty bound
+ * means "unbounded on that side"; no bounds at all means always open.
+ */
+function mam_summer_window_open(string $today, string $open, string $close): bool {
+    $open  = trim($open);
+    $close = trim($close);
+    if ($open !== ''  && $today < $open)  return false;
+    if ($close !== '' && $today > $close) return false;
+    return true;
+}
+
+/* ── Summer application status lifecycle ───────────────────────────────────
+   The rest of the platform enforces its state machines (mam_admissions_transition,
+   mam_lms_transitions); summer status was free assignment from any value to any
+   other, so a rejected place could be walked back to 'enrolled' and a cancelled
+   one re-confirmed. Terminal states are terminal; 'enrolled' can still be
+   cancelled because a confirmed place genuinely can fall through. */
+
+/** The legal summer transition graph (terminal states have an empty allow-list). */
+function mam_summer_transitions(): array {
+    return [
+        'submitted'  => ['confirmed', 'waitlisted', 'rejected', 'cancelled'],
+        'waitlisted' => ['confirmed', 'rejected', 'cancelled'],
+        'confirmed'  => ['enrolled', 'cancelled'],
+        'enrolled'   => ['cancelled'],
+        'cancelled'  => [],
+        'rejected'   => [],
+    ];
+}
+
+/** Pure predicate: is $from → $to a legal summer application transition? */
+function mam_summer_can_transition(string $from, string $to): bool {
+    $g = mam_summer_transitions();
+    return isset($g[$from]) && in_array($to, $g[$from], true);
+}
+
+/**
+ * Find (or create) the dedicated cohort for one summer run of a discipline.
+ * Keyed on (course, term='SUMMER-<year>') so it can never collide with the
+ * ordinary (course, level, programme) cohort mam_lms_ensure_cohort() manages —
+ * a summer camp is its own run, not an intake of the year-round programme.
+ */
+function mam_summer_cohort(int $courseId, int $year, string $courseName): int {
+    $term = 'SUMMER-' . $year;
+    $row  = mam_db_row(
+        'SELECT id FROM cohorts WHERE course_id = ? AND term = ? AND legacy_class_id IS NULL ORDER BY id LIMIT 1',
+        [$courseId, $term]
+    );
+    if ($row) return (int)$row['id'];
+    return mam_lms_create_cohort([
+        'course_id' => $courseId,
+        'term'      => $term,
+        'title'     => $term . ' — ' . $courseName,
+        'capacity'  => (int)mam_setting_num('summer_cohort_capacity', 30),
+    ]);
+}
+
+/**
+ * Provision a summer applicant so they exist on the LMS the way every other
+ * enrolled learner does. Setting status='enrolled' used to write nothing but the
+ * status column (plus an ID card), leaving "enrolled" summer students absent
+ * from every roster, gradebook, mark sheet and attendance gate.
+ *
+ * Creates, idempotently:
+ *   1. a ROSTER IDENTITY — a users row with status='roster', which both
+ *      mam_login() and mam_session_user() reject (they require status='active'),
+ *      and which mam_password_reset cannot target. Summer children get a roster
+ *      presence, NOT portal access. An existing account for the same email is
+ *      reused untouched, so a year-round student is never downgraded.
+ *   2. the SUMMER-<year> cohort for their discipline (mam_summer_cohort).
+ *   3. an active course_enrollment linking the two, with a lifecycle event.
+ *
+ * Never throws for a missing/unmapped discipline — it provisions the identity
+ * and reports why no course enrolment was made.
+ *
+ * @return array{user_id:int,cohort_id:?int,enrollment_id:?int,reason:string}
+ */
+function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
+    $app = mam_db_row('SELECT * FROM summer_applications WHERE id = ?', [$summerAppId]);
+    if (!$app) throw new InvalidArgumentException('summer_app_not_found');
+
+    $email = strtolower(trim((string)$app['email']));
+    if ($email === '') throw new RuntimeException('summer_app_no_email');
+    $name  = trim((string)$app['first_name'] . ' ' . (string)$app['last_name']);
+    $year  = (int)($app['session_year'] ?? 0) ?: (int)date('Y');
+
+    // 1. Roster identity — reuse any existing account for this email as-is.
+    $user = mam_db_row('SELECT id FROM users WHERE LOWER(email) = ?', [$email]);
+    if ($user) {
+        $userId = (int)$user['id'];
+    } else {
+        $userId = mam_db_insert('users', [
+            'email' => $email,
+            // Not a valid hash, so password_verify() can never match it. The
+            // status gate above is the real lock; this is defence in depth.
+            'password_hash' => 'roster:' . bin2hex(random_bytes(16)),
+            'role'          => 'student',
+            'name'          => $name !== '' ? $name : 'Summer participant',
+            'status'        => 'roster',
+        ]);
+        mam_audit('summer_roster_identity', 'user', $userId, ['summer_app' => $summerAppId, 'email' => $email]);
+    }
+
+    $out = ['user_id' => $userId, 'cohort_id' => null, 'enrollment_id' => null, 'reason' => 'enrolled'];
+
+    // 2. Resolve the discipline → course. No discipline is a data gap, not an error.
+    $discipline = trim((string)($app['discipline'] ?? ''));
+    if ($discipline === '') { $out['reason'] = 'no_discipline'; return $out; }
+    $course = mam_db_row('SELECT id, name FROM courses WHERE code = ? AND active = 1', [$discipline]);
+    if (!$course) { $out['reason'] = 'course_not_found'; return $out; }
+    $courseId = (int)$course['id'];
+
+    $cohortId = mam_summer_cohort($courseId, $year, (string)$course['name']);
+    $out['cohort_id'] = $cohortId;
+
+    // 3. Enrol into the summer cohort — idempotent, and no capacity divert: this
+    //    is an admin decision on an already-confirmed place, so it mirrors the
+    //    forced/converge paths rather than the self-service one.
+    $existing = mam_db_row(
+        "SELECT id FROM course_enrollments
+          WHERE student_id = ? AND course_id = ? AND cohort_id = ? AND status IN ('pending','active')
+          ORDER BY id LIMIT 1",
+        [$userId, $courseId, $cohortId]
+    );
+    if ($existing) {
+        $out['enrollment_id'] = (int)$existing['id'];
+        $out['reason'] = 'already_enrolled';
+        return $out;
+    }
+
+    $enrId = mam_db_insert('course_enrollments', [
+        'student_id'  => $userId,
+        'course_id'   => $courseId,
+        'cohort_id'   => $cohortId,
+        'status'      => 'active',
+        'approved_by' => mam_lms_actor_id($actorId),
+        'approved_at' => date('Y-m-d H:i:s'),
+    ]);
+    mam_lms_log_event($enrId, null, 'active', $actorId, 'summer_enrolled:' . (string)$app['reference']);
+    mam_audit('summer_enrol', 'course_enrollment', $enrId, [
+        'summer_app' => $summerAppId, 'student' => $userId, 'cohort' => $cohortId, 'year' => $year,
+    ]);
+    $out['enrollment_id'] = $enrId;
+    return $out;
+}

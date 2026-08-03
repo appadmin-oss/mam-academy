@@ -772,15 +772,23 @@
       msg.style.color = 'var(--text-muted)'; msg.textContent = 'Submitting…';
       API.request('student/add-course', { method: 'POST', body: body })
         .then(function (r) {
-          msg.style.color = 'var(--emerald, #1FBF8F)';
-          msg.textContent = (r.status === 'active') ? 'Added — you’re enrolled!' : 'Requested — pending approval.';
+          // A full cohort queues you instead of over-filling the class — say so
+          // plainly, with your place in the queue, so 'waitlisted' never reads
+          // as a silent failure or as a confirmed enrolment.
+          if (r.status === 'waitlisted') {
+            msg.style.color = 'var(--gold, #E8961F)';
+            msg.textContent = 'That class is full — you’re on the waitlist at position ' + (r.position || 1) + '. We’ll be in touch as soon as a place opens.';
+          } else {
+            msg.style.color = 'var(--emerald, #1FBF8F)';
+            msg.textContent = (r.status === 'active') ? 'Added — you’re enrolled!' : 'Requested — pending approval.';
+          }
           return API.request('student/courses', { method: 'GET' });
         })
         .then(function (r) { if (r && r.courses) data.courses = r.courses; renderCourses(); })
         .catch(function (err) {
           var e2 = (err && err.message) || 'error';
           msg.style.color = '#FB7185';
-          msg.textContent = e2 === 'already_enrolled' ? 'You’re already enrolled in that course/level.'
+          msg.textContent = e2 === 'already_enrolled' ? 'You already have a live enrolment in that course.'
             : (e2 === 'course_not_found' ? 'That course is unavailable.' : 'Could not add the course — please try again.');
         });
     });

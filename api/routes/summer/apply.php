@@ -10,14 +10,15 @@ declare(strict_types=1);
 $input = mam_json_input();
 mam_honeypot($input);
 
-// Guard: applications must be within the configured window
-$appOpen  = (string)mam_setting('summer_app_open', '');
-$appClose = (string)mam_setting('summer_app_close', '');
-if ($appOpen && $appClose) {
-    $today = date('Y-m-d');
-    if ($today < $appOpen || $today > $appClose) {
-        mam_fail('applications_closed', 422, ['message' => 'Summer programme applications are not currently open.']);
-    }
+// Guard: applications must be within the configured window. Each bound is
+// honoured independently — requiring BOTH meant setting only `summer_app_close`
+// (the usual "we close on the 30th") left applications open indefinitely.
+if (!mam_summer_window_open(
+        date('Y-m-d'),
+        (string)mam_setting('summer_app_open', ''),
+        (string)mam_setting('summer_app_close', '')
+)) {
+    mam_fail('applications_closed', 422, ['message' => 'Summer programme applications are not currently open.']);
 }
 
 $v = mam_validate_summer_application($input);
@@ -50,7 +51,9 @@ try {
         'policy_signed_at'  => date('Y-m-d H:i:s'),
         'session_year'      => (int)date('Y'),
         'headshot_url'      => $v['headshotUrl'] ?: null,
-        'fee_snapshot_usd'  => (float)mam_setting_num('summer_fee', 0) ?: null,
+        // Distinguish "no fee configured" from a deliberate zero fee: only an
+        // absent setting stores NULL. (`(float)… ?: null` collapsed both to NULL.)
+        'fee_snapshot_usd'  => mam_setting('summer_fee', '') === '' ? null : (float)mam_setting_num('summer_fee', 0),
         'status'            => 'submitted',
         'source'            => substr((string)($_SERVER['HTTP_REFERER'] ?? ''), 0, 200),
         'ip'                => mam_client_ip(),

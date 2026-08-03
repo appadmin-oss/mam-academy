@@ -60,18 +60,33 @@ function mam_lms_can_transition(string $from, string $to): bool {
     return isset($g[$from]) && in_array($to, $g[$from], true);
 }
 
+/** Normalise a "who did this" id for the audit trail. `enrolment_events.actor_id`
+ *  carries a users(id) FK, so a 0 / negative "no actor" sentinel would violate it
+ *  and cost us the whole audit row — NULL is the correct way to say "system". */
+function mam_lms_actor_id(?int $actorId): ?int {
+    return ($actorId !== null && $actorId > 0) ? $actorId : null;
+}
+
 /** Append one row to the enrolment audit trail. Never throws (the audit must
- *  not break a write); a missing table on a pre-v18 install is simply skipped. */
+ *  not break a write); a missing table on a pre-v18 install is simply skipped.
+ *  A failure is logged rather than swallowed in silence — an audit row that
+ *  vanishes without a trace is indistinguishable from one that was never due. */
 function mam_lms_log_event(int $enrollmentId, ?string $from, string $to, ?int $actorId = null, ?string $reason = null): void {
     try {
         mam_db_insert('enrolment_events', [
             'enrollment_id' => $enrollmentId,
             'from_status'   => $from,
             'to_status'     => $to,
-            'actor_id'      => $actorId,
+            'actor_id'      => mam_lms_actor_id($actorId),
             'reason'        => $reason !== null ? mb_substr($reason, 0, 255) : null,
         ]);
-    } catch (Throwable $e) { /* audit-only */ }
+    } catch (Throwable $e) {
+        if (function_exists('mam_log')) {
+            mam_log('warn', 'enrolment_event_failed', [
+                'enrollment' => $enrollmentId, 'to' => $to, 'err' => $e->getMessage(),
+            ]);
+        }
+    }
 }
 
 /**
@@ -90,13 +105,14 @@ function mam_lms_transition(int $enrollmentId, string $to, ?int $by = null, ?str
     if ($from === $to) return ['ok' => true, 'changed' => false, 'from' => $from, 'to' => $to];
     if (!mam_lms_can_transition($from, $to)) throw new RuntimeException('illegal_transition');
 
-    $now  = date('Y-m-d H:i:s');
-    $data = ['status' => $to, 'status_changed_at' => $now];
+    $now   = date('Y-m-d H:i:s');
+    $actor = mam_lms_actor_id($by);   // 0 == "system", and 0 is not a valid users(id)
+    $data  = ['status' => $to, 'status_changed_at' => $now];
     // Keep the legacy approval columns in lockstep when an enrolment activates.
-    if ($to === 'active') { $data['approved_at'] = $now; if ($by) $data['approved_by'] = $by; }
+    if ($to === 'active') { $data['approved_at'] = $now; if ($actor !== null) $data['approved_by'] = $actor; }
     mam_db_update('course_enrollments', $data, ['id' => $enrollmentId]);
 
-    mam_lms_log_event($enrollmentId, $from, $to, $by, $reason);
+    mam_lms_log_event($enrollmentId, $from, $to, $actor, $reason);
     mam_audit('lms_transition', 'course_enrollment', $enrollmentId, ['from' => $from, 'to' => $to, 'reason' => $reason]);
 
     // Automation #9: issue ID card when enrolment activates.
@@ -231,21 +247,87 @@ function mam_lms_student_courses(int $studentId): array {
 }
 
 /**
- * Add a course for a student. Resolves codes → ids, blocks duplicate
- * active/pending enrolments in the same course+level, and sets the status per
- * the auto-approve policy. Throws InvalidArgumentException('course_not_found')
- * or RuntimeException('already_enrolled'). Returns ['id','status'].
+ * Find a student's LIVE (pending|active) enrolment in a course, deterministically.
+ *
+ * This is the canonical resolver for the "already_enrolled → find the row I was
+ * going to create" recovery that payment settlement and the admin enrol paths
+ * perform. Those used to run an unordered, level-blind `LIMIT 1`, which could
+ * return (and then activate) the enrolment for a DIFFERENT level than the one
+ * being paid for. Resolution order:
+ *   - a level was asked for → that exact level, else a level-less enrolment in
+ *     the same course (which is what a level-less add would have created);
+ *     never another level's row.
+ *   - no level asked for → the course's live enrolment, preferring the
+ *     level-less row, newest first.
+ * Returns the full row, or null when there is nothing live to recover.
+ */
+function mam_lms_find_enrollment(int $studentId, string $courseCode, ?string $levelCode = null): ?array {
+    $course = mam_db_row('SELECT id FROM courses WHERE code = ?', [$courseCode]);
+    if (!$course) return null;
+    $courseId = (int)$course['id'];
+
+    $levelId = null;
+    if ($levelCode !== null && $levelCode !== '') {
+        $l = mam_db_row('SELECT id FROM levels WHERE code = ?', [$levelCode]);
+        if (!$l) return null;               // an unknown level can never match
+        $levelId = (int)$l['id'];
+    }
+
+    if ($levelId !== null) {
+        $row = mam_db_row(
+            "SELECT * FROM course_enrollments
+              WHERE student_id = ? AND course_id = ? AND level_id = ? AND status IN ('pending','active')
+              ORDER BY id DESC LIMIT 1",
+            [$studentId, $courseId, $levelId]
+        );
+        if ($row) return $row;
+        return mam_db_row(
+            "SELECT * FROM course_enrollments
+              WHERE student_id = ? AND course_id = ? AND level_id IS NULL AND status IN ('pending','active')
+              ORDER BY id DESC LIMIT 1",
+            [$studentId, $courseId]
+        ) ?: null;
+    }
+
+    return mam_db_row(
+        "SELECT * FROM course_enrollments
+          WHERE student_id = ? AND course_id = ? AND status IN ('pending','active')
+          ORDER BY (level_id IS NULL) DESC, id DESC LIMIT 1",
+        [$studentId, $courseId]
+    ) ?: null;
+}
+
+/**
+ * Add a course for a student. Resolves codes → ids, blocks a duplicate live
+ * enrolment in the same course, respects the target cohort's capacity, and sets
+ * the status per the auto-approve policy.
+ *
+ * Capacity: the (course, level, programme) cohort is resolved BEFORE anything is
+ * written, so a full cohort diverts the student onto its waitlist instead of
+ * over-filling it — self-service enrolment used to ignore capacity entirely,
+ * which made the waitlist unreachable for students.
+ *
+ * Throws InvalidArgumentException('course_not_found') or
+ * RuntimeException('already_enrolled'). Returns
+ *   ['id'=>int,  'status'=>'pending'|'active', 'cohort_id'=>?int]           enrolled
+ *   ['id'=>null, 'status'=>'waitlisted', 'position'=>int, 'cohort_id'=>int] diverted
  */
 function mam_lms_add_course(int $studentId, string $courseCode, ?string $levelCode = null, ?string $programCode = null, ?int $requestedInstructorId = null): array {
     $course = mam_db_row('SELECT id FROM courses WHERE code = ? AND active = 1', [$courseCode]);
     if (!$course) throw new InvalidArgumentException('course_not_found');
+    $courseId = (int)$course['id'];
 
     $levelId = null;
     if ($levelCode) { $r = mam_db_row('SELECT id FROM levels WHERE code = ?', [$levelCode]); if ($r) $levelId = (int)$r['id']; }
     $programId = null;
     if ($programCode) { $r = mam_db_row('SELECT id FROM programs WHERE code = ?', [$programCode]); if ($r) $programId = (int)$r['id']; }
 
-    // Block a duplicate active/pending enrolment in the same course+level.
+    // Block a duplicate live enrolment in the same course. The guard is
+    // level-aware in BOTH directions: a level-less add must not slip past an
+    // existing levelled enrolment (the admin "assign course" and class-enrol
+    // paths pass no level, and used to create a second, parallel enrolment),
+    // and a levelled add must not slip past an existing level-less one.
+    // Distinct levels of the same course remain legal — that is progression.
     // NOTE: compare level_id as a bare column (not wrapped in IFNULL) so the
     // column's INTEGER affinity coerces the bound parameter — PDO binds array
     // params as TEXT under EMULATE_PREPARES=false, and a function-wrapped
@@ -253,38 +335,54 @@ function mam_lms_add_course(int $studentId, string $courseCode, ?string $levelCo
     if ($levelId === null) {
         $dup = mam_db_row(
             "SELECT id FROM course_enrollments
-              WHERE student_id = ? AND course_id = ? AND level_id IS NULL AND status IN ('pending','active')",
-            [$studentId, (int)$course['id']]
+              WHERE student_id = ? AND course_id = ? AND status IN ('pending','active')",
+            [$studentId, $courseId]
         );
     } else {
         $dup = mam_db_row(
             "SELECT id FROM course_enrollments
-              WHERE student_id = ? AND course_id = ? AND level_id = ? AND status IN ('pending','active')",
-            [$studentId, (int)$course['id'], $levelId]
+              WHERE student_id = ? AND course_id = ? AND status IN ('pending','active')
+                AND (level_id IS NULL OR level_id = ?)",
+            [$studentId, $courseId, $levelId]
         );
     }
     if ($dup) throw new RuntimeException('already_enrolled');
 
+    // Resolve the target cohort up front so capacity can gate the write. Cohort
+    // resolution stays best-effort: it must never block an enrolment, so a
+    // failure here simply means "no capacity opinion" and the enrolment proceeds.
+    $cohortId = null;
+    try { $cohortId = mam_lms_ensure_cohort($courseId, $levelId, $programId); }
+    catch (Throwable $e) { /* cohort linking is best-effort */ }
+
+    if ($cohortId !== null) {
+        $full = false;
+        try { $full = mam_lms_cohort_fill_count($cohortId)['available'] < 1; }
+        catch (Throwable $e) { /* no capacity opinion → enrol */ }
+        if ($full) {
+            $position = mam_lms_waitlist_add($cohortId, $studentId);
+            mam_audit('lms_add_course_waitlisted', 'cohort', $cohortId, [
+                'student' => $studentId, 'course' => $courseCode, 'position' => $position,
+            ]);
+            return ['id' => null, 'status' => 'waitlisted', 'position' => $position, 'cohort_id' => $cohortId];
+        }
+    }
+
     $auto = mam_lms_auto_approve();
     $id = mam_db_insert('course_enrollments', [
         'student_id'              => $studentId,
-        'course_id'               => (int)$course['id'],
+        'course_id'               => $courseId,
         'level_id'                => $levelId,
         'program_id'              => $programId,
         'requested_instructor_id' => $requestedInstructorId,
+        'cohort_id'               => $cohortId,
         'status'                  => $auto ? 'active' : 'pending',
         'approved_at'             => $auto ? date('Y-m-d H:i:s') : null,
     ]);
     // Birth of the enrolment in the lifecycle audit (from = null = "created").
     mam_lms_log_event($id, null, $auto ? 'active' : 'pending', $auto ? $studentId : null, $auto ? 'auto_approved' : 'requested');
-    // Dual-write: link the enrolment to its (course, level, programme) cohort so
-    // the cohort becomes the unifying grouping for new enrolments. cohort_id is
-    // nullable + currently unread, so this is additive; it must never block an
-    // enrolment, hence the soft guard.
-    try { mam_db_update('course_enrollments', ['cohort_id' => mam_lms_ensure_cohort((int)$course['id'], $levelId, $programId)], ['id' => $id]); }
-    catch (Throwable $e) { /* cohort linking is best-effort */ }
     mam_audit('lms_add_course', 'course_enrollment', $id, ['student' => $studentId, 'course' => $courseCode, 'auto' => $auto]);
-    return ['id' => $id, 'status' => $auto ? 'active' : 'pending'];
+    return ['id' => $id, 'status' => $auto ? 'active' : 'pending', 'cohort_id' => $cohortId];
 }
 
 /**
@@ -293,7 +391,7 @@ function mam_lms_add_course(int $studentId, string $courseCode, ?string $levelCo
  * remembered for the course(+level), and an approval without a pick defaults
  * from it — so the admin stops re-selecting the same instructor every time.
  */
-function mam_lms_approve(int $enrollmentId, ?int $instructorId, int $adminId): void {
+function mam_lms_approve(int $enrollmentId, ?int $instructorId, ?int $adminId = null): void {
     $e = mam_db_row('SELECT course_id, level_id FROM course_enrollments WHERE id = ?', [$enrollmentId]);
     if ($e) {
         $courseId = (int)$e['course_id'];
@@ -645,6 +743,12 @@ function mam_lms_instructor_owns_cohort(int $instructorId, int $cohortId): bool 
 }
 
 /** Active/completed students enrolled in a cohort — the attendance roster. */
+/** Who to teach / grade / mark in a cohort — DISTINCT students.
+ *  The status set differs from mam_lms_seat_statuses() ON PURPOSE: a 'completed'
+ *  student still belongs on the gradebook and historical mark sheets, but no
+ *  longer occupies a seat for capacity; a 'pending' request holds a seat but is
+ *  not yet teachable. Both queries count DISTINCT students so the two views can
+ *  only differ by status, never by row multiplicity. */
 function mam_lms_cohort_roster(int $cohortId): array {
     return mam_db_all(
         "SELECT DISTINCT u.id AS student_id, u.name AS student_name, u.email AS student_email
@@ -1908,13 +2012,23 @@ function mam_lms_full_program_curriculum(string $programCode): ?array {
    Waitlist, bulk session generation, conflict detection, reschedule audit,
    and substitute instructor — the production-grade scheduling primitives. */
 
+/** The enrolment statuses that OCCUPY a seat in a cohort (capacity accounting).
+ *  A finished ('completed') place is free again; a pending request still holds
+ *  one. Kept beside mam_lms_cohort_roster()'s set so the two never silently
+ *  drift apart — see the note there. */
+function mam_lms_seat_statuses(): array { return ['active', 'pending']; }
+
 /** How full a cohort currently is.
+ *  Counts DISTINCT students, not enrolment rows: one student holding two rows in
+ *  the same cohort (possible via the admin link/converge paths) occupies ONE
+ *  seat, and counting rows made capacity drift away from the roster.
  *  @return array{enrolled:int,capacity:int,available:int,waitlist_count:int,is_full:bool} */
 function mam_lms_cohort_fill_count(int $cohortId): array {
     $co = mam_db_row('SELECT capacity FROM cohorts WHERE id = ?', [$cohortId]);
     if (!$co) throw new RuntimeException('cohort_not_found');
     $enrolled = (int)(mam_db_row(
-        "SELECT COUNT(*) AS n FROM course_enrollments WHERE cohort_id = ? AND status IN ('active','pending')",
+        "SELECT COUNT(DISTINCT student_id) AS n FROM course_enrollments
+          WHERE cohort_id = ? AND status IN ('active','pending')",
         [$cohortId]
     )['n'] ?? 0);
     $capacity  = $co['capacity'] !== null ? (int)$co['capacity'] : 999;
@@ -2003,22 +2117,33 @@ function mam_lms_waitlist_remove(int $cohortId, int $studentId): void {
     mam_audit('lms_waitlist_remove', 'cohort', $cohortId, ['student' => $studentId]);
 }
 
-/** Promote the next waiting student into the cohort.
- *  Returns the student_id promoted, or null if waitlist is empty.
- *  Refuses to over-fill a cohort past capacity unless $force is set (admin
- *  override) — throws 'cohort_full' otherwise. */
+/**
+ * Promote the next waiting student into the cohort.
+ *
+ * Returns the promoted student_id, or null ONLY when the waitlist is empty.
+ * Every other outcome throws, so a caller can never mistake a silent no-op for
+ * success (both of these used to consume the waitlist entry, or look like an
+ * empty list, while enrolling nobody):
+ *   'cohort_full'        — at capacity and $force not set
+ *   'no_course_mapping'  — the cohort maps to no course, so nothing can be
+ *                          enrolled; the student stays queued
+ *   'enrolled_elsewhere' — the student's live enrolment for this course+level
+ *                          belongs to a DIFFERENT cohort; the student stays
+ *                          queued rather than being quietly dropped
+ */
 function mam_lms_waitlist_promote(int $cohortId, ?int $actorId = null, bool $force = false): ?int {
     $next = mam_db_row(
-        "SELECT id, student_id FROM class_waitlist WHERE cohort_id = ? AND status = 'waiting' ORDER BY position ASC LIMIT 1",
+        "SELECT id, student_id, position FROM class_waitlist WHERE cohort_id = ? AND status = 'waiting' ORDER BY position ASC LIMIT 1",
         [$cohortId]
     );
     if (!$next) return null;
+    $studentId = (int)$next['student_id'];
+    $co = mam_db_row('SELECT course_id, level_id, program_id, instructor_id FROM cohorts WHERE id = ?', [$cohortId]);
+    if (!$co) throw new RuntimeException('cohort_not_found');
+    if (!$co['course_id']) throw new RuntimeException('no_course_mapping');
     if (!$force && mam_lms_cohort_fill_count($cohortId)['available'] < 1) {
         throw new RuntimeException('cohort_full');
     }
-    $studentId = (int)$next['student_id'];
-    $co = mam_db_row('SELECT course_id, level_id, program_id, instructor_id FROM cohorts WHERE id = ?', [$cohortId]);
-    if (!$co || !$co['course_id']) return null;
     $courseId  = (int)$co['course_id'];
     $levelId   = $co['level_id']      !== null ? (int)$co['level_id']      : null;
     $programId = $co['program_id']    !== null ? (int)$co['program_id']    : null;
@@ -2035,9 +2160,16 @@ function mam_lms_waitlist_promote(int $cohortId, ?int $actorId = null, bool $for
         $existing = mam_db_row("SELECT id, cohort_id FROM course_enrollments WHERE student_id = ? AND course_id = ? AND level_id = ? AND status IN ('pending','active')", [$studentId, $courseId, $levelId]);
     }
     if ($existing) {
-        // Already enrolled in this course+level — link a floating enrolment to
-        // this cohort; otherwise leave the existing enrolment as-is.
-        if (empty($existing['cohort_id'])) mam_lms_link_enrollment_cohort((int)$existing['id'], $cohortId);
+        // Already enrolled in this course+level. A floating enrolment is adopted
+        // by this cohort; one that already belongs to ANOTHER cohort is left
+        // alone and reported — silently marking the waitlist entry 'promoted'
+        // there would strike the student off the queue without enrolling them.
+        if (empty($existing['cohort_id'])) {
+            mam_lms_link_enrollment_cohort((int)$existing['id'], $cohortId);
+        } elseif ((int)$existing['cohort_id'] !== $cohortId) {
+            throw new RuntimeException('enrolled_elsewhere');
+        }
+        // else: already in this cohort — fall through and clear the queue entry.
     } else {
         $enrId = mam_db_insert('course_enrollments', [
             'student_id'    => $studentId,
@@ -2053,9 +2185,12 @@ function mam_lms_waitlist_promote(int $cohortId, ?int $actorId = null, bool $for
         mam_lms_log_event($enrId, null, 'active', $actorId, 'waitlist_promoted');
     }
     mam_db_update('class_waitlist', ['status' => 'promoted', 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$next['id']]);
+    // Close the gap left by the promoted entry — same renumbering rule as
+    // mam_lms_waitlist_remove(), anchored on the vacated position so a queue
+    // that does not start at 1 can never be pushed to 0 or below.
     mam_db()->prepare(
-        "UPDATE class_waitlist SET position = position - 1 WHERE cohort_id = ? AND status = 'waiting'"
-    )->execute([$cohortId]);
+        "UPDATE class_waitlist SET position = position - 1 WHERE cohort_id = ? AND status = 'waiting' AND position > ?"
+    )->execute([$cohortId, (int)$next['position']]);
     mam_audit('lms_waitlist_promote', 'cohort', $cohortId, ['student' => $studentId, 'by' => $actorId]);
     return $studentId;
 }

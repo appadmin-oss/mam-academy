@@ -146,18 +146,57 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    `UNION`'s `ORDER BY` must reference **explicitly-aliased** result columns (`an.id AS id`,
    `an.created_at AS created_at`) — a bare `an.created_at`/`id` raises "ORDER BY term does
    not match any column" — and needs an `id` tiebreak to be deterministic when timestamps tie.
-3. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
+3. **Enrolment invariants (audit 2026-08-03 — `test_enrolment_fixes.php`).** These were
+   all real bugs; don't regress them.
+   - **`mam_lms_add_course()` is capacity-aware.** It resolves the (course, level,
+     programme) cohort BEFORE writing and, when that cohort is full, returns
+     `['id'=>null,'status'=>'waitlisted','position'=>N,'cohort_id'=>N]` instead of
+     enrolling. Callers MUST read `id` defensively (`(int)($r['id'] ?? 0)`) — it is null
+     on the waitlisted branch. Self-service enrol previously ignored capacity entirely,
+     which made the v45 waitlist unreachable for students and let one auto-created
+     cohort grow without bound.
+   - **The duplicate guard is level-aware in BOTH directions.** A level-less add is
+     blocked by an existing levelled enrolment and vice versa; distinct levels of the
+     same course stay legal (that's progression). The admin "assign course" and
+     class-enrol paths pass no level, and used to create a second parallel enrolment
+     in a course the student was already taking.
+   - **Never hand-roll the "already_enrolled → find the row" recovery.** Use
+     `mam_lms_find_enrollment($studentId, $courseCode, $levelCode)`. The old inline
+     `… AND c.code = ? … LIMIT 1` was unordered AND level-blind, so settling a payment
+     for one level could activate the enrolment for another.
+   - **Pass `null`, never `0`, as an actor id.** `enrolment_events.actor_id` carries a
+     `users(id)` FK under `PRAGMA foreign_keys = ON`, so `0` raises a constraint
+     violation that `mam_lms_log_event()` catches — silently destroying the audit row.
+     `mam_lms_actor_id()` normalises this; the catch now logs instead of swallowing.
+   - **`mam_lms_waitlist_promote()` returns null ONLY for an empty waitlist.** Every
+     other outcome throws (`cohort_full`, `no_course_mapping`, `enrolled_elsewhere`) and
+     leaves the student queued — it used to mark entries 'promoted' while enrolling
+     nobody, or look like an empty list.
+   - **Capacity counts DISTINCT students.** `mam_lms_cohort_fill_count()` (seats:
+     active+pending) and `mam_lms_cohort_roster()` (teachable: active+completed) both
+     count distinct students, so they can differ only by status, never by row
+     multiplicity. The status sets differ deliberately — see the comments.
+   - **Summer 'enrolled' really enrols.** `mam_summer_enrol()` (`admissions.php`)
+     provisions a **roster identity** (`users.status='roster'`, which both `mam_login()`
+     and `mam_session_user()` reject, and `request-reset` can't target — summer children
+     get roster presence, NOT portal access), resolves the dedicated
+     `SUMMER-<year>` cohort via `mam_summer_cohort()` (keyed on `(course_id, term)` so it
+     never collides with `mam_lms_ensure_cohort()`'s tuple), and enrols them. Idempotent.
+     Summer status is now a real state machine (`mam_summer_can_transition()`), and the
+     application window honours each bound independently (`mam_summer_window_open()`) —
+     it used to be enforced only when BOTH settings were set.
+4. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
    ONLY from a trusted proxy (private + Cloudflare ranges by default; `TRUSTED_PROXY_CIDRS`
    to override). It's the rate-limit + audit IP key. Don't revert to blindly trusting headers.
-4. **SSRF guard** for the curriculum remote-import is in `api/lib/lms.php`
+5. **SSRF guard** for the curriculum remote-import is in `api/lib/lms.php`
    (`mam_lms_public_ips_for` / `mam_lms_fetch_url`): per-hop re-validation, `CURLOPT_RESOLVE`
    pinning, denies private/CGNAT/IETF-special ranges, ports 80/443 only. Keep it strict.
-5. **`auditer_results` capture flow.** `mam_auditer_record()` (`auditer.php`) is the
+6. **`auditer_results` capture flow.** `mam_auditer_record()` (`auditer.php`) is the
    writer — admins capture a placement from the application detail card (`?v=applications&app=N`,
    `record_placement` action). When the `auditer_placement` automation is on it also
    ensures the student account + enrols them at the recommended level. The student Auditer
    tab still falls back to live `mam_auditer_status()` for validity/booking state.
-6. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
+7. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
 
 ## Security posture (don't weaken)
 

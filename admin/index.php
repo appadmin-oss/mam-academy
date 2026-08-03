@@ -1009,11 +1009,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $ceId  = 0;
             try {
                 $ceRow = mam_lms_add_course($sid, $disc);
-                $ceId  = (int)$ceRow['id'];
+                $ceId  = (int)($ceRow['id'] ?? 0);   // null when diverted to a full cohort's waitlist
                 $bridged++;
             } catch (RuntimeException $e) {
                 if ($e->getMessage() === 'already_enrolled') {
-                    $ex = mam_db_row("SELECT ce.id FROM course_enrollments ce JOIN courses c ON c.id = ce.course_id WHERE ce.student_id = ? AND c.code = ? AND ce.status IN ('pending','active') LIMIT 1", [$sid, $disc]);
+                    $ex = mam_lms_find_enrollment($sid, $disc);
                     $ceId = $ex ? (int)$ex['id'] : 0;
                     $skipped++;
                 } else {
@@ -1042,16 +1042,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $student = mam_db_row("SELECT id FROM users WHERE id = ?", [$uid]);
         if (!$student) { header('Location: ?v=users&err=' . urlencode('Student not found.')); exit; }
         $ceId = 0;
+        $ceWaitPos = null;
         try {
             $ceRow = mam_lms_add_course($uid, $code);
-            $ceId  = (int)$ceRow['id'];
+            // A full cohort queues the student instead of over-filling it.
+            if (($ceRow['status'] ?? '') === 'waitlisted') $ceWaitPos = (int)$ceRow['position'];
+            $ceId  = (int)($ceRow['id'] ?? 0);
         } catch (RuntimeException $e) {
             if ($e->getMessage() === 'already_enrolled') {
-                $existing = mam_db_row(
-                    "SELECT ce.id FROM course_enrollments ce JOIN courses c ON c.id = ce.course_id
-                      WHERE ce.student_id = ? AND c.code = ? AND ce.status IN ('pending','active') LIMIT 1",
-                    [$uid, $code]
-                );
+                $existing = mam_lms_find_enrollment($uid, $code);
                 $ceId = $existing ? (int)$existing['id'] : 0;
             } else {
                 header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode($e->getMessage() === 'course_not_found' ? 'Course not found — check the course catalogue.' : $e->getMessage())); exit;
@@ -1063,6 +1062,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             try { mam_lms_approve($ceId, $iid ?: null, (int)($adminUser['id'] ?? 0)); }
             catch (\Throwable $e) { /* already active — instructor_id updated regardless */ }
             mam_audit('admin_course_assign', 'course_enrollment', $ceId, ['student' => $uid, 'course' => $code, 'instructor' => $iid]);
+        }
+        if ($ceWaitPos !== null) {
+            header('Location: ?v=users&edit=' . $uid . '&ok=' . urlencode('That course is at capacity — the student was added to the waitlist at position ' . $ceWaitPos . '.')); exit;
         }
         header('Location: ?v=users&edit=' . $uid . '&ok=1'); exit;
     }
