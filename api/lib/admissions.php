@@ -351,6 +351,34 @@ function mam_summer_window_open(string $today, string $open, string $close): boo
     return true;
 }
 
+/** Is the summer programme configured to run at all? A window bound is the
+ *  marker: with neither set there is no advertised intake, and `/summer` +
+ *  the `/apply` chooser stay hidden. */
+function mam_summer_is_configured(): bool {
+    return (string)mam_setting('summer_app_open', '') !== ''
+        || (string)mam_setting('summer_app_close', '') !== '';
+}
+
+/**
+ * THE single source of truth for "can a summer application be submitted right
+ * now" — used by the POST guard, `/summer`, the `/apply` chooser and
+ * config-public alike.
+ *
+ * Previously each of those made its own decision and they disagreed: the pages
+ * demanded BOTH window bounds while the endpoint (after the independent-bound
+ * fix) honoured either, so the form could be hidden while the endpoint still
+ * accepted — and an entirely unconfigured programme accepted applications
+ * outright, for an intake that was advertised nowhere.
+ */
+function mam_summer_accepting(?string $today = null): bool {
+    if (!mam_summer_is_configured()) return false;
+    return mam_summer_window_open(
+        $today ?? date('Y-m-d'),
+        (string)mam_setting('summer_app_open', ''),
+        (string)mam_setting('summer_app_close', '')
+    );
+}
+
 /* ── Summer application status lifecycle ───────────────────────────────────
    The rest of the platform enforces its state machines (mam_admissions_transition,
    mam_lms_transitions); summer status was free assignment from any value to any
@@ -384,16 +412,37 @@ function mam_summer_can_transition(string $from, string $to): bool {
  */
 function mam_summer_cohort(int $courseId, int $year, string $courseName): int {
     $term = 'SUMMER-' . $year;
-    $row  = mam_db_row(
-        'SELECT id FROM cohorts WHERE course_id = ? AND term = ? AND legacy_class_id IS NULL ORDER BY id LIMIT 1',
+    // The remembered instructor for this course. Without one the cohort belongs
+    // to nobody, and mam_lms_instructor_cohorts() keys off cohort.instructor_id
+    // OR enrolment.instructor_id — so summer students would sit on a roster no
+    // instructor could open.
+    $instructorId = function_exists('mam_lms_default_instructor')
+        ? mam_lms_default_instructor($courseId, null) : null;
+
+    $row = mam_db_row(
+        'SELECT id, instructor_id FROM cohorts WHERE course_id = ? AND term = ? AND legacy_class_id IS NULL ORDER BY id LIMIT 1',
         [$courseId, $term]
     );
-    if ($row) return (int)$row['id'];
+    if ($row) {
+        // Adopt a remembered instructor onto an existing unowned summer cohort.
+        if (empty($row['instructor_id']) && $instructorId) {
+            try { mam_db_update('cohorts', ['instructor_id' => $instructorId], ['id' => (int)$row['id']]); }
+            catch (Throwable $e) { /* best-effort */ }
+        }
+        return (int)$row['id'];
+    }
+
+    // `summer_capacity` is the REGISTERED admin setting (Summer Programme group)
+    // and documents 0 as unlimited. Passing null leaves cohorts.capacity NULL,
+    // which mam_lms_cohort_fill_count() reads as effectively unbounded — a
+    // literal 0 would make the cohort read as permanently full.
+    $cap = (int)mam_setting_num('summer_capacity', 0);
     return mam_lms_create_cohort([
-        'course_id' => $courseId,
-        'term'      => $term,
-        'title'     => $term . ' — ' . $courseName,
-        'capacity'  => (int)mam_setting_num('summer_cohort_capacity', 30),
+        'course_id'     => $courseId,
+        'term'          => $term,
+        'title'         => $term . ' — ' . $courseName,
+        'instructor_id' => $instructorId,
+        'capacity'      => $cap > 0 ? $cap : null,
     ]);
 }
 
@@ -470,13 +519,17 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
         return $out;
     }
 
+    // Name the instructor on the enrolment too — the instructor cohort view and
+    // the gradebook both resolve teaching rights through it.
+    $cohortInstructor = mam_db_row('SELECT instructor_id FROM cohorts WHERE id = ?', [$cohortId]);
     $enrId = mam_db_insert('course_enrollments', [
-        'student_id'  => $userId,
-        'course_id'   => $courseId,
-        'cohort_id'   => $cohortId,
-        'status'      => 'active',
-        'approved_by' => mam_lms_actor_id($actorId),
-        'approved_at' => date('Y-m-d H:i:s'),
+        'student_id'    => $userId,
+        'course_id'     => $courseId,
+        'cohort_id'     => $cohortId,
+        'instructor_id' => !empty($cohortInstructor['instructor_id']) ? (int)$cohortInstructor['instructor_id'] : null,
+        'status'        => 'active',
+        'approved_by'   => mam_lms_actor_id($actorId),
+        'approved_at'   => date('Y-m-d H:i:s'),
     ]);
     mam_lms_log_event($enrId, null, 'active', $actorId, 'summer_enrolled:' . (string)$app['reference']);
     mam_audit('summer_enrol', 'course_enrollment', $enrId, [

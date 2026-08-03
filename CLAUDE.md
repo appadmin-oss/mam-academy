@@ -176,12 +176,40 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      active+pending) and `mam_lms_cohort_roster()` (teachable: active+completed) both
      count distinct students, so they can differ only by status, never by row
      multiplicity. The status sets differ deliberately — see the comments.
+   - **A freed seat drains the queue.** Leaving a seat-occupying status inside
+     `mam_lms_transition()` calls `mam_lms_drain_waitlist_for_enrollment()`, gated by the
+     `waitlist_autopromote` automation. It is best-effort by design (promote signals by
+     throwing) — a withdrawal must never fail because the queue couldn't be drained.
+     Because capacity is now enforced on enrol, without this a withdrawal left an empty
+     seat with people queued behind it.
+   - **Promotion notifies.** `mam_lms_waitlist_promote()` stamps `class_waitlist.notified_at`
+     and raises a `waitlist.promoted` notification + email via
+     `mam_lms_notify_waitlist_promoted()`. That column shipped in v45 and nothing ever
+     wrote it, so promotions were silent.
+   - **`mam_summer_accepting()` is the ONE summer-window predicate.** `/summer`, the
+     `/apply` chooser, `config-public` and the `POST /api/summer/apply` guard all call it.
+     They each used to decide independently and disagreed — the pages demanded BOTH window
+     bounds while the endpoint honoured either, so the form could be hidden while the
+     endpoint accepted, and an entirely unconfigured programme accepted applications for
+     an intake advertised nowhere. `mam_summer_is_configured()` is the "is it running at
+     all" half. Don't reintroduce an inline date comparison.
+   - **`mam_lms_create_cohort()` distinguishes an explicit null capacity from an absent
+     one** (`array_key_exists`, not `isset`): null = uncapped, absent = the default 12. A
+     literal 0 would read as permanently full, which is why `summer_capacity`'s documented
+     "0 means unlimited" maps to null.
+   - **Automation counts in tests must derive from the registry**, never a literal —
+     adding `waitlist_autopromote` broke three hardcoded `=== 9` assertions in
+     `test_automations.php`.
    - **Summer 'enrolled' really enrols.** `mam_summer_enrol()` (`admissions.php`)
      provisions a **roster identity** (`users.status='roster'`, which both `mam_login()`
      and `mam_session_user()` reject, and `request-reset` can't target — summer children
      get roster presence, NOT portal access), resolves the dedicated
      `SUMMER-<year>` cohort via `mam_summer_cohort()` (keyed on `(course_id, term)` so it
-     never collides with `mam_lms_ensure_cohort()`'s tuple), and enrols them. Idempotent.
+     never collides with `mam_lms_ensure_cohort()`'s tuple), and enrols them. The cohort AND
+     the enrolment both take the remembered instructor (`mam_lms_default_instructor`) —
+     `mam_lms_instructor_cohorts()` keys off `cohort.instructor_id` OR
+     `enrolment.instructor_id`, so setting neither left summer students on a roster no
+     instructor could open. Idempotent.
      Summer status is now a real state machine (`mam_summer_can_transition()`), and the
      application window honours each bound independently (`mam_summer_window_open()`) —
      it used to be enforced only when BOTH settings were set.
@@ -352,6 +380,16 @@ the notation showcase.**
 - Deploy/runbook: `DEPLOYMENT.md`. Env reference: `api/.env.example`.
 
 ## Workflow
-- Branch for this work: `claude/pensive-fermi-st9hvv`. Commit + push there; don't open
-  PRs unless asked. Keep `php api/tests/run.php` green and add tests for new behavior.
+- **Work on a topic branch off the current tip of `master`** — `claude/<topic>`, e.g.
+  `claude/enrolment-audit-fixes`. Don't commit straight to `master`, and don't open PRs
+  unless asked. (This used to name one specific branch, `claude/pensive-fermi-st9hvv`,
+  which silently went 14 commits stale behind `master` — naming a branch here dates
+  badly, so verify with `git log --oneline -3` + `git status -sb` and cut a fresh branch
+  instead of trusting a branch name written down in this file.)
+- **Check `git status` before staging.** Several `claude/*` branches share this working
+  copy, so unrelated modified files are often already in the tree. Stage your own paths
+  explicitly (`git add <path> …`), never `git add -A`.
+- Keep `php api/tests/run.php` green and add tests for new behavior. Verify a commit
+  stands alone (`git stash -u` the rest, re-run the suite) when the tree holds work that
+  isn't yours.
 - Don't put model identifiers in commits/code/docs.

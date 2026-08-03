@@ -66,14 +66,11 @@ mam_ok([
     // Summer Programme public config — drives /summer display and the chooser on
     // /apply. All values are admin-editable via the "Summer Programme" settings group.
     'summer' => [
-        'enabled'      => mam_setting('summer_app_open', '') !== '' && mam_setting('summer_app_close', '') !== '',
-        'active'       => (function (): bool {
-            $open  = mam_setting('summer_app_open',  '');
-            $close = mam_setting('summer_app_close', '');
-            if (!$open || !$close) return false;
-            $today = date('Y-m-d');
-            return $today >= $open && $today <= $close;
-        })(),
+        // Shared predicates (admissions.php) so the public config, /summer, the
+        // /apply chooser and the POST guard can never disagree. Each window bound
+        // is honoured independently; both used to be required here.
+        'enabled'      => mam_summer_is_configured(),
+        'active'       => mam_summer_accepting(),
         'progName'     => (string)mam_setting('summer_prog_name',         'MAM Summer Music Camp'),
         'tagline'      => (string)mam_setting('summer_tagline',           ''),
         'sessionStart' => (string)mam_setting('summer_session_start',     ''),

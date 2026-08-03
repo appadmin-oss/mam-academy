@@ -27,9 +27,12 @@ $location    = (string)mam_setting('summer_location',        '');
 $contactEmail= (string)mam_setting('summer_contact_email',   '');
 
 $today       = date('Y-m-d');
-$isOpen      = $appOpen && $appClose && $today >= $appOpen && $today <= $appClose;
-$notYet      = $appOpen && $today < $appOpen;
-$closed      = $appClose && $today > $appClose;
+// Shared predicate (admissions.php) so the form shows exactly when
+// POST /api/summer/apply would accept. Each bound counts on its own — requiring
+// both left a close-only configuration in a limbo that was neither open nor closed.
+$isOpen      = mam_summer_accepting($today);
+$notYet      = !$isOpen && $appOpen && $today < $appOpen;
+$closed      = !$isOpen && $appClose && $today > $appClose;
 
 // Format session dates for display
 function formatDate(string $d, string $fmt = 'F j, Y'): string {

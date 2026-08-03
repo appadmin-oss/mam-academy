@@ -120,7 +120,46 @@ function mam_lms_transition(int $enrollmentId, string $to, ?int $by = null, ?str
         mam_card_mint_for_enrollment($enrollmentId);
     }
 
+    // Leaving a seat-occupying status frees capacity — drain the cohort's queue.
+    // Capacity is enforced on enrol now, so without this a withdrawal would
+    // leave an empty seat with people queued behind it until an admin noticed.
+    if (!in_array($to, mam_lms_seat_statuses(), true)) {
+        mam_lms_drain_waitlist_for_enrollment($enrollmentId, $by);
+    }
+
     return ['ok' => true, 'changed' => true, 'from' => $from, 'to' => $to];
+}
+
+/**
+ * A seat in this enrolment's cohort just came free — promote the next waiting
+ * student into it. Governed by the `waitlist_autopromote` automation so an
+ * academy that prefers to place people by hand can turn it off.
+ *
+ * Strictly best-effort: it is called from inside mam_lms_transition(), so it must
+ * never throw (promote signals cohort_full / no_course_mapping /
+ * enrolled_elsewhere by throwing) and never turn a successful withdrawal into an
+ * error. Promotes at most one student — exactly the one seat that was vacated.
+ */
+function mam_lms_drain_waitlist_for_enrollment(int $enrollmentId, ?int $actorId = null): void {
+    try {
+        if (function_exists('mam_automation_on') && !mam_automation_on('waitlist_autopromote')) return;
+        $row = mam_db_row('SELECT cohort_id FROM course_enrollments WHERE id = ?', [$enrollmentId]);
+        $cohortId = (int)($row['cohort_id'] ?? 0);
+        if ($cohortId <= 0) return;
+        // Only if a seat is genuinely available and somebody is actually waiting.
+        if (mam_lms_cohort_fill_count($cohortId)['available'] < 1) return;
+        $promoted = mam_lms_waitlist_promote($cohortId, $actorId, false);
+        if ($promoted !== null) {
+            if (function_exists('mam_automation_touch')) mam_automation_touch('waitlist_autopromote');
+            mam_audit('lms_waitlist_autopromote', 'cohort', $cohortId, ['student' => $promoted, 'freed_by' => $enrollmentId]);
+        }
+    } catch (Throwable $e) {
+        // cohort_full / no_course_mapping / enrolled_elsewhere / anything else:
+        // the seat simply stays open for an admin to place manually.
+        if (function_exists('mam_log')) {
+            mam_log('info', 'waitlist_autopromote_skip', ['enrollment' => $enrollmentId, 'reason' => $e->getMessage()]);
+        }
+    }
 }
 
 /** The audit trail for an enrolment, oldest first (the lifecycle as it happened). */
@@ -529,7 +568,12 @@ function mam_lms_create_cohort(array $d): int {
         'pathway'         => $d['pathway'] ?? null,
         'mode'            => $d['mode'] ?? null,
         'term'            => $d['term'] ?? null,
-        'capacity'        => isset($d['capacity']) ? (int)$d['capacity'] : 12,
+        // array_key_exists, not isset: an EXPLICIT null means "no cap" (read as
+        // unbounded by mam_lms_cohort_fill_count), which isset() would have
+        // silently turned into the default 12.
+        'capacity'        => array_key_exists('capacity', $d)
+                                ? ($d['capacity'] === null ? null : (int)$d['capacity'])
+                                : 12,
         'meeting_pattern' => $d['meeting_pattern'] ?? null,
         'starts_on'       => $d['starts_on'] ?? null,
         'ends_on'         => $d['ends_on'] ?? null,
@@ -2184,15 +2228,42 @@ function mam_lms_waitlist_promote(int $cohortId, ?int $actorId = null, bool $for
         ]);
         mam_lms_log_event($enrId, null, 'active', $actorId, 'waitlist_promoted');
     }
-    mam_db_update('class_waitlist', ['status' => 'promoted', 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$next['id']]);
+    $now = date('Y-m-d H:i:s');
+    // Stamp notified_at as we tell them — the column existed from v45 but nothing
+    // ever wrote it, so a promotion was silent and students were never informed
+    // a place had opened.
+    mam_db_update('class_waitlist', ['status' => 'promoted', 'notified_at' => $now, 'updated_at' => $now], ['id' => (int)$next['id']]);
     // Close the gap left by the promoted entry — same renumbering rule as
     // mam_lms_waitlist_remove(), anchored on the vacated position so a queue
     // that does not start at 1 can never be pushed to 0 or below.
     mam_db()->prepare(
         "UPDATE class_waitlist SET position = position - 1 WHERE cohort_id = ? AND status = 'waiting' AND position > ?"
     )->execute([$cohortId, (int)$next['position']]);
+    mam_lms_notify_waitlist_promoted($cohortId, $studentId);
     mam_audit('lms_waitlist_promote', 'cohort', $cohortId, ['student' => $studentId, 'by' => $actorId]);
     return $studentId;
+}
+
+/** Tell a student a place opened up for them. Best-effort and never throws — a
+ *  mail or notification hiccup must not roll back a completed promotion. */
+function mam_lms_notify_waitlist_promoted(int $cohortId, int $studentId): void {
+    try {
+        $co    = mam_db_row('SELECT title FROM cohorts WHERE id = ?', [$cohortId]);
+        $what  = trim((string)($co['title'] ?? '')) ?: 'your class';
+        if (function_exists('mam_notify')) {
+            mam_notify($studentId, 'waitlist.promoted', 'A place opened up 🎉',
+                'You\'re off the waitlist for ' . $what . ' — you\'re now enrolled.', '/portal/student/');
+        }
+        $u = mam_db_row('SELECT name, email FROM users WHERE id = ?', [$studentId]);
+        if ($u && !empty($u['email']) && function_exists('mam_send') && function_exists('mam_email_enrolled')) {
+            $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
+            mam_send((string)$u['email'], 'A place opened up — you\'re enrolled',
+                mam_email_enrolled((string)($u['name'] ?? ''), $what, '', $loginUrl),
+                'waitlist_promoted', true);
+        }
+    } catch (Throwable $e) {
+        if (function_exists('mam_log')) mam_log('warn', 'waitlist_notify_failed', ['cohort' => $cohortId, 'student' => $studentId, 'err' => $e->getMessage()]);
+    }
 }
 
 /** Waitlist entry for one student in one cohort. Null if not on list. */

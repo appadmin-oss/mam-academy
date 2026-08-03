@@ -3,19 +3,29 @@
 declare(strict_types=1);
 t_group('lifecycle automations');
 
-$reg = mam_automations_registry();
-t_ok(count($reg) === 9, 'the nine lifecycle rules are registered');
+// Counts are derived from the registry, never hardcoded — adding a rule must not
+// break these assertions (a literal 9 did exactly that when
+// `waitlist_autopromote` was added).
+$reg      = mam_automations_registry();
+$ruleCount = count($reg);
+t_ok($ruleCount > 0, "the lifecycle rules are registered [$ruleCount rules]");
 t_ok(isset($reg['payment_provision']['trigger'], $reg['payment_provision']['action']), 'a rule carries a trigger + action');
+// Every rule must carry the full contract the admin screen renders.
+$wellFormed = true;
+foreach ($reg as $k => $r) {
+    if (!isset($r['group'], $r['trigger'], $r['action'], $r['icon'], $r['default'], $r['live'])) { $wellFormed = false; break; }
+}
+t_ok($wellFormed, 'every registered rule carries group/trigger/action/icon/default/live');
 
 // ── Defaults: all rules ship enabled, so the active count starts full ──
 t_ok(mam_automation_on('payment_provision'), 'payment_provision defaults on');
-t_eq(mam_automations_active_count(), 9, 'all nine active by default');
+t_eq(mam_automations_active_count(), $ruleCount, 'all registered rules are active by default');
 t_ok(!mam_automation_on('does_not_exist'), 'an unknown rule is never "on"');
 
 // ── Toggle: persisted + reflected by the gate + the count ──
 mam_automation_set('payment_provision', false);
 t_ok(!mam_automation_on('payment_provision'), 'disabling a rule is honoured by the gate');
-t_eq(mam_automations_active_count(), 8, 'the active count drops when a rule is off');
+t_eq(mam_automations_active_count(), $ruleCount - 1, 'the active count drops when a rule is off');
 $row = mam_db_row('SELECT enabled FROM automations WHERE akey = ?', ['payment_provision']);
 t_eq((int)$row['enabled'], 0, 'the flag is persisted to the automations table');
 
@@ -34,7 +44,7 @@ t_ok(!empty($row['last_run_at']), 'touch stamps the last-run time');
 
 // ── The decorated list drives the admin screen ──
 $list = mam_automations_list();
-t_ok(count($list) === 9 && $list['payment_provision']['enabled'] === true, 'the admin list reflects live state');
+t_ok(count($list) === $ruleCount && $list['payment_provision']['enabled'] === true, 'the admin list reflects live state');
 
 // ── Live gate: a disabled payment_provision skips portal provisioning ──
 // mam_payment_settle_tuition returns a distinct tag when the automation is off,

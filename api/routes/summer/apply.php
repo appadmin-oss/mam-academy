@@ -10,14 +10,12 @@ declare(strict_types=1);
 $input = mam_json_input();
 mam_honeypot($input);
 
-// Guard: applications must be within the configured window. Each bound is
-// honoured independently — requiring BOTH meant setting only `summer_app_close`
-// (the usual "we close on the 30th") left applications open indefinitely.
-if (!mam_summer_window_open(
-        date('Y-m-d'),
-        (string)mam_setting('summer_app_open', ''),
-        (string)mam_setting('summer_app_close', '')
-)) {
+// Guard: the programme must be configured AND within its window. Shares the one
+// predicate with /summer, the /apply chooser and config-public, so the form can
+// never be hidden while this endpoint still accepts (or the reverse). Each window
+// bound is honoured independently — requiring BOTH meant setting only
+// `summer_app_close` left applications open indefinitely.
+if (!mam_summer_accepting()) {
     mam_fail('applications_closed', 422, ['message' => 'Summer programme applications are not currently open.']);
 }
 

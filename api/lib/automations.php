@@ -102,6 +102,14 @@ function mam_automations_registry(): array {
             'default' => true,
             'live'    => true,
         ],
+        'waitlist_autopromote' => [
+            'group'   => 'Learning',
+            'trigger' => 'A place frees up in a full class (withdrawal or completion)',
+            'action'  => 'Enrol the next student on the waitlist and tell them',
+            'icon'    => 'user-check',
+            'default' => true,
+            'live'    => true,
+        ],
     ];
 }
 

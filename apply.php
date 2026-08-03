@@ -8,7 +8,9 @@ if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
 $today       = date('Y-m-d');
 $_sumOpen    = (string)mam_setting('summer_app_open',  '');
 $_sumClose   = (string)mam_setting('summer_app_close', '');
-$showChooser = $_sumOpen !== '' && $_sumClose !== '' && $today >= $_sumOpen && $today <= $_sumClose;
+// Shared predicate (admissions.php) — the chooser must appear exactly when
+// POST /api/summer/apply would accept, and each window bound counts on its own.
+$showChooser = mam_summer_accepting($today);
 if ($showChooser) {
     $sumProgName  = (string)mam_setting('summer_prog_name',         'MAM Summer Music Camp');
     $sumTagline   = (string)mam_setting('summer_tagline',           '');

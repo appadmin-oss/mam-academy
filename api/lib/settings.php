@@ -176,7 +176,7 @@ function mam_settings_schema(): array {
         ['Summer Programme', 'summer_min_age',             'Minimum age in years (inclusive)', '8', ''],
         ['Summer Programme', 'summer_max_age',             'Maximum age in years (inclusive) — set 0 for no upper limit', '18', ''],
         ['Summer Programme', 'summer_fee',                 'Programme fee', '0', '$'],
-        ['Summer Programme', 'summer_capacity',            'Maximum participants — 0 means unlimited', '0', ''],
+        ['Summer Programme', 'summer_capacity',            'Maximum participants per discipline — also sets the SUMMER-<year> cohort capacity; 0 means unlimited', '0', ''],
         ['Summer Programme', 'summer_location',            'Location / venue name', '', ''],
         ['Summer Programme', 'summer_contact_email',       'Contact email shown on /summer for enquiries', '', ''],
         ['Summer Programme', 'main_prog_chooser_name',     'Name for the regular admission on the chooser card (e.g. "Full Year Programmes")', 'Full Year Programmes', ''],
