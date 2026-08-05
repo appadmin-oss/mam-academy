@@ -213,18 +213,44 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      Summer status is now a real state machine (`mam_summer_can_transition()`), and the
      application window honours each bound independently (`mam_summer_window_open()`) —
      it used to be enforced only when BOTH settings were set.
-4. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
+4. **Root page scripts that hand-roll lib loading (`card.php`, `join.php`).** These
+   pages skip `bootstrap.php` and `require_once` a handful of libs directly. Two traps,
+   both of which shipped as hard 500s on every request and went unnoticed for months
+   because the suite loaded no root page at all — now guarded by
+   `api/tests/test_root_pages.php` (static, token-based; it never executes a page,
+   since that would emit headers and write the real `api/storage` dev DB):
+   - **Never stub a function a required lib already defines.** PHP declares top-level
+     functions at COMPILE time, *before* any `require_once` in the same file executes —
+     so `function mam_log(...) {}` beside `require_once .../lib/log.php` is an
+     unconditional `Cannot redeclare` fatal, not a harmless shadow or fallback. Both
+     pages stubbed `mam_log`/`mam_audit` (and card.php `mam_automation_touch`). Only
+     `mam_env`, `mam_client_ip` and `mam_after_response` genuinely need defining —
+     they live in `bootstrap.php`, which these pages deliberately don't load.
+   - **Use `mam_session_user()` for auth; don't read the cookie by hand.** Both pages
+     called a `mam_session_get()` that **does not exist anywhere in the repo**, and read
+     `$_COOKIE['mam_session']` when the real cookie is **`mam_sid`** (`MAM_COOKIE`, set
+     in `session.php`) — so the auth check could never have resolved a session even
+     without the fatal. `mam_session_user()` handles the cookie name, token-format
+     check, hashing, expiry and the `users.status='active'` gate.
+   Also: the emailed card PNG (`mam_card_generate_png`) draws with GD's built-in bitmap
+   font, which has **no glyph at 0xB7** — keep separators ASCII. `'\xB7'` in single
+   quotes isn't even an escape (it printed literally, and skewed the `strlen()` centring);
+   double-quoting it just draws a stray mark instead. The `/card/{serial}` HTML page pulls
+   **Barlow Condensed from Google Fonts**, so offline renders fall back to a font whose
+   metrics collide at `line-height: 0.95` — name overlap in a local screenshot is an
+   artifact, not a bug.
+5. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
    ONLY from a trusted proxy (private + Cloudflare ranges by default; `TRUSTED_PROXY_CIDRS`
    to override). It's the rate-limit + audit IP key. Don't revert to blindly trusting headers.
-5. **SSRF guard** for the curriculum remote-import is in `api/lib/lms.php`
+6. **SSRF guard** for the curriculum remote-import is in `api/lib/lms.php`
    (`mam_lms_public_ips_for` / `mam_lms_fetch_url`): per-hop re-validation, `CURLOPT_RESOLVE`
    pinning, denies private/CGNAT/IETF-special ranges, ports 80/443 only. Keep it strict.
-6. **`auditer_results` capture flow.** `mam_auditer_record()` (`auditer.php`) is the
+7. **`auditer_results` capture flow.** `mam_auditer_record()` (`auditer.php`) is the
    writer — admins capture a placement from the application detail card (`?v=applications&app=N`,
    `record_placement` action). When the `auditer_placement` automation is on it also
    ensures the student account + enrols them at the recommended level. The student Auditer
    tab still falls back to live `mam_auditer_status()` for validity/booking state.
-7. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
+8. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
 
 ## Security posture (don't weaken)
 

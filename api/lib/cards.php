@@ -316,7 +316,11 @@ function mam_card_generate_png(array $card, string $name): ?string {
     $mamText = 'MAM ACADEMY';
     $textX = (int)(($w - strlen($mamText) * imagefontwidth(5)) / 2);
     imagestring($img, 5, max(20, $textX), 28, $mamText, $cDark);
-    $subText = 'Mystery  \xB7  Art  \xB7  Music';
+    // ASCII separator on purpose. '\xB7' in SINGLE quotes is not an escape, so the
+    // card literally printed "Mystery  \xB7  Art  \xB7  Music" — and it also skewed
+    // the strlen()-based centring below. Switching to double quotes is NOT the fix:
+    // GD's built-in bitmap font has no middot at 0xB7 and draws a stray mark.
+    $subText = 'Mystery  -  Art  -  Music';
     imagestring($img, 2, (int)(($w - strlen($subText) * imagefontwidth(2)) / 2), 54, $subText, $cGrey);
 
     // Photo circle (if available)

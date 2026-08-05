@@ -48,23 +48,25 @@ function mam_env(string $key, $default = null) {
     return $default;
 }
 
-function mam_log(...$a) {} // not needed for card page
-function mam_audit(...$a) {}
+// Only the helpers this page's requires DON'T already provide. PHP declares
+// top-level functions at compile time — before the require_once calls above run —
+// so stubbing mam_log/mam_audit (lib/log.php) or mam_automation_touch
+// (lib/automations.php) here made every request a fatal "Cannot redeclare"
+// error. Those libs are required above and supply the real implementations.
+// mam_env / mam_client_ip / mam_after_response live in bootstrap.php, which this
+// page deliberately doesn't load, so they DO still need defining.
 function mam_client_ip() { return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'; }
 function mam_after_response(callable $fn) { register_shutdown_function($fn); }
-function mam_automation_touch(string $key): void {}
 
 $serial = trim((string)($_GET['serial'] ?? ''));
 
-// Auth check via session cookie.
-$sessionRow = null;
-$currentUser = null;
-if (isset($_COOKIE['mam_session'])) {
-    $sessionRow = mam_session_get($_COOKIE['mam_session']);
-    if ($sessionRow) {
-        $currentUser = mam_db_row('SELECT id, name, role, avatar_url FROM users WHERE id = ?', [(int)$sessionRow['user_id']]);
-    }
-}
+// Auth check via session cookie. Defer to lib/session.php rather than reading the
+// cookie by hand: it uses the real cookie name (MAM_COOKIE = 'mam_sid', NOT
+// 'mam_session'), validates the token format, hashes it, and enforces both expiry
+// and users.status='active'. The previous inline version called a
+// mam_session_get() that does not exist — a fatal on every request — and read the
+// wrong cookie name, so it could never have resolved a session either way.
+$currentUser = mam_session_user();
 
 $appUrl    = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
 $loginUrl  = $appUrl . '/portal/login.html?next=' . urlencode('/card/' . $serial);

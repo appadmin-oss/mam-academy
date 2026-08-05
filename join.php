@@ -43,8 +43,11 @@ function mam_env(string $key, $default = null) {
     if ($v !== false && $v !== '') return $v;
     return $default;
 }
-function mam_log(...$a) {}
-function mam_audit(...$a) {}
+// Only what this page's requires DON'T already provide. PHP declares top-level
+// functions at compile time — before the require_once calls above run — so
+// stubbing mam_log/mam_audit (lib/log.php, required above) made every request an
+// unconditional "Cannot redeclare" fatal. mam_client_ip lives in bootstrap.php,
+// which this page deliberately doesn't load, so it DOES still need defining.
 function mam_client_ip() { return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'; }
 
 $type = strtolower(trim((string)($_GET['type'] ?? '')));
@@ -54,14 +57,12 @@ $appUrl   = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '
 $selfUrl  = $appUrl . '/' . ($type === 'class' ? 'class' : 'session') . '/' . $id . '/join';
 $loginUrl = $appUrl . '/portal/login.html?next=' . urlencode($selfUrl);
 
-// Auth
-$currentUser = null;
-if (isset($_COOKIE['mam_session'])) {
-    $sess = mam_session_get($_COOKIE['mam_session']);
-    if ($sess) {
-        $currentUser = mam_db_row('SELECT id, name, role FROM users WHERE id = ?', [(int)$sess['user_id']]);
-    }
-}
+// Auth — defer to lib/session.php rather than reading the cookie by hand: it uses
+// the real cookie name (MAM_COOKIE = 'mam_sid', NOT 'mam_session'), validates the
+// token format, hashes it, and enforces expiry + users.status='active'. The
+// previous inline version called a mam_session_get() that does not exist and read
+// the wrong cookie name, so it could never have resolved a session.
+$currentUser = mam_session_user();
 if (!$currentUser) {
     header('Location: ' . $loginUrl);
     exit;
