@@ -6831,6 +6831,13 @@ nav a{display:flex;align-items:center}
     $appUrl = rtrim((string)mam_env('APP_URL', ''), '/');
 ?>
   <header class="top"><h1>ID Cards</h1></header>
+  <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div style="flex:1;min-width:240px">
+      <b style="display:block;font-size:15px">ID Card Studio</b>
+      <span class="muted" style="font-size:13px">Proof, print and export the 54×86&nbsp;mm cards in bulk — imposed print-ready PDF with bleed and crop marks, high-resolution PNGs, and a QR verification pass. Renders in your browser; nothing is uploaded.</span>
+    </div>
+    <a class="btn" href="/card-studio" target="_blank" rel="noopener">Open the Card Studio ↗</a>
+  </div>
   <div class="card" style="margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <input type="text" id="icSearch" placeholder="Search name, email, serial…" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px">

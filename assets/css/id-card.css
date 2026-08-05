@@ -1,0 +1,352 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   MAM Academy — ID card face
+   The SINGLE source of truth for how a card looks. Shared by:
+     • /card/{serial}      — the student's own printable card (card.php)
+     • /card-studio        — the admin batch studio (card-studio.php)
+   Both render the same markup (partials/id-card-face.php) against this file, so
+   what an admin proofs on the sheet is exactly what a student sees.
+
+   ── Why no clip-path AND no SVG masks ─────────────────────────────────────
+   The studio rasterises this face with html2canvas for PNG/PDF export. It
+   implements NEITHER `clip-path` (the card exports as a plain rectangle, mask
+   silently missing) NOR inline-SVG `background-image` (measured: exports as a
+   solid rectangle of the fill colour, covering everything beneath it). Every
+   shape here is therefore built only from what html2canvas rasterises
+   faithfully: solid fills, border-radius, and linear-gradient.
+
+   ── Geometry ──────────────────────────────────────────────────────────────
+   The face is **CR80 portrait, 54×86mm** — the size that fits a standard lanyard
+   holder. It is deliberately NOT 3:4: at 3:4 a photo this large plus a scannable
+   QR plus a two-line name overflows the bottom edge by ~10% of the card height
+   (the QR and the surname get clipped). The extra height is what pays for the
+   bigger photograph.
+
+   The white upper region covers the top 47%, its bottom edge sweeping up to the
+   right via elliptical border-radii. The photograph is 46% of the card width and
+   spans 25%→54% of the height, so it straddles that boundary; its white ring is
+   what makes it read as seated in the sweep rather than pasted on top.
+
+   Vertical budget (as % of card height): brand ends ~19%, photo 25→54%,
+   lower block ~42% → ends ~97%. Under 100% with room for a descender.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mam-card,
+.mam-card *,
+.mam-card *::before,
+.mam-card *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── The face ─────────────────────────────────────────────────────────────
+   `--mam-card-w` drives everything; every inner size is relative, so one width
+   change rescales the whole card (the studio sets it per zoom level, and the
+   exporter sets it to the pixel width needed for the target DPI). */
+.mam-card {
+  --mam-card-w: 300px;
+  --mam-orange: #F07B1A;
+  --mam-orange-deep: #D96A10;
+  --mam-ink: #1A120B;
+  --mam-paper: #FDFCF9;
+
+  position: relative;
+  width: var(--mam-card-w);
+  aspect-ratio: 54 / 86;   /* CR80 portrait — fits a lanyard holder */
+  background: var(--mam-orange);
+  border-radius: calc(var(--mam-card-w) * 0.055);
+  overflow: hidden;
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  color: var(--mam-paper);
+  /* A flat face by default: the shadow belongs to the on-screen chrome, not to
+     the artwork, or it would be rasterised into the printed bleed. */
+  flex: none;
+}
+
+/* Squared off for export: a printed card is trimmed straight and the corners are
+   rounded later by the die-cut, so exported artwork must be a full rectangle. A
+   rounded raster would also leave background-coloured corners for the bleed's
+   edge replication to smear outward. The studio adds `is-exporting` per card. */
+.mam-card.is-exporting { border-radius: 0 !important; }
+
+/* Screen-only lift. */
+.mam-card--raised {
+  box-shadow: 0 8px 40px rgba(26, 18, 11, 0.22), 0 2px 8px rgba(26, 18, 11, 0.10);
+}
+
+/* ── White upper region: the sweep ────────────────────────────────────────
+   Built from BORDER-RADIUS — not clip-path, and not an inline-SVG mask.
+   html2canvas (which the Card Studio uses to rasterise for print) supports
+   neither: a clip-path face exports as a plain rectangle, and an inline-SVG
+   `background-image` was measured exporting as a SOLID WHITE RECTANGLE over the
+   whole card, hiding the orange and leaving the white name text invisible on
+   white. Elliptical corner radii give the same rising-to-the-right sweep out of
+   primitives html2canvas rasterises faithfully.
+
+   The bottom-RIGHT radius is the large one: removing white there is what lets the
+   orange climb on the right while white stays deeper on the left. */
+.mam-card__white {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 47%;
+  z-index: 1;
+  background: var(--mam-paper);
+  border-radius: 0 0 82% 20% / 0 0 42% 14%;
+}
+
+/* ── Logo lockup ──────────────────────────────────────────────────────────── */
+.mam-card__brand {
+  position: absolute;
+  top: 4.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
+.mam-card__logo,
+.mam-card__logo-fallback {
+  width: calc(var(--mam-card-w) * 0.18);
+  height: calc(var(--mam-card-w) * 0.18);
+  border-radius: calc(var(--mam-card-w) * 0.028);
+  object-fit: contain;
+  display: block;
+}
+.mam-card__logo-fallback {
+  background: var(--mam-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
+  font-weight: 900;
+  font-size: calc(var(--mam-card-w) * 0.072);
+  letter-spacing: 0.04em;
+  color: var(--mam-orange);
+}
+.mam-card__brand-name {
+  margin-top: calc(var(--mam-card-w) * 0.026);
+  font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
+  font-weight: 800;
+  font-size: calc(var(--mam-card-w) * 0.052);
+  letter-spacing: 0.20em;
+  line-height: 1;
+  color: var(--mam-ink);
+  text-transform: uppercase;
+}
+.mam-card__brand-sub {
+  margin-top: calc(var(--mam-card-w) * 0.012);
+  font-size: calc(var(--mam-card-w) * 0.024);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  color: #8A7862;
+  text-transform: uppercase;
+}
+
+/* ── Photograph — the focal point, 45% of card width ─────────────────────── */
+.mam-card__photo {
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 46%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #E4DACA;
+  z-index: 5;
+  /* A white ring so the portrait still reads as seated even where the bay curve
+     and the circle don't line up perfectly (different card widths round
+     differently). box-sizing: border-box keeps the ring inside the 46%. */
+  border: calc(var(--mam-card-w) * 0.026) solid var(--mam-paper);
+}
+.mam-card__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.mam-card__initials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(150deg, #C9A87C, #A98457);
+  font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
+  font-weight: 800;
+  font-style: italic;
+  font-size: calc(var(--mam-card-w) * 0.17);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--mam-paper);
+  text-transform: uppercase;
+}
+
+/* ── Lower (orange) content ──────────────────────────────────────────────── */
+.mam-card__lower {
+  position: absolute;
+  top: 56%;          /* just below the bay bottom (≈55.8% of height) */
+  left: 0; right: 0; bottom: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 8% calc(var(--mam-card-w) * 0.035);
+  text-align: center;
+}
+
+/* Name — condensed italic, two lines. min-height reserves the first-name line
+   so a one-word name doesn't shift the surname up into the photo bay. */
+.mam-card__given,
+.mam-card__surname {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
+  font-style: italic;
+  color: var(--mam-paper);
+  text-transform: uppercase;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mam-card__given {
+  font-weight: 700;
+  font-size: calc(var(--mam-card-w) * 0.085);
+  letter-spacing: 0.02em;
+  /* line-height 1.1 (not 0.95): with the webfont unavailable the fallback's
+     taller metrics overflowed the line box and collided with the surname. */
+  line-height: 1.1;
+  min-height: calc(var(--mam-card-w) * 0.094);
+}
+.mam-card__surname {
+  font-weight: 900;
+  font-size: calc(var(--mam-card-w) * 0.145);
+  letter-spacing: -0.005em;
+  line-height: 1.02;
+}
+
+.mam-card__role {
+  margin-top: calc(var(--mam-card-w) * 0.022);
+  font-size: calc(var(--mam-card-w) * 0.040);
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  /* letter-spacing adds a trailing gap on the last glyph; pull it back so the
+     word stays optically centred. */
+  text-indent: 0.34em;
+  line-height: 1;
+  color: rgba(253, 252, 249, 0.92);
+  text-transform: uppercase;
+}
+
+.mam-card__qr {
+  margin-top: calc(var(--mam-card-w) * 0.030);
+  width: 26%;
+  aspect-ratio: 1;
+  background: var(--mam-paper);
+  border-radius: calc(var(--mam-card-w) * 0.032);
+  padding: calc(var(--mam-card-w) * 0.020);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.mam-card__qr > * { width: 100%; height: 100%; display: block; }
+.mam-card__qr canvas,
+.mam-card__qr img { width: 100% !important; height: 100% !important; display: block; }
+
+.mam-card__id {
+  margin-top: calc(var(--mam-card-w) * 0.028);
+  font-size: calc(var(--mam-card-w) * 0.038);
+  font-weight: 500;
+  letter-spacing: 0.20em;
+  text-indent: 0.20em;
+  line-height: 1;
+  color: rgba(253, 252, 249, 0.88);
+}
+
+/* ── Expiry, vertical on the right edge ──────────────────────────────────── */
+.mam-card__exp {
+  position: absolute;
+  right: calc(var(--mam-card-w) * 0.030);
+  top: 40%;
+  z-index: 6;
+  writing-mode: vertical-rl;
+  font-size: calc(var(--mam-card-w) * 0.032);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  color: var(--mam-ink);
+  opacity: 0.55;
+  text-transform: uppercase;
+}
+
+/* ── Void overlay for a revoked card ─────────────────────────────────────── */
+.mam-card--revoked::after {
+  content: 'VOID';
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
+  font-weight: 900;
+  font-style: italic;
+  font-size: calc(var(--mam-card-w) * 0.30);
+  letter-spacing: 0.06em;
+  color: rgba(185, 28, 28, 0.42);
+  background: rgba(255, 255, 255, 0.16);
+  transform: rotate(-16deg);
+}
+
+/* ── Back face ───────────────────────────────────────────────────────────── */
+.mam-card--back {
+  background: var(--mam-paper);
+  color: var(--mam-ink);
+  display: flex;
+  flex-direction: column;
+  padding: 8%;
+}
+.mam-card--back .mam-card__back-brand {
+  font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
+  font-weight: 800;
+  font-size: calc(var(--mam-card-w) * 0.056);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mam-ink);
+}
+.mam-card--back .mam-card__back-rule {
+  height: calc(var(--mam-card-w) * 0.010);
+  background: var(--mam-orange);
+  margin: calc(var(--mam-card-w) * 0.035) 0;
+  border-radius: 999px;
+}
+.mam-card__back-terms {
+  font-size: calc(var(--mam-card-w) * 0.033);
+  line-height: 1.55;
+  color: #5C4E3E;
+}
+.mam-card__back-terms li { margin: 0 0 0.5em 1.1em; }
+.mam-card__back-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6%;
+}
+.mam-card__back-meta {
+  font-size: calc(var(--mam-card-w) * 0.031);
+  line-height: 1.5;
+  color: #6B5B49;
+  text-align: left;
+}
+.mam-card__back-meta b { color: var(--mam-ink); }
+.mam-card__back-sign {
+  flex: 1;
+  border-top: 1px solid #C9BCA8;
+  padding-top: calc(var(--mam-card-w) * 0.018);
+  font-size: calc(var(--mam-card-w) * 0.028);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8A7862;
+  text-align: center;
+}

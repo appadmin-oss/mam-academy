@@ -145,6 +145,7 @@ $safeLogoUrl = $logoUrl !== '' ? htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUB
 <meta name="robots" content="noindex,nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,700;1,800;1,900&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/id-card.css">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -168,261 +169,9 @@ $safeLogoUrl = $logoUrl !== '' ? htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUB
     align-items: center;
   }
 
-  /* ─── Portrait ID card ───────────────────────────────────── */
-  .id-card {
-    width: 100%;
-    aspect-ratio: 3 / 4;
-    border-radius: 18px;
-    box-shadow: 0 8px 40px rgba(26,18,11,0.22), 0 2px 8px rgba(26,18,11,0.10);
-    position: relative;
-    overflow: hidden;
-    background: #F07B1A; /* orange fills the card; white mask covers the top */
-    flex-shrink: 0;
-  }
-
-  /* White upper mask with V-notch to frame the photo */
-  .card-white-mask {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: #FDFCF9;
-    /* Notch bottom: (50%, 57%) — photo center sits at ~47% */
-    clip-path: polygon(
-      0%   0%,
-      100% 0%,
-      100% 59%,
-      63%  53%,
-      55%  55%,
-      52%  57%,
-      50%  58%,
-      48%  57%,
-      45%  55%,
-      37%  53%,
-      0%   57%
-    );
-    z-index: 1;
-  }
-
-  /* Scattered music icon watermarks in white area */
-  .card-decor {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 55%;
-    z-index: 2;
-    pointer-events: none;
-    overflow: hidden;
-  }
-  .card-decor span {
-    position: absolute;
-    color: #B8A890;
-    opacity: 0.18;
-    font-style: normal;
-    line-height: 1;
-    user-select: none;
-  }
-  .card-decor .d1  { font-size: 28px; top:  6%; left:  5%; transform: rotate(-15deg); }
-  .card-decor .d2  { font-size: 20px; top: 12%; right: 8%; transform: rotate(20deg); }
-  .card-decor .d3  { font-size: 22px; top: 30%; left: 7%; transform: rotate(-8deg); }
-  .card-decor .d4  { font-size: 16px; top: 22%; right:10%; transform: rotate(10deg); }
-  .card-decor .d5  { font-size: 18px; top: 42%; left:14%; transform: rotate(5deg); }
-  .card-decor .d6  { font-size: 14px; top: 50%; right:15%; transform: rotate(-12deg); }
-  .card-decor .d7  { font-size: 24px; top:  4%; right:30%; transform: rotate(3deg); opacity: 0.10; }
-
-  /* Logo at top center */
-  .card-logo {
-    position: absolute;
-    top: 5%;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 3;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    text-align: center;
-  }
-  .card-logo img {
-    width: 48px;
-    height: 48px;
-    object-fit: contain;
-    border-radius: 6px;
-  }
-  .card-logo-text-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    line-height: 1;
-  }
-  .card-logo-name {
-    font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
-    font-weight: 800;
-    font-style: normal;
-    font-size: 15px;
-    letter-spacing: 3px;
-    color: #1A120B;
-    text-transform: uppercase;
-  }
-  .card-logo-sub {
-    font-size: 7px;
-    letter-spacing: 2px;
-    color: #7A6A56;
-    text-transform: uppercase;
-    margin-top: 2px;
-  }
-
-  /* Fallback logo box (when no logo URL is configured) */
-  .card-logo-box {
-    width: 44px;
-    height: 44px;
-    background: #1A120B;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .card-logo-box-text {
-    font-family: 'Barlow Condensed', Impact, sans-serif;
-    font-weight: 900;
-    font-size: 16px;
-    color: #F07B1A;
-    letter-spacing: 1px;
-  }
-
-  /* Student photo — circular, overlaps the white/orange boundary */
-  .card-photo {
-    position: absolute;
-    /* Center at ~47% from top; photo height ≈ 28% of width = 21% of card height → top ≈ 47% - 10.5% = 36.5% */
-    top: 37%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 28%;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    border: 3.5px solid #FDFCF9;
-    overflow: hidden;
-    background: #D9CEBD;
-    z-index: 5;
-    box-shadow: 0 2px 12px rgba(26,18,11,0.20);
-  }
-  .card-photo img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-  /* Initials placeholder when no photo */
-  .card-photo-initials {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #C9A87C;
-    font-family: 'Barlow Condensed', Impact, sans-serif;
-    font-weight: 800;
-    font-style: italic;
-    font-size: 26px;
-    color: #FDFCF9;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-
-  /* Orange section content */
-  .card-lower {
-    position: absolute;
-    top: 52%;
-    left: 0; right: 0; bottom: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 14% 10% 5%;
-    z-index: 4;
-    text-align: center;
-  }
-
-  /* Student name — two lines */
-  .card-name-first {
-    font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
-    font-weight: 700;
-    font-style: italic;
-    font-size: 22px;
-    color: #FDFCF9;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    line-height: 1.1;
-    width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .card-name-surname {
-    font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
-    font-weight: 900;
-    font-style: italic;
-    font-size: 38px;
-    color: #FDFCF9;
-    text-transform: uppercase;
-    letter-spacing: 0px;
-    line-height: 0.95;
-    width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .card-role-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 4px;
-    color: rgba(253,252,249,0.85);
-    text-transform: uppercase;
-    margin-top: 8px;
-  }
-
-  /* QR code in white rounded box */
-  .card-qr-box {
-    background: #FDFCF9;
-    border-radius: 10px;
-    padding: 7px;
-    margin-top: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28%;
-    aspect-ratio: 1;
-    flex-shrink: 0;
-  }
-  .card-qr-box canvas,
-  .card-qr-box img { width: 100% !important; height: 100% !important; }
-  .card-qr-box #qrcode { width: 100%; height: 100%; }
-
-  /* Display ID below QR */
-  .card-display-id {
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 2px;
-    color: rgba(253,252,249,0.75);
-    text-transform: uppercase;
-    margin-top: 7px;
-  }
-
-  /* EXP date — vertical on right edge of orange section */
-  .card-exp {
-    position: absolute;
-    right: 5px;
-    top: 62%;
-    bottom: 8%;
-    display: flex;
-    align-items: center;
-    z-index: 6;
-  }
-  .card-exp span {
-    writing-mode: vertical-lr;
-    font-size: 8px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    color: rgba(253,252,249,0.70);
-    text-transform: uppercase;
-  }
+  /* ── The card face itself lives in assets/css/id-card.css ───────────────
+     Shared verbatim with the admin Card Studio (/card-studio) so a proofed
+     sheet is exactly what the student sees. Only page chrome is styled here. */
 
   /* Revoked banner */
   .card-revoked-banner {
@@ -487,11 +236,13 @@ $safeLogoUrl = $logoUrl !== '' ? htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUB
   .error-box p  { font-size: 14px; color: #7A6A56; }
   .error-box a  { color: #C17B2A; text-decoration: none; font-weight: 600; }
 
-  /* Print: suppress controls, keep card colour-accurate */
+  /* Print: suppress controls, keep card colour-accurate. The card is pinned to a
+     real-world width (54×72mm at 3:4) rather than a pixel guess, so a home printer
+     produces a card that actually fits a lanyard holder. */
   @media print {
     body { background: #fff; padding: 0; }
-    .card-wrap { max-width: 260px; }
-    .id-card { box-shadow: none; }
+    .card-wrap { max-width: none; }
+    .mam-card { --mam-card-w: 54mm; box-shadow: none; }
     .card-actions, .card-hint, .card-revoked-banner { display: none; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
@@ -508,67 +259,30 @@ $safeLogoUrl = $logoUrl !== '' ? htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUB
 
 <?php else: ?>
 <div class="card-wrap">
-  <div class="id-card">
-
-    <!-- White upper mask (V-notch bottom) -->
-    <div class="card-white-mask"></div>
-
-    <!-- Music icon watermarks in white zone -->
-    <div class="card-decor" aria-hidden="true">
-      <span class="d1">♩</span>
-      <span class="d2">♪</span>
-      <span class="d3">♫</span>
-      <span class="d4">♬</span>
-      <span class="d5">♩</span>
-      <span class="d6">♪</span>
-      <span class="d7">♫</span>
-    </div>
-
-    <!-- Logo -->
-    <div class="card-logo">
-      <?php if ($safeLogoUrl !== ''): ?>
-        <img src="<?= $safeLogoUrl ?>" alt="MAM Academy">
-      <?php else: ?>
-        <div class="card-logo-box"><span class="card-logo-box-text">MAM</span></div>
-      <?php endif; ?>
-      <div class="card-logo-text-wrap">
-        <span class="card-logo-name">MAM Academy</span>
-        <span class="card-logo-sub">Mystery &middot; Art &middot; Music</span>
-      </div>
-    </div>
-
-    <!-- Circular student photo -->
-    <div class="card-photo">
-      <?php if ($safePhotoUrl !== ''): ?>
-        <img src="<?= $safePhotoUrl ?>" alt="<?= $h($holderName) ?>">
-      <?php else: ?>
-        <div class="card-photo-initials"><?= $h(mb_substr($nameSurname, 0, 2)) ?></div>
-      <?php endif; ?>
-    </div>
-
-    <!-- Orange zone content -->
-    <div class="card-lower">
-      <?php if ($nameFirst !== ''): ?>
-      <div class="card-name-first"><?= $h(strtoupper($nameFirst)) ?></div>
-      <?php endif; ?>
-      <div class="card-name-surname"><?= $h(strtoupper($nameSurname)) ?></div>
-      <div class="card-role-label"><?= $h($role) ?></div>
-
-      <div class="card-qr-box">
-        <div id="qrcode"></div>
-      </div>
-
-      <div class="card-display-id"><?= $h($displayId) ?></div>
-    </div>
-
-    <!-- EXP date — vertical right edge -->
-    <?php if ($expDisplay !== ''): ?>
-    <div class="card-exp" aria-label="Expiry <?= $h($expDisplay) ?>">
-      <span><?= $h($expDisplay) ?></span>
-    </div>
-    <?php endif; ?>
-
-  </div><!-- .id-card -->
+  <?php
+    // One renderer for both the student card and the admin studio — see
+    // partials/id-card-face.php. Passing the already-resolved holder name and
+    // payload keeps the partial free of DB access.
+    require_once __DIR__ . '/partials/id-card-face.php';
+    echo mam_card_face_html([
+        'holder_name'  => $holderName,
+        'role'         => $card['role'] ?? 'student',
+        'display_id'   => $displayId,
+        'exp_display'  => $expDisplay,
+        'qr_payload'   => $qrPayload,
+        'photo_url'    => $photoUrl,
+        'status'       => $card['status'] ?? '',
+        'serial'       => $card['serial'] ?? '',
+        'session_code' => $sessionCode,
+    ], [
+        'qr_id'  => 'qrcode',
+        'logo'   => $logoUrl,
+        'raised' => true,
+        // min() keeps --mam-card-w an absolute length, which the face's calc()
+        // type scale needs, while still shrinking on a narrow phone.
+        'width'  => 'min(340px, 86vw)',
+    ]);
+  ?>
 
   <?php if ((string)$card['status'] === 'revoked'): ?>
   <div class="card-revoked-banner">This card has been revoked and is no longer valid.</div>
@@ -584,28 +298,7 @@ $safeLogoUrl = $logoUrl !== '' ? htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUB
 </div>
 
 <script src="/assets/js/vendor/qrcode.min.js"></script>
-<script>
-(function () {
-  var payload = <?= json_encode($qrPayload) ?>;
-  var el = document.getElementById('qrcode');
-  if (typeof QRCode !== 'undefined' && el) {
-    // Fit the QR to the white box; el.offsetWidth reads after layout
-    var size = el.parentElement ? el.parentElement.offsetWidth - 14 : 70;
-    size = Math.max(48, Math.min(size, 120));
-    new QRCode(el, {
-      text:         payload,
-      width:        size,
-      height:       size,
-      colorDark:    '#1A120B',
-      colorLight:   '#FDFCF9',
-      correctLevel: QRCode.CorrectLevel.M,
-    });
-  } else if (el) {
-    el.textContent = payload;
-    el.style.cssText = 'font-size:5px;word-break:break-all;color:#9C845A';
-  }
-})();
-</script>
+<script src="/assets/js/id-card-qr.js"></script>
 <?php endif; ?>
 
 </body>

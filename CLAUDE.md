@@ -239,18 +239,53 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    **Barlow Condensed from Google Fonts**, so offline renders fall back to a font whose
    metrics collide at `line-height: 0.95` — name overlap in a local screenshot is an
    artifact, not a bug.
-5. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
+5. **ID card face + Card Studio (`assets/css/id-card.css`, `partials/id-card-face.php`).**
+   One renderer serves `/card/{serial}` AND the admin `/card-studio`, so a proofed sheet
+   is exactly what the student receives — don't fork the markup.
+   - **The face is CR80 portrait, 54×86mm — NOT 3:4.** At 3:4 a photo this large plus a
+     scannable QR plus a two-line name overflows the bottom by ~10% of the card height
+     (surname and QR get clipped). The extra height is what pays for the big photo.
+     `assets/css/id-card.css` carries the vertical budget; keep it summing under 100%.
+   - **html2canvas supports NEITHER `clip-path` NOR inline-SVG `background-image`.**
+     Both were tried and measured: clip-path exports as a plain rectangle, and an SVG
+     data-URI background exports as a **solid rectangle of the fill colour covering the
+     whole card** — which hid the orange and left the white name text invisible on white.
+     The sweep is therefore built from elliptical `border-radius`, and the doodle
+     watermark was dropped rather than shipped broken. Only use solid fills,
+     border-radius and linear-gradient on this face.
+   - **Bleed is edge replication, not cropping or scaling** (`addBleed` in
+     `assets/js/card-export.js`). html2canvas's own `x`/`y`/`width`/`height` crop is
+     DOCUMENT-relative, so the studio's off-canvas export node captured the wrong region
+     (right pixel dimensions, displaced content); scaling art up to cover the bleed ate
+     ~5% off every edge including the expiry text. `is-exporting` also squares the corner
+     radius — printed cards are trimmed straight and die-cut round afterwards.
+   - **`scaleForDpi` has no `Math.max(1, …)` floor.** A floor silently breaks the DPI
+     contract: with the 560px export node any DPI under ~263 clamped to 1× and returned a
+     raster at a resolution the caller never asked for.
+   - **A root HTML page that loads `bootstrap.php` must do two things** (`/admin/` and
+     `/card-studio` both do): `header_remove('Content-Type')` + set `text/html` (bootstrap
+     forces `application/json`, so the page renders as source text), and
+     `define('MAM_RESPONSE_SENT', true)` (bootstrap's shutdown handler otherwise appends a
+     `{"error":"no_response"}` envelope into the middle of the markup).
+   - QR painting is shared too (`assets/js/id-card-qr.js`, `[data-qr]`). qrcode.min.js
+     emits BOTH a canvas and an img and hides one — size every candidate and never touch
+     `display`. Always `await MamCardQR.ready()` before rasterising or printing: an
+     unpainted QR exports as a plausible-looking empty white box.
+   - Vendored on demand, self-hosted for CSP: html2canvas, jsPDF, jsQR
+     (`assets/js/vendor/`, licences in `vendor/licenses/README.md`). ~700KB, loaded only
+     when an admin exports. Covered by `test_id_card_face.php`.
+6. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
    ONLY from a trusted proxy (private + Cloudflare ranges by default; `TRUSTED_PROXY_CIDRS`
    to override). It's the rate-limit + audit IP key. Don't revert to blindly trusting headers.
-6. **SSRF guard** for the curriculum remote-import is in `api/lib/lms.php`
+7. **SSRF guard** for the curriculum remote-import is in `api/lib/lms.php`
    (`mam_lms_public_ips_for` / `mam_lms_fetch_url`): per-hop re-validation, `CURLOPT_RESOLVE`
    pinning, denies private/CGNAT/IETF-special ranges, ports 80/443 only. Keep it strict.
-7. **`auditer_results` capture flow.** `mam_auditer_record()` (`auditer.php`) is the
+8. **`auditer_results` capture flow.** `mam_auditer_record()` (`auditer.php`) is the
    writer — admins capture a placement from the application detail card (`?v=applications&app=N`,
    `record_placement` action). When the `auditer_placement` automation is on it also
    ensures the student account + enrols them at the recommended level. The student Auditer
    tab still falls back to live `mam_auditer_status()` for validity/booking state.
-8. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
+9. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
 
 ## Security posture (don't weaken)
 
