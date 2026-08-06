@@ -52,6 +52,29 @@ function mam_setting(string $key, $default = null) {
     return $v;
 }
 
+/**
+ * A setting, falling back to the default REGISTERED in mam_settings_schema().
+ *
+ * mam_setting() only knows the default the caller passes it, so a freshly
+ * registered setting reads as empty until somebody opens the admin form and
+ * saves — the shipped default in the schema is never consulted. That is fine for
+ * settings whose absence means "off", and wrong for ones that carry content (the
+ * ID card's "if found" details print blank on every card until saved). Use this
+ * where the schema default IS the intended value.
+ */
+function mam_setting_or_default(string $key, $fallback = '') {
+    $v = mam_setting($key, null);
+    if ($v !== null && $v !== '') return $v;
+    foreach (mam_settings_schema() as $row) {
+        if (($row[1] ?? null) === $key) {
+            $d = $row[3] ?? null;
+            if ($d !== null && $d !== '') return $d;
+            break;
+        }
+    }
+    return $fallback;
+}
+
 /** Typed convenience reader for the many numeric settings. */
 function mam_setting_num(string $key, float $default): float {
     $v = mam_setting($key, null);
@@ -164,6 +187,14 @@ function mam_settings_schema(): array {
         // that same window. summer_session_* are the actual programme run dates,
         // shown to applicants on /summer. Age limits are inclusive; set max to 0
         // to impose no upper bound.
+        // ── ID cards ───────────────────────────────────────────────────────────
+        // Printed on the BACK of every ID card (partials/id-card-face.php). Kept as
+        // settings, not constants: a card sits in a student's pocket for a year, so
+        // the "if found" details must be changeable without a deploy.
+        ['ID Cards', 'card_found_tel',   'Phone printed on the back of ID cards ("If found …")', '+234-704-444-6517', ''],
+        ['ID Cards', 'card_found_email', 'Email printed on the back of ID cards', 'mailmamcentre@gmail.com', ''],
+        ['ID Cards', 'card_found_url',   'Website printed on the back of ID cards', 'https://academy.mamcentre.org', ''],
+
         ['Summer Programme', 'summer_prog_name',          'Programme name shown on all pages', 'MAM Summer Music Camp', ''],
         ['Summer Programme', 'summer_tagline',             'Short tagline (one sentence)', '', ''],
         ['Summer Programme', 'summer_description',         'Full description paragraph shown on /summer', '', ''],

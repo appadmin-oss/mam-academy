@@ -1,33 +1,38 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   MAM Academy — ID card face
+   MAM Academy — ID card faces (front + back)
    The SINGLE source of truth for how a card looks. Shared by:
      • /card/{serial}      — the student's own printable card (card.php)
      • /card-studio        — the admin batch studio (card-studio.php)
-   Both render the same markup (partials/id-card-face.php) against this file, so
-   what an admin proofs on the sheet is exactly what a student sees.
+   Both render partials/id-card-face.php against this file, so what an admin
+   proofs on a print sheet is exactly what the student receives.
 
-   ── Why no clip-path AND no SVG masks ─────────────────────────────────────
-   The studio rasterises this face with html2canvas for PNG/PDF export. It
-   implements NEITHER `clip-path` (the card exports as a plain rectangle, mask
-   silently missing) NOR inline-SVG `background-image` (measured: exports as a
-   solid rectangle of the fill colour, covering everything beneath it). Every
-   shape here is therefore built only from what html2canvas rasterises
-   faithfully: solid fills, border-radius, and linear-gradient.
+   ── The background is a PLATE, not CSS shapes ────────────────────────────
+   `assets/img/idcard/front-plate.png` carries the orange field, the white
+   region and the doodle motif; `back-plate.png` carries the yellow texture.
+   Both are traced from the designer's own comps by
+   `api/tools/build-id-card-plates.php`.
 
-   ── Geometry ──────────────────────────────────────────────────────────────
-   The face is **CR80 portrait, 54×86mm** — the size that fits a standard lanyard
-   holder. It is deliberately NOT 3:4: at 3:4 a photo this large plus a scannable
-   QR plus a two-line name overflows the bottom edge by ~10% of the card height
-   (the QR and the surname get clipped). The extra height is what pays for the
-   bigger photograph.
+   This is deliberate. The divider is a shallow straight diagonal, then a
+   circular bay for the photograph, then a sharp kink, then a second shallower
+   diagonal — a shape CSS cannot state honestly. Approximating it with
+   border-radius produced a soft blob that was visibly not the design, and the
+   two things CSS *could* express it with are exactly the two things html2canvas
+   silently fails to rasterise (clip-path exports as a plain rectangle; an
+   inline-SVG background exports as a solid rectangle of the fill colour,
+   covering the whole card). A raster plate is faithful by construction and
+   html2canvas handles it correctly, so screen and print agree.
 
-   The white upper region covers the top 47%, its bottom edge sweeping up to the
-   right via elliptical border-radii. The photograph is 46% of the card width and
-   spans 25%→54% of the height, so it straddles that boundary; its white ring is
-   what makes it read as seated in the sweep rather than pasted on top.
-
-   Vertical budget (as % of card height): brand ends ~19%, photo 25→54%,
-   lower block ~42% → ends ~97%. Under 100% with room for a descender.
+   ── Geometry, measured from the artwork ──────────────────────────────────
+   Card is A7 — 74×105mm, the print trim, and a standard lanyard/badge size.
+   The designer's artwork is 1414×2000 (1:√2); A7 is within 0.3% of that, so the
+   plate stretches imperceptibly and screen, plate and print all agree on ONE
+   ratio. aspect-ratio here, CARD_W_MM/CARD_H_MM in card-export.js and the @page
+   sizing in card.php must be changed together or the PDF distorts the card.
+   Traced divider, as % of card height:
+     x=0%  52.5     x=30% 46.8     x=50% 54.0 (bay bottom)
+     x=70% 44.5     x=80% 36.3     x=99% 32.6
+   The photograph sits in the bay: circle centred (49.5%, 40.9%), and the bay
+   bottom at 54.0% is the hard floor the portrait must stay above.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .mam-card,
@@ -36,64 +41,42 @@
 .mam-card *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ── The face ─────────────────────────────────────────────────────────────
-   `--mam-card-w` drives everything; every inner size is relative, so one width
-   change rescales the whole card (the studio sets it per zoom level, and the
-   exporter sets it to the pixel width needed for the target DPI). */
+   `--mam-card-w` drives every inner size, so one width change rescales the
+   whole card (the studio sets it per zoom level; the exporter sets it to the
+   pixel width the target DPI needs). It must stay an ABSOLUTE length — the type
+   scale is calc()-derived from it. */
 .mam-card {
   --mam-card-w: 300px;
-  --mam-orange: #F07B1A;
-  --mam-orange-deep: #D96A10;
+  --mam-orange: #F07F26;
   --mam-ink: #1A120B;
   --mam-paper: #FDFCF9;
 
   position: relative;
   width: var(--mam-card-w);
-  aspect-ratio: 54 / 86;   /* CR80 portrait — fits a lanyard holder */
-  background: var(--mam-orange);
-  border-radius: calc(var(--mam-card-w) * 0.055);
+  aspect-ratio: 74 / 105;         /* A7 — the print trim, within 0.3% of the artwork's 1:√2 */
+  background: var(--mam-orange) url('/assets/img/idcard/front-plate.png') center / 100% 100% no-repeat;
+  border-radius: calc(var(--mam-card-w) * 0.045);
   overflow: hidden;
   font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
   color: var(--mam-paper);
-  /* A flat face by default: the shadow belongs to the on-screen chrome, not to
-     the artwork, or it would be rasterised into the printed bleed. */
   flex: none;
 }
 
-/* Squared off for export: a printed card is trimmed straight and the corners are
-   rounded later by the die-cut, so exported artwork must be a full rectangle. A
-   rounded raster would also leave background-coloured corners for the bleed's
-   edge replication to smear outward. The studio adds `is-exporting` per card. */
-.mam-card.is-exporting { border-radius: 0 !important; }
-
-/* Screen-only lift. */
+/* Screen-only lift; the exporter renders flat so no shadow bakes into the bleed. */
 .mam-card--raised {
   box-shadow: 0 8px 40px rgba(26, 18, 11, 0.22), 0 2px 8px rgba(26, 18, 11, 0.10);
 }
 
-/* ── White upper region: the sweep ────────────────────────────────────────
-   Built from BORDER-RADIUS — not clip-path, and not an inline-SVG mask.
-   html2canvas (which the Card Studio uses to rasterise for print) supports
-   neither: a clip-path face exports as a plain rectangle, and an inline-SVG
-   `background-image` was measured exporting as a SOLID WHITE RECTANGLE over the
-   whole card, hiding the orange and leaving the white name text invisible on
-   white. Elliptical corner radii give the same rising-to-the-right sweep out of
-   primitives html2canvas rasterises faithfully.
+/* Squared off for export: a printed card is trimmed straight and the corners are
+   rounded later by the die-cut. A rounded raster would also leave
+   background-coloured corners for the bleed's edge replication to smear. */
+.mam-card.is-exporting { border-radius: 0 !important; }
 
-   The bottom-RIGHT radius is the large one: removing white there is what lets the
-   orange climb on the right while white stays deeper on the left. */
-.mam-card__white {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 47%;
-  z-index: 1;
-  background: var(--mam-paper);
-  border-radius: 0 0 82% 20% / 0 0 42% 14%;
-}
-
-/* ── Logo lockup ──────────────────────────────────────────────────────────── */
+/* ── Brand lockup ─────────────────────────────────────────────────────────
+   Measured from the comp: logo occupies y 4.8%→17.8%, ~17% of card width. */
 .mam-card__brand {
   position: absolute;
-  top: 4.5%;
+  top: 4.6%;
   left: 50%;
   transform: translateX(-50%);
   z-index: 4;
@@ -101,15 +84,14 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  width: 100%;
 }
 .mam-card__logo,
 .mam-card__logo-fallback {
-  width: calc(var(--mam-card-w) * 0.18);
-  height: calc(var(--mam-card-w) * 0.18);
-  border-radius: calc(var(--mam-card-w) * 0.028);
+  width: calc(var(--mam-card-w) * 0.185);
+  height: calc(var(--mam-card-w) * 0.185);
   object-fit: contain;
   display: block;
+  border-radius: calc(var(--mam-card-w) * 0.012);
 }
 .mam-card__logo-fallback {
   background: var(--mam-ink);
@@ -118,46 +100,26 @@
   justify-content: center;
   font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
   font-weight: 900;
-  font-size: calc(var(--mam-card-w) * 0.072);
+  font-size: calc(var(--mam-card-w) * 0.062);
   letter-spacing: 0.04em;
   color: var(--mam-orange);
 }
-.mam-card__brand-name {
-  margin-top: calc(var(--mam-card-w) * 0.026);
-  font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
-  font-weight: 800;
-  font-size: calc(var(--mam-card-w) * 0.052);
-  letter-spacing: 0.20em;
-  line-height: 1;
-  color: var(--mam-ink);
-  text-transform: uppercase;
-}
-.mam-card__brand-sub {
-  margin-top: calc(var(--mam-card-w) * 0.012);
-  font-size: calc(var(--mam-card-w) * 0.024);
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  line-height: 1;
-  color: #8A7862;
-  text-transform: uppercase;
-}
 
-/* ── Photograph — the focal point, 45% of card width ─────────────────────── */
+/* ── Photograph — seated in the bay ───────────────────────────────────────
+   The bay is centred (49.5%, 40.9%) with a radius of 18.5% of card width. The
+   portrait is a shade smaller so the white bay reads as a ring around it. Its
+   bottom lands at ~53%, just above the bay floor at 54%. Move one, move both. */
 .mam-card__photo {
   position: absolute;
-  top: 25%;
-  left: 50%;
+  top: 28.4%;
+  left: 49.5%;
   transform: translateX(-50%);
-  width: 46%;
+  width: 34%;
   aspect-ratio: 1;
   border-radius: 50%;
   overflow: hidden;
   background: #E4DACA;
   z-index: 5;
-  /* A white ring so the portrait still reads as seated even where the bay curve
-     and the circle don't line up perfectly (different card widths round
-     differently). box-sizing: border-box keeps the ring inside the 46%. */
-  border: calc(var(--mam-card-w) * 0.026) solid var(--mam-paper);
 }
 .mam-card__photo img {
   width: 100%;
@@ -175,28 +137,26 @@
   font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
   font-weight: 800;
   font-style: italic;
-  font-size: calc(var(--mam-card-w) * 0.17);
+  font-size: calc(var(--mam-card-w) * 0.15);
   line-height: 1;
-  letter-spacing: 0.02em;
   color: var(--mam-paper);
   text-transform: uppercase;
 }
 
-/* ── Lower (orange) content ──────────────────────────────────────────────── */
+/* ── Lower content, on the orange ─────────────────────────────────────────
+   Comp positions (% of height): given name 59.8, surname 65, role 76,
+   QR 79.5→89.5, display id 93. */
 .mam-card__lower {
   position: absolute;
-  top: 56%;          /* just below the bay bottom (≈55.8% of height) */
+  top: 57%;
   left: 0; right: 0; bottom: 0;
   z-index: 4;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0 8% calc(var(--mam-card-w) * 0.035);
+  padding: 0 9% 2%;
   text-align: center;
 }
-
-/* Name — condensed italic, two lines. min-height reserves the first-name line
-   so a one-word name doesn't shift the surname up into the photo bay. */
 .mam-card__given,
 .mam-card__surname {
   font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
@@ -210,40 +170,38 @@
 }
 .mam-card__given {
   font-weight: 700;
-  font-size: calc(var(--mam-card-w) * 0.085);
-  letter-spacing: 0.02em;
-  /* line-height 1.1 (not 0.95): with the webfont unavailable the fallback's
-     taller metrics overflowed the line box and collided with the surname. */
+  font-size: calc(var(--mam-card-w) * 0.075);
+  letter-spacing: 0.01em;
+  /* 1.1, not 0.95: with the webfont unavailable the fallback's taller metrics
+     overflowed the line box and collided with the surname. */
   line-height: 1.1;
-  min-height: calc(var(--mam-card-w) * 0.094);
+  min-height: calc(var(--mam-card-w) * 0.082);
 }
 .mam-card__surname {
   font-weight: 900;
-  font-size: calc(var(--mam-card-w) * 0.145);
-  letter-spacing: -0.005em;
+  font-size: calc(var(--mam-card-w) * 0.135);
+  letter-spacing: -0.01em;
   line-height: 1.02;
 }
-
 .mam-card__role {
-  margin-top: calc(var(--mam-card-w) * 0.022);
-  font-size: calc(var(--mam-card-w) * 0.040);
-  font-weight: 500;
-  letter-spacing: 0.34em;
-  /* letter-spacing adds a trailing gap on the last glyph; pull it back so the
+  margin-top: calc(var(--mam-card-w) * 0.030);
+  font-size: calc(var(--mam-card-w) * 0.050);
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  /* letter-spacing adds a trailing gap after the last glyph; pull it back so the
      word stays optically centred. */
-  text-indent: 0.34em;
+  text-indent: 0.22em;
   line-height: 1;
-  color: rgba(253, 252, 249, 0.92);
+  color: var(--mam-paper);
   text-transform: uppercase;
 }
-
 .mam-card__qr {
-  margin-top: calc(var(--mam-card-w) * 0.030);
-  width: 26%;
+  margin-top: calc(var(--mam-card-w) * 0.025);
+  width: 17%;
   aspect-ratio: 1;
   background: var(--mam-paper);
-  border-radius: calc(var(--mam-card-w) * 0.032);
-  padding: calc(var(--mam-card-w) * 0.020);
+  border-radius: calc(var(--mam-card-w) * 0.022);
+  padding: calc(var(--mam-card-w) * 0.012);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -252,30 +210,28 @@
 .mam-card__qr > * { width: 100%; height: 100%; display: block; }
 .mam-card__qr canvas,
 .mam-card__qr img { width: 100% !important; height: 100% !important; display: block; }
-
 .mam-card__id {
-  margin-top: calc(var(--mam-card-w) * 0.028);
-  font-size: calc(var(--mam-card-w) * 0.038);
-  font-weight: 500;
-  letter-spacing: 0.20em;
-  text-indent: 0.20em;
+  margin-top: calc(var(--mam-card-w) * 0.022);
+  font-size: calc(var(--mam-card-w) * 0.045);
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
   line-height: 1;
-  color: rgba(253, 252, 249, 0.88);
+  color: var(--mam-paper);
 }
 
 /* ── Expiry, vertical on the right edge ──────────────────────────────────── */
 .mam-card__exp {
   position: absolute;
-  right: calc(var(--mam-card-w) * 0.030);
-  top: 40%;
+  right: calc(var(--mam-card-w) * 0.022);
+  top: 56%;
   z-index: 6;
   writing-mode: vertical-rl;
-  font-size: calc(var(--mam-card-w) * 0.032);
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: calc(var(--mam-card-w) * 0.040);
+  font-weight: 500;
+  letter-spacing: 0.10em;
   line-height: 1;
   color: var(--mam-ink);
-  opacity: 0.55;
   text-transform: uppercase;
 }
 
@@ -298,55 +254,107 @@
   transform: rotate(-16deg);
 }
 
-/* ── Back face ───────────────────────────────────────────────────────────── */
+/* ═══════════════════════════ BACK FACE ═══════════════════════════════════
+   Yellow textured plate, centred logo, authorised signature, the "if found"
+   contact block and a Code 128 barcode of the serial. Positions measured from
+   the designer's back comp (% of card height): logo 23.5→48.8, signature
+   62→68.5, its caption 70.8, phone 78, email 81, url 85, barcode 87.5→91.5. */
 .mam-card--back {
-  background: var(--mam-paper);
+  background: #F0A019 url('/assets/img/idcard/back-plate.png') center / 100% 100% no-repeat;
   color: var(--mam-ink);
-  display: flex;
-  flex-direction: column;
-  padding: 8%;
+  display: block;
 }
-.mam-card--back .mam-card__back-brand {
+.mam-card__back-logo {
+  position: absolute;
+  top: 23.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 35%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  display: block;
+  border-radius: calc(var(--mam-card-w) * 0.010);
+  box-shadow: 0 calc(var(--mam-card-w) * 0.012) calc(var(--mam-card-w) * 0.030) rgba(90, 55, 10, 0.28);
+}
+.mam-card__back-logo-fallback {
+  position: absolute;
+  top: 23.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 35%;
+  aspect-ratio: 1;
+  background: var(--mam-ink);
+  border-radius: calc(var(--mam-card-w) * 0.010);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
-  font-weight: 800;
-  font-size: calc(var(--mam-card-w) * 0.056);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  font-weight: 900;
+  font-size: calc(var(--mam-card-w) * 0.13);
+  color: var(--mam-orange);
+}
+.mam-card__sig {
+  position: absolute;
+  top: 59%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32%;
+  object-fit: contain;
+  display: block;
+}
+.mam-card__sig-line {
+  position: absolute;
+  top: 71.4%;
+  left: 0; right: 0;
+  text-align: center;
+  font-size: calc(var(--mam-card-w) * 0.050);
+  letter-spacing: 0.04em;
   color: var(--mam-ink);
 }
-.mam-card--back .mam-card__back-rule {
-  height: calc(var(--mam-card-w) * 0.010);
-  background: var(--mam-orange);
-  margin: calc(var(--mam-card-w) * 0.035) 0;
-  border-radius: 999px;
-}
-.mam-card__back-terms {
-  font-size: calc(var(--mam-card-w) * 0.033);
-  line-height: 1.55;
-  color: #5C4E3E;
-}
-.mam-card__back-terms li { margin: 0 0 0.5em 1.1em; }
-.mam-card__back-foot {
-  margin-top: auto;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 6%;
-}
-.mam-card__back-meta {
-  font-size: calc(var(--mam-card-w) * 0.031);
-  line-height: 1.5;
-  color: #6B5B49;
-  text-align: left;
-}
-.mam-card__back-meta b { color: var(--mam-ink); }
-.mam-card__back-sign {
-  flex: 1;
-  border-top: 1px solid #C9BCA8;
-  padding-top: calc(var(--mam-card-w) * 0.018);
-  font-size: calc(var(--mam-card-w) * 0.028);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #8A7862;
+/* The bottom half of the back is a four-way budget: signature 59→70.3%, its
+   caption at 71.4%, the contact block 77.5→90.2% (three lines at 1.35 leading),
+   and the barcode 92.4→96%. Grow any one and it collides with the next — the URL
+   ran straight through the bars before this was worked out, and the caption sat
+   on top of the signature before that. The barcode's 4% bottom margin is 4.2mm
+   at the 105mm trim, i.e. outside the 3mm safe zone. */
+.mam-card__found {
+  position: absolute;
+  top: 77.5%;
+  left: 0; right: 0;
   text-align: center;
+  line-height: 1.35;
+  color: var(--mam-ink);
 }
+.mam-card__found-lead {
+  font-family: 'Caveat', 'Segoe Script', 'Brush Script MT', cursive;
+  font-size: calc(var(--mam-card-w) * 0.042);
+}
+.mam-card__found-tel {
+  font-size: calc(var(--mam-card-w) * 0.042);
+  font-weight: 500;
+}
+.mam-card__found-mail,
+.mam-card__found-url {
+  display: block;
+  font-size: calc(var(--mam-card-w) * 0.042);
+}
+.mam-card__found-url { margin-top: calc(var(--mam-card-w) * 0.010); }
+.mam-card__found-url b { font-weight: 700; }
+
+/* Barcode: rendered as flex columns, so it rasterises like any other box. */
+.mam-card__barcode {
+  position: absolute;
+  bottom: 4%;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 3.6%;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+.mam-card__barcode i {
+  display: block;
+  height: 100%;
+  background: var(--mam-ink);
+}
+.mam-card__barcode i.sp { background: transparent; }

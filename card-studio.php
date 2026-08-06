@@ -78,7 +78,12 @@ $rows = mam_db_all(
 $logoUrl = '';
 $rawLogo = (string)mam_setting('email_logo_url', '');
 if (str_starts_with($rawLogo, 'https://') || str_starts_with($rawLogo, '/')) $logoUrl = $rawLogo;
-$supportEmail = (string)mam_setting('summer_contact_email', '');
+// Back-face contact block (admin-editable — settings group "ID Cards").
+$backOpts = [
+    'tel'   => (string)mam_setting_or_default('card_found_tel'),
+    'email' => (string)mam_setting_or_default('card_found_email'),
+    'url'   => (string)mam_setting_or_default('card_found_url'),
+];
 
 /* Normalise each row into what the face partial wants. The photo falls back to
    the holder's portal avatar / summer headshot when the card itself has none, so
@@ -209,11 +214,11 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
     @page { size: A4 portrait; margin: 10mm; }
     header.bar, .toolbar, .hint, .veil, .cell .meta, .cell .pick { display: none !important }
     body { background: #fff }
-    .grid { display: block; padding: 0; column-count: 3; column-gap: 4mm }
+    .grid { display: block; padding: 0; column-count: 2; column-gap: 4mm }
     .cell { border: none; background: none; padding: 0; margin: 0 0 4mm; break-inside: avoid; }
     .cell.unsel { display: none }
-    .cell .slot { width: 54mm }
-    .mam-card { --mam-card-w: 54mm !important; box-shadow: none !important; border-radius: 2mm }
+    .cell .slot { width: 74mm }
+    .mam-card { --mam-card-w: 74mm !important; box-shadow: none !important; border-radius: 2mm }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact }
   }
 </style>
@@ -298,7 +303,7 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
 
 <p class="hint">
   The PDF imposes the selected cards N-up on the chosen sheet at an exact
-  <b>54×86&nbsp;mm</b> trim with
+  <b>74×105&nbsp;mm</b> trim with
   <b>3&nbsp;mm bleed</b>, crop marks and a named CMYK output intent; fronts and backs
   interleave (backs mirrored) so a long-edge duplex run registers. Artwork embeds at
   the chosen DPI and the press RIP separates it against the intent.
@@ -319,7 +324,7 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
       <?= mam_card_face_html($c, ['qr_id' => 'qr-' . $i, 'logo' => $logoUrl]) ?>
     </div>
     <div class="slot" data-face="back">
-      <?= mam_card_back_html($c, ['support_email' => $supportEmail]) ?>
+      <?= mam_card_back_html($c, $backOpts) ?>
     </div>
     <div class="meta">
       <b><?= $h($c['holder_name'] ?: '—') ?></b>

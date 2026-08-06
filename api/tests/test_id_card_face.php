@@ -113,16 +113,76 @@ t_ok(strpos($optEvil, 'javascript:') === false, 'a javascript: logo URL is refus
 t_ok(strpos($optEvil, 'onload') === false, 'a crafted width is dropped entirely, not merely escaped');
 t_ok(strpos($optEvil, 'style=') === false, 'a rejected width emits no style attribute at all');
 
-/* ── Back face (duplex printing) ─────────────────────────────────────────── */
-$back = mam_card_back_html($card + ['session_code' => 'AY2026/27'], ['support_email' => 'hello@example.com']);
+/* ── Back face — follows the designer's comp ─────────────────────────────── */
+$back = mam_card_back_html($card, [
+    'tel'   => '+234-704-444-6517',
+    'email' => 'mailmamcentre@gmail.com',
+    'url'   => 'https://academy.mamcentre.org',
+]);
 t_ok(strpos($back, 'mam-card--back') !== false, 'the back face carries its own modifier class');
-t_ok(strpos($back, 'ABC1-2DEF-3GHI') !== false, 'the back face shows the serial');
-t_ok(strpos($back, 'MAM/026/0001') !== false, 'the back face shows the display id');
-t_ok(strpos($back, 'AY2026/27') !== false, 'the back face shows the session code');
-t_ok(strpos($back, 'hello@example.com') !== false, 'the back face shows the support address');
+t_ok(strpos($back, 'mam-card__back-logo') !== false, 'the back face shows the MAM lockup');
+t_ok(strpos($back, 'mam-card__sig') !== false, 'the back face shows the authorised signature');
+t_ok(strpos($back, 'Authorised Signature') !== false, 'the signature is captioned');
+t_ok(strpos($back, '+234-704-444-6517') !== false, 'the "if found" phone is printed');
+t_ok(strpos($back, 'mailmamcentre@gmail.com') !== false, 'the contact email is printed');
+t_ok(strpos($back, '<b>https://academy</b>.mamcentre.org') !== false, 'the host is emphasised like the comp');
 // The front's QR must NOT be duplicated on the back — two codes invite a mis-scan.
 t_ok(strpos($back, 'data-qr') === false, 'the back face carries no second QR code');
-t_ok(strpos($back, 'Signature') !== false, 'the back face has a signature strip');
+t_ok(strpos($back, 'mam-card__barcode') !== false, 'the back face carries a barcode');
+
+// A hostile URL must not inject markup through the host-emphasis split.
+$evilUrl = mam_card_back_html(['serial' => 'X'], ['url' => 'https://a<script>alert(1)</script>.b']);
+t_ok(strpos($evilUrl, '<script>') === false, 'a script tag in the URL cannot break out');
+
+/* ── Code 128 barcode of the serial ──────────────────────────────────────── */
+// Round-trip: decode the emitted pattern with an independent reverse lookup, so
+// the encoder is verified against the spec rather than against itself. A barcode
+// that encodes the wrong string is worse than no barcode — it scans as a
+// DIFFERENT card.
+$P128 = ['212222','222122','222221','121223','121322','131222','122213','122312','132212','221213',
+'221312','231212','112232','122132','122231','113222','123122','123221','223211','221132',
+'221231','213212','223112','312131','311222','321122','321221','312212','322112','322211',
+'212123','212321','232121','111323','131123','131321','112313','132113','132311','211313',
+'231113','231311','112133','112331','132131','113123','113321','133121','313121','211331',
+'231131','213113','213311','213131','311123','311321','331121','312113','312311','332111',
+'314111','221411','431111','111224','111422','121124','121421','141122','141221','112214',
+'112412','122114','122411','142112','142211','241211','221114','413111','241112','134111',
+'111242','121142','121241','114212','124112','124211','411212','421112','421211','212141',
+'214121','412121','111143','111341','131141','114113','114311','411113','411311','113141',
+'114131','311141','411131','211412','211214','211232','233111'];
+$rev128 = array_flip($P128);
+$decode128 = static function (string $pat) use ($rev128): string {
+    if (substr($pat, -7) !== '2331112') return '!stop';
+    $body = substr($pat, 0, -7);
+    if (strlen($body) % 6) return '!len';
+    $vals = [];
+    for ($i = 0; $i < strlen($body); $i += 6) {
+        $sym = substr($body, $i, 6);
+        if (!isset($rev128[$sym])) return '!sym';
+        $vals[] = $rev128[$sym];
+    }
+    if (array_shift($vals) !== 104) return '!startB';
+    $check = array_pop($vals);
+    $sum = 104;
+    foreach ($vals as $k => $v) $sum += $v * ($k + 1);
+    if ($sum % 103 !== $check) return '!checksum';
+    $s = '';
+    foreach ($vals as $v) $s .= chr($v + 32);
+    return $s;
+};
+foreach (['RGZT-4Q96-74YV', 'MAM/026/0229', 'A', '0', 'Hello World 123', '~!@#'] as $payload) {
+    t_eq($decode128(mam_card_barcode_128($payload)), $payload, "Code 128 round-trips '$payload'");
+}
+t_eq(mam_card_barcode_128(''), '', 'an empty payload yields no barcode');
+// Outside printable ASCII there is no subset-B encoding; emitting one anyway
+// would produce a barcode that scans as something else.
+t_eq(mam_card_barcode_128("cafÃ©"), '', 'a non-ASCII payload is refused, not mis-encoded');
+t_eq(mam_card_barcode_128("tab	here"), '', 'a control character is refused');
+// 11 modules per symbol (start + data + check) plus the 13-module stop.
+$pat = mam_card_barcode_128('AB');
+t_eq(strlen($pat), 4 * 6 + 7, 'pattern length is 6 digits per symbol plus the stop');
+t_eq(array_sum(str_split($pat)), 4 * 11 + 13, 'module count is 11 per symbol plus 13 for the stop');
+t_eq(mam_card_barcode_html('', 'x'), '', 'no barcode markup when the payload is unencodable');
 
 /* ── Width whitelist (the value is interpolated into CSS) ────────────────── */
 t_eq(mam_card_face_width('300px'), '300px', 'a bare length is allowed');

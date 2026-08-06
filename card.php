@@ -167,6 +167,7 @@ $safeLogoUrl = $logoUrl !== '' ? htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUB
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 22px;            /* front and back stacked, both printable */
   }
 
   /* ── The card face itself lives in assets/css/id-card.css ───────────────
@@ -237,12 +238,12 @@ $safeLogoUrl = $logoUrl !== '' ? htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUB
   .error-box a  { color: #C17B2A; text-decoration: none; font-weight: 600; }
 
   /* Print: suppress controls, keep card colour-accurate. The card is pinned to a
-     real-world width (54×72mm at 3:4) rather than a pixel guess, so a home printer
-     produces a card that actually fits a lanyard holder. */
+     real-world width (74mm — A7, the print trim) rather than a pixel guess, so a
+     home printer produces a card that fits a lanyard holder. */
   @media print {
     body { background: #fff; padding: 0; }
     .card-wrap { max-width: none; }
-    .mam-card { --mam-card-w: 54mm; box-shadow: none; }
+    .mam-card { --mam-card-w: 74mm; box-shadow: none; }
     .card-actions, .card-hint, .card-revoked-banner { display: none; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
@@ -281,6 +282,18 @@ $safeLogoUrl = $logoUrl !== '' ? htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUB
         // min() keeps --mam-card-w an absolute length, which the face's calc()
         // type scale needs, while still shrinking on a narrow phone.
         'width'  => 'min(340px, 86vw)',
+    ]);
+
+    // The BACK carries the "if found" details, so a student who loses the card is
+    // reachable — it belongs on their own page, not only on the admin print sheet.
+    echo mam_card_back_html([
+        'serial' => $card['serial'] ?? '',
+    ], [
+        'raised' => true,
+        'width'  => 'min(340px, 86vw)',
+        'tel'    => (string)mam_setting_or_default('card_found_tel'),
+        'email'  => (string)mam_setting_or_default('card_found_email'),
+        'url'    => (string)mam_setting_or_default('card_found_url'),
     ]);
   ?>
 

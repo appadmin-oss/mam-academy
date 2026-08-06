@@ -166,44 +166,134 @@ if (!function_exists('mam_card_face_html')) {
     }
 }
 
+if (!function_exists('mam_card_barcode_128')) {
+    /**
+     * Code 128 (subset B) bar pattern for $data.
+     *
+     * Returns a string of digits: each is a run length, alternating bar, space,
+     * bar, space… starting with a bar. That is the form Code 128 is defined in,
+     * and it renders as plain flex columns — no font, no canvas, no SVG — so
+     * html2canvas rasterises the barcode exactly as the browser paints it. (A
+     * barcode FONT would silently fall back and print as letters; an SVG would hit
+     * the same html2canvas gap that forced the background plates.)
+     *
+     * Returns '' for anything outside printable ASCII rather than emitting a
+     * barcode that scans as the wrong string.
+     */
+    function mam_card_barcode_128(string $data): string
+    {
+        // The 107 Code 128 patterns, indexed by code value.
+        static $P = [
+            '212222','222122','222221','121223','121322','131222','122213','122312','132212','221213',
+            '221312','231212','112232','122132','122231','113222','123122','123221','223211','221132',
+            '221231','213212','223112','312131','311222','321122','321221','312212','322112','322211',
+            '212123','212321','232121','111323','131123','131321','112313','132113','132311','211313',
+            '231113','231311','112133','112331','132131','113123','113321','133121','313121','211331',
+            '231131','213113','213311','213131','311123','311321','331121','312113','312311','332111',
+            '314111','221411','431111','111224','111422','121124','121421','141122','141221','112214',
+            '112412','122114','122411','142112','142211','241211','221114','413111','241112','134111',
+            '111242','121142','121241','114212','124112','124211','411212','421112','421211','212141',
+            '214121','412121','111143','111341','131141','114113','114311','411113','411311','113141',
+            '114131','311141','411131','211412','211214','211232','233111',
+        ];
+        if ($data === '') return '';
+        $len = strlen($data);
+        $sum = 104;                      // START B
+        $out = $P[104];
+        for ($i = 0; $i < $len; $i++) {
+            $o = ord($data[$i]);
+            if ($o < 32 || $o > 126) return '';   // subset B only
+            $v = $o - 32;
+            $out .= $P[$v];
+            $sum += $v * ($i + 1);
+        }
+        $out .= $P[$sum % 103];          // checksum
+        $out .= '2331112';               // STOP (includes the final bar)
+        return $out;
+    }
+}
+
+if (!function_exists('mam_card_barcode_html')) {
+    /** Render a Code 128 pattern as flex columns, one element per run, sized
+     *  against --mam-card-w so the barcode scales with the card. */
+    function mam_card_barcode_html(string $data, string $label = ''): string
+    {
+        $pat = mam_card_barcode_128($data);
+        if ($pat === '') return '';
+        $h = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE);
+        $out = '<div class="mam-card__barcode" role="img" aria-label="Barcode ' . $h($label !== '' ? $label : $data) . '">';
+        for ($i = 0, $n = strlen($pat); $i < $n; $i++) {
+            $run = (int)$pat[$i];
+            $bar = ($i % 2 === 0);       // the pattern alternates bar, space, bar, …
+            $w = 'calc(var(--mam-card-w) * ' . sprintf('%.5f', 0.00135 * $run) . ')';
+            $out .= '<i class="' . ($bar ? '' : 'sp') . '" style="width:' . $w . '"></i>';
+        }
+        return $out . '</div>';
+    }
+}
+
 if (!function_exists('mam_card_back_html')) {
     /**
-     * The BACK face — carrier for the terms, the serial and a signature strip.
+     * The BACK face, following the designer's comp: yellow textured plate, the MAM
+     * lockup, the authorised signature and its caption, the "if found" contact
+     * block, and a Code 128 barcode of the card serial.
+     *
      * Printing duplex needs a real back; without one the studio can only produce
-     * single-sided sheets. Deliberately text-only: no photo, no QR (the front
-     * already carries the scannable code, and a second QR invites a mis-scan).
+     * single-sided sheets. No second QR — the front already carries the scannable
+     * code and a second one invites a mis-scan. The barcode encodes the SERIAL,
+     * not the signed attendance payload, so a desk scanner can look a card up
+     * without that scan counting as an attendance mark.
+     *
+     * `$opts`: logo, signature, tel, email, url, width, raised.
      */
     function mam_card_back_html(array $c, array $opts = []): string
     {
-        $f = mam_card_face_fields($c);
         $h = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE);
 
-        $serial  = (string)($c['serial'] ?? '');
-        $session = (string)($c['session_code'] ?? '');
-        $support = (string)($opts['support_email'] ?? '');
-        $width   = mam_card_face_width((string)($opts['width'] ?? ''));
-        $style   = $width !== '' ? ' style="--mam-card-w:' . $h($width) . '"' : '';
+        $serial = (string)($c['serial'] ?? '');
+        $width  = mam_card_face_width((string)($opts['width'] ?? ''));
+        $style  = $width !== '' ? ' style="--mam-card-w:' . $h($width) . '"' : '';
+
+        $logo = (string)($opts['logo'] ?? '/assets/img/idcard/logo.png');
+        if ($logo !== '' && !str_starts_with($logo, '/') && !str_starts_with($logo, 'https://')) $logo = '';
+        $sig = (string)($opts['signature'] ?? '/assets/img/idcard/signature.png');
+        if ($sig !== '' && !str_starts_with($sig, '/') && !str_starts_with($sig, 'https://')) $sig = '';
+
+        $tel   = (string)($opts['tel']   ?? '');
+        $email = (string)($opts['email'] ?? '');
+        $url   = (string)($opts['url']   ?? '');
 
         $classes = 'mam-card mam-card--back';
         if (!empty($opts['raised'])) $classes .= ' mam-card--raised';
 
-        $out  = '<div class="' . $classes . '"' . $style . ' data-card-face="back">';
-        $out .= '<div class="mam-card__back-brand">MAM Academy</div>';
-        $out .= '<div class="mam-card__back-rule"></div>';
-        $out .= '<ul class="mam-card__back-terms">';
-        $out .= '<li>This card identifies the holder as a registered member of MAM Academy and remains its property.</li>';
-        $out .= '<li>Carry it to every session — the QR code on the front records your attendance.</li>';
-        $out .= '<li>Not transferable. Report a lost or damaged card so it can be voided and reissued.</li>';
-        $out .= '</ul>';
-        $out .= '<div class="mam-card__back-foot">';
-        $out .= '<div class="mam-card__back-meta">';
-        if ($f['display_id'] !== '') $out .= '<div><b>' . $h($f['display_id']) . '</b></div>';
-        if ($serial !== '')          $out .= '<div>Serial ' . $h($serial) . '</div>';
-        if ($session !== '')         $out .= '<div>' . $h($session) . '</div>';
-        if ($support !== '')         $out .= '<div>' . $h($support) . '</div>';
+        $out = '<div class="' . $classes . '"' . $style . ' data-card-face="back">';
+        $out .= $logo !== ''
+            ? '<img class="mam-card__back-logo" src="' . $h($logo) . '" alt="MAM Academy">'
+            : '<div class="mam-card__back-logo-fallback" aria-hidden="true">MAM</div>';
+
+        if ($sig !== '') $out .= '<img class="mam-card__sig" src="' . $h($sig) . '" alt="">';
+        $out .= '<div class="mam-card__sig-line">Authorised Signature</div>';
+
+        $out .= '<div class="mam-card__found">';
+        if ($tel !== '') {
+            $out .= '<span class="mam-card__found-lead">If found</span> '
+                  . '<span class="mam-card__found-tel">' . $h($tel) . '</span>';
+        }
+        if ($email !== '') $out .= '<span class="mam-card__found-mail">' . $h($email) . '</span>';
+        if ($url !== '') {
+            // The host is emphasised the way the comp does it, without letting the
+            // caller inject markup: split on the first dot after the scheme.
+            $bare = (string)preg_replace('#^https?://#', '', $url);
+            $dot  = strpos($bare, '.');
+            $out .= '<span class="mam-card__found-url">';
+            $out .= $dot !== false
+                ? '<b>https://' . $h(substr($bare, 0, $dot)) . '</b>' . $h(substr($bare, $dot))
+                : '<b>' . $h($url) . '</b>';
+            $out .= '</span>';
+        }
         $out .= '</div>';
-        $out .= '<div class="mam-card__back-sign">Signature</div>';
-        $out .= '</div>';
+
+        if ($serial !== '') $out .= mam_card_barcode_html($serial, 'serial ' . $serial);
 
         return $out . '</div>';
     }

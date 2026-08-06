@@ -6834,7 +6834,7 @@ nav a{display:flex;align-items:center}
   <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
     <div style="flex:1;min-width:240px">
       <b style="display:block;font-size:15px">ID Card Studio</b>
-      <span class="muted" style="font-size:13px">Proof, print and export the 54×86&nbsp;mm cards in bulk — imposed print-ready PDF with bleed and crop marks, high-resolution PNGs, and a QR verification pass. Renders in your browser; nothing is uploaded.</span>
+      <span class="muted" style="font-size:13px">Proof, print and export the 74×105&nbsp;mm cards in bulk — imposed print-ready PDF with bleed and crop marks, high-resolution PNGs, and a QR verification pass. Renders in your browser; nothing is uploaded.</span>
     </div>
     <a class="btn" href="/card-studio" target="_blank" rel="noopener">Open the Card Studio ↗</a>
   </div>

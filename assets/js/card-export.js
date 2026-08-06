@@ -30,8 +30,8 @@
 
   var MM_PER_INCH = 25.4;
   var BLEED_MM = 3;          // industry standard for small-format cards
-  var CARD_W_MM = 54;        // CR80 portrait — must match id-card.css
-  var CARD_H_MM = 86;
+  var CARD_W_MM = 74;        // A7 portrait — MUST match id-card.css's aspect-ratio
+  var CARD_H_MM = 105;       // (a mismatch silently stretches every card in the PDF)
 
   /* A sheet an office printer or a print shop will actually accept. */
   var SHEETS = {
@@ -134,7 +134,7 @@
     // soft output but it silently BREAKS the DPI contract: with the studio's
     // 560px export node, any DPI under ~263 clamps to scale 1 and the caller is
     // handed a raster at a resolution it did not ask for, while the PDF still
-    // places it at the 54mm trim. Downscaling a large node is a clean resample;
+    // places it at the 74mm trim. Downscaling a large node is a clean resample;
     // honouring the request is what lets the verify pass test the real artwork.
     return targetPx / cssW;
   }

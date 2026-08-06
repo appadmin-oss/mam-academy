@@ -239,41 +239,64 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    **Barlow Condensed from Google Fonts**, so offline renders fall back to a font whose
    metrics collide at `line-height: 0.95` — name overlap in a local screenshot is an
    artifact, not a bug.
-5. **ID card face + Card Studio (`assets/css/id-card.css`, `partials/id-card-face.php`).**
-   One renderer serves `/card/{serial}` AND the admin `/card-studio`, so a proofed sheet
-   is exactly what the student receives — don't fork the markup.
-   - **The face is CR80 portrait, 54×86mm — NOT 3:4.** At 3:4 a photo this large plus a
-     scannable QR plus a two-line name overflows the bottom by ~10% of the card height
-     (surname and QR get clipped). The extra height is what pays for the big photo.
-     `assets/css/id-card.css` carries the vertical budget; keep it summing under 100%.
-   - **html2canvas supports NEITHER `clip-path` NOR inline-SVG `background-image`.**
-     Both were tried and measured: clip-path exports as a plain rectangle, and an SVG
-     data-URI background exports as a **solid rectangle of the fill colour covering the
-     whole card** — which hid the orange and left the white name text invisible on white.
-     The sweep is therefore built from elliptical `border-radius`, and the doodle
-     watermark was dropped rather than shipped broken. Only use solid fills,
-     border-radius and linear-gradient on this face.
-   - **Bleed is edge replication, not cropping or scaling** (`addBleed` in
-     `assets/js/card-export.js`). html2canvas's own `x`/`y`/`width`/`height` crop is
-     DOCUMENT-relative, so the studio's off-canvas export node captured the wrong region
-     (right pixel dimensions, displaced content); scaling art up to cover the bleed ate
-     ~5% off every edge including the expiry text. `is-exporting` also squares the corner
-     radius — printed cards are trimmed straight and die-cut round afterwards.
-   - **`scaleForDpi` has no `Math.max(1, …)` floor.** A floor silently breaks the DPI
-     contract: with the 560px export node any DPI under ~263 clamped to 1× and returned a
-     raster at a resolution the caller never asked for.
-   - **A root HTML page that loads `bootstrap.php` must do two things** (`/admin/` and
-     `/card-studio` both do): `header_remove('Content-Type')` + set `text/html` (bootstrap
-     forces `application/json`, so the page renders as source text), and
-     `define('MAM_RESPONSE_SENT', true)` (bootstrap's shutdown handler otherwise appends a
-     `{"error":"no_response"}` envelope into the middle of the markup).
-   - QR painting is shared too (`assets/js/id-card-qr.js`, `[data-qr]`). qrcode.min.js
-     emits BOTH a canvas and an img and hides one — size every candidate and never touch
-     `display`. Always `await MamCardQR.ready()` before rasterising or printing: an
-     unpainted QR exports as a plausible-looking empty white box.
+5. **ID card faces + Card Studio** (`assets/css/id-card.css`, `partials/id-card-face.php`,
+   `assets/img/idcard/`). One renderer serves `/card/{serial}` AND `/card-studio`, so a
+   proofed sheet is what the student receives — don't fork the markup.
+   - **The card is A7, 74×105mm.** `aspect-ratio` in id-card.css, `CARD_W_MM`/`CARD_H_MM`
+     in card-export.js and the `@page`/`--mam-card-w` sizing in card.php + card-studio.php
+     must change TOGETHER: a mismatch silently stretches every card in the PDF (it was
+     54×86 while the artwork was 1:√2, which distorted the imposition). A7 is within 0.3%
+     of the designer's 1414×2000 comps, so the plate stretch is imperceptible.
+   - **The background is a raster PLATE, not CSS shapes.**
+     `api/tools/build-id-card-plates.php <design-dir>` traces the designer's comps into
+     `front-plate.png` (orange field + white region + doodle motif, motif masked to the
+     white side) and `back-plate.png` (yellow texture, content stripped), and crops
+     `signature.png` + `logo.png`. Re-run it if the artwork changes; the comps themselves
+     are NOT committed (they are large flattened files).
+     Why a plate: the divider is a shallow straight diagonal → circular photo bay → sharp
+     kink → second shallower diagonal. `border-radius` approximated it as a soft blob that
+     was visibly not the design, and the two things CSS *could* state it with are exactly
+     what html2canvas cannot rasterise (**measured**: `clip-path` exports as a plain
+     rectangle; an inline-SVG `background-image` exports as a SOLID rectangle of the fill
+     colour covering the whole card — which hid the orange and left white text invisible
+     on white). Only solid fills, border-radius, linear-gradient and RASTER backgrounds
+     are safe on this face.
+   - **The traced divider** (% of card height): x=0% 52.5, 30% 46.8, 50% 54.0 (bay floor),
+     70% 44.5, 80% 36.3, 99% 32.6. The photo sits in the bay (centre 49.5%/40.9%) and must
+     stay above the 54% floor. Column-tracing is ill-conditioned on the near-vertical
+     right ramp, so that segment is least-squares fitted instead — otherwise it paints as
+     a torn edge.
+   - **The motif is black at ~4% opacity** (alpha 122–126). Any alpha cutoff above 127
+     throws the whole layer away — a 120 cutoff silently produced a blank motif.
+   - **Vertical budgets are tight and coupled.** Front lower block starts at 57% and
+     totals ~41.8%; at 1:√2 the card is shorter relative to its width than a CR80, so a
+     CR80-tuned type scale overflows and clips the surname. The back is a four-way budget:
+     signature 59→70.3%, caption 71.4%, contact 77.5→90.2%, barcode 92.4→96%.
+   - **Bleed is edge replication** (`addBleed`), not cropping or scaling: html2canvas's own
+     `x`/`y`/`width`/`height` crop is DOCUMENT-relative, so the studio's off-canvas export
+     node captured the wrong region (right dimensions, displaced content); scaling art to
+     cover the bleed ate ~5% off every edge including the expiry text. `is-exporting` also
+     squares the corner radius — cards are trimmed straight and die-cut round after.
+   - **`scaleForDpi` has no `Math.max(1, …)` floor** — a floor silently breaks the DPI
+     contract for any DPI below the export node's own resolution.
+   - **A root HTML page that loads `bootstrap.php`** must `header_remove('Content-Type')`
+     + set `text/html` (bootstrap forces `application/json`, so the page renders as source
+     text) AND `define('MAM_RESPONSE_SENT', true)` (its shutdown handler otherwise appends
+     `{"error":"no_response"}` into the markup). `/admin/` and `/card-studio` both do.
+   - **`mam_setting()` ignores the default registered in `mam_settings_schema()`** — a new
+     setting reads empty until someone saves the admin form. Use
+     `mam_setting_or_default()` where the shipped default IS the intended value (the
+     card's "if found" details printed blank because of this).
+   - QR painting is shared (`assets/js/id-card-qr.js`, `[data-qr]`). qrcode.min.js emits
+     BOTH a canvas and an img and hides one — size every candidate, never touch `display`.
+     Always `await MamCardQR.ready()` before rasterising or printing.
+   - The back's barcode is **Code 128 subset B of the SERIAL** (not the signed attendance
+     payload, so a desk scan isn't an attendance mark), rendered as flex columns so it
+     rasterises like any other box. `test_id_card_face.php` round-trips it through an
+     independent decoder — a barcode that encodes the wrong string scans as another card.
    - Vendored on demand, self-hosted for CSP: html2canvas, jsPDF, jsQR
-     (`assets/js/vendor/`, licences in `vendor/licenses/README.md`). ~700KB, loaded only
-     when an admin exports. Covered by `test_id_card_face.php`.
+     (`assets/js/vendor/`, licences in `vendor/licenses/README.md`), ~700KB, loaded only
+     when an admin exports.
 6. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
    ONLY from a trusted proxy (private + Cloudflare ranges by default; `TRUSTED_PROXY_CIDRS`
    to override). It's the rate-limit + audit IP key. Don't revert to blindly trusting headers.
