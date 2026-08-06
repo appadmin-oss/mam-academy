@@ -163,6 +163,16 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
     border-bottom: 1px solid var(--line); background: var(--panel);
   }
   .hint { color: var(--muted); font-size: 12px; line-height: 1.6; padding: 10px 22px; max-width: 1100px; }
+  /* Live imposition readout — the operator sees the sheet plan BEFORE spending
+     minutes rasterising, including when the trim simply will not fit. */
+  .layout {
+    margin: 14px 22px 0; padding: 10px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: #150F0A;
+    font-size: 12.5px; line-height: 1.7; color: var(--ink); max-width: 1100px;
+  }
+  .layout b { color: var(--gold) }
+  .layout.bad { border-color: var(--bad); color: #FFD9D9 }
+  .layout .mono { font-family: ui-monospace,Menlo,Consolas,monospace }
   .hint b { color: var(--ink) }
   .warn { color: #F0C36B }
 
@@ -290,7 +300,38 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
       <option value="SWOP2013">SWOP 2013</option>
     </select></div>
 
+  <div class="field"><label for="orient">Sheet orientation</label>
+    <select id="orient">
+      <option value="portrait" selected>Portrait</option>
+      <option value="landscape">Landscape</option>
+    </select></div>
+
+  <div class="field"><label for="trimW">Trim width (mm)</label>
+    <input id="trimW" type="number" min="40" max="150" step="0.5" value="74"
+      title="Card width on paper. The height follows the artwork's proportion — the background plate is traced art, so forcing a different proportion would stretch it."></div>
+
+  <div class="field"><label for="trimH">Trim height</label>
+    <input id="trimH" type="number" value="105" readonly
+      title="Derived from the width to keep the artwork's proportion. Read-only on purpose."
+      style="opacity:.65;cursor:not-allowed"></div>
+
+  <div class="field"><label for="marginMm">Margin (mm)</label>
+    <input id="marginMm" type="number" min="0" max="40" step="1" value="10"
+      title="Unprinted border. Most office printers cannot print closer than about 5mm to the paper edge."></div>
+
+  <div class="field"><label for="gutterMm">Gutter (mm)</label>
+    <input id="gutterMm" type="number" min="0" max="20" step="0.5" value="6"
+      title="Gap between neighbouring cards. Should be at least twice the bleed (6mm) or one card's bleed prints over the next card's face."></div>
+
+  <div class="field"><label for="flip">Duplex flip</label>
+    <select id="flip" title="How the press turns the sheet between sides. Choosing wrong puts every back on the wrong card.">
+      <option value="long" selected>Long edge — work-and-turn</option>
+      <option value="short">Short edge</option>
+      <option value="none">None (single-sided)</option>
+    </select></div>
+
   <label class="pick" style="align-self:center"><input type="checkbox" id="withBacks" checked> Include backs (duplex)</label>
+  <label class="pick" style="align-self:center"><input type="checkbox" id="verifyOnExport" checked> Verify QR during export</label>
   <label class="pick" style="align-self:center"><input type="checkbox" id="withMarks" checked> Crop marks</label>
   <label class="pick" style="align-self:center"><input type="checkbox" id="showBacks"> Proof backs on screen</label>
 
@@ -300,6 +341,8 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
   <button class="btn" id="btnPrint">Print sheet</button>
   <button class="btn btn-primary" id="btnPdf">↓ Print-ready PDF</button>
 </div>
+
+<div class="layout" id="layout">Working out the sheet layout…</div>
 
 <p class="hint">
   The PDF imposes the selected cards N-up on the chosen sheet at an exact
@@ -358,6 +401,11 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
 ], $cards), JSON_UNESCAPED_SLASHES) ?>;</script>
 <script src="/assets/js/vendor/qrcode.min.js"></script>
 <script src="/assets/js/id-card-qr.js"></script>
+<!-- The toolkit is loaded eagerly (it is small) so the live sheet-plan readout can
+     compute an imposition before any export runs. The heavy part — html2canvas,
+     jsPDF, jsQR, ~700KB — stays behind ensureDeps() and only loads when an admin
+     actually exports. -->
+<script src="/assets/js/card-export.js"></script>
 <script src="/assets/js/card-studio.js"></script>
 </body>
 </html>

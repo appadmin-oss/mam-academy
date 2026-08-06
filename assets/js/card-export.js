@@ -320,6 +320,61 @@
     return out;
   }
 
+  /**
+   * Plan the sheet layout WITHOUT rendering anything.
+   *
+   * Pure arithmetic, so the studio can show "2 × 2 = 4 per A4 · 3 sheets" live as
+   * the operator changes the trim, margin or gutter — and refuse the job before
+   * spending two minutes rasterising when the trim simply does not fit the sheet.
+   *
+   * @returns {{cols:number,rows:number,perSheet:number,sheets:number,fits:boolean,
+   *            sheetW:number,sheetH:number,gridW:number,gridH:number,
+   *            originX:number,originY:number,reason:?string}}
+   */
+  function planImposition(count, opts) {
+    opts = opts || {};
+    var sheet = SHEETS[opts.sheet] || SHEETS.A4;
+    var sheetW = sheet.w, sheetH = sheet.h;
+    if (opts.orientation === 'landscape') { var t = sheetW; sheetW = sheetH; sheetH = t; }
+
+    var trimW = opts.trimW_mm || CARD_W_MM;
+    var trimH = opts.trimH_mm || CARD_H_MM;
+    var bleed = opts.bleed_mm == null ? BLEED_MM : opts.bleed_mm;
+    var margin = opts.margin_mm == null ? 10 : opts.margin_mm;
+    // Neighbours share their bleed, so the default gutter is exactly 2× bleed:
+    // any less and one card's bleed prints over the next card's face.
+    var gutter = opts.gutter_mm == null ? 2 * bleed : opts.gutter_mm;
+
+    var cellW = trimW + gutter, cellH = trimH + gutter;
+    var availW = sheetW - 2 * margin + gutter;
+    var availH = sheetH - 2 * margin + gutter;
+    var cols = Math.floor(availW / cellW);
+    var rows = Math.floor(availH / cellH);
+
+    var reason = null;
+    if (cols < 1 || rows < 1) {
+      reason = 'A ' + trimW + '×' + trimH + ' mm card with ' + margin + ' mm margins does not fit ' +
+               (opts.sheet || 'A4') + ' ' + (opts.orientation || 'portrait') +
+               ' — reduce the trim or the margin, or choose a larger sheet.';
+      cols = Math.max(cols, 0); rows = Math.max(rows, 0);
+    }
+    var perSheet = cols * rows;
+    var gridW = cols > 0 ? cols * cellW - gutter : 0;
+    var gridH = rows > 0 ? rows * cellH - gutter : 0;
+
+    return {
+      cols: cols, rows: rows, perSheet: perSheet,
+      sheets: perSheet > 0 ? Math.ceil(count / perSheet) : 0,
+      fits: perSheet > 0,
+      sheetW: sheetW, sheetH: sheetH,
+      gridW: gridW, gridH: gridH,
+      originX: (sheetW - gridW) / 2,
+      originY: (sheetH - gridH) / 2,
+      trimW: trimW, trimH: trimH, bleed: bleed, margin: margin, gutter: gutter,
+      reason: reason,
+    };
+  }
+
   /* ── Print-ready imposition PDF ───────────────────────────────────────────
      Lays the faces out N-up at an exact trim size with bleed, crop marks and a
      named output intent. Fronts and backs go on interleaved sheets in the same
@@ -328,26 +383,25 @@
   function buildPDF(faces, opts) {
     opts = opts || {};
     var jsPDF = _deps.jsPDF;
-    var sheet = SHEETS[opts.sheet] || SHEETS.A4;
-    var trimW = opts.trimW_mm || CARD_W_MM;
-    var trimH = opts.trimH_mm || CARD_H_MM;
-    var bleed = opts.bleed_mm == null ? BLEED_MM : opts.bleed_mm;
     var intent = INTENTS[opts.intent] || INTENTS.FOGRA39;
-    var margin = opts.margin_mm == null ? 10 : opts.margin_mm;
-    var gutter = opts.gutter_mm == null ? 2 * bleed : opts.gutter_mm;  // shared bleed between neighbours
     var marks = opts.marks !== false;
     var backs = opts.backs || null;
 
-    var doc = new jsPDF({ unit: 'mm', format: [sheet.w, sheet.h], compress: true });
+    // One planner for the UI readout and for the real thing, so what the operator
+    // was shown before pressing export is exactly what gets imposed.
+    var plan = planImposition(faces.length, opts);
+    if (!plan.fits) throw new Error(plan.reason || 'the card does not fit the sheet');
 
-    // How many cards fit. Each cell is trim + bleed on the shared edges.
-    var cellW = trimW + gutter, cellH = trimH + gutter;
-    var cols = Math.max(1, Math.floor((sheet.w - 2 * margin + gutter) / cellW));
-    var rows = Math.max(1, Math.floor((sheet.h - 2 * margin + gutter) / cellH));
-    var perSheet = cols * rows;
+    var trimW = plan.trimW, trimH = plan.trimH, bleed = plan.bleed;
+    var cols = plan.cols, rows = plan.rows, perSheet = plan.perSheet;
+    var cellW = trimW + plan.gutter, cellH = trimH + plan.gutter;
+    var originX = plan.originX, originY = plan.originY;
+    // 'long'  — flip about the long edge (work-and-turn): mirror COLUMNS.
+    // 'short' — flip about the short edge: mirror ROWS.
+    // 'none'  — single-sided runs, or a duplex press that needs no mirroring.
+    var flip = opts.flip || 'long';
 
-    var gridW = cols * cellW - gutter, gridH = rows * cellH - gutter;
-    var originX = (sheet.w - gridW) / 2, originY = (sheet.h - gridH) / 2;
+    var doc = new jsPDF({ unit: 'mm', format: [plan.sheetW, plan.sheetH], compress: true });
 
     function markAt(x, y, len, horizontal) {
       doc.setLineWidth(0.12);
@@ -361,8 +415,13 @@
         var f = list[i];
         if (!f) continue;
         var col = i % cols, rowN = Math.floor(i / cols);
-        // Mirror the column for backs so a long-edge duplex flip registers.
-        if (isBack) col = cols - 1 - col;
+        // Mirror the backs so the chosen duplex flip registers. Getting this wrong
+        // prints every back on the wrong card — and it is only discovered after the
+        // run, so the mode is explicit rather than assumed.
+        if (isBack) {
+          if (flip === 'long')  col = cols - 1 - col;
+          if (flip === 'short') rowN = rows - 1 - rowN;
+        }
         var trimX = originX + col * cellW;
         var trimY = originY + rowN * cellH;
         // The image carries bleed, so it is drawn larger than the trim box and
@@ -385,8 +444,9 @@
       doc.text(
         (opts.job || 'MAM Academy ID cards') + '  ·  ' + (isBack ? 'BACK' : 'FRONT') +
         '  ·  sheet ' + sheetIndex + '  ·  ' + trimW + '×' + trimH + 'mm trim, ' + bleed + 'mm bleed  ·  ' +
-        (opts.dpi || 350) + ' DPI  ·  ' + intent.info,
-        margin, sheet.h - 4
+        cols + '×' + rows + ' up  ·  ' + (opts.dpi || 350) + ' DPI  ·  ' + intent.info +
+        (isBack ? '  ·  flip: ' + flip + ' edge' : ''),
+        plan.margin, plan.sheetH - 4
       );
     }
 
@@ -394,10 +454,10 @@
     for (var start = 0; start < faces.length; start += perSheet) {
       var frontSlice = faces.slice(start, start + perSheet);
       sheetNo++;
-      if (sheetNo > 1) doc.addPage([sheet.w, sheet.h]);
+      if (sheetNo > 1) doc.addPage([plan.sheetW, plan.sheetH]);
       placeSheet(frontSlice, false, sheetNo);
       if (backs) {
-        doc.addPage([sheet.w, sheet.h]);
+        doc.addPage([plan.sheetW, plan.sheetH]);
         placeSheet(backs.slice(start, start + perSheet), true, sheetNo);
       }
     }
@@ -412,7 +472,7 @@
     return {
       bytes: new Uint8Array(doc.output('arraybuffer')),
       cols: cols, rows: rows, perSheet: perSheet, sheets: sheetNo,
-      intent: intent, sheet: sheet,
+      intent: intent, plan: plan, flip: flip,
     };
   }
 
@@ -446,6 +506,7 @@
     verifyQR: verifyQR,
     zipStore: zipStore,
     buildImpositionPDF: buildImpositionPDF,
+    planImposition: planImposition,
     dataUrlToBytes: dataUrlToBytes,
     download: download,
     SHEETS: SHEETS,
