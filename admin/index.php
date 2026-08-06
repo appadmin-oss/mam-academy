@@ -6298,52 +6298,246 @@ nav a{display:flex;align-items:center}
   })();
   </script>
 
-  <div class="card" style="max-width:760px">
-    <p class="muted" style="margin:0 0 18px;line-height:1.6">
+  <?php
+    /* Group metadata: a short "what this actually controls" line, so a field name
+       like `grand_discount_pct` doesn't have to carry the whole explanation. Groups
+       not listed here simply render without a blurb. */
+    $groupNotes = [
+      'Level base prices (USD)'   => 'Every programme price is derived from these four. Standard = 1×, Certified = 2×, Grand = 3× − discount.',
+      'Programme pricing (legacy)'=> 'Drives the current apply form until the level-based rebuild lands. Retire these after.',
+      'Invoice'                   => 'The academy’s receiving account. Shown on the invoice and in every bank-transfer instruction.',
+      'ID Cards'                  => 'Validity is stamped onto a card when it is minted, so changing it affects cards issued afterwards — never one already printed.',
+      'Summer Programme'          => 'Applications open when today falls inside the window. Each bound is honoured on its own.',
+      'CDN (Cloudinary)'          => 'Both values are required for headshot uploads to store anywhere.',
+      'Currency'                  => 'USD is the accounting unit; these bound the live FX conversion.',
+      'Academy (LMS)'             => 'Enrolment policy: whether a new course registration is auto-approved, and whether a pass auto-promotes.',
+    ];
+    $groupIcons = [
+      'Level base prices (USD)' => 'layer-group', 'Programme pricing (USD)' => 'tags',
+      'Programme adjustments' => 'sliders', 'Programme pricing (legacy)' => 'clock-rotate-left',
+      'Fees & surcharges' => 'percent', 'Store' => 'bag-shopping', 'Invoice' => 'file-invoice',
+      'Currency' => 'coins', 'Scholarship' => 'graduation-cap', 'Academy (LMS)' => 'school',
+      'CDN (Cloudinary)' => 'cloud-arrow-up', 'ID Cards' => 'id-card', 'Summer Programme' => 'sun',
+    ];
+    $totalSettings = array_sum(array_map('count', $groups));
+  ?>
+  <style>
+    /* ── Settings layout ────────────────────────────────────────────────────
+       49 settings across 13 groups used to render as one unbroken column, which
+       meant scrolling past pricing to reach a summer date and no way to tell what
+       you had changed before saving. Now: a sticky index, a live filter, one panel
+       per group, and a save bar that only lights up when something is dirty. */
+    .set-wrap { display: grid; grid-template-columns: 232px minmax(0,1fr); gap: 22px; align-items: start; max-width: 1180px }
+    @media (max-width: 900px) { .set-wrap { grid-template-columns: 1fr } .set-index { position: static !important } }
+    .set-index {
+      position: sticky; top: 84px; background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 14px; padding: 12px; font-size: 0.84rem;
+    }
+    .set-index a {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 7px 9px; border-radius: 8px; color: var(--muted); text-decoration: none;
+    }
+    .set-index a:hover { background: rgba(232,150,31,.10); color: var(--ink) }
+    .set-index a.on { background: rgba(232,150,31,.16); color: var(--gold); font-weight: 600 }
+    .set-index a i { width: 14px; text-align: center; opacity: .75 }
+    .set-index .n { font-size: 0.72rem; opacity: .6; font-variant-numeric: tabular-nums }
+    .set-panel {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 14px;
+      padding: 16px 18px 18px; margin-bottom: 16px; scroll-margin-top: 90px;
+    }
+    .set-panel > h3 {
+      /* justify-content is reset explicitly: the admin's generic .card h3 rule uses
+         space-between, which pushed the icon and the title to opposite edges. */
+      margin: 0 0 4px; color: var(--gold); font-size: 0.92rem; letter-spacing: .04em;
+      text-transform: uppercase; display: flex; align-items: center; gap: 9px;
+      justify-content: flex-start; padding: 0; border: 0;
+    }
+    .set-panel .note { margin: 0 0 14px; color: var(--muted); font-size: 0.82rem; line-height: 1.6 }
+    .set-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: 13px }
+    .set-field.wide { grid-column: 1/-1 }
+    .set-field > span.lbl { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 5px }
+    .set-field .row { display: flex; align-items: center; gap: 6px }
+    .set-field .sfx { color: var(--gold); min-width: 14px; font-size: 0.8rem }
+    .set-field input { flex: 1; min-width: 0 }
+    .set-field.dirty > span.lbl { color: var(--gold) }
+    .set-field.dirty input { border-color: var(--gold) }
+    .set-field .def { font-size: 0.72rem; color: var(--muted); opacity: .7; margin-top: 4px; display: none }
+    .set-field.dirty .def { display: block }
+    .set-hidden { display: none !important }
+    .set-bar {
+      position: sticky; bottom: 0; z-index: 5; margin-top: 18px;
+      background: linear-gradient(to top, var(--bg) 62%, transparent);
+      padding: 14px 2px 6px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    }
+    .set-bar .count { font-size: 0.82rem; color: var(--muted) }
+    .set-bar .count b { color: var(--gold) }
+    .set-search { width: 100%; margin-bottom: 14px }
+    .set-empty { color: var(--muted); font-size: 0.86rem; padding: 10px 2px }
+  </style>
+
+  <div class="card" style="max-width:1180px">
+    <p class="muted" style="margin:0 0 14px;line-height:1.6">
       These values are the live source of truth. The server charges from them at checkout, and the
       public site reads them via <code>/api/config/public</code> — so a change here takes effect everywhere
       without a redeploy. Store product prices are managed per-item under <a href="?v=storeitems" style="color:var(--gold)">Store / Library</a>.
+      Blank a field to restore its shipped default.
     </p>
-    <form method="POST" action="">
+
+    <input type="search" id="setSearch" class="set-search" placeholder="Filter settings — name, group or key…"
+           style="padding:10px 13px;border:1.5px solid var(--border);border-radius:10px;background:var(--bg);color:var(--ink);font-size:0.9rem">
+
+    <form method="POST" action="" id="setForm">
       <?= mam_csrf_field() ?>
       <input type="hidden" name="action" value="save_settings">
-      <?php foreach ($groups as $groupName => $fields): ?>
-        <h3 style="margin:22px 0 12px;color:var(--gold);font-size:0.92rem;letter-spacing:0.04em;text-transform:uppercase"><?= htmlspecialchars($groupName) ?></h3>
-        <?php if ($groupName === 'CDN (Cloudinary)'): ?>
-        <div style="background:rgba(232,150,31,.06);border:1px solid rgba(232,150,31,.2);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:0.83rem;line-height:1.7;color:var(--muted)">
-          <strong style="color:var(--gold)">Two values are required</strong> — both must be filled in for headshot uploads to work:<br>
-          <ol style="margin:8px 0 8px 18px;padding:0">
-            <li><strong style="color:var(--ink)">Cloud name</strong> — find it on your <a href="https://console.cloudinary.com/" target="_blank" rel="noopener" style="color:var(--gold)">Cloudinary dashboard</a> (top-left, e.g. <code>mam-academy</code>).</li>
-            <li><strong style="color:var(--ink)">Upload preset</strong> — in Cloudinary go to <strong>Settings → Upload → Upload presets</strong>, click <em>Add upload preset</em>, set <em>Signing mode</em> to <strong>Unsigned</strong>, save, then copy the preset name here.</li>
-          </ol>
-          Without the preset name, photos are validated locally but <strong>not stored</strong> in Cloudinary.
-        </div>
-        <?php endif; ?>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
-          <?php foreach ($fields as $f):
-            $val = $cur[$f['key']] ?? $f['default'];
-            $isNum = is_numeric($f['default']);
-          ?>
-            <label style="display:block<?= $isNum ? '' : ';grid-column:1/-1' ?>">
-              <span style="display:block;font-size:0.82rem;color:var(--muted);margin-bottom:5px"><?= htmlspecialchars($f['label']) ?></span>
-              <span style="display:flex;align-items:center;gap:6px">
-                <?php if ($f['suffix'] !== ''): ?><span class="mono" style="color:var(--gold);min-width:14px"><?= htmlspecialchars($f['suffix']) ?></span><?php endif; ?>
-                <?php if ($isNum): ?>
-                <input type="number" step="0.01" min="0" name="<?= htmlspecialchars($f['key']) ?>" value="<?= htmlspecialchars((string)$val) ?>" style="flex:1" required>
-                <?php else: ?>
-                <input type="text" name="<?= htmlspecialchars($f['key']) ?>" value="<?= htmlspecialchars((string)$val) ?>" style="flex:1" placeholder="<?= htmlspecialchars((string)$f['default']) ?>">
-                <?php endif; ?>
-              </span>
-            </label>
+
+      <div class="set-wrap">
+        <nav class="set-index" id="setIndex" aria-label="Settings groups">
+          <?php foreach ($groups as $groupName => $fields): ?>
+            <a href="#set-<?= md5($groupName) ?>" data-group="<?= htmlspecialchars($groupName) ?>">
+              <span><i class="fa-solid fa-<?= htmlspecialchars($groupIcons[$groupName] ?? 'gear') ?>"></i>
+                <?= htmlspecialchars($groupName) ?></span>
+              <span class="n"><?= count($fields) ?></span>
+            </a>
           <?php endforeach; ?>
+        </nav>
+
+        <div id="setGroups">
+          <?php foreach ($groups as $groupName => $fields): ?>
+          <section class="set-panel" id="set-<?= md5($groupName) ?>" data-group="<?= htmlspecialchars($groupName) ?>">
+            <h3><i class="fa-solid fa-<?= htmlspecialchars($groupIcons[$groupName] ?? 'gear') ?>"></i>
+              <?= htmlspecialchars($groupName) ?></h3>
+            <?php if (!empty($groupNotes[$groupName])): ?>
+              <p class="note"><?= $groupNotes[$groupName] ?></p>
+            <?php endif; ?>
+
+            <?php if ($groupName === 'CDN (Cloudinary)'): ?>
+            <div style="background:rgba(232,150,31,.06);border:1px solid rgba(232,150,31,.2);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:0.83rem;line-height:1.7;color:var(--muted)">
+              <strong style="color:var(--gold)">Two values are required</strong> — both must be filled in for headshot uploads to work:
+              <ol style="margin:8px 0 8px 18px;padding:0">
+                <li><strong style="color:var(--ink)">Cloud name</strong> — on your <a href="https://console.cloudinary.com/" target="_blank" rel="noopener" style="color:var(--gold)">Cloudinary dashboard</a> (top-left, e.g. <code>mam-academy</code>).</li>
+                <li><strong style="color:var(--ink)">Upload preset</strong> — <strong>Settings → Upload → Upload presets</strong>, <em>Add upload preset</em>, set <em>Signing mode</em> to <strong>Unsigned</strong>, save, then copy the name here.</li>
+              </ol>
+              Without the preset name, photos are validated locally but <strong>not stored</strong>.
+            </div>
+            <?php endif; ?>
+
+            <div class="set-fields">
+              <?php foreach ($fields as $f):
+                $val   = $cur[$f['key']] ?? $f['default'];
+                $isNum = is_numeric($f['default']);
+              ?>
+                <label class="set-field<?= $isNum ? '' : ' wide' ?>"
+                       data-key="<?= htmlspecialchars($f['key']) ?>"
+                       data-hay="<?= htmlspecialchars(strtolower($f['label'] . ' ' . $f['key'] . ' ' . $groupName)) ?>">
+                  <span class="lbl"><?= htmlspecialchars($f['label']) ?></span>
+                  <span class="row">
+                    <?php if ($f['suffix'] !== ''): ?><span class="sfx mono"><?= htmlspecialchars($f['suffix']) ?></span><?php endif; ?>
+                    <?php if ($isNum): ?>
+                      <input type="number" step="0.01" min="0" name="<?= htmlspecialchars($f['key']) ?>"
+                             value="<?= htmlspecialchars((string)$val) ?>"
+                             data-initial="<?= htmlspecialchars((string)$val) ?>" required>
+                    <?php else: ?>
+                      <input type="text" name="<?= htmlspecialchars($f['key']) ?>"
+                             value="<?= htmlspecialchars((string)$val) ?>"
+                             data-initial="<?= htmlspecialchars((string)$val) ?>"
+                             placeholder="<?= htmlspecialchars((string)$f['default']) ?>">
+                    <?php endif; ?>
+                  </span>
+                  <span class="def">was <span class="mono"><?= htmlspecialchars((string)$val) === '' ? '(blank)' : htmlspecialchars((string)$val) ?></span>
+                    · default <span class="mono"><?= htmlspecialchars((string)$f['default']) === '' ? '(blank)' : htmlspecialchars((string)$f['default']) ?></span></span>
+                </label>
+              <?php endforeach; ?>
+            </div>
+          </section>
+          <?php endforeach; ?>
+          <p class="set-empty" id="setEmpty" style="display:none">No setting matches that filter.</p>
         </div>
-      <?php endforeach; ?>
-      <div style="margin-top:24px;display:flex;gap:10px;align-items:center">
-        <button class="btn" type="submit">Save settings</button>
-        <span class="muted" style="font-size:0.8rem">Blank fields revert to the shipped default.</span>
+      </div>
+
+      <div class="set-bar">
+        <button class="btn" type="submit" id="setSave">Save settings</button>
+        <span class="count" id="setCount"><?= (int)$totalSettings ?> settings · nothing changed yet</span>
       </div>
     </form>
   </div>
+
+  <script>
+  (function () {
+    var form = document.getElementById('setForm');
+    if (!form) return;
+    var search  = document.getElementById('setSearch');
+    var count   = document.getElementById('setCount');
+    var empty   = document.getElementById('setEmpty');
+    var total   = <?= (int)$totalSettings ?>;
+    var fields  = Array.prototype.slice.call(form.querySelectorAll('.set-field'));
+    var panels  = Array.prototype.slice.call(form.querySelectorAll('.set-panel'));
+    var links   = Array.prototype.slice.call(document.querySelectorAll('#setIndex a'));
+
+    /* Dirty tracking against data-initial, so the save bar can say what will
+       actually change. Comparing against the rendered value (not the shipped
+       default) is the point: the operator wants to know what THEY edited. */
+    function refresh() {
+      var dirty = 0;
+      fields.forEach(function (f) {
+        var input = f.querySelector('input');
+        if (!input) return;
+        var changed = input.value !== (input.getAttribute('data-initial') || '');
+        f.classList.toggle('dirty', changed);
+        if (changed) dirty++;
+      });
+      // Built from nodes, not an HTML string — these are all integers today, but
+      // string-concatenating markup is a habit worth not starting.
+      count.textContent = total + ' settings · ';
+      if (dirty) {
+        var b = document.createElement('b');
+        b.textContent = dirty + ' unsaved change' + (dirty === 1 ? '' : 's');
+        count.appendChild(b);
+      } else {
+        count.appendChild(document.createTextNode('nothing changed yet'));
+      }
+      // Warn on navigating away with unsaved edits — a half-edited price list is
+      // easy to lose to a stray click.
+      window.onbeforeunload = dirty ? function () { return 'You have unsaved settings.'; } : null;
+    }
+    form.addEventListener('input', refresh);
+    form.addEventListener('submit', function () { window.onbeforeunload = null; });
+    refresh();
+
+    /* Live filter across every group. */
+    function filter() {
+      var q = (search.value || '').trim().toLowerCase();
+      var shown = 0;
+      fields.forEach(function (f) {
+        var hit = !q || (f.getAttribute('data-hay') || '').indexOf(q) !== -1;
+        f.classList.toggle('set-hidden', !hit);
+        if (hit) shown++;
+      });
+      panels.forEach(function (p) {
+        var any = p.querySelector('.set-field:not(.set-hidden)');
+        p.classList.toggle('set-hidden', !any);
+      });
+      links.forEach(function (a) {
+        var g = a.getAttribute('data-group');
+        var panel = panels.filter(function (p) { return p.getAttribute('data-group') === g; })[0];
+        a.classList.toggle('set-hidden', !!(panel && panel.classList.contains('set-hidden')));
+      });
+      empty.style.display = shown ? 'none' : 'block';
+    }
+    search && search.addEventListener('input', filter);
+
+    /* Highlight the group currently on screen. */
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          var g = e.target.getAttribute('data-group');
+          links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('data-group') === g); });
+        });
+      }, { rootMargin: '-90px 0px -70% 0px' });
+      panels.forEach(function (p) { io.observe(p); });
+    }
+  })();
+  </script>
 
 <?php elseif ($view === 'automations'):
     // Lifecycle automations — the academy's "when X, do Y" rules, each with a
@@ -6844,6 +7038,7 @@ nav a{display:flex;align-items:center}
       <select id="icStatus" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px">
         <option value="">All statuses</option>
         <option value="active">Active</option>
+        <option value="expired">Expired</option>
         <option value="revoked">Revoked</option>
       </select>
       <select id="icRole" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px">
@@ -6863,11 +7058,12 @@ nav a{display:flex;align-items:center}
         <th>Role</th>
         <th>Session / Programme</th>
         <th>Issued</th>
+        <th>Expires</th>
         <th>Printed</th>
         <th>Status</th>
         <th>Actions</th>
       </tr></thead>
-      <tbody id="icTbody"><tr><td colspan="8" style="padding:32px;text-align:center;color:var(--muted)">Loading…</td></tr></tbody>
+      <tbody id="icTbody"><tr><td colspan="9" style="padding:32px;text-align:center;color:var(--muted)">Loading…</td></tr></tbody>
     </table>
   </div>
   <div id="icPager" style="display:flex;gap:8px;justify-content:center;margin-top:16px;flex-wrap:wrap"></div>
@@ -6931,14 +7127,26 @@ nav a{display:flex;align-items:center}
       .then(r => r.json()).then(function(d) {
         var tb = document.getElementById('icTbody');
         if (!d.ok || !d.cards || !d.cards.length) {
-          tb.innerHTML = '<tr><td colspan="8" style="padding:32px;text-align:center;color:var(--muted)">No cards found.</td></tr>';
+          tb.innerHTML = '<tr><td colspan="9" style="padding:32px;text-align:center;color:var(--muted)">No cards found.</td></tr>';
           document.getElementById('icPager').innerHTML = '';
           return;
         }
         tb.innerHTML = d.cards.map(function(c) {
-          var statusBadge = c.status === 'active'
-            ? '<span class="badge badge-green">Active</span>'
-            : '<span class="badge badge-red">Revoked</span>';
+          // The server sends the DERIVED state: 'active' from the status column says
+          // nothing about whether the card has lapsed, and a green "Active" badge on a
+          // dead card is exactly the lie the expiry work exists to remove.
+          var st = c.state || c.status;
+          var statusBadge = st === 'active'  ? '<span class="badge badge-green">Active</span>'
+                          : st === 'expired' ? '<span class="badge badge-red">Expired</span>'
+                          :                    '<span class="badge badge-red">Revoked</span>';
+          var days = (c.days_left === null || typeof c.days_left === 'undefined') ? null : c.days_left;
+          var expCell = !c.expires_at ? '<span style="color:var(--muted);font-size:12px">—</span>'
+            : c.expires_at.substring(0,10)
+              + (st === 'expired'
+                  ? '<br><span class="badge badge-red" style="font-size:11px">lapsed</span>'
+                  : (days !== null && days <= 14
+                      ? '<br><span class="badge badge-amber" style="font-size:11px">in ' + days + 'd</span>'
+                      : ''));
           var printedBadge = c.printed_at
             ? '<span class="badge badge-grey">Printed</span>'
             : '<span style="color:var(--muted);font-size:12px">Not printed</span>';
@@ -6960,6 +7168,7 @@ nav a{display:flex;align-items:center}
             + '<td data-label="Role" style="text-transform:capitalize">' + escHtml(c.role) + '</td>'
             + '<td data-label="Programme">' + escHtml(c.session_code||'—') + '</td>'
             + '<td data-label="Issued">' + (c.issued_at ? c.issued_at.substring(0,10) : '—') + '</td>'
+            + '<td data-label="Expires">' + expCell + '</td>'
             + '<td data-label="Printed">' + printedBadge + '</td>'
             + '<td data-label="Status">' + statusBadge + '</td>'
             + '<td data-label="Actions" style="white-space:nowrap">' + actions.join(' ') + '</td>'
@@ -6975,7 +7184,7 @@ nav a{display:flex;align-items:center}
         }
         pg.innerHTML = html;
       }).catch(function(e) {
-        document.getElementById('icTbody').innerHTML = '<tr><td colspan="8" style="padding:24px;color:var(--danger)">Error loading cards.</td></tr>';
+        document.getElementById('icTbody').innerHTML = '<tr><td colspan="9" style="padding:24px;color:var(--danger)">Error loading cards.</td></tr>';
       });
   }
 

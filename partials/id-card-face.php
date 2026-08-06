@@ -53,8 +53,29 @@ if (!function_exists('mam_card_face_fields')) {
             if (count($all) > 1) $initials .= mb_strtoupper(mb_substr((string)$all[count($all) - 1], 0, 1));
         }
 
-        $issuedYY = substr((string)($c['issued_at'] ?? ''), 2, 2);
-        $exp = (string)($c['exp_display'] ?? ($issuedYY !== '' ? 'EXP.12/' . $issuedYY : ''));
+        // The REAL expiry (id_cards.expires_at, stamped at mint). mam_card_exp_display
+        // is preferred when cards.php is loaded; the derived fallback keeps this
+        // partial usable standalone (the studio and tests both call it directly).
+        if (isset($c['exp_display'])) {
+            $exp = (string)$c['exp_display'];
+        } elseif (function_exists('mam_card_exp_display')) {
+            $exp = mam_card_exp_display($c);
+        } else {
+            $expiresAt = (string)($c['expires_at'] ?? '');
+            $issuedYY  = substr((string)($c['issued_at'] ?? ''), 2, 2);
+            $exp = $expiresAt !== ''
+                ? 'EXP.' . date('m/y', (int)strtotime($expiresAt))
+                : ($issuedYY !== '' ? 'EXP.12/' . $issuedYY : '');
+        }
+
+        // Expired is as void as revoked: a lapsed card must not read as valid at a
+        // door. Computed here so every surface (student page, studio, print) agrees.
+        $expired = false;
+        if (function_exists('mam_card_is_expired')) {
+            $expired = mam_card_is_expired($c);
+        } elseif (($c['expires_at'] ?? '') !== '') {
+            $expired = strtotime((string)$c['expires_at']) < time();
+        }
 
         // Only same-origin, https, or data: images may reach the <img src>. An
         // external http:// photo would also break the html2canvas export (tainted
@@ -78,6 +99,8 @@ if (!function_exists('mam_card_face_fields')) {
             'qr'         => (string)($c['qr_payload'] ?? ''),
             'photo'      => $photo,
             'revoked'    => (string)($c['status'] ?? '') === 'revoked',
+            'expired'    => $expired,
+            'void'       => (string)($c['status'] ?? '') === 'revoked' || $expired,
         ];
     }
 }
@@ -128,7 +151,8 @@ if (!function_exists('mam_card_face_html')) {
 
         $classes = 'mam-card';
         if (!empty($opts['raised'])) $classes .= ' mam-card--raised';
-        if ($f['revoked'])           $classes .= ' mam-card--revoked';
+        if (!empty($f['void']))      $classes .= ' mam-card--revoked';
+        if (!empty($f['expired']) && empty($f['revoked'])) $classes .= ' mam-card--expired';
         $style = $width !== '' ? ' style="--mam-card-w:' . $h($width) . '"' : '';
 
         $out  = '<div class="' . $classes . '"' . $style . ' data-card-face="front">';

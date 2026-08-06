@@ -191,6 +191,12 @@ function mam_settings_schema(): array {
         // Printed on the BACK of every ID card (partials/id-card-face.php). Kept as
         // settings, not constants: a card sits in a student's pocket for a year, so
         // the "if found" details must be changeable without a deploy.
+        // Validity is per card KIND: a summer camp badge and a year-round student
+        // card have genuinely different lifetimes. Stamped onto the row at mint, so
+        // changing these affects cards issued AFTERWARDS, never one already printed.
+        ['ID Cards', 'card_validity_months',        'Student card validity', 12, 'months'],
+        ['ID Cards', 'summer_card_validity_months', 'Summer programme card validity', 2, 'months'],
+        ['ID Cards', 'card_expiry_warn_days',       'Warn this many days before a card expires', 14, 'days'],
         ['ID Cards', 'card_found_tel',   'Phone printed on the back of ID cards ("If found …")', '+234-704-444-6517', ''],
         ['ID Cards', 'card_found_email', 'Email printed on the back of ID cards', 'mailmamcentre@gmail.com', ''],
         ['ID Cards', 'card_found_url',   'Website printed on the back of ID cards', 'https://academy.mamcentre.org', ''],

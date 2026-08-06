@@ -86,7 +86,21 @@ $q       = trim((string)($_GET['q'] ?? ''));
 
 $where  = [];
 $params = [];
-if ($status !== '') { $where[] = 'ic.status = ?'; $params[] = $status; }
+/* Filter on the card's real STATE, not just the stored status column. A card can
+   be past its date while the row still says 'active' — the expiry sweep marks it
+   on a schedule, so between two cron runs the column lags reality. Asking for
+   "expired" and being shown only the already-swept ones would be misleading. */
+$nowTs = date('Y-m-d H:i:s');
+if ($status === 'active') {
+    $where[] = "ic.status = 'active' AND (ic.expires_at IS NULL OR ic.expires_at >= ?)";
+    $params[] = $nowTs;
+} elseif ($status === 'expired') {
+    $where[] = "(ic.status = 'expired' OR (ic.status = 'active' AND ic.expires_at IS NOT NULL AND ic.expires_at < ?))";
+    $params[] = $nowTs;
+} elseif ($status !== '') {
+    $where[] = 'ic.status = ?';
+    $params[] = $status;
+}
 if ($role   !== '') { $where[] = 'ic.role = ?';   $params[] = $role; }
 if ($q !== '') {
     $like     = '%' . $q . '%';
@@ -103,7 +117,7 @@ $total = (int)(mam_db_row(
 
 $rows = mam_db_all(
     "SELECT ic.id, ic.serial, ic.role, ic.status, ic.session_code,
-            ic.issued_at, ic.printed_at, ic.revoked_at, ic.revoke_reason,
+            ic.issued_at, ic.expires_at, ic.printed_at, ic.revoked_at, ic.revoke_reason,
             ic.user_id, ic.summer_app_id, ic.version, ic.photo_url,
             u.name AS user_name, u.email AS user_email, u.avatar_url AS user_photo,
             sa.first_name AS sa_first, sa.last_name AS sa_last, sa.email AS sa_email
@@ -127,6 +141,13 @@ $cards = array_map(function (array $r): array {
         'status'       => (string)$r['status'],
         'session_code' => (string)$r['session_code'],
         'issued_at'    => (string)$r['issued_at'],
+        // The real expiry, plus the derived state — the stored status column says
+        // nothing about whether the card has lapsed, and every consumer was
+        // otherwise left to re-derive that for itself.
+        'expires_at'   => (string)($r['expires_at'] ?? ''),
+        'exp_display'  => mam_card_exp_display($r),
+        'state'        => mam_card_state($r),
+        'days_left'    => mam_card_days_to_expiry($r),
         'printed_at'   => $r['printed_at'],
         'revoked_at'   => $r['revoked_at'],
         'revoke_reason'=> $r['revoke_reason'],

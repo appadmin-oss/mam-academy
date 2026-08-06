@@ -235,7 +235,10 @@
   text-transform: uppercase;
 }
 
-/* ── Void overlay for a revoked card ─────────────────────────────────────── */
+/* ── Void overlay ─────────────────────────────────────────────────────────
+   A revoked card AND a lapsed one both read as VOID — an expired card that still
+   looks valid at a door is the whole problem the expiry exists to solve. The word
+   differs so an admin can tell them apart at a glance in the studio grid. */
 .mam-card--revoked::after {
   content: 'VOID';
   position: absolute;
@@ -253,6 +256,7 @@
   background: rgba(255, 255, 255, 0.16);
   transform: rotate(-16deg);
 }
+.mam-card--expired::after { content: 'EXPIRED'; font-size: calc(var(--mam-card-w) * 0.19); }
 
 /* ═══════════════════════════ BACK FACE ═══════════════════════════════════
    Yellow textured plate, centred logo, authorised signature, the "if found"

@@ -7,7 +7,7 @@
  * the session_id (cohort model) or class_id (legacy model) they are running.
  *
  * Response:
- *   { result: 'marked'|'already'|'revoked'|'invalid'|'not_enrolled',
+ *   { result: 'marked'|'already'|'revoked'|'expired'|'invalid'|'not_enrolled',
  *     student: { name, photo_url }|null,
  *     session_title: string|null }
  */
@@ -43,6 +43,28 @@ if (!$card) {
 }
 
 $logCardId = (int)$card['id'];
+
+// EXPIRED card → reject. The HMAC still verifies (the payload is static and the
+// card is genuine), so without this check a lapsed card marks attendance forever —
+// which is exactly what the expiry date on the face is supposed to prevent. Logged
+// under its own result so the scan history distinguishes "lapsed" from "revoked".
+if (mam_card_is_expired($card)) {
+    mam_db_insert('card_scans', [
+        'card_id'    => $logCardId,
+        'raw_serial' => (string)$card['serial'],
+        'session_id' => $sessionId,
+        'class_id'   => $classId,
+        'scanned_by' => $scanBy,
+        'result'     => 'expired',
+        'scanned_at' => date('Y-m-d H:i:s'),
+    ]);
+    mam_ok([
+        'result'        => 'expired',
+        'student'       => null,
+        'session_title' => null,
+        'expired_on'    => (string)$card['expires_at'],
+    ]);
+}
 
 // Revoked card → reject immediately.
 if ((string)$card['status'] !== 'active') {

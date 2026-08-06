@@ -102,6 +102,14 @@ function mam_automations_registry(): array {
             'default' => true,
             'live'    => true,
         ],
+        'card_expiry' => [
+            'group'   => 'Identity',
+            'trigger' => 'An ID card is about to expire, or has expired',
+            'action'  => 'Warn the holder, then retire the lapsed card',
+            'icon'    => 'hourglass-half',
+            'default' => true,
+            'live'    => true,
+        ],
         'waitlist_autopromote' => [
             'group'   => 'Learning',
             'trigger' => 'A place frees up in a full class (withdrawal or completion)',
@@ -382,4 +390,147 @@ function mam_automation_ktams_birthday_sweep(int $limit = 200): int {
         $count++;
     }
     return $count;
+}
+
+/**
+ * ID card expiry sweep — warn before a card lapses, then retire it once it has.
+ *
+ * Without this the expiry is a date nobody sees coming: a student turns up to a
+ * session, the scan says 'expired', and the desk has to sort it out on the spot.
+ * The sweep gives them notice, and stops the lapsed row masquerading as 'active'
+ * in every admin count.
+ *
+ * Two passes, both idempotent via the `events` table (the same dedupe the session
+ * reminder and birthday sweeps use), so re-running the cron never re-notifies:
+ *   1. EXPIRING — cards lapsing within `card_expiry_warn_days`: notify the holder
+ *      in-app and by email, once per card.
+ *   2. EXPIRED  — cards past their date: mark the row status='expired' so admin
+ *      lists, counts and the mint path stop treating them as live. Attendance was
+ *      already refusing them (card-scan checks the date), but a row left 'active'
+ *      is a lie the rest of the admin UI has to keep re-deriving.
+ *
+ * Never throws: a sweep is cron-driven and must not take the runner down.
+ *
+ * @return array{warned:int,retired:int}
+ */
+function mam_automation_card_expiry_sweep(int $limit = 200): array
+{
+    $out = ['warned' => 0, 'retired' => 0];
+    if (!function_exists('mam_db') || !mam_automation_on('card_expiry')) return $out;
+
+    $now = date('Y-m-d H:i:s');
+    $warnDays = 14;
+    if (function_exists('mam_setting_or_default')) {
+        $warnDays = max(1, (int)mam_setting_or_default('card_expiry_warn_days', 14));
+    }
+    $warnUntil = date('Y-m-d H:i:s', time() + $warnDays * 86400);
+    $cap = max(1, $limit);
+
+    /* ── 1. Warn the holders of cards about to lapse ─────────────────────── */
+    try {
+        $soon = mam_db_all(
+            "SELECT ic.id, ic.serial, ic.expires_at, ic.user_id, ic.summer_app_id,
+                    u.name AS user_name, u.email AS user_email,
+                    sa.first_name AS sa_first, sa.last_name AS sa_last, sa.email AS sa_email
+               FROM id_cards ic
+               LEFT JOIN users u ON u.id = ic.user_id
+               LEFT JOIN summer_applications sa ON sa.id = ic.summer_app_id
+              WHERE ic.status = 'active'
+                AND ic.expires_at IS NOT NULL
+                AND ic.expires_at >= ? AND ic.expires_at < ?
+                AND NOT EXISTS (
+                      SELECT 1 FROM events e
+                       WHERE e.type = 'card.expiring' AND e.entity_id = ic.id)
+              ORDER BY ic.expires_at ASC LIMIT " . $cap,
+            [$now, $warnUntil]
+        );
+    } catch (\Throwable $e) {
+        return $out;
+    }
+
+    foreach ($soon as $c) {
+        $days = (int)floor((strtotime((string)$c['expires_at']) - time()) / 86400);
+        $when = date('j M Y', (int)strtotime((string)$c['expires_at']));
+        $name = trim((string)($c['user_name'] ?? '')) !== ''
+            ? (string)$c['user_name']
+            : trim((string)($c['sa_first'] ?? '') . ' ' . (string)($c['sa_last'] ?? ''));
+        $email = (string)($c['user_email'] ?? '') !== ''
+            ? (string)$c['user_email']
+            : (string)($c['sa_email'] ?? '');
+
+        try {
+            if (function_exists('mam_notify') && !empty($c['user_id'])) {
+                mam_notify(
+                    (int)$c['user_id'],
+                    'card.expiring',
+                    'Your ID card expires soon',
+                    'Card ' . $c['serial'] . ' expires on ' . $when . ' (' . $days . ' day'
+                        . ($days === 1 ? '' : 's') . '). Ask the front desk for a replacement.',
+                    '/portal/student/'
+                );
+            }
+            if ($email !== '' && function_exists('mam_send') && function_exists('mam_email_shell')) {
+                $safeName   = htmlspecialchars($name !== '' ? $name : 'there', ENT_QUOTES);
+                $safeSerial = htmlspecialchars((string)$c['serial'], ENT_QUOTES);
+                mam_send(
+                    $email,
+                    'Your MAM Academy ID card expires on ' . $when,
+                    mam_email_shell('ID card expiring', ''
+                        . "<h2 style='font-family:Georgia,serif;margin:0 0 14px;font-size:22px;color:#1A120B'>Your ID card expires soon</h2>"
+                        . "<p style='margin:0 0 12px;line-height:1.6'>Hello " . $safeName . ",</p>"
+                        . "<p style='margin:0 0 12px;line-height:1.6'>Your MAM Academy ID card <strong>" . $safeSerial
+                        . "</strong> expires on <strong>" . $when . "</strong> — that is " . $days . ' day'
+                        . ($days === 1 ? '' : 's') . " from now.</p>"
+                        . "<p style='margin:0;line-height:1.6'>After that date the card will no longer scan you into "
+                        . "sessions. Please speak to the front desk so a replacement can be issued.</p>"),
+                    'card_expiring',
+                    true
+                );
+            }
+            // Record the event even when neither channel was available, so the sweep
+            // does not retry the same card on every cron run.
+            if (function_exists('mam_event')) mam_event('card.expiring', 'id_card', (int)$c['id'], ['days' => $days]);
+            $out['warned']++;
+        } catch (\Throwable $e) {
+            if (function_exists('mam_log')) {
+                mam_log('warn', 'card_expiring_notice_failed', ['card' => (int)$c['id'], 'err' => $e->getMessage()]);
+            }
+        }
+    }
+    if ($out['warned'] && function_exists('mam_automation_touch')) mam_automation_touch('card_expiry');
+
+    /* ── 2. Retire cards that have lapsed ───────────────────────────────── */
+    try {
+        $lapsed = mam_db_all(
+            "SELECT id, serial FROM id_cards
+              WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < ?
+              ORDER BY expires_at ASC LIMIT " . $cap,
+            [$now]
+        );
+    } catch (\Throwable $e) {
+        return $out;
+    }
+
+    foreach ($lapsed as $c) {
+        try {
+            // status='expired', NOT 'revoked': revoked means somebody took the card
+            // away, expired means time did. The distinction matters when reading the
+            // scan log or deciding whether a reissue is routine.
+            mam_db_update('id_cards', [
+                'status'        => 'expired',
+                'revoked_at'    => $now,
+                'revoke_reason' => 'expired',
+            ], ['id' => (int)$c['id']]);
+            if (function_exists('mam_event')) mam_event('card.expired', 'id_card', (int)$c['id'], []);
+            if (function_exists('mam_audit')) mam_audit('expire', 'id_card', (int)$c['id'], ['serial' => (string)$c['serial']]);
+            $out['retired']++;
+        } catch (\Throwable $e) {
+            if (function_exists('mam_log')) {
+                mam_log('warn', 'card_expire_failed', ['card' => (int)$c['id'], 'err' => $e->getMessage()]);
+            }
+        }
+    }
+    if ($out['retired'] && function_exists('mam_automation_touch')) mam_automation_touch('card_expiry');
+
+    return $out;
 }

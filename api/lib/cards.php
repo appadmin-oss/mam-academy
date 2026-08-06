@@ -73,6 +73,78 @@ function mam_card_verify_payload(string $raw): ?array {
     return $card;
 }
 
+/* ═══════════════════════════ Card validity ════════════════════════════════
+   A card's expiry is a REAL date on the row, not a label. Before v59 the face
+   printed 'EXP.12/<issue year>' and nothing enforced it, so a lapsed card kept
+   scanning into attendance indefinitely — and summer cards, which are meant to
+   die a couple of months after the camp, never did.
+
+   The validity period is admin-defined per card kind (settings group "ID Cards"),
+   because a summer camp badge and a year-round student card have genuinely
+   different lifetimes. */
+
+/** Is this card a summer-programme card? Drives which validity period applies. */
+function mam_card_is_summer(array $card): bool {
+    return ($card['summer_app_id'] ?? null) !== null;
+}
+
+/** Months a newly minted card stays valid. Admin-defined; falls back to the
+ *  registered defaults (12 months regular, 2 months summer). */
+function mam_card_validity_months(bool $isSummer): int {
+    $key = $isSummer ? 'summer_card_validity_months' : 'card_validity_months';
+    $n = (int)(function_exists('mam_setting_or_default') ? mam_setting_or_default($key, 0) : 0);
+    if ($n < 1) $n = $isSummer ? 2 : 12;
+    // A sane ceiling: a typo of 1200 shouldn't mint a century-long card.
+    return min($n, 120);
+}
+
+/** The expiry timestamp for a card issued at $issuedAt. */
+function mam_card_expiry_at(bool $isSummer, string $issuedAt): string {
+    $months = mam_card_validity_months($isSummer);
+    $ts = strtotime($issuedAt) ?: time();
+    // strtotime('+2 months') on the 31st lands in the following month; clamping to
+    // the end of the target month is what a human means by "two months".
+    $y = (int)date('Y', $ts); $m = (int)date('n', $ts); $d = (int)date('j', $ts);
+    $tm = $m + $months;
+    $ty = $y + intdiv($tm - 1, 12);
+    $tmo = (($tm - 1) % 12) + 1;
+    $last = (int)date('t', mktime(0, 0, 0, $tmo, 1, $ty));
+    $td = min($d, $last);
+    return date('Y-m-d H:i:s', mktime((int)date('G', $ts), (int)date('i', $ts), (int)date('s', $ts), $tmo, $td, $ty));
+}
+
+/** Has the card lapsed? A NULL expires_at (a pre-v59 row the backfill missed)
+ *  is treated as NOT expired — refusing entry on missing data would lock real
+ *  students out of sessions. */
+function mam_card_is_expired(array $card, ?string $now = null): bool {
+    $exp = (string)($card['expires_at'] ?? '');
+    if ($exp === '') return false;
+    return strtotime($exp) < strtotime($now ?? date('Y-m-d H:i:s'));
+}
+
+/** Days until expiry — negative once lapsed, null when there is no expiry. */
+function mam_card_days_to_expiry(array $card, ?string $now = null): ?int {
+    $exp = (string)($card['expires_at'] ?? '');
+    if ($exp === '') return null;
+    $diff = strtotime($exp) - strtotime($now ?? date('Y-m-d H:i:s'));
+    return (int)floor($diff / 86400);
+}
+
+/** The 'EXP.MM/YY' string printed on the face, from the real expiry date. */
+function mam_card_exp_display(array $card): string {
+    $exp = (string)($card['expires_at'] ?? '');
+    if ($exp !== '') return 'EXP.' . date('m/y', (int)strtotime($exp));
+    // Pre-v59 fallback: the old derived label, so an un-backfilled row still prints.
+    $iss = (string)($card['issued_at'] ?? '');
+    return $iss !== '' ? 'EXP.12/' . date('y', (int)strtotime($iss)) : '';
+}
+
+/** One word for the card's real state, for admin lists and the studio. */
+function mam_card_state(array $card, ?string $now = null): string {
+    if ((string)($card['status'] ?? '') !== 'active') return (string)$card['status'];
+    return mam_card_is_expired($card, $now) ? 'expired' : 'active';
+}
+
 /**
  * Create a new ID card for a user or summer applicant.
  * Returns the card row. If an active card already exists for this identity,
@@ -83,13 +155,23 @@ function mam_card_mint(?int $userId, ?int $summerAppId, string $role, string $se
         throw new RuntimeException('id_card: user_id or summer_app_id required');
     }
 
-    // Idempotent: return existing active card for this identity.
+    // Idempotent: return the existing active card for this identity — UNLESS it has
+    // already lapsed. A returning summer student must be handed a fresh card, not
+    // the dead one from last year's camp; retiring the old row keeps the serial
+    // history intact and stops the lapsed card from being reused.
+    $existing = null;
     if ($userId !== null) {
         $existing = mam_db_row('SELECT * FROM id_cards WHERE user_id = ? AND status = ?', [$userId, 'active']);
-        if ($existing) return $existing;
     } elseif ($summerAppId !== null) {
         $existing = mam_db_row('SELECT * FROM id_cards WHERE summer_app_id = ? AND status = ?', [$summerAppId, 'active']);
-        if ($existing) return $existing;
+    }
+    if ($existing) {
+        if (!mam_card_is_expired($existing)) return $existing;
+        // Past its date: retire it so the serial history stays intact and the dead
+        // card can't be reused, then fall through and mint a fresh one. (The expiry
+        // sweep does the same on a schedule; this covers the card that lapses
+        // between two cron runs.)
+        mam_card_revoke((int)$existing['id'], 'expired', $createdBy);
     }
 
     // Resolve photo from user avatar or summer applicant headshot.
@@ -125,6 +207,10 @@ function mam_card_mint(?int $userId, ?int $summerAppId, string $role, string $se
         'session_code'  => $sessionCode,
         'photo_url'     => $photoUrl,
         'issued_at'     => $now,
+        // Stamped at mint, not computed on read: the card in the student's hand
+        // prints a date, and that date must not move when an admin later edits the
+        // validity period. Changing the setting affects cards minted AFTER it.
+        'expires_at'    => mam_card_expiry_at($summerAppId !== null, $now),
         'created_by'    => $createdBy,
         'created_at'    => $now,
     ]);

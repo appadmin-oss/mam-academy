@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 58;
+const MAM_SCHEMA_TARGET = 59;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1685,6 +1685,25 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE promo_banners ADD COLUMN public INTEGER NOT NULL DEFAULT 0;
             ALTER TABLE promo_banners ADD COLUMN discount_percent INTEGER NOT NULL DEFAULT 0;
             ALTER TABLE promo_banners ADD COLUMN applies_to TEXT;
+        ",
+        // v59 — ID cards get a REAL expiry date.
+        // The printed 'EXP.12/YY' was derived from the issue year and enforced
+        // nowhere: an expired card kept scanning into attendance forever. Summer
+        // cards in particular are meant to lapse a couple of months after the camp.
+        // expires_at is computed at mint time from the admin's validity period
+        // (card_validity_months / summer_card_validity_months) and checked on scan.
+        // Backfill: existing rows get a date derived from their own issue date —
+        // summer cards (summer_app_id set) 2 months, everything else 12 — so no card
+        // is left NULL and treated as never-expiring.
+        59 => "
+            ALTER TABLE id_cards ADD COLUMN expires_at TEXT;
+            UPDATE id_cards
+               SET expires_at = datetime(issued_at, '+2 months')
+             WHERE expires_at IS NULL AND summer_app_id IS NOT NULL;
+            UPDATE id_cards
+               SET expires_at = datetime(issued_at, '+12 months')
+             WHERE expires_at IS NULL;
+            CREATE INDEX IF NOT EXISTS idx_id_cards_expires ON id_cards(status, expires_at);
         ",
     ];
 

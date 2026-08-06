@@ -47,11 +47,27 @@ $q       = trim((string)($_GET['q'] ?? ''));
 $status  = (string)($_GET['status'] ?? 'active');
 $roleF   = (string)($_GET['role'] ?? '');
 $limit   = max(1, min(300, (int)($_GET['limit'] ?? 60)));
-if (!in_array($status, ['active', 'revoked', 'all'], true)) $status = 'active';
+// 'active' here means active AND unexpired — the stored status column says nothing
+// about expiry, and a lapsed card is not something you want to reprint by accident.
+if (!in_array($status, ['active', 'expiring', 'expired', 'revoked', 'all'], true)) $status = 'active';
+$nowSql  = date('Y-m-d H:i:s');
+$warnDays = max(1, (int)mam_setting_or_default('card_expiry_warn_days', 14));
+$warnSql = date('Y-m-d H:i:s', strtotime('+' . $warnDays . ' days'));
 
 $where = [];
 $args  = [];
-if ($status !== 'all') { $where[] = 'ic.status = ?'; $args[] = $status; }
+if ($status === 'active') {
+    $where[] = "ic.status = 'active' AND (ic.expires_at IS NULL OR ic.expires_at >= ?)";
+    $args[] = $nowSql;
+} elseif ($status === 'expiring') {
+    $where[] = "ic.status = 'active' AND ic.expires_at IS NOT NULL AND ic.expires_at >= ? AND ic.expires_at < ?";
+    array_push($args, $nowSql, $warnSql);
+} elseif ($status === 'expired') {
+    $where[] = "ic.status = 'active' AND ic.expires_at IS NOT NULL AND ic.expires_at < ?";
+    $args[] = $nowSql;
+} elseif ($status === 'revoked') {
+    $where[] = "ic.status = 'revoked'";
+}
 if ($roleF !== '' && in_array($roleF, ['student', 'instructor', 'admin'], true)) {
     $where[] = 'ic.role = ?'; $args[] = $roleF;
 }
@@ -105,8 +121,14 @@ foreach ($rows as $r) {
         'serial'       => (string)$r['serial'],
         'session_code' => (string)($r['session_code'] ?? ''),
         'issued_at'    => (string)($r['issued_at'] ?? ''),
+        'expires_at'   => (string)($r['expires_at'] ?? ''),
+        'exp_display'  => mam_card_exp_display($r),
         'email'        => (string)($r['user_email'] ?? ''),
         'has_photo'    => $photo !== '',
+        // The real state, which the stored status column does not carry.
+        'state'        => mam_card_state($r),
+        'days_left'    => mam_card_days_to_expiry($r),
+        'is_summer'    => mam_card_is_summer($r),
     ];
 }
 
@@ -243,7 +265,13 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
       <input id="q" type="search" name="q" value="<?= $h($q) ?>" placeholder="name, email or serial"></div>
     <div class="field"><label for="status">Status</label>
       <select id="status" name="status">
-        <?php foreach (['active' => 'Active', 'revoked' => 'Revoked', 'all' => 'All'] as $k => $v): ?>
+        <?php foreach ([
+            'active'   => 'Active',
+            'expiring' => 'Expiring soon (' . $warnDays . 'd)',
+            'expired'  => 'Expired',
+            'revoked'  => 'Revoked',
+            'all'      => 'All',
+        ] as $k => $v): ?>
         <option value="<?= $k ?>"<?= $status === $k ? ' selected' : '' ?>><?= $v ?></option>
         <?php endforeach; ?>
       </select></div>
@@ -353,6 +381,20 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
   <b>Print sheet</b> uses your browser's own dialog — handy for a quick proof on office
   card stock, and its "Save as PDF" needs no print shop.
   Everything renders in this browser; nothing is uploaded.
+  <?php
+    $nExpired  = 0; $nExpiring = 0;
+    foreach ($cards as $c) {
+        if ($c['state'] === 'expired') $nExpired++;
+        elseif ($c['days_left'] !== null && $c['days_left'] <= $warnDays) $nExpiring++;
+    }
+  ?>
+  <?php if ($nExpired): ?>
+  <br><span class="warn">⚠ <?= $nExpired ?> of these cards have already EXPIRED and print with an “expired” overlay —
+  reissue them from <a href="/admin/?v=id-cards" style="color:var(--gold)">Admin → ID Cards</a> before printing.</span>
+  <?php endif; ?>
+  <?php if ($nExpiring): ?>
+  <br><span class="warn">⚠ <?= $nExpiring ?> expire within <?= $warnDays ?> days — printing them now wastes card stock.</span>
+  <?php endif; ?>
   <?php if ($noPhoto): ?>
   <br><span class="warn">⚠ <?= $noPhoto ?> of these <?= count($cards) ?> cards have no photograph and will print with initials —
   use “Only missing photos” to review them before committing to a print run.</span>
@@ -373,7 +415,11 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
       <b><?= $h($c['holder_name'] ?: '—') ?></b>
       <?= $h($c['serial']) ?><br>
       <?php if (!$c['has_photo']): ?><span class="flag bad">no photo</span><?php endif; ?>
-      <?php if ($c['status'] === 'revoked'): ?><span class="flag bad">revoked</span><?php endif; ?>
+      <?php if ($c['state'] === 'revoked'): ?><span class="flag bad">revoked</span><?php endif; ?>
+      <?php if ($c['state'] === 'expired'): ?><span class="flag bad">expired <?= $h((string)abs((int)$c['days_left'])) ?>d ago</span>
+      <?php elseif ($c['days_left'] !== null && $c['days_left'] <= $warnDays): ?><span class="flag">expires in <?= (int)$c['days_left'] ?>d</span>
+      <?php endif; ?>
+      <?php if ($c['is_summer']): ?><span class="flag">summer</span><?php endif; ?>
       <span class="flag qrflag" hidden></span>
     </div>
   </div>

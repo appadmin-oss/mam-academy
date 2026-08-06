@@ -1544,6 +1544,7 @@ CREATE TABLE IF NOT EXISTS id_cards (
   session_code   VARCHAR(120) NOT NULL DEFAULT '',
   photo_url      VARCHAR(500) NULL,
   issued_at      DATETIME     NOT NULL,
+  expires_at     DATETIME     NULL,
   printed_at     DATETIME     NULL,
   revoked_at     DATETIME     NULL,
   revoke_reason  TEXT         NULL,
@@ -1551,7 +1552,8 @@ CREATE TABLE IF NOT EXISTS id_cards (
   created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_id_cards_user   (user_id, status),
   KEY idx_id_cards_summer (summer_app_id, status),
-  KEY idx_id_cards_serial (serial)
+  KEY idx_id_cards_serial (serial),
+  KEY idx_id_cards_expires (status, expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS card_scans (
@@ -1575,3 +1577,14 @@ ALTER TABLE promo_banners ADD COLUMN IF NOT EXISTS public TINYINT(1) NOT NULL DE
 ALTER TABLE promo_banners ADD COLUMN IF NOT EXISTS discount_percent INT NOT NULL DEFAULT 0;
 ALTER TABLE promo_banners ADD COLUMN IF NOT EXISTS applies_to VARCHAR(16) NULL;
 INSERT INTO schema_version (version) VALUES (58) ON DUPLICATE KEY UPDATE version = version;
+
+-- v59: ID cards get a REAL expiry. The printed EXP was derived from the issue year
+-- and enforced nowhere, so an expired card kept scanning into attendance. Summer
+-- cards are meant to lapse a couple of months after the camp. Backfill derives a
+-- date from each card's own issue date so no row is left NULL (= never expires).
+ALTER TABLE id_cards ADD COLUMN IF NOT EXISTS expires_at DATETIME NULL;
+UPDATE id_cards SET expires_at = DATE_ADD(issued_at, INTERVAL 2 MONTH)
+ WHERE expires_at IS NULL AND summer_app_id IS NOT NULL;
+UPDATE id_cards SET expires_at = DATE_ADD(issued_at, INTERVAL 12 MONTH)
+ WHERE expires_at IS NULL;
+INSERT INTO schema_version (version) VALUES (59) ON DUPLICATE KEY UPDATE version = version;

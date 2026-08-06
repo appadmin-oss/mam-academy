@@ -50,6 +50,11 @@ if (function_exists('mam_automation_session_reminder_sweep')) {
 if (function_exists('mam_automation_ktams_birthday_sweep')) {
     printf("birthdays  : KTAMS notes sent %d\n", mam_automation_ktams_birthday_sweep());
 }
+if (function_exists('mam_automation_card_expiry_sweep')) {
+    $ce = mam_automation_card_expiry_sweep();
+    printf("id cards   : expiry warnings %d, lapsed cards retired %d
+", $ce['warned'], $ce['retired']);
+}
 if (function_exists('mam_automation_week_drip_sweep')) {
     printf("week drip  : modules released %d\n", mam_automation_week_drip_sweep());
 }

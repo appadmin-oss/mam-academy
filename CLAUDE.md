@@ -294,6 +294,30 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      payload, so a desk scan isn't an attendance mark), rendered as flex columns so it
      rasterises like any other box. `test_id_card_face.php` round-trips it through an
      independent decoder — a barcode that encodes the wrong string scans as another card.
+   - **Card expiry is a REAL date (schema v59), not a label.** `id_cards.expires_at`
+     is stamped at mint from the admin's validity period — `card_validity_months` (12)
+     and `summer_card_validity_months` (**2** — a summer badge must lapse after the
+     camp). Stamped, not computed on read: the card in a student's hand prints a date,
+     so changing the setting must only affect cards minted afterwards.
+     Before v59 the face printed `EXP.12/<issue year>` and NOTHING enforced it, so a
+     lapsed card scanned into attendance forever.
+     • `POST /api/instructor/card-scan` returns `result:'expired'` — the HMAC still
+       verifies (the payload is static and the card genuine), so without that check the
+       date on the face means nothing.
+     • `mam_card_mint()` will NOT hand back a lapsed card: it retires it and mints a
+       replacement, so a returning summer student gets a fresh badge and serial.
+     • The face reads `mam_card_exp_display()` and shows an EXPIRED overlay — a lapsed
+       card must not look valid at a door.
+     • `mam_automation_card_expiry_sweep()` (rule `card_expiry`, wired into
+       `api/tools/run-jobs.php`) warns holders `card_expiry_warn_days` ahead — once
+       per card, deduped via the `events` table — then sets `status='expired'`
+       (deliberately NOT `'revoked'`: revoked means somebody took the card away,
+       expired means time did).
+     • Anything filtering cards must filter on the **derived state**, not the status
+       column: between two cron runs a lapsed card still reads `active`. Both the
+       studio and `GET /api/admin/id-cards` do. Covered by `test_card_expiry.php`.
+     • Month arithmetic clamps to the end of the target month — `strtotime('+1 month')`
+       on the 31st lands in the month AFTER next.
    - Vendored on demand, self-hosted for CSP: html2canvas, jsPDF, jsQR
      (`assets/js/vendor/`, licences in `vendor/licenses/README.md`), ~700KB, loaded only
      when an admin exports.
