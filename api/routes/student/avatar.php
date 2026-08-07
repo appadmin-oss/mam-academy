@@ -5,8 +5,9 @@
  * Set (or clear, with an empty string) the signed-in student's portal photo.
  * The applicant's application headshot becomes the avatar automatically at
  * provisioning (mam_ensure_student_user); this lets a student swap it later.
- * Student-only, CSRF-protected. The URL is scheme-guarded (https only) and
- * length-bounded; it is rendered escaped as an <img src> in the portal.
+ * Student-only, CSRF-protected. The URL must be one of our own stored headshots
+ * or a secure https URL, and is length-bounded; it is rendered escaped as an
+ * <img src> in the portal.
  */
 declare(strict_types=1);
 
@@ -20,10 +21,12 @@ if ($url === '') {
     mam_ok(['avatar_url' => null]);
 }
 
-// Scheme guard: only a secure https URL may become an avatar (never javascript:/
-// data: — which would be an injection vector even though we escape on render).
-if (strlen($url) > 500 || !preg_match('#^https://[^\s"\'<>]+$#i', $url)) {
-    mam_fail('invalid_url', 422, ['detail' => 'A secure https image URL is required.']);
+// Scheme guard: our own stored headshot, or a secure https URL — never
+// javascript:/data:, which would be an injection vector even though we escape on
+// render. The first-party case is what lets the portal's own uploader work; a
+// student who uploads a photo would otherwise be told the URL was invalid.
+if (!mam_upload_photo_url_ok($url)) {
+    mam_fail('invalid_url', 422, ['detail' => 'Upload a photo, or give a secure https image URL.']);
 }
 
 mam_db_update('users', ['avatar_url' => $url], ['id' => (int)$u['id']]);

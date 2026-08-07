@@ -308,7 +308,7 @@ $siteName = 'MAM Academy';
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260723a"></script>
+<script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/main.js?v=20260724b"></script>
 <script>
 (function () {
@@ -476,9 +476,9 @@ $siteName = 'MAM Academy';
     var email = emEl.value.trim();
     if (!ref || !email) return;
 
-    btn.disabled = true;
     var orig = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Checking…';
+    if (window.MAM_FORMS) MAM_FORMS.setBusy(btn, 'Checking…');
+    else { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Checking…'; }
     out.classList.remove('visible');
     out.innerHTML = '';
 
@@ -488,7 +488,7 @@ $siteName = 'MAM Academy';
       ? 'summer/status?ref=' + encodeURIComponent(ref) + '&email=' + encodeURIComponent(email)
       : 'application/status?ref=' + encodeURIComponent(ref) + '&email=' + encodeURIComponent(email);
 
-    function done() { btn.disabled = false; btn.innerHTML = orig; }
+    function done() { if (window.MAM_FORMS) MAM_FORMS.resetBusy(btn); else { btn.disabled = false; btn.innerHTML = orig; } }
 
     var p = window.MAM_API
       ? window.MAM_API.request(endpoint, { method: 'GET' })

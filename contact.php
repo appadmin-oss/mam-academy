@@ -93,7 +93,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260723a"></script>
+<script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/main.js?v=20260724b"></script>
 <script>
 document.addEventListener('mam:ready', function () {
@@ -149,10 +149,11 @@ document.addEventListener('mam:ready', function () {
     var message = document.getElementById('cf-message').value.trim();
     var msgEl = document.getElementById('cf-msg');
     if (form.querySelector('[name=_honeypot]').value) { msgEl.style.display='block'; return; }
-    submit.disabled = true; var origLabel = submit.innerHTML;
-    submit.innerHTML = '<span class="spinner"></span><span>Sending…</span>';
+    var origLabel = submit.innerHTML;
+    if (window.MAM_FORMS) MAM_FORMS.setBusy(submit, 'Sending…');
+    else { submit.disabled = true; submit.innerHTML = '<span class="spinner"></span><span>Sending…</span>'; }
     var payload = { name: name, email: email, phone: phone, topic: topic, message: message };
-    var done = function () { submit.disabled = false; submit.innerHTML = origLabel; };
+    var done = function () { if (window.MAM_FORMS) MAM_FORMS.resetBusy(submit); else { submit.disabled = false; submit.innerHTML = origLabel; } };
     if (window.MAM_API) {
       window.MAM_API.sendContact(payload)
         .then(function () { msgEl.textContent = "Thanks — we'll be in touch shortly."; msgEl.style.display='block'; form.reset(); done(); })

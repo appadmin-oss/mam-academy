@@ -653,10 +653,10 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 
-<script src="assets/js/config.js?v=20260723a"></script>
+<script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/main.js?v=20260724b"></script>
-<script src="assets/js/headshot.js?v=20260615e"></script>
-<script src="assets/js/summer.js?v=20260724a"></script>
+<script src="assets/js/headshot.js?v=20260807a"></script>
+<script src="assets/js/summer.js?v=20260807a"></script>
 <script>
 (function () {
   function convertFees() {

@@ -196,6 +196,16 @@
       showError('Please wait — your photo is still uploading.');
       return;
     }
+    /* A photo that was chosen but never stored must not slip through silently.
+       The photo is optional on this form, but "I attached one" and "the academy
+       received one" have to mean the same thing — otherwise the ID card prints
+       faceless and nobody finds out until it is in the student's hand. */
+    if (hsState.file && !(hsState.uploaded && hsState.uploaded.url)) {
+      showError(hsState.error
+        ? 'Your photo could not be saved: ' + hsState.error + ' Please try again, or remove it to continue without one.'
+        : 'Your photo has not finished saving. Please wait a moment, or choose a different one.');
+      return;
+    }
 
     var origText = submitBtn.textContent;
     if (window.MAM_FORMS) MAM_FORMS.setBusy(submitBtn, 'Submitting…');

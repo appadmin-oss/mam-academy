@@ -762,7 +762,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260723a"></script>
+<script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/main.js?v=20260724b"></script>
 <!--
   Audio libraries are DEFERRED until the first user interaction with the

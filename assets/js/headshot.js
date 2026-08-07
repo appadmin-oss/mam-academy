@@ -90,25 +90,65 @@
      empty headshotUrl — the academy got a registration with no photograph and
      printed a faceless ID card. Resolves to { url } (a same-origin
      /api/media/headshot?k=… URL the form submits exactly like a Cloudinary one). */
-  function uploadToOwnServer(dataUrl) {
-    var api = (window.MAM_CONFIG && window.MAM_CONFIG.apiBase) || '/api';
-    var headers = { 'Content-Type': 'application/json' };
-    // The MAM_API client owns CSRF; fall back to the meta token for standalone use.
-    var tok = (window.MAM_API && window.MAM_API.csrfToken && window.MAM_API.csrfToken())
-           || (document.querySelector('meta[name="csrf-token"]') || {}).content;
-    if (tok) headers['X-CSRF-Token'] = tok;
-    return fetch(api + '/upload/headshot', {
+  /* Resolve an API path. MAM_API.url() is the one place that knows the configured
+     base and normalises it, and it matters here: a page under /portal/ or /admin/
+     resolving a relative base would POST to /portal/api/… and 404. */
+  function apiUrl(path) {
+    if (window.MAM_API && typeof window.MAM_API.url === 'function') return window.MAM_API.url(path);
+    var c = window.MAM_CONFIG || {};
+    var base = c.apiBase || (c.api && c.api.base) || '/api';
+    return String(base).replace(/\/$/, '') + path;
+  }
+
+  /* A CSRF token for the upload POST.
+     /api/upload/headshot is CSRF-gated, so a request without a valid token is a
+     403 and the photo is lost. There was no token: this asked MAM_API for a
+     `csrfToken()` that has never existed, then fell back to a <meta name=csrf-token>
+     that the registration pages do not carry — so the header was always absent and
+     EVERY first-party upload failed. Tokens are minted by /api/csrf, so fetch one. */
+  function csrfFor(force) {
+    if (window.MAM_API && typeof window.MAM_API.csrf === 'function') {
+      return window.MAM_API.csrf(force).catch(function () { return ''; });
+    }
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.content) return Promise.resolve(meta.content);
+    return fetch(apiUrl('/csrf'), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { return (j && j.token) || ''; })
+      .catch(function () { return ''; });
+  }
+
+  function postHeadshot(dataUrl, token) {
+    var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    if (token) headers['X-CSRF-Token'] = token;
+    return fetch(apiUrl('/upload/headshot'), {
       method: 'POST', credentials: 'same-origin', headers: headers,
       body: JSON.stringify({ image: dataUrl })
     }).then(function (r) {
-      return r.json().catch(function () { throw new Error('Upload response unreadable'); })
-        .then(function (j) {
-          if (!r.ok || !j || j.ok === false || !j.url) {
-            throw new Error((j && (j.detail || j.message)) || 'Could not save the photo.');
-          }
-          return { url: j.url, publicId: null };
-        });
+      return r.text().then(function (t) {
+        var j = {};
+        try { j = JSON.parse(t); } catch (e) { throw new Error('Upload response unreadable'); }
+        if (!r.ok || j.ok === false || !j.url) {
+          var err = new Error((j && (j.detail || j.message)) || 'Could not save the photo.');
+          err.code = j && j.error;
+          throw err;
+        }
+        return { url: j.url, publicId: null };
+      });
     });
+  }
+
+  function uploadToOwnServer(dataUrl) {
+    return csrfFor(false)
+      .then(function (tok) { return postHeadshot(dataUrl, tok); })
+      // A token can expire while an applicant fills in a long form. Refetch once
+      // and retry, exactly as MAM_API.request() does for its own POSTs.
+      .catch(function (e) {
+        if (e && e.code === 'csrf_invalid') {
+          return csrfFor(true).then(function (tok) { return postHeadshot(dataUrl, tok); });
+        }
+        throw e;
+      });
   }
 
   /* Upload to Cloudinary unsigned. Resolves to { url, publicId }. */
@@ -334,5 +374,36 @@
     });
   }
 
-  window.MAM_HEADSHOT = { mount: mount };
+  /* ── Standalone upload, no widget ─────────────────────────────────
+     For callers that already have their own file input and just want the photo
+     stored: the student portal's profile page and the admin card-photo editor.
+     Both are places where the only alternative on offer was pasting a link to an
+     image hosted somewhere else.
+
+     Resolves to { url } — Cloudinary's when it is configured, otherwise our own
+     same-origin URL. Rejects with a message fit to show the user. */
+  function upload(file) {
+    if (!file) return Promise.reject(new Error('No file selected.'));
+    if (!/^image\//.test(file.type || '')) return Promise.reject(new Error('Please choose an image file (JPG or PNG).'));
+    if (file.size > 10 * 1024 * 1024) return Promise.reject(new Error('That photo is too large — maximum 10 MB.'));
+
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error('Could not read that file.')); };
+      reader.onload = function (ev) { resolve(String(ev.target.result)); };
+      reader.readAsDataURL(file);
+    }).then(function (dataUrl) {
+      return configReady().then(function (c) {
+        if (c.cloudName && c.uploadPreset) {
+          // Cloudinary first when configured, but never at the cost of losing the
+          // photo: fall through to our own store if it fails.
+          return uploadToCloudinary(file, c.cloudName, c.uploadPreset, null)
+            .catch(function () { return uploadToOwnServer(dataUrl); });
+        }
+        return uploadToOwnServer(dataUrl);
+      });
+    });
+  }
+
+  window.MAM_HEADSHOT = { mount: mount, upload: upload };
 })();

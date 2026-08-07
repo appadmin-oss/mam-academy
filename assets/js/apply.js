@@ -353,7 +353,13 @@
         // Headshot is mandatory — every student gets a class roster photo
         // and the AI check stops us collecting blurry/multi-face/no-face
         // shots that we'd otherwise have to chase manually.
-        var hsOk = !!(headshotState && headshotState.validation && headshotState.validation.ok && (headshotState.uploaded || !hasCloudinaryConfigured()));
+        // A STORED photo is required, not merely an accepted one. The old
+        // `|| !hasCloudinaryConfigured()` let the step pass with nothing uploaded
+        // whenever Cloudinary was unset — which is exactly how applications
+        // arrived with no photograph. There is always somewhere to store it now
+        // (Cloudinary, else this server), so no such exemption is needed.
+        var hsOk = !!(headshotState && headshotState.validation && headshotState.validation.ok
+                      && headshotState.uploaded && headshotState.uploaded.url);
         if (!hsOk) {
           ok = false;
           var hsHost = document.getElementById('headshotMount');
@@ -737,12 +743,8 @@
     });
     renderReadiness();
 
-    // ---------- Headshot widget (AI-validated; upload required when Cloudinary is configured) ----------
+    // ---------- Headshot widget (AI-validated; a stored photo is always required) ----------
     var headshotState = null;
-    function hasCloudinaryConfigured() {
-      var c = (window.MAM_CONFIG && window.MAM_CONFIG.cdn) || {};
-      return !!(c.cloudName && c.uploadPreset);
-    }
     var hsMount = document.getElementById('headshotMount');
     if (hsMount && window.MAM_HEADSHOT) {
       window.MAM_HEADSHOT.mount(hsMount, {

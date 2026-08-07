@@ -145,6 +145,29 @@ function mam_upload_is_own_url(string $url): bool
     return (bool)preg_match('#^/api/media/headshot\?k=[0-9]{6}(/|%2F)[0-9a-f]{32}$#i', trim($url));
 }
 
+/**
+ * May this URL be stored as somebody's photo (card face, portal avatar)?
+ *
+ * Exactly two shapes are acceptable, and the order matters:
+ *   1. one of OUR OWN stored headshots — same-origin, bytes we re-encoded;
+ *   2. an absolute https:// URL — a hosted image (Cloudinary and the like).
+ *
+ * Everything else is refused, which is what keeps `javascript:`, `data:` and
+ * plain-http out of an attribute that is rendered as an <img src>. The first
+ * clause is the one that was missing: a photo could be uploaded and stored
+ * successfully and then be rejected on the way onto the card, which left the
+ * only working path "paste a link to somewhere else".
+ */
+function mam_upload_photo_url_ok(string $url): bool
+{
+    $url = trim($url);
+    if ($url === '') return false;
+    if (strlen($url) > 500) return false;
+    if (mam_upload_is_own_url($url)) return true;
+    return (bool)filter_var($url, FILTER_VALIDATE_URL)
+        && (bool)preg_match('#^https://[^\s"\'<>]+$#i', $url);
+}
+
 /** The storage key inside one of our URLs, or null. */
 function mam_upload_key_from_url(string $url): ?string
 {

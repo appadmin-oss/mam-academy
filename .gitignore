@@ -3,3 +3,5 @@ api/storage/mam.db*
 api/storage/.app_key
 api/.env
 api/storage/og/
+# Uploaded headshots — real people's photographs, never committed.
+api/storage/uploads/

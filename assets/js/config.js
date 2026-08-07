@@ -366,6 +366,11 @@ window.MAM_API = (function () {
     // CSRF-protected POST so it routes through the existing request() helper.
     storeCheckout: function (data) { return request('/api/store/checkout', { method: 'POST', body: data }); },
     url:     url,
+    /* A valid CSRF token, as a promise. Widgets that POST with their own fetch()
+       (the headshot uploader sends a large JSON body and wants progress) need the
+       same token request() uses; without it every such POST is a 403 csrf_invalid.
+       Pass true to force a refetch after a rejected token. */
+    csrf:    function (force) { return getCsrf(!!force); },
     // Generic API caller used by the portal pages: request(path, opts).
     // Accepts either '/api/auth/login' (absolute) or 'auth/login' (relative)
     // and routes through the same CSRF + JSON pipeline as the named helpers.

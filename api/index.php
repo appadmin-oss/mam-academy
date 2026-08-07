@@ -300,6 +300,10 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // Summer programme admin: list applications + update status.
     $r->get ('/summer',         $f('admin/summer.php'), [mw_admin_cap('view')]);
     $r->post('/summer/status',  $f('admin/summer.php'), [mw_csrf(), mw_admin_cap('view')]);
+    // Headshot upload for staff fixing a card photo. Same handler as the public
+    // route, but admin-gated — so it carries a limit fit for working through a
+    // batch of students rather than the tight cap an anonymous form needs.
+    $r->post('/upload-headshot', $f('upload-headshot.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_upload_headshot', 120, 600)]);
     // ID cards: list all cards + admin actions (reissue, revoke, mark printed).
     $r->get ('/id-cards',       $f('admin/id-cards.php'),      [mw_admin_cap('enrollments')]);
     $r->post('/id-cards',       $f('admin/id-cards.php'),      [mw_csrf(), mw_admin_cap('enrollments')]);

@@ -94,7 +94,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260723a"></script>
+<script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/main.js?v=20260724b"></script>
 <script>
 (function () {
@@ -120,14 +120,17 @@
     e.preventDefault();
     ref = refEl.value.trim(); email = emEl.value.trim();
     if (!ref || !email) return;
-    btn.disabled = true; var orig = btn.textContent; btn.textContent = 'Checking…'; gateErr.hidden = true;
+    var orig = btn.textContent;
+    if (window.MAM_FORMS) MAM_FORMS.setBusy(btn, 'Checking…'); else { btn.disabled = true; btn.textContent = 'Checking…'; }
+    gateErr.hidden = true;
+    var unbusy = function () { if (window.MAM_FORMS) MAM_FORMS.resetBusy(btn); else { btn.disabled = false; btn.textContent = orig; } };
     var url = 'tuition/status?ref=' + encodeURIComponent(ref) + '&email=' + encodeURIComponent(email);
     (window.MAM_API ? window.MAM_API.request(url, { method: 'GET' }) : Promise.reject(new Error('api'))).then(function (r) {
-      btn.disabled = false; btn.textContent = orig;
+      unbusy();
       if (!r || !r.found) { gateError('We couldn’t find an application with that reference and email. Double-check both, or email academy@mamcentre.org.'); return; }
       tu = r;
       showPay(r);
-    }).catch(function () { btn.disabled = false; btn.textContent = orig; gateError('We couldn’t reach our secure server. Please try again in a moment.'); });
+    }).catch(function () { unbusy(); gateError('We couldn’t reach our secure server. Please try again in a moment.'); });
   });
   if (refEl.value && emEl.value) form.dispatchEvent(new Event('submit'));
 

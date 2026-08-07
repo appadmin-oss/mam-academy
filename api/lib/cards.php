@@ -599,8 +599,9 @@ function mam_card_resend(int $cardId): bool {
 }
 
 /**
- * Replace the photo shown on a card. $photoUrl must be an https URL, or empty
- * to clear it. The photo is NOT part of the QR signature (only serial+identity+
+ * Replace the photo shown on a card. $photoUrl must be one of our own stored
+ * headshots (/api/media/headshot?k=…) or an https URL, or empty to clear it.
+ * The photo is NOT part of the QR signature (only serial+identity+
  * version are), so no version bump is needed and existing scans keep working.
  * Optionally mirrors the new photo to the holder's portal avatar so the card and
  * portal stay in sync. Returns the updated card row.
@@ -612,8 +613,11 @@ function mam_card_set_photo(int $cardId, string $photoUrl, bool $syncAvatar = fa
     if (!$card) throw new RuntimeException('id_card: card not found');
     $photoUrl = trim($photoUrl);
     if ($photoUrl !== '') {
-        $valid = filter_var($photoUrl, FILTER_VALIDATE_URL);
-        if (!$valid || !preg_match('#^https://#i', $photoUrl)) {
+        // A photo we stored ourselves is same-origin and already re-encoded, so it
+        // is at least as trustworthy as a remote https URL. Refusing it here was
+        // what made "upload a photo" impossible and left pasting a link as the
+        // only route onto a card.
+        if (!mam_upload_photo_url_ok($photoUrl)) {
             throw new RuntimeException('invalid_photo_url');
         }
         $photoUrl = substr($photoUrl, 0, 500);

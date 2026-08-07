@@ -230,7 +230,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260723a"></script>
+<script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/main.js?v=20260724b"></script>
 <script>
 // ── Power Play scheduling: compute the next first-Wednesday from MAM_CONFIG ──
@@ -326,7 +326,11 @@ document.addEventListener('mam:ready', function () {
     msg.style.display = 'block';
     msg.style.color = kind === 'error' ? 'var(--red-hot)' : kind === 'ok' ? 'var(--emerald)' : 'var(--text-muted)';
   }
-  function busy(on) { if (btn) { btn.disabled = on; btn.innerHTML = on ? 'Reserving…' : btnHtml; } }
+  function busy(on) {
+    if (!btn) return;
+    if (window.MAM_FORMS) { if (on) MAM_FORMS.setBusy(btn, 'Reserving…'); else MAM_FORMS.resetBusy(btn); }
+    else { btn.disabled = on; btn.innerHTML = on ? 'Reserving…' : btnHtml; }
+  }
   function mailtoLink(email) {
     var fb = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'academy@mamcentre.org';
     return 'mailto:' + fb + '?subject=' + encodeURIComponent('Power Play — register me') +

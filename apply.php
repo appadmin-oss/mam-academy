@@ -725,11 +725,11 @@ if ($showChooser) {
 <?php include __DIR__ . '/partials/footer.html'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/js/intlTelInputWithUtils.min.js"></script>
-<script src="assets/js/config.js?v=20260723a"></script>
+<script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/main.js?v=20260724b"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
-<script src="assets/js/headshot.js?v=20260615e"></script>
-<script src="assets/js/apply.js?v=20260617a"></script>
+<script src="assets/js/headshot.js?v=20260807a"></script>
+<script src="assets/js/apply.js?v=20260807a"></script>
 <script src="assets/js/apply-discovery.js?v=20260703a"></script>
 <?php if ($showChooser): ?>
 <script>

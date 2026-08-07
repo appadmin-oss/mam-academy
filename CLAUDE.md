@@ -380,6 +380,37 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      (a renamed script cannot decode, so it cannot land); both form validators accept
      our own `/api/media/headshot` URLs — without that the stored photo is dropped on
      the way into the DB, reproducing the original bug. Covered by `test_uploads.php`.
+   - **A photo upload has FOUR places to fail, and all four have failed.** The store
+     working is not the same as a photo reaching a card. When "photos aren't saving",
+     walk the whole chain rather than testing the store in isolation:
+     1. **The CSRF token.** `/api/upload/headshot` is CSRF-gated, so a POST without a
+        valid token is a 403 and the photo is gone. `headshot.js` asked `MAM_API` for a
+        `csrfToken()` that never existed, then fell back to a `<meta name=csrf-token>`
+        that no registration page carries — so the header was ALWAYS absent and every
+        first-party upload failed with a 403 while the store itself was perfect. Tokens
+        come from `GET /api/csrf`; `MAM_API.csrf(force)` now exposes it, and the
+        uploader refetches once on `csrf_invalid` the way `MAM_API.request()` does.
+     2. **Whether a file can be chosen at all.** `MAM_HEADSHOT` exported only
+        `mount()`, but the student portal called `MAM_HEADSHOT.upload(file)` — so its
+        Profile photo button always said "Photo upload is unavailable right now", and
+        the admin card-photo editor offered nothing but a URL field. `upload(file)` is
+        now a first-class export, used by both.
+     3. **The URL guard on the way in.** `mam_card_set_photo` and
+        `POST /api/student/avatar` both demanded `https://`, which refuses our OWN
+        stored photo — upload succeeded, then Save answered `invalid_photo_url`. One
+        predicate, `mam_upload_photo_url_ok()`, now decides for both: a first-party
+        `/api/media/headshot?k=…` URL or an absolute `https://` one, nothing else
+        (still no `javascript:`, `data:` or plain http). Client-side checks must match,
+        or the UI rejects a URL the server would accept.
+     4. **A form that submits anyway.** `apply.js` passed its headshot step when
+        `!hasCloudinaryConfigured()` — a step that accepts "no photo stored" as success
+        recreates the faceless card no matter how well the store works. Both forms now
+        require a stored URL before submitting, and `summer.js` refuses to submit a
+        photo it could not save rather than dropping it silently.
+     Verify in a real browser, not just against the endpoint: drive
+     `MAM_HEADSHOT.upload()` AND the mounted widget, then re-fetch the returned URL —
+     a URL that 404s is not a saved photo. Bump the `?v=` on `headshot.js`/`config.js`
+     when either changes, or browsers keep running the broken copy.
    - **Three html2canvas render traps, each measured from a real print run:**
      • `addBleed` must sample a strip a few px INSIDE the artwork. html2canvas
        anti-aliases the element boundary against the canvas backdrop, so the outermost

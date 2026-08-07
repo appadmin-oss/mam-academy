@@ -7089,9 +7089,17 @@ nav a{display:flex;align-items:center}
           <div id="icPhotoNoImg" style="width:88px;height:88px;border-radius:12px;background:var(--bg);border:1px dashed var(--border);display:none;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center">No photo</div>
         </div>
         <div style="flex:1;min-width:0">
-          <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px">Image URL (https)</label>
-          <input type="url" id="icPhotoUrl" placeholder="https://…/photo.jpg" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:13px">
-          <p style="margin:6px 0 0;color:var(--muted);font-size:11px;line-height:1.5">Paste a hosted image URL. Leave blank to remove the photo (the card then shows the holder's initials).</p>
+          <input type="file" id="icPhotoFile" accept="image/*" style="display:none">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button type="button" class="btn-sm btn-primary" id="icPhotoPick">Upload a photo…</button>
+            <span id="icPhotoUpMsg" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <p style="margin:8px 0 0;color:var(--muted);font-size:11px;line-height:1.5">JPG or PNG, up to 8&thinsp;MB. Stored on this server — no external account needed.</p>
+          <details style="margin-top:10px">
+            <summary style="font-size:11px;color:var(--muted);cursor:pointer">Or use an image URL</summary>
+            <input type="url" id="icPhotoUrl" placeholder="https://…/photo.jpg" style="width:100%;margin-top:6px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--fg);font-size:13px">
+            <p style="margin:6px 0 0;color:var(--muted);font-size:11px;line-height:1.5">Leave blank to remove the photo (the card then shows the holder's initials).</p>
+          </details>
         </div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13px;color:var(--fg);cursor:pointer">
@@ -7236,34 +7244,71 @@ nav a{display:flex;align-items:center}
     modal.style.display = 'flex';
   }
 
-  // Photo editor — preview + URL, with optional avatar sync and resend.
+  // Photo editor — upload a file (or paste a URL), with optional avatar sync and resend.
   var icPhotoCardId = 0;
   function icEditPhoto(cardId, holderName, currentUrl, hasUser) {
     icPhotoCardId = cardId;
     document.getElementById('icPhotoWho').textContent = 'For ' + holderName;
     var url = currentUrl || '';
     document.getElementById('icPhotoUrl').value = url;
+    document.getElementById('icPhotoUpMsg').textContent = '';
+    document.getElementById('icPhotoFile').value = '';
     icPhotoPreview(url);
     var sync = document.getElementById('icPhotoSync');
     sync.checked = !!hasUser; sync.disabled = !hasUser;
     document.getElementById('icPhotoResend').checked = true;
     document.getElementById('icPhotoModal').style.display = 'flex';
   }
+  // A photo we stored ourselves is a same-origin /api/media/headshot?k=… URL, which
+  // is what the uploader returns — so it must count as valid here too, or an
+  // upload previews as "Must be https" and refuses to save.
+  function icPhotoUrlOk(url) {
+    return /^https:\/\//i.test(url) || /^\/api\/media\/headshot\?k=/.test(url);
+  }
   function icPhotoPreview(url) {
     var img = document.getElementById('icPhotoPreview');
     var ph  = document.getElementById('icPhotoNoImg');
-    if (url && /^https:\/\//i.test(url)) {
+    if (url && icPhotoUrlOk(url)) {
       img.src = url; img.style.display = ''; ph.style.display = 'none';
       img.onerror = function () { img.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = 'Preview failed'; };
     } else {
       img.style.display = 'none'; ph.style.display = 'flex'; ph.textContent = url ? 'Must be https' : 'No photo';
     }
   }
+
+  /* Upload a chosen file straight to our own store, then drop the returned URL into
+     the field so Save applies it. Self-contained on purpose: the admin page does not
+     load the public headshot widget. */
+  function icPhotoUpload(file) {
+    var msg = document.getElementById('icPhotoUpMsg');
+    if (!file) return;
+    if (!/^image\//.test(file.type || '')) { msg.textContent = 'Choose an image file (JPG or PNG).'; return; }
+    if (file.size > 8 * 1024 * 1024)      { msg.textContent = 'That photo is over 8 MB — use a smaller one.'; return; }
+    msg.textContent = 'Uploading…';
+    var reader = new FileReader();
+    reader.onerror = function () { msg.textContent = 'Could not read that file.'; };
+    reader.onload = function (ev) {
+      fetch(API + '/admin/upload-headshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+        body: JSON.stringify({ image: String(ev.target.result) }),
+      }).then(function (r) { return r.json().then(function (d) { return { r: r, d: d }; }); })
+        .then(function (x) {
+          if (!x.r.ok || !x.d || !x.d.url) throw new Error((x.d && (x.d.detail || x.d.message)) || 'Upload failed.');
+          document.getElementById('icPhotoUrl').value = x.d.url;
+          icPhotoPreview(x.d.url);
+          msg.textContent = 'Uploaded — now click Save photo.';
+        })
+        .catch(function (e) { msg.textContent = e.message || 'Upload failed.'; });
+    };
+    reader.readAsDataURL(file);
+  }
+
   function icSavePhoto() {
     var url    = document.getElementById('icPhotoUrl').value.trim();
     var sync   = document.getElementById('icPhotoSync').checked;
     var resend = document.getElementById('icPhotoResend').checked;
-    if (url && !/^https:\/\//i.test(url)) { showToast('Photo URL must start with https://', 'error'); return; }
+    if (url && !icPhotoUrlOk(url)) { showToast('Upload a photo, or paste an https:// image URL.', 'error'); return; }
     var btn = document.getElementById('icPhotoSave');
     btn.disabled = true; btn.textContent = 'Saving…';
     fetch(API + '/admin/id-cards', {
@@ -7304,6 +7349,8 @@ nav a{display:flex;align-items:center}
   // Photo modal wiring
   document.getElementById('icPhotoSave').addEventListener('click', icSavePhoto);
   document.getElementById('icPhotoUrl').addEventListener('input', function(){ icPhotoPreview(this.value.trim()); });
+  document.getElementById('icPhotoPick').addEventListener('click', function(){ document.getElementById('icPhotoFile').click(); });
+  document.getElementById('icPhotoFile').addEventListener('change', function(){ icPhotoUpload(this.files && this.files[0]); });
 
   // Trigger on Enter in the search box
   document.getElementById('icSearch').addEventListener('keydown', function(e){ if (e.key === 'Enter') icLoad(1); });
