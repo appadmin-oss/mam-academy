@@ -1879,6 +1879,38 @@ $flashErr = $_GET['err'] ?? '';
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta name="csrf-token" content="<?= htmlspecialchars($csrf) ?>">
+<script>
+/* One CSRF helper for every admin POST. The token is the stateless HMAC in the
+   meta tag above; on a long-open tab it can go stale (2h). mamFetch() sends it,
+   and if a request still returns 403 csrf_invalid it fetches a fresh token from
+   /api/csrf (same-origin, so it re-binds to this admin session), writes it back
+   to the meta tag, and retries exactly once — the same self-heal MAM_API does.
+   A csrf_invalid means the request was rejected before it ran, so the retry is
+   safe (no double-effect). */
+(function () {
+  function meta() { return document.querySelector('meta[name=csrf-token]'); }
+  window.mamCsrf = function () { var m = meta(); return (m && m.content) || ''; };
+  window.mamRefreshCsrf = function () {
+    return fetch('/api/csrf', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) { var t = (j && j.token) || '', m = meta(); if (m && t) m.setAttribute('content', t); return t; })
+      .catch(function () { return ''; });
+  };
+  window.mamFetch = function (url, opts) {
+    opts = opts || {};
+    if (!opts.credentials) opts.credentials = 'same-origin';
+    var h = opts.headers || (opts.headers = {});
+    var attempt = function (tok) { h['X-CSRF-Token'] = tok; return fetch(url, opts); };
+    return attempt(window.mamCsrf()).then(function (r) {
+      if (r.status !== 403) return r;
+      return r.clone().json().catch(function () { return {}; }).then(function (j) {
+        if (j && j.error === 'csrf_invalid') return window.mamRefreshCsrf().then(attempt);
+        return r;
+      });
+    });
+  };
+})();
+</script>
 <title>MAM Admin — <?= htmlspecialchars($view) ?></title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <!-- Font Awesome — the dashboard uses fa-* icons throughout (nav, tables, the
@@ -6680,7 +6712,7 @@ nav a{display:flex;align-items:center}
   function api(method, body) {
     var opts = { method: method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]') || {}).content || '' } };
     if (body) opts.body = JSON.stringify(body);
-    return fetch('/api/admin/survey-forms', opts).then(function(r){ return r.json(); });
+    return mamFetch('/api/admin/survey-forms', opts).then(function(r){ return r.json(); });
   }
 
   window.fbLoadForms = function() {
@@ -7215,9 +7247,9 @@ nav a{display:flex;align-items:center}
   }
 
   function icAction(action, cardId, reason) {
-    fetch(API + '/admin/id-cards', {
+    mamFetch(API + '/admin/id-cards', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: action, card_id: cardId, reason: reason }),
     }).then(r => r.json()).then(function(d) {
       if (d.ok) {
@@ -7288,9 +7320,9 @@ nav a{display:flex;align-items:center}
     var reader = new FileReader();
     reader.onerror = function () { msg.textContent = 'Could not read that file.'; };
     reader.onload = function (ev) {
-      fetch(API + '/admin/upload-headshot', {
+      mamFetch(API + '/admin/upload-headshot', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: String(ev.target.result) }),
       }).then(function (r) { return r.json().then(function (d) { return { r: r, d: d }; }); })
         .then(function (x) {
@@ -7311,9 +7343,9 @@ nav a{display:flex;align-items:center}
     if (url && !icPhotoUrlOk(url)) { showToast('Upload a photo, or paste an https:// image URL.', 'error'); return; }
     var btn = document.getElementById('icPhotoSave');
     btn.disabled = true; btn.textContent = 'Saving…';
-    fetch(API + '/admin/id-cards', {
+    mamFetch(API + '/admin/id-cards', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'set_photo', card_id: icPhotoCardId, photo_url: url, sync_avatar: sync, resend: resend }),
     }).then(r => r.json()).then(function (d) {
       btn.disabled = false; btn.textContent = 'Save photo';
@@ -7780,10 +7812,9 @@ window.fineAct = function (fineId, action) {
   if (note === null) return;
   var btn = event.target;
   btn.disabled = true;
-  var csrf = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
-  fetch('/api/admin/fines', {
-    method: 'POST', credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+  mamFetch('/api/admin/fines', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: action, fine_id: fineId, note: note })
   }).then(function (r) { return r.json(); }).then(function (j) {
     if (j.ok) {
@@ -7834,11 +7865,9 @@ window.generateEnrollRef = function (studentId, btn) {
 window.backfillEnrollRefs = function (btn) {
   if (!confirm('Generate MAM/YY/NNN IDs for all active students who don\'t have one yet?')) return;
   btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Working…';
-  var t = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
-  fetch('/api/admin/progress-report', {
+  mamFetch('/api/admin/progress-report', {
     method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': t },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'backfill_refs' })
   }).then(function (r) { return r.json(); }).then(function (j) {
     btn.disabled = false;
