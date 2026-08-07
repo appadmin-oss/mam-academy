@@ -1,0 +1,17 @@
+# Normalise line endings so a Windows round-trip (e.g. editing or re-zipping the
+# tree) can't reintroduce the CRLF churn that otherwise rewrites every line of
+# every file. Text is stored and checked out as LF; binaries are left untouched.
+* text=auto eol=lf
+
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.svg  text eol=lf
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.pdf  binary
+*.zip  binary
