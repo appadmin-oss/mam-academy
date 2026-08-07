@@ -318,6 +318,25 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
        studio and `GET /api/admin/id-cards` do. Covered by `test_card_expiry.php`.
      • Month arithmetic clamps to the end of the target month — `strtotime('+1 month')`
        on the 31st lands in the month AFTER next.
+   - **Trim is 60×85mm so NINE fit an A4 sheet (3×3).** A7 (74×105) could not: 3×74 =
+     222mm is wider than A4, so 9-up was arithmetically impossible at that size. 85/60
+     is within 0.2% of the artwork's 1:√2, so the plate stretches imperceptibly.
+     `aspect-ratio` in id-card.css, `CARD_W_MM`/`CARD_H_MM` in card-export.js and the
+     `@page` width in card.php must change TOGETHER or the PDF stretches every card.
+   - **The default gutter is 2×bleed + 2mm, not 2×bleed.** At exactly 2×bleed the
+     neighbouring bleeds MEET and there is no bare paper anywhere between cards — a
+     cutting guide there is drawn on dark orange artwork and is effectively invisible.
+     The extra 2mm is the white strip the guides live on.
+   - **Cut guides (`cutGuideSegments`) are pure geometry and unit-tested** in
+     `assets/js/card-export.selftest.cjs` (CI runs it). Guides run from the PAPER EDGE
+     inward at both ends of every trim line — so a guillotine can be aligned to two
+     marks before committing — plus a segment through every gutter each line crosses,
+     inset by the bleed so it lands on paper. The invariant the test pins: **no segment
+     ever crosses a card's trim box.** The old scheme was four ticks per card inside the
+     bleed, which overlapped between neighbours, never reached the paper edge, and
+     printed on the adjacent card's artwork. Registration crosshairs in all four sheet
+     corners are identical front and back, so duplex register can be checked against
+     the light before cutting.
    - **Registration photos are stored FIRST-PARTY** (`api/lib/uploads.php`,
      `POST /api/upload/headshot`, `GET /api/media/headshot?k=…`). Cloudinary is still
      used when configured; this is the floor. The original failure: the ONLY persist

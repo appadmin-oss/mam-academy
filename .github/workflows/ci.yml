@@ -53,3 +53,5 @@ jobs:
           done
       - name: Notation capture self-test (pitch detector + segmenter)
         run: node assets/js/notation.selftest.cjs
+      - name: ID card imposition + cut guides self-test
+        run: node assets/js/card-export.selftest.cjs

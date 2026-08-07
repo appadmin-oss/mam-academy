@@ -238,12 +238,12 @@ $safeLogoUrl = $logoUrl !== '' ? htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUB
   .error-box a  { color: #C17B2A; text-decoration: none; font-weight: 600; }
 
   /* Print: suppress controls, keep card colour-accurate. The card is pinned to a
-     real-world width (74mm — A7, the print trim) rather than a pixel guess, so a
+     real-world width (60mm — the print trim) rather than a pixel guess, so a
      home printer produces a card that fits a lanyard holder. */
   @media print {
     body { background: #fff; padding: 0; }
     .card-wrap { max-width: none; }
-    .mam-card { --mam-card-w: 74mm; box-shadow: none; }
+    .mam-card { --mam-card-w: 60mm; box-shadow: none; }
     .card-actions, .card-hint, .card-revoked-banner { display: none; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }

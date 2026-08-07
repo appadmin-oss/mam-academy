@@ -249,8 +249,8 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
     .grid { display: block; padding: 0; column-count: 2; column-gap: 4mm }
     .cell { border: none; background: none; padding: 0; margin: 0 0 4mm; break-inside: avoid; }
     .cell.unsel { display: none }
-    .cell .slot { width: 74mm }
-    .mam-card { --mam-card-w: 74mm !important; box-shadow: none !important; border-radius: 2mm }
+    .cell .slot { width: 60mm }
+    .mam-card { --mam-card-w: 60mm !important; box-shadow: none !important; border-radius: 2mm }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact }
   }
 </style>
@@ -335,20 +335,20 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
     </select></div>
 
   <div class="field"><label for="trimW">Trim width (mm)</label>
-    <input id="trimW" type="number" min="40" max="150" step="0.5" value="74"
+    <input id="trimW" type="number" min="40" max="150" step="0.5" value="60"
       title="Card width on paper. The height follows the artwork's proportion — the background plate is traced art, so forcing a different proportion would stretch it."></div>
 
   <div class="field"><label for="trimH">Trim height</label>
-    <input id="trimH" type="number" value="105" readonly
+    <input id="trimH" type="number" value="85" readonly
       title="Derived from the width to keep the artwork's proportion. Read-only on purpose."
       style="opacity:.65;cursor:not-allowed"></div>
 
   <div class="field"><label for="marginMm">Margin (mm)</label>
-    <input id="marginMm" type="number" min="0" max="40" step="1" value="10"
+    <input id="marginMm" type="number" min="0" max="40" step="1" value="6"
       title="Unprinted border. Most office printers cannot print closer than about 5mm to the paper edge."></div>
 
   <div class="field"><label for="gutterMm">Gutter (mm)</label>
-    <input id="gutterMm" type="number" min="0" max="20" step="0.5" value="6"
+    <input id="gutterMm" type="number" min="0" max="20" step="0.5" value="8"
       title="Gap between neighbouring cards. Should be at least twice the bleed (6mm) or one card's bleed prints over the next card's face."></div>
 
   <div class="field"><label for="flip">Duplex flip</label>
@@ -360,7 +360,7 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
 
   <label class="pick" style="align-self:center"><input type="checkbox" id="withBacks" checked> Include backs (duplex)</label>
   <label class="pick" style="align-self:center"><input type="checkbox" id="verifyOnExport" checked> Verify QR during export</label>
-  <label class="pick" style="align-self:center"><input type="checkbox" id="withMarks" checked> Crop marks</label>
+  <label class="pick" style="align-self:center"><input type="checkbox" id="withMarks" checked> Cut guides</label>
   <label class="pick" style="align-self:center"><input type="checkbox" id="showBacks"> Proof backs on screen</label>
 
   <div class="spacer"></div>
@@ -374,7 +374,7 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
 
 <p class="hint">
   The PDF imposes the selected cards N-up on the chosen sheet at an exact
-  <b>74×105&nbsp;mm</b> trim with
+  <b>60×85&nbsp;mm</b> trim with
   <b>3&nbsp;mm bleed</b>, crop marks and a named CMYK output intent; fronts and backs
   interleave (backs mirrored) so a long-edge duplex run registers. Artwork embeds at
   the chosen DPI and the press RIP separates it against the intent.

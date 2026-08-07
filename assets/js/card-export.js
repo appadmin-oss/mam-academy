@@ -30,8 +30,14 @@
 
   var MM_PER_INCH = 25.4;
   var BLEED_MM = 3;          // industry standard for small-format cards
-  var CARD_W_MM = 74;        // A7 portrait — MUST match id-card.css's aspect-ratio
-  var CARD_H_MM = 105;       // (a mismatch silently stretches every card in the PDF)
+  /* 60×85mm portrait — MUST match id-card.css's aspect-ratio (a mismatch silently
+     stretches every card in the PDF). Chosen so THREE fit across and three down an
+     A4 sheet — 9 per sheet. A7 (74×105) cannot: 3×74 = 222mm exceeds A4's 210mm
+     width, so 9-up was arithmetically impossible at that size. 85/60 = 1.4167 is
+     within 0.16% of the artwork's 1:√2, so the plate stretches imperceptibly, and
+     60×85 drops into a standard 60×90mm badge holder. */
+  var CARD_W_MM = 60;
+  var CARD_H_MM = 85;
 
   /* A sheet an office printer or a print shop will actually accept. */
   var SHEETS = {
@@ -134,7 +140,7 @@
     // soft output but it silently BREAKS the DPI contract: with the studio's
     // 560px export node, any DPI under ~263 clamps to scale 1 and the caller is
     // handed a raster at a resolution it did not ask for, while the PDF still
-    // places it at the 74mm trim. Downscaling a large node is a clean resample;
+    // places it at the 60mm trim. Downscaling a large node is a clean resample;
     // honouring the request is what lets the verify pass test the real artwork.
     return targetPx / cssW;
   }
@@ -352,10 +358,14 @@
     var trimW = opts.trimW_mm || CARD_W_MM;
     var trimH = opts.trimH_mm || CARD_H_MM;
     var bleed = opts.bleed_mm == null ? BLEED_MM : opts.bleed_mm;
-    var margin = opts.margin_mm == null ? 10 : opts.margin_mm;
-    // Neighbours share their bleed, so the default gutter is exactly 2× bleed:
-    // any less and one card's bleed prints over the next card's face.
-    var gutter = opts.gutter_mm == null ? 2 * bleed : opts.gutter_mm;
+    var margin = opts.margin_mm == null ? 6 : opts.margin_mm;
+    /* Gutter = 2×bleed + 2mm. The 2×bleed part is the floor: any less and one
+       card's bleed prints over the next card's face. The extra 2mm is what makes
+       the cut guides usable — at exactly 2×bleed the neighbouring bleeds MEET and
+       there is no bare paper anywhere between cards, so a mid-sheet guide would be
+       drawn on top of artwork and be all but invisible. 2mm of white down the
+       middle of every gutter gives the blade something to line up against. */
+    var gutter = opts.gutter_mm == null ? 2 * bleed + 2 : opts.gutter_mm;
 
     var cellW = trimW + gutter, cellH = trimH + gutter;
     var availW = sheetW - 2 * margin + gutter;
@@ -392,6 +402,87 @@
      named output intent. Fronts and backs go on interleaved sheets in the same
      grid position so a duplex run registers, and long-edge flipping is handled by
      mirroring each back row horizontally.  */
+  /**
+   * Where the cutting guides go, in mm. PURE geometry so it can be reasoned about
+   * and unit-tested (assets/js/card-export.selftest.cjs) without a PDF engine.
+   *
+   * The old marks were four short ticks per card, sitting in the bleed. Three
+   * problems with that for anyone actually cutting a sheet:
+   *   • Adjacent cards' ticks landed in the same gutter and overlapped, so a
+   *     3×3 sheet had a confusing double set of marks between every pair.
+   *   • Nothing reached the paper edge, so there was no way to line a guillotine
+   *     blade up with a cut before committing to it.
+   *   • With gutter == 2×bleed the ticks were printed ON the neighbour's bleed
+   *     artwork, which is dark orange here — a black hairline on orange is close
+   *     to invisible.
+   *
+   * What this produces instead, for every trim line on the sheet:
+   *   • a guide running from the PAPER EDGE inward to just short of the grid, at
+   *     both ends of the line — align the blade to two marks and the cut is true;
+   *   • a guide through every gutter it crosses, inset by the bleed so it lands on
+   *     bare paper rather than on artwork (this is what the extra 2mm of default
+   *     gutter buys).
+   * Nothing is ever drawn across a card. Every segment is either in a margin or in
+   * the white centre of a gutter.
+   *
+   * @returns {Array<{x1:number,y1:number,x2:number,y2:number}>}
+   */
+  function cutGuideSegments(plan, opts) {
+    opts = opts || {};
+    var gap = opts.gap_mm == null ? 1 : opts.gap_mm;   // clear space beside the artwork
+    var bleed = plan.bleed;
+    var segs = [];
+    if (!plan.cols || !plan.rows) return segs;
+
+    var cellW = plan.trimW + plan.gutter, cellH = plan.trimH + plan.gutter;
+    var gridL = plan.originX, gridR = plan.originX + plan.gridW;
+    var gridT = plan.originY, gridB = plan.originY + plan.gridH;
+
+    // Every vertical trim line (left and right edge of each column)…
+    var xs = [], ys = [], c, r;
+    for (c = 0; c < plan.cols; c++) {
+      xs.push(plan.originX + c * cellW);
+      xs.push(plan.originX + c * cellW + plan.trimW);
+    }
+    for (r = 0; r < plan.rows; r++) {
+      ys.push(plan.originY + r * cellH);
+      ys.push(plan.originY + r * cellH + plan.trimH);
+    }
+
+    function push(x1, y1, x2, y2) {
+      // Skip anything that rounds away to nothing — a zero-length line is a dot of
+      // ink in the margin and nothing else.
+      if (Math.abs(x2 - x1) < 0.2 && Math.abs(y2 - y1) < 0.2) return;
+      segs.push({ x1: x1, y1: y1, x2: x2, y2: y2 });
+    }
+
+    xs.forEach(function (x) {
+      // Top and bottom margins, running to the paper edge.
+      push(x, 0, x, Math.max(0, gridT - gap));
+      push(x, Math.min(plan.sheetH, gridB + gap), x, plan.sheetH);
+      // Through each gutter BETWEEN rows, inset by the bleed so it is on paper.
+      for (r = 0; r < plan.rows - 1; r++) {
+        var yb = plan.originY + r * cellH + plan.trimH;   // this row's bottom trim
+        var yt = yb + plan.gutter;                        // next row's top trim
+        push(x, yb + bleed, x, yt - bleed);
+      }
+    });
+
+    ys.forEach(function (y) {
+      // Left and right margins, running to the paper edge.
+      push(0, y, Math.max(0, gridL - gap), y);
+      push(Math.min(plan.sheetW, gridR + gap), y, plan.sheetW, y);
+      // Through each gutter BETWEEN columns.
+      for (c = 0; c < plan.cols - 1; c++) {
+        var xr = plan.originX + c * cellW + plan.trimW;
+        var xl = xr + plan.gutter;
+        push(xr + bleed, y, xl - bleed, y);
+      }
+    });
+
+    return segs;
+  }
+
   function buildPDF(faces, opts) {
     opts = opts || {};
     var jsPDF = _deps.jsPDF;
@@ -415,11 +506,32 @@
 
     var doc = new jsPDF({ unit: 'mm', format: [plan.sheetW, plan.sheetH], compress: true });
 
-    function markAt(x, y, len, horizontal) {
-      doc.setLineWidth(0.12);
+    /* Cut guides + a registration target, drawn once per sheet. 0.1mm is a
+       hairline that a laser reproduces cleanly without becoming a visible band. */
+    function drawGuides() {
+      doc.setLineWidth(0.1);
       doc.setDrawColor(0);
-      if (horizontal) doc.line(x, y, x + len, y);
-      else            doc.line(x, y, x, y + len);
+      var segs = cutGuideSegments(plan, {});
+      for (var i = 0; i < segs.length; i++) {
+        doc.line(segs[i].x1, segs[i].y1, segs[i].x2, segs[i].y2);
+      }
+    }
+
+    /* A crosshair-in-a-circle in each sheet corner. Identical on the front and the
+       back sheet, so an operator can hold the pair to the light and see instantly
+       whether the duplex run is in register — before cutting 9 cards in half. */
+    function drawRegistration() {
+      var inset = Math.min(plan.margin, 8) / 2 + 2;
+      var rad = 1.6;
+      doc.setLineWidth(0.1);
+      doc.setDrawColor(0);
+      [[inset, inset], [plan.sheetW - inset, inset],
+       [inset, plan.sheetH - inset], [plan.sheetW - inset, plan.sheetH - inset]]
+      .forEach(function (p) {
+        doc.circle(p[0], p[1], rad);
+        doc.line(p[0] - rad - 1.2, p[1], p[0] + rad + 1.2, p[1]);
+        doc.line(p[0], p[1] - rad - 1.2, p[0], p[1] + rad + 1.2);
+      });
     }
 
     function placeSheet(list, isBack, sheetIndex) {
@@ -441,15 +553,8 @@
         doc.addImage(f.dataUrl, f.dataUrl.indexOf('image/png') > 0 ? 'PNG' : 'JPEG',
           trimX - bleed, trimY - bleed, trimW + 2 * bleed, trimH + 2 * bleed, undefined, 'FAST');
 
-        if (marks) {
-          var g = 1.2, len = bleed - 0.4 > 1 ? bleed - 0.4 : 1.6;
-          // Four corners, outside the trim so a mark is never printed on the card.
-          markAt(trimX - g - len, trimY, len, true);   markAt(trimX + trimW + g, trimY, len, true);
-          markAt(trimX - g - len, trimY + trimH, len, true); markAt(trimX + trimW + g, trimY + trimH, len, true);
-          markAt(trimX, trimY - g - len, len, false);  markAt(trimX, trimY + trimH + g, len, false);
-          markAt(trimX + trimW, trimY - g - len, len, false); markAt(trimX + trimW, trimY + trimH + g, len, false);
-        }
       }
+      if (marks) { drawGuides(); drawRegistration(); }
       // Slug: what this sheet is, so a stack of proofs stays identifiable.
       doc.setFontSize(6);
       doc.setTextColor(120);
@@ -519,6 +624,7 @@
     zipStore: zipStore,
     buildImpositionPDF: buildImpositionPDF,
     planImposition: planImposition,
+    cutGuideSegments: cutGuideSegments,
     dataUrlToBytes: dataUrlToBytes,
     download: download,
     SHEETS: SHEETS,

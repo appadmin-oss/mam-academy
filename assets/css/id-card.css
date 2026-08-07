@@ -23,8 +23,9 @@
    html2canvas handles it correctly, so screen and print agree.
 
    ── Geometry, measured from the artwork ──────────────────────────────────
-   Card is A7 — 74×105mm, the print trim, and a standard lanyard/badge size.
-   The designer's artwork is 1414×2000 (1:√2); A7 is within 0.3% of that, so the
+   Card is 60×85mm — the print trim, chosen so NINE fit an A4 sheet (3×3). A7
+   (74×105) could not: 3×74 = 222mm is wider than A4. Fits a 60×90mm holder.
+   The designer's artwork is 1414×2000 (1:√2); 60×85 is within 0.2% of that, so the
    plate stretches imperceptibly and screen, plate and print all agree on ONE
    ratio. aspect-ratio here, CARD_W_MM/CARD_H_MM in card-export.js and the @page
    sizing in card.php must be changed together or the PDF distorts the card.
@@ -53,7 +54,7 @@
 
   position: relative;
   width: var(--mam-card-w);
-  aspect-ratio: 74 / 105;         /* A7 — the print trim, within 0.3% of the artwork's 1:√2 */
+  aspect-ratio: 60 / 85;          /* the print trim; 9 of these fit an A4 sheet */
   background: var(--mam-orange) url('/assets/img/idcard/front-plate.png') center / 100% 100% no-repeat;
   border-radius: calc(var(--mam-card-w) * 0.045);
   overflow: hidden;
@@ -334,7 +335,7 @@
    and the barcode 92.4→96%. Grow any one and it collides with the next — the URL
    ran straight through the bars before this was worked out, and the caption sat
    on top of the signature before that. The barcode's 4% bottom margin is 4.2mm
-   at the 105mm trim, i.e. outside the 3mm safe zone. */
+   at the 85mm trim, i.e. outside the 3mm safe zone. */
 .mam-card__found {
   position: absolute;
   top: 77.5%;
