@@ -318,6 +318,31 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
        studio and `GET /api/admin/id-cards` do. Covered by `test_card_expiry.php`.
      • Month arithmetic clamps to the end of the target month — `strtotime('+1 month')`
        on the 31st lands in the month AFTER next.
+   - **Registration photos are stored FIRST-PARTY** (`api/lib/uploads.php`,
+     `POST /api/upload/headshot`, `GET /api/media/headshot?k=…`). Cloudinary is still
+     used when configured; this is the floor. The original failure: the ONLY persist
+     path was an unsigned browser upload to Cloudinary, and `headshot.js` decided
+     whether Cloudinary was configured by reading `MAM_CONFIG.cdn` — which arrives via
+     an ASYNC fetch of `/api/config/public`. An applicant who picked a photo before
+     that landed was judged "not configured" **even when it was**, and the widget then
+     showed a green "✓ Photo accepted" and uploaded NOTHING: empty `headshotUrl`,
+     no photo in the DB, faceless printed card. `configReady()` now waits for
+     `mam:config` (4s cap) before choosing, and there is no branch that reports success
+     without a stored URL. Files live outside the web root and are re-encoded by GD
+     (a renamed script cannot decode, so it cannot land); both form validators accept
+     our own `/api/media/headshot` URLs — without that the stored photo is dropped on
+     the way into the DB, reproducing the original bug. Covered by `test_uploads.php`.
+   - **Three html2canvas render traps, each measured from a real print run:**
+     • `addBleed` must sample a strip a few px INSIDE the artwork. html2canvas
+       anti-aliases the element boundary against the canvas backdrop, so the outermost
+       row is a BLEND — replicating it put a uniform pale-peach frame on all four
+       sides of every card (measured: bottom row `rgb(250,239,230)` where the artwork
+       3px in is pure orange `rgb(240,127,38)`).
+     • No `background` on a child of a rounded, `overflow:hidden` parent —
+       html2canvas does not clip it, so the initials disc printed as a square
+       overlapping the circle. Put the fill on the rounded element itself.
+     • No `writing-mode: vertical-rl` — unimplemented; every glyph landed on top of
+       the next and the printed expiry was a smudge. Use `transform: rotate(90deg)`.
    - Vendored on demand, self-hosted for CSP: html2canvas, jsPDF, jsQR
      (`assets/js/vendor/`, licences in `vendor/licenses/README.md`), ~700KB, loaded only
      when an admin exports.

@@ -166,18 +166,30 @@
     g.fillRect(0, 0, out.width, out.height);
     g.imageSmoothingEnabled = false;   // replication must not blur the edge colour
 
+    /* Sample the strip a few pixels INSIDE the artwork, never the outermost row.
+       html2canvas anti-aliases the element's own boundary against the canvas
+       backdrop (sub-pixel rounding of width*scale, plus any corner radius), so the
+       extreme row is a BLEND, not the artwork colour. Replicating it produced a
+       uniform pale-peach frame on all four sides of every printed card — measured:
+       row 0 came out rgb(243,242,239) and the bottom row rgb(250,239,230) where the
+       artwork 3px in is pure cream rgb(253,252,249) and pure orange rgb(240,127,38).
+       An inset of INSET px is invisible on the trimmed card (it is inside the bleed,
+       which the guillotine removes) and gives a true edge colour. */
+    var INSET = Math.min(3, Math.max(1, Math.floor(Math.min(cw, ch) / 200)));
+
     // The artwork itself, unscaled and centred.
     g.drawImage(canvas, bleedPx, bleedPx);
-    // Four edges, each a 1px strip stretched outward.
-    g.drawImage(canvas, 0, 0, cw, 1, bleedPx, 0, cw, bleedPx);                     // top
-    g.drawImage(canvas, 0, ch - 1, cw, 1, bleedPx, bleedPx + ch, cw, bleedPx);     // bottom
-    g.drawImage(canvas, 0, 0, 1, ch, 0, bleedPx, bleedPx, ch);                     // left
-    g.drawImage(canvas, cw - 1, 0, 1, ch, bleedPx + cw, bleedPx, bleedPx, ch);     // right
-    // Four corners, from the single corner pixel.
-    g.drawImage(canvas, 0, 0, 1, 1, 0, 0, bleedPx, bleedPx);
-    g.drawImage(canvas, cw - 1, 0, 1, 1, bleedPx + cw, 0, bleedPx, bleedPx);
-    g.drawImage(canvas, 0, ch - 1, 1, 1, 0, bleedPx + ch, bleedPx, bleedPx);
-    g.drawImage(canvas, cw - 1, ch - 1, 1, 1, bleedPx + cw, bleedPx + ch, bleedPx, bleedPx);
+    // Four edges: a 1px strip taken INSET px in, stretched outward — and drawn to
+    // cover the inset band too, so the blended outer row is overpainted.
+    g.drawImage(canvas, 0, INSET, cw, 1, bleedPx, 0, cw, bleedPx + INSET);                                  // top
+    g.drawImage(canvas, 0, ch - 1 - INSET, cw, 1, bleedPx, bleedPx + ch - INSET, cw, bleedPx + INSET);      // bottom
+    g.drawImage(canvas, INSET, 0, 1, ch, 0, bleedPx, bleedPx + INSET, ch);                                  // left
+    g.drawImage(canvas, cw - 1 - INSET, 0, 1, ch, bleedPx + cw - INSET, bleedPx, bleedPx + INSET, ch);      // right
+    // Four corners, from the pixel INSET in on both axes.
+    g.drawImage(canvas, INSET, INSET, 1, 1, 0, 0, bleedPx + INSET, bleedPx + INSET);
+    g.drawImage(canvas, cw - 1 - INSET, INSET, 1, 1, bleedPx + cw - INSET, 0, bleedPx + INSET, bleedPx + INSET);
+    g.drawImage(canvas, INSET, ch - 1 - INSET, 1, 1, 0, bleedPx + ch - INSET, bleedPx + INSET, bleedPx + INSET);
+    g.drawImage(canvas, cw - 1 - INSET, ch - 1 - INSET, 1, 1, bleedPx + cw - INSET, bleedPx + ch - INSET, bleedPx + INSET, bleedPx + INSET);
     return out;
   }
 

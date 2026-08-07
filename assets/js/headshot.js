@@ -24,6 +24,27 @@
     return (window.MAM_CONFIG && window.MAM_CONFIG.cdn) || {};
   }
 
+  /* Cloudinary's cloud name and preset are admin settings delivered by an ASYNC
+     fetch of /api/config/public (config.js patches MAM_CONFIG.cdn, then fires
+     `mam:config`). Nothing here used to wait for it, so an applicant who picked a
+     photo before that landed was judged "Cloudinary not configured" even when it
+     WAS — and the old else-branch then said "✓ Photo accepted" and uploaded
+     nothing. Resolve as soon as the config arrives, or give up after a beat and
+     let the caller fall back to first-party storage. */
+  var _cfgReady = null;
+  function configReady() {
+    if (_cfgReady) return _cfgReady;
+    _cfgReady = new Promise(function (resolve) {
+      var c = cdnCfg();
+      if (c.cloudName && c.uploadPreset) return resolve(cdnCfg());
+      var done = false;
+      var fin = function () { if (!done) { done = true; resolve(cdnCfg()); } };
+      document.addEventListener('mam:config', fin, { once: true });
+      setTimeout(fin, 4000);
+    });
+    return _cfgReady;
+  }
+
   /* Detect a face in an image element. Resolves to { ok, reason, quality } */
   function detectFace(img) {
     if (typeof window.FaceDetector === 'function') {
@@ -61,6 +82,33 @@
       if (avg > 248) return { ok: false, reason: 'Photo is overexposed — try in softer lighting.', quality: 'overexposed' };
     } catch (e) { /* canvas tainted / unavailable — accept anyway */ }
     return { ok: true, reason: null, quality: 'good' };
+  }
+
+  /* Store the photo on OUR OWN server. This is the floor that guarantees a
+     registration photo is never lost: previously, with Cloudinary unconfigured the
+     widget said "✓ Photo accepted", uploaded nothing, and the form submitted an
+     empty headshotUrl — the academy got a registration with no photograph and
+     printed a faceless ID card. Resolves to { url } (a same-origin
+     /api/media/headshot?k=… URL the form submits exactly like a Cloudinary one). */
+  function uploadToOwnServer(dataUrl) {
+    var api = (window.MAM_CONFIG && window.MAM_CONFIG.apiBase) || '/api';
+    var headers = { 'Content-Type': 'application/json' };
+    // The MAM_API client owns CSRF; fall back to the meta token for standalone use.
+    var tok = (window.MAM_API && window.MAM_API.csrfToken && window.MAM_API.csrfToken())
+           || (document.querySelector('meta[name="csrf-token"]') || {}).content;
+    if (tok) headers['X-CSRF-Token'] = tok;
+    return fetch(api + '/upload/headshot', {
+      method: 'POST', credentials: 'same-origin', headers: headers,
+      body: JSON.stringify({ image: dataUrl })
+    }).then(function (r) {
+      return r.json().catch(function () { throw new Error('Upload response unreadable'); })
+        .then(function (j) {
+          if (!r.ok || !j || j.ok === false || !j.url) {
+            throw new Error((j && (j.detail || j.message)) || 'Could not save the photo.');
+          }
+          return { url: j.url, publicId: null };
+        });
+    });
   }
 
   /* Upload to Cloudinary unsigned. Resolves to { url, publicId }. */
@@ -225,7 +273,7 @@
               setStatus(ui.sl, 'err', null, res.reason || 'Photo check failed');
               emit(); return;
             }
-            var c = cdnCfg();
+            configReady().then(function (c) {
             if (c.cloudName && c.uploadPreset) {
               state.uploading = true;
               setStatus(ui.sl, 'busy', '<span class="mam-hs-spin"></span>', 'Uploading…');
@@ -242,14 +290,27 @@
                 setStatus(ui.sl, 'err', null, state.error);
                 emit();
               });
-            } else if (c.cloudName && !c.uploadPreset) {
-              state.error = 'Upload preset not configured — set cloudinary_upload_preset in admin Settings → CDN.';
-              setStatus(ui.sl, 'err', null, 'Upload not configured (missing preset)');
-              emit();
             } else {
-              setStatus(ui.sl, 'ok', null, '✓ Photo accepted');
+              /* No usable Cloudinary config — store it on our own server instead of
+                 pretending. The old branch here showed a green "✓ Photo accepted"
+                 and uploaded NOTHING, which is why registrations arrived with no
+                 photograph and cards printed faceless. */
+              state.uploading = true;
+              setStatus(ui.sl, 'busy', '<span class="mam-hs-spin"></span>', 'Saving photo…');
               emit();
+              uploadToOwnServer(src).then(function (r) {
+                state.uploading = false; state.uploaded = r; state.error = null;
+                ui.bar.style.width = '100%';
+                setStatus(ui.sl, 'ok', null, '✓ Saved');
+                emit();
+              }).catch(function (e) {
+                state.uploading = false;
+                state.error = e.message || 'Could not save the photo.';
+                setStatus(ui.sl, 'err', null, state.error);
+                emit();
+              });
             }
+            });
           });
         };
         imgEl.onerror = function () {

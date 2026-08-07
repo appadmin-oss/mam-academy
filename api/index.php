@@ -80,6 +80,10 @@ $r->get ('/scholarship/status', $f('scholarship-status.php'), [mw_rate_limit('sc
 // Public applicant status lookup (reference + matching email; rate-limited).
 $r->get ('/application/status', $f('application/status.php'), [mw_rate_limit('app_status', 30, 600)]);
 // Summer Programme — public application form + status lookup.
+// First-party headshot storage. Public because applicants are not signed in when
+// they register; CSRF + a tight rate limit + GD re-encoding are the controls.
+$r->post('/upload/headshot', $f('upload-headshot.php'), [mw_csrf(), mw_rate_limit('upload_headshot', 12, 600)]);
+$r->get ('/media/headshot',  $f('media-headshot.php'),  [mw_rate_limit('media_headshot', 400, 600)]);
 $r->post('/summer/apply',  $f('summer/apply.php'),  [mw_csrf(), mw_rate_limit('summer_apply', 8, 600)]);
 $r->get ('/summer/status', $f('summer/status.php'), [mw_rate_limit('summer_status', 30, 600)]);
 // Gated tuition lookup for the /tuition payment page (reference + matching email).

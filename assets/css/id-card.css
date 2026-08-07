@@ -118,7 +118,9 @@
   aspect-ratio: 1;
   border-radius: 50%;
   overflow: hidden;
-  background: #E4DACA;
+  /* Flat, not a gradient: this is the disc behind the initials when a student has
+     no photograph, and it must survive rasterising (see .mam-card__initials). */
+  background: #BC9A6E;
   z-index: 5;
 }
 .mam-card__photo img {
@@ -133,7 +135,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(150deg, #C9A87C, #A98457);
+  /* NO gradient, and no background on this child at all — the tint lives on the
+     rounded parent (.mam-card__photo). html2canvas does not clip a child's
+     background to a rounded ancestor, so a gradient here printed as a SQUARE
+     overlapping the circle: the initials disc came out as two mismatched shapes.
+     Painting the parent instead means html2canvas clips it correctly, because it
+     does honour border-radius on an element's own background. */
+  background: transparent;
   font-family: 'Barlow Condensed', 'Arial Narrow', Impact, sans-serif;
   font-weight: 800;
   font-style: italic;
@@ -226,7 +234,13 @@
   right: calc(var(--mam-card-w) * 0.022);
   top: 56%;
   z-index: 6;
-  writing-mode: vertical-rl;
+  /* rotate(), NOT writing-mode: html2canvas does not implement vertical writing
+     modes and laid every glyph out on top of the next — the printed expiry came
+     out as an overlapping smudge. A transform on a normally-laid-out inline block
+     rasterises correctly. transform-origin keeps it pinned to the right edge. */
+  transform: rotate(90deg);
+  transform-origin: 100% 0;
+  white-space: nowrap;
   font-size: calc(var(--mam-card-w) * 0.040);
   font-weight: 500;
   letter-spacing: 0.10em;

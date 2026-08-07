@@ -476,12 +476,24 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
     $year  = (int)($app['session_year'] ?? 0) ?: (int)date('Y');
 
     // 1. Roster identity — reuse any existing account for this email as-is.
-    $user = mam_db_row('SELECT id FROM users WHERE LOWER(email) = ?', [$email]);
+    $user = mam_db_row('SELECT id, avatar_url FROM users WHERE LOWER(email) = ?', [$email]);
     if ($user) {
         $userId = (int)$user['id'];
+        // Backfill a missing avatar from the registration headshot — never overwrite
+        // one the student chose for themselves.
+        $hs = (string)($app['headshot_url'] ?? '');
+        if ($hs !== '' && empty($user['avatar_url'])) {
+            try { mam_db_update('users', ['avatar_url' => $hs], ['id' => $userId]); }
+            catch (Throwable $e) { /* cosmetic only */ }
+        }
     } else {
         $userId = mam_db_insert('users', [
             'email' => $email,
+            // Carry the registration headshot onto the roster identity, so the
+            // portal avatar AND the ID card both have a face. Without this the photo
+            // stayed only on summer_applications, and a card minted against the USER
+            // rather than the application printed initials.
+            'avatar_url' => (string)($app['headshot_url'] ?? '') !== '' ? (string)$app['headshot_url'] : null,
             // Not a valid hash, so password_verify() can never match it. The
             // status gate above is the real lock; this is defence in depth.
             'password_hash' => 'roster:' . bin2hex(random_bytes(16)),

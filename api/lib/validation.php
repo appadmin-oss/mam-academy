@@ -350,6 +350,14 @@ function mam_validate_application(array $in): array {
     // host so we don't store user-controlled redirects in the DB.
     $hs = mam_str($in, 'headshotUrl', 500);
     if ($hs !== '') {
+        // Our OWN stored photo (/api/media/headshot?k=…) is first-party and
+        // same-origin — it must be accepted, or every upload that did not go to
+        // Cloudinary is silently dropped here and the registration arrives with no
+        // photograph. That is the failure this whole path exists to prevent.
+        if (function_exists('mam_upload_is_own_url') && mam_upload_is_own_url($hs)) {
+            $out['headshotUrl'] = $hs;
+            return $out;
+        }
         $valid = filter_var($hs, FILTER_VALIDATE_URL) && stripos($hs, 'https://') === 0;
         $host = $valid ? parse_url($hs, PHP_URL_HOST) : '';
         $allowedHosts = ['res.cloudinary.com'];
@@ -566,9 +574,16 @@ function mam_validate_summer_application(array $src): array {
     $rawHs = trim((string)($src['headshotUrl'] ?? ''));
     $headshotUrl = '';
     if ($rawHs !== '') {
-        $hsUrl = filter_var($rawHs, FILTER_VALIDATE_URL);
-        if ($hsUrl && preg_match('#^https://#i', $hsUrl)) {
-            $headshotUrl = substr($hsUrl, 0, 500);
+        // Same-origin first-party storage, or an https URL. Without the first
+        // clause a locally-stored headshot is dropped and the summer applicant's
+        // ID card prints faceless.
+        if (function_exists('mam_upload_is_own_url') && mam_upload_is_own_url($rawHs)) {
+            $headshotUrl = substr($rawHs, 0, 500);
+        } else {
+            $hsUrl = filter_var($rawHs, FILTER_VALIDATE_URL);
+            if ($hsUrl && preg_match('#^https://#i', $hsUrl)) {
+                $headshotUrl = substr($hsUrl, 0, 500);
+            }
         }
     }
 
