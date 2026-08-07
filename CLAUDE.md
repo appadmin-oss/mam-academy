@@ -337,6 +337,35 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      printed on the adjacent card's artwork. Registration crosshairs in all four sheet
      corners are identical front and back, so duplex register can be checked against
      the light before cutting.
+   - **Prepress practices adopted from the NGG reference** (`vendor/card-export.js`
+     in the staff-desk codebase — worth re-reading before changing the exporter):
+     • **Marks are drawn in REGISTRATION colour, not black.** RGB/grey black
+       separates to the K plate ONLY, so on a four-colour job the C/M/Y plates carry
+       no marks and the operator cannot check register against them. jsPDF expresses
+       100%-of-every-plate as a four-channel `setDrawColor(1,1,1,1)`, which it writes
+       as a PDF `K` operator. Asserted in the self-test.
+     • **0.25pt hairline** (the Illustrator/InDesign default). Note jsPDF states
+       widths in POINTS in the stream, so 0.0882mm appears as `0.25 w`.
+     • **MediaBox + TrimBox + BleedBox on every page.** jsPDF writes only a
+       MediaBox; the boxes are the first thing an imposition RIP reads. An imposed
+       sheet is a PRESS sheet, so its TrimBox is the sheet and the individual card
+       trims are carried by the cut guides — stated explicitly so no RIP guesses.
+     • **A SHORT-edge (work-and-tumble) duplex flip must also turn the art 180°.**
+       Mirroring rows is not enough: tumbling puts the card's head at the sheet's
+       foot, so every back prints upside down. Fixed by pre-rotating the raster
+       (`rotate180`) rather than jsPDF's addImage rotation, which turns about the
+       anchor and would need a compensating offset. Long-edge keeps the art upright,
+       which is why it is the default.
+     • Also independently agreed with the reference: marks must never sit inside a
+       bleed, and generated bleed should CLAMP (replicate the edge) rather than
+       mirror, since a mirrored motif reads as a printing error.
+     • NOT adopted: ISO 19593-1:2018 processing-step OCG layers (switchable
+       artwork/marks/slug layers tagged with /GTS_Metadata) and the CMYK control
+       strip. Both are real prepress wins for a commercial run; both need jsPDF
+       internals (`putXobjectDict`, `/OCProperties`) and a structural check on the
+       output. Standard 4mm offset crop marks were also not added: at 9-up on A4 the
+       margin is only 7mm and a standard mark needs bleed+gap+len = 8.5mm, so the
+       edge-reaching guides serve that purpose instead.
    - **Registration photos are stored FIRST-PARTY** (`api/lib/uploads.php`,
      `POST /api/upload/headshot`, `GET /api/media/headshot?k=…`). Cloudinary is still
      used when configured; this is the floor. The original failure: the ONLY persist

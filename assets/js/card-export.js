@@ -29,6 +29,10 @@
   'use strict';
 
   var MM_PER_INCH = 25.4;
+  var PT_PER_MM = 72 / 25.4;
+  /* Printer-mark weight: 0.25pt, the Illustrator/InDesign default hairline —
+     thin enough not to read as a band, thick enough for a laser to hold. */
+  var MARK_W_MM = 0.25 / PT_PER_MM;
   var BLEED_MM = 3;          // industry standard for small-format cards
   /* 60×85mm portrait — MUST match id-card.css's aspect-ratio (a mismatch silently
      stretches every card in the PDF). Chosen so THREE fit across and three down an
@@ -504,13 +508,27 @@
     // 'none'  — single-sided runs, or a duplex press that needs no mirroring.
     var flip = opts.flip || 'long';
 
-    var doc = new jsPDF({ unit: 'mm', format: [plan.sheetW, plan.sheetH], compress: true });
+    /* compress:false is a debugging affordance — an uncompressed content stream can
+       be read straight out of the bytes, which is how the mark colour and hairline
+       weight are verified. Production always compresses. */
+    var doc = new jsPDF({ unit: 'mm', format: [plan.sheetW, plan.sheetH], compress: opts.compress !== false });
 
     /* Cut guides + a registration target, drawn once per sheet. 0.1mm is a
        hairline that a laser reproduces cleanly without becoming a visible band. */
+    /* Registration colour — 100% of every plate — NOT RGB black. A black mark
+       separates to the K plate ONLY, so on a four-colour job the cyan, magenta and
+       yellow plates carry no marks at all and the operator cannot check register
+       against them. jsPDF emits a CMYK stroke (`1 1 1 1 K`) when setDrawColor is
+       given four channels. (A true /Separation "All" colorant is the textbook
+       answer; 400% CMYK is the practical approximation jsPDF can express, and it
+       images on all four separations, which is the point.) */
+    function registrationStroke() {
+      doc.setLineWidth(MARK_W_MM);
+      doc.setDrawColor(1, 1, 1, 1);
+    }
+
     function drawGuides() {
-      doc.setLineWidth(0.1);
-      doc.setDrawColor(0);
+      registrationStroke();
       var segs = cutGuideSegments(plan, {});
       for (var i = 0; i < segs.length; i++) {
         doc.line(segs[i].x1, segs[i].y1, segs[i].x2, segs[i].y2);
@@ -523,8 +541,7 @@
     function drawRegistration() {
       var inset = Math.min(plan.margin, 8) / 2 + 2;
       var rad = 1.6;
-      doc.setLineWidth(0.1);
-      doc.setDrawColor(0);
+      registrationStroke();
       [[inset, inset], [plan.sheetW - inset, inset],
        [inset, plan.sheetH - inset], [plan.sheetW - inset, plan.sheetH - inset]]
       .forEach(function (p) {
@@ -532,6 +549,28 @@
         doc.line(p[0] - rad - 1.2, p[1], p[0] + rad + 1.2, p[1]);
         doc.line(p[0], p[1] - rad - 1.2, p[0], p[1] + rad + 1.2);
       });
+    }
+
+    /* MediaBox / TrimBox / BleedBox. These are the first thing an imposition RIP
+       reads, and jsPDF writes only a MediaBox on its own. An IMPOSED sheet is a
+       press sheet: the sheet itself is what gets trimmed, and the individual card
+       trims are carried by the cut guides — so TrimBox and BleedBox are the sheet.
+       Stating them explicitly stops a RIP guessing. Coordinates are PDF points with
+       the origin at the bottom-left, hence the y flip. */
+    function setPageBoxes() {
+      try {
+        var info = doc.internal.getPageInfo(doc.internal.getNumberOfPages());
+        if (!info || !info.pageContext) return;
+        var box = function (x0, y0, x1, y1) {
+          return {
+            bottomLeftX: x0 * PT_PER_MM, bottomLeftY: (plan.sheetH - y1) * PT_PER_MM,
+            topRightX:   x1 * PT_PER_MM, topRightY:   (plan.sheetH - y0) * PT_PER_MM,
+          };
+        };
+        info.pageContext.mediaBox = box(0, 0, plan.sheetW, plan.sheetH);
+        info.pageContext.trimBox  = box(0, 0, plan.sheetW, plan.sheetH);
+        info.pageContext.bleedBox = box(0, 0, plan.sheetW, plan.sheetH);
+      } catch (e) { /* metadata only — never fail an export over it */ }
     }
 
     function placeSheet(list, isBack, sheetIndex) {
@@ -555,6 +594,7 @@
 
       }
       if (marks) { drawGuides(); drawRegistration(); }
+      setPageBoxes();
       // Slug: what this sheet is, so a stack of proofs stays identifiable.
       doc.setFontSize(6);
       doc.setTextColor(120);
@@ -593,8 +633,47 @@
     };
   }
 
+  /* Rotate a rasterised face 180°. Pre-rotating the pixels keeps the PDF
+     placement maths identical for every card (jsPDF's own addImage rotation turns
+     about the anchor point, so it also needs a compensating offset — easy to get
+     subtly wrong, and wrong here means a whole run of upside-down backs). */
+  function rotate180(shot) {
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        var g = c.getContext('2d');
+        g.translate(c.width, c.height);
+        g.rotate(Math.PI);
+        g.drawImage(img, 0, 0);
+        var isPng = shot.dataUrl.indexOf('image/png') > 0;
+        resolve(Object.assign({}, shot, {
+          dataUrl: c.toDataURL(isPng ? 'image/png' : 'image/jpeg', 0.95),
+        }));
+      };
+      // If it will not decode there is nothing to rotate; ship it as-is rather
+      // than losing the card from the sheet.
+      img.onerror = function () { resolve(shot); };
+      img.src = shot.dataUrl;
+    });
+  }
+
   async function buildImpositionPDF(faces, opts) {
     await ensureDeps();
+    opts = opts || {};
+    /* A SHORT-edge (work-and-tumble) flip turns the sheet about its short axis, so
+       the card that was at the head of the sheet comes back at the foot: mirroring
+       rows is not enough, the artwork itself must be turned 180° or every back
+       prints upside down relative to its front. Long-edge (work-and-turn) keeps
+       the art upright, which is why it is the default. */
+    if (opts.backs && opts.flip === 'short') {
+      var turned = [];
+      for (var i = 0; i < opts.backs.length; i++) {
+        turned.push(opts.backs[i] ? await rotate180(opts.backs[i]) : null);
+      }
+      opts = Object.assign({}, opts, { backs: turned });
+    }
     return buildPDF(faces, opts);
   }
 
@@ -625,12 +704,14 @@
     buildImpositionPDF: buildImpositionPDF,
     planImposition: planImposition,
     cutGuideSegments: cutGuideSegments,
+    rotate180: rotate180,
     dataUrlToBytes: dataUrlToBytes,
     download: download,
     SHEETS: SHEETS,
     INTENTS: INTENTS,
     MM_PER_INCH: MM_PER_INCH,
     BLEED_MM: BLEED_MM,
+    MARK_W_MM: MARK_W_MM,
     CARD_W_MM: CARD_W_MM,
     CARD_H_MM: CARD_H_MM,
   };

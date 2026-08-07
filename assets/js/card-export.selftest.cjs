@@ -126,5 +126,36 @@ eq(landCross, 0, 'no guide crosses a card in landscape either');
 var a3 = CE.planImposition(1, { sheet: 'A3' });
 ok(a3.perSheet >= 9, 'A3 fits at least as many as A4 (' + a3.perSheet + ')');
 
+
+/* ── Printer-mark rendering, per the reference's prepress rules ────────────── */
+console.log('▸ printer marks');
+// 0.25pt is the Illustrator/InDesign default hairline.
+ok(Math.abs(CE.MARK_W_MM - 0.25 / (72 / 25.4)) < 1e-9, 'mark weight is 0.25pt expressed in mm (' + CE.MARK_W_MM.toFixed(4) + ')');
+
+/* Marks must image on ALL FOUR separations. RGB black separates to the K plate
+   only, so on a four-colour job the C, M and Y plates would carry no marks and the
+   operator could not check register against them. Registration colour is 100% of
+   every plate; jsPDF expresses that as a four-channel stroke, which it writes as a
+   PDF `K` operator. This asserts the mechanism the exporter relies on. */
+var jsPDFmod = require('./vendor/jspdf.umd.min.js');
+var jsPDF = jsPDFmod.jsPDF || jsPDFmod;
+function strokeOps(setColour) {
+  var d = new jsPDF({ unit: 'mm', format: [210, 297], compress: false });
+  setColour(d);
+  d.setLineWidth(CE.MARK_W_MM);
+  d.line(10, 10, 30, 10);
+  var raw = Buffer.from(d.output('datauristring').split(',')[1], 'base64').toString('latin1');
+  return raw;
+}
+var reg = strokeOps(function (d) { d.setDrawColor(1, 1, 1, 1); });
+ok(/1\.? 1\.? 1\.? 1\.? K/.test(reg), 'registration colour emits a CMYK K operator (all four plates)');
+ok(!/ RG\b/.test(reg), 'and does NOT fall back to an RGB stroke');
+var blk = strokeOps(function (d) { d.setDrawColor(0); });
+ok(/ G\b|0 0 0 RG/.test(blk), 'for contrast, plain black emits a grey/RGB stroke — K plate only');
+// The stream states widths in POINTS, so 0.0882mm is written as `0.25 w` — which
+// is the clearest possible confirmation that the mark really is a 0.25pt hairline.
+ok(/0\.25 w/.test(reg), 'the stream carries a 0.25pt line width');
+
+
 console.log(fails ? '\n' + fails + ' FAILED' : '\nall passed');
 process.exit(fails ? 1 : 0);
