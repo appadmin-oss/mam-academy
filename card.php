@@ -241,10 +241,24 @@ $safeLogoUrl = $logoUrl !== '' ? htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUB
      real-world width (60mm — the print trim) rather than a pixel guess, so a
      home printer produces a card that fits a lanyard holder. */
   @media print {
-    body { background: #fff; padding: 0; }
-    .card-wrap { max-width: none; }
-    .mam-card { --mam-card-w: 60mm; box-shadow: none; }
-    .card-actions, .card-hint, .card-revoked-banner { display: none; }
+    /* A tidy sheet margin; the card carries its own physical size below. */
+    @page { size: auto; margin: 8mm; }
+    /* Drop the screen's full-viewport centering. min-height:100vh + flex
+       centering pushed the card down the sheet and spilled an empty second
+       page; in print the card should sit at the top of the page. */
+    html, body { background: #fff; padding: 0; min-height: 0; display: block; }
+    .card-wrap { max-width: none; width: auto; display: block; }
+    /* Pin BOTH faces to the 60mm print trim (9 fit an A4 sheet). The width is
+       set INLINE on each card as min(340px,86vw) for the screen, and an inline
+       custom property beats a normal stylesheet rule — so without !important
+       the card prints at ~90mm and will not fit a lanyard holder. */
+    .mam-card {
+      --mam-card-w: 60mm !important;
+      box-shadow: none !important;
+      break-inside: avoid;
+      margin: 0 0 6mm;
+    }
+    .card-actions, .card-hint, .card-revoked-banner { display: none !important; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
