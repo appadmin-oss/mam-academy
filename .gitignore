@@ -1,7 +1,23 @@
-api/logs/*.log
-api/storage/mam.db*
-api/storage/.app_key
+# ── Secrets & real data — never committed (owner keeps these outside git) ──
 api/.env
-api/storage/og/
+api/storage/.app_key
+api/storage/mam.db*
+api/logs/*.log
 # Uploaded headshots — real people's photographs, never committed.
-api/storage/uploads/
+api/storage/uploads/*
+# Generated Open-Graph share images — regenerated on demand.
+api/storage/og/*
+
+# ── Keep the runtime directory structure in a fresh checkout ──
+# (ignore the contents above, but track the folders so a clone/download has
+#  the complete tree and the app has somewhere to write.)
+!api/storage/uploads/.gitkeep
+!api/storage/og/.gitkeep
+
+# ── OS / editor cruft ──
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
