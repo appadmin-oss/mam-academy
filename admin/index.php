@@ -6678,7 +6678,7 @@ nav a{display:flex;align-items:center}
   var _forms = [];
 
   function api(method, body) {
-    var opts = { method: method, headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': (document.cookie.match(/mam_csrf=([^;]+)/) || ['',''])[1] } };
+    var opts = { method: method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]') || {}).content || '' } };
     if (body) opts.body = JSON.stringify(body);
     return fetch('/api/admin/survey-forms', opts).then(function(r){ return r.json(); });
   }
@@ -7119,7 +7119,7 @@ nav a{display:flex;align-items:center}
 (function(){
   var API    = '<?= $appUrl ?>/api';
   var CARD_URL = '<?= $appUrl ?>/card/';
-  var csrfToken = (document.cookie.match(/(?:^|; )mam_csrf=([^;]+)/) || [])[1] || '';
+  var csrfToken = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
   var currentPage = 1;
 
   function icLoad(page) {
@@ -7780,7 +7780,7 @@ window.fineAct = function (fineId, action) {
   if (note === null) return;
   var btn = event.target;
   btn.disabled = true;
-  var csrf = (document.cookie.match(/mam_csrf=([^;]+)/) || ['',''])[1];
+  var csrf = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
   fetch('/api/admin/fines', {
     method: 'POST', credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
@@ -7834,7 +7834,7 @@ window.generateEnrollRef = function (studentId, btn) {
 window.backfillEnrollRefs = function (btn) {
   if (!confirm('Generate MAM/YY/NNN IDs for all active students who don\'t have one yet?')) return;
   btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Working…';
-  var t = (document.cookie.match(/mam_csrf=([^;]+)/) || ['',''])[1];
+  var t = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
   fetch('/api/admin/progress-report', {
     method: 'POST',
     credentials: 'same-origin',
