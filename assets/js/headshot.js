@@ -382,16 +382,49 @@
 
      Resolves to { url } — Cloudinary's when it is configured, otherwise our own
      same-origin URL. Rejects with a message fit to show the user. */
+  /* Downscale a data-URL image so its longest side ≤ maxPx and re-encode as a
+     compact JPEG. Our /api/upload/headshot receives this as a base64 JSON body
+     (~1.4× its size); a full-resolution phone photo can exceed the server's POST
+     limit and come back as an HTML error page. Falls back to the original bytes
+     on any failure (tainted canvas, decode error) so a photo is never lost. */
+  function downscaleDataUrl(dataUrl, maxPx, quality) {
+    return new Promise(function (resolve) {
+      try {
+        var img = new Image();
+        img.onerror = function () { resolve(dataUrl); };
+        img.onload = function () {
+          try {
+            var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+            if (!w || !h) { resolve(dataUrl); return; }
+            var scale = Math.min(1, maxPx / Math.max(w, h));
+            var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+            var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+            var ctx = cv.getContext('2d');
+            if (!ctx) { resolve(dataUrl); return; }
+            ctx.drawImage(img, 0, 0, cw, ch);
+            var out = cv.toDataURL('image/jpeg', quality || 0.85);
+            resolve(out && out.indexOf('data:image/jpeg') === 0 ? out : dataUrl);
+          } catch (e) { resolve(dataUrl); }
+        };
+        img.src = dataUrl;
+      } catch (e) { resolve(dataUrl); }
+    });
+  }
+
   function upload(file) {
     if (!file) return Promise.reject(new Error('No file selected.'));
     if (!/^image\//.test(file.type || '')) return Promise.reject(new Error('Please choose an image file (JPG or PNG).'));
-    if (file.size > 10 * 1024 * 1024) return Promise.reject(new Error('That photo is too large — maximum 10 MB.'));
+    if (file.size > 25 * 1024 * 1024) return Promise.reject(new Error('That photo is too large — maximum 25 MB.'));
 
     return new Promise(function (resolve, reject) {
       var reader = new FileReader();
       reader.onerror = function () { reject(new Error('Could not read that file.')); };
       reader.onload = function (ev) { resolve(String(ev.target.result)); };
       reader.readAsDataURL(file);
+    }).then(function (rawDataUrl) {
+      // Compact JPEG for our own-server store (the base64 JSON path). Cloudinary
+      // takes the raw File and needs no shrinking.
+      return downscaleDataUrl(rawDataUrl, 1200, 0.85);
     }).then(function (dataUrl) {
       return configReady().then(function (c) {
         if (c.cloudName && c.uploadPreset) {

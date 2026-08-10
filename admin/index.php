@@ -7311,29 +7311,73 @@ nav a{display:flex;align-items:center}
   /* Upload a chosen file straight to our own store, then drop the returned URL into
      the field so Save applies it. Self-contained on purpose: the admin page does not
      load the public headshot widget. */
+  /* Read an image File, downscale so its longest side ≤ maxPx, and return a
+     compact JPEG data URL. A card headshot prints tiny, so a full-resolution
+     phone photo (5–10 MB) is wasteful — and, sent as a base64 JSON body ≈1.4×
+     its size, it can blow past the server's POST-size limit, which many hosts
+     answer with an HTML error page. r.json() on that HTML is exactly the
+     "Unexpected token '<'" crash. Shrinking here keeps the body small; falls
+     back to the original bytes if the canvas pipeline is unavailable. */
+  function icDownscaleImage(file, maxPx, quality) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error('Could not read that file.')); };
+      reader.onload = function (ev) {
+        var dataUrl = String(ev.target.result);
+        var img = new Image();
+        img.onerror = function () { reject(new Error('That image could not be read.')); };
+        img.onload = function () {
+          try {
+            var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+            if (!w || !h) { resolve(dataUrl); return; }
+            var scale = Math.min(1, maxPx / Math.max(w, h));
+            var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+            var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+            var ctx = cv.getContext('2d');
+            if (!ctx) { resolve(dataUrl); return; }
+            ctx.drawImage(img, 0, 0, cw, ch);
+            var out = cv.toDataURL('image/jpeg', quality || 0.85);
+            resolve(out && out.indexOf('data:image/jpeg') === 0 ? out : dataUrl);
+          } catch (e) { resolve(dataUrl); /* tainted/unsupported → send original */ }
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
   function icPhotoUpload(file) {
     var msg = document.getElementById('icPhotoUpMsg');
     if (!file) return;
     if (!/^image\//.test(file.type || '')) { msg.textContent = 'Choose an image file (JPG or PNG).'; return; }
-    if (file.size > 8 * 1024 * 1024)      { msg.textContent = 'That photo is over 8 MB — use a smaller one.'; return; }
-    msg.textContent = 'Uploading…';
-    var reader = new FileReader();
-    reader.onerror = function () { msg.textContent = 'Could not read that file.'; };
-    reader.onload = function (ev) {
-      mamFetch(API + '/admin/upload-headshot', {
+    if (file.size > 25 * 1024 * 1024)     { msg.textContent = 'That photo is over 25 MB — use a smaller one.'; return; }
+    msg.textContent = 'Processing…';
+    icDownscaleImage(file, 1200, 0.85).then(function (dataUrl) {
+      msg.textContent = 'Uploading…';
+      return mamFetch(API + '/admin/upload-headshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: String(ev.target.result) }),
-      }).then(function (r) { return r.json().then(function (d) { return { r: r, d: d }; }); })
-        .then(function (x) {
-          if (!x.r.ok || !x.d || !x.d.url) throw new Error((x.d && (x.d.detail || x.d.message)) || 'Upload failed.');
-          document.getElementById('icPhotoUrl').value = x.d.url;
-          icPhotoPreview(x.d.url);
-          msg.textContent = 'Uploaded — now click Save photo.';
-        })
-        .catch(function (e) { msg.textContent = e.message || 'Upload failed.'; });
-    };
-    reader.readAsDataURL(file);
+        body: JSON.stringify({ image: dataUrl }),
+      });
+    }).then(function (r) {
+      // Parse defensively: a non-JSON body means a server/proxy error page
+      // (413 too-large, 502, a WAF block) — surface a clear message instead of
+      // letting JSON.parse throw the opaque "Unexpected token '<'" error.
+      return r.text().then(function (t) {
+        var d = null;
+        try { d = JSON.parse(t); } catch (e) {
+          throw new Error(r.status === 413
+            ? 'The server rejected the photo as too large. Try a smaller image.'
+            : 'Upload failed (' + (r.status || '?') + ') — the server returned an unexpected response.');
+        }
+        if (!r.ok || !d || !d.url) throw new Error((d && (d.detail || d.message)) || 'Upload failed.');
+        return d;
+      });
+    }).then(function (d) {
+      document.getElementById('icPhotoUrl').value = d.url;
+      icPhotoPreview(d.url);
+      msg.textContent = 'Uploaded — now click Save photo.';
+    }).catch(function (e) { msg.textContent = e.message || 'Upload failed.'; });
   }
 
   function icSavePhoto() {

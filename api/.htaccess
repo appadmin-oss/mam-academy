@@ -35,6 +35,20 @@ Options -Indexes -MultiViews
   SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
 </IfModule>
 
+# Raise the POST ceiling for headshot uploads (base64 JSON body ≈1.4x the source
+# image; the app allows 8 MB source → ~11 MB body). Without this a large-but-
+# valid upload is bounced with an HTML error page before PHP runs. Guarded to
+# mod_php so FPM/CGI SAPIs (which would 500 on php_value in .htaccess) skip it —
+# those read api/.user.ini instead.
+<IfModule mod_php.c>
+  php_value post_max_size 16M
+  php_value upload_max_filesize 16M
+</IfModule>
+<IfModule mod_php7.c>
+  php_value post_max_size 16M
+  php_value upload_max_filesize 16M
+</IfModule>
+
 <FilesMatch "\.(env|sqlite|sqlite3|db|log|bak|ini|json|md|sh|sql)$">
   Require all denied
 </FilesMatch>
