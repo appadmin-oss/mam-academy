@@ -203,6 +203,32 @@
     return out;
   }
 
+  /* html2canvas 1.4.1 fixup for the circular headshot. It does NOT honour
+     object-fit, and does not clip a child <img> to a rounded parent — so
+     `.mam-card__photo img` exports as an offset, undersized rectangle instead of
+     a centred disc. It DOES clip an element's OWN background to its border-radius
+     (the trick `.mam-card__initials` relies on). So, for the clone html2canvas
+     rasterises, repaint each headshot as a cover background on the round
+     `.mam-card__photo` parent and hide the <img>. The live DOM is untouched, and
+     the <img> was already preloaded/decoded so its bytes are cached. Card backs
+     carry no photo, so this is a no-op there. */
+  function repaintPhotoAsBackground(clonedDoc) {
+    try {
+      var imgs = clonedDoc.querySelectorAll('.mam-card__photo > img');
+      for (var i = 0; i < imgs.length; i++) {
+        var im = imgs[i];
+        var src = im.getAttribute('src') || im.src || '';
+        if (!src) continue;
+        var box = im.parentNode;
+        box.style.backgroundImage = 'url("' + src.replace(/"/g, '%22') + '")';
+        box.style.backgroundSize = 'cover';
+        box.style.backgroundPosition = 'center';
+        box.style.backgroundRepeat = 'no-repeat';
+        im.style.display = 'none';
+      }
+    } catch (e) { /* fall back to html2canvas's default drawing */ }
+  }
+
   /**
    * Rasterise one card face WITH bleed.
    * @returns {Promise<{dataUrl:string,wPx:number,hPx:number,bleedPx:number,trimWPx:number,trimHPx:number}>}
@@ -228,6 +254,7 @@
       allowTaint: false,
       logging: false,
       imageTimeout: 8000,
+      onclone: repaintPhotoAsBackground,
     }), opts.timeout || 30000, 'rasterise');
 
     var canvas = addBleed(trimCanvas, bleedPx, opts.bg || '#ffffff');
