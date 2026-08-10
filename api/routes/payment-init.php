@@ -73,7 +73,11 @@ if ($purpose === 'store') {
             ]);
         }
     }
-    if ($purpose === 'tuition' && ($app['status'] ?? '') === 'paid') {
+    // 'paid' is not the only settled state — admissions may have advanced the
+    // application to 'enrolled'/'accepted' after payment. Treat all three as
+    // already-paid so tuition can't be charged a second time (matches the paid
+    // set used by mam_tuition_status / invoicing).
+    if ($purpose === 'tuition' && in_array((string)($app['status'] ?? ''), ['paid', 'enrolled', 'accepted'], true)) {
         mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
     }
     $customerEmail = (string)$app['email'];

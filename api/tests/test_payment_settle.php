@@ -43,6 +43,30 @@ mam_payment_settle(mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid3]), n
 t_eq(mam_db_row('SELECT status FROM store_orders WHERE id = ?', [$oid])['status'], 'delivered', 'a digital store order is delivered on settle');
 t_eq((int)mam_db_row('SELECT stock FROM store_items WHERE sku = ?', [$sku])['stock'], 3, 'store stock decremented by the ordered qty (5 - 2)');
 
+// ── Store: an UNLIMITED (stock = -1) physical line must settle 'paid', never
+//    'oversold', and must NOT be decremented. Regression: the oversold guard
+//    used `stock >= 0`, so every unlimited physical order came up 0-rows and was
+//    wrongly flagged oversold — paid but never fulfilled. ──
+$skuU = 'TST-UNL-' . substr(bin2hex(random_bytes(3)), 0, 5);
+mam_db_insert('store_items', ['sku' => $skuU, 'slug' => $skuU, 'name' => 'Unlimited Tee', 'goods_type' => 'physical', 'delivery_type' => 'shipping', 'availability' => 'in_stock', 'stock' => -1, 'price_usd' => 25, 'currency' => 'USD', 'active' => 1]);
+$itemsU = json_encode([['sku' => $skuU, 'name' => 'Unlimited Tee', 'qty' => 3, 'unit_usd' => 25, 'line_total' => 75, 'goods_type' => 'physical']]);
+$oidU = mam_db_insert('store_orders', ['reference' => 'ORD-SET-UNL', 'customer_email' => 'buyer2@x.dev', 'customer_name' => 'Buyer Two', 'shipping_address' => '1 Test St', 'items_json' => $itemsU, 'subtotal_usd' => 75, 'total_usd' => 75, 'status' => 'pending']);
+$pidU = mam_db_insert('payments', ['application_id' => null, 'reference' => 'ORD-SET-UNL', 'provider' => 'paystack', 'purpose' => 'store', 'status' => 'pending', 'amount' => 112500, 'currency' => 'NGN']);
+mam_payment_settle(mam_db_row('SELECT * FROM payments WHERE id = ?', [$pidU]), null, '{}', 'PSK-U');
+t_eq(mam_db_row('SELECT status FROM store_orders WHERE id = ?', [$oidU])['status'], 'paid', 'an unlimited-stock physical order settles to paid (not oversold)');
+t_eq((int)mam_db_row('SELECT stock FROM store_items WHERE sku = ?', [$skuU])['stock'], -1, 'unlimited stock (-1) is never decremented');
+
+// ── Store: a FINITE physical line short on stock is still flagged 'oversold'
+//    (the guard must keep protecting genuine short-stock orders). ──
+$skuO = 'TST-OVS-' . substr(bin2hex(random_bytes(3)), 0, 5);
+mam_db_insert('store_items', ['sku' => $skuO, 'slug' => $skuO, 'name' => 'Rare Vinyl', 'goods_type' => 'physical', 'delivery_type' => 'shipping', 'availability' => 'in_stock', 'stock' => 1, 'price_usd' => 40, 'currency' => 'USD', 'active' => 1]);
+$itemsO = json_encode([['sku' => $skuO, 'name' => 'Rare Vinyl', 'qty' => 2, 'unit_usd' => 40, 'line_total' => 80, 'goods_type' => 'physical']]);
+$oidO = mam_db_insert('store_orders', ['reference' => 'ORD-SET-OVS', 'customer_email' => 'buyer3@x.dev', 'customer_name' => 'Buyer Three', 'shipping_address' => '2 Test St', 'items_json' => $itemsO, 'subtotal_usd' => 80, 'total_usd' => 80, 'status' => 'pending']);
+$pidO = mam_db_insert('payments', ['application_id' => null, 'reference' => 'ORD-SET-OVS', 'provider' => 'paystack', 'purpose' => 'store', 'status' => 'pending', 'amount' => 120000, 'currency' => 'NGN']);
+mam_payment_settle(mam_db_row('SELECT * FROM payments WHERE id = ?', [$pidO]), null, '{}', 'PSK-O');
+t_eq(mam_db_row('SELECT status FROM store_orders WHERE id = ?', [$oidO])['status'], 'oversold', 'a finite physical line short on stock is still flagged oversold');
+t_eq((int)mam_db_row('SELECT stock FROM store_items WHERE sku = ?', [$skuO])['stock'], 1, 'an oversold finite line is not decremented below its real stock');
+
 // ── Defensive guards: the settle helpers no-op (no crash) on a missing subject ──
 t_ok(mam_payment_settle_tuition(0) === null, 'tuition settle with no application id is a safe no-op');
 mam_payment_settle_booking(0); // must not throw

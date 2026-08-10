@@ -273,7 +273,10 @@ tr:last-child td{border-bottom:none}
 <script>
 (function () {
   // ── Helpers ────────────────────────────────────────────────────
-  function esc(s) { var d = document.createElement('div'); d.textContent = s != null ? String(s) : ''; return d.innerHTML; }
+  // Character-replace (not textContent→innerHTML): the DOM trick leaves " and '
+  // unescaped, which is unsafe when the result is dropped into an attribute like
+  // the avatar <img src="…">. This form escapes quotes too, matching status.php.
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function fmtDate(s) {
     if (!s) return '—';
     var d = new Date(s.replace(' ','T'));

@@ -750,7 +750,7 @@
     window.MAM_API.storeCheckout(payload)
       .then(function(order){
         return window.MAM_API.initializePayment({ reference: order.reference, provider: 'paystack', purpose: 'store' })
-          .then(function(init){ openPaystack(init, order.reference); });
+          .then(function(init){ return openPaystack(init, order.reference); }); // return so a script-load failure reaches the outer .catch (button was left spinning forever)
       })
       .catch(function(e){
         btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-lock"></i> Secure payment';

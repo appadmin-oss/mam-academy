@@ -136,14 +136,25 @@ function mam_payment_settle_store(string $ref): void {
         $qty = max(1, (int)($i['qty'] ?? 1));
         if ($sku === '') continue;
         try {
+            // stock = -1 means UNLIMITED: it must never be decremented and can
+            // never be oversold. The guard `stock >= ?` (qty is >= 1) already
+            // skips the UPDATE for an unlimited (-1) row, so 0 rows affected
+            // there is expected — NOT an oversell. Previously `stock >= 0` in the
+            // WHERE clause meant every unlimited physical line hit the 0-row
+            // branch and got wrongly flagged, marking the whole paid order
+            // 'oversold' and never fulfilling it.
             $st = mam_db()->prepare(
                 "UPDATE store_items SET stock = stock - ?,
                         availability = CASE WHEN stock - ? <= 0 THEN 'sold_out' ELSE availability END,
                         updated_at = ?
-                  WHERE sku = ? AND stock >= 0 AND stock >= ?"
+                  WHERE sku = ? AND stock >= ?"
             );
             $st->execute([$qty, $qty, date('Y-m-d H:i:s'), $sku, $qty]);
-            if ($st->rowCount() === 0 && ($i['goods_type'] ?? '') === 'physical') $oversold[] = $sku . '×' . $qty;
+            if ($st->rowCount() === 0 && ($i['goods_type'] ?? '') === 'physical') {
+                // Only a FINITE line that came up short is a real oversell.
+                $cur = mam_db_row('SELECT stock FROM store_items WHERE sku = ?', [$sku]);
+                if ($cur && (int)$cur['stock'] >= 0) $oversold[] = $sku . '×' . $qty;
+            }
         } catch (\Throwable $e) { mam_log('warn', 'store_stock_decrement_failed', ['sku' => $sku, 'err' => $e->getMessage()]); }
     }
     if ($oversold) {
