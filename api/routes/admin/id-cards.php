@@ -11,7 +11,7 @@ if ($method === 'POST') {
     $input  = mam_json_input();
     $action = (string)($input['action'] ?? '');
     $cardId = (int)($input['card_id'] ?? 0);
-    $adminId = (int)($_SESSION['user_id'] ?? 0);
+    $adminId = (int)mam_require_user()['id']; // DB-backed session; route gated by mw_admin_cap('enrollments')
 
     if (!$cardId) mam_fail('invalid_params', 422);
 

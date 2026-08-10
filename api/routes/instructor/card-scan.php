@@ -17,7 +17,7 @@ $input     = mam_json_input();
 $payload   = trim((string)($input['payload'] ?? ''));
 $sessionId = isset($input['session_id']) ? (int)$input['session_id'] : null;
 $classId   = isset($input['class_id'])   ? (int)$input['class_id']   : null;
-$scanBy    = (int)($_SESSION['user_id'] ?? 0);
+$scanBy    = (int)mam_require_role('instructor', 'admin')['id']; // DB-backed session; route gated by mw_role('instructor','admin')
 
 if ($payload === '') mam_fail('invalid_params', 422);
 if (!$sessionId && !$classId) mam_fail('invalid_params', 422);

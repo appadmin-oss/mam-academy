@@ -7,8 +7,9 @@
  */
 declare(strict_types=1);
 
-$userId = (int)($_SESSION['user_id'] ?? 0);
-if (!$userId) mam_fail('unauthenticated', 401);
+// Identity comes from the DB-backed cookie session (this app never populates
+// PHP's native $_SESSION), and the route is already gated by mw_role('student').
+$userId = (int)mam_require_role('student')['id'];
 
 $card = mam_card_for_user($userId);
 if (!$card) {

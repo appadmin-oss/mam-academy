@@ -21,7 +21,7 @@
  */
 declare(strict_types=1);
 
-mam_require_cap('settings');
+mam_require_admin_cap('settings'); // (mam_require_cap did not exist → fatal on every call)
 
 $driver = mam_db_driver();
 

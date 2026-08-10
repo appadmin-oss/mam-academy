@@ -415,7 +415,15 @@ function mam_card_generate_png(array $card, string $name): ?string {
     $photoCY = $notchY;
     $photoR  = (int)($w * 0.14);
     if ($photoUrl !== null) {
-        $data = @file_get_contents($photoUrl);
+        // A first-party upload is stored as the RELATIVE url /api/media/headshot?k=…
+        // (the '/' url-encoded), which file_get_contents would read as a bogus
+        // local path → no photo on the emailed card. Resolve our own URLs to the
+        // backing file; only fetch over the network for a real absolute URL.
+        $ownKey    = mam_upload_key_from_url($photoUrl);
+        $localPath = $ownKey !== null ? mam_upload_path($ownKey) : null;
+        $data = $localPath !== null
+            ? @file_get_contents($localPath)
+            : (preg_match('#^https?://#i', $photoUrl) ? @file_get_contents($photoUrl) : false);
         if ($data) {
             $src = @imagecreatefromstring($data);
             if ($src) {

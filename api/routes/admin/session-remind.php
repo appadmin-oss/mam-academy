@@ -13,7 +13,7 @@
  */
 declare(strict_types=1);
 
-$adminId  = (int)($_SESSION['user_id'] ?? 0);
+$adminId  = (int)mam_require_user()['id']; // DB-backed session; route gated by mw_admin_cap('enrollments')
 $in       = mam_json_input();
 $action   = strtolower(trim((string)($in['action'] ?? 'send')));
 $appUrl   = rtrim((string)mam_env('APP_URL', ''), '/');

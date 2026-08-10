@@ -7194,10 +7194,10 @@ nav a{display:flex;align-items:center}
             '<a href="' + CARD_URL + encodeURIComponent(c.serial) + '" target="_blank" class="btn-sm btn-outline" style="font-size:12px">View</a>',
           ];
           if (c.status === 'active') {
-            actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icResend('+c.id+',\''+escHtml(c.holder_name)+'\')">Resend</button>');
-            actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icEditPhoto('+c.id+',\''+escHtml(c.holder_name)+'\',\''+escHtml(c.photo_url||c.holder_photo||'')+'\','+(c.user_id?'true':'false')+')">Edit photo</button>');
-            actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icConfirm(\'reissue\','+c.id+',\''+escHtml(c.holder_name)+'\',\''+escHtml(c.serial)+'\')">Reissue</button>');
-            actions.push('<button class="btn-sm" style="font-size:12px;background:var(--danger,#B91C1C);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer" onclick="icConfirm(\'revoke\','+c.id+',\''+escHtml(c.holder_name)+'\',\''+escHtml(c.serial)+'\')">Revoke</button>');
+            actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icResend('+c.id+',\''+jsStr(c.holder_name)+'\')">Resend</button>');
+            actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icEditPhoto('+c.id+',\''+jsStr(c.holder_name)+'\',\''+jsStr(c.photo_url||c.holder_photo||'')+'\','+(c.user_id?'true':'false')+')">Edit photo</button>');
+            actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icConfirm(\'reissue\','+c.id+',\''+jsStr(c.holder_name)+'\',\''+jsStr(c.serial)+'\')">Reissue</button>');
+            actions.push('<button class="btn-sm" style="font-size:12px;background:var(--danger,#B91C1C);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer" onclick="icConfirm(\'revoke\','+c.id+',\''+jsStr(c.holder_name)+'\',\''+jsStr(c.serial)+'\')">Revoke</button>');
             if (!c.printed_at) {
               actions.push('<button class="btn-sm btn-outline" style="font-size:12px" onclick="icAction(\'mark_printed\','+c.id+',null)">Mark Printed</button>');
             }
@@ -7361,6 +7361,18 @@ nav a{display:flex;align-items:center}
 
   function escHtml(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  // Safe to drop inside a SINGLE-quoted JS string that itself sits inside a
+  // DOUBLE-quoted HTML attribute (e.g. onclick="fn('...')"). escHtml alone is
+  // unsafe here: the HTML parser decodes &#39; back to ' BEFORE the inline
+  // handler is parsed as JS, so a name like O'Brien or x');alert(1)// would
+  // break out of the JS string. Backslash-escape for the JS layer, then
+  // HTML-encode the markup-significant chars for the attribute layer.
+  function jsStr(s) {
+    return String(s == null ? '' : s)
+      .replace(/\\/g, '\\\\').replace(/'/g, "\\'")   // JS string layer
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') // HTML attr layer
+      .replace(/\r?\n/g, ' ');
   }
 
   function showToast(msg, type) {
@@ -7798,6 +7810,11 @@ window.genProgressLink = function (studentId, studentName) {
     });
   }
 
+  // Use the page's meta CSRF token if present, else fetch a fresh one. (`token`
+  // was previously undeclared here, throwing a ReferenceError that killed the
+  // button before the fallback fetch could run.)
+  var metaCsrf = document.querySelector('meta[name="csrf-token"]');
+  var token = metaCsrf ? metaCsrf.getAttribute('content') : '';
   if (token) { doPost(token); return; }
   fetch('/api/csrf', { credentials: 'same-origin' }).then(r => r.json()).then(j => doPost(j.token)).catch(function () {
     if (btn) { btn.disabled = false; btn.textContent = btn.getAttribute('data-orig-label') || 'Progress Link'; }
