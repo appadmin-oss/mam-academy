@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Parent Portal — MAM Academy</title>
+<link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="/assets/css/main.css?v=20260706d">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260706c">
+<style>
+  .light { display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:5px }
+  .light.green{background:#34D399}.light.amber{background:#FBBF24}.light.red{background:#F87171}
+</style>
+</head>
+<body>
+<div class="portal-shell">
+  <aside class="portal-side">
+    <div class="portal-brand">
+      <img src="/mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
+      <div><div class="portal-brand-name">MAM ACADEMY</div><div class="portal-brand-sub">Parent Portal</div></div>
+    </div>
+    <div class="portal-user" id="userCard"><div class="portal-avatar">?</div><div><div class="portal-user-name">Loading…</div></div></div>
+    <nav class="portal-nav">
+      <a class="portal-nav-link active" href="#children" id="navChildren"><i class="fa-solid fa-children"></i>My Children</a>
+      <a class="portal-nav-link" href="#" data-action="logout"><i class="fa-solid fa-right-from-bracket"></i>Sign out</a>
+    </nav>
+  </aside>
+  <main class="portal-main">
+    <button class="portal-side-toggle" id="sidebarToggle"><i class="fa-solid fa-bars"></i> Menu</button>
+    <header class="portal-head"><h1 id="pageTitle">My Children <small id="pageSub">Your child's MAM journey</small></h1></header>
+    <div id="content" aria-busy="true">Loading…</div>
+  </main>
+</div>
+<script src="/assets/js/config.js?v=20260807a"></script>
+<script src="/assets/js/portal.js?v=20260706c"></script>
+<script>
+(function () {
+  var P = window.MAM_PORTAL, API = window.MAM_API;
+  var content = document.getElementById('content');
+  var pageTitle = document.getElementById('pageTitle'), pageSub = document.getElementById('pageSub');
+  function empty(icon, msg) { return '<div class="empty-state"><i class="fa-solid fa-' + icon + '"></i>' + msg + '</div>'; }
+  function esc(s) { return P.escapeHtml(s == null ? '' : s); }
+  function lightDot(cls) { return '<span class="light ' + (cls || 'red') + '"></span>'; }
+
+  function setTitle(t, s) { pageTitle.firstChild.textContent = t + ' '; pageSub.textContent = s; }
+
+  function renderChildren() {
+    setTitle('My Children', 'Your child’s MAM journey');
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading…') + '</div></section>';
+    API.request('parent/children', { method: 'GET' }).then(function (r) {
+      var kids = (r && r.children) || [];
+      if (!kids.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('children', 'No children are linked to your account yet. Please contact the academy office.') + '</div></section>'; return; }
+      content.innerHTML = kids.map(function (k) {
+        var w = k.weekly || {};
+        return '<section class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>' + esc(k.student_name) + '</h2>'
+          + '<button class="btn btn-primary child-open" data-id="' + k.student_id + '" style="padding:6px 14px;font-size:.8rem">View journey →</button></div>'
+          + '<div class="panel-body" style="display:flex;gap:22px;flex-wrap:wrap">'
+          + '<div>' + lightDot(w.attendance) + 'Attendance <strong>' + (w.attendance_rate != null ? w.attendance_rate + '%' : '—') + '</strong></div>'
+          + '<div>' + lightDot(w.mastery_light) + 'Mastery <strong>' + (w.mastery != null ? Math.round(w.mastery) + '%' : '—') + '</strong></div>'
+          + '<div><i class="fa-solid fa-fire" style="color:#FB923C"></i> Streak <strong>' + (w.streak || 0) + '</strong></div>'
+          + '<div>Preparation <strong>' + esc(w.preparation || '—') + '</strong></div>'
+          + '<div>Teach-back <strong>' + esc(w.teachback || '—') + '</strong></div>'
+          + '</div></section>';
+      }).join('');
+      content.querySelectorAll('.child-open').forEach(function (b) {
+        b.addEventListener('click', function () { renderChild(parseInt(b.getAttribute('data-id'), 10), b.closest('.panel').querySelector('h2').textContent); });
+      });
+    }).catch(function () { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load your children right now.') + '</div></section>'; });
+  }
+
+  function renderChild(sid, name) {
+    setTitle(name || 'Child', 'Weekly status & progress');
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading…') + '</div></section>';
+    API.request('parent/child?student_id=' + sid, { method: 'GET' }).then(function (d) {
+      var w = d.weekly || {}, g = (d.academic && d.academic.gpa) || {}, results = d.results || [], up = d.upcoming_sessions || [];
+      var back = '<div style="margin-bottom:14px"><a href="#children" id="backLink" class="btn btn-ghost" style="padding:6px 14px;font-size:.8rem"><i class="fa-solid fa-arrow-left"></i> All children</a></div>';
+      var kpis = '<section class="kpi-row">'
+        + '<div class="kpi"><div class="kpi-label">Attendance</div><div class="kpi-value gold">' + (w.attendance_rate != null ? w.attendance_rate + '%' : '—') + '</div></div>'
+        + '<div class="kpi"><div class="kpi-label">Mastery</div><div class="kpi-value">' + (w.mastery != null ? Math.round(w.mastery) + '%' : '—') + '</div></div>'
+        + '<div class="kpi"><div class="kpi-label">GPA</div><div class="kpi-value">' + (g.gpa != null ? g.gpa : '—') + '</div></div>'
+        + '<div class="kpi"><div class="kpi-label">Streak</div><div class="kpi-value">' + (w.streak || 0) + '</div></div>'
+        + '</section>';
+      var status = '<section class="panel"><div class="panel-head"><h2>This week</h2></div><div class="panel-body" style="display:grid;gap:8px">'
+        + '<div>' + lightDot(w.attendance) + 'Attendance</div>'
+        + '<div>Preparation: <strong>' + esc(w.preparation || 'not started') + '</strong></div>'
+        + '<div>Teach-back: <strong>' + esc(w.teachback || 'not submitted') + '</strong></div>'
+        + '</div></section>';
+      var resTbl = results.length
+        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Results</h2></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Course</th><th>Score</th><th>Grade</th></tr></thead><tbody>'
+          + results.map(function (x) { return '<tr><td>' + esc(x.course_name) + '</td><td>' + (x.total_score != null ? esc(x.total_score) + '%' : '—') + '</td><td><span class="pill">' + esc(x.grade || '—') + '</span></td></tr>'; }).join('')
+          + '</tbody></table></div></section>'
+        : '';
+      var upTbl = up.length
+        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Upcoming sessions</h2></div><div class="ptable-wrap"><table class="ptable"><tbody>'
+          + up.map(function (s) { return '<tr><td>' + esc(s.title || s.cohort_title || 'Session') + '</td><td>' + esc(P.fmtDateTime(s.scheduled_at)) + '</td></tr>'; }).join('')
+          + '</tbody></table></div></section>'
+        : '';
+      content.innerHTML = back + kpis + status + resTbl + upTbl;
+      var bl = document.getElementById('backLink'); if (bl) bl.addEventListener('click', function (e) { e.preventDefault(); renderChildren(); });
+    }).catch(function () { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load this child right now.') + '</div></section>'; });
+  }
+
+  document.querySelectorAll('[data-action=logout]').forEach(function (b) { b.addEventListener('click', function (e) { e.preventDefault(); P.logout(); }); });
+  if (P.sidebarToggle) P.sidebarToggle();
+  P.requireAuth(['parent']).then(function (user) {
+    P.mountUserCard(user);
+    content.removeAttribute('aria-busy');
+    renderChildren();
+  }).catch(function () { /* redirected by requireAuth */ });
+})();
+</script>
+</body>
+</html>
