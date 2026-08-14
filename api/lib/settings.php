@@ -206,6 +206,9 @@ function mam_settings_schema(): array {
         //   in-browser headshot upload (staff can request photos manually).
         ['CDN (Cloudinary)',        'cloudinary_cloud_name',    'Cloudinary cloud name (e.g. mam-academy)', '', ''],
         ['CDN (Cloudinary)',        'cloudinary_upload_preset', 'Unsigned upload preset for headshots (create in Cloudinary → Upload → Presets)', '', ''],
+        // Optional. Leave BLANK unless your unsigned preset explicitly allows a
+        // folder override — sending one otherwise makes Cloudinary reject the upload.
+        ['CDN (Cloudinary)',        'cloudinary_folder',        'Optional Cloudinary folder (blank = use the preset\'s own folder)', '', ''],
         // ── Summer Programme ───────────────────────────────────────────────────
         // Dates use YYYY-MM-DD format. The chooser appears on /apply when today
         // is within [summer_app_open, summer_app_close]. The form is live within

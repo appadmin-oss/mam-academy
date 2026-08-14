@@ -157,7 +157,11 @@
       var fd = new FormData();
       fd.append('file', file);
       fd.append('upload_preset', preset);
-      fd.append('folder', 'mam-headshots');
+      // Only send `folder` when an admin configured one. Sending it against an
+      // unsigned preset that doesn't allow it makes Cloudinary 400 the whole
+      // upload — the single most common "Cloudinary isn't working" cause.
+      var folder = (cdnCfg().folder || '').trim();
+      if (folder) fd.append('folder', folder);
       var xhr = new XMLHttpRequest();
       xhr.open('POST', 'https://api.cloudinary.com/v1_1/' + encodeURIComponent(cloudName) + '/image/upload');
       xhr.timeout = 60000;
@@ -171,7 +175,12 @@
           try { var r = JSON.parse(xhr.responseText); resolve({ url: r.secure_url, publicId: r.public_id }); }
           catch (e) { reject(new Error('Upload response unreadable')); }
         } else {
-          reject(new Error('Upload failed (' + xhr.status + ')'));
+          // Surface Cloudinary's own reason (e.g. "Upload preset must be
+          // whitelisted for unsigned uploads") so a misconfigured preset is
+          // diagnosable rather than a bare status code.
+          var detail = '';
+          try { var er = JSON.parse(xhr.responseText); detail = (er && er.error && er.error.message) ? ' — ' + er.error.message : ''; } catch (e) {}
+          reject(new Error('Cloudinary upload failed (' + xhr.status + ')' + detail));
         }
       };
       xhr.onerror   = function () { reject(new Error('Upload failed — check your connection.')); };
@@ -326,9 +335,20 @@
                 setStatus(ui.sl, 'ok', null, '✓ Uploaded');
                 emit();
               }).catch(function (e) {
-                state.uploading = false; state.error = e.message || 'Upload failed';
-                setStatus(ui.sl, 'err', null, state.error);
-                emit();
+                // Cloudinary rejected (misconfigured preset, blocked folder,
+                // network). Never lose the photo — fall back to first-party
+                // storage, exactly as the standalone upload() path does.
+                setStatus(ui.sl, 'busy', '<span class="mam-hs-spin"></span>', 'Saving photo…');
+                downscaleDataUrl(src, 1200, 0.85).then(uploadToOwnServer).then(function (r) {
+                  state.uploading = false; state.uploaded = r; state.error = null;
+                  ui.bar.style.width = '100%';
+                  setStatus(ui.sl, 'ok', null, '✓ Saved');
+                  emit();
+                }).catch(function (e2) {
+                  state.uploading = false; state.error = (e && e.message) || (e2 && e2.message) || 'Upload failed';
+                  setStatus(ui.sl, 'err', null, state.error);
+                  emit();
+                });
               });
             } else {
               /* No usable Cloudinary config — store it on our own server instead of

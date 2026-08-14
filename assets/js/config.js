@@ -530,6 +530,7 @@ window.MAM_CDN = (function () {
           if (!C.cdn) C.cdn = {};
           if (j.cdn.cloudName)    C.cdn.cloudName    = j.cdn.cloudName;
           if (j.cdn.uploadPreset) C.cdn.uploadPreset = j.cdn.uploadPreset;
+          if (typeof j.cdn.folder === 'string') C.cdn.folder = j.cdn.folder;
         }
         try { document.dispatchEvent(new CustomEvent('mam:config', { detail: j })); } catch (e) {}
       })

@@ -62,6 +62,10 @@ mam_ok([
     'cdn' => [
         'cloudName'    => (string)mam_setting('cloudinary_cloud_name', ''),
         'uploadPreset' => (string)mam_setting('cloudinary_upload_preset', ''),
+        // Optional target folder. Cloudinary UNSIGNED uploads reject a `folder`
+        // request param unless the preset opts in, so we only send one when an
+        // admin explicitly sets it — otherwise the preset's own folder applies.
+        'folder'       => (string)mam_setting('cloudinary_folder', ''),
     ],
     // Summer Programme public config — drives /summer display and the chooser on
     // /apply. All values are admin-editable via the "Summer Programme" settings group.
