@@ -40,6 +40,7 @@
       <a class="portal-nav-link" href="#curriculum" data-tab="curriculum"><i class="fa-solid fa-book-open"></i>Curriculum</a>
       <a class="portal-nav-link" href="#assignments" data-tab="assignments"><i class="fa-solid fa-list-check"></i>Assignments <span class="nav-badge" id="asgBadge" hidden></span></a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-calendar-check"></i>Attendance</a>
+      <a class="portal-nav-link" href="#reschedule" data-tab="reschedule"><i class="fa-solid fa-calendar-plus"></i>Reschedule</a>
       <a class="portal-nav-link" href="#announcements" data-tab="announcements"><i class="fa-solid fa-bullhorn"></i>Announcements</a>
       <a class="portal-nav-link" href="#practice" data-tab="practice"><i class="fa-solid fa-chart-line"></i>Practice</a>
       <a class="portal-nav-link" href="#repertoire" data-tab="repertoire"><i class="fa-solid fa-book-open"></i>Repertoire</a>
@@ -102,7 +103,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], checkin: ['Check-in', 'Your streak, XP and today\'s session'], grades: ['Grades', 'Your GPA, results and standing'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], checkin: ['Check-in', 'Your streak, XP and today\'s session'], grades: ['Grades', 'Your GPA, results and standing'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], reschedule: ['Reschedule', 'Request to move a class session'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
@@ -127,6 +128,7 @@
     if (tab === 'curriculum') return renderCurriculum();
     if (tab === 'assignments') return renderAssignments();
     if (tab === 'attendance') return renderAttendance();
+    if (tab === 'reschedule') return renderReschedule();
     if (tab === 'announcements') return renderAnnouncements();
     if (tab === 'payments') return renderPayments();
     if (tab === 'orders') return renderOrders();
@@ -1210,6 +1212,87 @@
     }).catch(function () {
       content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load grades right now. Please try again.') + '</div></section>';
     });
+  }
+
+  // ── Reschedule requests (LMS 2.0 Part C) ──────────────────────────────
+  function renderReschedule() {
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading…') + '</div></section>';
+    var rDisabled = false;
+    Promise.all([
+      API.request('student/reschedule', { method: 'GET' }).catch(function (err) {
+        if (err && err.body && err.body.error === 'reschedule_disabled') { rDisabled = true; return { requests: [], config: {} }; }
+        throw err;
+      }),
+      API.request('student/upcoming-sessions', { method: 'GET' }).catch(function () { return { sessions: [] }; })
+    ]).then(function (res) {
+      if (rDisabled) {
+        content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('calendar-xmark', 'Rescheduling isn’t enabled right now. Please contact the academy office if you need to move a class.') + '</div></section>';
+        return;
+      }
+      var info = res[0] || {}, cfg = info.config || {}, requests = info.requests || [], sessions = (res[1] && res[1].sessions) || [];
+      var sessOpts = sessions.map(function (s) {
+        return '<option value="' + s.id + '" data-cohort="' + (s.cohort_id || 0) + '">' + P.escapeHtml(P.fmtDateTime(s.scheduled_at)) + ' — ' + P.escapeHtml(s.cohort_title || s.session_title || 'Session') + '</option>';
+      }).join('');
+      var feeNote = cfg.free_per_term != null
+        ? cfg.free_per_term + ' free per cohort, then $' + (cfg.fee_usd != null ? cfg.fee_usd : '—') + ' per ' + (cfg.fee_mode === 'per_request' ? 'request' : 'session') + '. Requests must be made at least ' + (cfg.window_hours || 24) + 'h ahead.'
+        : '';
+      var formPanel = sessions.length
+        ? '<form id="rschForm" style="padding:14px 18px;display:grid;gap:12px">'
+          + '<div class="field"><label>Session to move</label><select name="session">' + sessOpts + '</select></div>'
+          + '<div class="field"><label>New date &amp; time</label><input name="newat" type="datetime-local" required></div>'
+          + '<div class="field"><label>Reason (optional)</label><input name="reason" placeholder="Why do you need to move this class?"></div>'
+          + '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button type="button" id="rschQuote" class="btn btn-ghost" style="padding:8px 14px"><i class="fa-solid fa-tag"></i> Check fee</button>'
+          + '<button type="submit" class="btn btn-primary" style="padding:8px 14px"><i class="fa-solid fa-paper-plane"></i> Submit request</button>'
+          + '<span id="rschFee" class="kpi-sub"></span></div>'
+          + (feeNote ? '<div class="kpi-sub">' + P.escapeHtml(feeNote) + '</div>' : '')
+          + '</form>'
+        : '<div class="panel-body">' + empty('calendar', 'You have no upcoming sessions to reschedule.') + '</div>';
+      var listBody = requests.length
+        ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Cohort</th><th>Sessions</th><th>Fee</th><th>Status</th><th></th></tr></thead><tbody>'
+          + requests.map(function (rq) {
+            var fee = (rq.fee_usd_cents > 0) ? '$' + (rq.fee_usd_cents / 100).toFixed(2) : 'Free';
+            var actions = '';
+            if (rq.status === 'pending_payment') actions += '<button class="btn btn-primary rsch-pay" data-id="' + rq.id + '" style="padding:4px 10px;font-size:.74rem">Pay</button> ';
+            if (['pending_payment', 'paid', 'approved'].indexOf(rq.status) >= 0) actions += '<button class="btn btn-ghost rsch-cancel" data-id="' + rq.id + '" style="padding:4px 10px;font-size:.74rem">Cancel</button>';
+            return '<tr><td data-label="Cohort">' + P.escapeHtml(rq.cohort_title || ('#' + rq.cohort_id)) + '</td>'
+              + '<td data-label="Sessions">' + (rq.session_count || (rq.items ? rq.items.length : 0)) + '</td>'
+              + '<td data-label="Fee">' + fee + '</td>'
+              + '<td data-label="Status"><span class="pill ' + P.escapeHtml(rq.status) + '">' + P.escapeHtml(String(rq.status).replace(/_/g, ' ')) + '</span></td>'
+              + '<td data-label="">' + actions + '</td></tr>';
+          }).join('') + '</tbody></table></div>'
+        : '<div class="panel-body">' + empty('list', 'No reschedule requests yet.') + '</div>';
+      content.innerHTML = P.panel('Request a reschedule', formPanel, '')
+        + '<div style="margin-top:18px">' + P.panel('Your requests', listBody, '') + '</div>';
+      var form = document.getElementById('rschForm');
+      if (form) {
+        var selCohort = function () { var o = form.session.options[form.session.selectedIndex]; return o ? parseInt(o.getAttribute('data-cohort'), 10) || 0 : 0; };
+        var newAt = function () { var v = form.newat.value; return v ? v.replace('T', ' ') + ':00' : ''; };
+        document.getElementById('rschQuote').addEventListener('click', function () {
+          var feeEl = document.getElementById('rschFee'); feeEl.textContent = 'Checking…';
+          API.request('student/reschedule', { method: 'POST', body: { action: 'quote', cohort_id: selCohort(), session_ids: [parseInt(form.session.value, 10)] } })
+            .then(function (r) { var q = r.quote || {}; feeEl.textContent = q.limit_exceeded ? 'Term limit reached' : (q.fee_usd_cents > 0 ? 'Fee: $' + (q.fee_usd_cents / 100).toFixed(2) + ' (≈₦' + (q.fee_ngn || 0).toLocaleString() + ')' : 'Free (' + q.free_remaining + ' free left)'); })
+            .catch(function () { feeEl.textContent = ''; });
+        });
+        form.addEventListener('submit', function (ev) {
+          ev.preventDefault();
+          var at = newAt(); if (!at) return;
+          var btn = form.querySelector('button[type=submit]'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Submitting…';
+          API.request('student/reschedule', { method: 'POST', body: { action: 'create', cohort_id: selCohort(), moves: [{ session_id: parseInt(form.session.value, 10), new_scheduled_at: at }], reason: form.reason.value.trim() } })
+            .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Reschedule requested.', 'success'); renderReschedule(); })
+            .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var m = (err && err.body && err.body.error) || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not request: ' + m, 'error'); else alert('Could not request.'); });
+        });
+      }
+      content.querySelectorAll('.rsch-pay').forEach(function (b) { b.addEventListener('click', function () { rschAction('pay', b); }); });
+      content.querySelectorAll('.rsch-cancel').forEach(function (b) { b.addEventListener('click', function () { rschAction('cancel', b); }); });
+    }).catch(function () {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load rescheduling right now. Please try again.') + '</div></section>';
+    });
+  }
+  function rschAction(action, btn) {
+    var id = parseInt(btn.getAttribute('data-id'), 10), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = '…';
+    API.request('student/reschedule', { method: 'POST', body: { action: action, request_id: id } })
+      .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast(action === 'pay' ? 'Paid from wallet.' : 'Request cancelled.', 'success'); renderReschedule(); })
+      .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var m = (err && err.body && err.body.error) || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not ' + action + ': ' + m, 'error'); else alert('Could not ' + action + '.'); });
   }
 
   function renderClassTable(enr) {
