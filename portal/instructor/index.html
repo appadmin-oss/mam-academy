@@ -328,9 +328,11 @@
           actions += ' <button class="btn" data-sess-status="' + s.id + '|held">Held</button>';
           actions += ' <button class="btn btn-ghost" data-sess-status="' + s.id + '|cancelled" style="color:var(--red,#ef4444)">Cancel</button>';
           actions += ' <button class="btn btn-ghost" data-clockin="' + s.id + '" title="Clock in for this class"><i class="fa-solid fa-business-time"></i> Clock in</button>';
+          actions += ' <button class="btn btn-ghost" data-clockout="' + s.id + '" title="Clock out of this class"><i class="fa-solid fa-right-from-bracket"></i> Clock out</button>';
           actions += ' <button class="btn btn-ghost" data-join="' + s.id + '" title="Join online (Jitsi)"><i class="fa-solid fa-video"></i> Join</button>';
         }
         if (s.status === 'held') {
+          actions += ' <button class="btn btn-ghost" data-clockout="' + s.id + '" title="Clock out of this class"><i class="fa-solid fa-right-from-bracket"></i> Clock out</button>';
           actions += ' <button class="btn btn-ghost" data-progress-report="' + s.id + '" style="color:var(--gold-bright);border-color:var(--gold-bright)"><i class="fa-solid fa-clipboard-list"></i> Reports</button>';
         }
         var linkLabel = s.meeting_link ? '<i class="fa-solid fa-link" style="color:#34D399"></i>' : '<i class="fa-solid fa-link"></i>';
@@ -631,6 +633,25 @@
       });
     });
 
+    // Clock out of a session (records actual session end + duration).
+    document.querySelectorAll('[data-clockout]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-clockout'), 10);
+        var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        API.request('instructor/clock', { method: 'POST', body: { action: 'out', session_id: sid } })
+          .then(function () {
+            b.disabled = false; b.innerHTML = orig;
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Clocked out.', 'success'); else alert('Clocked out.');
+          })
+          .catch(function (err) {
+            b.disabled = false; b.innerHTML = orig;
+            var m = (err && err.body && err.body.error) ? err.body.error : 'Could not clock out.';
+            var msg = m === 'not_clocked_in' ? 'Clock in first before clocking out.' : m;
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'error'); else alert(msg);
+          });
+      });
+    });
+
     // Join online — fetch the session's Jitsi room and open it.
     document.querySelectorAll('[data-join]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -868,7 +889,7 @@
           + '<div class="panel-body" style="display:grid;gap:10px">' + body + (evidence ? '<div>' + evidence + '</div>' : '')
           + '<form class="tb-review" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
           + '<div class="field" style="width:160px"><label>Decision</label><select name="decision"><option value="ready">Ready for instruction</option><option value="clarify">Needs clarification</option><option value="more_prep">More preparation</option></select></div>'
-          + '<div class="field" style="width:120px"><label>Understanding</label><select name="understanding"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>'
+          + ['understanding', 'accuracy', 'vocabulary', 'explanation', 'application', 'confidence'].map(function (d) { return '<div class="field" style="width:104px"><label style="text-transform:capitalize">' + d + '</label><select name="' + d + '"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>'; }).join('')
           + '<div class="field" style="flex:1;min-width:160px"><label>Feedback</label><input name="feedback" placeholder="Optional note to the student"></div>'
           + '<button type="submit" class="btn btn-primary" style="padding:9px 14px">Record</button></form>'
           + '<form class="md-form" data-lesson="' + tb.lesson_id + '" data-student="' + tb.student_id + '" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-top:1px dashed var(--border);padding-top:10px;margin-top:4px">'
@@ -886,7 +907,7 @@
           var card = form.closest('[data-tid]'), tid = parseInt(card.getAttribute('data-tid'), 10);
           var btn = form.querySelector('button[type=submit]'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = '…';
           var body = { action: 'review', teachback_id: tid, decision: form.decision.value, feedback: form.feedback.value.trim() };
-          if (form.understanding.value) body.understanding = parseInt(form.understanding.value, 10);
+          ['understanding', 'accuracy', 'vocabulary', 'explanation', 'application', 'confidence'].forEach(function (d) { if (form[d] && form[d].value) { body[d] = parseInt(form[d].value, 10); } });
           API.request('instructor/preclass', { method: 'POST', body: body }).then(function () {
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Teach-back reviewed.', 'success'); renderPreclass();
           }).catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var m = (err && err.body && err.body.error) || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not save: ' + m, 'error'); else alert('Could not save.'); });

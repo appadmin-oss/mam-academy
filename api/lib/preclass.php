@@ -151,19 +151,28 @@ function mam_preclass_teachback_submit(int $lessonId, int $studentId, ?int $coho
     return mam_preclass_teachback_for($lessonId, $studentId);
 }
 
+/** The six §19 teach-back assessment dimensions, each scored 0–5. */
+const MAM_TEACHBACK_DIMENSIONS = ['understanding', 'accuracy', 'vocabulary', 'explanation', 'application', 'confidence'];
+
 /**
- * Instructor review of a teach-back (§18): records the readiness decision,
- * an optional 0–5 understanding score and feedback. Returns the updated row.
+ * Instructor review of a teach-back (§18–19): records the readiness decision,
+ * the six 0–5 competency dimensions (all optional) and feedback. $dimensions is
+ * a map like ['understanding'=>4,'accuracy'=>3,…]; unknown keys are ignored and
+ * each value is clamped to 0–5. Returns the updated row.
  */
-function mam_preclass_teachback_review(int $teachbackId, int $reviewerId, string $decision, ?int $understanding = null, ?string $feedback = null): array {
+function mam_preclass_teachback_review(int $teachbackId, int $reviewerId, string $decision, ?int $understanding = null, ?string $feedback = null, array $dimensions = []): array {
     if (!in_array($decision, MAM_TEACHBACK_DECISIONS, true)) throw new InvalidArgumentException('bad_decision');
     $tb = mam_db_row('SELECT id FROM teachbacks WHERE id = ?', [$teachbackId]);
     if (!$tb) throw new RuntimeException('not_found');
-    mam_db_update('teachbacks', [
-        'status' => 'reviewed', 'reviewer_id' => $reviewerId, 'decision' => $decision,
-        'understanding' => $understanding !== null ? max(0, min(5, $understanding)) : null,
-        'feedback' => $feedback, 'reviewed_at' => date('Y-m-d H:i:s'),
-    ], ['id' => $teachbackId]);
+    // Back-compat: a bare $understanding arg folds into the dimensions map.
+    if ($understanding !== null && !array_key_exists('understanding', $dimensions)) $dimensions['understanding'] = $understanding;
+    $clamp = function ($v) { return ($v === null || $v === '') ? null : max(0, min(5, (int) $v)); };
+    $set = ['status' => 'reviewed', 'reviewer_id' => $reviewerId, 'decision' => $decision,
+            'feedback' => $feedback, 'reviewed_at' => date('Y-m-d H:i:s')];
+    foreach (MAM_TEACHBACK_DIMENSIONS as $dim) {
+        $set[$dim] = array_key_exists($dim, $dimensions) ? $clamp($dimensions[$dim]) : null;
+    }
+    mam_db_update('teachbacks', $set, ['id' => $teachbackId]);
     mam_audit('teachback_review', 'teachback', $teachbackId, ['by' => $reviewerId, 'decision' => $decision]);
     $row = mam_db_row('SELECT student_id, lesson_id FROM teachbacks WHERE id = ?', [$teachbackId]);
     if ($row && function_exists('mam_notify')) {

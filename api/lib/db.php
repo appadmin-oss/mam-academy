@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 71;
+const MAM_SCHEMA_TARGET = 72;
 
 /**
  * Open (and cache) the PDO connection.
@@ -128,6 +128,14 @@ function mam_db_migrate_mysql(PDO $db): void {
             // instructor announcements; without it mam_student_announcements() 500s.
             'announcements' => [
                 'cohort_id' => "ALTER TABLE announcements ADD COLUMN cohort_id INT NULL",
+            ],
+            // teachbacks v72 — six-dimension teach-back assessment (§19).
+            'teachbacks' => [
+                'accuracy'    => "ALTER TABLE teachbacks ADD COLUMN accuracy    INT NULL",
+                'vocabulary'  => "ALTER TABLE teachbacks ADD COLUMN vocabulary  INT NULL",
+                'explanation' => "ALTER TABLE teachbacks ADD COLUMN explanation INT NULL",
+                'application' => "ALTER TABLE teachbacks ADD COLUMN application INT NULL",
+                'confidence'  => "ALTER TABLE teachbacks ADD COLUMN confidence  INT NULL",
             ],
             // class_resources.cohort_id (v40) — makes class_id nullable and adds cohort_id
             // so resources are visible to course-only students.
@@ -2181,6 +2189,15 @@ function mam_db_migrate(PDO $db): void {
             CREATE INDEX idx_parent_link_student ON parent_links(student_id);
 
             PRAGMA foreign_keys=ON;
+        ",
+        // v72 — teach-back multi-dimension assessment (§19): the instructor scores
+        // six dimensions, not just Understanding. Additive nullable 0–5 columns.
+        72 => "
+            ALTER TABLE teachbacks ADD COLUMN accuracy    INTEGER;
+            ALTER TABLE teachbacks ADD COLUMN vocabulary  INTEGER;
+            ALTER TABLE teachbacks ADD COLUMN explanation INTEGER;
+            ALTER TABLE teachbacks ADD COLUMN application INTEGER;
+            ALTER TABLE teachbacks ADD COLUMN confidence  INTEGER;
         ",
     ];
 

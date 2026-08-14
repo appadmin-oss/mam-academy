@@ -57,7 +57,12 @@ try {
         $decision      = mam_str($in, 'decision', 16);
         $understanding = array_key_exists('understanding', $in) ? (int) $in['understanding'] : null;
         $feedback      = array_key_exists('feedback', $in) ? (mam_str($in, 'feedback', 500) ?: null) : null;
-        mam_ok(['teachback' => mam_preclass_teachback_review($tid, $me, $decision, $understanding, $feedback)]);
+        // §19 — the six competency dimensions (each optional, 0–5).
+        $dimensions = [];
+        foreach (MAM_TEACHBACK_DIMENSIONS as $dim) {
+            if (array_key_exists($dim, $in) && $in[$dim] !== '' && $in[$dim] !== null) $dimensions[$dim] = (int) $in[$dim];
+        }
+        mam_ok(['teachback' => mam_preclass_teachback_review($tid, $me, $decision, $understanding, $feedback, $dimensions)]);
     }
 
     if ($action === 'lesson_save') {

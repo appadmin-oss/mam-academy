@@ -69,6 +69,16 @@ $rev = mam_preclass_teachback_review((int) $tb2['id'], $PC_ins, 'ready', 6, 'Str
 t_eq($rev['decision'], 'ready', 'review records the readiness decision');
 t_eq((int) $rev['understanding'], 5, 'understanding score clamps to 0–5');
 t_eq($rev['status'], 'reviewed', 'teach-back marked reviewed');
+// §19 — the six competency dimensions are stored (each clamped to 0–5).
+$rev6 = mam_preclass_teachback_review((int) $tb2['id'], $PC_ins, 'ready', null,
+    'Six-dimension review',
+    ['understanding' => 4, 'accuracy' => 3, 'vocabulary' => 5, 'explanation' => 2, 'application' => 9, 'confidence' => 0]);
+t_eq((int) $rev6['accuracy'], 3, 'teach-back accuracy dimension stored');
+t_eq((int) $rev6['vocabulary'], 5, 'teach-back vocabulary dimension stored');
+t_eq((int) $rev6['explanation'], 2, 'teach-back explanation dimension stored');
+t_eq((int) $rev6['application'], 5, 'teach-back application dimension clamps to 0–5');
+t_eq((int) $rev6['confidence'], 0, 'teach-back confidence dimension stored (0 preserved)');
+t_eq((int) $rev6['understanding'], 4, 'teach-back understanding via dimensions map');
 t_eq(count(mam_preclass_instructor_queue($PC_ins)), count($q) - 1, 'reviewed teach-back leaves the submitted queue');
 $threw = false;
 try { mam_preclass_teachback_review((int) $tb2['id'], $PC_ins, 'bogus'); } catch (\InvalidArgumentException $e) { $threw = true; }
