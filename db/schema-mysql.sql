@@ -1695,3 +1695,153 @@ INSERT INTO settings (skey, svalue) VALUES
   ('reschedule_approval_required','1')
 ON DUPLICATE KEY UPDATE skey = skey;
 INSERT INTO schema_version (version) VALUES (62) ON DUPLICATE KEY UPDATE version = version;
+
+-- v63: LMS 2.0 teaching tables (Part B) — all additive/inert until used.
+CREATE TABLE IF NOT EXISTS assignment_groups (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  class_id     INT          NULL,
+  cohort_id    INT          NULL,
+  author_id    INT          NULL,
+  rubric_id    INT          NULL,
+  title        VARCHAR(190) NOT NULL,
+  instructions TEXT         NULL,
+  due_on       DATETIME     NULL,
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_agroups_class  (class_id),
+  KEY idx_agroups_cohort (cohort_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+ALTER TABLE assignments ADD COLUMN group_id INT NULL;
+CREATE INDEX idx_assignments_group ON assignments(group_id);
+
+CREATE TABLE IF NOT EXISTS submission_files (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  submission_id INT          NOT NULL,
+  url           TEXT         NOT NULL,
+  kind          VARCHAR(24)  NOT NULL DEFAULT 'link',
+  filename      VARCHAR(255) NULL,
+  size_bytes    BIGINT       NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_subfiles_submission (submission_id),
+  CONSTRAINT fk_subfiles_sub FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS resource_versions (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  resource_id INT          NOT NULL,
+  version     INT          NOT NULL DEFAULT 1,
+  title       VARCHAR(255) NULL,
+  url         TEXT         NOT NULL,
+  note        TEXT         NULL,
+  created_by  INT          NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_resver_resource (resource_id, version),
+  CONSTRAINT fk_resver_res FOREIGN KEY (resource_id) REFERENCES class_resources(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS lessons (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  cohort_id   INT          NULL,
+  module_id   INT          NULL,
+  title       VARCHAR(255) NOT NULL,
+  body        TEXT         NULL,
+  url         TEXT         NULL,
+  sort_order  INT          NOT NULL DEFAULT 0,
+  published   TINYINT(1)   NOT NULL DEFAULT 1,
+  created_by  INT          NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_lessons_cohort (cohort_id, sort_order),
+  CONSTRAINT fk_lessons_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS lesson_progress (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  lesson_id    INT        NOT NULL,
+  student_id   INT        NOT NULL,
+  status       VARCHAR(16) NOT NULL DEFAULT 'in_progress',
+  percent      INT        NOT NULL DEFAULT 0,
+  completed_at DATETIME   NULL,
+  updated_at   DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_lesson_progress_unique (lesson_id, student_id),
+  CONSTRAINT fk_lprog_lesson  FOREIGN KEY (lesson_id)  REFERENCES lessons(id) ON DELETE CASCADE,
+  CONSTRAINT fk_lprog_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (63) ON DUPLICATE KEY UPDATE version = version;
+
+-- v64: gradebook v2 (Part B) — reusable rubrics scored per submission.
+CREATE TABLE IF NOT EXISTS rubrics (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  title      VARCHAR(190) NOT NULL,
+  cohort_id  INT          NULL,
+  created_by INT          NULL,
+  active     TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_rubrics_cohort (cohort_id, active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS rubric_criteria (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  rubric_id  INT          NOT NULL,
+  label      VARCHAR(190) NOT NULL,
+  max_points INT          NOT NULL DEFAULT 10,
+  weight     DECIMAL(6,3) NOT NULL DEFAULT 1.0,
+  sort_order INT          NOT NULL DEFAULT 0,
+  KEY idx_rcriteria_rubric (rubric_id, sort_order),
+  CONSTRAINT fk_rcriteria_rubric FOREIGN KEY (rubric_id) REFERENCES rubrics(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS submission_reviews (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  submission_id INT          NOT NULL,
+  rubric_id     INT          NULL,
+  reviewer_id   INT          NULL,
+  scores_json   TEXT         NULL,
+  total_points  DECIMAL(8,2) NULL,
+  max_points    DECIMAL(8,2) NULL,
+  feedback      TEXT         NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_sreviews_submission (submission_id),
+  CONSTRAINT fk_sreviews_sub    FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sreviews_rubric FOREIGN KEY (rubric_id)     REFERENCES rubrics(id)     ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (64) ON DUPLICATE KEY UPDATE version = version;
+
+-- v65: scheduling core (Part D) — availability windows, a normalised rooms
+-- table (class_sessions keeps free-text `room`; room_id is the additive FK),
+-- and calendar_tokens for a signed read-only ICS feed.
+CREATE TABLE IF NOT EXISTS instructor_availability (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  instructor_id  INT         NOT NULL,
+  day_of_week    TINYINT     NOT NULL,
+  start_time     VARCHAR(8)  NOT NULL,
+  end_time       VARCHAR(8)  NOT NULL,
+  effective_from DATE        NULL,
+  effective_to   DATE        NULL,
+  active         TINYINT(1)  NOT NULL DEFAULT 1,
+  created_at     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_availability_instr (instructor_id, day_of_week, active),
+  CONSTRAINT fk_avail_instr FOREIGN KEY (instructor_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS rooms (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  name       VARCHAR(120) NOT NULL,
+  capacity   INT          NULL,
+  location   VARCHAR(190) NULL,
+  active      TINYINT(1)  NOT NULL DEFAULT 1,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+ALTER TABLE class_sessions ADD COLUMN room_id INT NULL;
+CREATE INDEX idx_class_sessions_room ON class_sessions(room_id);
+
+CREATE TABLE IF NOT EXISTS calendar_tokens (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  user_id      INT          NOT NULL,
+  token        VARCHAR(64)  NOT NULL UNIQUE,
+  scope        VARCHAR(24)  NOT NULL DEFAULT 'sessions',
+  active       TINYINT(1)   NOT NULL DEFAULT 1,
+  last_used_at DATETIME     NULL,
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_caltokens_user (user_id, active),
+  CONSTRAINT fk_caltokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (65) ON DUPLICATE KEY UPDATE version = version;

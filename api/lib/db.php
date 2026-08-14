@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 62;
+const MAM_SCHEMA_TARGET = 65;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1809,6 +1809,157 @@ function mam_db_migrate(PDO $db): void {
               ('reschedule_window_hours','24'),
               ('reschedule_payment_expiry_hours','24'),
               ('reschedule_approval_required','1');
+        ",
+        /* v63 — LMS 2.0 teaching tables (Part B), all additive/inert until used:
+         *   assignment_groups + assignments.group_id — a group is the parent an
+         *     author fans out into the existing per-student assignment rows.
+         *   submission_files — many files per submission (submissions has a
+         *     single artifact_url today).
+         *   resource_versions — edit history for class_resources.
+         *   lessons + lesson_progress — lesson units and per-student completion
+         *     (unique per lesson+student). */
+        63 => "
+            CREATE TABLE assignment_groups (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              class_id     INTEGER REFERENCES classes(id) ON DELETE SET NULL,
+              cohort_id    INTEGER REFERENCES cohorts(id) ON DELETE SET NULL,
+              author_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              rubric_id    INTEGER,
+              title        TEXT NOT NULL,
+              instructions TEXT,
+              due_on       TEXT,
+              created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_agroups_class  ON assignment_groups(class_id);
+            CREATE INDEX idx_agroups_cohort ON assignment_groups(cohort_id);
+            ALTER TABLE assignments ADD COLUMN group_id INTEGER REFERENCES assignment_groups(id) ON DELETE SET NULL;
+            CREATE INDEX idx_assignments_group ON assignments(group_id);
+
+            CREATE TABLE submission_files (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+              url           TEXT NOT NULL,
+              kind          TEXT NOT NULL DEFAULT 'link',
+              filename      TEXT,
+              size_bytes    INTEGER,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_subfiles_submission ON submission_files(submission_id);
+
+            CREATE TABLE resource_versions (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              resource_id INTEGER NOT NULL REFERENCES class_resources(id) ON DELETE CASCADE,
+              version     INTEGER NOT NULL DEFAULT 1,
+              title       TEXT,
+              url         TEXT NOT NULL,
+              note        TEXT,
+              created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_resver_resource ON resource_versions(resource_id, version);
+
+            CREATE TABLE lessons (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              cohort_id   INTEGER REFERENCES cohorts(id) ON DELETE CASCADE,
+              module_id   INTEGER,
+              title       TEXT NOT NULL,
+              body        TEXT,
+              url         TEXT,
+              sort_order  INTEGER NOT NULL DEFAULT 0,
+              published   INTEGER NOT NULL DEFAULT 1,
+              created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_lessons_cohort ON lessons(cohort_id, sort_order);
+
+            CREATE TABLE lesson_progress (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              lesson_id    INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+              student_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              status       TEXT NOT NULL DEFAULT 'in_progress',
+              percent      INTEGER NOT NULL DEFAULT 0,
+              completed_at TEXT,
+              updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_lesson_progress_unique ON lesson_progress(lesson_id, student_id);
+        ",
+        /* v64 — gradebook v2 (Part B): reusable rubrics scored per submission.
+         *   rubrics + rubric_criteria (weighted, capped) and submission_reviews
+         *   (a reviewer's per-criterion scores + computed total). Additive to the
+         *   existing feedback flow. */
+        64 => "
+            CREATE TABLE rubrics (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              title      TEXT NOT NULL,
+              cohort_id  INTEGER REFERENCES cohorts(id) ON DELETE SET NULL,
+              created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              active     INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_rubrics_cohort ON rubrics(cohort_id, active);
+
+            CREATE TABLE rubric_criteria (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              rubric_id  INTEGER NOT NULL REFERENCES rubrics(id) ON DELETE CASCADE,
+              label      TEXT NOT NULL,
+              max_points INTEGER NOT NULL DEFAULT 10,
+              weight     REAL NOT NULL DEFAULT 1.0,
+              sort_order INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX idx_rcriteria_rubric ON rubric_criteria(rubric_id, sort_order);
+
+            CREATE TABLE submission_reviews (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+              rubric_id     INTEGER REFERENCES rubrics(id) ON DELETE SET NULL,
+              reviewer_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              scores_json   TEXT,
+              total_points  REAL,
+              max_points    REAL,
+              feedback      TEXT,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_sreviews_submission ON submission_reviews(submission_id);
+        ",
+        /* v65 — scheduling core (Part D): instructor availability windows, a
+         *   normalised rooms table (class_sessions keeps its free-text `room`;
+         *   room_id is the additive FK), and calendar_tokens for a signed,
+         *   read-only ICS feed of a user's sessions. */
+        65 => "
+            CREATE TABLE instructor_availability (
+              id             INTEGER PRIMARY KEY AUTOINCREMENT,
+              instructor_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              day_of_week    INTEGER NOT NULL,
+              start_time     TEXT NOT NULL,
+              end_time       TEXT NOT NULL,
+              effective_from TEXT,
+              effective_to   TEXT,
+              active         INTEGER NOT NULL DEFAULT 1,
+              created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_availability_instr ON instructor_availability(instructor_id, day_of_week, active);
+
+            CREATE TABLE rooms (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              name       TEXT NOT NULL,
+              capacity   INTEGER,
+              location   TEXT,
+              active     INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            ALTER TABLE class_sessions ADD COLUMN room_id INTEGER REFERENCES rooms(id) ON DELETE SET NULL;
+            CREATE INDEX idx_class_sessions_room ON class_sessions(room_id);
+
+            CREATE TABLE calendar_tokens (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              token        TEXT NOT NULL UNIQUE,
+              scope        TEXT NOT NULL DEFAULT 'sessions',
+              active       INTEGER NOT NULL DEFAULT 1,
+              last_used_at TEXT,
+              created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_caltokens_user ON calendar_tokens(user_id, active);
         ",
     ];
 
