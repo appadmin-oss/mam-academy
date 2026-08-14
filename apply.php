@@ -728,7 +728,7 @@ if ($showChooser) {
 <script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/main.js?v=20260724b"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
-<script src="assets/js/headshot.js?v=20260807a"></script>
+<script src="assets/js/headshot.js?v=20260811a"></script>
 <script src="assets/js/apply.js?v=20260807a"></script>
 <script src="assets/js/apply-discovery.js?v=20260703a"></script>
 <?php if ($showChooser): ?>
