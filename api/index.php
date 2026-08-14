@@ -340,6 +340,8 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // Guardian ↔ student links + parent provisioning — PDF §26.
     $r->get ('/parent-link', $f('admin/parent-link.php'), [mw_admin_cap('view')]);
     $r->post('/parent-link', $f('admin/parent-link.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_parent', 60, 600)]);
+    // LMS 2.0 academic analytics — academy health, instructor performance (§32-35).
+    $r->get ('/analytics', $f('admin/analytics.php'), [mw_admin_cap('view')]);
     // Enterprise scheduling: academy-wide calendar + cohort waitlist management.
     $r->get ('/schedule', $f('admin/schedule.php'),  [mw_admin_cap('view')]);
     $r->get ('/waitlist', $f('admin/waitlist.php'),  [mw_admin_cap('enrollments')]);
