@@ -1919,6 +1919,8 @@ $flashErr = $_GET['err'] ?? '';
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <meta name="csrf-token" content="<?= htmlspecialchars($csrf) ?>">
+<meta name="color-scheme" content="light dark">
+<script>(function(){try{var t=localStorage.getItem('mam-admin-theme');if(t!=='dark'&&t!=='light')t='light';document.documentElement.setAttribute('data-admin-theme',t);}catch(e){document.documentElement.setAttribute('data-admin-theme','light');}})();</script>
 <script>
 /* One CSRF helper for every admin POST. The token is the stateless HMAC in the
    meta tag above; on a long-open tab it can go stale (2h). mamFetch() sends it,
@@ -1963,13 +1965,27 @@ $flashErr = $_GET['err'] ?? '';
 /* Redesign design system — the candlelit "MAM Redesign" language from the
    prototype: warmer neutrals, calmer gold, Cormorant titles + Bebas numerals. */
 :root{
-  --bg:#1B140D;--panel:#251C13;--raised:#302517;--card:#3B2E1D;
-  --text:#FCF8F3;--muted:rgba(252,248,243,0.72);--faint:rgba(252,248,243,0.5);
-  --border:rgba(240,214,170,0.14);--border-strong:rgba(240,214,170,0.26);
-  --gold:#E8961F;--gold-2:#F7A823;--goldhi:#FCC647;
-  --emerald:#2FD39E;--red:#F0567E;--blue:#7FA9F0;--violet:#9A8BF2;
   --r:14px;--r-l:20px;
   --font-display:'Bebas Neue',Impact,sans-serif;--font-serif:'Cormorant Garamond',Georgia,serif;
+}
+/* Admin console theme — light by default, dark on request. A pre-paint <head>
+   script sets html[data-admin-theme]; --ink / --bg2 (used but previously never
+   defined here) are now declared per theme so hover/index states resolve. */
+html[data-admin-theme="light"]{
+  color-scheme:light;
+  --bg:#F1F3F6;--panel:#FFFFFF;--raised:#F6F7F9;--card:#FBFCFD;--bg2:#EFF2F6;
+  --text:#1B2430;--ink:#1B2430;--muted:#66707E;--faint:#98A1AE;
+  --border:rgba(24,32,44,0.10);--border-strong:rgba(24,32,44,0.17);
+  --gold:#A6761E;--gold-2:#B98A2A;--goldhi:#C08E2E;
+  --emerald:#0F8A5F;--red:#C6435C;--blue:#4E63C8;--violet:#6E59C7;
+}
+html[data-admin-theme="dark"]{
+  color-scheme:dark;
+  --bg:#12161E;--panel:#1A1F29;--raised:#232A36;--card:#1E2530;--bg2:#20262F;
+  --text:#EEF1F5;--ink:#EEF1F5;--muted:rgba(238,241,245,0.62);--faint:rgba(238,241,245,0.44);
+  --border:rgba(230,236,245,0.11);--border-strong:rgba(230,236,245,0.20);
+  --gold:#C79A3E;--gold-2:#D3A94B;--goldhi:#E0B45A;
+  --emerald:#3FBF8C;--red:#EC6E88;--blue:#8CA0F0;--violet:#9A8BF2;
 }
 html,body{height:100%}
 /* Accessibility: visible keyboard focus everywhere + a skip link. */
@@ -1978,7 +1994,7 @@ main:focus{outline:none}
 .skip-link{position:absolute;left:16px;top:-60px;z-index:10001;background:var(--goldhi);color:#1A120B;font-weight:800;padding:10px 16px;border-radius:10px;transition:top .18s}
 .skip-link:focus{top:12px}
 @media(prefers-reduced-motion:reduce){.skip-link{transition:none}}
-body{font:14px/1.55 'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:radial-gradient(1200px 700px at 82% -12%,rgba(232,150,31,0.06),transparent 55%),var(--bg);color:var(--text);height:100vh;overflow:hidden;display:grid;grid-template-columns:244px 1fr}
+body{font:14px/1.55 'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:grid;grid-template-columns:244px 1fr}
 a{color:inherit;text-decoration:none}
 aside{background:var(--panel);border-right:1px solid var(--border);padding:18px 14px;height:100vh;overflow:auto}
 .brand{display:flex;align-items:center;gap:10px;padding:8px 10px 18px;border-bottom:1px solid var(--border);margin-bottom:14px}
@@ -1987,7 +2003,9 @@ aside{background:var(--panel);border-right:1px solid var(--border);padding:18px 
 .brand small{display:block;color:var(--muted);font-size:0.72rem;letter-spacing:0.06em;text-transform:uppercase}
 nav a{display:flex;align-items:center;gap:11px;padding:10px 13px;color:var(--muted);border-radius:11px;margin-bottom:3px;font-size:0.9rem;font-weight:500;border:1px solid transparent}
 nav a:hover{background:var(--raised);color:var(--text)}
-nav a.active{background:linear-gradient(135deg,rgba(232,150,31,0.2),rgba(252,198,71,0.06));color:var(--goldhi);border:1px solid var(--border-strong);font-weight:600}
+nav a{position:relative}
+nav a.active{background:var(--raised);color:var(--text);border:1px solid var(--border);font-weight:600}
+nav a.active::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:var(--gold)}
 nav a i{width:18px;text-align:center;font-size:0.88rem;opacity:0.8;flex:0 0 auto}
 nav a.active i{opacity:1;color:var(--gold)}
 /* Grouped sidebar: a quiet section label introduces each domain of the admin. */
@@ -2022,7 +2040,7 @@ main{padding:0 36px 40px;overflow:auto;height:100vh}
 /* Sticky app-shell top bar — page title left, account + view-site right. Bleeds
    to main's horizontal padding and frosts on scroll. */
 .admin-topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:16px;
-  margin:0 -36px 28px;padding:15px 36px;background:rgba(20,14,9,0.85);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+  margin:0 -36px 28px;padding:15px 36px;background:var(--panel);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
 .admin-topbar .atb-title{font-size:0.98rem;font-weight:700;letter-spacing:0.02em;color:var(--text);display:flex;align-items:center;gap:10px}
 .admin-topbar .atb-title .dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-2));box-shadow:0 0 10px rgba(251,191,36,0.6)}
 .admin-topbar .atb-right{display:flex;align-items:center;gap:10px}
@@ -2062,14 +2080,14 @@ header.top h1{font-family:var(--font-serif);font-size:2.1rem;font-weight:700;let
 table{width:100%;border-collapse:collapse;font-size:0.86rem}
 th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
 th{color:var(--muted);font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;background:var(--panel);white-space:nowrap}
-tr:hover td{background:rgba(255,255,255,0.04)}
+tr:hover td{background:var(--raised)}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:lowercase}
 .pill.submitted,.pill.received{background:rgba(99,102,241,0.18);color:#A5B4FC}
 .pill.paid,.pill.processed,.pill.succeeded,.pill.active,.pill.subscribed{background:rgba(16,185,129,0.18);color:#34D399}
 .pill.enrolled{background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B}
 .pill.cancelled,.pill.failed,.pill.invalid,.pill.suspended,.pill.withdrawn{background:rgba(244,63,94,0.18);color:#FB7185}
 .pill.in_review,.pill.pending,.pill.unread,.pill.paused{background:rgba(251,191,36,0.18);color:#FBBF24}
-.pill.read,.pill.archived,.pill.completed{background:rgba(255,255,255,0.08);color:var(--muted)}
+.pill.read,.pill.archived,.pill.completed{background:var(--bg2);color:var(--muted)}
 .pill.admin{background:linear-gradient(135deg,var(--red),#FB7185);color:#fff}
 .pill.instructor{background:rgba(99,102,241,0.18);color:#A5B4FC}
 .pill.student{background:rgba(16,185,129,0.18);color:#34D399}
@@ -2145,8 +2163,8 @@ nav a{display:flex;align-items:center}
 .mam-toast-stack{position:fixed;top:16px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .mam-toast{pointer-events:auto;display:flex;align-items:center;gap:10px;min-width:240px;max-width:380px;padding:12px 16px;border-radius:12px;font-size:.86rem;font-weight:600;box-shadow:0 12px 40px rgba(0,0,0,.45);transform:translateX(24px);opacity:0;transition:transform .3s cubic-bezier(.2,.9,.3,1.2),opacity .3s}
 .mam-toast.in{transform:none;opacity:1}
-.mam-toast.ok{background:#123B2C;border:1px solid #34D399;color:#A7F3D0}
-.mam-toast.err{background:#3B1219;border:1px solid #FB7185;color:#FECDD3}
+.mam-toast.ok{background:var(--card);border:1px solid var(--emerald);color:var(--emerald)}
+.mam-toast.err{background:var(--card);border:1px solid var(--red);color:var(--red)}
 /* ── Automations: trigger→action rules with a no-JS toggle switch ── */
 .auto-rule{display:flex;align-items:center;gap:16px;padding:15px 20px;border-top:1px solid var(--border)}
 .auto-rule:first-child{border-top:none}
@@ -2346,6 +2364,7 @@ nav a{display:flex;align-items:center}
     <?php $__atbTier = $adminUser ? mam_admin_tier($adminUser) : 'super'; ?>
     <span class="atb-tier tier-<?= htmlspecialchars($__atbTier) ?>" title="Your admin access level"><?= $__atbTier === 'super' ? 'Super admin' : 'Manager' ?></span>
     <a class="atb-chip" href="/" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> View site</a>
+    <button type="button" class="atb-chip" data-action="admin-theme-toggle" aria-pressed="false" title="Switch light / dark"><i class="fa-solid fa-moon" aria-hidden="true"></i> <span data-theme-label>Dark</span></button>
     <span class="atb-user" title="<?= htmlspecialchars($atbEmail) ?>"><span class="av"><?= htmlspecialchars($atbInit) ?></span><?= htmlspecialchars($atbEmail) ?></span>
   </div>
 </div>
@@ -4847,7 +4866,7 @@ nav a{display:flex;align-items:center}
   .prog-card-meta{font-size:.78rem;color:var(--muted);margin-top:2px}
   .prog-actions{display:flex;gap:7px;flex-wrap:wrap;flex-shrink:0}
   .prog-progress{display:flex;align-items:center;gap:10px}
-  .prog-progress-bar{flex:1;height:5px;background:rgba(255,255,255,.1);border-radius:3px;max-width:200px;min-width:80px}
+  .prog-progress-bar{flex:1;height:5px;background:var(--bg2);border-radius:3px;max-width:200px;min-width:80px}
   .prog-progress-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-2));border-radius:3px;transition:width .4s ease}
   .prog-progress-label{font-size:.75rem;color:var(--muted);white-space:nowrap}
   .prog-course-table td,.prog-course-table th{padding:10px 14px;font-size:.84rem}
@@ -8120,6 +8139,34 @@ window.backfillEnrollRefs = function (btn) {
     alert('Could not run backfill: ' + e.message);
   });
 };
+</script>
+<script>
+/* Admin theme toggle — light ⇄ dark, persisted. The pre-paint <head> script
+   sets the initial data-admin-theme; this wires the top-bar control. */
+(function () {
+  var root = document.documentElement;
+  function cur() { return root.getAttribute('data-admin-theme') === 'dark' ? 'dark' : 'light'; }
+  function sync() {
+    var dark = cur() === 'dark';
+    var btns = document.querySelectorAll('[data-action="admin-theme-toggle"]');
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i], lbl = b.querySelector('[data-theme-label]'), ic = b.querySelector('i');
+      if (lbl) { lbl.textContent = dark ? 'Light' : 'Dark'; }
+      if (ic) { ic.className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon'; }
+      b.setAttribute('aria-pressed', dark ? 'true' : 'false');
+    }
+  }
+  document.addEventListener('click', function (e) {
+    var b = (e.target && e.target.closest) ? e.target.closest('[data-action="admin-theme-toggle"]') : null;
+    if (!b) { return; }
+    e.preventDefault();
+    var next = cur() === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-admin-theme', next);
+    try { localStorage.setItem('mam-admin-theme', next); } catch (err) {}
+    sync();
+  }, false);
+  sync();
+})();
 </script>
 </body>
 </html>
