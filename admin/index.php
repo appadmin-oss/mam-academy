@@ -479,6 +479,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'bridge_legacy_enrollments' => 'settings',
         'module_save' => 'curriculum', 'module_delete' => 'curriculum',
         'module_scaffold' => 'curriculum', 'module_import' => 'curriculum',
+        'rubric_create' => 'curriculum', 'rubric_update' => 'curriculum', 'rubric_delete' => 'curriculum',
         'set_student_type' => 'users',
         'acct_resolve' => 'enrollments', 'guardian_link' => 'enrollments', 'guardian_unlink' => 'enrollments',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
@@ -1178,6 +1179,41 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         );
         // Land back on the week that was just saved, not the top of the page.
         header('Location: ' . $back . '&ok=1#wk' . max(1, (int)($_POST['week'] ?? 1))); exit;
+    }
+
+    // ─── Competency rubrics (§21): create / edit / delete + assign to a cohort ──
+    if (in_array($action, ['rubric_create', 'rubric_update', 'rubric_delete'], true)) {
+        if ($action === 'rubric_delete') {
+            $rid = (int)($_POST['rubric_id'] ?? 0);
+            if ($rid) mam_lms2_rubric_delete($rid);
+            header('Location: ?v=rubrics&ok=1'); exit;
+        }
+        $title    = trim((string)($_POST['title'] ?? ''));
+        $cohortId = (int)($_POST['cohort_id'] ?? 0) ?: null;
+        $active   = !empty($_POST['active']);
+        // Criteria arrive as parallel arrays (label/max/weight rows).
+        $labels  = (array)($_POST['crit_label'] ?? []);
+        $maxes   = (array)($_POST['crit_max'] ?? []);
+        $weights = (array)($_POST['crit_weight'] ?? []);
+        $criteria = [];
+        foreach ($labels as $i => $lab) {
+            $lab = trim((string)$lab);
+            if ($lab === '') continue;
+            $criteria[] = ['label' => $lab, 'max_points' => (int)($maxes[$i] ?? 10), 'weight' => (float)($weights[$i] ?? 1)];
+        }
+        try {
+            if ($action === 'rubric_create') {
+                mam_lms2_rubric_create($title, $criteria, $cohortId, (int)($adminUser['id'] ?? 0) ?: null);
+            } else {
+                mam_lms2_rubric_update((int)($_POST['rubric_id'] ?? 0), $title, $criteria, $cohortId, $active);
+            }
+        } catch (\Throwable $e) {
+            $m = $e->getMessage();
+            $msg = $m === 'title_required' ? 'A rubric title is required.'
+                 : ($m === 'criteria_required' ? 'Add at least one scored criterion.' : 'Could not save the rubric.');
+            header('Location: ?v=rubrics&err=' . urlencode($msg)); exit;
+        }
+        header('Location: ?v=rubrics&ok=1'); exit;
     }
 
     // ─── Faculty invites: approve/dismiss requests, direct invites, app status ──
@@ -2268,7 +2304,7 @@ nav a{display:flex;align-items:center}
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
@@ -2279,7 +2315,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -3309,6 +3345,117 @@ nav a{display:flex;align-items:center}
     <?php endif; ?>
   </div>
 
+<?php elseif ($view === 'rubrics'): ?>
+  <?php
+    $rbCohorts = mam_db_all("SELECT co.id, co.title, c.name AS course_name, l.name AS level_name, p.name AS program_name
+                               FROM cohorts co
+                               LEFT JOIN courses  c ON c.id = co.course_id
+                               LEFT JOIN levels   l ON l.id = co.level_id
+                               LEFT JOIN programs p ON p.id = co.program_id
+                              ORDER BY co.id DESC");
+    $rbList = function_exists('mam_lms2_rubrics_admin') ? mam_lms2_rubrics_admin() : [];
+    $rbCohortLabel = function ($cid) use ($rbCohorts) {
+        foreach ($rbCohorts as $c) if ((int)$c['id'] === (int)$cid) {
+            $bits = array_filter([$c['program_name'], $c['course_name'], $c['level_name']]);
+            return ($c['title'] ?: ('Cohort #' . $c['id'])) . ($bits ? ' · ' . implode(' · ', $bits) : '');
+        }
+        return null;
+    };
+    $rbOpts = function ($selected) use ($rbCohorts) {
+        $out = '<option value="">— any cohort (unscoped) —</option>';
+        foreach ($rbCohorts as $c) {
+            $bits = array_filter([$c['program_name'], $c['course_name'], $c['level_name']]);
+            $lab = ($c['title'] ?: ('Cohort #' . $c['id'])) . ($bits ? ' · ' . implode(' · ', $bits) : '');
+            $sel = ((int)$selected === (int)$c['id'] && $selected !== null) ? ' selected' : '';
+            $out .= '<option value="' . (int)$c['id'] . '"' . $sel . '>' . htmlspecialchars($lab) . '</option>';
+        }
+        return $out;
+    };
+    $rbCritRow = function ($label = '', $max = 10, $weight = 1) {
+        return '<div class="crit-row" style="display:flex;gap:8px;margin-bottom:6px;align-items:center">'
+          . '<input name="crit_label[]" placeholder="Criterion (e.g. Note Accuracy)" value="' . htmlspecialchars((string)$label) . '" style="flex:2;min-width:150px">'
+          . '<input name="crit_max[]" type="number" min="1" value="' . (int)$max . '" title="Max points" style="width:80px">'
+          . '<input name="crit_weight[]" type="number" min="0" step="0.5" value="' . htmlspecialchars((string)$weight) . '" title="Weight" style="width:80px">'
+          . '<button type="button" class="btn ghost tiny" data-remove-criterion aria-label="Remove criterion">×</button>'
+          . '</div>';
+    };
+  ?>
+  <header class="top"><h1>Competency Rubrics</h1></header>
+  <p class="muted" style="margin:0 0 16px">Author instrument competency rubrics (§21) and assign each to a cohort — which carries its Programme · Instrument · Grade. Instructors score submissions and teach-backs against them; scores feed the gradebook and each student's mastery.</p>
+
+  <section class="card" style="margin-bottom:20px;padding:18px">
+    <h2 style="font-size:1rem;margin:0 0 12px">New rubric</h2>
+    <form method="post" action="?v=rubrics">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="rubric_create">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+        <label style="flex:2;min-width:220px">Title<br><input type="text" name="title" required placeholder="e.g. Piano — Grade 2" style="width:100%"></label>
+        <label style="flex:1;min-width:220px">Assign to cohort<br><select name="cohort_id" style="width:100%"><?= $rbOpts(null) ?></select></label>
+      </div>
+      <div class="muted" style="font-size:.78rem;margin-bottom:6px">Criteria — label, max points, weight</div>
+      <div data-criteria><?= $rbCritRow('') . $rbCritRow('') . $rbCritRow('') ?></div>
+      <button type="button" class="btn ghost tiny" data-add-criterion>+ Add criterion</button>
+      <div style="margin-top:14px"><button type="submit" class="btn">Create rubric</button></div>
+    </form>
+  </section>
+
+  <?php if (!$rbList): ?>
+    <div class="banner">No rubrics yet — create your first above.</div>
+  <?php else: ?>
+    <?php foreach ($rbList as $rb): ?>
+      <section class="card" style="margin-bottom:12px;padding:14px 16px">
+        <details>
+          <summary style="cursor:pointer;list-style:none">
+            <strong><?= htmlspecialchars($rb['title']) ?></strong>
+            <?php if (!(int)$rb['active']): ?><span class="tag" style="opacity:.7">inactive</span><?php endif; ?>
+            <span class="muted" style="font-size:.82rem"> — <?= htmlspecialchars($rbCohortLabel($rb['cohort_id']) ?? 'any cohort') ?> · <?= count($rb['criteria']) ?> criteria</span>
+          </summary>
+          <form method="post" action="?v=rubrics" style="margin-top:12px">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+            <input type="hidden" name="action" value="rubric_update">
+            <input type="hidden" name="rubric_id" value="<?= (int)$rb['id'] ?>">
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;align-items:end">
+              <label style="flex:2;min-width:200px">Title<br><input type="text" name="title" value="<?= htmlspecialchars($rb['title']) ?>" required style="width:100%"></label>
+              <label style="flex:1;min-width:200px">Cohort<br><select name="cohort_id" style="width:100%"><?= $rbOpts($rb['cohort_id']) ?></select></label>
+              <label style="white-space:nowrap"><input type="checkbox" name="active" value="1" <?= (int)$rb['active'] ? 'checked' : '' ?>> Active</label>
+            </div>
+            <div data-criteria><?php foreach (($rb['criteria'] ?: [['label'=>'','max_points'=>10,'weight'=>1]]) as $cr) { echo $rbCritRow($cr['label'] ?? '', $cr['max_points'] ?? 10, $cr['weight'] ?? 1); } ?></div>
+            <button type="button" class="btn ghost tiny" data-add-criterion>+ Add criterion</button>
+            <div style="margin-top:12px"><button type="submit" class="btn">Save changes</button></div>
+          </form>
+          <form method="post" action="?v=rubrics" onsubmit="return confirm('Delete this rubric and its criteria?')" style="margin-top:8px">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+            <input type="hidden" name="action" value="rubric_delete">
+            <input type="hidden" name="rubric_id" value="<?= (int)$rb['id'] ?>">
+            <button type="submit" class="btn ghost tiny" style="color:var(--red)">Delete rubric</button>
+          </form>
+        </details>
+      </section>
+    <?php endforeach; ?>
+  <?php endif; ?>
+
+  <template id="critRowTpl"><?= $rbCritRow('') ?></template>
+  <script>
+    (function () {
+      var tpl = document.getElementById('critRowTpl');
+      document.querySelectorAll('[data-add-criterion]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var host = btn.parentNode.querySelector('[data-criteria]');
+          if (!host) { return; }
+          var wrap = document.createElement('div');
+          wrap.innerHTML = tpl.innerHTML.trim();
+          host.appendChild(wrap.firstElementChild);
+        });
+      });
+      document.addEventListener('click', function (e) {
+        var rm = e.target.closest ? e.target.closest('[data-remove-criterion]') : null;
+        if (!rm) { return; }
+        var row = rm.closest('.crit-row');
+        var host = row ? row.parentNode : null;
+        if (row && host && host.querySelectorAll('.crit-row').length > 1) { row.remove(); }
+      });
+    })();
+  </script>
 <?php elseif ($view === 'accountability'): ?>
   <?php
     $acStatus = in_array(($_GET['status'] ?? ''), ['outstanding', 'waived', 'paid', 'reversed'], true) ? (string)$_GET['status'] : 'outstanding';

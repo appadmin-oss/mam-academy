@@ -192,6 +192,58 @@ function mam_lms2_rubric_create(string $title, array $criteria, ?int $cohortId =
     return $rid;
 }
 
+/** Update a rubric's title/scope/active and REPLACE its criteria (§21 admin CRUD). */
+function mam_lms2_rubric_update(int $rubricId, string $title, array $criteria, ?int $cohortId = null, bool $active = true): void {
+    $title = trim($title);
+    if ($title === '') throw new InvalidArgumentException('title_required');
+    $clean = array_values(array_filter($criteria, fn($c) => trim((string) ($c['label'] ?? '')) !== ''));
+    if (!$clean) throw new InvalidArgumentException('criteria_required');
+    if (!mam_db_row('SELECT id FROM rubrics WHERE id = ?', [$rubricId])) throw new RuntimeException('not_found');
+    mam_db_update('rubrics', ['title' => $title, 'cohort_id' => $cohortId, 'active' => $active ? 1 : 0], ['id' => $rubricId]);
+    mam_db()->prepare('DELETE FROM rubric_criteria WHERE rubric_id = ?')->execute([$rubricId]);
+    $i = 0;
+    foreach ($clean as $c) {
+        mam_db_insert('rubric_criteria', [
+            'rubric_id'  => $rubricId,
+            'label'      => trim((string) $c['label']),
+            'max_points' => max(1, (int) ($c['max_points'] ?? 10)),
+            'weight'     => max(0.0, (float) ($c['weight'] ?? 1.0)),
+            'sort_order' => $i++,
+        ]);
+    }
+}
+
+/** Delete a rubric; its criteria cascade. */
+function mam_lms2_rubric_delete(int $rubricId): void {
+    mam_db()->prepare('DELETE FROM rubrics WHERE id = ?')->execute([$rubricId]);
+}
+
+/**
+ * Admin listing: every rubric (active AND inactive) with its criteria and the
+ * Programme→Instrument(course)→Grade(level) context of its assigned cohort, so
+ * the admin console can author and assign rubrics per §21.
+ */
+function mam_lms2_rubrics_admin(): array {
+    $rubrics = mam_db_all(
+        "SELECT r.*, co.title AS cohort_title,
+                c.name AS course_name, l.name AS level_name, p.name AS program_name
+           FROM rubrics r
+           LEFT JOIN cohorts  co ON co.id = r.cohort_id
+           LEFT JOIN courses  c  ON c.id  = co.course_id
+           LEFT JOIN levels   l  ON l.id  = co.level_id
+           LEFT JOIN programs p  ON p.id  = co.program_id
+          ORDER BY r.active DESC, r.id DESC"
+    );
+    foreach ($rubrics as &$r) {
+        $r['criteria'] = mam_db_all(
+            "SELECT id, label, max_points, weight, sort_order FROM rubric_criteria WHERE rubric_id = ? ORDER BY sort_order, id",
+            [(int) $r['id']]
+        );
+    }
+    unset($r);
+    return $rubrics;
+}
+
 /**
  * Score an enrolment against a rubric directly in the gradebook: the rubric
  * percent is recorded as a weighted assessment of $typeCode via the existing

@@ -43,6 +43,32 @@ $rev = mam_db_row('SELECT * FROM submission_reviews WHERE id = ?', [$revId]);
 t_near((float)$rev['total_points'], 27.0, 'stored review total (9*1 + 9*2)');
 t_eq($rev['feedback'], 'Good work', 'review feedback stored');
 
+t_group('lms2 — rubric CRUD (§21 admin)');
+$crRid = mam_lms2_rubric_create('Piano — Grade 2', [
+    ['label' => 'Note Accuracy', 'max_points' => 10, 'weight' => 1.5],
+    ['label' => 'Rhythm & Timing', 'max_points' => 10, 'weight' => 1],
+    ['label' => '', 'max_points' => 5, 'weight' => 1], // blank label is dropped
+], null, $L2_author);
+$crCrit = mam_db_all('SELECT * FROM rubric_criteria WHERE rubric_id = ? ORDER BY sort_order', [$crRid]);
+t_eq(count($crCrit), 2, 'create keeps only labelled criteria');
+$threw = false;
+try { mam_lms2_rubric_create('No criteria', [['label' => '']]); } catch (\InvalidArgumentException $e) { $threw = true; }
+t_ok($threw, 'create rejects a rubric with no scored criteria');
+// Update replaces criteria + toggles active.
+mam_lms2_rubric_update($crRid, 'Piano — Grade 2 (rev)', [
+    ['label' => 'Posture', 'max_points' => 5, 'weight' => 1],
+], null, false);
+$upd = mam_db_row('SELECT * FROM rubrics WHERE id = ?', [$crRid]);
+t_eq($upd['title'], 'Piano — Grade 2 (rev)', 'update changes the title');
+t_eq((int)$upd['active'], 0, 'update can deactivate a rubric');
+t_eq(count(mam_db_all('SELECT id FROM rubric_criteria WHERE rubric_id = ?', [$crRid])), 1, 'update replaces the criteria set');
+$adminList = mam_lms2_rubrics_admin();
+t_ok(count(array_filter($adminList, fn($r) => (int)$r['id'] === $crRid)) === 1, 'admin listing includes inactive rubrics');
+// Delete cascades criteria.
+mam_lms2_rubric_delete($crRid);
+t_eq(mam_db_row('SELECT id FROM rubrics WHERE id = ?', [$crRid]), null, 'delete removes the rubric');
+t_eq(count(mam_db_all('SELECT id FROM rubric_criteria WHERE rubric_id = ?', [$crRid])), 0, 'delete cascades its criteria');
+
 t_group('lms2 — submission files & resource versions');
 
 $fid = mam_lms2_submission_add_file($L2_sub, 'https://x/file.pdf', 'pdf', 'file.pdf', 1024);
