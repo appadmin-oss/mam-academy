@@ -480,6 +480,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'module_save' => 'curriculum', 'module_delete' => 'curriculum',
         'module_scaffold' => 'curriculum', 'module_import' => 'curriculum',
         'set_student_type' => 'users',
+        'acct_resolve' => 'enrollments', 'guardian_link' => 'enrollments', 'guardian_unlink' => 'enrollments',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
@@ -553,6 +554,38 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         mam_db_update('users', ['student_type' => $type === 'scholarship' ? 'scholarship' : null], ['id' => $uid]);
         mam_audit('set_student_type', 'user', $uid, ['type' => $type]);
         header('Location: ?v=users&edit=' . $uid . '&ok=1'); exit;
+    }
+
+    // ── Accountability ledger: resolve a charge (waive / paid / reversed) ──
+    if ($action === 'acct_resolve') {
+        $cid  = (int)($_POST['charge_id'] ?? 0);
+        $st   = in_array(($_POST['resolution'] ?? ''), ['waived', 'paid', 'reversed'], true) ? (string)$_POST['resolution'] : '';
+        $note = substr(trim((string)($_POST['note'] ?? '')), 0, 255) ?: null;
+        $me   = mam_current_user();
+        if ($cid < 1 || $st === '') { header('Location: ?v=accountability&err=' . urlencode('Choose a charge and an outcome.')); exit; }
+        try { mam_accountability_resolve($cid, $me ? (int)$me['id'] : 0, $st, $note); }
+        catch (\Throwable $e) { header('Location: ?v=accountability&err=' . urlencode('Could not update that charge.')); exit; }
+        header('Location: ?v=accountability&ok=1'); exit;
+    }
+
+    // ── Guardians: link / unlink a parent account to a student ─────────────
+    if ($action === 'guardian_link') {
+        $sid   = (int)($_POST['student_id'] ?? 0);
+        $email = mam_str($_POST, 'parent_email', 190);
+        $rel   = mam_str($_POST, 'relationship', 32) ?: 'guardian';
+        $me    = mam_current_user();
+        if ($sid < 1 || $email === '') { header('Location: ?v=guardians&err=' . urlencode('Enter a student id and guardian email.')); exit; }
+        try { mam_parent_link($email, $sid, $rel, $me ? (int)$me['id'] : null); }
+        catch (\Throwable $e) { header('Location: ?v=guardians&err=' . urlencode('Could not link this guardian.')); exit; }
+        // A newly-created guardian must set a password via the reset flow — we
+        // never surface the temp secret in a URL.
+        header('Location: ?v=guardians&student=' . $sid . '&ok=1'); exit;
+    }
+    if ($action === 'guardian_unlink') {
+        $pid = (int)($_POST['parent_id'] ?? 0);
+        $sid = (int)($_POST['student_id'] ?? 0);
+        if ($pid > 0 && $sid > 0) mam_parent_unlink($pid, $sid);
+        header('Location: ?v=guardians' . ($sid ? '&student=' . $sid : '') . '&ok=1'); exit;
     }
 
     // ── Media & Documents library (#media) ──────────────────────────────
@@ -3256,6 +3289,93 @@ nav a{display:flex;align-items:center}
     </table></div>
     <?php endif; ?>
   </div>
+
+<?php elseif ($view === 'accountability'): ?>
+  <?php
+    $acStatus = in_array(($_GET['status'] ?? ''), ['outstanding', 'waived', 'paid', 'reversed'], true) ? (string)$_GET['status'] : 'outstanding';
+    $acRows = function_exists('mam_accountability_list') ? mam_accountability_list($acStatus, 300) : [];
+  ?>
+  <header class="top"><h1>Accountability Ledger</h1></header>
+  <p class="muted" style="margin:0 0 12px">Punctuality charges (late arrivals &amp; instructor lateness). Waiving records the §15 exception decision. Amounts are a record — no wallet is auto-debited.</p>
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <?php foreach (['outstanding', 'waived', 'paid', 'reversed'] as $st): ?>
+      <a href="?v=accountability&status=<?= $st ?>" class="pill" style="<?= $acStatus === $st ? 'background:var(--gold);color:#1A120B' : 'background:var(--raised)' ?>"><?= ucfirst($st) ?></a>
+    <?php endforeach; ?>
+  </div>
+  <?php if (!$acRows): ?>
+    <div class="card"><p class="muted" style="margin:0">No <?= htmlspecialchars($acStatus) ?> charges.</p></div>
+  <?php else: ?>
+  <div class="card"><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+    <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+      <th style="padding:8px">Who</th><th style="padding:8px">Reason</th><th style="padding:8px">Amount</th><th style="padding:8px">When</th><?php if ($acStatus === 'outstanding'): ?><th style="padding:8px">Resolve</th><?php endif; ?></tr></thead>
+    <tbody>
+    <?php foreach ($acRows as $c): ?>
+      <tr style="border-top:1px solid var(--border)">
+        <td style="padding:8px"><strong><?= htmlspecialchars((string)($c['subject_name'] ?? '—')) ?></strong> <span class="muted" style="font-size:.72rem">(<?= htmlspecialchars((string)$c['subject_type']) ?>)</span></td>
+        <td style="padding:8px"><?= htmlspecialchars(str_replace('_', ' ', (string)$c['reason'])) ?><?= (int)$c['minutes'] ? ' · ' . (int)$c['minutes'] . ' min' : '' ?><?php if (!empty($c['session_title'])): ?><br><span class="muted" style="font-size:.72rem"><?= htmlspecialchars((string)$c['session_title']) ?></span><?php endif; ?></td>
+        <td style="padding:8px">$<?= number_format((int)$c['amount_usd_cents'] / 100, 2) ?></td>
+        <td style="padding:8px" class="muted"><?= htmlspecialchars(substr((string)$c['created_at'], 0, 10)) ?></td>
+        <?php if ($acStatus === 'outstanding'): ?>
+        <td style="padding:8px"><form method="post" style="display:flex;gap:6px;align-items:center;margin:0">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+          <input type="hidden" name="action" value="acct_resolve">
+          <input type="hidden" name="charge_id" value="<?= (int)$c['id'] ?>">
+          <select name="resolution" style="padding:5px 8px;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.78rem"><option value="waived">Waive</option><option value="paid">Mark paid</option><option value="reversed">Reverse</option></select>
+          <button class="btn" type="submit" style="padding:5px 12px;font-size:.78rem">Apply</button>
+        </form></td>
+        <?php endif; ?>
+      </tr>
+    <?php endforeach; ?>
+    </tbody></table></div></div>
+  <?php endif; ?>
+
+<?php elseif ($view === 'guardians'): ?>
+  <?php
+    $gSid = (int)($_GET['student'] ?? 0);
+    $gStudent = $gSid ? mam_db_row('SELECT id, name, email, enrollment_ref FROM users WHERE id = ?', [$gSid]) : null;
+    $gList = ($gSid && function_exists('mam_db_all')) ? mam_db_all(
+        "SELECT pl.id, pl.relationship, u.id AS parent_id, u.name, u.email, u.must_change_password
+           FROM parent_links pl JOIN users u ON u.id = pl.parent_id WHERE pl.student_id = ? ORDER BY u.name", [$gSid]) : [];
+  ?>
+  <header class="top"><h1>Guardians</h1></header>
+  <p class="muted" style="margin:0 0 14px">Link a parent/guardian account to a student. New guardians must set a password via “Forgot password”, then see their child’s journey in the Parent Portal.</p>
+
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="margin:0 0 10px">Link a guardian</h3>
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="guardian_link">
+      <label>Student ID<input name="student_id" type="number" min="1" value="<?= $gSid ?: '' ?>" required style="width:100%;padding:9px 11px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--ink);margin-top:4px"></label>
+      <label>Guardian email<input name="parent_email" type="email" required style="width:100%;padding:9px 11px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--ink);margin-top:4px"></label>
+      <label>Relationship<input name="relationship" placeholder="guardian" style="width:100%;padding:9px 11px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--ink);margin-top:4px"></label>
+      <button class="btn btn-primary" type="submit" style="padding:10px 16px">Link guardian</button>
+    </form>
+    <p class="muted" style="font-size:.74rem;margin:10px 0 0">Find a student’s ID in <a href="?v=users">Users</a>. Enter a student ID above to also view their current guardians.</p>
+  </div>
+
+  <?php if ($gStudent): ?>
+  <div class="card">
+    <h3 style="margin:0 0 4px">Guardians of <?= htmlspecialchars((string)$gStudent['name']) ?> <span class="muted" style="font-size:.8rem">#<?= (int)$gStudent['id'] ?><?= $gStudent['enrollment_ref'] ? ' · ' . htmlspecialchars((string)$gStudent['enrollment_ref']) : '' ?></span></h3>
+    <?php if (!$gList): ?><p class="muted" style="margin:8px 0 0">No guardians linked yet.</p><?php else: ?>
+    <table style="width:100%;border-collapse:collapse;margin-top:8px">
+      <tbody>
+      <?php foreach ($gList as $g): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px"><strong><?= htmlspecialchars((string)$g['name']) ?></strong> <span class="muted"><?= htmlspecialchars((string)$g['email']) ?></span> · <?= htmlspecialchars((string)$g['relationship']) ?><?= (int)$g['must_change_password'] ? ' <span class="pill" style="background:rgba(251,191,36,.16);color:#FBBF24">needs password</span>' : '' ?></td>
+          <td style="padding:8px;text-align:right"><form method="post" style="margin:0" onsubmit="return confirm('Unlink this guardian?')">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+            <input type="hidden" name="action" value="guardian_unlink">
+            <input type="hidden" name="parent_id" value="<?= (int)$g['parent_id'] ?>">
+            <input type="hidden" name="student_id" value="<?= (int)$gStudent['id'] ?>">
+            <button class="btn" type="submit" style="padding:5px 12px;font-size:.78rem">Unlink</button>
+          </form></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 
 <?php elseif ($view === 'fines'): ?>
   <?php
