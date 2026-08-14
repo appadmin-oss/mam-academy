@@ -814,6 +814,8 @@
     API.request('instructor/preclass', { method: 'GET' }).then(function (r) {
       var q = (r && r.queue) || [];
       if (!q.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-check', 'No teach-backs awaiting review — you’re all caught up.') + '</div></section>'; return; }
+      var MD_STATUS = ['available', 'in_progress', 'developing', 'proficient', 'advanced', 'mastered', 'remedial', 'completed', 'exempted'];
+      var MD_OPTS = MD_STATUS.map(function (s) { return '<option value="' + s + '">' + s.replace(/_/g, ' ') + '</option>'; }).join('');
       var cards = q.map(function (tb) {
         var evidence = tb.artifact_url ? '<a href="' + P.escapeHtml(tb.artifact_url) + '" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square"></i> View evidence</a>' : '';
         var body = tb.body ? '<blockquote style="margin:0;padding:8px 12px;border-left:3px solid var(--border);color:var(--text-muted)">' + P.escapeHtml(tb.body) + '</blockquote>' : '';
@@ -823,7 +825,14 @@
           + '<div class="field" style="width:160px"><label>Decision</label><select name="decision"><option value="ready">Ready for instruction</option><option value="clarify">Needs clarification</option><option value="more_prep">More preparation</option></select></div>'
           + '<div class="field" style="width:120px"><label>Understanding</label><select name="understanding"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>'
           + '<div class="field" style="flex:1;min-width:160px"><label>Feedback</label><input name="feedback" placeholder="Optional note to the student"></div>'
-          + '<button type="submit" class="btn btn-primary" style="padding:9px 14px">Record</button></form></div>';
+          + '<button type="submit" class="btn btn-primary" style="padding:9px 14px">Record</button></form>'
+          + '<form class="md-form" data-lesson="' + tb.lesson_id + '" data-student="' + tb.student_id + '" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-top:1px dashed var(--border);padding-top:10px;margin-top:4px">'
+          + '<div class="field" style="width:150px"><label>Module status</label><select name="status">' + MD_OPTS + '</select></div>'
+          + '<div class="field" style="width:96px"><label>Mastery %</label><input name="mastery" type="number" min="0" max="100"></div>'
+          + '<button type="submit" class="btn btn-ghost" style="padding:8px 12px">Save status</button>'
+          + '<div class="field" style="width:96px"><label>Carry → wk</label><input name="week" type="number" min="1" max="24"></div>'
+          + '<button type="button" class="md-cf btn btn-ghost" style="padding:8px 12px"><i class="fa-solid fa-forward"></i> Carry forward</button>'
+          + '</form></div>';
       }).join('');
       content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Teach-backs to review</h2><span class="kpi-sub" style="color:var(--text-muted)">' + q.length + ' pending</span></div></section>' + cards;
       content.querySelectorAll('.tb-review').forEach(function (form) {
@@ -836,6 +845,28 @@
           API.request('instructor/preclass', { method: 'POST', body: body }).then(function () {
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Teach-back reviewed.', 'success'); renderPreclass();
           }).catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var m = (err && err.body && err.body.error) || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not save: ' + m, 'error'); else alert('Could not save.'); });
+        });
+      });
+      function mdPost(form, body, btn) {
+        var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = '…';
+        body.lesson_id = parseInt(form.getAttribute('data-lesson'), 10);
+        body.student_id = parseInt(form.getAttribute('data-student'), 10);
+        API.request('instructor/module', { method: 'POST', body: body })
+          .then(function () { btn.disabled = false; btn.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast(body.action === 'carry_forward' ? 'Module carried forward.' : 'Module status saved.', 'success'); })
+          .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var m = (err && err.body && err.body.error) || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update module: ' + m, 'error'); else alert('Could not update module.'); });
+      }
+      content.querySelectorAll('.md-form').forEach(function (form) {
+        form.addEventListener('submit', function (ev) {
+          ev.preventDefault();
+          var body = { action: 'status', status: form.status.value };
+          if (form.mastery.value !== '') body.mastery_pct = parseFloat(form.mastery.value);
+          mdPost(form, body, form.querySelector('button[type=submit]'));
+        });
+        var cf = form.querySelector('.md-cf');
+        if (cf) cf.addEventListener('click', function () {
+          var body = { action: 'carry_forward' };
+          if (form.week.value !== '') body.to_week = parseInt(form.week.value, 10);
+          mdPost(form, body, cf);
         });
       });
     }).catch(function () { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load teach-backs.') + '</div></section>'; });
