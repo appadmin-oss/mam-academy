@@ -33,8 +33,10 @@
       <a class="portal-nav-link active" href="#overview" data-tab="overview"><i class="fa-solid fa-gauge"></i>Overview</a>
       <a class="portal-nav-link" href="#applications" data-tab="applications"><i class="fa-solid fa-file-pen"></i>My Applications</a>
       <a class="portal-nav-link" href="#learning" data-tab="learning"><i class="fa-solid fa-graduation-cap"></i>My Learning</a>
+      <a class="portal-nav-link" href="#checkin" data-tab="checkin"><i class="fa-solid fa-hand-sparkles"></i>Check-in</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
       <a class="portal-nav-link" href="#courses" data-tab="courses"><i class="fa-solid fa-layer-group"></i>My Courses</a>
+      <a class="portal-nav-link" href="#grades" data-tab="grades"><i class="fa-solid fa-award"></i>Grades</a>
       <a class="portal-nav-link" href="#curriculum" data-tab="curriculum"><i class="fa-solid fa-book-open"></i>Curriculum</a>
       <a class="portal-nav-link" href="#assignments" data-tab="assignments"><i class="fa-solid fa-list-check"></i>Assignments <span class="nav-badge" id="asgBadge" hidden></span></a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-calendar-check"></i>Attendance</a>
@@ -100,7 +102,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], checkin: ['Check-in', 'Your streak, XP and today\'s session'], grades: ['Grades', 'Your GPA, results and standing'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
@@ -118,6 +120,8 @@
     if (tab === 'overview') return renderOverview();
     if (tab === 'applications') return renderApplications();
     if (tab === 'learning') return renderLearning();
+    if (tab === 'checkin') return renderCheckin();
+    if (tab === 'grades') return renderGrades();
     if (tab === 'classes') return renderClasses();
     if (tab === 'courses') return renderCourses();
     if (tab === 'curriculum') return renderCurriculum();
@@ -1095,6 +1099,119 @@
       if (!att.length) content.innerHTML = emptyState; else area.innerHTML = '';
     });
   }
+  // ── Check-in (NGG-style) ──────────────────────────────────────────────
+  function renderCheckin() {
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading your check-in…') + '</div></section>';
+    API.request('student/checkin', { method: 'GET' }).then(function (r) {
+      var d = (r && r.dashboard) || {}, cfg = (r && r.config) || {};
+      var t = d.today, next = d.next_session;
+      var kpis = '<section class="kpi-row">'
+        + P.kpi('Week', (d.week || 1) + ' / ' + (d.total_weeks || 12), d.cohort ? d.cohort.title : '')
+        + P.kpi('XP', (d.xp || 0), 'points', 'gold')
+        + P.kpi('Streak', (d.streak || 0), 'session' + (d.streak === 1 ? '' : 's') + ' in a row')
+        + P.kpi('Attendance', (d.attendance_rate != null ? d.attendance_rate + '%' : '—'), 'this term')
+        + P.kpi('Lessons done', (d.lessons_completed || 0), 'completed')
+        + '</section>';
+      var todayBody;
+      if (t) {
+        if (t.checked_in) {
+          todayBody = '<div class="panel-body"><p>You’re marked <span class="pill ' + P.escapeHtml(t.status) + '">' + P.escapeHtml(t.status) + '</span> for <strong>' + P.escapeHtml(t.title || 'today’s session') + '</strong>.</p></div>';
+        } else if (t.can_check_in) {
+          todayBody = '<div class="panel-body" style="display:grid;gap:12px">'
+            + '<p><strong>' + P.escapeHtml(t.title || 'Today’s session') + '</strong> · ' + P.escapeHtml(P.fmtDateTime(t.scheduled_at)) + '</p>'
+            + '<div><button id="checkinBtn" class="btn btn-primary" data-session="' + (parseInt(t.session_id, 10) || 0) + '"><i class="fa-solid fa-hand-sparkles"></i> Check in now</button>'
+            + (cfg.geofence_enabled ? ' <span class="kpi-sub" style="margin-left:8px"><i class="fa-solid fa-location-dot"></i> Location required</span>' : '') + '</div></div>';
+        } else {
+          todayBody = '<div class="panel-body">' + empty('clock', 'Check-in for today’s session isn’t open yet — it opens shortly before class starts.') + '</div>';
+        }
+      } else {
+        todayBody = '<div class="panel-body">' + empty('calendar-check', 'No session scheduled for today. Keep your streak alive next class!') + '</div>';
+      }
+      var nextBody = next
+        ? '<div class="panel-body"><p><strong>' + P.escapeHtml(next.title || next.cohort_title || 'Next session') + '</strong><br><span style="color:var(--text-muted)">' + P.escapeHtml(P.fmtDateTime(next.scheduled_at)) + '</span></p></div>'
+        : '<div class="panel-body">' + empty('calendar', 'No upcoming sessions scheduled.') + '</div>';
+      content.innerHTML = kpis
+        + P.panel('Today', todayBody, '')
+        + '<div style="margin-top:18px">' + P.panel('Next session', nextBody, '') + '</div>';
+      var btn = document.getElementById('checkinBtn');
+      if (btn) btn.addEventListener('click', function () { doCheckin(btn, !!cfg.geofence_enabled); });
+    }).catch(function () {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load check-in right now. Please try again.') + '</div></section>';
+    });
+  }
+  function doCheckin(btn, needGeo) {
+    var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Checking in…';
+    var sid = parseInt(btn.getAttribute('data-session'), 10) || 0;
+    function post(lat, lng) {
+      var body = { action: 'checkin', session_id: sid };
+      if (lat != null) { body.lat = lat; body.lng = lng; }
+      return API.request('student/checkin', { method: 'POST', body: body }).then(function (r) {
+        var st = (r && r.checkin && r.checkin.status) || 'present';
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Checked in — ' + st + '.', 'success') : alert('Checked in.'));
+        renderCheckin();
+      }).catch(function (err) {
+        btn.disabled = false; btn.innerHTML = orig;
+        var code = (err && err.body && err.body.error) || 'try again';
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not check in: ' + code, 'error') : alert('Could not check in.'));
+      });
+    }
+    if (needGeo && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        function (pos) { post(pos.coords.latitude, pos.coords.longitude); },
+        function () { btn.disabled = false; btn.innerHTML = orig; (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Location is needed to check in here.', 'error') : alert('Location needed.')); }
+      );
+    } else { post(null, null); }
+  }
+
+  // ── Grades (student gradebook) ────────────────────────────────────────
+  function renderGrades() {
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading your grades…') + '</div></section>';
+    API.request('student/grades', { method: 'GET' }).then(function (r) {
+      var g = (r && r.gpa) || {}, results = (r && r.results) || [], trend = (r && r.trend) || [], pcts = (r && r.percentiles) || [];
+      if (!results.length && !(g.courses > 0)) {
+        content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('award', 'No grades yet. Your results appear here once your instructor finalises them.') + '</div></section>';
+        return;
+      }
+      var kpis = '<section class="kpi-row">'
+        + P.kpi('GPA', (g.gpa != null ? g.gpa : '—'), 'of 4.0', 'gold')
+        + P.kpi('Mean score', (g.avg_score != null ? g.avg_score + '%' : '—'), 'across courses')
+        + P.kpi('Courses graded', (g.courses || 0), '')
+        + '</section>';
+      var rrows = results.map(function (x) {
+        return '<tr><td data-label="Course"><strong>' + P.escapeHtml(x.course_name || '—') + '</strong>' + (x.cohort_title ? '<br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(x.cohort_title) + '</span>' : '') + '</td>'
+          + '<td data-label="Score">' + (x.total_score != null ? P.escapeHtml(x.total_score) + '%' : '—') + '</td>'
+          + '<td data-label="Grade"><span class="pill">' + P.escapeHtml(x.grade || '—') + '</span></td>'
+          + '<td data-label="Outcome"><span class="pill ' + P.escapeHtml(x.outcome || '') + '">' + P.escapeHtml(x.outcome || '—') + '</span></td></tr>';
+      }).join('');
+      var resultsPanel = P.panel('Results', results.length
+        ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Course</th><th>Score</th><th>Grade</th><th>Outcome</th></tr></thead><tbody>' + rrows + '</tbody></table></div>'
+        : '<div class="panel-body">' + empty('list', 'No finalised results yet.') + '</div>', '');
+      var trendPanel = '';
+      if (trend.length) {
+        var trows = trend.map(function (tr) {
+          return '<tr><td data-label="Term"><strong>' + P.escapeHtml(tr.term) + '</strong></td>'
+            + '<td data-label="Mean">' + P.escapeHtml(tr.avg_score) + '%</td>'
+            + '<td data-label="GPA">' + P.escapeHtml(tr.gpa) + '</td>'
+            + '<td data-label="Courses">' + P.escapeHtml(tr.courses) + '</td></tr>';
+        }).join('');
+        trendPanel = '<div style="margin-top:18px">' + P.panel('Term trend', '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Term</th><th>Mean</th><th>GPA</th><th>Courses</th></tr></thead><tbody>' + trows + '</tbody></table></div>', '') + '</div>';
+      }
+      var pctPanel = '';
+      if (pcts.length) {
+        var prows = pcts.map(function (p) {
+          return '<tr><td data-label="Cohort"><strong>' + P.escapeHtml(p.cohort_title) + '</strong></td>'
+            + '<td data-label="Score">' + P.escapeHtml(p.score) + '%</td>'
+            + '<td data-label="Rank">' + P.escapeHtml(p.rank) + ' / ' + P.escapeHtml(p.cohort_size) + '</td>'
+            + '<td data-label="Percentile">' + P.escapeHtml(p.percentile) + '%</td></tr>';
+        }).join('');
+        pctPanel = '<div style="margin-top:18px">' + P.panel('Cohort standing', '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Cohort</th><th>Score</th><th>Rank</th><th>Percentile</th></tr></thead><tbody>' + prows + '</tbody></table></div>', '') + '</div>';
+      }
+      content.innerHTML = kpis + resultsPanel + trendPanel + pctPanel;
+    }).catch(function () {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load grades right now. Please try again.') + '</div></section>';
+    });
+  }
+
   function renderClassTable(enr) {
     var rows = enr.map(function (e) {
       return '<tr><td data-label="Class"><strong>' + P.escapeHtml(e.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(e.discipline || '') + ' · ' + P.escapeHtml(e.pathway || '') + '</span></td>'

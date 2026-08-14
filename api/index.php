@@ -214,6 +214,9 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     // NGG-style check-in — private dashboard (GET) + daily self check-in (POST).
     $r->get ('/checkin',             $f('student/checkin.php'),             [mw_role('student')]);
     $r->post('/checkin',             $f('student/checkin.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('checkin', 30, 600)]);
+
+    // Student gradebook — GPA / trend / percentile / results.
+    $r->get ('/grades',              $f('student/grades.php'),              [mw_role('student')]);
 });
 
 /* ─── Instructor portal ─── */
