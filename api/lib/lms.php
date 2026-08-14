@@ -934,7 +934,8 @@ function mam_lms_give_feedback(int $submissionId, int $instructorId, array $d): 
     $sub = mam_db_row('SELECT id, student_id, assignment_id FROM submissions WHERE id = ?', [$submissionId]);
     if (!$sub) throw new RuntimeException('submission_not_found');
     $outcome = (string)($d['outcome'] ?? 'accepted');
-    if (!in_array($outcome, ['accepted', 'revise'], true)) throw new RuntimeException('invalid_outcome');
+    // §22 — accept, request a resubmission, reject, or assign remedial work.
+    if (!in_array($outcome, ['accepted', 'revise', 'rejected', 'remedial'], true)) throw new RuntimeException('invalid_outcome');
     $now = date('Y-m-d H:i:s');
     $rubric = isset($d['rubric']) ? (is_string($d['rubric']) ? $d['rubric'] : json_encode($d['rubric'])) : null;
     $existing = mam_db_row('SELECT id FROM feedback WHERE submission_id = ?', [$submissionId]);
@@ -944,12 +945,14 @@ function mam_lms_give_feedback(int $submissionId, int $instructorId, array $d): 
     } else {
         $fid = mam_db_insert('feedback', ['submission_id' => $submissionId, 'instructor_id' => $instructorId, 'rubric_json' => $rubric, 'comments' => $d['comments'] ?? null, 'outcome' => $outcome]);
     }
-    $status = $outcome === 'accepted' ? 'accepted' : 'needs_resubmission';
+    $statusMap = ['accepted' => 'accepted', 'revise' => 'needs_resubmission', 'rejected' => 'rejected', 'remedial' => 'remedial'];
+    $status = $statusMap[$outcome];
     mam_db_update('submissions', ['status' => $status, 'updated_at' => $now], ['id' => $submissionId]);
     mam_audit('lms_feedback', 'submission', $submissionId, ['outcome' => $outcome]);
     // Notify the student their work was reviewed (best-effort, never-throw).
     if (function_exists('mam_notify')) {
-        $title = $outcome === 'accepted' ? 'Your submission was accepted' : 'Your submission needs another pass';
+        $titleMap = ['accepted' => 'Your submission was accepted', 'revise' => 'Your submission needs another pass', 'rejected' => 'Your submission was not accepted', 'remedial' => 'Remedial work has been assigned'];
+        $title = $titleMap[$outcome];
         $at = mam_db_row('SELECT title FROM assignments WHERE id = ?', [(int)$sub['assignment_id']]);
         $body = ($at && (string)$at['title'] !== '') ? 'Assignment: ' . $at['title'] : null;
         mam_notify((int)$sub['student_id'], 'submission.feedback', $title, $body, '/portal/student/');

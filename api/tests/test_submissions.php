@@ -54,6 +54,14 @@ t_eq($fb2['status'], 'accepted', 'editing to accepted updates the status');
 t_eq((int)mam_db_row('SELECT COUNT(*) AS n FROM feedback WHERE submission_id = ?', [$sub])['n'], 1, 'feedback stays 1:1 with the submission (edit, not duplicate)');
 t_eq(mam_lms_submission($sub)['feedback_outcome'], 'accepted', 'latest outcome reflected');
 
+// ── §22 outcomes: reject + assign remedial map to their own statuses ──
+$fb3 = mam_lms_give_feedback($sub, $ins, ['outcome' => 'remedial', 'comments' => 'Do the remedial set first.']);
+t_eq($fb3['status'], 'remedial', 'remedial feedback sets a remedial status');
+t_eq(mam_lms_submission($sub)['status'], 'remedial', 'submission reflects remedial');
+$fb4 = mam_lms_give_feedback($sub, $ins, ['outcome' => 'rejected', 'comments' => 'Not this piece.']);
+t_eq($fb4['status'], 'rejected', 'reject feedback sets a rejected status');
+t_eq(mam_lms_submission($sub)['feedback_outcome'], 'rejected', 'latest §22 outcome reflected');
+
 // ── Guards ──
 $threw = false; try { mam_lms_give_feedback($sub, $ins, ['outcome' => 'bogus']); } catch (RuntimeException $e) { $threw = $e->getMessage() === 'invalid_outcome'; }
 t_ok($threw, 'an invalid feedback outcome is rejected');
