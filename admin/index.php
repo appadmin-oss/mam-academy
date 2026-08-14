@@ -3299,6 +3299,8 @@ nav a{display:flex;align-items:center}
     $ah  = mam_analytics2_academy_health();
     $ip  = mam_analytics2_instructor_performance();
     $tdy = mam_analytics2_today();
+    $intv = function_exists('mam_analytics2_intervention_list') ? mam_analytics2_intervention_list(100) : [];
+    $lvlColor = [1 => '#FBBF24', 2 => '#FB923C', 3 => '#F87171'];
     $bar = function ($pct) { $pct = max(0, min(100, (float)$pct)); $col = $pct >= 80 ? '#34D399' : ($pct >= 50 ? '#FBBF24' : '#F87171'); return '<div style="height:6px;background:var(--border);border-radius:3px;margin-top:6px"><div style="width:' . $pct . '%;height:100%;background:' . $col . ';border-radius:3px"></div></div>'; };
   ?>
   <header class="top"><h1>Academic Health</h1></header>
@@ -3322,6 +3324,27 @@ nav a{display:flex;align-items:center}
       <span class="pill" style="background:rgba(251,191,36,.16);color:#FBBF24">Late <?= (int)$tdy['late'] ?></span>
       <span class="pill" style="background:rgba(248,113,113,.16);color:#F87171">Absent <?= (int)$tdy['absent'] ?></span>
     </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="margin:0 0 4px">Intervention &amp; escalation <span class="muted" style="font-weight:400;font-size:.8rem">§31 · §38</span></h3>
+    <p class="muted" style="margin:0 0 10px;font-size:.82rem">Students auto-flagged from absences, carry-forwards and remedial work. Level sets the escalation target (L1→parent, L2→+instructor+admin, L3→academic review).</p>
+    <?php if (!$intv): ?><p class="muted">No students currently need intervention — every learner is on track.</p><?php else: ?>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="padding:8px">Student</th><th style="padding:8px">Level</th><th style="padding:8px">Reasons</th><th style="padding:8px">Escalate to</th></tr></thead>
+      <tbody>
+      <?php foreach ($intv as $row): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px"><strong><?= htmlspecialchars((string)$row['name']) ?></strong></td>
+          <td style="padding:8px"><span class="pill" style="background:<?= $lvlColor[$row['level']] ?>22;color:<?= $lvlColor[$row['level']] ?>">L<?= (int)$row['level'] ?> · <?= htmlspecialchars($row['level_label']) ?></span></td>
+          <td style="padding:8px;font-size:.86rem"><?= htmlspecialchars(implode(' · ', $row['reasons'])) ?></td>
+          <td style="padding:8px;font-size:.82rem;color:var(--muted)"><?= htmlspecialchars($row['escalation']) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
+    <?php endif; ?>
   </div>
 
   <div class="card">

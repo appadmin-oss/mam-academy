@@ -46,3 +46,22 @@ mam_db_insert('session_attendance', ['session_id' => $AN_sessToday, 'student_id'
 $after = mam_analytics2_today();
 t_eq($after['present'] - $before['present'], 1, "today's present count reflects a new check-in");
 t_ok($after['sessions_today'] >= 1, 'a session scheduled today is counted');
+
+t_group('analytics2 — intervention list (§31/§38)');
+// A fresh student with 3 absences → Level 3 (academic review).
+$AN_risk = mam_db_insert('users', ['name' => 'AN Risk', 'email' => 'an_risk@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+for ($i = 0; $i < 3; $i++) {
+    $sid = mam_db_insert('class_sessions', ['cohort_id' => $AN_coh, 'title' => 'Miss ' . $i, 'scheduled_at' => date('Y-m-d H:i:s', strtotime('-' . ($i + 1) . ' day')), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
+    mam_db_insert('session_attendance', ['session_id' => $sid, 'student_id' => $AN_risk, 'status' => 'absent', 'method' => 'instructor']);
+}
+$list = mam_analytics2_intervention_list(100);
+$riskRow = null; foreach ($list as $r) { if ($r['student_id'] === $AN_risk) { $riskRow = $r; break; } }
+t_ok($riskRow !== null, 'a student with 3 absences is flagged');
+t_eq($riskRow['level'], 3, '3+ absences escalates to Level 3 (academic review)');
+t_ok(strpos(implode(' ', $riskRow['reasons']), '3 absences') !== false, 'reasons name the absence count');
+t_ok(strpos($riskRow['escalation'], 'review') !== false, 'Level 3 escalation targets a review');
+// $AN_s1 has one carried_forward module → at least Level 1, and appears in the list.
+$s1Row = null; foreach ($list as $r) { if ($r['student_id'] === $AN_s1) { $s1Row = $r; break; } }
+t_ok($s1Row !== null && $s1Row['level'] >= 1, 'a carried-forward student is flagged for follow-up');
+// Sorted by level desc — the first row is the highest level.
+t_ok(!count($list) || $list[0]['level'] >= $list[count($list) - 1]['level'], 'list is sorted by severity');

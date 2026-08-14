@@ -61,6 +61,64 @@ function mam_analytics2_academy_health(): array {
     ];
 }
 
+/**
+ * Academic intervention list (§31) + absence escalation tiers (§38).
+ *
+ * Scores every student who shows a risk signal and assigns an intervention
+ * LEVEL with human-readable reasons:
+ *   Level 3 — Academic review    (3+ absences, or a remedial module, or 3+ carried forward)
+ *   Level 2 — Academic intervention (2 absences, 1–2 carried forward, or 2+ multi-attempt modules)
+ *   Level 1 — Instructor carry-forward (1 absence, any carry-forward, repeated lateness)
+ * The highest triggered level wins. Escalation targets (§38) follow from the
+ * level: L1→parent, L2→parent+instructor+admin, L3→parent+instructor+admin+review.
+ * Returns rows sorted by level desc then absences desc.
+ */
+function mam_analytics2_intervention_list(int $limit = 100): array {
+    $rows = mam_db_all(
+        "SELECT u.id AS student_id, u.name, u.email,
+                (SELECT COUNT(*) FROM session_attendance sa WHERE sa.student_id = u.id AND sa.status = 'absent') AS absences,
+                (SELECT COUNT(*) FROM session_attendance sa WHERE sa.student_id = u.id AND sa.status = 'late')   AS lates,
+                (SELECT COUNT(*) FROM lesson_progress lp WHERE lp.student_id = u.id AND lp.status = 'carried_forward') AS carried,
+                (SELECT COUNT(*) FROM lesson_progress lp WHERE lp.student_id = u.id AND lp.status = 'remedial') AS remedial,
+                (SELECT COUNT(*) FROM lesson_progress lp WHERE lp.student_id = u.id AND lp.attempts >= 2) AS multi_attempt
+           FROM users u
+          WHERE u.role = 'student'"
+    );
+    $out = [];
+    foreach ($rows as $r) {
+        $absences = (int) $r['absences']; $lates = (int) $r['lates'];
+        $carried  = (int) $r['carried'];  $remedial = (int) $r['remedial'];
+        $multi    = (int) $r['multi_attempt'];
+        $level = 0; $reasons = [];
+        if ($absences >= 1)  { $level = max($level, 1); $reasons[] = $absences . ' absence' . ($absences === 1 ? '' : 's'); }
+        if ($carried >= 1)   { $level = max($level, 1); $reasons[] = $carried . ' module' . ($carried === 1 ? '' : 's') . ' carried forward'; }
+        if ($lates >= 3)     { $level = max($level, 1); $reasons[] = $lates . ' late arrivals'; }
+        if ($absences == 2)  { $level = max($level, 2); }
+        if ($carried >= 1 && $carried <= 2) { $level = max($level, 2); }
+        if ($multi >= 2)     { $level = max($level, 2); $reasons[] = $multi . ' modules re-attempted'; }
+        if ($absences >= 3)  { $level = max($level, 3); }
+        if ($remedial >= 1)  { $level = max($level, 3); $reasons[] = $remedial . ' remedial module' . ($remedial === 1 ? '' : 's'); }
+        if ($carried >= 3)   { $level = max($level, 3); }
+        if ($level === 0) continue;
+        $labels = [1 => 'Instructor carry-forward', 2 => 'Academic intervention', 3 => 'Academic review'];
+        $escalate = [1 => 'Parent', 2 => 'Parent + Instructor + Admin', 3 => 'Parent + Instructor + Admin (review)'];
+        $out[] = [
+            'student_id' => (int) $r['student_id'],
+            'name'       => $r['name'] ?: $r['email'],
+            'level'      => $level,
+            'level_label'=> $labels[$level],
+            'escalation' => $escalate[$level],
+            'absences'   => $absences,
+            'lates'      => $lates,
+            'carried'    => $carried,
+            'remedial'   => $remedial,
+            'reasons'    => $reasons ?: ['risk signals present'],
+        ];
+    }
+    usort($out, fn($a, $b) => ($b['level'] <=> $a['level']) ?: ($b['absences'] <=> $a['absences']));
+    return array_slice($out, 0, max(1, $limit));
+}
+
 /** Per-instructor performance (§35): students, average mastery, completion rate
  *  and intervention count across the cohorts they teach. */
 function mam_analytics2_instructor_performance(): array {
