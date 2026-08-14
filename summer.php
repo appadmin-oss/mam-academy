@@ -655,7 +655,7 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
 
 <script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/main.js?v=20260724b"></script>
-<script src="assets/js/headshot.js?v=20260807a"></script>
+<script src="assets/js/headshot.js?v=20260811a"></script>
 <script src="assets/js/summer.js?v=20260807a"></script>
 <script>
 (function () {
