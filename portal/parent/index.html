@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex, nofollow">
+<script>(function(){try{var t=localStorage.getItem('mam-portal-theme');if(t!=='dark'&&t!=='light')t='light';document.documentElement.setAttribute('data-portal-theme',t);}catch(e){document.documentElement.setAttribute('data-portal-theme','light');}})();</script>
 <title>Parent Portal — MAM Academy</title>
 <link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,6 +31,9 @@
       <a class="portal-nav-link active" href="#children" id="navChildren"><i class="fa-solid fa-children"></i>My Children</a>
       <a class="portal-nav-link" href="#" data-action="logout"><i class="fa-solid fa-right-from-bracket"></i>Sign out</a>
     </nav>
+    <div class="portal-side-foot">
+      <button type="button" class="portal-theme-toggle" data-action="theme-toggle" aria-pressed="false"><i class="fa-solid fa-moon" aria-hidden="true"></i><span data-theme-label>Dark mode</span></button>
+    </div>
   </aside>
   <main class="portal-main">
     <button class="portal-side-toggle" id="sidebarToggle"><i class="fa-solid fa-bars"></i> Menu</button>

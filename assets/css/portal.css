@@ -357,3 +357,153 @@ body[data-variant="ktams"] .kid-dot em{display:block;font-style:normal;font-size
   .kpi-row .kpi-card:hover{transform:none;box-shadow:none}
   .prog-item:hover .prog-fill{filter:none}
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PORTAL THEME SYSTEM — light by default, dark on request.
+   Scoped to portal pages via html[data-portal-theme] (set by a pre-paint
+   <head> script), so the public marketing site keeps its candlelit
+   identity untouched. Gold is pulled back to a thin accent — the brand
+   mark, the active-nav bar, focus rings. Status has its own hues; primary
+   actions are neutral ink. These blocks come last in the file, so they win
+   over the warm defaults above at equal specificity.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ---- Light (default) ---- */
+html[data-portal-theme="light"]{
+  color-scheme:light;
+  --gold:#A6761E;--gold-light:#B98A2A;--gold-bright:#C08E2E;--gold-pale:#E7C98F;
+  --gold-tint:rgba(166,118,30,0.20);
+  --red:#C6435C;--red-hot:#D6546D;--orange:#C86A2E;
+  --purple:#4E63C8;--purple-deep:#3E52B4;--emerald:#0F8A5F;
+
+  --bg:#F1F3F6;--bg-surface:#FFFFFF;--bg-raised:#F6F7F9;--bg-card:#FBFCFD;--bg-elevated:#EBEEF2;
+
+  --text:#1B2430;--text-soft:#3B4453;--text-muted:#66707E;--text-faint:#98A1AE;
+
+  --border:rgba(24,32,44,0.10);--border-strong:rgba(24,32,44,0.17);--border-gold:rgba(166,118,30,0.45);
+
+  --glass:rgba(255,255,255,0.9);--glass-light:rgba(24,32,44,0.045);
+
+  --shadow-sm:0 1px 3px rgba(24,32,44,0.06),0 1px 2px rgba(24,32,44,0.04);
+  --shadow-md:0 8px 24px rgba(24,32,44,0.09);
+  --shadow-lg:0 20px 48px rgba(24,32,44,0.13);
+  --glow-gold:none;--glow-red:none;
+
+  --ok:#0F8A5F;--ok-tint:rgba(15,138,95,0.12);
+  --warn:#B0740F;--warn-tint:rgba(176,116,15,0.13);
+  --bad:#C6435C;--bad-tint:rgba(198,67,92,0.11);
+  --info:#4E63C8;--info-tint:rgba(78,99,200,0.11);
+
+  --btn-primary-bg:#1B2430;--btn-primary-fg:#FFFFFF;
+  --on-gold:#FBF6EF;
+  --scrim:rgba(24,32,44,0.45);
+}
+
+/* ---- Dark (opt-in) ---- */
+html[data-portal-theme="dark"]{
+  color-scheme:dark;
+  --gold:#C79A3E;--gold-light:#D3A94B;--gold-bright:#E0B45A;--gold-pale:#EAD6A8;
+  --gold-tint:rgba(199,154,62,0.28);
+  --red:#EC6E88;--red-hot:#F0819A;--orange:#E0925A;
+  --purple:#8CA0F0;--purple-deep:#6E82D8;--emerald:#3FBF8C;
+
+  --bg:#12161E;--bg-surface:#1A1F29;--bg-raised:#232A36;--bg-card:#1E2530;--bg-elevated:#2B3340;
+
+  --text:#EEF1F5;--text-soft:rgba(238,241,245,0.84);--text-muted:rgba(238,241,245,0.62);--text-faint:rgba(238,241,245,0.44);
+
+  --border:rgba(230,236,245,0.11);--border-strong:rgba(230,236,245,0.20);--border-gold:rgba(199,154,62,0.5);
+
+  --glass:rgba(26,31,41,0.8);--glass-light:rgba(255,255,255,0.06);
+
+  --shadow-sm:0 2px 10px rgba(0,0,0,0.35);
+  --shadow-md:0 12px 34px rgba(0,0,0,0.42);
+  --shadow-lg:0 24px 60px rgba(0,0,0,0.5);
+  --glow-gold:none;--glow-red:none;
+
+  --ok:#3FBF8C;--ok-tint:rgba(63,191,140,0.15);
+  --warn:#E3A93C;--warn-tint:rgba(227,169,60,0.15);
+  --bad:#EC6E88;--bad-tint:rgba(236,110,136,0.15);
+  --info:#8CA0F0;--info-tint:rgba(140,160,240,0.15);
+
+  --btn-primary-bg:#EEF1F5;--btn-primary-fg:#12161E;
+  --on-gold:#1A120B;
+  --scrim:rgba(6,9,14,0.6);
+}
+
+/* Portal ground: flat and calm — drop the candlelit radial glow inherited
+   from main.css so the light theme reads clean in both modes. */
+html[data-portal-theme] body{background:var(--bg);color:var(--text)}
+html[data-portal-theme] body::before{content:none !important;background:none !important}
+
+/* ── Restrained-gold component pass ──────────────────────────────── */
+
+/* Brand: calm ink wordmark; keep only the small logo as a warm mark.
+   main.css forces gradient-text elements to solid gold with !important in its
+   textclip-fallback block, so these two overrides match its specificity and
+   use !important to land ink in both the fallback and gradient states. */
+html[data-portal-theme] .portal-brand-name{background:none !important;-webkit-text-fill-color:var(--text) !important;color:var(--text) !important;font-weight:700}
+.portal-brand img{border-color:var(--border-strong)}
+
+/* User card: neutral avatar — gold is for accents, not identity chips. */
+.portal-avatar{background:var(--bg-elevated);border:1px solid var(--border-strong);color:var(--text-soft)}
+.portal-user-role{color:var(--text-muted)}
+
+/* Sidebar nav: active = calm tint + a thin gold accent bar; icon takes the gold. */
+.portal-nav-link{position:relative}
+.portal-nav-link.active{color:var(--text);background:var(--glass-light);border-color:var(--border);font-weight:700}
+.portal-nav-link.active::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:var(--gold)}
+.portal-nav-link.active i{color:var(--gold)}
+.portal-side-foot a:hover,.portal-side-foot button:hover{color:var(--text)}
+
+/* KPI figures read like a gradebook — ink, not gilded. */
+html[data-portal-theme] .kpi-value.gold{background:none !important;-webkit-text-fill-color:var(--text) !important;color:var(--text) !important}
+
+/* Progress figure ink; the bar keeps a single restrained gold accent. */
+.prog-head strong{color:var(--text)}
+
+/* Count badges: neutral, not gold chips. */
+.nav-badge,.asg-count{background:var(--bg-elevated);border:1px solid var(--border-strong);color:var(--text-soft)}
+
+/* Primary = neutral ink; ghost = quiet; danger = semantic. */
+.portal-main .btn-primary,.login-form button[type=submit]{background:var(--btn-primary-bg);color:var(--btn-primary-fg)}
+.portal-main .btn-primary:hover,.login-form button[type=submit]:hover{transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.login-form button[type=submit]{text-transform:none;letter-spacing:0.01em}
+.portal-main .btn-ghost{background:transparent;border:1px solid var(--border-strong);color:var(--text-soft)}
+.portal-main .btn-ghost:hover{background:var(--glass-light)}
+.portal-main .btn-danger{background:transparent;border:1px solid var(--bad);color:var(--bad)}
+.portal-main .btn-danger:hover{background:var(--bad-tint)}
+
+/* Focus ring — gold stays the functional accent, retuned per theme. */
+.portal-main input:focus-visible,.portal-main select:focus-visible,.portal-main textarea:focus-visible,
+.profile-form input:focus,.profile-form textarea:focus,.login-form input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-tint)}
+
+/* Status pills — semantic hues, distinct from the gold accent. */
+.pill.submitted{background:var(--info-tint);color:var(--info)}
+.pill.paid,.pill.succeeded,.pill.present,.pill.active{background:var(--ok-tint);color:var(--ok)}
+.pill.enrolled{background:var(--info-tint);color:var(--info)}
+.pill.cancelled,.pill.absent,.pill.failed{background:var(--bad-tint);color:var(--bad)}
+.pill.pending,.pill.late{background:var(--warn-tint);color:var(--warn)}
+.pill.excused{background:var(--glass-light);color:var(--text-muted)}
+
+/* Tables: hover tint that works on a light ground. */
+.ptable tr:hover td{background:var(--glass-light)}
+@media (max-width:640px){
+  .ptable tr{background:var(--bg-surface)}
+  .ptable tr:nth-child(even){background:var(--glass-light)}
+}
+
+/* Banners + toasts + empty state — semantic, calm. */
+.portal-banner{background:var(--bad-tint);border-color:var(--bad);color:var(--bad)}
+.portal-banner.info{background:var(--info-tint);border-color:var(--info);color:var(--info)}
+.mam-toast.success{border-color:var(--ok);color:var(--ok)}
+.mam-toast.error{border-color:var(--bad);color:var(--bad)}
+.empty-state i{color:var(--text-faint);opacity:1}
+
+/* Mobile drawer scrim */
+.portal-scrim{background:var(--scrim)}
+
+/* ── Theme toggle control (sidebar foot) ── */
+.portal-theme-toggle{display:flex;align-items:center;gap:10px;padding:9px 14px;color:var(--text-muted);font-size:0.85rem;font-weight:600;border-radius:var(--radius-sm);text-align:left;width:100%;background:transparent;border:0;cursor:pointer;transition:color .2s,background .2s}
+.portal-theme-toggle:hover{color:var(--text);background:var(--glass-light)}
+.portal-theme-toggle i{width:18px;text-align:center;color:var(--gold)}
+.portal-theme-toggle:focus-visible{outline:3px solid var(--gold);outline-offset:3px}

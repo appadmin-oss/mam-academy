@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex, nofollow">
+<script>(function(){try{var t=localStorage.getItem('mam-portal-theme');if(t!=='dark'&&t!=='light')t='light';document.documentElement.setAttribute('data-portal-theme',t);}catch(e){document.documentElement.setAttribute('data-portal-theme','light');}})();</script>
 <title>Student Portal — MAM Academy</title>
 <link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,6 +66,7 @@
       <a class="portal-nav-link" href="/studio" target="_blank" rel="noopener" style="margin-top:14px;border-top:1px dashed var(--border);padding-top:18px"><i class="fa-solid fa-wand-magic-sparkles"></i>Practice Studio <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7em;margin-left:auto;opacity:0.7"></i></a>
     </nav>
     <div class="portal-side-foot">
+      <button type="button" class="portal-theme-toggle" data-action="theme-toggle" aria-pressed="false"><i class="fa-solid fa-moon" aria-hidden="true"></i><span data-theme-label>Dark mode</span></button>
       <a href="/"><i class="fa-solid fa-house"></i>Back to site</a>
       <button type="button" data-action="logout"><i class="fa-solid fa-right-from-bracket"></i>Sign out</button>
     </div>
@@ -361,7 +363,7 @@
 
     var classCards = enr.length ? enr.map(function (e) {
       var ar = attByClass[e.title];
-      var rateHtml = ar && ar.total ? '<div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:0.77rem;color:var(--text-muted);margin-bottom:4px"><span>Attendance</span><strong style="color:var(--text)">' + Math.round(ar.present / ar.total * 100) + '%</strong></div><div style="height:4px;background:rgba(255,255,255,.1);border-radius:3px"><div style="height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold-bright),#FBBF24);width:' + Math.min(100, Math.round(ar.present / ar.total * 100)) + '%"></div></div><div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px">' + ar.present + ' of ' + ar.total + ' sessions attended</div></div>' : '';
+      var rateHtml = ar && ar.total ? '<div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:0.77rem;color:var(--text-muted);margin-bottom:4px"><span>Attendance</span><strong style="color:var(--text)">' + Math.round(ar.present / ar.total * 100) + '%</strong></div><div style="height:4px;background:var(--bg-elevated);border-radius:3px"><div style="height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold-bright),var(--gold));width:' + Math.min(100, Math.round(ar.present / ar.total * 100)) + '%"></div></div><div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px">' + ar.present + ' of ' + ar.total + ' sessions attended</div></div>' : '';
       var statusColor = e.enrollment_status === 'active' ? 'var(--emerald,#1FBF8F)' : 'var(--text-muted)';
       var isOnline = e.mode && (e.mode.toLowerCase() === 'online' || e.mode.toLowerCase() === 'hybrid');
       var meetingUrl = (e.meeting_link && /^https:\/\//i.test(e.meeting_link)) ? e.meeting_link : '';
@@ -1679,7 +1681,7 @@
 
     // ── Enrollment ID card ──────────────────────────────────────
     var ref = s.enrollment_ref || '';
-    html += '<section class="panel" style="background:linear-gradient(135deg,#1B140D 0%,#2d1f0e 100%);border-color:#333;margin-bottom:16px">'
+    html += '<section class="panel" style="background:linear-gradient(135deg,#232B38 0%,#161B24 100%);border-color:rgba(255,255,255,.12);margin-bottom:16px">'
       + '<div class="panel-body" style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">'
       + '<div style="flex:1;min-width:200px">'
       + '<div style="color:rgba(255,255,255,0.55);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Your Student ID</div>'
@@ -1689,7 +1691,7 @@
       + '<div style="color:rgba(255,255,255,0.45);font-size:0.78rem;margin-top:4px">Show this QR code or ID to your instructor for attendance. Anyone with the ID can view your progress report.</div>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'
       + (ref ? '<button class="btn" id="copyRefBtn" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:0.8rem" onclick="copyEnrollRef()"><i class="fa-solid fa-copy"></i> Copy ID</button>' : '')
-      + '<a href="/learner-report?id=' + encodeURIComponent(ref) + '" target="_blank" rel="noopener" class="btn" style="background:var(--gold-bright);color:#1B140D;font-weight:700;font-size:0.8rem" ' + (ref?'':'hidden') + '><i class="fa-solid fa-external-link"></i> View Report</a>'
+      + '<a href="/learner-report?id=' + encodeURIComponent(ref) + '" target="_blank" rel="noopener" class="btn" style="background:#fff;color:#1B2430;font-weight:700;font-size:0.8rem" ' + (ref?'':'hidden') + '><i class="fa-solid fa-external-link"></i> View Report</a>'
       + '</div>'
       + '</div>'
       + (ref ? '<div id="student-id-qr" style="background:#fff;padding:8px;border-radius:10px;flex-shrink:0;align-self:center" title="Scan to view your progress report"></div>' : '')
@@ -2313,16 +2315,16 @@
       + '.hb-acc>summary{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;list-style:none;font-weight:600;font-size:.88rem;gap:8px;border-bottom:1px solid transparent;transition:background .15s}'
       + '.hb-acc>summary::-webkit-details-marker{display:none}'
       + '.hb-acc[open]>summary{border-bottom-color:var(--border)}'
-      + '.hb-acc>summary:hover{background:rgba(255,255,255,.03)}'
+      + '.hb-acc>summary:hover{background:var(--glass-light)}'
       + '.hb-chev{font-size:.68rem;color:var(--text-muted);transition:transform .2s;flex-shrink:0}'
       + '.hb-acc[open]>.hb-chev,.hb-acc[open]>summary .hb-chev{transform:rotate(90deg)}'
       + '.hb-ptag{font-size:.6rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);border:1px solid var(--border);border-radius:4px;padding:2px 7px;white-space:nowrap}'
       + '.hb-body{padding:4px 18px 18px;font-size:.84rem;line-height:1.7}'
-      + '.hb-stat{display:inline-flex;flex-direction:column;align-items:center;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:12px 20px;min-width:100px;text-align:center}'
+      + '.hb-stat{display:inline-flex;flex-direction:column;align-items:center;background:var(--bg-raised);border:1px solid var(--border);border-radius:10px;padding:12px 20px;min-width:100px;text-align:center}'
       + '.hb-stat .n{font-size:1.9rem;font-weight:700;color:var(--gold-bright,#E8961F);line-height:1}'
       + '.hb-stat .l{font-size:.66rem;color:var(--text-muted);margin-top:4px;line-height:1.35}'
       + '.hb-list{list-style:none;padding:0;margin:10px 0 0}'
-      + '.hb-list li{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}'
+      + '.hb-list li{display:flex;align-items:flex-start;gap:9px;padding:6px 0;border-bottom:1px solid var(--border)}'
       + '.hb-list li:last-child{border-bottom:none}'
       + '.hb-list li i{color:var(--gold-bright,#E8961F);margin-top:2px;flex-shrink:0;width:14px}'
       + '.hb-ladder{display:flex;flex-direction:column;gap:6px;margin-top:12px}'

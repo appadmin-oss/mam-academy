@@ -328,3 +328,44 @@
     },
   };
 })();
+
+/* ============================================================
+   Portal theme toggle — light ⇄ dark, persisted.
+   The pre-paint <head> script sets the initial data-portal-theme on
+   <html>; this wires the sidebar control and keeps its label/icon in
+   sync. Self-contained and delegated, so it works on every portal shell
+   regardless of that page's boot sequence.
+   ============================================================ */
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  function current() { return root.getAttribute('data-portal-theme') === 'dark' ? 'dark' : 'light'; }
+  function sync() {
+    var dark = current() === 'dark';
+    var btns = document.querySelectorAll('[data-action="theme-toggle"]');
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      var lbl = b.querySelector('[data-theme-label]');
+      var ic = b.querySelector('i');
+      if (lbl) { lbl.textContent = dark ? 'Light mode' : 'Dark mode'; }
+      if (ic) { ic.className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon'; }
+      b.setAttribute('aria-pressed', dark ? 'true' : 'false');
+    }
+  }
+  function apply(mode) {
+    root.setAttribute('data-portal-theme', mode);
+    try { localStorage.setItem('mam-portal-theme', mode); } catch (e) {}
+    sync();
+  }
+  document.addEventListener('click', function (e) {
+    var b = (e.target && e.target.closest) ? e.target.closest('[data-action="theme-toggle"]') : null;
+    if (!b) { return; }
+    e.preventDefault();
+    apply(current() === 'dark' ? 'light' : 'dark');
+  }, false);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', sync, false);
+  } else {
+    sync();
+  }
+})();
