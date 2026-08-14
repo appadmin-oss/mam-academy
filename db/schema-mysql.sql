@@ -1896,3 +1896,38 @@ INSERT INTO settings (skey, svalue) VALUES
   ('late_charge_instructor_usd','2')
 ON DUPLICATE KEY UPDATE skey = skey;
 INSERT INTO schema_version (version) VALUES (67) ON DUPLICATE KEY UPDATE version = version;
+
+-- v68: pre-class learning + teach-back (PDF §8-9, 18-19). lessons becomes the
+-- week-module content unit; a class_session can reference the module it
+-- delivers; teachbacks records the student's DECLARE step + instructor decision.
+ALTER TABLE lessons ADD COLUMN week_no INT NULL;
+ALTER TABLE lessons ADD COLUMN objectives TEXT NULL;
+ALTER TABLE lessons ADD COLUMN prep_instructions TEXT NULL;
+ALTER TABLE lessons ADD COLUMN resources_json TEXT NULL;
+ALTER TABLE lessons ADD COLUMN teachback_required TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE class_sessions ADD COLUMN lesson_id INT NULL;
+CREATE INDEX idx_class_sessions_lesson ON class_sessions(lesson_id);
+
+CREATE TABLE IF NOT EXISTS teachbacks (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  lesson_id     INT          NOT NULL,
+  student_id    INT          NOT NULL,
+  cohort_id     INT          NULL,
+  kind          VARCHAR(16)  NOT NULL DEFAULT 'written',
+  artifact_url  TEXT         NULL,
+  body          TEXT         NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'submitted',
+  reviewer_id   INT          NULL,
+  decision      VARCHAR(16)  NULL,
+  understanding INT          NULL,
+  feedback      TEXT         NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at   DATETIME     NULL,
+  UNIQUE KEY idx_teachback_unique (lesson_id, student_id),
+  KEY idx_teachback_queue (status),
+  CONSTRAINT fk_tb_lesson   FOREIGN KEY (lesson_id)   REFERENCES lessons(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tb_student  FOREIGN KEY (student_id)  REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_tb_cohort   FOREIGN KEY (cohort_id)   REFERENCES cohorts(id) ON DELETE SET NULL,
+  CONSTRAINT fk_tb_reviewer FOREIGN KEY (reviewer_id) REFERENCES users(id)   ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (68) ON DUPLICATE KEY UPDATE version = version;

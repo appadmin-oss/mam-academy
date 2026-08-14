@@ -220,6 +220,10 @@ $r->group('/student', function (MamRouter $r) use ($f) {
 
     // Punctuality accountability ledger (read-only) — PDF §13, §37.
     $r->get ('/accountability',      $f('student/accountability.php'),      [mw_role('student')]);
+
+    // Pre-class learning + teach-back (LMS 2.0, PDF §8-9).
+    $r->get ('/preclass',            $f('student/preclass.php'),            [mw_role('student')]);
+    $r->post('/preclass',            $f('student/preclass.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('preclass', 40, 600)]);
 });
 
 /* ─── Instructor portal ─── */
@@ -255,6 +259,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     // Rubric management + rubric-grid competency scoring (LMS 2.0, PDF §20-21).
     $r->get ('/rubrics',            $f('instructor/rubrics.php'),            [mw_role('instructor', 'admin')]);
     $r->post('/rubrics',            $f('instructor/rubrics.php'),            [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('rubrics', 60, 600)]);
+    // Pre-class command centre + teach-back review + module content (§17-19).
+    $r->get ('/preclass',           $f('instructor/preclass.php'),           [mw_role('instructor', 'admin')]);
+    $r->post('/preclass',           $f('instructor/preclass.php'),           [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('preclass_ins', 80, 600)]);
     // Per-session QR check-in token for a cohort session (P2 twin of attendance-qr).
     $r->get ('/session-attendance-qr', $f('instructor/session-attendance-qr.php'), [mw_role('instructor', 'admin')]);
     // ID card scan: instructor scans a student's card QR to mark attendance.

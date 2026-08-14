@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 67;
+const MAM_SCHEMA_TARGET = 68;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2014,6 +2014,41 @@ function mam_db_migrate(PDO $db): void {
               ('late_charge_enabled','0'),
               ('late_charge_student_usd','1'),
               ('late_charge_instructor_usd','2');
+        ",
+        /* v68 — pre-class learning + teach-back (PDF §8-9, 18-19). The existing
+         * `lessons` table becomes the week-module content unit (objectives,
+         * prep instructions, resources, whether a teach-back is required), a
+         * class_session can point at the module it delivers, and `teachbacks`
+         * records the student's DECLARE step (evidence by link OR uploaded
+         * media) plus the instructor's readiness decision. Preparation status
+         * reuses lesson_progress (in_progress/completed = the 🟡/🟢 light). */
+        68 => "
+            ALTER TABLE lessons ADD COLUMN week_no INTEGER;
+            ALTER TABLE lessons ADD COLUMN objectives TEXT;
+            ALTER TABLE lessons ADD COLUMN prep_instructions TEXT;
+            ALTER TABLE lessons ADD COLUMN resources_json TEXT;
+            ALTER TABLE lessons ADD COLUMN teachback_required INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE class_sessions ADD COLUMN lesson_id INTEGER REFERENCES lessons(id) ON DELETE SET NULL;
+            CREATE INDEX IF NOT EXISTS idx_class_sessions_lesson ON class_sessions(lesson_id);
+
+            CREATE TABLE teachbacks (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              lesson_id     INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+              student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              cohort_id     INTEGER REFERENCES cohorts(id) ON DELETE SET NULL,
+              kind          TEXT NOT NULL DEFAULT 'written',
+              artifact_url  TEXT,
+              body          TEXT,
+              status        TEXT NOT NULL DEFAULT 'submitted',
+              reviewer_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              decision      TEXT,
+              understanding INTEGER,
+              feedback      TEXT,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+              reviewed_at   TEXT
+            );
+            CREATE UNIQUE INDEX idx_teachback_unique ON teachbacks(lesson_id, student_id);
+            CREATE INDEX idx_teachback_queue ON teachbacks(status);
         ",
     ];
 
