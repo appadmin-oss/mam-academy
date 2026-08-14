@@ -1712,6 +1712,43 @@
       + kpiCard(practiceMin ? fmtMin(practiceMin) : '—', 'Practice Logged', 'fa-music')
       + '</div>';
 
+    // ── My MAM Journey (§25): overall mastery, module completion, competencies ──
+    var lessonProg = d.lesson_progress || [];
+    var rubricRevs = d.rubric_reviews || [];
+    var academic   = d.academic || {};
+    var ce0        = (d.course_enrollments || [])[0] || {};
+    // Overall mastery = mean of scored work (assessments + rubric reviews); if a
+    // student has no graded work yet, fall back to average module completion.
+    var mParts = [];
+    assessments.forEach(function (a) { var mx = Number(a.max_score || 0); if (mx > 0) mParts.push(Number(a.score || 0) / mx); });
+    rubricRevs.forEach(function (r) { var mx = Number(r.max_points || 0); if (mx > 0) mParts.push(Number(r.total_points || 0) / mx); });
+    var overallMastery = mParts.length
+      ? Math.round(mParts.reduce(function (x, y) { return x + y; }, 0) / mParts.length * 100)
+      : (lessonProg.length ? Math.round(lessonProg.reduce(function (x, r) { return x + Number(r.percent || 0); }, 0) / lessonProg.length) : null);
+    if (lessonProg.length || rubricRevs.length || overallMastery !== null) {
+      var jrTitle = [ce0.course_name, ce0.level_name].filter(Boolean).join(' — ') || 'Your learning journey';
+      var mCol = overallMastery == null ? 'var(--text-muted)' : overallMastery >= 70 ? '#4caf50' : overallMastery >= 50 ? 'var(--gold-bright)' : 'var(--danger)';
+      html += '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h2><i class="fa-solid fa-compass" style="color:var(--gold-bright);margin-right:8px"></i>My MAM Journey</h2><span class="kpi-sub" style="color:var(--text-muted)">' + P.escapeHtml(jrTitle) + '</span></div>'
+        + '<div class="panel-body" style="padding:20px;display:grid;gap:18px">'
+        + '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">'
+        + '<div style="min-width:120px"><div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:4px">Overall Mastery</div>'
+        + '<div style="font-family:var(--font-display,inherit);font-size:2.4rem;line-height:1;color:' + mCol + '">' + (overallMastery == null ? '—' : overallMastery + '%') + '</div></div>'
+        + '<div style="flex:1;min-width:180px"><div class="prog-bar"><div class="prog-fill" style="width:' + (overallMastery || 0) + '%"></div></div>'
+        + (academic.gpa != null ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:8px">Term GPA: <strong style="color:var(--text)">' + P.escapeHtml(String(academic.gpa)) + '</strong></div>' : '')
+        + '</div></div>';
+      if (lessonProg.length) {
+        html += '<div><div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:8px">This term — module completion</div><div style="display:grid;gap:10px">'
+          + lessonProg.map(function (r) { var p = Math.round(Number(r.percent || 0)); return '<div><div style="display:flex;justify-content:space-between;font-size:0.84rem;margin-bottom:4px"><span>' + P.escapeHtml(r.cohort_title || 'Course') + '</span><strong>' + p + '%</strong></div><div class="prog-bar"><div class="prog-fill" style="width:' + p + '%"></div></div><div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px">' + (r.completed || 0) + ' of ' + (r.total || 0) + ' modules</div></div>'; }).join('')
+          + '</div></div>';
+      }
+      if (rubricRevs.length) {
+        html += '<div><div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:8px">Competencies — recent rubric reviews</div><div style="display:grid;gap:10px">'
+          + rubricRevs.slice(0, 5).map(function (r) { var mx = Number(r.max_points || 0); var p = mx > 0 ? Math.round(Number(r.total_points || 0) / mx * 100) : null; return '<div><div style="display:flex;justify-content:space-between;font-size:0.84rem;margin-bottom:4px"><span>' + P.escapeHtml(r.rubric_title || r.assignment_title || 'Assessment') + '</span><strong>' + (p == null ? '—' : p + '%') + '</strong></div><div class="prog-bar"><div class="prog-fill" style="width:' + (p || 0) + '%"></div></div></div>'; }).join('')
+          + '</div></div>';
+      }
+      html += '</div></section>';
+    }
+
     // ── Class Summary ────────────────────────────────────────────
     if (summary.length) {
       var cards = summary.map(function(c) {
