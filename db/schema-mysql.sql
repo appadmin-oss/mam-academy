@@ -1960,3 +1960,47 @@ CREATE TABLE IF NOT EXISTS module_carryforward (
   CONSTRAINT fk_cf_by      FOREIGN KEY (created_by) REFERENCES users(id)   ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (69) ON DUPLICATE KEY UPDATE version = version;
+
+-- v70: instructor clock-in + online reconciliation (PDF §10-11, 14). A late
+-- clock-in feeds the accountability ledger; meeting_reconciliation reconciles
+-- the portal clock-in against Meet (CSV import) or Jitsi; MAM clock-in stays
+-- the official record where provider data isn't available.
+CREATE TABLE IF NOT EXISTS instructor_clockins (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  session_id    INT         NOT NULL,
+  instructor_id INT         NOT NULL,
+  clock_in_at   DATETIME    NULL,
+  clock_out_at  DATETIME    NULL,
+  status        VARCHAR(16) NOT NULL DEFAULT 'present',
+  minutes_late  INT         NOT NULL DEFAULT 0,
+  source        VARCHAR(16) NOT NULL DEFAULT 'portal',
+  created_at    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_clockin_unique (session_id, instructor_id),
+  CONSTRAINT fk_ci_session FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ci_instr   FOREIGN KEY (instructor_id) REFERENCES users(id)          ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS meeting_reconciliation (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  session_id   INT          NOT NULL,
+  subject_type VARCHAR(16)  NOT NULL DEFAULT 'student',
+  subject_id   INT          NULL,
+  display_name VARCHAR(190) NULL,
+  join_at      DATETIME     NULL,
+  leave_at     DATETIME     NULL,
+  minutes      INT          NULL,
+  provider     VARCHAR(16)  NOT NULL DEFAULT 'meet',
+  source       VARCHAR(16)  NOT NULL DEFAULT 'import',
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_meetrecon_session (session_id),
+  CONSTRAINT fk_mr_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mr_subject FOREIGN KEY (subject_id) REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE class_sessions ADD COLUMN meeting_provider VARCHAR(16) NULL;
+INSERT INTO settings (skey, svalue) VALUES
+  ('instructor_clockin_grace_min','5'),
+  ('jitsi_domain','meet.jit.si'),
+  ('meeting_default_provider','none')
+ON DUPLICATE KEY UPDATE skey = skey;
+INSERT INTO schema_version (version) VALUES (70) ON DUPLICATE KEY UPDATE version = version;

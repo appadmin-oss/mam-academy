@@ -265,6 +265,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     // Module status + carry-forward (LMS 2.0, PDF §6-7, 29-30).
     $r->get ('/module',             $f('instructor/module.php'),             [mw_role('instructor', 'admin')]);
     $r->post('/module',             $f('instructor/module.php'),             [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('module_status', 80, 600)]);
+    // Instructor clock-in/out + meeting view (LMS 2.0, PDF §10-11, 14).
+    $r->get ('/clock',              $f('instructor/clock.php'),              [mw_role('instructor', 'admin')]);
+    $r->post('/clock',              $f('instructor/clock.php'),              [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('clock', 60, 600)]);
     // Per-session QR check-in token for a cohort session (P2 twin of attendance-qr).
     $r->get ('/session-attendance-qr', $f('instructor/session-attendance-qr.php'), [mw_role('instructor', 'admin')]);
     // ID card scan: instructor scans a student's card QR to mark attendance.
@@ -326,6 +329,8 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // Accountability ledger — punctuality charges + §15 waiver decisions.
     $r->get ('/accountability', $f('admin/accountability.php'), [mw_admin_cap('view')]);
     $r->post('/accountability', $f('admin/accountability.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_accountability', 60, 600)]);
+    // Meeting reconciliation import (Meet CSV / Jitsi) — PDF §11.
+    $r->post('/meet-reconcile', $f('admin/meet-reconcile.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_meet', 30, 600)]);
     // Enterprise scheduling: academy-wide calendar + cohort waitlist management.
     $r->get ('/schedule', $f('admin/schedule.php'),  [mw_admin_cap('view')]);
     $r->get ('/waitlist', $f('admin/waitlist.php'),  [mw_admin_cap('enrollments')]);

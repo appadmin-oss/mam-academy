@@ -78,6 +78,7 @@ require $ROOT . '/lib/attendance.php';      // QR self-check-in (#9/#10)
 require $ROOT . '/lib/checkin.php';         // NGG-style student check-in (LMS 2.0)
 require $ROOT . '/lib/accountability.php';  // punctuality charges ledger (LMS 2.0)
 require $ROOT . '/lib/preclass.php';        // pre-class learning + teach-back (LMS 2.0)
+require $ROOT . '/lib/meetings.php';        // instructor clock-in + Meet/Jitsi reconciliation
 require $ROOT . '/lib/drive.php';           // Google Drive gateway via Apps Script (#5)
 require $ROOT . '/lib/scholarship.php';     // MAM Scholars Initiative (§2c)
 require $ROOT . '/lib/faculty.php';         // instructor applications + invite tokens

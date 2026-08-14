@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 69;
+const MAM_SCHEMA_TARGET = 70;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2079,6 +2079,48 @@ function mam_db_migrate(PDO $db): void {
               created_at        TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_carryfwd_student ON module_carryforward(student_id, lesson_id);
+        ",
+        /* v70 — instructor clock-in + online reconciliation (PDF §10-11, 14).
+         * instructor_clockins records staff punctuality (a late clock-in feeds
+         * the accountability ledger's $2). meeting_reconciliation reconciles the
+         * portal clock-in against a video provider's join/leave (Google Meet CSV
+         * import, or Jitsi) — the MAM clock-in stays the official record where
+         * provider data can't be fetched (§11). class_sessions gains the
+         * meeting provider. */
+        70 => "
+            CREATE TABLE instructor_clockins (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              session_id    INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+              instructor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              clock_in_at   TEXT,
+              clock_out_at  TEXT,
+              status        TEXT NOT NULL DEFAULT 'present',
+              minutes_late  INTEGER NOT NULL DEFAULT 0,
+              source        TEXT NOT NULL DEFAULT 'portal',
+              created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_clockin_unique ON instructor_clockins(session_id, instructor_id);
+
+            CREATE TABLE meeting_reconciliation (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              session_id   INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+              subject_type TEXT NOT NULL DEFAULT 'student',
+              subject_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              display_name TEXT,
+              join_at      TEXT,
+              leave_at     TEXT,
+              minutes      INTEGER,
+              provider     TEXT NOT NULL DEFAULT 'meet',
+              source       TEXT NOT NULL DEFAULT 'import',
+              created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_meetrecon_session ON meeting_reconciliation(session_id);
+
+            ALTER TABLE class_sessions ADD COLUMN meeting_provider TEXT;
+            INSERT OR IGNORE INTO settings (skey, svalue) VALUES
+              ('instructor_clockin_grace_min','5'),
+              ('jitsi_domain','meet.jit.si'),
+              ('meeting_default_provider','none');
         ",
     ];
 
