@@ -192,6 +192,9 @@ function mam_settings_schema(): array {
         ['Accountability',          'late_charge_enabled',         'Record a punctuality charge on late check-in (1=on, 0=off)', 0, ''],
         ['Accountability',          'late_charge_student_usd',     'Student late-arrival charge', 1, '$'],
         ['Accountability',          'late_charge_instructor_usd',  'Instructor lateness accountability amount', 2, '$'],
+        // Academic email engine (PDF §28). Off by default — turning it on sends
+        // pre-class/attendance/late/absence/weekly emails to students & parents.
+        ['Notifications',           'academic_emails_enabled',     'Send academic emails (pre-class, attendance, late, weekly) (1=on, 0=off)', 0, ''],
         // CDN (Cloudinary) — image delivery and headshot uploads.
         // cloudinary_cloud_name:    your Cloudinary cloud name (e.g. "mam-academy").
         //   When set, every public <img> on the site is served via Cloudinary's

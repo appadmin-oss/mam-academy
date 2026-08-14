@@ -65,6 +65,9 @@ function mam_accountability_charge(string $subjectType, int $subjectId, ?int $se
             'Late arrival recorded',
             'A ' . $minutes . '-minute late arrival was recorded with a $' . number_format($amountUsd, 2) . ' punctuality charge.', null);
     }
+    if ($sessionId !== null && function_exists('mam_acadmail_late_notice')) {
+        try { mam_acadmail_late_notice($subjectType, $subjectId, $sessionId, $minutes, $cents); } catch (\Throwable $e) { /* best-effort */ }
+    }
     return $id;
 }
 

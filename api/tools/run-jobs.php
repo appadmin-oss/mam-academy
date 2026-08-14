@@ -80,6 +80,16 @@ if (function_exists('mam_reschedule_expire_due')) {
     printf("reschedule : expired unpaid requests %d\n", mam_reschedule_expire_due());
 }
 
+// Academic email engine (LMS 2.0 §28): pre-class reminders, preparation alerts,
+// absence notices, weekly reports. No-op unless academic_emails_enabled=1.
+if (function_exists('mam_acadmail_preclass_reminder_sweep')) {
+    printf("acad mail  : pre-class %d · prep %d · absence %d · weekly %d\n",
+        mam_acadmail_preclass_reminder_sweep(),
+        mam_acadmail_prep_alert_sweep(),
+        mam_acadmail_absence_sweep(),
+        mam_acadmail_weekly_report_sweep());
+}
+
 // Generalised cron: also drain the failed-email outbox in the same pass.
 if (function_exists('mam_mail_retry_failed')) {
     $m = mam_mail_retry_failed(50, 6, 0);

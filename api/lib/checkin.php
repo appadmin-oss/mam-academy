@@ -149,6 +149,9 @@ function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?f
     if (function_exists('mam_notify')) {
         mam_notify($studentId, 'checkin', 'Checked in', 'You are marked ' . $status . ' for ' . (string) $sess['title'] . '.', null);
     }
+    if (function_exists('mam_acadmail_attendance_confirmation')) {
+        try { mam_acadmail_attendance_confirmation($studentId, $sessionId, $status); } catch (\Throwable $e) { /* best-effort */ }
+    }
     return ['status' => $status, 'already' => false, 'late' => $late] + $meta;
 }
 
