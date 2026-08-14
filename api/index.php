@@ -249,6 +249,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     // Paid rescheduling (LMS 2.0 Part C) — approve/decline queue for owned cohorts.
     $r->get ('/reschedule',         $f('instructor/reschedule.php'),         [mw_role('instructor', 'admin')]);
     $r->post('/reschedule',         $f('instructor/reschedule.php'),         [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('reschedule_decide', 60, 600)]);
+    // Rubric management + rubric-grid competency scoring (LMS 2.0, PDF §20-21).
+    $r->get ('/rubrics',            $f('instructor/rubrics.php'),            [mw_role('instructor', 'admin')]);
+    $r->post('/rubrics',            $f('instructor/rubrics.php'),            [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('rubrics', 60, 600)]);
     // Per-session QR check-in token for a cohort session (P2 twin of attendance-qr).
     $r->get ('/session-attendance-qr', $f('instructor/session-attendance-qr.php'), [mw_role('instructor', 'admin')]);
     // ID card scan: instructor scans a student's card QR to mark attendance.

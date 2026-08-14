@@ -76,3 +76,28 @@ $pc = mam_lms2_cohort_percentile($target, $PC_coh);
 t_eq($pc['cohort_size'], 4, 'percentile sees all 4 cohort results');
 t_eq($pc['rank'], 2, 'the 75 scorer ranks 2nd of 4');
 t_eq($pc['percentile'], 75.0, '3 of 4 scores are at or below 75 → 75th percentile');
+
+t_group('grading — rubric grid (create + score an enrolment)');
+
+$RG_ins2 = mam_db_insert('users', ['name' => 'RG Ins2', 'email' => 'rg_ins2@test.local', 'role' => 'instructor', 'password_hash' => '', 'status' => 'active']);
+$RG_stu2 = mam_db_insert('users', ['name' => 'RG Stu2', 'email' => 'rg_stu2@test.local', 'role' => 'student', 'password_hash' => '', 'status' => 'active']);
+$RG_coh2 = mam_db_insert('cohorts', ['course_id' => $GR_course, 'title' => 'RG Cohort2', 'term' => 'T9', 'status' => 'active', 'capacity' => 10, 'instructor_id' => $RG_ins2]);
+$RG_enr2 = mam_db_insert('course_enrollments', ['student_id' => $RG_stu2, 'course_id' => $GR_course, 'cohort_id' => $RG_coh2, 'instructor_id' => $RG_ins2, 'status' => 'active']);
+
+// Create a rubric with two 10-point, equally-weighted criteria.
+$RG_rid = mam_lms2_rubric_create('Piano technique', [
+    ['label' => 'Note accuracy', 'max_points' => 10, 'weight' => 1.0],
+    ['label' => 'Rhythm & timing', 'max_points' => 10, 'weight' => 1.0],
+], $RG_coh2, $RG_ins2);
+t_ok($RG_rid > 0, 'rubric created');
+$RG_list = mam_lms2_rubrics_with_criteria();
+$RG_found = array_values(array_filter($RG_list, fn($r) => (int) $r['id'] === $RG_rid))[0];
+t_eq(count($RG_found['criteria']), 2, 'rubric lists its two criteria');
+$RG_c = array_column($RG_found['criteria'], 'id');
+
+// Score 10 + 5 of 20 → 75% → recorded as a 'practical' assessment.
+$RG_res = mam_lms2_rubric_grade($RG_enr2, $RG_rid, [$RG_c[0] => 10, $RG_c[1] => 5], $RG_ins2, 'practical', 'Good tone');
+t_eq($RG_res['computed']['percent'], 75.0, 'rubric percent = (10+5)/20');
+$RG_row = mam_db_row('SELECT total_score, grade FROM results WHERE enrollment_id = ?', [$RG_enr2]);
+t_near((float) $RG_row['total_score'], 75.0, 'rubric score flows to the result as the practical component');
+t_eq($RG_row['grade'], 'B', '75% → grade B');

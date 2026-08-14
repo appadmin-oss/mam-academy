@@ -816,6 +816,104 @@
       }
       var typeOpts = types.map(function (t) { return '<option value="' + P.escapeHtml(t.code) + '">' + P.escapeHtml(t.name) + ' (' + t.weight + '%)</option>'; }).join('');
 
+      // ── Rubric-grid scoring (PDF §20-21) ──────────────────────────────
+      var gbRubrics = null;
+      function loadRubrics() {
+        if (gbRubrics) return Promise.resolve(gbRubrics);
+        return API.request('instructor/rubrics', { method: 'GET' }).then(function (r) { gbRubrics = (r && r.rubrics) || []; return gbRubrics; });
+      }
+      function rubricPanelHtml(rubrics) {
+        if (!rubrics.length) return '<div style="padding:14px 18px;border-top:1px solid var(--border)">' + empty('table-cells', 'No rubrics yet — create one with “New rubric” above.') + '</div>';
+        var opts = '<option value="">Choose a rubric…</option>' + rubrics.map(function (rb) { return '<option value="' + rb.id + '">' + P.escapeHtml(rb.title) + '</option>'; }).join('');
+        return '<form class="gb-rubric-form" style="padding:14px 18px;border-top:1px solid var(--border);display:grid;gap:12px">'
+          + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
+          + '<div class="field" style="flex:1;min-width:180px"><label>Rubric</label><select name="rubric" class="rubric-select">' + opts + '</select></div>'
+          + '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type">' + typeOpts + '</select></div></div>'
+          + '<div class="rubric-grid"></div>'
+          + '<div class="field"><label>Feedback (optional)</label><input name="feedback" placeholder="A short note for the record"></div>'
+          + '<div style="display:flex;gap:12px;align-items:center"><button type="submit" class="btn btn-primary" disabled><i class="fa-solid fa-wand-magic-sparkles"></i> Score with rubric</button>'
+          + '<span class="rubric-total" style="font-weight:700;color:var(--text-muted)"></span></div></form>';
+      }
+      function wireRubricForm(card, rubrics) {
+        var form = card.querySelector('.gb-rubric-form'); if (!form) return;
+        var sel = form.querySelector('.rubric-select'), grid = form.querySelector('.rubric-grid'),
+            totalEl = form.querySelector('.rubric-total'), submit = form.querySelector('button[type=submit]'), current = null;
+        function recompute() {
+          if (!current) { totalEl.textContent = ''; submit.disabled = true; return; }
+          var got = 0, max = 0, any = false;
+          current.criteria.forEach(function (c) {
+            var inp = grid.querySelector('input[data-c="' + c.id + '"]'), v = inp ? parseFloat(inp.value) : NaN,
+                w = parseFloat(c.weight) || 0, mx = parseFloat(c.max_points) || 0;
+            if (!isNaN(v)) { any = true; got += Math.max(0, Math.min(mx, v)) * w; }
+            max += mx * w;
+          });
+          var pct = max > 0 ? Math.round(got / max * 1000) / 10 : 0;
+          totalEl.textContent = 'Total: ' + pct + '%'; submit.disabled = !any;
+        }
+        sel.addEventListener('change', function () {
+          current = rubrics.filter(function (r) { return String(r.id) === sel.value; })[0] || null;
+          if (!current) { grid.innerHTML = ''; recompute(); return; }
+          grid.innerHTML = '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Criterion</th><th style="width:90px">Score</th><th style="width:60px">Max</th><th style="width:60px">Wt</th></tr></thead><tbody>'
+            + current.criteria.map(function (c) {
+              return '<tr><td data-label="Criterion">' + P.escapeHtml(c.label) + '</td>'
+                + '<td data-label="Score"><input type="number" min="0" step="0.5" max="' + c.max_points + '" data-c="' + c.id + '" style="width:80px"></td>'
+                + '<td data-label="Max">' + c.max_points + '</td><td data-label="Wt">' + c.weight + '</td></tr>';
+            }).join('') + '</tbody></table></div>';
+          grid.querySelectorAll('input[data-c]').forEach(function (inp) { inp.addEventListener('input', recompute); });
+          recompute();
+        });
+        form.addEventListener('submit', function (ev) {
+          ev.preventDefault(); if (!current) return;
+          var scores = {};
+          current.criteria.forEach(function (c) { var inp = grid.querySelector('input[data-c="' + c.id + '"]'), v = inp ? parseFloat(inp.value) : NaN; if (!isNaN(v)) scores[c.id] = v; });
+          var body = { action: 'grade', enrollment_id: parseInt(card.getAttribute('data-eid'), 10), rubric_id: current.id, scores: scores, type_code: form.elements.type.value, feedback: form.elements.feedback.value.trim() };
+          var orig = submit.innerHTML; submit.disabled = true; submit.innerHTML = 'Scoring…';
+          API.request('instructor/rubrics', { method: 'POST', body: body }).then(function (r) {
+            submit.innerHTML = orig; gbApplyResult(card, r.result); gbCache = null;
+            var box = card.querySelector('.gb-marks'); if (box && !box.hidden) gbLoadMarks(card);
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Rubric scored — ' + (r.computed ? r.computed.percent + '%' : 'done') + '.', 'success');
+          }).catch(function (err) {
+            submit.disabled = false; submit.innerHTML = orig;
+            var msg = (err && err.body && err.body.error) || 'try again';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not score: ' + msg, 'error'); else alert('Could not score.');
+          });
+        });
+      }
+      function openRubricPanel(card) {
+        var box = card.querySelector('.gb-rubric');
+        if (!box.hidden) { box.hidden = true; return; }
+        box.hidden = false; box.innerHTML = '<div style="padding:14px 18px">' + empty('circle-notch fa-spin', 'Loading rubrics…') + '</div>';
+        loadRubrics().then(function (rubrics) { box.innerHTML = rubricPanelHtml(rubrics); wireRubricForm(card, rubrics); })
+          .catch(function () { box.innerHTML = '<div style="padding:14px 18px">' + empty('triangle-exclamation', 'Could not load rubrics.') + '</div>'; });
+      }
+      function openNewRubric() {
+        var host = document.getElementById('gbRubricNew'); if (!host) return;
+        if (host.innerHTML) { host.innerHTML = ''; return; }
+        host.innerHTML = '<form id="gbRubricCreate" style="padding:12px 22px 18px;display:grid;gap:10px;border-top:1px solid var(--border)">'
+          + '<div class="field"><label>Rubric title</label><input name="title" placeholder="e.g. Piano technique — Grade 2" required></div>'
+          + '<div class="field"><label>Criteria — one per line: <code>Label | max points | weight</code></label>'
+          + '<textarea name="criteria" rows="5" placeholder="Note accuracy | 10 | 1&#10;Rhythm &amp; timing | 10 | 1&#10;Expression | 10 | 0.5"></textarea></div>'
+          + '<div><button type="submit" class="btn btn-primary" style="padding:8px 14px"><i class="fa-solid fa-plus"></i> Create rubric</button></div></form>';
+        document.getElementById('gbRubricCreate').addEventListener('submit', function (ev) {
+          ev.preventDefault();
+          var title = this.elements.title.value.trim();
+          var criteria = this.elements.criteria.value.split('\n').map(function (line) {
+            var p = line.split('|'); if (!p[0] || !p[0].trim()) return null;
+            return { label: p[0].trim(), max_points: parseInt(p[1], 10) || 10, weight: parseFloat(p[2]) || 1 };
+          }).filter(Boolean);
+          if (!title || !criteria.length) { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Add a title and at least one criterion.', 'error'); return; }
+          var btn = this.querySelector('button[type=submit]'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Creating…';
+          API.request('instructor/rubrics', { method: 'POST', body: { action: 'create', title: title, criteria: criteria } }).then(function (r) {
+            gbRubrics = (r && r.rubrics) || null; host.innerHTML = '';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Rubric created.', 'success');
+          }).catch(function (err) {
+            btn.disabled = false; btn.innerHTML = orig;
+            var msg = (err && err.body && err.body.error) || 'try again';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not create: ' + msg, 'error'); else alert('Could not create rubric.');
+          });
+        });
+      }
+
       // Build cohort index (preserving order from API, which sorts by cohort title)
       var cohortMap = {}, cohortOrder = [];
       ens.forEach(function (e) {
@@ -843,6 +941,7 @@
           + '<span style="color:var(--text-muted);font-weight:500"> — ' + P.escapeHtml(e.course_name) + (e.level_name ? ' · ' + P.escapeHtml(e.level_name) : '') + '</span></h2>'
           + makeProgressBar(e.total_score, e.outcome) + '</div>'
           + '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:2px"><span class="gb-result">' + gradePill(e) + '</span>'
+          + '<button type="button" class="btn btn-ghost gb-rubric-btn" style="padding:4px 10px;font-size:.74rem"><i class="fa-solid fa-table-cells"></i> Rubric</button> '
           + '<button type="button" class="btn btn-ghost gb-marks-btn" style="padding:4px 10px;font-size:.74rem"><i class="fa-solid fa-list-ol"></i> Marks</button></span></div>'
           + '<form class="gb-form profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
           + '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type">' + typeOpts + '</select></div>'
@@ -851,7 +950,8 @@
           + '<div class="field" style="width:70px"><label>Week</label><input name="week" type="number" min="1" max="12"></div>'
           + '<button type="submit" class="btn btn-primary" style="padding:9px 14px"><i class="fa-solid fa-plus"></i> Record</button>'
           + '</form>'
-          + '<div class="gb-marks" hidden></div></div>';
+          + '<div class="gb-marks" hidden></div>'
+          + '<div class="gb-rubric" hidden></div></div>';
       }
 
       function paintView(filter) {
@@ -868,7 +968,8 @@
           + '<label style="margin:0;display:flex;align-items:center;gap:8px;font-weight:500"><i class="fa-solid fa-filter" style="color:var(--text-muted);font-size:.78rem"></i>'
           + '<select id="gbCohortFilter" style="min-width:200px">' + filterOpts + '</select></label>'
           + '<span style="font-size:.82rem;color:var(--text-muted)">' + visible.length + ' student' + (visible.length !== 1 ? 's' : '') + '</span>'
-          + '</div></section>';
+          + '<button type="button" id="gbNewRubricBtn" class="btn btn-ghost" style="margin-left:auto;padding:6px 12px;font-size:.78rem"><i class="fa-solid fa-table-cells"></i> New rubric</button>'
+          + '</div><div id="gbRubricNew"></div></section>';
 
         var cardsHtml = cohortOrder.map(function (key) {
           var group = visible.filter(function (e) { return String(e.cohort_id || 0) === key; });
@@ -914,6 +1015,11 @@
             box.hidden = false; gbLoadMarks(card);
           });
         });
+        content.querySelectorAll('.gb-rubric-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () { openRubricPanel(btn.closest('[data-eid]')); });
+        });
+        var nrb = document.getElementById('gbNewRubricBtn');
+        if (nrb) nrb.addEventListener('click', openNewRubric);
       }
 
       paintView('');

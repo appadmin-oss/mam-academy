@@ -156,6 +156,54 @@ function mam_lms2_submission_enrollment(int $submissionId): ?int {
     return count($all) === 1 ? (int) $all[0]['id'] : null;
 }
 
+/** All active rubrics (optionally scoped to a cohort or the global pool) with
+ *  their criteria, for a scoring UI. */
+function mam_lms2_rubrics_with_criteria(?int $cohortId = null): array {
+    $rubrics = $cohortId !== null
+        ? mam_db_all("SELECT * FROM rubrics WHERE active = 1 AND (cohort_id = ? OR cohort_id IS NULL) ORDER BY id DESC", [$cohortId])
+        : mam_db_all("SELECT * FROM rubrics WHERE active = 1 ORDER BY id DESC");
+    foreach ($rubrics as &$r) {
+        $r['criteria'] = mam_db_all(
+            "SELECT id, label, max_points, weight, sort_order FROM rubric_criteria WHERE rubric_id = ? ORDER BY sort_order, id",
+            [(int) $r['id']]
+        );
+    }
+    unset($r);
+    return $rubrics;
+}
+
+/** Create a rubric with its criteria. Returns the rubric id. */
+function mam_lms2_rubric_create(string $title, array $criteria, ?int $cohortId = null, ?int $by = null): int {
+    $title = trim($title);
+    if ($title === '') throw new InvalidArgumentException('title_required');
+    $clean = array_values(array_filter($criteria, fn($c) => trim((string) ($c['label'] ?? '')) !== ''));
+    if (!$clean) throw new InvalidArgumentException('criteria_required');
+    $rid = mam_db_insert('rubrics', ['title' => $title, 'cohort_id' => $cohortId, 'created_by' => $by, 'active' => 1]);
+    $i = 0;
+    foreach ($clean as $c) {
+        mam_db_insert('rubric_criteria', [
+            'rubric_id'  => $rid,
+            'label'      => trim((string) $c['label']),
+            'max_points' => max(1, (int) ($c['max_points'] ?? 10)),
+            'weight'     => max(0.0, (float) ($c['weight'] ?? 1.0)),
+            'sort_order' => $i++,
+        ]);
+    }
+    return $rid;
+}
+
+/**
+ * Score an enrolment against a rubric directly in the gradebook: the rubric
+ * percent is recorded as a weighted assessment of $typeCode via the existing
+ * gradebook engine, and the recomputed result is returned. (No submission is
+ * required — this is instructor-driven competency scoring per PDF §20.)
+ */
+function mam_lms2_rubric_grade(int $enrollmentId, int $rubricId, array $scores, ?int $by = null, string $typeCode = 'practical', ?string $feedback = null): array {
+    $computed = mam_lms2_rubric_score($rubricId, $scores);
+    $result   = mam_lms_record_assessment($enrollmentId, $typeCode, $by, (float) $computed['percent'], 100.0, null, $feedback);
+    return ['computed' => $computed, 'result' => $result];
+}
+
 /* ── term GPA / trend / percentile (read-only aggregates over results) ────── */
 
 /** 4.0-scale grade points for a letter grade. */
