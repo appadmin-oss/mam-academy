@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   notes          VARCHAR(500),
   marked_by      INT NULL,
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_attendance (enrollment_id, session_date),
   KEY idx_attendance_enrollment (enrollment_id),
   CONSTRAINT fk_att_enr   FOREIGN KEY (enrollment_id) REFERENCES enrollments(id) ON DELETE CASCADE,
   CONSTRAINT fk_att_marker FOREIGN KEY (marked_by)    REFERENCES users(id) ON DELETE SET NULL

@@ -1010,13 +1010,17 @@ function mam_lms_submission(int $id): ?array {
 /** Pass mark (percent) — admin-editable. */
 function mam_lms_pass_mark(): float { return mam_setting_num('lms_pass_mark', 50); }
 
-/** Map a 0–100 percentage to a [letter, band]. */
+/** Map a 0–100 percentage to a [letter, band]. The fail boundary tracks the
+ *  admin-configurable pass mark, so the letter/band can never contradict the
+ *  pass/fail outcome (mam_lms_compute_result derives that from the same mark).
+ *  Previously the D/F cut was hard-coded at 50: with a pass mark of e.g. 60, a
+ *  55% showed "D · pass" on an enrolment whose outcome was "fail". */
 function mam_lms_grade(float $pct): array {
+    if ($pct < mam_lms_pass_mark()) return ['F', 'fail'];
     if ($pct >= 80) return ['A', 'distinction'];
     if ($pct >= 70) return ['B', 'merit'];
     if ($pct >= 60) return ['C', 'credit'];
-    if ($pct >= 50) return ['D', 'pass'];
-    return ['F', 'fail'];
+    return ['D', 'pass'];
 }
 
 /**

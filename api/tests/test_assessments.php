@@ -10,6 +10,16 @@ t_eq(mam_lms_grade(60)[0], 'C', '60% → C');
 t_eq(mam_lms_grade(50)[0], 'D', '50% → D (pass mark)');
 t_eq(mam_lms_grade(49)[0], 'F', '49% → F');
 
+// REGRESSION: the fail boundary must track the admin pass mark, not a hard-wired
+// 50. With the pass mark raised to 60, a 55% is a FAIL — before the fix it showed
+// "D · pass" while the enrolment outcome was "fail", so the letter contradicted
+// the verdict on the same transcript.
+mam_setting_set('lms_pass_mark', '60');
+t_eq(mam_lms_grade(55), ['F', 'fail'], '55% under a 60 pass mark → F · fail (band tracks pass mark)');
+t_eq(mam_lms_grade(60)[0], 'C', '60% at a 60 pass mark → C (just passing)');
+t_eq(mam_lms_grade(59)[0], 'F', '59% just under a 60 pass mark → F');
+mam_setting_set('lms_pass_mark', '50'); // restore default for the rest of the suite
+
 // Fresh student + enrolment to grade.
 $sid = mam_db_insert('users', ['email' => 't_asg@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Grade Me', 'status' => 'active']);
 $iid = mam_db_insert('users', ['email' => 't_asg_i@x.dev', 'password_hash' => 'x', 'role' => 'instructor', 'name' => 'Grader', 'status' => 'active']);

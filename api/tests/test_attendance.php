@@ -52,6 +52,20 @@ t_eq((int)mam_db_row('SELECT COUNT(*) AS n FROM attendance WHERE session_date = 
 $threw = false; try { mam_attendance_self_checkin((int)$stu, (int)$other, '2026-07-05'); } catch (RuntimeException $e) { $threw = $e->getMessage() === 'not_enrolled'; }
 t_ok($threw, 'enrolment is per-class — cannot check in to a class you are not in');
 
+// BUG 2 (migration 60): the DB itself now forbids two attendance rows for one
+// (enrollment_id, session_date). This is the backstop under the idempotent
+// read-then-insert above — a race that slips past the pre-check hits a UNIQUE
+// violation, not a duplicate row that inflates the attendance rate.
+$eidU = (int)mam_db_row("SELECT id FROM enrollments WHERE student_id = ? AND class_id = ?", [$stu, $cid])['id'];
+$dupBlocked = false;
+try {
+    mam_db_insert('attendance', ['enrollment_id' => $eidU, 'session_date' => '2026-07-05', 'status' => 'present']);
+} catch (\Throwable $e) {
+    $dupBlocked = true;
+}
+t_ok($dupBlocked, 'a duplicate (enrollment_id, session_date) insert is rejected by the unique index');
+t_eq((int)mam_db_row('SELECT COUNT(*) AS n FROM attendance WHERE session_date = ?', ['2026-07-05'])['n'], 1, 'the blocked duplicate left exactly one row');
+
 // An instructor mark is never downgraded by a later self-scan.
 $eid2 = mam_db_row("SELECT id FROM enrollments WHERE student_id = ? AND class_id = ?", [$stu, $cid])['id'];
 mam_db_insert('attendance', ['enrollment_id' => (int)$eid2, 'session_date' => '2026-07-06', 'status' => 'late', 'marked_by' => (int)$ins]);

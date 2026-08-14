@@ -85,14 +85,21 @@ function mam_attendance_self_checkin(int $studentUserId, int $classId, string $d
         return ['status' => (string)$existing['status'], 'enrollment_id' => $eid, 'already' => true, 'class_title' => $title];
     }
 
-    mam_db_insert('attendance', [
-        'enrollment_id' => $eid,
-        'session_date'  => $date,
-        'status'        => 'present',
-        'notes'         => 'Self check-in (QR)',
-        'marked_by'     => $studentUserId,
-    ]);
-    mam_audit('checkin', 'attendance', $eid, ['class_id' => $classId, 'date' => $date, 'via' => 'qr']);
+    try {
+        mam_db_insert('attendance', [
+            'enrollment_id' => $eid,
+            'session_date'  => $date,
+            'status'        => 'present',
+            'notes'         => 'Self check-in (QR)',
+            'marked_by'     => $studentUserId,
+        ]);
+        mam_audit('checkin', 'attendance', $eid, ['class_id' => $classId, 'date' => $date, 'via' => 'qr']);
+    } catch (\Throwable $e) {
+        // Concurrent scan won the (enrollment_id, session_date) race — the row
+        // exists now (idx_attendance_unique), so this is an idempotent re-scan.
+        $cur = mam_db_row('SELECT status FROM attendance WHERE enrollment_id = ? AND session_date = ?', [$eid, $date]);
+        return ['status' => (string)($cur['status'] ?? 'present'), 'enrollment_id' => $eid, 'already' => true, 'class_title' => $title];
+    }
     return ['status' => 'present', 'enrollment_id' => $eid, 'already' => false, 'class_title' => $title];
 }
 
@@ -170,13 +177,20 @@ function mam_attendance_session_self_checkin(int $studentUserId, int $sessionId)
         return ['status' => (string)$existing['status'], 'already' => true] + $meta;
     }
 
-    mam_db_insert('session_attendance', [
-        'session_id' => $sessionId,
-        'student_id' => $studentUserId,
-        'status'     => 'present',
-        'notes'      => 'Self check-in (QR)',
-        'marked_by'  => $studentUserId,
-    ]);
-    mam_audit('checkin', 'class_session', $sessionId, ['cohort_id' => (int)$sess['cohort_id'], 'via' => 'qr']);
+    try {
+        mam_db_insert('session_attendance', [
+            'session_id' => $sessionId,
+            'student_id' => $studentUserId,
+            'status'     => 'present',
+            'notes'      => 'Self check-in (QR)',
+            'marked_by'  => $studentUserId,
+        ]);
+        mam_audit('checkin', 'class_session', $sessionId, ['cohort_id' => (int)$sess['cohort_id'], 'via' => 'qr']);
+    } catch (\Throwable $e) {
+        // Concurrent scan won the uq_sess_att race — the row exists now, so this
+        // is an idempotent re-check-in, not an error.
+        $cur = mam_db_row('SELECT status FROM session_attendance WHERE session_id = ? AND student_id = ?', [$sessionId, $studentUserId]);
+        return ['status' => (string)($cur['status'] ?? 'present'), 'already' => true] + $meta;
+    }
     return ['status' => 'present', 'already' => false] + $meta;
 }

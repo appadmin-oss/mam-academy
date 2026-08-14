@@ -104,8 +104,11 @@ $qrPayload   = $cardFound ? mam_card_qr_payload($card) : '';
 $role        = $cardFound ? strtoupper((string)$card['role']) : '';
 $sessionCode = $cardFound ? (string)$card['session_code'] : '';
 $displayId   = $cardFound ? mam_card_display_id($card) : '';
-$issuedYY    = $cardFound ? substr((string)$card['issued_at'], 2, 2) : '';
-$expDisplay  = $cardFound ? 'EXP.12/' . $issuedYY : '';
+// Real stamped expiry (EXP.mm/yy from expires_at), NOT a hard-coded "12/<issue
+// year>" — that legacy formula drifted from the admin proof and from actual
+// expiry enforcement (mam_card_is_expired), printing a wrong date on the
+// student's own card. mam_card_exp_display reads the true expires_at.
+$expDisplay  = $cardFound ? mam_card_exp_display($card) : '';
 $photoUrl    = ($cardFound && !empty($card['photo_url'])) ? (string)$card['photo_url'] : '';
 
 // Logo from email branding, or empty (CSS fallback used).

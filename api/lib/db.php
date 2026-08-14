@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 59;
+const MAM_SCHEMA_TARGET = 60;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1704,6 +1704,17 @@ function mam_db_migrate(PDO $db): void {
                SET expires_at = datetime(issued_at, '+12 months')
              WHERE expires_at IS NULL;
             CREATE INDEX IF NOT EXISTS idx_id_cards_expires ON id_cards(status, expires_at);
+        ",
+        /* Legacy attendance had no unique constraint, so the check-then-insert in
+         * card-scan / mark-attendance / self-checkin could race into TWO 'present'
+         * rows for one (enrolment, day) — inflating every attendance rate that
+         * counts them. Dedup (keep the earliest row per key) then enforce the
+         * uniqueness the code always assumed. */
+        60 => "
+            DELETE FROM attendance WHERE id NOT IN (
+                SELECT MIN(id) FROM attendance GROUP BY enrollment_id, session_date
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_unique ON attendance(enrollment_id, session_date);
         ",
     ];
 

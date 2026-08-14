@@ -138,18 +138,24 @@ if ($sessionId) {
     if ($existing) {
         $scanResult = 'already';
     } else {
-        mam_db_insert('session_attendance', [
-            'session_id' => $sessionId,
-            'student_id' => $cardUserId,
-            'status'     => 'present',
-            'notes'      => 'Instructor card scan',
-            'marked_by'  => $scanBy,
-        ]);
-        mam_audit('checkin', 'class_session', $sessionId, [
-            'cohort_id' => (int)$sess['cohort_id'],
-            'via'       => 'card',
-            'card_id'   => $logCardId,
-        ]);
+        try {
+            mam_db_insert('session_attendance', [
+                'session_id' => $sessionId,
+                'student_id' => $cardUserId,
+                'status'     => 'present',
+                'notes'      => 'Instructor card scan',
+                'marked_by'  => $scanBy,
+            ]);
+            mam_audit('checkin', 'class_session', $sessionId, [
+                'cohort_id' => (int)$sess['cohort_id'],
+                'via'       => 'card',
+                'card_id'   => $logCardId,
+            ]);
+        } catch (\Throwable $e) {
+            // Lost the race with a concurrent scan (uq_sess_att already holds the
+            // row) — that's an idempotent re-scan, not a 500.
+            $scanResult = 'already';
+        }
     }
 
     mam_db_insert('card_scans', [
@@ -204,24 +210,34 @@ if (!$enrolled) {
     mam_ok(['result' => 'not_enrolled', 'student' => null, 'session_title' => $classTitle]);
 }
 
-$today    = date('Y-m-d');
+// The legacy `attendance` table is keyed by (enrollment_id, session_date) —
+// there is no class_id/student_id/date column (that shape threw "unknown column"
+// and 500'd every legacy scan). We already resolved the enrolment above, so mark
+// against it, mirroring mam_attendance_self_checkin / mark-attendance.php.
+$today        = date('Y-m-d');
+$enrollmentId = (int)$enrolled['id'];
 $existing = mam_db_row(
-    "SELECT id FROM attendance WHERE class_id = ? AND student_id = ? AND date = ?",
-    [$classId, $cardUserId, $today]
+    "SELECT id FROM attendance WHERE enrollment_id = ? AND session_date = ?",
+    [$enrollmentId, $today]
 );
 $scanResult = 'marked';
 if ($existing) {
     $scanResult = 'already';
 } else {
-    mam_db_insert('attendance', [
-        'class_id'   => $classId,
-        'student_id' => $cardUserId,
-        'date'       => $today,
-        'status'     => 'present',
-        'marked_by'  => $scanBy,
-        'notes'      => 'Instructor card scan',
-    ]);
-    mam_audit('checkin', 'class', $classId, ['via' => 'card', 'card_id' => $logCardId]);
+    try {
+        mam_db_insert('attendance', [
+            'enrollment_id' => $enrollmentId,
+            'session_date'  => $today,
+            'status'        => 'present',
+            'marked_by'     => $scanBy,
+            'notes'         => 'Instructor card scan',
+        ]);
+        mam_audit('checkin', 'attendance', $enrollmentId, ['class_id' => $classId, 'date' => $today, 'via' => 'card', 'card_id' => $logCardId]);
+    } catch (\Throwable $e) {
+        // Concurrent scan won the (enrollment_id, session_date) race — the row
+        // exists now, so this is an idempotent re-scan, not a 500.
+        $scanResult = 'already';
+    }
 }
 
 mam_db_insert('card_scans', [

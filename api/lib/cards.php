@@ -429,19 +429,27 @@ function mam_card_generate_png(array $card, string $name): ?string {
             if ($src) {
                 $sw = imagesx($src); $sh = imagesy($src);
                 $sz = (int)($photoR * 2);
-                $tmp = imagecreatetruecolor($sz, $sz);
-                imagecopyresampled($tmp, $src, 0, 0, 0, 0, $sz, $sz, $sw, $sh);
-                // Apply circular clip using pixel scan
-                $cTrans = imagecolorallocate($tmp, 255, 255, 255);
+                // Cover-crop the source to a centred square first, so a portrait
+                // (non-square) headshot is not stretched into the circle — the
+                // same crop-to-fill every other surface uses (object-fit:cover).
+                $side = max(1, min($sw, $sh));
+                $sx0  = (int)(($sw - $side) / 2);
+                $sy0  = (int)(($sh - $side) / 2);
+                $tmp  = imagecreatetruecolor($sz, $sz);
+                imagecopyresampled($tmp, $src, 0, 0, $sx0, $sy0, $sz, $sz, $side, $side);
+                // Composite ONLY the pixels inside the circle onto the card, so
+                // the square's corners can't paint white over the orange field
+                // (the old white-mask + imagecopy left visible white triangles).
+                $destX = $photoCX - $photoR; $destY = $photoCY - $photoR;
+                $r2 = $photoR * $photoR;
                 for ($py = 0; $py < $sz; $py++) {
                     for ($px = 0; $px < $sz; $px++) {
                         $dx = $px - $photoR; $dy = $py - $photoR;
-                        if (($dx * $dx + $dy * $dy) > ($photoR * $photoR)) {
-                            imagesetpixel($tmp, $px, $py, $cTrans);
+                        if (($dx * $dx + $dy * $dy) <= $r2) {
+                            imagesetpixel($img, $destX + $px, $destY + $py, imagecolorat($tmp, $px, $py));
                         }
                     }
                 }
-                imagecopy($img, $tmp, $photoCX - $photoR, $photoCY - $photoR, 0, 0, $sz, $sz);
                 imagedestroy($tmp);
                 imagedestroy($src);
             }
