@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 61;
+const MAM_SCHEMA_TARGET = 62;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1741,6 +1741,74 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE instructor_fines ADD COLUMN currency TEXT NOT NULL DEFAULT 'NGN';
             ALTER TABLE instructor_fines ADD COLUMN amount_usd_cents INTEGER;
             ALTER TABLE instructor_fines ADD COLUMN fx_rate_usd_ngn REAL;
+        ",
+        /* v62 — paid class rescheduling (LMS 2.0 Part C). A student requests to
+         * move one or more of their cohort's sessions; the server prices the
+         * request (free allowance → per-session/per-request fee), settles it via
+         * wallet or provider, an instructor/admin approves, and the move is
+         * applied through the existing session_history-audited reschedule writer.
+         * Money is stored on the Part A model (canonical USD cents + frozen
+         * rate). Everything is gated behind the reschedule_enabled setting
+         * (default off), so this migration is inert until an admin turns it on. */
+        62 => "
+            CREATE TABLE reschedule_requests (
+              id               INTEGER PRIMARY KEY AUTOINCREMENT,
+              requester_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              cohort_id        INTEGER NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,
+              status           TEXT NOT NULL DEFAULT 'pending_payment',
+              reason           TEXT,
+              session_count    INTEGER NOT NULL DEFAULT 0,
+              fee_usd_cents    INTEGER NOT NULL DEFAULT 0,
+              fee_currency     TEXT NOT NULL DEFAULT 'USD',
+              fx_rate_usd_ngn  REAL,
+              waived           INTEGER NOT NULL DEFAULT 0,
+              waived_reason    TEXT,
+              payment_ref      TEXT,
+              payment_provider TEXT,
+              paid_at          TEXT,
+              decided_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              decided_at       TEXT,
+              decision_note    TEXT,
+              applied_at       TEXT,
+              expires_at       TEXT,
+              created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_resched_cohort  ON reschedule_requests(cohort_id, status);
+            CREATE INDEX idx_resched_req      ON reschedule_requests(requester_id, status);
+            CREATE INDEX idx_resched_expiry   ON reschedule_requests(status, expires_at);
+
+            CREATE TABLE reschedule_items (
+              id               INTEGER PRIMARY KEY AUTOINCREMENT,
+              request_id       INTEGER NOT NULL REFERENCES reschedule_requests(id) ON DELETE CASCADE,
+              session_id       INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+              old_scheduled_at TEXT,
+              new_scheduled_at TEXT NOT NULL,
+              applied          INTEGER NOT NULL DEFAULT 0,
+              created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_resched_item_req     ON reschedule_items(request_id);
+            CREATE INDEX idx_resched_item_session ON reschedule_items(session_id);
+
+            CREATE TABLE reschedule_events (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              request_id  INTEGER NOT NULL REFERENCES reschedule_requests(id) ON DELETE CASCADE,
+              event       TEXT NOT NULL,
+              actor_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              detail      TEXT,
+              created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_resched_event_req ON reschedule_events(request_id);
+
+            INSERT OR IGNORE INTO settings (skey, svalue) VALUES
+              ('reschedule_enabled','0'),
+              ('reschedule_fee_usd','10'),
+              ('reschedule_fee_mode','per_session'),
+              ('reschedule_free_per_term','1'),
+              ('reschedule_max_per_term','3'),
+              ('reschedule_window_hours','24'),
+              ('reschedule_payment_expiry_hours','24'),
+              ('reschedule_approval_required','1');
         ",
     ];
 

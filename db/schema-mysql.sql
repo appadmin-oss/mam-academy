@@ -1621,3 +1621,77 @@ ALTER TABLE instructor_fines ADD COLUMN currency         CHAR(3)      NOT NULL D
 ALTER TABLE instructor_fines ADD COLUMN amount_usd_cents BIGINT       NULL;
 ALTER TABLE instructor_fines ADD COLUMN fx_rate_usd_ngn  DECIMAL(14,4) NULL;
 INSERT INTO schema_version (version) VALUES (61) ON DUPLICATE KEY UPDATE version = version;
+
+-- v62: paid class rescheduling (LMS 2.0 Part C). Student requests to move one
+-- or more cohort sessions; server prices it (free allowance → fee), settles via
+-- wallet/provider, an instructor approves, the move is applied through the
+-- existing session_history-audited writer. Money uses the Part A model
+-- (canonical USD cents + frozen rate). Gated behind reschedule_enabled (off by
+-- default), so these tables are inert until an admin opts in.
+CREATE TABLE IF NOT EXISTS reschedule_requests (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  requester_id     INT           NOT NULL,
+  cohort_id        INT           NOT NULL,
+  status           VARCHAR(20)   NOT NULL DEFAULT 'pending_payment',
+  reason           TEXT          NULL,
+  session_count    INT           NOT NULL DEFAULT 0,
+  fee_usd_cents    BIGINT        NOT NULL DEFAULT 0,
+  fee_currency     CHAR(3)       NOT NULL DEFAULT 'USD',
+  fx_rate_usd_ngn  DECIMAL(14,4) NULL,
+  waived           TINYINT(1)    NOT NULL DEFAULT 0,
+  waived_reason    VARCHAR(190)  NULL,
+  payment_ref      VARCHAR(64)   NULL,
+  payment_provider VARCHAR(24)   NULL,
+  paid_at          DATETIME      NULL,
+  decided_by       INT           NULL,
+  decided_at       DATETIME      NULL,
+  decision_note    TEXT          NULL,
+  applied_at       DATETIME      NULL,
+  expires_at       DATETIME      NULL,
+  created_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_resched_cohort (cohort_id, status),
+  KEY idx_resched_req    (requester_id, status),
+  KEY idx_resched_expiry (status, expires_at),
+  CONSTRAINT fk_resched_requester FOREIGN KEY (requester_id) REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_resched_cohort    FOREIGN KEY (cohort_id)    REFERENCES cohorts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_resched_decided   FOREIGN KEY (decided_by)   REFERENCES users(id)   ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS reschedule_items (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  request_id       INT       NOT NULL,
+  session_id       INT       NOT NULL,
+  old_scheduled_at DATETIME  NULL,
+  new_scheduled_at DATETIME  NOT NULL,
+  applied          TINYINT(1) NOT NULL DEFAULT 0,
+  created_at       DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_resched_item_req     (request_id),
+  KEY idx_resched_item_session (session_id),
+  CONSTRAINT fk_resched_item_req     FOREIGN KEY (request_id) REFERENCES reschedule_requests(id) ON DELETE CASCADE,
+  CONSTRAINT fk_resched_item_session FOREIGN KEY (session_id) REFERENCES class_sessions(id)      ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS reschedule_events (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  request_id  INT          NOT NULL,
+  event       VARCHAR(32)  NOT NULL,
+  actor_id    INT          NULL,
+  detail      TEXT         NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_resched_event_req (request_id),
+  CONSTRAINT fk_resched_event_req   FOREIGN KEY (request_id) REFERENCES reschedule_requests(id) ON DELETE CASCADE,
+  CONSTRAINT fk_resched_event_actor FOREIGN KEY (actor_id)   REFERENCES users(id)               ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO settings (skey, svalue) VALUES
+  ('reschedule_enabled','0'),
+  ('reschedule_fee_usd','10'),
+  ('reschedule_fee_mode','per_session'),
+  ('reschedule_free_per_term','1'),
+  ('reschedule_max_per_term','3'),
+  ('reschedule_window_hours','24'),
+  ('reschedule_payment_expiry_hours','24'),
+  ('reschedule_approval_required','1')
+ON DUPLICATE KEY UPDATE skey = skey;
+INSERT INTO schema_version (version) VALUES (62) ON DUPLICATE KEY UPDATE version = version;

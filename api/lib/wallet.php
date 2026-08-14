@@ -96,6 +96,8 @@ function mam_wallet_reason_label(string $reason): string {
         'store_refund'    => 'Store refund',
         'earnings'        => 'Earnings',
         'earnings_adjust' => 'Earnings adjustment',
+        'reschedule_fee'    => 'Reschedule fee',
+        'reschedule_refund' => 'Reschedule refund',
     ];
     return $map[$reason] ?? ucfirst(str_replace('_', ' ', $reason));
 }

@@ -204,6 +204,10 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->post('/waitlist',            $f('student/waitlist.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('student_waitlist', 20, 600)]);
     // ID card: student views their own card serial and QR payload.
     $r->get ('/my-card',             $f('student/my-card.php'),             [mw_role('student')]);
+
+    // Paid rescheduling (LMS 2.0 Part C) — server-priced request + wallet pay.
+    $r->get ('/reschedule',          $f('student/reschedule.php'),          [mw_role('student')]);
+    $r->post('/reschedule',          $f('student/reschedule.php'),          [mw_csrf(), mw_role('student'), mw_rate_limit('reschedule', 30, 600)]);
 });
 
 /* ─── Instructor portal ─── */
@@ -233,6 +237,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/sessions',           $f('instructor/sessions.php'),           [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->get ('/session-attendance', $f('instructor/session-attendance.php'), [mw_role('instructor', 'admin')]);
     $r->post('/session-attendance', $f('instructor/session-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('sess_att', 240, 600)]);
+    // Paid rescheduling (LMS 2.0 Part C) — approve/decline queue for owned cohorts.
+    $r->get ('/reschedule',         $f('instructor/reschedule.php'),         [mw_role('instructor', 'admin')]);
+    $r->post('/reschedule',         $f('instructor/reschedule.php'),         [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('reschedule_decide', 60, 600)]);
     // Per-session QR check-in token for a cohort session (P2 twin of attendance-qr).
     $r->get ('/session-attendance-qr', $f('instructor/session-attendance-qr.php'), [mw_role('instructor', 'admin')]);
     // ID card scan: instructor scans a student's card QR to mark attendance.

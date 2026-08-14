@@ -74,6 +74,12 @@ if (function_exists('mam_invoices_process')) {
     printf("invoices   : scanned %d · invoiced %d · expired %d\n", $iv['scanned'], $iv['invoiced'], $iv['expired']);
 }
 
+// Paid rescheduling (LMS 2.0 Part C): expire requests whose payment window has
+// lapsed (no-op when the feature is disabled). Never touches paid requests.
+if (function_exists('mam_reschedule_expire_due')) {
+    printf("reschedule : expired unpaid requests %d\n", mam_reschedule_expire_due());
+}
+
 // Generalised cron: also drain the failed-email outbox in the same pass.
 if (function_exists('mam_mail_retry_failed')) {
     $m = mam_mail_retry_failed(50, 6, 0);

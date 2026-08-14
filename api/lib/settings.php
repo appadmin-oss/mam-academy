@@ -167,6 +167,16 @@ function mam_settings_schema(): array {
         ['Academy (LMS)',           'lms_auto_approve',         'Auto-approve course additions (1=on, 0=manual review)', 0, ''],
         ['Academy (LMS)',           'lms_pass_mark',            'Pass mark for course results', 50, '%'],
         ['Academy (LMS)',           'lms_auto_promote',         'Auto-advance a passed course to the next level on completion (1=on, 0=manual)', 0, ''],
+        // Paid class rescheduling (LMS 2.0 Part C). Off by default — the feature
+        // and its endpoints stay inert until enabled here.
+        ['Rescheduling',            'reschedule_enabled',          'Enable paid class rescheduling (1=on, 0=off)', 0, ''],
+        ['Rescheduling',            'reschedule_fee_usd',          'Reschedule fee', 10, '$'],
+        ['Rescheduling',            'reschedule_fee_mode',         'Fee basis (per_session or per_request)', 'per_session', ''],
+        ['Rescheduling',            'reschedule_free_per_term',    'Free reschedules per student per cohort', 1, ''],
+        ['Rescheduling',            'reschedule_max_per_term',     'Max reschedules per student per cohort', 3, ''],
+        ['Rescheduling',            'reschedule_window_hours',     'Minimum lead time before a session to allow rescheduling', 24, 'hrs'],
+        ['Rescheduling',            'reschedule_payment_expiry_hours', 'Hours an unpaid request stays open before it expires', 24, 'hrs'],
+        ['Rescheduling',            'reschedule_approval_required','Require instructor approval before applying (1=on, 0=auto-apply)', 1, ''],
         // CDN (Cloudinary) — image delivery and headshot uploads.
         // cloudinary_cloud_name:    your Cloudinary cloud name (e.g. "mam-academy").
         //   When set, every public <img> on the site is served via Cloudinary's
