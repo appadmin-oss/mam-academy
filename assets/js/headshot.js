@@ -338,7 +338,12 @@
               state.uploading = true;
               setStatus(ui.sl, 'busy', '<span class="mam-hs-spin"></span>', 'Saving photo…');
               emit();
-              uploadToOwnServer(src).then(function (r) {
+              /* Shrink to a compact JPEG before sending, same as the standalone
+                 upload() path below. Without this, a full-resolution phone photo
+                 (allowed by the 10 MB client check) becomes an even larger base64
+                 JSON body and can exceed the server's POST ceiling — a raw 413
+                 with no field-level feedback, instead of a clean save. */
+              downscaleDataUrl(src, 1200, 0.85).then(uploadToOwnServer).then(function (r) {
                 state.uploading = false; state.uploaded = r; state.error = null;
                 ui.bar.style.width = '100%';
                 setStatus(ui.sl, 'ok', null, '✓ Saved');
