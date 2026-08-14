@@ -2217,7 +2217,7 @@ nav a{display:flex;align-items:center}
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
@@ -3203,6 +3203,57 @@ nav a{display:flex;align-items:center}
         <?php endforeach; ?>
         </tbody>
       </table>
+    <?php endif; ?>
+  </div>
+
+<?php elseif ($view === 'academic'): ?>
+  <?php
+    $ah  = mam_analytics2_academy_health();
+    $ip  = mam_analytics2_instructor_performance();
+    $tdy = mam_analytics2_today();
+    $bar = function ($pct) { $pct = max(0, min(100, (float)$pct)); $col = $pct >= 80 ? '#34D399' : ($pct >= 50 ? '#FBBF24' : '#F87171'); return '<div style="height:6px;background:var(--border);border-radius:3px;margin-top:6px"><div style="width:' . $pct . '%;height:100%;background:' . $col . ';border-radius:3px"></div></div>'; };
+  ?>
+  <header class="top"><h1>Academic Health</h1></header>
+  <p class="muted" style="margin:0 0 14px">Academy-wide teaching outcomes — the outcome-based view (preparation, mastery, teach-back), separate from attendance discipline.</p>
+
+  <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:16px">
+    <div class="kpi"><div class="kpi-label">Active students</div><div class="kpi-value"><?= number_format($ah['students']) ?></div></div>
+    <div class="kpi"><div class="kpi-label">Attendance</div><div class="kpi-value"><?= $ah['attendance_pct'] ?>%</div><?= $bar($ah['attendance_pct']) ?></div>
+    <div class="kpi"><div class="kpi-label">Preparation</div><div class="kpi-value"><?= $ah['preparation_pct'] ?>%</div><?= $bar($ah['preparation_pct']) ?></div>
+    <div class="kpi"><div class="kpi-label">Teach-back</div><div class="kpi-value"><?= $ah['teachback_pct'] ?>%</div><?= $bar($ah['teachback_pct']) ?></div>
+    <div class="kpi"><div class="kpi-label">Avg mastery</div><div class="kpi-value"><?= $ah['avg_mastery'] ?>%</div><?= $bar($ah['avg_mastery']) ?></div>
+    <div class="kpi"><div class="kpi-label">Module completion</div><div class="kpi-value"><?= $ah['module_completion_pct'] ?>%</div><?= $bar($ah['module_completion_pct']) ?></div>
+    <div class="kpi"><div class="kpi-label">Need intervention</div><div class="kpi-value" style="color:<?= $ah['intervention'] > 0 ? '#F87171' : 'inherit' ?>"><?= number_format($ah['intervention']) ?></div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="margin:0 0 4px">Today <span class="muted" style="font-weight:400;font-size:.8rem"><?= htmlspecialchars($tdy['date']) ?></span></h3>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+      <span class="pill"><?= (int)$tdy['sessions_today'] ?> session<?= $tdy['sessions_today'] == 1 ? '' : 's' ?></span>
+      <span class="pill" style="background:rgba(52,211,153,.16);color:#34D399">Present <?= (int)$tdy['present'] ?></span>
+      <span class="pill" style="background:rgba(251,191,36,.16);color:#FBBF24">Late <?= (int)$tdy['late'] ?></span>
+      <span class="pill" style="background:rgba(248,113,113,.16);color:#F87171">Absent <?= (int)$tdy['absent'] ?></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">Instructor performance</h3>
+    <?php if (!$ip): ?><p class="muted">No instructor results yet.</p><?php else: ?>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="padding:8px">Instructor</th><th style="padding:8px">Students</th><th style="padding:8px">Avg mastery</th><th style="padding:8px">Completion</th><th style="padding:8px">Interventions</th></tr></thead>
+      <tbody>
+      <?php foreach ($ip as $row): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px"><strong><?= htmlspecialchars((string)($row['instructor_name'] ?? '—')) ?></strong></td>
+          <td style="padding:8px"><?= (int)$row['students'] ?></td>
+          <td style="padding:8px"><?= $row['avg_mastery'] === null ? '—' : $row['avg_mastery'] . '%' ?></td>
+          <td style="padding:8px"><?= $row['completion_pct'] === null ? '—' : $row['completion_pct'] . '%' ?></td>
+          <td style="padding:8px"><?= (int)$row['interventions'] > 0 ? '<span class="pill" style="background:rgba(248,113,113,.16);color:#F87171">' . (int)$row['interventions'] . '</span>' : '0' ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
     <?php endif; ?>
   </div>
 
