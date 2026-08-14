@@ -354,6 +354,97 @@ function mam_lms2_lesson_progress_summary(int $studentId, int $cohortId): array 
     return ['total' => $total, 'completed' => $done, 'percent' => $total > 0 ? round(($done / $total) * 100, 1) : 0.0];
 }
 
+/* ── module status + carry-forward (PDF §6-7, 29-30) ──────────────────────── */
+
+/** The §7 module status vocabulary. */
+const MAM_MODULE_STATUSES = [
+    'not_started', 'available', 'preparation_pending', 'in_progress', 'submitted',
+    'under_assessment', 'developing', 'proficient', 'advanced', 'mastered',
+    'carried_forward', 'remedial', 'completed', 'exempted',
+];
+
+/** Current module state for a student (the lesson_progress row), or a
+ *  not_started default. */
+function mam_module_state(int $lessonId, int $studentId): array {
+    $row = mam_db_row('SELECT * FROM lesson_progress WHERE lesson_id = ? AND student_id = ?', [$lessonId, $studentId]);
+    if ($row) return $row;
+    return ['lesson_id' => $lessonId, 'student_id' => $studentId, 'status' => 'not_started', 'percent' => 0, 'mastery_pct' => null, 'attempts' => 0];
+}
+
+/**
+ * Set a module's status (and optionally mastery %) for a student, upserting the
+ * lesson_progress row. Records week_started on first movement and week_completed
+ * when a terminal-mastery status is set. Throws on an unknown status.
+ */
+function mam_module_status_set(int $lessonId, int $studentId, string $status, ?float $masteryPct = null, ?int $week = null): array {
+    if (!in_array($status, MAM_MODULE_STATUSES, true)) throw new InvalidArgumentException('bad_status');
+    if ($lessonId <= 0 || $studentId <= 0) throw new InvalidArgumentException('validation');
+    $now = date('Y-m-d H:i:s');
+    $terminal = in_array($status, ['mastered', 'completed', 'proficient', 'advanced', 'exempted'], true);
+    $existing = mam_db_row('SELECT id, week_started, completed_at FROM lesson_progress WHERE lesson_id = ? AND student_id = ?', [$lessonId, $studentId]);
+    $fields = [
+        'status'      => $status,
+        'mastery_pct' => $masteryPct !== null ? round($masteryPct, 1) : ($existing['mastery_pct'] ?? null),
+        'updated_at'  => $now,
+    ];
+    if ($masteryPct !== null) $fields['percent'] = (int) round($masteryPct);
+    if ($terminal) { $fields['completed_at'] = $now; if ($week !== null) $fields['week_completed'] = $week; }
+    if ($existing) {
+        if (!$existing['week_started'] && $week !== null) $fields['week_started'] = $week;
+        mam_db_update('lesson_progress', $fields, ['id' => (int) $existing['id']]);
+    } else {
+        mam_db_insert('lesson_progress', array_merge([
+            'lesson_id' => $lessonId, 'student_id' => $studentId, 'percent' => $fields['percent'] ?? 0,
+            'week_started' => $week, 'week_scheduled' => $week,
+        ], $fields));
+    }
+    return mam_module_state($lessonId, $studentId);
+}
+
+/**
+ * Carry a module forward to a later week / date (§29-30). APPENDS a
+ * module_carryforward event capturing the prior status/mastery/week (nothing is
+ * deleted), then marks the module 'carried_forward', bumps attempts, and sets
+ * the new deadline. Returns ['event_id','state'].
+ */
+function mam_module_carry_forward(int $lessonId, int $studentId, ?int $toWeek, ?string $toDate, ?string $reason, ?int $by = null): array {
+    if ($lessonId <= 0 || $studentId <= 0) throw new InvalidArgumentException('validation');
+    if (!mam_db_row('SELECT id FROM lessons WHERE id = ?', [$lessonId])) throw new RuntimeException('lesson_not_found');
+    $prev = mam_module_state($lessonId, $studentId);
+    $now  = date('Y-m-d H:i:s');
+    $eventId = mam_db_insert('module_carryforward', [
+        'lesson_id' => $lessonId, 'student_id' => $studentId,
+        'from_week' => $prev['week_scheduled'] ?? ($prev['week_started'] ?? null),
+        'to_week'   => $toWeek, 'to_date' => $toDate,
+        'reason'    => $reason,
+        'previous_status'  => (string) ($prev['status'] ?? 'not_started'),
+        'previous_mastery' => $prev['mastery_pct'] ?? null,
+        'created_by' => $by,
+    ]);
+    $attempts = (int) ($prev['attempts'] ?? 0) + 1;
+    $existing = mam_db_row('SELECT id FROM lesson_progress WHERE lesson_id = ? AND student_id = ?', [$lessonId, $studentId]);
+    $fields = ['status' => 'carried_forward', 'attempts' => $attempts, 'due_at' => $toDate, 'updated_at' => $now];
+    if ($existing) mam_db_update('lesson_progress', $fields, ['id' => (int) $existing['id']]);
+    else mam_db_insert('lesson_progress', array_merge(['lesson_id' => $lessonId, 'student_id' => $studentId, 'percent' => 0], $fields));
+    mam_audit('module_carry_forward', 'lesson', $lessonId, ['student' => $studentId, 'to_week' => $toWeek, 'attempt' => $attempts]);
+    if (function_exists('mam_notify')) {
+        mam_notify($studentId, 'module', 'Module carried forward',
+            'Your module has been carried forward' . ($toWeek ? ' to week ' . $toWeek : '') . '. Keep going — your progress is saved.', null);
+    }
+    return ['event_id' => $eventId, 'state' => mam_module_state($lessonId, $studentId)];
+}
+
+/** Carry-forward history for a module+student, newest first, + current state. */
+function mam_module_history(int $lessonId, int $studentId): array {
+    return [
+        'state'   => mam_module_state($lessonId, $studentId),
+        'history' => mam_db_all(
+            'SELECT * FROM module_carryforward WHERE lesson_id = ? AND student_id = ? ORDER BY id DESC',
+            [$lessonId, $studentId]
+        ),
+    ];
+}
+
 /* ── submission files + resource versions ────────────────────────────────── */
 
 /** Attach a file to a submission. Returns the file id. */

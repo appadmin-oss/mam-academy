@@ -262,6 +262,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     // Pre-class command centre + teach-back review + module content (§17-19).
     $r->get ('/preclass',           $f('instructor/preclass.php'),           [mw_role('instructor', 'admin')]);
     $r->post('/preclass',           $f('instructor/preclass.php'),           [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('preclass_ins', 80, 600)]);
+    // Module status + carry-forward (LMS 2.0, PDF §6-7, 29-30).
+    $r->get ('/module',             $f('instructor/module.php'),             [mw_role('instructor', 'admin')]);
+    $r->post('/module',             $f('instructor/module.php'),             [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('module_status', 80, 600)]);
     // Per-session QR check-in token for a cohort session (P2 twin of attendance-qr).
     $r->get ('/session-attendance-qr', $f('instructor/session-attendance-qr.php'), [mw_role('instructor', 'admin')]);
     // ID card scan: instructor scans a student's card QR to mark attendance.

@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 68;
+const MAM_SCHEMA_TARGET = 69;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2049,6 +2049,36 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE UNIQUE INDEX idx_teachback_unique ON teachbacks(lesson_id, student_id);
             CREATE INDEX idx_teachback_queue ON teachbacks(status);
+        ",
+        /* v69 — module status + carry-forward (PDF §6-7, 29-30). Distinguishes
+         * CURRICULUM (what) from SCHEDULE (when planned) from MASTERY (when
+         * achieved): lesson_progress carries the scheduled/started/completed
+         * week, a mastery %, attempts and a new due date, and its status uses
+         * the §7 vocabulary (free text — no constraint change). A carry-forward
+         * is an APPENDED event (module_carryforward) so no academic history is
+         * ever deleted (§29). */
+        69 => "
+            ALTER TABLE lesson_progress ADD COLUMN mastery_pct REAL;
+            ALTER TABLE lesson_progress ADD COLUMN week_scheduled INTEGER;
+            ALTER TABLE lesson_progress ADD COLUMN week_started INTEGER;
+            ALTER TABLE lesson_progress ADD COLUMN week_completed INTEGER;
+            ALTER TABLE lesson_progress ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE lesson_progress ADD COLUMN due_at TEXT;
+
+            CREATE TABLE module_carryforward (
+              id                INTEGER PRIMARY KEY AUTOINCREMENT,
+              lesson_id         INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+              student_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              from_week         INTEGER,
+              to_week           INTEGER,
+              to_date           TEXT,
+              reason            TEXT,
+              previous_status   TEXT,
+              previous_mastery  REAL,
+              created_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_carryfwd_student ON module_carryforward(student_id, lesson_id);
         ",
     ];
 

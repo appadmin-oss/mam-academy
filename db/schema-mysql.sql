@@ -1931,3 +1931,32 @@ CREATE TABLE IF NOT EXISTS teachbacks (
   CONSTRAINT fk_tb_reviewer FOREIGN KEY (reviewer_id) REFERENCES users(id)   ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (68) ON DUPLICATE KEY UPDATE version = version;
+
+-- v69: module status + carry-forward (PDF §6-7, 29-30). lesson_progress gains
+-- mastery/week/attempt/deadline fields (status uses the §7 vocabulary, free
+-- text); a carry-forward is an appended event so no history is deleted.
+ALTER TABLE lesson_progress ADD COLUMN mastery_pct DECIMAL(5,1) NULL;
+ALTER TABLE lesson_progress ADD COLUMN week_scheduled INT NULL;
+ALTER TABLE lesson_progress ADD COLUMN week_started INT NULL;
+ALTER TABLE lesson_progress ADD COLUMN week_completed INT NULL;
+ALTER TABLE lesson_progress ADD COLUMN attempts INT NOT NULL DEFAULT 0;
+ALTER TABLE lesson_progress ADD COLUMN due_at DATETIME NULL;
+
+CREATE TABLE IF NOT EXISTS module_carryforward (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  lesson_id        INT          NOT NULL,
+  student_id       INT          NOT NULL,
+  from_week        INT          NULL,
+  to_week          INT          NULL,
+  to_date          DATETIME     NULL,
+  reason           VARCHAR(255) NULL,
+  previous_status  VARCHAR(32)  NULL,
+  previous_mastery DECIMAL(5,1) NULL,
+  created_by       INT          NULL,
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_carryfwd_student (student_id, lesson_id),
+  CONSTRAINT fk_cf_lesson  FOREIGN KEY (lesson_id)  REFERENCES lessons(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cf_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_cf_by      FOREIGN KEY (created_by) REFERENCES users(id)   ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (69) ON DUPLICATE KEY UPDATE version = version;
