@@ -566,7 +566,7 @@ function mam_validate_summer_application(array $src): array {
         $sigNorm   = mb_strtolower(trim((string)($src['policySignedName'] ?? '')));
         $guardNorm = mb_strtolower(trim((string)$src['guardianName']));
         if ($sigNorm !== $guardNorm) {
-            mam_fail('validation_error', 422, ['errors' => ["The electronic signature must match the guardian's full name."]]);
+            mam_fail('validation_error', 422, ['errors' => ['policySignedName']]);
         }
     }
 
