@@ -226,6 +226,12 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->post('/preclass',            $f('student/preclass.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('preclass', 40, 600)]);
 });
 
+/* ─── Parent portal (LMS 2.0, PDF §26) ─── */
+$r->group('/parent', function (MamRouter $r) use ($f) {
+    $r->get('/children', $f('parent/children.php'), [mw_role('parent')]);
+    $r->get('/child',    $f('parent/child.php'),    [mw_role('parent')]);
+});
+
 /* ─── Instructor portal ─── */
 $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->get ('/dashboard',        $f('instructor/dashboard.php'),       [mw_role('instructor', 'admin')]);
@@ -331,6 +337,9 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->post('/accountability', $f('admin/accountability.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_accountability', 60, 600)]);
     // Meeting reconciliation import (Meet CSV / Jitsi) — PDF §11.
     $r->post('/meet-reconcile', $f('admin/meet-reconcile.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_meet', 30, 600)]);
+    // Guardian ↔ student links + parent provisioning — PDF §26.
+    $r->get ('/parent-link', $f('admin/parent-link.php'), [mw_admin_cap('view')]);
+    $r->post('/parent-link', $f('admin/parent-link.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_parent', 60, 600)]);
     // Enterprise scheduling: academy-wide calendar + cohort waitlist management.
     $r->get ('/schedule', $f('admin/schedule.php'),  [mw_admin_cap('view')]);
     $r->get ('/waitlist', $f('admin/waitlist.php'),  [mw_admin_cap('enrollments')]);

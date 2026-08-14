@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 70;
+const MAM_SCHEMA_TARGET = 71;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2122,10 +2122,80 @@ function mam_db_migrate(PDO $db): void {
               ('jitsi_domain','meet.jit.si'),
               ('meeting_default_provider','none');
         ",
+        /* v71 — real parent accounts (PDF §26). A parent is a user with the
+         * 'parent' role; parent_links is the many-to-many guardian↔student map.
+         * users.role and user_roles.role carried a CHECK limited to
+         * admin/instructor/student, so this widens both to add 'parent' (and
+         * 'staff' for future use). A CHECK can only change via table rebuild;
+         * `users` is referenced widely, so the rebuild runs @no-tx with
+         * foreign_keys OFF (otherwise DROP TABLE would cascade-delete children).
+         * The exact column set is copied verbatim so no data shifts. */
+        71 => "/* @no-tx */
+            PRAGMA foreign_keys=OFF;
+
+            CREATE TABLE users_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              email TEXT UNIQUE NOT NULL,
+              password_hash TEXT NOT NULL,
+              role TEXT NOT NULL CHECK(role IN ('admin','instructor','student','parent','staff')),
+              name TEXT,
+              phone TEXT,
+              avatar_url TEXT,
+              status TEXT DEFAULT 'active',
+              customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+              last_login TEXT,
+              must_change_password INTEGER DEFAULT 0,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT DEFAULT (datetime('now')),
+              admin_tier TEXT,
+              student_type TEXT,
+              enrollment_ref TEXT
+            );
+            INSERT INTO users_new (id,email,password_hash,role,name,phone,avatar_url,status,customer_id,last_login,must_change_password,created_at,updated_at,admin_tier,student_type,enrollment_ref)
+              SELECT id,email,password_hash,role,name,phone,avatar_url,status,customer_id,last_login,must_change_password,created_at,updated_at,admin_tier,student_type,enrollment_ref FROM users;
+            DROP TABLE users;
+            ALTER TABLE users_new RENAME TO users;
+            CREATE INDEX idx_users_role ON users(role);
+            CREATE INDEX idx_users_customer ON users(customer_id);
+            CREATE UNIQUE INDEX idx_users_enrollment_ref ON users(enrollment_ref);
+
+            CREATE TABLE user_roles_new (
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              role TEXT NOT NULL CHECK(role IN ('admin','instructor','student','parent','staff')),
+              PRIMARY KEY (user_id, role)
+            );
+            INSERT INTO user_roles_new (user_id, role) SELECT user_id, role FROM user_roles;
+            DROP TABLE user_roles;
+            ALTER TABLE user_roles_new RENAME TO user_roles;
+
+            CREATE TABLE parent_links (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              parent_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              student_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              relationship TEXT NOT NULL DEFAULT 'guardian',
+              created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_parent_link_unique ON parent_links(parent_id, student_id);
+            CREATE INDEX idx_parent_link_parent  ON parent_links(parent_id);
+            CREATE INDEX idx_parent_link_student ON parent_links(student_id);
+
+            PRAGMA foreign_keys=ON;
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {
         if ($version <= $current) continue;
+        // A migration tagged `@no-tx` runs OUTSIDE the wrapping transaction so it
+        // can toggle `PRAGMA foreign_keys` (a no-op inside a transaction) — needed
+        // for a safe table rebuild that widens a CHECK on a referenced table:
+        // with FK enforcement on, DROP TABLE performs an implicit, cascading
+        // DELETE. Such migrations manage foreign_keys OFF→ON themselves.
+        if (strpos($sql, '@no-tx') !== false) {
+            $db->exec($sql);
+            $db->prepare('INSERT INTO schema_version (version) VALUES (?)')->execute([$version]);
+            continue;
+        }
         $db->beginTransaction();
         try {
             $db->exec($sql);

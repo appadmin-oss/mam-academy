@@ -2004,3 +2004,21 @@ INSERT INTO settings (skey, svalue) VALUES
   ('meeting_default_provider','none')
 ON DUPLICATE KEY UPDATE skey = skey;
 INSERT INTO schema_version (version) VALUES (70) ON DUPLICATE KEY UPDATE version = version;
+
+-- v71: real parent accounts (PDF §26). A parent is a user with the 'parent'
+-- role; parent_links is the guardian↔student many-to-many. Additive.
+CREATE TABLE IF NOT EXISTS parent_links (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  parent_id    INT          NOT NULL,
+  student_id   INT          NOT NULL,
+  relationship VARCHAR(32)  NOT NULL DEFAULT 'guardian',
+  created_by   INT          NULL,
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_parent_link_unique (parent_id, student_id),
+  KEY idx_parent_link_parent (parent_id),
+  KEY idx_parent_link_student (student_id),
+  CONSTRAINT fk_pl_parent  FOREIGN KEY (parent_id)  REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pl_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_pl_by      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (71) ON DUPLICATE KEY UPDATE version = version;

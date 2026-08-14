@@ -158,6 +158,7 @@ function mam_portal_targets(array $roles): array {
         'admin'      => ['role' => 'admin',      'label' => 'Admin dashboard',   'url' => '/admin/'],
         'instructor' => ['role' => 'instructor', 'label' => 'Instructor portal', 'url' => '/portal/instructor/'],
         'student'    => ['role' => 'student',    'label' => 'Student portal',     'url' => '/portal/student/'],
+        'parent'     => ['role' => 'parent',     'label' => 'Parent portal',      'url' => '/portal/parent/'],
     ];
     $out = [];
     foreach ($map as $role => $t) {
