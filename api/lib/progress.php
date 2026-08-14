@@ -340,6 +340,80 @@ function mam_progress_report_data(int $studentId): array {
     // Roll up practice totals
     $totalPracticeMin = array_sum(array_column($practiceLogs, 'minutes'));
 
+    // ── LMS 2.0: per-cohort lesson-progress (v63) ─────────────────────────
+    $lessonProgress = $soft(function () use ($studentId) {
+        $rows = mam_db_all(
+            "SELECT co.id AS cohort_id, co.title AS cohort_title,
+                    COUNT(l.id) AS total,
+                    SUM(CASE WHEN lp.status = 'completed' THEN 1 ELSE 0 END) AS completed
+               FROM course_enrollments ce
+               JOIN cohorts co ON co.id = ce.cohort_id
+               JOIN lessons l ON l.cohort_id = co.id AND l.published = 1
+               LEFT JOIN lesson_progress lp ON lp.lesson_id = l.id AND lp.student_id = ce.student_id
+              WHERE ce.student_id = ? AND ce.status IN ('active','completed')
+              GROUP BY co.id, co.title
+              ORDER BY co.id DESC",
+            [$studentId]
+        );
+        foreach ($rows as &$r) {
+            $t = (int) $r['total']; $c = (int) $r['completed'];
+            $r['percent'] = $t > 0 ? round($c / $t * 100, 1) : 0.0;
+        }
+        return $rows;
+    }, []);
+
+    // ── LMS 2.0: attendance rate + streak (check-in engine) ───────────────
+    $attendance = $soft(function () use ($studentId) {
+        if (!function_exists('mam_checkin_attendance_rate')) return null;
+        return ['rate' => mam_checkin_attendance_rate($studentId), 'streak' => mam_checkin_streak($studentId)];
+    }, null);
+
+    // ── LMS 2.0: rubric-scored submission reviews (v64) ───────────────────
+    $rubricReviews = $soft(fn () => mam_db_all(
+        "SELECT sr.total_points, sr.max_points, sr.feedback, sr.created_at,
+                rb.title AS rubric_title, a.title AS assignment_title, iu.name AS reviewer_name
+           FROM submission_reviews sr
+           JOIN submissions s ON s.id = sr.submission_id
+           JOIN assignments a ON a.id = s.assignment_id
+           LEFT JOIN rubrics rb ON rb.id = sr.rubric_id
+           LEFT JOIN users iu ON iu.id = sr.reviewer_id
+          WHERE s.student_id = ?
+          ORDER BY sr.created_at DESC LIMIT 50",
+        [$studentId]
+    ), []);
+
+    // ── LMS 2.0: reschedule history (v62) ─────────────────────────────────
+    $reschedules = $soft(fn () => mam_db_all(
+        "SELECT rr.id, rr.status, rr.session_count, rr.fee_usd_cents, rr.created_at, rr.applied_at,
+                co.title AS cohort_title
+           FROM reschedule_requests rr
+           LEFT JOIN cohorts co ON co.id = rr.cohort_id
+          WHERE rr.requester_id = ?
+          ORDER BY rr.id DESC LIMIT 20",
+        [$studentId]
+    ), []);
+
+    // ── LMS 2.0: academic summary — GPA, term trend, cohort percentile ────
+    $academic = $soft(function () use ($studentId) {
+        if (!function_exists('mam_lms2_student_gpa')) return null;
+        $out = [
+            'gpa'         => mam_lms2_student_gpa($studentId),
+            'trend'       => mam_lms2_student_grade_trend($studentId),
+            'percentiles' => [],
+        ];
+        $cohorts = mam_db_all(
+            "SELECT DISTINCT co.id, co.title FROM course_enrollments ce
+               JOIN cohorts co ON co.id = ce.cohort_id
+              WHERE ce.student_id = ? AND ce.cohort_id IS NOT NULL",
+            [$studentId]
+        );
+        foreach ($cohorts as $c) {
+            $p = mam_lms2_cohort_percentile($studentId, (int) $c['id']);
+            if ($p['percentile'] !== null) $out['percentiles'][] = ['cohort_title' => $c['title']] + $p;
+        }
+        return $out;
+    }, null);
+
     return [
         'student'            => $student,
         'enrollments'        => $enrollments,
@@ -353,6 +427,12 @@ function mam_progress_report_data(int $studentId): array {
         'announcements'      => $announcements,
         'practice_logs'      => $practiceLogs,
         'total_practice_min' => $totalPracticeMin,
+        // LMS 2.0 sections (all soft-degrading; absent tables → empty/null).
+        'lesson_progress'    => $lessonProgress,
+        'attendance'         => $attendance,
+        'rubric_reviews'     => $rubricReviews,
+        'reschedule_history' => $reschedules,
+        'academic'           => $academic,
         'generated_at'       => date('Y-m-d H:i:s'),
     ];
 }

@@ -142,6 +142,8 @@ $r->get('/drive/file', $f('drive-file.php'), [mw_rate_limit('drive_file', 120, 6
 
 /* ─── Public progress report (token-gated, no auth required) ─── */
 $r->get('/report',         $f('report.php'),         [mw_rate_limit('progress_report', 60, 600)]);
+// Printable (PDF-ready) HTML variant of the same token-gated report.
+$r->get('/report-print',   $f('report-print.php'),   [mw_rate_limit('progress_report', 60, 600)]);
 // Learner progress lookup by enrollment ref (public, no login required).
 // Rate-limited tightly (5 per min per IP) to deter enumeration.
 $r->get('/learner-lookup', $f('learner-lookup.php'), [mw_rate_limit('learner_lookup', 5, 60)]);
