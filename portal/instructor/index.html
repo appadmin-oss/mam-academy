@@ -319,6 +319,8 @@
           actions += ' <button class="btn btn-ghost" data-send-reminder="' + s.id + '" title="Send reminder to enrolled students"><i class="fa-solid fa-bell"></i></button>';
           actions += ' <button class="btn" data-sess-status="' + s.id + '|held">Held</button>';
           actions += ' <button class="btn btn-ghost" data-sess-status="' + s.id + '|cancelled" style="color:var(--red,#ef4444)">Cancel</button>';
+          actions += ' <button class="btn btn-ghost" data-clockin="' + s.id + '" title="Clock in for this class"><i class="fa-solid fa-business-time"></i> Clock in</button>';
+          actions += ' <button class="btn btn-ghost" data-join="' + s.id + '" title="Join online (Jitsi)"><i class="fa-solid fa-video"></i> Join</button>';
         }
         if (s.status === 'held') {
           actions += ' <button class="btn btn-ghost" data-progress-report="' + s.id + '" style="color:var(--gold-bright);border-color:var(--gold-bright)"><i class="fa-solid fa-clipboard-list"></i> Reports</button>';
@@ -598,6 +600,41 @@
             var msg = (err && err.body && err.body.error) ? err.body.error : 'Could not send reminder.';
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'error'); else alert(msg);
           });
+      });
+    });
+
+    // Clock in for a session (instructor punctuality; late feeds accountability).
+    document.querySelectorAll('[data-clockin]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-clockin'), 10);
+        var orig = b.innerHTML; b.disabled = true; b.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        API.request('instructor/clock', { method: 'POST', body: { action: 'in', session_id: sid } })
+          .then(function (r) {
+            b.disabled = false; b.innerHTML = orig;
+            var st = (r.clock && r.clock.status) || 'present';
+            var msg = 'Clocked in — ' + st + (r.clock && r.clock.minutes_late ? ' (' + r.clock.minutes_late + ' min late)' : '') + '.';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, st === 'late' ? 'error' : 'success'); else alert(msg);
+          })
+          .catch(function (err) {
+            b.disabled = false; b.innerHTML = orig;
+            var msg = (err && err.body && err.body.error) ? err.body.error : 'Could not clock in.';
+            if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'error'); else alert(msg);
+          });
+      });
+    });
+
+    // Join online — fetch the session's Jitsi room and open it.
+    document.querySelectorAll('[data-join]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var sid = parseInt(b.getAttribute('data-join'), 10);
+        b.disabled = true;
+        API.request('instructor/clock?session_id=' + sid, { method: 'GET' })
+          .then(function (r) {
+            b.disabled = false;
+            var url = (r.session && r.session.meeting_link) || r.jitsi_url;
+            if (url) window.open(url, '_blank', 'noopener');
+          })
+          .catch(function () { b.disabled = false; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not open the meeting.', 'error'); });
       });
     });
 
