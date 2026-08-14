@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 60;
+const MAM_SCHEMA_TARGET = 61;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1715,6 +1715,32 @@ function mam_db_migrate(PDO $db): void {
                 SELECT MIN(id) FROM attendance GROUP BY enrollment_id, session_date
             );
             CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_unique ON attendance(enrollment_id, session_date);
+        ",
+        /* v61 — money normalization (LMS 2.0 Part A). `payments.amount` meant
+         * different things per currency (whole naira for NGN rows, dollars for
+         * USD rows), so SUM(amount) across rows added naira to dollars and the
+         * Revenue KPI/trend reported nonsense. Add an explicit, integer,
+         * currency-safe representation alongside the legacy column (which stays
+         * untouched and readable — no drop here; that is deferred to admin
+         * sign-off):
+         *   amount_minor     — charged amount in the row currency's minor unit
+         *                      (NGN→kobo, USD→cents).
+         *   amount_usd_cents — canonical USD cents, frozen at charge time; the
+         *                      only cross-row-summable money figure.
+         *   fx_rate_usd_ngn  — USD→NGN rate frozen at charge time.
+         *   fx_backfilled    — 0 = captured live at charge time, 1 = derived
+         *                      later by tools/backfill-money.php (an estimate).
+         * instructor_fines (naira-denominated via amount_kobo) gets the same
+         * canonical USD column + frozen rate so fines join the revenue model. */
+        61 => "
+            ALTER TABLE payments ADD COLUMN amount_minor INTEGER;
+            ALTER TABLE payments ADD COLUMN amount_usd_cents INTEGER;
+            ALTER TABLE payments ADD COLUMN fx_rate_usd_ngn REAL;
+            ALTER TABLE payments ADD COLUMN fx_backfilled INTEGER NOT NULL DEFAULT 0;
+            CREATE INDEX IF NOT EXISTS idx_pay_usd ON payments(status, amount_usd_cents);
+            ALTER TABLE instructor_fines ADD COLUMN currency TEXT NOT NULL DEFAULT 'NGN';
+            ALTER TABLE instructor_fines ADD COLUMN amount_usd_cents INTEGER;
+            ALTER TABLE instructor_fines ADD COLUMN fx_rate_usd_ngn REAL;
         ",
     ];
 

@@ -1835,7 +1835,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 $kpi = [
     'applications' => (int)mam_admin_scalar('SELECT COUNT(*) FROM applications'),
     'paid'         => (int)mam_admin_scalar("SELECT COUNT(*) FROM applications WHERE status='paid'"),
-    'revenue'      => (float)mam_admin_scalar("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='succeeded'"),
+    // Currency-safe revenue (v61): sum the canonical USD-cents column, never the
+    // legacy `amount` (which mixed naira and dollars — SUM was nonsense). Legacy
+    // rows not yet touched by tools/backfill-money.php have NULL here and are
+    // excluded until backfilled. Displayed dual: honest USD + naira at today's rate.
+    'revenue_usd_cents' => (int)mam_admin_scalar("SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE status='succeeded'"),
     'newsletter'   => (int)mam_admin_scalar('SELECT COUNT(*) FROM newsletter'),
     'messages'     => (int)mam_admin_scalar("SELECT COUNT(*) FROM messages WHERE status='unread'"),
     'webhooks'     => (int)mam_admin_scalar('SELECT COUNT(*) FROM webhook_events'),
@@ -1856,9 +1860,12 @@ foreach (mam_admin_rows('SELECT created_at FROM applications WHERE created_at >=
     $d = substr((string)$r['created_at'], 0, 10);
     if (isset($buckets[$d])) $buckets[$d]['apps']++;
 }
-foreach (mam_admin_rows("SELECT amount, COALESCE(verified_at, created_at) AS paid_at FROM payments WHERE status='succeeded' AND COALESCE(verified_at, created_at) >= ?", [$since]) as $r) {
+// Revenue bucketed on the canonical USD-cents column (v61) — the legacy
+// `amount` mixed naira and dollars, so bucketing it summed incompatible units.
+// Series is in USD dollars.
+foreach (mam_admin_rows("SELECT amount_usd_cents, COALESCE(verified_at, created_at) AS paid_at FROM payments WHERE status='succeeded' AND COALESCE(verified_at, created_at) >= ?", [$since]) as $r) {
     $d = substr((string)$r['paid_at'], 0, 10);
-    if (isset($buckets[$d])) $buckets[$d]['rev'] += (float)$r['amount'];
+    if (isset($buckets[$d])) $buckets[$d]['rev'] += ((int)$r['amount_usd_cents']) / 100.0;
 }
 $trendLabels = array_map(function ($d) { return date('M j', strtotime($d)); }, array_keys($buckets));
 $trendApps   = array_map(function ($b) { return $b['apps']; }, array_values($buckets));
@@ -2406,7 +2413,7 @@ nav a{display:flex;align-items:center}
   <div class="kpi-grid">
     <div class="kpi"><div class="kpi-label">Applications</div><div class="kpi-value"><?= number_format($kpi['applications']) ?></div></div>
     <div class="kpi"><div class="kpi-label">Paid</div><div class="kpi-value gold"><?= number_format($kpi['paid']) ?></div></div>
-    <div class="kpi"><div class="kpi-label">Revenue</div><div class="kpi-value gold">₦<?= number_format($kpi['revenue']) ?></div></div>
+    <div class="kpi"><div class="kpi-label">Revenue</div><div class="kpi-value gold"><?= mam_money_format_dual((int)$kpi['revenue_usd_cents']) ?></div></div>
     <div class="kpi"><div class="kpi-label">Users</div><div class="kpi-value"><?= number_format($kpi['users']) ?></div></div>
     <div class="kpi"><div class="kpi-label">Active Classes</div><div class="kpi-value"><?= number_format($kpi['classes']) ?></div></div>
     <div class="kpi"><div class="kpi-label">Unread Messages</div><div class="kpi-value"><?= number_format($kpi['messages']) ?></div></div>
@@ -2438,7 +2445,7 @@ nav a{display:flex;align-items:center}
           labels: <?= json_encode($trendLabels) ?>,
           datasets: [
             { type: 'bar',  label: 'Applications', data: <?= json_encode($trendApps) ?>, backgroundColor: 'rgba(224,138,26,0.55)', borderRadius: 5, yAxisID: 'y' },
-            { type: 'line', label: 'Revenue (₦)', data: <?= json_encode($trendRev) ?>, borderColor: green, backgroundColor: 'rgba(52,211,153,0.15)', tension: 0.35, fill: true, yAxisID: 'y1' }
+            { type: 'line', label: 'Revenue ($)', data: <?= json_encode($trendRev) ?>, borderColor: green, backgroundColor: 'rgba(52,211,153,0.15)', tension: 0.35, fill: true, yAxisID: 'y1' }
           ]
         },
         options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
@@ -2446,7 +2453,7 @@ nav a{display:flex;align-items:center}
           scales: {
             x:  { grid: { display: false }, ticks: { color: '#9A8A78', maxRotation: 0, autoSkip: true } },
             y:  { position: 'left',  beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#9A8A78', precision: 0 }, title: { display: true, text: 'Applications', color: '#9A8A78' } },
-            y1: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: '#9A8A78' }, title: { display: true, text: '₦', color: '#9A8A78' } }
+            y1: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { color: '#9A8A78' }, title: { display: true, text: '$', color: '#9A8A78' } }
           } }
       });
       var pc = document.getElementById('payChart');

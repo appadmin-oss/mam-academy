@@ -1589,3 +1589,35 @@ UPDATE id_cards SET expires_at = DATE_ADD(issued_at, INTERVAL 2 MONTH)
 UPDATE id_cards SET expires_at = DATE_ADD(issued_at, INTERVAL 12 MONTH)
  WHERE expires_at IS NULL;
 INSERT INTO schema_version (version) VALUES (59) ON DUPLICATE KEY UPDATE version = version;
+
+-- v60: attendance had no uniqueness, so the check-then-insert in card-scan /
+-- mark-attendance / self-checkin could race into TWO 'present' rows for one
+-- (enrolment, day), inflating every attendance rate that counts them. Dedup
+-- (keep earliest per key) then enforce the uniqueness the code always assumed.
+-- (This block was previously SQLite-only; MySQL installs never reached v60 and
+-- re-ran the whole schema on every cold start. Mirrored here to close that gap.)
+DELETE FROM attendance WHERE id NOT IN (
+  SELECT id FROM (SELECT MIN(id) AS id FROM attendance GROUP BY enrollment_id, session_date) t
+);
+CREATE UNIQUE INDEX idx_attendance_unique ON attendance(enrollment_id, session_date);
+INSERT INTO schema_version (version) VALUES (60) ON DUPLICATE KEY UPDATE version = version;
+
+-- v61: money normalization (LMS 2.0 Part A). `payments.amount` meant whole
+-- naira for NGN rows but dollars for USD rows, so SUM(amount) across rows added
+-- naira to dollars and the Revenue KPI/trend reported nonsense. Add an explicit
+-- integer, currency-safe representation next to the legacy column (kept intact
+-- and readable — no drop here; deferred to admin sign-off). amount_usd_cents is
+-- the canonical, cross-row-summable USD value, frozen at charge time alongside
+-- the fx rate used. fx_backfilled: 0 = captured live, 1 = derived by
+-- tools/backfill-money.php. Plain ADD COLUMN (not the MariaDB-only IF NOT
+-- EXISTS) so these apply on MySQL 8 too; a re-exec hits errno 1060/1061 which
+-- the migrator swallows.
+ALTER TABLE payments ADD COLUMN amount_minor     BIGINT       NULL;
+ALTER TABLE payments ADD COLUMN amount_usd_cents BIGINT       NULL;
+ALTER TABLE payments ADD COLUMN fx_rate_usd_ngn  DECIMAL(14,4) NULL;
+ALTER TABLE payments ADD COLUMN fx_backfilled    TINYINT(1)   NOT NULL DEFAULT 0;
+CREATE INDEX idx_pay_usd ON payments(status, amount_usd_cents);
+ALTER TABLE instructor_fines ADD COLUMN currency         CHAR(3)      NOT NULL DEFAULT 'NGN';
+ALTER TABLE instructor_fines ADD COLUMN amount_usd_cents BIGINT       NULL;
+ALTER TABLE instructor_fines ADD COLUMN fx_rate_usd_ngn  DECIMAL(14,4) NULL;
+INSERT INTO schema_version (version) VALUES (61) ON DUPLICATE KEY UPDATE version = version;

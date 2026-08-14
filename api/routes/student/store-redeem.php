@@ -53,16 +53,26 @@ try {
     // Record the settlement as a 'wallet' payment so it shows in history/receipts.
     $existing = mam_db_row('SELECT id FROM payments WHERE reference = ?', [$ref]);
     $now = date('Y-m-d H:i:s');
+    // Currency-safe representation, frozen now (v61). A wallet redemption is
+    // USD-denominated, so minor units and canonical USD cents coincide; freeze
+    // today's rate (read-only — never block a redemption on the FX API) for the
+    // naira-equivalent display.
+    $usdCents = mam_money_to_minor($totalUsd);
+    $rate     = mam_usd_to_ngn_rate(false);
     if ($existing) {
         mam_db_update('payments', [
             'provider' => 'wallet', 'status' => 'succeeded', 'amount' => $totalUsd,
             'currency' => 'USD', 'purpose' => 'store', 'verified_at' => $now, 'updated_at' => $now,
+            'amount_minor' => $usdCents, 'amount_usd_cents' => $usdCents,
+            'fx_rate_usd_ngn' => $rate, 'fx_backfilled' => 0,
         ], ['id' => (int)$existing['id']]);
     } else {
         mam_db_insert('payments', [
             'application_id' => null, 'reference' => $ref, 'provider' => 'wallet',
             'purpose' => 'store', 'status' => 'succeeded', 'amount' => $totalUsd,
             'currency' => 'USD', 'verified_at' => $now,
+            'amount_minor' => $usdCents, 'amount_usd_cents' => $usdCents,
+            'fx_rate_usd_ngn' => $rate, 'fx_backfilled' => 0,
         ]);
     }
     $db->commit();

@@ -48,6 +48,7 @@ if (!function_exists('mam_after_response')) { function mam_after_response(callab
 require $ROOT . '/lib/db.php';
 require $ROOT . '/lib/settings.php';
 require $ROOT . '/lib/fx.php';
+require $ROOT . '/lib/money.php';           // currency-safe money normalization (v61)
 require $ROOT . '/lib/validation.php';      // pricing engine lives here
 require $ROOT . '/lib/booking-pricing.php';
 require $ROOT . '/lib/payments.php';        // shared payment settlement (verify + webhooks)

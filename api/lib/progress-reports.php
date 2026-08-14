@@ -193,11 +193,17 @@ function mam_progress_report_deadline_check(int $sessionId): array {
                 );
                 if (!$alreadyFined) {
                     mam_db_insert('instructor_fines', [
-                        'instructor_id' => $instructorId,
-                        'session_id'    => $sessionId,
-                        'reason'        => 'late_progress_report',
-                        'amount_kobo'   => 0, // admin sets amount; this is a flag
-                        'status'        => 'pending',
+                        'instructor_id'    => $instructorId,
+                        'session_id'       => $sessionId,
+                        'reason'           => 'late_progress_report',
+                        'amount_kobo'      => 0, // admin sets amount; this is a flag
+                        'status'           => 'pending',
+                        // Currency-safe tag (v61): fines are naira-denominated;
+                        // canonical USD tracks amount_kobo (0 while it's just a
+                        // flag) at the rate frozen now.
+                        'currency'         => 'NGN',
+                        'amount_usd_cents' => 0,
+                        'fx_rate_usd_ngn'  => function_exists('mam_usd_to_ngn_rate') ? mam_usd_to_ngn_rate(false) : null,
                     ]);
                     $fined++;
                     if (function_exists('mam_notify')) {

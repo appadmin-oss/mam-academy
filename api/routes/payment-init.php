@@ -127,6 +127,14 @@ if (!$existing) {
         'status'         => 'pending',
         'amount'         => $amountNgn,
         'currency'       => 'NGN',
+        // Currency-safe representation, frozen at charge time (v61). amount is
+        // whole naira, so minor units are kobo; the canonical USD value comes
+        // from the same $totalUsd the tier/order was priced from, at the rate
+        // used to derive the naira figure.
+        'amount_minor'     => $amountKobo,
+        'amount_usd_cents' => mam_money_to_minor($totalUsd),
+        'fx_rate_usd_ngn'  => $ngnRate,
+        'fx_backfilled'    => 0,
     ]);
 } else {
     mam_db_update('payments', ['provider' => $provider, 'updated_at' => date('Y-m-d H:i:s')], ['reference' => $payRef]);
