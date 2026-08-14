@@ -36,7 +36,14 @@ if (!$acct || strcasecmp($email, trim((string)($acct['email'] ?? ''))) !== 0) {
     mam_fail('not_found', 404);
 }
 
-$report = mam_progress_report_data($studentId);
+try {
+    $report = mam_progress_report_data($studentId);
+} catch (\Throwable $e) {
+    // Optional sections degrade internally; a throw here is a core failure
+    // (identity read on a badly-behind DB). Fail cleanly instead of a bare 500.
+    mam_log('warn', 'report_unavailable', ['err' => $e->getMessage()]);
+    mam_fail('report_unavailable', 503);
+}
 unset($report['student']['email']);
 
 mam_ok($report);

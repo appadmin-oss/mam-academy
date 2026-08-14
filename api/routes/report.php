@@ -15,7 +15,11 @@ if (!$tokenRow) mam_fail('invalid_or_expired_token', 404);
 $studentId = (int)$tokenRow['student_id'];
 try {
     $report = mam_progress_report_data($studentId);
-} catch (\RuntimeException $e) {
+} catch (\Throwable $e) {
+    // Per-section failures already degrade internally (see mam_progress_report_data);
+    // reaching here means a core failure (no such student, or the identity read
+    // itself failed on a badly-behind DB). Return a clean 404 rather than a bare 500.
+    mam_log('warn', 'report_unavailable', ['err' => $e->getMessage()]);
     mam_fail('report_unavailable', 404);
 }
 

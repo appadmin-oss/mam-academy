@@ -135,8 +135,21 @@ function mam_progress_report_data(int $studentId): array {
     );
     if (!$student) throw new \RuntimeException('student_not_found');
 
+    // Resilience: the report stitches together many independent sections, some
+    // living in tables/columns added by later migrations. If a deployment's DB
+    // is behind on migrations (the #1 production gotcha — see DEPLOYMENT.md) one
+    // missing column must not 500 the entire report; the section should just be
+    // omitted. Every optional query runs through $soft(): it returns the given
+    // fallback and logs a warning on any error, exactly as the student dashboard
+    // already does. Core identity (above) stays strict — a missing student is a
+    // real 404 for the caller.
+    $soft = function (callable $fn, $default) {
+        try { return $fn(); }
+        catch (\Throwable $e) { mam_log('warn', 'report_section_failed', ['err' => $e->getMessage()]); return $default; }
+    };
+
     // ── Legacy class enrollments ──────────────────────────────────────────
-    $enrollments = mam_db_all(
+    $enrollments = $soft(fn () => mam_db_all(
         "SELECT e.id, e.status, e.enrolled_at AS created_at,
                 cl.title AS class_name, cl.discipline AS instrument, cl.pathway AS level,
                 cu.name AS instructor_name
@@ -146,10 +159,10 @@ function mam_progress_report_data(int $studentId): array {
           WHERE e.student_id = ? AND e.status = 'active'
           ORDER BY e.enrolled_at DESC",
         [$studentId]
-    );
+    ), []);
 
     // ── LMS course enrollments ────────────────────────────────────────────
-    $courseEnrollments = mam_db_all(
+    $courseEnrollments = $soft(fn () => mam_db_all(
         "SELECT ce.id, ce.status, ce.created_at,
                 c.name AS course_name, c.code AS course_code,
                 l.name AS level_name, co.title AS cohort_title,
@@ -162,12 +175,12 @@ function mam_progress_report_data(int $studentId): array {
           WHERE ce.student_id = ? AND ce.status IN ('active','completed')
           ORDER BY ce.created_at DESC",
         [$studentId]
-    );
+    ), []);
 
     // ── Class-level attendance summary ────────────────────────────────────
     // One summary row per class/cohort so the parent dashboard can show
     // attendance rings and per-course stats without iterating every session.
-    $legacySummary = mam_db_all(
+    $legacySummary = $soft(fn () => mam_db_all(
         "SELECT cl.title AS class_name, cl.discipline AS instrument, cl.pathway AS level,
                 u.name AS instructor_name, e.status,
                 e.enrolled_at AS enrolled_at, 'legacy' AS type,
@@ -183,9 +196,9 @@ function mam_progress_report_data(int $studentId): array {
           GROUP BY e.id
           ORDER BY e.enrolled_at DESC",
         [$studentId]
-    );
+    ), []);
 
-    $lmsSummary = mam_db_all(
+    $lmsSummary = $soft(fn () => mam_db_all(
         "SELECT co.title AS cohort_title, c.name AS course_name, l.name AS level_name,
                 iu.name AS instructor_name, ce.status, ce.created_at AS enrolled_at, 'lms' AS type,
                 (SELECT COUNT(*) FROM class_sessions cs2
@@ -204,7 +217,7 @@ function mam_progress_report_data(int $studentId): array {
           WHERE ce.student_id = ? AND ce.status IN ('active','completed')
           ORDER BY ce.created_at DESC",
         [$studentId]
-    );
+    ), []);
 
     // Normalise to a unified shape: total, attended, absent, rate
     $classSummary = [];
@@ -223,7 +236,7 @@ function mam_progress_report_data(int $studentId): array {
     }
 
     // ── Past sessions with lesson notes ───────────────────────────────────
-    $sessions = mam_db_all(
+    $sessions = $soft(fn () => mam_db_all(
         "SELECT DISTINCT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.kind,
                 cs.lesson_notes, cs.topics, cs.learning_outcomes, cs.status,
                 co.title AS cohort_title,
@@ -241,10 +254,10 @@ function mam_progress_report_data(int $studentId): array {
         // (see mam_lms_bulk_create_sessions); gmdate() here would misclassify
         // sessions within the server's UTC offset as past/upcoming.
         [$studentId, $studentId, date('Y-m-d H:i:s')]
-    );
+    ), []);
 
     // ── Upcoming sessions (next 60 days) ──────────────────────────────────
-    $upcoming = mam_db_all(
+    $upcoming = $soft(fn () => mam_db_all(
         "SELECT DISTINCT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.kind,
                 co.title AS cohort_title, iu.name AS instructor_name
            FROM class_sessions cs
@@ -255,10 +268,10 @@ function mam_progress_report_data(int $studentId): array {
             AND cs.scheduled_at <= ?
           ORDER BY cs.scheduled_at ASC",
         [$studentId, date('Y-m-d H:i:s'), date('Y-m-d H:i:s', strtotime('+60 days'))]
-    );
+    ), []);
 
     // ── Assessments ───────────────────────────────────────────────────────
-    $assessments = mam_db_all(
+    $assessments = $soft(fn () => mam_db_all(
         "SELECT a.id, a.score, a.max_score, a.week, a.notes, a.created_at,
                 t.name AS type_name, t.weight,
                 iu.name AS grader_name, c.name AS course_name
@@ -271,10 +284,10 @@ function mam_progress_report_data(int $studentId): array {
           ORDER BY a.created_at DESC
           LIMIT 100",
         [$studentId]
-    );
+    ), []);
 
     // ── Final course results ──────────────────────────────────────────────
-    $results = mam_db_all(
+    $results = $soft(fn () => mam_db_all(
         "SELECT r.total_score, r.grade, r.outcome, r.finalized_at AS issued_at,
                 c.name AS course_name, l.name AS level_name
            FROM results r
@@ -284,10 +297,10 @@ function mam_progress_report_data(int $studentId): array {
           WHERE ce.student_id = ?
           ORDER BY r.finalized_at DESC",
         [$studentId]
-    );
+    ), []);
 
     // ── Certificates ──────────────────────────────────────────────────────
-    $certificates = mam_db_all(
+    $certificates = $soft(fn () => mam_db_all(
         "SELECT cert.id, cert.reference, cert.kind, cert.title, cert.issued_at,
                 p.name AS program_name, l.name AS level_name
            FROM certificates cert
@@ -296,10 +309,10 @@ function mam_progress_report_data(int $studentId): array {
           WHERE cert.student_id = ?
           ORDER BY cert.issued_at DESC",
         [$studentId]
-    );
+    ), []);
 
     // ── Announcements (dual-model: class + cohort) ────────────────────────
-    $announcements = mam_db_all(
+    $announcements = $soft(fn () => mam_db_all(
         "SELECT an.id, an.title, an.body, an.created_at, u.name AS author_name
            FROM announcements an
            LEFT JOIN users u ON u.id = an.author_id
@@ -312,17 +325,17 @@ function mam_progress_report_data(int $studentId): array {
           ORDER BY an.created_at DESC
           LIMIT 10",
         [$studentId, $studentId]
-    );
+    ), []);
 
     // ── Practice logs ─────────────────────────────────────────────────────
-    $practiceLogs = mam_db_all(
+    $practiceLogs = $soft(fn () => mam_db_all(
         "SELECT pl.minutes, pl.focus, pl.logged_on
            FROM practice_logs pl
           WHERE pl.student_id = ?
           ORDER BY pl.logged_on DESC
           LIMIT 30",
         [$studentId]
-    );
+    ), []);
 
     // Roll up practice totals
     $totalPracticeMin = array_sum(array_column($practiceLogs, 'minutes'));
