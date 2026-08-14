@@ -76,6 +76,7 @@ require $ROOT . '/lib/reschedule.php';      // paid class rescheduling (LMS 2.0 
 require $ROOT . '/lib/lms2.php';            // LMS 2.0 teaching helpers (Parts B/D)
 require $ROOT . '/lib/attendance.php';      // QR self-check-in (#9/#10)
 require $ROOT . '/lib/checkin.php';         // NGG-style student check-in (LMS 2.0)
+require $ROOT . '/lib/accountability.php';  // punctuality charges ledger (LMS 2.0)
 require $ROOT . '/lib/drive.php';           // Google Drive gateway via Apps Script (#5)
 require $ROOT . '/lib/scholarship.php';     // MAM Scholars Initiative (§2c)
 require $ROOT . '/lib/faculty.php';         // instructor applications + invite tokens

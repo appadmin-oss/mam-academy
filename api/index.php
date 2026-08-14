@@ -217,6 +217,9 @@ $r->group('/student', function (MamRouter $r) use ($f) {
 
     // Student gradebook — GPA / trend / percentile / results.
     $r->get ('/grades',              $f('student/grades.php'),              [mw_role('student')]);
+
+    // Punctuality accountability ledger (read-only) — PDF §13, §37.
+    $r->get ('/accountability',      $f('student/accountability.php'),      [mw_role('student')]);
 });
 
 /* ─── Instructor portal ─── */
@@ -310,6 +313,9 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // Instructor fine management.
     $r->get ('/fines', $f('admin/fines.php'), [mw_admin_cap('view')]);
     $r->post('/fines', $f('admin/fines.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_fines', 60, 600)]);
+    // Accountability ledger — punctuality charges + §15 waiver decisions.
+    $r->get ('/accountability', $f('admin/accountability.php'), [mw_admin_cap('view')]);
+    $r->post('/accountability', $f('admin/accountability.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_accountability', 60, 600)]);
     // Enterprise scheduling: academy-wide calendar + cohort waitlist management.
     $r->get ('/schedule', $f('admin/schedule.php'),  [mw_admin_cap('view')]);
     $r->get ('/waitlist', $f('admin/waitlist.php'),  [mw_admin_cap('enrollments')]);

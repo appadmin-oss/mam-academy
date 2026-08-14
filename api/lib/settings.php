@@ -187,6 +187,11 @@ function mam_settings_schema(): array {
         ['Check-in',                'checkin_geofence_lng',        'Centre longitude for the geofence', '', ''],
         ['Check-in',                'checkin_geofence_radius_m',   'Geofence radius', 200, 'm'],
         ['Check-in',                'program_total_weeks',         'Programme length for the check-in dashboard (fallback)', 12, 'weeks'],
+        // Punctuality accountability (PDF §13-15). Off by default — turning it
+        // on records (does not auto-charge) a fee on late check-ins.
+        ['Accountability',          'late_charge_enabled',         'Record a punctuality charge on late check-in (1=on, 0=off)', 0, ''],
+        ['Accountability',          'late_charge_student_usd',     'Student late-arrival charge', 1, '$'],
+        ['Accountability',          'late_charge_instructor_usd',  'Instructor lateness accountability amount', 2, '$'],
         // CDN (Cloudinary) — image delivery and headshot uploads.
         // cloudinary_cloud_name:    your Cloudinary cloud name (e.g. "mam-academy").
         //   When set, every public <img> on the site is served via Cloudinary's

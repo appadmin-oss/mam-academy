@@ -1132,7 +1132,14 @@
       var nextBody = next
         ? '<div class="panel-body"><p><strong>' + P.escapeHtml(next.title || next.cohort_title || 'Next session') + '</strong><br><span style="color:var(--text-muted)">' + P.escapeHtml(P.fmtDateTime(next.scheduled_at)) + '</span></p></div>'
         : '<div class="panel-body">' + empty('calendar', 'No upcoming sessions scheduled.') + '</div>';
-      content.innerHTML = kpis
+      var acctBanner = '';
+      if (d.accountability && d.accountability.outstanding_usd_cents > 0) {
+        acctBanner = '<section class="panel" style="border-color:var(--border-gold);margin-bottom:14px"><div class="panel-body" style="display:flex;align-items:center;gap:10px">'
+          + '<i class="fa-solid fa-clock" style="color:var(--gold-bright)"></i>'
+          + '<span>Outstanding punctuality charges: <strong>$' + (d.accountability.outstanding_usd_cents / 100).toFixed(2) + '</strong>. Please speak to the academy office if you believe this is in error.</span>'
+          + '</div></section>';
+      }
+      content.innerHTML = acctBanner + kpis
         + P.panel('Today', todayBody, '')
         + '<div style="margin-top:18px">' + P.panel('Next session', nextBody, '') + '</div>';
       var btn = document.getElementById('checkinBtn');

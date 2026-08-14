@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 66;
+const MAM_SCHEMA_TARGET = 67;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1982,6 +1982,38 @@ function mam_db_migrate(PDO $db): void {
               ('checkin_geofence_lng',''),
               ('checkin_geofence_radius_m','200'),
               ('program_total_weeks','12');
+        ",
+        /* v67 — accountability ledger (PDF §13-15, §37). Records punctuality
+         * charges (student late arrival, instructor lateness, left-early) as an
+         * auditable ledger on the Part A money model (canonical USD cents +
+         * frozen rate), with a waiver/exception decision path. It is a RECORD
+         * only — no wallet is auto-debited — and the auto-charge on late
+         * check-in is gated behind late_charge_enabled (off by default), so
+         * turning it on is a deliberate, policy-backed choice. */
+        67 => "
+            CREATE TABLE accountability_charges (
+              id              INTEGER PRIMARY KEY AUTOINCREMENT,
+              subject_type    TEXT NOT NULL DEFAULT 'student',
+              subject_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              session_id      INTEGER REFERENCES class_sessions(id) ON DELETE SET NULL,
+              reason          TEXT NOT NULL DEFAULT 'late_arrival',
+              minutes         INTEGER NOT NULL DEFAULT 0,
+              amount_usd_cents INTEGER NOT NULL DEFAULT 0,
+              currency        TEXT NOT NULL DEFAULT 'USD',
+              fx_rate_usd_ngn REAL,
+              status          TEXT NOT NULL DEFAULT 'outstanding',
+              note            TEXT,
+              resolved_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              resolved_at     TEXT,
+              resolution_note TEXT,
+              created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_acct_subject ON accountability_charges(subject_type, subject_id, status);
+            CREATE INDEX idx_acct_session ON accountability_charges(session_id);
+            INSERT OR IGNORE INTO settings (skey, svalue) VALUES
+              ('late_charge_enabled','0'),
+              ('late_charge_student_usd','1'),
+              ('late_charge_instructor_usd','2');
         ",
     ];
 

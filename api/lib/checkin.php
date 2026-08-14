@@ -132,6 +132,15 @@ function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?f
             'checkin_lng'   => $lng,
         ]);
         mam_audit('checkin_self', 'class_session', $sessionId, ['cohort_id' => (int) $sess['cohort_id'], 'status' => $status]);
+        // Punctuality accountability (PDF §13): a late arrival records a charge
+        // when the policy is switched on. Idempotent per (student, session).
+        if ($late && function_exists('mam_accountability_charge')) {
+            $cfg2 = mam_accountability_config();
+            if ($cfg2['enabled']) {
+                $mins = max(1, (int) round(($now - $startTs) / 60));
+                mam_accountability_charge('student', $studentId, $sessionId, 'late_arrival', $mins);
+            }
+        }
     } catch (\Throwable $e) {
         // Lost the unique race — treat as idempotent.
         $cur = mam_db_row('SELECT status FROM session_attendance WHERE session_id = ? AND student_id = ?', [$sessionId, $studentId]);
@@ -273,5 +282,8 @@ function mam_checkin_dashboard(int $studentId): array {
         'next_session'     => $next ? ['id' => (int) $next['id'], 'title' => $next['title'], 'scheduled_at' => $next['scheduled_at'], 'cohort_title' => $next['cohort_title']] : null,
         'today'            => $todayState,
         'geofence'         => $cfg['geofence_enabled'],
+        'accountability'   => function_exists('mam_accountability_outstanding_cents')
+            ? ['outstanding_usd_cents' => mam_accountability_outstanding_cents('student', $studentId)]
+            : null,
     ];
 }

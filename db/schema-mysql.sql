@@ -1864,3 +1864,35 @@ INSERT INTO settings (skey, svalue) VALUES
   ('program_total_weeks','12')
 ON DUPLICATE KEY UPDATE skey = skey;
 INSERT INTO schema_version (version) VALUES (66) ON DUPLICATE KEY UPDATE version = version;
+
+-- v67: accountability ledger (PDF §13-15, §37) — punctuality charges on the
+-- Part A money model with a waiver/exception path. Record only (no wallet
+-- auto-debit); auto-charge on late check-in is gated behind late_charge_enabled.
+CREATE TABLE IF NOT EXISTS accountability_charges (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  subject_type     VARCHAR(16)  NOT NULL DEFAULT 'student',
+  subject_id       INT          NOT NULL,
+  session_id       INT          NULL,
+  reason           VARCHAR(32)  NOT NULL DEFAULT 'late_arrival',
+  minutes          INT          NOT NULL DEFAULT 0,
+  amount_usd_cents BIGINT       NOT NULL DEFAULT 0,
+  currency         CHAR(3)      NOT NULL DEFAULT 'USD',
+  fx_rate_usd_ngn  DECIMAL(14,4) NULL,
+  status           VARCHAR(16)  NOT NULL DEFAULT 'outstanding',
+  note             VARCHAR(255) NULL,
+  resolved_by      INT          NULL,
+  resolved_at      DATETIME     NULL,
+  resolution_note  VARCHAR(255) NULL,
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_acct_subject (subject_type, subject_id, status),
+  KEY idx_acct_session (session_id),
+  CONSTRAINT fk_acct_subject  FOREIGN KEY (subject_id)  REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_acct_session  FOREIGN KEY (session_id)  REFERENCES class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_acct_resolved FOREIGN KEY (resolved_by) REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO settings (skey, svalue) VALUES
+  ('late_charge_enabled','0'),
+  ('late_charge_student_usd','1'),
+  ('late_charge_instructor_usd','2')
+ON DUPLICATE KEY UPDATE skey = skey;
+INSERT INTO schema_version (version) VALUES (67) ON DUPLICATE KEY UPDATE version = version;
