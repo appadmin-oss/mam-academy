@@ -103,10 +103,17 @@ function mam_lms2_rubric_score(int $rubricId, array $scores): array {
     ];
 }
 
-/** Persist a rubric-scored review of a submission. Returns the review id. */
-function mam_lms2_submission_review_save(int $submissionId, ?int $rubricId, ?int $reviewerId, array $scores, ?string $feedback = null): int {
-    $computed = $rubricId ? mam_lms2_rubric_score($rubricId, $scores) : ['total_points' => null, 'max_points' => null];
-    return mam_db_insert('submission_reviews', [
+/**
+ * Persist a rubric-scored review of a submission. When $enrollmentId is given,
+ * the rubric percent is ALSO fed into the gradebook as an assessment of type
+ * $gradeTypeCode (default 'assignment') — this is the wiring that makes a
+ * rubric score move the student's computed grade. Returns the review id.
+ */
+function mam_lms2_submission_review_save(int $submissionId, ?int $rubricId, ?int $reviewerId, array $scores, ?string $feedback = null, ?int $enrollmentId = null, string $gradeTypeCode = 'assignment'): int {
+    $computed = $rubricId
+        ? mam_lms2_rubric_score($rubricId, $scores)
+        : ['total_points' => null, 'max_points' => null, 'percent' => null];
+    $id = mam_db_insert('submission_reviews', [
         'submission_id' => $submissionId,
         'rubric_id'     => $rubricId,
         'reviewer_id'   => $reviewerId,
@@ -115,6 +122,139 @@ function mam_lms2_submission_review_save(int $submissionId, ?int $rubricId, ?int
         'max_points'    => $computed['max_points'],
         'feedback'      => $feedback,
     ]);
+    // Feed the gradebook: the rubric percent becomes a weighted assessment.
+    if ($enrollmentId !== null && $enrollmentId > 0 && $computed['percent'] !== null && function_exists('mam_lms_record_assessment')) {
+        mam_lms_record_assessment($enrollmentId, $gradeTypeCode, $reviewerId, (float) $computed['percent'], 100.0);
+    }
+    return $id;
+}
+
+/** Best-effort map a submission to the student's course_enrollment, via the
+ *  assignment group's cohort. Returns the enrolment id or null if unresolved. */
+function mam_lms2_submission_enrollment(int $submissionId): ?int {
+    $row = mam_db_row(
+        "SELECT s.student_id, ag.cohort_id
+           FROM submissions s
+           JOIN assignments a ON a.id = s.assignment_id
+           LEFT JOIN assignment_groups ag ON ag.id = a.group_id
+          WHERE s.id = ?",
+        [$submissionId]
+    );
+    if (!$row) return null;
+    if ($row['cohort_id'] !== null) {
+        $ce = mam_db_row(
+            "SELECT id FROM course_enrollments WHERE student_id = ? AND cohort_id = ? AND status IN ('active','completed') LIMIT 1",
+            [(int) $row['student_id'], (int) $row['cohort_id']]
+        );
+        if ($ce) return (int) $ce['id'];
+    }
+    // Fallback: an unambiguous single active enrolment for the student.
+    $all = mam_db_all(
+        "SELECT id FROM course_enrollments WHERE student_id = ? AND status IN ('active','completed')",
+        [(int) $row['student_id']]
+    );
+    return count($all) === 1 ? (int) $all[0]['id'] : null;
+}
+
+/* ── term GPA / trend / percentile (read-only aggregates over results) ────── */
+
+/** 4.0-scale grade points for a letter grade. */
+function mam_lms2_grade_points(?string $grade): float {
+    switch (strtoupper((string) $grade)) {
+        case 'A': return 4.0;
+        case 'B': return 3.0;
+        case 'C': return 2.0;
+        case 'D': return 1.0;
+        default:  return 0.0; // F / ungraded
+    }
+}
+
+/**
+ * A student's GPA across their finalised course results: the 4.0-scale GPA, the
+ * mean percentage, the course count, and the grade distribution.
+ */
+function mam_lms2_student_gpa(int $studentId): array {
+    $rows = mam_db_all(
+        "SELECT r.grade, r.total_score
+           FROM results r JOIN course_enrollments ce ON ce.id = r.enrollment_id
+          WHERE ce.student_id = ? AND r.grade IS NOT NULL",
+        [$studentId]
+    );
+    $n = count($rows);
+    if ($n === 0) return ['gpa' => null, 'avg_score' => null, 'courses' => 0, 'distribution' => []];
+    $pts = 0.0; $score = 0.0; $dist = [];
+    foreach ($rows as $r) {
+        $pts   += mam_lms2_grade_points($r['grade']);
+        $score += (float) $r['total_score'];
+        $g = strtoupper((string) $r['grade']);
+        $dist[$g] = ($dist[$g] ?? 0) + 1;
+    }
+    return [
+        'gpa'          => round($pts / $n, 2),
+        'avg_score'    => round($score / $n, 1),
+        'courses'      => $n,
+        'distribution' => $dist,
+    ];
+}
+
+/**
+ * Term-over-term grade trend: mean score + GPA per cohort term, ordered by term.
+ * Cohorts with no `term` are grouped under their title so the series is stable.
+ */
+function mam_lms2_student_grade_trend(int $studentId): array {
+    $rows = mam_db_all(
+        "SELECT COALESCE(NULLIF(co.term,''), co.title, 'Unknown') AS term_label,
+                r.grade, r.total_score
+           FROM results r
+           JOIN course_enrollments ce ON ce.id = r.enrollment_id
+           LEFT JOIN cohorts co ON co.id = ce.cohort_id
+          WHERE ce.student_id = ? AND r.total_score IS NOT NULL",
+        [$studentId]
+    );
+    $buckets = [];
+    foreach ($rows as $r) {
+        $k = (string) $r['term_label'];
+        if (!isset($buckets[$k])) $buckets[$k] = ['term' => $k, 'sum' => 0.0, 'gp' => 0.0, 'n' => 0];
+        $buckets[$k]['sum'] += (float) $r['total_score'];
+        $buckets[$k]['gp']  += mam_lms2_grade_points($r['grade']);
+        $buckets[$k]['n']++;
+    }
+    $out = [];
+    foreach ($buckets as $b) {
+        $out[] = ['term' => $b['term'], 'avg_score' => round($b['sum'] / $b['n'], 1), 'gpa' => round($b['gp'] / $b['n'], 2), 'courses' => $b['n']];
+    }
+    usort($out, fn($a, $b) => strcmp($a['term'], $b['term']));
+    return $out;
+}
+
+/**
+ * A student's percentile within a cohort by finalised total_score: the
+ * percentile (share of peers scoring at or below them), 1-based rank, cohort
+ * size, and the student's own score. Null when the student has no result there.
+ */
+function mam_lms2_cohort_percentile(int $studentId, int $cohortId): array {
+    $scores = mam_db_all(
+        "SELECT ce.student_id, r.total_score
+           FROM results r JOIN course_enrollments ce ON ce.id = r.enrollment_id
+          WHERE ce.cohort_id = ? AND r.total_score IS NOT NULL",
+        [$cohortId]
+    );
+    $mine = null; $vals = [];
+    foreach ($scores as $s) {
+        $v = (float) $s['total_score'];
+        $vals[] = $v;
+        if ((int) $s['student_id'] === $studentId) $mine = $v;
+    }
+    $size = count($vals);
+    if ($mine === null || $size === 0) return ['percentile' => null, 'rank' => null, 'cohort_size' => $size, 'score' => $mine];
+    $atOrBelow = 0; $above = 0;
+    foreach ($vals as $v) { if ($v <= $mine) $atOrBelow++; if ($v > $mine) $above++; }
+    return [
+        'percentile'  => round($atOrBelow / $size * 100, 1),
+        'rank'        => $above + 1, // 1 = top scorer
+        'cohort_size' => $size,
+        'score'       => round($mine, 1),
+    ];
 }
 
 /* ── lessons + progress ──────────────────────────────────────────────────── */
