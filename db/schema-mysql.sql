@@ -1845,3 +1845,22 @@ CREATE TABLE IF NOT EXISTS calendar_tokens (
   CONSTRAINT fk_caltokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (65) ON DUPLICATE KEY UPDATE version = version;
+
+-- v66: NGG-style student check-in. session_attendance gains check-in
+-- provenance (when/how/where) so self check-ins and late arrivals are
+-- distinguishable from instructor marks. Additive; existing flows unchanged.
+ALTER TABLE session_attendance ADD COLUMN checked_in_at DATETIME NULL;
+ALTER TABLE session_attendance ADD COLUMN method VARCHAR(16) NOT NULL DEFAULT 'instructor';
+ALTER TABLE session_attendance ADD COLUMN checkin_lat DECIMAL(10,6) NULL;
+ALTER TABLE session_attendance ADD COLUMN checkin_lng DECIMAL(10,6) NULL;
+INSERT INTO settings (skey, svalue) VALUES
+  ('checkin_self_enabled','1'),
+  ('checkin_open_before_min','30'),
+  ('checkin_late_grace_min','10'),
+  ('checkin_geofence_enabled','0'),
+  ('checkin_geofence_lat',''),
+  ('checkin_geofence_lng',''),
+  ('checkin_geofence_radius_m','200'),
+  ('program_total_weeks','12')
+ON DUPLICATE KEY UPDATE skey = skey;
+INSERT INTO schema_version (version) VALUES (66) ON DUPLICATE KEY UPDATE version = version;

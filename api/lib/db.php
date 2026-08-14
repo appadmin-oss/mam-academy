@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 65;
+const MAM_SCHEMA_TARGET = 66;
 
 /**
  * Open (and cache) the PDO connection.
@@ -1960,6 +1960,28 @@ function mam_db_migrate(PDO $db): void {
               created_at   TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_caltokens_user ON calendar_tokens(user_id, active);
+        ",
+        /* v66 — NGG-style student check-in. session_attendance gains check-in
+         * provenance (when, how, and — for an optional geofence — where), so a
+         * student self check-in is distinguishable from an instructor mark and
+         * a late arrival is recorded as such. All additive; the existing QR
+         * self-check-in and instructor marking keep working unchanged. Settings
+         * seed the self-check-in window, late grace, and (off by default)
+         * geofence gate. */
+        66 => "
+            ALTER TABLE session_attendance ADD COLUMN checked_in_at TEXT;
+            ALTER TABLE session_attendance ADD COLUMN method TEXT NOT NULL DEFAULT 'instructor';
+            ALTER TABLE session_attendance ADD COLUMN checkin_lat REAL;
+            ALTER TABLE session_attendance ADD COLUMN checkin_lng REAL;
+            INSERT OR IGNORE INTO settings (skey, svalue) VALUES
+              ('checkin_self_enabled','1'),
+              ('checkin_open_before_min','30'),
+              ('checkin_late_grace_min','10'),
+              ('checkin_geofence_enabled','0'),
+              ('checkin_geofence_lat',''),
+              ('checkin_geofence_lng',''),
+              ('checkin_geofence_radius_m','200'),
+              ('program_total_weeks','12');
         ",
     ];
 

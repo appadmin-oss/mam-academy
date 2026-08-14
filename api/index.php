@@ -208,6 +208,10 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     // Paid rescheduling (LMS 2.0 Part C) — server-priced request + wallet pay.
     $r->get ('/reschedule',          $f('student/reschedule.php'),          [mw_role('student')]);
     $r->post('/reschedule',          $f('student/reschedule.php'),          [mw_csrf(), mw_role('student'), mw_rate_limit('reschedule', 30, 600)]);
+
+    // NGG-style check-in — private dashboard (GET) + daily self check-in (POST).
+    $r->get ('/checkin',             $f('student/checkin.php'),             [mw_role('student')]);
+    $r->post('/checkin',             $f('student/checkin.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('checkin', 30, 600)]);
 });
 
 /* ─── Instructor portal ─── */

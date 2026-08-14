@@ -177,7 +177,7 @@ $mam_vendor = MAM_API_ROOT . '/vendor/autoload.php';
 if (is_file($mam_vendor)) require_once $mam_vendor;
 
 // ---------- Library autoload (manual; no Composer needed) ----------
-$mam_libs = ['log', 'response', 'validation', 'db', 'settings', 'fx', 'money', 'session', 'academic-session', 'auth', 'mailer', 'csrf', 'rate-limit', 'paystack', 'flutterwave', 'booking-pricing', 'payments', 'store', 'practice', 'lms', 'curriculum-seed', 'ai', 'admissions', 'invoicing', 'jobs', 'funnel', 'notifications', 'analytics', 'datarights', 'studio', 'auditer', 'wallet', 'reschedule', 'lms2', 'attendance', 'scholarship', 'faculty', 'automations', 'drive', 'support', 'progress', 'progress-reports', 'uploads', 'idempotency', 'promo', 'cards'];
+$mam_libs = ['log', 'response', 'validation', 'db', 'settings', 'fx', 'money', 'session', 'academic-session', 'auth', 'mailer', 'csrf', 'rate-limit', 'paystack', 'flutterwave', 'booking-pricing', 'payments', 'store', 'practice', 'lms', 'curriculum-seed', 'ai', 'admissions', 'invoicing', 'jobs', 'funnel', 'notifications', 'analytics', 'datarights', 'studio', 'auditer', 'wallet', 'reschedule', 'lms2', 'attendance', 'checkin', 'scholarship', 'faculty', 'automations', 'drive', 'support', 'progress', 'progress-reports', 'uploads', 'idempotency', 'promo', 'cards'];
 foreach ($mam_libs as $lib) {
     require_once __DIR__ . '/' . $lib . '.php';
 }

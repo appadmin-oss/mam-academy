@@ -177,6 +177,16 @@ function mam_settings_schema(): array {
         ['Rescheduling',            'reschedule_window_hours',     'Minimum lead time before a session to allow rescheduling', 24, 'hrs'],
         ['Rescheduling',            'reschedule_payment_expiry_hours', 'Hours an unpaid request stays open before it expires', 24, 'hrs'],
         ['Rescheduling',            'reschedule_approval_required','Require instructor approval before applying (1=on, 0=auto-apply)', 1, ''],
+        // NGG-style student check-in (LMS 2.0). Self check-in on by default;
+        // geofence off until an admin sets a centre location.
+        ['Check-in',                'checkin_self_enabled',        'Allow students to self check-in (1=on, 0=off)', 1, ''],
+        ['Check-in',                'checkin_open_before_min',     'Minutes before a session that check-in opens', 30, 'min'],
+        ['Check-in',                'checkin_late_grace_min',      'Grace period after start before a check-in counts as late', 10, 'min'],
+        ['Check-in',                'checkin_geofence_enabled',    'Require students to be on-site to check in (1=on, 0=off)', 0, ''],
+        ['Check-in',                'checkin_geofence_lat',        'Centre latitude for the geofence', '', ''],
+        ['Check-in',                'checkin_geofence_lng',        'Centre longitude for the geofence', '', ''],
+        ['Check-in',                'checkin_geofence_radius_m',   'Geofence radius', 200, 'm'],
+        ['Check-in',                'program_total_weeks',         'Programme length for the check-in dashboard (fallback)', 12, 'weeks'],
         // CDN (Cloudinary) — image delivery and headshot uploads.
         // cloudinary_cloud_name:    your Cloudinary cloud name (e.g. "mam-academy").
         //   When set, every public <img> on the site is served via Cloudinary's
