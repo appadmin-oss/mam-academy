@@ -34,6 +34,7 @@
       <a class="portal-nav-link" href="#applications" data-tab="applications"><i class="fa-solid fa-file-pen"></i>My Applications</a>
       <a class="portal-nav-link" href="#learning" data-tab="learning"><i class="fa-solid fa-graduation-cap"></i>My Learning</a>
       <a class="portal-nav-link" href="#checkin" data-tab="checkin"><i class="fa-solid fa-hand-sparkles"></i>Check-in</a>
+      <a class="portal-nav-link" href="#prepare" data-tab="prepare"><i class="fa-solid fa-lightbulb"></i>Prepare</a>
       <a class="portal-nav-link" href="#classes" data-tab="classes"><i class="fa-solid fa-music"></i>Classes</a>
       <a class="portal-nav-link" href="#courses" data-tab="courses"><i class="fa-solid fa-layer-group"></i>My Courses</a>
       <a class="portal-nav-link" href="#grades" data-tab="grades"><i class="fa-solid fa-award"></i>Grades</a>
@@ -103,7 +104,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], checkin: ['Check-in', 'Your streak, XP and today\'s session'], grades: ['Grades', 'Your GPA, results and standing'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], reschedule: ['Reschedule', 'Request to move a class session'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], checkin: ['Check-in', 'Your streak, XP and today\'s session'], grades: ['Grades', 'Your GPA, results and standing'], prepare: ['Prepare', 'Learn before class, then explain it back'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], reschedule: ['Reschedule', 'Request to move a class session'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
@@ -122,6 +123,7 @@
     if (tab === 'applications') return renderApplications();
     if (tab === 'learning') return renderLearning();
     if (tab === 'checkin') return renderCheckin();
+    if (tab === 'prepare') return renderPrepare();
     if (tab === 'grades') return renderGrades();
     if (tab === 'classes') return renderClasses();
     if (tab === 'courses') return renderCourses();
@@ -1218,6 +1220,95 @@
       content.innerHTML = kpis + resultsPanel + trendPanel + pctPanel;
     }).catch(function () {
       content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load grades right now. Please try again.') + '</div></section>';
+    });
+  }
+
+  // ── Prepare: pre-class learning + teach-back (PDF §8-9) ───────────────
+  function prepLight(status) {
+    if (status === 'completed') return '<span style="color:#34D399">🟢 Completed</span>';
+    if (status === 'in_progress') return '<span style="color:#FBBF24">🟡 In progress</span>';
+    return '<span style="color:#F87171">🔴 Not started</span>';
+  }
+  function pcCloudinaryUpload(file) {
+    var cdn = (window.MAM_CONFIG && window.MAM_CONFIG.cdn) || {};
+    if (!cdn.cloudName || !cdn.uploadPreset) return Promise.reject(new Error('Uploads not configured — paste a link instead.'));
+    var fd = new FormData();
+    fd.append('file', file);
+    fd.append('upload_preset', cdn.uploadPreset);
+    if (cdn.folder) fd.append('folder', cdn.folder);
+    return fetch('https://api.cloudinary.com/v1_1/' + encodeURIComponent(cdn.cloudName) + '/auto/upload', { method: 'POST', body: fd })
+      .then(function (r) { return r.json().then(function (j) {
+        if (!r.ok || !j.secure_url) throw new Error((j && j.error && j.error.message) || 'Upload failed');
+        return j.secure_url;
+      }); });
+  }
+  function renderPrepare() {
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading your next class…') + '</div></section>';
+    API.request('student/preclass', { method: 'GET' }).then(function (r) {
+      var n = r && r.next;
+      if (!n) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('calendar', 'No upcoming class scheduled. Check back when your next session is set.') + '</div></section>'; return; }
+      var s = n.session, m = n.module;
+      var head = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-lightbulb" style="margin-right:8px;color:var(--gold-bright)"></i>Your next class</h2></div>'
+        + '<div class="panel-body"><p style="font-size:1.05rem"><strong>' + P.escapeHtml((m && m.title) || s.title || 'Class') + '</strong>'
+        + (m && m.week_no ? ' <span class="pill">Week ' + m.week_no + '</span>' : '') + '</p>'
+        + '<p class="kpi-sub">' + P.escapeHtml(s.cohort_title || '') + ' · ' + P.escapeHtml(P.fmtDateTime(s.scheduled_at)) + '</p></div></section>';
+      if (!m) { content.innerHTML = head + '<section class="panel" style="margin-top:18px"><div class="panel-body">' + empty('hourglass-half', 'Your instructor hasn’t attached this week’s learning material yet.') + '</div></section>'; return; }
+
+      var resList = (m.resources || []).map(function (x) {
+        return '<li><a href="' + P.escapeHtml(x.url || '#') + '" target="_blank" rel="noopener">' + P.escapeHtml(x.title || x.url || 'Resource') + '</a>' + (x.kind ? ' <span class="kpi-sub">(' + P.escapeHtml(x.kind) + ')</span>' : '') + '</li>';
+      }).join('');
+      var discover = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>1 · Discover</h2><span>' + prepLight(n.prep) + '</span></div><div class="panel-body" style="display:grid;gap:10px">'
+        + (m.objectives ? '<div><strong>Objectives</strong><br>' + P.escapeHtml(m.objectives) + '</div>' : '')
+        + (m.prep_instructions ? '<div><strong>Preparation</strong><br>' + P.escapeHtml(m.prep_instructions) + '</div>' : '')
+        + (resList ? '<div><strong>Resources</strong><ul style="margin:6px 0 0;padding-left:18px">' + resList + '</ul></div>' : '')
+        + (n.prep !== 'completed' ? '<div><button id="prepDone" class="btn btn-primary" data-lesson="' + m.lesson_id + '"><i class="fa-solid fa-check"></i> Mark as prepared</button></div>' : '')
+        + '</div></section>';
+
+      var tb = n.teachback, decided = tb && tb.status === 'reviewed';
+      var tbStatus = tb
+        ? '<p class="kpi-sub">Status: <span class="pill ' + P.escapeHtml(tb.status) + '">' + P.escapeHtml(tb.status) + '</span>'
+          + (decided && tb.decision ? ' · Instructor: <strong>' + P.escapeHtml(String(tb.decision).replace(/_/g, ' ')) + '</strong>' : '')
+          + (decided && tb.feedback ? '<br>“' + P.escapeHtml(tb.feedback) + '”' : '') + '</p>'
+        : '';
+      var cdn = (window.MAM_CONFIG && window.MAM_CONFIG.cdn) || {};
+      var fileField = (cdn.cloudName && cdn.uploadPreset)
+        ? '<div class="field"><label>Or upload a video/audio</label><input id="tbFile" type="file" accept="video/*,audio/*,image/*"><span id="tbFileMsg" class="kpi-sub"></span></div>'
+        : '';
+      var declare = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>2 · Declare (teach-back)' + (m.teachback_required ? ' <span class="pill">required</span>' : '') + '</h2></div>'
+        + '<form id="tbForm" class="panel-body" style="display:grid;gap:12px">' + tbStatus
+        + '<div class="field"><label>How are you explaining it?</label><select name="kind"><option value="written">Written</option><option value="video">Video</option><option value="audio">Audio</option><option value="practical">Practical</option></select></div>'
+        + '<div class="field"><label>Evidence link (Drive / YouTube / recording)</label><input name="artifact_url" placeholder="https://…" value="' + P.escapeHtml((tb && tb.artifact_url) || '') + '"></div>'
+        + fileField
+        + '<div class="field"><label>Explanation (in your own words)</label><textarea name="body" rows="4" placeholder="Explain the week’s topic…">' + P.escapeHtml((tb && tb.body) || '') + '</textarea></div>'
+        + '<div><button type="submit" class="btn btn-primary" data-lesson="' + m.lesson_id + '"><i class="fa-solid fa-paper-plane"></i> ' + (tb ? 'Resubmit' : 'Submit') + ' teach-back</button></div>'
+        + '</form></section>';
+
+      content.innerHTML = head + discover + declare;
+      var pd = document.getElementById('prepDone');
+      if (pd) pd.addEventListener('click', function () {
+        pd.disabled = true;
+        API.request('student/preclass', { method: 'POST', body: { action: 'prepare', lesson_id: parseInt(pd.getAttribute('data-lesson'), 10) } })
+          .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Marked as prepared.', 'success'); renderPrepare(); })
+          .catch(function () { pd.disabled = false; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update.', 'error'); });
+      });
+      var form = document.getElementById('tbForm');
+      form.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var btn = form.querySelector('button[type=submit]'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Sending…';
+        var lid = parseInt(btn.getAttribute('data-lesson'), 10);
+        var fileEl = document.getElementById('tbFile');
+        var pre = Promise.resolve(form.artifact_url.value.trim());
+        if (fileEl && fileEl.files && fileEl.files[0]) {
+          var msg = document.getElementById('tbFileMsg'); if (msg) msg.textContent = 'Uploading…';
+          pre = pcCloudinaryUpload(fileEl.files[0]).then(function (url) { if (msg) msg.textContent = '✓ uploaded'; return url; });
+        }
+        pre.then(function (url) {
+          return API.request('student/preclass', { method: 'POST', body: { action: 'teachback', lesson_id: lid, kind: form.kind.value, artifact_url: url, body: form.body.value.trim() } });
+        }).then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Teach-back submitted.', 'success'); renderPrepare(); })
+          .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var msg = (err && err.body && err.body.error) || err.message || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not submit: ' + msg, 'error'); else alert('Could not submit.'); });
+      });
+    }).catch(function () {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load your next class right now.') + '</div></section>';
     });
   }
 
