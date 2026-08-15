@@ -47,6 +47,8 @@ if (!function_exists('mam_after_response')) { function mam_after_response(callab
 // ---- Library under test ----------------------------------------------------
 require $ROOT . '/lib/db.php';
 require $ROOT . '/lib/settings.php';
+require $ROOT . '/lib/academic-session.php'; // term-window engine (needs settings.php above)
+require $ROOT . '/lib/practice.php';        // practice-log aggregation
 require $ROOT . '/lib/fx.php';
 require $ROOT . '/lib/money.php';           // currency-safe money normalization (v61)
 require $ROOT . '/lib/validation.php';      // pricing engine lives here
