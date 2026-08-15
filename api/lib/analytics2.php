@@ -119,6 +119,54 @@ function mam_analytics2_intervention_list(int $limit = 100): array {
     return array_slice($out, 0, max(1, $limit));
 }
 
+/**
+ * Instructor cohort analytics (Advanced Modernization §5.3): for each cohort
+ * the instructor teaches — students, attendance %, average mastery, module
+ * completion %, and the at-risk count. Teach to the data, not the anecdote.
+ */
+function mam_analytics2_instructor_cohorts(int $instructorId): array {
+    $cohorts = function_exists('mam_lms_instructor_cohorts') ? mam_lms_instructor_cohorts($instructorId) : [];
+    $out = [];
+    foreach ($cohorts as $co) {
+        $cid    = (int) $co['id'];
+        $attTot = mam_analytics2_scalar("SELECT COUNT(*) FROM session_attendance sa JOIN class_sessions cs ON cs.id = sa.session_id WHERE cs.cohort_id = ?", [$cid]);
+        $attGd  = mam_analytics2_scalar("SELECT COUNT(*) FROM session_attendance sa JOIN class_sessions cs ON cs.id = sa.session_id WHERE cs.cohort_id = ? AND sa.status IN ('present','late')", [$cid]);
+        $lpTot  = mam_analytics2_scalar("SELECT COUNT(*) FROM lesson_progress lp JOIN lessons l ON l.id = lp.lesson_id WHERE l.cohort_id = ?", [$cid]);
+        $lpDone = mam_analytics2_scalar("SELECT COUNT(*) FROM lesson_progress lp JOIN lessons l ON l.id = lp.lesson_id WHERE l.cohort_id = ? AND lp.status IN ('completed','mastered','proficient','advanced','exempted')", [$cid]);
+        $mastery = mam_analytics2_scalar("SELECT AVG(lp.percent) FROM lesson_progress lp JOIN lessons l ON l.id = lp.lesson_id WHERE l.cohort_id = ? AND lp.percent IS NOT NULL", [$cid], -1.0);
+        $atRisk = (int) mam_analytics2_scalar("SELECT COUNT(DISTINCT lp.student_id) FROM lesson_progress lp JOIN lessons l ON l.id = lp.lesson_id WHERE l.cohort_id = ? AND (lp.status IN ('remedial','carried_forward') OR lp.attempts >= 2)", [$cid]);
+        $out[] = [
+            'cohort_id'      => $cid,
+            'title'          => $co['title'] ?: ('Cohort #' . $cid),
+            'course_name'    => $co['course_name'] ?? null,
+            'level_name'     => $co['level_name'] ?? null,
+            'students'       => (int) (($co['enrollment_count'] ?? 0) ?: ($co['legacy_count'] ?? 0)),
+            'attendance_pct' => $attTot > 0 ? (int) round($attGd / $attTot * 100) : null,
+            'avg_mastery'    => $mastery >= 0 ? (int) round($mastery) : null,
+            'completion_pct' => $lpTot > 0 ? (int) round($lpDone / $lpTot * 100) : null,
+            'at_risk'        => $atRisk,
+        ];
+    }
+    return $out;
+}
+
+/** At-risk students across an instructor's cohorts (name + cohort + reason bits). */
+function mam_analytics2_instructor_at_risk(int $instructorId, int $limit = 30): array {
+    try {
+        return mam_db_all(
+            "SELECT DISTINCT u.id AS student_id, u.name, co.title AS cohort
+               FROM lesson_progress lp
+               JOIN lessons l  ON l.id = lp.lesson_id
+               JOIN cohorts co ON co.id = l.cohort_id
+               JOIN users u    ON u.id = lp.student_id
+              WHERE (co.instructor_id = ? OR co.id IN (SELECT cohort_id FROM course_enrollments WHERE instructor_id = ? AND cohort_id IS NOT NULL))
+                AND (lp.status IN ('remedial','carried_forward') OR lp.attempts >= 2)
+              ORDER BY u.name LIMIT " . max(1, $limit),
+            [$instructorId, $instructorId]
+        );
+    } catch (\Throwable $e) { return []; }
+}
+
 /** Per-instructor performance (§35): students, average mastery, completion rate
  *  and intervention count across the cohorts they teach. */
 function mam_analytics2_instructor_performance(): array {

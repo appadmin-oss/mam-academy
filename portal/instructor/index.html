@@ -41,6 +41,7 @@
 
       <div class="portal-nav-group">Assess</div>
       <a class="portal-nav-link" href="#gradebook" data-tab="gradebook"><i class="fa-solid fa-graduation-cap"></i>Gradebook</a>
+      <a class="portal-nav-link" href="#analytics" data-tab="analytics"><i class="fa-solid fa-chart-line"></i>Analytics</a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
 
       <div class="portal-nav-group">Account</div>
@@ -90,7 +91,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], sessions: ['Teaching', 'One cohort at a time — sessions, attendance & standings'], gradebook: ['Gradebook', 'Grade students across the weighted components'], preclass: ['Pre-class', 'Review teach-backs before you teach'], earnings: ['Earnings', 'Your earnings statement from the Academy'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
+  var tabs = { overview: ['Overview', 'Your teaching at a glance'], classes: ['My Classes', 'Active classes you teach'], students: ['Students', 'Everyone in your classes'], assignments: ['Assignments', 'Set practice tasks & track completion'], attendance: ['Attendance', 'Mark and review attendance'], sessions: ['Teaching', 'One cohort at a time — sessions, attendance & standings'], gradebook: ['Gradebook', 'Grade students across the weighted components'], analytics: ['Analytics', 'Your cohorts — engagement, mastery & at-risk'], preclass: ['Pre-class', 'Review teach-backs before you teach'], earnings: ['Earnings', 'Your earnings statement from the Academy'], announce: ['Announcements', 'Post updates your students see'], account: ['Account', 'Your profile & password'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
   var data = null;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
 
@@ -108,11 +109,41 @@
     if (tab === 'attendance') return renderAttendance();
     if (tab === 'sessions') return renderSessions();
     if (tab === 'gradebook') return renderGradebook();
+    if (tab === 'analytics') return renderAnalytics();
     if (tab === 'preclass') return renderPreclass();
     if (tab === 'earnings') return renderEarnings();
     if (tab === 'announce') return renderAnnounce();
     if (tab === 'account') return renderAccount();
     if (tab === 'handbook') return renderHandbook();
+  }
+
+  // ── Cohort analytics (§5.3) ──────────────────────────────────────────────
+  function renderAnalytics() {
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading your cohort analytics…') + '</div></section>';
+    API.request('instructor/analytics', { method: 'GET' }).then(function (r) {
+      var cohorts = r.cohorts || [], atRisk = r.at_risk || [];
+      function pctCell(v) { if (v == null) return '<span style="color:var(--text-muted)">—</span>'; var col = v >= 75 ? '#34D399' : v >= 50 ? 'var(--gold-bright)' : '#F87171'; return '<strong style="color:' + col + '">' + v + '%</strong>'; }
+      var rows = cohorts.length ? cohorts.map(function (c) {
+        var sub = [c.course_name, c.level_name].filter(Boolean).join(' · ');
+        return '<tr><td data-label="Cohort"><strong>' + P.escapeHtml(c.title) + '</strong>' + (sub ? '<br><span style="color:var(--text-muted);font-size:.8rem">' + P.escapeHtml(sub) + '</span>' : '') + '</td>'
+          + '<td data-label="Students">' + (c.students || 0) + '</td>'
+          + '<td data-label="Attendance">' + pctCell(c.attendance_pct) + '</td>'
+          + '<td data-label="Avg mastery">' + pctCell(c.avg_mastery) + '</td>'
+          + '<td data-label="Completion">' + pctCell(c.completion_pct) + '</td>'
+          + '<td data-label="At-risk">' + (c.at_risk > 0 ? '<span class="pill" style="background:rgba(248,113,113,.16);color:#F87171">' + c.at_risk + '</span>' : '0') + '</td></tr>';
+      }).join('') : '';
+      var table = cohorts.length
+        ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Cohort</th><th>Students</th><th>Attendance</th><th>Avg mastery</th><th>Completion</th><th>At-risk</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+        : '<div class="panel-body">' + empty('chart-line', 'No cohort data yet — analytics appear once you have students and attendance.') + '</div>';
+      var riskHtml = atRisk.length
+        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-triangle-exclamation" style="color:#F87171;margin-right:8px"></i>At-risk students</h2></div><div class="panel-body" style="display:flex;flex-wrap:wrap;gap:8px">'
+          + atRisk.map(function (s) { return '<span class="pill" style="background:var(--bg-raised);border:1px solid var(--border)">' + P.escapeHtml(s.name || ('Student #' + s.student_id)) + ' <span style="color:var(--text-muted)">· ' + P.escapeHtml(s.cohort || '') + '</span></span>'; }).join('')
+          + '</div></section>'
+        : '';
+      content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Cohort analytics</h2><span style="font-size:.8rem;color:var(--text-muted)">' + cohorts.length + ' cohort' + (cohorts.length === 1 ? '' : 's') + '</span></div>' + table + '</section>' + riskHtml;
+    }).catch(function () {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load analytics right now.') + '</div></section>';
+    });
   }
 
   function renderAssignments() {

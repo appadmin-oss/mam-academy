@@ -255,6 +255,7 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/assignment-update', $f('instructor/assignment-update.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
     // LMS gradebook — weekly weighted assessments → auto-computed results.
     $r->get ('/gradebook',        $f('instructor/gradebook.php'),       [mw_role('instructor', 'admin')]);
+    $r->get ('/analytics',        $f('instructor/analytics.php'),       [mw_role('instructor', 'admin')]);
     $r->get ('/assessments',      $f('instructor/assessments.php'),     [mw_role('instructor', 'admin')]);
     $r->get ('/earnings',         $f('instructor/earnings.php'),        [mw_role('instructor', 'admin')]);
     $r->get ('/curriculum',       $f('instructor/curriculum.php'),      [mw_role('instructor', 'admin')]);
