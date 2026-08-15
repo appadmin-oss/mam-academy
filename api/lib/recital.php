@@ -536,3 +536,171 @@ function mam_recital_public_item(array $it): array {
         'at'           => $it['at'],
     ];
 }
+
+/* ── The recordings gallery ────────────────────────────────────────────────
+   Listening back after the night.
+
+   A RECITAL RECORDING IS NOT A PRACTICE TAKE, and the difference decides the
+   access policy. A take is private work: /api/media/take lets the student,
+   their own teacher, their own guardian and an admin hear it, and nobody else.
+   Applying that rule to a recital gallery would give each parent a gallery
+   containing exactly one child — which is not a gallery, it is a filing
+   cabinet. The point of listening back is hearing the EVENING.
+
+   So a published recital recording has its own, deliberately different gate:
+
+     1. The recital must be COMPLETED. Nothing is listenable before the night;
+        a programme is a promise, not an archive.
+     2. The performer must have MEDIA consent. This is the same flag that earns
+        a full name on the public programme, and it is the one that families
+        actually understand as "you may record and share my child".
+     3. The listener must be SIGNED IN to the academy. Not public — a recording
+        of a child never goes on the open web, no matter how completed the
+        recital is or how freely the family consented. The audience is the
+        community that was in the room, or could have been.
+
+   Staff attach the recording explicitly; nothing is published by accident. */
+
+/** Audio submissions belonging to a student — what staff can attach. */
+function mam_recital_available_recordings(int $studentId, int $limit = 30): array {
+    $lim = max(1, min(100, $limit));
+    return mam_db_all(
+        "SELECT s.id, s.artifact_url, s.submitted_at, a.title AS assignment_title
+           FROM submissions s
+      LEFT JOIN assignments a ON a.id = s.assignment_id
+          WHERE s.student_id = ? AND s.artifact_kind = 'audio' AND s.artifact_url IS NOT NULL
+          ORDER BY s.id DESC LIMIT $lim",
+        [$studentId]
+    );
+}
+
+/**
+ * Attach (or clear, with null) the recording published against a recital item.
+ * The submission must belong to the SAME student as the item — publishing one
+ * child's playing under another child's name on a programme is the worst
+ * mistake this feature could make, so it is checked rather than trusted.
+ */
+function mam_recital_attach_recording(int $itemId, ?int $submissionId, ?int $by = null): bool {
+    $it = mam_db_row('SELECT id, student_id, recital_id FROM recital_items WHERE id = ?', [$itemId]);
+    if (!$it) throw new RuntimeException('not_found');
+
+    if ($submissionId !== null) {
+        $sub = mam_db_row('SELECT id, student_id, artifact_kind, artifact_url FROM submissions WHERE id = ?', [$submissionId]);
+        if (!$sub) throw new RuntimeException('recording_not_found');
+        if ((int) $sub['student_id'] !== (int) $it['student_id']) throw new RuntimeException('not_their_recording');
+        if ((string) $sub['artifact_kind'] !== 'audio' || empty($sub['artifact_url'])) throw new RuntimeException('not_audio');
+    }
+
+    mam_db_update('recital_items', ['submission_id' => $submissionId], ['id' => $itemId]);
+    if (function_exists('mam_audit')) {
+        mam_audit($submissionId === null ? 'recital_recording_cleared' : 'recital_recording_attached',
+            'recital_item', $itemId, ['submission' => $submissionId, 'by' => $by]);
+    }
+    return true;
+}
+
+/**
+ * Is this recital item's recording publishable at all? (Rules 1 and 2 above —
+ * the listener check is rule 3 and lives in mam_recital_can_hear.)
+ */
+function mam_recital_recording_published(int $itemId): bool {
+    $row = mam_db_row(
+        'SELECT ri.student_id, ri.submission_id, r.status
+           FROM recital_items ri JOIN recitals r ON r.id = ri.recital_id
+          WHERE ri.id = ?',
+        [$itemId]
+    );
+    if (!$row) return false;
+    if ($row['submission_id'] === null) return false;
+    if ((string) $row['status'] !== 'completed') return false;
+    if (function_exists('mam_consent_allows') && !mam_consent_allows((int) $row['student_id'], 'media')) return false;
+    return true;
+}
+
+/**
+ * May this signed-in user hear this item's recording?
+ *
+ * Being signed in is the whole audience test on top of the publication rules:
+ * the academy community, never the open web. A performer, their guardian and
+ * their teacher additionally keep access through the private-take route even
+ * when the gallery rules do not apply — that is deliberate, and lives in
+ * /api/media/take rather than here.
+ */
+function mam_recital_can_hear(?array $user, int $itemId): bool {
+    if (!$user || (int) ($user['id'] ?? 0) < 1) return false;
+    return mam_recital_recording_published($itemId);
+}
+
+/**
+ * The gallery for a completed recital: every item whose recording may be
+ * published, in running order.
+ *
+ * An item with no recording, or whose performer withheld media consent, is
+ * simply absent — the gallery says nothing about why, because "no recording of
+ * this child" is not a fact that needs explaining to a room full of other
+ * families.
+ */
+function mam_recital_gallery(int $recitalId): array {
+    $r = mam_recital($recitalId);
+    if (!$r || (string) $r['status'] !== 'completed') return [];
+    $out = [];
+    foreach (mam_recital_items($recitalId, ['performed', 'accepted']) as $it) {
+        if (!mam_recital_recording_published((int) $it['id'])) continue;
+        $out[] = [
+            'item_id'    => (int) $it['id'],
+            'title'      => (string) $it['title'],
+            'composer'   => $it['composer'],
+            'movement'   => $it['movement'],
+            'instrument' => $it['instrument'],
+            // The gallery is signed-in only, but it is still a shared page, so
+            // it follows the same naming rule as the printed programme.
+            'performer'  => mam_recital_public_name((int) $it['student_id'], (string) $it['student_name']),
+            'audio_url'  => '/api/media/recital-take?item=' . (int) $it['id'],
+        ];
+    }
+    return $out;
+}
+
+/**
+ * A guardian's view of one child's recital life: what is coming, and what they
+ * have already played.
+ *
+ * `slot_at` is the clock time that child steps out — computed from the same
+ * running order the printed programme uses, so a parent planning the evening
+ * reads exactly what the programme says rather than a second, drifting answer.
+ */
+function mam_recital_for_guardian(int $studentId): array {
+    $upcoming = []; $past = [];
+    foreach (mam_recital_for_student($studentId) as $it) {
+        $status  = (string) $it['recital_status'];
+        $itemSt  = (string) $it['status'];
+        // A guardian is shown what is real: a piece on a published programme,
+        // or one already performed. Proposals under consideration are the
+        // student's own business until a teacher has decided.
+        if (!in_array($itemSt, ['accepted', 'performed'], true)) continue;
+        if (!in_array($status, ['programmed', 'completed'], true)) continue;
+
+        $slot = null;
+        try {
+            foreach (mam_recital_programme_full((int) $it['recital_id'])['items'] as $row) {
+                if (!empty($row['id']) && (int) $row['id'] === (int) $it['id']) { $slot = $row['at']; break; }
+            }
+        } catch (\Throwable $e) { /* a missing programme must not hide the row */ }
+
+        $entry = [
+            'item_id'       => (int) $it['id'],
+            'recital_title' => (string) $it['recital_title'],
+            'slug'          => (string) $it['slug'],
+            'venue'         => $it['venue'],
+            'starts_at'     => $it['starts_at'],
+            'title'         => (string) $it['title'],
+            'composer'      => $it['composer'],
+            'instrument'    => $it['instrument'],
+            'slot_at'       => $slot,
+            'programme_url' => '/recital/' . $it['slug'],
+            'audio_url'     => mam_recital_recording_published((int) $it['id']) ? '/api/media/recital-take?item=' . (int) $it['id'] : null,
+        ];
+        if ($status === 'completed') $past[] = $entry; else $upcoming[] = $entry;
+    }
+    return ['upcoming' => $upcoming, 'past' => $past];
+}

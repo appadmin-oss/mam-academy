@@ -476,6 +476,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // student is ready to perform, not an office task.
         'recital_create' => 'curriculum', 'recital_update' => 'curriculum', 'recital_status' => 'curriculum',
         'recital_decide' => 'curriculum', 'recital_reorder' => 'curriculum', 'recital_add_item' => 'curriculum',
+        'recital_recording' => 'curriculum',
         'course_create' => 'curriculum', 'course_update' => 'curriculum', 'course_toggle' => 'curriculum',
         'program_create' => 'curriculum', 'program_update' => 'curriculum',
         'link_course' => 'curriculum', 'unlink_course' => 'curriculum',
@@ -1763,6 +1764,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 }
                 $n = mam_recital_reorder($rid, $order, $by);
                 header('Location: ' . $back . '&ok=' . urlencode($n . ' item' . ($n === 1 ? '' : 's') . ' repositioned.')); exit;
+            }
+            if ($action === 'recital_recording') {
+                // Publishing the evening. An empty submission clears it, which
+                // is how a family withdraws a recording after the fact.
+                $sub = ($_POST['submission_id'] ?? '') === '' ? null : (int)$_POST['submission_id'];
+                mam_recital_attach_recording((int)($_POST['item_id'] ?? 0), $sub, $by);
+                header('Location: ' . $back . '&ok=' . urlencode($sub === null ? 'Recording removed.' : 'Recording published to the listen-back gallery.')); exit;
             }
             if ($action === 'recital_add_item') {
                 $sid = (int)($_POST['student_id'] ?? 0);
@@ -3839,6 +3847,56 @@ nav a{display:flex;align-items:center}
       </script>
       <?php endif; ?>
     </section>
+
+    <?php
+      // The listen-back gallery is only meaningful once the night has happened,
+      // so the control appears exactly then rather than teasing staff earlier.
+      $galleryItems = mam_recital_items($recId, ['performed', 'accepted']);
+      if ($recOne['status'] === 'completed' && $galleryItems):
+    ?>
+    <section class="card" style="padding:18px;margin-bottom:18px">
+      <h2 style="margin:0 0 4px;font-size:1rem">Listen back — publish recordings</h2>
+      <p class="muted" style="margin:0 0 14px;font-size:.82rem">
+        Attach a student's recorded take to their performance. Published recordings are heard by signed-in members of the academy only, and only where the family has given <strong>media consent</strong> — a performer without it is simply absent from the gallery, with no explanation shown to anyone else.
+      </p>
+      <?php foreach ($galleryItems as $gi):
+        $opts    = mam_recital_available_recordings((int)$gi['student_id']);
+        $hasMedia = !function_exists('mam_consent_allows') || mam_consent_allows((int)$gi['student_id'], 'media');
+      ?>
+        <div style="border-top:1px solid var(--border);padding:12px 0;display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+          <div style="min-width:220px">
+            <strong><?= htmlspecialchars((string)$gi['title']) ?></strong><br>
+            <span style="color:var(--gold)"><?= htmlspecialchars((string)$gi['student_name']) ?></span>
+            <?php if (!$hasMedia): ?>
+              <br><span class="muted" style="font-size:.78rem">⚠ No media consent — will not appear in the gallery even if attached.</span>
+            <?php endif; ?>
+          </div>
+          <?php if (!$opts && $gi['submission_id'] === null): ?>
+            <span class="muted" style="font-size:.82rem">No recorded takes to attach yet.</span>
+          <?php else: ?>
+          <form method="post" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <?= mam_csrf_field() ?>
+            <input type="hidden" name="action" value="recital_recording">
+            <input type="hidden" name="recital_id" value="<?= $recId ?>">
+            <input type="hidden" name="item_id" value="<?= (int)$gi['id'] ?>">
+            <select name="submission_id" style="min-width:200px">
+              <option value="">— no recording —</option>
+              <?php foreach ($opts as $o): ?>
+                <option value="<?= (int)$o['id'] ?>" <?= (int)$gi['submission_id'] === (int)$o['id'] ? 'selected' : '' ?>>
+                  <?= htmlspecialchars(substr((string)$o['submitted_at'], 0, 16)) ?><?= $o['assignment_title'] ? ' · ' . htmlspecialchars((string)$o['assignment_title']) : '' ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+            <button class="btn tiny" type="submit">Save</button>
+            <?php if ($gi['submission_id'] !== null && $hasMedia): ?>
+              <a class="btn tiny ghost" href="/api/media/recital-take?item=<?= (int)$gi['id'] ?>" target="_blank" rel="noopener">Play ↗</a>
+            <?php endif; ?>
+          </form>
+          <?php endif; ?>
+        </div>
+      <?php endforeach; ?>
+    </section>
+    <?php endif; ?>
 
     <section class="card" style="padding:18px;margin-bottom:18px">
       <h2 style="margin:0 0 14px;font-size:1rem">Add a piece directly</h2>

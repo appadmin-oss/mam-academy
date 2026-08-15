@@ -94,6 +94,10 @@ $r->get ('/media/headshot',  $f('media-headshot.php'),  [mw_rate_limit('media_he
 // Practice takes (§1.4). Unlike headshots this proxy is ACCESS-GATED inside the
 // handler — a recording of a child playing is not "whoever holds the link".
 $r->get ('/media/take',      $f('media-take.php'),      [mw_rate_limit('media_take', 240, 600)]);
+// The recital listen-back gallery. Same audio files as /media/take, a
+// deliberately different lock: published performance + signed-in academy
+// member, rather than "your own recording". See api/lib/recital.php.
+$r->get ('/media/recital-take', $f('media-recital-take.php'), [mw_rate_limit('media_recital', 240, 600)]);
 $r->post('/summer/apply',  $f('summer/apply.php'),  [mw_csrf(), mw_rate_limit('summer_apply', 8, 600)]);
 $r->get ('/summer/status', $f('summer/status.php'), [mw_rate_limit('summer_status', 30, 600)]);
 // Gated tuition lookup for the /tuition payment page (reference + matching email).

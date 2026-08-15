@@ -107,6 +107,42 @@
           + '<div style="margin-top:3px"><strong>' + esc(nx.title || 'Session') + '</strong>' + (nx.cohort_title ? ' <span style="color:var(--text-muted)">· ' + esc(nx.cohort_title) + '</span>' : '') + ' — ' + esc(P.fmtDateTime(nx.scheduled_at)) + '</div></div>'
           + '</div></section>'
         : '';
+      // The Recital Hall, for the person who has to arrange the lift.
+      // Upcoming is deliberately first and visually loud: a date, a venue and
+      // the minute their child steps out is the most actionable thing on
+      // this page.
+      var rec = d.recitals || { upcoming: [], past: [] };
+      var recUp = (rec.upcoming || []).map(function (x) {
+        return '<div style="border-top:1px solid var(--border);padding:14px 0">'
+          + '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:baseline;justify-content:space-between">'
+          +   '<div><strong style="font-size:1.02rem">' + esc(x.recital_title) + '</strong>'
+          +     (x.venue ? '<span class="kpi-sub"> · ' + esc(x.venue) + '</span>' : '') + '</div>'
+          +   (x.slot_at ? '<div style="text-align:right"><span style="font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:700">Plays at</span><br><strong style="font-family:var(--font-display);font-size:1.5rem;color:var(--gold-bright)">' + esc(x.slot_at) + '</strong></div>' : '')
+          + '</div>'
+          + '<div style="margin-top:6px">' + esc(x.title) + (x.composer ? ' <span class="kpi-sub">· ' + esc(x.composer) + '</span>' : '') + (x.instrument ? ' <span class="kpi-sub">· ' + esc(x.instrument) + '</span>' : '') + '</div>'
+          + '<div class="kpi-sub" style="margin-top:4px">' + esc(x.starts_at ? P.fmtDateTime(x.starts_at) : 'Date to be confirmed')
+          +   ' · <a href="' + esc(x.programme_url) + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">See the full programme ↗</a></div>'
+          + '</div>';
+      }).join('');
+      var recPast = (rec.past || []).map(function (x) {
+        return '<div style="border-top:1px solid var(--border);padding:12px 0">'
+          + '<div><strong>' + esc(x.title) + '</strong>' + (x.composer ? ' <span class="kpi-sub">· ' + esc(x.composer) + '</span>' : '') + '</div>'
+          + '<div class="kpi-sub">' + esc(x.recital_title) + (x.starts_at ? ' · ' + esc(P.fmtDateTime(x.starts_at)) : '')
+          +   ' · <a href="' + esc(x.programme_url) + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">Programme ↗</a></div>'
+          // Only present when the recording was published AND the family
+          // consented — the server decides that, not this template.
+          + (x.audio_url ? '<audio controls preload="none" src="' + esc(x.audio_url) + '" style="width:100%;max-width:340px;height:34px;margin-top:8px"></audio>' : '')
+          + '</div>';
+      }).join('');
+      var recPanel = (recUp || recPast)
+        ? '<section class="panel" style="margin-top:18px' + (recUp ? ';border-color:var(--gold)' : '') + '">'
+          + '<div class="panel-head"><h2><i class="fa-solid fa-masks-theater" style="color:var(--gold-bright);margin-right:8px"></i>Recitals</h2></div>'
+          + '<div class="panel-body">'
+          + (recUp ? '<div style="font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-bright);font-weight:700">Coming up</div>' + recUp : '')
+          + (recPast ? '<div style="font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin-top:' + (recUp ? '18px' : '0') + '">Already performed</div>' + recPast : '')
+          + '</div></section>'
+        : '';
+
       var status = '<section class="panel"><div class="panel-head"><h2>This week</h2></div><div class="panel-body" style="display:grid;gap:8px">'
         + '<div>' + lightDot(w.attendance) + 'Attendance</div>'
         + '<div>Preparation: <strong>' + esc(w.preparation || 'not started') + '</strong></div>'
@@ -171,7 +207,7 @@
           + prog.map(function (p) { return '<li><strong>' + esc(p.title) + '</strong>' + (p.composer ? ' — ' + esc(p.composer) : '') + ' <span class="pill" style="font-size:.7rem">' + esc(p.status) + '</span></li>'; }).join('')
           + '</ol></div></section>'
         : '';
-      content.innerHTML = back + kpis + nextUp + status + badgesPanel + winsPanel + progPanel + fbPanel + consentPanel + resTbl + upTbl;
+      content.innerHTML = back + kpis + nextUp + recPanel + status + badgesPanel + winsPanel + progPanel + fbPanel + consentPanel + resTbl + upTbl;
       var bl = document.getElementById('backLink'); if (bl) bl.addEventListener('click', function (e) { e.preventDefault(); renderChildren(); });
       var cSave = document.getElementById('cSave');
       if (cSave) cSave.addEventListener('click', function () {

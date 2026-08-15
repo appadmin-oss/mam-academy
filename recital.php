@@ -22,7 +22,7 @@ if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
 $slug = trim((string) ($_GET['slug'] ?? ''));
 $e    = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
 
-$recital = null; $prog = null; $list = [];
+$recital = null; $prog = null; $list = []; $viewer = null; $gallery = [];
 if ($slug !== '') {
     $row = mam_recital_by_slug($slug);
     // A draft or an open call is not a programme yet — 404 rather than show a
@@ -30,6 +30,12 @@ if ($slug !== '') {
     if ($row && in_array((string) $row['status'], ['programmed', 'completed'], true)) {
         $recital = $row;
         $prog    = mam_recital_programme_full((int) $row['id']);
+        // The page is public, but a signed-in member of the academy sees more:
+        // the evening itself, if it was recorded and the families consented.
+        // Resolving the viewer here — rather than fetching after load — keeps
+        // the gallery in the server-rendered document like everything else.
+        $viewer  = function_exists('mam_session_user') ? mam_session_user() : null;
+        $gallery = $viewer ? mam_recital_gallery((int) $row['id']) : [];
     } else {
         http_response_code(404);
     }
@@ -123,6 +129,19 @@ $ogDesc    = $recital
   .interval{text-align:center;padding:22px 0;margin:8px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
   .interval span{font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:var(--muted);font-weight:700}
   .interval em{display:block;font-style:normal;font-size:.84rem;color:var(--faint);margin-top:4px;font-variant-numeric:tabular-nums}
+
+  .gallery-note{text-align:center;color:var(--muted);font-size:.88rem;max-width:52ch;margin:0 auto 20px}
+  .gallery-note a{color:var(--gold-deep)}
+  .rec{display:flex;align-items:center;gap:18px;padding:14px 0;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+  .rec:last-of-type{border-bottom:none}
+  .rec-meta{flex:1;min-width:200px}
+  .rec-meta strong{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.15rem;font-weight:600;display:block}
+  .rec-composer{display:block;font-size:.84rem;color:var(--muted)}
+  .rec-performer{display:block;font-size:.86rem;color:var(--gold-deep);font-weight:600;margin-top:2px}
+  .rec audio{height:36px;max-width:100%}
+  /* A recording cannot be printed. Drop the whole gallery from the paper
+     programme rather than printing a row of dead player widgets. */
+  @media print{.rec,.gallery-note{display:none}}
 
   .note{margin-top:40px;padding-top:26px;border-top:1px solid var(--rule);font-family:'Cormorant Garamond',Georgia,serif;font-size:1.06rem;color:var(--muted);white-space:pre-wrap}
   .colophon{margin-top:44px;text-align:center;font-size:.8rem;color:var(--faint)}
@@ -246,6 +265,29 @@ $ogDesc    = $recital
       <span>Running time approx. <b><?= (int) $prog['total_min'] ?> min</b></span>
       <?php if ($prog['ends_at']): ?><span>Ends about <b><?= $e($prog['ends_at']) ?></b></span><?php endif; ?>
     </div>
+  <?php endif; ?>
+
+  <?php if ($recital['status'] === 'completed'): ?>
+    <?php if ($gallery): ?>
+      <div class="section-head">Listen back</div>
+      <p class="gallery-note">Recordings from the night, shared with the academy. Please keep them within the MAM community.</p>
+      <?php foreach ($gallery as $g): ?>
+        <div class="rec">
+          <div class="rec-meta">
+            <strong><?= $e($g['title']) ?></strong>
+            <?php if ($g['composer']): ?><span class="rec-composer"><?= $e($g['composer']) ?></span><?php endif; ?>
+            <span class="rec-performer"><?= $e($g['performer']) ?><?= $g['instrument'] ? ' — ' . $e($g['instrument']) : '' ?></span>
+          </div>
+          <audio controls preload="none" src="<?= $e($g['audio_url']) ?>"></audio>
+        </div>
+      <?php endforeach; ?>
+    <?php elseif (!$viewer): ?>
+      <div class="section-head">Listen back</div>
+      <p class="gallery-note">
+        Recordings from this recital are shared with the MAM community.
+        <a href="/portal/login?next=<?= $e('/recital/' . $recital['slug']) ?>">Sign in</a> to listen.
+      </p>
+    <?php endif; ?>
   <?php endif; ?>
 
   <?php if ($recital['programme_note']): ?>

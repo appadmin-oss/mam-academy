@@ -200,3 +200,130 @@ t_eq($threw(fn() => mam_recital_withdraw($wItem, $RC_s2)), 'forbidden', 'a stude
 t_ok(mam_recital_withdraw($wItem, $RC_s1), 'the owner withdraws it');
 t_eq(mam_db_row('SELECT status FROM recital_items WHERE id = ?', [$wItem])['status'], 'withdrawn', 'and it is marked withdrawn, not deleted');
 t_ok(!mam_recital_withdraw($wItem, $RC_s1), 'withdrawing twice is a no-op');
+
+t_group('recital — the listen-back gallery');
+
+// A recital recording is NOT a practice take, and the gate differs on purpose.
+// Applying the take rule would give each parent a gallery of exactly one child.
+$RG_stu = mam_db_insert('users', ['name' => 'Grace Nwosu', 'email' => 'rg_stu@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+$RG_other = mam_db_insert('users', ['name' => 'Other Player', 'email' => 'rg_other@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+$RG_rid = mam_recital_create(['title' => 'Gallery Test Recital', 'starts_at' => '2026-06-01 18:00:00'], $RC_admin);
+mam_recital_set_status($RG_rid, 'open', $RC_admin);
+$RG_item = mam_recital_propose($RG_rid, $RG_stu, ['title' => 'Recorded Piece', 'duration_min' => 4]);
+mam_recital_decide($RG_item, 'accepted', $RC_admin);
+// A second performer with no recording, proposed now while the call is open —
+// the gallery must simply omit them later, without explanation.
+$RG_item2 = mam_recital_propose($RG_rid, $RG_other, ['title' => 'Unrecorded piece', 'duration_min' => 3]);
+mam_recital_decide($RG_item2, 'accepted', $RC_admin);
+
+// A real audio submission to attach.
+$RG_asg = mam_db_insert('assignments', ['student_id' => $RG_stu, 'title' => 'Recital take', 'status' => 'open']);
+$RG_take = mam_take_store("\x1A\x45\xDF\xA3" . str_repeat("\x00", 64));
+$RG_sub = mam_lms_submit($RG_asg, $RG_stu, $RG_take['url'], ['artifact_kind' => 'audio']);
+
+t_ok(mam_recital_attach_recording($RG_item, $RG_sub, $RC_admin), 'staff attach a recording to a performance');
+t_eq((int) mam_db_row('SELECT submission_id FROM recital_items WHERE id = ?', [$RG_item])['submission_id'], $RG_sub, 'and it is stored on the item');
+
+// Publishing one child's playing under another child's name would be the worst
+// mistake this feature could make, so ownership is checked, not trusted.
+$RG_asg2 = mam_db_insert('assignments', ['student_id' => $RG_other, 'title' => 'Other take', 'status' => 'open']);
+$RG_take2 = mam_take_store('OggS' . str_repeat("\x00", 64));
+$RG_sub2 = mam_lms_submit($RG_asg2, $RG_other, $RG_take2['url'], ['artifact_kind' => 'audio']);
+t_eq($threw(fn() => mam_recital_attach_recording($RG_item, $RG_sub2, $RC_admin)), 'not_their_recording', 'another student\'s recording cannot be attached');
+t_eq($threw(fn() => mam_recital_attach_recording($RG_item, 999999, $RC_admin)), 'recording_not_found', 'an unknown recording is refused');
+// A link submission is not a recording.
+$RG_link = mam_lms_submit($RG_asg, $RG_stu, 'https://example.com/page', ['artifact_kind' => 'link']);
+t_eq($threw(fn() => mam_recital_attach_recording($RG_item, $RG_link, $RC_admin)), 'not_audio', 'a non-audio submission is refused');
+
+// RULE 1 — nothing is listenable before the night. A programme is a promise.
+t_ok(!mam_recital_recording_published($RG_item), 'a recording is not published while the recital is only programmed');
+mam_recital_set_status($RG_rid, 'programmed', $RC_admin);
+t_ok(!mam_recital_recording_published($RG_item), 'still not, once merely programmed');
+mam_recital_set_status($RG_rid, 'completed', $RC_admin);
+
+// RULE 2 — media consent. The same flag that earns a full name on the
+// programme is the one families read as "you may record and share my child".
+mam_consent_set($RG_stu, ['media' => false, 'photo' => true, 'data' => true]);
+t_ok(!mam_recital_recording_published($RG_item), 'without media consent the recording stays unpublished');
+t_eq(count(mam_recital_gallery($RG_rid)), 0, 'and the gallery is empty');
+mam_consent_set($RG_stu, ['media' => true, 'photo' => true, 'data' => true]);
+t_ok(mam_recital_recording_published($RG_item), 'with media consent it is published');
+
+$gal = mam_recital_gallery($RG_rid);
+t_eq(count($gal), 1, 'the gallery carries the performance');
+t_eq($gal[0]['title'], 'Recorded Piece', 'with its work title');
+t_eq($gal[0]['audio_url'], '/api/media/recital-take?item=' . $RG_item, 'and a recital-scoped audio URL, not a raw storage key');
+t_ok(!array_key_exists('student_id', $gal[0]), 'the gallery leaks no internal student id');
+
+// RULE 3 — signed in. A recording of a child never goes on the open web,
+// however completed the recital or however freely the family consented.
+t_ok(!mam_recital_can_hear(null, $RG_item), 'a logged-out visitor cannot hear a performance');
+t_ok(!mam_recital_can_hear(['id' => 0], $RG_item), 'nor can a bogus user');
+t_ok(mam_recital_can_hear(['id' => $RC_admin], $RG_item), 'any signed-in academy member can');
+// Notably: a signed-in user who is NOT the performer or their family CAN hear
+// it. That is the point of a gallery — the audience is the evening's audience.
+t_ok(mam_recital_can_hear(['id' => $RG_other], $RG_item), 'another student can hear it — the gallery is the whole evening');
+
+// An item with no recording is simply absent; the gallery explains nothing.
+t_ok(!mam_recital_recording_published($RG_item2), 'an item with no recording is not published');
+t_ok(!in_array('Unrecorded piece', array_column(mam_recital_gallery($RG_rid), 'title'), true), 'and does not appear in the gallery at all');
+
+// Clearing is how a family withdraws a recording after the fact.
+t_ok(mam_recital_attach_recording($RG_item, null, $RC_admin), 'a recording can be cleared');
+t_ok(!mam_recital_recording_published($RG_item), 'and is then unpublished');
+t_eq(count(mam_recital_gallery($RG_rid)), 0, 'leaving the gallery empty again');
+mam_recital_attach_recording($RG_item, $RG_sub, $RC_admin);
+
+// A gallery only exists for a completed recital.
+t_eq(count(mam_recital_gallery($RC_dupe)), 0, 'a draft recital has no gallery');
+
+t_group('recital — the guardian view');
+
+$RG_parent = mam_parent_provision('rg_guardian@test.local', 'Ngozi Nwosu');
+mam_parent_link('rg_guardian@test.local', $RG_stu, 'mother');
+$RG_pid = (int) $RG_parent['user']['id'];
+
+$gv = mam_recital_for_guardian($RG_stu);
+t_ok(isset($gv['upcoming']) && isset($gv['past']), 'the guardian view splits upcoming from performed');
+t_eq(count($gv['past']), 1, 'the completed recital appears under past');
+t_eq($gv['past'][0]['recital_title'], 'Gallery Test Recital', 'named');
+t_eq($gv['past'][0]['programme_url'], '/recital/' . mam_recital($RG_rid)['slug'], 'with a link to the programme they can share');
+t_ok($gv['past'][0]['audio_url'] !== null, 'and the recording, since it is published');
+
+// The slot time must match the printed programme exactly — a guardian planning
+// the evening must not be given a second, drifting answer.
+$RG_up = mam_recital_create(['title' => 'Guardian Slot Recital', 'starts_at' => '2027-01-10 15:00:00'], $RC_admin);
+mam_recital_set_status($RG_up, 'open', $RC_admin);
+$slotA = mam_recital_propose($RG_up, $RG_other, ['title' => 'First up', 'duration_min' => 7]);
+$slotB = mam_recital_propose($RG_up, $RG_stu,   ['title' => 'Second up', 'duration_min' => 5]);
+mam_recital_decide($slotA, 'accepted', $RC_admin);
+mam_recital_decide($slotB, 'accepted', $RC_admin);
+mam_recital_set_status($RG_up, 'programmed', $RC_admin);
+
+$gv2 = mam_recital_for_guardian($RG_stu);
+$upRow = array_values(array_filter($gv2['upcoming'], fn($x) => $x['recital_title'] === 'Guardian Slot Recital'))[0] ?? null;
+t_ok($upRow !== null, 'a programmed recital appears under upcoming');
+t_eq($upRow['slot_at'], '15:07', 'the slot time is when this child actually steps out (15:00 + a 7-minute opener)');
+$progRow = array_values(array_filter(mam_recital_programme_full($RG_up)['items'], fn($x) => (int) ($x['id'] ?? 0) === $slotB))[0];
+t_eq($upRow['slot_at'], $progRow['at'], 'and it matches the printed programme exactly');
+t_ok($upRow['audio_url'] === null, 'an upcoming performance has no recording yet');
+
+// A guardian is shown what is real. A proposal still under consideration is
+// the student's own business until a teacher has decided.
+$RG_pending = mam_recital_create(['title' => 'Pending Recital'], $RC_admin);
+mam_recital_set_status($RG_pending, 'open', $RC_admin);
+mam_recital_propose($RG_pending, $RG_stu, ['title' => 'Still deciding', 'duration_min' => 3]);
+$gv3 = mam_recital_for_guardian($RG_stu);
+$titles = array_column(array_merge($gv3['upcoming'], $gv3['past']), 'title');
+t_ok(!in_array('Still deciding', $titles, true), 'an undecided proposal is not shown to a guardian');
+
+// And a declined one never is either.
+$decl = mam_recital_propose($RG_pending, $RG_stu, ['title' => 'Turned down', 'duration_min' => 3]);
+mam_recital_decide($decl, 'declined', $RC_admin);
+$titles2 = array_column(array_merge(mam_recital_for_guardian($RG_stu)['upcoming'], mam_recital_for_guardian($RG_stu)['past']), 'title');
+t_ok(!in_array('Turned down', $titles2, true), 'nor is a declined one');
+
+// It reaches the guardian payload the portal actually renders.
+$detail = mam_parent_child_detail($RG_pid, $RG_stu);
+t_ok(isset($detail['recitals']['upcoming']) && isset($detail['recitals']['past']), 'child detail carries the recital block');
+t_eq(count($detail['recitals']['past']), 1, 'with the performed recital in it');

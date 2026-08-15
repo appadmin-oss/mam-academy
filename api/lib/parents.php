@@ -167,6 +167,10 @@ function mam_parent_child_detail(int $parentId, int $studentId): array {
         // §5.2 — the four numbers a guardian actually opens the page for,
         // computed once here rather than derived ad hoc in the portal.
         'value_kpis'   => mam_parent_value_kpis($studentId, $report),
+        // The Recital Hall — what the child is performing, when they step out,
+        // and what they have already played. The single most useful thing a
+        // guardian can be told, and it was previously nowhere in this payload.
+        'recitals'     => function_exists('mam_recital_for_guardian') ? mam_recital_for_guardian($studentId) : ['upcoming' => [], 'past' => []],
     ];
 }
 
