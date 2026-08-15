@@ -328,6 +328,10 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->get ('/curriculum',         $f('admin/curriculum.php'),         [mw_admin_cap('curriculum')]);
     $r->post('/curriculum',         $f('admin/curriculum.php'),         [mw_csrf(), mw_admin_cap('curriculum'), mw_rate_limit('curriculum', 120, 600)]);
     // Assign admin tiers (super-only).
+    // Inline field editing (§4.4). The per-field admin capability is enforced
+    // INSIDE the handler, from the field's own allowlist entry — a blanket cap
+    // here would mean whoever may rename a cohort may rewrite the catalogue.
+    $r->post('/inline-edit',     $f('admin/inline-edit.php'),    [mw_csrf(), mw_user(), mw_rate_limit('inline_edit', 240, 600)]);
     $r->post('/set-admin-tier',  $f('admin/set-admin-tier.php'), [mw_csrf(), mw_admin_cap('rbac')]);
     $r->post('/set-student-type', $f('admin/set-student-type.php'), [mw_csrf(), mw_admin_cap('users')]);
     $r->post('/wallet-credit',    $f('admin/wallet-credit.php'),    [mw_csrf(), mw_admin_cap('users')]);

@@ -2134,6 +2134,22 @@ header.top h1{font-family:var(--font-serif);font-size:2.1rem;font-weight:700;let
 .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
 .btn.ghost:hover{border-color:var(--gold);color:var(--gold);background:rgba(224,138,26,0.06);box-shadow:none;filter:none}
 .btn.ghost:active{transform:translateY(1px)}
+/* Inline edit (§4.4). The cell must look editable BEFORE it is hovered —
+   a control discoverable only by hovering is not discoverable. */
+.ie-cell{cursor:text;border-bottom:1px dashed var(--border);border-radius:3px;padding:1px 3px;margin:-1px -3px;transition:background-color .12s ease}
+.ie-cell:hover{background:rgba(232,150,31,.10);border-bottom-color:var(--gold)}
+.ie-cell:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.ie-cell.is-saving{opacity:.55}
+.ie-cell.is-saved{background:rgba(52,211,153,.16);border-bottom-color:#34D399}
+.ie-cell.is-error{background:rgba(248,113,113,.18);border-bottom-color:#F87171}
+.ie-input{width:100%;min-width:80px;padding:3px 5px;border:1px solid var(--gold);border-radius:5px;background:var(--bg);color:var(--text);font:inherit}
+.ie-toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.ie-toast{display:flex;align-items:center;gap:14px;padding:11px 16px;border:1px solid var(--border);border-radius:12px;background:var(--panel);box-shadow:0 12px 40px rgba(0,0,0,.45);font-size:.86rem;pointer-events:auto;max-width:min(92vw,460px)}
+.ie-undo{border:1px solid var(--gold);background:transparent;color:var(--gold);border-radius:7px;padding:4px 12px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
+.ie-undo:hover{background:var(--gold);color:#1B140D}
+.ie-undo:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){.ie-cell{transition:none}}
+
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:36px}
 .kpi{padding:18px 18px 16px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r)}
 .kpi-label{font-size:0.68rem;color:var(--faint);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-weight:700}
@@ -4492,7 +4508,7 @@ nav a{display:flex;align-items:center}
       if (!$classes): ?><tr><td colspan="9" class="empty">No classes yet</td></tr><?php endif;
       foreach ($classes as $c): ?>
         <tr>
-          <td><strong><?= htmlspecialchars($c['title']) ?></strong><br><span class="muted mono">#<?= (int)$c['id'] ?></span></td>
+          <td><strong data-ie-table="classes" data-ie-column="title" data-ie-id="<?= (int)$c['id'] ?>" data-ie-label="Class title"><?= htmlspecialchars($c['title']) ?></strong><br><span class="muted mono">#<?= (int)$c['id'] ?></span></td>
           <td><?= htmlspecialchars((string)($c['discipline'] ?? '—')) ?></td>
           <td class="muted"><?= htmlspecialchars((string)($c['pathway'] ?? '—')) ?></td>
           <td><?= htmlspecialchars((string)($c['instructor_name'] ?? '— unassigned —')) ?></td>
@@ -5014,7 +5030,7 @@ nav a{display:flex;align-items:center}
         $fillColor = $capacity < 999 ? ($isFull ? '#F87171' : ($enrolled / $capacity >= 0.8 ? '#FBBF24' : '#34D399')) : 'var(--muted)';
       ?>
         <tr>
-          <td><strong><?= htmlspecialchars((string)($co['title'] ?: ('Cohort #' . $co['id']))) ?></strong><?= $lcid ? '<br><span class="muted" style="font-size:.74rem">from class #' . $lcid . '</span>' : '' ?></td>
+          <td><strong data-ie-table="cohorts" data-ie-column="title" data-ie-id="<?= (int)$co['id'] ?>" data-ie-label="Cohort title" data-ie-value="<?= htmlspecialchars((string)$co['title']) ?>"><?= htmlspecialchars((string)($co['title'] ?: ('Cohort #' . $co['id']))) ?></strong><?= $lcid ? '<br><span class="muted" style="font-size:.74rem">from class #' . $lcid . '</span>' : '' ?></td>
           <td><?= htmlspecialchars((string)($co['course_name'] ?? $co['discipline'] ?? '—')) ?><?= !empty($co['level_name']) ? '<br><span class="muted" style="font-size:.8rem">' . htmlspecialchars((string)$co['level_name']) . '</span>' : '' ?></td>
           <td><?= htmlspecialchars((string)($co['instructor_name'] ?? '—')) ?></td>
           <td>
@@ -6833,11 +6849,13 @@ nav a{display:flex;align-items:center}
     <?php foreach ($items as $i): ?>
       <tr>
         <td class="mono"><?= htmlspecialchars($i['sku']) ?></td>
-        <td><?= htmlspecialchars($i['name']) ?></td>
+        <?php /* §4.4 — name and stock edit in place; price does NOT (what a
+                 customer is charged keeps its full form + confirmation). */ ?>
+        <td><span data-ie-table="store_items" data-ie-column="name" data-ie-id="<?= (int)$i['id'] ?>" data-ie-label="Item name"><?= htmlspecialchars($i['name']) ?></span></td>
         <td><?= htmlspecialchars($i['goods_type']) ?></td>
         <td><?= mam_admin_money((float)$i['price_usd']) ?></td>
         <td><?= htmlspecialchars($i['category'] ?? '') ?></td>
-        <td><?= (int)$i['stock'] === -1 ? '∞' : (int)$i['stock'] ?></td>
+        <td><span data-ie-table="store_items" data-ie-column="stock" data-ie-id="<?= (int)$i['id'] ?>" data-ie-type="int" data-ie-label="Item stock" data-ie-value="<?= (int)$i['stock'] ?>"><?= (int)$i['stock'] === -1 ? '∞' : (int)$i['stock'] ?></span></td>
         <td><?= htmlspecialchars(str_replace('_',' ', $i['availability'])) ?></td>
         <td><?= (int)$i['active'] ? '<span style="color:#34D399">●</span>' : '<span style="color:#FCA5A5">●</span>' ?></td>
         <td style="display:flex;gap:6px">
@@ -8675,5 +8693,8 @@ window.backfillEnrollRefs = function (btn) {
   sync();
 })();
 </script>
+<!-- §4.4 inline edit. Loaded last: it decorates cells that already exist, and
+     it relies on window.mamFetch (defined in the head) for CSRF + retry. -->
+<script src="/assets/js/inline-edit.js?v=20260815a" defer></script>
 </body>
 </html>
