@@ -633,6 +633,52 @@ is why it kept getting rediscovered. Roughly a third of the system.
 - **Academic email engine** (`academic-emails.php`) — event-driven transactional
   academic mail.
 
+### The attendance clock, mastery, and the unified record (schema v81)
+
+Closed the last gaps in the academic proposal (see
+`docs/spec-conformance-2026-08-15.md` for the full §1–§47 matrix).
+
+- **`session_attendance` was rebuilt** to carry §12's SEVEN statuses (the CHECK
+  admitted only four; `left_early`, `technical_failure` and `rescheduled` had to
+  be recorded as an `absent` that misrepresented what happened), the §16 `mode`
+  (onsite/online/hybrid — one unified record across all three), and the clock's
+  other half: `clocked_out_at`, `duration_min`, `minutes_late`. It is a leaf
+  table, which is the only reason the rebuild is safe; it runs `@no-tx` so it can
+  toggle `PRAGMA foreign_keys`. `class_sessions.mode` was added alongside.
+  ⚠️ **Durations are STORED, never recomputed on read** — a session's
+  `scheduled_at` can be edited afterwards and the record of what actually
+  happened must not move with it.
+- **`mam_checkin_window()` is the ONE source for §9's boundaries** — the
+  30-minute opening (`checkin_open_before_min`), the 15-minute readiness
+  threshold (`readiness_before_min`) and the notice sentence. The student portal
+  used to hardcode `READY = 15` in the browser, so an academy that changed the
+  setting got a page that disagreed with the gate. Don't reintroduce a
+  client-side boundary. `mam_checkin_next_class()` is the §8 panel.
+- **`mam_checkin_clock_out()` measures time PRESENT**, from the later of
+  check-in and scheduled start — a student who arrives 20 minutes late and
+  leaves at once has a duration near zero, and that is correct, not a bug. It
+  derives `left_early` with a 5-minute tolerance so packing up isn't an event.
+- **`mastery.php` (§23-24).** Two rules that are easy to "fix" into being wrong:
+  a component with NO evidence is **excluded and the weights renormalised**
+  (scoring an unassessed beginner 0 reports them as failing), and **attendance
+  and punctuality are never components** — §24 requires them beside the score so
+  musical ability isn't confused with disciplinary performance. A new student's
+  score is `null` at level 0 ("not assessed"), which is a different statement
+  from zero. Rubric criteria map to components by LABEL, and `theory` is tested
+  before `musical_accuracy` because §20's own criterion is "Score/Notation
+  Accuracy" — checking 'accuracy' first swallows it.
+- **`accountability.php` gained §15 and two §37 statuses.** An admin could waive
+  a charge but nobody could ASK. A request carries one of seven reason codes,
+  moves the charge to `pending` while open (a student shouldn't see a debt the
+  academy hasn't decided is owed), and on rejection restores `outstanding` —
+  §15's "Rejected — Charge Maintained", not a drop. `disputed` is non-terminal
+  and still counts as owed; `MAM_ACCT_OWED` is the predicate, not `= 'outstanding'`.
+- **`academic-record.php` (§43)** is read-only and owns no table: it delegates to
+  the lib that owns each of the fourteen sections so it can't drift. Note it
+  dual-reads both enrolment models (gotcha #2) — a half-record would be wrong —
+  and joins `mail_log` on the account's current email, since that table is keyed
+  by address, not user id.
+
 ## Advanced Modernization (~31 features shipped)
 
 Driven by `MAMAcademyAdvancedModernizationFeatures.md` (§1–§8). ⚠️ **That spec
@@ -701,6 +747,10 @@ Two conventions these established:
 ## Where to look
 - **Index/map: `docs/codebase-index-2026-08-15.md`** — libs, routes, schema,
   tests, findings. Start here for "where does X live".
+- **Spec conformance: `docs/spec-conformance-2026-08-15.md`** — the academic
+  proposal (§1–§47) checked section by section against real code, with the two
+  genuinely outstanding items and the three things that look like gaps but
+  aren't. Read it before claiming any part of that spec is missing.
 - Audits: `docs/codebase-audit-2026-06-22.md` (security/correctness),
   `docs/portal-audit-2026-06-22.md` (portal logic/UX). Proposals: `docs/*-proposal.md`.
 - Deploy/runbook: `DEPLOYMENT.md`. Env reference: `api/.env.example`.

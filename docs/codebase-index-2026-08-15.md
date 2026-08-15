@@ -415,3 +415,41 @@ These are for the academy to decide; none is a bug to fix.
   connections, which shared hosting behind Cloudflare is hostile to; §4.6
   WhatsApp/SMS needs a provider account and keys. Both should stay unbuilt
   rather than ship dead buttons.
+
+
+---
+
+## Addendum — 2026-08-15: the academic-spec conformance pass
+
+The proposal *Digital Academic, Learning, Attendance & Performance Management
+System* (§1–§47) was checked section by section against real code. The full
+matrix, with evidence per section, is **`docs/spec-conformance-2026-08-15.md`**.
+
+**44 of 47 sections implemented.** Five gaps were found and closed in the same
+pass (commits `56ddf1c`, `2cdfdda`):
+
+| Gap | Closed by |
+|---|---|
+| §9 15-minute readiness threshold (only the 30-minute gate existed, and the portal hardcoded its own) | `mam_checkin_window()` + `mam_checkin_next_class()` |
+| §10 clock-out, duration, exit time (only clock-in existed, and only for instructors) | `mam_checkin_clock_out()`, `session_attendance` v81 columns |
+| §12 three missing attendance statuses; §16 modes absent entirely | `MAM_ATTENDANCE_STATUSES` / `_MODES`, `session_attendance` rebuild |
+| §15 exception requests; §37 `pending` + `disputed` | `accountability.php` request → decision flow, `accountability_exceptions` |
+| §23 six-level scale, §24 MAM Mastery Score, §43 unified record | `api/lib/mastery.php`, `api/lib/academic-record.php` |
+
+New libs: `mastery`, `academic-record` (both registered in `bootstrap.php` AND
+`api/tests/run.php` — gotcha #1). New routes: `GET /api/student/mastery`,
+`POST /api/student/accountability`, `POST /api/instructor/attendance-status`,
+`GET /api/admin/academic-record`. New admin view `?v=record`. Schema **v81**.
+Tests: `test_attendance_clock.php`, `test_mastery.php`,
+`test_exceptions_record.php` (~160 assertions; suite 2311 → 2471).
+
+**Still open, and why** — neither is blocked by a design problem:
+- **§11 live Google Meet fetch.** CSV/Jitsi reconciliation is complete and in
+  use; `mam_meeting_google_fetch()` is a documented scaffold returning null
+  until a Workspace service account exists. §11 itself sanctions the current
+  fallback.
+- **§34/§35 a separate Upper Admin portal.** Every metric and drill-down §34
+  and §35 ask for is shipped (`mam_analytics2_academy_health()`,
+  `_instructor_performance()`, admin `?v=academic`), but they live in the admin
+  portal behind `mam_admin_tier()` + capability gating rather than a fifth front
+  end. That is a product decision to take deliberately, not leftover work.
