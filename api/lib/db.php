@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 73;
+const MAM_SCHEMA_TARGET = 74;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2211,6 +2211,18 @@ function mam_db_migrate(PDO $db): void {
               created_at    TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_submarkers_sub ON submission_markers(submission_id, at_seconds);
+        ",
+        // v74 — achievements (Advanced Modernization §3.1): warm, specific badges
+        // tied to real progress, awarded once per (student, code).
+        74 => "
+            CREATE TABLE achievements (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              code       TEXT NOT NULL,
+              title      TEXT NOT NULL,
+              awarded_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_ach_unique ON achievements(student_id, code);
         ",
     ];
 

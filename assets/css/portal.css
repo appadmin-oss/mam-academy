@@ -582,3 +582,7 @@ html.a11y-lowbw .portal-avatar{background:var(--gold);color:#1B2430}
 .cmdk-fab:focus-visible{outline:3px solid var(--gold-bright);outline-offset:3px}
 html.a11y-lowbw .cmdk-fab{box-shadow:none}
 @media print{.cmdk-fab{display:none}}
+
+/* ── Achievement badges (Advanced Modernization §3.1) ── */
+.badge-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;background:linear-gradient(135deg,rgba(224,138,26,.14),rgba(251,191,36,.07));border:1px solid var(--border-gold);color:var(--gold-bright);font-size:.82rem;font-weight:600}
+.badge-chip i{font-size:.9rem}

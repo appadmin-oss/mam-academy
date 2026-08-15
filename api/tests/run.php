@@ -93,6 +93,7 @@ require $ROOT . '/lib/idempotency.php';      // idempotency cache helpers (v51)
 require $ROOT . '/lib/promo.php';            // promotional email banner helpers (v55)
 require $ROOT . '/lib/uploads.php';      // first-party headshot storage
 require $ROOT . '/lib/cards.php';            // ID card mint/verify/revoke/email (v56)
+require $ROOT . '/lib/achievements.php';     // badges + guardian wins feed (§3.1/§3.5)
 
 require __DIR__ . '/assert.php';
 

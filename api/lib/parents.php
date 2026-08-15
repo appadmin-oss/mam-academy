@@ -136,6 +136,9 @@ function mam_parent_child_detail(int $parentId, int $studentId): array {
         // §26 — instructor feedback on the child's work, so guardians see the
         // qualitative remarks, not only grades.
         'instructor_feedback' => mam_parent_instructor_feedback($studentId),
+        // §3.1/§3.5 — badges earned and the gentle "wins" stream.
+        'achievements' => function_exists('mam_ach_evaluate') ? mam_ach_evaluate($studentId) : [],
+        'wins'         => function_exists('mam_wins_feed') ? mam_wins_feed($studentId, 12) : [],
     ];
 }
 

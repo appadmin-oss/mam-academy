@@ -170,7 +170,7 @@ function mam_checkin_xp(int $studentId): int {
  * miss. Session-based rather than calendar-based, so it works whatever the
  * cadence.
  */
-function mam_checkin_streak(int $studentId): int {
+function mam_checkin_streak(int $studentId, int $grace = 0): int {
     $cohorts = mam_checkin_student_cohorts($studentId);
     if (!$cohorts) return 0;
     $ph  = implode(',', array_fill(0, count($cohorts), '?'));
@@ -181,11 +181,15 @@ function mam_checkin_streak(int $studentId): int {
           ORDER BY cs.scheduled_at DESC LIMIT 200",
         array_merge($cohorts, [$now])
     );
-    $streak = 0;
+    // §3.2 — a streak "freeze": up to $grace missed sessions are tolerated
+    // (skipped, not counted) before the streak breaks, so one missed day does
+    // not erase weeks of consistency.
+    $streak = 0; $skips = 0;
     foreach ($sessions as $s) {
         $att = mam_db_row('SELECT status FROM session_attendance WHERE session_id = ? AND student_id = ?', [(int) $s['id'], $studentId]);
         if ($att && in_array((string) $att['status'], ['present', 'late'], true)) { $streak++; continue; }
-        break; // first miss (or unmarked past session) ends the streak
+        if ($skips < $grace) { $skips++; continue; } // freeze absorbs this miss
+        break; // first unprotected miss ends the streak
     }
     return $streak;
 }
@@ -279,7 +283,8 @@ function mam_checkin_dashboard(int $studentId): array {
         'total_weeks'      => $totalWeeks,
         'cohort'           => $cohort ? ['id' => (int) $cohort['id'], 'title' => $cohort['title']] : null,
         'xp'               => mam_checkin_xp($studentId),
-        'streak'           => mam_checkin_streak($studentId),
+        'streak'           => mam_checkin_streak($studentId, 1), // §3.2 humane: one missed day is protected
+        'streak_grace'     => 1,
         'lessons_completed'=> (int) (mam_db_row("SELECT COUNT(*) c FROM lesson_progress WHERE student_id = ? AND status = 'completed'", [$studentId])['c'] ?? 0),
         'attendance_rate'  => mam_checkin_attendance_rate($studentId),
         'next_session'     => $next ? ['id' => (int) $next['id'], 'title' => $next['title'], 'scheduled_at' => $next['scheduled_at'], 'cohort_title' => $next['cohort_title']] : null,

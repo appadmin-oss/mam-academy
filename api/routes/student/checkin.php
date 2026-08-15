@@ -30,8 +30,9 @@ $statusFor = function (string $code): int {
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $cfg = mam_checkin_config();
     mam_ok([
-        'dashboard' => mam_checkin_dashboard($uid),
-        'config'    => [
+        'dashboard'    => mam_checkin_dashboard($uid),
+        'achievements' => function_exists('mam_ach_evaluate') ? mam_ach_evaluate($uid) : [],
+        'config'       => [
             'self_enabled'     => $cfg['self_enabled'],
             'geofence_enabled' => $cfg['geofence_enabled'],
             'late_grace_min'   => $cfg['late_grace_min'],

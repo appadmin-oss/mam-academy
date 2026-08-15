@@ -1209,7 +1209,18 @@
           + '<span>Outstanding punctuality charges: <strong>$' + (d.accountability.outstanding_usd_cents / 100).toFixed(2) + '</strong>. Please speak to the academy office if you believe this is in error.</span>'
           + '</div></section>';
       }
-      content.innerHTML = acctBanner + kpis
+      // §3.1 achievements + §3.2 humane-streak note.
+      var ach = (r && r.achievements) || [];
+      var badgeIcon = { first_submission: 'paper-plane', first_accepted: 'circle-check', streak_7: 'fire', streak_30: 'fire-flame-curved', practice_10h: 'clock', practice_50h: 'stopwatch', level_pass: 'graduation-cap' };
+      var badges = ach.length
+        ? '<section class="panel" style="margin-bottom:14px"><div class="panel-head"><h2><i class="fa-solid fa-award" style="color:var(--gold-bright);margin-right:8px"></i>Achievements</h2></div><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap">'
+          + ach.map(function (a) { return '<span class="badge-chip"><i class="fa-solid fa-' + (badgeIcon[a.code] || 'award') + '"></i> ' + P.escapeHtml(a.title) + '</span>'; }).join('')
+          + '</div></section>'
+        : '';
+      var freezeNote = (d.streak || 0) > 0
+        ? '<p class="kpi-sub" style="margin:-4px 0 14px;color:var(--text-muted)"><i class="fa-solid fa-shield-halved" style="margin-right:5px;color:var(--gold-bright)"></i>Your streak has a freeze — one missed session won’t reset it.</p>'
+        : '';
+      content.innerHTML = acctBanner + kpis + freezeNote + badges
         + P.panel('Today', todayBody, '')
         + '<div style="margin-top:18px">' + P.panel('Next session', nextBody, '') + '</div>';
       var btn = document.getElementById('checkinBtn');

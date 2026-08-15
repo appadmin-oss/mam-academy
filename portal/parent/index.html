@@ -124,7 +124,21 @@
             }).join('')
           + '</div></section>'
         : '';
-      content.innerHTML = back + kpis + status + resTbl + fbPanel + upTbl;
+      // §3.1/§3.5 — badges + the gentle "wins" stream (the parent's emotional dashboard).
+      var ach = d.achievements || [];
+      var badgeIcon = { first_submission: 'paper-plane', first_accepted: 'circle-check', streak_7: 'fire', streak_30: 'fire-flame-curved', practice_10h: 'clock', practice_50h: 'stopwatch', level_pass: 'graduation-cap' };
+      var badgesPanel = ach.length
+        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Achievements</h2></div><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap">'
+          + ach.map(function (a) { return '<span class="badge-chip"><i class="fa-solid fa-' + (badgeIcon[a.code] || 'award') + '"></i> ' + esc(a.title) + '</span>'; }).join('')
+          + '</div></section>'
+        : '';
+      var wins = d.wins || [];
+      var winsPanel = wins.length
+        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Recent wins</h2></div><div class="panel-body" style="display:grid;gap:9px">'
+          + wins.map(function (w) { return '<div style="display:flex;gap:10px;align-items:baseline"><i class="fa-solid fa-' + esc(w.icon || 'star') + '" style="color:var(--gold-bright);width:16px;text-align:center"></i><span>' + esc(w.text) + '</span><span style="margin-left:auto;font-size:.76rem;color:var(--text-muted)">' + esc(String(w.at || '').slice(0, 10)) + '</span></div>'; }).join('')
+          + '</div></section>'
+        : '';
+      content.innerHTML = back + kpis + status + badgesPanel + winsPanel + fbPanel + resTbl + upTbl;
       var bl = document.getElementById('backLink'); if (bl) bl.addEventListener('click', function (e) { e.preventDefault(); renderChildren(); });
     }).catch(function () { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load this child right now.') + '</div></section>'; });
   }

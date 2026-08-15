@@ -2042,3 +2042,16 @@ CREATE TABLE IF NOT EXISTS submission_markers (
   CONSTRAINT fk_submarker_author FOREIGN KEY (author_id)     REFERENCES users(id)       ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (73) ON DUPLICATE KEY UPDATE version = version;
+
+-- v74: achievements (Advanced Modernization §3.1) — warm badges tied to real
+-- progress, awarded once per (student, code).
+CREATE TABLE IF NOT EXISTS achievements (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT          NOT NULL,
+  code       VARCHAR(48)  NOT NULL,
+  title      VARCHAR(160) NOT NULL,
+  awarded_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_ach_unique (student_id, code),
+  CONSTRAINT fk_ach_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (74) ON DUPLICATE KEY UPDATE version = version;
