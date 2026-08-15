@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 76;
+const MAM_SCHEMA_TARGET = 77;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2256,6 +2256,22 @@ function mam_db_migrate(PDO $db): void {
             CREATE INDEX idx_rep_student ON repertoire(student_id, status);
             ALTER TABLE assignments ADD COLUMN reference_url TEXT;
             ALTER TABLE assignments ADD COLUMN reference_kind TEXT;
+        ",
+        // v77 — practice challenges (Advanced Modernization §3.3): a time-boxed
+        // personal goal (N sessions or N minutes in a window), progress derived
+        // from practice_logs.
+        77 => "
+            CREATE TABLE practice_challenges (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              title      TEXT NOT NULL,
+              metric     TEXT NOT NULL DEFAULT 'sessions',
+              target     INTEGER NOT NULL DEFAULT 1,
+              starts_on  TEXT NOT NULL,
+              ends_on    TEXT NOT NULL,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_challenge_student ON practice_challenges(student_id, ends_on);
         ",
     ];
 

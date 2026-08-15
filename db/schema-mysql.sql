@@ -2093,3 +2093,19 @@ ALTER TABLE assignments
   ADD COLUMN reference_url  VARCHAR(500) NULL,
   ADD COLUMN reference_kind VARCHAR(12)  NULL;
 INSERT INTO schema_version (version) VALUES (76) ON DUPLICATE KEY UPDATE version = version;
+
+-- v77: practice challenges (Advanced Modernization §3.3) — a time-boxed personal
+-- goal; progress is derived from practice_logs.
+CREATE TABLE IF NOT EXISTS practice_challenges (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT          NOT NULL,
+  title      VARCHAR(160) NOT NULL,
+  metric     VARCHAR(16)  NOT NULL DEFAULT 'sessions',
+  target     INT          NOT NULL DEFAULT 1,
+  starts_on  DATE         NOT NULL,
+  ends_on    DATE         NOT NULL,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_challenge_student (student_id, ends_on),
+  CONSTRAINT fk_challenge_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (77) ON DUPLICATE KEY UPDATE version = version;

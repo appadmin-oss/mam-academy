@@ -946,6 +946,47 @@
       .catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update repertoire.', 'error'); });
   }
 
+  // ── Practice challenges (§3.3) ───────────────────────────────────────────
+  function loadChallenges() {
+    var area = document.getElementById('challengesArea'); if (!area) return;
+    API.request('student/challenges', { method: 'GET' }).then(function (r) { renderChallenges(r.challenges || []); }).catch(function () {});
+  }
+  function renderChallenges(list) {
+    var area = document.getElementById('challengesArea'); if (!area) return;
+    var active = list.filter(function (c) { return c.active; });
+    var cards = active.map(function (c) {
+      var col = c.done ? '#34D399' : 'var(--gold-bright)', unit = c.metric === 'minutes' ? 'min' : 'sessions';
+      return '<div style="display:flex;align-items:center;gap:16px;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg-raised)">'
+        + '<div class="prog-ring" style="--pct:' + c.pct + ';--col:' + col + '"><span>' + c.pct + '%</span></div>'
+        + '<div style="flex:1"><strong>' + P.escapeHtml(c.title) + '</strong>' + (c.done ? ' <i class="fa-solid fa-circle-check" style="color:#34D399"></i>' : '') + '<br><span style="color:var(--text-muted);font-size:.84rem">' + c.progress + ' / ' + c.target + ' ' + unit + ' · ends ' + P.fmtDate(c.ends_on) + '</span></div>'
+        + '<button class="ch-del" data-id="' + c.id + '" title="Remove" style="background:none;border:0;color:var(--text-muted);cursor:pointer"><i class="fa-solid fa-xmark"></i></button>'
+        + '</div>';
+    }).join('');
+    area.innerHTML = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-bullseye" style="color:var(--gold-bright);margin-right:8px"></i>Practice challenges</h2></div><div class="panel-body" style="display:grid;gap:10px">'
+      + (active.length ? cards : empty('bullseye', 'No active challenge. Set one below to build momentum.'))
+      + '<form id="chForm" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:6px;padding-top:12px;border-top:1px solid var(--border)">'
+      +   '<div class="field" style="flex:2;min-width:160px;margin:0"><label>Goal</label><input id="ch-title" placeholder="e.g. Practise 4× this week" required></div>'
+      +   '<div class="field" style="width:90px;margin:0"><label>Target</label><input id="ch-target" type="number" min="1" value="4"></div>'
+      +   '<div class="field" style="width:120px;margin:0"><label>Metric</label><select id="ch-metric"><option value="sessions">Sessions</option><option value="minutes">Minutes</option></select></div>'
+      +   '<div class="field" style="width:130px;margin:0"><label>Window</label><select id="ch-window"><option value="7">This week</option><option value="30">This month</option></select></div>'
+      +   '<button type="submit" class="btn btn-primary" style="height:44px"><i class="fa-solid fa-plus"></i> Add</button>'
+      + '</form></div></section>';
+    var f = document.getElementById('chForm');
+    if (f) f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var title = document.getElementById('ch-title').value.trim(); if (!title) return;
+      var days = parseInt(document.getElementById('ch-window').value, 10) || 7;
+      function iso(d) { return d.toISOString().slice(0, 10); }
+      chPost({ action: 'add', title: title, target: parseInt(document.getElementById('ch-target').value, 10) || 1, metric: document.getElementById('ch-metric').value, starts_on: iso(new Date()), ends_on: iso(new Date(Date.now() + (days - 1) * 864e5)) });
+    });
+    area.querySelectorAll('.ch-del').forEach(function (b) { b.addEventListener('click', function () { chPost({ action: 'delete', id: parseInt(b.getAttribute('data-id'), 10) }); }); });
+  }
+  function chPost(body) {
+    API.request('student/challenges', { method: 'POST', body: body })
+      .then(function (r) { renderChallenges(r.challenges || []); })
+      .catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update challenge.', 'error'); });
+  }
+
   function renderPractice() {
     var ps = data.practice_stats || { streak: 0, weekMin: 0, total: 0, sessions: 0 };
     var logs = data.practice || [];
@@ -984,6 +1025,7 @@
       + kpi('Total logged', (ps.total || 0) + ' min', (ps.sessions || 0) + ' session' + (ps.sessions === 1 ? '' : 's'))
       + '</section>'
       + practiceInsights(logs)
+      + '<section id="challengesArea"></section>'
       + '<section class="panel" id="coachNote" hidden><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;color:var(--gold-bright)"></i>Your practice coach</h2></div><div class="panel-body" id="coachNoteBody"></div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Log a practice session</h2></div>'
       + '<form id="pracForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">'
@@ -997,6 +1039,7 @@
       + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Recent sessions</h2></div>'
       + (logs.length ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Minutes</th><th>Focus</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="panel-body">' + empty('chart-line', 'No sessions logged yet — log your first above.') + '</div>')
       + '</section>';
+    loadChallenges();
     document.getElementById('pracForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var btn = e.target.querySelector('button[type=submit]'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';

@@ -586,3 +586,7 @@ html.a11y-lowbw .cmdk-fab{box-shadow:none}
 /* ── Achievement badges (Advanced Modernization §3.1) ── */
 .badge-chip{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;background:linear-gradient(135deg,rgba(224,138,26,.14),rgba(251,191,36,.07));border:1px solid var(--border-gold);color:var(--gold-bright);font-size:.82rem;font-weight:600}
 .badge-chip i{font-size:.9rem}
+
+/* ── Practice challenge progress ring (Advanced Modernization §3.3) ── */
+.prog-ring{width:52px;height:52px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;background:conic-gradient(var(--col,#E8961F) calc(var(--pct,0)*1%),var(--border) 0)}
+.prog-ring span{width:40px;height:40px;border-radius:50%;background:var(--bg-raised);display:grid;place-items:center;font-size:.72rem;font-weight:700;color:var(--text)}

@@ -96,6 +96,7 @@ require $ROOT . '/lib/cards.php';            // ID card mint/verify/revoke/email
 require $ROOT . '/lib/achievements.php';     // badges + guardian wins feed (§3.1/§3.5)
 require $ROOT . '/lib/consent.php';           // consent & safeguarding center (§8.4)
 require $ROOT . '/lib/repertoire.php';         // repertoire → recital (§1.7)
+require $ROOT . '/lib/challenges.php';        // practice challenges (§3.3)
 
 require __DIR__ . '/assert.php';
 
