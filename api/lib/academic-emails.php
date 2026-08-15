@@ -128,6 +128,21 @@ function mam_acadmail_prep_alert_sweep(int $hours = 6, int $limit = 100): int {
     return $sent;
 }
 
+/**
+ * Run all four swept academic emails (§28) and return per-type counts. Each
+ * sweep is itself gated + idempotent, so this is safe to call from the jobs
+ * runner or the admin "run sweeps" button; returns zeros when the layer is off.
+ */
+function mam_acadmail_run_all_sweeps(): array {
+    return [
+        'enabled'  => mam_acadmail_enabled(),
+        'preclass' => mam_acadmail_preclass_reminder_sweep(),
+        'absence'  => mam_acadmail_absence_sweep(),
+        'prep'     => mam_acadmail_prep_alert_sweep(),
+        'weekly'   => mam_acadmail_weekly_report_sweep(),
+    ];
+}
+
 /** #7 — weekly learning report, once per ISO week per active student. */
 function mam_acadmail_weekly_report_sweep(int $limit = 500): int {
     if (!mam_acadmail_enabled()) return 0;

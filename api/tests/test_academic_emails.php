@@ -52,3 +52,14 @@ mam_setting_set('academic_emails_enabled', '0');
 // inflate other suites' next-24h sweep counts (shared throwaway DB).
 mam_db_update('class_sessions', ['status' => 'held'], ['id' => $AE_sess]);
 mam_db_update('class_sessions', ['status' => 'held'], ['id' => $AE_sess2]);
+
+t_group('academic emails — run-all wrapper (§28)');
+mam_setting_set('academic_emails_enabled', '0');
+$aeOff = mam_acadmail_run_all_sweeps();
+t_ok($aeOff['enabled'] === false, 'wrapper reports disabled when the gate is off');
+t_eq($aeOff['preclass'] + $aeOff['absence'] + $aeOff['prep'] + $aeOff['weekly'], 0, 'no academic mail is swept while disabled');
+mam_setting_set('academic_emails_enabled', '1');
+$aeOn = mam_acadmail_run_all_sweeps();
+t_ok($aeOn['enabled'] === true, 'wrapper reports enabled when the gate is on');
+t_ok(array_key_exists('weekly', $aeOn) && array_key_exists('absence', $aeOn), 'wrapper returns per-type counts');
+mam_setting_set('academic_emails_enabled', '0'); // leave the shared DB gate off

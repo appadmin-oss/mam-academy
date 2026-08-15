@@ -59,6 +59,16 @@ if (function_exists('mam_automation_week_drip_sweep')) {
     printf("week drip  : modules released %d\n", mam_automation_week_drip_sweep());
 }
 
+// §28 academic emails — the four swept types (gated behind academic_emails_enabled).
+if (function_exists('mam_acadmail_run_all_sweeps')) {
+    $ae = mam_acadmail_run_all_sweeps();
+    if (!empty($ae['enabled'])) {
+        printf("acad email : pre-class %d · absence %d · prep %d · weekly %d\n", (int)$ae['preclass'], (int)$ae['absence'], (int)$ae['prep'], (int)$ae['weekly']);
+    } else {
+        printf("acad email : disabled (academic_emails_enabled=0)\n");
+    }
+}
+
 // Warm the live FX cache here (the one place that's allowed to hit the network)
 // so the public display endpoint and the charge path both read the SAME cached
 // rate — the UI's "approx ₦…" can't disagree with what's charged.

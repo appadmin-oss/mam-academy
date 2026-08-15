@@ -491,6 +491,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'delete_promo_banner' => 'settings',
         'automation_toggle' => 'settings',
         'run_automations' => 'settings',
+        'acadmail_toggle' => 'settings',
         'record_placement' => 'admissions',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
         'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
@@ -1666,8 +1667,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (function_exists('mam_automation_session_reminder_sweep')) $r['reminders'] = mam_automation_session_reminder_sweep();
         if (function_exists('mam_automation_ktams_birthday_sweep'))   $r['birthdays'] = mam_automation_ktams_birthday_sweep();
         if (function_exists('mam_automation_week_drip_sweep'))         $r['drip']      = mam_automation_week_drip_sweep();
+        // §28 — academic email sweeps (gated behind academic_emails_enabled; a no-op when off).
+        $ae = function_exists('mam_acadmail_run_all_sweeps') ? mam_acadmail_run_all_sweeps() : ['enabled' => false];
+        $r['academic_emails'] = $ae;
         mam_audit('run_automations', 'automation', null, $r);
-        header('Location: ?v=automations&ok=' . urlencode('Ran scheduled sweeps — ' . (int)$r['reminders'] . ' session reminder(s), ' . (int)$r['birthdays'] . ' birthday note(s), ' . (int)$r['drip'] . ' module drip(s).')); exit;
+        $aeMsg = !empty($ae['enabled'])
+            ? ' Academic emails — ' . (int)($ae['preclass'] ?? 0) . ' pre-class, ' . (int)($ae['absence'] ?? 0) . ' absence, ' . (int)($ae['prep'] ?? 0) . ' prep, ' . (int)($ae['weekly'] ?? 0) . ' weekly.'
+            : ' Academic emails are off.';
+        header('Location: ?v=automations&ok=' . urlencode('Ran scheduled sweeps — ' . (int)$r['reminders'] . ' session reminder(s), ' . (int)$r['birthdays'] . ' birthday note(s), ' . (int)$r['drip'] . ' module drip(s).' . $aeMsg)); exit;
+    }
+
+    // §28 — turn the academic email engine on/off (outbound parent/student mail).
+    if ($action === 'acadmail_toggle') {
+        $on = !empty($_POST['enabled']) ? 1 : 0;
+        mam_setting_set('academic_emails_enabled', (string)$on);
+        mam_audit('acadmail_toggle', 'setting', null, ['enabled' => $on]);
+        header('Location: ?v=automations&ok=' . urlencode('Academic emails ' . ($on ? 'enabled — outbound parent/student mail is now on.' : 'disabled.'))); exit;
     }
 
     // Toggle a lifecycle automation on/off (super/settings only — gated above).
@@ -7083,6 +7098,27 @@ nav a{display:flex;align-items:center}
       background runner (<code>api/tools/run-jobs.php</code>) as each handler adopts it.
     </div>
   </div>
+
+  <?php $aeOn = (int)mam_setting_num('academic_emails_enabled', 0) === 1; ?>
+  <div class="card" style="max-width:820px">
+    <h3><i class="fa-solid fa-envelope-open-text" style="margin-right:8px;color:var(--gold)"></i>Academic emails (§28)</h3>
+    <div style="padding:4px 20px 16px;color:var(--muted);font-size:.9rem;line-height:1.6">
+      The seven §28 academic emails (pre-class reminder, attendance confirmation, late notices, absence,
+      preparation alert, weekly report). Event emails fire on their trigger; the four swept ones run when you
+      press <strong>Run scheduled sweeps now</strong> above (or via the background runner). Outbound parent/student
+      mail is a deliberate choice — it stays <strong>off</strong> until you enable it here.
+      <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+        <span class="pill" style="background:<?= $aeOn ? 'rgba(52,211,153,.16)' : 'rgba(148,163,184,.16)' ?>;color:<?= $aeOn ? '#34D399' : 'var(--muted)' ?>;font-weight:700"><?= $aeOn ? 'Enabled' : 'Disabled' ?></span>
+        <form method="post" action="" style="margin:0">
+          <?= mam_csrf_field() ?>
+          <input type="hidden" name="action" value="acadmail_toggle">
+          <input type="hidden" name="enabled" value="<?= $aeOn ? '0' : '1' ?>">
+          <button type="submit" class="btn <?= $aeOn ? 'ghost' : 'btn-primary' ?>"><?= $aeOn ? 'Disable academic emails' : 'Enable academic emails' ?></button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <?php foreach ($autoGroups as $groupName => $rules): ?>
   <div class="card" style="max-width:820px">
     <h3><?= htmlspecialchars($groupName) ?></h3>
