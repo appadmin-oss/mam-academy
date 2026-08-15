@@ -480,6 +480,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'module_save' => 'curriculum', 'module_delete' => 'curriculum',
         'module_scaffold' => 'curriculum', 'module_import' => 'curriculum',
         'rubric_create' => 'curriculum', 'rubric_update' => 'curriculum', 'rubric_delete' => 'curriculum',
+        'meet_reconcile' => 'settings',
         'set_student_type' => 'users',
         'acct_resolve' => 'enrollments', 'guardian_link' => 'enrollments', 'guardian_unlink' => 'enrollments',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
@@ -1214,6 +1215,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             header('Location: ?v=rubrics&err=' . urlencode($msg)); exit;
         }
         header('Location: ?v=rubrics&ok=1'); exit;
+    }
+
+    // ─── Meet/Jitsi reconciliation (§11): import a participant CSV for a session ──
+    if ($action === 'meet_reconcile') {
+        $sid = (int)($_POST['session_id'] ?? 0);
+        if ($sid < 1) { header('Location: ?v=meet&err=' . urlencode('Pick a session first.')); exit; }
+        $csv = (string)($_POST['csv'] ?? '');
+        try {
+            $rows = mam_meeting_parse_csv($csv);
+            if (!$rows) { header('Location: ?v=meet&session=' . $sid . '&err=' . urlencode('No rows parsed — paste a Name,Email,Join,Leave CSV.')); exit; }
+            $n = mam_meeting_reconcile_import($sid, $rows, 'meet', 'import');
+            header('Location: ?v=meet&session=' . $sid . '&imp=' . (int)$n); exit;
+        } catch (\Throwable $e) {
+            header('Location: ?v=meet&session=' . $sid . '&err=' . urlencode('Could not import that CSV.')); exit;
+        }
     }
 
     // ─── Faculty invites: approve/dismiss requests, direct invites, app status ──
@@ -2304,7 +2320,7 @@ nav a{display:flex;align-items:center}
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
@@ -2315,7 +2331,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'meet' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -3367,6 +3383,106 @@ nav a{display:flex;align-items:center}
     </table></div>
     <?php endif; ?>
   </div>
+
+<?php elseif ($view === 'meet'): ?>
+  <?php
+    $mSessId  = (int)($_GET['session'] ?? 0);
+    $mSessions = mam_db_all("SELECT cs.id, cs.title, cs.scheduled_at, co.title AS cohort_title
+                               FROM class_sessions cs LEFT JOIN cohorts co ON co.id = cs.cohort_id
+                              ORDER BY cs.scheduled_at DESC LIMIT 80");
+    $mView = null;
+    if ($mSessId > 0) { try { $mView = mam_meeting_session_view($mSessId); } catch (\Throwable $e) { $mView = null; } }
+  ?>
+  <header class="top"><h1>Meet Reconciliation</h1></header>
+  <p class="muted" style="margin:0 0 14px">Import a Google Meet participant CSV (§11) and reconcile who was actually in the call against the portal check-in and instructor clock-in records — surfacing proxy check-ins and no-shows.</p>
+
+  <div class="card" style="margin-bottom:16px">
+    <form method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+      <input type="hidden" name="v" value="meet">
+      <label style="flex:1;min-width:280px">Session<br>
+        <select name="session" onchange="this.form.submit()" style="width:100%">
+          <option value="">— choose a session —</option>
+          <?php foreach ($mSessions as $s): ?>
+            <option value="<?= (int)$s['id'] ?>" <?= (int)$s['id'] === $mSessId ? 'selected' : '' ?>><?= htmlspecialchars(($s['scheduled_at'] ? substr((string)$s['scheduled_at'], 0, 16) . ' · ' : '') . ($s['title'] ?: 'Session #' . $s['id']) . ($s['cohort_title'] ? ' · ' . $s['cohort_title'] : '')) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+    </form>
+  </div>
+
+  <?php if ($mSessId > 0 && !$mView): ?>
+    <div class="banner err">That session could not be found.</div>
+  <?php elseif ($mView): ?>
+    <?php
+      // Reconcile: index Meet import rows by matched user, then walk portal
+      // check-ins to build a per-student comparison; flag the mismatches.
+      $recon = $mView['reconciliation'] ?? [];
+      $reconStudent = []; $reconInstructor = []; $reconUnmatched = [];
+      foreach ($recon as $r) {
+          if (($r['subject_type'] ?? '') === 'instructor') { $reconInstructor[(int)$r['subject_id']] = $r; }
+          elseif (!empty($r['subject_id'])) { $reconStudent[(int)$r['subject_id']] = $r; }
+          else { $reconUnmatched[] = $r; }
+      }
+      $mMinutes = function ($r) { return $r === null ? null : ($r['minutes'] !== null ? ((int)$r['minutes'] . ' min') : 'present'); };
+      $stuRows = [];
+      foreach (($mView['checkins'] ?? []) as $c) {
+          $sid2 = (int)$c['student_id'];
+          $m = $reconStudent[$sid2] ?? null; unset($reconStudent[$sid2]);
+          $stuRows[] = ['name' => $c['student_name'] ?: ('Student #' . $sid2), 'checkin' => $c['status'], 'method' => $c['method'], 'meet' => $mMinutes($m), 'inMeet' => $m !== null];
+      }
+      foreach ($reconStudent as $m) { $stuRows[] = ['name' => $m['display_name'] ?: 'Student', 'checkin' => null, 'method' => null, 'meet' => $mMinutes($m), 'inMeet' => true]; }
+      $flag = function ($r) {
+          if ($r['checkin'] !== null && $r['inMeet']) return ['OK', '#34D399'];
+          if ($r['checkin'] !== null && !$r['inMeet']) return ['Checked in — no Meet record', '#FB923C'];
+          return ['In Meet — no check-in', '#F87171'];
+      };
+    ?>
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 6px"><?= htmlspecialchars($mView['session']['title'] ?: ('Session #' . $mSessId)) ?> <span class="muted" style="font-weight:400;font-size:.82rem"><?= htmlspecialchars((string)($mView['session']['scheduled_at'] ?? '')) ?></span></h3>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
+        <?php foreach (($mView['instructors'] ?? []) as $ins): ?>
+          <span class="pill"><i class="fa-solid fa-user-tie" style="margin-right:5px"></i><?= htmlspecialchars($ins['instructor_name'] ?: 'Instructor') ?> · in <?= htmlspecialchars(substr((string)($ins['clock_in_at'] ?? '—'), 11, 5) ?: '—') ?><?= !empty($ins['clock_out_at']) ? ' · out ' . htmlspecialchars(substr((string)$ins['clock_out_at'], 11, 5)) : '' ?></span>
+        <?php endforeach; ?>
+        <?php if (empty($mView['instructors'])): ?><span class="muted">No instructor clock-in recorded.</span><?php endif; ?>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 4px">Import Meet participant CSV</h3>
+      <p class="muted" style="margin:0 0 10px;font-size:.82rem">Columns: <code>Name, Email, Join, Leave</code> (a header row is fine). Re-importing replaces the previous import for this session.<?= $mView['google_live'] ? ' Live Google fetch is configured.' : '' ?></p>
+      <form method="post" action="?v=meet">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="meet_reconcile">
+        <input type="hidden" name="session_id" value="<?= $mSessId ?>">
+        <textarea name="csv" rows="5" style="width:100%;font-family:monospace;font-size:.82rem" placeholder="Name,Email,Join,Leave&#10;Ada Lovelace,ada@example.com,2026-08-15 16:00,2026-08-15 16:55"></textarea>
+        <div style="margin-top:10px"><button type="submit" class="btn">Import &amp; reconcile</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Reconciliation</h3>
+      <?php if (!$stuRows): ?><p class="muted">No check-ins or Meet records yet for this session.</p><?php else: ?>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+        <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+          <th style="padding:8px">Student</th><th style="padding:8px">Portal check-in</th><th style="padding:8px">In Meet</th><th style="padding:8px">Reconciliation</th></tr></thead>
+        <tbody>
+        <?php foreach ($stuRows as $r): [$flabel, $fcol] = $flag($r); ?>
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:8px"><strong><?= htmlspecialchars((string)$r['name']) ?></strong></td>
+            <td style="padding:8px"><?= $r['checkin'] !== null ? '<span class="pill ' . htmlspecialchars((string)$r['checkin']) . '">' . htmlspecialchars((string)$r['checkin']) . '</span> <span class="muted" style="font-size:.78rem">' . htmlspecialchars((string)($r['method'] ?? '')) . '</span>' : '<span class="muted">—</span>' ?></td>
+            <td style="padding:8px"><?= $r['meet'] !== null ? htmlspecialchars((string)$r['meet']) : '<span class="muted">—</span>' ?></td>
+            <td style="padding:8px"><span style="color:<?= $fcol ?>;font-weight:600;font-size:.86rem"><?= htmlspecialchars($flabel) ?></span></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table></div>
+      <?php endif; ?>
+      <?php if ($reconUnmatched): ?>
+        <p class="muted" style="margin:14px 0 4px;font-size:.82rem"><strong>Unmatched Meet participants</strong> (no MAM account by email):</p>
+        <div style="display:flex;flex-wrap:wrap;gap:6px"><?php foreach ($reconUnmatched as $m): ?><span class="pill" style="background:rgba(248,113,113,.14);color:#F87171"><?= htmlspecialchars($m['display_name'] ?: 'guest') ?><?= $m['minutes'] !== null ? ' · ' . (int)$m['minutes'] . 'm' : '' ?></span><?php endforeach; ?></div>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
 
 <?php elseif ($view === 'rubrics'): ?>
   <?php
