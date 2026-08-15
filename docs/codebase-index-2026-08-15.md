@@ -246,15 +246,15 @@ peers to any student id passed in. Correct today because there is exactly one ca
 a second caller leaks. Move the `mam_leaderboard_eligible($studentId)` check into the
 lib. (Also N+1: one `SUM(minutes)` query per peer. Fine at a 12-seat cohort.)
 
-### F8 — The four portal auth pages never bust their CSS cache
+### F8 — The four portal auth pages never bust their CSS cache — **FIXED**
 ```
 portal/{student,instructor,parent}/index.html   portal.css?v=20260815a
-portal/{choose,login,reset,signup}.html         portal.css?v=20260706c
+portal/{choose,login,reset,signup}.html         portal.css?v=20260706c   ← stale
 ```
-All seven load the *same* stylesheet. The four auth pages have been left on a stale
-`?v=`, so a returning visitor keeps a months-old cached copy on exactly the pages that
-form the first impression. `config.js?v=20260807a` is at least consistent across all six
-references that use it.
+All seven load the *same* stylesheet. The four auth pages had been left on a stale
+`?v=`, so a returning visitor kept a months-old cached copy on exactly the pages that
+form the first impression. Fixed in the §3.6 commit — all seven are now on
+`20260815b`. `config.js?v=20260807a` was already consistent across its six references.
 
 ### F9 — `CLAUDE.md` materially understates the system it is meant to onboard agents to
 The memory file agents are told to read first says *"~35 libs in `api/lib/`, ~95 routes,
@@ -298,5 +298,5 @@ Worth stating plainly, because the findings list is not the whole picture.
 2. **F3.** Add `academic-session.php` + `practice.php` to `run.php` and write the term-window
    tests. Highest coverage-per-line in the repo.
 3. **F9.** Reconcile CLAUDE.md against this index.
-4. **F4, F8.** Two-minute hygiene fixes.
+4. **F4.** Two-minute hygiene fix. (F8 is already done.)
 5. **F5, F6, F7.** Referral/leaderboard hardening — small, self-contained.
