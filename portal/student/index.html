@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&family=Noto+Music&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260706d">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260815c">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260815d">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 <script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
@@ -108,6 +108,7 @@
 <script src="/assets/js/config.js?v=20260807a"></script>
 <script src="/assets/js/portal.js?v=20260815b"></script>
 <script src="/assets/js/practice-player.js?v=20260815a" defer></script>
+<script src="/assets/js/take-recorder.js?v=20260815a"></script>
 <script src="/assets/js/command-palette.js?v=20260815a" defer></script>
 <!-- Headshot uploader — lets a student change their portal photo (Profile tab). -->
 <script src="/assets/js/headshot.js?v=20260807a" defer></script>
@@ -1160,6 +1161,10 @@
         +       '<select class="sub-kind" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)"><option value="audio">Audio</option><option value="video">Video</option><option value="pdf">PDF</option><option value="image">Image</option><option value="link">Link</option></select>'
         +       '<button type="button" class="btn btn-primary sub-go" data-aid="' + a.id + '">Submit</button>'
         +     '</div>'
+        +     '<div class="asg-take" style="margin-top:10px">'
+        +       '<button type="button" class="btn btn-ghost take-open" data-aid="' + a.id + '"><i class="fa-solid fa-microphone"></i> Record a take instead</button>'
+        +       '<div class="take-host" data-aid="' + a.id + '" hidden></div>'
+        +     '</div>'
         +   '</details>'
         + '</div>'
         + '<button type="button" class="btn ' + (done ? 'btn-ghost' : 'btn-primary') + ' asg-toggle" data-id="' + a.id + '" data-done="' + (done ? '1' : '0') + '">'
@@ -1194,6 +1199,18 @@
           .catch(function () { b.disabled = false; b.textContent = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not submit — try again', 'error'); });
       });
     });
+    // §1.4 — mount the recorder lazily. Building a MediaRecorder for every
+    // assignment on the page would ask for the microphone far too eagerly.
+    content.querySelectorAll('.take-open').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var aid = parseInt(b.getAttribute('data-aid'), 10);
+        var host = content.querySelector('.take-host[data-aid="' + aid + '"]');
+        if (!host || !window.MAM_TAKE) return;
+        host.hidden = false;
+        b.hidden = true;
+        window.MAM_TAKE.mount(host, { assignmentId: aid, onSubmitted: function () { loadSubmissionStatuses(); } });
+      });
+    });
     loadSubmissionStatuses();
   }
 
@@ -1206,7 +1223,11 @@
     var label = { submitted: 'Submitted — awaiting feedback', accepted: 'Accepted ✓', needs_resubmission: 'Revise & resubmit', remedial: 'Remedial assigned', rejected: 'Not accepted' }[s.status] || s.status;
     var color = s.status === 'accepted' ? 'var(--emerald)' : (s.status === 'needs_resubmission' || s.status === 'remedial' || s.status === 'rejected' ? '#FB7185' : 'var(--gold-bright)');
     var h = '<div style="margin-top:6px;font-size:0.84rem"><strong style="color:' + color + '">' + P.escapeHtml(label) + '</strong>';
-    if (s.artifact_url) h += ' · <a href="' + P.escapeHtml(/^https?:\/\//i.test(s.artifact_url) ? s.artifact_url : '#') + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">your submission ↗</a>';
+    // A first-party take (/api/media/take?k=…) is a real, safe link — the old
+    // https-only guard rendered it as a dead '#', the same defect the headshot
+    // store shipped with. Everything else still needs an absolute http(s) URL.
+    var safeHref = (/^https?:\/\//i.test(s.artifact_url) || /^\/api\/media\/take\?/.test(s.artifact_url || '')) ? s.artifact_url : '#';
+    if (s.artifact_url) h += ' · <a href="' + P.escapeHtml(safeHref) + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">your submission ↗</a>';
     if (s.artifact_kind === 'audio' && isDirectAudio(s.artifact_url)) {
       var mk = (s.markers || []).map(function (m) { return { at: Number(m.at_seconds) || 0, label: m.comment }; });
       h += '<div class="mp-host" data-src="' + P.escapeHtml(s.artifact_url) + '" data-markers=\'' + P.escapeHtml(JSON.stringify(mk)) + '\'></div>';

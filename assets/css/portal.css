@@ -656,3 +656,11 @@ html.a11y-lowbw .cmdk-fab{box-shadow:none}
 .sg-outside .sg-card{display:inline-block;width:auto;min-width:150px;margin:0 6px 6px 0}
 
 @media (prefers-reduced-motion: reduce){ .sg-slot{transition:none} }
+
+/* Record a take (§1.4). */
+.tk-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.tk-timer{font-variant-numeric:tabular-nums;font-family:var(--font-display);font-size:1.3rem;color:var(--gold-bright);min-width:52px}
+.tk-state{font-size:.82rem;color:var(--text-muted)}
+.tk-unsupported{font-size:.86rem;color:var(--text-muted);margin:0}
+.tk-play{width:100%;margin-bottom:10px}
+.tk-rec[disabled],.tk-stop[disabled]{opacity:.5;cursor:not-allowed}

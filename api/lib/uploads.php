@@ -175,3 +175,132 @@ function mam_upload_key_from_url(string $url): ?string
     $key = rawurldecode($m[1]);
     return mam_upload_path($key) !== null ? $key : null;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   AUDIO TAKES (Advanced Modernization §1.4)
+
+   A student records themselves playing over a backing track and submits the
+   take. Audio cannot ride the headshot path: the property that makes the image
+   store safe is that GD RE-ENCODES the bytes, so a renamed .php simply fails to
+   decode and never lands. There is no equivalent re-encoder for audio on shared
+   hosting (no ffmpeg), so the safety comes from three other things instead:
+
+     1. Container sniffing. The bytes must BEGIN with a known audio/video
+        container signature. A PHP script, an HTML page or an ELF binary does
+        not, so it is refused before anything is written.
+     2. Files live outside the web root (api/storage is `Require all denied`),
+        under an extension we choose — never one the client supplied. Nothing
+        there is reachable by URL, let alone executable.
+     3. The only way back out is a gated proxy that pins Content-Type,
+        sends nosniff, and checks that the caller is allowed to hear it.
+
+   That is the same shape as the Drive proxy, and it is why the stored extension
+   is derived from the SNIFFED container rather than from the upload's filename.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+const MAM_TAKE_MAX_BYTES = 24 * 1024 * 1024;   // ~15 min of opus at 128kbps
+
+/** Where takes live. Outside the web root, like every other upload. */
+function mam_take_dir(): string
+{
+    $base = MAM_STORAGE . '/uploads/takes';
+    if (!is_dir($base)) @mkdir($base, 0775, true);
+    return $base;
+}
+
+/**
+ * Sniff an audio container from its leading bytes.
+ * Returns ['ext'=>string,'mime'=>string] or null when it is not audio we accept.
+ *
+ * Deliberately narrow: these are the containers a browser MediaRecorder
+ * actually produces (webm/ogg on Chromium and Firefox, mp4/m4a on Safari) plus
+ * wav for anything that hands us raw PCM. Widening this list widens what can be
+ * stored, so it is a security decision, not a convenience one.
+ */
+function mam_take_sniff(string $bytes): ?array
+{
+    if (strlen($bytes) < 12) return null;
+    // WebM / Matroska — EBML header.
+    if (substr($bytes, 0, 4) === "\x1A\x45\xDF\xA3") return ['ext' => 'webm', 'mime' => 'audio/webm'];
+    // Ogg (Opus/Vorbis).
+    if (substr($bytes, 0, 4) === 'OggS')             return ['ext' => 'ogg',  'mime' => 'audio/ogg'];
+    // RIFF/WAVE — must be BOTH, or any RIFF container would pass.
+    if (substr($bytes, 0, 4) === 'RIFF' && substr($bytes, 8, 4) === 'WAVE') return ['ext' => 'wav', 'mime' => 'audio/wav'];
+    // ISO-BMFF (mp4/m4a): 4-byte size, then 'ftyp'.
+    if (substr($bytes, 4, 4) === 'ftyp')             return ['ext' => 'm4a',  'mime' => 'audio/mp4'];
+    // Bare MP3: an ID3 tag, or an MPEG frame sync.
+    if (substr($bytes, 0, 3) === 'ID3')              return ['ext' => 'mp3',  'mime' => 'audio/mpeg'];
+    if ((ord($bytes[0]) === 0xFF) && ((ord($bytes[1]) & 0xE0) === 0xE0)) return ['ext' => 'mp3', 'mime' => 'audio/mpeg'];
+    return null;
+}
+
+/**
+ * Resolve a take key to a path. Same grammar as headshots plus the extension,
+ * which is why the extension is part of the key: without it the proxy would
+ * have to guess, and guessing is how a media endpoint starts reading files it
+ * was never meant to.
+ */
+function mam_take_path(string $key): ?string
+{
+    if (!preg_match('#^([0-9]{6})/([0-9a-f]{32})\.(webm|ogg|wav|m4a|mp3)$#', $key)) return null;
+    return mam_take_dir() . '/' . $key;
+}
+
+/** The MIME to serve a key as — derived from the key, never from the client. */
+function mam_take_mime(string $key): ?string
+{
+    if (!preg_match('#\.(webm|ogg|wav|m4a|mp3)$#', $key, $m)) return null;
+    return ['webm' => 'audio/webm', 'ogg' => 'audio/ogg', 'wav' => 'audio/wav',
+            'm4a'  => 'audio/mp4',  'mp3' => 'audio/mpeg'][$m[1]] ?? null;
+}
+
+/**
+ * Validate and store a recorded take.
+ * @return array{ok:bool,key:?string,url:?string,error:?string,bytes:?int,mime:?string}
+ */
+function mam_take_store(string $bytes): array
+{
+    $fail = fn(string $e) => ['ok' => false, 'key' => null, 'url' => null, 'error' => $e, 'bytes' => null, 'mime' => null];
+
+    if ($bytes === '')                        return $fail('empty');
+    if (strlen($bytes) > MAM_TAKE_MAX_BYTES)  return $fail('too_large');
+    $sniff = mam_take_sniff($bytes);
+    if ($sniff === null)                      return $fail('not_audio');
+
+    $key = date('Ym') . '/' . bin2hex(random_bytes(16)) . '.' . $sniff['ext'];
+    $path = mam_take_path($key);
+    if ($path === null)                       return $fail('bad_key');   // unreachable; belt and braces
+    if (!is_dir(dirname($path)) && !@mkdir(dirname($path), 0775, true)) return $fail('store_unwritable');
+
+    // Temp file + rename, so a partial upload is never served.
+    $tmp = $path . '.part';
+    if (@file_put_contents($tmp, $bytes) === false) return $fail('store_unwritable');
+    if (!@rename($tmp, $path)) { @unlink($tmp); return $fail('store_unwritable'); }
+
+    return ['ok' => true, 'key' => $key, 'url' => mam_take_url($key), 'error' => null,
+            'bytes' => strlen($bytes), 'mime' => $sniff['mime']];
+}
+
+/** Same-origin URL for a stored take. */
+function mam_take_url(string $key): string
+{
+    return '/api/media/take?k=' . rawurlencode($key);
+}
+
+/** Is this one of our own take URLs? */
+function mam_take_is_own_url(string $url): bool
+{
+    $url = trim($url);
+    if ($url === '') return false;
+    $path = parse_url($url, PHP_URL_PATH);
+    if ($path !== '/api/media/take') return false;
+    return mam_take_key_from_url($url) !== null;
+}
+
+/** The storage key inside one of our take URLs, or null. */
+function mam_take_key_from_url(string $url): ?string
+{
+    if (!preg_match('#[?&]k=([^&]+)#', trim($url), $m)) return null;
+    $key = rawurldecode($m[1]);
+    return mam_take_path($key) !== null ? $key : null;
+}

@@ -906,10 +906,18 @@ function mam_lms_submit(int $assignmentId, int $studentId, string $artifactUrl, 
     $a = mam_db_row('SELECT id, student_id FROM assignments WHERE id = ?', [$assignmentId]);
     if (!$a) throw new RuntimeException('assignment_not_found');
     if ((int)$a['student_id'] !== $studentId) throw new RuntimeException('not_your_assignment');
-    // The artifact URL is later rendered into an instructor-facing <a href>. Only
-    // http(s) links may be stored — reject javascript:/data:/other schemes at the
-    // source so no unsafe scheme can reach the href (mirrors the resource route).
-    if ($artifactUrl !== '' && !preg_match('#^https?://#i', $artifactUrl)) {
+    // The artifact URL is later rendered into an instructor-facing <a href>, so
+    // only two shapes may be stored: an absolute http(s) link, or one of OUR
+    // OWN first-party take URLs (/api/media/take?k=…, §1.4). Everything else —
+    // javascript:, data:, any other scheme — is refused at the source.
+    //
+    // The first-party clause is not optional. The headshot store shipped
+    // without its equivalent and the result was an upload that succeeded and
+    // was then rejected on the way into the database (see CLAUDE.md gotcha #5):
+    // a take would store perfectly and then vanish here.
+    if ($artifactUrl !== ''
+        && !preg_match('#^https?://#i', $artifactUrl)
+        && !(function_exists('mam_take_is_own_url') && mam_take_is_own_url($artifactUrl))) {
         throw new RuntimeException('invalid_url');
     }
     $kind = (string)($opts['artifact_kind'] ?? 'link');
