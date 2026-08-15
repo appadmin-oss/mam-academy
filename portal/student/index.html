@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&family=Noto+Music&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260706d">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260815a">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260815b">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 <script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
@@ -106,7 +106,7 @@
 </div>
 
 <script src="/assets/js/config.js?v=20260807a"></script>
-<script src="/assets/js/portal.js?v=20260815a"></script>
+<script src="/assets/js/portal.js?v=20260815b"></script>
 <script src="/assets/js/practice-player.js?v=20260815a" defer></script>
 <script src="/assets/js/command-palette.js?v=20260815a" defer></script>
 <!-- Headshot uploader — lets a student change their portal photo (Profile tab). -->
@@ -707,6 +707,14 @@
   // The "Your certificates" panel, or '' when there are none.
   function certPanelHtml(certs) {
     if (!certs.length) return '';
+    // §3.6 — a certificate is the biggest moment the portal has. seenOnce()
+    // keys on the reference, so the several callers of this shared renderer
+    // celebrate it exactly once between them.
+    if (P.celebrate) {
+      certs.forEach(function (c) {
+        if (c.reference && P.seenOnce('cert:' + c.reference)) { P.celebrate('certificate', c.title || 'Certificate awarded'); }
+      });
+    }
     return '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-award" style="color:var(--gold-bright);margin-right:8px"></i>Your certificates</h2></div><div class="panel-body" style="display:grid;gap:10px">'
       + certs.map(function (c) {
           var ref = encodeURIComponent(c.reference);
@@ -1396,6 +1404,18 @@
           + ach.map(function (a) { return '<span class="badge-chip"><i class="fa-solid fa-' + (badgeIcon[a.code] || 'award') + '"></i> ' + P.escapeHtml(a.title) + '</span>'; }).join('')
           + '</div></section>'
         : '';
+      // §3.6 — mark a milestone the first time we see it, and only then.
+      // seenOnce() records the key per-device, so re-rendering the tab (or
+      // coming back tomorrow) does not replay a badge already celebrated.
+      if (P.celebrate) {
+        ach.forEach(function (a) {
+          if (a.code && P.seenOnce('ach:' + a.code)) { P.celebrate('badge', a.title || 'New achievement'); }
+        });
+        var st = d.streak || 0;
+        [7, 30].forEach(function (n) {
+          if (st >= n && P.seenOnce('streak:' + n)) { P.celebrate('streak', n + ' days in a row'); }
+        });
+      }
       var freezeNote = (d.streak || 0) > 0
         ? '<p class="kpi-sub" style="margin:-4px 0 14px;color:var(--text-muted)"><i class="fa-solid fa-shield-halved" style="margin-right:5px;color:var(--gold-bright)"></i>Your streak has a freeze — one missed session won’t reset it.</p>'
         : '';

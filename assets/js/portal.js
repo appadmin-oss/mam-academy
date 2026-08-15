@@ -487,3 +487,135 @@
     if (b.hasAttribute('data-pin-reflow')) { document.dispatchEvent(new CustomEvent('mam:pins-changed')); }
   }, false);
 })();
+
+/* ============================================================
+   Milestone celebrations (Advanced Modernization §3.6).
+
+   MAM_PORTAL.celebrate(kind, label) marks a moment worth marking: a badge,
+   a streak, a certificate. It is deliberately ONE moment — a card that
+   announces itself, holds, and leaves — not a permanent ornament, and not
+   something that fires on every render.
+
+   Two things it will not do:
+     • It never animates for someone who asked not to be animated. Under
+       prefers-reduced-motion the particles are never CREATED (not merely
+       hidden), so there is nothing to composite.
+     • It never fires twice for the same milestone. Callers pass a stable
+       key to seenOnce(); the key is recorded per-device in localStorage, so
+       returning to the page tomorrow does not replay yesterday's badge.
+
+   Concurrent milestones queue rather than stack: three new badges are three
+   sequential beats, not three cards overlapping in the same corner.
+   ============================================================ */
+(function () {
+  'use strict';
+  var SEEN_KEY = 'mam-ach-seen';
+  var HOLD_MS  = 3200;
+  var GAP_MS   = 420;
+  var MAX_QUEUE = 3; // a backlog of ten badges is a list, not a celebration
+
+  function reduced() {
+    try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+    catch (e) { return false; }
+  }
+  function readSeen() { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function writeSeen(o) { try { localStorage.setItem(SEEN_KEY, JSON.stringify(o)); } catch (e) {} }
+
+  /**
+   * True the FIRST time a key is offered, false forever after. Records the
+   * key as a side effect, so a caller can guard directly on it.
+   */
+  function seenOnce(key) {
+    if (!key) { return false; }
+    var o = readSeen();
+    if (o[key]) { return false; }
+    o[key] = 1; writeSeen(o);
+    return true;
+  }
+
+  var KINDS = {
+    badge:       { icon: 'award',            kicker: 'Achievement unlocked' },
+    streak:      { icon: 'fire',             kicker: 'Streak milestone' },
+    certificate: { icon: 'graduation-cap',   kicker: 'Certificate earned' },
+    milestone:   { icon: 'star',             kicker: 'Milestone' }
+  };
+
+  var queue = [], running = false;
+
+  function particles(host) {
+    if (reduced()) { return; }
+    var colors = ['#FCC647', '#EEA02A', '#F7B23A', '#FFF3D2'];
+    for (var i = 0; i < 26; i++) {
+      var p = document.createElement('span');
+      p.className = 'mam-celebrate-particle';
+      p.setAttribute('aria-hidden', 'true');
+      var angle = (Math.PI * 2 * i) / 26 + Math.random() * 0.25;
+      var dist  = 90 + Math.random() * 130;
+      p.style.background = colors[i % colors.length];
+      p.style.left = '50%';
+      p.style.top  = '12vh';
+      p.style.setProperty('--dx', (Math.cos(angle) * dist).toFixed(1) + 'px');
+      p.style.setProperty('--dy', (Math.sin(angle) * dist + 60).toFixed(1) + 'px');
+      p.style.setProperty('--rot', Math.round(Math.random() * 540 - 270) + 'deg');
+      p.style.animationDelay = (Math.random() * 0.12).toFixed(2) + 's';
+      host.appendChild(p);
+    }
+  }
+
+  function show(item, done) {
+    var meta = KINDS[item.kind] || KINDS.milestone;
+    var host = document.createElement('div');
+    host.className = 'mam-celebrate';
+    // Polite, not assertive: this is good news, never an interruption worth
+    // cutting across whatever the screen reader is already saying.
+    host.setAttribute('role', 'status');
+    host.setAttribute('aria-live', 'polite');
+
+    var esc = (window.MAM_PORTAL && window.MAM_PORTAL.escapeHtml)
+      ? window.MAM_PORTAL.escapeHtml
+      : function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); };
+
+    var card = document.createElement('div');
+    card.className = 'mam-celebrate-card';
+    card.innerHTML = '<div class="mam-celebrate-icon" aria-hidden="true"><i class="fa-solid fa-' + esc(meta.icon) + '"></i></div>'
+      + '<div><div class="mam-celebrate-kicker">' + esc(meta.kicker) + '</div>'
+      + '<div class="mam-celebrate-label">' + esc(item.label || '') + '</div></div>';
+
+    particles(host);
+    host.appendChild(card);
+    document.body.appendChild(host);
+
+    window.setTimeout(function () {
+      card.classList.add('is-leaving');
+      window.setTimeout(function () {
+        if (host.parentNode) { host.parentNode.removeChild(host); }
+        done();
+      }, 360);
+    }, HOLD_MS);
+  }
+
+  function pump() {
+    if (running) { return; }
+    var item = queue.shift();
+    if (!item) { return; }
+    running = true;
+    show(item, function () {
+      running = false;
+      window.setTimeout(pump, GAP_MS);
+    });
+  }
+
+  /** Mark a moment. Returns nothing; safe to call before the DOM settles. */
+  function celebrate(kind, label) {
+    if (!label) { return; }
+    if (queue.length >= MAX_QUEUE) { return; }
+    queue.push({ kind: kind || 'milestone', label: label });
+    if (document.body) { pump(); }
+    else { document.addEventListener('DOMContentLoaded', pump, { once: true }); }
+  }
+
+  if (window.MAM_PORTAL) {
+    window.MAM_PORTAL.celebrate = celebrate;
+    window.MAM_PORTAL.seenOnce  = seenOnce;
+  }
+})();
