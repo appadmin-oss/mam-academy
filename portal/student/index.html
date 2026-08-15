@@ -906,11 +906,34 @@
         + '<td data-label="Focus">' + P.escapeHtml(l.focus || '—') + '</td>'
         + '<td data-label="Notes" style="color:var(--text-muted);font-size:0.82rem">' + P.escapeHtml(l.notes || '') + '</td></tr>';
     }).join('') : '';
+    // §5.1 — personal insights computed from the student's own practice logs.
+    function practiceInsights(ls) {
+      if (!ls || ls.length < 3) return '';
+      var dayTot = [0, 0, 0, 0, 0, 0, 0], dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      var now = new Date(), wkMs = 7 * 864e5, thisWk = 0, lastWk = 0, totMin = 0;
+      ls.forEach(function (l) {
+        var d = new Date(String(l.logged_on) + 'T00:00:00'); if (isNaN(d.getTime())) return;
+        var m = Number(l.minutes) || 0; totMin += m; dayTot[d.getDay()] += m;
+        var age = now - d;
+        if (age < wkMs) thisWk += m; else if (age < 2 * wkMs) lastWk += m;
+      });
+      var best = 0; for (var i = 1; i < 7; i++) { if (dayTot[i] > dayTot[best]) best = i; }
+      var delta = lastWk > 0 ? Math.round((thisWk - lastWk) / lastWk * 100) : (thisWk > 0 ? 100 : 0);
+      var trend = delta > 0 ? ('up ' + delta + '%') : (delta < 0 ? ('down ' + Math.abs(delta) + '%') : 'about the same');
+      var trendCol = delta > 0 ? '#34D399' : (delta < 0 ? '#FB923C' : 'var(--text-muted)');
+      var avg = Math.round(totMin / ls.length);
+      var bits = [];
+      if (dayTot[best] > 0) bits.push('<div><i class="fa-solid fa-calendar-day" style="color:var(--gold-bright);margin-right:8px"></i>You practise most on <strong>' + dayNames[best] + 's</strong></div>');
+      bits.push('<div><i class="fa-solid fa-arrow-trend-up" style="color:' + trendCol + ';margin-right:8px"></i>This week is <strong style="color:' + trendCol + '">' + trend + '</strong> vs last week</div>');
+      bits.push('<div><i class="fa-solid fa-stopwatch" style="color:var(--gold-bright);margin-right:8px"></i>Average session <strong>' + avg + ' min</strong></div>');
+      return '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-lightbulb" style="margin-right:8px;color:var(--gold-bright)"></i>Your practice insights</h2></div><div class="panel-body" style="display:grid;gap:9px;font-size:0.92rem">' + bits.join('') + '</div></section>';
+    }
     content.innerHTML = '<section class="kpi-row">'
       + kpi('Practice streak', (ps.streak || 0) + (ps.streak === 1 ? ' day' : ' days'), ps.streak ? 'Keep it up 🔥' : 'Log today to start', 'gold')
       + kpi('This week', wk, Math.min(100, Math.round((ps.weekMin || 0) / 150 * 100)) + '% of 150-min goal')
       + kpi('Total logged', (ps.total || 0) + ' min', (ps.sessions || 0) + ' session' + (ps.sessions === 1 ? '' : 's'))
       + '</section>'
+      + practiceInsights(logs)
       + '<section class="panel" id="coachNote" hidden><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;color:var(--gold-bright)"></i>Your practice coach</h2></div><div class="panel-body" id="coachNoteBody"></div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Log a practice session</h2></div>'
       + '<form id="pracForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">'

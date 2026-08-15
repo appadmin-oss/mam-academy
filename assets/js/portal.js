@@ -441,3 +441,19 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); }, false);
   apply(read()); // belt-and-braces if the pre-paint script was skipped
 })();
+
+/* ============================================================
+   Continue where you left off (Advanced Modernization §4.10).
+   Remembers the last tab per portal and, on a fresh visit with no
+   explicit hash, restores it — so returning lands you where you were.
+   Runs at parse time (before each portal's inline init reads the hash).
+   ============================================================ */
+(function () {
+  'use strict';
+  var key = 'mam-lasttab:' + location.pathname;
+  function store() { if (location.hash && location.hash.length > 1) { try { localStorage.setItem(key, location.hash); } catch (e) {} } }
+  if (!location.hash || location.hash.length <= 1) {
+    try { var last = localStorage.getItem(key); if (last && /^#[a-z0-9-]+$/i.test(last)) { location.hash = last; } } catch (e) {}
+  } else { store(); }
+  window.addEventListener('hashchange', store, false);
+})();
