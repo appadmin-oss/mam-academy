@@ -622,3 +622,37 @@ html.a11y-lowbw .cmdk-fab{box-shadow:none}
   .mam-celebrate-card,.mam-celebrate-card.is-leaving{animation:none;transition:opacity 0.2s linear}
   .mam-celebrate-particle{display:none}
 }
+
+/* Drag-to-reschedule week grid (Advanced Modernization §4.3).
+   The grid scrolls horizontally inside its own container — a seven-column
+   timetable cannot compress to a phone width, and letting the PAGE scroll
+   sideways instead breaks every other panel. */
+.sg-head{display:flex;align-items:center;gap:10px;padding:12px 16px;flex-wrap:wrap}
+.sg-range{font-variant-numeric:tabular-nums;font-size:.9rem}
+.sg-hint{margin:0 16px 10px;font-size:.78rem;color:var(--text-muted)}
+.sg-scroll{overflow-x:auto;padding:0 16px 16px}
+.sg-grid{width:100%;min-width:760px;border-collapse:collapse;table-layout:fixed}
+.sg-grid th,.sg-grid td{border:1px solid var(--border);vertical-align:top}
+.sg-grid thead th{padding:8px 4px;text-align:center;font-weight:700;font-size:.74rem;background:var(--bg-raised)}
+.sg-dow{display:block;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted)}
+.sg-dom{display:block;font-family:var(--font-display);font-size:1.1rem;color:var(--text)}
+.sg-time{width:62px;padding:6px 8px;text-align:right;font-size:.72rem;color:var(--text-muted);white-space:nowrap;background:var(--bg-raised);font-weight:600}
+.sg-slot{height:46px;padding:3px;transition:background-color .12s ease}
+.sg-slot.is-over{background:color-mix(in srgb,var(--gold) 22%,transparent);outline:2px dashed var(--gold-bright);outline-offset:-3px}
+
+.sg-card{display:block;width:100%;text-align:left;cursor:grab;margin-bottom:3px;padding:4px 7px;border:1px solid var(--gold);border-radius:7px;background:var(--bg-surface);color:var(--text);font:inherit;font-size:.72rem;line-height:1.25;overflow:hidden}
+.sg-card:hover{border-color:var(--gold-bright)}
+.sg-card:focus-visible{outline:2px solid var(--gold-bright);outline-offset:2px}
+.sg-card.is-dragging{opacity:.45;cursor:grabbing}
+.sg-card-time{display:block;font-weight:700;color:var(--gold-bright);font-variant-numeric:tabular-nums}
+.sg-card-title{display:block;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--text-muted)}
+.sg-card.is-held{border-color:#34D399}
+.sg-card.is-held .sg-card-time{color:#34D399}
+.sg-card.is-cancelled{border-color:var(--border);opacity:.6}
+.sg-card.is-cancelled .sg-card-title{text-decoration:line-through}
+
+.sg-outside{margin:0 16px 16px;padding:12px 14px;border:1px dashed var(--border);border-radius:var(--radius-md)}
+.sg-outside-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:var(--text-muted);margin-bottom:8px}
+.sg-outside .sg-card{display:inline-block;width:auto;min-width:150px;margin:0 6px 6px 0}
+
+@media (prefers-reduced-motion: reduce){ .sg-slot{transition:none} }

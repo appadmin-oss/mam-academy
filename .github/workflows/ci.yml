@@ -62,3 +62,5 @@ jobs:
         run: node assets/js/card-export.selftest.cjs
       - name: Headshot quality + downscale self-test
         run: node assets/js/headshot.selftest.cjs
+      - name: Schedule grid date-math self-test
+        run: node assets/js/schedule-grid.selftest.cjs

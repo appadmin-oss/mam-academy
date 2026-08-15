@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260706d">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260815b">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260815c">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -82,6 +82,7 @@
 <script src="/assets/js/portal.js?v=20260815b"></script>
 <script src="/assets/js/practice-player.js?v=20260815a" defer></script>
 <script src="/assets/js/command-palette.js?v=20260815a" defer></script>
+<script src="/assets/js/schedule-grid.js?v=20260815a"></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <!-- Self-hosted QR generator (MIT, qrcodejs) for the attendance check-in QR (#9/#10). -->
 <script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
@@ -405,6 +406,43 @@
     });
   }
 
+  // §4.3 week-grid state. sessWeekAnchor is any date inside the week being
+  // shown; null means "the week containing the first scheduled session", so
+  // opening a cohort lands on the week that actually has classes in it rather
+  // than on an empty current week.
+  var sessWeekView = false, sessWeekAnchor = null;
+
+  function mountSessionGrid(cid, sessions) {
+    var host = document.getElementById('sessGrid');
+    if (!host || !window.MAM_SCHEDULE) return;
+    if (!sessWeekAnchor) {
+      var first = (sessions || []).filter(function (s) { return s.scheduled_at; })
+        .sort(function (a, b) { return String(a.scheduled_at).localeCompare(String(b.scheduled_at)); })[0];
+      sessWeekAnchor = first ? String(first.scheduled_at).slice(0, 10) : null;
+    }
+    window.MAM_SCHEDULE.render(host, {
+      sessions: sessions,
+      anchor: sessWeekAnchor,
+      onWeek: function (d) { sessWeekAnchor = d; mountSessionGrid(cid, sessions); },
+      onMove: function (id, at) {
+        var s = (sessions || []).filter(function (x) { return String(x.id) === String(id); })[0] || {};
+        if (String(s.scheduled_at || '').slice(0, 16) === at.slice(0, 16)) return; // dropped where it already was
+        if (!confirm('Move "' + (s.title || ('Session #' + id)) + '" to ' + at.slice(0, 16).replace('T', ' ') + '?')) return;
+        API.request('instructor/sessions', { method: 'POST', body: { action: 'reschedule', session_id: parseInt(id, 10), scheduled_at: at, reason: 'Moved on the week grid' } })
+          .then(function (r) {
+            // The endpoint reports conflicts rather than refusing — surface
+            // them, because a silent clash is how two classes end up in one
+            // room. The move still stands; the tutor decides what to do.
+            if (r.conflicts && r.conflicts.length && window.MAM_DIALOG) {
+              window.MAM_DIALOG.toast('Moved — but it now clashes with ' + r.conflicts.length + ' other session(s).', 'warning');
+            } else if (window.MAM_DIALOG) { window.MAM_DIALOG.toast('Session moved.', 'success'); }
+            loadCohortSessions(cid);
+          })
+          .catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not move that session.', 'error'); });
+      }
+    });
+  }
+
   function loadCohortSessions(cid) {
     var area = document.getElementById('sessArea');
     if (!area) return;
@@ -450,10 +488,20 @@
         + '<div style="flex:1;background:var(--border);border-radius:6px;height:8px"><div style="width:' + Math.min(100, Math.round((fc.enrolled||0)/(fc.capacity)*100)) + '%;height:100%;background:' + (fc.is_full ? '#F87171' : fc.enrolled/(fc.capacity)>=0.8?'#FBBF24':'#34D399') + ';border-radius:6px"></div></div>'
         + '<span style="font-size:.8rem;color:var(--text-muted);white-space:nowrap">' + (fc.enrolled||0) + ' / ' + fc.capacity + ' enrolled'
         + (fc.waitlist_count ? ' · <span style="color:var(--gold)">' + fc.waitlist_count + ' waiting</span>' : '') + '</span></div>') : '';
+      // §4.3 — Week view is a SECOND way to drive the reschedule action the
+      // list already exposes, never the only way. The list (and its
+      // Reschedule button) stays exactly as it was, so nothing here is
+      // pointer-only.
+      var weekOn = sessWeekView;
       area.innerHTML = '<section class="panel"><div class="panel-head"><h2>Sessions</h2>'
-        + '<div style="display:flex;gap:6px"><button class="panel-action" onclick="document.getElementById(\'bulkPanel\').style.display = document.getElementById(\'bulkPanel\').style.display===\'none\'?\'block\':\'none\'"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate term</button></div></div>'
+        + '<div style="display:flex;gap:6px">'
+        + '<button class="panel-action" id="sessViewToggle" aria-pressed="' + (weekOn ? 'true' : 'false') + '"><i class="fa-solid fa-' + (weekOn ? 'list' : 'calendar-week') + '"></i> ' + (weekOn ? 'List view' : 'Week view') + '</button>'
+        + '<button class="panel-action" onclick="document.getElementById(\'bulkPanel\').style.display = document.getElementById(\'bulkPanel\').style.display===\'none\'?\'block\':\'none\'"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate term</button></div></div>'
         + capBar
-        + '<table><thead><tr><th>Session</th><th>When</th><th>Kind</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></section>'
+        + (weekOn
+            ? '<div id="sessGrid"></div>'
+            : '<table><thead><tr><th>Session</th><th>When</th><th>Kind</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>')
+        + '</section>'
         + '<div id="bulkPanel" style="display:none">'
         + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--gold-bright)"></i> Generate Term Sessions</h2></div>'
         + '<div class="profile-form" style="padding:14px 18px">'
@@ -491,6 +539,9 @@
         + '<div id="cohortStandings"></div>'
         + '<div id="cohortCurriculum"></div>';
       bindSessionList(cid, sessions);
+      if (weekOn) { mountSessionGrid(cid, sessions); }
+      var vt = document.getElementById('sessViewToggle');
+      if (vt) vt.addEventListener('click', function () { sessWeekView = !sessWeekView; loadCohortSessions(cid); });
       loadCohortStandings(cid);
       loadCohortCurriculum(cid);
     }).catch(function () { area.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load sessions.') + '</div></section>'; });
