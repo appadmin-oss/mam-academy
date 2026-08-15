@@ -130,8 +130,9 @@
     var t = tabs[tab] || tabs.overview;
     pageTitle.firstChild.textContent = t[0] + ' ';
     pageSub.textContent = t[1];
-    // Repertoire stays a client-side studio tool; Practice is now server-backed.
-    if (STUDIO && tab === 'repertoire') return STUDIO.renderRepertoire(content);
+    // Repertoire is server-backed (§1.7) so it feeds the recital programme and
+    // is visible to guardians.
+    if (tab === 'repertoire') return renderRepertoire();
     if (!data) return;
     if (tab === 'practice') return renderPractice();
     if (tab === 'overview') return renderOverview();
@@ -896,6 +897,55 @@
     }).join('');
     return '<section class="panel" style="margin-top:6px"><div style="padding:8px 18px 18px">' + head + rows + '</div></section>';
   }
+  // ── Repertoire → recital (§1.7) ──────────────────────────────────────────
+  var _repMeta = { learning: { label: 'Learning', icon: 'seedling', col: 'var(--gold-bright)' }, polished: { label: 'Polished', icon: 'star', col: '#34D399' }, performed: { label: 'Performed', icon: 'trophy', col: 'var(--gold-bright)' } };
+  function renderRepertoire() {
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading your repertoire…') + '</div></section>';
+    API.request('student/repertoire', { method: 'GET' })
+      .then(function (r) { _renderRepertoire(r); })
+      .catch(function () { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load your repertoire.') + '</div></section>'; });
+  }
+  function _renderRepertoire(r) {
+    var reps = r.repertoire || [], prog = r.programme || [];
+    function pieceRow(p) {
+      var next = p.status === 'learning' ? 'polished' : (p.status === 'polished' ? 'performed' : null);
+      return '<div style="display:flex;gap:12px;align-items:center;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-raised)">'
+        + '<span style="flex:1"><strong>' + P.escapeHtml(p.title) + '</strong>' + (p.composer ? ' <span style="color:var(--text-muted)">· ' + P.escapeHtml(p.composer) + '</span>' : '') + (p.notes ? '<br><span style="color:var(--text-muted);font-size:.82rem">' + P.escapeHtml(p.notes) + '</span>' : '') + '</span>'
+        + (next ? '<button class="btn btn-ghost rep-advance" data-id="' + p.id + '" data-to="' + next + '" style="font-size:.78rem;padding:5px 10px">Mark ' + _repMeta[next].label.toLowerCase() + '</button>' : '')
+        + '<button class="rep-del" data-id="' + p.id + '" title="Remove" style="background:none;border:0;color:var(--text-muted);cursor:pointer"><i class="fa-solid fa-trash"></i></button>'
+        + '</div>';
+    }
+    var groups = ['learning', 'polished', 'performed'].map(function (st) {
+      var items = reps.filter(function (p) { return p.status === st; }), m = _repMeta[st];
+      return '<section class="panel" style="margin-bottom:14px"><div class="panel-head"><h2><i class="fa-solid fa-' + m.icon + '" style="color:' + m.col + ';margin-right:8px"></i>' + m.label + ' <span style="color:var(--text-muted);font-weight:400;font-size:.85rem">(' + items.length + ')</span></h2></div><div class="panel-body" style="display:grid;gap:8px">'
+        + (items.length ? items.map(pieceRow).join('') : empty('music', 'Nothing here yet.')) + '</div></section>';
+    }).join('');
+    var progHtml = prog.length ? '<section class="panel" style="margin-bottom:14px;border-color:var(--border-gold)"><div class="panel-head"><h2><i class="fa-solid fa-list-ol" style="color:var(--gold-bright);margin-right:8px"></i>Your recital programme</h2></div><div class="panel-body"><ol style="margin:0;padding-left:20px;display:grid;gap:6px">'
+      + prog.map(function (p) { return '<li><strong>' + P.escapeHtml(p.title) + '</strong>' + (p.composer ? ' — ' + P.escapeHtml(p.composer) : '') + ' <span class="pill" style="font-size:.7rem">' + P.escapeHtml(p.status) + '</span></li>'; }).join('')
+      + '</ol></div></section>' : '';
+    var addForm = '<section class="panel"><div class="panel-head"><h2>Add a piece</h2></div><form id="repForm" class="profile-form" style="padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">'
+      + '<div class="field"><label>Title</label><input id="rep-title" required placeholder="e.g. Für Elise"></div>'
+      + '<div class="field"><label>Composer</label><input id="rep-composer" placeholder="e.g. Beethoven"></div>'
+      + '<div class="field"><label>Status</label><select id="rep-status"><option value="learning">Learning</option><option value="polished">Polished</option><option value="performed">Performed</option></select></div>'
+      + '<div class="field" style="grid-column:1/-1"><label>Notes</label><input id="rep-notes" placeholder="Optional"></div>'
+      + '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Add piece</button></div>'
+      + '</form></section>';
+    content.innerHTML = progHtml + groups + addForm;
+    document.getElementById('repForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var title = document.getElementById('rep-title').value.trim();
+      if (!title) return;
+      repPost({ action: 'add', title: title, composer: document.getElementById('rep-composer').value.trim(), status: document.getElementById('rep-status').value, notes: document.getElementById('rep-notes').value.trim() });
+    });
+    content.querySelectorAll('.rep-advance').forEach(function (b) { b.addEventListener('click', function () { repPost({ action: 'update', id: parseInt(b.getAttribute('data-id'), 10), status: b.getAttribute('data-to') }); }); });
+    content.querySelectorAll('.rep-del').forEach(function (b) { b.addEventListener('click', function () { if (confirm('Remove this piece from your repertoire?')) repPost({ action: 'delete', id: parseInt(b.getAttribute('data-id'), 10) }); }); });
+  }
+  function repPost(body) {
+    API.request('student/repertoire', { method: 'POST', body: body })
+      .then(function (r) { _renderRepertoire(r); if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Repertoire updated.', 'success'); })
+      .catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update repertoire.', 'error'); });
+  }
+
   function renderPractice() {
     var ps = data.practice_stats || { streak: 0, weekMin: 0, total: 0, sessions: 0 };
     var logs = data.practice || [];

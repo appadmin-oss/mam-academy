@@ -475,6 +475,8 @@ CREATE TABLE IF NOT EXISTS assignments (
   due_on        DATE NULL,
   status        VARCHAR(12) NOT NULL DEFAULT 'open',
   completed_at  DATETIME NULL,
+  reference_url  VARCHAR(500) NULL,
+  reference_kind VARCHAR(12)  NULL,
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_assignments_student (student_id),
   KEY idx_assignments_author (author_id)
@@ -2070,3 +2072,24 @@ CREATE TABLE IF NOT EXISTS student_consents (
   CONSTRAINT fk_consent_by      FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (75) ON DUPLICATE KEY UPDATE version = version;
+
+-- v76: repertoire → recital (Advanced Modernization §1.7) + assignment
+-- reference recording (§1.3). Existing installs get the two assignment columns
+-- via the ALTER below (fresh installs already have them in the CREATE above).
+CREATE TABLE IF NOT EXISTS repertoire (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT          NOT NULL,
+  title      VARCHAR(200) NOT NULL,
+  composer   VARCHAR(160) NULL,
+  status     VARCHAR(16)  NOT NULL DEFAULT 'learning',
+  notes      VARCHAR(1000) NULL,
+  sort_order INT          NOT NULL DEFAULT 0,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_rep_student (student_id, status),
+  CONSTRAINT fk_rep_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+ALTER TABLE assignments
+  ADD COLUMN reference_url  VARCHAR(500) NULL,
+  ADD COLUMN reference_kind VARCHAR(12)  NULL;
+INSERT INTO schema_version (version) VALUES (76) ON DUPLICATE KEY UPDATE version = version;

@@ -141,6 +141,8 @@ function mam_parent_child_detail(int $parentId, int $studentId): array {
         'wins'         => function_exists('mam_wins_feed') ? mam_wins_feed($studentId, 12) : [],
         // §8.4 — the guardian's current consent settings for this child.
         'consent'      => function_exists('mam_consent_get') ? mam_consent_get($studentId) : null,
+        // §1.7 — the recital programme (polished + performed pieces).
+        'programme'    => function_exists('mam_repertoire_programme') ? mam_repertoire_programme($studentId) : [],
     ];
 }
 
