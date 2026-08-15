@@ -1145,10 +1145,17 @@ INSERT INTO schema_version (version) VALUES (40) ON DUPLICATE KEY UPDATE version
 INSERT IGNORE INTO programs (code, name, weeks, revision_week, exam_week, requires_core, certification, sort_order, active)
 VALUES ('ktams', 'KTAMS Young Musicians', 12, 11, 12, 0, 'participation', 0, 1);
 
+-- NOTE: program_courses is ALSO created in the consolidated section above, so
+-- on a fresh install this CREATE is inert (IF NOT EXISTS) and the earlier
+-- definition is the one that takes effect. It is kept here so an install that
+-- predates the consolidated section still gets the table when it reaches v41.
+-- The two definitions must stay IDENTICAL: they disagreed for a long time
+-- (VARCHAR(32) NULL above vs VARCHAR(24) here), which meant editing this copy
+-- changed nothing on a fresh install, silently and with no error.
 CREATE TABLE IF NOT EXISTS program_courses (
   program_id INT NOT NULL,
   course_id  INT NOT NULL,
-  level_code VARCHAR(24),
+  level_code VARCHAR(32) NULL,
   sort_order INT NOT NULL DEFAULT 0,
   PRIMARY KEY (program_id, course_id),
   CONSTRAINT fk_pc_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
@@ -1388,6 +1395,11 @@ INSERT INTO schema_version (version) VALUES (47) ON DUPLICATE KEY UPDATE version
 -- Those definitions are now portable above; the CREATE TABLE IF NOT EXISTS /
 -- tolerated-duplicate ALTER re-runs recreate whatever was missing. These extra
 -- guards make the repair explicit and order-independent.
+--
+-- The progress_reports CREATE below is therefore a DELIBERATE second copy, not
+-- stray duplication — do not "tidy" it away. It is inert on any install where
+-- the earlier definition succeeded, and it is the whole repair on one where
+-- that definition failed. Keep it byte-identical to the earlier one.
 CREATE TABLE IF NOT EXISTS progress_reports (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   session_id    INT NOT NULL,

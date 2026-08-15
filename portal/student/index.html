@@ -1697,7 +1697,11 @@
     }).join('') + '</div>' : '';
     area.innerHTML = '<section class="panel" style="margin-top:16px"><div class="panel-head"><h2><i class="fa-solid fa-user-plus" style="color:var(--gold-bright);margin-right:8px"></i>Refer a friend</h2>' + (earned > 0 ? '<span class="kpi-sub">$' + (earned / 100).toFixed(2) + ' earned</span>' : '') + '</div>'
       + '<div class="panel-body" style="display:grid;gap:12px">'
-      + '<p style="margin:0;color:var(--text-muted)">Share your link. When a friend joins MAM, you earn tuition credit to your wallet.</p>'
+      // Students have no wallet surface — it was repurposed to instructor
+      // earnings — so promising credit "to your wallet" pointed at a screen
+      // that does not exist and a balance they could not spend. Say what
+      // actually happens: staff approve the reward and apply it to tuition.
+      + '<p style="margin:0;color:var(--text-muted)">Share your link. When a friend joins MAM, you earn tuition credit — applied to your account by the academy office.</p>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="refLink" readonly value="' + P.escapeHtml(link) + '" style="flex:1;min-width:220px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-raised);color:var(--text);font-family:monospace;font-size:.82rem">'
       + '<button class="btn btn-primary" id="refCopy"><i class="fa-solid fa-copy"></i> Copy link</button></div>'
       + '<div style="font-size:.8rem;color:var(--text-muted)">Your code: <strong style="color:var(--gold-bright);font-family:monospace">' + P.escapeHtml(code) + '</strong></div>'

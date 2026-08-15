@@ -40,6 +40,12 @@ function mam_leaderboard_display_name(?string $name): string {
  * among opted-in, consented peers. Returns ranked rows with is_me flagged.
  */
 function mam_leaderboard_for_student(int $studentId, ?string $today = null, int $limit = 20): array {
+    // The viewer must be eligible themselves. This gate used to live only in
+    // api/routes/student/leaderboard.php, which was correct while that was the
+    // one caller — but it made the LIB hand any caller a list of opted-in peers
+    // for an arbitrary student id. Participation is the price of looking: a
+    // student who has not opted in does not get to read the board.
+    if (!mam_leaderboard_eligible($studentId)) return [];
     $today   = $today ?: date('Y-m-d');
     $weekAgo = date('Y-m-d', strtotime($today . ' -6 days'));
     $cohorts = function_exists('mam_checkin_student_cohorts') ? mam_checkin_student_cohorts($studentId) : [];
@@ -51,12 +57,31 @@ function mam_leaderboard_for_student(int $studentId, ?string $today = null, int 
           WHERE ce.cohort_id IN ($ph) AND ce.status IN ('active','completed') AND u.status = 'active'",
         $cohorts
     );
-    $rows = [];
+    // Filter to the eligible peers FIRST, then fetch all their minutes in one
+    // query. The obvious shape — a SUM per peer inside the loop — is an N+1,
+    // and while a cohort is small by design (default 12 seats) nothing stops an
+    // uncapped cohort, at which point the board costs a query per member.
+    $eligible = [];
     foreach ($peers as $p) {
         $pid = (int) $p['id'];
-        if (!mam_leaderboard_eligible($pid)) continue;
-        $min = (int) (mam_db_row("SELECT COALESCE(SUM(minutes),0) AS m FROM practice_logs WHERE student_id = ? AND logged_on >= ? AND logged_on <= ?", [$pid, $weekAgo, $today])['m'] ?? 0);
-        $rows[] = ['id' => $pid, 'name' => mam_leaderboard_display_name($p['name']), 'minutes' => $min];
+        if (mam_leaderboard_eligible($pid)) $eligible[$pid] = (string) $p['name'];
+    }
+    if (!$eligible) return [];
+    $ids  = array_keys($eligible);
+    $iph  = implode(',', array_fill(0, count($ids), '?'));
+    $mins = [];
+    foreach (mam_db_all(
+        "SELECT student_id AS id, COALESCE(SUM(minutes),0) AS m FROM practice_logs
+          WHERE student_id IN ($iph) AND logged_on >= ? AND logged_on <= ? GROUP BY student_id",
+        array_merge($ids, [$weekAgo, $today])
+    ) as $m) { $mins[(int) $m['id']] = (int) $m['m']; }
+
+    $rows = [];
+    foreach ($eligible as $pid => $name) {
+        // A peer with no logs this week is still ON the board at 0 — dropping
+        // them would quietly hide everyone having a hard week, which is the
+        // opposite of what an effort board is for.
+        $rows[] = ['id' => $pid, 'name' => mam_leaderboard_display_name($name), 'minutes' => $mins[$pid] ?? 0];
     }
     usort($rows, function ($a, $b) { return $b['minutes'] <=> $a['minutes'] ?: strcmp($a['name'], $b['name']); });
     $out = []; $rank = 0;

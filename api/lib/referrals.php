@@ -42,6 +42,13 @@ function mam_referral_capture(string $code, ?string $name = null, ?string $email
     if ($referredUserId !== null && $referredUserId === $ref) return null; // can't refer yourself
     $email = $email ? strtolower(trim($email)) : null;
     if ($email && mam_db_row("SELECT id FROM referrals WHERE referrer_id = ? AND referred_email = ? AND status != 'rewarded'", [$ref, $email])) return null;
+    // A capture with NO email cannot be de-duped by identity, so it is capped
+    // by volume instead. /api/referral/capture is public and CSRF-less by
+    // design (a sign-up beacon, no session to bind to), which without this
+    // lets anyone who knows a code post {code, name} on a loop and bury a
+    // family's referral list — and the admin queue — in plausible-looking
+    // pending rows. Real referrals arrive with an email and are unaffected.
+    if ($email === null && !mam_referral_under_anon_cap($ref)) return null;
     return mam_db_insert('referrals', [
         'referrer_id'      => $ref,
         'code'             => strtoupper(trim($code)),
@@ -50,6 +57,24 @@ function mam_referral_capture(string $code, ?string $name = null, ?string $email
         'referred_user_id' => $referredUserId,
         'status'           => 'pending',
     ]);
+}
+
+/**
+ * Are there still slots for an anonymous (email-less) referral against this
+ * referrer today? Deliberately per-referrer rather than per-IP: the thing being
+ * protected is one family's list, and an attacker rotating IPs would walk
+ * straight past an IP cap. The rate limiter on the route handles IP volume.
+ */
+function mam_referral_under_anon_cap(int $referrerId, ?string $today = null): bool {
+    $today = $today ?: date('Y-m-d');
+    $cap   = (int) mam_setting_num('referral_anon_daily_cap', 5);
+    if ($cap <= 0) return false; // 0 disables email-less capture entirely
+    $n = (int) (mam_db_row(
+        "SELECT COUNT(*) AS n FROM referrals
+          WHERE referrer_id = ? AND referred_email IS NULL AND created_at >= ? AND created_at < ?",
+        [$referrerId, $today . ' 00:00:00', $today . ' 23:59:59']
+    )['n'] ?? 0);
+    return $n < $cap;
 }
 
 /** A referrer's own referrals (newest first). */
@@ -79,6 +104,20 @@ function mam_referral_reward(int $referralId, ?int $rewardCents = null, ?int $by
         mam_wallet_apply((int) $r['referrer_id'], $cents, 'referral', $by, 'referral:' . $referralId, 'Referral reward');
     }
     mam_db_update('referrals', ['status' => 'rewarded', 'reward_cents' => $cents, 'rewarded_at' => date('Y-m-d H:i:s')], ['id' => $referralId]);
+    // Tell the referrer. Rewarding used to be entirely silent: the ledger row
+    // appeared and the referral row flipped, but nothing reached the person who
+    // did the referring — so a family only found out if they happened to
+    // reopen the Refer a Friend panel.
+    if ($cents > 0 && function_exists('mam_notify')) {
+        $who = trim((string) ($r['referred_name'] ?? '')) ?: 'someone you referred';
+        mam_notify(
+            (int) $r['referrer_id'],
+            'referral.rewarded',
+            'Referral reward: $' . number_format($cents / 100, 2),
+            'Thank you for introducing ' . $who . ' to MAM. Your reward has been credited and will be applied to your tuition by the academy office.',
+            '/portal/student/#payments'
+        );
+    }
     if (function_exists('mam_audit')) mam_audit('referral_reward', 'user', (int) $r['referrer_id'], ['referral' => $referralId, 'cents' => $cents, 'by' => $by]);
     return true;
 }

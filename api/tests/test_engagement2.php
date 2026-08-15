@@ -23,6 +23,21 @@ t_eq($board2[0]['minutes'], 200, 'ranked by effort (minutes) descending');
 t_eq(mam_leaderboard_display_name('Ada Grace Okafor'), 'Ada O.', 'display name is first + last initial');
 t_ok(!mam_leaderboard_optin_get($LB3), 'opt-in defaults off');
 
+// The viewer's OWN eligibility gates the read (audit F7). This check used to
+// live only in the route, so the lib would hand any caller a list of opted-in
+// peers for an arbitrary student id. Participation is the price of looking.
+t_eq(count(mam_leaderboard_for_student($LB3, '2026-08-15')), 0, 'a student who has not opted in reads an empty board');
+mam_leaderboard_optin_set($LB3, true);
+t_eq(count(mam_leaderboard_for_student($LB3, '2026-08-15')), 0, 'opting in without data consent still reads empty');
+mam_consent_set($LB3, ['data' => true]);
+t_ok(count(mam_leaderboard_for_student($LB3, '2026-08-15')) > 0, 'consenting opens the board to them');
+
+// A peer with no minutes this week stays ON the board at 0 rather than being
+// dropped — hiding everyone having a hard week is the opposite of the point.
+$LB_zero = array_values(array_filter(mam_leaderboard_for_student($LB1, '2026-08-15'), fn($r) => $r['minutes'] === 0));
+t_ok(count($LB_zero) >= 1, 'a peer with no practice this week still appears, at zero');
+t_eq(mam_leaderboard_for_student($LB1, '2026-08-15')[0]['minutes'], 200, 'ranking still puts the highest effort first');
+
 t_group('arrival analytics (§8.3)');
 $AR_ins = mam_db_insert('users', ['name' => 'AR Ins', 'email' => 'ar_ins@test.local', 'role' => 'instructor', 'password_hash' => 'x', 'status' => 'active']);
 $AR_course = mam_db_insert('courses', ['code' => 'ar_c', 'name' => 'AR', 'kind' => 'core']);
