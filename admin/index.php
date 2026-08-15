@@ -2516,7 +2516,7 @@ nav a{display:flex;align-items:center}
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'record' => ['Student Record', 'folder-open'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'upper' => ['Upper Admin', 'binoculars'], 'record' => ['Student Record', 'folder-open'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open'], 'referrals' => ['Referrals', 'user-plus'], 'bi' => ['Business Intelligence', 'chart-pie']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
@@ -2527,7 +2527,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users', 'upper' => 'settings'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -3579,6 +3579,117 @@ nav a{display:flex;align-items:center}
     </table></div>
     <?php endif; ?>
   </div>
+
+<?php elseif ($view === 'upper'): ?>
+  <?php
+    // §34-35 — strategic intelligence. One question at a time, then walk down
+    // Academy → Programme → Instrument → Grade → Instructor → Student until the
+    // row that explains the number is in front of you.
+    $uFilter = mam_upper_filter($_GET);
+    $uDim    = isset($_GET['dimension']) ? (string)$_GET['dimension'] : null;
+    $uDash   = mam_upper_dashboard($uFilter, $uDim);
+    $uHealth = $uDash['health'];
+    $uNext   = mam_upper_next_dimension($uDash['dimension']);
+    $uQs = function (array $f, ?string $dim = null) {
+        $q = ['v' => 'upper'] + $f;
+        if ($dim) $q['dimension'] = $dim;
+        return '?' . http_build_query($q);
+    };
+    // A metric with nothing behind it prints as an em dash. Showing 0% for
+    // "never measured" is the one thing a management dashboard must not do.
+    $uPct = function ($v) { return $v === null ? '<span class="muted">—</span>' : htmlspecialchars((string)$v) . '%'; };
+    $uBar = function ($v) {
+        if ($v === null) return '';
+        $p = max(0, min(100, (float)$v));
+        $col = $p >= 80 ? '#34D399' : ($p >= 50 ? '#FBBF24' : '#F87171');
+        return '<div style="height:6px;background:var(--border);border-radius:3px;margin-top:6px"><div style="width:' . $p . '%;height:100%;background:' . $col . ';border-radius:3px"></div></div>';
+    };
+  ?>
+  <header class="top"><h1>Upper Admin</h1></header>
+  <p class="muted" style="margin:0 0 12px">Academy-wide academic performance, and the drill-down that explains it. Every level below reports the same measures, so a row can be compared with its siblings.</p>
+
+  <nav aria-label="Drill-down path" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+    <?php foreach ($uDash['breadcrumb'] as $i => $cr): ?>
+      <?php if ($i > 0): ?><span class="muted">›</span><?php endif; ?>
+      <?php if ($i === count($uDash['breadcrumb']) - 1): ?>
+        <span class="pill" style="background:var(--gold);color:#1A120B"><?= htmlspecialchars((string)$cr['label']) ?></span>
+      <?php else: ?>
+        <a class="pill" style="background:var(--raised)" href="<?= htmlspecialchars($uQs($cr['filter'])) ?>"><?= htmlspecialchars((string)$cr['label']) ?></a>
+      <?php endif; ?>
+    <?php endforeach; ?>
+  </nav>
+
+  <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:18px">
+    <div class="kpi"><div class="kpi-label">Students</div><div class="kpi-value"><?= number_format((int)$uHealth['students']) ?></div></div>
+    <div class="kpi"><div class="kpi-label">Preparation</div><div class="kpi-value"><?= $uPct($uHealth['preparation_pct']) ?></div><?= $uBar($uHealth['preparation_pct']) ?></div>
+    <div class="kpi"><div class="kpi-label">Attendance</div><div class="kpi-value"><?= $uPct($uHealth['attendance_pct']) ?></div><?= $uBar($uHealth['attendance_pct']) ?></div>
+    <div class="kpi"><div class="kpi-label">Teach-back</div><div class="kpi-value"><?= $uPct($uHealth['teachback_pct']) ?></div><?= $uBar($uHealth['teachback_pct']) ?></div>
+    <div class="kpi"><div class="kpi-label">Average mastery</div><div class="kpi-value"><?= $uHealth['avg_mastery'] === null ? '<span class="muted">—</span>' : htmlspecialchars((string)$uHealth['avg_mastery']) ?></div><?= $uBar($uHealth['avg_mastery']) ?></div>
+    <div class="kpi"><div class="kpi-label">Module completion</div><div class="kpi-value"><?= $uPct($uHealth['module_completion_pct']) ?></div><?= $uBar($uHealth['module_completion_pct']) ?></div>
+    <div class="kpi"><div class="kpi-label">Need intervention</div><div class="kpi-value" style="color:<?= (int)$uHealth['intervention'] > 0 ? '#F87171' : 'inherit' ?>"><?= number_format((int)$uHealth['intervention']) ?></div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:10px">
+      <h3 style="margin:0">Break down by</h3>
+      <?php foreach ($uDash['dimensions'] as $dk => $dm): ?>
+        <a class="pill" style="<?= $uDash['dimension'] === $dk ? 'background:var(--gold);color:#1A120B' : 'background:var(--raised)' ?>" href="<?= htmlspecialchars($uQs($uFilter, $dk)) ?>"><?= htmlspecialchars((string)$dm['label']) ?></a>
+      <?php endforeach; ?>
+    </div>
+    <p class="muted" style="margin:0 0 12px;font-size:.8rem">Sorted weakest first by average mastery. Rows with no mastery data yet sort last — an unassessed group is not a failing one.</p>
+    <?php if (!$uDash['breakdown']): ?>
+      <p class="muted" style="margin:0">Nothing to break down at this level for the current scope.</p>
+    <?php else: ?>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="padding:8px"><?= htmlspecialchars((string)$uDash['dimensions'][$uDash['dimension']]['label']) ?></th>
+        <th style="padding:8px">Students</th><th style="padding:8px">Prep</th><th style="padding:8px">Attend</th>
+        <th style="padding:8px">Teach-back</th><th style="padding:8px">Mastery</th><th style="padding:8px">Modules</th>
+        <th style="padding:8px">Intervention</th><?php if ($uNext): ?><th style="padding:8px"></th><?php endif; ?>
+      </tr></thead>
+      <tbody>
+      <?php foreach ($uDash['breakdown'] as $row): ?>
+        <?php $childFilter = $uFilter; $childFilter[MAM_UPPER_DIMENSIONS[$uDash['dimension']]['filter']] = (int)$row['id']; ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px"><strong><?= htmlspecialchars((string)$row['label']) ?></strong></td>
+          <td style="padding:8px"><?= number_format((int)$row['students']) ?></td>
+          <td style="padding:8px"><?= $uPct($row['preparation_pct']) ?></td>
+          <td style="padding:8px"><?= $uPct($row['attendance_pct']) ?></td>
+          <td style="padding:8px"><?= $uPct($row['teachback_pct']) ?></td>
+          <td style="padding:8px"><?= $row['avg_mastery'] === null ? '<span class="muted">—</span>' : htmlspecialchars((string)$row['avg_mastery']) ?></td>
+          <td style="padding:8px"><?= $uPct($row['module_completion_pct']) ?></td>
+          <td style="padding:8px" style="color:<?= (int)$row['intervention'] > 0 ? '#F87171' : 'inherit' ?>"><?= number_format((int)$row['intervention']) ?></td>
+          <?php if ($uNext): ?>
+            <td style="padding:8px"><a class="btn" style="padding:4px 10px;font-size:.75rem" href="<?= htmlspecialchars($uQs($childFilter, $uNext)) ?>">Drill in ›</a></td>
+          <?php elseif ($uDash['dimension'] === 'student'): ?>
+            <td style="padding:8px"><a class="btn" style="padding:4px 10px;font-size:.75rem" href="?v=record&student=<?= (int)$row['id'] ?>">Record ›</a></td>
+          <?php endif; ?>
+        </tr>
+      <?php endforeach; ?>
+      </tbody></table></div>
+    <?php endif; ?>
+  </div>
+
+  <?php if ($uDash['instructors']): ?>
+  <div class="card">
+    <h3 style="margin:0 0 4px">Instructor performance</h3>
+    <p class="muted" style="margin:0 0 10px;font-size:.8rem">§35 — across the whole academy, regardless of the scope above. Use it to spot training needs and to see which cohorts are carrying more intervention than their peers.</p>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="padding:8px">Instructor</th><th style="padding:8px">Students</th><th style="padding:8px">Avg mastery</th><th style="padding:8px">Completion</th><th style="padding:8px">Interventions</th></tr></thead>
+      <tbody>
+      <?php foreach ($uDash['instructors'] as $ip): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px"><strong><?= htmlspecialchars((string)($ip['instructor_name'] ?? '—')) ?></strong></td>
+          <td style="padding:8px"><?= (int)$ip['students'] ?></td>
+          <td style="padding:8px"><?= $ip['avg_mastery'] === null ? '<span class="muted">—</span>' : htmlspecialchars((string)$ip['avg_mastery']) ?></td>
+          <td style="padding:8px"><?= $uPct($ip['completion_pct']) ?></td>
+          <td style="padding:8px" style="color:<?= (int)$ip['interventions'] > 0 ? '#F87171' : 'inherit' ?>"><?= (int)$ip['interventions'] ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody></table></div>
+  </div>
+  <?php endif; ?>
 
 <?php elseif ($view === 'record'): ?>
   <?php

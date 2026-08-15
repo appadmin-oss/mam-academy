@@ -380,6 +380,8 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // Accountability ledger — punctuality charges + §15 waiver decisions.
     $r->get ('/accountability', $f('admin/accountability.php'), [mw_admin_cap('view')]);
     $r->post('/accountability', $f('admin/accountability.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_accountability', 60, 600)]);
+    // Upper Admin strategic intelligence + drill-down — PDF §34-35.
+    $r->get ('/upper', $f('admin/upper.php'), [mw_admin_cap('settings')]);
     // The unified student academic record — PDF §43.
     $r->get ('/academic-record', $f('admin/academic-record.php'), [mw_admin_cap('users')]);
     // Meeting reconciliation import (Meet CSV / Jitsi) — PDF §11.
