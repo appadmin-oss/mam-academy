@@ -107,6 +107,7 @@
 
 <script src="/assets/js/config.js?v=20260807a"></script>
 <script src="/assets/js/portal.js?v=20260815a"></script>
+<script src="/assets/js/practice-player.js?v=20260815a" defer></script>
 <!-- Headshot uploader — lets a student change their portal photo (Profile tab). -->
 <script src="/assets/js/headshot.js?v=20260807a" defer></script>
 <script src="/assets/js/studio-tools.js?v=20260612a"></script>
@@ -1028,14 +1029,25 @@
     loadSubmissionStatuses();
   }
 
+  // A direct, in-browser-playable audio file (so the practice player can load
+  // it). Page links (YouTube/Drive) keep the plain link instead.
+  function isDirectAudio(u) { return typeof u === 'string' && /\.(mp3|m4a|aac|wav|ogg|oga|flac|webm)(\?|#|$)/i.test(u); }
   function submissionStatusHtml(s) {
     if (!s) return '';
-    var label = { submitted: 'Submitted — awaiting feedback', accepted: 'Accepted ✓', needs_resubmission: 'Revise & resubmit' }[s.status] || s.status;
-    var color = s.status === 'accepted' ? 'var(--emerald)' : (s.status === 'needs_resubmission' ? '#FB7185' : 'var(--gold-bright)');
+    var label = { submitted: 'Submitted — awaiting feedback', accepted: 'Accepted ✓', needs_resubmission: 'Revise & resubmit', remedial: 'Remedial assigned', rejected: 'Not accepted' }[s.status] || s.status;
+    var color = s.status === 'accepted' ? 'var(--emerald)' : (s.status === 'needs_resubmission' || s.status === 'remedial' || s.status === 'rejected' ? '#FB7185' : 'var(--gold-bright)');
     var h = '<div style="margin-top:6px;font-size:0.84rem"><strong style="color:' + color + '">' + P.escapeHtml(label) + '</strong>';
     if (s.artifact_url) h += ' · <a href="' + P.escapeHtml(/^https?:\/\//i.test(s.artifact_url) ? s.artifact_url : '#') + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">your submission ↗</a>';
+    if (s.artifact_kind === 'audio' && isDirectAudio(s.artifact_url)) h += '<div class="mp-host" data-src="' + P.escapeHtml(s.artifact_url) + '"></div>';
     if (s.feedback_comments) h += '<div style="margin-top:4px;color:var(--text-soft);line-height:1.5"><i class="fa-solid fa-comment" style="margin-right:5px;color:var(--gold-bright)"></i>' + P.escapeHtml(s.feedback_comments) + (s.feedback_by ? ' — ' + P.escapeHtml(s.feedback_by) : '') + '</div>';
     return h + '</div>';
+  }
+  function mountPlayers(root) {
+    if (!window.MAM_PLAYER) return;
+    (root || document).querySelectorAll('.mp-host:not([data-mounted])').forEach(function (host) {
+      host.setAttribute('data-mounted', '1');
+      window.MAM_PLAYER.mount(host, { src: host.getAttribute('data-src') });
+    });
   }
   function loadSubmissionStatuses() {
     API.request('student/submissions', { method: 'GET' }).then(function (r) {
@@ -1044,6 +1056,7 @@
       content.querySelectorAll('.asg-sub-status').forEach(function (el) {
         el.innerHTML = submissionStatusHtml(latest[parseInt(el.getAttribute('data-aid'), 10)] || null);
       });
+      mountPlayers(content);
     }).catch(function () {});
   }
 
