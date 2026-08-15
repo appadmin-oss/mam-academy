@@ -2,7 +2,9 @@
 
 Snapshot taken at `28d3213`, schema **v79**, suite **1902 passing / 0 failing**.
 All nine findings below have since been worked through — the suite is now at
-**2045 passing** and each finding carries its outcome. Structural counts in §1–§6
+**2167 passing** and each finding carries its outcome. Four further features
+shipped on top (§5.4, §3.6, §5.2, §4.3, §4.4, §1.4), adding `bi` and
+`inline-edit` to the library list and three routes to the route table. Structural counts in §1–§6
 describe the tree as indexed; where a fix changed one, the finding says so.
 
 This is the navigational map the repo did not have. `docs/codebase-audit-2026-06-22.md`
@@ -395,7 +397,21 @@ These are for the academy to decide; none is a bug to fix.
   empty leaderboard and no make-up suggestions. Defensible, but it should be a
   decision rather than an accident — and it is the thing to check before adding
   the next cohort-shaped feature.
-- **The Advanced Modernization spec is ~28 of ~45 shipped.** The remainder is
-  infra-gated: backing-track recording, a bundled sheet-music renderer, the AI
-  features (need live gateway keys), SSE presence, WhatsApp/SMS, multi-language,
-  and the recital-hall/community items.
+- **The Advanced Modernization spec is ~31 of ~45 shipped**, and the remainder
+  splits into two genuinely different problems. §4.3 drag-scheduling, §4.4
+  inline edit and §1.4 recorded takes have since shipped — §1.4 in particular
+  was filed as "infra-gated" but was not: MediaRecorder is a plain browser API,
+  and the only missing piece was an audio store, which now exists.
+
+  *Blocked on the spec document, not on capability.* §1.5 sheet music, §2.x AI,
+  §3.8/§6.1/§6.2 recital hall + community, §7.1 multi-language. The repo already
+  has what these need — `ai.php` is exactly the "off until configured" gateway
+  §2.x would use — but `MAMAcademyAdvancedModernizationFeatures.md` is **not in
+  the repo** (it was an upload in an earlier session), and building from a
+  one-line section summary would produce the wrong thing convincingly. Get the
+  file back before starting any of them.
+
+  *Blocked on real infrastructure.* §4.5 SSE presence needs long-lived
+  connections, which shared hosting behind Cloudflare is hostile to; §4.6
+  WhatsApp/SMS needs a provider account and keys. Both should stay unbuilt
+  rather than ship dead buttons.

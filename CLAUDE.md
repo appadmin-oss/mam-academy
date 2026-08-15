@@ -633,11 +633,17 @@ is why it kept getting rediscovered. Roughly a third of the system.
 - **Academic email engine** (`academic-emails.php`) — event-driven transactional
   academic mail.
 
-## Advanced Modernization (~28 features shipped)
+## Advanced Modernization (~31 features shipped)
 
-Driven by `MAMAcademyAdvancedModernizationFeatures.md` (§1–§8). Libs added:
-`achievements` `challenges` `consent` `repertoire` `referrals` `leaderboard`
-`makeup` `audit` `bi`. Migrations v73–v79.
+Driven by `MAMAcademyAdvancedModernizationFeatures.md` (§1–§8). ⚠️ **That spec
+file is NOT in the repo** — it was an upload in the session that started this
+work. Anything still unbuilt needs it back before the requirements can be
+trusted; do not infer them from a section number.
+
+Libs added: `achievements` `challenges` `consent` `repertoire` `referrals`
+`leaderboard` `makeup` `audit` `bi` `inline-edit`. Migrations v73–v79 (the
+later batch — BI, celebrations, guardian KPIs, drag-scheduling, inline edit
+and takes — added **no** migration).
 
 Shipped: timestamped feedback · practice player + waveform · side-by-side
 reference · repertoire→recital · achievements / streak-freeze / guardian wins ·
@@ -646,7 +652,20 @@ practice challenges · opt-in effort leaderboards · **milestone celebrations
 practice insights · instructor cohort analytics · **admin Business Intelligence
 (§5.4, `?v=bi`)** · **richer guardian KPIs (§5.2)** · referrals · certificate
 verification · low-bandwidth / dyslexia / text-size · waitlist · make-up classes ·
-arrival analytics · consent & safeguarding · per-person audit timeline.
+arrival analytics · consent & safeguarding · per-person audit timeline ·
+**drag-to-reschedule (§4.3)** · **inline edit with undo (§4.4)** ·
+**recorded takes (§1.4)**.
+
+**Not built, and why** — two different reasons, don't conflate them:
+- *Needs the spec back*: §1.5 sheet music, §2.x AI features, §3.8/§6.1/§6.2
+  recital hall + community, §7.1 multi-language. All are buildable with what
+  the repo already has (the `ai.php` gateway, for instance, is exactly the
+  "off until configured" pattern §2.x would use) — the blocker is that
+  inventing the requirements from a one-line summary would build the wrong
+  thing.
+- *Needs real infrastructure*: §4.5 SSE presence (long-lived connections are
+  hostile to shared hosting behind Cloudflare) and §4.6 WhatsApp/SMS (a
+  provider account and keys). Don't ship dead buttons for these.
 
 ⚠️ **The newest features are cohort-only, not dual-read.** `leaderboard.php` and
 `makeup.php` read `course_enrollments` / `session_attendance` exclusively, so a
@@ -660,6 +679,20 @@ Two conventions these established:
   call with `MAM_PORTAL.seenOnce(key)` — it records the key per-device, so a
   re-render does not replay yesterday's badge. Never animates under
   `prefers-reduced-motion` (particles are not *created*, not merely hidden).
+- **`MAM_INLINE_EDIT`'s allowlist is a security boundary, not a config list.**
+  `api/lib/inline-edit.php` is the only thing standing between "edit a cell"
+  and "set `users.admin_tier`". Adding a field there is a security decision:
+  never identity, authentication, roles, money already taken, or the audit log.
+  `$table`/`$column` are interpolated into SQL and are only safe because they
+  are matched against that registry before use.
+- **A stored take is access-gated, a stored headshot is not.** `/api/media/take`
+  resolves the key back to its submission and checks the caller; an unguessable
+  key is not a policy for a recording of a child. Any new media proxy should
+  copy the take one, not the headshot one.
+- **Anything that stores a first-party URL must accept `/api/media/...` back.**
+  This has now bitten three times (headshot into the card, headshot into the
+  DB, take into `mam_lms_submit`): a store succeeds and a downstream `https://`
+  guard silently drops the result. Check both ends when adding an upload.
 - **BI money reads `payments.amount_usd_cents` only.** Never fall back to
   `payments.amount` — that is the *charge* currency, and summing NGN into a USD
   total is the bug the v61 column exists to prevent. NULL = unpriced, counted
