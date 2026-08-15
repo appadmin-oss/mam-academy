@@ -1636,18 +1636,24 @@
     // De-duplicate (a student can appear once per class) for the roster list.
     var seen = {}, uniq = [];
     s.forEach(function (st) { if (!seen[st.id]) { seen[st.id] = 1; uniq.push(st); } });
+    // §4.7 — pinned (favourited) students float to the top.
+    var pins = P.pins || { has: function () { return false; } };
+    uniq.sort(function (a, b) { return (pins.has('stu:' + a.id) ? 0 : 1) - (pins.has('stu:' + b.id) ? 0 : 1); });
     var rows = P.pagedTbody(uniq.map(function (st) {
+      var pinned = pins.has('stu:' + st.id);
       return '<tr class="row-click" data-student="' + st.id + '" style="cursor:pointer">'
+        + '<td data-label=""><button type="button" class="pin-btn' + (pinned ? ' pinned' : '') + '" data-pin="stu:' + st.id + '" data-pin-reflow aria-label="Pin student" aria-pressed="' + (pinned ? 'true' : 'false') + '" onclick="event.stopPropagation()"><i class="' + (pinned ? 'fa-solid' : 'fa-regular') + ' fa-star"></i></button></td>'
         + '<td data-label="Student"><strong>' + P.escapeHtml(st.name || '—') + '</strong></td>'
         + '<td data-label="Email"><a href="mailto:' + P.escapeHtml(st.email) + '" style="color:var(--gold-bright)" onclick="event.stopPropagation()">' + P.escapeHtml(st.email) + '</a></td>'
         + '<td data-label="Phone">' + P.escapeHtml(st.phone || '—') + '</td>'
         + '<td data-label="Class">' + P.escapeHtml(st.class_title || '—') + '</td>'
         + '<td data-label=""><span style="color:var(--gold-bright);font-size:0.8rem">View <i class="fa-solid fa-arrow-right"></i></span></td></tr>';
-    }), 5, { initial: 20, noun: 'students' });
-    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Roster <small style="color:var(--text-muted);font-weight:400">— click a student for their attendance history</small></h2>'
+    }), 6, { initial: 20, noun: 'students' });
+    content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Roster <small style="color:var(--text-muted);font-weight:400">— star a student to pin them to the top; click a row for attendance history</small></h2>'
       + '<button type="button" class="panel-action" id="rosterCsv"><i class="fa-solid fa-download"></i> Roster CSV</button></div>'
-      + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Student</th><th>Email</th><th>Phone</th><th>Class</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>'
+      + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th></th><th>Student</th><th>Email</th><th>Phone</th><th>Class</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div></section>'
       + '<div id="studentDetail"></div>';
+    if (!window._mamRosterReflow) { window._mamRosterReflow = true; document.addEventListener('mam:pins-changed', function () { if (document.getElementById('rosterCsv')) renderStudents(); }); }
     content.querySelectorAll('[data-student]').forEach(function (tr) {
       tr.addEventListener('click', function () { openStudent(tr.getAttribute('data-student'), tr.querySelector('strong').textContent); });
     });

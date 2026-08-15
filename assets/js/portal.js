@@ -457,3 +457,33 @@
   } else { store(); }
   window.addEventListener('hashchange', store, false);
 })();
+
+/* ============================================================
+   Pins & favorites (Advanced Modernization §4.7).
+   Per-device favourites (students, cohorts, …). window.MAM_PORTAL.pins
+   exposes has/toggle/all; a delegated handler wires any [data-pin] star
+   button (toggle + icon), and reflows lists tagged data-pin-reflow via a
+   "mam:pins-changed" event so callers can re-sort pinned-first.
+   ============================================================ */
+(function () {
+  'use strict';
+  var KEY = 'mam-pins';
+  function read() { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function write(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {} }
+  var api = {
+    has: function (k) { return !!read()[k]; },
+    toggle: function (k) { var o = read(); if (o[k]) { delete o[k]; } else { o[k] = 1; } write(o); return !!o[k]; },
+    all: function () { return Object.keys(read()); },
+  };
+  if (window.MAM_PORTAL) { window.MAM_PORTAL.pins = api; }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-pin]') : null;
+    if (!b) { return; }
+    e.preventDefault(); e.stopPropagation();
+    var on = api.toggle(b.getAttribute('data-pin'));
+    b.classList.toggle('pinned', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    var i = b.querySelector('i'); if (i) { i.className = on ? 'fa-solid fa-star' : 'fa-regular fa-star'; }
+    if (b.hasAttribute('data-pin-reflow')) { document.dispatchEvent(new CustomEvent('mam:pins-changed')); }
+  }, false);
+})();
