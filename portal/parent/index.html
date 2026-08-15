@@ -86,12 +86,27 @@
     API.request('parent/child?student_id=' + sid, { method: 'GET' }).then(function (d) {
       var w = d.weekly || {}, g = (d.academic && d.academic.gpa) || {}, results = d.results || [], up = d.upcoming_sessions || [];
       var back = '<div style="margin-bottom:14px"><a href="#children" id="backLink" class="btn btn-ghost" style="padding:6px 14px;font-size:.8rem"><i class="fa-solid fa-arrow-left"></i> All children</a></div>';
+      // §5.2 — the guardian headline strip. Attendance is preferred from the
+      // server-computed KPI block and falls back to the weekly figure, so an
+      // older payload still renders a number rather than a dash.
+      var k = d.value_kpis || {};
+      var attRate = (k.attendance_rate != null) ? k.attendance_rate : w.attendance_rate;
       var kpis = '<section class="kpi-row">'
-        + '<div class="kpi"><div class="kpi-label">Attendance</div><div class="kpi-value gold">' + (w.attendance_rate != null ? w.attendance_rate + '%' : '—') + '</div></div>'
-        + '<div class="kpi"><div class="kpi-label">Mastery</div><div class="kpi-value">' + (w.mastery != null ? Math.round(w.mastery) + '%' : '—') + '</div></div>'
-        + '<div class="kpi"><div class="kpi-label">GPA</div><div class="kpi-value">' + (g.gpa != null ? g.gpa : '—') + '</div></div>'
-        + '<div class="kpi"><div class="kpi-label">Streak</div><div class="kpi-value">' + (w.streak || 0) + '</div></div>'
+        + '<div class="kpi"><div class="kpi-label">Practised</div><div class="kpi-value gold">' + (k.practice_hours != null ? k.practice_hours + 'h' : '—') + '</div><div class="kpi-sub">' + (k.practice_minutes ? esc(String(k.practice_minutes)) + ' minutes logged' : 'no practice logged yet') + '</div></div>'
+        + '<div class="kpi"><div class="kpi-label">Attendance</div><div class="kpi-value gold">' + (attRate != null ? esc(String(attRate)) + '%' : '—') + '</div><div class="kpi-sub">' + (w.streak ? esc(String(w.streak)) + '-day streak' : 'across all sessions') + '</div></div>'
+        + '<div class="kpi"><div class="kpi-label">Badges this month</div><div class="kpi-value">' + (k.badges_this_month || 0) + '</div><div class="kpi-sub">' + ((k.badges_this_month || 0) === 1 ? 'new achievement' : 'new achievements') + '</div></div>'
+        + '<div class="kpi"><div class="kpi-label">GPA</div><div class="kpi-value">' + (g.gpa != null ? esc(String(g.gpa)) + '' : '—') + '</div><div class="kpi-sub">' + (w.mastery != null ? Math.round(w.mastery) + '% mastery' : 'no results yet') + '</div></div>'
         + '</section>';
+      // "What's next" reads better as a sentence than as a big-number tile —
+      // a date and a title don't compress into one.
+      var nx = k.next_session;
+      var nextUp = nx && nx.scheduled_at
+        ? '<section class="panel" style="border-color:var(--gold)"><div class="panel-body" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
+          + '<i class="fa-solid fa-calendar-day" style="color:var(--gold-bright)"></i>'
+          + '<div><div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;font-weight:700">Next up</div>'
+          + '<div style="margin-top:3px"><strong>' + esc(nx.title || 'Session') + '</strong>' + (nx.cohort_title ? ' <span style="color:var(--text-muted)">· ' + esc(nx.cohort_title) + '</span>' : '') + ' — ' + esc(P.fmtDateTime(nx.scheduled_at)) + '</div></div>'
+          + '</div></section>'
+        : '';
       var status = '<section class="panel"><div class="panel-head"><h2>This week</h2></div><div class="panel-body" style="display:grid;gap:8px">'
         + '<div>' + lightDot(w.attendance) + 'Attendance</div>'
         + '<div>Preparation: <strong>' + esc(w.preparation || 'not started') + '</strong></div>'
@@ -156,7 +171,7 @@
           + prog.map(function (p) { return '<li><strong>' + esc(p.title) + '</strong>' + (p.composer ? ' — ' + esc(p.composer) : '') + ' <span class="pill" style="font-size:.7rem">' + esc(p.status) + '</span></li>'; }).join('')
           + '</ol></div></section>'
         : '';
-      content.innerHTML = back + kpis + status + badgesPanel + winsPanel + progPanel + fbPanel + consentPanel + resTbl + upTbl;
+      content.innerHTML = back + kpis + nextUp + status + badgesPanel + winsPanel + progPanel + fbPanel + consentPanel + resTbl + upTbl;
       var bl = document.getElementById('backLink'); if (bl) bl.addEventListener('click', function (e) { e.preventDefault(); renderChildren(); });
       var cSave = document.getElementById('cSave');
       if (cSave) cSave.addEventListener('click', function () {

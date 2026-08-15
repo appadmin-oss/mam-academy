@@ -56,6 +56,46 @@ t_ok(!empty($detailFb['instructor_feedback']), 'child detail surfaces instructor
 t_eq($detailFb['instructor_feedback'][0]['comments'], 'Focus on bar 4 dynamics.', 'feedback comment reaches the guardian view');
 t_eq($detailFb['instructor_feedback'][0]['outcome'], 'remedial', 'feedback outcome reaches the guardian view');
 
+t_group('parents — guardian KPI strip (§5.2)');
+
+// Everything the strip reports must degrade rather than throw: a guardian
+// opening a brand-new child's page sees zeros and nulls, never a 500.
+$PR_fresh = mam_db_insert('users', ['name' => 'Fresh Kid', 'email' => 'kid_fresh@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+$PR_k0 = mam_parent_value_kpis($PR_fresh);
+t_eq($PR_k0['practice_minutes'], 0, 'a child with no practice logs reports 0 minutes, not null');
+t_eq($PR_k0['practice_hours'], 0.0, 'hours derive from minutes');
+t_eq($PR_k0['badges_this_month'], 0, 'no badges yet');
+t_ok($PR_k0['next_session'] === null, 'no upcoming session is null, not a fabricated entry');
+t_ok($PR_k0['attendance_rate'] === null, 'attendance is null when the report carries none');
+
+mam_db_insert('practice_logs', ['student_id' => $PR_stu, 'minutes' => 45, 'logged_on' => date('Y-m-d')]);
+mam_db_insert('practice_logs', ['student_id' => $PR_stu, 'minutes' => 30, 'logged_on' => date('Y-m-d', strtotime('-3 days'))]);
+$PR_k = mam_parent_value_kpis($PR_stu);
+t_eq($PR_k['practice_minutes'], 75, 'practice minutes sum across all logs (lifetime, not this week)');
+t_eq($PR_k['practice_hours'], 1.3, 'hours are minutes/60 rounded to one decimal');
+
+// Badges are scoped to the CALENDAR month, so a badge from last month drops
+// off. Asserted as a delta: mam_ach_evaluate() runs inside child detail and has
+// already awarded this student real badges earlier in this file.
+$PR_bBase = mam_parent_value_kpis($PR_stu)['badges_this_month'];
+mam_db_insert('achievements', ['student_id' => $PR_stu, 'code' => 'pr_thismonth', 'title' => 'This month', 'awarded_at' => date('Y-m-01') . ' 09:00:00']);
+mam_db_insert('achievements', ['student_id' => $PR_stu, 'code' => 'pr_lastmonth', 'title' => 'Last month', 'awarded_at' => date('Y-m-d H:i:s', strtotime(date('Y-m-01') . ' -5 days'))]);
+t_eq(mam_parent_value_kpis($PR_stu)['badges_this_month'] - $PR_bBase, 1, 'only badges awarded this calendar month are counted');
+
+// The strip reads attendance and next-session from the report it is handed,
+// rather than re-querying — so a caller can pass a report through unchanged.
+$PR_kr = mam_parent_value_kpis($PR_stu, [
+    'attendance'        => ['rate' => 87.456],
+    'upcoming_sessions' => [['title' => 'Recital rehearsal', 'scheduled_at' => '2026-09-01 10:00:00', 'cohort_title' => 'Strings A']],
+]);
+t_eq($PR_kr['attendance_rate'], 87.5, 'attendance rate is rounded to one decimal for display');
+t_eq($PR_kr['next_session']['title'], 'Recital rehearsal', 'the next session is the first upcoming one');
+t_eq($PR_kr['next_session']['cohort_title'], 'Strings A', 'the cohort travels with the next session');
+
+$PR_detailK = mam_parent_child_detail($parentId, $PR_stu);
+t_ok(isset($PR_detailK['value_kpis']), 'child detail carries the KPI block');
+t_eq($PR_detailK['value_kpis']['practice_minutes'], 75, 'the KPI block in child detail matches a direct call');
+
 t_group('parents — unlink');
 
 mam_parent_unlink($parentId, $PR_stu2);

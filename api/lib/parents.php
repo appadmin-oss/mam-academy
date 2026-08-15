@@ -143,6 +143,62 @@ function mam_parent_child_detail(int $parentId, int $studentId): array {
         'consent'      => function_exists('mam_consent_get') ? mam_consent_get($studentId) : null,
         // §1.7 — the recital programme (polished + performed pieces).
         'programme'    => function_exists('mam_repertoire_programme') ? mam_repertoire_programme($studentId) : [],
+        // §5.2 — the four numbers a guardian actually opens the page for,
+        // computed once here rather than derived ad hoc in the portal.
+        'value_kpis'   => mam_parent_value_kpis($studentId, $report),
+    ];
+}
+
+/**
+ * The guardian headline strip (§5.2): hours practised, attendance, badges this
+ * month, and what's next.
+ *
+ * `$report` is the already-fetched progress-report payload — attendance and
+ * upcoming sessions are read from it rather than re-queried, so the strip costs
+ * exactly one extra query (the practice-minutes sum).
+ *
+ * Every field degrades to a null/zero rather than throwing: a guardian opening
+ * a brand-new child's page must see "—", never a 500.
+ */
+function mam_parent_value_kpis(int $studentId, array $report = []): array {
+    $minutes = 0;
+    try {
+        $minutes = (int) (mam_db_row('SELECT COALESCE(SUM(minutes),0) AS m FROM practice_logs WHERE student_id = ?', [$studentId])['m'] ?? 0);
+    } catch (\Throwable $e) {}
+
+    $badges = 0;
+    try {
+        // Awarded THIS calendar month. A rolling 30-day window would make the
+        // number drift day to day; guardians read this as "since the 1st".
+        $badges = (int) (mam_db_row(
+            'SELECT COUNT(*) AS n FROM achievements WHERE student_id = ? AND awarded_at >= ?',
+            [$studentId, date('Y-m-01') . ' 00:00:00']
+        )['n'] ?? 0);
+    } catch (\Throwable $e) {}
+
+    $rate = null;
+    if (isset($report['attendance']['rate']) && is_numeric($report['attendance']['rate'])) {
+        $rate = round((float) $report['attendance']['rate'], 1);
+    }
+
+    $next = null;
+    $up = $report['upcoming_sessions'] ?? [];
+    if ($up && isset($up[0])) {
+        $next = [
+            'title'        => $up[0]['title'] ?? 'Next session',
+            'scheduled_at' => $up[0]['scheduled_at'] ?? null,
+            'cohort_title' => $up[0]['cohort_title'] ?? null,
+        ];
+    }
+
+    return [
+        // Kept as minutes AND hours: the portal shows hours, but a caller that
+        // wants to sum or compare needs the unrounded figure.
+        'practice_minutes' => $minutes,
+        'practice_hours'   => round($minutes / 60, 1),
+        'attendance_rate'  => $rate,
+        'badges_this_month'=> $badges,
+        'next_session'     => $next,
     ];
 }
 
