@@ -562,3 +562,23 @@ html.a11y-lowbw .portal-avatar{background:var(--gold);color:#1B2430}
 .mp-note-seek:hover{border-color:var(--gold)}
 .mp-note-del{background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:.8rem;margin-left:auto}
 .mp-note-del:hover{color:var(--danger,#F87171)}
+
+/* ── Command palette + quick-add FAB (Advanced Modernization §4.1/§4.2) ── */
+.cmdk-overlay{position:fixed;inset:0;z-index:1300;background:rgba(10,14,20,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:none;align-items:flex-start;justify-content:center;padding:12vh 16px 16px}
+.cmdk-overlay.open{display:flex}
+.cmdk{width:min(600px,100%);background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.4);overflow:hidden;max-height:70vh;display:flex;flex-direction:column}
+.cmdk-search{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.cmdk-search i{color:var(--text-muted)}
+.cmdk-search input{flex:1;border:0;background:transparent;color:var(--text);font-size:1rem;outline:none;min-height:auto;padding:0}
+.cmdk-list{list-style:none;margin:0;padding:6px;overflow-y:auto;flex:1}
+.cmdk-list li{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:9px;cursor:pointer;color:var(--text);font-size:.92rem}
+.cmdk-list li i{width:18px;text-align:center;color:var(--gold)}
+.cmdk-list li.active{background:linear-gradient(135deg,rgba(224,138,26,.16),rgba(251,191,36,.07))}
+.cmdk-empty{color:var(--text-muted);justify-content:center;cursor:default}
+.cmdk-foot{display:flex;gap:16px;padding:8px 16px;border-top:1px solid var(--border);font-size:.72rem;color:var(--text-muted)}
+.cmdk-foot kbd{background:var(--bg-raised);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-family:inherit;font-size:.7rem;margin-right:2px}
+.cmdk-fab{position:fixed;right:18px;bottom:18px;z-index:1100;width:50px;height:50px;border-radius:50%;border:0;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1B2430;font-size:1.15rem;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center}
+.cmdk-fab:hover{transform:translateY(-2px)}
+.cmdk-fab:focus-visible{outline:3px solid var(--gold-bright);outline-offset:3px}
+html.a11y-lowbw .cmdk-fab{box-shadow:none}
+@media print{.cmdk-fab{display:none}}
