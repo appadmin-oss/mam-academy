@@ -2206,10 +2206,13 @@ $flashErr = $_GET['err'] ?? '';
 html[data-admin-theme="light"]{
   color-scheme:light;
   --bg:#F1F3F6;--panel:#FFFFFF;--raised:#F6F7F9;--card:#FBFCFD;--bg2:#EFF2F6;
-  --text:#1B2430;--ink:#1B2430;--muted:#66707E;--faint:#98A1AE;
+  --text:#1B2430;--ink:#1B2430;--muted:#5E6773;--faint:#98A1AE;
   --border:rgba(24,32,44,0.10);--border-strong:rgba(24,32,44,0.17);
   --gold:#A6761E;--gold-2:#B98A2A;--goldhi:#C08E2E;
   --emerald:#0F8A5F;--red:#C6435C;--blue:#4E63C8;--violet:#6E59C7;
+  /* Banner TEXT. The pale #FECDD3/#A7F3D0 family is a dark-theme palette;
+     on this light surface it measures 1.27:1. Same hues, darkened. */
+  --banner-info-text:#33409E;--banner-warn-text:#7A5300;--banner-ok-text:#0A6B4A;--banner-err-text:#A81B37;
 }
 html[data-admin-theme="dark"]{
   color-scheme:dark;
@@ -2218,6 +2221,7 @@ html[data-admin-theme="dark"]{
   --border:rgba(230,236,245,0.11);--border-strong:rgba(230,236,245,0.20);
   --gold:#C79A3E;--gold-2:#D3A94B;--goldhi:#E0B45A;
   --emerald:#3FBF8C;--red:#EC6E88;--blue:#8CA0F0;--violet:#9A8BF2;
+  --banner-info-text:#C7D2FE;--banner-warn-text:#FDE68A;--banner-ok-text:#A7F3D0;--banner-err-text:#FECDD3;
 }
 html,body{height:100%}
 /* Accessibility: visible keyboard focus everywhere + a skip link. */
@@ -2246,12 +2250,12 @@ nav a.active i{opacity:1;color:var(--gold)}
 .nav-note{margin-top:12px;padding:8px 11px;font-size:0.72rem;line-height:1.5;color:var(--muted);border:1px dashed var(--border);border-radius:8px}
 /* Access-level (RBAC tier) badges — make the admin's level explicit. */
 .tier-badge{display:inline-block;margin-top:6px;padding:2px 9px;border-radius:100px;font-size:0.6rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}
-.tier-super{background:linear-gradient(135deg,rgba(232,150,31,0.22),rgba(252,198,71,0.1));color:var(--goldhi);border:1px solid var(--border-strong)}
+.tier-super{background:linear-gradient(135deg,rgba(232,150,31,0.22),rgba(252,198,71,0.1));color:var(--banner-warn-text);border:1px solid var(--border-strong)}
 .tier-manager{background:rgba(99,102,241,0.2);color:#A5B4FC;border:1px solid rgba(165,180,252,0.4)}
 .atb-tier{padding:3px 11px;border-radius:100px;font-size:0.64rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase}
-.admin-topbar .atb-search{flex:1;min-width:0;max-width:440px;margin:0 auto;display:flex;align-items:center;gap:10px;height:42px;padding:0 14px;background:var(--panel);border:1px solid var(--border-strong);border-radius:11px;color:var(--faint);cursor:pointer;font-size:0.88rem;font-family:inherit;transition:border-color .15s,color .15s}
+.admin-topbar .atb-search{flex:1;min-width:0;max-width:440px;margin:0 auto;display:flex;align-items:center;gap:10px;height:42px;padding:0 14px;background:var(--panel);border:1px solid var(--border-strong);border-radius:11px;color:var(--muted);cursor:pointer;font-size:0.88rem;font-family:inherit;transition:border-color .15s,color .15s}
 .admin-topbar .atb-search span{flex:1;text-align:left}
-.admin-topbar .atb-search kbd{font-size:0.66rem;padding:2px 7px;border:1px solid var(--border-strong);border-radius:6px;color:var(--faint);font-family:inherit}
+.admin-topbar .atb-search kbd{font-size:0.66rem;padding:2px 7px;border:1px solid var(--border-strong);border-radius:6px;color:var(--muted);font-family:inherit}
 .admin-topbar .atb-search:hover{border-color:var(--gold);color:var(--muted)}
 @media(max-width:760px){.admin-topbar .atb-search span,.admin-topbar .atb-search kbd{display:none}.admin-topbar .atb-search{flex:0 0 auto;max-width:none}}
 /* Mobile top bar: wrap instead of overflowing; trim the identity chips. */
@@ -2306,7 +2310,8 @@ header.top h1{font-family:var(--font-serif);font-size:2.1rem;font-weight:700;let
 
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px;margin-bottom:36px}
 .kpi{padding:18px 18px 16px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r)}
-.kpi-label{font-size:0.68rem;color:var(--faint);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-weight:700}
+a.pill{min-height:24px;display:inline-flex;align-items:center}
+.kpi-label{font-size:0.68rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;font-weight:700}
 .kpi-value{font-family:var(--font-display);font-size:2.3rem;font-weight:400;letter-spacing:0.01em;line-height:0.95;font-variant-numeric:tabular-nums}
 .kpi-value.gold{background:linear-gradient(135deg,var(--gold),var(--gold-2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 /* Tables can be wide (9+ columns). The card is the horizontal scroll
@@ -2362,10 +2367,10 @@ main select.tiny,main input.tiny{min-height:0;padding:4px 6px;font-size:0.78rem;
 button.tiny{padding:4px 8px;font-size:0.74rem;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer}
 button.tiny:hover{border-color:var(--gold)}
 .empty{padding:48px;text-align:center;color:var(--muted)}
-.banner{padding:14px 18px;border-radius:10px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);margin-bottom:18px;font-size:0.88rem;color:#C7D2FE}
-.banner.warn{background:rgba(251,191,36,0.08);border-color:rgba(251,191,36,0.4);color:#FDE68A}
-.banner.ok{background:rgba(16,185,129,0.10);border-color:rgba(16,185,129,0.4);color:#A7F3D0}
-.banner.err{background:rgba(244,63,94,0.10);border-color:rgba(244,63,94,0.4);color:#FECDD3}
+.banner{padding:14px 18px;border-radius:10px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);margin-bottom:18px;font-size:0.88rem;color:var(--banner-info-text)}
+.banner.warn{background:rgba(251,191,36,0.08);border-color:rgba(251,191,36,0.4);color:var(--banner-warn-text)}
+.banner.ok{background:rgba(16,185,129,0.10);border-color:rgba(16,185,129,0.4);color:var(--banner-ok-text)}
+.banner.err{background:rgba(244,63,94,0.10);border-color:rgba(244,63,94,0.4);color:var(--banner-err-text)}
 .json-pop{max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:18px 20px}
 .form-grid label{display:flex;flex-direction:column;gap:4px;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-weight:600}
@@ -4301,7 +4306,7 @@ nav a{display:flex;align-items:center}
 
   <?php $gCfg = function_exists('mam_meeting_google_configured') && mam_meeting_google_configured(); ?>
   <details class="card" style="margin-bottom:16px"<?= $gCfg ? '' : ' open' ?>>
-    <summary style="cursor:pointer;font-weight:600">Live Google Meet participation — <?= $gCfg ? '<span style="color:#34D399">configured</span>' : '<span class="muted">not configured</span>' ?></summary>
+    <summary style="cursor:pointer;font-weight:600;min-height:24px;display:flex;align-items:center">Live Google Meet participation — <?= $gCfg ? '<span style="color:#34D399">configured</span>' : '<span class="muted">not configured</span>' ?></summary>
     <p class="muted" style="margin:10px 0 12px;font-size:.82rem">
       Needs a Google Cloud <strong>service account</strong> with domain-wide delegation, authorised in the Workspace admin console for the scope
       <code>https://www.googleapis.com/auth/admin.reports.audit.readonly</code>, plus the email of a Workspace admin for it to impersonate.
@@ -4561,7 +4566,7 @@ nav a{display:flex;align-items:center}
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
             <input type="hidden" name="action" value="acct_exception">
             <input type="hidden" name="request_id" value="<?= (int)$q['id'] ?>">
-            <input name="note" placeholder="Note (optional)" style="padding:5px 8px;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.78rem;min-width:150px">
+            <input name="note" aria-label="Decision note (optional)" placeholder="Note (optional)" style="padding:5px 8px;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.78rem;min-width:150px">
             <button class="btn btn-primary" type="submit" name="decision" value="approve" style="padding:5px 12px;font-size:.78rem">Approve</button>
             <button class="btn" type="submit" name="decision" value="reject" style="padding:5px 12px;font-size:.78rem">Reject</button>
           </form></td>

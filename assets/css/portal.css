@@ -384,6 +384,7 @@ html[data-portal-theme="light"]{
      (emerald) against the 4.5:1 floor in WCAG 1.4.3 AA. Use these whenever an
      accent colour carries words; keep the fills for buttons, borders and icons. */
   --gold-text:#8A6414;      /* 5.37:1 on --bg-surface */
+  --warn-text:#8A5A00;      /* 5.53:1 — --warn (#B0740F) is 3.92:1 as text */
   --emerald-text:#0B7A52;   /* 5.36:1 on --bg-surface */
   --red-text:#B0203C;
 
@@ -420,7 +421,7 @@ html[data-portal-theme="dark"]{
   /* Dark-theme accents already clear AA as text (gold-bright 8.53:1,
      emerald 7.11:1 on --bg-surface), so the text-safe siblings alias straight
      across. They must exist under BOTH themes or the token is undefined in one. */
-  --gold-text:#E0B45A;--emerald-text:#3FBF8C;--red-text:#EC6E88;
+  --gold-text:#E0B45A;--emerald-text:#3FBF8C;--red-text:#EC6E88;--warn-text:#E3A93C;
 
   --bg:#12161E;--bg-surface:#1A1F29;--bg-raised:#232A36;--bg-card:#1E2530;--bg-elevated:#2B3340;
 
@@ -497,7 +498,7 @@ html[data-portal-theme] .kpi-value.gold{background:none !important;-webkit-text-
 .pill.paid,.pill.succeeded,.pill.present,.pill.active{background:var(--ok-tint);color:var(--ok)}
 .pill.enrolled{background:var(--info-tint);color:var(--info)}
 .pill.cancelled,.pill.absent,.pill.failed{background:var(--bad-tint);color:var(--bad)}
-.pill.pending,.pill.late{background:var(--warn-tint);color:var(--warn)}
+.pill.pending,.pill.late{background:var(--warn-tint);color:var(--warn-text)}
 .pill.excused{background:var(--glass-light);color:var(--text-muted)}
 
 /* Tables: hover tint that works on a light ground. */
