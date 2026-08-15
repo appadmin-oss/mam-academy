@@ -9,18 +9,27 @@ architecture, conventions, and the non-obvious gotchas that cost time to learn.
 
 ## What this is
 
-A server-rendered **PHP site (no build step)** plus a small hand-rolled JSON API.
-~25K LOC. PHP **8.1+** (8.4 locally). Runs on shared hosting behind Cloudflare.
+A server-rendered **PHP site (no build step)** plus a hand-rolled JSON API.
+~56K lines of PHP across 358 files. PHP **8.1+** (8.4 locally). Runs on shared
+hosting behind Cloudflare.
 
-- Public pages: `*.php` at the repo root (index, apply, store, book, tuition,
+- Public pages: 38 `*.php` at the repo root (index, apply, store, book, tuition,
   pathways, terms, etc.). Clean URLs via root `.htaccess` (`.php`/`.html` → 301 → clean).
-- `admin/index.php` — large (~200KB) server-rendered + JS admin dashboard. Edit carefully.
-- `portal/{student,instructor}/index.html` — SPA-style portals; `portal/{login,signup,reset}.html`.
+- `admin/index.php` — large (~8.6K lines) server-rendered + JS admin dashboard
+  with **37 views**. Edit carefully.
+- `portal/{student,instructor,parent}/index.html` — SPA-style portals (note the
+  **parent/guardian portal**); `portal/{login,signup,reset,choose}.html`.
+  The three dashboards carry ~4,800 lines of **inline** `<script>`.
 - `assets/js/` — `config.js` (the `MAM_API` client + `MAM_CONFIG`), `portal.js`
   (shared portal kit `P.*`), `main.js`, `tools.js` (studio), etc.
-- `api/` — front controller `api/index.php` → `lib/router.php`; ~35 libs in
-  `api/lib/`, ~95 routes in `api/routes/`, ~38 test files in `api/tests/`.
-- `db/schema-mysql.sql` — canonical MySQL schema; mirrored by SQLite migrations in `api/lib/db.php`.
+- `api/` — front controller `api/index.php` → `lib/router.php`; **63 libs** in
+  `api/lib/`, **120 routes** registered, **78 test files** in `api/tests/`.
+- `db/schema-mysql.sql` — canonical MySQL schema (**105 tables**); mirrored by
+  SQLite migrations in `api/lib/db.php`.
+
+📍 **`docs/codebase-index-2026-08-15.md` is the map** — the full library, route,
+schema and test index, plus a findings list. Read it before a wide change; this
+file covers conventions and gotchas, not inventory.
 
 DB: **SQLite by default** (auto-migrates at `api/storage/mam.db`), MySQL in prod
 (set `DB_DSN`; apply `db/schema-mysql.sql` once).
@@ -34,7 +43,18 @@ php api/tests/run.php            # → "✅ PASS: N passed, 0 failed"
 # Lint everything
 find . -name '*.php' -not -path './api/vendor/*' -print0 | xargs -0 -n1 php -l
 for f in $(find assets/js -name '*.js' -o -name '*.cjs'); do node --check "$f"; done
+
+# The four JS checks CI runs. `node --check` above only PARSES — these execute.
+node .github/scripts/check-inline-js.cjs   # inline <script> in every HTML page
+node assets/js/notation.selftest.cjs       # pitch detector + segmenter
+node assets/js/card-export.selftest.cjs    # imposition + cut guides
+node assets/js/headshot.selftest.cjs       # photo thresholds + downscale
 ```
+
+⚠️ Two of those self-tests were only ever *parsed* by CI, and the headshot one
+sat broken for months as a result (it asserted against functions a rewrite had
+deleted). **A self-test that CI does not execute is not a test.** If you add
+one, add it to `.github/workflows/ci.yml` in the same commit.
 
 ### Running the app locally (to click through / screenshot the portals)
 
@@ -586,7 +606,68 @@ the notation showcase.**
   CI's JS job); the browser flow (permission/record/stop/graceful-empty) is Playwright-verified.
   Linked in footer + sitemap; clean URL `/notation`. All 14 brief items now shipped.
 
+## LMS 2.0 — the teaching operations layer
+
+Built after the portal brief and **not covered anywhere else in this file**, which
+is why it kept getting rediscovered. Roughly a third of the system.
+
+- **Parent / guardian portal** — `portal/parent/index.html`, `api/lib/parents.php`,
+  role `parent`, routes `/parent/{children,child,consent}`. Guardians are linked to
+  students via `parent_links` (admin `?v=guardians`). `mam_parent_child_detail()`
+  is the single payload behind the child page: weekly status, academics, attendance,
+  results, sessions, announcements, instructor feedback, achievements, wins,
+  consent, recital programme, and the §5.2 `value_kpis` headline strip.
+- **Pre-class + teach-back** (`preclass.php`) — students prepare before a session
+  and teach the material back; instructors get a command centre to review it.
+- **Instructor clock-in + meeting reconciliation** (`meetings.php`) — clock in/out
+  against a session, reconcile against Meet/Jitsi attendance (admin `?v=meet`).
+- **Rubrics** (`rubrics`, `rubric_criteria`, `submission_reviews`) — competency-grid
+  scoring on submissions, authored by instructors (admin `?v=rubrics`).
+- **Accountability + fines** (`accountability.php`, `progress-reports.php`) — a
+  punctuality charge ledger for students, and a 2-hour post-session progress-report
+  deadline for instructors backed by `instructor_fines`.
+- **Paid rescheduling** (`reschedule.php`) — server-priced request → instructor
+  approve/decline → wallet settlement.
+- **Academic analytics** (`analytics2.php`) — academy health, instructor
+  performance, today snapshot, intervention list (admin `?v=academic`).
+- **Academic email engine** (`academic-emails.php`) — event-driven transactional
+  academic mail.
+
+## Advanced Modernization (~28 features shipped)
+
+Driven by `MAMAcademyAdvancedModernizationFeatures.md` (§1–§8). Libs added:
+`achievements` `challenges` `consent` `repertoire` `referrals` `leaderboard`
+`makeup` `audit` `bi`. Migrations v73–v79.
+
+Shipped: timestamped feedback · practice player + waveform · side-by-side
+reference · repertoire→recital · achievements / streak-freeze / guardian wins ·
+practice challenges · opt-in effort leaderboards · **milestone celebrations
+(§3.6)** · command palette · pins · bulk-accept · continue-where-left-off ·
+practice insights · instructor cohort analytics · **admin Business Intelligence
+(§5.4, `?v=bi`)** · **richer guardian KPIs (§5.2)** · referrals · certificate
+verification · low-bandwidth / dyslexia / text-size · waitlist · make-up classes ·
+arrival analytics · consent & safeguarding · per-person audit timeline.
+
+⚠️ **The newest features are cohort-only, not dual-read.** `leaderboard.php` and
+`makeup.php` read `course_enrollments` / `session_attendance` exclusively, so a
+legacy-only student sees an empty board and no make-up suggestions. That is
+defensible (both are cohort-shaped concepts) but it is a *new* divergence in a
+codebase that spent real effort closing the old one — see gotcha #2. Decide
+deliberately before adding another.
+
+Two conventions these established:
+- **`MAM_PORTAL.celebrate(kind, label)`** marks a milestone once. Guard every
+  call with `MAM_PORTAL.seenOnce(key)` — it records the key per-device, so a
+  re-render does not replay yesterday's badge. Never animates under
+  `prefers-reduced-motion` (particles are not *created*, not merely hidden).
+- **BI money reads `payments.amount_usd_cents` only.** Never fall back to
+  `payments.amount` — that is the *charge* currency, and summing NGN into a USD
+  total is the bug the v61 column exists to prevent. NULL = unpriced, counted
+  and disclosed separately rather than silently dropped.
+
 ## Where to look
+- **Index/map: `docs/codebase-index-2026-08-15.md`** — libs, routes, schema,
+  tests, findings. Start here for "where does X live".
 - Audits: `docs/codebase-audit-2026-06-22.md` (security/correctness),
   `docs/portal-audit-2026-06-22.md` (portal logic/UX). Proposals: `docs/*-proposal.md`.
 - Deploy/runbook: `DEPLOYMENT.md`. Env reference: `api/.env.example`.
