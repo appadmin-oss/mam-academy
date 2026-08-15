@@ -139,6 +139,8 @@ function mam_parent_child_detail(int $parentId, int $studentId): array {
         // §3.1/§3.5 — badges earned and the gentle "wins" stream.
         'achievements' => function_exists('mam_ach_evaluate') ? mam_ach_evaluate($studentId) : [],
         'wins'         => function_exists('mam_wins_feed') ? mam_wins_feed($studentId, 12) : [],
+        // §8.4 — the guardian's current consent settings for this child.
+        'consent'      => function_exists('mam_consent_get') ? mam_consent_get($studentId) : null,
     ];
 }
 

@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 74;
+const MAM_SCHEMA_TARGET = 75;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2223,6 +2223,20 @@ function mam_db_migrate(PDO $db): void {
               awarded_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE UNIQUE INDEX idx_ach_unique ON achievements(student_id, code);
+        ",
+        // v75 — consent & safeguarding (Advanced Modernization §8.4): one row per
+        // student holding media/photo/data consent + a safeguarding contact,
+        // default-deny, enforced across the product via mam_consent_allows().
+        75 => "
+            CREATE TABLE student_consents (
+              student_id           INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+              media_consent        INTEGER NOT NULL DEFAULT 0,
+              photo_consent        INTEGER NOT NULL DEFAULT 0,
+              data_consent         INTEGER NOT NULL DEFAULT 0,
+              safeguarding_contact TEXT,
+              updated_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              updated_at           TEXT NOT NULL DEFAULT (datetime('now'))
+            );
         ",
     ];
 

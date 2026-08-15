@@ -2055,3 +2055,18 @@ CREATE TABLE IF NOT EXISTS achievements (
   CONSTRAINT fk_ach_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (74) ON DUPLICATE KEY UPDATE version = version;
+
+-- v75: consent & safeguarding (Advanced Modernization §8.4) — per-student
+-- media/photo/data consent + safeguarding contact, default-deny.
+CREATE TABLE IF NOT EXISTS student_consents (
+  student_id           INT PRIMARY KEY,
+  media_consent        TINYINT(1)   NOT NULL DEFAULT 0,
+  photo_consent        TINYINT(1)   NOT NULL DEFAULT 0,
+  data_consent         TINYINT(1)   NOT NULL DEFAULT 0,
+  safeguarding_contact VARCHAR(500) NULL,
+  updated_by           INT          NULL,
+  updated_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_consent_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_consent_by      FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (75) ON DUPLICATE KEY UPDATE version = version;

@@ -231,6 +231,7 @@ $r->group('/student', function (MamRouter $r) use ($f) {
 $r->group('/parent', function (MamRouter $r) use ($f) {
     $r->get('/children', $f('parent/children.php'), [mw_role('parent')]);
     $r->get('/child',    $f('parent/child.php'),    [mw_role('parent')]);
+    $r->post('/consent', $f('parent/consent.php'),  [mw_csrf(), mw_role('parent', 'admin')]);
 });
 
 /* ─── Instructor portal ─── */
