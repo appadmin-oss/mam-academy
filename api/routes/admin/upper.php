@@ -14,7 +14,10 @@
  */
 declare(strict_types=1);
 
-mam_require_role('admin');
+// Access is already enforced by mw_admin_cap('settings') on the route, which is
+// the stronger check. Calling mam_require_role('admin') here as well would add
+// nothing except a mam_require_user() that 401s a Basic-Auth break-glass
+// operator, who legitimately has no session.
 
 $dimension = isset($_GET['dimension']) ? (string) $_GET['dimension'] : null;
 $filter    = mam_upper_filter($_GET);

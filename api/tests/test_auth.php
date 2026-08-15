@@ -79,3 +79,35 @@ t_ok(in_array('student', $roles, true) && in_array('instructor', $roles, true), 
 t_eq(mam_post_login_redirect($roles), '/portal/choose', 'the dual-role user is routed to the chooser');
 mam_user_remove_role($dr, 'instructor');
 t_ok(!in_array('instructor', mam_user_roles(mam_db_row('SELECT * FROM users WHERE id = ?', [$dr])), true), 'revoking the secondary role removes it');
+
+// ── Admin access decision table (mam_admin_access_outcome) ───────────────────
+// Regression: a signed-in NON-admin used to receive 503 'admin_not_configured'
+// whenever the Basic-Auth break-glass was unset (the normal deployment). That
+// told a logged-in student the server was broken, and told an API client to
+// retry later on what is a permanent refusal.
+t_group('auth — admin access decision');
+
+t_eq(mam_admin_access_outcome(true,  true,  false), 'allow',
+     'a signed-in admin is allowed');
+t_eq(mam_admin_access_outcome(false, true,  false), 'forbidden',
+     'a signed-in NON-admin is forbidden, not asked to authenticate');
+t_eq(mam_admin_access_outcome(false, false, false), 'authenticate',
+     'an anonymous caller is asked to authenticate');
+// The break-glass must survive a stale non-admin session, so valid Basic-Auth
+// credentials are honoured before the signed-in check.
+t_eq(mam_admin_access_outcome(false, true,  true),  'allow',
+     'valid break-glass credentials win over a non-admin session');
+t_eq(mam_admin_access_outcome(false, false, true),  'allow',
+     'valid break-glass credentials work with no session at all');
+t_eq(mam_admin_access_outcome(true,  false, false), 'allow',
+     'an admin identity is enough on its own');
+
+// The outcome never depends on whether the break-glass is *configured* —
+// only on whether valid credentials were supplied. Configuration state is an
+// operator concern and must not be disclosed to an anonymous caller.
+foreach ([[false, false], [false, true], [true, false], [true, true]] as [$isAdmin, $signedIn]) {
+    $out = mam_admin_access_outcome($isAdmin, $signedIn, false);
+    t_ok(in_array($out, ['allow', 'forbidden', 'authenticate'], true),
+         'outcome is one of the three states for isAdmin=' . var_export($isAdmin, true) . ' signedIn=' . var_export($signedIn, true));
+    t_ok($out !== 'unavailable', 'no outcome reports the server as misconfigured');
+}

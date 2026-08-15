@@ -9,7 +9,9 @@
  */
 declare(strict_types=1);
 
-mam_require_role('admin');
+// Access is already enforced by mw_admin_cap('users') on the route, which is
+// the stronger check. Re-checking the role here would only add a
+// mam_require_user() that 401s a Basic-Auth break-glass operator.
 
 $studentId = (int) ($_GET['student_id'] ?? 0);
 if ($studentId < 1) mam_fail('missing_field', 400, ['field' => 'student_id']);

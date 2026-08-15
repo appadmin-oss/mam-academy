@@ -234,6 +234,30 @@ function mam_require_admin_cap(string $cap): void {
 }
 
 /**
+ * The admin-access decision, as a pure function of the three things that
+ * decide it. Returns 'allow' | 'forbidden' | 'authenticate'.
+ *
+ * Split out from mam_require_admin() so the decision table can be tested
+ * directly: mam_session_user() memoises per process, so a test cannot swap
+ * identities in-process to exercise the branches through the guard itself.
+ *
+ *   $isAdmin      — a session user holding the admin role
+ *   $isSignedIn   — any session user at all
+ *   $basicOk      — valid Basic-Auth break-glass credentials were supplied
+ *
+ * The ordering matters. `$basicOk` is honoured before the signed-in check so
+ * the break-glass still works when a stale non-admin session is present.
+ */
+function mam_admin_access_outcome(bool $isAdmin, bool $isSignedIn, bool $basicOk): string {
+    if ($isAdmin || $basicOk) return 'allow';
+    // Signed in but not an admin: a permanent AUTHORISATION failure. Asking
+    // them to authenticate again would be a loop, and reporting a server
+    // misconfiguration would be a lie.
+    if ($isSignedIn) return 'forbidden';
+    return 'authenticate';
+}
+
+/**
  * Admin guard accepted by both portals AND the legacy admin dashboard.
  * Prefers a session user holding the admin role — primary users.role OR the
  * multi-role user_roles table, so a secondary-admin isn't locked out — and
@@ -269,17 +293,27 @@ function mam_require_admin(): void {
     $expectedUser = mam_env('ADMIN_USER', '');
     $expectedHash = mam_env('ADMIN_PASSWORD_HASH', '');
 
-    if ($expectedUser && $expectedHash && $user
+    $basicOk = (bool) ($expectedUser && $expectedHash && $user
         && hash_equals($expectedUser, $user)
-        && password_verify($pass, $expectedHash)) {
-        return;
+        && password_verify($pass, $expectedHash));
+
+    // A caller who IS signed in, just not as an admin, has failed an
+    // AUTHORISATION check — not an authentication one, and certainly not a
+    // server misconfiguration. Answering 503 'admin_not_configured' here told a
+    // logged-in student the server was broken, and told an API client to retry
+    // later on what is a permanent refusal.
+    switch (mam_admin_access_outcome(false, (bool) $u, $basicOk)) {
+        case 'allow':     return;
+        case 'forbidden': mam_fail('forbidden', 403);
     }
 
-    if (!$expectedUser || !$expectedHash) {
-        mam_fail('admin_not_configured', 503);
+    // Nobody is signed in. Ask them to authenticate. Whether the break-glass
+    // account happens to be configured is an operator's concern (surfaced by
+    // /api/diag and by the admin page itself), not something to disclose to an
+    // anonymous caller — so both paths answer 401.
+    if ($expectedUser && $expectedHash) {
+        header('WWW-Authenticate: Basic realm="MAM Academy Admin"');
     }
-
-    header('WWW-Authenticate: Basic realm="MAM Academy Admin"');
     mam_fail('authentication_required', 401);
 }
 
