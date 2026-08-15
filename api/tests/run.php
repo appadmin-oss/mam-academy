@@ -101,6 +101,7 @@ require $ROOT . '/lib/audit.php';             // audit-log timeline (§8.5)
 require $ROOT . '/lib/referrals.php';         // referral program (§6.3)
 require $ROOT . '/lib/leaderboard.php';       // opt-in effort leaderboards (§3.4)
 require $ROOT . '/lib/makeup.php';            // make-up class suggestions (§8.2)
+require $ROOT . '/lib/bi.php';                // admin business intelligence (§5.4)
 
 require __DIR__ . '/assert.php';
 

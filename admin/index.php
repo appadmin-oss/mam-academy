@@ -2347,7 +2347,7 @@ nav a{display:flex;align-items:center}
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
       'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
-      'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open'], 'referrals' => ['Referrals', 'user-plus']],
+      'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open'], 'referrals' => ['Referrals', 'user-plus'], 'bi' => ['Business Intelligence', 'chart-pie']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
       'Account'    => ['account' => ['My Account', 'circle-user']],
@@ -2357,7 +2357,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -3452,6 +3452,100 @@ nav a{display:flex;align-items:center}
       </tbody>
     </table></div>
     <?php endif; ?>
+  </div>
+
+<?php elseif ($view === 'bi'): ?>
+  <?php
+    $biMonths    = max(3, min(24, (int)($_GET['m'] ?? 12)));
+    $biRevenue   = mam_bi_revenue_by_month($biMonths);
+    $biFunnel    = mam_bi_funnel();
+    $biLtv       = mam_bi_ltv_by_pathway();
+    $biRetention = mam_bi_retention(30);
+    $biTotal     = 0; $biUnpriced = 0;
+    foreach ($biRevenue as $__m) { $biTotal += (int)$__m['cents']; $biUnpriced += (int)$__m['unpriced']; }
+    // Bar heights are a share of the tallest month. Guard the divisor: an
+    // all-zero window would otherwise divide by 0 and paint no chart at all.
+    $biPeak = 0;
+    foreach ($biRevenue as $__m) $biPeak = max($biPeak, (int)$__m['cents']);
+  ?>
+  <header class="top"><h1>Business Intelligence</h1></header>
+  <p class="muted" style="margin:0 0 12px">§5.4 — read-only aggregates over data the system already keeps. Revenue is <strong>USD</strong>, taken from each payment's frozen <code>amount_usd_cents</code>; nothing here is converted at today's rate.</p>
+
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Revenue · <?= (int)$biMonths ?> mo</div><div class="kpi-value gold">$<?= number_format($biTotal / 100, 2) ?></div></div>
+    <div class="kpi"><div class="kpi-label">Applications</div><div class="kpi-value"><?= number_format((int)$biFunnel['applied']) ?></div></div>
+    <div class="kpi"><div class="kpi-label">Accept rate</div><div class="kpi-value"><?= htmlspecialchars((string)$biFunnel['accept_rate']) ?>%</div></div>
+    <div class="kpi"><div class="kpi-label">30-day retention</div><div class="kpi-value gold"><?= htmlspecialchars((string)$biRetention['rate']) ?>%</div></div>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <?php foreach ([6 => '6 months', 12 => '12 months', 24 => '24 months'] as $__k => $__lbl): ?>
+      <a class="btn <?= $biMonths === $__k ? '' : 'ghost' ?>" href="?v=bi&m=<?= $__k ?>"><?= htmlspecialchars($__lbl) ?></a>
+    <?php endforeach; ?>
+  </div>
+
+  <div class="card" style="padding:18px;margin-bottom:20px">
+    <h2 style="margin:0 0 4px;font-size:1rem">Revenue by month</h2>
+    <p class="muted" style="margin:0 0 18px;font-size:.82rem">Succeeded payments only<?= $biUnpriced ? ' · ' . (int)$biUnpriced . ' pre-v61 payment' . ($biUnpriced === 1 ? '' : 's') . ' carry no USD figure and are excluded from the totals' : '' ?>.</p>
+    <?php if ($biPeak <= 0): ?>
+      <p class="muted">No revenue recorded in this window.</p>
+    <?php else: ?>
+    <div style="display:flex;align-items:flex-end;gap:6px;height:180px;overflow-x:auto;padding-bottom:4px">
+      <?php foreach ($biRevenue as $__m): $__h = (int)round((int)$__m['cents'] / $biPeak * 100); ?>
+        <div style="flex:1 0 34px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"
+             title="<?= htmlspecialchars($__m['month']) ?> — $<?= number_format((int)$__m['cents'] / 100, 2) ?> from <?= (int)$__m['payments'] ?> payment<?= (int)$__m['payments'] === 1 ? '' : 's' ?>">
+          <span style="font-size:.62rem;color:var(--faint);margin-bottom:4px;font-variant-numeric:tabular-nums"><?= (int)$__m['cents'] ? '$' . number_format((int)$__m['cents'] / 100, 0) : '' ?></span>
+          <div style="width:100%;height:<?= max($__h, 1) ?>%;min-height:2px;border-radius:5px 5px 0 0;background:linear-gradient(180deg,var(--gold),var(--gold-2))"></div>
+          <span style="font-size:.6rem;color:var(--faint);margin-top:6px;white-space:nowrap"><?= htmlspecialchars(substr($__m['month'], 2)) ?></span>
+        </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+  </div>
+
+  <div class="card" style="padding:18px;margin-bottom:20px">
+    <h2 style="margin:0 0 4px;font-size:1rem">Admissions funnel</h2>
+    <p class="muted" style="margin:0 0 16px;font-size:.82rem">Stages are cumulative — an enrolled application also counts as reviewed and accepted, so this reads as "how far did they get", not "where are they parked now".</p>
+    <?php foreach ([['applied', 'Applied'], ['reviewed', 'Reviewed'], ['accepted', 'Accepted'], ['enrolled', 'Enrolled']] as $__s):
+      $__n = (int)$biFunnel[$__s[0]];
+      $__w = (int)$biFunnel['applied'] > 0 ? (int)round($__n / (int)$biFunnel['applied'] * 100) : 0; ?>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <span style="width:90px;font-size:.78rem;color:var(--muted)"><?= htmlspecialchars($__s[1]) ?></span>
+        <div style="flex:1;background:var(--border);border-radius:6px;height:20px;overflow:hidden">
+          <div style="width:<?= $__w ?>%;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-2))"></div>
+        </div>
+        <span style="width:80px;text-align:right;font-variant-numeric:tabular-nums;font-size:.82rem"><?= number_format($__n) ?> · <?= $__w ?>%</span>
+      </div>
+    <?php endforeach; ?>
+    <p class="muted" style="margin:14px 0 0;font-size:.8rem">Rejected <?= number_format((int)$biFunnel['rejected']) ?> · Withdrawn <?= number_format((int)$biFunnel['withdrawn']) ?> · Accepted→enrolled <?= htmlspecialchars((string)$biFunnel['enrol_rate']) ?>%</p>
+  </div>
+
+  <div class="card" style="padding:18px;margin-bottom:20px">
+    <h2 style="margin:0 0 4px;font-size:1rem">Lifetime value by pathway</h2>
+    <p class="muted" style="margin:0 0 14px;font-size:.82rem">LTV is revenue per <em>paying</em> applicant — dividing by everyone who filled the form would measure form traffic, not what a family is worth.</p>
+    <?php if (!$biLtv): ?><p class="muted">No applications yet.</p><?php else: ?>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="padding:8px">Pathway</th><th style="padding:8px">Applicants</th><th style="padding:8px">Payers</th><th style="padding:8px">Revenue</th><th style="padding:8px">LTV</th></tr></thead>
+      <tbody>
+      <?php foreach ($biLtv as $__r): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px"><strong><?= htmlspecialchars((string)$__r['pathway']) ?></strong></td>
+          <td style="padding:8px"><?= number_format((int)$__r['applicants']) ?></td>
+          <td style="padding:8px"><?= number_format((int)$__r['payers']) ?></td>
+          <td style="padding:8px">$<?= number_format((int)$__r['cents'] / 100, 2) ?></td>
+          <td style="padding:8px">$<?= number_format((int)$__r['ltv_cents'] / 100, 2) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
+    <?php endif; ?>
+  </div>
+
+  <div class="card" style="padding:18px">
+    <h2 style="margin:0 0 4px;font-size:1rem">Retention · last <?= (int)$biRetention['days'] ?> days</h2>
+    <p class="muted" style="margin:0 0 14px;font-size:.82rem">Of students on an active or completed course enrolment, how many show any learning activity — a practice log, a session marked present/late, or a submission. "Still with us", not "still on the roster".</p>
+    <p style="margin:0"><strong style="font-size:1.4rem"><?= number_format((int)$biRetention['active']) ?></strong> active of <?= number_format((int)$biRetention['enrolled']) ?> enrolled · <span class="muted"><?= number_format((int)$biRetention['dormant']) ?> dormant</span></p>
   </div>
 
 <?php elseif ($view === 'meet'): ?>
