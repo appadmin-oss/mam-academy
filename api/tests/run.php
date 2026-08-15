@@ -98,6 +98,7 @@ require $ROOT . '/lib/consent.php';           // consent & safeguarding center (
 require $ROOT . '/lib/repertoire.php';         // repertoire → recital (§1.7)
 require $ROOT . '/lib/challenges.php';        // practice challenges (§3.3)
 require $ROOT . '/lib/audit.php';             // audit-log timeline (§8.5)
+require $ROOT . '/lib/referrals.php';         // referral program (§6.3)
 
 require __DIR__ . '/assert.php';
 

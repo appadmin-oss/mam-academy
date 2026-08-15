@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 77;
+const MAM_SCHEMA_TARGET = 78;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2272,6 +2272,29 @@ function mam_db_migrate(PDO $db): void {
               created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_challenge_student ON practice_challenges(student_id, ends_on);
+        ",
+        // v78 — referral program (Advanced Modernization §6.3): a trackable code
+        // per user + referral records that reward the referrer's wallet.
+        78 => "
+            CREATE TABLE referral_codes (
+              user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+              code       TEXT NOT NULL UNIQUE,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE referrals (
+              id               INTEGER PRIMARY KEY AUTOINCREMENT,
+              referrer_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              code             TEXT NOT NULL,
+              referred_name    TEXT,
+              referred_email   TEXT,
+              referred_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              status           TEXT NOT NULL DEFAULT 'pending',
+              reward_cents     INTEGER NOT NULL DEFAULT 0,
+              created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+              rewarded_at      TEXT
+            );
+            CREATE INDEX idx_referrals_referrer ON referrals(referrer_id);
+            CREATE INDEX idx_referrals_status ON referrals(status);
         ",
     ];
 

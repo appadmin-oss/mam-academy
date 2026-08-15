@@ -492,6 +492,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'automation_toggle' => 'settings',
         'run_automations' => 'settings',
         'acadmail_toggle' => 'settings',
+        'referral_reward' => 'settings',
         'record_placement' => 'admissions',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
         'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
@@ -1685,6 +1686,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=automations&ok=' . urlencode('Academic emails ' . ($on ? 'enabled — outbound parent/student mail is now on.' : 'disabled.'))); exit;
     }
 
+    // §6.3 — reward a referral: credit the referrer's wallet + mark it rewarded.
+    if ($action === 'referral_reward') {
+        $rid  = (int)($_POST['referral_id'] ?? 0);
+        $usd  = (float)($_POST['amount_usd'] ?? 0);
+        $cents = $usd > 0 ? (int)round($usd * 100) : null;
+        $me = mam_current_user();
+        $ok = function_exists('mam_referral_reward') ? mam_referral_reward($rid, $cents, $me ? (int)$me['id'] : null) : false;
+        header('Location: ?v=referrals&' . ($ok ? 'ok=' . urlencode('Referral rewarded — the referrer\'s wallet was credited.') : 'err=' . urlencode('Could not reward that referral (already rewarded?).'))); exit;
+    }
+
     // Toggle a lifecycle automation on/off (super/settings only — gated above).
     // The flag is honoured at each rule's trigger point (see api/lib/automations.php).
     if ($action === 'automation_toggle') {
@@ -2336,7 +2347,7 @@ nav a{display:flex;align-items:center}
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
       'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
-      'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open']],
+      'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open'], 'referrals' => ['Referrals', 'user-plus']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
       'Account'    => ['account' => ['My Account', 'circle-user']],
@@ -2346,7 +2357,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'meet' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -3392,6 +3403,50 @@ nav a{display:flex;align-items:center}
           <td style="padding:8px"><?= $row['avg_mastery'] === null ? '—' : $row['avg_mastery'] . '%' ?></td>
           <td style="padding:8px"><?= $row['completion_pct'] === null ? '—' : $row['completion_pct'] . '%' ?></td>
           <td style="padding:8px"><?= (int)$row['interventions'] > 0 ? '<span class="pill" style="background:rgba(248,113,113,.16);color:#F87171">' . (int)$row['interventions'] . '</span>' : '0' ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
+    <?php endif; ?>
+  </div>
+
+<?php elseif ($view === 'referrals'): ?>
+  <?php
+    $refStatus  = in_array($_GET['rs'] ?? '', ['pending', 'joined', 'rewarded'], true) ? $_GET['rs'] : null;
+    $refs       = function_exists('mam_referral_admin_list') ? mam_referral_admin_list($refStatus, 300) : [];
+    $refDefault = number_format(((int)mam_setting_num('referral_reward_cents', 1000)) / 100, 2, '.', '');
+  ?>
+  <header class="top"><h1>Referrals</h1></header>
+  <p class="muted" style="margin:0 0 12px">§6.3 — "refer a friend" via each family's trackable code. Reward a referrer's wallet when a referral converts (default reward $<?= htmlspecialchars($refDefault) ?>, editable per reward).</p>
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <?php foreach (['' => 'All', 'pending' => 'Pending', 'joined' => 'Joined', 'rewarded' => 'Rewarded'] as $k => $lbl): ?>
+      <a class="btn <?= ($refStatus ?? '') === $k ? '' : 'ghost' ?>" href="?v=referrals<?= $k ? '&rs=' . $k : '' ?>"><?= htmlspecialchars($lbl) ?></a>
+    <?php endforeach; ?>
+  </div>
+  <div class="card">
+    <?php if (!$refs): ?><p class="muted" style="padding:16px">No referrals yet.</p><?php else: ?>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="padding:8px">Referrer</th><th style="padding:8px">Referred</th><th style="padding:8px">Status</th><th style="padding:8px">Reward</th><th style="padding:8px">When</th><th style="padding:8px">Action</th></tr></thead>
+      <tbody>
+      <?php foreach ($refs as $r): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px"><strong><?= htmlspecialchars((string)($r['referrer_name'] ?: $r['referrer_email'])) ?></strong></td>
+          <td style="padding:8px"><?= htmlspecialchars((string)($r['referred_name'] ?: ($r['referred_email'] ?: '—'))) ?></td>
+          <td style="padding:8px"><span class="pill"><?= htmlspecialchars((string)$r['status']) ?></span></td>
+          <td style="padding:8px"><?= (int)$r['reward_cents'] > 0 ? '$' . number_format((int)$r['reward_cents'] / 100, 2) : '—' ?></td>
+          <td style="padding:8px;color:var(--muted);font-size:.82rem"><?= htmlspecialchars(substr((string)$r['created_at'], 0, 10)) ?></td>
+          <td style="padding:8px">
+            <?php if ((string)$r['status'] !== 'rewarded'): ?>
+              <form method="post" style="display:flex;gap:6px;align-items:center;margin:0">
+                <?= mam_csrf_field() ?>
+                <input type="hidden" name="action" value="referral_reward">
+                <input type="hidden" name="referral_id" value="<?= (int)$r['id'] ?>">
+                <span class="muted">$</span><input type="number" step="0.01" min="0" name="amount_usd" value="<?= htmlspecialchars($refDefault) ?>" style="width:80px">
+                <button class="btn tiny" type="submit">Reward</button>
+              </form>
+            <?php else: ?><span class="muted">✓ rewarded</span><?php endif; ?>
+          </td>
         </tr>
       <?php endforeach; ?>
       </tbody>

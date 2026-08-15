@@ -19,6 +19,22 @@
     else fn();
   }
 
+  // ---------- Referral capture (§6.3) ----------
+  // If the visitor arrived via a referral link (?ref=CODE), record a pending
+  // referral once per browser session. Best-effort + silent — never blocks the
+  // application form.
+  ready(function () {
+    try {
+      var ref = new URLSearchParams(location.search).get('ref');
+      if (!ref) return;
+      var seen = sessionStorage.getItem('mam-ref-captured');
+      if (seen === ref) return;
+      sessionStorage.setItem('mam-ref-captured', ref);
+      var api = window.MAM_API;
+      if (api && api.request) { api.request('referral/capture', { method: 'POST', body: { code: ref } }).catch(function () {}); }
+    } catch (e) {}
+  });
+
   // ---------- First-party funnel analytics (A3) ----------
   // Privacy-respecting: honours Do-Not-Track, sends an ANONYMOUS funnel-session
   // id (sessionStorage — never identity) and NO third-party pixel. Best-effort

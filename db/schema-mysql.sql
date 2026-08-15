@@ -2109,3 +2109,29 @@ CREATE TABLE IF NOT EXISTS practice_challenges (
   CONSTRAINT fk_challenge_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (77) ON DUPLICATE KEY UPDATE version = version;
+
+-- v78: referral program (Advanced Modernization §6.3) — a trackable code per
+-- user + referral records that reward the referrer's wallet.
+CREATE TABLE IF NOT EXISTS referral_codes (
+  user_id    INT PRIMARY KEY,
+  code       VARCHAR(32) NOT NULL UNIQUE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_refcode_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS referrals (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  referrer_id      INT NOT NULL,
+  code             VARCHAR(32) NOT NULL,
+  referred_name    VARCHAR(120) NULL,
+  referred_email   VARCHAR(190) NULL,
+  referred_user_id INT NULL,
+  status           VARCHAR(16) NOT NULL DEFAULT 'pending',
+  reward_cents     INT NOT NULL DEFAULT 0,
+  created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  rewarded_at      DATETIME NULL,
+  KEY idx_referrals_referrer (referrer_id),
+  KEY idx_referrals_status (status),
+  CONSTRAINT fk_ref_referrer FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ref_referred FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (78) ON DUPLICATE KEY UPDATE version = version;

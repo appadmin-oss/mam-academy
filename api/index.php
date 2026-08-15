@@ -40,6 +40,7 @@ $r->get('/booking/pricing', $f('booking-pricing.php'), [mw_rate_limit('booking_p
 $r->get('/config/public',   $f('config-public.php'),   [mw_rate_limit('config_public', 120, 60)]);
 $r->get('/promo/active',     $f('promo-active.php'),    [mw_rate_limit('promo_active', 120, 60)]);
 $r->get('/verify-certificate', $f('verify-certificate.php'), [mw_rate_limit('verify_cert', 60, 60)]);
+$r->post('/referral/capture', $f('referral-capture.php'), [mw_rate_limit('referral_capture', 30, 600)]);
 
 // Academic session resolved from the calendar — applied silently by the form.
 $r->get('/session/current', $f('session-current.php'), [mw_rate_limit('session_current', 120, 60)]);
@@ -159,6 +160,7 @@ $r->get ('/studio/leaderboard', $f('studio/leaderboard.php'), [mw_user(), mw_rat
 $r->get ('/studio/card',        $f('studio/card.php'),        [mw_rate_limit('studio_card', 120, 600)]);
 
 /* ─── Notification centre (any signed-in user; LMS L3) ─── */
+$r->get ('/referrals',          $f('referrals.php'),         [mw_user(), mw_rate_limit('referrals', 120, 600)]);
 $r->get ('/notifications',      $f('notifications/list.php'), [mw_user(), mw_rate_limit('notif_list', 240, 600)]);
 $r->post('/notifications/read', $f('notifications/read.php'), [mw_csrf(), mw_user(), mw_rate_limit('notif_read', 240, 600)]);
 

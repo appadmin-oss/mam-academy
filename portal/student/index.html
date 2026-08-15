@@ -1607,6 +1607,34 @@
     return '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Class</th><th>Instructor</th><th>Schedule</th><th>Mode</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
 
+  // ── Refer a friend (§6.3) ────────────────────────────────────────────────
+  function loadReferral() {
+    var area = document.getElementById('referralArea'); if (!area) return;
+    API.request('referrals', { method: 'GET' }).then(function (r) { renderReferral(r); }).catch(function () {});
+  }
+  function renderReferral(r) {
+    var area = document.getElementById('referralArea'); if (!area) return;
+    var code = r.code || '', link = r.link || '', refs = r.referrals || [];
+    var earned = refs.filter(function (x) { return x.status === 'rewarded'; }).reduce(function (s, x) { return s + (x.reward_cents || 0); }, 0);
+    var list = refs.length ? '<div style="display:grid;gap:6px;margin-top:6px">' + refs.map(function (x) {
+      var col = x.status === 'rewarded' ? '#34D399' : (x.status === 'joined' ? 'var(--gold-bright)' : 'var(--text-muted)');
+      return '<div style="display:flex;gap:10px;align-items:baseline;font-size:.86rem"><span style="flex:1">' + P.escapeHtml(x.referred_name || x.referred_email || 'A friend') + '</span><span class="pill" style="color:' + col + '">' + P.escapeHtml(x.status) + '</span>' + (x.reward_cents > 0 ? '<span style="color:#34D399">+$' + (x.reward_cents / 100).toFixed(2) + '</span>' : '') + '</div>';
+    }).join('') + '</div>' : '';
+    area.innerHTML = '<section class="panel" style="margin-top:16px"><div class="panel-head"><h2><i class="fa-solid fa-user-plus" style="color:var(--gold-bright);margin-right:8px"></i>Refer a friend</h2>' + (earned > 0 ? '<span class="kpi-sub">$' + (earned / 100).toFixed(2) + ' earned</span>' : '') + '</div>'
+      + '<div class="panel-body" style="display:grid;gap:12px">'
+      + '<p style="margin:0;color:var(--text-muted)">Share your link. When a friend joins MAM, you earn tuition credit to your wallet.</p>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="refLink" readonly value="' + P.escapeHtml(link) + '" style="flex:1;min-width:220px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-raised);color:var(--text);font-family:monospace;font-size:.82rem">'
+      + '<button class="btn btn-primary" id="refCopy"><i class="fa-solid fa-copy"></i> Copy link</button></div>'
+      + '<div style="font-size:.8rem;color:var(--text-muted)">Your code: <strong style="color:var(--gold-bright);font-family:monospace">' + P.escapeHtml(code) + '</strong></div>'
+      + list + '</div></section>';
+    var cp = document.getElementById('refCopy');
+    if (cp) cp.addEventListener('click', function () {
+      var i = document.getElementById('refLink'); if (i) { i.select(); }
+      if (navigator.clipboard) { navigator.clipboard.writeText(link).catch(function () {}); } else { try { document.execCommand('copy'); } catch (e) {} }
+      if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Referral link copied.', 'success');
+    });
+  }
+
   function renderPayments() {
     var pays = data.payments || [];
     // Build a "Pay Tuition" tile at the top — surfaces any unpaid application
@@ -1666,7 +1694,8 @@
       + kpi('Payments made', paidCount, pays.length ? pays.length + ' on record' : 'None yet')
       + kpi('Active enrolments', enr.filter(function (e) { return e.enrollment_status === 'active'; }).length, 'Covered by your tuition')
       + '</section>';
-    content.innerHTML = summary + tile + history;
+    content.innerHTML = summary + tile + '<section id="referralArea"></section>' + history;
+    loadReferral();
     // Wire the "Pay now" buttons. Opens Paystack inline against the tuition
     // payment-init path. Verification fires on callback; on success we reload
     // the dashboard data so the row flips to paid + the receipt appears.
