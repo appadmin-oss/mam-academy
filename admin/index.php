@@ -3827,12 +3827,12 @@ nav a{display:flex;align-items:center}
             </tr>
           <?php else: ?>
             <tr style="border-top:1px solid var(--border)">
-              <td style="padding:8px"><input type="number" class="ro-pos" data-id="<?= (int)$it['id'] ?>" value="<?= (int)$it['position'] ?>" min="1" style="width:58px"></td>
+              <td style="padding:8px"><input type="number" class="ro-pos" data-id="<?= (int)$it['id'] ?>" value="<?= (int)$it['position'] ?>" min="1" style="width:58px" aria-label="Running-order position for <?= htmlspecialchars((string)$it['title']) ?>"></td>
               <td style="padding:8px;font-variant-numeric:tabular-nums"><?= htmlspecialchars((string)($it['at'] ?? '—')) ?></td>
               <td style="padding:8px"><strong><?= htmlspecialchars((string)$it['title']) ?></strong><?= $it['composer'] ? '<br><span class="muted" style="font-size:.8rem">' . htmlspecialchars((string)$it['composer']) . '</span>' : '' ?></td>
               <td style="padding:8px"><?= htmlspecialchars((string)$it['student_name']) ?><?= $it['instrument'] ? '<br><span class="muted" style="font-size:.8rem">' . htmlspecialchars((string)$it['instrument']) . '</span>' : '' ?></td>
               <td style="padding:8px">
-                <select class="ro-sec" data-id="<?= (int)$it['id'] ?>">
+                <select class="ro-sec" data-id="<?= (int)$it['id'] ?>" aria-label="Section for <?= htmlspecialchars((string)$it['title']) ?>">
                   <?php foreach (['opening'=>'Opening','main'=>'Main','finale'=>'Finale'] as $k=>$lbl): ?>
                     <option value="<?= $k ?>" <?= $it['section'] === $k ? 'selected' : '' ?>><?= $lbl ?></option>
                   <?php endforeach; ?>

@@ -104,7 +104,11 @@
 .portal-nav-link:hover{color:var(--text);background:var(--glass-light)}
 .portal-nav-link.active{color:var(--gold-bright);background:linear-gradient(135deg,rgba(224,138,26,0.14),rgba(251,191,36,0.06));border-color:var(--border-gold)}
 .portal-nav-link i{width:18px;text-align:center}
-.portal-nav-group{font-size:0.62rem;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-faint);padding:15px 14px 5px;user-select:none}
+/* These are section HEADINGS in the sidebar, not decoration — they carry the
+   information scent a user navigates by. --text-faint measured 2.61:1 against
+   a 4.5:1 floor (WCAG 1.4.3 AA), so they use --text-muted, which clears it in
+   both themes. */
+.portal-nav-group{font-size:0.62rem;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-muted);padding:15px 14px 5px;user-select:none}
 .portal-nav-group:first-of-type{padding-top:8px}
 
 .portal-side-foot{margin-top:24px;padding-top:18px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
@@ -375,6 +379,13 @@ html[data-portal-theme="light"]{
   --gold-tint:rgba(166,118,30,0.20);
   --red:#C6435C;--red-hot:#D6546D;--orange:#C86A2E;
   --purple:#4E63C8;--purple-deep:#3E52B4;--emerald:#0F8A5F;
+  /* TEXT-SAFE accent siblings. The values above are FILL colours — as text on
+     --bg-surface they measure 2.94:1 (gold-bright), 4.01:1 (gold) and 4.36:1
+     (emerald) against the 4.5:1 floor in WCAG 1.4.3 AA. Use these whenever an
+     accent colour carries words; keep the fills for buttons, borders and icons. */
+  --gold-text:#8A6414;      /* 5.37:1 on --bg-surface */
+  --emerald-text:#0B7A52;   /* 5.36:1 on --bg-surface */
+  --red-text:#B0203C;
 
   --bg:#F1F3F6;--bg-surface:#FFFFFF;--bg-raised:#F6F7F9;--bg-card:#FBFCFD;--bg-elevated:#EBEEF2;
 
@@ -406,6 +417,10 @@ html[data-portal-theme="dark"]{
   --gold-tint:rgba(199,154,62,0.28);
   --red:#EC6E88;--red-hot:#F0819A;--orange:#E0925A;
   --purple:#8CA0F0;--purple-deep:#6E82D8;--emerald:#3FBF8C;
+  /* Dark-theme accents already clear AA as text (gold-bright 8.53:1,
+     emerald 7.11:1 on --bg-surface), so the text-safe siblings alias straight
+     across. They must exist under BOTH themes or the token is undefined in one. */
+  --gold-text:#E0B45A;--emerald-text:#3FBF8C;--red-text:#EC6E88;
 
   --bg:#12161E;--bg-surface:#1A1F29;--bg-raised:#232A36;--bg-card:#1E2530;--bg-elevated:#2B3340;
 

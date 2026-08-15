@@ -86,8 +86,17 @@ $ogDesc    = $recital
 <?php endif; ?>
 <style>
   :root{
-    --ink:#1B2430; --muted:#69727f; --faint:#959cA7; --rule:#E2E0DA;
-    --paper:#FBFAF7; --card:#fff; --gold:#B8892B; --gold-deep:#8C6417;
+    /* Every value here that carries TEXT clears WCAG 1.4.3 AA (4.5:1) against
+       --paper. The two that did not were the performance time (--faint, 2.65:1)
+       and the piece number (--gold, 3.02:1) — the two most-read things on a
+       programme. --rule is a 1px divider, not text, so it is exempt. */
+    --ink:#1B2430;        /* 15.0:1 */
+    --muted:#69727F;      /* 4.66:1 */
+    --faint:#646C79;      /* 5.08:1 — was #959CA7 at 2.65:1 */
+    --rule:#E2E0DA;       /* divider only, never text */
+    --paper:#FBFAF7; --card:#fff;
+    --gold:#8C6417;       /* 5.09:1 — was #B8892B at 3.02:1 */
+    --gold-deep:#8C6417;  /* 5.09:1 */
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Inter,system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
@@ -175,7 +184,7 @@ $ogDesc    = $recital
 </style>
 </head>
 <body>
-<div class="wrap">
+<main class="wrap">
 
   <div class="crest">
     <img src="/mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
@@ -278,7 +287,8 @@ $ogDesc    = $recital
             <?php if ($g['composer']): ?><span class="rec-composer"><?= $e($g['composer']) ?></span><?php endif; ?>
             <span class="rec-performer"><?= $e($g['performer']) ?><?= $g['instrument'] ? ' — ' . $e($g['instrument']) : '' ?></span>
           </div>
-          <audio controls preload="none" src="<?= $e($g['audio_url']) ?>"></audio>
+          <audio controls preload="none" src="<?= $e($g['audio_url']) ?>"
+                 aria-label="<?= $e($g['title'] . ($g['composer'] ? ', ' . $g['composer'] : '') . ' — ' . $g['performer']) ?>"></audio>
         </div>
       <?php endforeach; ?>
     <?php elseif (!$viewer): ?>
@@ -336,6 +346,6 @@ $ogDesc    = $recital
 
 <?php endif; ?>
 
-</div>
+</main>
 </body>
 </html>

@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&family=Noto+Music&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260706d">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260815d">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260815e">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 <script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
@@ -946,14 +946,17 @@
         : '<section class="panel"><div class="panel-body">' + empty('masks-theater', 'No recitals are taking submissions right now. We will let you know when the next call opens.') + '</div></section>';
 
       var label = { proposed: 'Awaiting a decision', accepted: 'On the programme', declined: 'Not this time', withdrawn: 'Withdrawn', performed: 'Performed' };
-      var colour = { proposed: 'var(--gold-bright)', accepted: '#34D399', declined: 'var(--text-muted)', withdrawn: 'var(--text-muted)', performed: '#34D399' };
+      // Text-safe accent tokens, not the fill colours: as text on --bg-surface
+      // the fills measure 2.94:1 (gold-bright) and 1.92:1 (#34D399) against the
+      // 4.5:1 floor in WCAG 1.4.3 AA.
+      var colour = { proposed: 'var(--gold-text)', accepted: 'var(--emerald-text)', declined: 'var(--text-muted)', withdrawn: 'var(--text-muted)', performed: 'var(--emerald-text)' };
       var mine = subs.length
         ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>What you have put forward</h2></div>'
           + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Piece</th><th>Recital</th><th>Status</th><th></th></tr></thead><tbody>'
           + subs.map(function (x) {
               var canWithdraw = x.status === 'proposed' || x.status === 'accepted';
               var link = (x.recital_status === 'programmed' || x.recital_status === 'completed')
-                ? '<a href="/recital/' + P.escapeHtml(x.slug) + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">' + P.escapeHtml(x.recital_title) + ' ↗</a>'
+                ? '<a href="/recital/' + P.escapeHtml(x.slug) + '" target="_blank" rel="noopener" style="color:var(--gold-text)">' + P.escapeHtml(x.recital_title) + ' ↗</a>'
                 : P.escapeHtml(x.recital_title);
               return '<tr><td><strong>' + P.escapeHtml(x.title) + '</strong>' + (x.composer ? '<br><span class="kpi-sub">' + P.escapeHtml(x.composer) + '</span>' : '') + '</td>'
                 + '<td>' + link + (x.starts_at ? '<br><span class="kpi-sub">' + P.escapeHtml(P.fmtDateTime(x.starts_at)) + '</span>' : '') + '</td>'
