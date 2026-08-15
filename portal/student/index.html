@@ -708,10 +708,15 @@
     if (!certs.length) return '';
     return '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-award" style="color:var(--gold-bright);margin-right:8px"></i>Your certificates</h2></div><div class="panel-body" style="display:grid;gap:10px">'
       + certs.map(function (c) {
-          return '<a href="/api/certificate/' + encodeURIComponent(c.reference) + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:14px;padding:13px 16px;border:1px solid var(--border-gold,rgba(224,138,26,.4));border-radius:12px;background:var(--bg-raised);text-decoration:none">'
+          var ref = encodeURIComponent(c.reference);
+          return '<div style="border:1px solid var(--border-gold,rgba(224,138,26,.4));border-radius:12px;background:var(--bg-raised);overflow:hidden">'
+            + '<a href="/api/certificate/' + ref + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:14px;padding:13px 16px;text-decoration:none">'
             + '<span style="width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#120D08;flex:0 0 auto"><i class="fa-solid fa-award"></i></span>'
             + '<span style="flex:1"><strong style="color:var(--text)">' + P.escapeHtml(c.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.85rem">' + P.escapeHtml(c.program_name || '') + (c.level_name ? ' · ' + P.escapeHtml(c.level_name) : '') + '</span></span>'
-            + '<i class="fa-solid fa-arrow-up-right-from-square" style="color:var(--gold-bright)"></i></a>';
+            + '<i class="fa-solid fa-arrow-up-right-from-square" style="color:var(--gold-bright)"></i></a>'
+            + '<div style="display:flex;gap:16px;padding:8px 16px;border-top:1px solid var(--border);font-size:0.8rem">'
+            +   '<a href="/verify?ref=' + ref + '" target="_blank" rel="noopener" style="color:var(--gold-bright)"><i class="fa-solid fa-shield-halved" style="margin-right:5px"></i>Public verify page</a>'
+            + '</div></div>';
         }).join('')
       + '</div></section>';
   }

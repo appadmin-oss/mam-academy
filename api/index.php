@@ -39,6 +39,7 @@ $r->get('/booking/pricing', $f('booking-pricing.php'), [mw_rate_limit('booking_p
 // prices & fees without a redeploy (server stays authoritative at charge time).
 $r->get('/config/public',   $f('config-public.php'),   [mw_rate_limit('config_public', 120, 60)]);
 $r->get('/promo/active',     $f('promo-active.php'),    [mw_rate_limit('promo_active', 120, 60)]);
+$r->get('/verify-certificate', $f('verify-certificate.php'), [mw_rate_limit('verify_cert', 60, 60)]);
 
 // Academic session resolved from the calendar — applied silently by the form.
 $r->get('/session/current', $f('session-current.php'), [mw_rate_limit('session_current', 120, 60)]);

@@ -45,3 +45,10 @@ t_ok($re2 && $re2['issued'] === false, 'enrolment re-issue stays idempotent');
 // Student listing.
 $list = mam_lms_student_certificates($sid);
 t_ok(count($list) >= 3, 'student certificates are listed');
+
+t_group('certificates — public verification (§6.4)');
+// The public verify endpoint resolves a reference to public-safe facts.
+$verOk = mam_lms_certificate($r['reference']);
+t_ok($verOk && $verOk['reference'] === $r['reference'], 'a valid reference resolves for verification');
+t_ok(!empty($verOk['student_name']) && !empty($verOk['title']), 'verification exposes issued-to name + credential');
+t_eq(mam_lms_certificate('NOPE-NOT-A-REAL-REF'), null, 'an unknown reference does not resolve (verify shows invalid)');

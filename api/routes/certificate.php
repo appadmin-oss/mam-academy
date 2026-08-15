@@ -25,7 +25,7 @@ $diploma  = ($c['kind'] ?? '') === 'internal_diploma';
 $issued   = $esc(date('j F Y', strtotime((string)($c['issued_at'] ?? 'now'))));
 $year     = date('Y', strtotime((string)($c['issued_at'] ?? 'now')));
 $refEsc   = $esc($c['reference']);
-$verifyUrl = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/api/certificate/' . rawurlencode($c['reference']);
+$verifyUrl = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/verify?ref=' . rawurlencode($c['reference']);
 
 $line = 'has successfully completed the <strong>' . $program . '</strong>';
 if ($level !== '') $line .= ' at the <strong>' . $level . '</strong> level' . ($grades !== '' ? ' <span class="muted">(Trinity-equivalent ' . $grades . ')</span>' : '');
@@ -93,9 +93,13 @@ $html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
   .   '</div>'
   .   '<div class="foot">'
   .     '<div class="sig"><div class="ln">Van. BOJA</div><div class="sub">Director, MAM Academy</div></div>'
-  .     '<div class="meta">Issued ' . $issued . '<br>Certificate ID <span class="ref">' . $refEsc . '</span><br>Verify at academy.mamcentre.org</div>'
+  .     '<div class="meta">Issued ' . $issued . '<br>Certificate ID <span class="ref">' . $refEsc . '</span><br>Scan the QR or verify at academy.mamcentre.org/verify'
+  .       '<div id="cert-qr" style="margin-top:8px;display:inline-block;background:#fff;padding:4px;border-radius:6px" title="Scan to verify this certificate"></div>'
+  .     '</div>'
   .   '</div>'
   . '</div></main>'
+  . '<script src="/assets/js/vendor/qrcode.min.js"></script>'
+  . '<script>try{new QRCode(document.getElementById("cert-qr"),{text:' . json_encode($verifyUrl, JSON_UNESCAPED_SLASHES) . ',width:96,height:96,correctLevel:QRCode.CorrectLevel.M});}catch(e){}</script>'
   . '</body></html>';
 
 mam_raw_response($html);
