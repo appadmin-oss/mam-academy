@@ -443,13 +443,24 @@ New libs: `mastery`, `academic-record` (both registered in `bootstrap.php` AND
 Tests: `test_attendance_clock.php`, `test_mastery.php`,
 `test_exceptions_record.php` (~160 assertions; suite 2311 → 2471).
 
-**Still open, and why** — neither is blocked by a design problem:
-- **§11 live Google Meet fetch.** CSV/Jitsi reconciliation is complete and in
-  use; `mam_meeting_google_fetch()` is a documented scaffold returning null
-  until a Workspace service account exists. §11 itself sanctions the current
-  fallback.
-- **§34/§35 a separate Upper Admin portal.** Every metric and drill-down §34
-  and §35 ask for is shipped (`mam_analytics2_academy_health()`,
-  `_instructor_performance()`, admin `?v=academic`), but they live in the admin
-  portal behind `mam_admin_tier()` + capability gating rather than a fifth front
-  end. That is a product decision to take deliberately, not leftover work.
+**Both items left open by that pass have since been closed:**
+
+- **§11 live Google Meet** (`e7f4565`). `mam_meeting_google_fetch()` is a real
+  Admin SDK Reports client now: RS256 assertion with domain-wide delegation →
+  access token → activities query → participant mapping, plus
+  `mam_meeting_google_sweep()` on the cron and a credentials form on `?v=meet`
+  (the generic settings form truncates at 300 chars; a service-account key is
+  ~2KB). Tested without credentials by verifying the JWT against its own
+  generated public key and parsing a Reports-shaped payload. Still inert until
+  an academy pastes a service account in — that is configuration, not code.
+- **§34/§35 Upper Admin** (`13b1400`). New lib `api/lib/upper-admin.php`, route
+  `GET /api/admin/upper`, admin view `?v=upper` (super-only). The §34 chain
+  Academy → Programme → Instrument → Grade → Instructor → Student, every level
+  reporting the same metric set so siblings compare, with a breadcrumb back to
+  Academy and a link from each student to their §43 record. Covered by
+  `test_upper_admin.php`.
+
+Suite: 2311 → **2582** passing. The specification now has **no outstanding
+sections** — see `docs/spec-conformance-2026-08-15.md` for the per-section
+evidence and the two remaining *operational* decisions (Google credentials, and
+whether to switch late charges on).

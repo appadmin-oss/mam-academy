@@ -678,6 +678,24 @@ Closed the last gaps in the academic proposal (see
   dual-reads both enrolment models (gotcha #2) — a half-record would be wrong —
   and joins `mail_log` on the account's current email, since that table is keyed
   by address, not user id.
+- **`upper-admin.php` (§34-35, admin `?v=upper`, super-only).** `mam_upper_health()`
+  computes the academy measures for ANY scope and `mam_upper_breakdown()` returns
+  that *same* metric set one level down — keep them identical or the levels stop
+  being comparable, which is the entire point of the screen. Two invariants:
+  a filter matching nothing returns **nulls, not academy-wide figures** (silently
+  widening the scope while the breadcrumb claims otherwise is the worst failure
+  this screen can have), and **null ≠ 0** everywhere — an unassessed group is not
+  a failing one, so it sorts last, not first. `{SCOPE}` in a query template is
+  replaced using a cohort column named *by this file*, never by a request.
+- **Live Google Meet (§11) is real now, not a scaffold.** `mam_google_jwt_assertion()`
+  (RS256) → `mam_meeting_google_token()` → `mam_meeting_google_fetch()`. Two things
+  that are silently wrong when you get them wrong: the assertion **must** carry
+  `sub` (without it the token is the robot's own identity, which has no Reports
+  access), and Reports emits the moment a participant **LEFT** plus a duration —
+  there is no join timestamp, so the join is derived by subtraction. Failure is a
+  degradation, never an exception: §11 says the portal clock-in stays the official
+  record. Credentials live on `?v=meet`, not the generic settings form, which
+  truncates at 300 chars (a service-account key is ~2KB).
 
 ## Advanced Modernization (~31 features shipped)
 

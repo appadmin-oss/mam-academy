@@ -7,16 +7,22 @@ Section-by-section verification of the MAM Academy portal-upgrade proposal
 the library function, table, route or admin view is named so the claim can be
 re-checked in a minute. Where behaviour (rather than existence) was the
 question, it was driven against a running instance in a real browser, not
-asserted from the source. Rows marked *partial* or *not built* say what is
-missing and why; nothing here is marked done on the strength of a plausible
-filename.
+asserted from the source. Nothing here is marked done on the strength of a
+plausible filename.
 
-**Result.** 44 of 47 sections are fully implemented. Two are partial for a
-stated reason (§11 live Meet fetch, §34/§35 upper-admin separation), one is
-narrative (§47 conclusion). The five gaps found by this audit — §9's readiness
-threshold, §10's clock-out, §12's missing statuses, §15's request flow, §16's
-modes, §23/§24 mastery and §43's unified record — were **built and shipped as
-part of it** (commits `56ddf1c`, `2cdfdda`).
+**Result.** All 47 sections are implemented (§1, §47 are narrative). The five
+gaps found by this audit — §9's readiness threshold, §10's clock-out, §12's
+missing statuses, §15's request flow, §16's modes, §23/§24 mastery and §43's
+unified record — were built and shipped as part of it (`56ddf1c`, `2cdfdda`),
+and the two items first written up here as partial have since been completed:
+§11's live Google Meet fetch (`e7f4565`) and the §34/§35 Upper Admin portal
+(`13b1400`).
+
+One operational caveat remains, and it is a credential rather than a gap: the
+live Meet integration is inert until a Google Workspace service account is
+configured on the admin Meet screen. Until then §11's own fallback applies —
+the portal clock-in is the official attendance record and participation comes
+from CSV import.
 
 ---
 
@@ -27,7 +33,7 @@ part of it** (commits `56ddf1c`, `2cdfdda`).
 | 1 | Executive summary | n/a | Narrative. |
 | 2 | DISCOVER → DECLARE → DEVELOP → DEMONSTRATE → MASTER | ✅ | The cycle is the system's spine: `preclass.php` (discover/declare), `lms2.php` module statuses (develop/demonstrate), `mastery.php` (master). |
 | 3 | System objectives | ✅ | Each objective maps to a shipped surface; see the rows below. |
-| 4 | Five connected portals | ✅ | `portal/{student,instructor,parent}/index.html`, `admin/index.php`, and the upper-admin *views* (`?v=academic`, `?v=bi`) — see §34 for the caveat. |
+| 4 | Five connected portals | ✅ | `portal/{student,instructor,parent}/index.html`, `admin/index.php`, and the Upper Admin surface (`?v=upper`, super-admin only) beside `?v=academic` and `?v=bi`. |
 | 5 | Programme → Instrument → Grade → Stream → Module → Competency → Assessment | ✅ | `programs`, `courses`, `levels`, `program_courses`, `modules`, `lessons`, `rubric_criteria`, `assessments`. |
 | 6 | Curriculum vs schedule vs mastery | ✅ | `lesson_progress` carries `week_scheduled`, `week_started`, `week_completed` and `mastery_pct` as four separate facts. |
 | 7 | 14 module statuses | ✅ | `MAM_MODULE_STATUSES` (`lms2.php`) — all fourteen, validated on write by `mam_module_status_set()`. |
@@ -49,7 +55,7 @@ part of it** (commits `56ddf1c`, `2cdfdda`).
 |---|---|---|---|
 | 9 | 30-minute portal opening, 15-minute readiness | ✅ | `mam_checkin_window()` returns both boundaries, the window state and §9's sentence verbatim. Settings `checkin_open_before_min` (30) and `readiness_before_min` (15) — the page reads the server, so the two can never disagree. |
 | 10 | Digital clock-in / clock-out | ✅ | `mam_checkin_self()` / `mam_checkin_clock_out()`; `session_attendance` carries `checked_in_at`, `clocked_out_at`, `duration_min`, `minutes_late`. Durations are stored, not recomputed, so editing a session's schedule afterwards cannot rewrite history. |
-| 11 | Google Meet reconciliation | ⚠️ **partial** | CSV/Jitsi import and reconciliation are complete and used (`mam_meeting_reconcile_import`, `mam_meeting_session_view`, admin `?v=meet`). The **live** Google Reports API fetch is an explicit scaffold (`mam_meeting_google_fetch` returns null until service-account credentials exist). This matches §11's own instruction that where Meet data cannot be retrieved automatically the MAM clock-in remains the official record. **Needs a Google Workspace service account to finish** — no code decision is blocking it. |
+| 11 | Google Meet reconciliation | ✅ | Live Admin SDK Reports fetch: `mam_google_jwt_assertion()` (RS256, domain-wide delegation via `sub`) → `mam_meeting_google_token()` → `mam_meeting_google_fetch()` → `mam_meeting_google_parse_activities()`. Reports gives a leave time and a duration, never a join time, so the join is derived. Credentials are set on admin `?v=meet`; `mam_meeting_google_sweep()` reconciles finished online sessions from the cron, deduped through `events`. Inert and silent until configured — §11's fallback, not an error. |
 | 12 | Seven attendance statuses | ✅ | `MAM_ATTENDANCE_STATUSES` — present, late, absent, excused, left_early, technical_failure, rescheduled. Enforced by a CHECK constraint (schema v81). |
 | 16 | Onsite / online / hybrid modes | ✅ | `MAM_ATTENDANCE_MODES`; `session_attendance.mode` and `class_sessions.mode`. All three share one academic record. |
 | 39 | Online class workflow | ✅ | Portal opens → prepare → teach-back → clock in → reconcile → clock out → notify → record. Every arrow is a shipped call. |
@@ -90,8 +96,8 @@ part of it** (commits `56ddf1c`, `2cdfdda`).
 | 28 | Seven automated emails | ✅ | E1 `mam_acadmail_preclass_reminder_sweep`, E2 `_attendance_confirmation`, E3/E4 `_late_notice` (student and instructor), E5 `_absence_sweep`, E6 `_prep_alert_sweep`, E7 `_weekly_report_sweep`. All wired into `api/tools/run-jobs.php`. |
 | 32 | Admin portal academy overview | ✅ | Admin Overview + the "⚡ Needs your attention" queue. |
 | 33 | Real-time academic health | ✅ | `mam_analytics2_academy_health()` + `_today()`, admin `?v=academic`. |
-| 34 | Upper-admin strategic intelligence | ⚠️ **partial** | Every **metric** §34 lists is shipped (`academy_health`: preparation, attendance, teach-back, average mastery, module completion, intervention count) and drill-down exists by programme/instructor/student. What does **not** exist is a separate upper-admin *portal*: the system has two admin tiers (`mam_admin_tier()` super/manager) and capability-gated views, not a fifth front end. **This is a deliberate open decision, not an oversight** — building a distinct portal duplicates surfaces that RBAC already separates. Flagging it rather than claiming §34 complete. |
-| 35 | Instructor performance analytics | ⚠️ **partial** (same reason) | `mam_analytics2_instructor_performance()` returns exactly §35's table — students, average mastery, completion, interventions — and it renders in admin `?v=academic`. Partial only in that it lives in the admin portal rather than a separate upper-admin one. |
+| 34 | Upper-admin strategic intelligence | ✅ | `api/lib/upper-admin.php`, admin `?v=upper`, `GET /api/admin/upper`. `mam_upper_health()` computes §34's measures for ANY scope and `mam_upper_breakdown()` returns the same metric set one level down, so siblings are comparable. The full §34 chain — Academy → Programme → Instrument → Grade → Instructor → Student — with a breadcrumb back to Academy. Super-admin only (`settings` capability). |
+| 35 | Instructor performance analytics | ✅ | `mam_analytics2_instructor_performance()` returns exactly §35's table — students, average mastery, completion, interventions — rendered on the Upper Admin screen alongside the drill-down, and still on `?v=academic`. |
 | 42 | Communication hierarchy | ✅ | Routing is per-audience: student notifications, guardian mail via `parent_links`, instructor queues, admin escalation. |
 | 44 | Key dashboard metrics | ✅ | Student, instructor, programme and academy tiers all reported across `analytics2.php`, `bi.php` and `mastery.php`. |
 | 45 | Implementation phases | ✅ | All six phases delivered; this document is the phase-by-phase account. |
@@ -101,16 +107,20 @@ part of it** (commits `56ddf1c`, `2cdfdda`).
 
 ## What is genuinely outstanding
 
-Two items, both stated above, neither blocked by a design problem:
+Nothing in the specification. One **configuration** step remains, and it is the
+academy's to take, not the code's:
 
-1. **§11 live Google Meet fetch** — needs a Google Workspace service account and
-   a delegated admin. The call site, the row shape and the fallback are already
-   in place, so the credentials are the whole remaining task. §11 explicitly
-   sanctions the current behaviour in the meantime.
-2. **§34/§35 a separate Upper Admin portal** — a product decision rather than
-   engineering work. The metrics and the drill-down exist; what does not is a
-   fifth front end. Worth deciding deliberately before building, since admin
-   tiers plus capability gating already separate the audiences.
+- **Google Workspace credentials for §11.** Paste a service-account key and the
+  delegated admin's address into admin → Meet Reconciliation. The service
+  account needs domain-wide delegation authorised for
+  `https://www.googleapis.com/auth/admin.reports.audit.readonly`. Until then the
+  live fetch stays off and CSV import is used, which §11 explicitly sanctions.
+
+A second item is a **policy** decision rather than a technical one:
+
+- **Late charges ship disabled** (`late_charge_enabled = 0`). §13 requires the
+  charge to be incorporated into MAM's published student terms first, so turning
+  it on should be a deliberate act by the academy.
 
 ## Notes on things that could be misread as gaps
 
