@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
 <meta name="robots" content="noindex, nofollow">
-<script>(function(){try{var t=localStorage.getItem('mam-portal-theme');if(t!=='dark'&&t!=='light')t='light';document.documentElement.setAttribute('data-portal-theme',t);}catch(e){document.documentElement.setAttribute('data-portal-theme','light');}})();</script>
+<script>(function(){var r=document.documentElement;try{var t=localStorage.getItem('mam-portal-theme');if(t!=='dark'&&t!=='light')t='light';r.setAttribute('data-portal-theme',t);}catch(e){r.setAttribute('data-portal-theme','light');}try{var a=JSON.parse(localStorage.getItem('mam-a11y')||'{}');if(a.lowbw)r.classList.add('a11y-lowbw');if(a.dyslexia)r.classList.add('a11y-dyslexia');if(a.textSize==='lg')r.classList.add('a11y-text-lg');else if(a.textSize==='xl')r.classList.add('a11y-text-xl');}catch(e){}})();</script>
 <title>Student Portal — MAM Academy</title>
 <link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&family=Noto+Music&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260706d">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260706c">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260815a">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 <script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
@@ -67,6 +67,7 @@
     </nav>
     <div class="portal-side-foot">
       <button type="button" class="portal-theme-toggle" data-action="theme-toggle" aria-pressed="false"><i class="fa-solid fa-moon" aria-hidden="true"></i><span data-theme-label>Dark mode</span></button>
+      <button type="button" class="portal-theme-toggle" data-action="a11y-menu"><i class="fa-solid fa-universal-access" aria-hidden="true"></i><span>Display &amp; access</span></button>
       <a href="/"><i class="fa-solid fa-house"></i>Back to site</a>
       <button type="button" data-action="logout"><i class="fa-solid fa-right-from-bracket"></i>Sign out</button>
     </div>
@@ -105,7 +106,7 @@
 </div>
 
 <script src="/assets/js/config.js?v=20260807a"></script>
-<script src="/assets/js/portal.js?v=20260706c"></script>
+<script src="/assets/js/portal.js?v=20260815a"></script>
 <!-- Headshot uploader — lets a student change their portal photo (Profile tab). -->
 <script src="/assets/js/headshot.js?v=20260807a" defer></script>
 <script src="/assets/js/studio-tools.js?v=20260612a"></script>

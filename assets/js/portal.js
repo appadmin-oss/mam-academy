@@ -369,3 +369,75 @@
     sync();
   }
 })();
+
+/* ============================================================
+   Display & access settings (Advanced Modernization §7.2, §7.4).
+   Text size, dyslexia-friendly font, and a low-bandwidth mode that
+   reduces motion and hides non-essential imagery. Persisted to
+   localStorage; the pre-paint <head> script applies the classes on
+   load so there is no flash. Self-contained + delegated.
+   ============================================================ */
+(function () {
+  'use strict';
+  var root = document.documentElement, KEY = 'mam-a11y', panel = null;
+  function read() { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function write(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+  function apply(s) {
+    root.classList.toggle('a11y-lowbw', !!s.lowbw);
+    root.classList.toggle('a11y-dyslexia', !!s.dyslexia);
+    root.classList.toggle('a11y-text-lg', s.textSize === 'lg');
+    root.classList.toggle('a11y-text-xl', s.textSize === 'xl');
+  }
+  function esc(x) { return String(x == null ? '' : x).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function build() {
+    var el = document.createElement('div');
+    el.className = 'a11y-pop';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Display and access settings');
+    el.innerHTML =
+      '<div class="a11y-pop-head"><strong><i class="fa-solid fa-universal-access" aria-hidden="true"></i> Display &amp; access</strong>'
+      + '<button type="button" class="a11y-x" data-a11y-close aria-label="Close">&times;</button></div>'
+      + '<div class="a11y-row"><span>Text size</span><div class="a11y-seg" role="group" aria-label="Text size">'
+      + '<button type="button" data-a11y="textSize" data-val="normal" style="font-size:.8rem">A</button>'
+      + '<button type="button" data-a11y="textSize" data-val="lg" style="font-size:1rem">A+</button>'
+      + '<button type="button" data-a11y="textSize" data-val="xl" style="font-size:1.2rem">A++</button></div></div>'
+      + '<div class="a11y-row"><span>Dyslexia-friendly font</span><button type="button" class="a11y-switch" data-a11y="dyslexia" role="switch"><span class="track"><span class="knob"></span></span></button></div>'
+      + '<div class="a11y-row"><span>Low-bandwidth mode</span><button type="button" class="a11y-switch" data-a11y="lowbw" role="switch"><span class="track"><span class="knob"></span></span></button></div>'
+      + '<p class="a11y-note">Low-bandwidth reduces motion and hides non-essential images. All settings stay on this device.</p>';
+    document.body.appendChild(el);
+    return el;
+  }
+  function render() {
+    if (!panel) return;
+    var s = read();
+    var segs = panel.querySelectorAll('[data-a11y="textSize"]');
+    for (var i = 0; i < segs.length; i++) {
+      var on = (segs[i].getAttribute('data-val') === (s.textSize || 'normal'));
+      segs[i].classList.toggle('active', on);
+      segs[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    ['dyslexia', 'lowbw'].forEach(function (k) {
+      var b = panel.querySelector('[data-a11y="' + k + '"]');
+      if (b) { b.classList.toggle('on', !!s[k]); b.setAttribute('aria-checked', s[k] ? 'true' : 'false'); }
+    });
+  }
+  function open() { if (!panel) panel = build(); panel.classList.add('open'); render(); }
+  function close() { if (panel) panel.classList.remove('open'); }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-action="a11y-menu"]') : null;
+    if (t) { e.preventDefault(); if (panel && panel.classList.contains('open')) { close(); } else { open(); } return; }
+    if (e.target.closest && e.target.closest('[data-a11y-close]')) { close(); return; }
+    var c = e.target.closest ? e.target.closest('[data-a11y]') : null;
+    if (c) {
+      e.preventDefault();
+      var s = read(), k = c.getAttribute('data-a11y');
+      if (k === 'textSize') { s.textSize = c.getAttribute('data-val'); }
+      else { s[k] = !s[k]; }
+      write(s); apply(s); render(); return;
+    }
+    // click-away closes
+    if (panel && panel.classList.contains('open') && !e.target.closest('.a11y-pop')) { close(); }
+  }, false);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); }, false);
+  apply(read()); // belt-and-braces if the pre-paint script was skipped
+})();
