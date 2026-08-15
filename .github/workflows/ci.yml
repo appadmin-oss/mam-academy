@@ -51,7 +51,14 @@ jobs:
           for f in $(find assets/js -name '*.js' -o -name '*.cjs'); do
             node --check "$f"
           done
+      # The step above only PARSES assets/js. These three actually run the
+      # self-tests and parse the pages' inline scripts. The headshot self-test
+      # in particular sat broken for months because it was only ever parsed.
+      - name: Inline <script> syntax check (portals and other HTML pages)
+        run: node .github/scripts/check-inline-js.cjs
       - name: Notation capture self-test (pitch detector + segmenter)
         run: node assets/js/notation.selftest.cjs
       - name: ID card imposition + cut guides self-test
         run: node assets/js/card-export.selftest.cjs
+      - name: Headshot quality + downscale self-test
+        run: node assets/js/headshot.selftest.cjs

@@ -64,24 +64,41 @@
     return Promise.resolve(basicQualityCheck(img));
   }
 
+  /* Mean luma of an RGBA buffer, ITU-R BT.601 weights. Pure — the canvas read
+     is the caller's job, so this half is verifiable outside a browser. */
+  function meanLuma(rgba, pixels) {
+    if (!rgba || !pixels) { return null; }
+    var total = 0;
+    for (var i = 0; i < rgba.length; i += 4) {
+      total += (rgba[i] * 299 + rgba[i + 1] * 587 + rgba[i + 2] * 114) / 1000;
+    }
+    return total / pixels;
+  }
+
+  /* The exposure verdict itself. Split out from the canvas plumbing so the
+     THRESHOLDS — the part that decides whether a family's photo is accepted —
+     can be tested headlessly. A null average (unreadable canvas) accepts:
+     refusing a photo because we could not measure it would lose a good
+     registration over a browser quirk. */
+  function qualityFromLuma(avg) {
+    if (avg === null || avg === undefined || avg !== avg) { return { ok: true, reason: null, quality: 'good' }; }
+    if (avg < 18)  { return { ok: false, reason: 'Photo is too dark — try in better lighting.', quality: 'dark' }; }
+    if (avg > 248) { return { ok: false, reason: 'Photo is overexposed — try in softer lighting.', quality: 'overexposed' }; }
+    return { ok: true, reason: null, quality: 'good' };
+  }
+
   /* Fallback: canvas brightness heuristic */
   function basicQualityCheck(img) {
+    var avg = null;
     try {
       var W = 64; var H = 64;
       var cv = document.createElement('canvas');
       cv.width = W; cv.height = H;
       var ctx = cv.getContext('2d');
       ctx.drawImage(img, 0, 0, W, H);
-      var d = ctx.getImageData(0, 0, W, H).data;
-      var total = 0;
-      for (var i = 0; i < d.length; i += 4) {
-        total += (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000;
-      }
-      var avg = total / (W * H);
-      if (avg < 18)  return { ok: false, reason: 'Photo is too dark — try in better lighting.', quality: 'dark' };
-      if (avg > 248) return { ok: false, reason: 'Photo is overexposed — try in softer lighting.', quality: 'overexposed' };
+      avg = meanLuma(ctx.getImageData(0, 0, W, H).data, W * H);
     } catch (e) { /* canvas tainted / unavailable — accept anyway */ }
-    return { ok: true, reason: null, quality: 'good' };
+    return qualityFromLuma(avg);
   }
 
   /* Store the photo on OUR OWN server. This is the floor that guarantees a
@@ -412,6 +429,18 @@
      (~1.4× its size); a full-resolution phone photo can exceed the server's POST
      limit and come back as an HTML error page. Falls back to the original bytes
      on any failure (tainted canvas, decode error) so a photo is never lost. */
+  /* Target dimensions for a downscale to fit within maxPx on the long edge.
+     The Math.min(1, …) is the contract: this NEVER upscales — enlarging a
+     small photo adds no detail and inflates the upload for nothing. Returns
+     null for a degenerate source so the caller can bail to the original.
+     Pure, so the geometry is verifiable outside a browser. */
+  function fitWithin(w, h, maxPx) {
+    w = Math.max(0, w || 0); h = Math.max(0, h || 0);
+    if (!w || !h || !maxPx) { return null; }
+    var scale = Math.min(1, maxPx / Math.max(w, h));
+    return { scale: scale, w: Math.max(1, Math.round(w * scale)), h: Math.max(1, Math.round(h * scale)) };
+  }
+
   function downscaleDataUrl(dataUrl, maxPx, quality) {
     return new Promise(function (resolve) {
       try {
@@ -419,10 +448,9 @@
         img.onerror = function () { resolve(dataUrl); };
         img.onload = function () {
           try {
-            var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
-            if (!w || !h) { resolve(dataUrl); return; }
-            var scale = Math.min(1, maxPx / Math.max(w, h));
-            var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+            var fit = fitWithin(img.naturalWidth || img.width, img.naturalHeight || img.height, maxPx);
+            if (!fit) { resolve(dataUrl); return; }
+            var cw = fit.w, ch = fit.h;
             var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
             var ctx = cv.getContext('2d');
             if (!ctx) { resolve(dataUrl); return; }
@@ -463,5 +491,12 @@
     });
   }
 
-  window.MAM_HEADSHOT = { mount: mount, upload: upload };
+  // _internals exposes the PURE halves — the exposure thresholds and the
+  // downscale geometry — so headshot.selftest.cjs can verify them without a
+  // browser. Not public API: nothing outside the self-test may call these.
+  window.MAM_HEADSHOT = {
+    mount: mount,
+    upload: upload,
+    _internals: { meanLuma: meanLuma, qualityFromLuma: qualityFromLuma, fitWithin: fitWithin }
+  };
 })();
