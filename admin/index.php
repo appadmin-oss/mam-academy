@@ -6314,7 +6314,42 @@ nav a{display:flex;align-items:center}
 <?php endif; // sv=feedback ?>
 
 <?php elseif ($view === 'audit'): ?>
+  <?php $auditUser = (int)($_GET['user'] ?? 0); ?>
+  <?php if ($auditUser > 0):
+    $au = mam_db_row('SELECT id, name, email FROM users WHERE id = ?', [$auditUser]);
+    $timeline = ($au && function_exists('mam_audit_timeline')) ? mam_audit_timeline($auditUser, 300) : [];
+  ?>
+    <header class="top"><h1>Timeline — <?= htmlspecialchars($au ? ($au['name'] ?: $au['email']) : ('User #' . $auditUser)) ?></h1>
+      <a class="btn ghost" href="?v=audit"><i class="fa-solid fa-arrow-left"></i> All audit</a></header>
+    <p class="muted" style="margin:0 0 14px">Everything the audit log records about this person (§8.5) — actions on their account, actions they took, and changes to the enrolments and submissions they own.</p>
+    <div class="card">
+      <?php if (!$au): ?><p class="muted" style="padding:16px">No such user.</p>
+      <?php elseif (!$timeline): ?><p class="muted" style="padding:16px">No recorded activity for this person yet.</p>
+      <?php else: ?>
+      <table>
+        <thead><tr><th>When</th><th>What happened</th><th>By</th><th>Details</th></tr></thead>
+        <tbody>
+        <?php foreach ($timeline as $r): ?>
+          <tr>
+            <td class="muted" style="white-space:nowrap"><?= htmlspecialchars(substr((string)$r['created_at'], 0, 16)) ?></td>
+            <td><strong><?= htmlspecialchars((string)$r['label']) ?></strong> <span class="muted" style="font-size:.82rem"><?= htmlspecialchars((string)$r['entity']) ?> #<?= (int)$r['entity_id'] ?></span></td>
+            <td><?= htmlspecialchars((string)$r['actor']) ?></td>
+            <td class="json-pop" style="max-width:320px;overflow:hidden;text-overflow:ellipsis"><?= htmlspecialchars((string)$r['meta']) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+      <?php endif; ?>
+    </div>
+  <?php else: ?>
   <header class="top"><h1>Audit Log</h1></header>
+  <div class="card" style="margin-bottom:12px;padding:12px 16px">
+    <form method="get" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+      <input type="hidden" name="v" value="audit">
+      <label style="margin:0">Per-person timeline<br><input type="number" name="user" placeholder="User ID" style="width:160px"></label>
+      <button class="btn" type="submit">View timeline</button>
+    </form>
+  </div>
   <div class="card">
     <table>
       <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Meta</th><th>IP</th></tr></thead>
@@ -6335,6 +6370,7 @@ nav a{display:flex;align-items:center}
     </table>
     <?= mam_admin_pager($page, $total, $perPage) ?>
   </div>
+  <?php endif; ?>
 
 <?php elseif ($view === 'logs'):
   // Tail the most recent app-YYYY-MM-DD.log file. Strict allow-list on the
