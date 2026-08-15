@@ -1,0 +1,281 @@
+<?php
+/**
+ * MAM Academy — the mastery scale and the MAM Mastery Score™ (PDF §23-24).
+ * ─────────────────────────────────────────────────────────────
+ * §23 defines a six-level competency scale and §24 a standardised composite
+ * score. Both were previously implicit: `lesson_progress.mastery_pct` carried a
+ * percentage with no vocabulary attached, and nothing anywhere combined the
+ * evidence into one number.
+ *
+ * Three design decisions this file commits to, all of them from §24:
+ *
+ *  1. **Attendance and punctuality are NOT components.** §24 is explicit that
+ *     they must stay separately visible "so that a student's musical ability is
+ *     not confused with disciplinary performance". They are returned alongside
+ *     the score, never inside it.
+ *
+ *  2. **A component with no evidence is EXCLUDED, not scored zero.** A student
+ *     in week two has not been assessed on repertoire; scoring that as 0 would
+ *     report a beginner as failing. Weights are renormalised across the
+ *     components that actually have evidence, and `coverage` discloses how much
+ *     of the full weight that was — a score built on 20% coverage is reported as
+ *     provisional rather than presented as equivalent to a complete one.
+ *
+ *  3. **Rubric criteria are mapped to components by their LABEL**, because §21
+ *     lets administrators author rubrics per instrument and there is no fixed
+ *     criterion vocabulary to key on. An unrecognised label falls into
+ *     `technical_competence` (the §20 example's largest bucket) rather than
+ *     being discarded — evidence is never silently dropped.
+ */
+declare(strict_types=1);
+
+/** §23's six-level competency scale. Index IS the level. */
+const MAM_MASTERY_LEVELS = [
+    0 => ['key' => 'not_assessed', 'label' => 'Not assessed', 'blurb' => 'Insufficient evidence.'],
+    1 => ['key' => 'emerging',     'label' => 'Emerging',     'blurb' => 'Requires significant support.'],
+    2 => ['key' => 'developing',   'label' => 'Developing',   'blurb' => 'Can perform with assistance.'],
+    3 => ['key' => 'proficient',   'label' => 'Proficient',   'blurb' => 'Can perform independently to the expected standard.'],
+    4 => ['key' => 'advanced',     'label' => 'Advanced',     'blurb' => 'Performs beyond the expected standard.'],
+    5 => ['key' => 'mastery',      'label' => 'Mastery',      'blurb' => 'Demonstrates exceptional command and consistency.'],
+];
+
+/**
+ * §24's components and their weights (summing to 100). The weights express the
+ * academy's judgement about what a musician's overall standard is made of; they
+ * are constants rather than settings because changing them silently would make
+ * two students' scores incomparable across time.
+ */
+const MAM_MASTERY_COMPONENTS = [
+    'preparation'          => ['label' => 'Preparation',          'weight' => 10],
+    'teachback'            => ['label' => 'Teach-back',           'weight' => 10],
+    'technical_competence' => ['label' => 'Technical competence', 'weight' => 15],
+    'musical_accuracy'     => ['label' => 'Musical accuracy',     'weight' => 10],
+    'rhythm_timing'        => ['label' => 'Rhythm & timing',      'weight' => 10],
+    'theory'               => ['label' => 'Theory',               'weight' => 8],
+    'expression'           => ['label' => 'Expression',           'weight' => 8],
+    'repertoire'           => ['label' => 'Repertoire',           'weight' => 8],
+    'creativity'           => ['label' => 'Creativity',           'weight' => 6],
+    'performance'          => ['label' => 'Performance',          'weight' => 10],
+    'consistency'          => ['label' => 'Consistency',          'weight' => 5],
+];
+
+/**
+ * Map a rubric criterion label to a §24 component. Ordered longest-signal
+ * first so 'note accuracy' does not match on 'note' before 'accuracy' is
+ * considered. Unmatched → technical_competence (see the file header).
+ */
+function mam_mastery_component_for_criterion(string $label): string {
+    $l = strtolower($label);
+    $rules = [
+        'rhythm_timing'        => ['rhythm', 'timing', 'tempo', 'groove', 'pulse', 'time keeping', 'coordination'],
+        // Theory is tested BEFORE accuracy: §20's own example criterion is
+        // "Score/Notation Accuracy", which is about reading the page, not about
+        // playing the right notes. Checking 'accuracy' first would swallow it.
+        'theory'               => ['theory', 'notation', 'score', 'harmony', 'chord knowledge', 'aural', 'ear training'],
+        'musical_accuracy'     => ['accuracy', 'accurate', 'pitch', 'intonation', 'note', 'sight read', 'sight-read'],
+        'expression'           => ['expression', 'expressive', 'dynamic', 'articulation', 'phrasing', 'musicality', 'interpretation', 'tone'],
+        'creativity'           => ['creativ', 'improvis', 'compos', 'arrang'],
+        'performance'          => ['performance', 'confidence', 'presentation', 'stage', 'ensemble', 'memory', 'recall'],
+        'repertoire'           => ['repertoire'],
+        'preparation'          => ['preparation', 'practice'],
+        'technical_competence' => ['technique', 'technical', 'posture', 'position', 'finger', 'grip', 'stick', 'picking', 'embouchure', 'breath', 'pedal'],
+    ];
+    foreach ($rules as $component => $needles) {
+        foreach ($needles as $n) if (strpos($l, $n) !== false) return $component;
+    }
+    return 'technical_competence';
+}
+
+/** §23 level for a 0–100 percentage. Never returns 0 — that is "no evidence". */
+function mam_mastery_level_from_pct(float $pct): int {
+    if ($pct >= 90) return 5;
+    if ($pct >= 75) return 4;
+    if ($pct >= 60) return 3;
+    if ($pct >= 40) return 2;
+    return 1;
+}
+
+/** The level descriptor, safe for any int. */
+function mam_mastery_level(int $level): array {
+    return MAM_MASTERY_LEVELS[$level] ?? MAM_MASTERY_LEVELS[0];
+}
+
+/**
+ * Per-component evidence for a student, as `component => [pct, n, source]`.
+ * Only components with at least one piece of evidence appear. Split out from
+ * the score so a portal can show the breakdown without recomputing.
+ */
+function mam_mastery_components(int $studentId): array {
+    $out = [];
+    $put = function (string $key, float $earned, float $max, int $n, string $source) use (&$out) {
+        if ($max <= 0 || $n <= 0) return;
+        if (!isset($out[$key])) $out[$key] = ['earned' => 0.0, 'max' => 0.0, 'n' => 0, 'sources' => []];
+        $out[$key]['earned'] += $earned;
+        $out[$key]['max']    += $max;
+        $out[$key]['n']      += $n;
+        if (!in_array($source, $out[$key]['sources'], true)) $out[$key]['sources'][] = $source;
+    };
+
+    // ── Preparation: how far the student's modules got before class.
+    $prep = mam_db_row(
+        'SELECT COUNT(*) AS n, COALESCE(SUM(percent),0) AS earned FROM lesson_progress WHERE student_id = ?',
+        [$studentId]
+    );
+    if ((int) ($prep['n'] ?? 0) > 0) $put('preparation', (float) $prep['earned'], (int) $prep['n'] * 100.0, (int) $prep['n'], 'lesson_progress');
+
+    // ── Teach-back: the mean of §19's six dimensions across reviewed teach-backs.
+    $tbs = mam_db_all(
+        "SELECT understanding, accuracy, vocabulary, explanation, application, confidence
+           FROM teachbacks WHERE student_id = ? AND status = 'reviewed'",
+        [$studentId]
+    );
+    $tbEarned = 0.0; $tbMax = 0.0; $tbN = 0;
+    foreach ($tbs as $t) {
+        foreach (['understanding', 'accuracy', 'vocabulary', 'explanation', 'application', 'confidence'] as $dim) {
+            if ($t[$dim] === null || $t[$dim] === '') continue;
+            $tbEarned += (float) $t[$dim];
+            $tbMax    += 100.0;   // the dimensions are recorded as percentages
+        }
+        $tbN++;
+    }
+    $put('teachback', $tbEarned, $tbMax, $tbN, 'teachbacks');
+
+    // ── Rubric-scored submissions, bucketed by criterion label (§20-21).
+    $reviews = mam_db_all(
+        "SELECT sr.scores_json, sr.rubric_id
+           FROM submission_reviews sr
+           JOIN submissions s ON s.id = sr.submission_id
+          WHERE s.student_id = ? AND sr.rubric_id IS NOT NULL AND sr.scores_json IS NOT NULL",
+        [$studentId]
+    );
+    if ($reviews) {
+        $rubricIds = array_values(array_unique(array_map(fn($r) => (int) $r['rubric_id'], $reviews)));
+        $ph = implode(',', array_fill(0, count($rubricIds), '?'));
+        $crit = [];
+        foreach (mam_db_all("SELECT id, rubric_id, label, max_points FROM rubric_criteria WHERE rubric_id IN ($ph)", $rubricIds) as $c) {
+            $crit[(int) $c['id']] = $c;
+        }
+        foreach ($reviews as $r) {
+            $scores = json_decode((string) $r['scores_json'], true);
+            if (!is_array($scores)) continue;
+            foreach ($scores as $critId => $points) {
+                $c = $crit[(int) $critId] ?? null;
+                if (!$c || !is_numeric($points)) continue;
+                $max = max(1.0, (float) $c['max_points']);
+                $put(mam_mastery_component_for_criterion((string) $c['label']),
+                     min((float) $points, $max), $max, 1, 'rubric');
+            }
+        }
+    }
+
+    // ── Finalised course results feed technical competence: they are the
+    //    academy's own summative judgement and outrank any single submission.
+    $res = mam_db_row(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(r.total_score),0) AS earned
+           FROM results r JOIN course_enrollments ce ON ce.id = r.enrollment_id
+          WHERE ce.student_id = ? AND r.total_score IS NOT NULL",
+        [$studentId]
+    );
+    if ((int) ($res['n'] ?? 0) > 0) $put('technical_competence', (float) $res['earned'], (int) $res['n'] * 100.0, (int) $res['n'], 'results');
+
+    // ── Repertoire: pieces carried to performance standard vs pieces taken on.
+    $rep = mam_db_all("SELECT status, COUNT(*) AS c FROM repertoire WHERE student_id = ? GROUP BY status", [$studentId]);
+    $repTotal = 0; $repDone = 0;
+    foreach ($rep as $r) {
+        $repTotal += (int) $r['c'];
+        if (in_array((string) $r['status'], ['mastered', 'performed', 'polished'], true)) $repDone += (int) $r['c'];
+    }
+    if ($repTotal > 0) $put('repertoire', $repDone * 100.0, $repTotal * 100.0, $repTotal, 'repertoire');
+
+    // ── Performance: pieces actually performed at a recital are the strongest
+    //    evidence the academy holds that a student can do it in front of people.
+    $perf = mam_db_row(
+        "SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'performed' THEN 1 ELSE 0 END) AS done
+           FROM recital_items WHERE student_id = ? AND status IN ('accepted','performed','withdrawn')",
+        [$studentId]
+    );
+    if ((int) ($perf['total'] ?? 0) > 0) {
+        $put('performance', (int) ($perf['done'] ?? 0) * 100.0, (int) $perf['total'] * 100.0, (int) $perf['total'], 'recitals');
+    }
+
+    // ── Consistency: modules reached without needing a re-attempt or a
+    //    carry-forward. This is the §24 component about steadiness, not speed.
+    $con = mam_db_row(
+        "SELECT COUNT(*) AS n,
+                SUM(CASE WHEN attempts <= 1 AND status <> 'carried_forward' AND status <> 'remedial' THEN 1 ELSE 0 END) AS clean
+           FROM lesson_progress WHERE student_id = ?",
+        [$studentId]
+    );
+    if ((int) ($con['n'] ?? 0) > 0) $put('consistency', (int) ($con['clean'] ?? 0) * 100.0, (int) $con['n'] * 100.0, (int) $con['n'], 'lesson_progress');
+
+    $final = [];
+    foreach (MAM_MASTERY_COMPONENTS as $key => $meta) {
+        if (!isset($out[$key])) continue;
+        $c = $out[$key];
+        $final[$key] = [
+            'key'     => $key,
+            'label'   => $meta['label'],
+            'weight'  => $meta['weight'],
+            'pct'     => round($c['earned'] / $c['max'] * 100, 1),
+            'n'       => $c['n'],
+            'sources' => $c['sources'],
+        ];
+    }
+    return $final;
+}
+
+/**
+ * The MAM Mastery Score™ (§24) for a student: a 0–100 composite plus its §23
+ * level, the per-component breakdown, and the evidence coverage the score rests
+ * on. Attendance and punctuality are returned SEPARATELY and deliberately are
+ * not folded in (§24).
+ *
+ * With no evidence at all the score is null and the level is 0 — the honest
+ * answer, and the one §23 level 0 exists to express. A score is flagged
+ * `provisional` below half coverage so a thin record is never displayed with
+ * the same authority as a complete one.
+ */
+function mam_mastery_score(int $studentId): array {
+    $components = mam_mastery_components($studentId);
+    $totalWeight = 0; $sum = 0.0;
+    foreach ($components as $c) { $totalWeight += $c['weight']; $sum += $c['pct'] * $c['weight']; }
+    $fullWeight = array_sum(array_column(MAM_MASTERY_COMPONENTS, 'weight'));
+    $coverage   = $fullWeight > 0 ? round($totalWeight / $fullWeight * 100, 1) : 0.0;
+
+    $score = $totalWeight > 0 ? round($sum / $totalWeight, 1) : null;
+    $level = $score === null ? 0 : mam_mastery_level_from_pct($score);
+    $meta  = mam_mastery_level($level);
+
+    // Attendance + punctuality — reported beside the score, never inside it.
+    $att = mam_db_row(
+        "SELECT COUNT(*) AS total,
+                SUM(CASE WHEN status IN ('present','late','excused','left_early') THEN 1 ELSE 0 END) AS attended,
+                SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS lates
+           FROM session_attendance WHERE student_id = ?",
+        [$studentId]
+    );
+    $attTotal = (int) ($att['total'] ?? 0);
+
+    return [
+        'student_id'  => $studentId,
+        'score'       => $score,
+        'level'       => $level,
+        'level_key'   => $meta['key'],
+        'level_label' => $meta['label'],
+        'level_blurb' => $meta['blurb'],
+        'headline'    => $score === null
+            ? 'MAM Mastery Score: not yet assessed'
+            : 'MAM Mastery Score: ' . (int) round($score) . '/100 — ' . strtoupper($meta['label']),
+        'coverage_pct' => $coverage,
+        'provisional'  => $score !== null && $coverage < 50,
+        'components'   => array_values($components),
+        'missing'      => array_values(array_diff(array_keys(MAM_MASTERY_COMPONENTS), array_keys($components))),
+        // Separate by design (§24).
+        'attendance'  => [
+            'sessions'      => $attTotal,
+            'attendance_pct'=> $attTotal > 0 ? round((int) ($att['attended'] ?? 0) / $attTotal * 100, 1) : null,
+            'lates'         => (int) ($att['lates'] ?? 0),
+            'punctuality_pct' => $attTotal > 0 ? round((1 - (int) ($att['lates'] ?? 0) / $attTotal) * 100, 1) : null,
+        ],
+    ];
+}

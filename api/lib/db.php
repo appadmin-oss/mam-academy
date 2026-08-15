@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 80;
+const MAM_SCHEMA_TARGET = 81;
 
 /**
  * Open (and cache) the PDO connection.
@@ -117,6 +117,8 @@ function mam_db_migrate_mysql(PDO $db): void {
                 'cancellation_reason' => "ALTER TABLE class_sessions ADD COLUMN cancellation_reason TEXT         NULL",
                 'room'                => "ALTER TABLE class_sessions ADD COLUMN room                VARCHAR(120) NULL",
                 'meeting_link'        => "ALTER TABLE class_sessions ADD COLUMN meeting_link        VARCHAR(500) NULL",
+                // v81: the §16 delivery mode of the session itself.
+                'mode'                => "ALTER TABLE class_sessions ADD COLUMN mode VARCHAR(16) NOT NULL DEFAULT 'onsite'",
             ],
             // cohorts scheduling columns added in v45.
             'cohorts' => [
@@ -2350,6 +2352,80 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX IF NOT EXISTS idx_ritems_recital ON recital_items(recital_id, section, sort_order);
             CREATE INDEX IF NOT EXISTS idx_ritems_student ON recital_items(student_id, status);
+        ",
+        /* v81 — the attendance clock (PDF §10, §12, §16, §39-41). @no-tx
+         *
+         * session_attendance is rebuilt for two reasons that can only be done by
+         * rebuild in SQLite: its CHECK admitted four statuses where §12 defines
+         * SEVEN, and a clock needs an OUT as well as an IN. It is a leaf table
+         * (nothing references it), so the rebuild is safe with foreign_keys OFF
+         * around the DROP — which is why this runs outside the transaction.
+         *
+         * New columns: `mode` (§16 onsite/online/hybrid — the academic record
+         * stays unified across all three), `clocked_out_at`, `duration_min` and
+         * `minutes_late`. Durations are STORED, not computed on read: a session's
+         * scheduled time can be edited afterwards and the record of what actually
+         * happened must not move with it.
+         *
+         * Also: `readiness_before_min` (§9's 15-minute readiness threshold, which
+         * is advisory and distinct from `checkin_open_before_min`'s 30-minute
+         * hard gate), and `accountability_exceptions` — §15's request→decision
+         * flow, which the ledger previously lacked entirely (an admin could waive
+         * a charge, but nobody could ASK).
+         */
+        81 => "
+            -- @no-tx
+            PRAGMA foreign_keys = OFF;
+
+            CREATE TABLE session_attendance_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              session_id INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              status TEXT NOT NULL CHECK(status IN ('present','absent','late','excused','left_early','technical_failure','rescheduled')),
+              mode TEXT NOT NULL DEFAULT 'onsite' CHECK(mode IN ('onsite','online','hybrid')),
+              notes TEXT,
+              marked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              checked_in_at TEXT,
+              clocked_out_at TEXT,
+              duration_min INTEGER,
+              minutes_late INTEGER NOT NULL DEFAULT 0,
+              method TEXT NOT NULL DEFAULT 'instructor',
+              checkin_lat REAL,
+              checkin_lng REAL,
+              created_at TEXT DEFAULT (datetime('now')),
+              updated_at TEXT DEFAULT (datetime('now'))
+            );
+            INSERT INTO session_attendance_new
+              (id, session_id, student_id, status, notes, marked_by, checked_in_at, method, checkin_lat, checkin_lng, created_at, updated_at)
+              SELECT id, session_id, student_id, status, notes, marked_by, checked_in_at, method, checkin_lat, checkin_lng, created_at, updated_at
+                FROM session_attendance;
+            DROP TABLE session_attendance;
+            ALTER TABLE session_attendance_new RENAME TO session_attendance;
+            CREATE UNIQUE INDEX idx_sess_att_unique ON session_attendance(session_id, student_id);
+            CREATE INDEX idx_sess_att_student ON session_attendance(student_id);
+
+            ALTER TABLE class_sessions ADD COLUMN mode TEXT NOT NULL DEFAULT 'onsite';
+
+            CREATE TABLE IF NOT EXISTS accountability_exceptions (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              charge_id     INTEGER NOT NULL REFERENCES accountability_charges(id) ON DELETE CASCADE,
+              requested_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              reason_code   TEXT NOT NULL,
+              detail        TEXT,
+              status        TEXT NOT NULL DEFAULT 'pending',
+              decided_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              decided_at    TEXT,
+              decision_note TEXT,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_acct_exc_charge ON accountability_exceptions(charge_id);
+            CREATE INDEX IF NOT EXISTS idx_acct_exc_status ON accountability_exceptions(status, id);
+
+            INSERT OR IGNORE INTO settings (skey, svalue) VALUES
+              ('readiness_before_min','15'),
+              ('mastery_score_enabled','1');
+
+            PRAGMA foreign_keys = ON;
         ",
     ];
 

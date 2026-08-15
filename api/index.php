@@ -245,8 +245,12 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     // Student gradebook — GPA / trend / percentile / results.
     $r->get ('/grades',              $f('student/grades.php'),              [mw_role('student')]);
 
-    // Punctuality accountability ledger (read-only) — PDF §13, §37.
+    // Punctuality accountability ledger + §15 exception requests — PDF §13, §37.
     $r->get ('/accountability',      $f('student/accountability.php'),      [mw_role('student')]);
+    $r->post('/accountability',      $f('student/accountability.php'),      [mw_csrf(), mw_role('student'), mw_rate_limit('acct_exception', 20, 3600)]);
+
+    // MAM Mastery Score™ + the six-level competency scale — PDF §23-24.
+    $r->get ('/mastery',             $f('student/mastery.php'),             [mw_role('student')]);
 
     // Pre-class learning + teach-back (LMS 2.0, PDF §8-9).
     $r->get ('/preclass',            $f('student/preclass.php'),            [mw_role('student')]);
@@ -303,6 +307,8 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     // Instructor clock-in/out + meeting view (LMS 2.0, PDF §10-11, 14).
     $r->get ('/clock',              $f('instructor/clock.php'),              [mw_role('instructor', 'admin')]);
     $r->post('/clock',              $f('instructor/clock.php'),              [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('clock', 60, 600)]);
+    // Attendance status + mode correction across the full §12/§16 vocabulary.
+    $r->post('/attendance-status',  $f('instructor/attendance-status.php'),  [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('att_status', 200, 600)]);
     // Per-session QR check-in token for a cohort session (P2 twin of attendance-qr).
     $r->get ('/session-attendance-qr', $f('instructor/session-attendance-qr.php'), [mw_role('instructor', 'admin')]);
     // ID card scan: instructor scans a student's card QR to mark attendance.
@@ -374,6 +380,8 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // Accountability ledger — punctuality charges + §15 waiver decisions.
     $r->get ('/accountability', $f('admin/accountability.php'), [mw_admin_cap('view')]);
     $r->post('/accountability', $f('admin/accountability.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_accountability', 60, 600)]);
+    // The unified student academic record — PDF §43.
+    $r->get ('/academic-record', $f('admin/academic-record.php'), [mw_admin_cap('users')]);
     // Meeting reconciliation import (Meet CSV / Jitsi) — PDF §11.
     $r->post('/meet-reconcile', $f('admin/meet-reconcile.php'), [mw_csrf(), mw_admin_cap('enrollments'), mw_rate_limit('admin_meet', 30, 600)]);
     // Guardian ↔ student links + parent provisioning — PDF §26.

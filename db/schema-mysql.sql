@@ -2211,3 +2211,42 @@ CREATE TABLE IF NOT EXISTS recital_items (
   CONSTRAINT fk_ritem_decider    FOREIGN KEY (decided_by)    REFERENCES users(id)       ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (80) ON DUPLICATE KEY UPDATE version = version;
+
+-- v81 — the attendance clock (PDF §10, §12, §16, §39-41). §12 defines seven
+-- attendance statuses where the column admitted four, and a clock needs an OUT
+-- as well as an IN. Durations are STORED, never recomputed on read: a session's
+-- scheduled time can be edited afterwards and the record of what actually
+-- happened must not move with it. `mode` carries §16 — onsite, online and
+-- hybrid all live in the same unified academic record.
+ALTER TABLE session_attendance MODIFY COLUMN status VARCHAR(24) NOT NULL;
+ALTER TABLE session_attendance ADD COLUMN mode VARCHAR(16) NOT NULL DEFAULT 'onsite';
+ALTER TABLE session_attendance ADD COLUMN clocked_out_at DATETIME NULL;
+ALTER TABLE session_attendance ADD COLUMN duration_min INT NULL;
+ALTER TABLE session_attendance ADD COLUMN minutes_late INT NOT NULL DEFAULT 0;
+ALTER TABLE class_sessions ADD COLUMN mode VARCHAR(16) NOT NULL DEFAULT 'onsite';
+
+-- §15 exception management: the ledger could waive a charge but nobody could
+-- ASK for one. A request carries a reason from a fixed vocabulary, goes to an
+-- authorised administrator, and every decision is logged.
+CREATE TABLE IF NOT EXISTS accountability_exceptions (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  charge_id     INT NOT NULL,
+  requested_by  INT NULL,
+  reason_code   VARCHAR(40) NOT NULL,
+  detail        VARCHAR(1000) NULL,
+  status        VARCHAR(16) NOT NULL DEFAULT 'pending',
+  decided_by    INT NULL,
+  decided_at    DATETIME NULL,
+  decision_note VARCHAR(1000) NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_acct_exc_charge (charge_id),
+  KEY idx_acct_exc_status (status, id),
+  CONSTRAINT fk_acctexc_charge    FOREIGN KEY (charge_id)    REFERENCES accountability_charges(id) ON DELETE CASCADE,
+  CONSTRAINT fk_acctexc_requester FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_acctexc_decider   FOREIGN KEY (decided_by)   REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO settings (skey, svalue) VALUES
+  ('readiness_before_min','15'),
+  ('mastery_score_enabled','1');
+INSERT INTO schema_version (version) VALUES (81) ON DUPLICATE KEY UPDATE version = version;

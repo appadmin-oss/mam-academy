@@ -106,6 +106,8 @@ require $ROOT . '/lib/makeup.php';            // make-up class suggestions (§8.
 require $ROOT . '/lib/bi.php';                // admin business intelligence (§5.4)
 require $ROOT . '/lib/inline-edit.php';       // allowlisted inline field editing (§4.4)
 require $ROOT . '/lib/recital.php';           // the Recital Hall
+require $ROOT . '/lib/mastery.php';           // mastery scale + MAM Mastery Score (PDF §23-24)
+require $ROOT . '/lib/academic-record.php';   // unified student academic record (PDF §43)
 
 require __DIR__ . '/assert.php';
 

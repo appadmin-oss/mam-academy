@@ -14,7 +14,28 @@
  */
 declare(strict_types=1);
 
-const MAM_ACCT_STATUSES = ['outstanding', 'waived', 'paid', 'reversed'];
+/**
+ * §37's six ledger statuses. `pending` is the state a charge sits in while an
+ * exception request is open — the charge exists and is visible, but it is not
+ * yet owed, so a student who has asked for a waiver does not see a debt they
+ * may never have to pay. `disputed` is the same shape for a request that was
+ * rejected and is being contested. Both are non-terminal.
+ */
+const MAM_ACCT_STATUSES = ['pending', 'outstanding', 'paid', 'waived', 'disputed', 'reversed'];
+
+/** Statuses that count as money still owed. */
+const MAM_ACCT_OWED = ['outstanding', 'disputed'];
+
+/** §15's exception reason vocabulary. Free text goes in `detail`, not here. */
+const MAM_ACCT_EXCEPTION_REASONS = [
+    'approved_emergency'   => 'Approved emergency',
+    'academy_technical'    => 'Academy technical problem',
+    'academy_schedule'     => 'Academy schedule change',
+    'instructor_reassign'  => 'Instructor reassignment',
+    'approved_absence'     => 'Approved absence',
+    'force_majeure'        => 'Force majeure',
+    'other'                => 'Other approved reason',
+];
 
 /** Resolved configuration. */
 function mam_accountability_config(): array {
@@ -82,29 +103,140 @@ function mam_accountability_ledger(string $subjectType, int $subjectId, int $lim
           ORDER BY ac.id DESC LIMIT " . $limit,
         [$subjectType, $subjectId]
     );
-    $out = 0; $waived = 0; $paid = 0; $count = 0;
+    $out = 0; $waived = 0; $paid = 0; $pending = 0; $count = 0;
+    $ids = [];
     foreach ($rows as $r) {
         $c = (int) $r['amount_usd_cents'];
         $count++;
-        if ($r['status'] === 'outstanding') $out += $c;
+        $ids[] = (int) $r['id'];
+        if (in_array($r['status'], MAM_ACCT_OWED, true)) $out += $c;
         elseif ($r['status'] === 'waived')  $waived += $c;
         elseif ($r['status'] === 'paid')    $paid += $c;
+        elseif ($r['status'] === 'pending') $pending += $c;
+    }
+    // Attach the open exception request (if any) to each charge, so the ledger
+    // shows "waiver requested" rather than a bare status the student can't act on.
+    if ($ids) {
+        $ph  = implode(',', array_fill(0, count($ids), '?'));
+        $exc = mam_db_all("SELECT * FROM accountability_exceptions WHERE charge_id IN ($ph) ORDER BY id DESC", $ids);
+        $byCharge = [];
+        foreach ($exc as $e) { $byCharge[(int) $e['charge_id']] ??= $e; }
+        foreach ($rows as &$r) { $r['exception'] = $byCharge[(int) $r['id']] ?? null; }
+        unset($r);
     }
     return [
-        'occurrences'         => $count,
+        'occurrences'           => $count,
         'outstanding_usd_cents' => $out,
         'waived_usd_cents'      => $waived,
         'paid_usd_cents'        => $paid,
-        'charges'             => $rows,
+        'pending_usd_cents'     => $pending,
+        'charges'               => $rows,
     ];
+}
+
+/* ── §15 exception management ────────────────────────────────────────────── */
+
+/**
+ * Request an exception against a charge (§15). The charge moves to `pending`
+ * for the duration — the subject should not be shown a debt while the academy
+ * is still deciding whether it is owed. One open request per charge; asking
+ * again while one is open returns the existing request rather than queueing a
+ * second decision for the same fact.
+ *
+ * `$requestedBy` is the actor, which may be the subject themselves, their
+ * instructor, or an administrator raising it on their behalf.
+ */
+function mam_accountability_request_exception(int $chargeId, ?int $requestedBy, string $reasonCode, ?string $detail = null): array {
+    if (!isset(MAM_ACCT_EXCEPTION_REASONS[$reasonCode])) throw new InvalidArgumentException('bad_reason');
+    $charge = mam_db_row('SELECT * FROM accountability_charges WHERE id = ?', [$chargeId]);
+    if (!$charge) throw new RuntimeException('not_found');
+    if (in_array((string) $charge['status'], ['waived', 'paid', 'reversed'], true)) throw new RuntimeException('already_resolved');
+
+    $open = mam_db_row("SELECT * FROM accountability_exceptions WHERE charge_id = ? AND status = 'pending' ORDER BY id DESC", [$chargeId]);
+    if ($open) return ['request' => $open, 'already' => true, 'charge' => $charge];
+
+    $id = mam_db_insert('accountability_exceptions', [
+        'charge_id'    => $chargeId,
+        'requested_by' => $requestedBy ?: null,
+        'reason_code'  => $reasonCode,
+        'detail'       => $detail !== null && $detail !== '' ? mb_substr($detail, 0, 1000) : null,
+        'status'       => 'pending',
+    ]);
+    mam_db_update('accountability_charges', ['status' => 'pending'], ['id' => $chargeId]);
+    mam_audit('accountability_exception_request', 'accountability_charge', $chargeId, ['reason' => $reasonCode, 'by' => $requestedBy]);
+    return ['request' => mam_db_row('SELECT * FROM accountability_exceptions WHERE id = ?', [$id]), 'already' => false,
+            'charge' => mam_db_row('SELECT * FROM accountability_charges WHERE id = ?', [$chargeId])];
+}
+
+/**
+ * Decide an open exception (§15). Approving waives the charge; rejecting
+ * restores it to `outstanding` — the charge is maintained, exactly as §15
+ * words it. Every decision is logged and the subject is notified, because a
+ * silent rejection is how a ledger loses trust.
+ */
+function mam_accountability_decide_exception(int $requestId, int $adminId, bool $approve, ?string $note = null): array {
+    $req = mam_db_row('SELECT * FROM accountability_exceptions WHERE id = ?', [$requestId]);
+    if (!$req) throw new RuntimeException('not_found');
+    if ((string) $req['status'] !== 'pending') throw new RuntimeException('already_decided');
+    $chargeId = (int) $req['charge_id'];
+    $charge   = mam_db_row('SELECT * FROM accountability_charges WHERE id = ?', [$chargeId]);
+    if (!$charge) throw new RuntimeException('not_found');
+
+    $now = date('Y-m-d H:i:s');
+    mam_db_update('accountability_exceptions', [
+        'status'        => $approve ? 'approved' : 'rejected',
+        'decided_by'    => $adminId,
+        'decided_at'    => $now,
+        'decision_note' => $note,
+    ], ['id' => $requestId]);
+
+    if ($approve) {
+        mam_db_update('accountability_charges', [
+            'status' => 'waived', 'resolved_by' => $adminId, 'resolved_at' => $now,
+            'resolution_note' => $note ?? ('Exception approved: ' . (MAM_ACCT_EXCEPTION_REASONS[$req['reason_code']] ?? 'reason not recorded')),
+        ], ['id' => $chargeId]);
+    } else {
+        mam_db_update('accountability_charges', ['status' => 'outstanding'], ['id' => $chargeId]);
+    }
+    mam_audit('accountability_exception_' . ($approve ? 'approved' : 'rejected'), 'accountability_charge', $chargeId,
+        ['request' => $requestId, 'by' => $adminId, 'note' => $note]);
+
+    if (function_exists('mam_notify') && (string) $charge['subject_type'] === 'student') {
+        mam_notify((int) $charge['subject_id'], 'accountability',
+            $approve ? 'Exception approved — charge waived' : 'Exception rejected — charge maintained',
+            $approve
+                ? 'Your punctuality charge has been waived.'
+                : 'Your exception request was not approved, so the punctuality charge stands. Speak to the office if you would like to dispute it.',
+            null);
+    }
+    return [
+        'request' => mam_db_row('SELECT * FROM accountability_exceptions WHERE id = ?', [$requestId]),
+        'charge'  => mam_db_row('SELECT * FROM accountability_charges WHERE id = ?', [$chargeId]),
+    ];
+}
+
+/** Open exception requests, oldest first — this is a queue, not a feed. */
+function mam_accountability_exception_queue(int $limit = 100): array {
+    $limit = max(1, min(500, $limit));
+    return mam_db_all(
+        "SELECT ex.*, ac.subject_type, ac.subject_id, ac.reason AS charge_reason, ac.minutes,
+                ac.amount_usd_cents, ac.session_id, u.name AS subject_name, cs.title AS session_title
+           FROM accountability_exceptions ex
+           JOIN accountability_charges ac ON ac.id = ex.charge_id
+           LEFT JOIN users u ON u.id = ac.subject_id
+           LEFT JOIN class_sessions cs ON cs.id = ac.session_id
+          WHERE ex.status = 'pending'
+          ORDER BY ex.id ASC LIMIT " . $limit
+    );
 }
 
 /** Outstanding balance (USD cents) for a subject — cheap KPI read. */
 function mam_accountability_outstanding_cents(string $subjectType, int $subjectId): int {
+    $ph  = implode(',', array_fill(0, count(MAM_ACCT_OWED), '?'));
     $row = mam_db_row(
         "SELECT COALESCE(SUM(amount_usd_cents),0) AS c FROM accountability_charges
-          WHERE subject_type = ? AND subject_id = ? AND status = 'outstanding'",
-        [$subjectType, $subjectId]
+          WHERE subject_type = ? AND subject_id = ? AND status IN ($ph)",
+        array_merge([$subjectType, $subjectId], MAM_ACCT_OWED)
     );
     return (int) ($row['c'] ?? 0);
 }
@@ -115,10 +247,12 @@ function mam_accountability_outstanding_cents(string $subjectType, int $subjectI
  * updated row. Throws on unknown charge / illegal status.
  */
 function mam_accountability_resolve(int $chargeId, int $adminId, string $status, ?string $note = null): array {
-    if (!in_array($status, ['waived', 'paid', 'reversed'], true)) throw new InvalidArgumentException('bad_status');
+    if (!in_array($status, ['waived', 'paid', 'reversed', 'disputed'], true)) throw new InvalidArgumentException('bad_status');
     $row = mam_db_row('SELECT * FROM accountability_charges WHERE id = ?', [$chargeId]);
     if (!$row) throw new RuntimeException('not_found');
-    if ($row['status'] !== 'outstanding') throw new RuntimeException('already_resolved');
+    // `disputed` is non-terminal, so a disputed charge can still be settled;
+    // the three terminal statuses cannot be moved again.
+    if (!in_array((string) $row['status'], ['outstanding', 'disputed', 'pending'], true)) throw new RuntimeException('already_resolved');
     $now = date('Y-m-d H:i:s');
     mam_db_update('accountability_charges', [
         'status' => $status, 'resolved_by' => $adminId, 'resolved_at' => $now, 'resolution_note' => $note,

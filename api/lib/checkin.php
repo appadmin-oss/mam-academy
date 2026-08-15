@@ -17,11 +17,38 @@
  */
 declare(strict_types=1);
 
+/**
+ * The §12 attendance vocabulary. `present`/`late`/`absent`/`excused` are the
+ * four the table has always carried; `left_early`, `technical_failure` and
+ * `rescheduled` complete the spec and exist so an operator never has to record
+ * one of them as an `absent` that misrepresents what happened.
+ */
+const MAM_ATTENDANCE_STATUSES = [
+    'present', 'late', 'absent', 'excused', 'left_early', 'technical_failure', 'rescheduled',
+];
+
+/** The §16 attendance modes. All three share one unified academic record. */
+const MAM_ATTENDANCE_MODES = ['onsite', 'online', 'hybrid'];
+
+/** Human labels for the §12 statuses (one place, so UI and email agree). */
+function mam_attendance_status_label(string $s): string {
+    return [
+        'present'           => 'Present',
+        'late'              => 'Late',
+        'absent'            => 'Absent',
+        'excused'           => 'Excused',
+        'left_early'        => 'Left early',
+        'technical_failure' => 'Technical failure',
+        'rescheduled'       => 'Rescheduled',
+    ][$s] ?? ucfirst(str_replace('_', ' ', $s));
+}
+
 /** Resolved check-in configuration. */
 function mam_checkin_config(): array {
     return [
         'self_enabled'     => (int) mam_setting_num('checkin_self_enabled', 1) === 1,
         'open_before_min'  => (int) mam_setting_num('checkin_open_before_min', 30),
+        'ready_before_min' => (int) mam_setting_num('readiness_before_min', 15),
         'late_grace_min'   => (int) mam_setting_num('checkin_late_grace_min', 10),
         'geofence_enabled' => (int) mam_setting_num('checkin_geofence_enabled', 0) === 1,
         'geofence_lat'     => (float) mam_setting_num('checkin_geofence_lat', 0),
@@ -76,8 +103,9 @@ function mam_checkin_session_on(int $studentId, ?string $day = null): ?array {
  * existing mark stands (never downgraded). Throws a RuntimeException whose
  * message is a stable error code. Returns the resulting state.
  */
-function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?float $lng = null): array {
+function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?float $lng = null, string $mode = 'onsite'): array {
     if ($studentId <= 0 || $sessionId <= 0) throw new RuntimeException('invalid_request');
+    if (!in_array($mode, MAM_ATTENDANCE_MODES, true)) throw new RuntimeException('invalid_mode');
     $cfg = mam_checkin_config();
     if (!$cfg['self_enabled']) throw new RuntimeException('checkin_disabled');
 
@@ -118,15 +146,20 @@ function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?f
 
     $late   = $now > $startTs + $cfg['late_grace_min'] * 60;
     $status = $late ? 'late' : 'present';
+    // Lateness is measured from the SCHEDULED start, not from the end of the
+    // grace window — the grace decides whether it counts, not how late it was.
+    $lateMin = $late ? max(1, (int) round(($now - $startTs) / 60)) : 0;
     $nowStr = date('Y-m-d H:i:s');
     try {
         mam_db_insert('session_attendance', [
             'session_id'    => $sessionId,
             'student_id'    => $studentId,
             'status'        => $status,
+            'mode'          => $mode,
             'notes'         => 'Self check-in',
             'marked_by'     => $studentId,
             'checked_in_at' => $nowStr,
+            'minutes_late'  => $lateMin,
             'method'        => 'self',
             'checkin_lat'   => $lat,
             'checkin_lng'   => $lng,
@@ -136,10 +169,7 @@ function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?f
         // when the policy is switched on. Idempotent per (student, session).
         if ($late && function_exists('mam_accountability_charge')) {
             $cfg2 = mam_accountability_config();
-            if ($cfg2['enabled']) {
-                $mins = max(1, (int) round(($now - $startTs) / 60));
-                mam_accountability_charge('student', $studentId, $sessionId, 'late_arrival', $mins);
-            }
+            if ($cfg2['enabled']) mam_accountability_charge('student', $studentId, $sessionId, 'late_arrival', $lateMin);
         }
     } catch (\Throwable $e) {
         // Lost the unique race — treat as idempotent.
@@ -153,6 +183,184 @@ function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?f
         try { mam_acadmail_attendance_confirmation($studentId, $sessionId, $status); } catch (\Throwable $e) { /* best-effort */ }
     }
     return ['status' => $status, 'already' => false, 'late' => $late] + $meta;
+}
+
+/* ── §9 the preparation window, §10 the clock ────────────────────────────── */
+
+/**
+ * The §9 window around a session: when the portal opens (30 min before by
+ * default), the latest recommended readiness point (15 min before), the start,
+ * and the end. `state` is one of closed | open | readiness_passed | in_progress
+ * | ended, and `message` is the sentence §9 asks the portal to show
+ * prominently. Times are naive-local strings throughout, matching the rest of
+ * the scheduling code — never a `Z`-suffixed instant.
+ */
+function mam_checkin_window(string $scheduledAt, int $durationMin = 60, ?int $nowTs = null): array {
+    $cfg     = mam_checkin_config();
+    $startTs = strtotime($scheduledAt);
+    if ($startTs === false) throw new RuntimeException('session_unscheduled');
+    $now     = $nowTs ?? time();
+    $opensTs = $startTs - $cfg['open_before_min'] * 60;
+    $readyTs = $startTs - $cfg['ready_before_min'] * 60;
+    $endTs   = $startTs + max(1, $durationMin) * 60;
+
+    if     ($now <  $opensTs) $state = 'closed';
+    elseif ($now <  $readyTs) $state = 'open';
+    elseif ($now <  $startTs) $state = 'readiness_passed';
+    elseif ($now <  $endTs)   $state = 'in_progress';
+    else                      $state = 'ended';
+
+    $t = fn(int $ts) => date('g:i A', $ts);
+    return [
+        'opens_at'         => date('Y-m-d H:i:s', $opensTs),
+        'ready_by'         => date('Y-m-d H:i:s', $readyTs),
+        'starts_at'        => date('Y-m-d H:i:s', $startTs),
+        'ends_at'          => date('Y-m-d H:i:s', $endTs),
+        'open_before_min'  => $cfg['open_before_min'],
+        'ready_before_min' => $cfg['ready_before_min'],
+        'seconds_to_start' => $startTs - $now,
+        'seconds_to_ready' => $readyTs - $now,
+        'state'            => $state,
+        'message'          => 'Your class begins at ' . $t($startTs)
+                            . '. You are expected to be online and ready no later than ' . $t($readyTs) . '.',
+    ];
+}
+
+/**
+ * The §8 "YOUR NEXT CLASS" payload: the next scheduled session the student is
+ * enrolled for, the module it delivers (topic + objectives + resources), the
+ * §9 window, and the student's preparation and teach-back state — so the
+ * dashboard can say what to do, not merely when to turn up.
+ *
+ * Preparation is reported with §8's own three-way vocabulary
+ * (completed | partial | not_started) rather than a boolean, because "started
+ * but unfinished" is the state the alert in §28's EMAIL 6 exists to catch.
+ */
+function mam_checkin_next_class(int $studentId): ?array {
+    $cohorts = mam_checkin_student_cohorts($studentId);
+    if (!$cohorts) return null;
+    $ph = implode(',', array_fill(0, count($cohorts), '?'));
+    $sess = mam_db_row(
+        "SELECT cs.id, cs.cohort_id, cs.title, cs.scheduled_at, cs.duration_min, cs.lesson_id, cs.mode AS session_mode,
+                co.title AS cohort_title
+           FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
+          WHERE cs.cohort_id IN ($ph) AND cs.status = 'scheduled' AND cs.scheduled_at >= ?
+          ORDER BY cs.scheduled_at ASC LIMIT 1",
+        array_merge($cohorts, [date('Y-m-d H:i:s', time() - 3600)])
+    );
+    if (!$sess) return null;
+
+    $lesson = null; $prep = 'not_started'; $teachback = null;
+    if (!empty($sess['lesson_id'])) {
+        $lesson = mam_db_row('SELECT * FROM lessons WHERE id = ?', [(int) $sess['lesson_id']]);
+        $prog = mam_db_row(
+            'SELECT status, percent FROM lesson_progress WHERE lesson_id = ? AND student_id = ?',
+            [(int) $sess['lesson_id'], $studentId]
+        );
+        if ($prog) {
+            $pct = (int) ($prog['percent'] ?? 0);
+            $done = in_array((string) $prog['status'], ['completed', 'mastered', 'proficient', 'advanced', 'exempted'], true) || $pct >= 100;
+            $prep = $done ? 'completed' : ($pct > 0 || (string) $prog['status'] !== 'not_started' ? 'partial' : 'not_started');
+        }
+        if (function_exists('mam_preclass_teachback_for')) {
+            $tb = mam_preclass_teachback_for((int) $sess['lesson_id'], $studentId);
+            $teachback = $tb ? ['status' => $tb['status'] ?? null, 'kind' => $tb['kind'] ?? null] : null;
+        }
+    }
+
+    $att = mam_db_row(
+        'SELECT status, mode, checked_in_at, clocked_out_at, minutes_late, duration_min FROM session_attendance WHERE session_id = ? AND student_id = ?',
+        [(int) $sess['id'], $studentId]
+    );
+
+    return [
+        'session_id'   => (int) $sess['id'],
+        'title'        => $sess['title'],
+        'cohort_title' => $sess['cohort_title'],
+        'scheduled_at' => $sess['scheduled_at'],
+        'duration_min' => (int) ($sess['duration_min'] ?? 60),
+        'mode'         => (string) ($sess['session_mode'] ?? 'onsite'),
+        'topic'        => $lesson['title'] ?? ($sess['title'] ?? null),
+        'objectives'   => $lesson['objectives'] ?? null,
+        'prep_instructions' => $lesson['prep_instructions'] ?? null,
+        'resources'    => (isset($lesson['resources_json']) && function_exists('mam_preclass_resources'))
+                            ? mam_preclass_resources($lesson['resources_json']) : [],
+        'teachback_required' => (int) ($lesson['teachback_required'] ?? 0) === 1,
+        'preparation'  => $prep,
+        'teachback'    => $teachback,
+        'window'       => mam_checkin_window((string) $sess['scheduled_at'], (int) ($sess['duration_min'] ?? 60)),
+        'attendance'   => $att ?: null,
+    ];
+}
+
+/**
+ * §10 clock-out. Stamps the exit, stores the ACTUAL duration, and — when the
+ * student leaves before the approved end — records §12's `left_early` rather
+ * than leaving a `present` that overstates the session.
+ *
+ * The duration is stored, not derived on read: `class_sessions.scheduled_at`
+ * can be edited afterwards and the record of what actually happened must not
+ * move with it. Idempotent — a second clock-out returns the first.
+ */
+function mam_checkin_clock_out(int $studentId, int $sessionId, ?int $nowTs = null): array {
+    if ($studentId <= 0 || $sessionId <= 0) throw new RuntimeException('invalid_request');
+    $sess = mam_db_row('SELECT id, scheduled_at, duration_min FROM class_sessions WHERE id = ?', [$sessionId]);
+    if (!$sess) throw new RuntimeException('session_not_found');
+    $att = mam_db_row('SELECT * FROM session_attendance WHERE session_id = ? AND student_id = ?', [$sessionId, $studentId]);
+    if (!$att) throw new RuntimeException('not_checked_in');
+    if (!empty($att['clocked_out_at'])) {
+        return ['already' => true, 'status' => (string) $att['status'],
+                'clocked_out_at' => (string) $att['clocked_out_at'],
+                'duration_min' => $att['duration_min'] === null ? null : (int) $att['duration_min']];
+    }
+
+    $now     = $nowTs ?? time();
+    $inTs    = $att['checked_in_at'] ? strtotime((string) $att['checked_in_at']) : null;
+    $startTs = strtotime((string) $sess['scheduled_at']);
+    // Measure from the later of check-in and scheduled start: arriving early
+    // and waiting is not instructional time.
+    $fromTs  = max($inTs ?: $startTs, $startTs ?: $inTs);
+    $duration = ($fromTs && $now > $fromTs) ? (int) round(($now - $fromTs) / 60) : 0;
+
+    $endTs = $startTs !== false ? $startTs + max(1, (int) ($sess['duration_min'] ?? 60)) * 60 : null;
+    // A five-minute tolerance: packing up in the last few minutes is not an
+    // early departure, and recording it as one would make the status noise.
+    $earlyBy = ($endTs !== null) ? (int) round(($endTs - $now) / 60) : 0;
+    $status  = (string) $att['status'];
+    if ($endTs !== null && $earlyBy > 5 && in_array($status, ['present', 'late'], true)) $status = 'left_early';
+
+    mam_db_update('session_attendance', [
+        'status'         => $status,
+        'clocked_out_at' => date('Y-m-d H:i:s', $now),
+        'duration_min'   => $duration,
+        'updated_at'     => date('Y-m-d H:i:s'),
+    ], ['id' => (int) $att['id']]);
+    mam_audit('clock_out', 'class_session', $sessionId, ['student' => $studentId, 'duration_min' => $duration, 'status' => $status]);
+
+    return ['already' => false, 'status' => $status, 'clocked_out_at' => date('Y-m-d H:i:s', $now),
+            'duration_min' => $duration, 'early_by_min' => max(0, $earlyBy)];
+}
+
+/**
+ * Admin/instructor correction of an attendance record to any §12 status, with
+ * an optional §16 mode. Unlike the self check-in this is allowed to downgrade —
+ * it is the human override, and every use is audited.
+ */
+function mam_checkin_set_status(int $sessionId, int $studentId, string $status, ?string $mode = null, ?int $by = null, ?string $note = null): array {
+    if (!in_array($status, MAM_ATTENDANCE_STATUSES, true)) throw new InvalidArgumentException('invalid_status');
+    if ($mode !== null && !in_array($mode, MAM_ATTENDANCE_MODES, true)) throw new InvalidArgumentException('invalid_mode');
+    if (!mam_db_row('SELECT id FROM class_sessions WHERE id = ?', [$sessionId])) throw new RuntimeException('session_not_found');
+    $now = date('Y-m-d H:i:s');
+    $existing = mam_db_row('SELECT id, status FROM session_attendance WHERE session_id = ? AND student_id = ?', [$sessionId, $studentId]);
+    $fields = ['status' => $status, 'marked_by' => $by, 'updated_at' => $now];
+    if ($mode !== null) $fields['mode'] = $mode;
+    if ($note !== null) $fields['notes'] = $note;
+    if ($existing) mam_db_update('session_attendance', $fields, ['id' => (int) $existing['id']]);
+    else mam_db_insert('session_attendance', array_merge(['session_id' => $sessionId, 'student_id' => $studentId, 'method' => 'instructor'], $fields));
+    mam_audit('attendance_set', 'class_session', $sessionId, [
+        'student' => $studentId, 'from' => $existing['status'] ?? null, 'to' => $status, 'mode' => $mode,
+    ]);
+    return mam_db_row('SELECT * FROM session_attendance WHERE session_id = ? AND student_id = ?', [$sessionId, $studentId]);
 }
 
 /** Present + late counts and a derived XP total for a student. */
