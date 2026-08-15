@@ -18,6 +18,10 @@ $in = mam_json_input();
 $title        = mam_str($in, 'title', 160);
 $instructions = mam_str($in, 'instructions', 4000) ?: null;
 $due          = mam_str($in, 'due_on', 10) ?: null;
+// §1.3 — an optional reference recording the student can play against their take.
+$refUrl       = mam_str($in, 'reference_url', 500) ?: null;
+$refKind      = mam_str($in, 'reference_kind', 12) ?: null;
+if ($refUrl !== null && !preg_match('#^https?://#i', $refUrl)) { $refUrl = null; $refKind = null; }
 $studentId    = (int)($in['student_id'] ?? 0);
 $classId      = (int)($in['class_id'] ?? 0);
 $cohortId     = (int)($in['cohort_id'] ?? 0);
@@ -77,6 +81,8 @@ foreach ($targets as $sid => $cid) {
         'instructions' => $instructions,
         'due_on'       => $due,
         'status'       => 'open',
+        'reference_url'  => $refUrl,
+        'reference_kind' => $refKind,
     ]);
     $count++;
 }

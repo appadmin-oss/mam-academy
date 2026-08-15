@@ -92,3 +92,9 @@ $threw = false; try { mam_lms_marker_delete($m1, 424242); } catch (\RuntimeExcep
 t_ok($threw, 'only the author may delete a marker');
 t_ok(mam_lms_marker_delete($m1, $ins), 'author deletes their marker');
 t_eq(count(mam_lms_markers($sub)), 1, 'delete removes the marker');
+
+t_group('assignments — reference recording (§1.3)');
+$refAsg = mam_db_insert('assignments', ['student_id' => $stu, 'author_id' => $ins, 'title' => 'Play along', 'status' => 'open', 'reference_url' => 'https://x/ref.mp3', 'reference_kind' => 'audio']);
+$rr = mam_db_row('SELECT reference_url, reference_kind FROM assignments WHERE id = ?', [$refAsg]);
+t_eq($rr['reference_url'], 'https://x/ref.mp3', 'assignment stores a reference recording URL');
+t_eq($rr['reference_kind'], 'audio', 'assignment stores the reference kind');

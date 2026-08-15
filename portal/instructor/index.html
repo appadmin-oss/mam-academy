@@ -146,6 +146,7 @@
       +   '<div class="field"><label for="asg-title">Title</label><input id="asg-title" maxlength="160" required placeholder="e.g. Prepare C major scale, hands together"></div>'
       +   '<div class="field"><label for="asg-instr">Instructions</label><textarea id="asg-instr" rows="3" placeholder="What should they practise, and how?"></textarea></div>'
       +   '<div class="field"><label for="asg-due">Due date (optional)</label><input id="asg-due" type="date"></div>'
+      +   '<div class="field"><label for="asg-ref">Reference recording (optional)</label><input id="asg-ref" type="url" placeholder="Direct audio URL — the student plays it against their take"></div>'
       +   '<div class="actions"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-list-check"></i> Set assignment</button></div>'
       + '</form></section>'
       + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Assignments set</h2>'
@@ -178,6 +179,8 @@
       if (!title) return;
       var tgt = (document.getElementById('asg-target').value || '').split(':');
       var body = { title: title, instructions: document.getElementById('asg-instr').value.trim(), due_on: document.getElementById('asg-due').value || null };
+      var refEl = document.getElementById('asg-ref'); var refUrl = refEl ? refEl.value.trim() : '';
+      if (refUrl) { body.reference_url = refUrl; body.reference_kind = /\.(mp3|m4a|aac|wav|ogg|oga|flac|webm)(\?|#|$)/i.test(refUrl) ? 'audio' : 'link'; }
       if (tgt[0] === 'class') body.class_id = parseInt(tgt[1], 10);
       else if (tgt[0] === 'cohort') body.cohort_id = parseInt(tgt[1], 10);
       else body.student_id = parseInt(tgt[1], 10);

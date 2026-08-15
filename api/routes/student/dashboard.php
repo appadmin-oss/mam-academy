@@ -86,6 +86,7 @@ $resources = $soft(fn () => mam_student_resources((int)$u['id']), []);
 // Assignments set by instructors (open first, then by due date).
 $assignments = $soft(fn () => mam_db_all(
     "SELECT a.id, a.title, a.instructions, a.due_on, a.status, a.completed_at, a.created_at, a.class_id,
+            a.reference_url, a.reference_kind,
             c.title AS class_title, usr.name AS author
        FROM assignments a
        LEFT JOIN classes c ON c.id = a.class_id

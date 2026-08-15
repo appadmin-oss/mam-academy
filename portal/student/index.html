@@ -1061,6 +1061,9 @@
         + '<div class="asg-main">'
         +   '<div class="asg-title">' + P.escapeHtml(a.title) + (done ? ' <i class="fa-solid fa-circle-check" style="color:var(--emerald)"></i>' : '') + '</div>'
         +   (a.instructions ? '<p class="asg-instr">' + P.escapeHtml(a.instructions) + '</p>' : '')
+        +   ((a.reference_kind === 'audio' && isDirectAudio(a.reference_url))
+              ? '<div style="margin:8px 0"><div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:4px"><i class="fa-solid fa-headphones" style="margin-right:5px;color:var(--gold-bright)"></i>Instructor reference — play against your take</div><div class="mp-host" data-src="' + P.escapeHtml(a.reference_url) + '"></div></div>'
+              : (a.reference_url ? '<div class="asg-meta"><a href="' + P.escapeHtml(/^https?:\/\//i.test(a.reference_url) ? a.reference_url : '#') + '" target="_blank" rel="noopener" style="color:var(--gold-bright)"><i class="fa-solid fa-headphones" style="margin-right:4px"></i>Instructor reference</a></div>' : ''))
         +   '<div class="asg-meta">' + (a.author ? 'Set by ' + P.escapeHtml(a.author) : '') + (a.class_title ? ' · ' + P.escapeHtml(a.class_title) : '')
         +     (a.due_on ? ' · <span class="' + (overdue ? 'asg-overdue' : '') + '">Due ' + P.fmtDate(a.due_on) + (overdue ? ' (overdue)' : '') + '</span>' : '') + '</div>'
         +   '<div class="asg-sub-status" data-aid="' + a.id + '"></div>'
