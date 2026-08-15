@@ -142,7 +142,20 @@ function mam_recital_set_status(int $id, string $to, ?int $by = null): bool {
             }
         }
     }
-    if ($to === 'programmed') mam_recital_notify_programmed($id);
+    if ($to === 'programmed') {
+        mam_recital_notify_programmed($id);
+        // Send the programme itself. Twenty SMTP sends must not make a curator
+        // watch a spinner after clicking Publish, so under HTTP this is
+        // deferred past the response. Under CLI — cron, a maintenance script,
+        // the test suite — there is no client waiting to be got out of the way
+        // of, and deferring to shutdown would only make the send invisible to
+        // whatever asked for it. So CLI sends inline.
+        if (PHP_SAPI !== 'cli' && function_exists('mam_after_response')) {
+            mam_after_response(function () use ($id, $by) { mam_recital_email_programme($id, false, $by); });
+        } else {
+            mam_recital_email_programme($id, false, $by);
+        }
+    }
     if ($to === 'cancelled')  mam_recital_notify_cancelled($id);
 
     if (function_exists('mam_audit')) mam_audit('recital_status', 'recital', $id, ['from' => $from, 'to' => $to, 'by' => $by]);
@@ -703,4 +716,111 @@ function mam_recital_for_guardian(int $studentId): array {
         if ($status === 'completed') $past[] = $entry; else $upcoming[] = $entry;
     }
     return ['upcoming' => $upcoming, 'past' => $past];
+}
+
+/* ── Emailing the programme ────────────────────────────────────────────────
+   Publishing a running order and leaving it in a portal assumes families log
+   in. They do not, reliably, and the one thing they must not miss is when
+   their child is on stage. So publishing sends the programme. */
+
+/**
+ * Email the running order to every performer and their guardians.
+ *
+ * Personalised: each recipient's own line is lifted to the top of the message
+ * with the clock time in 30px type, because "you play at 18:39" is the fact
+ * they opened the email for, and burying it in a list of twenty is how a
+ * family arrives late.
+ *
+ * IDEMPOTENT via the `events` table, the same dedupe the reminder sweeps use.
+ * Re-publishing a programme (open → programmed again after adding a piece) is
+ * a normal thing for staff to do, and it must not mean everybody gets the
+ * email twice. `$force` is the deliberate resend, for when the running order
+ * really has changed and people need to know.
+ *
+ * NEVER THROWS. A recital is published the moment staff say so; a mail server
+ * that is down cannot be allowed to undo that, and it certainly cannot be
+ * allowed to leave the recital half-published.
+ *
+ * @return array{sent:int,skipped:int,recipients:int}
+ */
+function mam_recital_email_programme(int $recitalId, bool $force = false, ?int $by = null): array {
+    $out = ['sent' => 0, 'skipped' => 0, 'recipients' => 0];
+    if (!function_exists('mam_send') || !function_exists('mam_email_recital_programme')) return $out;
+    // Honoured at the trigger point, like every other automation in this repo.
+    if (function_exists('mam_automation_on') && !mam_automation_on('recital_programme') && !$force) return $out;
+
+    try {
+        $r = mam_recital($recitalId);
+        if (!$r || !in_array((string) $r['status'], ['programmed', 'completed'], true)) return $out;
+
+        if (!$force && function_exists('mam_db_row')) {
+            $already = mam_db_row("SELECT id FROM events WHERE type = 'recital.programme_emailed' AND entity = 'recital' AND entity_id = ?", [$recitalId]);
+            if ($already) { $out['skipped'] = 1; return $out; }
+        }
+
+        $prog  = mam_recital_programme_full($recitalId);
+        $items = $prog['items'];
+        if (!$items) return $out;
+
+        // The email carries the same names the printed programme does, so a
+        // family reading both does not see two different versions of a child.
+        foreach ($items as &$row) {
+            if (!empty($row['student_id'])) {
+                $row['performer_display'] = mam_recital_public_name((int) $row['student_id'], (string) $row['student_name']);
+            }
+        }
+        unset($row);
+
+        $appUrl = rtrim((string) mam_env('APP_URL', ''), '/');
+        $url    = $appUrl . '/recital/' . $r['slug'];
+        $when   = !empty($r['starts_at']) ? date('j M', strtotime((string) $r['starts_at'])) : '';
+        $subject = $r['title'] . ' — the programme' . ($when ? ' (' . $when . ')' : '');
+
+        // One message per ADDRESS, not per item: a student with two pieces gets
+        // one email, and a guardian of two performers gets one email naming the
+        // first — not two competing copies of the same running order.
+        $recipients = [];
+        $addTo = function (array $u, int $itemId, string $lede, ?string $childName) use (&$recipients) {
+            $email = trim((string) ($u['email'] ?? ''));
+            if ($email === '') return;
+            $key = strtolower($email);
+            if (isset($recipients[$key])) return;
+            $recipients[$key] = ['email' => $email, 'name' => (string) ($u['name'] ?? ''), 'item' => $itemId, 'lede' => $lede, 'child' => $childName];
+        };
+
+        foreach ($items as $it) {
+            if (empty($it['id']) || empty($it['student_id'])) continue;
+            $sid = (int) $it['student_id'];
+            $stu = mam_db_row("SELECT id, name, email FROM users WHERE id = ? AND status = 'active'", [$sid]);
+            if ($stu) $addTo($stu, (int) $it['id'], 'You perform at', null);
+            if (function_exists('mam_parent_guardians_of')) {
+                foreach (mam_parent_guardians_of($sid) as $g) {
+                    $addTo($g, (int) $it['id'], trim(explode(' ', (string) $it['student_name'])[0] . ' performs at'), (string) $it['student_name']);
+                }
+            }
+        }
+
+        $out['recipients'] = count($recipients);
+        foreach ($recipients as $rec) {
+            $html = mam_email_recital_programme($r, $items, [
+                'highlight_item_id' => $rec['item'],
+                'highlight_lede'    => $rec['lede'],
+                'url'               => $url,
+            ]);
+            // Each send is individually guarded: one bad address must not stop
+            // the other nineteen families from being told.
+            try {
+                if (mam_send($rec['email'], $subject, $html, 'recital_programme', true)) $out['sent']++;
+            } catch (\Throwable $e) { /* the outbox has already retained it */ }
+        }
+
+        if (function_exists('mam_event')) {
+            mam_event('recital.programme_emailed', 'recital', $recitalId, ['sent' => $out['sent'], 'recipients' => $out['recipients'], 'by' => $by, 'forced' => $force]);
+        }
+        if (function_exists('mam_automation_touch')) mam_automation_touch('recital_programme');
+        if (function_exists('mam_audit')) mam_audit('recital_programme_emailed', 'recital', $recitalId, $out + ['forced' => $force]);
+    } catch (\Throwable $e) {
+        if (function_exists('mam_log')) mam_log('warn', 'recital_programme_email_failed', ['recital' => $recitalId, 'error' => $e->getMessage()]);
+    }
+    return $out;
 }

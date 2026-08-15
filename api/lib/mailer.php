@@ -2149,3 +2149,113 @@ function mam_email_summer_confirmation(array $app): string {
         'body'      => $inner,
     ]);
 }
+
+/**
+ * The recital programme, as an email.
+ *
+ * A LINK IS NOT A PROGRAMME. The obvious version of this email — "the
+ * programme for X is published, click here" — makes a parent open a browser,
+ * find their child in a list, and work out when to arrive. The programme
+ * belongs IN the message: the full running order with clock times, and the
+ * recipient's own line pulled out and made unmissable at the top.
+ *
+ * Table-based and inline-styled throughout, like every other template here:
+ * Outlook has no flexbox, and a running order that collapses into one column
+ * in a desktop client is worse than no email.
+ *
+ * @param array  $recital  the recital row
+ * @param array  $items    running order from mam_recital_programme_full()['items']
+ * @param array  $o        highlight_item_id:int, highlight_lede:string,
+ *                         performer_name:string, url:string
+ */
+function mam_email_recital_programme(array $recital, array $items, array $o = []): string {
+    $esc   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES);
+    $url   = (string) ($o['url'] ?? '');
+    $mineId = (int) ($o['highlight_item_id'] ?? 0);
+
+    $when = !empty($recital['starts_at']) ? date('l j F Y', strtotime((string) $recital['starts_at'])) : 'Date to be confirmed';
+    $time = !empty($recital['starts_at']) ? date('H:i', strtotime((string) $recital['starts_at'])) : '';
+    $doors = !empty($recital['doors_open_at']) ? date('H:i', strtotime((string) $recital['doors_open_at'])) : '';
+
+    // ── The masthead: what it is, when, and where.
+    $inner = "<p style='margin:0 0 6px;font-size:10.5px;letter-spacing:0.22em;text-transform:uppercase;color:#B8721B;font-weight:700'>The programme</p>"
+      . "<h1 style='margin:0 0 4px;font-family:Georgia,\"Times New Roman\",serif;font-size:26px;line-height:1.2;color:#1B2430'>" . $esc($recital['title']) . "</h1>";
+    if (!empty($recital['subtitle'])) {
+        $inner .= "<p style='margin:0 0 12px;font-family:Georgia,serif;font-style:italic;font-size:15px;color:#69727f'>" . $esc($recital['subtitle']) . "</p>";
+    }
+    $facts = array_values(array_filter([$when, $time ? "Begins $time" : '', $doors ? "Doors $doors" : '', (string) ($recital['venue'] ?? '')]));
+    // Escape each FACT, then join with the raw entity. Escaping the joined
+    // string turns the separator into a literal "&middot;" on the page — which
+    // is exactly what shipped until someone actually looked at the email.
+    $inner .= "<p style='margin:0 0 20px;font-size:14px;color:#3a4250;line-height:1.7'><strong>"
+      . implode(' &middot; ', array_map($esc, $facts)) . "</strong></p>";
+
+    // ── The recipient's own slot, lifted out. This is the one fact they need,
+    //    and burying it inside a list of twenty is how a family arrives late.
+    if ($mineId > 0) {
+        foreach ($items as $it) {
+            if (empty($it['id']) || (int) $it['id'] !== $mineId) continue;
+            $slot = $it['at'] ? $esc($it['at']) : 'a time to be confirmed';
+            $lede = (string) ($o['highlight_lede'] ?? 'You perform');
+            $inner .= "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='margin:0 0 22px;border:2px solid #B8892B;border-radius:10px;background:#FDF8EE'>"
+              . "<tr><td style='padding:16px 18px'>"
+              . "<p style='margin:0 0 3px;font-size:10.5px;letter-spacing:0.2em;text-transform:uppercase;color:#8C6417;font-weight:700'>" . $esc($lede) . "</p>"
+              . "<p style='margin:0;font-family:Georgia,serif;font-size:30px;line-height:1.1;color:#8C6417'>" . $slot . "</p>"
+              . "<p style='margin:6px 0 0;font-size:15px;color:#1B2430'><strong>" . $esc($it['title']) . "</strong>"
+              . ($it['composer'] ? " <span style='color:#69727f'>&middot; " . $esc($it['composer']) . "</span>" : '')
+              . "</p></td></tr></table>";
+            break;
+        }
+    }
+
+    // ── The running order itself.
+    $inner .= "<p style='margin:0 0 10px;font-size:10.5px;letter-spacing:0.2em;text-transform:uppercase;color:#B8721B;font-weight:700'>Running order</p>"
+      . "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='margin:0 0 18px'>";
+
+    foreach ($items as $it) {
+        if (!empty($it['interval'])) {
+            $inner .= "<tr><td colspan='3' style='padding:12px 0;border-top:1px solid #E2E0DA;border-bottom:1px solid #E2E0DA;text-align:center'>"
+              . "<span style='font-size:10.5px;letter-spacing:0.2em;text-transform:uppercase;color:#69727f;font-weight:700'>Interval</span>"
+              . "<span style='display:block;font-size:12px;color:#959ca7'>" . (int) $it['duration_min'] . " minutes"
+              . ($it['at'] ? ' &middot; ' . $esc($it['at']) : '') . "</span></td></tr>";
+            continue;
+        }
+        $mine = ($mineId > 0 && !empty($it['id']) && (int) $it['id'] === $mineId);
+        // The recipient's row is tinted rather than bolded alone: a bold row in
+        // a list of bold titles does not stand out, but a tinted one does.
+        $bg   = $mine ? "background:#FDF8EE;" : '';
+        $performer = (string) ($it['performer_display'] ?? $it['student_name'] ?? '');
+        $inner .= "<tr><td style='{$bg}padding:11px 8px 11px 0;border-bottom:1px solid #E2E0DA;vertical-align:top;width:26px'>"
+          . "<span style='font-family:Georgia,serif;font-size:16px;color:#B8892B'>" . (int) $it['position'] . "</span></td>"
+          . "<td style='{$bg}padding:11px 8px;border-bottom:1px solid #E2E0DA;vertical-align:top'>"
+          . "<span style='font-family:Georgia,serif;font-size:17px;color:#1B2430'>" . $esc($it['title']) . "</span>"
+          . ($it['composer'] ? "<span style='display:block;font-size:12.5px;color:#69727f'>" . $esc($it['composer']) . "</span>" : '')
+          . "<span style='display:block;font-size:13px;color:#8C6417;font-weight:600;padding-top:3px'>" . $esc($performer)
+          . ($it['instrument'] ? " <span style='color:#69727f;font-weight:400'>&mdash; " . $esc($it['instrument']) . "</span>" : '') . "</span></td>"
+          . "<td style='{$bg}padding:11px 0 11px 8px;border-bottom:1px solid #E2E0DA;vertical-align:top;text-align:right;white-space:nowrap'>"
+          . "<span style='font-size:13px;color:#959ca7'>" . ($it['at'] ? $esc($it['at']) : '') . "</span></td></tr>";
+    }
+    $inner .= "</table>";
+
+    if (!empty($recital['programme_note'])) {
+        $inner .= "<p style='margin:0 0 18px;font-family:Georgia,serif;font-size:14px;color:#69727f;line-height:1.7'>"
+          . nl2br($esc($recital['programme_note'])) . "</p>";
+    }
+    if ($url !== '') {
+        $inner .= "<p style='margin:18px 0 0;font-size:12.5px;color:#8a8578;line-height:1.6'>"
+          . "Share this link with anyone who would like to come.</p>"
+          . mam_email_button($url, 'View the programme online')
+          // mam_email_button's table is align="left" (a float), so without this
+          // the layout's footer rides up beside the button.
+          . "<div style='clear:both;font-size:0;line-height:0'>&nbsp;</div>";
+    }
+
+    return mam_email_layout([
+        'header'     => 'Recital',
+        'preheader'  => trim($recital['title'] . ' — ' . implode(' · ', $facts)),
+        'body'       => $inner,
+        // Transactional, not marketing: nobody unsubscribes from being told
+        // when their own child is on stage.
+        'reason'     => 'You received this because you or your child are performing at MAM Academy.',
+    ]);
+}

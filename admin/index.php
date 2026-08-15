@@ -476,7 +476,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // student is ready to perform, not an office task.
         'recital_create' => 'curriculum', 'recital_update' => 'curriculum', 'recital_status' => 'curriculum',
         'recital_decide' => 'curriculum', 'recital_reorder' => 'curriculum', 'recital_add_item' => 'curriculum',
-        'recital_recording' => 'curriculum',
+        'recital_recording' => 'curriculum', 'recital_email' => 'curriculum',
         'course_create' => 'curriculum', 'course_update' => 'curriculum', 'course_toggle' => 'curriculum',
         'program_create' => 'curriculum', 'program_update' => 'curriculum',
         'link_course' => 'curriculum', 'unlink_course' => 'curriculum',
@@ -1764,6 +1764,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 }
                 $n = mam_recital_reorder($rid, $order, $by);
                 header('Location: ' . $back . '&ok=' . urlencode($n . ' item' . ($n === 1 ? '' : 's') . ' repositioned.')); exit;
+            }
+            if ($action === 'recital_email') {
+                // The deliberate resend, for when the running order really has
+                // changed and families need to know. Publishing already sends
+                // once; this bypasses the dedupe.
+                $res = mam_recital_email_programme($rid, true, $by);
+                header('Location: ' . $back . '&ok=' . urlencode('Programme emailed to ' . (int)$res['sent'] . ' of ' . (int)$res['recipients'] . ' recipient(s).')); exit;
             }
             if ($action === 'recital_recording') {
                 // Publishing the evening. An empty submission clears it, which
@@ -3746,10 +3753,22 @@ nav a{display:flex;align-items:center}
             <?php endforeach; ?>
             <?php if (in_array($recOne['status'], ['programmed','completed'], true)): ?>
               <a class="btn tiny ghost" href="/recital/<?= htmlspecialchars((string)$recOne['slug']) ?>" target="_blank" rel="noopener">View programme ↗</a>
+              <?php
+                $emailed = mam_db_row("SELECT created_at FROM events WHERE type = 'recital.programme_emailed' AND entity = 'recital' AND entity_id = ? ORDER BY id DESC", [$recId]);
+              ?>
+              <form method="post" style="display:inline" onsubmit="return confirm('Email the running order to every performer and guardian again?')">
+                <?= mam_csrf_field() ?>
+                <input type="hidden" name="action" value="recital_email">
+                <input type="hidden" name="recital_id" value="<?= $recId ?>">
+                <button class="btn tiny ghost" type="submit"><?= $emailed ? 'Resend programme email' : 'Email the programme' ?></button>
+              </form>
             <?php endif; ?>
           </div>
         </div>
       </div>
+      <?php if (!empty($emailed)): ?>
+        <p class="muted" style="margin:12px 0 0;font-size:.82rem"><i class="fa-solid fa-envelope-circle-check" style="color:#34D399"></i> Programme emailed <?= htmlspecialchars(date('j M Y, H:i', strtotime((string)$emailed['created_at']))) ?>.</p>
+      <?php endif; ?>
       <p class="muted" style="margin:14px 0 0;font-size:.84rem">
         Running order: <strong><?= (int)$prog['total_min'] ?> min</strong> across <strong><?= (int)$prog['performer_count'] ?></strong> performer<?= (int)$prog['performer_count'] === 1 ? '' : 's' ?><?= $prog['ends_at'] ? ' · ends about <strong>' . htmlspecialchars($prog['ends_at']) . '</strong>' : '' ?>
       </p>

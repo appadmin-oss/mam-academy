@@ -38,6 +38,14 @@ function mam_automations_registry(): array {
             'default' => true,
             'live'    => true,
         ],
+        'recital_programme' => [
+            'group' => 'Academic',
+            'trigger' => 'A recital programme is published',
+            'action'  => 'Email the full running order to performers and their guardians',
+            'icon'    => 'masks-theater',
+            'default' => true,
+            'live'    => true,
+        ],
         'enrol_welcome' => [
             'group' => 'Admissions & payments',
             'trigger' => 'A student is enrolled',

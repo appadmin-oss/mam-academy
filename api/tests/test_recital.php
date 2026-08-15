@@ -327,3 +327,146 @@ t_ok(!in_array('Turned down', $titles2, true), 'nor is a declined one');
 $detail = mam_parent_child_detail($RG_pid, $RG_stu);
 t_ok(isset($detail['recitals']['upcoming']) && isset($detail['recitals']['past']), 'child detail carries the recital block');
 t_eq(count($detail['recitals']['past']), 1, 'with the performed recital in it');
+
+t_group('recital — emailing the programme');
+
+// Publishing a running order and leaving it in a portal assumes families log
+// in. They do not, reliably, and the one thing they must not miss is when
+// their child is on stage.
+$RE_rid = mam_recital_create(['title' => 'Email Test Recital', 'venue' => 'Hall B', 'starts_at' => '2027-05-09 17:00:00'], $RC_admin);
+mam_recital_set_status($RE_rid, 'open', $RC_admin);
+
+$RE_s1 = mam_db_insert('users', ['name' => 'Tobi Adewale', 'email' => 're_s1@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+$RE_s2 = mam_db_insert('users', ['name' => 'Zainab Bello', 'email' => 're_s2@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+$RE_i1 = mam_recital_propose($RE_rid, $RE_s1, ['title' => 'Opening piece', 'duration_min' => 6, 'instrument' => 'Piano']);
+$RE_i2 = mam_recital_propose($RE_rid, $RE_s2, ['title' => 'Second piece',  'duration_min' => 4, 'instrument' => 'Voice']);
+// A student with TWO pieces must still receive exactly one email.
+$RE_i3 = mam_recital_propose($RE_rid, $RE_s1, ['title' => 'Third piece',   'duration_min' => 3, 'instrument' => 'Piano']);
+foreach ([$RE_i1, $RE_i2, $RE_i3] as $i) mam_recital_decide($i, 'accepted', $RC_admin);
+
+$RE_g = mam_parent_provision('re_guardian@test.local', 'Bunmi Adewale');
+mam_parent_link('re_guardian@test.local', $RE_s1, 'father');
+
+mam_recital_set_status($RE_rid, 'programmed', $RC_admin);
+
+// Publishing sends it. Three performers-worth of rows, but three ADDRESSES:
+// two students and one guardian.
+$ev = mam_db_row("SELECT payload FROM events WHERE type = 'recital.programme_emailed' AND entity_id = ?", [$RE_rid]);
+t_ok($ev !== null && $ev !== false, 'publishing a programme emails it');
+$payload = json_decode((string) $ev['payload'], true) ?: [];
+t_eq((int) ($payload['recipients'] ?? 0), 3, 'one message per ADDRESS — two students and one guardian, not one per piece');
+
+// Idempotent. Re-publishing after adding a piece is normal staff behaviour and
+// must not mean everybody is emailed twice.
+$again = mam_recital_email_programme($RE_rid, false, $RC_admin);
+t_eq($again['skipped'], 1, 'a second unforced send is skipped');
+t_eq($again['sent'], 0, 'and sends nothing');
+t_eq((int) (mam_db_row("SELECT COUNT(*) AS n FROM events WHERE type = 'recital.programme_emailed' AND entity_id = ?", [$RE_rid])['n'] ?? 0), 1, 'leaving a single event row');
+
+// The deliberate resend, for when the order really has changed.
+$forced = mam_recital_email_programme($RE_rid, true, $RC_admin);
+t_eq($forced['recipients'], 3, 'a forced resend reaches everyone again');
+t_ok($forced['skipped'] === 0, 'and is not skipped');
+
+// A recital that was never published is never emailed.
+$RE_draft = mam_recital_create(['title' => 'Never Published'], $RC_admin);
+t_eq(mam_recital_email_programme($RE_draft, true, $RC_admin)['recipients'], 0, 'a draft programme is not emailed');
+// Nor is an empty one.
+$RE_empty = mam_recital_create(['title' => 'Empty Programme'], $RC_admin);
+mam_recital_set_status($RE_empty, 'programmed', $RC_admin);
+t_eq(mam_recital_email_programme($RE_empty, true, $RC_admin)['recipients'], 0, 'a programme with no accepted pieces is not emailed');
+
+// It must never throw. A mail server that is down cannot undo a publication.
+$noSuch = mam_recital_email_programme(999999, true, $RC_admin);
+t_eq($noSuch['recipients'], 0, 'an unknown recital returns an empty result rather than throwing');
+
+t_group('recital — the programme email itself');
+
+$RE_prog  = mam_recital_programme_full($RE_rid);
+$RE_items = $RE_prog['items'];
+foreach ($RE_items as &$__r) {
+    if (!empty($__r['student_id'])) $__r['performer_display'] = mam_recital_public_name((int) $__r['student_id'], (string) $__r['student_name']);
+}
+unset($__r);
+
+$html = mam_email_recital_programme(mam_recital($RE_rid), $RE_items, [
+    'highlight_item_id' => $RE_i1,
+    'highlight_lede'    => 'Tobi performs at',
+    'url'               => 'https://example.test/recital/email-test-recital',
+]);
+
+// A LINK IS NOT A PROGRAMME. The running order has to be in the message.
+t_ok(strpos($html, 'Opening piece') !== false, 'the email contains the running order, not just a link');
+t_ok(strpos($html, 'Second piece') !== false, 'including other performers');
+t_ok(strpos($html, 'Third piece') !== false, 'and every piece');
+t_ok(strpos($html, 'Email Test Recital') !== false, 'it names the recital');
+t_ok(strpos($html, 'Hall B') !== false, 'and the venue');
+t_ok(strpos($html, '17:00') !== false, 'and the start time');
+
+// The recipient's own slot is lifted out — "you play at 17:00" is the fact
+// they opened the email for.
+t_ok(strpos($html, 'Tobi performs at') !== false, 'the recipient\'s own slot is lifted to the top');
+t_ok(strpos($html, 'https://example.test/recital/email-test-recital') !== false, 'with a shareable link to the online programme');
+
+// Table-based and inline-styled: Outlook has no flexbox, and a running order
+// that collapses to one column in a desktop client is worse than no email.
+t_ok(strpos($html, '<table') !== false, 'it is table-based for Outlook');
+t_ok(strpos($html, 'display:flex') === false, 'and uses no flexbox');
+
+// Transactional, not marketing — nobody unsubscribes from being told when
+// their own child is on stage.
+t_ok(strpos($html, '{{UNSUB_URL}}') === false, 'it carries no unsubscribe token');
+
+// Names follow the SAME consent rule as the printed programme, so a family
+// reading both never sees two different versions of a child.
+mam_consent_set($RE_s2, ['media' => false, 'photo' => true, 'data' => true]);
+$items2 = mam_recital_programme_full($RE_rid)['items'];
+foreach ($items2 as &$__q) {
+    if (!empty($__q['student_id'])) $__q['performer_display'] = mam_recital_public_name((int) $__q['student_id'], (string) $__q['student_name']);
+}
+unset($__q);
+$html2 = mam_email_recital_programme(mam_recital($RE_rid), $items2, []);
+t_ok(strpos($html2, 'Zainab B.') !== false, 'a performer without media consent is named privately in the email too');
+t_ok(strpos($html2, 'Zainab Bello') === false, 'and their full name does not appear');
+// But they are still ON the programme — never a silent omission.
+t_ok(strpos($html2, 'Second piece') !== false, 'their piece is still listed');
+
+// The interval is rendered, not skipped.
+mam_recital_update($RE_rid, ['interval_after' => 1, 'interval_min' => 10], $RC_admin);
+$items3 = mam_recital_programme_full($RE_rid)['items'];
+$html3  = mam_email_recital_programme(mam_recital($RE_rid), $items3, []);
+t_ok(strpos($html3, 'Interval') !== false, 'the interval appears in the emailed running order');
+t_ok(strpos($html3, '10 minutes') !== false, 'with its length');
+
+// An email is safe to build for a recital with no start time.
+$RE_nt = mam_recital_create(['title' => 'Undated Email Recital'], $RC_admin);
+mam_recital_set_status($RE_nt, 'open', $RC_admin);
+$ntI = mam_recital_propose($RE_nt, $RE_s1, ['title' => 'Undated piece', 'duration_min' => 4]);
+mam_recital_decide($ntI, 'accepted', $RC_admin);
+mam_recital_set_status($RE_nt, 'programmed', $RC_admin);
+$htmlNt = mam_email_recital_programme(mam_recital($RE_nt), mam_recital_programme_full($RE_nt)['items'], ['highlight_item_id' => $ntI]);
+t_ok(strpos($htmlNt, 'Date to be confirmed') !== false, 'a recital with no date says so rather than printing a broken date');
+t_ok(strpos($htmlNt, 'a time to be confirmed') !== false, 'and the highlighted slot degrades to words');
+
+// HTML injection through a work title must not escape into the markup.
+$RE_x = mam_recital_create(['title' => 'Escaping Recital'], $RC_admin);
+mam_recital_set_status($RE_x, 'open', $RC_admin);
+$xI = mam_recital_propose($RE_x, $RE_s1, ['title' => '<script>alert(1)</script>', 'composer' => '"><b>x', 'duration_min' => 3]);
+mam_recital_decide($xI, 'accepted', $RC_admin);
+mam_recital_set_status($RE_x, 'programmed', $RC_admin);
+$htmlX = mam_email_recital_programme(mam_recital($RE_x), mam_recital_programme_full($RE_x)['items'], []);
+t_ok(strpos($htmlX, '<script>alert(1)</script>') === false, 'a work title cannot inject script into the email');
+t_ok(strpos($htmlX, '&lt;script&gt;') !== false, 'it is escaped instead');
+
+// Regression: the facts line escaped its OWN separator, so every recipient
+// read "Saturday 14 November &middot; Begins 18:00" as literal text. Caught by
+// looking at a rendered email, not by any string assertion — which is why the
+// assertion now exists.
+t_ok(strpos($html, '&amp;middot;') === false, 'the facts separator is a real entity, not double-escaped text');
+t_ok(strpos($html, 'Hall B</strong>') !== false || strpos($html, 'Hall B') !== false, 'and the venue survives it');
+
+// Regression: mam_email_button renders align="left" (a float), so anything
+// emitted after it wrapped alongside the button instead of below. The share
+// line now precedes it and a clearing div closes the float.
+t_ok(strpos($html, 'clear:both') !== false, 'the floated CTA is cleared so the footer cannot ride up beside it');
+t_ok(strpos($html, 'Share this link') < strpos($html, 'View the programme online'), 'the share line is placed before the floated button, not after it');
