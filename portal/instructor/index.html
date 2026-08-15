@@ -140,7 +140,19 @@
           + atRisk.map(function (s) { return '<span class="pill" style="background:var(--bg-raised);border:1px solid var(--border)">' + P.escapeHtml(s.name || ('Student #' + s.student_id)) + ' <span style="color:var(--text-muted)">· ' + P.escapeHtml(s.cohort || '') + '</span></span>'; }).join('')
           + '</div></section>'
         : '';
-      content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Cohort analytics</h2><span style="font-size:.8rem;color:var(--text-muted)">' + cohorts.length + ' cohort' + (cohorts.length === 1 ? '' : 's') + '</span></div>' + table + '</section>' + riskHtml;
+      // §8.3 — arrival & punctuality distribution.
+      var arr = r.arrival || {}, b = arr.buckets || {};
+      var totalArr = (b.early || 0) + (b.on_time || 0) + (b.late || 0) + (b.very_late || 0);
+      var arrHtml = totalArr > 0
+        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-person-walking-arrow-right" style="color:var(--gold-bright);margin-right:8px"></i>Arrival &amp; punctuality</h2>' + (arr.punctual_pct != null ? '<span style="font-size:.8rem;color:var(--text-muted)">' + arr.punctual_pct + '% on time</span>' : '') + '</div><div class="panel-body" style="display:grid;gap:8px">'
+          + [['early', 'Early / on the dot', '#34D399'], ['on_time', 'Within 5 min', '#34D399'], ['late', '5–15 min late', 'var(--gold-bright)'], ['very_late', '15+ min late', '#F87171']].map(function (x) {
+              var n = b[x[0]] || 0, pct = totalArr ? Math.round(n / totalArr * 100) : 0;
+              return '<div><div style="display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:3px"><span>' + x[1] + '</span><strong>' + n + '</strong></div><div class="prog-bar"><div class="prog-fill" style="width:' + pct + '%;background:' + x[2] + '"></div></div></div>';
+            }).join('')
+          + (arr.no_shows ? '<div style="font-size:.82rem;color:var(--text-muted);margin-top:4px">No-shows recorded: <strong style="color:#F87171">' + arr.no_shows + '</strong></div>' : '')
+          + '</div></section>'
+        : '';
+      content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Cohort analytics</h2><span style="font-size:.8rem;color:var(--text-muted)">' + cohorts.length + ' cohort' + (cohorts.length === 1 ? '' : 's') + '</span></div>' + table + '</section>' + riskHtml + arrHtml;
     }).catch(function () {
       content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load analytics right now.') + '</div></section>';
     });

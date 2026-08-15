@@ -987,6 +987,39 @@
       .catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update challenge.', 'error'); });
   }
 
+  // ── Opt-in effort leaderboard (§3.4) ─────────────────────────────────────
+  function loadLeaderboard() {
+    var area = document.getElementById('leaderboardArea'); if (!area) return;
+    API.request('student/leaderboard', { method: 'GET' }).then(function (r) { renderLeaderboard(r); }).catch(function () {});
+  }
+  function renderLeaderboard(r) {
+    var area = document.getElementById('leaderboardArea'); if (!area) return;
+    var optedIn = !!r.opted_in, consentOk = !!r.consent_ok, board = r.board || [];
+    var head = '<div class="panel-head"><h2><i class="fa-solid fa-ranking-star" style="color:var(--gold-bright);margin-right:8px"></i>Cohort effort board</h2>'
+      + '<button class="btn btn-ghost" id="lbToggle" style="padding:5px 12px;font-size:.8rem">' + (optedIn ? 'Leave board' : 'Join the board') + '</button></div>';
+    var body;
+    if (!optedIn) {
+      body = '<div class="panel-body"><p style="margin:0;color:var(--text-muted)">A friendly, effort-based board (this week\'s practice minutes) for your cohort. First name only, opt-in, and never about talent. Join to take part.</p></div>';
+    } else if (!consentOk) {
+      body = '<div class="panel-body"><p style="margin:0;color:var(--text-muted)">You\'re opted in — but appearing needs guardian <strong>data consent</strong>. Ask your guardian to enable it in the Consent centre, then you\'ll show on the board.</p></div>';
+    } else if (!board.length) {
+      body = '<div class="panel-body">' + empty('ranking-star', 'No one on the board yet this week. Log practice to get on it!') + '</div>';
+    } else {
+      body = '<div class="panel-body" style="display:grid;gap:6px">' + board.map(function (x) {
+        return '<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;' + (x.is_me ? 'background:linear-gradient(135deg,rgba(224,138,26,.14),rgba(251,191,36,.06))' : '') + '">'
+          + '<span style="width:26px;font-weight:700;color:var(--gold-bright)">' + x.rank + '</span>'
+          + '<span style="flex:1">' + P.escapeHtml(x.name) + (x.is_me ? ' <span style="color:var(--text-muted);font-size:.78rem">(you)</span>' : '') + '</span>'
+          + '<strong>' + x.minutes + ' min</strong></div>';
+      }).join('') + '</div>';
+    }
+    area.innerHTML = '<section class="panel" style="margin-top:16px">' + head + body + '</section>';
+    var t = document.getElementById('lbToggle');
+    if (t) t.addEventListener('click', function () {
+      t.disabled = true;
+      API.request('student/leaderboard', { method: 'POST', body: { opt_in: !optedIn } }).then(function (r2) { renderLeaderboard({ opted_in: r2.opted_in, consent_ok: r2.consent_ok, board: r2.board || [] }); loadLeaderboard(); }).catch(function () { t.disabled = false; });
+    });
+  }
+
   function renderPractice() {
     var ps = data.practice_stats || { streak: 0, weekMin: 0, total: 0, sessions: 0 };
     var logs = data.practice || [];
@@ -1026,6 +1059,7 @@
       + '</section>'
       + practiceInsights(logs)
       + '<section id="challengesArea"></section>'
+      + '<section id="leaderboardArea"></section>'
       + '<section class="panel" id="coachNote" hidden><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;color:var(--gold-bright)"></i>Your practice coach</h2></div><div class="panel-body" id="coachNoteBody"></div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Log a practice session</h2></div>'
       + '<form id="pracForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">'
@@ -1040,6 +1074,7 @@
       + (logs.length ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Minutes</th><th>Focus</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="panel-body">' + empty('chart-line', 'No sessions logged yet — log your first above.') + '</div>')
       + '</section>';
     loadChallenges();
+    loadLeaderboard();
     document.getElementById('pracForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var btn = e.target.querySelector('button[type=submit]'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';
@@ -1225,6 +1260,25 @@
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-bullhorn" style="margin-right:8px;color:var(--gold-bright)"></i>Announcements</h2></div><div style="padding:14px 18px;display:grid;gap:12px">' + annHtml + '</div></section>'
       + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-folder-open" style="margin-right:8px;color:var(--gold-bright)"></i>Resources &amp; materials</h2></div><div style="padding:14px 18px;display:grid;gap:10px">' + resHtml + '</div></section>';
   }
+  // ── Make-up class suggestions (§8.2) ─────────────────────────────────────
+  function loadMakeup() {
+    var area = document.getElementById('makeupArea'); if (!area) return;
+    API.request('student/makeup', { method: 'GET' }).then(function (r) {
+      var sugg = r.suggestions || []; if (!sugg.length) { area.innerHTML = ''; return; }
+      area.innerHTML = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-calendar-plus" style="color:var(--gold-bright);margin-right:8px"></i>Missed a class? Make-up options</h2></div><div class="panel-body" style="display:grid;gap:14px">'
+        + sugg.map(function (s) {
+            return '<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--bg-raised)">'
+              + '<div style="font-size:.84rem;color:var(--text-muted);margin-bottom:6px">You missed <strong style="color:var(--text)">' + P.escapeHtml(s.missed.title || 'a session') + '</strong> on ' + P.escapeHtml(P.fmtDate(s.missed.scheduled_at)) + '. Eligible make-up sessions:</div>'
+              + '<div style="display:grid;gap:6px">' + (s.options || []).map(function (o) {
+                  return '<div style="display:flex;gap:10px;align-items:baseline;font-size:.86rem"><i class="fa-regular fa-calendar" style="color:var(--gold-bright)"></i><span style="flex:1">' + P.escapeHtml(o.title || o.cohort_title || 'Session') + (o.instructor_name ? ' <span style="color:var(--text-muted)">· ' + P.escapeHtml(o.instructor_name) + '</span>' : '') + '</span><span style="color:var(--text-muted)">' + P.escapeHtml(P.fmtDateTime(o.scheduled_at)) + '</span></div>';
+                }).join('') + '</div>'
+              + '<div style="margin-top:8px"><a href="#reschedule" data-tab="reschedule" class="btn btn-ghost" style="padding:5px 12px;font-size:.8rem"><i class="fa-solid fa-calendar-check"></i> Request a make-up</a></div>'
+              + '</div>';
+          }).join('')
+        + '</div></section>';
+    }).catch(function () { area.innerHTML = ''; });
+  }
+
   function renderAttendance() {
     var att = data.attendance || [];
     var legacy = '';
@@ -1242,7 +1296,8 @@
         + '</section>'
         + '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
     }
-    content.innerHTML = legacy + '<div id="sessAttArea">' + (att.length ? '' : ('<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading attendance…') + '</div></section>')) + '</div>';
+    content.innerHTML = legacy + '<div id="sessAttArea">' + (att.length ? '' : ('<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading attendance…') + '</div></section>')) + '</div>' + '<section id="makeupArea"></section>';
+    loadMakeup();
     // Dual-read: also surface cohort session attendance (LMS L2). Shows only when
     // there are session records; if there's neither legacy nor session
     // attendance, fall back to the single empty state.

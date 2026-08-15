@@ -8,4 +8,5 @@ $uid = (int) $u['id'];
 mam_ok([
     'cohorts' => mam_analytics2_instructor_cohorts($uid),
     'at_risk' => mam_analytics2_instructor_at_risk($uid, 30),
+    'arrival' => mam_analytics2_arrival($uid),
 ]);

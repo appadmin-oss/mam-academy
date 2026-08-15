@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 78;
+const MAM_SCHEMA_TARGET = 79;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2295,6 +2295,12 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX idx_referrals_referrer ON referrals(referrer_id);
             CREATE INDEX idx_referrals_status ON referrals(status);
+        ",
+        // v79 — opt-in effort leaderboards (Advanced Modernization §3.4): a
+        // per-student toggle (off by default); appearing also requires data
+        // consent, so minors are guardian-consented.
+        79 => "
+            ALTER TABLE users ADD COLUMN leaderboard_opt_in INTEGER DEFAULT 0;
         ",
     ];
 

@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS users (
   customer_id            INT NULL,
   last_login             DATETIME NULL,
   must_change_password   TINYINT(1) DEFAULT 0,
+  leaderboard_opt_in     TINYINT(1) DEFAULT 0,
   created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at             DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_users_role (role),
@@ -2135,3 +2136,8 @@ CREATE TABLE IF NOT EXISTS referrals (
   CONSTRAINT fk_ref_referred FOREIGN KEY (referred_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (78) ON DUPLICATE KEY UPDATE version = version;
+
+-- v79: opt-in effort leaderboards (Advanced Modernization §3.4) — existing
+-- installs get the users column via this ALTER.
+ALTER TABLE users ADD COLUMN leaderboard_opt_in TINYINT(1) DEFAULT 0;
+INSERT INTO schema_version (version) VALUES (79) ON DUPLICATE KEY UPDATE version = version;

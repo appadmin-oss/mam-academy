@@ -150,6 +150,41 @@ function mam_analytics2_instructor_cohorts(int $instructorId): array {
     return $out;
 }
 
+/**
+ * Arrival analytics (Advanced Modernization §8.3): punctuality distribution
+ * across an instructor's cohorts, from check-in times vs scheduled start.
+ * Bucketed in PHP for cross-driver date maths.
+ */
+function mam_analytics2_arrival(int $instructorId, int $limit = 500): array {
+    $rows = [];
+    try {
+        $rows = mam_db_all(
+            "SELECT sa.checked_in_at, sa.status, cs.scheduled_at
+               FROM session_attendance sa
+               JOIN class_sessions cs ON cs.id = sa.session_id
+               JOIN cohorts co ON co.id = cs.cohort_id
+              WHERE (co.instructor_id = ? OR co.id IN (SELECT cohort_id FROM course_enrollments WHERE instructor_id = ? AND cohort_id IS NOT NULL))
+              ORDER BY cs.scheduled_at DESC LIMIT " . max(1, $limit),
+            [$instructorId, $instructorId]
+        );
+    } catch (\Throwable $e) { return ['buckets' => [], 'checked_in' => 0, 'no_shows' => 0, 'punctual_pct' => null]; }
+    $b = ['early' => 0, 'on_time' => 0, 'late' => 0, 'very_late' => 0]; $checked = 0; $noshow = 0;
+    foreach ($rows as $r) {
+        if (($r['status'] ?? '') === 'absent') { $noshow++; continue; }
+        if (empty($r['checked_in_at']) || empty($r['scheduled_at'])) continue;
+        $ci = strtotime((string) $r['checked_in_at']); $sc = strtotime((string) $r['scheduled_at']);
+        if ($ci === false || $sc === false) continue;
+        $off = ($ci - $sc) / 60; $checked++;
+        if ($off <= 0) $b['early']++; elseif ($off <= 5) $b['on_time']++; elseif ($off <= 15) $b['late']++; else $b['very_late']++;
+    }
+    return [
+        'buckets'      => $b,
+        'checked_in'   => $checked,
+        'no_shows'     => $noshow,
+        'punctual_pct' => $checked > 0 ? (int) round(($b['early'] + $b['on_time']) / $checked * 100) : null,
+    ];
+}
+
 /** At-risk students across an instructor's cohorts (name + cohort + reason bits). */
 function mam_analytics2_instructor_at_risk(int $instructorId, int $limit = 30): array {
     try {
