@@ -234,7 +234,7 @@
       }
       var icon = { audio: 'volume-high', video: 'video', pdf: 'file-pdf', image: 'image', link: 'link' };
       var cards = subs.map(function (s) {
-        return '<div class="panel" data-subid="' + s.id + '" style="margin-bottom:14px"><div class="panel-head"><h2 style="font-size:0.98rem">' + P.escapeHtml(s.student_name) + ' <span class="pill ' + P.escapeHtml(s.status) + '" style="margin-left:6px">' + P.escapeHtml(s.status) + '</span></h2>'
+        return '<div class="panel" data-subid="' + s.id + '" style="margin-bottom:14px"><div class="panel-head"><h2 style="font-size:0.98rem"><label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" class="sub-check" data-subid="' + s.id + '">' + P.escapeHtml(s.student_name) + '</label> <span class="pill ' + P.escapeHtml(s.status) + '" style="margin-left:6px">' + P.escapeHtml(s.status) + '</span></h2>'
           + (s.artifact_url ? '<a href="' + P.escapeHtml(/^https?:\/\//i.test(s.artifact_url) ? s.artifact_url : '#') + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.85rem"><i class="fa-solid fa-' + (icon[s.artifact_kind] || 'link') + '" style="margin-right:5px"></i>open ↗</a>' : '') + '</div>'
           + ((s.artifact_kind === 'audio' && /\.(mp3|m4a|aac|wav|ogg|oga|flac|webm)(\?|#|$)/i.test(s.artifact_url || '')) ? '<div style="padding:0 18px"><div class="mp-host" data-subid="' + s.id + '" data-src="' + P.escapeHtml(s.artifact_url) + '"></div><ul class="mp-notes"></ul></div>' : '')
           + '<form class="fb-form profile-form" style="padding:14px 18px;display:grid;gap:10px">'
@@ -244,7 +244,24 @@
           +   '<button type="submit" class="btn btn-primary"><i class="fa-solid fa-comment-dots"></i> Save feedback</button></div>'
           + '</form></div>';
       }).join('');
-      area.innerHTML = '<section class="panel"><div class="panel-head"><h2>Submissions — ' + P.escapeHtml(title) + '</h2></div></section>' + cards;
+      area.innerHTML = '<section class="panel"><div class="panel-head" style="flex-wrap:wrap;gap:10px"><h2>Submissions — ' + P.escapeHtml(title) + '</h2>'
+        + '<div style="display:flex;gap:12px;align-items:center"><label style="font-size:.82rem;color:var(--text-muted);display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="subCheckAll"> Select all</label>'
+        + '<button type="button" id="bulkAccept" class="btn btn-primary" disabled style="font-size:.8rem;padding:6px 12px"><i class="fa-solid fa-check-double"></i> Accept selected</button></div></div></section>' + cards;
+      // §4.8 — multi-select + bulk accept (loops the per-submission endpoint, so
+      // each accept stays individually authorized).
+      var _checks = function () { return area.querySelectorAll('.sub-check'); };
+      var bulkBtn = document.getElementById('bulkAccept'), checkAll = document.getElementById('subCheckAll');
+      function updateBulk() { var n = area.querySelectorAll('.sub-check:checked').length; if (bulkBtn) { bulkBtn.disabled = n === 0; bulkBtn.innerHTML = '<i class="fa-solid fa-check-double"></i> Accept selected' + (n ? ' (' + n + ')' : ''); } }
+      _checks().forEach(function (c) { c.addEventListener('change', updateBulk); });
+      if (checkAll) checkAll.addEventListener('change', function () { _checks().forEach(function (c) { c.checked = checkAll.checked; }); updateBulk(); });
+      if (bulkBtn) bulkBtn.addEventListener('click', function () {
+        var ids = []; area.querySelectorAll('.sub-check:checked').forEach(function (c) { ids.push(parseInt(c.getAttribute('data-subid'), 10)); });
+        if (!ids.length) return;
+        if (!confirm('Accept ' + ids.length + ' submission' + (ids.length === 1 ? '' : 's') + '?')) return;
+        bulkBtn.disabled = true; bulkBtn.innerHTML = 'Accepting…';
+        Promise.all(ids.map(function (id) { return API.request('instructor/feedback', { method: 'POST', body: { submission_id: id, outcome: 'accepted', comments: '' } }).catch(function () { return null; }); }))
+          .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Accepted ' + ids.length + ' submission' + (ids.length === 1 ? '' : 's') + '.', 'success'); openSubmissions(aid, title); });
+      });
       area.querySelectorAll('.fb-form').forEach(function (form) {
         form.addEventListener('submit', function (e) {
           e.preventDefault();
