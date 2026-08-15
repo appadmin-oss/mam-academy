@@ -1459,7 +1459,7 @@
     content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading your check-in…') + '</div></section>';
     API.request('student/checkin', { method: 'GET' }).then(function (r) {
       var d = (r && r.dashboard) || {}, cfg = (r && r.config) || {};
-      var t = d.today, next = d.next_session;
+      var t = d.today, next = d.next_session, nx = (r && r.next_class) || null;
       var kpis = '<section class="kpi-row">'
         + P.kpi('Week', (d.week || 1) + ' / ' + (d.total_weeks || 12), d.cohort ? d.cohort.title : '')
         + P.kpi('XP', (d.xp || 0), 'points', 'gold')
@@ -1467,13 +1467,39 @@
         + P.kpi('Attendance', (d.attendance_rate != null ? d.attendance_rate + '%' : '—'), 'this term')
         + P.kpi('Lessons done', (d.lessons_completed || 0), 'completed')
         + '</section>';
+      // The attendance row for today, when the server has one (it carries the
+      // clock-out stamp and the §16 mode, which the dashboard summary does not).
+      var todayAtt = (nx && t && nx.session_id === t.session_id) ? nx.attendance : null;
+      var statusLabels = { present: 'Present', late: 'Late', absent: 'Absent', excused: 'Excused',
+                           left_early: 'Left early', technical_failure: 'Technical failure', rescheduled: 'Rescheduled' };
+      var modeLabels = { onsite: 'Onsite', online: 'Online', hybrid: 'Hybrid' };
       var todayBody;
       if (t) {
         if (t.checked_in) {
-          todayBody = '<div class="panel-body"><p>You’re marked <span class="pill ' + P.escapeHtml(t.status) + '">' + P.escapeHtml(t.status) + '</span> for <strong>' + P.escapeHtml(t.title || 'today’s session') + '</strong>.</p></div>';
+          var lbl = statusLabels[t.status] || t.status;
+          var clockedOut = todayAtt && todayAtt.clocked_out_at;
+          todayBody = '<div class="panel-body" style="display:grid;gap:12px">'
+            + '<p>You’re marked <span class="pill ' + P.escapeHtml(t.status) + '">' + P.escapeHtml(lbl) + '</span> for <strong>'
+            + P.escapeHtml(t.title || 'today’s session') + '</strong>'
+            + (todayAtt && todayAtt.mode ? ' · ' + P.escapeHtml(modeLabels[todayAtt.mode] || todayAtt.mode) : '') + '.</p>'
+            + (clockedOut
+                ? '<p class="kpi-sub">Clocked out at ' + P.escapeHtml(P.fmtDateTime(todayAtt.clocked_out_at))
+                  + (todayAtt.duration_min != null ? ' · ' + (parseInt(todayAtt.duration_min, 10) || 0) + ' minutes' : '') + '.</p>'
+                : '<div><button id="clockOutBtn" class="btn btn-ghost" data-session="' + (parseInt(t.session_id, 10) || 0) + '">'
+                  + '<i class="fa-solid fa-right-from-bracket"></i> Clock out</button>'
+                  + '<span class="kpi-sub" style="margin-left:10px">Clock out when the class ends so your time is recorded.</span></div>')
+            + '</div>';
         } else if (t.can_check_in) {
+          var modes = (cfg.modes && cfg.modes.length) ? cfg.modes : ['onsite', 'online', 'hybrid'];
+          var suggested = (nx && nx.mode) || 'onsite';
           todayBody = '<div class="panel-body" style="display:grid;gap:12px">'
             + '<p><strong>' + P.escapeHtml(t.title || 'Today’s session') + '</strong> · ' + P.escapeHtml(P.fmtDateTime(t.scheduled_at)) + '</p>'
+            + '<div><label for="checkinMode" style="display:block;font-size:0.78rem;color:var(--text-muted);margin-bottom:6px">How are you attending?</label>'
+            + '<select id="checkinMode" class="input" style="max-width:220px">'
+            + modes.map(function (m) {
+                return '<option value="' + P.escapeHtml(m) + '"' + (m === suggested ? ' selected' : '') + '>' + P.escapeHtml(modeLabels[m] || m) + '</option>';
+              }).join('')
+            + '</select></div>'
             + '<div><button id="checkinBtn" class="btn btn-primary" data-session="' + (parseInt(t.session_id, 10) || 0) + '"><i class="fa-solid fa-hand-sparkles"></i> Check in now</button>'
             + (cfg.geofence_enabled ? ' <span class="kpi-sub" style="margin-left:8px"><i class="fa-solid fa-location-dot"></i> Location required</span>' : '') + '</div></div>';
         } else {
@@ -1482,39 +1508,68 @@
       } else {
         todayBody = '<div class="panel-body">' + empty('calendar-check', 'No session scheduled for today. Keep your streak alive next class!') + '</div>';
       }
-      // §8-9 — the 30-minute online preparation window & 15-minute readiness
-      // threshold. Computed from the next session's start; the portal "opens"
-      // 30 min before and the student should be ready no later than 15 min before.
-      function readinessCard(nx) {
-        if (!nx || !nx.scheduled_at) { return ''; }
-        var start = new Date(String(nx.scheduled_at).replace(' ', 'T'));
-        if (isNaN(start.getTime())) { return ''; }
-        var OPEN = (cfg && cfg.open_before_min) || 30, READY = 15;
-        var openAt = new Date(start.getTime() - OPEN * 60000), readyAt = new Date(start.getTime() - READY * 60000);
-        var now = Date.now();
-        function hm(d) { return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
-        function mins(ms) { var m = Math.round(ms / 60000); return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : m + ' min'; }
+      // §8-9 — YOUR NEXT CLASS. Every boundary here is the SERVER's: the window
+      // states, the two thresholds and the notice sentence all come from
+      // mam_checkin_window(), so an academy that changes the setting changes
+      // what the student is told. This used to hardcode a 15-minute threshold
+      // in the browser, which meant the page could disagree with the gate.
+      function nextClassCard(n) {
+        if (!n) { return '<div class="panel-body">' + empty('calendar', 'No upcoming sessions scheduled.') + '</div>'; }
+        var w = n.window || {};
+        function hm(s) { var d = new Date(String(s).replace(' ', 'T')); return isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+        function mins(sec) { var m = Math.max(0, Math.round(sec / 60)); return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : m + ' min'; }
         var status, tone;
-        if (now < openAt.getTime())      { status = 'Your portal opens in ' + mins(openAt.getTime() - now); tone = 'var(--text-muted)'; }
-        else if (now < start.getTime())  { status = 'Portal is open — prepare now. Class starts in ' + mins(start.getTime() - now) + (now >= readyAt.getTime() ? ' — be ready!' : ''); tone = (now >= readyAt.getTime() ? 'var(--gold-bright)' : '#34D399'); }
-        else                             { status = 'Class has started.'; tone = 'var(--text-muted)'; }
-        return '<div class="panel-body" style="display:grid;gap:8px;border-top:1px solid var(--border)">'
-          + '<div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted)">Next-class readiness</div>'
-          + '<div style="font-weight:700;color:' + tone + '">' + P.escapeHtml(status) + '</div>'
-          + '<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:0.84rem;color:var(--text-muted)">'
-          +   '<span><i class="fa-regular fa-clock" style="margin-right:5px"></i>Portal opens <strong style="color:var(--text)">' + hm(openAt) + '</strong></span>'
-          +   '<span><i class="fa-solid fa-user-check" style="margin-right:5px"></i>Be ready by <strong style="color:var(--text)">' + hm(readyAt) + '</strong></span>'
-          +   '<span><i class="fa-solid fa-chalkboard-user" style="margin-right:5px"></i>Class starts <strong style="color:var(--text)">' + hm(start) + '</strong></span>'
-          + '</div></div>';
+        if (w.state === 'closed')                { status = 'Your portal opens in ' + mins(w.seconds_to_start - w.open_before_min * 60); tone = 'var(--text-muted)'; }
+        else if (w.state === 'open')             { status = 'Portal is open — prepare now. Class starts in ' + mins(w.seconds_to_start); tone = '#34D399'; }
+        else if (w.state === 'readiness_passed') { status = 'Be ready now — class starts in ' + mins(w.seconds_to_start); tone = 'var(--gold-bright)'; }
+        else if (w.state === 'in_progress')      { status = 'Class is in progress.'; tone = 'var(--gold-bright)'; }
+        else                                     { status = 'This class has ended.'; tone = 'var(--text-muted)'; }
+
+        var prepPill = { completed: ['emerald', 'Completed'], partial: ['gold', 'Partially completed'], not_started: ['', 'Not started'] }[n.preparation] || ['', 'Not started'];
+        var tbState = n.teachback ? (n.teachback.status === 'reviewed' ? 'Reviewed' : 'Submitted') : 'Not submitted';
+
+        // Scheme guard: a resource URL is instructor-supplied, so only http(s)
+        // and root-relative paths reach an href.
+        function safeHref(u) { u = String(u || ''); return (/^https?:\/\//i.test(u) || /^\/(?!\/)/.test(u)) ? u : '#'; }
+        var res = (n.resources || []).filter(function (x) { return x && x.url; });
+        return '<div class="panel-body" style="display:grid;gap:10px">'
+          + '<p style="margin:0"><strong>' + P.escapeHtml(n.topic || n.title || 'Next session') + '</strong>'
+          + (n.cohort_title ? '<br><span style="color:var(--text-muted)">' + P.escapeHtml(n.cohort_title) + '</span>' : '')
+          + '<br><span style="color:var(--text-muted)">' + P.escapeHtml(P.fmtDateTime(n.scheduled_at))
+          + ' · ' + P.escapeHtml(modeLabels[n.mode] || n.mode || 'Onsite') + '</span></p>'
+          + (n.objectives ? '<p style="margin:0;color:var(--text-muted)">' + P.escapeHtml(n.objectives) + '</p>' : '')
+          + '<div style="display:flex;gap:10px;flex-wrap:wrap">'
+          +   '<span class="pill ' + prepPill[0] + '">Preparation: ' + P.escapeHtml(prepPill[1]) + '</span>'
+          +   (n.teachback_required ? '<span class="pill">Teach-back: ' + P.escapeHtml(tbState) + '</span>' : '')
+          + '</div>'
+          + (n.prep_instructions ? '<p style="margin:0"><i class="fa-solid fa-list-check" style="margin-right:6px;color:var(--gold-bright)"></i>' + P.escapeHtml(n.prep_instructions) + '</p>' : '')
+          + (res.length
+              ? '<ul style="margin:0;padding-left:20px">' + res.map(function (x) {
+                  return '<li><a href="' + P.escapeHtml(safeHref(x.url)) + '" target="_blank" rel="noopener">' + P.escapeHtml(x.title || x.url) + '</a></li>';
+                }).join('') + '</ul>'
+              : '')
+          + '</div>'
+          + '<div class="panel-body" style="display:grid;gap:8px;border-top:1px solid var(--border)">'
+          +   '<div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted)">Next-class readiness</div>'
+          +   '<div style="font-weight:700;color:' + tone + '">' + P.escapeHtml(status) + '</div>'
+          +   (w.message ? '<p style="margin:0">' + P.escapeHtml(w.message) + '</p>' : '')
+          +   '<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:0.84rem;color:var(--text-muted)">'
+          +     '<span><i class="fa-regular fa-clock" style="margin-right:5px"></i>Portal opens <strong style="color:var(--text)">' + P.escapeHtml(hm(w.opens_at)) + '</strong></span>'
+          +     '<span><i class="fa-solid fa-user-check" style="margin-right:5px"></i>Be ready by <strong style="color:var(--text)">' + P.escapeHtml(hm(w.ready_by)) + '</strong></span>'
+          +     '<span><i class="fa-solid fa-chalkboard-user" style="margin-right:5px"></i>Class starts <strong style="color:var(--text)">' + P.escapeHtml(hm(w.starts_at)) + '</strong></span>'
+          +   '</div>'
+          + '</div>';
       }
-      var nextBody = next
-        ? '<div class="panel-body"><p><strong>' + P.escapeHtml(next.title || next.cohort_title || 'Next session') + '</strong><br><span style="color:var(--text-muted)">' + P.escapeHtml(P.fmtDateTime(next.scheduled_at)) + '</span></p></div>' + readinessCard(next)
-        : '<div class="panel-body">' + empty('calendar', 'No upcoming sessions scheduled.') + '</div>';
+      var nextBody = nx
+        ? nextClassCard(nx)
+        : (next
+            ? '<div class="panel-body"><p><strong>' + P.escapeHtml(next.title || next.cohort_title || 'Next session') + '</strong><br><span style="color:var(--text-muted)">' + P.escapeHtml(P.fmtDateTime(next.scheduled_at)) + '</span></p></div>'
+            : '<div class="panel-body">' + empty('calendar', 'No upcoming sessions scheduled.') + '</div>');
       var acctBanner = '';
       if (d.accountability && d.accountability.outstanding_usd_cents > 0) {
         acctBanner = '<section class="panel" style="border-color:var(--border-gold);margin-bottom:14px"><div class="panel-body" style="display:flex;align-items:center;gap:10px">'
           + '<i class="fa-solid fa-clock" style="color:var(--gold-bright)"></i>'
-          + '<span>Outstanding punctuality charges: <strong>$' + (d.accountability.outstanding_usd_cents / 100).toFixed(2) + '</strong>. Please speak to the academy office if you believe this is in error.</span>'
+          + '<span>Outstanding punctuality charges: <strong>$' + (d.accountability.outstanding_usd_cents / 100).toFixed(2) + '</strong>. If you believe one is in error you can request an exception in your punctuality ledger below.</span>'
           + '</div></section>';
       }
       // §3.1 achievements + §3.2 humane-streak note.
@@ -1542,9 +1597,13 @@
         : '';
       content.innerHTML = acctBanner + kpis + freezeNote + badges
         + P.panel('Today', todayBody, '')
-        + '<div style="margin-top:18px">' + P.panel('Next session', nextBody, '') + '</div>';
+        + '<div style="margin-top:18px">' + P.panel('Your next class', nextBody, '') + '</div>'
+        + '<div id="acctLedger" style="margin-top:18px"></div>';
+      renderAccountability();
       var btn = document.getElementById('checkinBtn');
       if (btn) btn.addEventListener('click', function () { doCheckin(btn, !!cfg.geofence_enabled); });
+      var outBtn = document.getElementById('clockOutBtn');
+      if (outBtn) outBtn.addEventListener('click', function () { doClockOut(outBtn); });
     }).catch(function () {
       content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load check-in right now. Please try again.') + '</div></section>';
     });
@@ -1552,8 +1611,10 @@
   function doCheckin(btn, needGeo) {
     var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Checking in…';
     var sid = parseInt(btn.getAttribute('data-session'), 10) || 0;
+    var modeEl = document.getElementById('checkinMode');
+    var mode = modeEl ? modeEl.value : 'onsite';
     function post(lat, lng) {
-      var body = { action: 'checkin', session_id: sid };
+      var body = { action: 'checkin', session_id: sid, mode: mode };
       if (lat != null) { body.lat = lat; body.lng = lng; }
       return API.request('student/checkin', { method: 'POST', body: body }).then(function (r) {
         var st = (r && r.checkin && r.checkin.status) || 'present';
@@ -1572,14 +1633,102 @@
       );
     } else { post(null, null); }
   }
+  // §13/§15/§37 — the punctuality ledger, and the one thing it was missing: a
+  // way for the student to ASK for an exception. Before this the portal could
+  // only tell a student they owed something and suggest they walk to the office.
+  var ACCT_REASONS = null;
+  function renderAccountability() {
+    var host = document.getElementById('acctLedger');
+    if (!host) return;
+    API.request('student/accountability', { method: 'GET' }).then(function (r) {
+      var led = (r && r.ledger) || {}, charges = led.charges || [];
+      ACCT_REASONS = (r && r.exception_reasons) || {};
+      if (!charges.length) { host.innerHTML = ''; return; }
+      var money = function (c) { return '$' + ((parseInt(c, 10) || 0) / 100).toFixed(2); };
+      var rows = charges.map(function (c) {
+        var ex = c.exception;
+        var canAsk = (c.status === 'outstanding' || c.status === 'disputed') && !(ex && ex.status === 'pending');
+        var note = '';
+        if (ex && ex.status === 'pending')  note = '<br><span class="kpi-sub">Waiver requested — awaiting a decision.</span>';
+        if (ex && ex.status === 'rejected') note = '<br><span class="kpi-sub">Waiver declined' + (ex.decision_note ? ': ' + P.escapeHtml(ex.decision_note) : '') + '</span>';
+        if (ex && ex.status === 'approved') note = '<br><span class="kpi-sub">Waiver approved.</span>';
+        return '<tr><td data-label="Session"><strong>' + P.escapeHtml(c.session_title || 'Session') + '</strong>'
+          + (c.scheduled_at ? '<br><span class="kpi-sub">' + P.escapeHtml(P.fmtDateTime(c.scheduled_at)) + '</span>' : '') + note + '</td>'
+          + '<td data-label="Reason">' + P.escapeHtml(String(c.reason || '').replace(/_/g, ' ')) + (c.minutes ? ' · ' + P.escapeHtml(String(c.minutes)) + ' min' : '') + '</td>'
+          + '<td data-label="Amount">' + P.escapeHtml(money(c.amount_usd_cents)) + '</td>'
+          + '<td data-label="Status"><span class="pill ' + P.escapeHtml(c.status) + '">' + P.escapeHtml(c.status) + '</span></td>'
+          + '<td data-label="Action">' + (canAsk
+              ? '<button class="btn btn-ghost btn-sm acct-ask" data-charge="' + (parseInt(c.id, 10) || 0) + '">Request exception</button>'
+              : '<span class="kpi-sub">—</span>') + '</td></tr>';
+      }).join('');
+      var summary = '<div class="panel-body" style="display:flex;gap:22px;flex-wrap:wrap">'
+        + '<span><span style="color:var(--text-muted)">Occurrences</span> <strong>' + P.escapeHtml(String(led.occurrences || 0)) + '</strong></span>'
+        + '<span><span style="color:var(--text-muted)">Outstanding</span> <strong>' + P.escapeHtml(money(led.outstanding_usd_cents)) + '</strong></span>'
+        + '<span><span style="color:var(--text-muted)">Awaiting decision</span> <strong>' + P.escapeHtml(money(led.pending_usd_cents)) + '</strong></span>'
+        + '<span><span style="color:var(--text-muted)">Waived</span> <strong>' + P.escapeHtml(money(led.waived_usd_cents)) + '</strong></span>'
+        + '</div>';
+      host.innerHTML = P.panel('Punctuality ledger', summary
+        + '<div class="ptable-wrap"><table class="ptable stack"><thead><tr><th>Session</th><th>Reason</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody>'
+        + rows + '</tbody></table></div>', '');
+      Array.prototype.forEach.call(host.querySelectorAll('.acct-ask'), function (b) {
+        b.addEventListener('click', function () { askException(parseInt(b.getAttribute('data-charge'), 10) || 0); });
+      });
+    }).catch(function () { host.innerHTML = ''; });
+  }
+  function askException(chargeId) {
+    if (!chargeId) return;
+    var codes = Object.keys(ACCT_REASONS || {});
+    if (!codes.length) return;
+    var listing = codes.map(function (c, i) { return (i + 1) + '. ' + ACCT_REASONS[c]; }).join('\n');
+    var pick = window.prompt('Why should this charge be waived?\n\n' + listing + '\n\nEnter a number:', '1');
+    var idx = parseInt(pick, 10);
+    if (!idx || idx < 1 || idx > codes.length) return;
+    var detail = window.prompt('Anything the academy should know? (optional)', '') || '';
+    API.request('student/accountability', { method: 'POST', body: { action: 'request_exception', charge_id: chargeId, reason_code: codes[idx - 1], detail: detail } })
+      .then(function () {
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Exception requested — the academy will review it.', 'success') : alert('Exception requested.'));
+        renderAccountability();
+      })
+      .catch(function (err) {
+        var code = (err && err.body && err.body.error) || 'try again';
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not request an exception: ' + code, 'error') : alert('Could not request an exception.'));
+      });
+  }
+  // §10 — clock out. The server derives the duration and decides whether the
+  // departure counts as `left_early`; the browser never proposes either.
+  function doClockOut(btn) {
+    var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Clocking out…';
+    var sid = parseInt(btn.getAttribute('data-session'), 10) || 0;
+    API.request('student/checkin', { method: 'POST', body: { action: 'clock_out', session_id: sid } })
+      .then(function (r) {
+        var o = (r && r.clock_out) || {};
+        var msg = 'Clocked out' + (o.duration_min != null ? ' — ' + o.duration_min + ' minutes recorded.' : '.');
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast(msg, 'success') : alert(msg));
+        renderCheckin();
+      })
+      .catch(function (err) {
+        btn.disabled = false; btn.innerHTML = orig;
+        var code = (err && err.body && err.body.error) || 'try again';
+        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not clock out: ' + code, 'error') : alert('Could not clock out.'));
+      });
+  }
 
   // ── Grades (student gradebook) ────────────────────────────────────────
   function renderGrades() {
     content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading your grades…') + '</div></section>';
-    API.request('student/grades', { method: 'GET' }).then(function (r) {
+    Promise.all([
+      API.request('student/grades', { method: 'GET' }),
+      // The Mastery Score is a different question from a grade, so a failure to
+      // load it must not blank the grades page.
+      API.request('student/mastery', { method: 'GET' }).catch(function () { return null; })
+    ]).then(function (both) {
+      var r = both[0], mr = both[1];
       var g = (r && r.gpa) || {}, results = (r && r.results) || [], trend = (r && r.trend) || [], pcts = (r && r.percentiles) || [];
+      var masteryPanel = masteryCard(mr && mr.mastery);
       if (!results.length && !(g.courses > 0)) {
-        content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('award', 'No grades yet. Your results appear here once your instructor finalises them.') + '</div></section>';
+        content.innerHTML = masteryPanel
+          + '<section class="panel"' + (masteryPanel ? ' style="margin-top:18px"' : '') + '><div class="panel-body">'
+          + empty('award', 'No grades yet. Your results appear here once your instructor finalises them.') + '</div></section>';
         return;
       }
       var kpis = '<section class="kpi-row">'
@@ -1616,10 +1765,49 @@
         }).join('');
         pctPanel = '<div style="margin-top:18px">' + P.panel('Cohort standing', '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Cohort</th><th>Score</th><th>Rank</th><th>Percentile</th></tr></thead><tbody>' + prows + '</tbody></table></div>', '') + '</div>';
       }
-      content.innerHTML = kpis + resultsPanel + trendPanel + pctPanel;
+      content.innerHTML = masteryPanel + kpis + resultsPanel + trendPanel + pctPanel;
     }).catch(function () {
       content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load grades right now. Please try again.') + '</div></section>';
     });
+  }
+  // §23-24 — the MAM Mastery Score and its six-level band, with the component
+  // breakdown and the coverage the score rests on. Attendance and punctuality
+  // are shown BESIDE the score, never folded into it: §24 requires that a
+  // student's musical ability is not confused with disciplinary performance.
+  function masteryCard(m) {
+    if (!m) return '';
+    var bandColour = ['var(--text-muted)', '#F87171', '#FBBF24', '#34D399', 'var(--gold-bright)', 'var(--gold-bright)'][m.level] || 'var(--text-muted)';
+    if (m.score == null) {
+      return P.panel('MAM Mastery Score', '<div class="panel-body">'
+        + empty('chart-simple', 'Not yet assessed — your Mastery Score appears once your instructors have scored some work.') + '</div>', '');
+    }
+    var bars = (m.components || []).map(function (c) {
+      var pct = Math.max(0, Math.min(100, Number(c.pct) || 0));
+      return '<div style="display:grid;grid-template-columns:minmax(120px,1fr) 2fr auto;gap:10px;align-items:center">'
+        + '<span>' + P.escapeHtml(c.label) + '</span>'
+        + '<span style="background:var(--border);border-radius:999px;height:8px;overflow:hidden;display:block">'
+        +   '<span style="display:block;height:100%;width:' + pct + '%;background:var(--gold-bright)"></span></span>'
+        + '<span style="color:var(--text-muted);font-variant-numeric:tabular-nums">' + pct.toFixed(0) + '%</span>'
+        + '</div>';
+    }).join('');
+    var att = m.attendance || {};
+    var body = '<div class="panel-body" style="display:grid;gap:14px">'
+      + '<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">'
+      +   '<span style="font-size:2.4rem;font-weight:800;line-height:1">' + P.escapeHtml(String(Math.round(m.score))) + '<span style="font-size:1rem;color:var(--text-muted)">/100</span></span>'
+      +   '<span class="pill" style="color:' + bandColour + '">' + P.escapeHtml(m.level_label) + '</span>'
+      + '</div>'
+      + '<p style="margin:0;color:var(--text-muted)">' + P.escapeHtml(m.level_blurb) + '</p>'
+      + (m.provisional
+          ? '<p style="margin:0"><i class="fa-solid fa-circle-info" style="margin-right:6px;color:var(--gold-bright)"></i>'
+            + 'Provisional — based on ' + P.escapeHtml(String(m.coverage_pct)) + '% of the full assessment picture. It will settle as more of your work is scored.</p>'
+          : '<p class="kpi-sub" style="margin:0">Based on ' + P.escapeHtml(String(m.coverage_pct)) + '% of the full assessment picture.</p>')
+      + (bars ? '<div style="display:grid;gap:8px">' + bars + '</div>' : '')
+      + '<div style="border-top:1px solid var(--border);padding-top:12px;display:flex;gap:22px;flex-wrap:wrap">'
+      +   '<span><span style="color:var(--text-muted)">Attendance</span> <strong>' + (att.attendance_pct != null ? P.escapeHtml(String(att.attendance_pct)) + '%' : '—') + '</strong></span>'
+      +   '<span><span style="color:var(--text-muted)">Punctuality</span> <strong>' + (att.punctuality_pct != null ? P.escapeHtml(String(att.punctuality_pct)) + '%' : '—') + '</strong></span>'
+      +   '<span class="kpi-sub">Kept separate from your Mastery Score on purpose.</span>'
+      + '</div></div>';
+    return P.panel('MAM Mastery Score', body, '') + '<div style="height:18px"></div>';
   }
 
   // ── Prepare: pre-class learning + teach-back (PDF §8-9) ───────────────

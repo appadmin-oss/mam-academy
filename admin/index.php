@@ -568,13 +568,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // ── Accountability ledger: resolve a charge (waive / paid / reversed) ──
     if ($action === 'acct_resolve') {
         $cid  = (int)($_POST['charge_id'] ?? 0);
-        $st   = in_array(($_POST['resolution'] ?? ''), ['waived', 'paid', 'reversed'], true) ? (string)$_POST['resolution'] : '';
+        $st   = in_array(($_POST['resolution'] ?? ''), ['waived', 'paid', 'reversed', 'disputed'], true) ? (string)$_POST['resolution'] : '';
         $note = substr(trim((string)($_POST['note'] ?? '')), 0, 255) ?: null;
         $me   = mam_current_user();
         if ($cid < 1 || $st === '') { header('Location: ?v=accountability&err=' . urlencode('Choose a charge and an outcome.')); exit; }
         try { mam_accountability_resolve($cid, $me ? (int)$me['id'] : 0, $st, $note); }
         catch (\Throwable $e) { header('Location: ?v=accountability&err=' . urlencode('Could not update that charge.')); exit; }
         header('Location: ?v=accountability&ok=1'); exit;
+    }
+
+    // ── §15: decide an exception request. Approving waives the charge;
+    //    rejecting restores it to outstanding — "Rejected — Charge Maintained".
+    if ($action === 'acct_exception') {
+        $rid     = (int)($_POST['request_id'] ?? 0);
+        $approve = ($_POST['decision'] ?? '') === 'approve';
+        $note    = substr(trim((string)($_POST['note'] ?? '')), 0, 255) ?: null;
+        $me      = mam_current_user();
+        if ($rid < 1) { header('Location: ?v=accountability&err=' . urlencode('Choose a request.')); exit; }
+        try { mam_accountability_decide_exception($rid, $me ? (int)$me['id'] : 0, $approve, $note); }
+        catch (\Throwable $e) { header('Location: ?v=accountability&err=' . urlencode('Could not decide that request.')); exit; }
+        header('Location: ?v=accountability&ok=' . urlencode($approve ? 'Exception approved — charge waived.' : 'Exception rejected — charge maintained.')); exit;
     }
 
     // ── Guardians: link / unlink a parent account to a student ─────────────
@@ -2465,7 +2478,7 @@ nav a{display:flex;align-items:center}
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'record' => ['Student Record', 'folder-open'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open'], 'referrals' => ['Referrals', 'user-plus'], 'bi' => ['Business Intelligence', 'chart-pie']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
@@ -2476,7 +2489,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -3529,6 +3542,158 @@ nav a{display:flex;align-items:center}
     <?php endif; ?>
   </div>
 
+<?php elseif ($view === 'record'): ?>
+  <?php
+    // §43 — the unified student academic record. Every section here already
+    // existed somewhere in the system; this is the one place that assembles
+    // them into a single file a registrar can read top to bottom.
+    $recSid = (int)($_GET['student'] ?? 0);
+    $recQ   = trim((string)($_GET['q'] ?? ''));
+    $recHits = ($recQ !== '') ? mam_db_all(
+        "SELECT id, name, email FROM users WHERE role = 'student' AND (name LIKE ? OR email LIKE ?) ORDER BY name LIMIT 25",
+        ['%' . $recQ . '%', '%' . $recQ . '%']) : [];
+    $rec = null; $recErr = '';
+    if ($recSid > 0) {
+        try { $rec = mam_academic_record($recSid); }
+        catch (\Throwable $e) { $recErr = 'No student with that id.'; }
+    }
+    $pctCell = function ($v) { return $v === null ? '<span class="muted">—</span>' : htmlspecialchars((string)$v) . '%'; };
+  ?>
+  <header class="top"><h1>Student Academic Record</h1></header>
+  <p class="muted" style="margin:0 0 14px">One unified record per student: curriculum, preparation, teach-back, attendance, time, evidence, competency, mastery, intervention, carry-forward, communication, accountability and certification.</p>
+
+  <div class="card" style="margin-bottom:16px">
+    <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+      <input type="hidden" name="v" value="record">
+      <label>Find a student<input name="q" value="<?= htmlspecialchars($recQ) ?>" placeholder="Name or email" style="width:100%;padding:9px 11px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--ink);margin-top:4px"></label>
+      <button class="btn btn-primary" type="submit" style="padding:10px 16px">Search</button>
+    </form>
+    <?php if ($recHits): ?>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <?php foreach ($recHits as $h): ?>
+          <a class="pill" style="background:var(--raised)" href="?v=record&student=<?= (int)$h['id'] ?>"><?= htmlspecialchars((string)$h['name'] ?: (string)$h['email']) ?></a>
+        <?php endforeach; ?>
+      </div>
+    <?php elseif ($recQ !== ''): ?>
+      <p class="muted" style="margin:12px 0 0">No students matched “<?= htmlspecialchars($recQ) ?>”.</p>
+    <?php endif; ?>
+  </div>
+
+  <?php if ($recErr): ?>
+    <div class="card"><p class="muted" style="margin:0"><?= htmlspecialchars($recErr) ?></p></div>
+  <?php elseif (!$rec): ?>
+    <div class="card"><p class="muted" style="margin:0">Search for a student above to open their record.</p></div>
+  <?php else: ?>
+    <?php $pp = $rec['personal_profile']; $ms = $rec['mastery']; ?>
+    <div class="card" style="margin-bottom:16px">
+      <h2 style="margin:0 0 4px"><?= htmlspecialchars((string)$pp['name']) ?></h2>
+      <p class="muted" style="margin:0 0 12px"><?= htmlspecialchars((string)$pp['email']) ?> · student #<?= (int)$pp['id'] ?> · joined <?= htmlspecialchars(substr((string)$pp['joined'], 0, 10)) ?><?= $pp['scholarship'] ? ' · <span style="color:var(--gold)">MAM Scholar</span>' : '' ?></p>
+      <div class="kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
+        <div class="kpi"><div class="kpi-label">Mastery Score</div><div class="kpi-value"><?= $ms && $ms['score'] !== null ? (int)round($ms['score']) : '—' ?></div><div class="muted" style="font-size:.72rem"><?= htmlspecialchars((string)($ms['level_label'] ?? 'Not assessed')) ?></div></div>
+        <div class="kpi"><div class="kpi-label">Attendance</div><div class="kpi-value"><?= $pctCell($rec['attendance']['attendance_pct']) ?></div><div class="muted" style="font-size:.72rem"><?= (int)$rec['attendance']['total'] ?> sessions</div></div>
+        <div class="kpi"><div class="kpi-label">Modules complete</div><div class="kpi-value"><?= $pctCell($rec['preparation']['completion_pct']) ?></div><div class="muted" style="font-size:.72rem"><?= (int)$rec['preparation']['completed'] ?> of <?= (int)$rec['preparation']['total'] ?></div></div>
+        <div class="kpi"><div class="kpi-label">Teach-backs</div><div class="kpi-value"><?= (int)$rec['teachback']['reviewed'] ?></div><div class="muted" style="font-size:.72rem">reviewed of <?= (int)$rec['teachback']['total'] ?></div></div>
+        <div class="kpi"><div class="kpi-label">Instructional time</div><div class="kpi-value"><?= (int)$rec['time']['total_minutes'] ?><span style="font-size:.8rem"> min</span></div><div class="muted" style="font-size:.72rem"><?= (int)$rec['time']['sessions_clocked_out'] ?> clocked out</div></div>
+        <div class="kpi"><div class="kpi-label">Outstanding</div><div class="kpi-value">$<?= number_format((int)($rec['accountability']['outstanding_usd_cents'] ?? 0) / 100, 2) ?></div><div class="muted" style="font-size:.72rem"><?= (int)($rec['accountability']['occurrences'] ?? 0) ?> charges</div></div>
+      </div>
+    </div>
+
+    <?php if ($rec['intervention']): ?>
+      <div class="card" style="margin-bottom:16px;border-color:#F87171">
+        <h3 style="margin:0 0 6px">Intervention — Level <?= (int)$rec['intervention']['level'] ?>: <?= htmlspecialchars((string)$rec['intervention']['level_label']) ?></h3>
+        <p class="muted" style="margin:0"><?= htmlspecialchars(implode(' · ', $rec['intervention']['reasons'])) ?> — escalate to <?= htmlspecialchars((string)$rec['intervention']['escalation']) ?>.</p>
+      </div>
+    <?php endif; ?>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 10px">Curriculum</h3>
+      <?php if (!$rec['curriculum']['course_enrollments'] && !$rec['curriculum']['legacy_classes']): ?>
+        <p class="muted" style="margin:0">No enrolments on record.</p>
+      <?php else: ?>
+        <ul style="margin:0;padding-left:20px">
+          <?php foreach ($rec['curriculum']['course_enrollments'] as $ce): ?>
+            <li><?= htmlspecialchars((string)($ce['course_title'] ?? $ce['course_code'] ?? 'Course')) ?><?= $ce['level_code'] ? ' · ' . htmlspecialchars((string)$ce['level_code']) : '' ?><?= $ce['cohort_title'] ? ' · ' . htmlspecialchars((string)$ce['cohort_title']) : '' ?> <span class="muted">(<?= htmlspecialchars((string)$ce['status']) ?>)</span></li>
+          <?php endforeach; ?>
+          <?php foreach ($rec['curriculum']['legacy_classes'] as $lc): ?>
+            <li><?= htmlspecialchars((string)$lc['class_title']) ?> <span class="muted">(class · <?= htmlspecialchars((string)$lc['status']) ?>)</span></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+    </div>
+
+    <?php if ($ms && $ms['components']): ?>
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 4px">Competency</h3>
+      <p class="muted" style="margin:0 0 10px;font-size:.8rem">Based on <?= htmlspecialchars((string)$ms['coverage_pct']) ?>% of the full assessment picture<?= $ms['provisional'] ? ' — provisional' : '' ?>. Attendance and punctuality are deliberately excluded.</p>
+      <div style="display:grid;gap:8px">
+        <?php foreach ($ms['components'] as $c): ?>
+          <div style="display:grid;grid-template-columns:minmax(140px,1fr) 3fr auto;gap:10px;align-items:center">
+            <span><?= htmlspecialchars((string)$c['label']) ?></span>
+            <span style="height:8px;background:var(--border);border-radius:4px;display:block;overflow:hidden"><span style="display:block;height:100%;width:<?= max(0, min(100, (float)$c['pct'])) ?>%;background:var(--gold)"></span></span>
+            <span class="muted" style="font-variant-numeric:tabular-nums"><?= htmlspecialchars((string)$c['pct']) ?>%</span>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 10px">Attendance &amp; time</h3>
+      <p class="muted" style="margin:0 0 10px;font-size:.8rem">
+        <?php foreach ($rec['attendance']['by_status'] as $k => $n): if ($n <= 0) continue; ?>
+          <span style="margin-right:12px"><?= htmlspecialchars(function_exists('mam_attendance_status_label') ? mam_attendance_status_label((string)$k) : (string)$k) ?>: <strong><?= (int)$n ?></strong></span>
+        <?php endforeach; ?>
+        <?php foreach ($rec['attendance']['by_mode'] as $k => $n): if ($n <= 0) continue; ?>
+          <span style="margin-right:12px"><?= htmlspecialchars(ucfirst((string)$k)) ?>: <strong><?= (int)$n ?></strong></span>
+        <?php endforeach; ?>
+      </p>
+      <?php if (!$rec['attendance']['sessions']): ?>
+        <p class="muted" style="margin:0">No sessions recorded.</p>
+      <?php else: ?>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+        <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+          <th style="padding:8px">Session</th><th style="padding:8px">Status</th><th style="padding:8px">Mode</th><th style="padding:8px">Late</th><th style="padding:8px">Duration</th></tr></thead>
+        <tbody>
+        <?php foreach (array_slice($rec['attendance']['sessions'], 0, 25) as $sa): ?>
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:8px"><?= htmlspecialchars((string)($sa['session_title'] ?? 'Session')) ?><br><span class="muted" style="font-size:.72rem"><?= htmlspecialchars(substr((string)$sa['scheduled_at'], 0, 16)) ?></span></td>
+            <td style="padding:8px"><?= htmlspecialchars(function_exists('mam_attendance_status_label') ? mam_attendance_status_label((string)$sa['status']) : (string)$sa['status']) ?></td>
+            <td style="padding:8px" class="muted"><?= htmlspecialchars(ucfirst((string)($sa['mode'] ?? 'onsite'))) ?></td>
+            <td style="padding:8px" class="muted"><?= (int)($sa['minutes_late'] ?? 0) ?: '—' ?></td>
+            <td style="padding:8px" class="muted"><?= $sa['duration_min'] === null ? '—' : (int)$sa['duration_min'] . ' min' ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody></table></div>
+      <?php endif; ?>
+    </div>
+
+    <?php if ($rec['carry_forward']): ?>
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 4px">Carry-forward history</h3>
+      <p class="muted" style="margin:0 0 10px;font-size:.8rem">Appended, never overwritten — no academic history is deleted.</p>
+      <ul style="margin:0;padding-left:20px">
+        <?php foreach ($rec['carry_forward'] as $cf): ?>
+          <li><?= htmlspecialchars((string)($cf['lesson_title'] ?? 'Module')) ?> — week <?= htmlspecialchars((string)($cf['from_week'] ?? '?')) ?> → <?= htmlspecialchars((string)($cf['to_week'] ?? $cf['to_date'] ?? '?')) ?>
+            <span class="muted">(was <?= htmlspecialchars((string)$cf['previous_status']) ?><?= $cf['reason'] ? ' · ' . htmlspecialchars((string)$cf['reason']) : '' ?>)</span></li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+    <?php endif; ?>
+
+    <div class="card">
+      <h3 style="margin:0 0 4px">Certification readiness</h3>
+      <p style="margin:0 0 6px"><strong style="color:<?= $rec['certification']['ready'] ? '#34D399' : 'var(--muted)' ?>"><?= $rec['certification']['ready'] ? 'Ready' : 'Not yet ready' ?></strong></p>
+      <p class="muted" style="margin:0"><?= htmlspecialchars((string)$rec['certification']['note']) ?></p>
+      <?php if ($rec['certification']['certificates']): ?>
+        <ul style="margin:10px 0 0;padding-left:20px">
+          <?php foreach ($rec['certification']['certificates'] as $ct): ?>
+            <li><?= htmlspecialchars((string)($ct['title'] ?: $ct['kind'])) ?> · <span class="muted"><?= htmlspecialchars((string)$ct['reference']) ?> · <?= htmlspecialchars(substr((string)$ct['issued_at'], 0, 10)) ?></span></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+    </div>
+  <?php endif; ?>
+
 <?php elseif ($view === 'referrals'): ?>
   <?php
     $refStatus  = in_array($_GET['rs'] ?? '', ['pending', 'joined', 'rewarded'], true) ? $_GET['rs'] : null;
@@ -4186,13 +4351,48 @@ nav a{display:flex;align-items:center}
   </script>
 <?php elseif ($view === 'accountability'): ?>
   <?php
-    $acStatus = in_array(($_GET['status'] ?? ''), ['outstanding', 'waived', 'paid', 'reversed'], true) ? (string)$_GET['status'] : 'outstanding';
+    $acAll    = defined('MAM_ACCT_STATUSES') ? MAM_ACCT_STATUSES : ['outstanding', 'waived', 'paid', 'reversed'];
+    $acStatus = in_array(($_GET['status'] ?? ''), $acAll, true) ? (string)$_GET['status'] : 'outstanding';
     $acRows = function_exists('mam_accountability_list') ? mam_accountability_list($acStatus, 300) : [];
+    $acQueue = function_exists('mam_accountability_exception_queue') ? mam_accountability_exception_queue(100) : [];
+    $acReasons = defined('MAM_ACCT_EXCEPTION_REASONS') ? MAM_ACCT_EXCEPTION_REASONS : [];
   ?>
   <header class="top"><h1>Accountability Ledger</h1></header>
-  <p class="muted" style="margin:0 0 12px">Punctuality charges (late arrivals &amp; instructor lateness). Waiving records the §15 exception decision. Amounts are a record — no wallet is auto-debited.</p>
+  <p class="muted" style="margin:0 0 12px">Punctuality charges (late arrivals &amp; instructor lateness). Amounts are a record — no wallet is auto-debited.</p>
+
+  <?php if ($acQueue): ?>
+  <div class="card" style="margin-bottom:16px;border-color:var(--gold)">
+    <h3 style="margin:0 0 4px">Exception requests awaiting a decision</h3>
+    <p class="muted" style="margin:0 0 12px;font-size:.8rem">Approving waives the charge. Rejecting restores it to outstanding — the charge is maintained, not dropped. Every decision is logged.</p>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="padding:8px">Who</th><th style="padding:8px">Reason</th><th style="padding:8px">Charge</th><th style="padding:8px">Decision</th></tr></thead>
+      <tbody>
+      <?php foreach ($acQueue as $q): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px"><strong><?= htmlspecialchars((string)($q['subject_name'] ?? '—')) ?></strong>
+            <span class="muted" style="font-size:.72rem">(<?= htmlspecialchars((string)$q['subject_type']) ?>)</span>
+            <?php if (!empty($q['session_title'])): ?><br><span class="muted" style="font-size:.72rem"><?= htmlspecialchars((string)$q['session_title']) ?></span><?php endif; ?></td>
+          <td style="padding:8px"><?= htmlspecialchars((string)($acReasons[$q['reason_code']] ?? $q['reason_code'])) ?>
+            <?php if (!empty($q['detail'])): ?><br><span class="muted" style="font-size:.72rem"><?= htmlspecialchars((string)$q['detail']) ?></span><?php endif; ?></td>
+          <td style="padding:8px">$<?= number_format((int)$q['amount_usd_cents'] / 100, 2) ?>
+            <?= (int)$q['minutes'] ? '<br><span class="muted" style="font-size:.72rem">' . (int)$q['minutes'] . ' min late</span>' : '' ?></td>
+          <td style="padding:8px"><form method="post" style="display:flex;gap:6px;align-items:center;margin:0;flex-wrap:wrap">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+            <input type="hidden" name="action" value="acct_exception">
+            <input type="hidden" name="request_id" value="<?= (int)$q['id'] ?>">
+            <input name="note" placeholder="Note (optional)" style="padding:5px 8px;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.78rem;min-width:150px">
+            <button class="btn btn-primary" type="submit" name="decision" value="approve" style="padding:5px 12px;font-size:.78rem">Approve</button>
+            <button class="btn" type="submit" name="decision" value="reject" style="padding:5px 12px;font-size:.78rem">Reject</button>
+          </form></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody></table></div>
+  </div>
+  <?php endif; ?>
+
   <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-    <?php foreach (['outstanding', 'waived', 'paid', 'reversed'] as $st): ?>
+    <?php foreach ($acAll as $st): ?>
       <a href="?v=accountability&status=<?= $st ?>" class="pill" style="<?= $acStatus === $st ? 'background:var(--gold);color:#1A120B' : 'background:var(--raised)' ?>"><?= ucfirst($st) ?></a>
     <?php endforeach; ?>
   </div>
@@ -4201,7 +4401,7 @@ nav a{display:flex;align-items:center}
   <?php else: ?>
   <div class="card"><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
     <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
-      <th style="padding:8px">Who</th><th style="padding:8px">Reason</th><th style="padding:8px">Amount</th><th style="padding:8px">When</th><?php if ($acStatus === 'outstanding'): ?><th style="padding:8px">Resolve</th><?php endif; ?></tr></thead>
+      <th style="padding:8px">Who</th><th style="padding:8px">Reason</th><th style="padding:8px">Amount</th><th style="padding:8px">When</th><?php if (in_array($acStatus, ['outstanding', 'disputed', 'pending'], true)): ?><th style="padding:8px">Resolve</th><?php endif; ?></tr></thead>
     <tbody>
     <?php foreach ($acRows as $c): ?>
       <tr style="border-top:1px solid var(--border)">
@@ -4209,12 +4409,12 @@ nav a{display:flex;align-items:center}
         <td style="padding:8px"><?= htmlspecialchars(str_replace('_', ' ', (string)$c['reason'])) ?><?= (int)$c['minutes'] ? ' · ' . (int)$c['minutes'] . ' min' : '' ?><?php if (!empty($c['session_title'])): ?><br><span class="muted" style="font-size:.72rem"><?= htmlspecialchars((string)$c['session_title']) ?></span><?php endif; ?></td>
         <td style="padding:8px">$<?= number_format((int)$c['amount_usd_cents'] / 100, 2) ?></td>
         <td style="padding:8px" class="muted"><?= htmlspecialchars(substr((string)$c['created_at'], 0, 10)) ?></td>
-        <?php if ($acStatus === 'outstanding'): ?>
+        <?php if (in_array($acStatus, ['outstanding', 'disputed', 'pending'], true)): ?>
         <td style="padding:8px"><form method="post" style="display:flex;gap:6px;align-items:center;margin:0">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
           <input type="hidden" name="action" value="acct_resolve">
           <input type="hidden" name="charge_id" value="<?= (int)$c['id'] ?>">
-          <select name="resolution" style="padding:5px 8px;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.78rem"><option value="waived">Waive</option><option value="paid">Mark paid</option><option value="reversed">Reverse</option></select>
+          <select name="resolution" aria-label="Outcome for this charge" style="padding:5px 8px;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.78rem"><option value="waived">Waive</option><option value="paid">Mark paid</option><option value="disputed">Mark disputed</option><option value="reversed">Reverse</option></select>
           <button class="btn" type="submit" style="padding:5px 12px;font-size:.78rem">Apply</button>
         </form></td>
         <?php endif; ?>
