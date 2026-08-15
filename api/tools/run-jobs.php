@@ -60,6 +60,11 @@ if (function_exists('mam_automation_week_drip_sweep')) {
 }
 
 // §28 academic emails — the four swept types (gated behind academic_emails_enabled).
+// §11 — pull live Meet participation for online sessions that have finished.
+// A no-op (0) until the Google service account is configured.
+if (function_exists('mam_meeting_google_sweep')) {
+    printf("meet sync  : sessions reconciled %d\n", mam_meeting_google_sweep());
+}
 if (function_exists('mam_acadmail_run_all_sweeps')) {
     $ae = mam_acadmail_run_all_sweeps();
     if (!empty($ae['enabled'])) {

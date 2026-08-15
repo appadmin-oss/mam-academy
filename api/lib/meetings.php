@@ -143,27 +143,298 @@ function mam_meeting_parse_csv(string $csv): array {
     return $rows;
 }
 
-/** Is the live Google Reports API configured? (Credential-gated scaffold.) */
+/* ── §11 live Google Meet participation ──────────────────────────────────────
+ *
+ * The Admin SDK Reports API is the only Google surface that reports who was in
+ * a Meet and for how long. It needs a service account with domain-wide
+ * delegation impersonating a Workspace admin — there is no user-consent flow
+ * that works for an unattended cron.
+ *
+ * Everything here is split so the logic is testable without credentials or a
+ * network: the JWT builder, the meeting-code extractor and the activities
+ * parser are pure functions with their own tests; only
+ * `mam_meeting_google_fetch()` touches the wire, and it is inert until the two
+ * settings are present. §11 says the MAM clock-in remains the official record
+ * where Meet data cannot be retrieved — so a failure here degrades to the CSV
+ * import rather than throwing.
+ */
+
+const MAM_GOOGLE_REPORTS_SCOPE = 'https://www.googleapis.com/auth/admin.reports.audit.readonly';
+const MAM_GOOGLE_TOKEN_URL     = 'https://oauth2.googleapis.com/token';
+const MAM_GOOGLE_REPORTS_URL   = 'https://admin.googleapis.com/admin/reports/v1/activity/users/all/applications/meet';
+
+/** Is the live Google Reports API configured? */
 function mam_meeting_google_configured(): bool {
-    return trim((string) mam_setting('google_meet_sa_json', '')) !== ''
+    return mam_meeting_google_service_account() !== null
         && trim((string) mam_setting('google_workspace_admin', '')) !== '';
 }
 
 /**
- * Live Google Meet fetch — scaffold. Returns null unless service-account
- * credentials + a delegated admin are configured (they aren't in this
- * environment), so callers fall back to the CSV import / clock-in record. The
- * shape mirrors mam_meeting_reconcile_import() rows so a real implementation
- * drops straight in.
+ * The parsed service-account JSON, or null when absent/unusable. Validates the
+ * two fields that actually matter (client_email + private_key) so a truncated
+ * paste is caught at configuration time rather than at 3am in the cron.
  */
-function mam_meeting_google_fetch(int $sessionId): ?array {
-    if (!mam_meeting_google_configured()) return null;
-    // A real implementation would: build a JWT from the service-account JSON,
-    // exchange it for an access token with the Reports API scope, query
-    // activities?applicationName=meet for the session's Meet code/time window,
-    // and map participant identifiers → users. Intentionally not executed here.
-    mam_log('info', 'google_meet_fetch_stub', ['session' => $sessionId]);
+function mam_meeting_google_service_account(): ?array {
+    $raw = trim((string) mam_setting('google_meet_sa_json', ''));
+    if ($raw === '') return null;
+    $sa = json_decode($raw, true);
+    if (!is_array($sa)) return null;
+    if (empty($sa['client_email']) || empty($sa['private_key'])) return null;
+    return $sa;
+}
+
+/** base64url, no padding — the JWT alphabet. */
+function mam_google_b64(string $s): string { return rtrim(strtr(base64_encode($s), '+/', '-_'), '='); }
+
+/**
+ * Build a signed RS256 assertion for the service account, impersonating
+ * `$subject` (the delegated Workspace admin). Returns the compact JWT.
+ * Throws on an unusable key rather than returning something unsigned.
+ */
+function mam_google_jwt_assertion(array $sa, string $scope, string $subject, ?int $now = null, int $ttl = 3600): string {
+    if (empty($sa['client_email']) || empty($sa['private_key'])) throw new RuntimeException('bad_service_account');
+    $now = $now ?? time();
+    $header  = ['alg' => 'RS256', 'typ' => 'JWT'];
+    if (!empty($sa['private_key_id'])) $header['kid'] = (string) $sa['private_key_id'];
+    $claims = [
+        'iss'   => (string) $sa['client_email'],
+        'scope' => $scope,
+        'aud'   => (string) ($sa['token_uri'] ?? MAM_GOOGLE_TOKEN_URL),
+        'iat'   => $now,
+        'exp'   => $now + max(60, min(3600, $ttl)),
+    ];
+    // Domain-wide delegation: without `sub` the token is the robot's own, which
+    // has no Reports access at all.
+    if ($subject !== '') $claims['sub'] = $subject;
+
+    $signingInput = mam_google_b64((string) json_encode($header)) . '.' . mam_google_b64((string) json_encode($claims));
+    $key = openssl_pkey_get_private((string) $sa['private_key']);
+    if ($key === false) throw new RuntimeException('bad_private_key');
+    $sig = '';
+    $ok  = openssl_sign($signingInput, $sig, $key, OPENSSL_ALGO_SHA256);
+    if (!$ok) throw new RuntimeException('sign_failed');
+    return $signingInput . '.' . mam_google_b64($sig);
+}
+
+/**
+ * Exchange the assertion for an access token. Cached in `settings` until a
+ * minute before expiry — the Reports sweep runs per session, and minting a
+ * fresh token for each one would be both slow and rude.
+ */
+function mam_meeting_google_token(bool $force = false): ?string {
+    $sa = mam_meeting_google_service_account();
+    $subject = trim((string) mam_setting('google_workspace_admin', ''));
+    if (!$sa || $subject === '') return null;
+
+    if (!$force) {
+        $cached = (string) mam_setting('google_meet_token_cache', '');
+        if ($cached !== '') {
+            $c = json_decode($cached, true);
+            if (is_array($c) && !empty($c['token']) && (int) ($c['expires_at'] ?? 0) > time() + 60) return (string) $c['token'];
+        }
+    }
+
+    try {
+        $jwt = mam_google_jwt_assertion($sa, MAM_GOOGLE_REPORTS_SCOPE, $subject);
+    } catch (\Throwable $e) {
+        mam_log('error', 'google_meet_jwt_failed', ['error' => $e->getMessage()]);
+        return null;
+    }
+
+    $body = http_build_query([
+        'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        'assertion'  => $jwt,
+    ]);
+    $ch = curl_init((string) ($sa['token_uri'] ?? MAM_GOOGLE_TOKEN_URL));
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+        CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 8,
+    ]);
+    $res  = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($res === false || $code !== 200) {
+        mam_log('error', 'google_meet_token_failed', ['http' => $code]);
+        return null;
+    }
+    $j = json_decode((string) $res, true);
+    if (!is_array($j) || empty($j['access_token'])) return null;
+    mam_setting_set('google_meet_token_cache', (string) json_encode([
+        'token'      => (string) $j['access_token'],
+        'expires_at' => time() + max(60, (int) ($j['expires_in'] ?? 3600)),
+    ]));
+    return (string) $j['access_token'];
+}
+
+/**
+ * Extract a Meet code (`abc-defg-hij`) from a join link. Returns null for a
+ * Jitsi/other link — the caller then queries by time window alone, which is
+ * correct but coarser.
+ */
+function mam_meeting_meet_code(?string $link): ?string {
+    $link = trim((string) $link);
+    if ($link === '') return null;
+    if (stripos($link, 'meet.google.com') === false) return null;
+    if (preg_match('~meet\.google\.com/(?:lookup/)?([a-z]{3}-[a-z]{4}-[a-z]{3}|[a-z0-9_-]{6,})~i', $link, $m)) {
+        return strtolower($m[1]);
+    }
     return null;
+}
+
+/**
+ * Turn a Reports API activities payload into reconciliation rows.
+ *
+ * Reports emits one `call_ended` event per participant per call, carrying the
+ * participant's identifier, display name and `duration_seconds`. The event's
+ * own timestamp is when they LEFT, so the join time is derived by subtracting
+ * the duration — Reports does not report a join timestamp directly.
+ *
+ * Pure: no network, no clock, no database. `$meetingCode` filters to one
+ * meeting when the session's link gave us a code.
+ */
+function mam_meeting_google_parse_activities(array $payload, ?string $meetingCode = null): array {
+    $out = [];
+    foreach (($payload['items'] ?? []) as $item) {
+        $leftAtIso = (string) ($item['id']['time'] ?? '');
+        foreach (($item['events'] ?? []) as $ev) {
+            if ((string) ($ev['name'] ?? '') !== 'call_ended') continue;
+            $p = [];
+            foreach (($ev['parameters'] ?? []) as $param) {
+                $name = (string) ($param['name'] ?? '');
+                if ($name === '') continue;
+                // Reports types its parameters; take whichever field is present.
+                $p[$name] = $param['value'] ?? $param['intValue'] ?? $param['boolValue'] ?? null;
+            }
+            $code = strtolower(trim((string) ($p['meeting_code'] ?? '')));
+            if ($meetingCode !== null && $code !== '' && $code !== $meetingCode) continue;
+
+            $email = strtolower(trim((string) ($p['identifier'] ?? '')));
+            // A dial-in or anonymous participant has no email identifier; keep
+            // the row (the operator can still see who was there) but it will not
+            // map to a user.
+            $name  = trim((string) ($p['display_name'] ?? ''));
+            if ($email === '' && $name === '') continue;
+
+            $duration = (int) ($p['duration_seconds'] ?? 0);
+            $leaveTs  = $leftAtIso !== '' ? strtotime($leftAtIso) : false;
+            $joinAt = $leaveAt = null;
+            if ($leaveTs !== false) {
+                $leaveAt = date('Y-m-d H:i:s', $leaveTs);
+                if ($duration > 0) $joinAt = date('Y-m-d H:i:s', $leaveTs - $duration);
+            }
+            $out[] = [
+                'name'     => $name !== '' ? $name : $email,
+                'email'    => $email,
+                'join_at'  => $joinAt,
+                'leave_at' => $leaveAt,
+            ];
+        }
+    }
+    return $out;
+}
+
+/**
+ * Live Google Meet fetch for a session (§11). Returns reconciliation rows, or
+ * null when the integration is not configured or the call fails — callers then
+ * fall back to the CSV import and the portal clock-in, which §11 designates the
+ * official record.
+ *
+ * The query window is padded either side of the scheduled slot so a class that
+ * started late or overran is still captured.
+ */
+function mam_meeting_google_fetch(int $sessionId, int $padMin = 60): ?array {
+    if (!mam_meeting_google_configured()) return null;
+    $sess = mam_db_row('SELECT id, scheduled_at, duration_min, meeting_link FROM class_sessions WHERE id = ?', [$sessionId]);
+    if (!$sess || empty($sess['scheduled_at'])) return null;
+    $startTs = strtotime((string) $sess['scheduled_at']);
+    if ($startTs === false) return null;
+
+    $token = mam_meeting_google_token();
+    if ($token === null) return null;
+
+    $from = gmdate('Y-m-d\TH:i:s\Z', $startTs - $padMin * 60);
+    $to   = gmdate('Y-m-d\TH:i:s\Z', $startTs + ((int) ($sess['duration_min'] ?? 60) + $padMin) * 60);
+    $url  = MAM_GOOGLE_REPORTS_URL . '?' . http_build_query([
+        'startTime'  => $from,
+        'endTime'    => $to,
+        'eventName'  => 'call_ended',
+        'maxResults' => 1000,
+    ]);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $token, 'Accept: application/json'],
+        CURLOPT_TIMEOUT => 20, CURLOPT_CONNECTTIMEOUT => 8,
+    ]);
+    $res  = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($res === false || $code !== 200) {
+        mam_log('error', 'google_meet_fetch_failed', ['session' => $sessionId, 'http' => $code]);
+        return null;
+    }
+    $payload = json_decode((string) $res, true);
+    if (!is_array($payload)) return null;
+
+    return mam_meeting_google_parse_activities($payload, mam_meeting_meet_code($sess['meeting_link'] ?? null));
+}
+
+/**
+ * Fetch AND store the live Meet participation for a session, under
+ * `source='api'` so it never collides with an operator's CSV import (§11 keeps
+ * both alongside the official clock-in). Returns the row count, or null when
+ * the integration is unavailable — the caller decides whether that is an error.
+ */
+function mam_meeting_google_sync(int $sessionId): ?int {
+    $rows = mam_meeting_google_fetch($sessionId);
+    if ($rows === null) return null;
+    return mam_meeting_reconcile_import($sessionId, $rows, 'meet', 'api');
+}
+
+/**
+ * Cron sweep: reconcile recently-finished online sessions against Google.
+ *
+ * Reports data lags the call by a few minutes, so a session is only swept once
+ * it has been over for `$settleMin`. Deduped through the `events` table, which
+ * means a session is attempted once and a transient Google outage does not
+ * cause it to be retried forever — an operator can still pull it by hand.
+ * Never throws: a cron that dies on a network blip takes the other sweeps with
+ * it.
+ */
+function mam_meeting_google_sweep(int $lookbackHours = 24, int $settleMin = 10, int $limit = 50): int {
+    if (!mam_meeting_google_configured()) return 0;
+    $now  = time();
+    $from = date('Y-m-d H:i:s', $now - max(1, $lookbackHours) * 3600);
+    $rows = mam_db_all(
+        "SELECT id, scheduled_at, duration_min FROM class_sessions
+          WHERE scheduled_at >= ? AND scheduled_at <= ? AND mode IN ('online','hybrid')
+          ORDER BY scheduled_at DESC LIMIT " . max(1, min(200, $limit)),
+        [$from, date('Y-m-d H:i:s', $now)]
+    );
+    $done = 0;
+    foreach ($rows as $r) {
+        $endTs = strtotime((string) $r['scheduled_at']);
+        if ($endTs === false) continue;
+        $endTs += (int) ($r['duration_min'] ?? 60) * 60;
+        if ($now < $endTs + $settleMin * 60) continue;   // still settling
+        // Deduped through `events`, the same mechanism the other sweeps use.
+        if (mam_db_row("SELECT id FROM events WHERE type = 'meet.synced' AND entity = 'class_session' AND entity_id = ?", [(int) $r['id']])) continue;
+        try {
+            $n = mam_meeting_google_sync((int) $r['id']);
+            if ($n !== null) {
+                $done++;
+                mam_db_insert('events', [
+                    'type' => 'meet.synced', 'entity' => 'class_session', 'entity_id' => (int) $r['id'],
+                    'payload' => (string) json_encode(['rows' => $n]),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            mam_log('error', 'google_meet_sweep_failed', ['session' => (int) $r['id'], 'error' => $e->getMessage()]);
+        }
+    }
+    return $done;
 }
 
 /**

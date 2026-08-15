@@ -486,6 +486,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'module_scaffold' => 'curriculum', 'module_import' => 'curriculum',
         'rubric_create' => 'curriculum', 'rubric_update' => 'curriculum', 'rubric_delete' => 'curriculum',
         'meet_reconcile' => 'settings',
+        'save_google_meet' => 'settings', 'meet_sync' => 'settings',
+        'acct_exception' => 'enrollments',
         'set_student_type' => 'users',
         'acct_resolve' => 'enrollments', 'guardian_link' => 'enrollments', 'guardian_unlink' => 'enrollments',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
@@ -1590,6 +1592,42 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
         mam_audit('update_settings', 'settings', null, $saved);
         header('Location: ?v=settings&ok=1'); exit;
+    }
+
+    // ── §11: the live Google Meet credentials. These cannot ride the generic
+    //    settings form, which truncates text at 300 chars — a service-account
+    //    key is roughly 2KB. Saving new credentials drops the cached access
+    //    token, or the next sync would keep using one minted from the old key.
+    if ($action === 'save_google_meet') {
+        $saJson = trim((string)($_POST['sa_json'] ?? ''));
+        $wsAdm  = mb_substr(trim((string)($_POST['workspace_admin'] ?? '')), 0, 320);
+        if ($saJson !== '') {
+            $probe = json_decode($saJson, true);
+            if (!is_array($probe) || empty($probe['client_email']) || empty($probe['private_key'])) {
+                header('Location: ?v=meet&err=' . urlencode('That does not look like a service-account key — it needs client_email and private_key.')); exit;
+            }
+        }
+        if ($wsAdm !== '' && !filter_var($wsAdm, FILTER_VALIDATE_EMAIL)) {
+            header('Location: ?v=meet&err=' . urlencode('The Workspace admin must be an email address.')); exit;
+        }
+        mam_setting_set('google_meet_sa_json', mb_substr($saJson, 0, 8000));
+        mam_setting_set('google_workspace_admin', $wsAdm);
+        mam_setting_set('google_meet_token_cache', '');
+        // Never audit the key itself — record only that it changed.
+        mam_audit('save_google_meet', 'settings', null, ['configured' => $saJson !== '' && $wsAdm !== '', 'admin' => $wsAdm]);
+        header('Location: ?v=meet&ok=' . urlencode($saJson !== '' && $wsAdm !== '' ? 'Live Google Meet participation is configured.' : 'Google Meet credentials cleared.')); exit;
+    }
+
+    // ── §11: pull live participation for one session, on demand.
+    if ($action === 'meet_sync') {
+        $sid = (int)($_POST['session_id'] ?? 0);
+        if ($sid < 1) { header('Location: ?v=meet&err=' . urlencode('Choose a session first.')); exit; }
+        try { $n = mam_meeting_google_sync($sid); }
+        catch (\Throwable $e) { $n = null; }
+        if ($n === null) {
+            header('Location: ?v=meet&session=' . $sid . '&err=' . urlencode('Could not reach Google — the portal clock-in remains the official record. Check the credentials and the app log.')); exit;
+        }
+        header('Location: ?v=meet&session=' . $sid . '&ok=' . urlencode('Pulled ' . $n . ' participant row' . ($n === 1 ? '' : 's') . ' from Google Meet.')); exit;
     }
 
     if ($action === 'save_email_branding') {
@@ -4148,7 +4186,29 @@ nav a{display:flex;align-items:center}
     if ($mSessId > 0) { try { $mView = mam_meeting_session_view($mSessId); } catch (\Throwable $e) { $mView = null; } }
   ?>
   <header class="top"><h1>Meet Reconciliation</h1></header>
-  <p class="muted" style="margin:0 0 14px">Import a Google Meet participant CSV (§11) and reconcile who was actually in the call against the portal check-in and instructor clock-in records — surfacing proxy check-ins and no-shows.</p>
+  <p class="muted" style="margin:0 0 14px">Reconcile who was actually in the call against the portal check-in and instructor clock-in records (§11) — surfacing proxy check-ins and no-shows. Participation comes from the live Google Reports API when it is configured, and from an imported CSV otherwise. Either way the portal clock-in remains the official attendance record.</p>
+
+  <?php $gCfg = function_exists('mam_meeting_google_configured') && mam_meeting_google_configured(); ?>
+  <details class="card" style="margin-bottom:16px"<?= $gCfg ? '' : ' open' ?>>
+    <summary style="cursor:pointer;font-weight:600">Live Google Meet participation — <?= $gCfg ? '<span style="color:#34D399">configured</span>' : '<span class="muted">not configured</span>' ?></summary>
+    <p class="muted" style="margin:10px 0 12px;font-size:.82rem">
+      Needs a Google Cloud <strong>service account</strong> with domain-wide delegation, authorised in the Workspace admin console for the scope
+      <code>https://www.googleapis.com/auth/admin.reports.audit.readonly</code>, plus the email of a Workspace admin for it to impersonate.
+      Paste the whole service-account JSON key file below. It is stored in the settings table — treat it like a password.
+      Until both fields are set, the live fetch stays off and CSV import is used.
+    </p>
+    <form method="post" style="display:grid;gap:12px">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="save_google_meet">
+      <label>Service-account JSON<br>
+        <textarea name="sa_json" rows="6" placeholder='{"type":"service_account","client_email":"…","private_key":"-----BEGIN PRIVATE KEY-----…"}' style="width:100%;padding:9px 11px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-family:ui-monospace,monospace;font-size:.75rem"><?= htmlspecialchars((string)mam_setting('google_meet_sa_json', '')) ?></textarea>
+      </label>
+      <label>Workspace admin to impersonate<br>
+        <input name="workspace_admin" type="email" value="<?= htmlspecialchars((string)mam_setting('google_workspace_admin', '')) ?>" placeholder="admin@mamcentre.org" style="width:100%;max-width:340px;padding:9px 11px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--ink)">
+      </label>
+      <div><button class="btn btn-primary" type="submit" style="padding:9px 16px">Save credentials</button></div>
+    </form>
+  </details>
 
   <div class="card" style="margin-bottom:16px">
     <form method="get" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
@@ -4167,6 +4227,15 @@ nav a{display:flex;align-items:center}
   <?php if ($mSessId > 0 && !$mView): ?>
     <div class="banner err">That session could not be found.</div>
   <?php elseif ($mView): ?>
+    <?php if ($gCfg): ?>
+      <form method="post" style="margin:0 0 14px">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="meet_sync">
+        <input type="hidden" name="session_id" value="<?= (int)$mSessId ?>">
+        <button class="btn btn-primary" type="submit" style="padding:8px 14px"><i class="fa-solid fa-rotate"></i> Pull live participation from Google</button>
+        <span class="muted" style="margin-left:10px;font-size:.8rem">Replaces only the rows pulled from the API — an imported CSV is left alone.</span>
+      </form>
+    <?php endif; ?>
     <?php
       // Reconcile: index Meet import rows by matched user, then walk portal
       // check-ins to build a per-student comparison; flag the mismatches.
