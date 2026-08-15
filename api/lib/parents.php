@@ -77,6 +77,27 @@ function mam_parent_children(int $parentId): array {
     return $rows;
 }
 
+/**
+ * The guardians linked to a student — the reverse of mam_parent_children().
+ *
+ * Anything that tells a student something their family also needs to act on
+ * (a recital date, a cancellation, a lift to arrange) should reach the
+ * guardians directly. The person holding the student login is very often not
+ * the person with the car.
+ *
+ * Only ACTIVE accounts are returned: a deactivated guardian must stop
+ * receiving a child's information the moment they are deactivated.
+ */
+function mam_parent_guardians_of(int $studentId): array {
+    return mam_db_all(
+        "SELECT u.id, u.name, u.email, pl.relationship
+           FROM parent_links pl JOIN users u ON u.id = pl.parent_id
+          WHERE pl.student_id = ? AND u.status = 'active'
+          ORDER BY u.name",
+        [$studentId]
+    );
+}
+
 /** A traffic-light label from a 0–100 value against simple bands. */
 function mam_parent_light(float $pct): string {
     if ($pct >= 80) return 'green';

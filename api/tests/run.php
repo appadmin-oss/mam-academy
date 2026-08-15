@@ -105,6 +105,7 @@ require $ROOT . '/lib/leaderboard.php';       // opt-in effort leaderboards (§3
 require $ROOT . '/lib/makeup.php';            // make-up class suggestions (§8.2)
 require $ROOT . '/lib/bi.php';                // admin business intelligence (§5.4)
 require $ROOT . '/lib/inline-edit.php';       // allowlisted inline field editing (§4.4)
+require $ROOT . '/lib/recital.php';           // the Recital Hall
 
 require __DIR__ . '/assert.php';
 

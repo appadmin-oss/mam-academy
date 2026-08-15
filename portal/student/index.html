@@ -41,6 +41,7 @@
       <a class="portal-nav-link" href="#assignments" data-tab="assignments"><i class="fa-solid fa-list-check"></i>Assignments <span class="nav-badge" id="asgBadge" hidden></span></a>
       <a class="portal-nav-link" href="#practice" data-tab="practice"><i class="fa-solid fa-chart-line"></i>Practice</a>
       <a class="portal-nav-link" href="#repertoire" data-tab="repertoire"><i class="fa-solid fa-guitar"></i>Repertoire</a>
+      <a class="portal-nav-link" href="#recitals" data-tab="recitals"><i class="fa-solid fa-masks-theater"></i>Recitals</a>
 
       <div class="portal-nav-group">Attend</div>
       <a class="portal-nav-link" href="#checkin" data-tab="checkin"><i class="fa-solid fa-hand-sparkles"></i>Check-in</a>
@@ -120,7 +121,7 @@
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle');
   var pageSub = document.getElementById('pageSub');
-  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], checkin: ['Check-in', 'Your streak, XP and today\'s session'], grades: ['Grades', 'Your GPA, results and standing'], prepare: ['Prepare', 'Learn before class, then explain it back'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], reschedule: ['Reschedule', 'Request to move a class session'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
+  var tabs = { overview: ['Overview', 'Welcome back'], applications: ['Applications', 'Every application you\'ve submitted'], learning: ['My Learning', 'Courses, classes & results in one place'], checkin: ['Check-in', 'Your streak, XP and today\'s session'], grades: ['Grades', 'Your GPA, results and standing'], prepare: ['Prepare', 'Learn before class, then explain it back'], classes: ['Classes', 'Your active enrollments & upcoming sessions'], courses: ['My Courses', 'Add and track your courses'], curriculum: ['Curriculum', 'Your programme syllabus & course plans'], assignments: ['Assignments', 'Work set by your instructors'], attendance: ['Attendance', 'Your session-by-session record'], reschedule: ['Reschedule', 'Request to move a class session'], announcements: ['Announcements', 'Updates from your instructors'], practice: ['Practice', 'Track your sessions, streaks and goals'], repertoire: ['Repertoire', 'Pieces you\'re working on'], recitals: ['Recitals', 'Perform what you have polished'], payments: ['Payments', 'Tuition, outstanding balance & receipts'], orders: ['Store Orders', 'Your purchases from the MAM library'], auditer: ['MAM Auditer', 'Your placement report'], profile: ['Profile', 'Update your details'], support: ['Support', 'Feedback, surveys & help tickets'], progress: ['My Progress', 'Your learning journey & parent sharing'], handbook: ['Handbook', 'Academy policies & your responsibilities'] };
   var data = null;
   var STUDIO = window.MAM_STUDIO;
   var syncTabs = function () {};   // set by P.enhanceTabs() at boot; keeps ARIA tab state correct
@@ -134,6 +135,7 @@
     // Repertoire is server-backed (§1.7) so it feeds the recital programme and
     // is visible to guardians.
     if (tab === 'repertoire') return renderRepertoire();
+    if (tab === 'recitals') return renderRecitals();
     if (!data) return;
     if (tab === 'practice') return renderPractice();
     if (tab === 'overview') return renderOverview();
@@ -908,6 +910,101 @@
   }
   // ── Repertoire → recital (§1.7) ──────────────────────────────────────────
   var _repMeta = { learning: { label: 'Learning', icon: 'seedling', col: 'var(--gold-bright)' }, polished: { label: 'Polished', icon: 'star', col: '#34D399' }, performed: { label: 'Performed', icon: 'trophy', col: 'var(--gold-bright)' } };
+
+  /* ── The Recital Hall ─────────────────────────────────────────────────
+     Three questions, in the order a student actually asks them: what can I
+     put myself forward for, what have I already offered, and what happened
+     to it. Only polished or performed pieces are offerable — the server
+     decides that, and the UI says so plainly rather than silently filtering. */
+  function renderRecitals() {
+    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading…') + '</div></section>';
+    API.request('student/recitals', { method: 'GET' }).then(function (d) {
+      var calls = d.open_calls || [], subs = d.submissions || [], eligible = d.eligible || [];
+
+      var callsHtml = calls.length
+        ? calls.map(function (c) {
+            var when = c.starts_at ? P.fmtDateTime(c.starts_at) : 'Date to be confirmed';
+            var opts = eligible.map(function (p) {
+              return '<option value="' + p.id + '">' + P.escapeHtml(p.title) + (p.composer ? ' — ' + P.escapeHtml(p.composer) : '') + '</option>';
+            }).join('');
+            return '<section class="panel" style="margin-bottom:14px;border-color:var(--gold)">'
+              + '<div class="panel-head"><h2>' + P.escapeHtml(c.title) + '</h2><span class="pill" style="color:var(--gold-bright)">Open for submissions</span></div>'
+              + '<div class="panel-body">'
+              +   '<p style="margin:0 0 4px"><strong>' + P.escapeHtml(when) + '</strong>' + (c.venue ? ' · ' + P.escapeHtml(c.venue) : '') + '</p>'
+              +   (c.description ? '<p class="kpi-sub" style="margin:0 0 12px">' + P.escapeHtml(c.description) + '</p>' : '')
+              +   (eligible.length
+                    ? '<div class="rc-offer" data-rid="' + c.slug + '" data-id="' + (c.id || '') + '">'
+                      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">'
+                      +   '<label style="flex:1;min-width:200px">Piece<br><select class="rc-piece" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)">' + opts + '</select></label>'
+                      +   '<label style="width:130px">Instrument<br><input class="rc-inst" placeholder="Piano" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>'
+                      +   '<label style="width:90px">Minutes<br><input class="rc-dur" type="number" min="1" max="60" value="4" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></label>'
+                      +   '<button class="btn btn-primary rc-go" data-slug="' + P.escapeHtml(c.slug) + '">Put this forward</button>'
+                      + '</div></div>'
+                    : '<p class="kpi-sub" style="margin:8px 0 0"><i class="fa-solid fa-circle-info"></i> Mark a piece <strong>polished</strong> in your Repertoire to offer it for a recital.</p>')
+              + '</div></section>';
+          }).join('')
+        : '<section class="panel"><div class="panel-body">' + empty('masks-theater', 'No recitals are taking submissions right now. We will let you know when the next call opens.') + '</div></section>';
+
+      var label = { proposed: 'Awaiting a decision', accepted: 'On the programme', declined: 'Not this time', withdrawn: 'Withdrawn', performed: 'Performed' };
+      var colour = { proposed: 'var(--gold-bright)', accepted: '#34D399', declined: 'var(--text-muted)', withdrawn: 'var(--text-muted)', performed: '#34D399' };
+      var mine = subs.length
+        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>What you have put forward</h2></div>'
+          + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Piece</th><th>Recital</th><th>Status</th><th></th></tr></thead><tbody>'
+          + subs.map(function (x) {
+              var canWithdraw = x.status === 'proposed' || x.status === 'accepted';
+              var link = (x.recital_status === 'programmed' || x.recital_status === 'completed')
+                ? '<a href="/recital/' + P.escapeHtml(x.slug) + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">' + P.escapeHtml(x.recital_title) + ' ↗</a>'
+                : P.escapeHtml(x.recital_title);
+              return '<tr><td><strong>' + P.escapeHtml(x.title) + '</strong>' + (x.composer ? '<br><span class="kpi-sub">' + P.escapeHtml(x.composer) + '</span>' : '') + '</td>'
+                + '<td>' + link + (x.starts_at ? '<br><span class="kpi-sub">' + P.escapeHtml(P.fmtDateTime(x.starts_at)) + '</span>' : '') + '</td>'
+                + '<td><span style="color:' + colour[x.status] + ';font-weight:600">' + P.escapeHtml(label[x.status] || x.status) + '</span>'
+                + (x.note ? '<br><span class="kpi-sub">' + P.escapeHtml(x.note) + '</span>' : '') + '</td>'
+                + '<td>' + (canWithdraw ? '<button class="btn btn-ghost rc-wd" data-id="' + x.id + '" style="padding:4px 11px;font-size:.76rem">Withdraw</button>' : '') + '</td></tr>';
+            }).join('')
+          + '</tbody></table></div></section>'
+        : '';
+
+      content.innerHTML = callsHtml + mine;
+
+      content.querySelectorAll('.rc-go').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var box  = b.closest('.rc-offer');
+          var sel  = box.querySelector('.rc-piece');
+          var body = {
+            action: 'propose',
+            recital_id: parseInt(box.getAttribute('data-id'), 10) || 0,
+            repertoire_id: parseInt(sel.value, 10),
+            instrument: box.querySelector('.rc-inst').value.trim(),
+            duration_min: parseInt(box.querySelector('.rc-dur').value, 10) || 4
+          };
+          b.disabled = true;
+          API.request('student/recitals', { method: 'POST', body: body })
+            .then(function () {
+              if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Put forward — your teacher will decide soon.', 'success');
+              if (P.celebrate && P.seenOnce('recital:first-offer')) P.celebrate('milestone', 'You offered a piece for a recital');
+              renderRecitals();
+            })
+            .catch(function (e) {
+              b.disabled = false;
+              var err = e && e.data && e.data.error;
+              if (window.MAM_DIALOG) window.MAM_DIALOG.toast(err === 'submissions_closed' ? 'That call has closed.' : 'Could not submit — try again.', 'error');
+            });
+        });
+      });
+      content.querySelectorAll('.rc-wd').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (!confirm('Withdraw this piece from the recital?')) return;
+          b.disabled = true;
+          API.request('student/recitals', { method: 'POST', body: { action: 'withdraw', item_id: parseInt(b.getAttribute('data-id'), 10) } })
+            .then(function () { renderRecitals(); })
+            .catch(function () { b.disabled = false; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not withdraw.', 'error'); });
+        });
+      });
+    }).catch(function () {
+      content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load recitals.') + '</div></section>';
+    });
+  }
+
   function renderRepertoire() {
     content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading your repertoire…') + '</div></section>';
     API.request('student/repertoire', { method: 'GET' })

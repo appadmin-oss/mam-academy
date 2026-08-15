@@ -48,6 +48,10 @@ DirectoryIndex index.php index.html index.htm
   # ID card pages: /card/{serial} → card.php?serial={serial}
   RewriteRule ^card/([A-Za-z0-9-]+)/?$ card.php?serial=$1 [L,QSA]
 
+  # The Recital Hall — /recital/{slug} is the public concert programme, and
+  # bare /recital lists them. Both land on recital.php.
+  RewriteRule ^recital/([A-Za-z0-9-]+)/?$ recital.php?slug=$1 [L,QSA]
+
   # Meeting link redirects: /session/{id}/join and /class/{id}/join → join.php
   RewriteRule ^session/([0-9]+)/join/?$ join.php?type=session&id=$1 [L,QSA]
   RewriteRule ^class/([0-9]+)/join/?$   join.php?type=class&id=$1   [L,QSA]

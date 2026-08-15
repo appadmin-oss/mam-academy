@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 79;
+const MAM_SCHEMA_TARGET = 80;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2301,6 +2301,55 @@ function mam_db_migrate(PDO $db): void {
         // consent, so minors are guardian-consented.
         79 => "
             ALTER TABLE users ADD COLUMN leaderboard_opt_in INTEGER DEFAULT 0;
+        ",
+        // v80 — The Recital Hall. A recital is a real event with a curated
+        // running order, not a list of names: items carry a section, a duration
+        // and a sort order so the programme can compute clock times, and a
+        // status of their own so a piece can be proposed, accepted, declined or
+        // withdrawn without deleting the record of it having been offered.
+        80 => "
+            CREATE TABLE IF NOT EXISTS recitals (
+              id              INTEGER PRIMARY KEY AUTOINCREMENT,
+              slug            TEXT NOT NULL UNIQUE,
+              title           TEXT NOT NULL,
+              subtitle        TEXT,
+              venue           TEXT,
+              starts_at       TEXT,
+              doors_open_at   TEXT,
+              interval_after  INTEGER,
+              interval_min    INTEGER NOT NULL DEFAULT 15,
+              status          TEXT NOT NULL DEFAULT 'draft',
+              submissions_close_at TEXT,
+              description     TEXT,
+              programme_note  TEXT,
+              created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_recitals_status ON recitals(status, starts_at);
+
+            CREATE TABLE IF NOT EXISTS recital_items (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              recital_id    INTEGER NOT NULL REFERENCES recitals(id) ON DELETE CASCADE,
+              student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              repertoire_id INTEGER REFERENCES repertoire(id) ON DELETE SET NULL,
+              submission_id INTEGER REFERENCES submissions(id) ON DELETE SET NULL,
+              title         TEXT NOT NULL,
+              composer      TEXT,
+              arranger      TEXT,
+              movement      TEXT,
+              instrument    TEXT,
+              duration_min  INTEGER NOT NULL DEFAULT 4,
+              section       TEXT NOT NULL DEFAULT 'main',
+              sort_order    INTEGER NOT NULL DEFAULT 0,
+              status        TEXT NOT NULL DEFAULT 'proposed',
+              note          TEXT,
+              decided_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              decided_at    TEXT,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_ritems_recital ON recital_items(recital_id, section, sort_order);
+            CREATE INDEX IF NOT EXISTS idx_ritems_student ON recital_items(student_id, status);
         ",
     ];
 

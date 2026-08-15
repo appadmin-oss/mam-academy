@@ -2153,3 +2153,61 @@ INSERT INTO schema_version (version) VALUES (78) ON DUPLICATE KEY UPDATE version
 -- installs get the users column via this ALTER.
 ALTER TABLE users ADD COLUMN leaderboard_opt_in TINYINT(1) DEFAULT 0;
 INSERT INTO schema_version (version) VALUES (79) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- v80 — The Recital Hall.
+-- A recital is a real event with a curated running order, not a list of names.
+-- Items carry a section, a duration and a sort order so the programme can
+-- compute clock times, and a status of their own so a piece can be proposed,
+-- accepted, declined or withdrawn without destroying the record that it was
+-- offered at all. `interval_after` is the sort_order the interval follows.
+CREATE TABLE IF NOT EXISTS recitals (
+  id                   INT AUTO_INCREMENT PRIMARY KEY,
+  slug                 VARCHAR(160) NOT NULL UNIQUE,
+  title                VARCHAR(200) NOT NULL,
+  subtitle             VARCHAR(200) NULL,
+  venue                VARCHAR(200) NULL,
+  starts_at            DATETIME NULL,
+  doors_open_at        DATETIME NULL,
+  interval_after       INT NULL,
+  interval_min         INT NOT NULL DEFAULT 15,
+  status               VARCHAR(24) NOT NULL DEFAULT 'draft',
+  submissions_close_at DATETIME NULL,
+  -- MySQL rejects a literal DEFAULT on TEXT (error 1101) — nullable, no default.
+  description          TEXT NULL,
+  programme_note       TEXT NULL,
+  created_by           INT NULL,
+  created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_recitals_status (status, starts_at),
+  CONSTRAINT fk_recital_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS recital_items (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  recital_id    INT NOT NULL,
+  student_id    INT NOT NULL,
+  repertoire_id INT NULL,
+  submission_id INT NULL,
+  title         VARCHAR(200) NOT NULL,
+  composer      VARCHAR(160) NULL,
+  arranger      VARCHAR(160) NULL,
+  movement      VARCHAR(160) NULL,
+  instrument    VARCHAR(80)  NULL,
+  duration_min  INT NOT NULL DEFAULT 4,
+  section       VARCHAR(24) NOT NULL DEFAULT 'main',
+  sort_order    INT NOT NULL DEFAULT 0,
+  status        VARCHAR(24) NOT NULL DEFAULT 'proposed',
+  note          VARCHAR(1000) NULL,
+  decided_by    INT NULL,
+  decided_at    DATETIME NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_ritems_recital (recital_id, section, sort_order),
+  KEY idx_ritems_student (student_id, status),
+  CONSTRAINT fk_ritem_recital    FOREIGN KEY (recital_id)    REFERENCES recitals(id)    ON DELETE CASCADE,
+  CONSTRAINT fk_ritem_student    FOREIGN KEY (student_id)    REFERENCES users(id)       ON DELETE CASCADE,
+  CONSTRAINT fk_ritem_repertoire FOREIGN KEY (repertoire_id) REFERENCES repertoire(id)  ON DELETE SET NULL,
+  CONSTRAINT fk_ritem_submission FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ritem_decider    FOREIGN KEY (decided_by)    REFERENCES users(id)       ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (80) ON DUPLICATE KEY UPDATE version = version;

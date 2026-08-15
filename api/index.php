@@ -40,6 +40,11 @@ $r->get('/booking/pricing', $f('booking-pricing.php'), [mw_rate_limit('booking_p
 $r->get('/config/public',   $f('config-public.php'),   [mw_rate_limit('config_public', 120, 60)]);
 $r->get('/promo/active',     $f('promo-active.php'),    [mw_rate_limit('promo_active', 120, 60)]);
 $r->get('/verify-certificate', $f('verify-certificate.php'), [mw_rate_limit('verify_cert', 60, 60)]);
+// The Recital Hall — public programmes. No auth: a concert programme is meant
+// to be forwarded to a grandparent, and only programmed/completed recitals
+// are reachable, so a draft never leaks.
+$r->get('/recitals',        $f('recital-public.php'), [mw_rate_limit('recitals', 120, 60)]);
+$r->get('/recital/:slug',   $f('recital-public.php'), [mw_rate_limit('recital', 120, 60)]);
 $r->post('/referral/capture', $f('referral-capture.php'), [mw_rate_limit('referral_capture', 30, 600)]);
 
 // Academic session resolved from the calendar — applied silently by the form.
@@ -192,6 +197,9 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     // §1.4 — submit a recorded take (audio) against one of your own assignments.
     $r->post('/take',                $f('student/take.php'),                [mw_csrf(), mw_role('student'), mw_rate_limit('take_upload', 20, 600)]);
     $r->get ('/submissions',         $f('student/submissions.php'),         [mw_role('student')]);
+    // The Recital Hall — see open calls, offer a polished piece, track it.
+    $r->get ('/recitals',            $f('student/recitals.php'),            [mw_role('student')]);
+    $r->post('/recitals',            $f('student/recitals.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('recital_propose', 30, 600)]);
     $r->get ('/repertoire',          $f('student/repertoire.php'),          [mw_role('student')]);
     $r->post('/repertoire',          $f('student/repertoire.php'),          [mw_csrf(), mw_role('student')]);
     $r->get ('/challenges',          $f('student/challenges.php'),          [mw_role('student')]);
@@ -345,6 +353,10 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->get ('/placement',       $f('admin/placement.php'),      [mw_admin_cap('admissions'), mw_rate_limit('ai_placement', 30, 600)]);
     $r->get ('/ai-triage',       $f('admin/ai-triage.php'),      [mw_admin_cap('admissions'), mw_rate_limit('ai_triage', 30, 600)]);
     // Media & documents library — aggregated class resources + portal photos.
+    // Recital curation. Capability is 'curriculum': programming a recital is an
+    // academic judgement about what a student is ready to perform.
+    $r->get ('/recitals',        $f('admin/recitals.php'),       [mw_admin_cap('curriculum')]);
+    $r->post('/recitals',        $f('admin/recitals.php'),       [mw_csrf(), mw_admin_cap('curriculum'), mw_rate_limit('admin_recitals', 120, 600)]);
     $r->get ('/media',           $f('admin/media.php'),          [mw_admin_cap('media')]);
     // Support hub — feedback, surveys, tickets (operational; super for full access).
     $r->get ('/support',         $f('admin/support.php'),        [mw_admin_cap('view')]);

@@ -472,6 +472,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'faculty_invite' => 'users', 'faculty_app_status' => 'users', 'faculty_request_review' => 'users',
         'module_proposal_review' => 'curriculum',
         'curriculum_clone' => 'curriculum',
+        // Programming a recital is an academic judgement about what a
+        // student is ready to perform, not an office task.
+        'recital_create' => 'curriculum', 'recital_update' => 'curriculum', 'recital_status' => 'curriculum',
+        'recital_decide' => 'curriculum', 'recital_reorder' => 'curriculum', 'recital_add_item' => 'curriculum',
         'course_create' => 'curriculum', 'course_update' => 'curriculum', 'course_toggle' => 'curriculum',
         'program_create' => 'curriculum', 'program_update' => 'curriculum',
         'link_course' => 'curriculum', 'unlink_course' => 'curriculum',
@@ -1696,6 +1700,90 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=referrals&' . ($ok ? 'ok=' . urlencode('Referral rewarded — the referrer\'s wallet was credited.') : 'err=' . urlencode('Could not reward that referral (already rewarded?).'))); exit;
     }
 
+    /* ── The Recital Hall ───────────────────────────────────────────────
+       Curation is an academic act, so every one of these sits behind the
+       'curriculum' capability (see $actionCaps). The lib owns the rules —
+       this block only translates a form post into a call and a message. */
+    if (strpos($action, 'recital_') === 0) {
+        $me  = mam_current_user();
+        $by  = $me ? (int)$me['id'] : null;
+        $rid = (int)($_POST['recital_id'] ?? 0);
+        $back = '?v=recitals' . ($rid ? '&r=' . $rid : '');
+        try {
+            if ($action === 'recital_create') {
+                $newId = mam_recital_create([
+                    'title'                => (string)($_POST['title'] ?? ''),
+                    'subtitle'             => (string)($_POST['subtitle'] ?? ''),
+                    'venue'                => (string)($_POST['venue'] ?? ''),
+                    'starts_at'            => ($_POST['starts_at'] ?? '') !== '' ? str_replace('T', ' ', (string)$_POST['starts_at']) . ':00' : null,
+                    'doors_open_at'        => ($_POST['doors_open_at'] ?? '') !== '' ? str_replace('T', ' ', (string)$_POST['doors_open_at']) . ':00' : null,
+                    'submissions_close_at' => ($_POST['submissions_close_at'] ?? '') !== '' ? str_replace('T', ' ', (string)$_POST['submissions_close_at']) . ':00' : null,
+                    'interval_min'         => (int)($_POST['interval_min'] ?? 15),
+                    'description'          => (string)($_POST['description'] ?? ''),
+                    'programme_note'       => (string)($_POST['programme_note'] ?? ''),
+                ], $by);
+                header('Location: ?v=recitals&r=' . $newId . '&ok=' . urlencode('Recital created — open it for submissions when you are ready.')); exit;
+            }
+            if ($action === 'recital_update') {
+                $f = [
+                    'title'          => (string)($_POST['title'] ?? ''),
+                    'subtitle'       => (string)($_POST['subtitle'] ?? ''),
+                    'venue'          => (string)($_POST['venue'] ?? ''),
+                    'description'    => (string)($_POST['description'] ?? ''),
+                    'programme_note' => (string)($_POST['programme_note'] ?? ''),
+                    'interval_min'   => (int)($_POST['interval_min'] ?? 15),
+                    'interval_after' => ($_POST['interval_after'] ?? '') === '' ? null : (int)$_POST['interval_after'],
+                ];
+                foreach (['starts_at', 'doors_open_at', 'submissions_close_at'] as $k) {
+                    $f[$k] = ($_POST[$k] ?? '') !== '' ? str_replace('T', ' ', (string)$_POST[$k]) . ':00' : null;
+                }
+                mam_recital_update($rid, $f, $by);
+                header('Location: ' . $back . '&ok=' . urlencode('Recital updated.')); exit;
+            }
+            if ($action === 'recital_status') {
+                mam_recital_set_status($rid, (string)($_POST['status'] ?? ''), $by);
+                $msg = ['open' => 'Submissions are open — students can now offer a piece.',
+                        'programmed' => 'Programme published. Performers and their guardians have been told.',
+                        'completed' => 'Recital closed. Every performed piece is now marked performed in the student\'s repertoire.',
+                        'draft' => 'Back to draft.',
+                        'cancelled' => 'Recital cancelled — everyone involved has been notified.'][(string)$_POST['status']] ?? 'Status updated.';
+                header('Location: ' . $back . '&ok=' . urlencode($msg)); exit;
+            }
+            if ($action === 'recital_decide') {
+                mam_recital_decide((int)($_POST['item_id'] ?? 0), (string)($_POST['decision'] ?? ''), $by, (string)($_POST['note'] ?? '') ?: null);
+                header('Location: ' . $back . '&ok=' . urlencode($_POST['decision'] === 'accepted' ? 'Accepted and added to the running order.' : 'Declined — the student has been told kindly.')); exit;
+            }
+            if ($action === 'recital_reorder') {
+                // The order arrives as "itemId:section" in running order.
+                $order = [];
+                foreach (explode(',', (string)($_POST['order'] ?? '')) as $tok) {
+                    $tok = trim($tok); if ($tok === '') continue;
+                    $bits = explode(':', $tok);
+                    $order[] = ['id' => (int)$bits[0], 'section' => $bits[1] ?? 'main'];
+                }
+                $n = mam_recital_reorder($rid, $order, $by);
+                header('Location: ' . $back . '&ok=' . urlencode($n . ' item' . ($n === 1 ? '' : 's') . ' repositioned.')); exit;
+            }
+            if ($action === 'recital_add_item') {
+                $sid = (int)($_POST['student_id'] ?? 0);
+                if ($sid < 1 || trim((string)($_POST['title'] ?? '')) === '') throw new InvalidArgumentException('student and title are required');
+                $itemId = mam_db_insert('recital_items', [
+                    'recital_id'   => $rid,
+                    'student_id'   => $sid,
+                    'title'        => mb_substr(trim((string)$_POST['title']), 0, 200),
+                    'composer'     => trim((string)($_POST['composer'] ?? '')) ?: null,
+                    'instrument'   => trim((string)($_POST['instrument'] ?? '')) ?: null,
+                    'duration_min' => max(1, min(60, (int)($_POST['duration_min'] ?? 4))),
+                    'status'       => 'proposed',
+                ]);
+                mam_recital_decide($itemId, 'accepted', $by, null);
+                header('Location: ' . $back . '&ok=' . urlencode('Added to the programme.')); exit;
+            }
+        } catch (\Throwable $ex) {
+            header('Location: ' . $back . '&err=' . urlencode('Could not do that: ' . $ex->getMessage())); exit;
+        }
+    }
+
     // Toggle a lifecycle automation on/off (super/settings only — gated above).
     // The flag is honoured at each rule's trigger point (see api/lib/automations.php).
     if ($action === 'automation_toggle') {
@@ -2362,7 +2450,7 @@ nav a{display:flex;align-items:center}
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open'], 'referrals' => ['Referrals', 'user-plus'], 'bi' => ['Business Intelligence', 'chart-pie']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
@@ -2373,7 +2461,7 @@ nav a{display:flex;align-items:center}
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -3563,6 +3651,250 @@ nav a{display:flex;align-items:center}
     <p class="muted" style="margin:0 0 14px;font-size:.82rem">Of students on an active or completed course enrolment, how many show any learning activity — a practice log, a session marked present/late, or a submission. "Still with us", not "still on the roster".</p>
     <p style="margin:0"><strong style="font-size:1.4rem"><?= number_format((int)$biRetention['active']) ?></strong> active of <?= number_format((int)$biRetention['enrolled']) ?> enrolled · <span class="muted"><?= number_format((int)$biRetention['dormant']) ?> dormant</span></p>
   </div>
+
+<?php elseif ($view === 'recitals'): ?>
+  <?php
+    $recId  = (int)($_GET['r'] ?? 0);
+    $recOne = $recId ? mam_recital($recId) : null;
+    $recAll = mam_recital_admin_list();
+    $dtl    = fn($v) => $v ? str_replace(' ', 'T', substr((string)$v, 0, 16)) : '';
+  ?>
+  <header class="top"><h1>Recital Hall</h1></header>
+
+  <?php if (!$recOne): ?>
+    <p class="muted" style="margin:0 0 14px">Recitals are the destination for everything students prepare. Create one, open it for submissions, curate the running order, then publish.</p>
+    <div class="card" style="margin-bottom:20px">
+      <?php if (!$recAll): ?><p class="muted" style="padding:16px">No recitals yet — create the first one below.</p><?php else: ?>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+        <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+          <th style="padding:8px">Recital</th><th style="padding:8px">When</th><th style="padding:8px">Status</th><th style="padding:8px">Proposals</th><th style="padding:8px">Programmed</th><th style="padding:8px"></th></tr></thead>
+        <tbody>
+        <?php foreach ($recAll as $rr): ?>
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:8px"><strong><?= htmlspecialchars((string)$rr['title']) ?></strong><?php if ($rr['venue']): ?><br><span class="muted" style="font-size:.78rem"><?= htmlspecialchars((string)$rr['venue']) ?></span><?php endif; ?></td>
+            <td style="padding:8px"><?= $rr['starts_at'] ? htmlspecialchars(date('j M Y, H:i', strtotime((string)$rr['starts_at']))) : '<span class="muted">—</span>' ?></td>
+            <td style="padding:8px"><span class="pill"><?= htmlspecialchars((string)$rr['status']) ?></span></td>
+            <td style="padding:8px"><?= (int)$rr['proposed_count'] ? '<strong style="color:var(--gold)">' . (int)$rr['proposed_count'] . ' waiting</strong>' : '<span class="muted">0</span>' ?></td>
+            <td style="padding:8px"><?= (int)$rr['programmed_count'] ?></td>
+            <td style="padding:8px;white-space:nowrap">
+              <a class="btn tiny" href="?v=recitals&r=<?= (int)$rr['id'] ?>">Curate</a>
+              <?php if (in_array($rr['status'], ['programmed','completed'], true)): ?>
+                <a class="btn tiny ghost" href="/recital/<?= htmlspecialchars((string)$rr['slug']) ?>" target="_blank" rel="noopener">Programme ↗</a>
+              <?php endif; ?>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody></table></div>
+      <?php endif; ?>
+    </div>
+
+    <section class="card" style="padding:18px">
+      <h2 style="margin:0 0 14px;font-size:1rem">Create a recital</h2>
+      <form method="post" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <?= mam_csrf_field() ?>
+        <input type="hidden" name="action" value="recital_create">
+        <label style="grid-column:1/-1">Title *<br><input type="text" name="title" required placeholder="Michaelmas Recital" style="width:100%"></label>
+        <label style="grid-column:1/-1">Subtitle<br><input type="text" name="subtitle" placeholder="An evening of first performances" style="width:100%"></label>
+        <label>Venue<br><input type="text" name="venue" placeholder="MAM Centre Hall" style="width:100%"></label>
+        <label>Starts<br><input type="datetime-local" name="starts_at" style="width:100%"></label>
+        <label>Doors open<br><input type="datetime-local" name="doors_open_at" style="width:100%"></label>
+        <label>Submissions close<br><input type="datetime-local" name="submissions_close_at" style="width:100%"></label>
+        <label>Interval (minutes)<br><input type="number" name="interval_min" value="15" min="0" max="60" style="width:100%"></label>
+        <label style="grid-column:1/-1">Description <span class="muted">(printed under the title)</span><br><textarea name="description" rows="2" style="width:100%;font-family:inherit"></textarea></label>
+        <label style="grid-column:1/-1">Programme note <span class="muted">(printed at the foot)</span><br><textarea name="programme_note" rows="3" style="width:100%;font-family:inherit"></textarea></label>
+        <div style="grid-column:1/-1"><button class="btn" type="submit">Create recital</button></div>
+      </form>
+    </section>
+
+  <?php else:
+    $prog     = mam_recital_programme_full($recId);
+    $allItems = mam_recital_items($recId);
+    $proposed = array_values(array_filter($allItems, fn($i) => $i['status'] === 'proposed'));
+    $decided  = array_values(array_filter($allItems, fn($i) => in_array($i['status'], ['declined','withdrawn'], true)));
+    $next     = mam_recital_transitions()[(string)$recOne['status']] ?? [];
+  ?>
+    <p style="margin:0 0 14px"><a class="btn tiny ghost" href="?v=recitals">← All recitals</a></p>
+
+    <div class="card" style="padding:18px;margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:flex-start">
+        <div>
+          <h2 style="margin:0;font-size:1.3rem"><?= htmlspecialchars((string)$recOne['title']) ?></h2>
+          <p class="muted" style="margin:4px 0 0">
+            <?= $recOne['starts_at'] ? htmlspecialchars(date('l j F Y, H:i', strtotime((string)$recOne['starts_at']))) : 'Date to be confirmed' ?>
+            <?= $recOne['venue'] ? ' · ' . htmlspecialchars((string)$recOne['venue']) : '' ?>
+          </p>
+        </div>
+        <div style="text-align:right">
+          <span class="pill" style="font-size:.8rem"><?= htmlspecialchars((string)$recOne['status']) ?></span>
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+            <?php foreach ($next as $to): ?>
+              <form method="post" style="display:inline" onsubmit="return confirm('Move this recital to &quot;<?= htmlspecialchars($to) ?>&quot;?')">
+                <?= mam_csrf_field() ?>
+                <input type="hidden" name="action" value="recital_status">
+                <input type="hidden" name="recital_id" value="<?= $recId ?>">
+                <input type="hidden" name="status" value="<?= htmlspecialchars($to) ?>">
+                <button class="btn tiny <?= in_array($to, ['cancelled'], true) ? 'ghost' : '' ?>" type="submit"><?= htmlspecialchars(ucfirst($to)) ?></button>
+              </form>
+            <?php endforeach; ?>
+            <?php if (in_array($recOne['status'], ['programmed','completed'], true)): ?>
+              <a class="btn tiny ghost" href="/recital/<?= htmlspecialchars((string)$recOne['slug']) ?>" target="_blank" rel="noopener">View programme ↗</a>
+            <?php endif; ?>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="margin:14px 0 0;font-size:.84rem">
+        Running order: <strong><?= (int)$prog['total_min'] ?> min</strong> across <strong><?= (int)$prog['performer_count'] ?></strong> performer<?= (int)$prog['performer_count'] === 1 ? '' : 's' ?><?= $prog['ends_at'] ? ' · ends about <strong>' . htmlspecialchars($prog['ends_at']) . '</strong>' : '' ?>
+      </p>
+    </div>
+
+    <?php if ($proposed): ?>
+    <section class="card" style="padding:18px;margin-bottom:18px">
+      <h2 style="margin:0 0 4px;font-size:1rem">Submissions awaiting a decision <span class="pill" style="color:var(--gold)"><?= count($proposed) ?></span></h2>
+      <p class="muted" style="margin:0 0 14px;font-size:.82rem">Accepting places a piece at the end of its section; ordering is a separate step below.</p>
+      <?php foreach ($proposed as $it): ?>
+        <div style="border-top:1px solid var(--border);padding:12px 0;display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+          <div>
+            <strong><?= htmlspecialchars((string)$it['title']) ?></strong>
+            <?= $it['composer'] ? ' <span class="muted">· ' . htmlspecialchars((string)$it['composer']) . '</span>' : '' ?>
+            <br><span style="color:var(--gold)"><?= htmlspecialchars((string)$it['student_name']) ?></span>
+            <span class="muted" style="font-size:.8rem"><?= $it['instrument'] ? ' — ' . htmlspecialchars((string)$it['instrument']) : '' ?> · <?= (int)$it['duration_min'] ?> min</span>
+            <?php if ($it['note']): ?><br><span class="muted" style="font-size:.8rem"><?= htmlspecialchars((string)$it['note']) ?></span><?php endif; ?>
+          </div>
+          <div style="display:flex;gap:6px">
+            <?php foreach ([['accepted','Accept',''],['declined','Decline','ghost']] as [$dec,$lbl,$cls]): ?>
+              <form method="post" style="display:inline">
+                <?= mam_csrf_field() ?>
+                <input type="hidden" name="action" value="recital_decide">
+                <input type="hidden" name="recital_id" value="<?= $recId ?>">
+                <input type="hidden" name="item_id" value="<?= (int)$it['id'] ?>">
+                <input type="hidden" name="decision" value="<?= $dec ?>">
+                <button class="btn tiny <?= $cls ?>" type="submit"><?= $lbl ?></button>
+              </form>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </section>
+    <?php endif; ?>
+
+    <section class="card" style="padding:18px;margin-bottom:18px">
+      <h2 style="margin:0 0 4px;font-size:1rem">Running order</h2>
+      <p class="muted" style="margin:0 0 14px;font-size:.82rem">Clock times are computed from the start time, each duration and the interval. Reorder by editing the position numbers and saving.</p>
+      <?php if (!$prog['items']): ?>
+        <p class="muted">Nothing accepted yet.</p>
+      <?php else: ?>
+      <form method="post">
+        <?= mam_csrf_field() ?>
+        <input type="hidden" name="action" value="recital_reorder">
+        <input type="hidden" name="recital_id" value="<?= $recId ?>">
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+          <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
+            <th style="padding:8px;width:70px">Order</th><th style="padding:8px">Time</th><th style="padding:8px">Work</th><th style="padding:8px">Performer</th><th style="padding:8px">Section</th><th style="padding:8px">Min</th></tr></thead>
+          <tbody>
+          <?php foreach ($prog['items'] as $it): if (!empty($it['interval'])): ?>
+            <tr style="border-top:1px solid var(--border);background:rgba(232,150,31,.06)">
+              <td style="padding:8px"></td>
+              <td style="padding:8px;font-variant-numeric:tabular-nums"><?= htmlspecialchars((string)($it['at'] ?? '')) ?></td>
+              <td style="padding:8px" colspan="3"><em class="muted">— Interval —</em></td>
+              <td style="padding:8px"><?= (int)$it['duration_min'] ?></td>
+            </tr>
+          <?php else: ?>
+            <tr style="border-top:1px solid var(--border)">
+              <td style="padding:8px"><input type="number" class="ro-pos" data-id="<?= (int)$it['id'] ?>" value="<?= (int)$it['position'] ?>" min="1" style="width:58px"></td>
+              <td style="padding:8px;font-variant-numeric:tabular-nums"><?= htmlspecialchars((string)($it['at'] ?? '—')) ?></td>
+              <td style="padding:8px"><strong><?= htmlspecialchars((string)$it['title']) ?></strong><?= $it['composer'] ? '<br><span class="muted" style="font-size:.8rem">' . htmlspecialchars((string)$it['composer']) . '</span>' : '' ?></td>
+              <td style="padding:8px"><?= htmlspecialchars((string)$it['student_name']) ?><?= $it['instrument'] ? '<br><span class="muted" style="font-size:.8rem">' . htmlspecialchars((string)$it['instrument']) . '</span>' : '' ?></td>
+              <td style="padding:8px">
+                <select class="ro-sec" data-id="<?= (int)$it['id'] ?>">
+                  <?php foreach (['opening'=>'Opening','main'=>'Main','finale'=>'Finale'] as $k=>$lbl): ?>
+                    <option value="<?= $k ?>" <?= $it['section'] === $k ? 'selected' : '' ?>><?= $lbl ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </td>
+              <td style="padding:8px"><?= (int)$it['duration_min'] ?></td>
+            </tr>
+          <?php endif; endforeach; ?>
+          </tbody></table></div>
+        <input type="hidden" name="order" id="roOrder">
+        <div style="display:flex;gap:10px;align-items:flex-end;margin-top:14px;flex-wrap:wrap">
+          <label>Interval after piece #<br><input type="number" name="interval_after_display" value="<?= $recOne['interval_after'] !== null ? (int)$recOne['interval_after'] : '' ?>" min="0" placeholder="none" style="width:90px" disabled></label>
+          <button class="btn" type="submit" id="roSave">Save running order</button>
+          <span class="muted" style="font-size:.8rem">Set the interval position in Details below.</span>
+        </div>
+      </form>
+      <script>
+      (function () {
+        var f = document.getElementById('roSave'); if (!f) return;
+        f.closest('form').addEventListener('submit', function () {
+          // Serialise as "id:section" sorted by the position the curator typed.
+          var rows = Array.prototype.map.call(document.querySelectorAll('.ro-pos'), function (inp) {
+            var id = inp.getAttribute('data-id');
+            var sec = document.querySelector('.ro-sec[data-id="' + id + '"]');
+            return { id: id, sec: sec ? sec.value : 'main', pos: parseInt(inp.value, 10) || 0 };
+          });
+          rows.sort(function (a, b) { return a.pos - b.pos; });
+          document.getElementById('roOrder').value = rows.map(function (r) { return r.id + ':' + r.sec; }).join(',');
+        });
+      })();
+      </script>
+      <?php endif; ?>
+    </section>
+
+    <section class="card" style="padding:18px;margin-bottom:18px">
+      <h2 style="margin:0 0 14px;font-size:1rem">Add a piece directly</h2>
+      <p class="muted" style="margin:-8px 0 14px;font-size:.82rem">A teacher who knows what a student should play does not need them to submit a form first.</p>
+      <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end">
+        <?= mam_csrf_field() ?>
+        <input type="hidden" name="action" value="recital_add_item">
+        <input type="hidden" name="recital_id" value="<?= $recId ?>">
+        <label>Student<br>
+          <select name="student_id" required style="width:100%">
+            <option value="">Choose…</option>
+            <?php foreach (mam_db_all("SELECT id, name FROM users WHERE role = 'student' AND status = 'active' ORDER BY name LIMIT 500") as $st): ?>
+              <option value="<?= (int)$st['id'] ?>"><?= htmlspecialchars((string)$st['name']) ?></option>
+            <?php endforeach; ?>
+          </select></label>
+        <label>Work *<br><input type="text" name="title" required style="width:100%"></label>
+        <label>Composer<br><input type="text" name="composer" style="width:100%"></label>
+        <label>Instrument<br><input type="text" name="instrument" style="width:100%"></label>
+        <label>Minutes<br><input type="number" name="duration_min" value="4" min="1" max="60" style="width:100%"></label>
+        <div><button class="btn" type="submit">Add</button></div>
+      </form>
+    </section>
+
+    <section class="card" style="padding:18px;margin-bottom:18px">
+      <h2 style="margin:0 0 14px;font-size:1rem">Details</h2>
+      <form method="post" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <?= mam_csrf_field() ?>
+        <input type="hidden" name="action" value="recital_update">
+        <input type="hidden" name="recital_id" value="<?= $recId ?>">
+        <label style="grid-column:1/-1">Title<br><input type="text" name="title" value="<?= htmlspecialchars((string)$recOne['title']) ?>" style="width:100%"></label>
+        <label style="grid-column:1/-1">Subtitle<br><input type="text" name="subtitle" value="<?= htmlspecialchars((string)($recOne['subtitle'] ?? '')) ?>" style="width:100%"></label>
+        <label>Venue<br><input type="text" name="venue" value="<?= htmlspecialchars((string)($recOne['venue'] ?? '')) ?>" style="width:100%"></label>
+        <label>Starts<br><input type="datetime-local" name="starts_at" value="<?= $dtl($recOne['starts_at']) ?>" style="width:100%"></label>
+        <label>Doors open<br><input type="datetime-local" name="doors_open_at" value="<?= $dtl($recOne['doors_open_at']) ?>" style="width:100%"></label>
+        <label>Submissions close<br><input type="datetime-local" name="submissions_close_at" value="<?= $dtl($recOne['submissions_close_at']) ?>" style="width:100%"></label>
+        <label>Interval after piece #<br><input type="number" name="interval_after" value="<?= $recOne['interval_after'] !== null ? (int)$recOne['interval_after'] : '' ?>" min="0" placeholder="no interval" style="width:100%"></label>
+        <label>Interval length (min)<br><input type="number" name="interval_min" value="<?= (int)$recOne['interval_min'] ?>" min="0" max="60" style="width:100%"></label>
+        <label style="grid-column:1/-1">Description<br><textarea name="description" rows="2" style="width:100%;font-family:inherit"><?= htmlspecialchars((string)($recOne['description'] ?? '')) ?></textarea></label>
+        <label style="grid-column:1/-1">Programme note<br><textarea name="programme_note" rows="3" style="width:100%;font-family:inherit"><?= htmlspecialchars((string)($recOne['programme_note'] ?? '')) ?></textarea></label>
+        <div style="grid-column:1/-1"><button class="btn" type="submit">Save details</button></div>
+      </form>
+    </section>
+
+    <?php if ($decided): ?>
+    <section class="card" style="padding:18px">
+      <h2 style="margin:0 0 14px;font-size:1rem">Not on the programme</h2>
+      <?php foreach ($decided as $it): ?>
+        <div style="border-top:1px solid var(--border);padding:9px 0;font-size:.88rem">
+          <span class="pill"><?= htmlspecialchars((string)$it['status']) ?></span>
+          <strong><?= htmlspecialchars((string)$it['title']) ?></strong> · <?= htmlspecialchars((string)$it['student_name']) ?>
+        </div>
+      <?php endforeach; ?>
+    </section>
+    <?php endif; ?>
+
+  <?php endif; ?>
 
 <?php elseif ($view === 'meet'): ?>
   <?php
