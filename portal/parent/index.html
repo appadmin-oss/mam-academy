@@ -105,7 +105,24 @@
           + up.map(function (s) { return '<tr><td>' + esc(s.title || s.cohort_title || 'Session') + '</td><td>' + esc(P.fmtDateTime(s.scheduled_at)) + '</td></tr>'; }).join('')
           + '</tbody></table></div></section>'
         : '';
-      content.innerHTML = back + kpis + status + resTbl + upTbl;
+      // §26 — instructor feedback on the child's work, so guardians see remarks not just grades.
+      var fb = d.instructor_feedback || [];
+      var outLabel = { accepted: 'Accepted', revise: 'Revise & resubmit', remedial: 'Remedial assigned', rejected: 'Not accepted' };
+      var outColor = { accepted: '#1FBF8F', revise: 'var(--gold-bright)', remedial: '#FB923C', rejected: '#F87171' };
+      var fbPanel = fb.length
+        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Instructor feedback</h2></div><div class="panel-body" style="display:grid;gap:12px">'
+          + fb.map(function (f) {
+              var lbl = outLabel[f.outcome] || f.outcome || '';
+              var col = outColor[f.outcome] || 'var(--text-muted)';
+              return '<div style="border-left:3px solid ' + col + ';padding:2px 0 2px 12px">'
+                + '<div style="font-size:.8rem;color:var(--text-muted)">' + esc(f.assignment_title || 'Submission') + (f.instructor_name ? ' · ' + esc(f.instructor_name) : '') + (f.at ? ' · ' + esc(String(f.at).slice(0, 10)) : '') + '</div>'
+                + '<div style="margin:3px 0">' + esc(f.comments) + '</div>'
+                + (lbl ? '<span class="pill" style="background:transparent;color:' + col + ';border:1px solid ' + col + '">' + esc(lbl) + '</span>' : '')
+                + '</div>';
+            }).join('')
+          + '</div></section>'
+        : '';
+      content.innerHTML = back + kpis + status + resTbl + fbPanel + upTbl;
       var bl = document.getElementById('backLink'); if (bl) bl.addEventListener('click', function (e) { e.preventDefault(); renderChildren(); });
     }).catch(function () { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load this child right now.') + '</div></section>'; });
   }

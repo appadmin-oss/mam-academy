@@ -46,6 +46,16 @@ $threw = false;
 try { mam_parent_child_detail($parentId, $stranger); } catch (\RuntimeException $e) { $threw = ($e->getMessage() === 'forbidden'); }
 t_ok($threw, 'child detail is refused for an unlinked student');
 
+// §26 — instructor feedback surfaces in the guardian view.
+$PR_ins = mam_db_insert('users', ['name' => 'PR Ins', 'email' => 'pr_ins@test.local', 'role' => 'instructor', 'password_hash' => 'x', 'status' => 'active']);
+$PR_asg = mam_db_insert('assignments', ['student_id' => $PR_stu, 'title' => 'Etude', 'status' => 'open']);
+$PR_sub = mam_db_insert('submissions', ['assignment_id' => $PR_asg, 'student_id' => $PR_stu, 'artifact_url' => 'https://x/y', 'artifact_kind' => 'link']);
+mam_lms_give_feedback($PR_sub, $PR_ins, ['outcome' => 'remedial', 'comments' => 'Focus on bar 4 dynamics.']);
+$detailFb = mam_parent_child_detail($parentId, $PR_stu);
+t_ok(!empty($detailFb['instructor_feedback']), 'child detail surfaces instructor feedback (§26)');
+t_eq($detailFb['instructor_feedback'][0]['comments'], 'Focus on bar 4 dynamics.', 'feedback comment reaches the guardian view');
+t_eq($detailFb['instructor_feedback'][0]['outcome'], 'remedial', 'feedback outcome reaches the guardian view');
+
 t_group('parents — unlink');
 
 mam_parent_unlink($parentId, $PR_stu2);

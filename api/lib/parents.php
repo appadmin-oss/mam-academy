@@ -133,5 +133,29 @@ function mam_parent_child_detail(int $parentId, int $studentId): array {
         'upcoming_sessions' => array_slice($report['upcoming_sessions'] ?? [], 0, 5),
         'reschedule_history'=> $report['reschedule_history'] ?? [],
         'announcements'     => array_slice($report['announcements'] ?? [], 0, 5),
+        // §26 — instructor feedback on the child's work, so guardians see the
+        // qualitative remarks, not only grades.
+        'instructor_feedback' => mam_parent_instructor_feedback($studentId),
     ];
+}
+
+/** Recent instructor feedback comments on a student's submissions (§26). */
+function mam_parent_instructor_feedback(int $studentId, int $limit = 10): array {
+    try {
+        return mam_db_all(
+            "SELECT f.outcome, f.comments,
+                    COALESCE(f.updated_at, f.created_at) AS at,
+                    a.title AS assignment_title, iu.name AS instructor_name
+               FROM feedback f
+               JOIN submissions s ON s.id = f.submission_id
+          LEFT JOIN assignments a ON a.id = s.assignment_id
+          LEFT JOIN users iu ON iu.id = f.instructor_id
+              WHERE s.student_id = ? AND f.comments IS NOT NULL AND TRIM(f.comments) <> ''
+              ORDER BY COALESCE(f.updated_at, f.created_at) DESC
+              LIMIT " . max(1, $limit),
+            [$studentId]
+        );
+    } catch (\Throwable $e) {
+        return [];
+    }
 }
