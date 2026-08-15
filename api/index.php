@@ -284,6 +284,8 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/progress-report',       $f('instructor/progress-report.php'),        [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('progress_report', 120, 600)]);
     // Submissions review + feedback (LMS L2) + AI grading assist (L4).
     $r->get ('/submissions',        $f('instructor/submissions.php'),     [mw_role('instructor', 'admin')]);
+    $r->get ('/markers',            $f('instructor/markers.php'),         [mw_role('instructor', 'admin')]);
+    $r->post('/markers',            $f('instructor/markers.php'),         [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/feedback',           $f('instructor/feedback.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/feedback-draft',     $f('instructor/feedback-draft.php'),  [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('ai_draft', 30, 600)]);
 });

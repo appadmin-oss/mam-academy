@@ -2027,3 +2027,18 @@ CREATE TABLE IF NOT EXISTS parent_links (
   CONSTRAINT fk_pl_by      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (71) ON DUPLICATE KEY UPDATE version = version;
+
+-- v73: timestamped audio/video feedback (Advanced Modernization §1.1) — markers
+-- pin an instructor comment to a moment in a submitted recording.
+CREATE TABLE IF NOT EXISTS submission_markers (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  submission_id INT          NOT NULL,
+  author_id     INT          NULL,
+  at_seconds    DECIMAL(9,3) NOT NULL DEFAULT 0,
+  comment       TEXT         NOT NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_submarkers_sub (submission_id, at_seconds),
+  CONSTRAINT fk_submarker_sub    FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_submarker_author FOREIGN KEY (author_id)     REFERENCES users(id)       ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (73) ON DUPLICATE KEY UPDATE version = version;

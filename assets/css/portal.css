@@ -556,3 +556,9 @@ html.a11y-lowbw .portal-avatar{background:var(--gold);color:#1B2430}
 .mp-count{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text-muted);cursor:pointer}
 .mp-count input{accent-color:var(--gold)}
 .mp-addmark{border:1px solid var(--gold);background:transparent;color:var(--gold);border-radius:8px;padding:5px 10px;font-size:.8rem;cursor:pointer}
+.mp-notes{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:5px}
+.mp-notes li{display:flex;gap:8px;align-items:baseline;font-size:.84rem;color:var(--text-soft);line-height:1.5}
+.mp-note-seek{flex:0 0 auto;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--gold-bright);font-size:.76rem;padding:2px 8px;cursor:pointer;font-variant-numeric:tabular-nums}
+.mp-note-seek:hover{border-color:var(--gold)}
+.mp-note-del{background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:.8rem;margin-left:auto}
+.mp-note-del:hover{color:var(--danger,#F87171)}

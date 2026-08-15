@@ -76,3 +76,19 @@ $draft = mam_ai_draft_feedback($sub, $ins);
 t_ok(is_array($draft) && !empty($draft['text']), 'AI feedback draft returns text when AI is enabled');
 t_ok(mam_ai_draft_feedback(99999, $ins) === null, 'AI draft for a missing submission is null (no crash)');
 mam_test_env(['AI_PROVIDER' => 'none']);
+
+t_group('lms — timestamped feedback markers (§1.1)');
+$m1 = mam_lms_marker_add($sub, $ins, 34.5, 'watch the wrist');
+$m2 = mam_lms_marker_add($sub, $ins, 12.0, 'lovely dynamics');
+$mks = mam_lms_markers($sub);
+t_eq(count($mks), 2, 'both markers stored');
+t_near((float)$mks[0]['at_seconds'], 12.0, 'markers return earliest-first');
+t_eq($mks[0]['comment'], 'lovely dynamics', 'marker comment stored');
+$threw = false; try { mam_lms_marker_add($sub, $ins, 5, '   '); } catch (\InvalidArgumentException $e) { $threw = $e->getMessage() === 'comment_required'; }
+t_ok($threw, 'a blank marker comment is rejected');
+$threw = false; try { mam_lms_marker_add(999999, $ins, 5, 'x'); } catch (\RuntimeException $e) { $threw = $e->getMessage() === 'submission_not_found'; }
+t_ok($threw, 'a marker on a missing submission is rejected');
+$threw = false; try { mam_lms_marker_delete($m1, 424242); } catch (\RuntimeException $e) { $threw = $e->getMessage() === 'forbidden'; }
+t_ok($threw, 'only the author may delete a marker');
+t_ok(mam_lms_marker_delete($m1, $ins), 'author deletes their marker');
+t_eq(count(mam_lms_markers($sub)), 1, 'delete removes the marker');

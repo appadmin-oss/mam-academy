@@ -1032,13 +1032,22 @@
   // A direct, in-browser-playable audio file (so the practice player can load
   // it). Page links (YouTube/Drive) keep the plain link instead.
   function isDirectAudio(u) { return typeof u === 'string' && /\.(mp3|m4a|aac|wav|ogg|oga|flac|webm)(\?|#|$)/i.test(u); }
+  function mpTime(s) { s = Number(s) || 0; var m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + (r < 10 ? '0' : '') + r; }
   function submissionStatusHtml(s) {
     if (!s) return '';
     var label = { submitted: 'Submitted — awaiting feedback', accepted: 'Accepted ✓', needs_resubmission: 'Revise & resubmit', remedial: 'Remedial assigned', rejected: 'Not accepted' }[s.status] || s.status;
     var color = s.status === 'accepted' ? 'var(--emerald)' : (s.status === 'needs_resubmission' || s.status === 'remedial' || s.status === 'rejected' ? '#FB7185' : 'var(--gold-bright)');
     var h = '<div style="margin-top:6px;font-size:0.84rem"><strong style="color:' + color + '">' + P.escapeHtml(label) + '</strong>';
     if (s.artifact_url) h += ' · <a href="' + P.escapeHtml(/^https?:\/\//i.test(s.artifact_url) ? s.artifact_url : '#') + '" target="_blank" rel="noopener" style="color:var(--gold-bright)">your submission ↗</a>';
-    if (s.artifact_kind === 'audio' && isDirectAudio(s.artifact_url)) h += '<div class="mp-host" data-src="' + P.escapeHtml(s.artifact_url) + '"></div>';
+    if (s.artifact_kind === 'audio' && isDirectAudio(s.artifact_url)) {
+      var mk = (s.markers || []).map(function (m) { return { at: Number(m.at_seconds) || 0, label: m.comment }; });
+      h += '<div class="mp-host" data-src="' + P.escapeHtml(s.artifact_url) + '" data-markers=\'' + P.escapeHtml(JSON.stringify(mk)) + '\'></div>';
+      if (mk.length) {
+        h += '<ul class="mp-notes">' + mk.map(function (m) {
+          return '<li><button type="button" class="mp-note-seek" data-at="' + m.at + '"><i class="fa-solid fa-location-dot"></i> ' + mpTime(m.at) + '</button><span>' + P.escapeHtml(m.label) + '</span></li>';
+        }).join('') + '</ul>';
+      }
+    }
     if (s.feedback_comments) h += '<div style="margin-top:4px;color:var(--text-soft);line-height:1.5"><i class="fa-solid fa-comment" style="margin-right:5px;color:var(--gold-bright)"></i>' + P.escapeHtml(s.feedback_comments) + (s.feedback_by ? ' — ' + P.escapeHtml(s.feedback_by) : '') + '</div>';
     return h + '</div>';
   }
@@ -1046,7 +1055,14 @@
     if (!window.MAM_PLAYER) return;
     (root || document).querySelectorAll('.mp-host:not([data-mounted])').forEach(function (host) {
       host.setAttribute('data-mounted', '1');
-      window.MAM_PLAYER.mount(host, { src: host.getAttribute('data-src') });
+      var mk = []; try { mk = JSON.parse(host.getAttribute('data-markers') || '[]'); } catch (e) {}
+      var ctrl = window.MAM_PLAYER.mount(host, { src: host.getAttribute('data-src'), markers: mk });
+      var notes = host.nextElementSibling;
+      if (notes && notes.classList && notes.classList.contains('mp-notes')) {
+        notes.querySelectorAll('.mp-note-seek').forEach(function (b) {
+          b.addEventListener('click', function () { ctrl.seek(Number(b.getAttribute('data-at')) || 0); if (ctrl.audio.play) ctrl.audio.play().catch(function () {}); });
+        });
+      }
     });
   }
   function loadSubmissionStatuses() {

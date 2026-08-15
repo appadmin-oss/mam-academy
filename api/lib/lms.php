@@ -960,6 +960,42 @@ function mam_lms_give_feedback(int $submissionId, int $instructorId, array $d): 
     return ['ok' => true, 'status' => $status, 'feedback_id' => $fid];
 }
 
+/* ── Timestamped feedback markers (Advanced Modernization §1.1) ─────────────── */
+
+/** Markers on a submission (a comment pinned to a moment), earliest first. */
+function mam_lms_markers(int $submissionId): array {
+    return mam_db_all(
+        "SELECT m.id, m.submission_id, m.at_seconds, m.comment, m.author_id, m.created_at, u.name AS author_name
+           FROM submission_markers m
+      LEFT JOIN users u ON u.id = m.author_id
+          WHERE m.submission_id = ?
+          ORDER BY m.at_seconds ASC, m.id ASC",
+        [$submissionId]
+    );
+}
+
+/** Add a timestamped marker. Returns the new marker id. */
+function mam_lms_marker_add(int $submissionId, ?int $authorId, float $at, string $comment): int {
+    if (!mam_db_row('SELECT id FROM submissions WHERE id = ?', [$submissionId])) throw new RuntimeException('submission_not_found');
+    $comment = trim($comment);
+    if ($comment === '') throw new InvalidArgumentException('comment_required');
+    return mam_db_insert('submission_markers', [
+        'submission_id' => $submissionId,
+        'author_id'     => $authorId,
+        'at_seconds'    => max(0.0, round($at, 3)),
+        'comment'       => mb_substr($comment, 0, 2000),
+    ]);
+}
+
+/** Delete a marker (only its author, or pass null authorId to force). */
+function mam_lms_marker_delete(int $markerId, ?int $authorId = null): bool {
+    $row = mam_db_row('SELECT author_id FROM submission_markers WHERE id = ?', [$markerId]);
+    if (!$row) return false;
+    if ($authorId !== null && (int)$row['author_id'] !== $authorId) throw new RuntimeException('forbidden');
+    mam_db()->prepare('DELETE FROM submission_markers WHERE id = ?')->execute([$markerId]);
+    return true;
+}
+
 /** Submissions for an assignment (newest first) with student name + feedback. */
 function mam_lms_assignment_submissions(int $assignmentId): array {
     return mam_db_all(

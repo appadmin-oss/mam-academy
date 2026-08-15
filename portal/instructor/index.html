@@ -79,6 +79,7 @@
 
 <script src="/assets/js/config.js?v=20260807a"></script>
 <script src="/assets/js/portal.js?v=20260815a"></script>
+<script src="/assets/js/practice-player.js?v=20260815a" defer></script>
 <script src="/assets/js/libs.js?v=20260530a" async></script>
 <!-- Self-hosted QR generator (MIT, qrcodejs) for the attendance check-in QR (#9/#10). -->
 <script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
@@ -231,6 +232,7 @@
       var cards = subs.map(function (s) {
         return '<div class="panel" data-subid="' + s.id + '" style="margin-bottom:14px"><div class="panel-head"><h2 style="font-size:0.98rem">' + P.escapeHtml(s.student_name) + ' <span class="pill ' + P.escapeHtml(s.status) + '" style="margin-left:6px">' + P.escapeHtml(s.status) + '</span></h2>'
           + (s.artifact_url ? '<a href="' + P.escapeHtml(/^https?:\/\//i.test(s.artifact_url) ? s.artifact_url : '#') + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.85rem"><i class="fa-solid fa-' + (icon[s.artifact_kind] || 'link') + '" style="margin-right:5px"></i>open ↗</a>' : '') + '</div>'
+          + ((s.artifact_kind === 'audio' && /\.(mp3|m4a|aac|wav|ogg|oga|flac|webm)(\?|#|$)/i.test(s.artifact_url || '')) ? '<div style="padding:0 18px"><div class="mp-host" data-subid="' + s.id + '" data-src="' + P.escapeHtml(s.artifact_url) + '"></div><ul class="mp-notes"></ul></div>' : '')
           + '<form class="fb-form profile-form" style="padding:14px 18px;display:grid;gap:10px">'
           +   '<div class="field"><label>Feedback</label><textarea name="comments" rows="2" placeholder="What worked, what to fix…">' + P.escapeHtml(s.feedback_comments || '') + '</textarea></div>'
           +   '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><select name="outcome"><option value="accepted"' + (s.feedback_outcome === 'accepted' ? ' selected' : '') + '>Accept</option><option value="revise"' + (s.feedback_outcome === 'revise' ? ' selected' : '') + '>Revise &amp; resubmit</option><option value="remedial"' + (s.feedback_outcome === 'remedial' ? ' selected' : '') + '>Assign remedial</option><option value="rejected"' + (s.feedback_outcome === 'rejected' ? ' selected' : '') + '>Reject</option></select>'
@@ -260,7 +262,44 @@
           }).catch(function () { b.disabled = false; b.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('AI draft failed.', 'error'); });
         });
       });
+      // §1.1 — mount the practice player on audio submissions and let the
+      // instructor pin timestamped comments onto the waveform.
+      if (window.MAM_PLAYER) {
+        area.querySelectorAll('.mp-host:not([data-mounted])').forEach(function (host) {
+          host.setAttribute('data-mounted', '1');
+          var subId = parseInt(host.getAttribute('data-subid'), 10);
+          var notes = host.nextElementSibling;
+          var ctrl = window.MAM_PLAYER.mount(host, { src: host.getAttribute('data-src'), canAddMarker: true, onAddMarker: function (at) { addMarker(subId, at, ctrl, notes); } });
+          loadMarkers(subId, ctrl, notes);
+        });
+      }
     }).catch(function () { area.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load submissions.') + '</div></section>'; });
+  }
+  // ── Timestamped feedback marker helpers (§1.1) ──
+  function mkTime(s) { s = Number(s) || 0; var m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + (r < 10 ? '0' : '') + r; }
+  function renderMarkerNotes(list, ctrl, notes, subId) {
+    if (!notes) return;
+    list = list || [];
+    ctrl.setMarkers(list.map(function (m) { return { at: Number(m.at_seconds) || 0, label: m.comment }; }));
+    notes.innerHTML = list.map(function (m) {
+      return '<li><button type="button" class="mp-note-seek" data-at="' + (Number(m.at_seconds) || 0) + '"><i class="fa-solid fa-location-dot"></i> ' + mkTime(m.at_seconds) + '</button><span>' + P.escapeHtml(m.comment) + '</span><button type="button" class="mp-note-del" data-id="' + m.id + '" title="Delete note">&times;</button></li>';
+    }).join('');
+    notes.querySelectorAll('.mp-note-seek').forEach(function (b) { b.addEventListener('click', function () { ctrl.seek(Number(b.getAttribute('data-at')) || 0); }); });
+    notes.querySelectorAll('.mp-note-del').forEach(function (b) { b.addEventListener('click', function () { delMarker(subId, parseInt(b.getAttribute('data-id'), 10), ctrl, notes); }); });
+  }
+  function loadMarkers(subId, ctrl, notes) {
+    API.request('instructor/markers?submission_id=' + subId, { method: 'GET' }).then(function (r) { renderMarkerNotes(r.markers || [], ctrl, notes, subId); }).catch(function () {});
+  }
+  function addMarker(subId, at, ctrl, notes) {
+    var c = window.prompt('Comment at ' + mkTime(at) + ':');
+    if (c == null || !c.trim()) return;
+    API.request('instructor/markers', { method: 'POST', body: { submission_id: subId, at: at, comment: c.trim() } })
+      .then(function (r) { renderMarkerNotes(r.markers || [], ctrl, notes, subId); if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Note pinned at ' + mkTime(at) + '.', 'success'); })
+      .catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not add note.', 'error'); });
+  }
+  function delMarker(subId, id, ctrl, notes) {
+    API.request('instructor/markers', { method: 'POST', body: { action: 'delete', id: id } })
+      .then(function (r) { renderMarkerNotes(r.markers || [], ctrl, notes, subId); }).catch(function () {});
   }
 
   // ── Gradebook (v16 LMS): weighted assessment entry → auto results ──────

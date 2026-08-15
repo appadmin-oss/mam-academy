@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 72;
+const MAM_SCHEMA_TARGET = 73;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2198,6 +2198,19 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE teachbacks ADD COLUMN explanation INTEGER;
             ALTER TABLE teachbacks ADD COLUMN application INTEGER;
             ALTER TABLE teachbacks ADD COLUMN confidence  INTEGER;
+        ",
+        // v73 — timestamped audio/video feedback (Advanced Modernization §1.1):
+        // markers pin a comment to a moment in a submitted recording.
+        73 => "
+            CREATE TABLE submission_markers (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+              author_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              at_seconds    REAL NOT NULL DEFAULT 0,
+              comment       TEXT NOT NULL,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_submarkers_sub ON submission_markers(submission_id, at_seconds);
         ",
     ];
 
