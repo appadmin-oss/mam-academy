@@ -89,3 +89,44 @@ t_ok(mam_export_checksum($uni) !== mam_export_checksum([['id' => 1, 'name' => 'C
 // Two different tables with identical content SHOULD share a checksum — the
 // digest describes rows, and the manifest keys it by table name.
 t_eq(mam_export_checksum($rows), mam_export_checksum($shuffled), 'identical content hashes identically');
+
+t_group('ETL export — the CLI and web tools cannot drift apart');
+
+// A snapshot taken through the browser must verify with the CLI tool. That only
+// holds if both files hash rows identically, so compare the function bodies
+// mechanically rather than trusting anyone to keep them in step by hand.
+$cli = file_get_contents(dirname(__DIR__) . '/tools/export.php');
+$web = file_get_contents(dirname(__DIR__) . '/tools/export-web.php');
+t_ok($web !== false && $web !== '', 'the web export tool exists');
+
+// Compare BEHAVIOUR, not prose: comments may legitimately differ between the
+// two files, but a single changed operator would break cross-verification.
+$normalise = function (string $body): string {
+    $b = preg_replace('~/\*.*?\*/~s', '', $body);   // block comments
+    $b = preg_replace('~//.*$~m', '', $b);            // line comments
+    return trim(preg_replace('/\s+/', ' ', $b));
+};
+foreach (['mam_export_row_hash', 'mam_export_checksum', 'mam_export_quote_ident'] as $fn) {
+    $re = '/\nfunction ' . preg_quote($fn, '/') . '\(.*?\n\}/s';
+    preg_match($re, $cli, $a);
+    preg_match($re, $web, $b);
+    t_ok(!empty($a[0]) && !empty($b[0]), "$fn is defined in both tools");
+    t_eq($normalise((string) ($b[0] ?? 'B')), $normalise((string) ($a[0] ?? 'A')),
+         "$fn behaves identically in both tools (a snapshot taken in the browser must verify on the CLI)");
+}
+
+// The web tool must ship locked: an unset token means anyone who finds the URL
+// gets the database.
+t_ok((bool) preg_match("/const MAM_EXPORT_TOKEN = '';/", $web),
+     'the web tool ships with an EMPTY token so it refuses until configured');
+t_ok(strpos($web, 'hash_equals') !== false, 'and compares the token with hash_equals');
+t_ok(strpos($web, 'Refusing to send a full database export over plain HTTP') !== false,
+     'and refuses to transmit the database over plain HTTP');
+
+// Neither tool may reach the application, whose mam_db() runs the migrator.
+foreach (['export.php' => $cli, 'export-web.php' => $web] as $name => $src) {
+    $code = preg_replace('~/\*.*?\*/~s', '', $src);
+    $code = preg_replace('~^\s*//.*$~m', '', $code);
+    t_ok(strpos($code, 'bootstrap.php') === false, "$name never loads bootstrap.php");
+    t_ok(strpos($code, 'mam_db(') === false, "$name never calls mam_db() (which would migrate)");
+}
