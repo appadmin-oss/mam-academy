@@ -3,5 +3,8 @@ api/storage/mam.db*
 api/storage/.app_key
 api/.env
 api/storage/og/
+# ETL snapshots hold a full copy of the database — identity, payments,
+# audit and consent rows. They are a rollback artifact, never a commit.
+api/storage/export/
 # Uploaded headshots — real people's photographs, never committed.
 api/storage/uploads/
