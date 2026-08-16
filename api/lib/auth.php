@@ -258,41 +258,91 @@ function mam_admin_access_outcome(bool $isAdmin, bool $isSignedIn, bool $basicOk
 }
 
 /**
- * The signed-in admin behind this request, or null when the caller reached us
- * through the Basic-Auth break-glass and therefore has no user record.
- *
- * Routes gated by mw_admin_cap() are already authorised by the time they run,
- * so they do NOT need to re-check the role — doing so would only add a
- * mam_require_user() that 401s a break-glass operator. What they may still
- * need is the actor's identity, which is what this returns.
+ * The recovery identity. Address is under the RFC 2606 `.invalid` TLD, which is
+ * guaranteed never to resolve, so nothing can ever deliver mail to it.
  */
-function mam_admin_actor(): ?array {
-    $u = mam_current_user();
-    return ($u && mam_user_has_role($u, 'admin')) ? $u : null;
+const MAM_RECOVERY_EMAIL = 'break-glass@mam.invalid';
+
+/**
+ * Was THIS request authorised by the Basic-Auth break-glass rather than a
+ * session? Set once by mam_require_admin(); read by mam_admin_actor().
+ * Per-request state, so it cannot leak between callers.
+ */
+function mam_break_glass_active(?bool $set = null): bool {
+    static $active = false;
+    if ($set !== null) $active = $set;
+    return $active;
 }
 
 /**
- * The signed-in admin, REQUIRED — for a write that records who performed it.
+ * The users row that break-glass actions are attributed to, created on first
+ * use. This exists so a recovery-credential action can be WRITTEN down: the
+ * ledger columns it lands in (`resolved_by`, `created_by`, a ticket reply's
+ * `author_id`) are non-nullable foreign keys into users(id), so without a real
+ * row the only options were 0 — which violates the constraint — or NULL, which
+ * erases who acted (CLAUDE.md gotcha #3).
  *
- * The break-glass account is a recovery credential, not a person: it has no
- * users row, so an action taken through it cannot be attributed. Every caller
- * of this writes an actor into an audit or attribution column
- * (`resolved_by`, `created_by`, a ticket reply's `author_id` that the student
- * is shown), and columns like `enrolment_events.actor_id` carry a users(id)
- * foreign key — a NULL or 0 actor either destroys the audit row or violates
- * the constraint (see CLAUDE.md gotcha #3).
+ * It is deliberately NOT a usable account. `status = 'system'` is rejected by
+ * every path that requires 'active': mam_login(), mam_session_user() and the
+ * password-reset lookup. It also carries a bcrypt hash of 32 random bytes that
+ * is never stored anywhere, so even if some future code path forgot the status
+ * gate there is no password that verifies against it.
  *
- * So writes stay session-only, and say so plainly rather than answering a bare
- * 401 that invites the operator to retry the credentials that just worked.
- * Reads remain available through the break-glass, which is what a recovery
- * credential is actually for.
+ * It is left VISIBLE in the users list on purpose. A hidden admin account is a
+ * security smell; an operator should be able to see that this identity exists
+ * and what it has done.
+ */
+function mam_admin_recovery_user(): array {
+    $row = mam_db_row('SELECT * FROM users WHERE email = ?', [MAM_RECOVERY_EMAIL]);
+    if ($row) return $row;
+    try {
+        mam_db_insert('users', [
+            'email'         => MAM_RECOVERY_EMAIL,
+            'name'          => 'Break-glass recovery',
+            'role'          => 'admin',
+            'status'        => 'system',
+            'password_hash' => password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
+        ]);
+        mam_audit('break_glass_identity_created', 'user', null, ['email' => MAM_RECOVERY_EMAIL]);
+    } catch (\Throwable $e) {
+        // Lost the race against a concurrent request — the unique email means
+        // the other one won, so re-read rather than failing the request.
+    }
+    $row = mam_db_row('SELECT * FROM users WHERE email = ?', [MAM_RECOVERY_EMAIL]);
+    if (!$row) throw new RuntimeException('recovery_user_unavailable');
+    return $row;
+}
+
+/**
+ * The admin behind this request: the signed-in user, or — when the caller came
+ * through the Basic-Auth break-glass — the recovery identity above.
+ *
+ * Routes gated by mw_admin_cap() are already authorised by the time they run,
+ * so they do NOT need to re-check the role; doing so would only add a
+ * mam_require_user() that 401s a break-glass operator. What they still need is
+ * an identity to attribute the action to, which is what this returns.
+ */
+function mam_admin_actor(): ?array {
+    $u = mam_current_user();
+    if ($u && mam_user_has_role($u, 'admin')) return $u;
+    if (mam_break_glass_active()) return mam_admin_recovery_user();
+    return null;
+}
+
+/**
+ * The admin actor, REQUIRED — for a write that records who performed it.
+ *
+ * Always resolves for an authorised caller: a session admin, or the recovery
+ * identity when the break-glass was used. The failure below is therefore a
+ * belt-and-braces guard for a route that somehow reached a write without
+ * passing mw_admin_cap() at all — it should be unreachable in practice, and it
+ * fails closed rather than writing an unattributed row.
  */
 function mam_admin_require_actor(): array {
     $u = mam_admin_actor();
     if (!$u) {
         mam_fail('admin_session_required', 403, [
-            'detail' => 'This action records who performed it, so it needs a named admin account. '
-                      . 'The break-glass credential can read but not write — sign in as an admin user.',
+            'detail' => 'This action records who performed it, so it needs an admin identity.',
         ]);
     }
     return $u;
@@ -344,7 +394,11 @@ function mam_require_admin(): void {
     // logged-in student the server was broken, and told an API client to retry
     // later on what is a permanent refusal.
     switch (mam_admin_access_outcome(false, (bool) $u, $basicOk)) {
-        case 'allow':     return;
+        case 'allow':
+            // Remember HOW this request was authorised, so a write can attribute
+            // itself to the recovery identity rather than to nobody.
+            mam_break_glass_active(true);
+            return;
         case 'forbidden': mam_fail('forbidden', 403);
     }
 

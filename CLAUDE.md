@@ -460,6 +460,21 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
 
 ## Security posture (don't weaken)
 
+**The break-glass credential has an identity.** `ADMIN_USER`/`ADMIN_PASSWORD_HASH`
+authorises a caller with no session, which used to mean admin API routes 401'd
+it (their bodies re-checked `mam_require_role('admin')` on top of the
+`mw_admin_cap()` already on the route — the middleware is the stronger check, so
+the inner call only added a `mam_require_user()`). Routes now take the actor from
+**`mam_admin_actor()`**, which returns the session admin or, under break-glass,
+the `break-glass@mam.invalid` recovery row (`status='system'`, created on first
+use). That row exists because `resolved_by`/`created_by`/`author_id` are
+non-nullable FKs into `users(id)` — 0 breaks the constraint, NULL erases who
+acted (gotcha #3). It is **not a usable account**: every login path requires
+`status='active'`, and its hash is of 32 random bytes never stored. Two records
+result and both matter — the ledger names the identity, `audit_log.actor` names
+the credential (`PHP_AUTH_USER`). Don't re-add a role check inside an
+`mw_admin_cap()` route, and don't make an actor id nullable to "simplify" this.
+
 bcrypt + rehash-on-login; hashed session tokens; HttpOnly/SameSite=Lax cookies
 (`COOKIE_SECURE`); rate-limited auth; password reset/change revoke other sessions;
 CSRF on all mutations + session-bound; webhooks HMAC-verified + idempotent; payments

@@ -112,30 +112,63 @@ foreach ([[false, false], [false, true], [true, false], [true, true]] as [$isAdm
     t_ok($out !== 'unavailable', 'no outcome reports the server as misconfigured');
 }
 
-// ── The break-glass actor split ─────────────────────────────────────────────
+// ── The break-glass recovery identity ───────────────────────────────────────
 // Admin routes are authorised by mw_admin_cap(), so their bodies do not
 // re-check the role — that only added a mam_require_user() which 401s a
-// Basic-Auth break-glass operator. Reads are now reachable that way; writes
-// still need a named actor, because each records who performed it.
-t_group('auth — break-glass reads, session-only writes');
+// Basic-Auth break-glass operator. Writes still need an actor to attribute the
+// action to, so the break-glass resolves to a dedicated recovery users row
+// rather than to nobody.
+t_group('auth — the break-glass recovery identity');
 
-// mam_admin_actor() is null with no session, which is exactly the break-glass
-// case. mam_session_user() memoises per process, so this is the reachable
-// assertion; the decision it feeds is covered by the table above.
-t_ok(mam_admin_actor() === null, 'no session → no named actor (the break-glass case)');
-
+// Default state: no session and no break-glass → no actor at all.
+t_ok(mam_break_glass_active() === false, 'a request is not break-glass by default');
+t_ok(mam_admin_actor() === null, 'and therefore has no admin actor');
 $threw = null;
 try { mam_admin_require_actor(); } catch (\RuntimeException $e) { $threw = $e->getMessage(); }
 t_eq($threw, 'mam_fail:admin_session_required:403',
-     'a write without a named actor is refused 403, not 401');
-// 401 would invite the operator to retry credentials that already worked, and
-// 503 would claim the server was broken. Neither is true.
-t_ok(strpos((string) $threw, ':401') === false, 'and specifically not 401');
-t_ok(strpos((string) $threw, ':503') === false, 'and specifically not 503');
+     'a write with no identity at all fails closed, rather than writing an unattributed row');
 
-// Every actor-taking callee still demands a real int, which is why writes
-// cannot simply pass null: these columns are attribution, and one of them is
-// shown to the student.
+// Once the guard has recorded a break-glass authorisation, the actor resolves.
+mam_break_glass_active(true);
+$rec = mam_admin_actor();
+t_ok(is_array($rec), 'a break-glass request DOES have an actor');
+t_eq($rec['email'], MAM_RECOVERY_EMAIL, 'it is the dedicated recovery identity');
+t_eq($rec['role'], 'admin', 'which holds the admin role');
+t_ok((int) $rec['id'] > 0, 'and is a real users row, so it can satisfy a foreign key');
+t_eq(mam_admin_require_actor()['id'], $rec['id'], 'so a write now resolves an actor instead of failing');
+
+// The identity must NOT be a usable account. Every login path requires
+// status='active'; this one is deliberately not.
+t_eq($rec['status'], 'system', 'the recovery row is not an active account');
+t_ok($rec['status'] !== 'active', 'so mam_login(), mam_session_user() and password reset all skip it');
+t_ok(mam_db_row("SELECT id FROM users WHERE email = ? AND status = 'active'", [MAM_RECOVERY_EMAIL]) === null,
+     'the exact query those three paths run returns nothing');
+// Even if a future code path forgot the status gate, no known password works:
+// the hash is of 32 random bytes that were never stored.
+t_ok(!password_verify('', (string) $rec['password_hash']), 'an empty password does not verify');
+t_ok(!password_verify('password', (string) $rec['password_hash']), 'nor does a guessable one');
+t_ok(strlen((string) $rec['password_hash']) >= 55, 'the stored value is a real bcrypt hash, not a placeholder');
+
+// Address is under RFC 2606 `.invalid`, which can never resolve, so nothing
+// can accidentally deliver mail to the recovery identity.
+t_ok(substr(MAM_RECOVERY_EMAIL, -8) === '.invalid', 'the address is permanently undeliverable');
+
+// Get-or-create is idempotent — a second call must not make a second admin.
+$again = mam_admin_recovery_user();
+t_eq($again['id'], $rec['id'], 'resolving it twice returns the same row');
+t_eq((int) (mam_db_row('SELECT COUNT(*) c FROM users WHERE email = ?', [MAM_RECOVERY_EMAIL])['c'] ?? 0), 1,
+     'and there is exactly one recovery identity');
+
+// A real session admin always outranks the recovery identity.
+$sessionAdmin = mam_db_row('SELECT * FROM users WHERE email = ?', ['t_admin@x.dev']);
+t_ok(mam_user_has_role($sessionAdmin, 'admin'), 'the seeded session admin holds the role');
+t_ok((int) $sessionAdmin['id'] !== (int) $rec['id'], 'and is a different identity from the recovery row');
+
+mam_break_glass_active(false); // leave the request state as we found it
+t_ok(mam_admin_actor() === null, 'clearing the flag removes the actor again');
+
+// Actor-taking callees still demand a real int — which is exactly why the
+// recovery row has to exist rather than passing null.
 foreach ([
     ['mam_accountability_resolve', 1],
     ['mam_fine_resolve',           1],
