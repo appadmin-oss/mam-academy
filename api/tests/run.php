@@ -65,6 +65,7 @@ require $ROOT . '/lib/store.php';           // store totals (server-authoritativ
 require $ROOT . '/lib/mailer.php';          // mail helpers + outbox (record/retry)
 require $ROOT . '/lib/ai.php';              // provider-agnostic AI gateway
 require $ROOT . '/lib/admissions.php';      // applicant status lookup
+require $ROOT . '/lib/enrol-complete.php'; // one-action enrolment completion
 require $ROOT . '/lib/invoicing.php';       // application invoice lifecycle (auto-invoice + expiry)
 require $ROOT . '/lib/jobs.php';            // automation spine (events + jobs)
 require $ROOT . '/lib/funnel.php';          // first-party funnel analytics

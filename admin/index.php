@@ -536,6 +536,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'acadmail_toggle' => 'settings',
         'referral_reward' => 'settings',
         'record_placement' => 'admissions',
+        'enrol_complete'  => 'admissions',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
         'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
         // Destructive record deletions + bulk seeding are super-only — a manager
@@ -1729,6 +1730,36 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // auditer_results row and (when the 'auditer_placement' automation is on)
     // ensures the account + enrols them at the recommended level (see
     // api/lib/auditer.php). Gated to the 'admissions' cap above.
+    // Complete an enrolment: account → course → class → instructor, in one
+    // action. Before this, marking an application "enrolled" created a portal
+    // account and an ID card and stopped — no course, no class, no teacher — so
+    // the academy had five applications marked accepted/enrolled against one
+    // course enrolment. The status was a label, not an outcome.
+    if ($action === 'enrol_complete') {
+        $id = (int)($_POST['app_id'] ?? 0);
+        $overrides = array_filter([
+            'course'     => trim((string)($_POST['course'] ?? '')),
+            'level'      => trim((string)($_POST['level'] ?? '')),
+            'programme'  => trim((string)($_POST['programme'] ?? '')),
+            'instructor' => trim((string)($_POST['instructor'] ?? '')),
+        ], fn ($v) => $v !== '');
+        // `level` is legitimately blank-able: the form offers "no level", and
+        // array_filter would drop it and silently fall back to the application.
+        if (isset($_POST['level']) && $_POST['level'] === '') $overrides['level'] = '';
+        try {
+            $res = mam_enrol_complete($id, $overrides, ((int)($adminUser['id'] ?? 0)) ?: null);
+        } catch (Throwable $e) {
+            header('Location: ?v=applications&app=' . $id . '&err=' . urlencode($e->getMessage())); exit;
+        }
+        // Every step is reported, success or not. The old provisioning path
+        // caught its own failure and wrote a log line, so the admin was told
+        // "Application updated" whether or not anything had happened.
+        $msg = implode(' · ', array_map(fn ($st) => ($st['ok'] ? '' : '⚠ ') . $st['detail'], $res['steps']));
+        $key = $res['ok'] ? 'ok' : 'err';
+        header('Location: ?v=applications&app=' . $id . '&' . $key . '=' . urlencode($res['ok'] ? $msg : ($res['error'] . ' ' . $msg)));
+        exit;
+    }
+
     if ($action === 'record_placement') {
         $appId = (int)($_POST['app_id'] ?? 0);
         $app   = $appId ? mam_db_row('SELECT id, customer_id, pathway FROM applications WHERE id = ?', [$appId]) : null;
@@ -3117,6 +3148,92 @@ nav a{display:flex;align-items:center}
         <?php endforeach; endif; ?>
       </div>
     </div>
+
+    <?php
+      // ── Complete enrolment ────────────────────────────────────────────────
+      // The one action that finishes the job. Everything is worked out from the
+      // application, shown before it happens, and changeable — so the common
+      // case is a single click and the awkward case asks about exactly the one
+      // field it cannot resolve, not the whole record.
+      $mPlan = null;
+      try { $mPlan = mam_enrol_resolve((int)$manageApp['id']); } catch (Throwable $e) { $mPlan = null; }
+    ?>
+    <?php if ($mPlan): ?>
+    <h3 style="margin:18px 0 8px">Complete enrolment
+      <span class="muted" style="font-size:.72rem">— account, course, class and instructor in one step</span>
+    </h3>
+    <div class="card" style="padding:16px 18px;<?= $mPlan['ready'] ? 'border-color:var(--gold)' : '' ?>">
+      <?php if (!$mPlan['ready']): ?>
+        <?php foreach ($mPlan['blockers'] as $b): ?>
+          <p style="margin:0 0 10px"><strong>Needs an answer:</strong> <?= htmlspecialchars($b['why']) ?></p>
+        <?php endforeach; ?>
+      <?php endif; ?>
+
+      <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="enrol_complete">
+        <input type="hidden" name="app_id" value="<?= (int)$manageApp['id'] ?>">
+
+        <label>Course
+          <select name="course" required>
+            <option value="">— choose —</option>
+            <?php foreach (mam_db_all('SELECT code, name FROM courses WHERE active = 1 ORDER BY kind DESC, name') as $co): ?>
+              <option value="<?= htmlspecialchars((string)$co['code']) ?>" <?= ($mPlan['course']['code'] ?? '') === $co['code'] ? 'selected' : '' ?>><?= htmlspecialchars((string)$co['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+
+        <label>Level <span class="muted" style="font-weight:400">(optional)</span>
+          <select name="level">
+            <option value="">— no level —</option>
+            <?php foreach (mam_db_all('SELECT code, name FROM levels ORDER BY sort_order, id') as $lv): ?>
+              <option value="<?= htmlspecialchars((string)$lv['code']) ?>" <?= ($mPlan['level']['code'] ?? '') === $lv['code'] ? 'selected' : '' ?>><?= htmlspecialchars((string)$lv['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+
+        <label>Programme <span class="muted" style="font-weight:400">(optional)</span>
+          <select name="programme">
+            <option value="">— none —</option>
+            <?php foreach (mam_db_all('SELECT code, name FROM programs ORDER BY id') as $pg): ?>
+              <option value="<?= htmlspecialchars((string)$pg['code']) ?>" <?= ($mPlan['programme']['code'] ?? '') === $pg['code'] ? 'selected' : '' ?>><?= htmlspecialchars((string)$pg['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+
+        <label>Instructor <span class="muted" style="font-weight:400">(optional)</span>
+          <select name="instructor">
+            <option value="">— use the class default —</option>
+            <?php foreach (mam_db_all("SELECT id, name FROM users WHERE role = 'instructor' AND status = 'active' ORDER BY name") as $iu): ?>
+              <option value="<?= (int)$iu['id'] ?>" <?= (int)($mPlan['instructor']['id'] ?? 0) === (int)$iu['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string)$iu['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </label>
+
+        <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+          <button class="btn" type="submit" <?= $mPlan['ready'] ? '' : 'disabled' ?>>
+            <?= $mPlan['ready'] ? 'Complete enrolment' : 'Answer the question above first' ?>
+          </button>
+          <span class="muted" style="font-size:.8rem">
+            <?php if ($mPlan['cohort']): ?>
+              Class: <strong><?= htmlspecialchars($mPlan['cohort']['title']) ?></strong>
+              (<?= (int)$mPlan['cohort']['filled'] ?>/<?= $mPlan['cohort']['capacity'] === null ? '∞' : (int)$mPlan['cohort']['capacity'] ?>)
+              <?php if (!empty($mPlan['cohort']['full'])): ?> · <strong>full — goes to the waiting list</strong><?php endif; ?>
+            <?php endif; ?>
+          </span>
+        </div>
+      </form>
+
+      <?php // Say what will happen BEFORE it happens: a new account, a missing
+            // instructor, a full class. None of these stop the enrolment; all of
+            // them are things an admin would rather know now than discover. ?>
+      <?php if ($mPlan['notes']): ?>
+        <ul class="muted" style="margin:12px 0 0 18px;padding:0;font-size:.82rem">
+          <?php foreach ($mPlan['notes'] as $n): ?><li style="margin:3px 0"><?= htmlspecialchars($n) ?></li><?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+    </div>
+    <?php endif; ?>
 
     <h3 style="margin:18px 0 8px">MAM Auditer placement
       <span class="muted" style="font-size:.72rem">— record the outcome<?= $mAutoPlacement ? ' · auto-enrols at the chosen level' : ' · auto-enrol paused (capture only)' ?></span>
