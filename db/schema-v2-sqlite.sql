@@ -246,6 +246,7 @@ CREATE TABLE memberships (
   -- "everyone at stage X, sorted by age in stage" is affordable on the pipeline
   -- board. A disagreement between the two is a writer bug a job can detect.
   stage             TEXT  NOT NULL DEFAULT 'prospect',
+     -- prospect|applicant|admitted|enrolled|active|paused|alumnus|withdrawn|rejected
   stage_entered_at  TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
   status            TEXT  NOT NULL DEFAULT 'active',   -- active|suspended|closed
   joined_at         TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
@@ -260,6 +261,12 @@ CREATE TABLE memberships (
   UNIQUE (public_id),
   UNIQUE (tenant_id, user_id, deleted_seq),
   UNIQUE (tenant_id, reference, deleted_seq),
+  -- Vocabulary and wording come from ONE place: mam_v2_status_catalogue()
+  -- in api/lib/v2/status-catalogue.php. test_v2_clarity.php asserts this CHECK
+  -- and that catalogue list the same values, so a status can never exist that
+  -- nobody has written a sentence for.
+  CONSTRAINT chk_membership_stage CHECK (stage IN
+    ('prospect','applicant','admitted','enrolled','active','paused','alumnus','withdrawn','rejected')),
 
   CONSTRAINT fk_memberships_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   CONSTRAINT fk_memberships_user   FOREIGN KEY (user_id)   REFERENCES users(id),
@@ -397,6 +404,8 @@ CREATE TABLE applications (
   membership_id     INTEGER NULL,        -- linked once a person exists
   type              TEXT  NOT NULL,       -- programme|summer|scholarship|audition
   status            TEXT  NOT NULL DEFAULT 'draft',
+     -- draft|submitted|under_review|interview_scheduled|offered|accepted|
+     -- waitlisted|rejected|withdrawn
   submitted_at      TEXT  NULL,
   decided_at        TEXT  NULL,
   decided_by        INTEGER NULL,
@@ -426,6 +435,13 @@ CREATE TABLE applications (
 
   -- No rejection without a reason. "Unsuccessful" and nothing else is the most
   -- confusing message an academy can send, and v1 permitted exactly that.
+  -- Vocabulary and wording come from ONE place: mam_v2_status_catalogue()
+  -- in api/lib/v2/status-catalogue.php. test_v2_clarity.php asserts this CHECK
+  -- and that catalogue list the same values, so a status can never exist that
+  -- nobody has written a sentence for.
+  CONSTRAINT chk_app_status CHECK (status IN
+    ('draft','submitted','under_review','interview_scheduled','offered','accepted',
+     'waitlisted','rejected','withdrawn')),
   CONSTRAINT chk_app_rejection_reason CHECK (status <> 'rejected' OR decision_reason IS NOT NULL),
   CONSTRAINT fk_app_tenant     FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_app_membership FOREIGN KEY (membership_id) REFERENCES memberships(id),
@@ -746,6 +762,8 @@ CREATE TABLE enrolments (
   -- One live enrolment per learner per cohort. Scoped by deleted_at so a
   -- withdrawn-and-deleted row does not block re-enrolment.
   UNIQUE (cohort_id, membership_id, deleted_seq),
+  CONSTRAINT chk_enrol_status CHECK (status IN
+    ('pending','active','completed','withdrawn','transferred','waitlisted')),
   CONSTRAINT chk_enrol_withdrawal_reason CHECK (status <> 'withdrawn' OR withdrawal_reason IS NOT NULL),
 
   CONSTRAINT fk_enrol_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
@@ -804,6 +822,7 @@ CREATE TABLE class_sessions (
 
   -- A class that vanishes from the timetable with no reason is the single
   -- complaint every academy gets. The reason is required at the source.
+  CONSTRAINT chk_session_status CHECK (status IN ('scheduled','held','cancelled','rescheduled')),
   CONSTRAINT chk_session_cancel_reason CHECK (status <> 'cancelled' OR cancellation_reason IS NOT NULL),
   CONSTRAINT fk_sessions_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   CONSTRAINT fk_sessions_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE,
@@ -987,6 +1006,8 @@ CREATE TABLE invoices (
   row_version       INTEGER NOT NULL DEFAULT 1,
   UNIQUE (public_id),
   UNIQUE (tenant_id, number),
+  CONSTRAINT chk_inv_status CHECK (status IN
+    ('draft','issued','part_paid','paid','void','written_off')),
   CONSTRAINT chk_inv_void_reason CHECK (voided_at IS NULL OR void_reason IS NOT NULL),
 
   -- THE invariant v1 lacked.
@@ -1046,6 +1067,8 @@ CREATE TABLE payments (
   -- A provider reference is unique per provider: the guard against a webhook
   -- replay creating a second payment for one charge.
   UNIQUE (tenant_id, provider, provider_ref),
+  CONSTRAINT chk_pay_status CHECK (status IN
+    ('pending','succeeded','failed','refunded','partially_refunded','disputed')),
   CONSTRAINT chk_pay_failure_reason CHECK (status <> 'failed' OR failure_reason IS NOT NULL),
 
   CONSTRAINT chk_pay_fx CHECK (

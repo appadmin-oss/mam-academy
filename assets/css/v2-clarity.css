@@ -1,0 +1,249 @@
+/* =============================================================================
+   MAM v2 — the clarity kit
+   =============================================================================
+   Components for Layer H: the status chip, the explain panel, the to-do list,
+   and the preference hooks. Every surface uses these, so a status looks and
+   reads the same in the student portal, the guardian portal and an email.
+
+   Accessibility floor — these are thresholds, not preferences:
+     • text contrast ≥ 4.5:1 (≥ 3:1 for large text and non-text UI)
+     • tone borders ≥ 3:1 against the surface — they are not decoration: the
+       to-do item's left edge is how "blocking" and "overdue" are shown, so
+       WCAG 1.4.11 applies to it. Verified by test_v2_contrast.php, not asserted
+       here; the first draft of this palette failed at 1.6–2.4:1.
+     • interactive targets ≥ 24×24 CSS px, 44px on touch
+     • focus visible and never obscured
+     • nothing signalled by colour alone — every tone carries a glyph and a word
+     • layout survives 200% zoom and ~30% string expansion
+   ========================================================================== */
+
+:root {
+  /* Tone palette. One definition, so a status is never green here and red
+     there — the failure that made v1's five screens disagree about whether
+     "carried forward" was good news. */
+  --mam-tone-neutral-fg:   #35404E;
+  --mam-tone-neutral-bg:   #EEF1F5;
+  --mam-tone-neutral-bd:   #8A919B;
+
+  --mam-tone-positive-fg:  #1B5E37;
+  --mam-tone-positive-bg:  #E4F3E9;
+  --mam-tone-positive-bd:  #6D9B80;
+
+  --mam-tone-progress-fg:  #17466E;
+  --mam-tone-progress-bg:  #E4EFF8;
+  --mam-tone-progress-bd:  #7594AD;
+
+  --mam-tone-attention-fg: #6B4708;
+  --mam-tone-attention-bg: #FBF0DA;
+  --mam-tone-attention-bd: #A68C5E;
+
+  --mam-tone-warning-fg:   #7A3B10;
+  --mam-tone-warning-bg:   #FCEBDF;
+  --mam-tone-warning-bd:   #B3886B;
+
+  --mam-tone-critical-fg:  #8A1E1E;
+  --mam-tone-critical-bg:  #FBE7E7;
+  --mam-tone-critical-bd:  #C07E7E;
+
+  --mam-focus:      #1E5FB4;
+  /* The button's TEXT colour, not a constant. In dark mode --mam-focus is a
+     light blue, so hardcoding white put white-on-light-blue at 2.19:1 — a
+     primary action nobody could read. It must flip with the theme. */
+  --mam-on-focus:   #FFFFFF;
+  --mam-surface:    #FFFFFF;
+  --mam-ink:        #1D2530;
+  --mam-ink-quiet:  #55606E;   /* 5.9:1 on white — quiet, still AA body text */
+  --mam-line:       #DCE2EA;
+  --mam-radius:     12px;
+
+  /* Driven from user_preferences.text_scale_pct, so a stored 150 applies on
+     every device rather than living in one browser's localStorage. */
+  --mam-scale: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mam-theme="light"]) {
+    --mam-tone-neutral-fg:   #C9D2DE; --mam-tone-neutral-bg:   #262E38; --mam-tone-neutral-bd:   #626B75;
+    --mam-tone-positive-fg:  #8FD9AC; --mam-tone-positive-bg:  #17301F; --mam-tone-positive-bd:  #477457;
+    --mam-tone-progress-fg:  #96C6EC; --mam-tone-progress-bg:  #142838; --mam-tone-progress-bd:  #4D6E87;
+    --mam-tone-attention-fg: #EEC275; --mam-tone-attention-bg: #332708; --mam-tone-attention-bd: #806735;
+    --mam-tone-warning-fg:   #F0A97C; --mam-tone-warning-bg:   #38220F; --mam-tone-warning-bd:   #8D6041;
+    --mam-tone-critical-fg:  #F09A9A; --mam-tone-critical-bg:  #381A1A; --mam-tone-critical-bd:  #945A5A;
+    --mam-focus:   #7FB3F0;
+    --mam-on-focus: #0B1B2E;
+    --mam-surface: #161C24;
+    --mam-ink:     #E8EDF3;
+    --mam-ink-quiet: #A7B2C0;
+    --mam-line:    #2C3641;
+  }
+}
+:root[data-mam-theme="dark"] {
+  --mam-tone-neutral-fg:   #C9D2DE; --mam-tone-neutral-bg:   #262E38; --mam-tone-neutral-bd:   #626B75;
+  --mam-tone-positive-fg:  #8FD9AC; --mam-tone-positive-bg:  #17301F; --mam-tone-positive-bd:  #477457;
+  --mam-tone-progress-fg:  #96C6EC; --mam-tone-progress-bg:  #142838; --mam-tone-progress-bd:  #4D6E87;
+  --mam-tone-attention-fg: #EEC275; --mam-tone-attention-bg: #332708; --mam-tone-attention-bd: #806735;
+  --mam-tone-warning-fg:   #F0A97C; --mam-tone-warning-bg:   #38220F; --mam-tone-warning-bd:   #8D6041;
+  --mam-tone-critical-fg:  #F09A9A; --mam-tone-critical-bg:  #381A1A; --mam-tone-critical-bd:  #945A5A;
+  --mam-focus:   #7FB3F0;
+  --mam-on-focus: #0B1B2E;
+  --mam-surface: #161C24;
+  --mam-ink:     #E8EDF3;
+  --mam-ink-quiet: #A7B2C0;
+  --mam-line:    #2C3641;
+}
+
+/* Preference hooks. Set on <html> from user_preferences so they apply before
+   first paint rather than flashing the default and then correcting. */
+html[data-mam-scale] { font-size: calc(100% * var(--mam-scale)); }
+html[data-mam-dyslexia] .mam-clarity,
+html[data-mam-dyslexia] .mam-todo {
+  font-family: "Atkinson Hyperlegible", "Comic Sans MS", Verdana, sans-serif;
+  letter-spacing: 0.02em;
+  word-spacing: 0.08em;
+  line-height: 1.7;
+}
+html[data-mam-contrast="high"] {
+  --mam-tone-neutral-bd: currentColor; --mam-tone-positive-bd: currentColor;
+  --mam-tone-progress-bd: currentColor; --mam-tone-attention-bd: currentColor;
+  --mam-tone-warning-bd: currentColor; --mam-tone-critical-bd: currentColor;
+}
+html[data-mam-contrast="high"] .mam-chip { border-width: 2px; }
+
+/* ── Status chip ───────────────────────────────────────────────────────────
+   Never colour alone: the glyph and the label both carry the meaning, so the
+   chip works in greyscale, for a colour-blind reader, and read aloud. */
+.mam-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .4em;
+  min-height: 24px;              /* WCAG 2.2 target minimum */
+  padding: .2em .7em;
+  border: 1px solid var(--mam-tone-neutral-bd);
+  border-radius: 999px;
+  background: var(--mam-tone-neutral-bg);
+  color: var(--mam-tone-neutral-fg);
+  font-size: .875rem;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: normal;           /* a translated label must wrap, not clip */
+  max-width: 100%;
+}
+.mam-chip__glyph { font-size: .9em; line-height: 1; }
+.mam-chip[data-tone="positive"]  { background: var(--mam-tone-positive-bg);  color: var(--mam-tone-positive-fg);  border-color: var(--mam-tone-positive-bd); }
+.mam-chip[data-tone="progress"]  { background: var(--mam-tone-progress-bg);  color: var(--mam-tone-progress-fg);  border-color: var(--mam-tone-progress-bd); }
+.mam-chip[data-tone="attention"] { background: var(--mam-tone-attention-bg); color: var(--mam-tone-attention-fg); border-color: var(--mam-tone-attention-bd); }
+.mam-chip[data-tone="warning"]   { background: var(--mam-tone-warning-bg);   color: var(--mam-tone-warning-fg);   border-color: var(--mam-tone-warning-bd); }
+.mam-chip[data-tone="critical"]  { background: var(--mam-tone-critical-bg);  color: var(--mam-tone-critical-fg);  border-color: var(--mam-tone-critical-bd); }
+
+/* ── Explain panel: label, meaning, next step ─────────────────────────────── */
+.mam-clarity {
+  border: 1px solid var(--mam-line);
+  border-radius: var(--mam-radius);
+  background: var(--mam-surface);
+  color: var(--mam-ink);
+  padding: 1rem 1.1rem;
+  max-width: 68ch;                /* measure — past ~75ch reading accuracy drops */
+}
+.mam-clarity__meaning { margin: .6rem 0 0; line-height: 1.6; }
+.mam-clarity__next {
+  margin: .8rem 0 0;
+  padding: .7rem .85rem;
+  border-left: 3px solid var(--mam-focus);
+  border-radius: 0 8px 8px 0;
+  background: var(--mam-tone-progress-bg);
+  color: var(--mam-tone-progress-fg);
+}
+.mam-clarity__next-h {
+  display: block; margin: 0 0 .2rem;
+  font-size: .78rem; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+/* "Nothing is needed from you" is an ANSWER and must look like one. A blank
+   where the next step would be reads as missing information. */
+.mam-clarity__next--none {
+  border-left-color: var(--mam-tone-neutral-bd);
+  background: var(--mam-tone-neutral-bg);
+  color: var(--mam-tone-neutral-fg);
+}
+.mam-clarity__reason {
+  margin: .8rem 0 0; padding-top: .8rem;
+  border-top: 1px dashed var(--mam-line);
+  color: var(--mam-ink-quiet);
+}
+
+/* ── To-do list ────────────────────────────────────────────────────────────
+   The one place a person finds out what is being asked of them. */
+.mam-todo { color: var(--mam-ink); }
+.mam-todo__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; margin-bottom: .8rem; }
+.mam-todo__count { margin: 0; font-size: 1.15rem; font-weight: 700; }
+.mam-todo__list { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+.mam-todo__item {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .75rem;
+  padding: .85rem 1rem;
+  border: 1px solid var(--mam-line);
+  border-left: 4px solid var(--mam-tone-neutral-bd);
+  border-radius: var(--mam-radius);
+  background: var(--mam-surface);
+}
+.mam-todo__item[data-blocking="1"] { border-left-color: var(--mam-tone-warning-bd); }
+.mam-todo__item[data-overdue="1"]  { border-left-color: var(--mam-tone-critical-bd); }
+.mam-todo__body { flex: 1 1 16rem; min-width: 0; }
+.mam-todo__title { margin: 0; font-weight: 650; }
+.mam-todo__detail { margin: .25rem 0 0; color: var(--mam-ink-quiet); font-size: .92rem; line-height: 1.5; }
+.mam-todo__due { margin: .3rem 0 0; font-size: .85rem; color: var(--mam-ink-quiet); }
+.mam-todo__due[data-overdue="1"] { color: var(--mam-tone-critical-fg); font-weight: 650; }
+.mam-todo__cta {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px;              /* touch target, above the 24px floor */
+  min-width: 44px;
+  padding: .5rem 1.1rem;
+  border: 1px solid var(--mam-focus);
+  border-radius: 10px;
+  background: var(--mam-focus);
+  color: var(--mam-on-focus);
+  font-weight: 650;
+  text-decoration: none;
+}
+.mam-todo__cta:hover { filter: brightness(1.08); }
+
+/* The empty state must look different from an error and must not read as a
+   loading state that never finished. */
+.mam-todo__empty {
+  padding: 1.4rem 1.1rem;
+  border: 1px dashed var(--mam-line);
+  border-radius: var(--mam-radius);
+  color: var(--mam-ink-quiet);
+  text-align: center;
+}
+
+/* ── Time with a second zone ───────────────────────────────────────────────
+   A guardian in another country reading an unqualified "16:00" turns up at the
+   wrong hour, and no styling fixes a time that is the wrong number. */
+.mam-when__local { font-weight: 650; }
+.mam-when__also  { color: var(--mam-ink-quiet); font-size: .9em; }
+
+/* ── Focus and motion ─────────────────────────────────────────────────────── */
+.mam-chip:focus-visible,
+.mam-todo__cta:focus-visible,
+.mam-clarity :focus-visible {
+  outline: 3px solid var(--mam-focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mam-todo__item, .mam-chip, .mam-todo__cta { transition: none !important; animation: none !important; }
+}
+/* The stored preference must win even where the OS setting is absent — someone
+   may need this on a shared or managed device they cannot configure. */
+html[data-mam-motion="reduce"] .mam-todo__item,
+html[data-mam-motion="reduce"] .mam-chip,
+html[data-mam-motion="reduce"] .mam-todo__cta { transition: none !important; animation: none !important; }
+
+/* Low bandwidth: drop decoration that costs bytes or paint, keep every word. */
+html[data-mam-bandwidth="low"] .mam-todo__item,
+html[data-mam-bandwidth="low"] .mam-clarity { box-shadow: none; background-image: none; }
+
+@media print {
+  .mam-todo__cta { border-color: #000; background: none; color: #000; }
+  .mam-chip { border-color: #000; background: none; color: #000; }
+}

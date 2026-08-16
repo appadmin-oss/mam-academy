@@ -176,7 +176,7 @@ $ins("INSERT INTO invoices (id,public_id,tenant_id,membership_id,enrolment_id,nu
       VALUES (1,?,1,1,1,'INV-0001','issued','NGN',12000000,'USD',7500,1600.00000000,'openexchange','2026-09-01 00:00:00.000')", [$ulid()]);
 $ins("INSERT INTO invoice_lines (invoice_id,item_type,description,quantity,unit_amount_minor,line_total_minor) VALUES (1,'tuition','Piano L1 tuition',1,12000000,12000000)");
 $ins("INSERT INTO payments (id,public_id,tenant_id,membership_id,provider,status,currency,amount_minor,base_currency,base_amount_minor,fx_rate,fx_source,received_at)
-      VALUES (1,?,1,1,'paystack','settled','NGN',12000000,'USD',7500,1600.00000000,'openexchange','2026-09-02 10:00:00.000')", [$ulid()]);
+      VALUES (1,?,1,1,'paystack','succeeded','NGN',12000000,'USD',7500,1600.00000000,'openexchange','2026-09-02 10:00:00.000')", [$ulid()]);
 $ins("INSERT INTO payment_allocations (payment_id,invoice_id,amount_minor) VALUES (1,1,12000000)");
 
 // Signed minor units: positive debit, negative credit. Cash rises, tuition
@@ -236,7 +236,7 @@ $rejects("INSERT INTO invoices (public_id,tenant_id,membership_id,number,currenc
           VALUES ('01JBADFX000000000000000000',1,1,'INV-BAD','NGN',5000,'USD')",
     "a cross-currency invoice with no frozen FX rate — the v1 bug that summed naira into dollars");
 $rejects("INSERT INTO payments (public_id,tenant_id,membership_id,provider,currency,amount_minor,base_currency,status)
-          VALUES ('01JBADFY000000000000000000',1,1,'paystack','NGN',5000,'USD','settled')",
+          VALUES ('01JBADFY000000000000000000',1,1,'paystack','NGN',5000,'USD','pending')",
     "a cross-currency payment with no frozen FX rate");
 $rejects("INSERT INTO payment_allocations (payment_id,invoice_id,amount_minor) VALUES (1,1,0)",
     "a zero-amount payment allocation");

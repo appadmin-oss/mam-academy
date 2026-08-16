@@ -231,6 +231,7 @@ CREATE TABLE memberships (
   -- "everyone at stage X, sorted by age in stage" is affordable on the pipeline
   -- board. A disagreement between the two is a writer bug a job can detect.
   stage             VARCHAR(24)  NOT NULL DEFAULT 'prospect',
+     -- prospect|applicant|admitted|enrolled|active|paused|alumnus|withdrawn|rejected
   stage_entered_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   status            VARCHAR(16)  NOT NULL DEFAULT 'active',   -- active|suspended|closed
   joined_at         DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -245,6 +246,12 @@ CREATE TABLE memberships (
   UNIQUE KEY uq_memberships_public (public_id),
   UNIQUE KEY uq_memberships_user (tenant_id, user_id, deleted_seq),
   UNIQUE KEY uq_memberships_ref (tenant_id, reference, deleted_seq),
+  -- Vocabulary and wording come from ONE place: mam_v2_status_catalogue()
+  -- in api/lib/v2/status-catalogue.php. test_v2_clarity.php asserts this CHECK
+  -- and that catalogue list the same values, so a status can never exist that
+  -- nobody has written a sentence for.
+  CONSTRAINT chk_membership_stage CHECK (stage IN
+    ('prospect','applicant','admitted','enrolled','active','paused','alumnus','withdrawn','rejected')),
   KEY ix_memberships_stage (tenant_id, stage, stage_entered_at),
   KEY ix_memberships_centre (tenant_id, centre_id, status),
   CONSTRAINT fk_memberships_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
@@ -384,6 +391,8 @@ CREATE TABLE applications (
   membership_id     BIGINT UNSIGNED NULL,        -- linked once a person exists
   type              VARCHAR(24)  NOT NULL,       -- programme|summer|scholarship|audition
   status            VARCHAR(24)  NOT NULL DEFAULT 'draft',
+     -- draft|submitted|under_review|interview_scheduled|offered|accepted|
+     -- waitlisted|rejected|withdrawn
   submitted_at      DATETIME(3)  NULL,
   decided_at        DATETIME(3)  NULL,
   decided_by        BIGINT UNSIGNED NULL,
@@ -414,6 +423,13 @@ CREATE TABLE applications (
   KEY ix_applications_member (membership_id),
   -- No rejection without a reason. "Unsuccessful" and nothing else is the most
   -- confusing message an academy can send, and v1 permitted exactly that.
+  -- Vocabulary and wording come from ONE place: mam_v2_status_catalogue()
+  -- in api/lib/v2/status-catalogue.php. test_v2_clarity.php asserts this CHECK
+  -- and that catalogue list the same values, so a status can never exist that
+  -- nobody has written a sentence for.
+  CONSTRAINT chk_app_status CHECK (status IN
+    ('draft','submitted','under_review','interview_scheduled','offered','accepted',
+     'waitlisted','rejected','withdrawn')),
   CONSTRAINT chk_app_rejection_reason CHECK (status <> 'rejected' OR decision_reason IS NOT NULL),
   CONSTRAINT fk_app_tenant     FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_app_membership FOREIGN KEY (membership_id) REFERENCES memberships(id),
@@ -736,6 +752,8 @@ CREATE TABLE enrolments (
   -- One live enrolment per learner per cohort. Scoped by deleted_at so a
   -- withdrawn-and-deleted row does not block re-enrolment.
   UNIQUE KEY uq_enrolments_unique (cohort_id, membership_id, deleted_seq),
+  CONSTRAINT chk_enrol_status CHECK (status IN
+    ('pending','active','completed','withdrawn','transferred','waitlisted')),
   CONSTRAINT chk_enrol_withdrawal_reason CHECK (status <> 'withdrawn' OR withdrawal_reason IS NOT NULL),
   KEY ix_enrolments_member (tenant_id, membership_id, status),
   KEY ix_enrolments_cohort (cohort_id, status),
@@ -796,6 +814,7 @@ CREATE TABLE class_sessions (
   KEY ix_sessions_when (tenant_id, scheduled_start_utc, status),
   -- A class that vanishes from the timetable with no reason is the single
   -- complaint every academy gets. The reason is required at the source.
+  CONSTRAINT chk_session_status CHECK (status IN ('scheduled','held','cancelled','rescheduled')),
   CONSTRAINT chk_session_cancel_reason CHECK (status <> 'cancelled' OR cancellation_reason IS NOT NULL),
   CONSTRAINT fk_sessions_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   CONSTRAINT fk_sessions_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE,
@@ -980,6 +999,8 @@ CREATE TABLE invoices (
   row_version       INT UNSIGNED NOT NULL DEFAULT 1,
   UNIQUE KEY uq_invoices_public (public_id),
   UNIQUE KEY uq_invoices_number (tenant_id, number),
+  CONSTRAINT chk_inv_status CHECK (status IN
+    ('draft','issued','part_paid','paid','void','written_off')),
   CONSTRAINT chk_inv_void_reason CHECK (voided_at IS NULL OR void_reason IS NOT NULL),
   KEY ix_invoices_member (tenant_id, membership_id, status),
   KEY ix_invoices_due (tenant_id, status, due_at),
@@ -1040,6 +1061,8 @@ CREATE TABLE payments (
   -- A provider reference is unique per provider: the guard against a webhook
   -- replay creating a second payment for one charge.
   UNIQUE KEY uq_payments_provider (tenant_id, provider, provider_ref),
+  CONSTRAINT chk_pay_status CHECK (status IN
+    ('pending','succeeded','failed','refunded','partially_refunded','disputed')),
   CONSTRAINT chk_pay_failure_reason CHECK (status <> 'failed' OR failure_reason IS NOT NULL),
   KEY ix_payments_member (tenant_id, membership_id, status),
   KEY ix_payments_reporting (tenant_id, status, received_at),
