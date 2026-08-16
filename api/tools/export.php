@@ -34,16 +34,77 @@
  * digest is taken over that. Identical content therefore always yields an
  * identical checksum, and any changed/missing/extra row changes it.
  *
- * ── Read-only ──
- * Nothing here writes to the source database. Safe to run against production at
- * any time, and idempotent: two runs of the same data produce the same
- * checksums (only the timestamped directory name differs).
+ * ── Read-only, and STANDALONE ──
+ * Nothing here writes to the source database, and — importantly — this file
+ * does NOT load the application bootstrap. `mam_db()` runs the migrator on
+ * every connection, including MySQL, so requiring bootstrap.php would migrate
+ * the database as a side effect of trying to snapshot it: the one thing a
+ * pre-migration safety net must never do. It therefore parses api/.env and
+ * opens its own PDO instead.
+ *
+ * The practical consequence is that this file is self-contained. It can be
+ * copied to a server running much older application code and will still run,
+ * because it depends on nothing in the repo but PHP and PDO. It reads whatever
+ * tables exist at whatever schema version, making no assumptions about either.
+ *
+ * Idempotent: two runs over the same data produce the same checksums (only the
+ * timestamped directory name differs).
  */
 declare(strict_types=1);
 
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
 
-require_once __DIR__ . '/../lib/bootstrap.php';
+/* ── standalone configuration (no bootstrap: see the header note) ───────── */
+
+const MAM_EXPORT_API_ROOT = __DIR__ . '/..';
+
+/** Minimal .env reader — same KEY=VALUE grammar the application uses. */
+function mam_export_env(string $key, string $default = ''): string {
+    static $env = null;
+    if ($env === null) {
+        $env  = [];
+        $path = MAM_EXPORT_API_ROOT . '/.env';
+        if (is_readable($path)) {
+            foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+                $t = trim($line);
+                if ($t === '' || $t[0] === '#' || strpos($t, '=') === false) continue;
+                [$k, $v] = explode('=', $t, 2);
+                $env[trim($k)] = trim($v, " \t\n\r\0\x0B\"'");
+            }
+        }
+    }
+    if (isset($env[$key]) && $env[$key] !== '') return $env[$key];
+    $v = getenv($key);
+    if ($v !== false && $v !== '') return (string) $v;
+    return $default;
+}
+
+/**
+ * Open the source database directly. Deliberately NOT mam_db(): that runs the
+ * migrator, which on a server behind on deploys would silently upgrade the
+ * schema during what is supposed to be a read-only snapshot.
+ */
+function mam_export_connect(): PDO {
+    $opts = [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES   => false,
+        PDO::ATTR_STRINGIFY_FETCHES  => false,
+    ];
+    $dsn = mam_export_env('DB_DSN');
+    if ($dsn !== '') {
+        $pdo = new PDO($dsn, mam_export_env('DB_USERNAME') ?: null, mam_export_env('DB_PASSWORD') ?: null, $opts);
+        if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql') $pdo->exec('SET NAMES utf8mb4');
+        return $pdo;
+    }
+    $path = MAM_EXPORT_API_ROOT . '/storage/mam.db';
+    if (!is_file($path)) {
+        fwrite(STDERR, "No DB_DSN in api/.env and no SQLite database at $path\n");
+        exit(1);
+    }
+    // Opened without PRAGMA writes; a snapshot must not even change journal mode.
+    return new PDO('sqlite:' . $path, null, null, $opts);
+}
 
 /* ── arguments ─────────────────────────────────────────────────────────── */
 
@@ -169,7 +230,7 @@ if ($opts['verifyOnly'] !== null) {
 
 /* ── export ────────────────────────────────────────────────────────────── */
 
-$db     = mam_db();
+$db     = mam_export_connect();
 $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
 $stamp  = date('Ymd-His');
 $outDir = rtrim($opts['out'] ?? (dirname(__DIR__) . '/storage/export/' . $stamp), '/');
@@ -204,7 +265,7 @@ $manifest = [
     'exported_at'    => date('c'),
     'driver'         => $driver,
     'schema_version' => $schemaVersion,
-    'app_version'    => defined('MAM_API_VERSION') ? MAM_API_VERSION : null,
+    'app_version'    => null,   // deliberately not loaded: see the header note
     'tables'         => [],
 ];
 $totalRows = 0;
