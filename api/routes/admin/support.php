@@ -16,7 +16,9 @@
  * POST action=ticket_resolve         {ticket_id}
  */
 declare(strict_types=1);
-$u = mam_require_role('admin');
+// Read access is authorised by mw_admin_cap() on the route. The WRITE path
+// below additionally needs a named actor, so it calls
+// mam_admin_require_actor() at the point it starts mutating.
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = (string)($_GET['action'] ?? 'tickets');
@@ -55,6 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     }
     mam_fail('unknown_action', 400, ['action' => $action]);
 }
+
+$u = mam_admin_require_actor();   // writes record who performed them
 
 $in     = mam_json_input();
 $action = (string)($in['action'] ?? $_GET['action'] ?? '');

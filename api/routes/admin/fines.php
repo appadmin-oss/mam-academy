@@ -7,7 +7,9 @@
  * POST action=waive    {fine_id, note?}           → {ok:true, fine:{...}}
  */
 declare(strict_types=1);
-$u = mam_require_role('admin');
+// Read access is authorised by mw_admin_cap() on the route. The WRITE path
+// below additionally needs a named actor, so it calls
+// mam_admin_require_actor() at the point it starts mutating.
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $status = in_array($_GET['status'] ?? '', ['pending','resolved','waived'])
@@ -27,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     mam_ok(['fines' => $fines, 'counts' => $counts]);
     exit;
 }
+
+$u = mam_admin_require_actor();   // writes record who performed them
 
 $in     = mam_json_input();
 $action = (string)($in['action'] ?? '');

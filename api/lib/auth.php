@@ -258,6 +258,47 @@ function mam_admin_access_outcome(bool $isAdmin, bool $isSignedIn, bool $basicOk
 }
 
 /**
+ * The signed-in admin behind this request, or null when the caller reached us
+ * through the Basic-Auth break-glass and therefore has no user record.
+ *
+ * Routes gated by mw_admin_cap() are already authorised by the time they run,
+ * so they do NOT need to re-check the role — doing so would only add a
+ * mam_require_user() that 401s a break-glass operator. What they may still
+ * need is the actor's identity, which is what this returns.
+ */
+function mam_admin_actor(): ?array {
+    $u = mam_current_user();
+    return ($u && mam_user_has_role($u, 'admin')) ? $u : null;
+}
+
+/**
+ * The signed-in admin, REQUIRED — for a write that records who performed it.
+ *
+ * The break-glass account is a recovery credential, not a person: it has no
+ * users row, so an action taken through it cannot be attributed. Every caller
+ * of this writes an actor into an audit or attribution column
+ * (`resolved_by`, `created_by`, a ticket reply's `author_id` that the student
+ * is shown), and columns like `enrolment_events.actor_id` carry a users(id)
+ * foreign key — a NULL or 0 actor either destroys the audit row or violates
+ * the constraint (see CLAUDE.md gotcha #3).
+ *
+ * So writes stay session-only, and say so plainly rather than answering a bare
+ * 401 that invites the operator to retry the credentials that just worked.
+ * Reads remain available through the break-glass, which is what a recovery
+ * credential is actually for.
+ */
+function mam_admin_require_actor(): array {
+    $u = mam_admin_actor();
+    if (!$u) {
+        mam_fail('admin_session_required', 403, [
+            'detail' => 'This action records who performed it, so it needs a named admin account. '
+                      . 'The break-glass credential can read but not write — sign in as an admin user.',
+        ]);
+    }
+    return $u;
+}
+
+/**
  * Admin guard accepted by both portals AND the legacy admin dashboard.
  * Prefers a session user holding the admin role — primary users.role OR the
  * multi-role user_roles table, so a secondary-admin isn't locked out — and

@@ -111,3 +111,38 @@ foreach ([[false, false], [false, true], [true, false], [true, true]] as [$isAdm
          'outcome is one of the three states for isAdmin=' . var_export($isAdmin, true) . ' signedIn=' . var_export($signedIn, true));
     t_ok($out !== 'unavailable', 'no outcome reports the server as misconfigured');
 }
+
+// ── The break-glass actor split ─────────────────────────────────────────────
+// Admin routes are authorised by mw_admin_cap(), so their bodies do not
+// re-check the role — that only added a mam_require_user() which 401s a
+// Basic-Auth break-glass operator. Reads are now reachable that way; writes
+// still need a named actor, because each records who performed it.
+t_group('auth — break-glass reads, session-only writes');
+
+// mam_admin_actor() is null with no session, which is exactly the break-glass
+// case. mam_session_user() memoises per process, so this is the reachable
+// assertion; the decision it feeds is covered by the table above.
+t_ok(mam_admin_actor() === null, 'no session → no named actor (the break-glass case)');
+
+$threw = null;
+try { mam_admin_require_actor(); } catch (\RuntimeException $e) { $threw = $e->getMessage(); }
+t_eq($threw, 'mam_fail:admin_session_required:403',
+     'a write without a named actor is refused 403, not 401');
+// 401 would invite the operator to retry credentials that already worked, and
+// 503 would claim the server was broken. Neither is true.
+t_ok(strpos((string) $threw, ':401') === false, 'and specifically not 401');
+t_ok(strpos((string) $threw, ':503') === false, 'and specifically not 503');
+
+// Every actor-taking callee still demands a real int, which is why writes
+// cannot simply pass null: these columns are attribution, and one of them is
+// shown to the student.
+foreach ([
+    ['mam_accountability_resolve', 1],
+    ['mam_fine_resolve',           1],
+    ['mam_progress_token_create',  1],
+    ['mam_survey_create',          0],
+    ['mam_ticket_reply',           1],
+] as [$fn, $argIndex]) {
+    $p = (new ReflectionFunction($fn))->getParameters()[$argIndex];
+    t_ok(!$p->allowsNull(), "$fn() still requires a non-null actor id");
+}

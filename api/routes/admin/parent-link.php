@@ -7,7 +7,9 @@
  * Linking provisions a parent account if needed (returns a temp password once).
  */
 declare(strict_types=1);
-$u = mam_require_role('admin');
+// Read access is authorised by mw_admin_cap() on the route. The WRITE path
+// below additionally needs a named actor, so it calls
+// mam_admin_require_actor() at the point it starts mutating.
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $sid = (int) ($_GET['student_id'] ?? 0);
@@ -19,6 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         [$sid]
     )]);
 }
+
+$u = mam_admin_require_actor();   // writes record who performed them
 
 $in     = mam_json_input();
 $action = (string) ($in['action'] ?? 'link');

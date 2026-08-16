@@ -9,7 +9,9 @@
  * substitute names so the front-end calendar can render without extra calls.
  */
 declare(strict_types=1);
-mam_require_role('admin');
+// Authorised by mw_admin_cap() on the route, which is the stronger check.
+// Re-checking the role here would only add a mam_require_user() that 401s a
+// Basic-Auth break-glass operator, who legitimately has no session.
 
 $today = date('Y-m-d');
 $from  = isset($_GET['from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$_GET['from']) ? (string)$_GET['from'] : null;

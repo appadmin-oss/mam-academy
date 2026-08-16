@@ -10,7 +10,9 @@
  */
 declare(strict_types=1);
 
-$u = mam_require_role('admin');
+// Authorised by mw_admin_cap() on the route, which is the stronger check.
+// Re-checking the role here would only add a mam_require_user() that 401s a
+// Basic-Auth break-glass operator, who legitimately has no session.
 
 $in  = mam_json_input();
 $sid = (int) ($in['session_id'] ?? 0);

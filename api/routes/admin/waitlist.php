@@ -8,8 +8,9 @@
  *   POST {action:'add',     cohort_id, student_id} → {position: N}
  */
 declare(strict_types=1);
-$u = mam_require_role('admin');
-$me = (int)$u['id'];
+// Read access is authorised by mw_admin_cap() on the route. The WRITE path
+// below additionally needs a named actor, so it calls
+// mam_admin_require_actor() at the point it starts mutating.
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
     $cohortId = (int)($_GET['cohort_id'] ?? 0);
@@ -22,6 +23,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
         'waitlist'   => mam_lms_waitlist_for_cohort($cohortId),
     ]);
 }
+
+$u = mam_admin_require_actor();   // writes record who performed them
+$me = (int)$u['id'];
 
 $in     = mam_json_input();
 $action = strtolower(trim((string)($in['action'] ?? '')));
