@@ -47,7 +47,12 @@ CREATE TABLE tenants (
   slug              VARCHAR(63)  NOT NULL,           -- URL/subdomain key
   legal_name        VARCHAR(200) NOT NULL,
   display_name      VARCHAR(200) NOT NULL,
-  base_currency     CHAR(3)      NOT NULL DEFAULT 'USD',
+  -- Per tenant, and MAM's is NGN. Every payment in the v1 data is naira and
+  -- v59 predates any USD column, so a USD base would force the ETL to invent a
+  -- rate per historical transaction and store it as frozen fact. Reporting in
+  -- another currency stays available through fx_rates, going forward, where a
+  -- real observed rate exists.
+  base_currency     CHAR(3)      NOT NULL DEFAULT 'NGN',
   default_locale    VARCHAR(12)  NOT NULL DEFAULT 'en',
   default_timezone  VARCHAR(64)  NOT NULL DEFAULT 'Africa/Lagos',
   status            VARCHAR(16)  NOT NULL DEFAULT 'active',  -- active|suspended|closed
@@ -1062,7 +1067,7 @@ CREATE TABLE payments (
   -- replay creating a second payment for one charge.
   UNIQUE KEY uq_payments_provider (tenant_id, provider, provider_ref),
   CONSTRAINT chk_pay_status CHECK (status IN
-    ('pending','succeeded','failed','refunded','partially_refunded','disputed')),
+    ('pending','awaiting_transfer','succeeded','failed','refunded','partially_refunded','disputed')),
   CONSTRAINT chk_pay_failure_reason CHECK (status <> 'failed' OR failure_reason IS NOT NULL),
   KEY ix_payments_member (tenant_id, membership_id, status),
   KEY ix_payments_reporting (tenant_id, status, received_at),

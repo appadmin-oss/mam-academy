@@ -305,6 +305,16 @@ function mam_v2_status_catalogue(): array
             'learner'  => ['Going through', 'Your payment has been started and we are waiting for your bank to confirm it.', 'Do not pay again — this usually settles within a few minutes.', false],
             'guardian' => ['Going through', 'The payment has been started and we are waiting for the bank to confirm it.', 'Do not pay again — this usually settles within a few minutes.', false],
             'staff'    => ['Pending', 'Awaiting provider confirmation.', null, false]],
+        // 11 of the 15 payments in the real v1 data are bank transfers waiting
+        // for a human to confirm the money arrived. Collapsing that into plain
+        // `pending` would lose the one thing that distinguishes them: a card
+        // payment pending the gateway needs nobody, and this needs somebody.
+        // The next step differs per audience too, which a single status cannot
+        // carry — the learner has already sent it, the staff member has to look.
+        'awaiting_transfer' => ['tone' => 'attention', 'sort' => 15, 'terminal' => false,
+            'learner'  => ['Waiting for your transfer', 'We are waiting for this bank transfer to arrive, or to confirm we have received it.', 'If you have already sent it, nothing more is needed — we check every day. If not, the account details are on your invoice.', true],
+            'guardian' => ['Waiting for the transfer', 'We are waiting for this bank transfer to arrive, or to confirm we have received it.', 'If it has already been sent, nothing more is needed — we check every day.', true],
+            'staff'    => ['Awaiting bank transfer', 'Unreconciled; needs a human to confirm receipt.', 'Confirm against the bank statement, or chase.', true]],
         'succeeded' => ['tone' => 'positive', 'sort' => 20, 'terminal' => true,
             'learner'  => ['Paid', 'Your payment went through.', 'Your receipt is available to download.', true],
             'guardian' => ['Paid', 'The payment went through.', 'Your receipt is available to download.', true],

@@ -115,7 +115,7 @@ checkable rather than asserted — `mam_v2_identity_unaccounted()` is what
 These are genuine blockers: the data cannot satisfy the v2 schema without an
 answer, and guessing would be worse than asking.
 
-### 5.1 Money — recommend making tenant 1's base currency NGN
+### 5.1 Money — DECIDED: tenant 1's base currency is NGN ✅
 
 v2 requires that whenever a transaction's currency differs from the tenant's
 base currency, `base_amount_minor` **and** the frozen `fx_rate` are both
@@ -130,11 +130,18 @@ Reconstructing historical FX would mean inventing a rate per transaction and
 presenting it as frozen fact, which is exactly the sort of number that later
 gets treated as authoritative.
 
-**Recommendation: set the tenant's `base_currency` to NGN.** Then
-`currency = base_currency` for all existing rows, the CHECK is satisfied
-honestly, and no rate is invented. USD reporting stays available through
-`fx_rates` going forward. This needs finance to confirm reporting is expected in
-naira, which §7.1 of the schema design already flagged as an open question.
+**Decided (2026-08-16): the base currency is NGN.** `currency = base_currency`
+for every existing row, so the CHECK is satisfied honestly and no rate is
+invented. Reporting in another currency stays available through `fx_rates`
+going forward, where a real observed rate exists. `db/schema-v2.sql` now
+defaults `tenants.base_currency` to NGN and `MAM_V2_BASE_CURRENCY` in
+`transform.php` is the single constant the transform reads.
+
+A non-NGN payment is **rejected with a reason**, not written with a 1:1
+conversion — a fabricated rate stored in the `fx_rate` column would be read as
+fact by everything downstream. Today that branch never fires, because every v1
+payment is naira; it exists so the first foreign payment stops the load instead
+of quietly corrupting the ledger.
 
 ### 5.2 Cohorts without a course
 
@@ -181,3 +188,51 @@ Nearly half the snapshot's rows are `rate_limits`. Counting it toward a
    resolved people, writing `legacy_reference_map` as it goes.
 3. `load.php` + `verify.php`, gated on the row-preservation check and the
    existing test suite run against the loaded database.
+
+
+---
+
+## 8 · Transform results against the real snapshot
+
+`transform.php` is pure — v1 arrays in, v2 arrays out, no database — which is
+what lets it be run against the real export and asserted against fixtures
+without either touching the other.
+
+```
+PEOPLE        21
+PAYMENTS      in=15  out=15  rejected=0  unowned=0
+              awaiting_transfer 11 · pending 3 · succeeded 1
+              total 51,599,800 kobo = NGN 515,998.00
+APPLICATIONS  in=26  out=26  rejected=0  erased_owner=6
+              submitted 21 · accepted 5
+```
+
+**Reconciliation.** The transformed total is compared against a sum computed
+directly from the source JSON by a different route: 51,599,800 kobo both ways.
+And the 11 awaiting-confirmation payments total **NGN 405,034** — the same
+figure the admin Payments screen computes in SQL, by an entirely separate code
+path. Two independent derivations agreeing is worth more than either one
+checked against itself.
+
+**Money is exact by construction.** Amounts arrive as decimal strings and are
+converted by string arithmetic, never `(int) round($v * 100)`: in binary
+floating point `8.07 * 100` is `806.9999999999999`, and money one kobo short
+reconciles against nothing. An amount that cannot be represented exactly at the
+currency's own exponent is **rejected with a reason**, never rounded.
+
+**`pending_bank_transfer` became a first-class v2 state**, `awaiting_transfer`,
+rather than collapsing into `pending`. It is 11 of the 15 rows and it is the only
+payment state that needs a human — a card payment pending the gateway needs
+nobody. Collapsing them would have erased exactly the distinction the admin acts
+on. It carries its own wording per audience: the learner is told "if you have
+already sent it, nothing more is needed — we check every day", the staff member
+is told to confirm it against the statement.
+
+**Six applications belong to an erased person.** They are carried across, so the
+counts reconcile and the funnel stays the academy's own record — but their
+free-text payload is dropped, because that is where the answers that identify
+somebody live.
+
+**`enrolled` is not a v2 application status.** The application ends at
+`accepted` and the enrolment row carries what happened next. Keeping it in both
+places is the v1 pattern this rebuild exists to end.
