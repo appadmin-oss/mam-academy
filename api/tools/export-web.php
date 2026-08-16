@@ -10,12 +10,27 @@
  * ── How to use ──
  *  1. Set MAM_EXPORT_TOKEN below to a long random string (30+ chars). It ships
  *     empty and the script refuses to run until you change it.
- *  2. Upload to api/tools/export-web.php (File Manager, FTP, whatever you have).
- *  3. Visit  https://your-site/api/tools/export-web.php?token=THE_TOKEN
+ *  2. On the server, make a NEW folder next to index.php — call it `dbexport`
+ *     — and upload TWO files into it:
+ *         dbexport/index.php    ← this file, renamed
+ *         dbexport/.htaccess    ← the copy in api/tools/export-web.htaccess
+ *  3. Visit  https://your-site/dbexport/?token=THE_TOKEN
  *  4. Save the .zip it downloads.
- *  5. DELETE THIS FILE FROM THE SERVER. It dumps the entire database; leaving
+ *  5. DELETE THE WHOLE dbexport FOLDER. It dumps the entire database; leaving
  *     it in place leaves a copy of every user, payment and audit row one URL
  *     away from anyone who learns the token.
+ *
+ * ── Do NOT upload it into api/tools/ ──
+ * That directory carries `Require all denied`, so Apache answers 403 before
+ * PHP is ever reached — correctly: api/tools/ holds the cron runner and the
+ * other CLI-only scripts, and none of them should be web-reachable. An earlier
+ * version of these instructions said to put it there, which cost a round trip.
+ *
+ * The companion .htaccess is not optional decoration. The site-wide
+ * .htaccess sets `Header set Cache-Control "public, max-age=300"` on every
+ * *.php response, and mod_headers runs AFTER PHP — so it would overwrite the
+ * `no-store` this script sends and invite a proxy to keep a copy of the
+ * database for five minutes.
  *
  * ── Safety properties, and why each one is here ──
  *  • Read-only. It opens its own PDO and never loads the application, so the
@@ -44,7 +59,27 @@ const MAM_EXPORT_TOKEN = '';
 
 /* ──────────────────────────────────────────────────────────────────────── */
 
-const MAM_EXPORT_API_ROOT = __DIR__ . '/..';
+/**
+ * Find the application's api/ directory from wherever this file was dropped.
+ *
+ * It was previously hardcoded to `__DIR__ . '/..'`, which only held if the
+ * file sat in api/tools/ — the one directory Apache refuses to serve. Probing
+ * means the same file works from the web root, from a subfolder, or from a
+ * one-level-deeper folder, and says so plainly when it cannot find the app
+ * rather than reporting a confusing "no database" further down.
+ */
+function mam_export_api_root(): string
+{
+    foreach (['/api', '/../api', '/../../api', '/..', '/../..'] as $rel) {
+        $c = realpath(__DIR__ . $rel);
+        if ($c !== false && (is_file($c . '/.env') || is_file($c . '/storage/mam.db') || is_file($c . '/index.php'))) {
+            return $c;
+        }
+    }
+    return __DIR__ . '/..';
+}
+
+define('MAM_EXPORT_API_ROOT', mam_export_api_root());
 
 /** Fail closed, in plain text, without leaking anything about the install. */
 function mam_web_deny(string $why, int $code = 403): void {

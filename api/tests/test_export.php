@@ -130,3 +130,66 @@ foreach (['export.php' => $cli, 'export-web.php' => $web] as $name => $src) {
     t_ok(strpos($code, 'bootstrap.php') === false, "$name never loads bootstrap.php");
     t_ok(strpos($code, 'mam_db(') === false, "$name never calls mam_db() (which would migrate)");
 }
+
+t_group('ETL export — the web tool can actually be reached');
+
+// The bug this catches shipped: the tool's own instructions told the operator
+// to upload it to api/tools/, which carries `Require all denied`. Apache
+// answered 403 before PHP ran, so a correct script was unreachable and the
+// failure looked like a permissions problem with the host.
+$repo   = dirname(__DIR__, 2);
+$denied = [];
+foreach (['api/tools', 'api/lib', 'api/routes', 'api/tests', 'api/bin', 'api/storage', 'api/logs', 'docs'] as $dir) {
+    $ht = $repo . '/' . $dir . '/.htaccess';
+    if (is_file($ht) && strpos((string) file_get_contents($ht), 'Require all denied') !== false) $denied[] = $dir;
+}
+t_ok(in_array('api/tools', $denied, true),
+     'api/tools/ is web-denied (the cron runner lives there — this must stay true)');
+
+// So the instructions must not name any denied directory as the upload target.
+$doc = (string) file_get_contents(dirname(__DIR__) . '/tools/export-web.php');
+$head = substr($doc, 0, (int) strpos($doc, 'declare(strict_types=1)'));
+// A denied directory may be MENTIONED freely — the header explains why
+// api/tools/ cannot serve the tool, and names `php api/tools/export.php` as a
+// CLI command, which is fine. What must never appear is an instruction to
+// FETCH a URL under one, or to UPLOAD the tool into one. That is the exact
+// sentence that shipped and produced a 403.
+foreach ($denied as $dir) {
+    $bad = [];
+    foreach (explode("\n", $head) as $line) {
+        if (strpos($line, $dir) === false) continue;
+        $isUrl    = (bool) preg_match('~https?://[^\s]*' . preg_quote($dir, '~') . '~', $line);
+        $isUpload = (bool) preg_match('/\b(Upload|upload)\b/', $line)
+                    && !preg_match('/\b(NOT|not|never)\b/', $line);
+        if ($isUrl || $isUpload) $bad[] = trim($line, " *\t");
+    }
+    t_eq(count($bad), 0, "the instructions never point a BROWSER at $dir/"
+        . ($bad ? ': ' . implode(' | ', $bad) : ''));
+}
+t_ok(strpos($head, 'dbexport') !== false, 'they name a web-servable folder instead');
+t_ok(strpos($head, 'Require all denied') !== false,
+     'and explain WHY api/tools/ cannot work, so nobody re-files it there');
+
+// The companion .htaccess must exist and must undo the site-wide Cache-Control.
+// mod_headers runs after PHP, so without it the parent rule overwrites the
+// script's `no-store` and invites a proxy to keep the database for 5 minutes.
+$comp = $repo . '/api/tools/export-web.htaccess';
+t_ok(is_file($comp), 'the companion .htaccess ships beside the tool');
+$c = is_file($comp) ? (string) file_get_contents($comp) : '';
+t_ok(strpos($c, 'Header unset Cache-Control') !== false, 'it clears the inherited Cache-Control');
+t_ok((bool) preg_match('/Header always set Cache-Control "no-store/', $c), '…and replaces it with no-store');
+t_ok(strpos($c, 'Options -Indexes') !== false, 'and the drop folder cannot be browsed');
+
+// The site-wide rule it is defending against must still be the reason it exists
+// — if that rule is ever removed, this comment should stop claiming it.
+$root = (string) file_get_contents($repo . '/.htaccess');
+$cachePos = strpos($root, 'Header set Cache-Control "public, max-age=300');
+t_ok($cachePos !== false && strpos(substr($root, max(0, $cachePos - 120), 120), '(html|php)') !== false,
+     'the site-wide Cache-Control on *.php is still there (the reason the companion is needed)');
+
+// Path resolution must not assume the file sits in api/tools/, since that is
+// the one place it can never be served from.
+$code = preg_replace('~/\*.*?\*/~s', '', $doc);
+t_ok(strpos($code, "__DIR__ . '/..'") === false || strpos($code, 'mam_export_api_root') !== false,
+     'the api/ directory is discovered, not assumed from a fixed depth');
+t_ok(strpos($code, 'mam_export_api_root') !== false, 'a probe function does the discovery');
