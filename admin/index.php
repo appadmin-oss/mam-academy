@@ -3631,7 +3631,7 @@ nav a{display:flex;align-items:center}
     <div class="kpi"><div class="kpi-label">Teach-back</div><div class="kpi-value"><?= $uPct($uHealth['teachback_pct']) ?></div><?= $uBar($uHealth['teachback_pct']) ?></div>
     <div class="kpi"><div class="kpi-label">Average mastery</div><div class="kpi-value"><?= $uHealth['avg_mastery'] === null ? '<span class="muted">—</span>' : htmlspecialchars((string)$uHealth['avg_mastery']) ?></div><?= $uBar($uHealth['avg_mastery']) ?></div>
     <div class="kpi"><div class="kpi-label">Module completion</div><div class="kpi-value"><?= $uPct($uHealth['module_completion_pct']) ?></div><?= $uBar($uHealth['module_completion_pct']) ?></div>
-    <div class="kpi"><div class="kpi-label">Need intervention</div><div class="kpi-value" style="color:<?= (int)$uHealth['intervention'] > 0 ? '#F87171' : 'inherit' ?>"><?= number_format((int)$uHealth['intervention']) ?></div></div>
+    <div class="kpi"><div class="kpi-label">Need intervention</div><div class="kpi-value" style="color:<?= (int)$uHealth['intervention'] > 0 ? 'var(--red)' : 'inherit' ?>"><?= number_format((int)$uHealth['intervention']) ?></div></div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
@@ -3663,7 +3663,7 @@ nav a{display:flex;align-items:center}
           <td style="padding:8px"><?= $uPct($row['teachback_pct']) ?></td>
           <td style="padding:8px"><?= $row['avg_mastery'] === null ? '<span class="muted">—</span>' : htmlspecialchars((string)$row['avg_mastery']) ?></td>
           <td style="padding:8px"><?= $uPct($row['module_completion_pct']) ?></td>
-          <td style="padding:8px" style="color:<?= (int)$row['intervention'] > 0 ? '#F87171' : 'inherit' ?>"><?= number_format((int)$row['intervention']) ?></td>
+          <td style="padding:8px;color:<?= (int)$row['intervention'] > 0 ? 'var(--red)' : 'inherit' ?>"><?= number_format((int)$row['intervention']) ?></td>
           <?php if ($uNext): ?>
             <td style="padding:8px"><a class="btn" style="padding:4px 10px;font-size:.75rem" href="<?= htmlspecialchars($uQs($childFilter, $uNext)) ?>">Drill in ›</a></td>
           <?php elseif ($uDash['dimension'] === 'student'): ?>
@@ -3689,7 +3689,7 @@ nav a{display:flex;align-items:center}
           <td style="padding:8px"><?= (int)$ip['students'] ?></td>
           <td style="padding:8px"><?= $ip['avg_mastery'] === null ? '<span class="muted">—</span>' : htmlspecialchars((string)$ip['avg_mastery']) ?></td>
           <td style="padding:8px"><?= $uPct($ip['completion_pct']) ?></td>
-          <td style="padding:8px" style="color:<?= (int)$ip['interventions'] > 0 ? '#F87171' : 'inherit' ?>"><?= (int)$ip['interventions'] ?></td>
+          <td style="padding:8px;color:<?= (int)$ip['interventions'] > 0 ? 'var(--red)' : 'inherit' ?>"><?= (int)$ip['interventions'] ?></td>
         </tr>
       <?php endforeach; ?>
       </tbody></table></div>
@@ -3753,7 +3753,7 @@ nav a{display:flex;align-items:center}
     </div>
 
     <?php if ($rec['intervention']): ?>
-      <div class="card" style="margin-bottom:16px;border-color:#F87171">
+      <div class="card" style="margin-bottom:16px;border-color:var(--red)">
         <h3 style="margin:0 0 6px">Intervention — Level <?= (int)$rec['intervention']['level'] ?>: <?= htmlspecialchars((string)$rec['intervention']['level_label']) ?></h3>
         <p class="muted" style="margin:0"><?= htmlspecialchars(implode(' · ', $rec['intervention']['reasons'])) ?> — escalate to <?= htmlspecialchars((string)$rec['intervention']['escalation']) ?>.</p>
       </div>

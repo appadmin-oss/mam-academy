@@ -106,6 +106,16 @@ function mam_upper_scalar(string $sql, string $cohortCol, ?array $cohortIds, flo
         $v = $row ? reset($row) : null;
         return $v === null ? $default : (float) $v;
     } catch (\Throwable $e) {
+        // A dashboard degrades rather than 500s — but it must not degrade
+        // SILENTLY. Returning 0 for a broken query is indistinguishable from a
+        // genuine zero, which is the exact failure this screen exists to avoid.
+        // Log it so a mistyped column is discoverable instead of quietly
+        // reporting an academy with no students.
+        mam_log('error', 'upper_admin_metric_failed', [
+            'error'  => $e->getMessage(),
+            'column' => $cohortCol,
+            'sql'    => preg_replace('/\s+/', ' ', substr($sql, 0, 160)),
+        ]);
         return $default;
     }
 }
