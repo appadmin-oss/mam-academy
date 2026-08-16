@@ -141,3 +141,33 @@ t_ok(strpos($admin, ".nav-more-btn:focus-visible") !== false, 'and it has a visi
 // away by name. That is what makes folding acceptable at all.
 t_ok(strpos($admin, 'foreach ($navGroups as $__g => $__items)') !== false,
     'the command palette still indexes every view, folded or not');
+
+t_group('admin — an unfinished enrolment cannot hide');
+
+// Marking an application "enrolled" used to create an account and an ID card
+// and stop — no course, no class, no instructor. On the real export that left
+// 5 applications marked accepted/enrolled against 1 course enrolment. The state
+// was created silently and there was no screen that showed it existed.
+t_ok(strpos($admin, 'mam_enrol_incomplete') !== false,
+    'the admin knows how to find accepted applications that are in no class');
+t_ok((bool) preg_match("/needs\[\] = \['enrolment' \. \(\\\$n === 1 \? '' : 's'\) \. ' to finish/", $admin),
+    '…and they appear in "Needs your attention", so the backlog is discoverable');
+t_ok(strpos($admin, "'?v=applications&f=incomplete'") !== false,
+    '…linking to just those applications, not the whole list');
+t_ok(strpos($admin, "\$onlyIncomplete = ((\$_GET['f'] ?? '') === 'incomplete');") !== false,
+    'and the applications view implements that filter');
+t_ok(strpos($admin, 'Finish enrolment') !== false,
+    'each affected row is marked, so the gap is visible without opening anything');
+
+// The one action that finishes the job, and the guards on it.
+t_ok(strpos($admin, "\$action === 'enrol_complete'") !== false, 'there is one action that completes an enrolment');
+t_ok(strpos($admin, "'enrol_complete'  => 'admissions',") !== false, '…behind the admissions capability');
+// `level` is legitimately blank-able. array_filter() would drop the empty
+// string and silently fall back to whatever the application said, so a
+// deliberate "no level" would not stick.
+t_ok(strpos($admin, "if (isset(\$_POST['level']) && \$_POST['level'] === '') \$overrides['level'] = '';") !== false,
+    'choosing "no level" is preserved rather than filtered away as empty');
+// Every step is reported. The old provisioning path caught its own failure and
+// wrote a log line, so the admin was told "Application updated" regardless.
+t_ok(strpos($admin, "\$st['ok'] ? '' : '⚠ '") !== false,
+    'every step of the result is shown to the admin, failures included');

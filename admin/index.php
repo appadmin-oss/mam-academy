@@ -2640,6 +2640,15 @@ nav a{display:flex;align-items:center}
     // most frequent job the admin actually has — never appeared here at all,
     // while a single application queue did. An incomplete queue under a
     // complete-sounding heading is worse than no queue: it is trusted.
+    // Accepted or enrolled, but in no course — the state the old flow created
+    // silently every time somebody marked an application "enrolled". Four of
+    // five on the real data. Without this the backlog is invisible: an admin
+    // would have to open every application to find them.
+    if (function_exists('mam_enrol_incomplete') && ($n = count(mam_enrol_incomplete(200)))) {
+        $navBadges['applications'] = ($navBadges['applications'] ?? 0) + $n;
+        $needs[] = ['enrolment' . ($n === 1 ? '' : 's') . ' to finish — accepted, but not in a class yet',
+                    '?v=applications&f=incomplete', $n, 'Finish'];
+    }
     if ($n = $cnt("SELECT COUNT(*) FROM payments WHERE status = 'pending_bank_transfer'")) { $navBadges['payments'] = $n; $needs[] = ['bank transfer' . ($n === 1 ? '' : 's') . ' awaiting your confirmation', '?v=payments&f=bank', $n, 'Confirm']; }
 
     // Sidebar nav grouped by domain — [view => [label, FontAwesome icon]].
@@ -3316,8 +3325,25 @@ nav a{display:flex;align-items:center}
       <thead><tr><th style="width:36px"><input type="checkbox" id="appSelAll" aria-label="Select all applications"></th><th>Photo</th><th>Reference</th><th>Student</th><th>Programme</th><th>Pathway · Mode</th><th>Course</th><th>Session</th><th>Age</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
       <tbody>
       <?php
+      // Applications accepted or enrolled that were never actually put in a
+      // class. `?f=incomplete` is where the Overview queue lands, and the same
+      // ids mark the rows below — computed once, not probed per row.
+      $incompleteIds = [];
+      if (function_exists('mam_enrol_incomplete')) {
+          foreach (mam_enrol_incomplete(200) as $ic) $incompleteIds[(int)$ic['id']] = true;
+      }
+      $onlyIncomplete = (($_GET['f'] ?? '') === 'incomplete');
+
       $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM applications'); $off = ($page - 1) * $perPage;
       $rows = mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email, c.phone, c.sex, c.address, c.lga, c.state, c.country, c.age_range FROM applications a LEFT JOIN customers c ON c.id=a.customer_id ORDER BY a.created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
+      if ($onlyIncomplete) {
+          // Filtered in PHP rather than SQL: the backlog query already joins
+          // three tables to establish "in no course", and re-expressing it as a
+          // subquery here would be a second definition of the same thing that
+          // could drift from the first.
+          $rows  = array_values(array_filter($rows, fn ($r) => isset($incompleteIds[(int)$r['id']])));
+          $total = count($rows);
+      }
       if (!$rows): ?>
         <tr><td colspan="13" class="empty">No applications yet</td></tr>
       <?php endif;
@@ -3333,7 +3359,16 @@ nav a{display:flex;align-items:center}
               <span class="muted" title="No headshot uploaded" style="display:inline-flex;width:40px;height:40px;border-radius:50%;align-items:center;justify-content:center;background:var(--panel);border:1px dashed var(--border)"><i class="fa-solid fa-user" aria-hidden="true"></i></span>
             <?php endif; ?>
           </td>
-          <td class="mono" data-label="Reference"><?= htmlspecialchars($r['reference']) ?></td>
+          <td class="mono" data-label="Reference"><?= htmlspecialchars($r['reference']) ?>
+            <?php if (isset($incompleteIds[(int)$r['id']])): ?>
+              <?php // Accepted or enrolled but in no class. Said on the row so the
+                    // gap is visible at a glance instead of only inside the drawer —
+                    // this state used to be created silently, every time. ?>
+              <br><a href="?v=applications&amp;app=<?= (int)$r['id'] ?>" class="pill pending"
+                 style="margin-top:4px;text-decoration:none;display:inline-flex"
+                 title="Accepted, but not in a class yet">Finish enrolment</a>
+            <?php endif; ?>
+          </td>
           <td data-label="Student"><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong>
             <?php if (!empty($r['sex'])): ?><span class="muted">· <?= htmlspecialchars(ucfirst((string)$r['sex'])) ?></span><?php endif; ?>
             <br><span class="muted"><?= htmlspecialchars((string)($r['email'] ?? '')) ?></span>
