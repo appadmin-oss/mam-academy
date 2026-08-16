@@ -81,6 +81,41 @@ function mam_admin_rows(string $sql, array $args = []): array {
 
 /* ─── Pagination: keep every list bounded + navigable as data grows ─── */
 function mam_admin_page(): int { return max(1, (int)($_GET['page'] ?? 1)); }
+
+/**
+ * Render a status value as something a person reads.
+ *
+ * Two problems this fixes, both seen on the live Payments screen:
+ *  • `pending_bank_transfer` was printed raw. The `.pill` styles key off the
+ *    status as a CSS class, and there is no `.pill.pending_bank_transfer`
+ *    rule — so the most common status in the table got the *base* pill, which
+ *    has no background at all, and rendered as bare text beside two
+ *    neighbours that did get coloured chips. It read like a bug in the data.
+ *  • Even styled, `pending_bank_transfer` is the column value, not English.
+ *
+ * The map only covers statuses whose raw form is genuinely opaque. Values that
+ * are already the word a person would use (`paid`, `pending`, `active`) fall
+ * through to a title-cased version rather than being paraphrased for the sake
+ * of it. `$tone` is the class the pill colours off, so a status can be
+ * relabelled without inventing a new colour.
+ */
+function mam_admin_status(string $status, string $context = ''): string {
+    static $map = [
+        'pending_bank_transfer' => ['Awaiting bank transfer', 'pending'],
+        'pending_review'        => ['Awaiting review',        'pending'],
+        'in_review'             => ['Being reviewed',         'pending'],
+        'part_paid'             => ['Partly paid',            'pending'],
+        'partially_refunded'    => ['Partly refunded',        'completed'],
+        'written_off'           => ['Written off',            'completed'],
+        'pending_bank'          => ['Awaiting bank transfer', 'pending'],
+        'must_change_password'  => ['Password change due',    'pending'],
+    ];
+    $key = strtolower(trim($status));
+    if ($key === '') return '<span class="muted">—</span>';
+    [$label, $tone] = $map[$key] ?? [ucfirst(str_replace('_', ' ', $key)), $key];
+    return '<span class="pill ' . htmlspecialchars($tone) . '" title="' . htmlspecialchars($key)
+         . '">' . htmlspecialchars($label) . '</span>';
+}
 /** Prev/next controls that preserve the current view + query params. */
 function mam_admin_pager(int $page, int $total, int $perPage): string {
     $pages = max(1, (int)ceil($total / max(1, $perPage)));
@@ -2334,7 +2369,7 @@ table{width:100%;border-collapse:collapse;font-size:0.86rem}
 th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
 th{color:var(--muted);font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;background:var(--panel);white-space:nowrap}
 tr:hover td{background:var(--raised)}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:lowercase}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:lowercase;white-space:nowrap}
 .pill.submitted,.pill.received{background:rgba(99,102,241,0.18);color:#A5B4FC}
 .pill.paid,.pill.processed,.pill.succeeded,.pill.active,.pill.subscribed{background:rgba(16,185,129,0.18);color:#34D399}
 .pill.enrolled{background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B}
@@ -2347,6 +2382,45 @@ tr:hover td{background:var(--raised)}
 .muted{color:var(--muted)}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.82rem}
 form.inline{display:inline-flex;gap:6px;align-items:center}
+
+/* ── The actions column is PINNED to the right edge ────────────────────────
+   Measured on the real data at 1440×900: the Payments "✓ Confirm" button sat
+   at x=1437–1501 and the Applications table ran 1666px inside a 1122px card,
+   putting 104 controls — "⚙ Manage", "Save", every confirm button — outside
+   the viewport. `.card` scrolls horizontally, so the controls existed but
+   could only be reached by discovering a scrollbar INSIDE the table. The
+   admin's report that the page was "impossible to use" was literally accurate
+   for the two screens they use most.
+   Sticky keeps the last cell on screen at any width, so the primary action of
+   every row is always reachable without horizontal scrolling. The rest of the
+   row still scrolls, which is the correct trade: reference numbers can be
+   scrolled to, a submit button cannot be hunted for. */
+.card table td:last-child,
+.card table th:last-child{
+  position:sticky;right:0;z-index:1;
+  background:var(--panel);
+  /* A hairline, not a shadow: it must read as a pinned edge even when the
+     table happens to fit and nothing is scrolling. */
+  box-shadow:-1px 0 0 var(--border);
+}
+.card table th:last-child{z-index:3}
+/* The hover tint has to follow, or the pinned cell reads as a different row. */
+.card table tr:hover td:last-child{background:var(--raised)}
+/* Let an action cell wrap instead of forcing the column ~210px wide. */
+/* The action cells carry INLINE styles (`display:inline-flex`, and until this
+   change `white-space:nowrap`), which outrank any stylesheet rule — so the
+   wrap silently never applied and the pinned column stayed wider than the
+   screen. Overriding here is the surgical option; reflowing every action form
+   in a 200KB file is not. */
+.card table td:last-child{max-width:264px;white-space:normal!important}
+/* ANY cell holding an action form, not just the pinned one — the Users table
+   puts "new password / Reset" in a middle column, and an unwrapped form there
+   pushes the whole table wider just as effectively. */
+.card table td form.inline,
+.card table td form[style*="inline-flex"]{
+  display:inline-flex!important;flex-wrap:wrap!important;gap:6px;max-width:230px}
+.card table td form.inline input.tiny{flex:1 1 108px;min-width:0;max-width:100%}
+.card table td:last-child > *{vertical-align:middle}
 /* ── Base form controls: theme EVERY bare input/select/textarea in the content
    area so inline forms (app decision, placement, assignee, notes, …) match the
    dark UI instead of rendering as default white widgets. .form-grid / .tiny
@@ -2483,6 +2557,11 @@ nav a{display:flex;align-items:center}
   table.stack td[data-label=""]{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}
   table.stack tr:hover td{background:transparent}
   table.stack td.empty{text-align:center}
+  /* Stacked rows are already full-width cards, so nothing overflows and the
+     desktop pin would strand the action cell against the right edge. */
+  .card table.stack td:last-child,
+  .card table.stack th:last-child{position:static;box-shadow:none;background:transparent;max-width:none}
+  .card table.stack td:last-child form.inline{max-width:none}
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
@@ -2515,6 +2594,12 @@ nav a{display:flex;align-items:center}
     $fac = $cnt("SELECT COUNT(*) FROM faculty_invites WHERE status = 'requested'") + $cnt("SELECT COUNT(*) FROM instructor_applications WHERE status = 'submitted'");
     if ($fac) { $navBadges['users'] = $fac; $needs[] = ['teaching request' . ($fac === 1 ? '' : 's') . ' / instructor application' . ($fac === 1 ? '' : 's'), '?v=users#faculty', $fac, 'Review']; }
     if ($n = $cnt("SELECT COUNT(*) FROM support_tickets WHERE status IN ('open','in_progress')")) { $navBadges['support'] = $n; $needs[] = ['open support ticket' . ($n === 1 ? '' : 's'), '?v=support', $n, 'Respond']; }
+    // Money was missing from a list whose own heading says "everything pending
+    // across the academy". On the real data that meant 11 bank transfers — the
+    // most frequent job the admin actually has — never appeared here at all,
+    // while a single application queue did. An incomplete queue under a
+    // complete-sounding heading is worse than no queue: it is trusted.
+    if ($n = $cnt("SELECT COUNT(*) FROM payments WHERE status = 'pending_bank_transfer'")) { $navBadges['payments'] = $n; $needs[] = ['bank transfer' . ($n === 1 ? '' : 's') . ' awaiting your confirmation', '?v=payments&f=bank', $n, 'Confirm']; }
 
     // Sidebar nav grouped by domain — [view => [label, FontAwesome icon]].
     // Grouping turns a flat 19-item list into a scannable structure.
@@ -3074,7 +3159,7 @@ nav a{display:flex;align-items:center}
             <?php if (!empty($r['recovery_sent_at'])): ?><br><span class="muted" title="Recovery email sent" style="font-size:0.66rem"><i class="fa-solid fa-envelope-circle-check"></i> nudged</span><?php endif; ?>
           </td>
           <td class="muted" data-label="Created"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
-          <td data-label="" style="white-space:nowrap">
+          <td data-label="">
             <a class="tiny btn ghost" href="?v=applications&app=<?= (int)$r['id'] ?>" title="Open the admissions cockpit (decision, notes, assignee, history)">⚙ Manage</a>
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -4735,13 +4820,42 @@ nav a{display:flex;align-items:center}
   </header>
   <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Done.</strong></div><?php endif; ?>
   <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
+  <?php
+    // How much is waiting on a human, said in one line. Without it the admin
+    // had to count `pending_bank_transfer` rows by eye down a 9-column table to
+    // learn how much work was in front of them.
+    $bankN   = (int)mam_admin_scalar("SELECT COUNT(*) FROM payments WHERE status = 'pending_bank_transfer'");
+    $bankSum = mam_db_all("SELECT currency, SUM(amount) AS total FROM payments WHERE status = 'pending_bank_transfer' GROUP BY currency");
+    $isBank  = (($_GET['f'] ?? '') === 'bank');
+  ?>
+  <?php if ($bankN): ?>
+    <div class="card" style="border-color:var(--gold);padding:14px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <strong><?= $bankN ?> bank transfer<?= $bankN === 1 ? '' : 's' ?> awaiting your confirmation</strong>
+      <span class="muted">
+        <?php // Totals are per currency and never summed together — adding naira
+              // to dollars is the exact class of bug the v61 USD column exists
+              // to prevent, and a wrong headline figure is worse than none.
+        ?>
+        <?= htmlspecialchars(implode(' · ', array_map(
+              fn ($g) => number_format((float)$g['total']) . ' ' . $g['currency'], $bankSum))) ?>
+      </span>
+      <a class="btn <?= $isBank ? '' : 'ghost' ?>" style="margin-left:auto"
+         href="?v=payments<?= $isBank ? '' : '&f=bank' ?>"><?= $isBank ? 'Show all payments' : 'Show only these' ?></a>
+    </div>
+  <?php endif; ?>
   <div class="card">
     <table class="stack">
       <thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Provider Ref</th><th>Verified</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
       <?php
-      $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM payments'); $off = ($page - 1) * $perPage;
-      $rows = mam_db_all('SELECT * FROM payments ORDER BY created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
+      // ?f=bank narrows to the transfers waiting on a human. The Overview
+      // queue links straight here, so "11 bank transfers awaiting your
+      // confirmation → Confirm" lands on those 11 rather than on page 1 of
+      // everything, where the admin would have to find them by eye.
+      $bankOnly = (($_GET['f'] ?? '') === 'bank');
+      $where    = $bankOnly ? " WHERE status = 'pending_bank_transfer'" : '';
+      $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM payments' . $where); $off = ($page - 1) * $perPage;
+      $rows = mam_db_all('SELECT * FROM payments' . $where . ' ORDER BY created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
       if (!$rows): ?><tr><td colspan="9" class="empty">No payments yet</td></tr><?php endif;
       foreach ($rows as $r): ?>
         <tr>
@@ -4749,7 +4863,7 @@ nav a{display:flex;align-items:center}
           <td data-label="Purpose"><span class="pill"><?= htmlspecialchars((string)($r['purpose'] ?? 'tuition')) ?></span></td>
           <td data-label="Provider"><?= htmlspecialchars($r['provider']) ?></td>
           <td data-label="Amount"><?= number_format((float)$r['amount']) ?> <?= htmlspecialchars($r['currency']) ?></td>
-          <td data-label="Status"><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
+          <td data-label="Status"><?= mam_admin_status((string)$r['status']) ?></td>
           <td class="mono muted" data-label="Provider Ref"><?= htmlspecialchars((string)$r['provider_reference']) ?></td>
           <td class="muted" data-label="Verified"><?= htmlspecialchars(substr((string)$r['verified_at'], 0, 16)) ?></td>
           <td class="muted" data-label="Created"><?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?></td>
@@ -4962,7 +5076,7 @@ nav a{display:flex;align-items:center}
     <h3>All users <button type="button" class="btn btn-ghost" style="font-size:.78rem;margin-left:12px;vertical-align:middle" onclick="backfillEnrollRefs(this)" title="Generate MAM/YY/NNN IDs for all active students who are missing one"><i class="fa-solid fa-id-card"></i> Backfill student IDs</button></h3>
     <div id="usersTableView">
     <table class="stack">
-      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Created</th><th>Reset password</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
       <?php
       $roleFilter = $_GET['role'] ?? '';
@@ -5005,16 +5119,14 @@ nav a{display:flex;align-items:center}
           <td data-label="Status"><span class="pill <?= htmlspecialchars($u['status']) ?>"><?= htmlspecialchars($u['status']) ?></span></td>
           <td class="muted" data-label="Last login"><?= htmlspecialchars(substr((string)($u['last_login'] ?? ''), 0, 16)) ?></td>
           <td class="muted" data-label="Created"><?= htmlspecialchars(substr((string)$u['created_at'], 0, 16)) ?></td>
-          <td data-label="Reset password">
-            <form class="inline" method="post">
+          <td data-label="">
+            <form class="inline" method="post" title="Set a new password for this user">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_reset">
               <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
               <input type="text" name="password" class="tiny" placeholder="new password" minlength="8" required>
               <button class="tiny" type="submit">Reset</button>
             </form>
-          </td>
-          <td data-label="">
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_status">
