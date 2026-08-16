@@ -186,6 +186,20 @@ if ($showChooser) {
       </div>
     </details>
 
+    <?php /* The wizard is a real <form>. It was 51 inputs and 4 selects sitting
+             outside any form at all, which cost the browser's whole contribution:
+             Enter did nothing (implicit submission requires a form), autofill
+             could not see a name/address block to group, password managers would
+             not offer to save, and native constraint validation never ran because
+             nothing ever fired a submit.
+
+             `novalidate` is deliberate and load-bearing. Steps 2-5 stay in the
+             DOM while hidden, so a `required` field on a hidden step would make
+             the form unsubmittable with "An invalid form control is not
+             focusable" — an error the applicant can neither see nor fix. The
+             wizard's own validateStep() gates each step instead, and the
+             attributes remain as a machine-readable description of the field. */ ?>
+    <form id="applyForm" novalidate autocomplete="on">
     <div class="apply-main">
       <!-- STEP 1: Programme — split into 3 sub-sections for clarity -->
       <div class="step active" data-step="0">
@@ -380,7 +394,7 @@ if ($showChooser) {
 
         <div class="step-actions">
           <span></span>
-          <button type="button" class="btn-step btn-step-next" id="btnNext">Continue <i class="fa-solid fa-arrow-right"></i></button>
+          <button type="submit" class="btn-step btn-step-next" id="btnNext">Continue <i class="fa-solid fa-arrow-right"></i></button>
         </div>
       </div>
 
@@ -497,7 +511,7 @@ if ($showChooser) {
 
         <div class="step-actions">
           <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" id="btnNext2">Continue <i class="fa-solid fa-arrow-right"></i></button>
+          <button type="submit" class="btn-step btn-step-next" id="btnNext2">Continue <i class="fa-solid fa-arrow-right"></i></button>
         </div>
       </div>
 
@@ -561,7 +575,7 @@ if ($showChooser) {
 
         <div class="step-actions">
           <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" id="btnNext3">Continue <i class="fa-solid fa-arrow-right"></i></button>
+          <button type="submit" class="btn-step btn-step-next" id="btnNext3">Continue <i class="fa-solid fa-arrow-right"></i></button>
         </div>
       </div>
 
@@ -613,7 +627,7 @@ if ($showChooser) {
 
         <div class="step-actions">
           <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" id="btnNext4">Submit &amp; Continue to Payment <i class="fa-solid fa-arrow-right"></i></button>
+          <button type="submit" class="btn-step btn-step-next" id="btnNext4">Submit &amp; Continue to Payment <i class="fa-solid fa-arrow-right"></i></button>
         </div>
       </div>
 
@@ -683,6 +697,8 @@ if ($showChooser) {
       </div>
 
     </div>
+    </form>
+
   </section>
 
   <!-- Step-5 regional-fee + payment-card styles. Scoped to .pay-card / .pay-* so

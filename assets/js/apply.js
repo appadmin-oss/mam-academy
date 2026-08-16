@@ -694,10 +694,18 @@
       }
       showStep(current + 1);
     }
-    on($('#btnNext'),  'click', attemptNext);
-    on($('#btnNext2'), 'click', attemptNext);
-    on($('#btnNext3'), 'click', attemptNext);
-    on($('#btnNext4'), 'click', attemptNext);
+    // ONE submit listener instead of four click listeners. The Continue buttons
+    // are type=submit, so this fires whether the applicant clicks them or just
+    // presses Enter — which is what most people do after typing an email, and
+    // which previously did nothing at all because there was no form to submit.
+    //
+    // Listening on the form rather than the buttons also means a field added to
+    // any step is covered automatically; the old wiring needed a fifth
+    // addEventListener the day a fifth Continue button appeared.
+    on($('#applyForm'), 'submit', function (e) {
+        e.preventDefault();   // the wizard owns navigation; the browser must not post
+        attemptNext();
+    });
     $$('[data-back]').forEach(function (b) { on(b, 'click', function () { showStep(current - 1); }); });
     // Review "Edit" buttons live inside #reviewBody, which is re-rendered via
     // innerHTML — so we delegate instead of binding once (the old bug).
