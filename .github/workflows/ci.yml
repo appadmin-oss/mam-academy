@@ -37,6 +37,12 @@ jobs:
       - name: Run full test suite (auto-discovers every api/tests/test_*.php)
         run: php api/tests/run.php
 
+      # The SQLite mirror is generated from the canonical MySQL file. v1 drifted
+      # exactly here — a migration landed in one and not the other — so a stale
+      # mirror fails the build rather than being discovered on a deploy.
+      - name: Verify the schema-v2 SQLite mirror is not stale
+        run: php api/tools/schema-v2-sqlite.php --check
+
   js:
     name: JS syntax
     runs-on: ubuntu-latest
