@@ -96,3 +96,48 @@ t_ok(strpos($admin, '.pill.in_review,.pill.pending,') !== false,
     'and it borrows the existing `pending` colour rather than inventing one');
 t_ok(!preg_match('/<td data-label="Status"><span class="pill <\?= htmlspecialchars\(\$r\[.status.\]\) \?>"><\?= htmlspecialchars\(\$r\[.status.\]\) \?><\/span><\/td>\s*<\/tr>\s*<\?php endforeach; \?>\s*<\/tbody>\s*<\/table>\s*<\?= mam_admin_pager/s', $admin),
     'the payments table no longer prints the raw column value as its own CSS class');
+
+t_group('admin nav — folded by real use, never by opinion');
+
+// Forty destinations, on an install where 34 of the backing tables are empty.
+// Most of that list led to a screen saying "nothing here", so finding the three
+// sections that mattered meant reading past thirty-seven that did not.
+t_ok(strpos($admin, '$navProbe = [') !== false, 'each section declares what data would make it worth showing');
+t_ok(strpos($admin, '$navInUse = function') !== false, 'and a predicate decides visibility from that');
+
+// The three rules that keep this honest rather than an editorial guess.
+t_ok(strpos($admin, "if (\$k === \$view) return true;") !== false,
+    'the section you are currently on is never folded');
+t_ok(strpos($admin, "if (!empty(\$navBadges[\$k])) return true;") !== false,
+    'a section with pending work is never folded');
+t_ok(strpos($admin, "if (!isset(\$navProbe[\$k])) return true;") !== false,
+    'a section with no probe declared stays visible (nothing is hidden by omission)');
+
+// A probe that errors must FAIL OPEN. Wrongly showing a link costs a glance;
+// wrongly hiding one costs an admin who cannot find their work.
+t_ok((bool) preg_match('/catch \(Throwable \$e\) \{ \$cache\[\$t\] = true; \}\s*\/\/ fail OPEN/', $admin),
+    'a broken probe leaves the section VISIBLE rather than hiding it');
+
+// Existence, not COUNT(*): this runs on every page load, and an academy with
+// 40k attendance rows should not pay for a full count to draw a sidebar.
+t_ok(strpos($admin, "'SELECT 1 FROM ' . \$t . ' LIMIT 1'") !== false,
+    'visibility is an O(1) existence probe, not a COUNT over the table');
+// The table name is interpolated, so it must come from the registry above and
+// never from a request — the same rule upper-admin.php's {SCOPE} follows.
+t_ok(!preg_match('/\$navProbe\[[^\]]*\$_(GET|POST|REQUEST)/', $admin),
+    'the interpolated table name comes from the registry, never from a request');
+
+t_group('admin nav — the fold is a default, not a restriction');
+
+t_ok(strpos($admin, "class='nav-more-btn' aria-expanded='false'") !== false,
+    'the fold is a real button with aria-expanded, not a mouse-only div');
+t_ok(strpos($admin, "aria-controls='") !== false, '…wired to the panel it controls');
+t_ok(strpos($admin, "not in use yet") !== false, 'it says how many are folded and why');
+t_ok(strpos($admin, "localStorage.getItem(KEY)") !== false,
+    'an admin who opens it gets it open next time — the fold is a default, not a lock');
+t_ok(strpos($admin, "'mam.nav.open'") !== false, '…stored under one key');
+t_ok(strpos($admin, ".nav-more-btn:focus-visible") !== false, 'and it has a visible focus state');
+// The ⌘K palette indexes every view, so a folded section is still one keystroke
+// away by name. That is what makes folding acceptable at all.
+t_ok(strpos($admin, 'foreach ($navGroups as $__g => $__items)') !== false,
+    'the command palette still indexes every view, folded or not');

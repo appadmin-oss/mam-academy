@@ -2282,6 +2282,16 @@ nav a.active i{opacity:1;color:var(--gold)}
 /* Grouped sidebar: a quiet section label introduces each domain of the admin. */
 .nav-group{margin:15px 12px 5px;font-size:0.62rem;font-weight:800;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);opacity:0.62}
 .nav-group:first-of-type{margin-top:2px}
+/* The "not in use yet" fold. Quiet enough not to compete with a real
+   destination, explicit enough that nobody thinks a feature was removed. */
+.nav-more-btn{display:flex;align-items:center;gap:9px;width:calc(100% - 8px);margin:1px 4px;
+  padding:7px 12px;min-height:32px;border:0;border-radius:9px;background:none;
+  color:var(--muted);font:inherit;font-size:0.76rem;text-align:left;cursor:pointer}
+.nav-more-btn:hover{background:var(--raised);color:var(--text)}
+.nav-more-btn i{width:14px;font-size:.66rem;transition:transform .16s}
+.nav-more-btn[aria-expanded="true"] i{transform:rotate(90deg)}
+.nav-more-btn:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+@media (prefers-reduced-motion:reduce){.nav-more-btn i{transition:none}}
 .nav-note{margin-top:12px;padding:8px 11px;font-size:0.72rem;line-height:1.5;color:var(--muted);border:1px dashed var(--border);border-radius:8px}
 /* Access-level (RBAC tier) badges — make the admin's level explicit. */
 .tier-badge{display:inline-block;margin-top:6px;padding:2px 9px;border-radius:100px;font-size:0.6rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase}
@@ -2615,6 +2625,50 @@ nav a{display:flex;align-items:center}
     // Flatten to a label map so the topbar title lookup keeps working.
     $links = [];
     foreach ($navGroups as $__items) foreach ($__items as $__k => $__m) $links[$__k] = $__m[0];
+
+    // ── Fold away what this academy has not started using ────────────────────
+    // Forty destinations is a lot to read past, and on this install 34 of the
+    // backing tables are empty — so most of that list led to a screen saying
+    // "nothing here". That is the second half of the admin's "confusing": not
+    // that any one screen was wrong, but that finding the three that matter
+    // meant scanning forty that mostly did not.
+    //
+    // The rule is deliberately NOT an opinion about which features matter. A
+    // section folds only when its own data is empty, so the nav reflects what
+    // this academy actually does rather than what the platform can do. Nothing
+    // is removed: the fold is one click, it remembers being opened, and ⌘K
+    // still reaches every view by name.
+    //
+    // Probes are `SELECT 1 … LIMIT 1`, not COUNT(*) — existence is O(1) and
+    // this runs on every page load. A probe that ERRORS (renamed table, a view
+    // that has no table of its own) returns null and the item stays visible:
+    // failing open is the only safe direction, since the cost of wrongly
+    // showing a link is a wasted glance and the cost of wrongly hiding one is
+    // an admin who cannot find their work.
+    $navProbe = [
+      'summer' => 'summer_applications', 'funnel' => 'funnel_events',
+      'courseenroll' => 'course_enrollments', 'schedule' => 'class_sessions',
+      'rubrics' => 'rubrics', 'recitals' => 'recitals', 'meet' => 'meeting_reconciliation',
+      'classes' => 'classes', 'enrollments' => 'enrollments', 'id-cards' => 'id_cards',
+      'media' => 'class_resources', 'academic' => 'session_attendance', 'upper' => 'cohorts',
+      'accountability' => 'accountability_charges', 'guardians' => 'parent_links',
+      'fines' => 'instructor_fines', 'storeitems' => 'store_items',
+      'storeorders' => 'store_orders', 'referrals' => 'referrals',
+      'messages' => 'messages', 'newsletter' => 'newsletter', 'support' => 'support_tickets',
+      'webhooks' => 'webhook_events',
+    ];
+    $navInUse = function (string $k) use ($navProbe, $view, $navBadges): bool {
+        if ($k === $view) return true;                       // never hide where you are
+        if (!empty($navBadges[$k])) return true;             // never hide pending work
+        if (!isset($navProbe[$k])) return true;              // unprobed = always shown
+        static $cache = [];
+        $t = $navProbe[$k];
+        if (!array_key_exists($t, $cache)) {
+            try { $cache[$t] = (bool) mam_db()->query('SELECT 1 FROM ' . $t . ' LIMIT 1')->fetchColumn(); }
+            catch (Throwable $e) { $cache[$t] = true; }      // fail OPEN
+        }
+        return $cache[$t];
+    };
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
     $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users', 'upper' => 'settings'];
@@ -2622,15 +2676,35 @@ nav a{display:flex;align-items:center}
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
     if (!$canView($view)) { $view = 'overview'; }
+    $navLink = function (string $k, array $meta) use ($view, $navBadges): string {
+        $cls = $view === $k ? 'active' : '';
+        $badge = !empty($navBadges[$k]) ? "<em class='nav-count'>" . (int)$navBadges[$k] . "</em>" : '';
+        return "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'" . ($cls ? " aria-current='page'" : '') . ">"
+             . "<i class='fa-solid fa-" . htmlspecialchars($meta[1]) . "' aria-hidden='true'></i><span>"
+             . htmlspecialchars($meta[0]) . "</span>$badge</a>";
+    };
+    $navFolded = 0;
     foreach ($navGroups as $groupName => $items) {
         if (!array_filter(array_keys($items), $canView)) continue; // hide an empty group
-        echo "<div class='nav-group'>" . htmlspecialchars($groupName) . "</div>";
+        $inUse = $rest = '';
+        $restN = 0;
         foreach ($items as $k => $meta) {
             if (!$canView($k)) continue;
-            $cls = $view === $k ? 'active' : '';
-            $badge = !empty($navBadges[$k]) ? "<em class='nav-count'>" . (int)$navBadges[$k] . "</em>" : '';
-            echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'" . ($cls ? " aria-current='page'" : '') . ">"
-               . "<i class='fa-solid fa-" . htmlspecialchars($meta[1]) . "' aria-hidden='true'></i><span>" . htmlspecialchars($meta[0]) . "</span>$badge</a>";
+            if ($navInUse($k)) { $inUse .= $navLink($k, $meta); }
+            else { $rest .= $navLink($k, $meta); $restN++; }
+        }
+        if ($inUse === '' && $rest === '') continue;
+        echo "<div class='nav-group'>" . htmlspecialchars($groupName) . "</div>" . $inUse;
+        if ($restN) {
+            $navFolded += $restN;
+            $id = 'navmore-' . preg_replace('/[^a-z]/', '', strtolower($groupName));
+            // A real <button> with aria-expanded, so the fold is operable and
+            // announced rather than being a div that only responds to a mouse.
+            echo "<button type='button' class='nav-more-btn' aria-expanded='false' aria-controls='"
+               . $id . "' data-nav-more='" . $id . "'>"
+               . "<i class='fa-solid fa-chevron-right' aria-hidden='true'></i>"
+               . "<span>" . $restN . " not in use yet</span></button>"
+               . "<div class='nav-more' id='" . $id . "' hidden>" . $rest . "</div>";
         }
     }
     if ($adminUser && mam_admin_tier($adminUser) === 'manager') {
@@ -9309,6 +9383,34 @@ nav a{display:flex;align-items:center}
     var nav = document.querySelector('aside nav');
     if (nav) nav.addEventListener('click', function (e) { if (e.target.closest('a')) set(false); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('nav-open')) set(false); });
+  })();
+  // "N not in use yet" folds. Open state is remembered per group, so an admin
+  // who wants the full list back gets it once rather than on every page load —
+  // the fold is a default, not a restriction.
+  (function () {
+    var KEY = 'mam.nav.open';
+    var open = {};
+    try { open = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { open = {}; }
+    document.querySelectorAll('[data-nav-more]').forEach(function (btn) {
+      var id = btn.getAttribute('data-nav-more');
+      var panel = document.getElementById(id);
+      if (!panel) return;
+      function set(isOpen) {
+        panel.hidden = !isOpen;
+        btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        // The count is only meaningful while the list is closed; once it is
+        // open the items are right there and repeating the number is noise.
+        var label = btn.querySelector('span');
+        if (label) label.textContent = isOpen ? 'Show less' : panel.children.length + ' not in use yet';
+      }
+      if (open[id]) set(true);
+      btn.addEventListener('click', function () {
+        var next = panel.hidden;
+        set(next);
+        open[id] = next;
+        try { localStorage.setItem(KEY, JSON.stringify(open)); } catch (e) {}
+      });
+    });
   })();
   // Applications "Manage" renders as a right slide-in drawer (server-rendered
   // when ?app=N). Dismiss via scrim click or Esc → back to the list.
