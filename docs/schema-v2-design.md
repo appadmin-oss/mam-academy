@@ -2,18 +2,20 @@
 
 **Status:** design, awaiting sign-off (ETL milestone **M0**, register gate **G1**).
 **Supersedes:** the v1 schema (108 tables, migrations 1→81).
-**Deliverables:** this document · `db/schema-v2.sql` (canonical MySQL, 61 tables) ·
+**Deliverables:** this document · `db/schema-v2.sql` (canonical MySQL, 64 tables) ·
 `db/schema-v2-sqlite.sql` (generated mirror) · `api/tools/schema-v2-sqlite.php`
 (the generator) · `api/tests/test_schema_v2.php` (executes it).
 
 **Verified, not asserted.** The schema is not a document here: `test_schema_v2.php`
 builds the mirror in memory, drives a complete learner journey through it —
 tenant → person → membership → catalogue → cohort → enrolment → session →
-attendance → invoice → payment → balanced ledger — and then attempts fourteen
+attendance → invoice → payment → balanced ledger — and then attempts thirty-one
 things this design says are impossible, asserting each is *rejected*. It also
 fails the build if the mirror has drifted from the canonical file, which is
-exactly how v1's two schema files fell out of step. That pass found two real
-defects in the first draft; §4.7 is the one worth reading.
+exactly how v1's two schema files fell out of step. That pass found six real
+defects — five of them the same NULL-in-a-unique-key trap, one of which would
+have let a retried payment webhook be processed twice. §4.7 is the one worth
+reading.
 
 ---
 
@@ -162,8 +164,16 @@ graph TD
     CN[consents]
     DR[data_subject_requests]
   end
+  subgraph H["H · Clarity — §4.8"]
+    SD["status_definitions<br/>what a status MEANS, per audience"]
+    AI["action_items<br/>what you need to do"]
+    UP["user_preferences<br/>how to speak to you"]
+  end
   M --> EN
   EN --> IN
+  M --> AI
+  U --> UP
+  T --> SD
 ```
 
 ---
@@ -288,6 +298,102 @@ would fail on the second.
 `deleted_at` stays, because *when* something was deleted is a real fact that a
 data-subject request and an audit both need. The two columns are set together;
 `deleted_seq` is the index's business and `deleted_at` is the human's.
+
+**This generalises, and it had to.** The same trap reappeared three more times
+once the test could see it — `roles.tenant_id`, `idempotency_keys.tenant_id` and
+`status_definitions.tenant_id`, all of which use NULL to mean "platform-wide".
+In each case the unique key stopped constraining exactly the rows that most
+needed it: five platform roles could be called `admin`, five conflicting
+definitions of one status could coexist, and — the serious one — **a retried
+payment webhook would insert a second idempotency row and be processed twice.**
+Idempotency that only works for tenant-scoped callers is not idempotency.
+
+So the convention is now explicit: **a nullable column may appear in a unique
+key only when NULL means "exempt from this constraint"** (a payment with no
+provider reference, a notification that should not be deduped). When NULL means
+"the default/platform one", it needs a NOT NULL `*_scope` companion — `0` for
+the default, the id otherwise.
+
+`test_schema_v2.php` enforces this mechanically: every nullable column inside a
+unique index must be registered with a sentence saying why NULL is safe there,
+and an unregistered one fails the build. A companion check bans nullable columns
+from primary keys outright, because **MySQL coerces PK columns to NOT NULL and
+SQLite does not** — `programme_courses` had one, so MySQL would have rejected
+every level-less row while SQLite stored them and permitted duplicates. Two
+engines disagreeing about what a table means is worse than either behaviour.
+
+### 4.8 Layer H — the schema knows enough to explain itself
+
+Every layer above records what is **true**. Layer H records what a person can be
+**told**, and it exists because v1 could not answer three questions that every
+user of the system asks. None of these are presentation problems; each one is
+missing data that no amount of front-end work can supply.
+
+**"What does this word mean?"** v1 leaked its internal status vocabulary
+straight into the portal. A learner shown `carried_forward` or `developing` has
+no way to know whether that is good news, and each screen invented its own gloss
+— so the same status read differently in three places.
+
+`status_definitions` is one glossary, keyed by `(entity, status, audience,
+locale)`. The audience dimension is the part a single `label` column cannot do:
+a learner is told *"You have more time on this module — it moves with you rather
+than counting against you"*, and their guardian is told *"Their instructor has
+given more time. This is a normal part of the pace, not a failure."* Same fact,
+different reader. Each row also carries `next_step` (or an explicit NULL, when
+the honest answer is "nothing, we will contact you" — worth saying), a `tone`
+from a fixed palette so a status is never green on one screen and red on
+another, and `is_actionable`, because a reader shown an unactionable state
+alongside actionable ones will try to act on it. A tenant row overrides the
+platform default, so an academy can use its own words without a deployment.
+
+**"What do I need to do?"** v1's portal could list classes, invoices and
+announcements, but nothing could say *"you have two things to do"* — no table
+held the union. A learner's outstanding invoice, an instructor's overdue
+progress report, a guardian's unsigned consent and an admin's unassigned
+application are the same shape of fact.
+
+`action_items` is that one list, for every role. Titles are written for the
+reader (*"Pay your September tuition"*, never `invoice.outstanding`) and carry a
+`detail` saying why it matters, since an instruction without a consequence gets
+deferred. `action_label` is the button's actual words — *"Pay ₦120,000"* tells
+the reader something *"Open"* does not. `is_blocking` is deliberately rare: a
+list where everything blocks has no priority at all. And `dedupe_key` stops a
+nightly sweep stacking five copies of the same task, which is the failure that
+turns a to-do list into noise people learn to ignore.
+
+**"Why did that happen?"** v1 allowed a rejected application, a withdrawn
+enrolment, a cancelled session, a voided invoice, a failed payment and a waived
+charge to be recorded with **no reason at all** — so the notification had nothing
+to say and the person had to telephone somebody. Six CHECK constraints now make
+the reason a condition of entering the state. They block silence, not the
+operation: the same statement succeeds the moment a reason is supplied.
+
+The one worth calling out is `payments.failure_reason`. v1 stored neither the
+provider's code nor a plain-language rendering, so *"your payment did not go
+through"* was the whole of what a learner could be told — and they would simply
+retry the same card and fail identically.
+
+**Two supporting pieces.** `user_preferences` is keyed to the *user*, not the
+membership: someone who needs a dyslexia-friendly face or 150% text needs it at
+every academy they belong to, and it is stored server-side so it reaches
+server-rendered pages and email rather than living in one browser's
+localStorage. It also carries `display_currency`, because accounting in the
+tenant's base currency is right and showing a guardian in Lagos a USD figure
+reads as a pricing error. And `guardianships.scope` is a named level
+(`billing_only` / `standard` / `full`) rather than free-form JSON alone, so both
+the guardian and the learner can be shown what is shared in one sentence — which
+is a safeguarding requirement as much as a clarity one.
+
+Finally, anything a person might quote on the phone now has a human reference:
+`memberships.reference`, `applications.reference`, `cohorts.reference`,
+`invoices.number`. In v1 only scholarship applicants had one, so every other
+caller could offer nothing but their name.
+
+> **Scope note.** This layer makes clarity *possible*; it does not deliver it.
+> The portals and admin screens still have to read the glossary instead of
+> printing raw status strings, render `action_items` as the one to-do list, and
+> honour `user_preferences`. That is UI work against v2, sequenced after the
+> ETL load — but it could not have been done at all against v1's tables.
 
 ---
 

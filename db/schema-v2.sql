@@ -267,14 +267,18 @@ CREATE TABLE permissions (
 -- in one table without a discriminator column that every query must remember.
 CREATE TABLE roles (
   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  tenant_id     BIGINT UNSIGNED NULL,
+  tenant_id     BIGINT UNSIGNED NULL,        -- NULL = platform role (carries the FK)
+  -- 0 = platform, otherwise the tenant id. NOT NULL so the unique key below
+  -- actually holds: with a nullable tenant_id, five platform roles could all be
+  -- called 'admin' and authorisation would depend on which one was fetched.
+  tenant_scope  BIGINT UNSIGNED NOT NULL DEFAULT 0,
   code          VARCHAR(64)  NOT NULL,
   name          VARCHAR(120) NOT NULL,
   description   VARCHAR(255) NULL,
   is_system     TINYINT(1)   NOT NULL DEFAULT 0,
   created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_roles_code (tenant_id, code),
+  UNIQUE KEY uq_roles_code (tenant_scope, code),
   CONSTRAINT fk_roles_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -393,14 +397,24 @@ CREATE TABLE applications (
   -- that every other type ignores.
   payload           JSON         NULL,
   readiness_signal  VARCHAR(16)  NULL,           -- advisory, never a gate
+  -- The reference the applicant is given and will quote back on the phone.
+  -- v1 had one for scholarships only, so every other applicant had nothing to
+  -- say when they called except their name.
+  reference         VARCHAR(32)  NULL,
   source_channel    VARCHAR(48)  NULL,           -- attribution
   created_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   deleted_at        DATETIME(3)  NULL,
+  -- 0 while live, the row id once soft-deleted (see the header note).
+  deleted_seq       BIGINT UNSIGNED NOT NULL DEFAULT 0,
   row_version       INT UNSIGNED NOT NULL DEFAULT 1,
   UNIQUE KEY uq_applications_public (public_id),
+  UNIQUE KEY uq_applications_ref (tenant_id, reference, deleted_seq),
   KEY ix_applications_pipeline (tenant_id, status, submitted_at),
   KEY ix_applications_member (membership_id),
+  -- No rejection without a reason. "Unsuccessful" and nothing else is the most
+  -- confusing message an academy can send, and v1 permitted exactly that.
+  CONSTRAINT chk_app_rejection_reason CHECK (status <> 'rejected' OR decision_reason IS NOT NULL),
   CONSTRAINT fk_app_tenant     FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_app_membership FOREIGN KEY (membership_id) REFERENCES memberships(id),
   CONSTRAINT fk_app_centre     FOREIGN KEY (centre_id)     REFERENCES centres(id)
@@ -416,6 +430,12 @@ CREATE TABLE guardianships (
   learner_membership_id  BIGINT UNSIGNED NOT NULL,
   relationship      VARCHAR(32)  NOT NULL DEFAULT 'guardian',
   is_primary        TINYINT(1)   NOT NULL DEFAULT 0,
+  -- A named scope both parties can be shown in one phrase. The JSON below
+  -- refines it; the named level is what a learner is told ("your guardian can
+  -- see your progress and your fees") and what a guardian is shown on sign-up.
+  -- Free-form permissions alone left neither side able to state the answer.
+  scope             VARCHAR(24)  NOT NULL DEFAULT 'standard',
+     -- billing_only|standard|full
   permissions       JSON         NULL,       -- view_progress|view_invoices|approve_media
   verified_at       DATETIME(3)  NULL,
   created_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -425,6 +445,7 @@ CREATE TABLE guardianships (
   created_by        BIGINT UNSIGNED NULL,
   UNIQUE KEY uq_guardianship (tenant_id, guardian_membership_id, learner_membership_id, deleted_seq),
   KEY ix_guardianship_learner (learner_membership_id),
+  CONSTRAINT chk_guard_scope CHECK (scope IN ('billing_only','standard','full')),
   CONSTRAINT fk_guard_tenant   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   CONSTRAINT fk_guard_guardian FOREIGN KEY (guardian_membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
   CONSTRAINT fk_guard_learner  FOREIGN KEY (learner_membership_id)  REFERENCES memberships(id) ON DELETE CASCADE
@@ -499,12 +520,19 @@ CREATE TABLE courses (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE programme_courses (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   programme_id  BIGINT UNSIGNED NOT NULL,
   course_id     BIGINT UNSIGNED NOT NULL,
-  level_id      BIGINT UNSIGNED NULL,
+  level_id      BIGINT UNSIGNED NULL,        -- NULL = the course at no set level
+  -- 0 = no level, otherwise the level id. The natural key was the PRIMARY KEY
+  -- and included the nullable level_id: MySQL coerces PK columns to NOT NULL
+  -- and would have REJECTED every level-less row, while SQLite accepted them
+  -- and allowed duplicates. A surrogate id plus this companion makes the two
+  -- engines agree.
+  level_scope   BIGINT UNSIGNED NOT NULL DEFAULT 0,
   is_required   TINYINT(1)   NOT NULL DEFAULT 0,
   sort_order    INT          NOT NULL DEFAULT 0,
-  PRIMARY KEY (programme_id, course_id, level_id),
+  UNIQUE KEY uq_pc (programme_id, course_id, level_scope),
   KEY ix_pc_course (course_id),
   CONSTRAINT fk_pc_programme FOREIGN KEY (programme_id) REFERENCES programmes(id) ON DELETE CASCADE,
   CONSTRAINT fk_pc_course    FOREIGN KEY (course_id)    REFERENCES courses(id),
@@ -626,6 +654,9 @@ CREATE TABLE cohorts (
   level_id        BIGINT UNSIGNED NULL,
   programme_id    BIGINT UNSIGNED NULL,
   title           VARCHAR(160) NOT NULL,
+  -- Short human reference ("PNO-L1-A26"). A title is for reading; a reference
+  -- is for saying out loud and typing into a search box.
+  reference       VARCHAR(32)  NULL,
   term            VARCHAR(48)  NULL,
   delivery_mode   VARCHAR(16)  NOT NULL DEFAULT 'onsite',   -- onsite|online|hybrid
   -- Wall-clock, not an instant: a class at "16:00 Lagos" must stay at 16:00
@@ -644,10 +675,13 @@ CREATE TABLE cohorts (
   created_at      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   deleted_at      DATETIME(3)  NULL,
+  -- 0 while live, the row id once soft-deleted (see the header note).
+  deleted_seq     BIGINT UNSIGNED NOT NULL DEFAULT 0,
   created_by      BIGINT UNSIGNED NULL,
   updated_by      BIGINT UNSIGNED NULL,
   row_version     INT UNSIGNED NOT NULL DEFAULT 1,
   UNIQUE KEY uq_cohorts_public (public_id),
+  UNIQUE KEY uq_cohorts_ref (tenant_id, reference, deleted_seq),
   KEY ix_cohorts_lookup (tenant_id, course_id, level_id, status),
   KEY ix_cohorts_centre (tenant_id, centre_id, starts_on),
   KEY ix_cohorts_instructor (lead_instructor_membership_id, status),
@@ -702,6 +736,7 @@ CREATE TABLE enrolments (
   -- One live enrolment per learner per cohort. Scoped by deleted_at so a
   -- withdrawn-and-deleted row does not block re-enrolment.
   UNIQUE KEY uq_enrolments_unique (cohort_id, membership_id, deleted_seq),
+  CONSTRAINT chk_enrol_withdrawal_reason CHECK (status <> 'withdrawn' OR withdrawal_reason IS NOT NULL),
   KEY ix_enrolments_member (tenant_id, membership_id, status),
   KEY ix_enrolments_cohort (cohort_id, status),
   CONSTRAINT fk_enrol_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
@@ -759,6 +794,9 @@ CREATE TABLE class_sessions (
   UNIQUE KEY uq_sessions_public (public_id),
   KEY ix_sessions_cohort (cohort_id, scheduled_start_utc),
   KEY ix_sessions_when (tenant_id, scheduled_start_utc, status),
+  -- A class that vanishes from the timetable with no reason is the single
+  -- complaint every academy gets. The reason is required at the source.
+  CONSTRAINT chk_session_cancel_reason CHECK (status <> 'cancelled' OR cancellation_reason IS NOT NULL),
   CONSTRAINT fk_sessions_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   CONSTRAINT fk_sessions_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE,
   CONSTRAINT fk_sessions_module FOREIGN KEY (module_id) REFERENCES modules(id),
@@ -942,6 +980,7 @@ CREATE TABLE invoices (
   row_version       INT UNSIGNED NOT NULL DEFAULT 1,
   UNIQUE KEY uq_invoices_public (public_id),
   UNIQUE KEY uq_invoices_number (tenant_id, number),
+  CONSTRAINT chk_inv_void_reason CHECK (voided_at IS NULL OR void_reason IS NOT NULL),
   KEY ix_invoices_member (tenant_id, membership_id, status),
   KEY ix_invoices_due (tenant_id, status, due_at),
   -- THE invariant v1 lacked.
@@ -988,6 +1027,11 @@ CREATE TABLE payments (
   fx_source         VARCHAR(32)  NULL,
   received_at       DATETIME(3)  NULL,
   reconciled_at     DATETIME(3)  NULL,
+  -- The provider's code, kept verbatim, plus our plain-language rendering.
+  -- v1 stored neither, so "your payment did not go through" was the whole of
+  -- what a learner could be told — and they would simply try the same card.
+  failure_code      VARCHAR(64)  NULL,
+  failure_reason    VARCHAR(255) NULL,
   metadata          JSON         NULL,
   created_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
@@ -996,6 +1040,7 @@ CREATE TABLE payments (
   -- A provider reference is unique per provider: the guard against a webhook
   -- replay creating a second payment for one charge.
   UNIQUE KEY uq_payments_provider (tenant_id, provider, provider_ref),
+  CONSTRAINT chk_pay_failure_reason CHECK (status <> 'failed' OR failure_reason IS NOT NULL),
   KEY ix_payments_member (tenant_id, membership_id, status),
   KEY ix_payments_reporting (tenant_id, status, received_at),
   CONSTRAINT chk_pay_fx CHECK (
@@ -1107,6 +1152,10 @@ CREATE TABLE accountability_charges (
   UNIQUE KEY uq_charges_public (public_id),
   UNIQUE KEY uq_charges_dedupe (subject_membership_id, session_id, reason),
   KEY ix_charges_status (tenant_id, status, created_at),
+  -- §15: "Rejected — Charge Maintained" is a decision the student must be able
+  -- to read. A waiver or rejection with no note is a charge nobody can explain.
+  CONSTRAINT chk_charge_resolution_note CHECK (
+    status NOT IN ('waived','rejected') OR resolution_note IS NOT NULL),
   CONSTRAINT chk_charge_status CHECK (status IN
     ('pending','outstanding','paid','waived','disputed','reversed')),
   CONSTRAINT fk_charge_tenant  FOREIGN KEY (tenant_id) REFERENCES tenants(id),
@@ -1211,7 +1260,13 @@ CREATE TABLE webhook_events (
 -- rather than performing the action twice.
 CREATE TABLE idempotency_keys (
   id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  tenant_id       BIGINT UNSIGNED NULL,
+  tenant_id       BIGINT UNSIGNED NULL,      -- NULL = platform-scoped request
+  -- 0 = platform, otherwise the tenant id. This one is not a tidiness point:
+  -- with a nullable tenant_id the unique key below does not constrain
+  -- platform-scoped requests at all, so a retried payment webhook inserts a
+  -- second row and is processed twice. Idempotency that only works for some
+  -- callers is not idempotency.
+  tenant_scope    BIGINT UNSIGNED NOT NULL DEFAULT 0,
   idem_key        VARCHAR(190) NOT NULL,
   endpoint        VARCHAR(190) NOT NULL,
   request_hash    CHAR(64)     NOT NULL,   -- same key + different body = conflict
@@ -1221,7 +1276,7 @@ CREATE TABLE idempotency_keys (
   completed_at    DATETIME(3)  NULL,
   expires_at      DATETIME(3)  NOT NULL,
   created_at      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  UNIQUE KEY uq_idem (tenant_id, idem_key, endpoint),
+  UNIQUE KEY uq_idem (tenant_scope, idem_key, endpoint),
   KEY ix_idem_expiry (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -1342,10 +1397,28 @@ CREATE TABLE notifications (
   title         VARCHAR(200) NOT NULL,
   body          TEXT         NULL,
   url           VARCHAR(500) NULL,
+  -- The button's words. "Open" tells the reader nothing; "Pay ₦120,000" does.
+  action_label  VARCHAR(80)  NULL,
   severity      VARCHAR(16)  NOT NULL DEFAULT 'info',
+  -- Suppresses a repeat of the same message. Without it every nightly sweep
+  -- re-notifies, the inbox fills with duplicates, and the reader stops looking
+  -- — which costs them the ONE message that mattered.
+  dedupe_key    VARCHAR(190) NULL,
+  -- Groups a burst into one line ("3 new results"), so a busy day does not read
+  -- as an incident.
+  group_key     VARCHAR(120) NULL,
+  -- After this the message is stale and must not be shown. A reminder about a
+  -- class that already happened actively misleads.
+  expires_at    DATETIME(3)  NULL,
   read_at       DATETIME(3)  NULL,
+  -- Read is not understood. Acknowledged is an explicit "I have seen this",
+  -- which is what a safeguarding or policy notice actually needs.
+  acknowledged_at DATETIME(3) NULL,
   created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_notif_dedupe (membership_id, dedupe_key),
   KEY ix_notifications_inbox (membership_id, read_at, id),
+  KEY ix_notifications_live (membership_id, expires_at, read_at),
+  CONSTRAINT chk_notif_severity CHECK (severity IN ('info','success','attention','warning','critical')),
   CONSTRAINT fk_notif_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_notif_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1390,6 +1463,176 @@ CREATE TABLE jobs (
   last_error    VARCHAR(500) NULL,
   created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   KEY ix_jobs_claim (queue, status, available_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
+-- LAYER H · CLARITY
+-- =============================================================================
+-- Every table above records what is TRUE. This layer records what a person can
+-- be TOLD, and it exists because v1 could not answer three questions that every
+-- user of the system asks:
+--
+--   "What does this word mean?"   — a learner shown `carried_forward` or
+--     `developing` has no idea whether that is good news. v1 leaked its internal
+--     status vocabulary straight into the portal, and each screen invented its
+--     own gloss, so the same status read differently in three places.
+--   "What do I need to do?"       — the portal could list classes, invoices and
+--     announcements, but nothing could say "you have two things to do", because
+--     no table held the union.
+--   "Why did that happen?"        — a rejected application, a withdrawn
+--     enrolment, a cancelled session and a failed payment could all be recorded
+--     with no reason at all, which meant the notification had nothing to say
+--     and the learner had to phone somebody.
+--
+-- None of this is presentation polish. A status word with no agreed meaning, a
+-- to-do list nobody can compute, and a decision with no reason are data
+-- problems that no amount of front-end work can fix.
+-- =============================================================================
+
+-- The single glossary. One row per (entity, status, audience, locale), so the
+-- student portal, the guardian portal, the admin screen and the email template
+-- all describe a status with the SAME words — and describe it differently to
+-- different people, which is the part a single `label` column cannot do.
+--
+-- `tenant_id` NULL is the platform default; a row with a tenant_id overrides it
+-- for that academy, so an academy can rename "cohort" to "class" without a
+-- deployment and without forking the vocabulary.
+CREATE TABLE status_definitions (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NULL,        -- NULL = platform default (carries the FK)
+  -- Uniqueness companion, same reason as deleted_seq: a unique key ending in a
+  -- NULLABLE tenant_id would treat every platform-default row as distinct from
+  -- every other, so the glossary could hold five conflicting definitions of one
+  -- status. 0 = platform default, otherwise the tenant id. Kept in step with
+  -- tenant_id by the application; the pair is written together or not at all.
+  tenant_scope  BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  entity_type   VARCHAR(48)  NOT NULL,       -- application|enrolment|invoice|module_progress|…
+  status        VARCHAR(48)  NOT NULL,
+  audience      VARCHAR(16)  NOT NULL DEFAULT 'learner',  -- learner|guardian|staff|admin
+  locale        VARCHAR(12)  NOT NULL DEFAULT 'en',
+  -- What it is called. Short enough for a chip.
+  label         VARCHAR(80)  NOT NULL,
+  -- What it MEANS, in a sentence, in the second person. This is the field that
+  -- stops a learner guessing.
+  meaning       VARCHAR(400) NOT NULL,
+  -- What the reader should do about it, or NULL when the honest answer is
+  -- "nothing, we will contact you" — which is itself worth saying.
+  next_step     VARCHAR(400) NULL,
+  -- Tone drives colour and icon. Named rather than left to each screen, because
+  -- the same status rendered green here and red there is worse than no colour.
+  tone          VARCHAR(16)  NOT NULL DEFAULT 'neutral',
+     -- neutral|positive|progress|attention|warning|critical
+  -- Whether this state is one the reader can act their way out of. A learner
+  -- shown an unactionable state alongside actionable ones will try to act.
+  is_actionable TINYINT(1)   NOT NULL DEFAULT 0,
+  is_terminal   TINYINT(1)   NOT NULL DEFAULT 0,
+  sort_order    SMALLINT UNSIGNED NOT NULL DEFAULT 0,   -- pipeline/progress order
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_statusdef (tenant_scope, entity_type, status, audience, locale),
+  KEY ix_statusdef_lookup (entity_type, audience, locale),
+  CONSTRAINT chk_statusdef_tone CHECK (tone IN
+    ('neutral','positive','progress','attention','warning','critical')),
+  CONSTRAINT chk_statusdef_audience CHECK (audience IN ('learner','guardian','staff','admin')),
+  CONSTRAINT fk_statusdef_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- "What do I need to do?" — one table, every role. A learner's outstanding
+-- invoice, an instructor's overdue progress report, a guardian's unsigned
+-- consent form and an admin's unassigned application are the same shape of
+-- fact, and until they live in one place no screen can say "you have three
+-- things to do" without four queries and a guess at the ordering.
+--
+-- Rows are DERIVED — written by the same code that creates the underlying
+-- obligation, cleared when it is met. `dedupe_key` is what stops a nightly
+-- sweep from stacking five copies of "pay your invoice", which is the failure
+-- that turns a to-do list into noise the user learns to ignore.
+CREATE TABLE action_items (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  kind          VARCHAR(64)  NOT NULL,       -- pay_invoice|sign_consent|submit_work|…
+  -- Written for the reader, not the developer: "Pay your October tuition",
+  -- never "invoice.outstanding".
+  title         VARCHAR(200) NOT NULL,
+  -- Why it matters to THEM. An instruction without a consequence gets deferred.
+  detail        VARCHAR(500) NULL,
+  action_url    VARCHAR(500) NULL,
+  action_label  VARCHAR(80)  NULL,           -- the button's words
+  -- What it is about, so the item can be cleared by the code that resolves it.
+  source_type   VARCHAR(48)  NULL,
+  source_id     BIGINT UNSIGNED NULL,
+  priority      SMALLINT UNSIGNED NOT NULL DEFAULT 50,   -- lower sorts first
+  -- Blocking items stop something the learner is trying to do. They are
+  -- surfaced differently, and MUST be rare — a list where everything blocks is
+  -- a list with no priority at all.
+  is_blocking   TINYINT(1)   NOT NULL DEFAULT 0,
+  due_at        DATETIME(3)  NULL,
+  -- Set when the obligation is met. Kept rather than deleted, so "you did this"
+  -- is answerable and a resolved item never silently reappears.
+  completed_at  DATETIME(3)  NULL,
+  -- A reader may put an optional item aside. Distinct from completed: the thing
+  -- was not done, and an admin looking at why still needs to see it.
+  dismissed_at  DATETIME(3)  NULL,
+  -- 0 while the item is live, the row id once completed or dismissed — so the
+  -- same obligation can recur next term without the old row blocking it.
+  resolved_seq  BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  dedupe_key    VARCHAR(190) NOT NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_action_public (public_id),
+  UNIQUE KEY uq_action_dedupe (tenant_id, membership_id, dedupe_key, resolved_seq),
+  KEY ix_action_open (membership_id, completed_at, dismissed_at, priority, due_at),
+  KEY ix_action_due (tenant_id, due_at, completed_at),
+  CONSTRAINT fk_action_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_action_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- How this person needs to be spoken to. v1 scattered these across ad-hoc
+-- columns and localStorage, which meant a preference set on a phone did not
+-- apply to the email the system sent an hour later — so a learner who asked for
+-- large text and Yoruba got neither anywhere it mattered.
+--
+-- Keyed to the USER, not the membership: a person who needs a dyslexia-friendly
+-- face needs it at every academy they belong to.
+CREATE TABLE user_preferences (
+  user_id           BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  locale            VARCHAR(12)  NULL,       -- overrides tenant default
+  timezone          VARCHAR(64)  NULL,
+  -- What money should be SHOWN in. Accounting stays in the tenant's base
+  -- currency; a guardian in Lagos should still read naira. v1 showed some
+  -- screens in USD and some in NGN with no rule, which reads as a pricing error.
+  display_currency  CHAR(3)      NULL,
+  date_format       VARCHAR(24)  NULL,       -- a bare 03/04 means two dates
+  -- Channels. An empty set is a valid answer and must be honoured; a system
+  -- that keeps emailing someone who opted out is not a preference system.
+  channel_email     TINYINT(1)   NOT NULL DEFAULT 1,
+  channel_sms       TINYINT(1)   NOT NULL DEFAULT 0,
+  channel_whatsapp  TINYINT(1)   NOT NULL DEFAULT 0,
+  channel_push      TINYINT(1)   NOT NULL DEFAULT 1,
+  -- Batch non-urgent notifications instead of sending each one. Urgency is a
+  -- property of the notification, so a digest never delays a critical message.
+  digest_frequency  VARCHAR(16)  NOT NULL DEFAULT 'immediate',  -- immediate|daily|weekly
+  quiet_hours_start TIME         NULL,
+  quiet_hours_end   TIME         NULL,
+  -- Accessibility. These are stored server-side precisely so they survive a new
+  -- device and reach server-rendered pages and emails, not just the SPA.
+  reduce_motion     TINYINT(1)   NOT NULL DEFAULT 0,
+  high_contrast     TINYINT(1)   NOT NULL DEFAULT 0,
+  dyslexia_font     TINYINT(1)   NOT NULL DEFAULT 0,
+  text_scale_pct    SMALLINT UNSIGNED NOT NULL DEFAULT 100,
+  low_bandwidth     TINYINT(1)   NOT NULL DEFAULT 0,
+  captions_default  TINYINT(1)   NOT NULL DEFAULT 0,
+  -- Plain-language mode: shorter sentences and no jargon. Useful for younger
+  -- learners and for guardians reading in a second language.
+  plain_language    TINYINT(1)   NOT NULL DEFAULT 0,
+  onboarding_done_at DATETIME(3) NULL,
+  updated_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  CONSTRAINT chk_pref_digest CHECK (digest_frequency IN ('immediate','daily','weekly')),
+  -- 200% zoom is the WCAG 1.4.4 requirement; the floor stops a mis-set value
+  -- from rendering the interface unreadable and unrecoverable.
+  CONSTRAINT chk_pref_scale  CHECK (text_scale_pct BETWEEN 80 AND 250),
+  CONSTRAINT fk_pref_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Maps every v1 identifier to its v2 row. Written by the ETL, kept forever:
