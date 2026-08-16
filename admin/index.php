@@ -80,6 +80,32 @@ function mam_admin_rows(string $sql, array $args = []): array {
 }
 
 /* ─── Pagination: keep every list bounded + navigable as data grows ─── */
+/**
+ * Render a status value as something a person reads.
+ *
+ * `pending_bank_transfer` was printed raw AND unstyled: the `.pill` colours key
+ * off the status as a CSS class and there is no `.pill.pending_bank_transfer`
+ * rule, so the most common status in the Payments table got the *base* pill --
+ * no background at all -- beside two neighbours that were coloured. It read
+ * like broken data. Only genuinely opaque values are mapped; `paid` and
+ * `active` are already the words a person uses.
+ */
+function mam_admin_status(string $status, string $context = ''): string {
+    static $map = [
+        'pending_bank_transfer' => ['Awaiting bank transfer', 'pending'],
+        'pending_review'        => ['Awaiting review',        'pending'],
+        'in_review'             => ['Being reviewed',         'pending'],
+        'part_paid'             => ['Partly paid',            'pending'],
+        'partially_refunded'    => ['Partly refunded',        'completed'],
+        'written_off'           => ['Written off',            'completed'],
+    ];
+    $key = strtolower(trim($status));
+    if ($key === '') return '<span class="muted">&mdash;</span>';
+    [$label, $tone] = $map[$key] ?? [ucfirst(str_replace('_', ' ', $key)), $key];
+    return '<span class="pill ' . htmlspecialchars($tone) . '" title="' . htmlspecialchars($key)
+         . '">' . htmlspecialchars($label) . '</span>';
+}
+
 function mam_admin_page(): int { return max(1, (int)($_GET['page'] ?? 1)); }
 /** Prev/next controls that preserve the current view + query params. */
 function mam_admin_pager(int $page, int $total, int $perPage): string {
@@ -1874,6 +1900,14 @@ nav a.active{background:linear-gradient(135deg,rgba(232,150,31,0.2),rgba(252,198
 nav a i{width:18px;text-align:center;font-size:0.88rem;opacity:0.8;flex:0 0 auto}
 nav a.active i{opacity:1;color:var(--gold)}
 /* Grouped sidebar: a quiet section label introduces each domain of the admin. */
+..nav-more-btn{display:flex;align-items:center;gap:9px;width:calc(100% - 8px);margin:1px 4px;
+  padding:7px 12px;min-height:32px;border:0;border-radius:9px;background:none;
+  color:var(--muted);font:inherit;font-size:0.76rem;text-align:left;cursor:pointer}
+.nav-more-btn:hover{background:var(--raised);color:var(--text)}
+.nav-more-btn i{width:14px;font-size:.66rem;transition:transform .16s}
+.nav-more-btn[aria-expanded="true"] i{transform:rotate(90deg)}
+.nav-more-btn:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+@media (prefers-reduced-motion:reduce){.nav-more-btn i{transition:none}}
 .nav-group{margin:15px 12px 5px;font-size:0.62rem;font-weight:800;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);opacity:0.62}
 .nav-group:first-of-type{margin-top:2px}
 .nav-note{margin-top:12px;padding:8px 11px;font-size:0.72rem;line-height:1.5;color:var(--muted);border:1px dashed var(--border);border-radius:8px}
@@ -1946,7 +1980,7 @@ table{width:100%;border-collapse:collapse;font-size:0.86rem}
 th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
 th{color:var(--muted);font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;background:var(--panel);white-space:nowrap}
 tr:hover td{background:rgba(255,255,255,0.04)}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:lowercase}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:lowercase;white-space:nowrap}
 .pill.submitted,.pill.received{background:rgba(99,102,241,0.18);color:#A5B4FC}
 .pill.paid,.pill.processed,.pill.succeeded,.pill.active,.pill.subscribed{background:rgba(16,185,129,0.18);color:#34D399}
 .pill.enrolled{background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B}
@@ -1957,6 +1991,37 @@ tr:hover td{background:rgba(255,255,255,0.04)}
 .pill.instructor{background:rgba(99,102,241,0.18);color:#A5B4FC}
 .pill.student{background:rgba(16,185,129,0.18);color:#34D399}
 .muted{color:var(--muted)}
+
+/* ── The actions column is PINNED to the right edge ────────────────────────
+   Measured in a browser against the real data at 1440x900: the Payments
+   "Confirm" button sat at x=1437-1501, and the Applications table ran 1666px
+   inside a 1122px card, putting 104 controls -- "Manage", "Save", every
+   confirm button -- outside the viewport. `.card` scrolls horizontally, so the
+   controls existed but could only be reached by discovering a scrollbar INSIDE
+   the table. The admin's report that the page was "impossible to use" was
+   literally accurate for the two screens they use most.
+   Sticky keeps the last cell on screen at any width. The rest of the row still
+   scrolls, which is the correct trade: a reference number can be scrolled to,
+   a submit button cannot be hunted for. */
+.card table td:last-child,
+.card table th:last-child{
+  position:sticky;right:0;z-index:1;
+  background:var(--panel);
+  box-shadow:-1px 0 0 var(--border);
+}
+.card table th:last-child{z-index:3}
+.card table tr:hover td:last-child{background:var(--raised)}
+/* The action cells carry INLINE styles (`display:inline-flex`, and until this
+   change `white-space:nowrap`), which outrank any stylesheet rule -- so the
+   wrap silently never applied and the pinned column stayed wider than the
+   screen. Overriding here is the surgical option; reflowing every action form
+   in a 200KB file is not. */
+.card table td:last-child{max-width:264px;white-space:normal!important}
+.card table td form.inline,
+.card table td form[style*="inline-flex"]{
+  display:inline-flex!important;flex-wrap:wrap!important;gap:6px;max-width:230px}
+.card table td form.inline input.tiny{flex:1 1 108px;min-width:0;max-width:100%}
+.card table td:last-child > *{vertical-align:middle}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.82rem}
 form.inline{display:inline-flex;gap:6px;align-items:center}
 /* ── Base form controls: theme EVERY bare input/select/textarea in the content
@@ -2095,6 +2160,11 @@ nav a{display:flex;align-items:center}
   table.stack td[data-label=""]{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px}
   table.stack tr:hover td{background:transparent}
   table.stack td.empty{text-align:center}
+  /* Stacked rows are already full-width cards, so nothing overflows and the
+     desktop pin would strand the action cell against the right edge. */
+  .card table.stack td:last-child,
+  .card table.stack th:last-child{position:static;box-shadow:none;background:transparent;max-width:none}
+  .card table.stack td:last-child form.inline{max-width:none}
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
@@ -2127,6 +2197,10 @@ nav a{display:flex;align-items:center}
     $fac = $cnt("SELECT COUNT(*) FROM faculty_invites WHERE status = 'requested'") + $cnt("SELECT COUNT(*) FROM instructor_applications WHERE status = 'submitted'");
     if ($fac) { $navBadges['users'] = $fac; $needs[] = ['teaching request' . ($fac === 1 ? '' : 's') . ' / instructor application' . ($fac === 1 ? '' : 's'), '?v=users#faculty', $fac, 'Review']; }
     if ($n = $cnt("SELECT COUNT(*) FROM support_tickets WHERE status IN ('open','in_progress')")) { $navBadges['support'] = $n; $needs[] = ['open support ticket' . ($n === 1 ? '' : 's'), '?v=support', $n, 'Respond']; }
+    // Money was missing from a list whose own heading says "everything pending
+    // across the academy". On the real data that meant 11 bank transfers -- the
+    // most frequent job the admin actually has -- never appeared here at all.
+    if ($n = $cnt("SELECT COUNT(*) FROM payments WHERE status = 'pending_bank_transfer'")) { $navBadges['payments'] = $n; $needs[] = ['bank transfer' . ($n === 1 ? '' : 's') . ' awaiting your confirmation', '?v=payments&f=bank', $n, 'Confirm']; }
 
     // Sidebar nav grouped by domain — [view => [label, FontAwesome icon]].
     // Grouping turns a flat 19-item list into a scannable structure.
@@ -2149,15 +2223,62 @@ nav a{display:flex;align-items:center}
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
     if (!$canView($view)) { $view = 'overview'; }
+    // ── Fold away what this academy has not started using ────────────────
+    // Thirty-seven destinations, on an install where most of the backing tables
+    // are empty, so most of that list led to a screen saying "nothing here".
+    // A section folds only when its OWN data is empty — the nav reflects what
+    // this academy does, not what the platform can do, and it changes on its
+    // own as they start using something. Nothing is removed: the fold is one
+    // click, it remembers being opened, and the palette still reaches every view.
+    $navProbe = [
+      'summer' => 'summer_applications', 'funnel' => 'funnel_events',
+      'courseenroll' => 'course_enrollments', 'schedule' => 'class_sessions',
+      'rubrics' => 'rubrics', 'recitals' => 'recitals', 'meet' => 'meeting_reconciliation',
+      'classes' => 'classes', 'enrollments' => 'enrollments', 'id-cards' => 'id_cards',
+      'media' => 'class_resources', 'academic' => 'session_attendance', 'upper' => 'cohorts',
+      'accountability' => 'accountability_charges', 'guardians' => 'parent_links',
+      'fines' => 'instructor_fines', 'storeitems' => 'store_items',
+      'storeorders' => 'store_orders', 'referrals' => 'referrals',
+      'messages' => 'messages', 'newsletter' => 'newsletter', 'support' => 'support_tickets',
+      'webhooks' => 'webhook_events',
+    ];
+    $navInUse = function (string $k) use ($navProbe, $view, $navBadges): bool {
+        if ($k === $view) return true;               // never hide where you are
+        if (!empty($navBadges[$k])) return true;     // never hide pending work
+        if (!isset($navProbe[$k])) return true;      // unprobed = always shown
+        static $cache = [];
+        $t = $navProbe[$k];
+        if (!array_key_exists($t, $cache)) {
+            // Existence, not COUNT(*) — this runs on every page load.
+            try { $cache[$t] = (bool) mam_db()->query('SELECT 1 FROM ' . $t . ' LIMIT 1')->fetchColumn(); }
+            catch (Throwable $e) { $cache[$t] = true; }   // fail OPEN
+        }
+        return $cache[$t];
+    };
+    $navLink = function (string $k, array $meta) use ($view, $navBadges): string {
+        $cls = $view === $k ? 'active' : '';
+        $badge = !empty($navBadges[$k]) ? "<em class='nav-count'>" . (int)$navBadges[$k] . "</em>" : '';
+        return "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'" . ($cls ? " aria-current='page'" : '') . ">"
+             . "<i class='fa-solid fa-" . htmlspecialchars($meta[1]) . "' aria-hidden='true'></i><span>"
+             . htmlspecialchars($meta[0]) . "</span>$badge</a>";
+    };
     foreach ($navGroups as $groupName => $items) {
         if (!array_filter(array_keys($items), $canView)) continue; // hide an empty group
-        echo "<div class='nav-group'>" . htmlspecialchars($groupName) . "</div>";
+        $inUse = $rest = ''; $restN = 0;
         foreach ($items as $k => $meta) {
             if (!$canView($k)) continue;
-            $cls = $view === $k ? 'active' : '';
-            $badge = !empty($navBadges[$k]) ? "<em class='nav-count'>" . (int)$navBadges[$k] . "</em>" : '';
-            echo "<a href='?v=" . htmlspecialchars($k) . "' class='$cls'" . ($cls ? " aria-current='page'" : '') . ">"
-               . "<i class='fa-solid fa-" . htmlspecialchars($meta[1]) . "' aria-hidden='true'></i><span>" . htmlspecialchars($meta[0]) . "</span>$badge</a>";
+            if ($navInUse($k)) { $inUse .= $navLink($k, $meta); }
+            else { $rest .= $navLink($k, $meta); $restN++; }
+        }
+        if ($inUse === '' && $rest === '') continue;
+        echo "<div class='nav-group'>" . htmlspecialchars($groupName) . "</div>" . $inUse;
+        if ($restN) {
+            $id = 'navmore-' . preg_replace('/[^a-z]/', '', strtolower($groupName));
+            echo "<button type='button' class='nav-more-btn' aria-expanded='false' aria-controls='"
+               . $id . "' data-nav-more='" . $id . "'>"
+               . "<i class='fa-solid fa-chevron-right' aria-hidden='true'></i>"
+               . "<span>" . $restN . " not in use yet</span></button>"
+               . "<div class='nav-more' id='" . $id . "' hidden>" . $rest . "</div>";
         }
     }
     if ($adminUser && mam_admin_tier($adminUser) === 'manager') {
@@ -2685,7 +2806,7 @@ nav a{display:flex;align-items:center}
             <?php if (!empty($r['recovery_sent_at'])): ?><br><span class="muted" title="Recovery email sent" style="font-size:0.66rem"><i class="fa-solid fa-envelope-circle-check"></i> nudged</span><?php endif; ?>
           </td>
           <td class="muted" data-label="Created"><?= htmlspecialchars(substr($r['created_at'] ?? '', 0, 16)) ?></td>
-          <td data-label="" style="white-space:nowrap">
+          <td data-label="">
             <a class="tiny btn ghost" href="?v=applications&app=<?= (int)$r['id'] ?>" title="Open the admissions cockpit (decision, notes, assignee, history)">⚙ Manage</a>
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -3209,13 +3330,35 @@ nav a{display:flex;align-items:center}
   </header>
   <?php if (isset($_GET['ok'])): ?><div class="card" style="border-color:#34D399"><strong style="color:#34D399">Done.</strong></div><?php endif; ?>
   <?php if (isset($_GET['err'])): ?><div class="card" style="border-color:#FCA5A5"><strong style="color:#FCA5A5"><?= htmlspecialchars($_GET['err']) ?></strong></div><?php endif; ?>
+  <?php
+    // How much is waiting on a human, in one line. Without it the admin had to
+    // count `pending_bank_transfer` rows by eye down a nine-column table.
+    $bankN   = (int)mam_admin_scalar("SELECT COUNT(*) FROM payments WHERE status = 'pending_bank_transfer'");
+    $bankSum = mam_db_all("SELECT currency, SUM(amount) AS total FROM payments WHERE status = 'pending_bank_transfer' GROUP BY currency");
+  ?>
+  <?php if ($bankN): ?>
+    <div class="card" style="border-color:var(--gold);padding:14px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <strong><?= $bankN ?> bank transfer<?= $bankN === 1 ? '' : 's' ?> awaiting your confirmation</strong>
+      <?php // Totals are per currency and never summed together: adding naira to
+            // dollars is exactly the bug a single headline figure invites. ?>
+      <span class="muted"><?= htmlspecialchars(implode(' · ', array_map(
+            fn ($g) => number_format((float)$g['total']) . ' ' . $g['currency'], $bankSum))) ?></span>
+      <a class="btn <?= $bankOnly ? '' : 'ghost' ?>" style="margin-left:auto"
+         href="?v=payments<?= $bankOnly ? '' : '&f=bank' ?>"><?= $bankOnly ? 'Show all payments' : 'Show only these' ?></a>
+    </div>
+  <?php endif; ?>
   <div class="card">
     <table class="stack">
       <thead><tr><th>Reference</th><th>Purpose</th><th>Provider</th><th>Amount</th><th>Status</th><th>Provider Ref</th><th>Verified</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
       <?php
-      $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM payments'); $off = ($page - 1) * $perPage;
-      $rows = mam_db_all('SELECT * FROM payments ORDER BY created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
+      // ?f=bank narrows to the transfers waiting on a human. The Overview queue
+      // links straight here, so "Confirm" lands on those rows rather than on
+      // page 1 of everything, where the admin would have to find them by eye.
+      $bankOnly = (($_GET['f'] ?? '') === 'bank');
+      $where    = $bankOnly ? " WHERE status = 'pending_bank_transfer'" : '';
+      $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM payments' . $where); $off = ($page - 1) * $perPage;
+      $rows = mam_db_all('SELECT * FROM payments' . $where . ' ORDER BY created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
       if (!$rows): ?><tr><td colspan="9" class="empty">No payments yet</td></tr><?php endif;
       foreach ($rows as $r): ?>
         <tr>
@@ -3223,7 +3366,7 @@ nav a{display:flex;align-items:center}
           <td data-label="Purpose"><span class="pill"><?= htmlspecialchars((string)($r['purpose'] ?? 'tuition')) ?></span></td>
           <td data-label="Provider"><?= htmlspecialchars($r['provider']) ?></td>
           <td data-label="Amount"><?= number_format((float)$r['amount']) ?> <?= htmlspecialchars($r['currency']) ?></td>
-          <td data-label="Status"><span class="pill <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
+          <td data-label="Status"><?= mam_admin_status((string)$r['status']) ?></td>
           <td class="mono muted" data-label="Provider Ref"><?= htmlspecialchars((string)$r['provider_reference']) ?></td>
           <td class="muted" data-label="Verified"><?= htmlspecialchars(substr((string)$r['verified_at'], 0, 16)) ?></td>
           <td class="muted" data-label="Created"><?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?></td>
@@ -3436,7 +3579,7 @@ nav a{display:flex;align-items:center}
     <h3>All users <button type="button" class="btn btn-ghost" style="font-size:.78rem;margin-left:12px;vertical-align:middle" onclick="backfillEnrollRefs(this)" title="Generate MAM/YY/NNN IDs for all active students who are missing one"><i class="fa-solid fa-id-card"></i> Backfill student IDs</button></h3>
     <div id="usersTableView">
     <table class="stack">
-      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Created</th><th>Reset password</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
       <?php
       $roleFilter = $_GET['role'] ?? '';
@@ -3479,7 +3622,7 @@ nav a{display:flex;align-items:center}
           <td data-label="Status"><span class="pill <?= htmlspecialchars($u['status']) ?>"><?= htmlspecialchars($u['status']) ?></span></td>
           <td class="muted" data-label="Last login"><?= htmlspecialchars(substr((string)($u['last_login'] ?? ''), 0, 16)) ?></td>
           <td class="muted" data-label="Created"><?= htmlspecialchars(substr((string)$u['created_at'], 0, 16)) ?></td>
-          <td data-label="Reset password">
+          <td data-label="">
             <form class="inline" method="post">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_reset">
@@ -3487,8 +3630,7 @@ nav a{display:flex;align-items:center}
               <input type="text" name="password" class="tiny" placeholder="new password" minlength="8" required>
               <button class="tiny" type="submit">Reset</button>
             </form>
-          </td>
-          <td data-label="">
+
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_status">
@@ -7171,6 +7313,32 @@ nav a{display:flex;align-items:center}
     var nav = document.querySelector('aside nav');
     if (nav) nav.addEventListener('click', function (e) { if (e.target.closest('a')) set(false); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && document.body.classList.contains('nav-open')) set(false); });
+  })();
+  // "N not in use yet" folds. Open state is remembered per group, so an admin
+  // who wants the full list back gets it once rather than on every page load —
+  // the fold is a default, not a restriction.
+  (function () {
+    var KEY = 'mam.nav.open';
+    var open = {};
+    try { open = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { open = {}; }
+    document.querySelectorAll('[data-nav-more]').forEach(function (btn) {
+      var id = btn.getAttribute('data-nav-more');
+      var panel = document.getElementById(id);
+      if (!panel) return;
+      function set(isOpen) {
+        panel.hidden = !isOpen;
+        btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        var label = btn.querySelector('span');
+        if (label) label.textContent = isOpen ? 'Show less' : panel.children.length + ' not in use yet';
+      }
+      if (open[id]) set(true);
+      btn.addEventListener('click', function () {
+        var next = panel.hidden;
+        set(next);
+        open[id] = next;
+        try { localStorage.setItem(KEY, JSON.stringify(open)); } catch (e) {}
+      });
+    });
   })();
   // Applications "Manage" renders as a right slide-in drawer (server-rendered
   // when ?app=N). Dismiss via scrim click or Esc → back to the list.
