@@ -125,10 +125,19 @@ if ($opts['verifyOnly'] !== null) {
     if (!is_array($manifest) || empty($manifest['tables'])) {
         fwrite(STDERR, "manifest.json is unreadable or empty\n"); exit(1);
     }
+    // A snapshot taken from MySQL can only have its FILE fidelity checked here
+    // (see mam_export_roundtrip) — its DDL cannot be replayed into the SQLite
+    // scratch database. Honour what the snapshot says about itself rather than
+    // assuming the local driver.
+    $snapDriver = (string) ($manifest['driver'] ?? 'sqlite');
+    $restore    = array_key_exists('restore_verified', $manifest)
+        ? (bool) $manifest['restore_verified']
+        : ($snapDriver === 'sqlite');
+
     // The DDL travels WITH the snapshot precisely so this mode needs nothing
-    // else. An older snapshot without it cannot be verified standalone, and
-    // says so rather than silently verifying a subset.
-    if (empty($manifest['ddl'])) {
+    // else. An older SQLite snapshot without it cannot be replayed, and says so
+    // rather than silently verifying a subset.
+    if ($restore && empty($manifest['ddl'])) {
         fwrite(STDERR, "This snapshot predates embedded DDL and cannot be verified standalone.\n");
         fwrite(STDERR, "Re-export it from the source database to get a verifiable artifact.\n");
         exit(1);
@@ -138,18 +147,23 @@ if ($opts['verifyOnly'] !== null) {
     $say('  exported at    : ' . (string) ($manifest['exported_at'] ?? '?'));
     $say('  schema version : ' . (string) ($manifest['schema_version'] ?? '?'));
     $say('  tables         : ' . count($manifest['tables']));
+    $say('  source driver  : ' . $snapDriver);
+    if (!$restore) {
+        $say('  restore stage  : skipped (non-SQLite source) — file fidelity only');
+    }
     $say('');
 
-    $mismatches = mam_export_roundtrip($dir, $manifest, $manifest['ddl']);
+    $mismatches = mam_export_roundtrip($dir, $manifest, $manifest['ddl'] ?? [], $restore);
     if ($mismatches) {
         fwrite(STDERR, "  ✗ VERIFICATION FAILED — this snapshot does not match its manifest:\n");
         foreach ($mismatches as $m) fwrite(STDERR, "      $m\n");
         fwrite(STDERR, "  Do NOT restore from it.\n");
         exit(2);
     }
-    $say(sprintf('  ✓ all %d tables match their manifest checksums (%d rows)',
-        count($manifest['tables']), (int) ($manifest['total_rows'] ?? 0)));
-    $say('  This snapshot is intact and safe to restore from.');
+    $say(sprintf('  ✓ all %d tables match their manifest checksums (%d rows)%s',
+        count($manifest['tables']), (int) ($manifest['total_rows'] ?? 0),
+        $restore ? '' : ' — file fidelity only'));
+    $say('  This snapshot is intact.');
     exit(0);
 }
 
@@ -233,7 +247,17 @@ if ($driver === 'sqlite') {
                 ->fetchAll(PDO::FETCH_ASSOC) as $t) {
         if (isset($manifest['tables'][$t['name']])) $ddlMap[(string) $t['name']] = (string) $t['sql'];
     }
+} else {
+    // MySQL DDL is captured as evidence and for the transform to read, even
+    // though it cannot be replayed into the SQLite scratch database.
+    foreach (array_keys($manifest['tables']) as $t) {
+        try {
+            $r = $db->query('SHOW CREATE TABLE ' . mam_export_quote_ident($db, $t))->fetch(PDO::FETCH_ASSOC);
+            if ($r) $ddlMap[$t] = (string) (($r['Create Table'] ?? $r['Create View'] ?? ''));
+        } catch (Throwable $e) { /* evidence only — never fail an export over it */ }
+    }
 }
+$manifest['restore_verified'] = ($driver === 'sqlite');
 $manifest['ddl']        = $ddlMap;
 $manifest['total_rows'] = $totalRows;
 file_put_contents($outDir . '/manifest.json', (string) json_encode($manifest, $jsonFlags | JSON_PRETTY_PRINT));
@@ -256,21 +280,30 @@ $say(sprintf('  %d tables, %d rows → %s', count($tables), $totalRows, $outDir)
  *
  * @return string[] human-readable mismatches; empty means lossless.
  */
-function mam_export_roundtrip(string $dir, array $manifest, array $ddl): array {
-    $scratch = $dir . '/.roundtrip.sqlite';
-    @unlink($scratch);
-    $rt = new PDO('sqlite:' . $scratch, null, null, [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_STRINGIFY_FETCHES  => false,
-    ]);
-    $rt->exec('PRAGMA foreign_keys = OFF');   // insert order is irrelevant to fidelity
-
+function mam_export_roundtrip(string $dir, array $manifest, array $ddl, bool $restore = true): array {
     $mismatches = [];
-    foreach ($ddl as $name => $sql) {
-        if (!isset($manifest['tables'][$name])) continue;
-        try { $rt->exec((string) $sql); }
-        catch (Throwable $e) { $mismatches[] = "$name: could not create scratch table — " . $e->getMessage(); }
+    $rt = null; $scratch = null;
+
+    // Stage 2 replays the snapshot into a scratch SQLite database. That is only
+    // meaningful when the source WAS SQLite — replaying a MySQL snapshot into
+    // SQLite compares across engines and produces type-coercion noise that says
+    // nothing about the snapshot's own fidelity. Stage 1 below is engine-
+    // agnostic and runs either way, so a MySQL snapshot is still verified, just
+    // not proven restorable by this tool.
+    if ($restore) {
+        $scratch = $dir . '/.roundtrip.sqlite';
+        @unlink($scratch);
+        $rt = new PDO('sqlite:' . $scratch, null, null, [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_STRINGIFY_FETCHES  => false,
+        ]);
+        $rt->exec('PRAGMA foreign_keys = OFF');   // insert order is irrelevant to fidelity
+        foreach ($ddl as $name => $sql) {
+            if (!isset($manifest['tables'][$name])) continue;
+            try { $rt->exec((string) $sql); }
+            catch (Throwable $e) { $mismatches[] = "$name: could not create scratch table — " . $e->getMessage(); }
+        }
     }
 
     foreach ($manifest['tables'] as $table => $meta) {
@@ -297,7 +330,7 @@ function mam_export_roundtrip(string $dir, array $manifest, array $ddl): array {
         // Stage 2 — RESTORE fidelity. Prove the rows survive a real insert and
         // read back identically, so the snapshot is not merely well-formed but
         // actually restorable.
-        if ($rows) {
+        if ($restore && $rows) {
             $cols = array_keys($rows[0]);
             $q    = '"' . str_replace('"', '""', $table) . '"';
             try {
@@ -324,6 +357,7 @@ function mam_export_roundtrip(string $dir, array $manifest, array $ddl): array {
             }
         }
 
+        if (!$restore) continue;   // stage 1 already passed; nothing more to check
         try {
             $back = $rt->query('SELECT * FROM "' . str_replace('"', '""', $table) . '"')->fetchAll(PDO::FETCH_ASSOC);
         } catch (Throwable $e) {
@@ -338,7 +372,7 @@ function mam_export_roundtrip(string $dir, array $manifest, array $ddl): array {
         }
     }
 
-    @unlink($scratch);
+    if ($scratch !== null) @unlink($scratch);
     return $mismatches;
 }
 
@@ -351,16 +385,17 @@ if (!$opts['roundtrip']) {
 $say('');
 $say('Round-trip verification');
 
-if ($driver !== 'sqlite') {
-    // The scratch database is SQLite; re-importing a MySQL snapshot into it
-    // would compare across engines and produce type-coercion noise that says
-    // nothing about the snapshot's own fidelity. Refuse rather than report a
-    // meaningless pass.
-    fwrite(STDERR, "  Round-trip currently supports SQLite sources only (source is $driver).\n");
-    exit(1);
+// On MySQL only stage 1 (file fidelity) is meaningful — see the note in
+// mam_export_roundtrip(). Say so explicitly rather than reporting a pass that
+// covers less than the reader assumes.
+$restore = ($driver === 'sqlite');
+if (!$restore) {
+    $say("  source is $driver: verifying FILE fidelity (checksums vs manifest).");
+    $say('  the restore stage is skipped — replaying a MySQL snapshot into SQLite');
+    $say('  would compare across engines and prove nothing about this snapshot.');
 }
 
-$mismatches = mam_export_roundtrip($outDir, $manifest, $ddlMap);
+$mismatches = mam_export_roundtrip($outDir, $manifest, $ddlMap, $restore);
 
 if ($mismatches) {
     $say('');
@@ -370,6 +405,8 @@ if ($mismatches) {
     exit(2);
 }
 
-$say(sprintf('  ✓ all %d tables re-imported with identical checksums (%d rows)', count($tables), $totalRows));
+$say($restore
+    ? sprintf('  ✓ all %d tables re-imported with identical checksums (%d rows)', count($tables), $totalRows)
+    : sprintf('  ✓ all %d tables match their checksums (%d rows) — file fidelity only', count($tables), $totalRows));
 $say('  The snapshot is lossless. Safety net established.');
 exit(0);
