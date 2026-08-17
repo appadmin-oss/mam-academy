@@ -98,11 +98,39 @@ function mam_parent_guardians_of(int $studentId): array {
     );
 }
 
-/** A traffic-light label from a 0–100 value against simple bands. */
-function mam_parent_light(float $pct): string {
+/**
+ * A traffic-light label from a 0–100 value against simple bands.
+ *
+ * `null` is a FOURTH state, not the bottom of the scale. The signature used to
+ * be `float`, so "we have not measured this yet" had nowhere to go and arrived
+ * as 0.0 — which this function then reported as red. A guardian opening a
+ * brand-new child's page was shown two red lights and told their child was at
+ * 0%, which is not a display quirk: it is the academy telling a parent
+ * something untrue about their child on the first screen they ever see.
+ *
+ * Every caller must render `none` as an absence ("—", "not measured yet"), and
+ * never as a low score.
+ */
+function mam_parent_light(?float $pct): string {
+    if ($pct === null) return 'none';
     if ($pct >= 80) return 'green';
     if ($pct >= 50) return 'amber';
     return 'red';
+}
+
+/**
+ * The plain-language sentence behind a light. Returned alongside it because a
+ * coloured dot is a colour-only signal (WCAG 1.4.1) — the meaning has to exist
+ * in text too, and "not measured yet" is precisely the meaning a colour cannot
+ * carry.
+ */
+function mam_parent_light_label(string $light, string $subject = 'This'): string {
+    return [
+        'green' => $subject . ' is on track',
+        'amber' => $subject . ' needs attention',
+        'red'   => $subject . ' is behind',
+        'none'  => 'Not measured yet',
+    ][$light] ?? 'Not measured yet';
 }
 
 /**
@@ -111,10 +139,13 @@ function mam_parent_light(float $pct): string {
  * / grading engines.
  */
 function mam_parent_weekly_status(int $studentId): array {
-    $attendance = function_exists('mam_checkin_attendance_rate') ? mam_checkin_attendance_rate($studentId) : 0.0;
+    // Both of these stay NULL when there is nothing to measure. The mastery line
+    // used to read `… : 0.0`, which took an engine that correctly says "not
+    // assessed" and turned it into a failing grade on the way to the parent.
+    $attendance = function_exists('mam_checkin_attendance_rate') ? mam_checkin_attendance_rate($studentId) : null;
     $streak     = function_exists('mam_checkin_streak') ? mam_checkin_streak($studentId) : 0;
     $gpa        = function_exists('mam_lms2_student_gpa') ? mam_lms2_student_gpa($studentId) : ['avg_score' => null];
-    $mastery    = $gpa['avg_score'] !== null ? (float) $gpa['avg_score'] : 0.0;
+    $mastery    = $gpa['avg_score'] !== null ? (float) $gpa['avg_score'] : null;
 
     // Preparation + teach-back from the next class card, when there is one.
     $prep = null; $teachback = null;
@@ -125,14 +156,20 @@ function mam_parent_weekly_status(int $studentId): array {
             $teachback = $next['teachback'] ? ($next['teachback']['status'] ?? null) : null;
         }
     }
+    $attLight = mam_parent_light($attendance);
+    $masLight = mam_parent_light($mastery);
     return [
-        'attendance_rate' => $attendance,
-        'attendance'      => mam_parent_light($attendance),
-        'streak'          => $streak,
-        'mastery'         => $mastery,
-        'mastery_light'   => mam_parent_light($mastery),
-        'preparation'     => $prep,        // not_started / in_progress / completed
-        'teachback'       => $teachback,   // null / submitted / reviewed
+        'attendance_rate'  => $attendance,
+        'attendance'       => $attLight,
+        // The sentence travels with the colour, so the client never has to
+        // invent one and a screen reader is not left with a bare dot.
+        'attendance_label' => mam_parent_light_label($attLight, 'Attendance'),
+        'streak'           => $streak,
+        'mastery'          => $mastery,
+        'mastery_light'    => $masLight,
+        'mastery_label'    => mam_parent_light_label($masLight, 'Mastery'),
+        'preparation'      => $prep,        // not_started / in_progress / completed
+        'teachback'        => $teachback,   // null / submitted / reviewed
     ];
 }
 

@@ -50,7 +50,7 @@
 .portal-main .panel-action{min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;font-weight:700;font-size:0.92rem;letter-spacing:0.02em;border:0;cursor:pointer;line-height:1}
 .portal-main .btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
 .portal-main .btn-primary:hover{transform:translateY(-1px)}
-.portal-main .btn-ghost{background:transparent;border:1px solid var(--border-gold);color:var(--gold-bright)}
+.portal-main .btn-ghost{background:transparent;border:1px solid var(--border-gold);color:var(--gold-text)}
 .portal-main .btn-ghost:hover{background:rgba(224,138,26,0.08)}
 .portal-main .btn-danger{background:transparent;border:1px solid #FCA5A5;color:#FCA5A5}
 .portal-main .btn-danger:hover{background:rgba(244,63,94,0.08)}
@@ -131,10 +131,30 @@
 .kpi-value.gold{background:linear-gradient(135deg,var(--gold-bright),var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .kpi-sub{font-size:0.78rem;color:var(--text-muted);margin-top:6px}
 
-.panel{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;margin-bottom:22px}
+/* ⚠️ `padding:0` is load-bearing, not tidiness. Every panel is a
+   <section class="panel">, and main.css has
+   `section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px)}` for the
+   marketing pages. This rule set no padding of its own, so that rule won and
+   every dashboard panel in all three portals carried up to 96px of vertical
+   padding around its content — a card 343px tall holding 149px of anything.
+   Marketing spacing on a data tool is why the overview needed three screens to
+   say very little. The class beats the type selector on specificity; keep it. */
+.panel{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;margin-bottom:22px;padding:0}
 .panel-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px}
 .panel-head h2{font-size:1.05rem;font-weight:700;color:var(--text);letter-spacing:0.01em}
-.panel-head .panel-action{font-size:0.82rem;font-weight:700;color:var(--gold-bright)}
+.panel-head .panel-action{font-size:0.82rem;font-weight:700;color:var(--gold-text)}
+/* Emphasis inside a sentence carries the numbers the sentence is about
+   ("You teach 0 active classes"), so it is text and takes the text token —
+   it was on the fill at 2.64:1, which made the figures the least legible
+   part of the line they appear in. */
+.portal-hello p strong,.portal-hello strong{color:var(--gold-text)}
+/* Digits that sit in a column are compared down that column, so they get a
+   fixed advance width. Proportional numerals make a table's figures shift as
+   they update, which reads as jitter rather than data. */
+.portal-main table td,.portal-main table th{font-variant-numeric:tabular-nums}
+/* Deliberately 0: most callers wrap their own padded content, and 8 panels in
+   the student portal alone would double-pad if this set one. Panels whose body
+   holds bare content pad it themselves. */
 .panel-body{padding:0}
 
 .ptable-wrap{
@@ -277,12 +297,12 @@
 .asg-meta{margin-top:8px;font-size:0.78rem;color:var(--text-muted)}
 .asg-meta .asg-overdue{color:#FB7185;font-weight:700}
 .asg-toggle{flex-shrink:0;align-self:center}
-.asg-count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:100px;background:var(--bg-elevated);border:1px solid var(--border-gold);color:var(--gold-bright);font-size:0.76rem;font-weight:800;margin-left:8px}
+.asg-count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:100px;background:var(--bg-elevated);border:1px solid var(--border-gold);color:var(--gold-text);font-size:0.76rem;font-weight:800;margin-left:8px}
 
 /* ── Progress bars (overview "Your progress" card) ── */
 .prog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;padding:20px 22px}
 .prog-head{display:flex;justify-content:space-between;align-items:baseline;font-size:0.84rem;color:var(--text-soft);margin-bottom:8px}
-.prog-head strong{font-family:var(--font-display);font-size:1.15rem;color:var(--gold-bright);letter-spacing:0.02em}
+.prog-head strong{font-family:var(--font-display);font-size:1.15rem;color:var(--gold-text);letter-spacing:0.02em}
 .prog-bar{height:10px;border-radius:100px;background:var(--bg-elevated);overflow:hidden;border:1px solid var(--border)}
 .prog-fill{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--gold),var(--gold-bright));transition:width .5s var(--ease)}
 .prog-sub{margin-top:7px;font-size:0.76rem;color:var(--text-muted)}
@@ -383,6 +403,10 @@ html[data-portal-theme="light"]{
      --bg-surface they measure 2.94:1 (gold-bright), 4.01:1 (gold) and 4.36:1
      (emerald) against the 4.5:1 floor in WCAG 1.4.3 AA. Use these whenever an
      accent colour carries words; keep the fills for buttons, borders and icons. */
+  /* Anything that carries WORDS on a panel uses these. The fills above stay
+     for borders, icons and focus rings, which are non-text and need 3:1.
+     `.panel-head .panel-action` was still on the fill and measured 2.94:1 —
+     on every panel header in all three portals. */
   --gold-text:#8A6414;      /* 5.37:1 on --bg-surface */
   --warn-text:#8A5A00;      /* 5.53:1 — --warn (#B0740F) is 3.92:1 as text */
   --emerald-text:#0B7A52;   /* 5.36:1 on --bg-surface */
@@ -574,7 +598,7 @@ html.a11y-lowbw .portal-avatar{background:var(--gold);color:#1B2430}
 .mp-addmark{border:1px solid var(--gold);background:transparent;color:var(--gold);border-radius:8px;padding:5px 10px;font-size:.8rem;cursor:pointer}
 .mp-notes{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:5px}
 .mp-notes li{display:flex;gap:8px;align-items:baseline;font-size:.84rem;color:var(--text-soft);line-height:1.5}
-.mp-note-seek{flex:0 0 auto;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--gold-bright);font-size:.76rem;padding:2px 8px;cursor:pointer;font-variant-numeric:tabular-nums}
+.mp-note-seek{flex:0 0 auto;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--gold-text);font-size:.76rem;padding:2px 8px;cursor:pointer;font-variant-numeric:tabular-nums}
 .mp-note-seek:hover{border-color:var(--gold)}
 .mp-note-del{background:transparent;border:0;color:var(--text-muted);cursor:pointer;font-size:.8rem;margin-left:auto}
 .mp-note-del:hover{color:var(--danger,#F87171)}
@@ -662,7 +686,7 @@ html.a11y-lowbw .cmdk-fab{box-shadow:none}
 .sg-card:hover{border-color:var(--gold-bright)}
 .sg-card:focus-visible{outline:2px solid var(--gold-bright);outline-offset:2px}
 .sg-card.is-dragging{opacity:.45;cursor:grabbing}
-.sg-card-time{display:block;font-weight:700;color:var(--gold-bright);font-variant-numeric:tabular-nums}
+.sg-card-time{display:block;font-weight:700;color:var(--gold-text);font-variant-numeric:tabular-nums}
 .sg-card-title{display:block;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:var(--text-muted)}
 .sg-card.is-held{border-color:#34D399}
 .sg-card.is-held .sg-card-time{color:#34D399}
@@ -677,7 +701,7 @@ html.a11y-lowbw .cmdk-fab{box-shadow:none}
 
 /* Record a take (§1.4). */
 .tk-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-.tk-timer{font-variant-numeric:tabular-nums;font-family:var(--font-display);font-size:1.3rem;color:var(--gold-bright);min-width:52px}
+.tk-timer{font-variant-numeric:tabular-nums;font-family:var(--font-display);font-size:1.3rem;color:var(--gold-text);min-width:52px}
 .tk-state{font-size:.82rem;color:var(--text-muted)}
 .tk-unsupported{font-size:.86rem;color:var(--text-muted);margin:0}
 .tk-play{width:100%;margin-bottom:10px}

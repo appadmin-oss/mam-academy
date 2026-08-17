@@ -13,10 +13,20 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260706d">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260815g">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260817a">
 <style>
-  .light { display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:5px }
+  .light { display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:6px;
+    /* A ring, so the dot is still distinguishable where colour is not
+       perceived and against either theme's background. */
+    box-shadow:0 0 0 1px rgba(0,0,0,.18) inset }
   .light.green{background:#34D399}.light.amber{background:#FBBF24}.light.red{background:#F87171}
+  /* `none` is "not measured yet" — hollow, neutral, and deliberately NOT red.
+     A child who has not started is not a child who is failing. */
+  .light.none{background:transparent;box-shadow:0 0 0 1.5px var(--text-muted,#8A8A8A) inset}
+  .stat{display:flex;flex-direction:column;gap:2px;min-width:104px}
+  .stat-k{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+  .stat-v{font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums}
+  .stat-note{font-size:.72rem;color:var(--text-muted)}
 </style>
 </head>
 <body>
@@ -38,7 +48,7 @@
   </aside>
   <main class="portal-main">
     <button class="portal-side-toggle" id="sidebarToggle"><i class="fa-solid fa-bars"></i> Menu</button>
-    <header class="portal-head"><h1 id="pageTitle">My Children <small id="pageSub">Your child's MAM journey</small></h1></header>
+    <header class="portal-top"><h1 id="pageTitle">My Children <small id="pageSub">Your child's MAM journey</small></h1></header>
     <div id="content" aria-busy="true">Loading…</div>
   </main>
 </div>
@@ -50,9 +60,35 @@
   var P = window.MAM_PORTAL, API = window.MAM_API;
   var content = document.getElementById('content');
   var pageTitle = document.getElementById('pageTitle'), pageSub = document.getElementById('pageSub');
-  function empty(icon, msg) { return '<div class="empty-state"><i class="fa-solid fa-' + icon + '"></i>' + msg + '</div>'; }
+  // An empty panel is an invitation, not a notice: `action` renders a real
+  // control so "contact the office" is something a guardian can act on.
+  function empty(icon, msg, action) {
+    var cta = action && action.label
+      ? '<div style="margin-top:14px"><a class="btn btn-primary" href="' + esc(action.href || '#')
+        + '" style="padding:9px 18px;font-size:.86rem">' + esc(action.label) + '</a></div>' : '';
+    return '<div class="empty-state"><i class="fa-solid fa-' + icon + '" aria-hidden="true"></i>' + msg + cta + '</div>';
+  }
   function esc(s) { return P.escapeHtml(s == null ? '' : s); }
-  function lightDot(cls) { return '<span class="light ' + (cls || 'red') + '"></span>'; }
+  // The dot is decoration; the label is the information. Defaulting to 'none'
+  // rather than 'red' matters — an absent value used to arrive here as a red
+  // light, which told a guardian their child was behind when nothing had been
+  // measured at all.
+  function lightDot(cls, label) {
+    var c = cls || 'none';
+    return '<span class="light ' + c + '" role="img" aria-label="' + esc(label || '') + '"></span>';
+  }
+
+  // One metric. A null value prints an em dash and says WHY it is empty —
+  // "0%" and "not measured yet" are different statements about a child, and
+  // only one of them was true for a student who had not started.
+  function stat(key, value, unit, light, label) {
+    var absent = (value == null);
+    return '<div class="stat">'
+      + '<span class="stat-k">' + esc(key) + '</span>'
+      + '<span class="stat-v">' + lightDot(absent ? 'none' : light, label || '') + (absent ? '—' : esc(String(value)) + unit) + '</span>'
+      + '<span class="stat-note">' + esc(absent ? 'Not measured yet' : (label || '')) + '</span>'
+      + '</div>';
+  }
 
   function setTitle(t, s) { pageTitle.firstChild.textContent = t + ' '; pageSub.textContent = s; }
 
@@ -61,17 +97,24 @@
     content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading…') + '</div></section>';
     API.request('parent/children', { method: 'GET' }).then(function (r) {
       var kids = (r && r.children) || [];
-      if (!kids.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('children', 'No children are linked to your account yet. Please contact the academy office.') + '</div></section>'; return; }
+      if (!kids.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('children', 'No children are linked to your account yet. The academy office links a child to your account once their place is confirmed.', { href: '/contact', label: 'Contact the office' }) + '</div></section>'; return; }
       content.innerHTML = kids.map(function (k) {
         var w = k.weekly || {};
         return '<section class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>' + esc(k.student_name) + '</h2>'
           + '<button class="btn btn-primary child-open" data-id="' + k.student_id + '" style="padding:6px 14px;font-size:.8rem">View journey →</button></div>'
-          + '<div class="panel-body" style="display:flex;gap:22px;flex-wrap:wrap">'
-          + '<div>' + lightDot(w.attendance) + 'Attendance <strong>' + (w.attendance_rate != null ? w.attendance_rate + '%' : '—') + '</strong></div>'
-          + '<div>' + lightDot(w.mastery_light) + 'Mastery <strong>' + (w.mastery != null ? Math.round(w.mastery) + '%' : '—') + '</strong></div>'
-          + '<div><i class="fa-solid fa-fire" style="color:#FB923C"></i> Streak <strong>' + (w.streak || 0) + '</strong></div>'
-          + '<div>Preparation <strong>' + esc(w.preparation || '—') + '</strong></div>'
-          + '<div>Teach-back <strong>' + esc(w.teachback || '—') + '</strong></div>'
+          + '<div class="panel-body" style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;padding:16px 22px 18px">'
+          + stat('Attendance', w.attendance_rate, '%', w.attendance, w.attendance_label)
+          + stat('Mastery', w.mastery == null ? null : Math.round(w.mastery), '%', w.mastery_light, w.mastery_label)
+          + '<div class="stat"><span class="stat-k">Practice streak</span>'
+            + '<span class="stat-v"><i class="fa-solid fa-fire" style="color:#FB923C;font-size:.85em" aria-hidden="true"></i> '
+            + (w.streak || 0) + '</span>'
+            + '<span class="stat-note">' + (w.streak ? 'days in a row' : 'no streak yet') + '</span></div>'
+          + '<div class="stat"><span class="stat-k">Preparation</span><span class="stat-v">'
+            + esc(w.preparation ? w.preparation.replace(/_/g, ' ') : '—') + '</span>'
+            + '<span class="stat-note">' + (w.preparation ? 'for the next class' : 'nothing set yet') + '</span></div>'
+          + '<div class="stat"><span class="stat-k">Teach-back</span><span class="stat-v">'
+            + esc(w.teachback || '—') + '</span>'
+            + '<span class="stat-note">' + (w.teachback ? 'latest submission' : 'not submitted yet') + '</span></div>'
           + '</div></section>';
       }).join('');
       content.querySelectorAll('.child-open').forEach(function (b) {

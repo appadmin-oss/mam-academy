@@ -153,8 +153,12 @@ function mam_acadmail_weekly_report_sweep(int $limit = 500): int {
     } catch (\Throwable $e) { return 0; }
     foreach ($students as $row) {
         $sid = (int) $row['student_id'];
-        $att = function_exists('mam_checkin_attendance_rate') ? mam_checkin_attendance_rate($sid) : 0.0;
-        $body = '<p>Here is this week\'s summary.</p><p>Attendance: <strong>' . $att . '%</strong></p>';
+        $att = function_exists('mam_checkin_attendance_rate') ? mam_checkin_attendance_rate($sid) : null;
+        // A child with no sessions yet has no attendance rate. Printing "0%"
+        // told a guardian their child had attended nothing, which was not what
+        // had happened — say so plainly instead.
+        $body = '<p>Here is this week\'s summary.</p><p>Attendance: <strong>'
+              . ($att === null ? 'no sessions yet' : $att . '%') . '</strong></p>';
         if (mam_acadmail_dispatch('acadmail.weekly.' . $week, $sid, 'MAM Academy — Weekly Learning Report', $body, 'academic')) $sent++;
     }
     return $sent;

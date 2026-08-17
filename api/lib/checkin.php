@@ -407,17 +407,32 @@ function mam_checkin_streak(int $studentId, int $grace = 0): int {
     return $streak;
 }
 
-/** Attendance rate (present+late over past sessions) as a percent. */
-function mam_checkin_attendance_rate(int $studentId): float {
+/**
+ * Attendance rate (present+late over past sessions) as a percent, or NULL when
+ * there is nothing to compute it from.
+ *
+ * ⚠️ It returned 0.0 in that case, and the difference is not cosmetic: a child
+ * enrolled last week with no session yet was reported to their guardian as
+ * **0% attendance behind a red light**, and the weekly email told the same
+ * parent "Attendance: 0%". A student who has attended none of twelve sessions
+ * and a student who has had none look identical in a float, and only one of
+ * them is a problem.
+ *
+ * This is the same rule the rest of the system already follows — `null` at
+ * level 0 in mastery.php means "not assessed", and upper-admin sorts a null
+ * group last rather than first. The guardian surface was the one place it was
+ * being flattened.
+ */
+function mam_checkin_attendance_rate(int $studentId): ?float {
     $cohorts = mam_checkin_student_cohorts($studentId);
-    if (!$cohorts) return 0.0;
+    if (!$cohorts) return null;
     $ph  = implode(',', array_fill(0, count($cohorts), '?'));
     $now = date('Y-m-d H:i:s');
     $total = (int) (mam_db_row(
         "SELECT COUNT(*) c FROM class_sessions WHERE cohort_id IN ($ph) AND scheduled_at <= ? AND status IN ('scheduled','held')",
         array_merge($cohorts, [$now])
     )['c'] ?? 0);
-    if ($total === 0) return 0.0;
+    if ($total === 0) return null;
     $attended = (int) (mam_db_row(
         "SELECT COUNT(*) c FROM session_attendance sa JOIN class_sessions cs ON cs.id = sa.session_id
           WHERE cs.cohort_id IN ($ph) AND sa.student_id = ? AND sa.status IN ('present','late') AND cs.scheduled_at <= ?",

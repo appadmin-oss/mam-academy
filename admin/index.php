@@ -2620,6 +2620,13 @@ html[data-admin-theme="light"]{
   /* Banner TEXT. The pale #FECDD3/#A7F3D0 family is a dark-theme palette;
      on this light surface it measures 1.27:1. Same hues, darkened. */
   --banner-info-text:#33409E;--banner-warn-text:#7A5300;--banner-ok-text:#0A6B4A;--banner-err-text:#A81B37;
+  /* Pill TEXT, for the same reason as the banners above and missed by that
+     pass: #FBBF24 / #34D399 / #A5B4FC / #FB7185 are the dark-theme palette,
+     and on their own 18% tints over this surface they measure 1.52:1, 1.62:1,
+     1.59:1 and 2.12:1. Same hues, darkened to clear 4.5:1. */
+  --pill-warn-text:#7E5F12;--pill-ok-text:#16674A;--pill-info-text:#4C5580;--pill-err-text:#91404C;
+  /* --gold is a FILL. As text it is 4.01:1 on this surface. */
+  --gold-text:#8A6414;
 }
 html[data-admin-theme="dark"]{
   color-scheme:dark;
@@ -2629,6 +2636,9 @@ html[data-admin-theme="dark"]{
   --gold:#C79A3E;--gold-2:#D3A94B;--goldhi:#E0B45A;
   --emerald:#3FBF8C;--red:#EC6E88;--blue:#8CA0F0;--violet:#9A8BF2;
   --banner-info-text:#C7D2FE;--banner-warn-text:#FDE68A;--banner-ok-text:#A7F3D0;--banner-err-text:#FECDD3;
+  /* On the dark surface the original palette is already the legible one. */
+  --pill-warn-text:#FBBF24;--pill-ok-text:#34D399;--pill-info-text:#A5B4FC;--pill-err-text:#FB7185;
+  --gold-text:#E0B45A;
 }
 html,body{height:100%}
 /* Accessibility: visible keyboard focus everywhere + a skip link. */
@@ -2752,15 +2762,15 @@ th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--border);ve
 th{color:var(--muted);font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;background:var(--panel);white-space:nowrap}
 tr:hover td{background:var(--raised)}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;text-transform:lowercase;white-space:nowrap}
-.pill.submitted,.pill.received{background:rgba(99,102,241,0.18);color:#A5B4FC}
-.pill.paid,.pill.processed,.pill.succeeded,.pill.active,.pill.subscribed{background:rgba(16,185,129,0.18);color:#34D399}
+.pill.submitted,.pill.received{background:rgba(99,102,241,0.18);color:var(--pill-info-text)}
+.pill.paid,.pill.processed,.pill.succeeded,.pill.active,.pill.subscribed{background:rgba(16,185,129,0.18);color:var(--pill-ok-text)}
 .pill.enrolled{background:linear-gradient(135deg,var(--gold),var(--gold-2));color:#1A120B}
-.pill.cancelled,.pill.failed,.pill.invalid,.pill.suspended,.pill.withdrawn{background:rgba(244,63,94,0.18);color:#FB7185}
-.pill.in_review,.pill.pending,.pill.unread,.pill.paused{background:rgba(251,191,36,0.18);color:#FBBF24}
+.pill.cancelled,.pill.failed,.pill.invalid,.pill.suspended,.pill.withdrawn{background:rgba(244,63,94,0.18);color:var(--pill-err-text)}
+.pill.in_review,.pill.pending,.pill.unread,.pill.paused{background:rgba(251,191,36,0.18);color:var(--pill-warn-text)}
 .pill.read,.pill.archived,.pill.completed{background:var(--bg2);color:var(--muted)}
 .pill.admin{background:linear-gradient(135deg,var(--red),#FB7185);color:#fff}
-.pill.instructor{background:rgba(99,102,241,0.18);color:#A5B4FC}
-.pill.student{background:rgba(16,185,129,0.18);color:#34D399}
+.pill.instructor{background:rgba(99,102,241,0.18);color:var(--pill-info-text)}
+.pill.student{background:rgba(16,185,129,0.18);color:var(--pill-ok-text)}
 .muted{color:var(--muted)}
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:0.82rem}
 form.inline{display:inline-flex;gap:6px;align-items:center}
@@ -2815,7 +2825,13 @@ main select, main textarea{
 main textarea{min-height:64px;line-height:1.5;padding:10px 12px;resize:vertical}
 main input:not([type=hidden]):focus, main select:focus, main textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(251,191,36,0.18)}
 main input::placeholder, main textarea::placeholder{color:var(--faint,rgba(251,247,243,0.4))}
-main input[type=checkbox], main input[type=radio]{accent-color:var(--gold);min-height:0}
+/* WCAG 2.2 2.5.8 puts the floor at 24x24. A browser's default checkbox is
+   13x13, and `min-height:0` was actively holding it there — the select-all box
+   in the applications table measured 13x13. Sizing the control itself is the
+   honest fix: a hit area drawn with padding does not move the target, and the
+   user-agent exception stops applying the moment the author sets a size — so
+   half-measures leave it non-conforming AND modified. */
+main input[type=checkbox], main input[type=radio]{accent-color:var(--gold);width:24px;height:24px;min-width:24px;min-height:24px}
 main select option{background:var(--panel);color:var(--text)}
 select.tiny,input.tiny{background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:0.78rem;padding:4px 6px}
 /* Keep compact inline controls compact even under the base rule above. */
@@ -3114,7 +3130,7 @@ nav a{display:flex;align-items:center}
   ?>
   <div style="margin-top:16px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:10px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <strong style="color:var(--gold);font-size:.8rem"><i class="fa-solid fa-bell" aria-hidden="true"></i> Notifications<?php if ($unread): ?> <span style="background:#E11D48;color:#fff;border-radius:9px;padding:0 6px;font-size:.64rem"><?= (int)$unread ?></span><?php endif; ?></strong>
+      <strong style="color:var(--gold-text);font-size:.8rem"><i class="fa-solid fa-bell" aria-hidden="true"></i> Notifications<?php if ($unread): ?> <span style="background:#E11D48;color:#fff;border-radius:9px;padding:0 6px;font-size:.64rem"><?= (int)$unread ?></span><?php endif; ?></strong>
       <?php if ($unread): ?>
         <form method="post" style="margin:0">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">

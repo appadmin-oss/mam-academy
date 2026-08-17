@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&family=Noto+Music&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260706d">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260815g">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260817a">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 <script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
@@ -190,7 +190,7 @@
       learnBody = (enr.length ? (courses.length ? subLabel('Classes') : '') + renderClassTable(enr.slice(0, 5)) : '')
         + (courses.length ? (enr.length ? subLabel('Courses') : '') + courseTableHtml(courses.slice(0, 5)) : '');
     } else {
-      learnBody = empty('music', 'No active classes or courses yet.');
+      learnBody = empty('music', 'No classes or courses yet. Once the academy places you, your timetable and coursework appear here.', { tab: 'applications', label: 'See my applications' });
     }
     var paid = pays.filter(function (p) { return p.status === 'succeeded'; }).length;
     var firstName = ((data.user && data.user.name) || '').split(' ')[0] || 'there';
@@ -215,7 +215,7 @@
       + '<section class="panel" id="aiNote" hidden><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;color:var(--gold-bright)"></i>Your progress note</h2></div><div class="panel-body" id="aiNoteBody"></div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Latest application</h2><a class="panel-action" href="#applications" data-tab="applications">All →</a></div>'
       // Don't nudge an already-enrolled student (classes or courses) to "start an application".
-      + '<div class="panel-body">' + (apps[0] ? appRowFull(apps[0]) : empty('file-pen', (enr.length || (data.courses && data.courses.length)) ? 'No applications on file.' : 'No applications yet — start one.')) + '</div></section>'
+      + '<div class="panel-body">' + (apps[0] ? appRowFull(apps[0]) : empty('file-pen', (enr.length || (data.courses && data.courses.length)) ? 'No applications on file.' : 'You have not applied for a programme yet.', (enr.length || (data.courses && data.courses.length)) ? null : { href: '/apply', label: 'Start an application' })) + '</div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Upcoming &amp; active learning</h2><a class="panel-action" href="#learning" data-tab="learning">All →</a></div>'
       + '<div class="panel-body">' + learnBody + '</div>'
       + (courses.length ? '<div id="ovLearnOutline" style="margin:0 22px 18px"></div>' : '')
@@ -1184,7 +1184,7 @@
       +     '<a class="btn btn-ghost" href="/studio" target="_blank" rel="noopener" style="margin-left:8px"><i class="fa-solid fa-wand-magic-sparkles"></i> Open Practice Studio</a></div>'
       + '</form></section>'
       + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Recent sessions</h2></div>'
-      + (logs.length ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Minutes</th><th>Focus</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="panel-body">' + empty('chart-line', 'No sessions logged yet — log your first above.') + '</div>')
+      + (logs.length ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Minutes</th><th>Focus</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="panel-body">' + empty('chart-line', 'No practice logged yet. Every session you record here counts towards your weekly goal.') + '</div>')
       + '</section>';
     loadChallenges();
     loadLeaderboard();
@@ -1220,19 +1220,31 @@
     }).catch(function () { /* never disrupt the practice tab */ });
   }
   function progressPanel(prog, ps) {
+    // A null percentage means the denominator is zero — nothing has been set or
+    // scheduled yet. It prints an em dash, not 0%, and the bar stays empty
+    // without claiming progress against a total that does not exist. The KPI
+    // card above already said "No sessions yet" while this bar said "0% · 0 of
+    // 0 sessions present" about the same fact.
     function bar(label, val, sub) {
-      val = Math.max(0, Math.min(100, val || 0));
-      return '<div class="prog-row"><div class="prog-head"><span>' + label + '</span><strong>' + val + '%</strong></div>'
-        + '<div class="prog-bar"><div class="prog-fill" style="width:' + val + '%"></div></div>'
+      var none = (val === null);
+      val = none ? 0 : Math.max(0, Math.min(100, val || 0));
+      return '<div class="prog-row"><div class="prog-head"><span>' + label + '</span><strong>'
+        + (none ? '—' : val + '%') + '</strong></div>'
+        + '<div class="prog-bar"' + (none ? '' : ' role="img" aria-label="' + val + '%"') + '>'
+        + '<div class="prog-fill" style="width:' + val + '%"></div></div>'
         + '<div class="prog-sub">' + P.escapeHtml(sub || '') + '</div></div>';
     }
-    var asgPct = prog.assignments_total ? Math.round(prog.assignments_done / prog.assignments_total * 100) : 0;
-    var attPct = prog.attendance_total ? Math.round(prog.attendance_present / prog.attendance_total * 100) : 0;
+    var asgPct = prog.assignments_total ? Math.round(prog.assignments_done / prog.assignments_total * 100) : null;
+    var attPct = prog.attendance_total ? Math.round(prog.attendance_present / prog.attendance_total * 100) : null;
     var goalPct = Math.min(100, Math.round((ps.weekMin || 0) / 150 * 100));
     return '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-chart-simple" style="margin-right:8px;color:var(--gold-bright)"></i>Your progress</h2><a class="panel-action" href="#assignments" data-tab="assignments">Assignments →</a></div>'
       + '<div class="prog-grid">'
-      + bar('Assignments done', asgPct, (prog.assignments_done || 0) + ' of ' + (prog.assignments_total || 0) + ' complete')
-      + bar('Attendance', attPct, (prog.attendance_present || 0) + ' of ' + (prog.attendance_total || 0) + ' sessions present')
+      + bar('Assignments done', asgPct, prog.assignments_total
+            ? (prog.assignments_done || 0) + ' of ' + prog.assignments_total + ' complete'
+            : 'Nothing set yet')
+      + bar('Attendance', attPct, prog.attendance_total
+            ? (prog.attendance_present || 0) + ' of ' + prog.attendance_total + ' sessions present'
+            : 'No sessions yet')
       + bar('Weekly practice', goalPct, (ps.weekMin || 0) + ' / 150 min goal')
       + '</div></section>';
   }
@@ -2970,7 +2982,20 @@
   function kpi(label, value, sub, cls, id) {
     return '<div class="kpi"' + (id ? ' id="' + id + '"' : '') + '><div class="kpi-label">' + P.escapeHtml(label) + '</div><div class="kpi-value ' + (cls || '') + '">' + value + '</div><div class="kpi-sub">' + P.escapeHtml(sub || '') + '</div></div>';
   }
-  function empty(icon, text) { return '<div class="empty-state"><i class="fa-solid fa-' + icon + '"></i>' + text + '</div>'; }
+  // An empty panel is an invitation, not a notice. `action` takes
+  // {href|tab, label} and renders a real control — several of these read
+  // "start one" with nothing to click, which is a dead end wearing the costume
+  // of a call to action.
+  function empty(icon, text, action) {
+    var cta = '';
+    if (action && action.label) {
+      var href = action.href || ('#' + (action.tab || ''));
+      cta = '<div style="margin-top:14px"><a class="btn btn-primary" href="' + P.escapeHtml(href) + '"'
+          + (action.tab ? ' data-tab="' + P.escapeHtml(action.tab) + '"' : '')
+          + ' style="padding:9px 18px;font-size:.86rem">' + P.escapeHtml(action.label) + '</a></div>';
+    }
+    return '<div class="empty-state"><i class="fa-solid fa-' + icon + '" aria-hidden="true"></i>' + text + cta + '</div>';
+  }
   function appRowFull(a) {
     return '<div style="padding:22px"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap">'
       + '<div><div class="mono" style="color:var(--gold-bright);font-size:0.92rem;margin-bottom:4px">' + P.escapeHtml(a.reference) + '</div>'
