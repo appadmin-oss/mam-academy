@@ -136,3 +136,60 @@ t_ok(strpos($parent, 'Could not load this child right now.') !== false,
     'a failed child page says so');
 t_eq(preg_match_all("/<label>[^<]{1,40}<\/label>\s*(?:\\\\?')?\s*\+?\s*(?:\\\\?')?\s*<(?:input|select|textarea)\b/", $parent),
     0, 'the guardian portal has no caption-masquerading-as-label');
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Student portal — pass 6. Signed in with a student enrolled on both a legacy
+ * class and a cohort, and walked all 23 tabs.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+$stu = (string) file_get_contents(dirname(__DIR__, 2) . '/portal/student/index.html');
+
+t_group('student portal — every control has a name');
+
+// MEASURED: 26 visible controls on the default render, 8 unnamed (31%) — the
+// same caption-as-label idiom as the instructor portal, at 16 static sites.
+// Re-measured after the fix: 0 of 26.
+t_ok(substr_count($stu, 'aria-label=') >= 17, 'the student portal names its controls');
+t_eq(preg_match_all("/<label>[^<]{1,48}<\/label>[^<]{0,12}<(?:input|select|textarea)\b(?![^>]*aria-label)/", $stu),
+    0, 'no control is left with only a caption beside it');
+// Two whose visible label is a styled div, so there was no text to take.
+t_ok(strpos($stu, 'aria-label="Share link expires in"') !== false,
+    'the progress-share expiry select is named');
+t_ok(strpos($stu, 'aria-label="Your referral link"') !== false,
+    'the referral link field is named');
+
+t_group('student portal — a blank panel is a statement, not a shrug');
+
+/* MEASURED: challenges, leaderboard and referrals each had an empty catch, so a
+ * dropped fetch left the panel blank. Blank asserts something — "you have no
+ * challenges", "nobody is on the board" — and that is a different claim from
+ * "we could not fetch this". */
+t_ok(strpos($stu, 'Could not load your challenges right now.') !== false, 'a failed challenges load says so');
+t_ok(strpos($stu, 'Could not load the board right now.') !== false, 'a failed leaderboard load says so');
+t_ok(strpos($stu, 'Could not load your referral link right now.') !== false, 'a failed referral load says so');
+// The submission-status paint is the one that matters most: those rows answer
+// "did my work arrive?", and failing silently leaves them asserting a state
+// nothing confirmed.
+t_ok(strpos($stu, 'submission status unavailable') !== false,
+    'assignment rows stop claiming a submission state we could not confirm');
+t_ok(strpos($stu, 'Could not check your submissions just now') !== false, '…and the student is told');
+
+t_group('student portal — no message claims something that did not happen');
+
+// "Referral link copied." was toasted whether or not the copy succeeded, which
+// sends someone to paste nothing.
+t_ok(strpos($stu, "navigator.clipboard.writeText(link).then(ok).catch(no)") !== false,
+    'the copy toast follows the actual result of the copy');
+t_ok(strpos($stu, 'the link is selected, press Ctrl/Cmd+C') !== false,
+    '…and the failure points at what the reader can do instead');
+
+t_group('student portal — errors are words, and the boot resolves');
+
+t_ok(substr_count($stu, 'err.body && err.body.error') <= 1,
+    'at most one site still reads the raw code, and it is a control-flow check, not a message');
+t_ok(substr_count($stu, 'P.fail(err') >= 6, 'failures report through the shared translator');
+t_ok(strpos($stu, "if (e.message === 'unauthenticated') return;") !== false,
+    'the redirect case exits early');
+t_ok(strpos($stu, '<div class="portal-user-role">student</div>') !== false,
+    'a failed boot resolves the user card instead of leaving it on "Loading…"');
+t_ok(strpos($stu, 'id="dashRetry"') !== false, '…and offers Try again');

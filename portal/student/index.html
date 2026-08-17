@@ -1033,10 +1033,10 @@
       + prog.map(function (p) { return '<li><strong>' + P.escapeHtml(p.title) + '</strong>' + (p.composer ? ' — ' + P.escapeHtml(p.composer) : '') + ' <span class="pill" style="font-size:.7rem">' + P.escapeHtml(p.status) + '</span></li>'; }).join('')
       + '</ol></div></section>' : '';
     var addForm = '<section class="panel"><div class="panel-head"><h2>Add a piece</h2></div><form id="repForm" class="profile-form" style="padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">'
-      + '<div class="field"><label>Title</label><input id="rep-title" required placeholder="e.g. Für Elise"></div>'
-      + '<div class="field"><label>Composer</label><input id="rep-composer" placeholder="e.g. Beethoven"></div>'
-      + '<div class="field"><label>Status</label><select id="rep-status"><option value="learning">Learning</option><option value="polished">Polished</option><option value="performed">Performed</option></select></div>'
-      + '<div class="field" style="grid-column:1/-1"><label>Notes</label><input id="rep-notes" placeholder="Optional"></div>'
+      + '<div class="field"><label>Title</label><input id="rep-title" required placeholder="e.g. Für Elise" aria-label="Title"></div>'
+      + '<div class="field"><label>Composer</label><input id="rep-composer" placeholder="e.g. Beethoven" aria-label="Composer"></div>'
+      + '<div class="field"><label>Status</label><select id="rep-status" aria-label="Status"><option value="learning">Learning</option><option value="polished">Polished</option><option value="performed">Performed</option></select></div>'
+      + '<div class="field" style="grid-column:1/-1"><label>Notes</label><input id="rep-notes" placeholder="Optional" aria-label="Notes"></div>'
       + '<div class="actions" style="grid-column:1/-1"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Add piece</button></div>'
       + '</form></section>';
     content.innerHTML = progHtml + groups + addForm;
@@ -1058,7 +1058,9 @@
   // ── Practice challenges (§3.3) ───────────────────────────────────────────
   function loadChallenges() {
     var area = document.getElementById('challengesArea'); if (!area) return;
-    API.request('student/challenges', { method: 'GET' }).then(function (r) { renderChallenges(r.challenges || []); }).catch(function () {});
+    API.request('student/challenges', { method: 'GET' })
+      .then(function (r) { renderChallenges(r.challenges || []); })
+      .catch(function () { area.innerHTML = P.empty('triangle-exclamation', 'Could not load your challenges right now. Reload the page to try again.'); });
   }
   function renderChallenges(list) {
     var area = document.getElementById('challengesArea'); if (!area) return;
@@ -1074,10 +1076,10 @@
     area.innerHTML = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-bullseye" style="color:var(--gold-bright);margin-right:8px"></i>Practice challenges</h2></div><div class="panel-body" style="display:grid;gap:10px">'
       + (active.length ? cards : empty('bullseye', 'No active challenge. Set one below to build momentum.'))
       + '<form id="chForm" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:6px;padding-top:12px;border-top:1px solid var(--border)">'
-      +   '<div class="field" style="flex:2;min-width:160px;margin:0"><label>Goal</label><input id="ch-title" placeholder="e.g. Practise 4× this week" required></div>'
-      +   '<div class="field" style="width:90px;margin:0"><label>Target</label><input id="ch-target" type="number" min="1" value="4"></div>'
-      +   '<div class="field" style="width:120px;margin:0"><label>Metric</label><select id="ch-metric"><option value="sessions">Sessions</option><option value="minutes">Minutes</option></select></div>'
-      +   '<div class="field" style="width:130px;margin:0"><label>Window</label><select id="ch-window"><option value="7">This week</option><option value="30">This month</option></select></div>'
+      +   '<div class="field" style="flex:2;min-width:160px;margin:0"><label>Goal</label><input id="ch-title" placeholder="e.g. Practise 4× this week" required aria-label="Goal"></div>'
+      +   '<div class="field" style="width:90px;margin:0"><label>Target</label><input id="ch-target" type="number" min="1" value="4" aria-label="Target"></div>'
+      +   '<div class="field" style="width:120px;margin:0"><label>Metric</label><select id="ch-metric" aria-label="Metric"><option value="sessions">Sessions</option><option value="minutes">Minutes</option></select></div>'
+      +   '<div class="field" style="width:130px;margin:0"><label>Window</label><select id="ch-window" aria-label="Window"><option value="7">This week</option><option value="30">This month</option></select></div>'
       +   '<button type="submit" class="btn btn-primary" style="height:44px"><i class="fa-solid fa-plus"></i> Add</button>'
       + '</form></div></section>';
     var f = document.getElementById('chForm');
@@ -1099,7 +1101,9 @@
   // ── Opt-in effort leaderboard (§3.4) ─────────────────────────────────────
   function loadLeaderboard() {
     var area = document.getElementById('leaderboardArea'); if (!area) return;
-    API.request('student/leaderboard', { method: 'GET' }).then(function (r) { renderLeaderboard(r); }).catch(function () {});
+    API.request('student/leaderboard', { method: 'GET' })
+      .then(function (r) { renderLeaderboard(r); })
+      .catch(function () { area.innerHTML = P.empty('triangle-exclamation', 'Could not load the board right now. Reload the page to try again.'); });
   }
   function renderLeaderboard(r) {
     var area = document.getElementById('leaderboardArea'); if (!area) return;
@@ -1197,7 +1201,7 @@
         return load();
       }).catch(function (err) {
         btn.disabled = false; btn.innerHTML = orig;
-        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not log: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not log.'));
+        P.fail(err, 'Could not log that practice session.');
       });
     });
     loadPracticeCoach();
@@ -1362,7 +1366,16 @@
         el.innerHTML = submissionStatusHtml(latest[parseInt(el.getAttribute('data-aid'), 10)] || null);
       });
       mountPlayers(content);
-    }).catch(function () {});
+    }).catch(function () {
+      /* Each assignment row shows whether its submission landed. Failing
+         silently leaves those rows asserting a state we did not confirm, and
+         "did my work arrive?" is the one question this tab exists to answer. */
+      content.querySelectorAll('[data-aid]').forEach(function (el) {
+        el.innerHTML = '<span style="color:var(--text-muted);font-size:.82rem">'
+          + '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> submission status unavailable</span>';
+      });
+      if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not check your submissions just now — reload to try again.', 'warning');
+    });
   }
 
   function renderAnnouncements() {
@@ -1622,8 +1635,7 @@
         renderCheckin();
       }).catch(function (err) {
         btn.disabled = false; btn.innerHTML = orig;
-        var code = (err && err.body && err.body.error) || 'try again';
-        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not check in: ' + code, 'error') : alert('Could not check in.'));
+        P.fail(err, 'Could not check you in.');
       });
     }
     if (needGeo && navigator.geolocation) {
@@ -1690,8 +1702,7 @@
         renderAccountability();
       })
       .catch(function (err) {
-        var code = (err && err.body && err.body.error) || 'try again';
-        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not request an exception: ' + code, 'error') : alert('Could not request an exception.'));
+        P.fail(err, 'Could not send that request.');
       });
   }
   // §10 — clock out. The server derives the duration and decides whether the
@@ -1708,8 +1719,7 @@
       })
       .catch(function (err) {
         btn.disabled = false; btn.innerHTML = orig;
-        var code = (err && err.body && err.body.error) || 'try again';
-        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not clock out: ' + code, 'error') : alert('Could not clock out.'));
+        P.fail(err, 'Could not clock you out.');
       });
   }
 
@@ -1863,14 +1873,14 @@
         : '';
       var cdn = (window.MAM_CONFIG && window.MAM_CONFIG.cdn) || {};
       var fileField = (cdn.cloudName && cdn.uploadPreset)
-        ? '<div class="field"><label>Or upload a video/audio</label><input id="tbFile" type="file" accept="video/*,audio/*,image/*"><span id="tbFileMsg" class="kpi-sub"></span></div>'
+        ? '<div class="field"><label>Or upload a video/audio</label><input id="tbFile" type="file" accept="video/*,audio/*,image/*" aria-label="Or upload a video/audio"><span id="tbFileMsg" class="kpi-sub"></span></div>'
         : '';
       var declare = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>2 · Declare (teach-back)' + (m.teachback_required ? ' <span class="pill">required</span>' : '') + '</h2></div>'
         + '<form id="tbForm" class="panel-body" style="display:grid;gap:12px">' + tbStatus
-        + '<div class="field"><label>How are you explaining it?</label><select name="kind"><option value="written">Written</option><option value="video">Video</option><option value="audio">Audio</option><option value="practical">Practical</option></select></div>'
-        + '<div class="field"><label>Evidence link (Drive / YouTube / recording)</label><input name="artifact_url" placeholder="https://…" value="' + P.escapeHtml((tb && tb.artifact_url) || '') + '"></div>'
+        + '<div class="field"><label>How are you explaining it?</label><select name="kind" aria-label="How are you explaining it?"><option value="written">Written</option><option value="video">Video</option><option value="audio">Audio</option><option value="practical">Practical</option></select></div>'
+        + '<div class="field"><label>Evidence link (Drive / YouTube / recording)</label><input name="artifact_url" placeholder="https://…" value="' + P.escapeHtml((tb && tb.artifact_url) || '') + '" aria-label="Evidence link (Drive / YouTube / recording)"></div>'
         + fileField
-        + '<div class="field"><label>Explanation (in your own words)</label><textarea name="body" rows="4" placeholder="Explain the week’s topic…">' + P.escapeHtml((tb && tb.body) || '') + '</textarea></div>'
+        + '<div class="field"><label>Explanation (in your own words)</label><textarea name="body" rows="4" placeholder="Explain the week’s topic…" aria-label="Explanation (in your own words)">' + P.escapeHtml((tb && tb.body) || '') + '</textarea></div>'
         + '<div><button type="submit" class="btn btn-primary" data-lesson="' + m.lesson_id + '"><i class="fa-solid fa-paper-plane"></i> ' + (tb ? 'Resubmit' : 'Submit') + ' teach-back</button></div>'
         + '</form></section>';
 
@@ -1896,7 +1906,7 @@
         pre.then(function (url) {
           return API.request('student/preclass', { method: 'POST', body: { action: 'teachback', lesson_id: lid, kind: form.kind.value, artifact_url: url, body: form.body.value.trim() } });
         }).then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Teach-back submitted.', 'success'); renderPrepare(); })
-          .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var msg = (err && err.body && err.body.error) || err.message || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not submit: ' + msg, 'error'); else alert('Could not submit.'); });
+          .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; P.fail(err, 'Could not submit.') });
       });
     }).catch(function () {
       content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load your next class right now.') + '</div></section>';
@@ -1927,9 +1937,9 @@
         : '';
       var formPanel = sessions.length
         ? '<form id="rschForm" style="padding:14px 18px;display:grid;gap:12px">'
-          + '<div class="field"><label>Session to move</label><select name="session">' + sessOpts + '</select></div>'
-          + '<div class="field"><label>New date &amp; time</label><input name="newat" type="datetime-local" required></div>'
-          + '<div class="field"><label>Reason (optional)</label><input name="reason" placeholder="Why do you need to move this class?"></div>'
+          + '<div class="field"><label>Session to move</label><select name="session" aria-label="Session to move">' + sessOpts + '</select></div>'
+          + '<div class="field"><label>New date &amp; time</label><input name="newat" type="datetime-local" required aria-label="New date and time"></div>'
+          + '<div class="field"><label>Reason (optional)</label><input name="reason" placeholder="Why do you need to move this class?" aria-label="Reason (optional)"></div>'
           + '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button type="button" id="rschQuote" class="btn btn-ghost" style="padding:8px 14px"><i class="fa-solid fa-tag"></i> Check fee</button>'
           + '<button type="submit" class="btn btn-primary" style="padding:8px 14px"><i class="fa-solid fa-paper-plane"></i> Submit request</button>'
           + '<span id="rschFee" class="kpi-sub"></span></div>'
@@ -1968,7 +1978,7 @@
           var btn = form.querySelector('button[type=submit]'), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Submitting…';
           API.request('student/reschedule', { method: 'POST', body: { action: 'create', cohort_id: selCohort(), moves: [{ session_id: parseInt(form.session.value, 10), new_scheduled_at: at }], reason: form.reason.value.trim() } })
             .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Reschedule requested.', 'success'); renderReschedule(); })
-            .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var m = (err && err.body && err.body.error) || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not request: ' + m, 'error'); else alert('Could not request.'); });
+            .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; P.fail(err, 'Could not request.') });
         });
       }
       content.querySelectorAll('.rsch-pay').forEach(function (b) { b.addEventListener('click', function () { rschAction('pay', b); }); });
@@ -1981,7 +1991,7 @@
     var id = parseInt(btn.getAttribute('data-id'), 10), orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = '…';
     API.request('student/reschedule', { method: 'POST', body: { action: action, request_id: id } })
       .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast(action === 'pay' ? 'Paid from wallet.' : 'Request cancelled.', 'success'); renderReschedule(); })
-      .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var m = (err && err.body && err.body.error) || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not ' + action + ': ' + m, 'error'); else alert('Could not ' + action + '.'); });
+      .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; P.fail(err, 'Could not ' + action + ' that request.'); });
   }
 
   function renderClassTable(enr) {
@@ -1998,7 +2008,9 @@
   // ── Refer a friend (§6.3) ────────────────────────────────────────────────
   function loadReferral() {
     var area = document.getElementById('referralArea'); if (!area) return;
-    API.request('referrals', { method: 'GET' }).then(function (r) { renderReferral(r); }).catch(function () {});
+    API.request('referrals', { method: 'GET' })
+      .then(function (r) { renderReferral(r); })
+      .catch(function () { area.innerHTML = P.empty('triangle-exclamation', 'Could not load your referral link right now. Reload the page to try again.'); });
   }
   function renderReferral(r) {
     var area = document.getElementById('referralArea'); if (!area) return;
@@ -2015,15 +2027,20 @@
       // that does not exist and a balance they could not spend. Say what
       // actually happens: staff approve the reward and apply it to tuition.
       + '<p style="margin:0;color:var(--text-muted)">Share your link. When a friend joins MAM, you earn tuition credit — applied to your account by the academy office.</p>'
-      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="refLink" readonly value="' + P.escapeHtml(link) + '" style="flex:1;min-width:220px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-raised);color:var(--text);font-family:monospace;font-size:.82rem">'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="refLink" readonly aria-label="Your referral link" value="' + P.escapeHtml(link) + '" style="flex:1;min-width:220px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-raised);color:var(--text);font-family:monospace;font-size:.82rem">'
       + '<button class="btn btn-primary" id="refCopy"><i class="fa-solid fa-copy"></i> Copy link</button></div>'
       + '<div style="font-size:.8rem;color:var(--text-muted)">Your code: <strong style="color:var(--gold-bright);font-family:monospace">' + P.escapeHtml(code) + '</strong></div>'
       + list + '</div></section>';
     var cp = document.getElementById('refCopy');
     if (cp) cp.addEventListener('click', function () {
       var i = document.getElementById('refLink'); if (i) { i.select(); }
-      if (navigator.clipboard) { navigator.clipboard.writeText(link).catch(function () {}); } else { try { document.execCommand('copy'); } catch (e) {} }
-      if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Referral link copied.', 'success');
+      var ok = function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Referral link copied.', 'success'); };
+      // Telling someone their link is on the clipboard when it is not sends
+      // them to paste nothing. The link is selected either way, so the honest
+      // failure message has somewhere to point.
+      var no = function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not copy automatically — the link is selected, press Ctrl/Cmd+C.', 'warning'); };
+      if (navigator.clipboard) { navigator.clipboard.writeText(link).then(ok).catch(no); }
+      else { try { document.execCommand('copy') ? ok() : no(); } catch (e) { no(); } }
     });
   }
 
@@ -2202,8 +2219,8 @@
       + '<section class="panel"><form class="profile-form" id="profileForm">'
       + '<div class="field"><label for="pf-name">Full name</label><input id="pf-name" value="' + P.escapeHtml(u.name || '') + '" required></div>'
       + '<div class="field"><label for="pf-phone">Phone</label><input id="pf-phone" type="tel" value="' + P.escapeHtml(u.phone || '') + '"></div>'
-      + '<div class="field"><label>Email</label><input value="' + P.escapeHtml(u.email) + '" disabled></div>'
-      + '<div class="field"><label>Country</label><input value="' + P.escapeHtml(c.country || '—') + '" disabled></div>'
+      + '<div class="field"><label>Email</label><input value="' + P.escapeHtml(u.email) + '" disabled aria-label="Email"></div>'
+      + '<div class="field"><label>Country</label><input value="' + P.escapeHtml(c.country || '—') + '" disabled aria-label="Country"></div>'
       + '<div class="actions"><button type="submit" class="btn btn-primary">Save profile</button></div>'
       + '</form></section>'
       + '<section class="panel"><div class="panel-head"><h2>Change password</h2></div><form class="profile-form" id="pwForm">'
@@ -2252,7 +2269,7 @@
       var next = document.getElementById('pw-next').value;
       API.request('auth/change-password', { method: 'POST', body: { current: current, next: next } })
         .then(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Password changed', 'success') : alert('Password changed.')); load(); })
-        .catch(function (err) { var msg = 'Could not change password: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Password change failed', msg, 'error') : alert(msg)); });
+        .catch(function (err) {  P.fail(err, 'Could not change your password.'); });
     });
     P.mountSessions();
   }
@@ -2470,7 +2487,7 @@
       + '<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px">Generate a secure link to share your full progress dashboard with a guardian or family member. Links expire automatically.</p>'
       + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">'
       + '<div style="flex:1;min-width:150px"><label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px">Label (optional)</label><input id="tokenLabel" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg)" placeholder="e.g. Mum, Dad…"></div>'
-      + '<div style="width:110px"><label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px">Expires in</label><select id="tokenDays" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg)"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="180">6 months</option><option value="365">1 year</option></select></div>'
+      + '<div style="width:110px"><label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:4px">Expires in</label><select id="tokenDays" aria-label="Share link expires in" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:0.9rem;background:var(--bg)"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="180">6 months</option><option value="365">1 year</option></select></div>'
       + '<button class="btn btn-primary" onclick="generateProgressToken()"><i class="fa-solid fa-link"></i> Generate Link</button>'
       + '</div>'
       + '<div id="tokenResult" style="display:none;padding:12px 14px;background:var(--panel-bg,#1e160e);border:1px solid var(--border);border-radius:8px;margin-bottom:14px">'
@@ -3087,9 +3104,21 @@
 
     return load();
   }).catch(function (e) {
-    if (e.message !== 'unauthenticated') {
-      content.innerHTML = empty('triangle-exclamation', 'Could not load your dashboard. Please refresh or sign in again.');
-    }
+    if (e.message === 'unauthenticated') return;   // requireAuth already redirected
+    /* The sidebar's user card says "Loading…" until load() mounts it, which
+       never happens here — so the page claimed to be finished and still
+       working at the same time, and offered nothing to retry with. */
+    var card = document.getElementById('userCard');
+    if (card) card.innerHTML = '<div class="portal-avatar">!</div><div><div class="portal-user-name">Not loaded</div>'
+      + '<div class="portal-user-role">student</div></div>';
+    content.removeAttribute('aria-busy');
+    content.innerHTML = empty('triangle-exclamation', P.errText(e, 'Could not load your dashboard.'))
+      + '<div style="text-align:center;margin-top:-8px;padding-bottom:22px">'
+      + '<button type="button" class="btn btn-primary" id="dashRetry">Try again</button></div>';
+    var rb = document.getElementById('dashRetry');
+    if (rb) rb.addEventListener('click', function () {
+      rb.disabled = true; rb.textContent = 'Loading…'; window.location.reload();
+    });
   });
 })();
 </script>

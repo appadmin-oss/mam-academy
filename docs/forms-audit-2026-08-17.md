@@ -1,11 +1,12 @@
-# Forms audit — the wizard, the payment step, the admin, the portals
+# Forms audit — the wizard, the payment step, the admin, the three portals
 
 **Measured in a browser** against the running site, 2026-08-17. Numbers below
 come from the DOM and the accessibility tree, not from reading the source.
 
-Five passes, in the order they were done: the wizard's structure (pass 1), its
+Six passes, in the order they were done: the wizard's structure (pass 1), its
 error paths and the headshot step (pass 2), the payment step (pass 3), the
-admin's 38 views (pass 4), and the instructor + guardian portals (pass 5).
+admin's 38 views (pass 4), the instructor + guardian portals (pass 5), and the
+student portal's 23 tabs (pass 6).
 
 **Why the wizard first:** it is the only revenue-critical form the academy has,
 and the funnel says it is leaking. The production export holds **48 application
@@ -39,6 +40,7 @@ That one fact causes most of what follows.
 | **The payment step spoke in machine tokens** | **3** | `init_failed`, `api_unavailable` | ✅ fixed |
 | **70 admin controls with no accessible name** | **3** | 70 of 350, all per-row | ✅ fixed |
 | **20 instructor controls with no name** | **3** | 20 of 51, caption ≠ label | ✅ fixed |
+| **8 student controls with no name** | **3** | 8 of 26, same caption idiom | ✅ fixed |
 | `required` on 2 of 58 fields | **2** | validation is entirely custom JS | ✅ fixed |
 | Upload failures all read alike | **2** | one message for 429/413/5xx | ✅ fixed |
 | Banner border contrast | **2** | 1.6:1 and 2.4:1 vs 3:1 | ✅ fixed |
@@ -47,6 +49,8 @@ That one fact causes most of what follows.
 | Instructor errors pasted raw server codes | **2** | 17 call sites | ✅ fixed |
 | A silent note-delete failure | **2** | looked identical to success | ✅ fixed |
 | Failed boot left the user card "Loading…" | **2** | no retry offered | ✅ fixed |
+| Student panels blank on a failed fetch | **2** | 3 panels + submission status | ✅ fixed |
+| "Referral link copied" when it wasn't | **2** | toasted regardless of result | ✅ fixed |
 | Target sizes | **0** | no violations — measured on the label | — |
 | CSRF expiry, dropped-connection recovery | **0** | both recover; draft survives | — |
 | CSRF coverage on admin forms | **0** | every mutating form carries a token | — |
@@ -505,13 +509,64 @@ change made; recorded here so it is not "fixed" later.
 
 ---
 
+## Pass 6 — the student portal
+
+23 tabs, the largest single surface in the system. Signed in as a student
+enrolled on **both** a legacy class and a cohort, so the dual-read paths render.
+
+### [Severity 3] 8 of 26 controls had no accessible name
+
+The same caption-as-label idiom as the instructor portal —
+`<label>Score</label><input …>`, a sibling with no `for` — at **16 static
+sites**. Measured on the default render: 26 visible controls, **8 unnamed
+(31%)**. Two of those had no text to take a name from at all: the
+progress-share expiry select and the read-only referral-link field, whose
+visible labels are styled `<div>`s.
+
+Re-measured: **0 of 26.**
+
+**Honest scope:** only 7 of the 23 tabs render a control on the default view.
+The remaining caption sites — the reschedule form, teach-back, the upload step —
+appear only after an interaction and were fixed from source rather than driven
+in a browser. The static count is now zero either way, but the *measured*
+denominator is 26, not "every control in the portal".
+
+### [Severity 2] A blank panel is a statement
+
+Challenges, the effort leaderboard and referrals each had an empty catch, so a
+dropped fetch left the panel blank. Blank **asserts** something — "you have no
+challenges", "nobody is on the board" — and that is a different claim from "we
+could not fetch this". All three now say which one it is.
+
+The one that mattered most was the assignment list's submission-status paint. It
+failed silently, leaving every row asserting a state nothing had confirmed —
+and *"did my work arrive?"* is the question that tab exists to answer. Those
+rows now say `submission status unavailable` and the student is told.
+
+### [Severity 2] "Referral link copied." was said whether or not it was
+
+`navigator.clipboard.writeText(link).catch(function () {})` followed by an
+unconditional success toast. A failed copy sends someone to paste nothing. The
+toast now follows the actual result, and the failure points at what they can do
+instead — the link is selected either way, so *"press Ctrl/Cmd+C"* has somewhere
+to land.
+
+### Also fixed here
+
+Raw server codes in messages (*"Could not log: forbidden"*) at 8 sites, now
+through the shared `P.fail()` — measured after the change as *"You do not have
+access to that."* And the same failed-boot defect as the instructor portal: main
+area saying "Could not load your dashboard" while the sidebar's user card sat on
+"Loading…", with nothing to retry with.
+
+---
+
 ## Not yet measured
 
-- Per-step measurement past step 1 for structure/labelling (passes 2–5 drove
+- Per-step measurement past step 1 for structure/labelling (passes 2–6 drove
   every step, but audited the later ones for *failure behaviour*, not layout).
-- **The student portal**, which carries the same caption-as-label idiom at
-  **16 sites** — counted statically, not yet driven in a browser, so the real
-  figure is unknown. It shares `libs.js`, so the toast fix already reaches it.
+- The student portal's **interaction-gated forms** — reschedule, teach-back,
+  upload. Fixed from source, not driven.
 - Admin form **error** behaviour — pass 4 covered labelling, destructive
   confirmation and autofill; what an admin sees when a POST fails is a separate
   question from what the applicant sees.
