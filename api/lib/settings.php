@@ -189,6 +189,13 @@ function mam_settings_schema(): array {
         ['Check-in',                'program_total_weeks',         'Programme length for the check-in dashboard (fallback)', 12, 'weeks'],
         // Punctuality accountability (PDF §13-15). Off by default — turning it
         // on records (does not auto-charge) a fee on late check-ins.
+        // ── Safeguarding (Child Rights Act 2003 s.2(2); Lagos State Safeguarding
+        //    and Child Protection Policy 2016). The MODE is configurable; WHICH
+        //    checks are required is not — see MAM_VETTING_REQUIRED.
+        ['Safeguarding',            'safeguarding_gate_mode',      'Vetting gate: off | warn | enforce. `enforce` blocks assigning an uncleared instructor to a minor.', 'warn', ''],
+        ['Safeguarding',            'safeguarding_unknown_age_is_minor', 'Treat a student of unknown age as a minor for safeguarding (1=yes)', 1, ''],
+        ['Safeguarding',            'safeguarding_officer_user_id', 'Designated Safeguarding Officer (user id) — required by the Lagos policy', 0, ''],
+        ['Safeguarding',            'safeguarding_policy_url',     'Published child-protection policy URL', '', ''],
         ['Accountability',          'late_charge_enabled',         'Charge STUDENTS for late arrival (1=on, 0=off). Off = lateness is recorded, no money owed.', 0, ''],
         ['Accountability',          'late_charge_student_usd',     'Student late-arrival charge', 1, '$'],
         // Separate from the student flag on purpose: a deduction from an

@@ -438,6 +438,27 @@ function mam_lms_approve(int $enrollmentId, ?int $instructorId, ?int $adminId = 
         if ($instructorId) mam_lms_remember_instructor($instructorId, $courseId, $levelId);
         else $instructorId = mam_lms_default_instructor($courseId, $levelId);
     }
+    /* ── The safeguarding gate ───────────────────────────────────────────────
+       This is the choke point for "who teaches this child". CRA 2003 s.2(2)
+       requires an institution caring for children to meet standards on the
+       SUITABILITY of its staff, and the Lagos Safeguarding and Child Protection
+       Policy 2016 mandates the specific safer-recruitment checks. An academy that
+       cannot say why an adult is suitable to be alone with a child has not met
+       either.
+
+       In `enforce` mode this THROWS and no assignment is written. In `warn` (the
+       shipping default, so an upgrade does not refuse every assignment on an
+       install with no records yet) it records the gap and proceeds. Either way
+       the attempt is audited from day one, so the record of who was assigned
+       while uncleared exists before enforcement is switched on, not after. */
+    if ($instructorId && function_exists('mam_vetting_check_assignment')) {
+        $cohortId = (int) (mam_db_row('SELECT cohort_id FROM course_enrollments WHERE id = ?', [$enrollmentId])['cohort_id'] ?? 0);
+        $chk = mam_vetting_check_assignment($instructorId, $cohortId ?: null);
+        if (!$chk['allow']) throw new RuntimeException('vetting_required: ' . $chk['reason']);
+        if ($chk['reason'] !== '') mam_log('warn', 'vetting_gate_warn',
+            ['instructor' => $instructorId, 'enrollment' => $enrollmentId, 'reason' => $chk['reason']]);
+    }
+
     // Assign the instructor first, then run the enforced transition pending →
     // active (which stamps approved_by/at and writes the lifecycle event). The
     // transition is a no-op if the enrolment is already active — e.g. an admin

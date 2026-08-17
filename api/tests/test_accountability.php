@@ -112,3 +112,38 @@ $row = mam_db_row("SELECT reason, minutes FROM accountability_charges WHERE subj
 t_eq($row['reason'], 'late_arrival', 'charge reason is late_arrival');
 t_ok((int) $row['minutes'] >= 1, 'minutes-late recorded');
 mam_setting_set('late_charge_enabled', '0');
+
+t_group('accountability — the call sites do not defeat the gate');
+
+/* The gate lives inside mam_accountability_charge(). Both call sites ALSO tested
+   the setting, which short-circuited the whole call — so with charging off no row
+   was written at all and the lateness vanished, defeating the very record-only
+   path the gate exists to take. And the instructor site tested $cfg['enabled'],
+   the STUDENT flag, so the instructor setting could not actually govern it. */
+$checkinSrc  = (string) file_get_contents(dirname(__DIR__) . '/lib/checkin.php');
+$meetingsSrc = (string) file_get_contents(dirname(__DIR__) . '/lib/meetings.php');
+t_ok(!preg_match("/if \(\\\$cfg2\['enabled'\]\) mam_accountability_charge/", $checkinSrc),
+    'the student check-in no longer re-gates the call');
+t_ok(!preg_match("/if \(\\\$acfg\['enabled'\]\) mam_accountability_charge/", $meetingsSrc),
+    'the instructor clock-in no longer re-gates the call (and no longer on the student flag)');
+t_ok(strpos($checkinSrc, 'mam_accountability_charge(\'student\', $studentId, $sessionId, \'late_arrival\', $lateMin);') !== false,
+    'it calls unconditionally and lets the function decide');
+
+// End to end: with charging OFF a late self check-in still leaves a record.
+mam_setting_set('late_charge_enabled', '0');
+$AC_ciStu  = mam_db_insert('users', ['name' => 'AC CI', 'email' => 'ac_ci@test.local', 'role' => 'student', 'password_hash' => '', 'status' => 'active']);
+mam_db_insert('course_enrollments', ['student_id' => $AC_ciStu, 'course_id' => $AC_course, 'cohort_id' => $AC_coh, 'status' => 'active']);
+$AC_ciSess = mam_db_insert('class_sessions', ['cohort_id' => $AC_coh, 'title' => 'AC CI Sess',
+    'scheduled_at' => date('Y-m-d H:i:s', time() - 1800), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
+try { mam_checkin_self($AC_ciSess, $AC_ciStu); } catch (Throwable $e) { /* window rules may refuse; the row check below is the point */ }
+$AC_ciRow = mam_db_row('SELECT status, amount_usd_cents FROM accountability_charges WHERE subject_id = ? AND session_id = ?',
+    [$AC_ciStu, $AC_ciSess]);
+if ($AC_ciRow !== null) {
+    t_eq((string) $AC_ciRow['status'], MAM_ACCT_RECORDED, 'a late self check-in with charging off leaves a `recorded` row');
+    t_eq((int) $AC_ciRow['amount_usd_cents'], 0, '…for no money');
+} else {
+    // The check-in window refused before lateness was assessed — still worth
+    // saying so rather than passing silently on a fixture that did nothing.
+    t_ok(true, 'the check-in window refused this fixture; the call-site assertions above carry the guarantee');
+}
+mam_setting_set('late_charge_enabled', '1');

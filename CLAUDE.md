@@ -24,7 +24,7 @@ hosting behind Cloudflare.
   (shared portal kit `P.*`), `main.js`, `tools.js` (studio), etc.
 - `api/` — front controller `api/index.php` → `lib/router.php`; **63 libs** in
   `api/lib/`, **120 routes** registered, **78 test files** in `api/tests/`.
-- `db/schema-mysql.sql` — canonical MySQL schema (**105 tables**); mirrored by
+- `db/schema-mysql.sql` — canonical MySQL schema (**106 tables**); mirrored by
   SQLite migrations in `api/lib/db.php`.
 
 📍 **`docs/codebase-index-2026-08-15.md` is the map** — the full library, route,
@@ -477,6 +477,74 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    ensures the student account + enrols them at the recommended level. The student Auditer
    tab still falls back to live `mam_auditer_status()` for validity/booking state.
 9. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
+   ⚠️ It has NO `mam_admin_redirect()` helper — writing one from memory produced a
+   blank page on every POST of a new screen. Redirect with
+   `header('Location: ?v=…&ok=' . urlencode($msg)); exit;`, which is what every
+   other action does.
+10. **Safeguarding gate (`api/lib/vetting.php`, schema v82).** The academy teaches
+   children one-to-one, so instructor vetting is the highest-consequence control
+   here. Child Rights Act 2003 s.2(2) requires standards on the **suitability of
+   staff**; the Lagos State Safeguarding and Child Protection Policy 2016 mandates
+   the specific safer-recruitment checks and a named Designated Safeguarding
+   Officer. Non-obvious invariants:
+   - **`vetting_records` stores no check CONTENT and no offence data** — type,
+     issuing body, reference, dates, verifier, and a pointer to where the evidence
+     is filed offline. Under the NDPA this is sensitive personal data about the
+     instructor; a certificate scan in a shared-hosting database is a liability,
+     not a control. `test_vetting.php` asserts the schema has no room for it.
+   - **`MAM_VETTING_REQUIRED` is a CONSTANT, not a setting.** An academy able to
+     shorten the required set would have a gate that certifies nothing.
+     `MAM_VETTING_ALTERNATIVES` is how a UK instructor's Enhanced DBS satisfies the
+     criminal-record limb without a Lagos search they cannot obtain.
+   - **Validity is DERIVED from `expires_on`, never a stored status column**, so a
+     clearance lapsing at midnight reads as expired on the next page load rather
+     than the next cron run (the same rule as ID-card expiry).
+   - **UNIQUE(instructor_id, clearance_type)** — re-recording REPLACES. The gate
+     asks "is there a current one"; a history of superseded certificate numbers is
+     exactly the sensitive data this avoids accumulating.
+   - **The gate ships in `warn`, not `enforce`.** `enforce` is the target state, but
+     flipping a live academy to it with zero records refuses every assignment on
+     the next click — and the reliable outcome of safeguarding theatre is somebody
+     disabling the feature. Gaps are audited in every mode, so the record exists
+     before enforcement, not after. `off` suits only an install teaching no children.
+   - **An adult-only cohort is NOT gated**; unknown age counts as a minor by
+     default. A control that fires on adult classes trains admins to ignore it.
+   - Hooked into `mam_lms_approve()` (the choke point for admin, API and payment
+     settlement) and `mam_enrol_complete()`. An unclear result never fails an
+     enrolment — the student is enrolled and the instructor simply not attached,
+     because "enrolled, awaiting a cleared teacher" is actionable and a refused
+     placement is not.
+11. **Punctuality charges are gated INSIDE `mam_accountability_charge()`.** It used
+   to read `late_charge_enabled` into `$cfg` and never check it; the two call sites
+   each tested it themselves, so the behaviour was right and the guarantee was
+   theirs. Do not re-add a gate at a call site: doing so short-circuits the
+   function and swallows the no-charge RECORD as well as the charge, which is how
+   a lateness came to vanish entirely with charging off.
+   - **Student and instructor gates are SEPARATE settings** (`late_charge_enabled`,
+     `late_charge_instructor_enabled`), both off by default. One is a fee to a
+     customer; the other is a **deduction from pay**, and Labour Act s.5(1) bars
+     deductions from wages for fines absent an authorised labour officer's written
+     consent. Never merge them.
+   - With charging off a lateness is recorded as `MAM_ACCT_RECORDED` — amount 0,
+     outside `MAM_ACCT_OWED`, never a debt.
+   - `mam_accountability_charge(..., $adminInitiated: true)` deliberately bypasses
+     the gate for a charge an admin enters by hand. Audited distinctly.
+12. **The MAM Mastery Score withholds a thin composite.** Excluding an unevidenced
+   component is correct (scoring an unassessed beginner 0 reports them as failing),
+   but publishing that renormalised result as a comparable number is not — the
+   OECD/JRC Handbook's point is that renormalising changes what the index means.
+   Below `MAM_MASTERY_MIN_COVERAGE` there is **no composite at all**, only
+   subscores; above it the score reports as a **ten-point band**, with the
+   arithmetic bounds the unscored weight permits (not a confidence interval —
+   there is no sampling model). `raw_score` is retained for audit and must NEVER be
+   shown to a student, guardian or league table.
+13. **The instructor comparison table is formative ONLY.** It reproduces
+   value-added modelling, which lost on due-process grounds in *Houston Federation
+   of Teachers v. HISD* (2017). It carries a 95% interval, discloses graded *n*,
+   withholds comparative figures below `MAM_ANALYTICS_MIN_ROSTER`, and both
+   rendering surfaces print `MAM_ANALYTICS_INSTRUCTOR_NOTICE`. **`ORDER BY u.name`
+   is load-bearing** — sorting by a metric makes it a ranking whatever the heading
+   says.
 
 ## Security posture (don't weaken)
 
@@ -800,6 +868,11 @@ Two conventions these established:
   and disclosed separately rather than silently dropped.
 
 ## Where to look
+- **Research plan: `docs/research-plan-2026-08-17.md`** — the five commissioned
+  research documents reconciled: where they agree, the seven places they conflict
+  (and how each was resolved), what they get factually wrong about the shipped
+  code, what was built, and the eight decisions only the academy can make.
+- **In-flight work: `docs/HANDOFF.md`.**
 - **Index/map: `docs/codebase-index-2026-08-15.md`** — libs, routes, schema,
   tests, findings. Start here for "where does X live".
 - **Spec conformance: `docs/spec-conformance-2026-08-15.md`** — the academic

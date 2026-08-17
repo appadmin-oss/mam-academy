@@ -282,6 +282,30 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
               ?: (int) ($co['instructor_id'] ?? 0)
               ?: (int) (mam_lms_default_instructor((int) $plan['course']['id'], $plan['level']['id'] ?? null) ?? 0);
 
+        /* Safeguarding gate — see api/lib/vetting.php. This path runs from an
+           admin click AND from payment settlement, so it is the one an uncleared
+           instructor is most likely to slip through unattended.
+
+           An unclear result never fails the enrolment: the student is enrolled
+           either way, and refusing the whole placement because a certificate has
+           lapsed would leave a paid applicant in nothing at all. In `enforce` the
+           instructor is simply not attached, and the step says why — which is the
+           correct outcome, because "enrolled, awaiting a cleared teacher" is a
+           state the academy can act on. */
+        $vet = function_exists('mam_vetting_check_assignment')
+            ? mam_vetting_check_assignment($instr, $cohortId)
+            : ['allow' => true, 'reason' => ''];
+        if ($instr && !$vet['allow']) {
+            $steps[] = ['step' => 'instructor', 'ok' => false, 'safeguarding' => true,
+                        'detail' => 'Instructor NOT assigned — ' . $vet['reason']
+                                  . ' Record their clearances under Staff & Vetting, then assign.'];
+            $instr = 0;
+        } elseif ($instr && $vet['reason'] !== '') {
+            // warn mode: assigned, but the gap is reported rather than buried.
+            $steps[] = ['step' => 'safeguarding', 'ok' => false,
+                        'detail' => 'Assigned, but ' . lcfirst($vet['reason'])];
+        }
+
         if ($instr) {
             // The cohort carries the teacher for everyone in it; the enrolment
             // carries it too, because mam_lms_instructor_cohorts() keys off

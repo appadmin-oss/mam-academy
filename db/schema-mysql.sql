@@ -2249,4 +2249,29 @@ CREATE TABLE IF NOT EXISTS accountability_exceptions (
 INSERT IGNORE INTO settings (skey, svalue) VALUES
   ('readiness_before_min','15'),
   ('mastery_score_enabled','1');
-INSERT INTO schema_version (version) VALUES (81) ON DUPLICATE KEY UPDATE version = version;
+-- ── v82: instructor vetting records + the safeguarding gate ──────────────────
+-- Stores status/type/issuing body/reference/dates and a pointer to where the
+-- evidence is filed OFFLINE. Never the content of a check and never offence
+-- data: under the NDPA this is sensitive personal data about the instructor.
+-- UNIQUE(instructor_id, clearance_type) — re-running a check replaces the record;
+-- the gate asks "is there a current one" and the audit log keeps the trail.
+-- No status column: validity is derived from expires_on at read time.
+CREATE TABLE IF NOT EXISTS vetting_records (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  instructor_id  INT          NOT NULL,
+  clearance_type VARCHAR(32)  NOT NULL,
+  issuing_body   VARCHAR(120) NULL,
+  reference_no   VARCHAR(80)  NULL,
+  issued_on      DATE         NOT NULL,
+  expires_on     DATE         NULL,
+  verified_by    INT          NULL,
+  verified_at    DATETIME     NULL,
+  evidence_held  VARCHAR(200) NULL,
+  created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_vetting_instr_type (instructor_id, clearance_type),
+  KEY idx_vetting_expiry (expires_on),
+  CONSTRAINT fk_vetting_instr    FOREIGN KEY (instructor_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_vetting_verifier FOREIGN KEY (verified_by)   REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO schema_version (version) VALUES (82) ON DUPLICATE KEY UPDATE version = version;

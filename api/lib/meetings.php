@@ -68,9 +68,13 @@ function mam_meeting_clock_in(int $sessionId, int $instructorId): array {
         ]);
     }
     mam_audit('instructor_clock_in', 'class_session', $sessionId, ['instructor' => $instructorId, 'status' => $status, 'late' => $minsLate]);
+    /* Unconditional, for two reasons. The gate belongs inside the charging
+       function (a second one here swallowed the no-charge RECORD as well as the
+       charge), and this site was testing $cfg['enabled'] — which is the STUDENT
+       flag. An instructor deduction therefore needed the student flag on too,
+       so the instructor-specific setting could not actually govern it. */
     if ($late && function_exists('mam_accountability_charge')) {
-        $acfg = mam_accountability_config();
-        if ($acfg['enabled']) mam_accountability_charge('instructor', $instructorId, $sessionId, 'instructor_late', $minsLate);
+        mam_accountability_charge('instructor', $instructorId, $sessionId, 'instructor_late', $minsLate);
     }
     return mam_db_row('SELECT * FROM instructor_clockins WHERE session_id = ? AND instructor_id = ?', [$sessionId, $instructorId]);
 }

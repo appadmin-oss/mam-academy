@@ -501,6 +501,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // omitted → allowed for managers; everything here is super-only. Basic-Auth
     // admins (no $adminUser row) are the break-glass super and skip the check.
     $actionCaps = [
+        'vetting_record' => 'users', 'vetting_delete' => 'users', 'safeguarding_mode' => 'settings',
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
         'wallet_credit' => 'users',
@@ -1036,6 +1037,56 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
         header('Location: ?v=enrollments&ok=1');
         exit;
+    }
+
+    /* ─── Safeguarding: record / remove a clearance, set the gate mode ───
+       Child Rights Act 2003 s.2(2) requires standards on the SUITABILITY of staff
+       caring for children; the Lagos State Safeguarding and Child Protection
+       Policy 2016 mandates the specific safer-recruitment checks. This screen is
+       where an academy proves it holds them.
+
+       Only the reference number, dates and a note of WHERE the evidence is filed
+       are accepted — never the content of a check. See api/lib/vetting.php. */
+    if ($action === 'vetting_record') {
+        $iid  = (int)($_POST['instructor_id'] ?? 0);
+        $type = trim((string)($_POST['clearance_type'] ?? ''));
+        try {
+            mam_vetting_record(
+                $iid, $type, (int)($adminUser['id'] ?? 0) ?: null,
+                trim((string)($_POST['issued_on'] ?? '')) ?: null,
+                trim((string)($_POST['expires_on'] ?? '')) ?: null,
+                trim((string)($_POST['issuing_body'] ?? '')) ?: null,
+                trim((string)($_POST['reference_no'] ?? '')) ?: null,
+                trim((string)($_POST['evidence_held'] ?? '')) ?: null
+            );
+            $gate = mam_vetting_may_teach_minors($iid);
+            header('Location: ?v=vetting&i=' . $iid . '&ok=' . urlencode('Clearance recorded. ' . mam_vetting_explain($gate))); exit;
+        } catch (Throwable $e) {
+            $why = $e->getMessage() === 'expiry_before_issue'
+                ? 'The expiry date is before the issue date — check the dates.'
+                : ($e->getMessage() === 'bad_type' ? 'That is not a known clearance type.' : $e->getMessage());
+            header('Location: ?v=vetting&i=' . $iid . '&err=' . urlencode($why)); exit;
+        }
+    }
+
+    if ($action === 'vetting_delete') {
+        $rid = (int)($_POST['record_id'] ?? 0);
+        $iid = (int)($_POST['instructor_id'] ?? 0);
+        mam_vetting_delete($rid, (int)($adminUser['id'] ?? 0) ?: null);
+        header('Location: ?v=vetting&i=' . $iid . '&ok=' . urlencode('Clearance record removed.')); exit;
+    }
+
+    if ($action === 'safeguarding_mode') {
+        $mode = strtolower(trim((string)($_POST['mode'] ?? 'warn')));
+        if (!in_array($mode, MAM_VETTING_MODES, true)) $mode = 'warn';
+        mam_setting_set('safeguarding_gate_mode', $mode);
+        mam_audit('safeguarding_mode', 'setting', 0, ['mode' => $mode]);
+        $msg = $mode === 'enforce'
+            ? 'Enforcing — an uncleared instructor can no longer be assigned to a class containing a child.'
+            : ($mode === 'warn'
+                ? 'Warning only — assignments proceed and gaps are reported. Switch to Enforce once your records are loaded.'
+                : 'Gate OFF — nothing is checked. Only appropriate for an install that teaches no children.');
+        header('Location: ?v=vetting&ok=' . urlencode($msg)); exit;
     }
 
     // ─── LMS course registrations: approve + assign instructor ───────
@@ -2656,7 +2707,7 @@ nav a{display:flex;align-items:center}
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'upper' => ['Upper Admin', 'binoculars'], 'record' => ['Student Record', 'folder-open'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'upper' => ['Upper Admin', 'binoculars'], 'record' => ['Student Record', 'folder-open'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'vetting' => ['Staff & Vetting', 'shield-halved'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open'], 'referrals' => ['Referrals', 'user-plus'], 'bi' => ['Business Intelligence', 'chart-pie']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
@@ -2691,6 +2742,9 @@ nav a{display:flex;align-items:center}
       'rubrics' => 'rubrics', 'recitals' => 'recitals', 'meet' => 'meeting_reconciliation',
       'classes' => 'classes', 'enrollments' => 'enrollments', 'id-cards' => 'id_cards',
       'media' => 'class_resources', 'academic' => 'session_attendance', 'upper' => 'cohorts',
+      // NOT vetting_records: an empty vetting table is precisely when this screen
+      // is needed, so probing it would fold the section away at the worst moment.
+      'vetting' => 'users',
       'accountability' => 'accountability_charges', 'guardians' => 'parent_links',
       'fines' => 'instructor_fines', 'storeitems' => 'store_items',
       'storeorders' => 'store_orders', 'referrals' => 'referrals',
@@ -2711,7 +2765,7 @@ nav a{display:flex;align-items:center}
     };
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users', 'upper' => 'settings'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users', 'upper' => 'settings', 'vetting' => 'users'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -4952,6 +5006,152 @@ if (!function_exists('mam_admin_instr_metric')) {
     <?php endforeach; ?>
     </tbody></table></div></div>
   <?php endif; ?>
+
+<?php elseif ($view === 'vetting'): ?>
+<?php
+  /* ── Staff & Vetting ──────────────────────────────────────────────────────
+     Child Rights Act 2003 s.2(2) requires an institution caring for children to
+     meet standards on the SUITABILITY of its staff; the Lagos State Safeguarding
+     and Child Protection Policy 2016 mandates the specific safer-recruitment
+     checks and a named Designated Safeguarding Officer. This screen is where the
+     academy proves it holds them.
+
+     Only reference numbers, dates and a note of WHERE evidence is filed are
+     captured — never the content of a check. See api/lib/vetting.php. */
+  $vSum   = mam_vetting_summary();
+  $vList  = mam_vetting_attention(500);
+  $vPick  = (int)($_GET['i'] ?? 0);
+  $vInstr = mam_db_all("SELECT id, name, email FROM users WHERE role = 'instructor' AND status = 'active' ORDER BY name");
+  $vSel   = $vPick ? mam_db_row("SELECT id, name, email FROM users WHERE id = ? AND role = 'instructor'", [$vPick]) : null;
+  $vMode  = $vSum['mode'];
+?>
+  <h2 class="page-title">Staff &amp; Vetting</h2>
+  <p class="muted" style="margin:0 0 16px;max-width:70ch">Child Rights Act 2003 s.2(2) requires standards on the <strong>suitability of staff</strong> caring for children. The Lagos State Safeguarding and Child Protection Policy (2016) mandates two verified references, a signed policy commitment, an affidavit of good behaviour, a Sex Offenders Register search and a named Designated Safeguarding Officer. Record <strong>references and dates only</strong> here — keep the certificates themselves in the staff file, never in this system.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px">
+    <div class="card"><div class="kpi-label">Active instructors</div><div class="kpi-value"><?= (int)$vSum['instructors'] ?></div></div>
+    <div class="card"><div class="kpi-label">Cleared for minors</div><div class="kpi-value"><?= (int)$vSum['cleared'] ?></div></div>
+    <div class="card"><div class="kpi-label">Need action</div><div class="kpi-value" style="<?= $vSum['needs_action'] > 0 ? 'color:var(--red)' : '' ?>"><?= (int)$vSum['needs_action'] ?></div></div>
+    <div class="card"><div class="kpi-label">Expiring soon</div><div class="kpi-value" style="<?= $vSum['expiring_soon'] > 0 ? 'color:var(--gold)' : '' ?>"><?= (int)$vSum['expiring_soon'] ?></div></div>
+  </div>
+
+  <?php if (!$vSum['dso']): ?>
+  <div class="card" style="border-color:var(--red);margin-bottom:16px">
+    <h3 style="margin:0 0 6px;color:var(--red)">No Designated Safeguarding Officer named</h3>
+    <p class="muted" style="margin:0">The Lagos policy requires a named officer who keeps the records and reports quarterly to the Ministry's Child Protection Unit. Set <code>safeguarding_officer_user_id</code> in Settings. A policy with nobody responsible for it is the commonest way this requirement is missed.</p>
+  </div>
+  <?php endif; ?>
+
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 6px">The gate</h3>
+    <p class="muted" style="margin:0 0 12px;max-width:70ch">
+      <strong>Warn</strong> records every gap and lets assignments through — the right setting while you load the records you already hold offline.
+      <strong>Enforce</strong> refuses to assign an uncleared instructor to any class containing a child, which is the target state.
+      <strong>Off</strong> checks nothing and suits only an academy that teaches no children.
+      Currently: <strong style="color:<?= $vMode === 'enforce' ? 'var(--green,#22C55E)' : ($vMode === 'off' ? 'var(--red)' : 'var(--gold)') ?>"><?= htmlspecialchars(strtoupper($vMode)) ?></strong>.
+    </p>
+    <form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"
+          onsubmit="return confirm('Change the safeguarding gate mode?\n\nEnforce will refuse to assign an uncleared instructor to a class containing a child. Make sure your clearance records are loaded first.');">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="safeguarding_mode">
+      <label style="display:flex;gap:6px;align-items:center">Mode
+        <select name="mode" aria-label="Safeguarding gate mode">
+          <?php foreach (MAM_VETTING_MODES as $m): ?>
+            <option value="<?= $m ?>" <?= $m === $vMode ? 'selected' : '' ?>><?= htmlspecialchars(ucfirst($m)) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <button class="btn" type="submit">Save mode</button>
+    </form>
+  </div>
+
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 10px">Needs attention</h3>
+    <?php if (!$vList): ?><p class="muted">Every active instructor is cleared, with nothing expiring soon.</p><?php else: ?>
+    <table class="stack"><thead><tr><th>Instructor</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+      <?php foreach ($vList as $v): ?>
+      <tr>
+        <td data-label="Instructor"><strong><?= htmlspecialchars((string)$v['name']) ?></strong><br><span class="muted"><?= htmlspecialchars((string)$v['email']) ?></span></td>
+        <td data-label="Status">
+          <span class="pill <?= $v['severity'] >= 2 ? 'cancelled' : 'pending' ?>"><?= $v['ok'] ? 'expiring' : 'not cleared' ?></span>
+          <br><span class="muted" style="font-size:.8rem"><?= htmlspecialchars((string)$v['summary']) ?></span>
+        </td>
+        <td data-label=""><a class="tiny btn ghost" href="?v=vetting&i=<?= (int)$v['instructor_id'] ?>">Record clearances</a></td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody></table>
+    <?php endif; ?>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">Record a clearance</h3>
+    <form method="get" style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="hidden" name="v" value="vetting">
+      <label style="display:flex;gap:6px;align-items:center">Instructor
+        <select name="i" onchange="this.form.submit()" aria-label="Choose an instructor">
+          <option value="">— choose —</option>
+          <?php foreach ($vInstr as $iu): ?>
+            <option value="<?= (int)$iu['id'] ?>" <?= $vPick === (int)$iu['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string)($iu['name'] ?: $iu['email'])) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+    </form>
+
+    <?php if ($vSel):
+      $vGate = mam_vetting_may_teach_minors((int)$vSel['id']);
+      $vHave = mam_vetting_for((int)$vSel['id']);
+    ?>
+      <p style="margin:0 0 12px"><strong><?= htmlspecialchars((string)$vSel['name']) ?></strong> — <?= htmlspecialchars(mam_vetting_explain($vGate)) ?></p>
+
+      <table class="stack" style="margin-bottom:16px">
+        <thead><tr><th>Clearance</th><th>Reference</th><th>Issued</th><th>Expires</th><th>State</th><th>Actions</th></tr></thead>
+        <tbody>
+        <?php if (!$vHave): ?><tr><td colspan="6" class="empty">Nothing on file — this instructor cannot be cleared to teach children.</td></tr><?php endif; ?>
+        <?php foreach ($vHave as $h): ?>
+          <tr>
+            <td data-label="Clearance"><?= htmlspecialchars((string)$h['label']) ?><?= in_array($h['clearance_type'], MAM_VETTING_REQUIRED, true) ? ' <span class="pill">required</span>' : '' ?></td>
+            <td data-label="Reference" class="mono"><?= htmlspecialchars((string)($h['reference_no'] ?? '—')) ?><?php if (!empty($h['evidence_held'])): ?><br><span class="muted" style="font-size:.76rem">filed: <?= htmlspecialchars((string)$h['evidence_held']) ?></span><?php endif; ?></td>
+            <td data-label="Issued" class="muted"><?= htmlspecialchars((string)$h['issued_on']) ?></td>
+            <td data-label="Expires" class="muted"><?= $h['expires_on'] ? htmlspecialchars((string)$h['expires_on']) : 'no expiry' ?></td>
+            <td data-label="State"><span class="pill <?= $h['state'] === 'expired' ? 'cancelled' : ($h['state'] === 'expiring' ? 'pending' : 'present') ?>"><?= htmlspecialchars((string)$h['state']) ?></span></td>
+            <td data-label="">
+              <form method="post" style="display:inline" onsubmit="return confirm('Remove this clearance record?\n\nUse this only for a mis-entry. The instructor may stop being cleared to teach children.');">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <input type="hidden" name="action" value="vetting_delete">
+                <input type="hidden" name="record_id" value="<?= (int)$h['id'] ?>">
+                <input type="hidden" name="instructor_id" value="<?= (int)$vSel['id'] ?>">
+                <button class="tiny" type="submit" aria-label="Remove <?= htmlspecialchars((string)$h['label']) ?>">Remove</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+
+      <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="vetting_record">
+        <input type="hidden" name="instructor_id" value="<?= (int)$vSel['id'] ?>">
+        <label>Clearance type
+          <select name="clearance_type" required aria-label="Clearance type">
+            <?php foreach (MAM_VETTING_TYPES as $tk => $tv): ?>
+              <option value="<?= htmlspecialchars($tk) ?>"><?= htmlspecialchars($tv['label']) ?><?= in_array($tk, MAM_VETTING_REQUIRED, true) ? ' *' : '' ?></option>
+            <?php endforeach; ?>
+          </select></label>
+        <label>Issuing body<input type="text" name="issuing_body" maxlength="120" placeholder="e.g. Nigeria Police Force" aria-label="Issuing body"></label>
+        <label>Reference number<input type="text" name="reference_no" maxlength="80" placeholder="Certificate / file reference" aria-label="Reference number"></label>
+        <label>Issued on<input type="date" name="issued_on" value="<?= date('Y-m-d') ?>" required aria-label="Issued on"></label>
+        <label>Expires on <span class="muted">(blank = use the default period)</span><input type="date" name="expires_on" aria-label="Expires on"></label>
+        <label>Where the evidence is filed<input type="text" name="evidence_held" maxlength="200" placeholder="e.g. Staff file B/07, HR cabinet" aria-label="Where the evidence is filed"></label>
+        <div style="grid-column:1/-1">
+          <p class="muted" style="margin:0 0 8px;font-size:.8rem">⚠️ Do not paste the contents of a check, offence details, or a scan. Under the NDPA that is sensitive personal data; a reference number and a filing location prove diligence without holding it here.</p>
+          <button class="btn" type="submit">Record clearance</button>
+        </div>
+      </form>
+    <?php else: ?>
+      <p class="muted">Choose an instructor to see and record their clearances.</p>
+    <?php endif; ?>
+  </div>
 
 <?php elseif ($view === 'guardians'): ?>
   <?php

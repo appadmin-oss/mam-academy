@@ -1,6 +1,6 @@
 # Handoff — forms, error paths, and the ETL
 
-**Branch:** `claude/repo-audit-index-nr17nr` · **Last commit at time of writing:** `d4c8309`
+**Branch:** `claude/repo-audit-index-nr17nr` · **Last commit at time of writing:** `545af41`
 **Started from:** production at `f3ca21e`, schema v59.
 
 This is the working file for the current stream of work. `CLAUDE.md` holds the
@@ -21,7 +21,16 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | Enrolment completion chain | ✅ built and driven end to end |
 | Forms audit — 6 passes | ✅ complete; see `docs/forms-audit-2026-08-17.md` |
 | Auto-enrol on payment settlement | ✅ **shipped** — you said yes |
+| **Research reconciliation (5 docs)** | ✅ **plan written** — `docs/research-plan-2026-08-17.md` |
+| **Safeguarding vetting + gate (schema v82)** | ✅ **shipped** — ships in `warn`, needs a decision to `enforce` |
+| **Mastery Score coverage floor / bands** | ✅ **shipped** |
+| **Instructor comparison → formative-only** | ✅ **shipped** |
+| **Charges: gated in depth, flags split** | ✅ **shipped** |
+| Academic calendar entity | **next** — the dependency for refunds + pro-ration |
+| NDPA compliance layer | not started (code + operational halves) |
+| Scholarship funds/awards, instalments, dunning | not started |
 | TanStack Table v8 | decided, **not implemented** |
+| htmx + strict CSP | needs a funding decision (doc 4's own framing) |
 
 ### The one thing that is genuinely blocked
 
@@ -203,6 +212,40 @@ retried webhook, the payment-never-fails rule, and the erasure guard.
 
 ---
 
+## 4c. The five research documents (shipped tranche)
+
+Full reconciliation in **`docs/research-plan-2026-08-17.md`**. The three things
+worth knowing without opening it:
+
+**The reports were measurably wrong about the code in two of their three most
+urgent findings.** Doc 3 says to suspend both monetary charges as live; measured,
+`late_charge_enabled` defaults to 0 and both call sites already tested it, and the
+instructor progress-report "fine" writes ₦0. Doc 3 calls the instructor comparison
+the highest-risk feature; it was already formative in fact — nothing automated
+reads it and it was ordered by name, not score. **Reading the reports without
+measuring first would have produced two removals of things that were not there.**
+
+**The real defects were underneath, and one of them I introduced.** The charge
+gate was read but never enforced; one flag governed both student fees and
+instructor *wage deductions*; and — found by an adversarial pass over my own first
+implementation — both call sites *also* tested the flag, short-circuiting the
+function so that with charging off no row was written at all and the lateness
+vanished. The instructor call site was testing the student flag.
+
+**Safeguarding was the genuine gap, and it was total.** Nothing recorded staff
+clearance and nothing checked it, on a system that schedules adults one-to-one
+with children. `api/lib/vetting.php` + schema v82 + `?v=vetting` now do, gated
+into `mam_lms_approve()`. It ships in **`warn`** deliberately — see §9.
+
+**Where the research disagrees with `CLAUDE.md`, and who wins:** doc 3 says stop
+renormalising the Mastery Score weights; `CLAUDE.md` documents renormalisation as
+a deliberate fix. Both are right about different things — excluding an unevidenced
+component is correct, publishing the renormalised result as a comparable number is
+not. The operative word in doc 3's criticism is *silently*. Resolved by withholding
+the composite below a coverage floor rather than by scoring absent components zero.
+
+---
+
 ## 5. Where things live
 
 | What | Where |
@@ -311,6 +354,26 @@ New test files added in this stream: `test_apply_form.php`,
 ---
 
 ## 9. Open questions for you
+
+**From the research tranche (the full list is §6 of the research plan):**
+
+0. **When does the safeguarding gate move from `warn` to `enforce`?** It is live in
+   `warn` now: gaps are recorded and surfaced, assignments proceed. Someone must
+   own loading the clearance records the academy already holds offline and then
+   flipping the mode. Also needed: **who is the Designated Safeguarding Officer**
+   (the Lagos policy requires a named one, and the screen shows a standing warning
+   until it is set).
+0b. **Are MAM's instructors employees or contractors?** This decides whether
+   Labour Act s.5(1) binds the punctuality deduction at all. Until answered it
+   stays off — which is the safe default, not a verdict.
+0c. **The policy handbook quotes fines the system does not levy.**
+   `mam_policy_points()` in `api/lib/mailer.php` promises families ₦500/$0.50
+   lateness, ₦1,000/$1 late submission and ₦2,000/$2 inconvenience fees. None match
+   the ledger settings, and the ledger is switched off. Content decision, needs
+   resolving either way.
+0d. **Confirm or change two declared value judgements**: the Mastery Score coverage
+   floor (40%) and the instructor-comparison roster floor (8 graded results).
+
 
 1. ~~**Auto-enrol on payment settlement**~~ — **answered: yes, shipped.** See §4b.
 2. **The student portal's gated forms** — worth a browser pass, or take the

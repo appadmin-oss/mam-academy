@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 81;
+const MAM_SCHEMA_TARGET = 82;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2426,6 +2426,43 @@ function mam_db_migrate(PDO $db): void {
               ('mastery_score_enabled','1');
 
             PRAGMA foreign_keys = ON;
+        ",
+
+        /**
+         * v82 — instructor vetting records + the safeguarding gate.
+         *
+         * Stores STATUS, TYPE, ISSUING BODY, REFERENCE, DATES and a pointer to
+         * where the evidence is filed offline. Deliberately NOT the content of any
+         * check and never offence data: under the NDPA this is sensitive personal
+         * data about the instructor, and a scan of a police certificate sitting in
+         * a shared-hosting database is a liability rather than a control. A
+         * reference number plus a filing location prove diligence.
+         *
+         * UNIQUE(instructor_id, clearance_type) — re-running a check REPLACES the
+         * record. The gate asks "is there a current one", and a history of
+         * superseded certificate numbers is exactly the sensitive data we are
+         * trying not to accumulate. The audit log keeps who-recorded-what-when.
+         *
+         * No `status` column on purpose: validity is DERIVED from expires_on at
+         * read time, so a clearance that lapses at midnight reads as expired on
+         * the next page load rather than the next cron run.
+         */
+        82 => "
+            CREATE TABLE IF NOT EXISTS vetting_records (
+              id             INTEGER PRIMARY KEY AUTOINCREMENT,
+              instructor_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              clearance_type TEXT    NOT NULL,
+              issuing_body   TEXT,
+              reference_no   TEXT,
+              issued_on      TEXT    NOT NULL,
+              expires_on     TEXT,
+              verified_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              verified_at    TEXT,
+              evidence_held  TEXT,
+              created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_vetting_instr_type ON vetting_records(instructor_id, clearance_type);
+            CREATE INDEX IF NOT EXISTS idx_vetting_expiry ON vetting_records(expires_on);
         ",
     ];
 

@@ -165,11 +165,16 @@ function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?f
             'checkin_lng'   => $lng,
         ]);
         mam_audit('checkin_self', 'class_session', $sessionId, ['cohort_id' => (int) $sess['cohort_id'], 'status' => $status]);
-        // Punctuality accountability (PDF §13): a late arrival records a charge
-        // when the policy is switched on. Idempotent per (student, session).
+        /* Punctuality accountability (PDF §13). Call it UNCONDITIONALLY: the
+           enable gate now lives inside mam_accountability_charge(), and testing
+           the setting here as well short-circuited the whole call — which meant
+           that with charging off, no row was written at all and the lateness
+           simply vanished. The function charges when the policy is on and
+           RECORDS with no money owed when it is off, which is the honest
+           outcome; a second gate out here defeats it. Idempotent per
+           (student, session). */
         if ($late && function_exists('mam_accountability_charge')) {
-            $cfg2 = mam_accountability_config();
-            if ($cfg2['enabled']) mam_accountability_charge('student', $studentId, $sessionId, 'late_arrival', $lateMin);
+            mam_accountability_charge('student', $studentId, $sessionId, 'late_arrival', $lateMin);
         }
     } catch (\Throwable $e) {
         // Lost the unique race — treat as idempotent.
