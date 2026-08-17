@@ -545,6 +545,40 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    rendering surfaces print `MAM_ANALYTICS_INSTRUCTOR_NOTICE`. **`ORDER BY u.name`
    is load-bearing** — sorting by a metric makes it a ranking whatever the heading
    says.
+14. **The academic calendar (`api/lib/calendar.php`, schema v83) is the ONLY
+   authority on a refund.** Before it there was **no refund function anywhere in
+   the repo** — every refund was a manual decision with nothing to check it
+   against. Five invariants, all of which are easy to "simplify" into being wrong:
+   - **It does not replace `academic-session.php`.** That file computes
+     TONI/MEDI/SUMMER/DOMI windows from constants and is fine for a label on a
+     page. `mam_calendar_current_term()` prefers an authored row and **falls back
+     to the computed window**, tagging which it returned (`source` =
+     `'calendar'|'computed'`). An install with an empty calendar behaves exactly
+     as before — strangler pattern, not cutover, which is why this shipped
+     without touching `/apply`.
+   - **A refund percentage is COMPUTED from a date, never stored per student.**
+     Two students withdrawing the same day must get the same answer, and the
+     answer must be reproducible a year later in an audit.
+   - **`term_refund_schedule` rows are the truth once seeded**, not
+     `MAM_CALENDAR_REFUND_DEFAULT`. That constant only *seeds*; a family is
+     entitled to the table that was published when they enrolled, so
+     `mam_calendar_seed_refund_schedule()` takes `$replace = false` by default —
+     re-saving a term's dates must never silently revert an edited table.
+   - **`term_census` is a SNAPSHOT and append-only** (UNIQUE on `term_id`).
+     "Enrolment as of the census date" must not move when somebody withdraws in
+     week nine. Recompute-on-read is the commonest way an official enrolment
+     figure quietly rewrites history.
+   - **Deadlines are adjudicated in `MAM_CALENDAR_TZ` (Africa/Lagos)**, displayed
+     in the reader's zone. `mam_calendar_today()` never reads the server clock —
+     a diaspora guardian in New York must not get a different refund from a Lagos
+     guardian because their clocks disagree about the date.
+   `mam_lms_withdraw()` consults `mam_calendar_withdrawal_outcome()` and records
+   the kind of withdrawal (add/drop vs. a "W" with a percentage) into the
+   transition reason so it lands in `enrolment_events`. It is **best-effort by
+   design** — an unauthored calendar must never stop a student leaving a course.
+   Overlapping sibling terms are refused in `mam_calendar_term_save()` (the
+   schema's CHECKs can only police one row's own date ordering), because two
+   terms covering one day makes "which refund table applies" ambiguous.
 
 ## Security posture (don't weaken)
 

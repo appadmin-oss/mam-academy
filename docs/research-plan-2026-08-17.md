@@ -230,11 +230,16 @@ admin screen. Gated by a new `payment_enrol` automation, separate from
 
 ## 5. Not implemented, in the order I would take them
 
-1. **Academic calendar** (`academic_year → term`, with `add_drop_deadline`,
-   `withdrawal_deadline`, `census_date` as **data**, plus a published
-   pro-rata-by-week refund table to a 60% cutoff). Both blueprints make this the
-   dependency for refunds, scholarship pro-ration and the W outcome. **This is
-   the next thing to build.**
+1. ~~**Academic calendar**~~ — ✅ **shipped** as `api/lib/calendar.php` +
+   schema v83 + admin `?v=calendar`. `academic_terms` carries
+   `add_drop_deadline` / `withdrawal_deadline` / `census_date` as dated rows;
+   `term_refund_schedule` is the published pro-rata-by-week table (seeded from
+   `MAM_CALENDAR_REFUND_DEFAULT`, 100% → 0% at the 60% point, then owned by the
+   academy); `term_census` is an append-only snapshot; `term_closures` holds
+   holidays. It coexists with the computed engine rather than replacing it —
+   `mam_calendar_current_term()` falls back and tags its `source`. It supplies
+   the refund authority the blueprints correctly identified as the dependency
+   for items 3 and 4 below. See HANDOFF §4d and `CLAUDE.md` #14.
 2. **NDPA compliance layer** — per-entity retention as data, breach register,
    DSAR workflow, DPIA record, lawful-basis-per-purpose, DPAs with
    Paystack/Flutterwave. Plus the *operational* half that is not code: assess the

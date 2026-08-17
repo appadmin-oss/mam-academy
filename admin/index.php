@@ -502,6 +502,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // admins (no $adminUser row) are the break-glass super and skip the check.
     $actionCaps = [
         'vetting_record' => 'users', 'vetting_delete' => 'users', 'safeguarding_mode' => 'settings',
+        'term_save' => 'settings', 'term_seed_year' => 'settings', 'term_census' => 'settings',
+        'term_refund_reseed' => 'settings', 'closure_add' => 'settings', 'closure_delete' => 'settings',
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
         'wallet_credit' => 'users',
@@ -1037,6 +1039,89 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
         header('Location: ?v=enrollments&ok=1');
         exit;
+    }
+
+    /* ─── Academic calendar ───────────────────────────────────────────────
+       The dates here drive refund percentages and the withdrawal outcome, so a
+       bad row does real damage. The schema enforces ordering; these handlers
+       translate its refusals into something an admin can act on. */
+    if ($action === 'term_save') {
+        try {
+            $tid = mam_calendar_term_save([
+                'year_label'          => trim((string)($_POST['year_label'] ?? '')),
+                'code'                => trim((string)($_POST['code'] ?? '')),
+                'term_no'             => (int)($_POST['term_no'] ?? 1),
+                'label'               => trim((string)($_POST['label'] ?? '')),
+                'starts_on'           => trim((string)($_POST['starts_on'] ?? '')),
+                'ends_on'             => trim((string)($_POST['ends_on'] ?? '')),
+                'add_drop_deadline'   => trim((string)($_POST['add_drop_deadline'] ?? '')),
+                'withdrawal_deadline' => trim((string)($_POST['withdrawal_deadline'] ?? '')),
+                'census_date'         => trim((string)($_POST['census_date'] ?? '')),
+                'teaching_weeks'      => (int)($_POST['teaching_weeks'] ?? 12),
+                'status'              => trim((string)($_POST['status'] ?? 'planned')),
+                'notes'               => trim((string)($_POST['notes'] ?? '')),
+            ], (int)($adminUser['id'] ?? 0) ?: null);
+            header('Location: ?v=calendar&t=' . $tid . '&ok=' . urlencode('Term saved.')); exit;
+        } catch (Throwable $e) {
+            $m = $e->getMessage();
+            $why = strpos($m, 'overlaps_term:') === 0
+                ? 'Those dates overlap "' . substr($m, 14) . '". Two terms covering one day means two possible refund tables for the same withdrawal.'
+                : ($m === 'ends_before_starts' ? 'The end date is before the start date.'
+                : ($m === 'dates_required' ? 'A start and end date are required.'
+                : ($m === 'year_and_code_required' ? 'A session label and a term code are required.'
+                : 'Could not save: ' . $m)));
+            header('Location: ?v=calendar&err=' . urlencode($why)); exit;
+        }
+    }
+
+    if ($action === 'term_seed_year') {
+        $yr = (int)($_POST['year'] ?? date('Y'));
+        try {
+            $made = mam_calendar_seed_year($yr, (int)($adminUser['id'] ?? 0) ?: null);
+            $okN  = count(array_filter($made, static fn($x) => $x['id'] !== null));
+            header('Location: ?v=calendar&ok=' . urlencode($okN . ' of ' . count($made) . ' terms authored for ' . $yr . '. Check the dates against your published calendar and edit them.')); exit;
+        } catch (Throwable $e) {
+            header('Location: ?v=calendar&err=' . urlencode('Could not seed: ' . $e->getMessage())); exit;
+        }
+    }
+
+    if ($action === 'term_census') {
+        $tid = (int)($_POST['term_id'] ?? 0);
+        try {
+            $c = mam_calendar_take_census($tid, (int)($adminUser['id'] ?? 0) ?: null);
+            $msg = $c['already']
+                ? 'The census was already taken on ' . (string)$c['taken_on'] . ' (' . (int)$c['enrolled'] . ' enrolled). It is a snapshot and does not change.'
+                : 'Census recorded: ' . (int)$c['enrolled'] . ' enrolled, ' . (int)$c['active_cohorts'] . ' active classes.';
+            header('Location: ?v=calendar&t=' . $tid . '&ok=' . urlencode($msg)); exit;
+        } catch (Throwable $e) {
+            header('Location: ?v=calendar&err=' . urlencode('Could not take the census: ' . $e->getMessage())); exit;
+        }
+    }
+
+    if ($action === 'term_refund_reseed') {
+        $tid = (int)($_POST['term_id'] ?? 0);
+        mam_calendar_seed_refund_schedule($tid, true);
+        header('Location: ?v=calendar&t=' . $tid . '&ok=' . urlencode('Refund table reset to the conventional schedule.')); exit;
+    }
+
+    if ($action === 'closure_add') {
+        $tid = (int)($_POST['term_id'] ?? 0);
+        try {
+            mam_calendar_closure_add($tid, trim((string)($_POST['kind'] ?? 'holiday')),
+                trim((string)($_POST['label'] ?? '')), trim((string)($_POST['from_on'] ?? '')), trim((string)($_POST['to_on'] ?? '')));
+            header('Location: ?v=calendar&t=' . $tid . '&ok=' . urlencode('Closure added.')); exit;
+        } catch (Throwable $e) {
+            $m = $e->getMessage();
+            $why = $m === 'outside_term' ? 'Those dates fall outside the term, so the closure would never apply.'
+                 : ($m === 'to_before_from' ? 'The end date is before the start date.' : 'Could not add: ' . $m);
+            header('Location: ?v=calendar&t=' . $tid . '&err=' . urlencode($why)); exit;
+        }
+    }
+
+    if ($action === 'closure_delete') {
+        $tid = (int)($_POST['term_id'] ?? 0);
+        mam_calendar_closure_delete((int)($_POST['closure_id'] ?? 0));
+        header('Location: ?v=calendar&t=' . $tid . '&ok=' . urlencode('Closure removed.')); exit;
     }
 
     /* ─── Safeguarding: record / remove a clearance, set the gate mode ───
@@ -2707,7 +2792,7 @@ nav a{display:flex;align-items:center}
     $navGroups = [
       'Overview'   => ['overview' => ['Overview', 'gauge-high']],
       'Admissions' => ['applications' => ['Applications', 'file-lines'], 'summer' => ['Summer Programme', 'sun'], 'funnel' => ['Apply Funnel', 'filter']],
-      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'upper' => ['Upper Admin', 'binoculars'], 'record' => ['Student Record', 'folder-open'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'vetting' => ['Staff & Vetting', 'shield-halved'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
+      'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'upper' => ['Upper Admin', 'binoculars'], 'record' => ['Student Record', 'folder-open'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'calendar' => ['Academic Calendar', 'calendar-days'], 'vetting' => ['Staff & Vetting', 'shield-halved'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open'], 'referrals' => ['Referrals', 'user-plus'], 'bi' => ['Business Intelligence', 'chart-pie']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
       'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
@@ -2745,6 +2830,8 @@ nav a{display:flex;align-items:center}
       // NOT vetting_records: an empty vetting table is precisely when this screen
       // is needed, so probing it would fold the section away at the worst moment.
       'vetting' => 'users',
+      // Not academic_terms: an EMPTY calendar is exactly when this screen is needed.
+      'calendar' => 'users',
       'accountability' => 'accountability_charges', 'guardians' => 'parent_links',
       'fines' => 'instructor_fines', 'storeitems' => 'store_items',
       'storeorders' => 'store_orders', 'referrals' => 'referrals',
@@ -2765,7 +2852,7 @@ nav a{display:flex;align-items:center}
     };
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users', 'upper' => 'settings', 'vetting' => 'users'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users', 'upper' => 'settings', 'vetting' => 'users', 'calendar' => 'settings'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -5005,6 +5092,180 @@ if (!function_exists('mam_admin_instr_metric')) {
       </tr>
     <?php endforeach; ?>
     </tbody></table></div></div>
+  <?php endif; ?>
+
+<?php elseif ($view === 'calendar'): ?>
+<?php
+  /* ── Academic Calendar ────────────────────────────────────────────────────
+     The dates on this screen decide refund percentages and whether leaving a
+     course is a drop, a W, or a graded enrolment. academic-session.php can say
+     which term it is; only these rows can say what a withdrawal on a given day
+     costs and means. */
+  $calSum   = mam_calendar_summary();
+  $calTerms = mam_calendar_terms(200);
+  $calPick  = (int)($_GET['t'] ?? 0);
+  $calSel   = $calPick ? mam_calendar_term($calPick) : null;
+  $calToday = mam_calendar_today();
+?>
+  <h2 class="page-title">Academic Calendar</h2>
+  <p class="muted" style="margin:0 0 16px;max-width:74ch">A term's <strong>add/drop</strong>, <strong>withdrawal</strong> and <strong>census</strong> dates are not labels — they decide what a withdrawal refunds and whether it leaves a mark on the record. Until a term is authored here those questions have no answer, and every refund is a judgement call with nothing to check it against.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px">
+    <div class="card"><div class="kpi-label">Terms authored</div><div class="kpi-value"><?= (int)$calSum['terms'] ?></div></div>
+    <div class="card"><div class="kpi-label">Current term from</div><div class="kpi-value" style="font-size:1.1rem"><?= $calSum['source'] === 'calendar' ? 'the calendar' : '<span style="color:var(--gold)">computed dates</span>' ?></div></div>
+    <div class="card"><div class="kpi-label">Missing a deadline</div><div class="kpi-value" style="<?= $calSum['missing_dates'] > 0 ? 'color:var(--gold)' : '' ?>"><?= (int)$calSum['missing_dates'] ?></div></div>
+    <div class="card"><div class="kpi-label">Census due</div><div class="kpi-value" style="<?= $calSum['census_due'] > 0 ? 'color:var(--red)' : '' ?>"><?= (int)$calSum['census_due'] ?></div></div>
+  </div>
+
+  <?php if ($calSum['source'] !== 'calendar'): ?>
+  <div class="card" style="border-color:var(--gold);margin-bottom:16px">
+    <h3 style="margin:0 0 6px;color:var(--gold)">Today falls in no authored term</h3>
+    <p class="muted" style="margin:0 0 10px">The term label is being computed from the default schedule, which carries <strong>no deadlines</strong> — so a refund percentage and a withdrawal outcome cannot be determined for today. Author this session's terms, or seed them from the computed schedule and edit the dates.</p>
+    <form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="term_seed_year">
+      <label style="display:flex;gap:6px;align-items:center">Session year
+        <input type="number" name="year" value="<?= (int)date('Y') ?>" min="2020" max="2099" style="width:110px" aria-label="Session year"></label>
+      <button class="btn" type="submit">Seed the four terms</button>
+    </form>
+  </div>
+  <?php endif; ?>
+
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 10px">Terms</h3>
+    <?php if (!$calTerms): ?><p class="muted">No terms authored yet.</p><?php else: ?>
+    <table class="stack"><thead><tr><th>Term</th><th>Runs</th><th>Add/drop</th><th>Withdrawal</th><th>Census</th><th>Actions</th></tr></thead><tbody>
+      <?php foreach ($calTerms as $ct): ?>
+      <tr<?= $ct['is_current'] ? ' style="background:var(--raised)"' : '' ?>>
+        <td data-label="Term"><strong><?= htmlspecialchars((string)$ct['label']) ?></strong>
+          <?= $ct['is_current'] ? ' <span class="pill present">current · week ' . (int)$ct['week_no'] . '</span>' : '' ?>
+          <br><span class="muted"><?= htmlspecialchars((string)$ct['year_label']) ?> · <?= htmlspecialchars((string)$ct['code']) ?> · <?= (int)$ct['teaching_weeks'] ?> weeks</span></td>
+        <td data-label="Runs" class="muted"><?= htmlspecialchars((string)$ct['starts_on']) ?> → <?= htmlspecialchars((string)$ct['ends_on']) ?></td>
+        <td data-label="Add/drop"><?= $ct['add_drop_deadline'] ? htmlspecialchars((string)$ct['add_drop_deadline']) : '<span class="pill cancelled">not set</span>' ?></td>
+        <td data-label="Withdrawal"><?= $ct['withdrawal_deadline'] ? htmlspecialchars((string)$ct['withdrawal_deadline']) : '<span class="pill cancelled">not set</span>' ?></td>
+        <td data-label="Census">
+          <?php if (!$ct['census_date']): ?><span class="pill cancelled">not set</span>
+          <?php elseif ($ct['census_taken']): ?><span class="pill present">taken</span>
+          <?php else: ?><?= htmlspecialchars((string)$ct['census_date']) ?><?php endif; ?>
+        </td>
+        <td data-label=""><a class="tiny btn ghost" href="?v=calendar&t=<?= (int)$ct['id'] ?>">Open</a></td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody></table>
+    <?php endif; ?>
+  </div>
+
+  <?php if ($calSel):
+    $calSched = mam_calendar_refund_schedule($calSel['id']);
+    $calCens  = mam_calendar_census($calSel['id']);
+  ?>
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 10px"><?= htmlspecialchars((string)$calSel['label']) ?> — dates</h3>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="term_save">
+      <input type="hidden" name="year_label" value="<?= htmlspecialchars((string)$calSel['year_label']) ?>">
+      <input type="hidden" name="code" value="<?= htmlspecialchars((string)$calSel['code']) ?>">
+      <label>Label<input type="text" name="label" value="<?= htmlspecialchars((string)$calSel['label']) ?>" required aria-label="Term label"></label>
+      <label>Teaching weeks<input type="number" name="teaching_weeks" value="<?= (int)$calSel['teaching_weeks'] ?>" min="1" max="52" aria-label="Teaching weeks"></label>
+      <label>Starts on<input type="date" name="starts_on" value="<?= htmlspecialchars((string)$calSel['starts_on']) ?>" required aria-label="Starts on"></label>
+      <label>Ends on<input type="date" name="ends_on" value="<?= htmlspecialchars((string)$calSel['ends_on']) ?>" required aria-label="Ends on"></label>
+      <label>Add/drop deadline<input type="date" name="add_drop_deadline" value="<?= htmlspecialchars((string)($calSel['add_drop_deadline'] ?? '')) ?>" aria-label="Add drop deadline"></label>
+      <label>Withdrawal deadline<input type="date" name="withdrawal_deadline" value="<?= htmlspecialchars((string)($calSel['withdrawal_deadline'] ?? '')) ?>" aria-label="Withdrawal deadline"></label>
+      <label>Census date<input type="date" name="census_date" value="<?= htmlspecialchars((string)($calSel['census_date'] ?? '')) ?>" aria-label="Census date"></label>
+      <label>Status
+        <select name="status" aria-label="Term status">
+          <?php foreach (MAM_CALENDAR_TERM_STATUSES as $st): ?>
+            <option value="<?= $st ?>" <?= $st === $calSel['status'] ? 'selected' : '' ?>><?= htmlspecialchars(ucfirst($st)) ?></option>
+          <?php endforeach; ?>
+        </select></label>
+      <div style="grid-column:1/-1">
+        <p class="muted" style="margin:0 0 8px;font-size:.8rem">Add/drop must not fall after the withdrawal deadline, and every deadline must sit inside the term — the database refuses otherwise, because a bad row corrupts every refund computed against it.</p>
+        <button class="btn" type="submit">Save dates</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 6px">Published refund schedule</h3>
+    <p class="muted" style="margin:0 0 10px;max-width:70ch">This is the table a family is entitled to read before they commit, and the one an auditor will ask for. A withdrawal's percentage comes from these rows — never from a formula in code — so the answer is reproducible a year later.</p>
+    <table class="stack"><thead><tr><th>From week</th><th>To week</th><th>Refund</th><th>Example</th></tr></thead><tbody>
+      <?php foreach ($calSched as $b):
+        $wf = (int)$b['week_from'];
+        $exDate = $wf === 0 ? $calSel['starts_on'] : date('Y-m-d', strtotime((string)$calSel['starts_on'] . ' +' . (($wf - 1) * 7) . ' days'));
+      ?>
+      <tr>
+        <td data-label="From week"><?= $wf === 0 ? 'before the term' : $wf ?></td>
+        <td data-label="To week"><?= (int)$b['week_to'] >= 999 ? 'end of term' : (int)$b['week_to'] ?></td>
+        <td data-label="Refund"><strong><?= (int)$b['percent'] ?>%</strong></td>
+        <td data-label="Example" class="muted">withdrawing <?= htmlspecialchars($exDate) ?></td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody></table>
+    <form method="post" style="margin-top:10px" onsubmit="return confirm('Reset this term\'s refund table to the conventional schedule?\n\nAny percentages the academy has edited will be replaced. Families who enrolled under the current table may have been shown different figures.');">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="term_refund_reseed">
+      <input type="hidden" name="term_id" value="<?= (int)$calSel['id'] ?>">
+      <button class="tiny" type="submit">Reset to the conventional table</button>
+    </form>
+  </div>
+
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 6px">Census</h3>
+    <?php if ($calCens): ?>
+      <p style="margin:0"><strong><?= (int)$calCens['enrolled'] ?> enrolled</strong>, <?= (int)$calCens['active_cohorts'] ?> active classes, recorded <?= htmlspecialchars((string)$calCens['taken_on']) ?>.</p>
+      <p class="muted" style="margin:6px 0 0;font-size:.8rem">A snapshot. It does not change when somebody withdraws later — that is the point of it.</p>
+    <?php else: ?>
+      <p class="muted" style="margin:0 0 10px">Not taken. The census fixes the official enrolment count for this term, so a report next year quotes what was true on the day rather than what the live tables say after a term of withdrawals.</p>
+      <form method="post" onsubmit="return confirm('Take the census for this term?\n\nIt records the enrolment count ONCE and cannot be retaken — later withdrawals will not change it.');">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="term_census">
+        <input type="hidden" name="term_id" value="<?= (int)$calSel['id'] ?>">
+        <button class="btn" type="submit">Take the census</button>
+      </form>
+    <?php endif; ?>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">Holidays, breaks, exam and make-up weeks</h3>
+    <?php if ($calSel['closures']): ?>
+    <table class="stack" style="margin-bottom:14px"><thead><tr><th>Kind</th><th>Label</th><th>Dates</th><th>Actions</th></tr></thead><tbody>
+      <?php foreach (mam_db_all('SELECT id, kind, label, from_on, to_on FROM term_closures WHERE term_id = ? ORDER BY from_on', [$calSel['id']]) as $cc): ?>
+      <tr>
+        <td data-label="Kind"><span class="pill"><?= htmlspecialchars((string)$cc['kind']) ?></span></td>
+        <td data-label="Label"><?= htmlspecialchars((string)$cc['label']) ?></td>
+        <td data-label="Dates" class="muted"><?= htmlspecialchars((string)$cc['from_on']) ?> → <?= htmlspecialchars((string)$cc['to_on']) ?></td>
+        <td data-label="">
+          <form method="post" style="display:inline">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+            <input type="hidden" name="action" value="closure_delete">
+            <input type="hidden" name="term_id" value="<?= (int)$calSel['id'] ?>">
+            <input type="hidden" name="closure_id" value="<?= (int)$cc['id'] ?>">
+            <button class="tiny" type="submit" aria-label="Remove <?= htmlspecialchars((string)$cc['label']) ?>">Remove</button>
+          </form>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody></table>
+    <?php else: ?><p class="muted">None recorded.</p><?php endif; ?>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="closure_add">
+      <input type="hidden" name="term_id" value="<?= (int)$calSel['id'] ?>">
+      <label>Kind
+        <select name="kind" aria-label="Closure kind">
+          <option value="holiday">Holiday</option><option value="break">Break</option>
+          <option value="exam">Exam window</option><option value="makeup">Make-up week</option>
+        </select></label>
+      <label>Label<input type="text" name="label" maxlength="120" placeholder="e.g. Mid-term break" required aria-label="Closure label"></label>
+      <label>From<input type="date" name="from_on" required aria-label="Closure from"></label>
+      <label>To<input type="date" name="to_on" required aria-label="Closure to"></label>
+      <div style="grid-column:1/-1">
+        <p class="muted" style="margin:0 0 8px;font-size:.8rem">Closures do <strong>not</strong> shift the refund weeks. The published table counts calendar weeks from the start date, because that is what a family can verify — quietly discounting a holiday would make the published table wrong.</p>
+        <button class="btn" type="submit">Add closure</button>
+      </div>
+    </form>
+  </div>
   <?php endif; ?>
 
 <?php elseif ($view === 'vetting'): ?>

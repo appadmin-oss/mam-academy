@@ -176,6 +176,44 @@ function mam_lms_enrolment_events(int $enrollmentId): array {
 
 /** Withdraw (cancel / drop) an enrolment: pending|active → withdrawn. */
 function mam_lms_withdraw(int $enrollmentId, ?int $by = null, ?string $reason = 'withdrawn'): array {
+    /* ── What KIND of leaving is this? ───────────────────────────────────────
+       "Withdrawn" was one word for three different things, and the difference is
+       both academic and financial:
+
+         • inside the add/drop window → a DROP, leaving no mark on the record
+         • past it, inside the withdrawal window → a W, no academic penalty
+         • past the withdrawal deadline → the enrolment stands and is GRADED
+
+       Getting that boundary wrong is how a student ends up with an F for a course
+       they left in week two. The calendar (api/lib/calendar.php) is the only thing
+       that can answer it, because the answer is a date comparison against
+       published deadlines.
+
+       Recorded into the transition reason so it lands in enrolment_events, which
+       is the audit trail anyone reconstructing "why does this record say that"
+       will read. Best-effort by design: an unauthored calendar must not stop a
+       student leaving a course. */
+    if (function_exists('mam_calendar_withdrawal_outcome')) {
+        try {
+            $wo = mam_calendar_withdrawal_outcome();
+            if ($wo !== null) {
+                $reason = trim((string) $reason) . ' · ' . $wo['outcome']
+                        . ' (week ' . ($wo['week'] ?? '?') . ', term ' . (string) $wo['term']['label'] . ')';
+                if ($wo['refund_percent'] !== null) {
+                    $reason .= ' · refund ' . (int) $wo['refund_percent'] . '%';
+                }
+                mam_audit('lms_withdraw_outcome', 'course_enrollment', $enrollmentId, [
+                    'outcome'        => $wo['outcome'],
+                    'week'           => $wo['week'],
+                    'term_id'        => $wo['term']['id'] ?? null,
+                    'refund_percent' => $wo['refund_percent'],
+                    'refund_basis'   => $wo['refund_basis'],
+                ]);
+            }
+        } catch (\Throwable $e) {
+            mam_log('info', 'withdraw_outcome_skip', ['enrollment' => $enrollmentId, 'err' => $e->getMessage()]);
+        }
+    }
     return mam_lms_transition($enrollmentId, 'withdrawn', $by, $reason);
 }
 

@@ -2274,4 +2274,79 @@ CREATE TABLE IF NOT EXISTS vetting_records (
   CONSTRAINT fk_vetting_verifier FOREIGN KEY (verified_by)   REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO schema_version (version) VALUES (82) ON DUPLICATE KEY UPDATE version = version;
+-- ── v83: the academic calendar as DATA ───────────────────────────────────────
+-- academic-session.php computes term windows from constants + a JSON setting.
+-- Fine for a label, useless for a refund percentage, the withdrawal outcome or an
+-- official enrolment count — those need dated rows somebody can point at.
+-- CHECKs keep the deadlines in a sane order: a calendar allowing withdrawal
+-- before add/drop produces refund percentages nobody can defend.
+-- NB deliberately NOT named `sessions` — that is the login session store.
+CREATE TABLE IF NOT EXISTS academic_terms (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  year_label          VARCHAR(16)  NOT NULL,
+  code                VARCHAR(24)  NOT NULL,
+  term_no             INT          NOT NULL DEFAULT 1,
+  label               VARCHAR(80)  NOT NULL,
+  starts_on           DATE         NOT NULL,
+  ends_on             DATE         NOT NULL,
+  add_drop_deadline   DATE         NULL,
+  withdrawal_deadline DATE         NULL,
+  census_date         DATE         NULL,
+  teaching_weeks      INT          NOT NULL DEFAULT 12,
+  timezone            VARCHAR(48)  NOT NULL DEFAULT 'Africa/Lagos',
+  status              VARCHAR(16)  NOT NULL DEFAULT 'planned',
+  notes               VARCHAR(255) NULL,
+  created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_term_year_code (year_label, code),
+  KEY idx_term_dates (starts_on, ends_on),
+  CONSTRAINT chk_term_status  CHECK (status IN ('planned','active','closed')),
+  CONSTRAINT chk_term_span    CHECK (ends_on >= starts_on),
+  CONSTRAINT chk_term_adddrop CHECK (add_drop_deadline   IS NULL OR (add_drop_deadline   >= starts_on AND add_drop_deadline   <= ends_on)),
+  CONSTRAINT chk_term_withdraw CHECK (withdrawal_deadline IS NULL OR (withdrawal_deadline >= starts_on AND withdrawal_deadline <= ends_on)),
+  CONSTRAINT chk_term_census  CHECK (census_date         IS NULL OR (census_date         >= starts_on AND census_date         <= ends_on)),
+  CONSTRAINT chk_term_order   CHECK (add_drop_deadline IS NULL OR withdrawal_deadline IS NULL
+                                     OR withdrawal_deadline >= add_drop_deadline)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A PUBLISHED table, not a formula in code: a family is entitled to read the
+-- percentage before committing, and an auditor to see the one that applied.
+CREATE TABLE IF NOT EXISTS term_refund_schedule (
+  id        INT AUTO_INCREMENT PRIMARY KEY,
+  term_id   INT NOT NULL,
+  week_from INT NOT NULL,
+  week_to   INT NOT NULL,
+  percent   INT NOT NULL,
+  UNIQUE KEY uq_refund_term_week (term_id, week_from),
+  CONSTRAINT chk_refund_weeks   CHECK (week_to >= week_from),
+  CONSTRAINT chk_refund_percent CHECK (percent BETWEEN 0 AND 100),
+  CONSTRAINT fk_refund_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS term_closures (
+  id      INT AUTO_INCREMENT PRIMARY KEY,
+  term_id INT NOT NULL,
+  kind    VARCHAR(16)  NOT NULL DEFAULT 'holiday',
+  label   VARCHAR(120) NOT NULL,
+  from_on DATE NOT NULL,
+  to_on   DATE NOT NULL,
+  KEY idx_closure_term (term_id, from_on),
+  CONSTRAINT chk_closure_kind CHECK (kind IN ('holiday','break','exam','makeup')),
+  CONSTRAINT chk_closure_span CHECK (to_on >= from_on),
+  CONSTRAINT fk_closure_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Append-only SNAPSHOT. "Enrolment as of the census date" must not change when
+-- somebody withdraws in week nine; the UNIQUE key is what enforces that.
+CREATE TABLE IF NOT EXISTS term_census (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  term_id        INT NOT NULL,
+  taken_on       DATE NOT NULL,
+  enrolled       INT NOT NULL DEFAULT 0,
+  active_cohorts INT NOT NULL DEFAULT 0,
+  detail_json    TEXT NULL,
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_census_term (term_id),
+  CONSTRAINT fk_census_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO schema_version (version) VALUES (83) ON DUPLICATE KEY UPDATE version = version;

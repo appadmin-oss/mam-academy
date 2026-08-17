@@ -26,7 +26,7 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | **Mastery Score coverage floor / bands** | ✅ **shipped** |
 | **Instructor comparison → formative-only** | ✅ **shipped** |
 | **Charges: gated in depth, flags split** | ✅ **shipped** |
-| Academic calendar entity | **next** — the dependency for refunds + pro-ration |
+| **Academic calendar + pro-rata refunds (schema v83)** | ✅ **shipped** — the first refund authority in the repo |
 | NDPA compliance layer | not started (code + operational halves) |
 | Scholarship funds/awards, instalments, dunning | not started |
 | TanStack Table v8 | decided, **not implemented** |
@@ -246,6 +246,45 @@ the composite below a coverage floor rather than by scoring absent components ze
 
 ---
 
+## 4d. The academic calendar (shipped — schema v83)
+
+Both blueprints made this the dependency for refunds, scholarship pro-ration and
+the "W" outcome. They were right for a reason neither stated: **there was no
+refund function anywhere in the codebase.** `academic-session.php` computes which
+term it is from constants, which is enough for a label on a page and nothing else.
+Every refund was therefore a manual decision with no published table to check it
+against — the gap wasn't a missing feature, it was a missing *authority*.
+
+`api/lib/calendar.php` + `?v=calendar` supply it. What it deliberately does **not**
+do is replace the computed engine: `mam_calendar_current_term()` prefers an
+authored row, falls back to the computed window, and tags which it returned
+(`source`). An install with an empty calendar behaves exactly as before, which is
+why this shipped without touching `/apply`. Strangler, not cutover — doc 4's own
+recommendation.
+
+Four design decisions that are load-bearing (all restated in `CLAUDE.md` #14):
+
+| Decision | Why the obvious alternative is wrong |
+|---|---|
+| Refund % **computed from a date**, never stored per student | Two students withdrawing on the same day must get the same answer, reproducibly, a year later in an audit |
+| `term_refund_schedule` rows win over `MAM_CALENDAR_REFUND_DEFAULT` | A family is entitled to the table published when they enrolled. Seeding defaults to `$replace = false` so re-saving dates can't revert an edited table |
+| `term_census` **append-only** (UNIQUE on `term_id`) | "Enrolment as of the census date" must not move when somebody withdraws in week 9. Recompute-on-read rewrites history silently |
+| Deadlines adjudicated in **Africa/Lagos**, displayed locally | A diaspora guardian in New York must not get a different refund because their clock disagrees about the date |
+
+`mam_lms_withdraw()` now records **which kind** of withdrawal it was (add/drop vs.
+a W with its percentage) into the transition reason, so it lands in
+`enrolment_events` where anyone reconstructing "why does this record say that"
+will read it. Best-effort by design — an unauthored calendar must never stop a
+student leaving a course.
+
+Verified in a browser: 4 terms seeded for 2026, the current term marked
+`current · week 5`, the KPI source flipping from "computed dates" to "the
+calendar" as soon as rows existed, and the published table rendering
+`100% 100% 80% 60% 50% 40% 25% 10% 0%`. `api/tests/test_calendar.php` — 75+
+assertions.
+
+---
+
 ## 5. Where things live
 
 | What | Where |
@@ -260,6 +299,7 @@ the composite below a coverage floor rather than by scoring absent components ze
 | The enrolment completion chain | `api/lib/enrol-complete.php` |
 | Shared portal error translator (`P.errText` / `P.fail`) | `assets/js/portal.js` |
 | Self-hosted toast (the CDN-proof one) | `assets/js/libs.js` |
+| The academic calendar + refund authority | `api/lib/calendar.php`, admin `?v=calendar` |
 | The forms audit, with every number | `docs/forms-audit-2026-08-17.md` |
 | The codebase map | `docs/codebase-index-2026-08-15.md` |
 

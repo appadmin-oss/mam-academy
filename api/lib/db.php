@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 82;
+const MAM_SCHEMA_TARGET = 83;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2463,6 +2463,96 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE UNIQUE INDEX IF NOT EXISTS uq_vetting_instr_type ON vetting_records(instructor_id, clearance_type);
             CREATE INDEX IF NOT EXISTS idx_vetting_expiry ON vetting_records(expires_on);
+        ",
+
+        /**
+         * v83 — the academic calendar as DATA.
+         *
+         * academic-session.php resolves TONI/MEDI/SUMMER/DOMI from constants plus a
+         * JSON settings blob. That is fine for "which term is it" and useless for
+         * everything that hangs off a term: a refund percentage, the withdrawal
+         * outcome, an official enrolment count. Those need DATED, enforceable rows.
+         *
+         * `academic_terms` carries the four dates that drive money and outcomes —
+         * add/drop, withdrawal, census — with CHECK constraints that keep them in a
+         * sane order, because a calendar allowing withdrawal before add/drop
+         * produces refund percentages nobody can defend.
+         *
+         * `term_refund_schedule` is a PUBLISHED table, not a formula buried in code:
+         * a family is entitled to read the percentage before they commit, and an
+         * auditor is entitled to see the one that applied on the day.
+         *
+         * `term_census` is an append-only SNAPSHOT. "Enrolment as of the census
+         * date" must never change retroactively, so it is recorded once and read
+         * thereafter — never recomputed from live tables.
+         *
+         * Note the table is NOT called `sessions`: that name is already the login
+         * session store.
+         */
+        83 => "
+            CREATE TABLE IF NOT EXISTS academic_terms (
+              id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+              year_label          TEXT    NOT NULL,
+              code                TEXT    NOT NULL,
+              term_no             INTEGER NOT NULL DEFAULT 1,
+              label               TEXT    NOT NULL,
+              starts_on           TEXT    NOT NULL,
+              ends_on             TEXT    NOT NULL,
+              add_drop_deadline   TEXT,
+              withdrawal_deadline TEXT,
+              census_date         TEXT,
+              teaching_weeks      INTEGER NOT NULL DEFAULT 12,
+              timezone            TEXT    NOT NULL DEFAULT 'Africa/Lagos',
+              status              TEXT    NOT NULL DEFAULT 'planned'
+                                  CHECK(status IN ('planned','active','closed')),
+              notes               TEXT,
+              created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+              -- A term must not end before it starts, and every deadline must fall
+              -- inside it and in the right order. Enforced here rather than in PHP
+              -- because a bad row corrupts every refund computed against it.
+              CHECK(ends_on >= starts_on),
+              CHECK(add_drop_deadline   IS NULL OR (add_drop_deadline   >= starts_on AND add_drop_deadline   <= ends_on)),
+              CHECK(withdrawal_deadline IS NULL OR (withdrawal_deadline >= starts_on AND withdrawal_deadline <= ends_on)),
+              CHECK(census_date         IS NULL OR (census_date         >= starts_on AND census_date         <= ends_on)),
+              CHECK(add_drop_deadline IS NULL OR withdrawal_deadline IS NULL
+                    OR withdrawal_deadline >= add_drop_deadline)
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_term_year_code ON academic_terms(year_label, code);
+            CREATE INDEX IF NOT EXISTS idx_term_dates ON academic_terms(starts_on, ends_on);
+
+            CREATE TABLE IF NOT EXISTS term_refund_schedule (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              term_id    INTEGER NOT NULL REFERENCES academic_terms(id) ON DELETE CASCADE,
+              week_from  INTEGER NOT NULL,
+              week_to    INTEGER NOT NULL,
+              percent    INTEGER NOT NULL,
+              CHECK(week_to >= week_from),
+              CHECK(percent BETWEEN 0 AND 100)
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_refund_term_week ON term_refund_schedule(term_id, week_from);
+
+            CREATE TABLE IF NOT EXISTS term_closures (
+              id       INTEGER PRIMARY KEY AUTOINCREMENT,
+              term_id  INTEGER NOT NULL REFERENCES academic_terms(id) ON DELETE CASCADE,
+              kind     TEXT    NOT NULL DEFAULT 'holiday'
+                       CHECK(kind IN ('holiday','break','exam','makeup')),
+              label    TEXT    NOT NULL,
+              from_on  TEXT    NOT NULL,
+              to_on    TEXT    NOT NULL,
+              CHECK(to_on >= from_on)
+            );
+            CREATE INDEX IF NOT EXISTS idx_closure_term ON term_closures(term_id, from_on);
+
+            CREATE TABLE IF NOT EXISTS term_census (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              term_id       INTEGER NOT NULL REFERENCES academic_terms(id) ON DELETE CASCADE,
+              taken_on      TEXT    NOT NULL,
+              enrolled      INTEGER NOT NULL DEFAULT 0,
+              active_cohorts INTEGER NOT NULL DEFAULT 0,
+              detail_json   TEXT,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_census_term ON term_census(term_id);
         ",
     ];
 
