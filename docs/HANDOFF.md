@@ -17,7 +17,7 @@ of the `docs/*-audit-*.md` files and comes out of here.
 |---|---|
 | Schema v2 design + SQLite generator | ✅ built, reviewed, not loaded |
 | ETL — identity, payments, applications | ✅ transform proven |
-| **ETL load + verify** | ✅ **shipped** — run against the real snapshot: 16 of 16 checks pass |
+| **ETL load + verify** | ✅ **shipped** — real snapshot, 16 of 16 checks, on **both SQLite and MySQL** |
 | Admin usability ("impossible to use") | ✅ fixed and measured |
 | Enrolment completion chain | ✅ built and driven end to end |
 | Forms audit — 6 passes | ✅ complete; see `docs/forms-audit-2026-08-17.md` |
@@ -44,10 +44,10 @@ What remains before a cutover is not code:
   deliberately not migrated (reference data is re-seeded, never copied).
 - **Decide the cutover window** and re-export at that moment: the loaded
   database is only as current as the snapshot it came from.
-- **Run the load against MySQL**, not just SQLite. `--dsn` is wired for it and
-  untested against a real MySQL 8 — the mirror is generated from the canonical
-  MySQL file, so the schema is right, but the load itself has only been exercised
-  on SQLite.
+- **Re-run the load against MySQL 8 specifically.** It has now been run on a real
+  server (MariaDB 10.11 — see §4g), which found two bugs SQLite could not. MySQL
+  8's native JSON type is the one difference that could still behave differently
+  from MariaDB's LONGTEXT-plus-`json_valid` implementation.
 
 ---
 
@@ -406,6 +406,68 @@ A payment with no owner is still loaded — the money is real — and reported.
 not use it, or every fixture person reads as erased (this cost time). The load
 also mints `@migrated.invalid` for people with no address at all, which is why
 `erasure.live_invalid_addresses` pins that set to exactly the snapshot's blanks.
+
+
+## 4g. The MySQL run (and the two bugs only it could find)
+
+The load had only ever been exercised on SQLite. Run against a real server —
+**MariaDB 10.11, not MySQL 8**, which is the honest caveat below — it failed
+twice before it passed, and both failures were invisible in dev for the same
+reason: **SQLite does not enforce VARCHAR lengths and MySQL in strict mode
+does.**
+
+**1. `applications.source_channel` (VARCHAR(48)) was receiving a landing URL.**
+v1's `applications.source` holds
+`https://academy.mamcentre.org/apply?pathway=certified-musician` — 62
+characters. Truncating to fit would have been worse than the crash: the column
+means an attribution *channel*, so 23 applications would have shared one
+"channel" and two more differed only by query string. The fix derives the
+channel (the host for a URL, the token itself when it is already one, `other`
+for long free text) and **keeps the full URL in the application payload**, so
+nothing is lost.
+
+**2. `payments.status` was VARCHAR(16) while its own CHECK permitted
+`awaiting_transfer` (17) and `partially_refunded` (18).** A column that cannot
+hold a value its own constraint allows is always a bug, and this one sat on the
+**dominant status in the real data** — 11 of 15 payments. Widened to VARCHAR(24)
+in the canonical schema, mirror regenerated.
+
+**The durable fix is the tests, not the fixes.** Two new checks run on SQLite
+and would have caught both without a database:
+
+- every transformed string value is measured against the width the **canonical
+  MySQL schema** declares for its column, parsed out of `db/schema-v2.sql`;
+- no CHECK anywhere in the schema permits a value its own column cannot hold
+  (swept across all 64 tables).
+
+**What the real engine then confirmed that SQLite cannot:**
+
+| | Result |
+|---|---|
+| Canonical `db/schema-v2.sql` applies clean | 64 tables, 51 CHECK constraints registered |
+| Full load | 21 people, 26 applications, 15 payments, **16 of 16 checks passed** |
+| Money | NGN 515,998.00 total, **NGN 405,034.00 `awaiting_transfer`** — the admin-screen figure, on a real engine |
+| Idempotency | second run: 0 created, all 62 rows recognised, still 16/16 |
+| CHECKs actually enforced | `chk_pay_status`, `chk_app_rejection_reason` and `chk_pay_fx` all reject a bad row |
+| Transaction rollback | a mid-load failure left **0 users, 0 memberships, 0 map rows, 0 tenants** |
+| JSON | all 20 non-null payloads valid to the engine; 6 null (erased applicants) |
+
+⚠️ **This was MariaDB 10.11.** It enforces CHECKs and strict mode exactly as
+MySQL 8 does, which is what the run was for. The one thing it does not share is
+the **native JSON type** — MariaDB implements `JSON` as `LONGTEXT` with a
+`json_valid` CHECK. Everything above holds; a MySQL 8 run before cutover is
+still worth ten minutes.
+
+Reproduce (no init system in this container, so the server is started by hand):
+
+```bash
+mariadb-install-db --user=root --datadir=$SB/mysql/data
+mariadbd --user=root --datadir=$SB/mysql/data --socket=/tmp/mam-m.sock --port=3399 &
+mariadb --socket=/tmp/mam-m.sock -e "CREATE DATABASE mamv2 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+mariadb --socket=/tmp/mam-m.sock mamv2 < db/schema-v2.sql
+php api/tools/v2-load.php --export=$SB/export \
+  --dsn="mysql:unix_socket=/tmp/mam-m.sock;dbname=mamv2;charset=utf8mb4" --user=root --commit
+```
 
 ---
 

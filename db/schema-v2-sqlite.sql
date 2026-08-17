@@ -1048,8 +1048,12 @@ CREATE TABLE payments (
   membership_id     INTEGER NULL,
   provider          TEXT  NOT NULL,      -- paystack|flutterwave|bank|cash|credit
   provider_ref      TEXT NULL,
+  -- 24, not 16: the CHECK below permits 'awaiting_transfer' (17 chars) and
+  -- 'partially_refunded' (18), so a 16-wide column contradicts its own
+  -- constraint. SQLite ignores widths, so this only fails on MySQL — and it
+  -- would have failed on the dominant status in the real data.
   status            TEXT  NOT NULL DEFAULT 'pending',
-     -- pending|succeeded|failed|refunded|partially_refunded|disputed
+     -- pending|awaiting_transfer|succeeded|failed|refunded|partially_refunded|disputed
   currency          TEXT      NOT NULL,
   amount_minor      INTEGER       NOT NULL,
   fee_minor         INTEGER       NOT NULL DEFAULT 0,

@@ -180,6 +180,36 @@ function mam_v2_transform_payments(array $payments, array $people, int $tenantId
     return ['rows' => $rows, 'report' => $report, 'rejected' => $rejected];
 }
 
+/**
+ * v1 `applications.source` → v2 `source_channel`.
+ *
+ * The two are not the same field. v1 stored the full LANDING URL —
+ * `https://academy.mamcentre.org/apply?pathway=certified-musician` — while
+ * `source_channel VARCHAR(48)` means an attribution channel: `website`,
+ * `referral`, `instagram`. Copying one into the other was a MySQL truncation
+ * error (SQLite does not enforce widths, so it only surfaced on a real engine)
+ * and, worse, it would have made attribution meaningless: 23 applications would
+ * share one "channel" and two more would differ only by query string.
+ *
+ * So the channel is DERIVED — the host for a URL, the value itself for a short
+ * token — and the full URL is preserved in the payload as `source_url`, because
+ * the landing page is real information and truncating it away is a loss nobody
+ * would notice until they tried to attribute a term's intake.
+ */
+function mam_v2_source_channel(?string $v1): ?string
+{
+    $s = trim((string) $v1);
+    if ($s === '') return null;
+    if (preg_match('#^https?://#i', $s)) {
+        $host = parse_url($s, PHP_URL_HOST);
+        return $host ? substr((string) $host, 0, 48) : 'web';
+    }
+    // A short token is already a channel. Longer free text is not, and a
+    // truncated one would be a channel nobody chose — so it becomes 'other'
+    // and the original is kept in the payload.
+    return strlen($s) <= 48 ? $s : 'other';
+}
+
 /** v1 applications → v2 applications. */
 function mam_v2_transform_applications(array $apps, array $people, int $tenantId = 1): array
 {
@@ -215,9 +245,11 @@ function mam_v2_transform_applications(array $apps, array $people, int $tenantId
                 ? (string) ($a['decision_reason'] ?? 'Reason not recorded in the previous system')
                 : null,
             'readiness_signal' => $a['readiness_signal'] ?? null,
-            'source_channel'   => $a['source'] ?? null,
-            'payload'          => $erased ? null : array_intersect_key((array) $a, array_flip(
-                ['pathway', 'mode', 'program', 'discipline', 'session', 'experience', 'goals', 'level'])),
+            'source_channel'   => mam_v2_source_channel($a['source'] ?? null),
+            'payload'          => $erased ? null : (array_intersect_key((array) $a, array_flip(
+                ['pathway', 'mode', 'program', 'discipline', 'session', 'experience', 'goals', 'level']))
+                // The landing URL the channel was derived from, kept whole.
+                + (trim((string) ($a['source'] ?? '')) !== '' ? ['source_url' => (string) $a['source']] : [])),
             'legacy'           => ['applications', (string) ($a['id'] ?? '')],
         ];
         $report['out']++;

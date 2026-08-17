@@ -347,3 +347,102 @@ t_ok(strpos($cli, "!empty(\$opt['commit'])") !== false, 'the CLI requires --comm
 t_ok(strpos($cli, 'dry run (nothing written)') !== false, 'and says plainly when it has written nothing');
 t_ok(strpos($cli, 'mam_v2_verify') !== false, 'verification runs from the same command');
 t_ok(strpos($cli, 'PHP_SAPI') !== false, 'the tool refuses to run over HTTP');
+
+t_group('ETL load — every value fits the column the canonical schema declares');
+
+/**
+ * SQLite ignores VARCHAR lengths; MySQL in strict mode does not. So a transform
+ * that writes 62 characters into a VARCHAR(48) loads perfectly in dev and dies
+ * mid-migration on the real engine — which is exactly what happened with
+ * `applications.source_channel`, where v1 stores a full landing URL and v2
+ * means an attribution channel.
+ *
+ * This reads the declared widths out of the CANONICAL MySQL schema and checks
+ * the transform's own output against them, so the failure surfaces here rather
+ * than against a database nobody has stood up yet.
+ */
+$ddl = (string) file_get_contents(dirname(__DIR__, 2) . '/db/schema-v2.sql');
+$widths = [];
+foreach (preg_split('/CREATE TABLE\s+/i', $ddl) as $chunk) {
+    if (!preg_match('/^`?([a-z_]+)`?\s*\(/i', $chunk, $tm)) continue;
+    $table = strtolower($tm[1]);
+    if (preg_match_all('/^\s*`?([a-z_]+)`?\s+VARCHAR\((\d+)\)/im', $chunk, $cm, PREG_SET_ORDER)) {
+        foreach ($cm as $c) $widths[$table][strtolower($c[1])] = (int) $c[2];
+    }
+}
+t_ok(($widths['applications']['source_channel'] ?? 0) === 48,
+    'the width table was parsed out of the canonical schema [source_channel = ' . ($widths['applications']['source_channel'] ?? '?') . ']');
+t_ok(count($widths) > 20, 'across the whole schema [' . count($widths) . ' tables]');
+
+// Check the transform's output for the fixture AND for the shapes that broke:
+// a landing URL in `source`, and a long free-text source.
+$wideSrc = v2l_source();
+$wideSrc['applications'][0]['source'] = 'https://academy.mamcentre.org/apply?pathway=certified-musician&utm_campaign=x';
+$wideSrc['applications'][1]['source'] = str_repeat('long free text ', 12);
+$idw  = mam_v2_resolve_identities($wideSrc['customers'], $wideSrc['users']);
+$tw   = mam_v2_transform_applications($wideSrc['applications'], $idw['people']);
+$tpw  = mam_v2_transform_payments(mam_v2_attach_payment_owners($wideSrc['payments'], $wideSrc['applications']), $idw['people']);
+
+$over = [];
+foreach ([['applications', $tw['rows']], ['payments', $tpw['rows']]] as [$table, $rows]) {
+    foreach ($rows as $row) {
+        foreach ($row as $col => $val) {
+            if (!is_string($val)) continue;
+            $max = $widths[$table][$col] ?? null;
+            if ($max !== null && mb_strlen($val) > $max) {
+                $over[] = "$table.$col " . mb_strlen($val) . " > $max";
+            }
+        }
+    }
+}
+t_eq(implode('; ', $over), '',
+    'no transformed value exceeds its declared column width — SQLite would accept these and MySQL would not');
+
+// And the derivation itself, which is the fix rather than a truncation.
+t_eq(mam_v2_source_channel('https://academy.mamcentre.org/apply?pathway=certified-musician'),
+    'academy.mamcentre.org', 'a landing URL yields its HOST as the channel');
+t_eq(mam_v2_source_channel('referral'), 'referral', 'a short token is already a channel and passes through');
+t_eq(mam_v2_source_channel(str_repeat('x', 60)), 'other',
+    'long free text becomes "other" rather than a truncated channel nobody chose');
+t_ok(mam_v2_source_channel('') === null, 'an empty source is null, not an empty channel');
+t_ok(mam_v2_source_channel('not a url but quite long ' . str_repeat('y', 40)) === 'other',
+    'and the same for anything else that would not fit');
+
+// The URL itself is preserved, so deriving the channel loses nothing.
+$withUrl = null;
+foreach ($tw['rows'] as $row) { if (($row['legacy'][1] ?? '') === '10') $withUrl = $row; }
+t_ok($withUrl !== null, 'the application with the URL source is present');
+t_ok(strpos((string) json_encode($withUrl['payload']), 'utm_campaign') !== false,
+    'and the full landing URL is kept in the payload — deriving a channel must not throw the evidence away');
+
+t_group('ETL load — no CHECK permits a value its own column cannot hold');
+
+/**
+ * `payments.status` was VARCHAR(16) while its CHECK listed `awaiting_transfer`
+ * (17) and `partially_refunded` (18). SQLite ignores widths, so the
+ * contradiction was invisible in dev and would have killed the MySQL load on
+ * the DOMINANT status in the real data — 11 of 15 payments.
+ *
+ * A column that cannot hold a value its own constraint permits is always a bug,
+ * so this checks the whole canonical schema rather than the one column.
+ */
+$tooNarrow = [];
+foreach (preg_split('/CREATE TABLE\s+/i', $ddl) as $chunk) {
+    if (!preg_match('/^`?([a-z_]+)`?\s*\(/i', $chunk, $tm)) continue;
+    $table = strtolower($tm[1]);
+    // CHECK (col IN ('a','b',...)) — the shape this schema uses throughout.
+    if (!preg_match_all('/CHECK\s*\(\s*`?([a-z_]+)`?\s+IN\s*\(([^)]*)\)/i', $chunk, $cm, PREG_SET_ORDER)) continue;
+    foreach ($cm as $c) {
+        $col = strtolower($c[1]);
+        $max = $widths[$table][$col] ?? null;
+        if ($max === null) continue;
+        preg_match_all("/'([^']*)'/", $c[2], $vm);
+        foreach ($vm[1] as $value) {
+            if (mb_strlen($value) > $max) $tooNarrow[] = "$table.$col($max) cannot hold '$value' (" . mb_strlen($value) . ')';
+        }
+    }
+}
+t_eq(implode('; ', $tooNarrow), '',
+    'every value a CHECK permits fits the column it constrains');
+t_ok(($widths['payments']['status'] ?? 0) >= 18,
+    'payments.status is wide enough for partially_refunded [' . ($widths['payments']['status'] ?? '?') . ']');
