@@ -100,6 +100,67 @@
     initials: initials, escapeHtml: escapeHtml,
     kpi: uiKpi, empty: uiEmpty, panel: uiPanel, skeleton: uiSkeleton, pagedTbody: pagedTbody,
 
+    /* Turn an API error into something a human can act on.
+       MEASURED in the instructor portal: a failed mark save toasted
+       "Could not record: server_error" — the server's machine code pasted into
+       the sentence, which names nothing and suggests nothing. 17 call sites did
+       this, so the translation belongs here rather than in each of them.
+
+       `fallback` is what the CALLER was trying to do ("Could not record the
+       score."); this adds why, when it knows. An unrecognised code is never
+       printed as the reason — it becomes a short reference the person can quote
+       to the academy, which is the only thing a code is actually good for. */
+    errText: function (err, fallback) {
+      var code = (err && err.body && err.body.error) || (err && err.message) || '';
+      var MAP = {
+        forbidden:            'You do not have access to that.',
+        validation:           'Some of what was entered is not valid — check the fields and try again.',
+        missing_field:        'Something required was left blank.',
+        invalid_params:       'Some of what was entered is not valid — check the fields and try again.',
+        not_found:            'We could not find that any more — it may have been removed. Reload the page.',
+        session_not_found:    'That session no longer exists. Reload the page.',
+        class_not_found:      'That class no longer exists. Reload the page.',
+        cohort_not_found:     'That cohort no longer exists. Reload the page.',
+        course_not_found:     'That course no longer exists. Reload the page.',
+        enrollment_not_found: 'That enrolment no longer exists. Reload the page.',
+        submission_not_found: 'That submission no longer exists. Reload the page.',
+        user_not_found:       'We could not find that person any more. Reload the page.',
+        illegal_transition:   'That change is not allowed from the current status.',
+        already_enrolled:     'They are already enrolled.',
+        not_enrolled:         'They are not enrolled on that.',
+        save_failed:          'The change did not save. Please try again.',
+        server_error:         'Something went wrong on our side. Please try again in a moment.',
+        rate_limited:         'Too many attempts just now — wait a minute and try again.',
+        csrf_invalid:         'Your session expired. Reload the page and try again.',
+        unauthenticated:      'You have been signed out. Reload the page to sign in again.',
+        api_unavailable:      'We could not reach the server. Check your connection and try again.'
+      };
+      // A dropped connection surfaces as fetch's own "Failed to fetch"/TypeError
+      // rather than a server code, and it needs the network answer, not a
+      // reference number.
+      if (!(err && err.body && err.body.error)
+          && (code === 'Failed to fetch' || code === 'NetworkError when attempting to fetch resource.'
+              || (err && (err.apiDown || err.name === 'TypeError')))) {
+        return MAP.api_unavailable;
+      }
+      if (MAP[code]) return MAP[code];
+      var base = fallback || 'That did not work. Please try again.';
+      // A reference is only useful if it IS a code. A browser's own sentence
+      // pasted after "(ref: …)" is noise the academy cannot look up.
+      var isCode = /^[a-z][a-z0-9_]{2,39}$/.test(String(code));
+      return isCode ? base + ' (ref: ' + code + ')' : base;
+    },
+
+    /* One place that reports a failure to the person in front of you. Falls all
+       the way back to alert() so a missing dialog library can never make an
+       error invisible — the failure mode this replaces. */
+    fail: function (err, fallback) {
+      var msg = this.errText(err, fallback);
+      if (window.MAM_DIALOG && window.MAM_DIALOG.toast) window.MAM_DIALOG.toast(msg, 'error');
+      else { try { window.alert(msg); } catch (e) {} }
+      return msg;
+    },
+
     requireAuth: function (allowedRoles) {
       return window.MAM_API.request('auth/me', { method: 'GET' }).then(function (r) {
         // Check ALL of the user's roles, not just the primary one, so a user who

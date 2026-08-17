@@ -1,16 +1,17 @@
-# Forms audit — the application wizard, the payment step, and the admin
+# Forms audit — the wizard, the payment step, the admin, the portals
 
 **Measured in a browser** against the running site, 2026-08-17. Numbers below
 come from the DOM and the accessibility tree, not from reading the source.
 
-Four passes, in the order they were done: the wizard's structure (pass 1), its
-error paths and the headshot step (pass 2), the payment step (pass 3), and the
-admin's 38 views (pass 4).
+Five passes, in the order they were done: the wizard's structure (pass 1), its
+error paths and the headshot step (pass 2), the payment step (pass 3), the
+admin's 38 views (pass 4), and the instructor + guardian portals (pass 5).
 
-**Why this form and not another:** it is the only revenue-critical form the
-academy has, and the funnel says it is leaking. The production export holds
-**48 application drafts against 26 submissions** — a 46% abandonment rate on a
-form people have already started.
+**Why the wizard first:** it is the only revenue-critical form the academy has,
+and the funnel says it is leaking. The production export holds **48 application
+drafts against 26 submissions** — a 46% abandonment rate on a form people have
+already started. The later passes followed the money and then the people who
+use the system daily.
 
 ---
 
@@ -30,20 +31,26 @@ That one fact causes most of what follows.
 |---|---|---|---|
 | **The phone field is dead without a CDN** | **4** | wizard unfinishable | ✅ fixed |
 | **"Payment received" shown when it wasn't** | **4** | verify 404 → success screen | ✅ fixed |
+| **Portal errors written only to `console.log`** | **4** | the CDN fallback was not one | ✅ fixed |
 | The wizard has no `<form>` element | **3** | 57 of 58 fields orphaned | ✅ fixed |
 | **A failed submit doesn't look like a failure** | **3** | `role=null`, transparent, unfocused | ✅ fixed |
 | **"A photo is required" is written to nothing** | **3** | element absent from the page | ✅ fixed |
 | ~~`autocomplete` on 13 of 58 fields~~ | ~~3~~ | **withdrawn — my error** | see below |
 | **The payment step spoke in machine tokens** | **3** | `init_failed`, `api_unavailable` | ✅ fixed |
 | **70 admin controls with no accessible name** | **3** | 70 of 350, all per-row | ✅ fixed |
+| **20 instructor controls with no name** | **3** | 20 of 51, caption ≠ label | ✅ fixed |
 | `required` on 2 of 58 fields | **2** | validation is entirely custom JS | ✅ fixed |
 | Upload failures all read alike | **2** | one message for 429/413/5xx | ✅ fixed |
 | Banner border contrast | **2** | 1.6:1 and 2.4:1 vs 3:1 | ✅ fixed |
 | Destructive admin actions with no confirm | **2** | 3 of 10 | ✅ fixed |
 | Admin-set passwords offered to autofill | **2** | 2 fields | ✅ fixed |
+| Instructor errors pasted raw server codes | **2** | 17 call sites | ✅ fixed |
+| A silent note-delete failure | **2** | looked identical to success | ✅ fixed |
+| Failed boot left the user card "Loading…" | **2** | no retry offered | ✅ fixed |
 | Target sizes | **0** | no violations — measured on the label | — |
 | CSRF expiry, dropped-connection recovery | **0** | both recover; draft survives | — |
 | CSRF coverage on admin forms | **0** | every mutating form carries a token | — |
+| Guardian portal | **0** | 4 of 4 named; both failures announced | — |
 
 ---
 
@@ -399,12 +406,113 @@ Checked and found sound, so nobody "fixes" them:
 
 ---
 
+## Pass 5 — the instructor and guardian portals
+
+Signed into each portal with real teaching data seeded (four students on a
+class and a cohort, one scheduled session) and walked every tab that renders a
+control.
+
+### [Severity 4] The portal's errors were written to the console and nowhere else
+
+An instructor recorded a mark, the server answered 500, and **nothing
+appeared**. The catch ran — the button re-enabled — and `MAM_DIALOG.toast`
+existed. Its no-SweetAlert2 branch was:
+
+```js
+toast: function (message, icon) {
+  if (!swal) { console.log('[toast]', message); return; }
+```
+
+`alert` and `confirm` degrade to native dialogs, which are at least visible.
+Only `toast` degraded to somewhere no user ever looks — and **toast is the
+instructor portal's entire error vocabulary**: "Could not record: …", "Could
+not save attendance.", "Could not update the mark.", ~15 call sites. So on any
+network that blocks the CDN — ad-blocker, corporate proxy, tightened CSP — an
+instructor recording a child's mark watched the form reset and reasonably
+concluded it had saved. It had not.
+
+This is the **second** time in this audit that a third-party CDN script turned
+out to be load-bearing for a core function behind a fallback that was not one;
+the apply wizard's phone field was the first. Worth treating as a pattern to
+look for rather than two coincidences.
+
+**Fixed** with a self-hosted toast: styles injected, nothing fetched, so it
+cannot fail the way the thing it replaces did. `role="alert"` for a failure and
+`role="status"` for a confirmation, message set as `textContent` (callers pass
+server-derived strings), errors linger 9s against a confirmation's 4s because a
+missed error is the whole problem, always dismissible, reduced-motion aware.
+Borders carry the tone and clear WCAG 1.4.11 — err 4.77:1, warn 7.17:1, ok
+7.38:1, neutral 3.42:1 (the first neutral I picked measured 2.97:1).
+
+### [Severity 3] 20 of 51 instructor controls had no accessible name
+
+The portal's idiom is:
+
+```html
+<div class="field"><label>Score</label><input name="score" …></div>
+```
+
+A `<label>` that neither wraps the control nor carries `for` is a **caption**,
+not a label. It looks correct on screen and associates with nothing. 31 sites
+in this file.
+
+Worst on the **gradebook**, where 13 of 13 controls were unnamed and the same
+four repeat per student card — so even read aloud correctly, "Score" is
+ambiguous between students the moment there is more than one. Those now name
+the student (*"Score for Adaeze Okonkwo"*), because recording a mark against
+the wrong child is the failure that screen has to prevent. Two cohort filters
+had no text to take a name from at all — one sat inside a `<label>` whose only
+content was a filter icon.
+
+Re-measured: **0 of 51 unnamed.**
+
+### [Severity 2] Errors pasted the server's machine code into the sentence
+
+"Could not record: `server_error`". 17 call sites did this, so the translation
+went into the portal kit rather than into each of them: `P.errText(err,
+fallback)` maps the codes the routes actually raise, and `P.fail()` reports one
+— falling all the way back to `alert()`, so a missing dialog library can never
+again make an error invisible. An unrecognised code is never printed *as* the
+reason; it becomes a `(ref: …)` the person can quote. A dropped connection gets
+the network answer rather than a reference number, and only something that
+looks like a code is offered as one — fetch's own "Failed to fetch" is not.
+
+Two sites still read `err.body.error` directly; both already map it to words
+themselves, so they were left alone.
+
+### [Severity 2] Two other silent failures, and a boot that never resolved
+
+`delMarker()` had an empty catch while `addMarker()` right above it toasted —
+so a note delete that failed looked exactly like one that worked, and the note
+stayed on screen as if nothing had been clicked. `loadMarkers()` had one too,
+which reads as "this take has no notes" rather than "we could not fetch them",
+and would have the instructor re-enter feedback that already exists.
+
+*(A first scan of this file reported 23 empty catches. That was a loose regex
+counting multi-line catch bodies as empty. Measured properly: 2.)*
+
+With the API unreachable, the main area said "Could not load your dashboard"
+while the sidebar's user card still said "Loading…" — a page claiming to be
+both finished and still working, with nothing to retry with. Both now resolve,
+and there is a Try again button.
+
+### The guardian portal was already right
+
+4 visible controls, **all named**. Both failure paths already say plainly what
+happened — *"Could not load your children right now."*, *"Could not load this
+child right now."* — and it carries none of the caption-as-label idiom. No
+change made; recorded here so it is not "fixed" later.
+
+---
+
 ## Not yet measured
 
-- Per-step measurement past step 1 for structure/labelling (passes 2–4 drove
+- Per-step measurement past step 1 for structure/labelling (passes 2–5 drove
   every step, but audited the later ones for *failure behaviour*, not layout).
-- The instructor and guardian portals' forms.
-- Admin form **error** behaviour — this pass covered labelling, destructive
+- **The student portal**, which carries the same caption-as-label idiom at
+  **16 sites** — counted statically, not yet driven in a browser, so the real
+  figure is unknown. It shares `libs.js`, so the toast fix already reaches it.
+- Admin form **error** behaviour — pass 4 covered labelling, destructive
   confirmation and autofill; what an admin sees when a POST fails is a separate
   question from what the applicant sees.
 

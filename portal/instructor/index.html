@@ -79,11 +79,11 @@
 </div>
 
 <script src="/assets/js/config.js?v=20260807a"></script>
-<script src="/assets/js/portal.js?v=20260815b"></script>
+<script src="/assets/js/portal.js?v=20260817a"></script>
 <script src="/assets/js/practice-player.js?v=20260815a" defer></script>
 <script src="/assets/js/command-palette.js?v=20260815a" defer></script>
 <script src="/assets/js/schedule-grid.js?v=20260815a"></script>
-<script src="/assets/js/libs.js?v=20260530a" async></script>
+<script src="/assets/js/libs.js?v=20260817a" async></script>
 <!-- Self-hosted QR generator (MIT, qrcodejs) for the attendance check-in QR (#9/#10). -->
 <script src="/assets/js/vendor/qrcode.min.js?v=20260705a" defer></script>
 <script>
@@ -209,7 +209,7 @@
             .then(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Assignment deleted.', 'success'); return load(); })
             .catch(function (err) {
               b.disabled = false;
-              (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not delete: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not delete.'));
+              P.fail(err, 'Could not delete that.');
             });
         };
         if (window.MAM_DIALOG && window.MAM_DIALOG.confirm) window.MAM_DIALOG.confirm('Delete this assignment?', 'The student will no longer see it.', 'Delete').then(function (ok) { if (ok) go(); });
@@ -235,7 +235,7 @@
         return load();
       }).catch(function (err) {
         btn.disabled = false; btn.innerHTML = orig;
-        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not set: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not set.'));
+        P.fail(err, 'Could not save that.');
       });
     });
 
@@ -282,7 +282,7 @@
           + (s.artifact_url ? '<a href="' + P.escapeHtml(/^https?:\/\//i.test(s.artifact_url) ? s.artifact_url : '#') + '" target="_blank" rel="noopener" style="color:var(--gold-bright);font-size:0.85rem"><i class="fa-solid fa-' + (icon[s.artifact_kind] || 'link') + '" style="margin-right:5px"></i>open ↗</a>' : '') + '</div>'
           + ((s.artifact_kind === 'audio' && /\.(mp3|m4a|aac|wav|ogg|oga|flac|webm)(\?|#|$)/i.test(s.artifact_url || '')) ? '<div style="padding:0 18px"><div class="mp-host" data-subid="' + s.id + '" data-src="' + P.escapeHtml(s.artifact_url) + '"></div><ul class="mp-notes"></ul></div>' : '')
           + '<form class="fb-form profile-form" style="padding:14px 18px;display:grid;gap:10px">'
-          +   '<div class="field"><label>Feedback</label><textarea name="comments" rows="2" placeholder="What worked, what to fix…">' + P.escapeHtml(s.feedback_comments || '') + '</textarea></div>'
+          +   '<div class="field"><label>Feedback</label><textarea name="comments" rows="2" placeholder="What worked, what to fix…" aria-label="Feedback">' + P.escapeHtml(s.feedback_comments || '') + '</textarea></div>'
           +   '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><select name="outcome"><option value="accepted"' + (s.feedback_outcome === 'accepted' ? ' selected' : '') + '>Accept</option><option value="revise"' + (s.feedback_outcome === 'revise' ? ' selected' : '') + '>Revise &amp; resubmit</option><option value="remedial"' + (s.feedback_outcome === 'remedial' ? ' selected' : '') + '>Assign remedial</option><option value="rejected"' + (s.feedback_outcome === 'rejected' ? ' selected' : '') + '>Reject</option></select>'
           +   (aiEnabled ? '<button type="button" class="btn fb-ai"><i class="fa-solid fa-wand-magic-sparkles"></i> AI draft</button>' : '')
           +   '<button type="submit" class="btn btn-primary"><i class="fa-solid fa-comment-dots"></i> Save feedback</button></div>'
@@ -353,7 +353,14 @@
     notes.querySelectorAll('.mp-note-del').forEach(function (b) { b.addEventListener('click', function () { delMarker(subId, parseInt(b.getAttribute('data-id'), 10), ctrl, notes); }); });
   }
   function loadMarkers(subId, ctrl, notes) {
-    API.request('instructor/markers?submission_id=' + subId, { method: 'GET' }).then(function (r) { renderMarkerNotes(r.markers || [], ctrl, notes, subId); }).catch(function () {});
+    // A silent failure here reads as "this take has no notes", which is a
+    // different statement from "we could not fetch them" — and the instructor
+    // would go on to re-enter feedback that already exists.
+    API.request('instructor/markers?submission_id=' + subId, { method: 'GET' })
+      .then(function (r) { renderMarkerNotes(r.markers || [], ctrl, notes, subId); })
+      .catch(function () {
+        if (notes) notes.innerHTML = '<li style="color:var(--text-muted)">Could not load the notes on this take. Reload the page to try again.</li>';
+      });
   }
   function addMarker(subId, at, ctrl, notes) {
     var c = window.prompt('Comment at ' + mkTime(at) + ':');
@@ -364,7 +371,10 @@
   }
   function delMarker(subId, id, ctrl, notes) {
     API.request('instructor/markers', { method: 'POST', body: { action: 'delete', id: id } })
-      .then(function (r) { renderMarkerNotes(r.markers || [], ctrl, notes, subId); }).catch(function () {});
+      .then(function (r) { renderMarkerNotes(r.markers || [], ctrl, notes, subId); })
+      // addMarker() right above toasts when it fails; this one said nothing, so
+      // a delete that did not happen looked exactly like a delete that did.
+      .catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not delete that note — it is still there.', 'error'); });
   }
 
   // ── Gradebook (v16 LMS): weighted assessment entry → auto results ──────
@@ -395,7 +405,7 @@
         return '<option value="' + c.id + '"' + (c.id == sessState.cohortId ? ' selected' : '') + '>' + P.escapeHtml(label) + '</option>';
       }).join('');
       content.innerHTML = '<section class="panel"><div class="panel-head"><h2>Cohort</h2></div>'
-        + '<div style="padding:14px 18px"><select id="sessCohort" style="min-width:280px;padding:9px 11px;border-radius:8px">' + opts + '</select></div></section>'
+        + '<div style="padding:14px 18px"><select id="sessCohort" aria-label="Choose a cohort" style="min-width:280px;padding:9px 11px;border-radius:8px">' + opts + '</select></div></section>'
         + '<div id="sessArea"></div>';
       var sel = document.getElementById('sessCohort');
       sel.addEventListener('change', function () { sessState.cohortId = parseInt(sel.value, 10); loadCohortSessions(sessState.cohortId); });
@@ -506,18 +516,18 @@
         + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--gold-bright)"></i> Generate Term Sessions</h2></div>'
         + '<div class="profile-form" style="padding:14px 18px">'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
-        + '<div class="field"><label>From</label><input id="bsFrom" type="date"></div>'
-        + '<div class="field"><label>To</label><input id="bsTo" type="date"></div>'
-        + '<div class="field"><label>Time</label><input id="bsT" type="time" value="09:00"></div>'
-        + '<div class="field"><label>Duration (min)</label><input id="bsD" type="number" value="60" min="15" max="480"></div>'
+        + '<div class="field"><label>From</label><input id="bsFrom" type="date" aria-label="From"></div>'
+        + '<div class="field"><label>To</label><input id="bsTo" type="date" aria-label="To"></div>'
+        + '<div class="field"><label>Time</label><input id="bsT" type="time" value="09:00" aria-label="Time"></div>'
+        + '<div class="field"><label>Duration (min)</label><input id="bsD" type="number" value="60" min="15" max="480" aria-label="Duration (min)"></div>'
         + '</div>'
         + '<div class="field" style="margin-top:10px"><label>Days</label><div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">'
         + ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(function(d,i){ return '<label style="display:flex;align-items:center;gap:4px;font-size:.82rem"><input type="checkbox" class="bsDay" value="' + i + '"' + (i===1||i===3?' checked':'') + '>' + d + '</label>'; }).join('')
         + '</div></div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">'
-        + '<div class="field"><label>Title prefix</label><input id="bsPfx" placeholder="Week, Session…" value="Week"></div>'
-        + '<div class="field"><label>Room / location</label><input id="bsRoom" placeholder="Studio A…"></div>'
-        + '<div class="field"><label>Kind</label><select id="bsKnd"><option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option></select></div>'
+        + '<div class="field"><label>Title prefix</label><input id="bsPfx" placeholder="Week, Session…" value="Week" aria-label="Title prefix"></div>'
+        + '<div class="field"><label>Room / location</label><input id="bsRoom" placeholder="Studio A…" aria-label="Room / location"></div>'
+        + '<div class="field"><label>Kind</label><select id="bsKnd" aria-label="Kind"><option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option></select></div>'
         + '<div class="field"><label>Skip dates <span style="font-weight:400;color:var(--text-muted)">(Y-m-d, comma-sep)</span></label><input id="bsSkip" placeholder="2026-12-25"></div>'
         + '</div>'
         + '<div id="bsPreviewLine" style="font-size:.82rem;color:var(--text-muted);margin:10px 0"></div>'
@@ -528,11 +538,11 @@
         + '</div></div></section></div>'
         + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Schedule a single session</h2></div>'
         + '<form id="sessForm" class="profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
-        +   '<div class="field" style="flex:1;min-width:160px"><label>Title</label><input name="title" placeholder="e.g. Week 1 — Scales"></div>'
-        +   '<div class="field"><label>Date &amp; time</label><input name="scheduled_at" type="datetime-local"></div>'
-        +   '<div class="field" style="width:90px"><label>Minutes</label><input name="duration_min" type="number" min="1" value="60"></div>'
-        +   '<div class="field" style="width:80px"><label>Room</label><input name="room" placeholder="Studio A"></div>'
-        +   '<div class="field" style="width:120px"><label>Kind</label><select name="kind"><option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option></select></div>'
+        +   '<div class="field" style="flex:1;min-width:160px"><label>Title</label><input name="title" placeholder="e.g. Week 1 — Scales" aria-label="Title"></div>'
+        +   '<div class="field"><label>Date &amp; time</label><input name="scheduled_at" type="datetime-local" aria-label="Date and time"></div>'
+        +   '<div class="field" style="width:90px"><label>Minutes</label><input name="duration_min" type="number" min="1" value="60" aria-label="Minutes"></div>'
+        +   '<div class="field" style="width:80px"><label>Room</label><input name="room" placeholder="Studio A" aria-label="Room"></div>'
+        +   '<div class="field" style="width:120px"><label>Kind</label><select name="kind" aria-label="Kind"><option value="class">Class</option><option value="revision">Revision</option><option value="exam">Exam</option><option value="makeup">Make-up</option></select></div>'
         +   '<button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus"></i> Schedule</button>'
         + '</form></section>'
         + '<div id="markArea"></div>'
@@ -605,10 +615,10 @@
         + '<span style="font-size:0.8rem;color:var(--text-muted)">' + P.escapeHtml((r.cohort && r.cohort.course_name) || '') + (r.cohort && r.cohort.level_name ? ' · ' + P.escapeHtml(r.cohort.level_name) : '') + '</span></div>'
         + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Week</th><th>Kind</th><th>Focus</th></tr></thead><tbody>' + weekRows + '</tbody></table></div>'
         + '<form id="curPropose" class="profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;border-top:1px solid var(--border)">'
-        +   '<div class="field" style="width:74px"><label>Week</label><input name="week" type="number" min="1" max="20" required></div>'
-        +   '<div class="field" style="width:120px"><label>Kind</label><select name="kind"><option value="module">Module</option><option value="revision">Revision</option><option value="exam">Exam</option></select></div>'
-        +   '<div class="field" style="flex:1;min-width:150px"><label>Title</label><input name="title" placeholder="e.g. Week 3 — Sight-reading" required></div>'
-        +   '<div class="field" style="flex:2;min-width:200px"><label>Focus / content</label><input name="content" placeholder="What this week covers" maxlength="4000"></div>'
+        +   '<div class="field" style="width:74px"><label>Week</label><input name="week" type="number" min="1" max="20" required aria-label="Week"></div>'
+        +   '<div class="field" style="width:120px"><label>Kind</label><select name="kind" aria-label="Kind"><option value="module">Module</option><option value="revision">Revision</option><option value="exam">Exam</option></select></div>'
+        +   '<div class="field" style="flex:1;min-width:150px"><label>Title</label><input name="title" placeholder="e.g. Week 3 — Sight-reading" required aria-label="Title"></div>'
+        +   '<div class="field" style="flex:2;min-width:200px"><label>Focus / content</label><input name="content" placeholder="What this week covers" maxlength="4000" aria-label="Focus / content"></div>'
         +   '<button type="submit" class="btn btn-primary" style="padding:9px 14px"><i class="fa-solid fa-paper-plane"></i> Propose</button>'
         + '</form>'
         + (props.length ? '<div class="ptable-wrap" style="padding:0 12px 14px"><h3 style="margin:6px 8px;font-size:0.9rem">Your proposals</h3><table class="ptable"><thead><tr><th>Week</th><th>Title</th><th>Status</th></tr></thead><tbody>' + propRows + '</tbody></table></div>' : '')
@@ -762,7 +772,7 @@
           })
           .catch(function (err) {
             b.disabled = false; b.innerHTML = orig;
-            var msg = (err && err.body && err.body.error) ? err.body.error : 'Could not send reminder.';
+            var msg = P.errText(err, 'Could not send the reminder.');
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'error'); else alert(msg);
           });
       });
@@ -782,7 +792,7 @@
           })
           .catch(function (err) {
             b.disabled = false; b.innerHTML = orig;
-            var msg = (err && err.body && err.body.error) ? err.body.error : 'Could not clock in.';
+            var msg = P.errText(err, 'Could not clock in.');
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'error'); else alert(msg);
           });
       });
@@ -800,7 +810,7 @@
           })
           .catch(function (err) {
             b.disabled = false; b.innerHTML = orig;
-            var m = (err && err.body && err.body.error) ? err.body.error : 'Could not clock out.';
+            var m = P.errText(err, 'Could not clock out.');
             var msg = m === 'not_clocked_in' ? 'Clock in first before clocking out.' : m;
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'error'); else alert(msg);
           });
@@ -845,7 +855,7 @@
           })
           .catch(function (err) {
             b.disabled = false; b.innerHTML = orig;
-            var msg = (err && err.body && err.body.error) ? err.body.error : 'Could not save link.';
+            var msg = P.errText(err, 'Could not save the link.');
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast(msg, 'error'); else alert(msg);
           });
       });
@@ -1043,15 +1053,15 @@
         return '<div class="panel" data-tid="' + tb.id + '" style="margin-bottom:10px"><div class="panel-head" style="align-items:flex-start"><h2 style="font-size:.95rem;margin:0">' + P.escapeHtml(tb.student_name || 'Student') + ' <span style="color:var(--text-muted);font-weight:500">— ' + P.escapeHtml(tb.module_title || '') + ' · ' + P.escapeHtml(tb.cohort_title || '') + '</span></h2><span class="pill">' + P.escapeHtml(tb.kind) + '</span></div>'
           + '<div class="panel-body" style="display:grid;gap:10px">' + body + (evidence ? '<div>' + evidence + '</div>' : '')
           + '<form class="tb-review" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
-          + '<div class="field" style="width:160px"><label>Decision</label><select name="decision"><option value="ready">Ready for instruction</option><option value="clarify">Needs clarification</option><option value="more_prep">More preparation</option></select></div>'
+          + '<div class="field" style="width:160px"><label>Decision</label><select name="decision" aria-label="Decision"><option value="ready">Ready for instruction</option><option value="clarify">Needs clarification</option><option value="more_prep">More preparation</option></select></div>'
           + ['understanding', 'accuracy', 'vocabulary', 'explanation', 'application', 'confidence'].map(function (d) { return '<div class="field" style="width:104px"><label style="text-transform:capitalize">' + d + '</label><select name="' + d + '"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>'; }).join('')
-          + '<div class="field" style="flex:1;min-width:160px"><label>Feedback</label><input name="feedback" placeholder="Optional note to the student"></div>'
+          + '<div class="field" style="flex:1;min-width:160px"><label>Feedback</label><input name="feedback" placeholder="Optional note to the student" aria-label="Feedback"></div>'
           + '<button type="submit" class="btn btn-primary" style="padding:9px 14px">Record</button></form>'
           + '<form class="md-form" data-lesson="' + tb.lesson_id + '" data-student="' + tb.student_id + '" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-top:1px dashed var(--border);padding-top:10px;margin-top:4px">'
-          + '<div class="field" style="width:150px"><label>Module status</label><select name="status">' + MD_OPTS + '</select></div>'
-          + '<div class="field" style="width:96px"><label>Mastery %</label><input name="mastery" type="number" min="0" max="100"></div>'
+          + '<div class="field" style="width:150px"><label>Module status</label><select name="status" aria-label="Module status">' + MD_OPTS + '</select></div>'
+          + '<div class="field" style="width:96px"><label>Mastery %</label><input name="mastery" type="number" min="0" max="100" aria-label="Mastery %"></div>'
           + '<button type="submit" class="btn btn-ghost" style="padding:8px 12px">Save status</button>'
-          + '<div class="field" style="width:96px"><label>Carry → wk</label><input name="week" type="number" min="1" max="24"></div>'
+          + '<div class="field" style="width:96px"><label>Carry → wk</label><input name="week" type="number" min="1" max="24" aria-label="Carry over to week"></div>'
           + '<button type="button" class="md-cf btn btn-ghost" style="padding:8px 12px"><i class="fa-solid fa-forward"></i> Carry forward</button>'
           + '</form></div>';
       }).join('');
@@ -1065,7 +1075,7 @@
           ['understanding', 'accuracy', 'vocabulary', 'explanation', 'application', 'confidence'].forEach(function (d) { if (form[d] && form[d].value) { body[d] = parseInt(form[d].value, 10); } });
           API.request('instructor/preclass', { method: 'POST', body: body }).then(function () {
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Teach-back reviewed.', 'success'); renderPreclass();
-          }).catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var m = (err && err.body && err.body.error) || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not save: ' + m, 'error'); else alert('Could not save.'); });
+          }).catch(function (err) { btn.disabled = false; btn.innerHTML = orig; P.fail(err, 'Could not save that.'); });
         });
       });
       function mdPost(form, body, btn) {
@@ -1074,7 +1084,7 @@
         body.student_id = parseInt(form.getAttribute('data-student'), 10);
         API.request('instructor/module', { method: 'POST', body: body })
           .then(function () { btn.disabled = false; btn.innerHTML = orig; if (window.MAM_DIALOG) window.MAM_DIALOG.toast(body.action === 'carry_forward' ? 'Module carried forward.' : 'Module status saved.', 'success'); })
-          .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var m = (err && err.body && err.body.error) || 'try again'; if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update module: ' + m, 'error'); else alert('Could not update module.'); });
+          .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; P.fail(err, 'Could not update the module.'); });
       }
       content.querySelectorAll('.md-form').forEach(function (form) {
         form.addEventListener('submit', function (ev) {
@@ -1114,10 +1124,10 @@
         var opts = '<option value="">Choose a rubric…</option>' + rubrics.map(function (rb) { return '<option value="' + rb.id + '">' + P.escapeHtml(rb.title) + '</option>'; }).join('');
         return '<form class="gb-rubric-form" style="padding:14px 18px;border-top:1px solid var(--border);display:grid;gap:12px">'
           + '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
-          + '<div class="field" style="flex:1;min-width:180px"><label>Rubric</label><select name="rubric" class="rubric-select">' + opts + '</select></div>'
-          + '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type">' + typeOpts + '</select></div></div>'
+          + '<div class="field" style="flex:1;min-width:180px"><label>Rubric</label><select name="rubric" class="rubric-select" aria-label="Rubric">' + opts + '</select></div>'
+          + '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type" aria-label="Component">' + typeOpts + '</select></div></div>'
           + '<div class="rubric-grid"></div>'
-          + '<div class="field"><label>Feedback (optional)</label><input name="feedback" placeholder="A short note for the record"></div>'
+          + '<div class="field"><label>Feedback (optional)</label><input name="feedback" placeholder="A short note for the record" aria-label="Feedback (optional)"></div>'
           + '<div style="display:flex;gap:12px;align-items:center"><button type="submit" class="btn btn-primary" disabled><i class="fa-solid fa-wand-magic-sparkles"></i> Score with rubric</button>'
           + '<span class="rubric-total" style="font-weight:700;color:var(--text-muted)"></span></div></form>';
       }
@@ -1161,8 +1171,7 @@
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Rubric scored — ' + (r.computed ? r.computed.percent + '%' : 'done') + '.', 'success');
           }).catch(function (err) {
             submit.disabled = false; submit.innerHTML = orig;
-            var msg = (err && err.body && err.body.error) || 'try again';
-            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not score: ' + msg, 'error'); else alert('Could not score.');
+            if (window.MAM_DIALOG) P.fail(err, 'Could not score.'); else alert('Could not score.');
           });
         });
       }
@@ -1177,7 +1186,7 @@
         var host = document.getElementById('gbRubricNew'); if (!host) return;
         if (host.innerHTML) { host.innerHTML = ''; return; }
         host.innerHTML = '<form id="gbRubricCreate" style="padding:12px 22px 18px;display:grid;gap:10px;border-top:1px solid var(--border)">'
-          + '<div class="field"><label>Rubric title</label><input name="title" placeholder="e.g. Piano technique — Grade 2" required></div>'
+          + '<div class="field"><label>Rubric title</label><input name="title" placeholder="e.g. Piano technique — Grade 2" required aria-label="Rubric title"></div>'
           + '<div class="field"><label>Criteria — one per line: <code>Label | max points | weight</code></label>'
           + '<textarea name="criteria" rows="5" placeholder="Note accuracy | 10 | 1&#10;Rhythm &amp; timing | 10 | 1&#10;Expression | 10 | 0.5"></textarea></div>'
           + '<div><button type="submit" class="btn btn-primary" style="padding:8px 14px"><i class="fa-solid fa-plus"></i> Create rubric</button></div></form>';
@@ -1195,8 +1204,7 @@
             if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Rubric created.', 'success');
           }).catch(function (err) {
             btn.disabled = false; btn.innerHTML = orig;
-            var msg = (err && err.body && err.body.error) || 'try again';
-            if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not create: ' + msg, 'error'); else alert('Could not create rubric.');
+            if (window.MAM_DIALOG) P.fail(err, 'Could not create.'); else alert('Could not create rubric.');
           });
         });
       }
@@ -1222,6 +1230,7 @@
       }
 
       function buildCard(e) {
+        var who = P.escapeHtml(e.student_name || 'this student');
         return '<div class="panel" data-eid="' + e.id + '" style="margin-bottom:8px">'
           + '<div class="panel-head" style="align-items:flex-start;gap:10px">'
           + '<div style="flex:1;min-width:0"><h2 style="font-size:.97rem;margin:0">' + P.escapeHtml(e.student_name)
@@ -1230,12 +1239,18 @@
           + '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:2px"><span class="gb-result">' + gradePill(e) + '</span>'
           + '<button type="button" class="btn btn-ghost gb-rubric-btn" style="padding:4px 10px;font-size:.74rem"><i class="fa-solid fa-table-cells"></i> Rubric</button> '
           + '<button type="button" class="btn btn-ghost gb-marks-btn" style="padding:4px 10px;font-size:.74rem"><i class="fa-solid fa-list-ol"></i> Marks</button></span></div>'
+          /* Every card on this screen repeats the same four controls, so the
+             visible <label> above each one ("Score", "Week") is ambiguous
+             between students the moment there is more than one card — and it
+             labelled nothing at all, being a sibling with no `for`. The name
+             carries the student, because recording a mark against the wrong
+             child is the failure this screen has to prevent. */
           + '<form class="gb-form profile-form" style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">'
-          + '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type">' + typeOpts + '</select></div>'
-          + '<div class="field" style="width:84px"><label>Score</label><input name="score" type="number" min="0" step="0.5" required></div>'
-          + '<div class="field" style="width:74px"><label>Out of</label><input name="max" type="number" min="1" step="0.5" value="100"></div>'
-          + '<div class="field" style="width:70px"><label>Week</label><input name="week" type="number" min="1" max="12"></div>'
-          + '<button type="submit" class="btn btn-primary" style="padding:9px 14px"><i class="fa-solid fa-plus"></i> Record</button>'
+          + '<div class="field" style="flex:1;min-width:150px"><label>Component</label><select name="type" aria-label="Component for ' + who + '">' + typeOpts + '</select></div>'
+          + '<div class="field" style="width:84px"><label>Score</label><input name="score" type="number" min="0" step="0.5" required aria-label="Score for ' + who + '"></div>'
+          + '<div class="field" style="width:74px"><label>Out of</label><input name="max" type="number" min="1" step="0.5" value="100" aria-label="Score out of, for ' + who + '"></div>'
+          + '<div class="field" style="width:70px"><label>Week</label><input name="week" type="number" min="1" max="12" aria-label="Week for ' + who + '"></div>'
+          + '<button type="submit" class="btn btn-primary" style="padding:9px 14px" aria-label="Record mark for ' + who + '"><i class="fa-solid fa-plus"></i> Record</button>'
           + '</form>'
           + '<div class="gb-marks" hidden></div>'
           + '<div class="gb-rubric" hidden></div></div>';
@@ -1253,7 +1268,7 @@
         var headerHtml = '<section class="panel"><div class="panel-head"><h2>Gradebook</h2><span style="font-size:.8rem;color:var(--text-muted)">Pass mark ' + passmark + '%</span></div>'
           + '<div style="padding:10px 22px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
           + '<label style="margin:0;display:flex;align-items:center;gap:8px;font-weight:500"><i class="fa-solid fa-filter" style="color:var(--text-muted);font-size:.78rem"></i>'
-          + '<select id="gbCohortFilter" style="min-width:200px">' + filterOpts + '</select></label>'
+          + '<select id="gbCohortFilter" aria-label="Filter gradebook by cohort" style="min-width:200px">' + filterOpts + '</select></label>'
           + '<span style="font-size:.82rem;color:var(--text-muted)">' + visible.length + ' student' + (visible.length !== 1 ? 's' : '') + '</span>'
           + '<button type="button" id="gbNewRubricBtn" class="btn btn-ghost" style="margin-left:auto;padding:6px 12px;font-size:.78rem"><i class="fa-solid fa-table-cells"></i> New rubric</button>'
           + '</div><div id="gbRubricNew"></div></section>';
@@ -1290,8 +1305,7 @@
               if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Score recorded.', 'success');
             }).catch(function (err) {
               btn.disabled = false; btn.innerHTML = orig;
-              var msg = (err && err.body && err.body.error) || 'try again';
-              if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not record: ' + msg, 'error'); else alert('Could not record the score.');
+              if (window.MAM_DIALOG) P.fail(err, 'Could not record.'); else alert('Could not record the score.');
             });
           });
         });
@@ -1505,7 +1519,7 @@
         return load();
       }).catch(function (err) {
         btn.disabled = false; btn.innerHTML = orig;
-        (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Could not post: ' + ((err.body && err.body.error) || 'try again'), 'error') : alert('Could not post.'));
+        P.fail(err, 'Could not post that.');
       });
     });
     var resForm = document.getElementById('resForm');
@@ -1552,7 +1566,7 @@
       + '<section class="panel"><div class="panel-head"><h2>Public profile</h2></div><form class="profile-form" id="profileForm" style="padding:18px 22px">'
       +   '<div class="field"><label for="pf-name">Full name</label><input id="pf-name" value="' + P.escapeHtml(u.name || '') + '" required></div>'
       +   '<div class="field"><label for="pf-phone">Phone</label><input id="pf-phone" type="tel" value="' + P.escapeHtml(u.phone || '') + '"></div>'
-      +   '<div class="field"><label>Email</label><input value="' + P.escapeHtml(u.email || '') + '" disabled></div>'
+      +   '<div class="field"><label>Email</label><input value="' + P.escapeHtml(u.email || '') + '" disabled aria-label="Email"></div>'
       +   '<div class="field"><label for="pf-spec">Specialties</label><input id="pf-spec" placeholder="e.g. Piano, Theory, Choral" value="' + P.escapeHtml(pr.specialties || '') + '"></div>'
       +   '<div class="field"><label for="pf-years">Years of experience</label><input id="pf-years" type="number" min="0" max="80" value="' + P.escapeHtml(pr.years_experience == null ? '' : pr.years_experience) + '"></div>'
       +   '<div class="field"><label for="pf-bio">Bio</label><textarea id="pf-bio" rows="4" placeholder="A short bio shown on faculty listings.">' + P.escapeHtml(pr.bio || '') + '</textarea></div>'
@@ -1574,7 +1588,7 @@
         years_experience: document.getElementById('pf-years').value,
         bio: document.getElementById('pf-bio').value.trim()
       } }).then(function () { toast('Profile saved.', 'success'); return load(); })
-        .catch(function (err) { toast('Could not save: ' + ((err.body && err.body.error) || 'try again'), 'error'); });
+        .catch(function (err) { P.fail(err, 'Could not save that.'); });
     });
     document.getElementById('pwForm').addEventListener('submit', function (e) {
       e.preventDefault();
@@ -1913,7 +1927,7 @@
               (window.MAM_DIALOG ? window.MAM_DIALOG.toast(msg, 'success') : alert(msg));
               load();
             })
-            .catch(function (err) { b.disabled = false; b.innerHTML = orig; var msg = 'Could not save: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not save', msg, 'error') : alert(msg)); });
+            .catch(function (err) { b.disabled = false; b.innerHTML = orig; P.fail(err, 'Could not save that.'); });
         }
         var prompt = 'Mark EVERY active student in "' + className + '" as ' + defaultStatus.toUpperCase() + ' for ' + date + '? You can edit individual students after.';
         if (window.MAM_DIALOG && window.MAM_DIALOG.confirm) {
@@ -1972,7 +1986,7 @@
       btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving…';
       API.request('instructor/mark-attendance', { method: 'POST', body: payload })
         .then(function () { (window.MAM_DIALOG ? window.MAM_DIALOG.toast('Attendance saved', 'success') : alert('Attendance saved.')); load(); })
-        .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; var msg = 'Could not save: ' + (err.body && err.body.error || 'unknown'); (window.MAM_DIALOG ? window.MAM_DIALOG.alert('Could not save', msg, 'error') : alert(msg)); });
+        .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; P.fail(err, 'Could not save that.'); });
     });
   }
   function attendanceTable(att) {
@@ -2101,7 +2115,23 @@
   P.requireAuth(['instructor', 'admin']).then(function () {
     P.init(); bindTabLinks(); syncTabs = P.enhanceTabs({ onActivate: show }); return load();
   }).catch(function (e) {
-    if (e.message !== 'unauthenticated') content.innerHTML = empty('triangle-exclamation', 'Could not load your dashboard.');
+    if (e.message === 'unauthenticated') return;   // requireAuth already redirected
+    /* The user card sits in the sidebar and says "Loading…" until load()
+       mounts it — which never happens here. A permanent "Loading…" next to
+       "Could not load your dashboard" reads as a page still working on it, so
+       people wait instead of retrying. Resolve both, and offer the retry. */
+    var card = document.getElementById('userCard');
+    if (card) card.innerHTML = '<div class="portal-avatar">!</div><div><div class="portal-user-name">Not loaded</div>'
+      + '<div class="portal-user-role">instructor</div></div>';
+    content.removeAttribute('aria-busy');
+    content.innerHTML = empty('triangle-exclamation', P.errText(e, 'Could not load your dashboard.'))
+      + '<div style="text-align:center;margin-top:-8px;padding-bottom:22px">'
+      + '<button type="button" class="btn btn-primary" id="dashRetry">Try again</button></div>';
+    var rb = document.getElementById('dashRetry');
+    if (rb) rb.addEventListener('click', function () {
+      rb.disabled = true; rb.textContent = 'Loading…';
+      window.location.reload();
+    });
   });
 })();
 </script>

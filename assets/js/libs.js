@@ -163,6 +163,73 @@
     });
   }
 
+  /* ---- Self-hosted toast, for when SweetAlert2 does not arrive ----------
+     MEASURED: with the CDN blocked, MAM_DIALOG.toast() wrote to console.log
+     and nothing else. `alert` and `confirm` degrade to native dialogs, which
+     are at least visible; `toast` degraded to somewhere no user ever looks.
+     That mattered because toast IS the instructor portal's entire error
+     vocabulary — "Could not record: …", "Could not save attendance.",
+     "Could not update the mark." — so on any network that blocks the CDN
+     (ad-blocker, corporate proxy, a tightened CSP, a bad minute) an instructor
+     recording a mark saw the form reset and reasonably concluded it saved.
+     It had not.
+
+     This is deliberately dependency-free: styles injected once, no external
+     font or icon, so it cannot fail the same way the thing it replaces did. */
+  var TOAST_CSS_ID = 'mam-toast-css';
+  function toastStyles() {
+    if (document.getElementById(TOAST_CSS_ID)) return;
+    var el = document.createElement('style');
+    el.id = TOAST_CSS_ID;
+    el.textContent =
+      '#mam-toasts{position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;' +
+      'gap:8px;max-width:min(380px,calc(100vw - 32px));pointer-events:none}' +
+      '.mam-toast{pointer-events:auto;display:flex;align-items:flex-start;gap:10px;padding:12px 14px;' +
+      'border-radius:12px;font:500 0.88rem/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;' +
+      'background:#1A120B;color:#FBF7F3;border:1px solid #856520;box-shadow:0 10px 30px rgba(0,0,0,.45);' +
+      'animation:mam-toast-in .18s ease-out}' +
+      // Borders are the tone signal, so they clear WCAG 1.4.11's 3:1 against
+      // the panel they sit on — the same rule the apply banner follows.
+      '.mam-toast.err{border-color:#F43F5E;background:#2A1218;color:#FECDD3}' +
+      '.mam-toast.warn{border-color:#E8961F;background:#241A0E;color:#FDE7C7}' +
+      '.mam-toast.ok{border-color:#22C55E;background:#0F2116;color:#BBF7D0}' +
+      '.mam-toast-x{margin-left:auto;flex-shrink:0;background:none;border:0;color:inherit;opacity:.65;' +
+      'cursor:pointer;font-size:1.05rem;line-height:1;padding:2px 4px;min-width:24px;min-height:24px}' +
+      '.mam-toast-x:hover,.mam-toast-x:focus-visible{opacity:1}' +
+      '@keyframes mam-toast-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}' +
+      '@media (prefers-reduced-motion:reduce){.mam-toast{animation:none}}';
+    document.head.appendChild(el);
+  }
+  function fallbackToast(message, icon) {
+    try {
+      toastStyles();
+      var host = document.getElementById('mam-toasts');
+      if (!host) {
+        host = document.createElement('div');
+        host.id = 'mam-toasts';
+        document.body.appendChild(host);
+      }
+      var bad  = (icon === 'error' || icon === 'warning');
+      var t = document.createElement('div');
+      t.className = 'mam-toast ' + (icon === 'error' ? 'err' : icon === 'warning' ? 'warn' : 'ok');
+      // A failure INTERRUPTS; a success is announced politely.
+      t.setAttribute('role', bad ? 'alert' : 'status');
+      var txt = document.createElement('span');
+      txt.textContent = String(message == null ? '' : message);  // callers pass server text
+      var x = document.createElement('button');
+      x.type = 'button'; x.className = 'mam-toast-x'; x.setAttribute('aria-label', 'Dismiss'); x.textContent = '×';
+      var close = function () { if (t.parentNode) t.parentNode.removeChild(t); };
+      x.addEventListener('click', close);
+      t.appendChild(txt); t.appendChild(x);
+      host.appendChild(t);
+      // An error the reader misses is the whole problem, so it lingers longer
+      // than a confirmation and can always be dismissed by hand.
+      setTimeout(close, bad ? 9000 : 4000);
+    } catch (e) {
+      try { window.alert(message); } catch (e2) {}
+    }
+  }
+
   /* ---- MAM_DIALOG: branded confirm/alert/toast backed by SweetAlert2 ----
      Falls back to native confirm()/alert() if the library can't load, so
      the user is never stuck. Theme matches the site's gold-on-dark. */
@@ -196,7 +263,7 @@
         }, theme)).then(function (r) { return !!r.isConfirmed; });
       },
       toast: function (message, icon) {
-        if (!swal) { console.log('[toast]', message); return; }
+        if (!swal) { fallbackToast(message, icon); return; }
         swal.fire(merge({
           toast: true, position: 'top-end', timer: 3500, showConfirmButton: false,
           title: message, icon: icon || 'success'
