@@ -1,6 +1,6 @@
 # Handoff — forms, error paths, and the ETL
 
-**Branch:** `claude/repo-audit-index-nr17nr` · **Last commit at time of writing:** `3383d33`
+**Branch:** `claude/repo-audit-index-nr17nr` · **Last commit at time of writing:** `d4c8309`
 **Started from:** production at `f3ca21e`, schema v59.
 
 This is the working file for the current stream of work. `CLAUDE.md` holds the
@@ -20,8 +20,8 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | Admin usability ("impossible to use") | ✅ fixed and measured |
 | Enrolment completion chain | ✅ built and driven end to end |
 | Forms audit — 6 passes | ✅ complete; see `docs/forms-audit-2026-08-17.md` |
+| Auto-enrol on payment settlement | ✅ **shipped** — you said yes |
 | TanStack Table v8 | decided, **not implemented** |
-| Auto-enrol on payment settlement | **awaiting a decision from you** |
 
 ### The one thing that is genuinely blocked
 
@@ -31,6 +31,9 @@ next build, and all three of their old blockers are cleared:
 - base currency → **NGN** (your call, recorded)
 - courses/classes → **being recreated**, so they are not migrated
 - schema → reviewed by you
+
+And the one open policy question is now answered: **auto-enrol on payment
+settlement is on** (`payment_enrol`, default on, admin-toggleable).
 
 ---
 
@@ -154,6 +157,52 @@ Six audit passes, all measured in a real browser, all documented in
 
 ---
 
+## 4b. Auto-enrol on payment settlement (shipped)
+
+You said yes, so this is live. What it actually changed matters more than the
+headline, because settlement was *already* doing part of the job — badly.
+
+`mam_payment_settle_tuition()` called `mam_lms_add_course()` + `mam_lms_approve()`
+itself. Three gaps, each of which produced a **paid student nobody was teaching**:
+
+| Gap | Consequence |
+|---|---|
+| No **programme** passed | The cohort resolved on `(course, level, NULL)` while the admin screen resolves on `(course, level, programme)` — **the same applicant landed in a different class depending on which path settled them.** |
+| Instructor written to the **enrolment only** | `mam_lms_instructor_cohorts()` keys off either, so the roster appeared — but the class itself stayed teacher-less, and everyone enrolled on it afterwards inherited nothing. |
+| Waitlisted branch returns `id === null` | `(int)$row['id']` read it as 0 and quietly did nothing more. A paid applicant whose class was full got silence. |
+
+Settlement now delegates to **`mam_enrol_complete()`** — the same function the
+admin's "Complete enrolment" button runs. One implementation of
+account → course → cohort → instructor → application status, so the two paths
+cannot drift apart again.
+
+**The invariant to protect:** a settled payment must *never* fail because the
+placement could not be worked out. The money is taken and the account exists.
+Two real cases refuse placement, both correctly:
+
+- `discipline` holds instruments that are not courses — `violin` and `clarinet`
+  are both in the live data. Guessing a near-match would enrol someone in the
+  wrong subject.
+- An **erased** applicant must not be rebuilt and emailed a password.
+
+Both are logged and land in the admin backlog that already exists
+(`mam_enrol_incomplete()` → `?v=applications&f=incomplete`, and the
+"Needs your attention" queue). The application still reads `paid`, the account
+is still provisioned, and a human finishes the placement.
+
+Gated by a **new automation, `payment_enrol`** — deliberately separate from
+`payment_provision`. Giving someone a login and putting them in a class with a
+teacher are different decisions, and an academy mid-term, or one that places
+students after an Auditer assessment, needs the first without the second.
+
+Covered by `api/tests/test_payment_enrol.php`: the whole chain, idempotency on a
+retried webhook, the payment-never-fails rule, and the erasure guard.
+
+⚠️ **Never hardcode the automation count in a test** — derive it from
+`mam_automations_registry()`. Adding a rule has broken the suite twice that way.
+
+---
+
 ## 5. Where things live
 
 | What | Where |
@@ -183,11 +232,10 @@ request. It *is* in `api/tests/run.php`.
    reconcile by an independent path, the way the payment transform did — it
    matched the admin screen's NGN 405,034 by arithmetic that never touched the
    admin's own query, which is the only reason the figure is trustworthy.
-2. **Decide: auto-enrol on payment settlement.** Hooking `payments.php` into
-   `mam_enrol_complete()` would close the loop from "paid" to "in a class with
-   an instructor" without an admin touching it. It is a policy question, not a
-   technical one — **it needs your call**, because it changes who decides that a
-   student is enrolled.
+2. **Watch the first real settlement after deploy.** The auto-enrol path is
+   proven against fixtures; the live `discipline` column is the messy part, and
+   `auto_enroll_needs_admin` in the log is the signal to read. If that line is
+   common, the fix is a course-code alias map, not a fuzzier match.
 3. **TanStack Table v8** over the admin's server-rendered tables, as progressive
    enhancement. The pinned actions column and the stacked mobile layout are both
    load-bearing and must survive; that is why headless was the choice.
@@ -264,7 +312,10 @@ New test files added in this stream: `test_apply_form.php`,
 
 ## 9. Open questions for you
 
-1. **Auto-enrol on payment settlement** — yes or no? (§6.2)
+1. ~~**Auto-enrol on payment settlement**~~ — **answered: yes, shipped.** See §4b.
 2. **The student portal's gated forms** — worth a browser pass, or take the
    source-level fix as sufficient?
-3. The research you mentioned — send it and I will fold it in here.
+3. **Course-code aliases.** If `violin`/`clarinet` are meant to map onto real
+   courses, tell me which and I will add the map. Right now they correctly
+   refuse to guess and go to the admin backlog instead.
+4. The research you mentioned — send it and I will fold it in here.

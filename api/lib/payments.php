@@ -216,51 +216,66 @@ function mam_payment_settle_tuition(int $appId): ?string {
             try { mam_enrollment_ref_generate($studentId); } catch (\Throwable $e) { /* non-fatal */ }
         }
 
-        // Auto-enroll in the applied discipline's primary course and immediately
-        // activate it so the student appears in the instructor's gradebook.
-        // course_not_found (no matching course code) is silently skipped.
-        // already_enrolled finds the existing record and re-approves it so a
-        // retried payment doesn't leave the enrollment in limbo.
-        if ($studentId > 0 && !empty($app['discipline'])) {
-            $ceId = 0;
+        // Complete the enrolment — the WHOLE chain, not part of it.
+        //
+        // This used to call mam_lms_add_course() + mam_lms_approve() directly,
+        // which enrolled the student in a course and stopped. Three gaps, all of
+        // which showed up on the live data as a paid student nobody was
+        // teaching:
+        //
+        //   • No programme was passed, so the cohort resolved on
+        //     (course, level, NULL) while the admin's own "Complete enrolment"
+        //     screen resolves on (course, level, programme) — the same applicant
+        //     landed in a different class depending on which path settled them.
+        //   • The instructor was written to the ENROLMENT only.
+        //     mam_lms_instructor_cohorts() keys off cohort.instructor_id OR
+        //     enrolment.instructor_id, so the roster was visible, but the class
+        //     itself stayed teacher-less and every later student on it inherited
+        //     nothing.
+        //   • The waitlisted branch returns id === null. `(int)$ceRow['id']`
+        //     read that as 0 and quietly did nothing further — a paid applicant
+        //     whose class was full got silence.
+        //
+        // mam_enrol_complete() is the one implementation of account → course →
+        // cohort → instructor → application status, and it is the same code the
+        // admin screen runs, so both paths cannot drift apart again.
+        //
+        // Gated by its own automation: provisioning gives someone a login,
+        // enrolling puts them in a class, and an academy may want the first
+        // without the second.
+        if ($studentId > 0 && function_exists('mam_enrol_complete')
+            && (!function_exists('mam_automation_on') || mam_automation_on('payment_enrol'))) {
+            if (function_exists('mam_automation_touch')) mam_automation_touch('payment_enrol');
             try {
-                $ceRow = mam_lms_add_course($studentId, (string)$app['discipline'], $app['level'] ?? null);
-                $ceId  = (int)$ceRow['id'];
-                mam_audit('auto_enroll', 'course_enrollment', $studentId, [
-                    'course'  => $app['discipline'],
-                    'level'   => $app['level'] ?? null,
-                    'app_id'  => $appId,
-                ]);
-            } catch (RuntimeException $e) {
-                if ($e->getMessage() === 'already_enrolled') {
-                    // A previous payment attempt or manual enrol already created it.
-                    // Resolve LEVEL-AWARE: an unordered, level-blind lookup here
-                    // could return (and then activate) the enrolment for a
-                    // different level than the one just paid for.
-                    $existing = mam_lms_find_enrollment($studentId, (string)$app['discipline'], $app['level'] ?? null);
-                    $ceId = $existing ? (int)$existing['id'] : 0;
-                } else {
-                    mam_log('info', 'auto_enroll_skip', [
+                $done = mam_enrol_complete($appId, [], null);   // null actor: a system action, never 0 (FK)
+                if ($done['ok']) {
+                    mam_audit('auto_enroll', 'application', $appId, [
                         'student_id' => $studentId,
-                        'course'     => $app['discipline'],
-                        'reason'     => $e->getMessage(),
+                        'course'     => $done['plan']['course']['code'] ?? null,
+                        'cohort_id'  => $done['plan']['cohort']['id'] ?? null,
+                        'via'        => 'payment',
+                    ]);
+                } else {
+                    // NOT a payment failure, and never treated as one. The money
+                    // is taken, the account exists, and the application is
+                    // 'paid' — what could not be resolved automatically is
+                    // exactly what mam_enrol_incomplete() lists and the admin's
+                    // "Needs your attention" queue already surfaces, with the
+                    // one field in question asked rather than the whole record.
+                    // The live reasons are real: `discipline` holds instruments
+                    // that are not courses ("violin", "clarinet"), and an erased
+                    // applicant must never be rebuilt by an automatic path.
+                    mam_log('info', 'auto_enroll_needs_admin', [
+                        'app'      => $appId,
+                        'student_id' => $studentId,
+                        'reason'   => $done['error'],
+                        'blockers' => array_column($done['plan']['blockers'] ?? [], 'field'),
                     ]);
                 }
             } catch (\Throwable $e) {
-                mam_log('info', 'auto_enroll_skip', [
-                    'student_id' => $studentId,
-                    'course'     => $app['discipline'],
-                    'reason'     => $e->getMessage(),
-                ]);
-            }
-            if ($ceId > 0) {
-                // null instructor → system uses the remembered instructor for this
-                // course/level from instructor_assignments (set via curriculum workflow).
-                // null actor (not 0) → this is a system action; 0 is not a valid
-                // users(id) and would violate the enrolment_events FK, silently
-                // costing the pending→active row its lifecycle audit entry.
-                try { mam_lms_approve($ceId, null, null); }
-                catch (\Throwable $e) { mam_log('info', 'auto_enroll_approve_skip', ['ce_id' => $ceId, 'reason' => $e->getMessage()]); }
+                // Same rule: a settled payment must never fail because the
+                // placement could not be worked out.
+                mam_log('warn', 'auto_enroll_failed', ['app' => $appId, 'err' => $e->getMessage()]);
             }
         }
 

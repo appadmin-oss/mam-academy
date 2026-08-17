@@ -38,6 +38,19 @@ function mam_automations_registry(): array {
             'default' => true,
             'live'    => true,
         ],
+        /* Separate from payment_provision on purpose. Provisioning gives someone
+           a login; enrolling puts them in a class with a teacher. An academy
+           that wants to place students by hand — because a term is mid-flight,
+           or placement follows an Auditer assessment — needs to keep the login
+           and skip the placement, and that is one flag, not a code change. */
+        'payment_enrol' => [
+            'group' => 'Admissions & payments',
+            'trigger' => 'A tuition payment succeeds and the application is unambiguous',
+            'action'  => 'Complete the whole enrolment: course, class, instructor',
+            'icon'    => 'graduation-cap',
+            'default' => true,
+            'live'    => true,
+        ],
         'recital_programme' => [
             'group' => 'Academic',
             'trigger' => 'A recital programme is published',

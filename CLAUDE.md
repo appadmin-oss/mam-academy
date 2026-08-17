@@ -206,6 +206,26 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      and raises a `waitlist.promoted` notification + email via
      `mam_lms_notify_waitlist_promoted()`. That column shipped in v45 and nothing ever
      wrote it, so promotions were silent.
+   - **Payment settlement completes the WHOLE enrolment, via `mam_enrol_complete()`.**
+     `mam_payment_settle_tuition()` used to call `mam_lms_add_course()` +
+     `mam_lms_approve()` itself and stop. Three gaps, all of which produced a paid
+     student nobody was teaching: no **programme** was passed, so the cohort resolved
+     on `(course, level, NULL)` while the admin's "Complete enrolment" screen resolves
+     on `(course, level, programme)` — the same applicant landed in a *different* class
+     depending on which path settled them; the instructor was written to the
+     **enrolment only**, leaving the cohort teacher-less for everyone enrolled after;
+     and the waitlisted branch (`id === null`) read as 0 and silently did nothing.
+     There is now ONE implementation of account → course → cohort → instructor →
+     application status, shared by both paths, so they cannot drift apart again.
+     Gated by the **`payment_enrol`** automation, which is deliberately separate from
+     `payment_provision` — a login and a class placement are different decisions.
+     ⚠️ **A settled payment must NEVER fail because the placement could not be worked
+     out.** `discipline` holds instruments that are not courses (`violin`, `clarinet`),
+     and an erased applicant must not be rebuilt. Both are refused by
+     `mam_enrol_resolve()`, logged, and left to the admin backlog
+     (`mam_enrol_incomplete()` → `?v=applications&f=incomplete`) — the account is still
+     provisioned and the application is still marked paid. Covered by
+     `test_payment_enrol.php`.
    - **`mam_summer_accepting()` is the ONE summer-window predicate.** `/summer`, the
      `/apply` chooser, `config-public` and the `POST /api/summer/apply` guard all call it.
      They each used to decide independently and disagreed — the pages demanded BOTH window
@@ -566,10 +586,12 @@ the notation showcase.**
   dismiss) for Applications (`?app=`), Class (`?class=`), Module (`?module=`), Proposal
   (`?proposal=`). Bulk status actions on Applications (`app_bulk_status`). Reusable
   primitives: `.auto-switch` toggle, `.mam-drawer`, palette, `table.stack`.
-- ✅ **Lifecycle automations** — `api/lib/automations.php`: a registry of **8 rules**
-  (`payment_provision`, `enrol_welcome`, `payment_retry`, `auditer_placement`,
-  `session_reminder`, `week_drip`, `store_receipt`, `ktams_birthday`), each with a
-  persisted on/off flag (`automations` table, **schema v38**) honoured *at its trigger
+- ✅ **Lifecycle automations** — `api/lib/automations.php`: a registry of rules
+  (`payment_provision`, **`payment_enrol`**, `enrol_welcome`, `payment_retry`,
+  `auditer_placement`, `session_reminder`, `week_drip`, `store_receipt`,
+  `ktams_birthday`, …) — **never hardcode the count in a test; derive it from
+  `mam_automations_registry()`**, which is how adding a rule has broken the suite
+  twice. Each has a persisted on/off flag (`automations` table, **schema v38**) honoured *at its trigger
   point* — `mam_automation_on($key)` gates the behaviour in `payments.php` / `lms.php` /
   `auditer.php`, and `mam_automation_touch()` records run telemetry (last-run + count).
   Admin screen `?v=automations` (grouped cards, per-rule toggle + telemetry, "Run
