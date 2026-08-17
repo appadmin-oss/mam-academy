@@ -16,7 +16,8 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | Stream | Status |
 |---|---|
 | Schema v2 design + SQLite generator | ✅ built, reviewed, not loaded |
-| ETL — identity, payments, applications | ✅ transform proven; `load.php`/`verify.php` **not written** |
+| ETL — identity, payments, applications | ✅ transform proven |
+| **ETL load + verify** | ✅ **shipped** — run against the real snapshot: 16 of 16 checks pass |
 | Admin usability ("impossible to use") | ✅ fixed and measured |
 | Enrolment completion chain | ✅ built and driven end to end |
 | Forms audit — 6 passes | ✅ complete; see `docs/forms-audit-2026-08-17.md` |
@@ -34,15 +35,19 @@ of the `docs/*-audit-*.md` files and comes out of here.
 
 ### The one thing that is genuinely blocked
 
-Nothing is blocked on information any more. `load.php` and `verify.php` are the
-next build, and all three of their old blockers are cleared:
+Nothing. The ETL is complete end to end — export → transform → load → verify —
+and has been run against the real snapshot with all 16 checks passing (§4f).
 
-- base currency → **NGN** (your call, recorded)
-- courses/classes → **being recreated**, so they are not migrated
-- schema → reviewed by you
+What remains before a cutover is not code:
 
-And the one open policy question is now answered: **auto-enrol on payment
-settlement is on** (`payment_enrol`, default on, admin-toggleable).
+- **Recreate courses, classes and programmes** in the new install. They are
+  deliberately not migrated (reference data is re-seeded, never copied).
+- **Decide the cutover window** and re-export at that moment: the loaded
+  database is only as current as the snapshot it came from.
+- **Run the load against MySQL**, not just SQLite. `--dsn` is wired for it and
+  untested against a real MySQL 8 — the mirror is generated from the canonical
+  MySQL file, so the schema is right, but the load itself has only been exercised
+  on SQLite.
 
 ---
 
@@ -342,6 +347,66 @@ its clock badge, preview leaving the counts untouched, a shortened period
 refused with an explanation, and a recorded DPA closing Cloudflare's gap.
 `api/tests/test_dataprotection.php` — 130+ assertions.
 
+
+## 4f. The ETL load phase (shipped)
+
+`load.php` and `verify.php` were the last piece of the migration that did not
+exist. They do now, and both have been run against the **real production
+snapshot**, not just fixtures:
+
+```
+identity : 16 customers + 10 users → 21 people (5 merged, 2 erased, 0 without an address)
+people   : 21 created, 9 credentials carried
+apps     : 26 of 26 loaded, 0 rejected
+payments : 15 of 15 loaded, 0 rejected, 0 with no owner
+verify   : 16 of 16 checks passed
+```
+
+**The money reconciles, and the old figure is accounted for.** Total NGN
+515,998.00 across 15 payments, of which **NGN 405,034.00 is the
+`awaiting_transfer` bucket** — the exact figure the payment transform matched
+against the admin screen earlier in this stream. It lands intact; the remainder
+is NGN 104,046.00 still `pending` and NGN 6,918.00 `succeeded`.
+
+**Four properties, each because the obvious alternative is unrecoverable:**
+
+| Property | Why |
+|---|---|
+| Idempotent via `legacy_reference_map` | The first attempt at a real migration is never the last. A second run reports 0 created, 21/26/15 already present, and still verifies 16/16 |
+| One transaction for the whole load | A partial load looks populated and reconciles against nothing — worse than no load |
+| **Dry run is the default** | `--commit` has to be typed. The destructive direction is never what you get by forgetting a flag |
+| Verify reconciles by an **independent path** | A verifier built on the transform's own arithmetic agrees with a transform bug enthusiastically. `mam_v2_verify_minor()` parses the source strings by regex where `mam_v2_minor()` splits and pads, so the two disagree if either is wrong |
+
+The verifier is tested **by corrupting a good load** six ways — a deleted
+payment, a one-kobo edit, a dropped person, a tombstone regaining a password, a
+row that came from nowhere, and an empty target — because a verifier nobody has
+watched fail is not evidence of anything. Note that it catches **invented** data
+as well as missing data; that is the direction people forget to check.
+
+**Two bugs the real run found that the tests did not**, both worth remembering:
+
+1. **The dry run was writing.** Only the row loaders honoured `commit`; the seed
+   steps (tenant, centre, currencies) wrote unconditionally, and outside the
+   transaction, so they were not even rolled back. A dry run that writes anything
+   is not a dry run. Now pinned by six assertions.
+2. **"15 payments with no owner"** read as a catastrophic data finding and was an
+   artefact: on a dry run there are no membership ids yet, so judging ownership
+   by them condemned every row. The question that means something in both modes
+   is whether an owner could be resolved *at all*.
+
+**Decisions worth knowing:** password hashes ARE carried (bcrypt; forcing every
+family to reset on cutover day turns a migration into a support incident and
+trains people to click reset links in unexpected email) — but never for an
+erased person, because a tombstone that can log in is not a tombstone. v1
+timestamps are carried verbatim rather than converted, since no timezone is
+recorded on the rows and a wrong conversion is worse than an honest carry-over.
+A payment with no owner is still loaded — the money is real — and reported.
+
+⚠️ **`.invalid` is the tombstone marker.** Test fixtures for *live* people must
+not use it, or every fixture person reads as erased (this cost time). The load
+also mints `@migrated.invalid` for people with no address at all, which is why
+`erasure.live_invalid_addresses` pins that set to exactly the snapshot's blanks.
+
 ---
 
 ## 5. Where things live
@@ -356,6 +421,7 @@ refused with an explanation, and a recorded DPA closing Cloudflare's gap.
 | Identity resolution (21 people, 0 unaccounted, 2 tombstones) | `api/lib/v2/identity.php` |
 | Payment/application transform | `api/lib/v2/transform.php` |
 | The enrolment completion chain | `api/lib/enrol-complete.php` |
+| The ETL load + verify | `api/lib/v2/load.php`, `api/lib/v2/verify.php`, `api/tools/v2-load.php` |
 | Shared portal error translator (`P.errText` / `P.fail`) | `assets/js/portal.js` |
 | Self-hosted toast (the CDN-proof one) | `assets/js/libs.js` |
 | The academic calendar + refund authority | `api/lib/calendar.php`, admin `?v=calendar` |
