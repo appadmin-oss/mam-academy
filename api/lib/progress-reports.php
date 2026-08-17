@@ -207,9 +207,26 @@ function mam_progress_report_deadline_check(int $sessionId): array {
                     ]);
                     $fined++;
                     if (function_exists('mam_notify')) {
-                        mam_notify($instructorId, 'progress_report_fine',
-                            'Progress Report Overdue',
-                            'A progress report for session #' . $sessionId . ' was not submitted within 2 hours. A fine has been recorded.'
+                        /* This row is a ₦0 FLAG, not a fine — the amount is left
+                           for an admin to decide, and usually never set. Telling
+                           the instructor "a fine has been recorded" was therefore
+                           untrue at the moment it was sent, and it is the kind of
+                           untrue that costs trust: the recipient goes looking for
+                           a deduction that does not exist, or braces for one that
+                           may never come.
+
+                           It also collided with Labour Act s.5(1) in the worst
+                           way — announcing a wage fine the academy had not
+                           decided to levy and may not lawfully levy. Say exactly
+                           what happened: the report is overdue and that is on
+                           record. If an admin later attaches an amount, THAT is
+                           when money is in play, and that path notifies
+                           separately. */
+                        mam_notify($instructorId, 'progress_report_overdue',
+                            'Progress report overdue',
+                            'The progress report for session #' . $sessionId . ' was not submitted within the 2-hour window, '
+                            . 'so it has been recorded as overdue. No charge has been applied. '
+                            . 'Please submit it as soon as you can, or speak to the office if something prevented you.'
                         );
                     }
                 }

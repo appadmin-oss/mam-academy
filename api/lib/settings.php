@@ -189,8 +189,13 @@ function mam_settings_schema(): array {
         ['Check-in',                'program_total_weeks',         'Programme length for the check-in dashboard (fallback)', 12, 'weeks'],
         // Punctuality accountability (PDF §13-15). Off by default — turning it
         // on records (does not auto-charge) a fee on late check-ins.
-        ['Accountability',          'late_charge_enabled',         'Record a punctuality charge on late check-in (1=on, 0=off)', 0, ''],
+        ['Accountability',          'late_charge_enabled',         'Charge STUDENTS for late arrival (1=on, 0=off). Off = lateness is recorded, no money owed.', 0, ''],
         ['Accountability',          'late_charge_student_usd',     'Student late-arrival charge', 1, '$'],
+        // Separate from the student flag on purpose: a deduction from an
+        // instructor's pay is a wage deduction, and Nigeria's Labour Act s.5(1)
+        // restricts fines against wages. Leave off unless counsel has advised
+        // otherwise for your instructors' employment status.
+        ['Accountability',          'late_charge_instructor_enabled', 'Charge INSTRUCTORS for lateness (1=on, 0=off). Leave off without legal advice — see Labour Act s.5(1).', 0, ''],
         ['Accountability',          'late_charge_instructor_usd',  'Instructor lateness accountability amount', 2, '$'],
         // Academic email engine (PDF §28). Off by default — turning it on sends
         // pre-class/attendance/late/absence/weekly emails to students & parents.

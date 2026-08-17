@@ -283,6 +283,17 @@ function mam_record_certification(int $studentId): array {
         'ready'         => $ready,
         'note'          => $ready
             ? 'Module completion and mastery both meet the certification threshold.'
-            : 'Certification readiness needs 80% module completion and a Mastery Score of 60 or above.',
+            /* Three different reasons this can be "not yet", and naming the right
+               one saves an instructor going to look for the wrong thing. The
+               third is new: below its declared coverage floor the Mastery Score
+               is WITHHELD rather than reported, so there is no number to compare
+               against 60 — and certifying a student on a composite the system
+               itself will not publish would be exactly backwards. */
+            : ($mast !== null && ($mast['sufficient'] ?? true) === false
+                ? 'Not enough of the assessment has been covered yet to produce a Mastery Score ('
+                  . (int) round((float) ($mast['coverage_pct'] ?? 0)) . '% of '
+                  . (int) round((float) ($mast['min_coverage'] ?? 0)) . '% needed), so readiness cannot be judged. '
+                  . 'Score more of the student\'s work first.'
+                : 'Certification readiness needs 80% module completion and a Mastery Score of 60 or above.'),
     ];
 }

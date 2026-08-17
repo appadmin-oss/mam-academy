@@ -68,10 +68,40 @@ mam_lms2_lesson_progress_set($MS_lesson, $MS_stu, 80);
 // 13.3 a naive "divide by the full 100 weight" composite would have produced.
 $m1 = mam_mastery_score($MS_stu);
 t_near((float) mam_mastery_components($MS_stu)['preparation']['pct'], 80.0, 'the preparation component reports its own value');
-t_near((float) $m1['score'], 86.7, 'the score is the weighted mean of the components WITH evidence, not of all eleven');
-t_eq($m1['level'], 4, '86.7% is Advanced');
-t_ok($m1['provisional'] === true, 'a thin record is flagged provisional');
-t_ok($m1['coverage_pct'] < 50, 'because coverage is below half the total weight');
+
+/* The exclusion arithmetic is unchanged and still pinned — this is the behaviour
+   that stops an unassessed beginner reading as a failure. `raw_score` is the
+   renormalised mean over evidenced components only. */
+t_near((float) $m1['raw_score'], 86.7, 'the renormalised mean is over the components WITH evidence, not all eleven');
+
+/* What changed: at 15% coverage that mean is WITHHELD rather than published with
+   a caveat. The OECD/JRC Handbook's point is that renormalising changes what the
+   index means, so a 2-of-11 score is not comparable to an 11-of-11 one — and a
+   reader shown "86.7" anchors on it however much coverage is printed beside it.
+   "Insufficient evidence" is a different statement from a number, and the true
+   one here. */
+t_ok($m1['coverage_pct'] < MAM_MASTERY_MIN_COVERAGE, 'coverage is below the floor');
+t_ok($m1['score'] === null, '…so no composite is reported at all');
+t_ok($m1['sufficient'] === false, '…and the payload says why, as a flag callers can branch on');
+t_eq($m1['level'], 0, '…the level falls back to §23 level 0, "not assessed"');
+t_ok(strpos($m1['headline'], 'not enough evidence') !== false,
+    'the headline states the reason rather than leaving it to be inferred');
+t_ok(strpos($m1['headline'], '15%') !== false || strpos($m1['headline'], '% of the assessment') !== false,
+    '…and quantifies how much has been covered');
+
+// The subscores stay available throughout: per-component evidence is real even
+// when the composite is not.
+t_ok(count($m1['components']) > 0, 'components are still reported when the composite is withheld');
+
+// The arithmetic bounds the unscored weight permits — not a confidence interval,
+// which would need a sampling model this does not have.
+t_ok(is_array($m1['bounds']), 'the possible range is reported');
+t_ok($m1['bounds']['min'] < $m1['bounds']['max'], '…and it is a real range at partial coverage');
+t_ok($m1['bounds']['min'] >= 0 && $m1['bounds']['max'] <= 100, '…inside 0–100');
+// At 15% coverage and a raw 86.7, the evidenced share is ~13 points, so the
+// student's eventual score could be anything from ~13 to ~98. That width IS the
+// argument for withholding the composite.
+t_ok($m1['bounds']['max'] - $m1['bounds']['min'] > 50, 'a thin record has a very wide possible range');
 // Consistency also has evidence now (the module is a clean first attempt).
 $keys = array_column($m1['components'], 'key');
 t_ok(in_array('preparation', $keys, true), 'preparation is a reported component');
@@ -80,7 +110,7 @@ t_ok(!in_array('repertoire', $keys, true), 'repertoire has no evidence and is ex
 t_group('mastery — attendance stays out of the score (§24)');
 
 // Mark the student absent for several sessions. The score must not move.
-$scoreBefore = mam_mastery_score($MS_stu)['score'];
+$scoreBefore = mam_mastery_score($MS_stu)['raw_score'];
 $MS_sess = [];
 for ($i = 0; $i < 3; $i++) {
     $sid = mam_db_insert('class_sessions', [
@@ -92,7 +122,11 @@ for ($i = 0; $i < 3; $i++) {
     $MS_sess[] = $sid;
 }
 $m2 = mam_mastery_score($MS_stu);
-t_near((float) $m2['score'], (float) $scoreBefore, 'three absences do not change the Mastery Score');
+// Compare the RAW mean, not the reported score: at this coverage the reported
+// score is (correctly) withheld, and comparing two nulls would pass whatever
+// attendance did to the components.
+$rawBefore = $scoreBefore;
+t_near((float) $m2['raw_score'], (float) $rawBefore, 'three absences do not change the Mastery Score');
 t_eq($m2['attendance']['sessions'], 3, 'attendance is reported separately');
 t_near((float) $m2['attendance']['attendance_pct'], 0.0, 'and reports the real attendance rate');
 $ckeys = array_column($m2['components'], 'key');
@@ -134,4 +168,46 @@ t_ok((float) $comp2['rhythm_timing']['pct'] <= 100.0, 'an out-of-range score is 
 // With more components present the record is no longer provisional.
 $m3 = mam_mastery_score($MS_stu);
 t_ok($m3['coverage_pct'] > $m1['coverage_pct'], 'more evidence raises the disclosed coverage');
-t_ok($m3['score'] !== null && $m3['score'] >= 0 && $m3['score'] <= 100, 'the score stays inside 0–100');
+t_ok($m3['raw_score'] !== null && $m3['raw_score'] >= 0 && $m3['raw_score'] <= 100, 'the score stays inside 0–100');
+
+t_group('mastery — the composite appears once the evidence supports it');
+
+/* Enough components to clear the 40% floor. Built from real evidence rather than
+   by lowering the threshold, because a threshold that moves to fit the data is
+   not a threshold. */
+$MS_full = mam_db_insert('users', ['name' => 'MS Full', 'email' => 'ms_full@test.local', 'role' => 'student', 'password_hash' => '', 'status' => 'active']);
+mam_db_insert('course_enrollments', ['student_id' => $MS_full, 'course_id' => $MS_course, 'cohort_id' => $MS_coh, 'status' => 'active']);
+$MS_bigRubric = mam_lms2_rubric_create('MS Full Rubric', [
+    ['label' => 'Hand/Finger Technique', 'max_points' => 10, 'weight' => 1],   // technical_competence 15
+    ['label' => 'Note Accuracy',         'max_points' => 10, 'weight' => 1],   // musical_accuracy      10
+    ['label' => 'Rhythm & Timing',       'max_points' => 10, 'weight' => 1],   // rhythm_timing         10
+    ['label' => 'Musical Expression',    'max_points' => 10, 'weight' => 1],   // expression             8
+    ['label' => 'Performance Confidence','max_points' => 10, 'weight' => 1],   // performance           10
+], $MS_coh, $MS_ins);
+$MS_bigCrit = mam_db_all('SELECT id FROM rubric_criteria WHERE rubric_id = ? ORDER BY id', [$MS_bigRubric]);
+$MS_bigAssign = mam_db_insert('assignments', ['title' => 'MS Full Assignment', 'student_id' => $MS_full, 'author_id' => $MS_ins, 'status' => 'open']);
+$MS_bigSub = mam_db_insert('submissions', ['assignment_id' => $MS_bigAssign, 'student_id' => $MS_full, 'artifact_url' => 'https://example.test/f', 'status' => 'submitted']);
+mam_db_insert('submission_reviews', [
+    'submission_id' => $MS_bigSub, 'rubric_id' => $MS_bigRubric, 'reviewer_id' => $MS_ins,
+    'scores_json' => json_encode(array_fill_keys(array_map('intval', array_column($MS_bigCrit, 'id')), 8)),
+    'total_points' => 40, 'max_points' => 50,
+]);
+$mFull = mam_mastery_score($MS_full);
+t_ok($mFull['coverage_pct'] >= MAM_MASTERY_MIN_COVERAGE, 'coverage now clears the floor');
+t_ok($mFull['score'] !== null, '…so a composite IS reported');
+t_ok($mFull['sufficient'] === true, '…and marked sufficient');
+
+// Reported as a band, never a decimal: an 11-part weighted mean of subjective
+// rubric marks does not support one decimal place, and printing one invites a
+// parent to read a 2-point gap between two children as a real difference.
+t_ok(is_array($mFull['band']), 'the score is reported as a band');
+t_eq($mFull['band']['high'] - $mFull['band']['low'], MAM_MASTERY_BAND - 1, '…ten points wide');
+t_ok($mFull['band']['low'] <= $mFull['score'] && $mFull['score'] <= $mFull['band']['high'],
+    '…containing the score');
+t_ok(strpos($mFull['headline'], (string) $mFull['band']['label']) !== false,
+    'and the headline shows the band, not a decimal');
+t_ok(!preg_match('/\\d+\\.\\d/', $mFull['headline']), '…with no decimal anywhere in it');
+
+// The floor is a declared value judgement, not a derived fact — the Handbook's
+// central point. It must be stated in the payload so a consumer can show it.
+t_eq((float) $mFull['min_coverage'], MAM_MASTERY_MIN_COVERAGE, 'the floor travels with the payload');

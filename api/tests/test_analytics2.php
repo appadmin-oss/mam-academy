@@ -34,9 +34,54 @@ mam_db_insert('lesson_progress', ['lesson_id' => $AN_les, 'student_id' => $AN_s1
 $perf = mam_analytics2_instructor_performance();
 $mine = array_values(array_filter($perf, fn($r) => (int) $r['instructor_id'] === $AN_ins))[0];
 t_eq($mine['students'], 2, 'two students under the instructor');
-t_near((float) $mine['avg_mastery'], 60.0, 'avg mastery = (80+40)/2');
-t_eq($mine['completion_pct'], 50.0, 'completion = 1 pass of 2 graded');
 t_eq($mine['interventions'], 1, 'one student flagged for intervention');
+
+/* ── Comparing instructors on roster-sized samples ───────────────────────────
+   This table is value-added modelling. The ASA's 2014 statement puts the
+   teacher's share of variance in attainment at about 1–14%, and in Houston Fed.
+   of Teachers v. HISD (S.D. Tex. 2017) terminating teachers on such scores was
+   held to violate due process. The numbers are still useful — formatively — so
+   what was missing now travels with them: the sample size, a real interval, and
+   suppression when the roster cannot support a comparison at all. */
+t_eq($mine['graded_n'], 2, 'the number of graded results is disclosed');
+t_ok($mine['comparable'] === false, 'two results is below the comparison floor');
+t_ok($mine['avg_mastery'] === null, '…so the average is withheld, not shown with a caveat');
+t_ok($mine['completion_pct'] === null, '…and so is completion');
+t_near((float) $mine['avg_mastery_withheld'], 60.0,
+    'the computed figure is kept under a distinct key, so a deliberate caller can still see it');
+t_ok($mine['formative_only'] === true, 'the row declares itself formative');
+
+// Above the floor the figures appear — WITH their uncertainty. A suppression
+// rule that never lets anything through is not a threshold, it is a deletion.
+$AN_ins2 = mam_db_insert('users', ['name' => 'Analytics Ins2', 'email' => 'an_ins2@test.local', 'role' => 'instructor', 'password_hash' => 'x', 'status' => 'active']);
+$AN_coh2 = mam_db_insert('cohorts', ['course_id' => $AN_course, 'title' => 'AN Cohort2', 'status' => 'active', 'capacity' => 30, 'instructor_id' => $AN_ins2]);
+// Ten results spread 50..95, so the interval is a real width rather than zero.
+foreach ([50, 55, 60, 65, 70, 75, 80, 85, 90, 95] as $i => $sc) {
+    $sid = mam_db_insert('users', ['name' => 'AN B' . $i, 'email' => 'an_b' . $i . '@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+    $eid = mam_db_insert('course_enrollments', ['student_id' => $sid, 'course_id' => $AN_course, 'cohort_id' => $AN_coh2, 'instructor_id' => $AN_ins2, 'status' => 'active']);
+    mam_db_insert('results', ['enrollment_id' => $eid, 'total_score' => (float) $sc, 'grade' => 'B', 'outcome' => $sc >= 60 ? 'pass' : 'fail']);
+}
+$perf2 = mam_analytics2_instructor_performance();
+$big = array_values(array_filter($perf2, fn($r) => (int) $r['instructor_id'] === $AN_ins2))[0];
+t_eq($big['graded_n'], 10, 'ten graded results');
+t_ok($big['comparable'] === true, 'ten clears the floor');
+t_near((float) $big['avg_mastery'], 72.5, 'and the mean is reported');
+t_ok(is_array($big['confidence']), 'with a 95% interval on that mean');
+t_ok($big['confidence']['low'] < $big['avg_mastery'] && $big['avg_mastery'] < $big['confidence']['high'],
+    '…bracketing it');
+/* The width is the whole argument. sd of 50..95 in tens is ~15.1, so the SE is
+   ~4.8 and the half-width ~9.4 — meaning two instructors nine points apart are
+   statistically indistinguishable on ten students each. Anyone tempted to rank
+   this column should read that number first. */
+t_ok($big['confidence']['half_width'] > 5.0,
+    'and the interval is wide enough to show why ranking these means is unsound');
+t_ok($big['confidence']['low'] >= 0 && $big['confidence']['high'] <= 100, 'the interval is clamped to 0–100');
+
+// The caveat exists as a constant so the two surfaces that render this table
+// cannot drift into showing it without one.
+t_ok(strpos(MAM_ANALYTICS_INSTRUCTOR_NOTICE, 'must not be used for pay') !== false,
+    'the required notice says plainly what the table may not be used for');
+t_ok(MAM_ANALYTICS_MIN_ROSTER >= 5, 'the floor is a declared constant');
 
 t_group('analytics2 — today snapshot');
 

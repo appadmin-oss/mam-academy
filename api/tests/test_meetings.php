@@ -43,7 +43,34 @@ $e = $mkSess(-15 * 60);
 $ci = mam_meeting_clock_in($e['sess'], $e['ins']);
 t_eq($ci['status'], 'late', 'clocking in past the grace window is late');
 t_ok((int) $ci['minutes_late'] >= 10, 'minutes-late recorded');
-t_eq(mam_accountability_outstanding_cents('instructor', $e['ins']), 200, 'a late instructor is charged $2');
+/* This used to assert that a late instructor IS charged $2 — i.e. the test
+   encoded, and protected, a wage deduction.
+
+   Nigeria's Labour Act s.5(1) bars deductions from wages "for or in respect of
+   any fines" save for wilful-misconduct loss with an authorised labour officer's
+   prior written consent, and the National Industrial Court has struck down
+   unilateral deductions repeatedly. Whether it binds MAM's instructors depends
+   on their employment status (s.91) — a question for counsel — so the code takes
+   the safe default and the test now pins THAT: with the instructor gate closed
+   (its default) the lateness is recorded and no money is owed. */
+t_ok(!mam_accountability_charging_on('instructor'),
+    'the instructor charge gate is closed by default');
+t_eq(mam_accountability_outstanding_cents('instructor', $e['ins']), 0,
+    'a late instructor owes nothing while the gate is closed');
+$__lateRow = mam_db_row("SELECT status, amount_usd_cents FROM accountability_charges
+                          WHERE subject_type = 'instructor' AND subject_id = ? AND session_id = ?",
+    [$e['ins'], $e['sess']]);
+t_ok($__lateRow !== null, '…but the lateness IS on record');
+t_eq((string) $__lateRow['status'], MAM_ACCT_RECORDED, '…as `recorded`');
+
+/* And the gate genuinely works when an academy turns it on with legal advice —
+   a switch that does nothing is not a policy control. */
+mam_setting_set('late_charge_instructor_enabled', '1');
+$__onSess = $mkSess(-15 * 60);
+mam_meeting_clock_in($__onSess['sess'], $__onSess['ins']);
+t_eq(mam_accountability_outstanding_cents('instructor', $__onSess['ins']), 200,
+    'with the gate deliberately opened, the configured $2 applies');
+mam_setting_set('late_charge_instructor_enabled', '0');
 
 // Clock out.
 $co = mam_meeting_clock_out($e['sess'], $e['ins']);

@@ -3877,18 +3877,46 @@ nav a{display:flex;align-items:center}
   </div>
 
   <div class="card">
-    <h3 style="margin:0 0 10px">Instructor performance</h3>
+<?php
+/* One renderer for an instructor-comparison cell, used by BOTH surfaces that
+   show this table (?v=academic and ?v=upper). Below the comparison floor the
+   figure is withheld and the reason given; above it the 95% interval is shown
+   beside the mean, because a mean on a roster of twenty without its interval
+   invites exactly the ranking the research warns against. */
+if (!function_exists('mam_admin_instr_metric')) {
+    function mam_admin_instr_metric($value, array $row, bool $withCi = false): string {
+        if (!($row['comparable'] ?? true)) {
+            return '<span class="muted" title="Needs at least ' . (int) MAM_ANALYTICS_MIN_ROSTER
+                 . ' graded results before an average can be compared fairly">not enough results ('
+                 . (int) ($row['graded_n'] ?? 0) . ')</span>';
+        }
+        if ($value === null) return '<span class="muted">—</span>';
+        $out = htmlspecialchars((string) $value) . '%';
+        $ci = $row['confidence'] ?? null;
+        if ($withCi && is_array($ci)) {
+            $out .= ' <span class="muted" style="font-size:.78rem;white-space:nowrap">±'
+                  . htmlspecialchars((string) $ci['half_width']) . '</span>';
+        }
+        return $out;
+    }
+}
+?>
+    <h3 style="margin:0 0 6px">Instructor performance</h3>
+    <p class="muted" style="margin:0 0 10px;font-size:.78rem;border-left:3px solid var(--gold);padding-left:10px">
+      <?= htmlspecialchars(MAM_ANALYTICS_INSTRUCTOR_NOTICE) ?>
+    </p>
     <?php if (!$ip): ?><p class="muted">No instructor results yet.</p><?php else: ?>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
       <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
-        <th style="padding:8px">Instructor</th><th style="padding:8px">Students</th><th style="padding:8px">Avg mastery</th><th style="padding:8px">Completion</th><th style="padding:8px">Interventions</th></tr></thead>
+        <th style="padding:8px">Instructor</th><th style="padding:8px">Students</th><th style="padding:8px">Graded</th><th style="padding:8px">Avg mastery <span style="font-weight:400;text-transform:none">(95% CI)</span></th><th style="padding:8px">Completion</th><th style="padding:8px">Interventions</th></tr></thead>
       <tbody>
       <?php foreach ($ip as $row): ?>
         <tr style="border-top:1px solid var(--border)">
           <td style="padding:8px"><strong><?= htmlspecialchars((string)($row['instructor_name'] ?? '—')) ?></strong></td>
           <td style="padding:8px"><?= (int)$row['students'] ?></td>
-          <td style="padding:8px"><?= $row['avg_mastery'] === null ? '—' : $row['avg_mastery'] . '%' ?></td>
-          <td style="padding:8px"><?= $row['completion_pct'] === null ? '—' : $row['completion_pct'] . '%' ?></td>
+          <td style="padding:8px"><?= (int)($row['graded_n'] ?? 0) ?></td>
+          <td style="padding:8px"><?= mam_admin_instr_metric($row['avg_mastery'], $row, true) ?></td>
+          <td style="padding:8px"><?= mam_admin_instr_metric($row['completion_pct'], $row) ?></td>
           <td style="padding:8px"><?= (int)$row['interventions'] > 0 ? '<span class="pill" style="background:rgba(248,113,113,.16);color:#F87171">' . (int)$row['interventions'] . '</span>' : '0' ?></td>
         </tr>
       <?php endforeach; ?>
@@ -3990,17 +4018,22 @@ nav a{display:flex;align-items:center}
   <?php if ($uDash['instructors']): ?>
   <div class="card">
     <h3 style="margin:0 0 4px">Instructor performance</h3>
-    <p class="muted" style="margin:0 0 10px;font-size:.8rem">§35 — across the whole academy, regardless of the scope above. Use it to spot training needs and to see which cohorts are carrying more intervention than their peers.</p>
+    <p class="muted" style="margin:0 0 6px;font-size:.8rem">§35 — across the whole academy, regardless of the scope above. Use it to spot training needs and to see which cohorts are carrying more intervention than their peers.</p>
+    <p class="muted" style="margin:0 0 10px;font-size:.78rem;border-left:3px solid var(--gold);padding-left:10px">
+      <?= htmlspecialchars(MAM_ANALYTICS_INSTRUCTOR_NOTICE) ?>
+    </p>
+
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
       <thead><tr style="text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">
-        <th style="padding:8px">Instructor</th><th style="padding:8px">Students</th><th style="padding:8px">Avg mastery</th><th style="padding:8px">Completion</th><th style="padding:8px">Interventions</th></tr></thead>
+        <th style="padding:8px">Instructor</th><th style="padding:8px">Students</th><th style="padding:8px">Graded</th><th style="padding:8px">Avg mastery <span style="font-weight:400;text-transform:none">(95% CI)</span></th><th style="padding:8px">Completion</th><th style="padding:8px">Interventions</th></tr></thead>
       <tbody>
       <?php foreach ($uDash['instructors'] as $ip): ?>
         <tr style="border-top:1px solid var(--border)">
           <td style="padding:8px"><strong><?= htmlspecialchars((string)($ip['instructor_name'] ?? '—')) ?></strong></td>
           <td style="padding:8px"><?= (int)$ip['students'] ?></td>
-          <td style="padding:8px"><?= $ip['avg_mastery'] === null ? '<span class="muted">—</span>' : htmlspecialchars((string)$ip['avg_mastery']) ?></td>
-          <td style="padding:8px"><?= $uPct($ip['completion_pct']) ?></td>
+          <td style="padding:8px"><?= (int)($ip['graded_n'] ?? 0) ?></td>
+          <td style="padding:8px"><?= mam_admin_instr_metric($ip['avg_mastery'], $ip, true) ?></td>
+          <td style="padding:8px"><?= mam_admin_instr_metric($ip['completion_pct'], $ip) ?></td>
           <td style="padding:8px;color:<?= (int)$ip['interventions'] > 0 ? 'var(--red)' : 'inherit' ?>"><?= (int)$ip['interventions'] ?></td>
         </tr>
       <?php endforeach; ?>

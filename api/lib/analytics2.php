@@ -9,6 +9,30 @@
  */
 declare(strict_types=1);
 
+/**
+ * The smallest number of GRADED results an instructor must have before their
+ * attainment figures are shown comparatively at all.
+ *
+ * A value judgement, declared as one. Eight is not a statistical threshold —
+ * no honest one exists here — it is the point below which the 95% interval on a
+ * mean of rubric scores is so wide that showing the mean invites a false
+ * comparison. Below it the figures are withheld and the roster size is shown
+ * instead, which is the true statement about what we know.
+ */
+const MAM_ANALYTICS_MIN_ROSTER = 8;
+
+/**
+ * The sentence that must accompany any instructor comparison, wherever it is
+ * rendered. It exists as a constant so the two surfaces that show this table
+ * cannot drift into showing it without the caveat.
+ */
+const MAM_ANALYTICS_INSTRUCTOR_NOTICE =
+    'Formative only — for spotting where support or training would help. '
+  . 'These figures must not be used for pay, ranking or disciplinary decisions: '
+  . 'on rosters this size the uncertainty on each average is wider than the '
+  . 'differences between instructors, and attainment reflects the students and '
+  . 'the timetable at least as much as the teaching.';
+
 /** SUM/AVG/COUNT scalar that degrades to a default on any error. */
 function mam_analytics2_scalar(string $sql, array $args = [], float $default = 0.0): float {
     try { $v = mam_db_row($sql, $args); return $v ? (float) array_values($v)[0] : $default; }
@@ -210,6 +234,10 @@ function mam_analytics2_instructor_performance(): array {
             "SELECT co.instructor_id AS instructor_id, u.name AS instructor_name,
                     COUNT(DISTINCT ce.student_id) AS students,
                     AVG(r.total_score) AS avg_mastery,
+                    -- E[x²], so the variance (and hence the standard error of the
+                    -- mean) can be computed without a second pass. Both SQLite
+                    -- and MySQL evaluate this identically.
+                    AVG(r.total_score * r.total_score) AS avg_sq,
                     SUM(CASE WHEN r.outcome = 'pass' THEN 1 ELSE 0 END) AS passed,
                     SUM(CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END) AS graded
                FROM cohorts co
@@ -218,6 +246,10 @@ function mam_analytics2_instructor_performance(): array {
                LEFT JOIN results r ON r.enrollment_id = ce.id
               WHERE co.instructor_id IS NOT NULL
               GROUP BY co.instructor_id, u.name
+              -- Ordered by NAME, never by a metric. A table sorted by score is a
+              -- ranking whatever the heading says, and ranking instructors on
+              -- roster-sized samples is the practice that lost in Houston Fed. of
+              -- Teachers v. HISD. Do not 'improve' this to ORDER BY avg_mastery.
               ORDER BY u.name"
         );
     } catch (\Throwable $e) { return []; }
@@ -226,6 +258,52 @@ function mam_analytics2_instructor_performance(): array {
         $r['avg_mastery']  = $r['avg_mastery'] !== null ? round((float) $r['avg_mastery'], 1) : null;
         $r['completion_pct'] = $graded > 0 ? round((int) $r['passed'] / $graded * 100, 1) : null;
         $r['students']     = (int) $r['students'];
+
+        /* ── Uncertainty, and the honesty that comes with it ─────────────────
+           Comparing instructors on the mean attainment of ~20 students is
+           value-added modelling. The American Statistical Association's 2014
+           statement found teachers account for about 1–14% of the variability in
+           test scores, most of the remainder being system-level; the AERA 2015
+           statement warned against high-stakes use; and in Houston Federation of
+           Teachers v. HISD (S.D. Tex. 2017) terminating teachers on opaque
+           value-added scores was held to violate due process, a practice the
+           district abandoned in settlement.
+
+           None of that makes the numbers useless — it makes them formative. So
+           they stay, and what was missing arrives with them: the sample size,
+           a 95% interval on the mean, and suppression when the roster is too
+           small for the comparison to mean anything.
+
+           The interval is a genuine standard error of the mean
+           (sd/√n, ±1.96), computed from E[x²] − E[x]². At n=8 on typical
+           spreads it comes out ±10 points or worse, which is the argument: two
+           instructors "five points apart" are indistinguishable. */
+        $n = $graded;
+        $ci = null;
+        if ($n >= 2 && $r['avg_mastery'] !== null && $r['avg_sq'] !== null) {
+            $mean = (float) $r['avg_mastery'];
+            $var  = max(0.0, (float) $r['avg_sq'] - $mean * $mean);
+            // Sample sd from the population sd (Bessel), then the SE of the mean.
+            $sd   = sqrt($var * ($n / max(1, $n - 1)));
+            $se   = $sd / sqrt($n);
+            $half = round(1.96 * $se, 1);
+            $ci = ['half_width' => $half,
+                   'low'  => round(max(0.0, $mean - $half), 1),
+                   'high' => round(min(100.0, $mean + $half), 1)];
+        }
+        $r['graded_n']   = $n;
+        $r['confidence'] = $ci;
+        /* Below the floor the comparative figures are withheld outright rather
+           than shown with a caveat, for the same reason the Mastery Score
+           withholds a thin composite: a number on screen gets compared. */
+        $r['comparable'] = $n >= MAM_ANALYTICS_MIN_ROSTER;
+        if (!$r['comparable']) {
+            $r['avg_mastery_withheld'] = $r['avg_mastery'];
+            $r['completion_withheld']  = $r['completion_pct'];
+            $r['avg_mastery']   = null;
+            $r['completion_pct'] = null;
+        }
+        $r['formative_only'] = true;   // see MAM_ANALYTICS_INSTRUCTOR_NOTICE
         $r['interventions'] = (int) mam_analytics2_scalar(
             "SELECT COUNT(DISTINCT lp.student_id) FROM lesson_progress lp
                JOIN lessons l ON l.id = lp.lesson_id
@@ -233,7 +311,7 @@ function mam_analytics2_instructor_performance(): array {
                 AND (lp.status IN ('remedial','carried_forward') OR lp.attempts >= 2)",
             [(int) $r['instructor_id']]
         );
-        unset($r['passed'], $r['graded']);
+        unset($r['passed'], $r['graded'], $r['avg_sq']);
     }
     unset($r);
     return $rows;

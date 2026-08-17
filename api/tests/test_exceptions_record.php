@@ -7,7 +7,18 @@ declare(strict_types=1);
 
 t_group('accountability — the §37 status vocabulary');
 
-t_eq(count(MAM_ACCT_STATUSES), 6, '§37 lists six ledger statuses');
+// Was a hardcoded 6. A literal count breaks the moment a status is added and
+// says nothing about what the set MEANS — the same lesson the automations
+// registry taught twice. Assert the semantics instead.
+foreach (['pending', 'outstanding', 'paid', 'waived', 'disputed', 'reversed'] as $__st) {
+    t_ok(in_array($__st, MAM_ACCT_STATUSES, true), "§37 status `$__st` exists");
+}
+t_ok(in_array(MAM_ACCT_RECORDED, MAM_ACCT_STATUSES, true),
+    '`recorded` joins them — a lateness logged with no money owed');
+t_eq(array_values(array_intersect(MAM_ACCT_OWED, MAM_ACCT_STATUSES)), MAM_ACCT_OWED,
+    'every owed status is a real status');
+t_ok(!in_array(MAM_ACCT_RECORDED, MAM_ACCT_OWED, true),
+    '…and `recorded` is never owed, so a no-charge record cannot become a debt');
 foreach (['pending', 'outstanding', 'paid', 'waived', 'disputed', 'reversed'] as $s) {
     t_ok(in_array($s, MAM_ACCT_STATUSES, true), "'$s' is a ledger status");
 }
@@ -25,6 +36,7 @@ mam_db_insert('course_enrollments', ['student_id' => $EX_stu, 'course_id' => $EX
 $EX_s1 = mam_db_insert('class_sessions', ['cohort_id' => $EX_coh, 'title' => 'EX S1', 'scheduled_at' => '2026-09-02 10:00:00', 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
 $EX_s2 = mam_db_insert('class_sessions', ['cohort_id' => $EX_coh, 'title' => 'EX S2', 'scheduled_at' => '2026-09-03 10:00:00', 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
 
+mam_setting_set('late_charge_enabled', '1');   // the gate is closed by default
 $c1 = mam_accountability_charge('student', $EX_stu, $EX_s1, 'late_arrival', 7);
 t_eq(mam_accountability_outstanding_cents('student', $EX_stu), 100, 'the charge is owed to begin with');
 

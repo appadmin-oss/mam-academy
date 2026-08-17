@@ -18,8 +18,22 @@
  *     in week two has not been assessed on repertoire; scoring that as 0 would
  *     report a beginner as failing. Weights are renormalised across the
  *     components that actually have evidence, and `coverage` discloses how much
- *     of the full weight that was — a score built on 20% coverage is reported as
- *     provisional rather than presented as equivalent to a complete one.
+ *     of the full weight that was.
+ *
+ *     ⚠️ **Exclusion is right; renormalising SILENTLY is not.** The OECD/JRC
+ *     Handbook on Constructing Composite Indicators is explicit that
+ *     renormalising weights changes what the index means, so a score built on
+ *     3 of 11 components is not comparable to one built on 11 — and under linear
+ *     aggregation a high component can mask a missing one, because compensability
+ *     is constant. Disclosing `coverage` beside the number was not enough on its
+ *     own: a reader sees "73.4" and anchors on it.
+ *
+ *     So the composite is now WITHHELD entirely below MAM_MASTERY_MIN_COVERAGE
+ *     (an "insufficient evidence" state, not a number with a caveat), reported
+ *     as a BAND rather than a false-precise decimal, and carries the arithmetic
+ *     bounds the unscored weight actually permits. Subscores remain available
+ *     throughout, because per-component evidence is real even when the composite
+ *     is not.
  *
  *  3. **Rubric criteria are mapped to components by their LABEL**, because §21
  *     lets administrators author rubrics per instrument and there is no fixed
@@ -28,6 +42,33 @@
  *     being discarded — evidence is never silently dropped.
  */
 declare(strict_types=1);
+
+/**
+ * The minimum share of total weight that must carry evidence before a composite
+ * is reported at all. Below it the student gets "insufficient evidence" — level
+ * 0, §23's own honest answer — and their subscores.
+ *
+ * This is a VALUE JUDGEMENT, stated as one, exactly like the weights below. It
+ * is not derived from the data and no threshold could be: the OECD/JRC Handbook's
+ * point is that the choice is the analyst's and must be declared. 40 means a
+ * composite needs roughly four of the eleven components — enough that the number
+ * describes a musician rather than a fragment of one.
+ *
+ * A constant, not a setting, for the same reason the weights are: an academy that
+ * quietly lowered it would make two students' scores incomparable with nothing on
+ * screen to say so.
+ */
+const MAM_MASTERY_MIN_COVERAGE = 40.0;
+
+/**
+ * Coverage at or above this is a complete-enough picture to report without a
+ * provisional marker. Between MIN and this, the score shows with the marker.
+ */
+const MAM_MASTERY_FULL_COVERAGE = 75.0;
+
+/** Reported band width. A composite from an 11-part weighted mean of subjective
+ *  rubric marks does not support one-decimal precision; ten-point bands do. */
+const MAM_MASTERY_BAND = 10;
 
 /** §23's six-level competency scale. Index IS the level. */
 const MAM_MASTERY_LEVELS = [
@@ -242,9 +283,46 @@ function mam_mastery_score(int $studentId): array {
     $fullWeight = array_sum(array_column(MAM_MASTERY_COMPONENTS, 'weight'));
     $coverage   = $fullWeight > 0 ? round($totalWeight / $fullWeight * 100, 1) : 0.0;
 
-    $score = $totalWeight > 0 ? round($sum / $totalWeight, 1) : null;
+    /* The renormalised weighted mean over evidenced components. Kept, because
+       excluding an unassessed component is correct. What changes is whether we
+       are willing to REPORT it, and how. */
+    $raw = $totalWeight > 0 ? round($sum / $totalWeight, 1) : null;
+
+    /* Below the coverage floor there is no composite — not a composite with a
+       warning. "Insufficient evidence" is a different statement from a number,
+       and it is the true one. §23's level 0 exists to say exactly this. */
+    $sufficient = $raw !== null && $coverage >= MAM_MASTERY_MIN_COVERAGE;
+    $score = $sufficient ? $raw : null;
     $level = $score === null ? 0 : mam_mastery_level_from_pct($score);
     $meta  = mam_mastery_level($level);
+
+    /* What the unscored weight could still do to this number.
+       Not a confidence interval — there is no sampling model here and inventing
+       one would be worse than saying nothing. These are the ARITHMETIC bounds:
+       the floor is this student's score if every unevidenced component came in at
+       zero, the ceiling if every one came in at full marks. At complete coverage
+       they collapse onto the score. At 30% coverage a "80" is anything from 24 to
+       94, which is the honest reason a thin score cannot be compared with a
+       complete one — and it is checkable arithmetic a parent can follow. */
+    $bounds = null;
+    if ($raw !== null) {
+        $earnedShare = $raw * $coverage / 100;          // points actually evidenced
+        $bounds = [
+            'min' => round($earnedShare, 1),
+            'max' => round($earnedShare + (100 - $coverage), 1),
+        ];
+    }
+
+    /* A band, not a decimal. Ten points wide, floored — 73.4 reports as "70–79".
+       An 11-component weighted mean of subjective rubric marks cannot support one
+       decimal place, and printing one invites a parent to read a 2-point gap
+       between two children as a real difference. */
+    $band = null;
+    if ($score !== null) {
+        $lo = (int) (floor($score / MAM_MASTERY_BAND) * MAM_MASTERY_BAND);
+        $band = ['low' => $lo, 'high' => min(100, $lo + MAM_MASTERY_BAND - 1),
+                 'label' => $lo . '–' . min(100, $lo + MAM_MASTERY_BAND - 1)];
+    }
 
     // Attendance + punctuality — reported beside the score, never inside it.
     $att = mam_db_row(
@@ -263,11 +341,28 @@ function mam_mastery_score(int $studentId): array {
         'level_key'   => $meta['key'],
         'level_label' => $meta['label'],
         'level_blurb' => $meta['blurb'],
+        /* The headline is what a parent or child actually reads, so it must never
+           imply a precision or a completeness the evidence does not carry. */
         'headline'    => $score === null
-            ? 'MAM Mastery Score: not yet assessed'
-            : 'MAM Mastery Score: ' . (int) round($score) . '/100 — ' . strtoupper($meta['label']),
+            ? ($raw === null
+                ? 'MAM Mastery Score: not yet assessed'
+                // Withheld, and the reason said plainly rather than left to be
+                // inferred from a coverage figure elsewhere on the page.
+                : 'MAM Mastery Score: not enough evidence yet ('
+                  . (int) round($coverage) . '% of the assessment covered)')
+            : 'MAM Mastery Score: ' . $band['label'] . ' — ' . strtoupper($meta['label'])
+              . ($coverage < MAM_MASTERY_FULL_COVERAGE ? ' (provisional)' : ''),
         'coverage_pct' => $coverage,
-        'provisional'  => $score !== null && $coverage < 50,
+        /* The raw renormalised mean, retained for internal continuity and audit.
+           ⚠️ Do NOT surface `raw_score` to a student, guardian or league table —
+           it is the number the coverage floor exists to withhold. Use `score`
+           (null when insufficient) and `band`. */
+        'raw_score'    => $raw,
+        'sufficient'   => $sufficient,
+        'min_coverage' => MAM_MASTERY_MIN_COVERAGE,
+        'band'         => $band,
+        'bounds'       => $bounds,
+        'provisional'  => $score !== null && $coverage < MAM_MASTERY_FULL_COVERAGE,
         'components'   => array_values($components),
         'missing'      => array_values(array_diff(array_keys(MAM_MASTERY_COMPONENTS), array_keys($components))),
         // Separate by design (§24).

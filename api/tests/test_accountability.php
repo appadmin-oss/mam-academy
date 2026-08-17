@@ -18,6 +18,39 @@ $AC_sess = mam_db_insert('class_sessions', ['cohort_id' => $AC_coh, 'title' => '
 
 t_eq(mam_accountability_outstanding_cents('student', $AC_stu), 0, 'no charges to start');
 
+/* ── The gate, tested before anything relies on it ───────────────────────────
+   Charging is OFF by default and the gate now lives inside
+   mam_accountability_charge() rather than in each caller — it used to read the
+   setting into $cfg and never check it, so the guarantee belonged to whichever
+   two call sites happened to test it themselves. With charging off the lateness
+   is still RECORDED, because "we chose not to charge" and "this never happened"
+   are different facts. */
+$AC_gateStu = mam_db_insert('users', ['name' => 'AC Gate', 'email' => 'ac_gate@test.local', 'role' => 'student', 'password_hash' => '', 'status' => 'active']);
+$AC_offSess = mam_db_insert('class_sessions', ['cohort_id' => $AC_coh, 'title' => 'AC Off', 'scheduled_at' => '2026-08-30 10:00:00', 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
+mam_setting_set('late_charge_enabled', '0');
+$AC_off = mam_accountability_charge('student', $AC_gateStu, $AC_offSess, 'late_arrival', 9);
+t_ok($AC_off > 0, 'with charging off the lateness is still recorded');
+$AC_offRow = mam_db_row('SELECT status, amount_usd_cents FROM accountability_charges WHERE id = ?', [$AC_off]);
+t_eq((string) $AC_offRow['status'], MAM_ACCT_RECORDED, '…as `recorded`, not `outstanding`');
+t_eq((int) $AC_offRow['amount_usd_cents'], 0, '…for no money');
+t_eq(mam_accountability_outstanding_cents('student', $AC_gateStu), 0, '…and nothing is owed');
+t_ok(!in_array(MAM_ACCT_RECORDED, MAM_ACCT_OWED, true), '`recorded` is outside the owed set by construction');
+
+// An admin entering an agreed charge by hand is a different act from the system
+// imposing one, and stays available with the automatic path off.
+$AC_manSess = mam_db_insert('class_sessions', ['cohort_id' => $AC_coh, 'title' => 'AC Man', 'scheduled_at' => '2026-08-31 10:00:00', 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
+$AC_man = mam_accountability_charge('student', $AC_gateStu, $AC_manSess, 'late_arrival', 5, 2.50, true);
+t_eq(mam_accountability_outstanding_cents('student', $AC_gateStu), 250, 'an admin-initiated charge is applied even with the gate closed');
+mam_accountability_resolve($AC_man, $AC_admin, 'reversed', 'test cleanup');
+t_eq(mam_accountability_outstanding_cents('student', $AC_gateStu), 0, '…and reverses cleanly');
+
+// The student and instructor gates are SEPARATE — enabling one must not enable
+// the other. One is a fee to a customer, the other a deduction from pay.
+mam_setting_set('late_charge_enabled', '1');
+mam_setting_set('late_charge_instructor_enabled', '0');
+t_ok(mam_accountability_charging_on('student'), 'the student gate is open');
+t_ok(!mam_accountability_charging_on('instructor'), '…while the instructor gate stays shut');
+
 // Record a $1 late-arrival charge (default student rate).
 $cid = mam_accountability_charge('student', $AC_stu, $AC_sess, 'late_arrival', 7);
 t_ok($cid > 0, 'charge recorded');

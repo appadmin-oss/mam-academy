@@ -107,7 +107,7 @@
 </div>
 
 <script src="/assets/js/config.js?v=20260807a"></script>
-<script src="/assets/js/portal.js?v=20260817a"></script>
+<script src="/assets/js/portal.js?v=20260817b"></script>
 <script src="/assets/js/practice-player.js?v=20260815a" defer></script>
 <script src="/assets/js/take-recorder.js?v=20260815a"></script>
 <script src="/assets/js/command-palette.js?v=20260815a" defer></script>
@@ -1784,18 +1784,13 @@
   // breakdown and the coverage the score rests on. Attendance and punctuality
   // are shown BESIDE the score, never folded into it: §24 requires that a
   // student's musical ability is not confused with disciplinary performance.
-  function masteryCard(m) {
-    if (!m) return '';
-    // Text-safe band colours. The obvious palette (#F87171 / #FBBF24 / #34D399)
-    // is 1.9–2.9:1 as TEXT and fails 1.4.3 — those hues are for fills. The
-    // --*-text tokens are the same hues darkened to clear 4.5:1 in both themes.
-    var bandColour = ['var(--text-muted)', 'var(--red-text)', 'var(--gold-text)',
-                      'var(--emerald-text)', 'var(--gold-text)', 'var(--gold-text)'][m.level] || 'var(--text-muted)';
-    if (m.score == null) {
-      return P.panel('MAM Mastery Score', '<div class="panel-body">'
-        + empty('chart-simple', 'Not yet assessed — your Mastery Score appears once your instructors have scored some work.') + '</div>', '');
-    }
-    var bars = (m.components || []).map(function (c) {
+  /* One renderer for the per-component bars, shared by the scored and the
+     withheld states — the subscores are shown either way. Horizontal bars,
+     not a radar: perception research puts radar last for accuracy on
+     multi-series data, and a bar reads position from a baseline, which is
+     what people judge most reliably. */
+  function masteryBars(m) {
+    return (m.components || []).map(function (c) {
       var pct = Math.max(0, Math.min(100, Number(c.pct) || 0));
       return '<div style="display:grid;grid-template-columns:minmax(120px,1fr) 2fr auto;gap:10px;align-items:center">'
         + '<span>' + P.escapeHtml(c.label) + '</span>'
@@ -1804,16 +1799,62 @@
         + '<span style="color:var(--text-muted);font-variant-numeric:tabular-nums">' + pct.toFixed(0) + '%</span>'
         + '</div>';
     }).join('');
+  }
+
+  function masteryCard(m) {
+    if (!m) return '';
+    // Text-safe band colours. The obvious palette (#F87171 / #FBBF24 / #34D399)
+    // is 1.9–2.9:1 as TEXT and fails 1.4.3 — those hues are for fills. The
+    // --*-text tokens are the same hues darkened to clear 4.5:1 in both themes.
+    var bandColour = ['var(--text-muted)', 'var(--red-text)', 'var(--gold-text)',
+                      'var(--emerald-text)', 'var(--gold-text)', 'var(--gold-text)'][m.level] || 'var(--text-muted)';
+    /* Two different reasons the score is absent, and they need different words.
+       "Nothing scored yet" and "some work scored, but not enough of the picture
+       to put one fair number on it" are not the same message, and a child told
+       the first when the second is true reasonably concludes their work was
+       ignored. The composite is withheld below a declared coverage floor —
+       see MAM_MASTERY_MIN_COVERAGE in api/lib/mastery.php. */
+    if (m.score == null) {
+      var hasSome = (m.components || []).length > 0;
+      if (!hasSome) {
+        return P.panel('MAM Mastery Score', '<div class="panel-body">'
+          + empty('chart-simple', 'Not yet assessed — your Mastery Score appears once your instructors have scored some work.') + '</div>', '');
+      }
+      var cov = Math.round(Number(m.coverage_pct) || 0);
+      var need = Math.round(Number(m.min_coverage) || 40);
+      // Subscores are still shown: the evidence that exists is real, and seeing
+      // it is what makes the withheld total feel like honesty rather than a
+      // blank. Forward-looking, per the labelling research — what is coming,
+      // not what is missing.
+      return P.panel('MAM Mastery Score',
+        '<div class="panel-body" style="display:grid;gap:14px">'
+        + '<p style="margin:0"><strong>Not enough scored yet to give you one fair number.</strong></p>'
+        + '<p style="margin:0;color:var(--text-muted)">We have ' + cov + '% of the full picture, and we wait until '
+        + need + '% before showing an overall score — a total built on a small slice of your work would not be a '
+        + 'fair comparison with anyone else\'s. Here is what has been scored so far:</p>'
+        + '<div style="display:grid;gap:8px">' + masteryBars(m) + '</div>'
+        + '</div>', '');
+    }
+    var bars = masteryBars(m);
     var att = m.attendance || {};
     var body = '<div class="panel-body" style="display:grid;gap:14px">'
       + '<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">'
-      +   '<span style="font-size:2.4rem;font-weight:800;line-height:1">' + P.escapeHtml(String(Math.round(m.score))) + '<span style="font-size:1rem;color:var(--text-muted)">/100</span></span>'
+      /* A BAND, not a number. An eleven-part weighted mean of subjective rubric
+         marks does not support the precision "73/100" implies, and a precise
+         figure invites a parent to read a two-point gap between two children as
+         a real difference. The band is computed server-side so every surface
+         shows the same one. */
+      +   '<span style="font-size:2.4rem;font-weight:800;line-height:1">' + P.escapeHtml(String((m.band && m.band.label) || Math.round(m.score))) + '<span style="font-size:1rem;color:var(--text-muted)">/100</span></span>'
       +   '<span class="pill" style="color:' + bandColour + '">' + P.escapeHtml(m.level_label) + '</span>'
       + '</div>'
       + '<p style="margin:0;color:var(--text-muted)">' + P.escapeHtml(m.level_blurb) + '</p>'
       + (m.provisional
           ? '<p style="margin:0"><i class="fa-solid fa-circle-info" style="margin-right:6px;color:var(--gold-bright)"></i>'
-            + 'Provisional — based on ' + P.escapeHtml(String(m.coverage_pct)) + '% of the full assessment picture. It will settle as more of your work is scored.</p>'
+            + 'Provisional — based on ' + P.escapeHtml(String(m.coverage_pct)) + '% of the full assessment picture. '
+            + (m.bounds
+                ? 'As the rest is scored it could settle anywhere between <strong>' + P.escapeHtml(String(Math.round(m.bounds.min)))
+                  + '</strong> and <strong>' + P.escapeHtml(String(Math.round(m.bounds.max))) + '</strong>.'
+                : 'It will settle as more of your work is scored.') + '</p>'
           : '<p class="kpi-sub" style="margin:0">Based on ' + P.escapeHtml(String(m.coverage_pct)) + '% of the full assessment picture.</p>')
       + (bars ? '<div style="display:grid;gap:8px">' + bars + '</div>' : '')
       + '<div style="border-top:1px solid var(--border);padding-top:12px;display:flex;gap:22px;flex-wrap:wrap">'
