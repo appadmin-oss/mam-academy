@@ -24,11 +24,16 @@ That one fact causes most of what follows.
 
 | Finding | Severity | Measured | Status |
 |---|---|---|---|
+| **The phone field is dead without a CDN** | **4** | wizard unfinishable | ✅ fixed |
 | The wizard has no `<form>` element | **3** | 57 of 58 fields orphaned | ✅ fixed |
+| **A failed submit doesn't look like a failure** | **3** | `role=null`, transparent, unfocused | ✅ fixed |
+| **"A photo is required" is written to nothing** | **3** | element absent from the page | ✅ fixed |
 | ~~`autocomplete` on 13 of 58 fields~~ | ~~3~~ | **withdrawn — my error** | see below |
 | `required` on 2 of 58 fields | **2** | validation is entirely custom JS | ✅ fixed |
+| Upload failures all read alike | **2** | one message for 429/413/5xx | ✅ fixed |
+| Banner border contrast | **2** | 1.6:1 and 2.4:1 vs 3:1 | ✅ fixed |
 | Target sizes | **0** | no violations — measured on the label | — |
-| Error announcement plumbing | **0** | 22 live regions present | — |
+| CSRF expiry, dropped-connection recovery | **0** | both recover; draft survives | — |
 
 ---
 
@@ -131,19 +136,128 @@ Worth saying, because these should not be "fixed":
 
 ---
 
+## Pass 2 — error paths and the headshot step
+
+Measured 2026-08-17 by driving the wizard to Review five times in a real
+browser, once per failure, with the CDNs blocked as they are on a bad network.
+Everything below is an observation, not a code reading.
+
+### [Severity 4] With the CDN blocked, the wizard cannot be finished
+
+The phone field is bound entirely inside `initIti()`, which began:
+
+```js
+if (!el || typeof window.intlTelInput !== 'function') return null;
+```
+
+intl-tel-input is loaded from **jsdelivr**. When it doesn't arrive — ad-blocker,
+corporate proxy, tightened CSP, one bad minute of network — that line returns
+having bound **nothing**. `data.phone` stays empty however carefully the
+applicant types, `validateStep()` fails the number it cannot see, and the
+message says *"That number isn't valid for the selected country."*
+
+Measured: a valid `+2348031234567` typed into the field, Continue pressed,
+**step 1, forever**. There is no way through and nothing on screen hints at the
+real cause. On the academy's only revenue form, on a market where mobile
+networks are the norm, that is the whole funnel.
+
+**Fixed.** The plain `input`/`blur` listeners are bound unconditionally; the
+country picker is now an enhancement layered on top rather than the thing that
+makes the field work. Re-measured: the same number now advances to step 2.
+
+### [Severity 3] Two of the three failure banners were invisible
+
+`ensureNotice()` returns a bare `<div>`; dressing it was the caller's job, and
+only `apiError()` did it. Measured on `#apiNotice` after a real failure:
+
+| Failure | `role` | background | border | focused |
+|---|---|---|---|---|
+| server rejects the email | `null` | `rgba(0,0,0,0)` | `0px` | no |
+| connection dropped | `null` | `rgba(0,0,0,0)` | `0px` | no |
+| generic `apiError` | `alert` | red 12% | 1px red | yes |
+
+So the two most likely real failures printed as **ordinary body text** at the
+top of the form — nothing to announce them to a screen reader, nothing to catch
+anyone else's eye. Worse for the first: `showServerErrors()` also carries the
+applicant back two steps, and focus was left on `<body>` — a keyboard user is
+dumped at the top of the document with the wizard silently somewhere else.
+
+**Fixed.** One `NOTICE_TONES` registry + one `setNotice(html, tone, takeFocus)`
+renderer; tone travels with the message so a new caller cannot forget it.
+A dropped connection is **amber, not red** — an unreachable server is not the
+applicant's mistake. Server field errors now focus the first rejected field
+rather than the banner (`role=alert` reads it either way). A successful retry
+calls `clearNotice()`, so yesterday's red banner cannot sit over the payment
+step reading as a failed payment.
+
+Border alphas were recomputed while in there: the shipped red measured
+**1.6:1** and amber **2.4:1** against `#2A2119`, under WCAG 1.4.11's 3:1 — the
+outline that said "error" was itself too faint to see. Now 3.7 / 4.1 / 4.1:1
+with text at 9.8–10.7:1.
+
+### [Severity 3] The "photo required" message was written into nothing
+
+`validateStep()` looked up `.hs-status` under the dropzone and wrote the
+message there. **That element was not on the page.** So pressing Continue with
+no photo produced a border-colour pulse and nothing else — silent to a screen
+reader, and easy to miss for anyone who had scrolled the dropzone away. The
+photo is the one hard gate on that step.
+
+**Fixed.** `#hsStatus` exists as a `role="status"` region, one `setHsStatus()`
+writer raises it (naming the actual reason: still uploading / the upload's own
+error / the quality verdict / simply missing) and a stored photo lowers it. If
+the uploader itself fails to load, it says so and offers the email route rather
+than blocking silently. The pulse now has a `prefers-reduced-motion` branch that
+holds the red border statically — the cue survives, the motion doesn't.
+
+### [Severity 2] Every upload failure read the same
+
+`/api/upload/headshot` is rate-limited to 12 per 10 minutes. An applicant whose
+first shots fail the AI quality check reaches that honestly — I reached it just
+by testing — and the widget said *"Could not save the photo."* So they retry,
+hit the same wall, and give up at the step they cannot skip. 413 and 5xx were
+equally anonymous. Each now names itself, and the rate-limit message says how
+long to wait and that nothing else was lost.
+
+### The headshot chain — all four historical failure points, re-walked
+
+CLAUDE.md records this chain failing in four separate places. Driven end to end
+against the running site:
+
+1. **CSRF on the upload** — `POST /api/upload/headshot` went out with
+   `X-CSRF-Token` present; `200`.
+2. **`MAM_HEADSHOT.upload()` reachable** — exports measured as
+   `mount, upload, _internals`.
+3. **The URL guard on the way in** — the form submitted
+   `/api/media/headshot?k=…` and the server answered `200` with a reference,
+   i.e. the first-party URL is no longer refused by an `https://`-only check.
+4. **A form that submits anyway** — with no photo the wizard stops at step 1,
+   and now says why.
+
+Then the two things that actually prove it: the returned URL was re-fetched and
+answered **`200 image/jpeg`**, and the row it landed in carries the URL rather
+than an empty string. A URL that 404s is not a saved photo, and a stored photo
+that never reaches the row is not a photo either.
+
+### What recovers correctly, unchanged
+
+- **An expired CSRF token** — the first POST 403s with `csrf_invalid`,
+  `MAM_API.request()` refetches and retries; measured **2 POSTs, lands on the
+  payment step**, no banner, applicant sees nothing. Correct.
+- **A dropped connection** — the button re-enables in **1.3s**, the draft
+  survives in `localStorage`, a one-tap mailto fallback is offered, and pressing
+  Submit again once the network returns completes normally. The idempotency key
+  makes that retry safe.
+
+---
+
 ## Not yet measured
 
-Honest scope. This pass covered structure, labelling, target size, input types,
-autocomplete and validation plumbing on the **entry step**. Still to do:
-
-- Per-step measurement past step 1 (the wizard advances by click handler, and
-  driving it reliably needs a longer pass).
-- **Error behaviour under real failure** — submit with a bad email, a dropped
-  connection, an expired CSRF token. The portal audit found silent failures
-  elsewhere in the codebase, so this is worth its own pass.
-- The **headshot upload step**, which CLAUDE.md records as having failed in four
-  separate places historically.
+- Per-step measurement past step 1 for structure/labelling (this pass drove
+  every step, but audited the later ones for *failure behaviour*, not layout).
 - The admin-side forms.
+- Payment-step failures (`initializePayment` / `verifyPayment`) — a separate
+  provider surface with its own error vocabulary.
 
 ---
 

@@ -53,7 +53,7 @@ if ($showChooser) {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
 <link rel="stylesheet" href="assets/css/main.css?v=20260706d">
-<link rel="stylesheet" href="assets/css/apply.css?v=20260617b">
+<link rel="stylesheet" href="assets/css/apply.css?v=20260817a">
 <style>
 /* ── Programme Chooser ───────────────────────────── */
 .prog-chooser{padding:clamp(40px,7vw,72px) 20px;background:linear-gradient(180deg,#0C0703 0%,#120B05 100%)}
@@ -516,6 +516,12 @@ if ($showChooser) {
         <div class="field">
           <label class="field-label">Headshot <span class="req">*</span></label>
           <div id="headshotMount"></div>
+          <!-- apply.js's validateStep() writes the "a photo is required" message
+               here when someone presses Continue without one. The element was
+               never on the page, so that branch wrote into nothing: the only
+               feedback was a border-colour pulse on the dropzone, which says
+               nothing at all to a screen reader and very little to anyone else. -->
+          <div class="hs-status" id="hsStatus" role="status" hidden></div>
           <div class="field-help">We use this for your student tag and class roster. Our AI checks that the photo is clear, front-facing and shows only you — nothing is sent to a server before you confirm.</div>
         </div>
 
@@ -754,8 +760,8 @@ if ($showChooser) {
 <script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/main.js?v=20260724b"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
-<script src="assets/js/headshot.js?v=20260811a"></script>
-<script src="assets/js/apply.js?v=20260815b"></script>
+<script src="assets/js/headshot.js?v=20260817a"></script>
+<script src="assets/js/apply.js?v=20260817a"></script>
 <script src="assets/js/apply-discovery.js?v=20260703a"></script>
 <?php if ($showChooser): ?>
 <script>

@@ -382,12 +382,21 @@
           if (hsHost) {
             hsHost.classList.add('headshot-required-pulse');
             if (!first) first = hsHost;
-            // Persistent inline status nudge under the dropzone
-            var status = hsHost.parentNode && hsHost.parentNode.querySelector('.hs-status');
-            if (status) {
-              status.hidden = false;
-              status.className = 'hs-status hs-status-error';
-              status.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> A clear headshot is required to continue. Upload a front-facing photo.';
+            // Persistent inline status nudge under the dropzone. This used to
+            // query a `.hs-status` element that did not exist on the page, so
+            // the ONLY feedback for the one hard-gated field on this step was a
+            // border-colour pulse — silent to a screen reader, and easy to miss
+            // for anyone who had scrolled the dropzone off screen.
+            var stored = headshotState && headshotState.uploaded && headshotState.uploaded.url;
+            var why = (headshotState && headshotState.uploading)
+              ? 'Your photo is still uploading — give it a moment, then press Continue again.'
+              : (headshotState && headshotState.error)
+                ? escapeHtml(headshotState.error) + ' Please try that photo again, or choose another.'
+                : (headshotState && headshotState.validation && headshotState.validation.reason)
+                  ? escapeHtml(headshotState.validation.reason)
+                  : 'A clear headshot is required to continue. Upload a front-facing photo.';
+            if (!stored) {
+              setHsStatus('error', '<i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> <span>' + why + '</span>');
             }
           }
         }
@@ -770,14 +779,40 @@
     // ---------- Headshot widget (AI-validated; a stored photo is always required) ----------
     var headshotState = null;
     var hsMount = document.getElementById('headshotMount');
+    /* One writer for the nudge under the dropzone. validateStep() raises it when
+       Continue is pressed with no stored photo; the widget lowers it the moment
+       one lands, so a satisfied requirement never keeps shouting. */
+    function setHsStatus(kind, html) {
+      var el = document.getElementById('hsStatus'); if (!el) return;
+      if (!kind) { el.hidden = true; el.innerHTML = ''; el.className = 'hs-status'; return; }
+      el.className = 'hs-status hs-status-' + kind;
+      el.innerHTML = html;
+      el.hidden = false;
+    }
     if (hsMount && window.MAM_HEADSHOT) {
       window.MAM_HEADSHOT.mount(hsMount, {
         onChange: function (s) {
           headshotState = s;
           data.headshotUrl = (s.uploaded && s.uploaded.url) || '';
+          if (data.headshotUrl) {
+            hsMount.classList.remove('headshot-required-pulse');
+            setHsStatus(null);
+          } else if (s.error) {
+            // The widget's own status line lives inside the dropzone and can
+            // scroll out of view on a phone; repeat the reason where the
+            // requirement is stated, and as a live region.
+            setHsStatus('error', '<i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> <span>'
+              + escapeHtml(s.error) + ' You can pick a different photo and try again.</span>');
+          }
           saveDraft();
         }
       });
+    } else if (hsMount) {
+      /* The photo is a hard gate on this step, so if its widget did not load
+         there is no way forward and nothing on screen says so. Say it. */
+      setHsStatus('error', '<i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> <span>The photo uploader could not load. '
+        + 'Please refresh the page — if it keeps happening, email <a href="mailto:' + escapeHtml(cfg.site.contactEmail)
+        + '" style="color:var(--gold-bright)">' + escapeHtml(cfg.site.contactEmail) + '</a> and we\'ll take your application by email.</span>');
     }
 
     // ---------- intl-tel-input: international phone with country flag/picker ----------
@@ -786,7 +821,23 @@
     // draft always carry a canonical, dial-anywhere number.
     function initIti(inputId, key) {
       var el = document.getElementById(inputId);
-      if (!el || typeof window.intlTelInput !== 'function') return null;
+      if (!el) return null;
+      // intl-tel-input is a THIRD-PARTY script (jsdelivr). When it does not
+      // arrive — ad-blocker, corporate proxy, a tightened CSP, or simply a bad
+      // minute on the applicant's network — this used to return here having
+      // bound NOTHING, so `data.phone` stayed empty however carefully the
+      // applicant typed. validateStep() then failed the number it could not
+      // see, and the wizard became impossible to finish: a valid mobile
+      // rejected on every attempt, with no message that explained why. Bind the
+      // plain listeners first, unconditionally; the country picker is an
+      // enhancement layered on top, never the thing that makes the field work.
+      var plain = function () { data[key] = el.value.trim(); clearError(inputId); saveDraft(); };
+      if (typeof window.intlTelInput !== 'function') {
+        on(el, 'input', plain);
+        on(el, 'blur',  plain);
+        if (data[key]) el.value = data[key];
+        return null;
+      }
       var iti = window.intlTelInput(el, {
         initialCountry: 'ng',
         preferredCountries: ['ng', 'gb', 'us', 'ca', 'za'],
@@ -1085,6 +1136,9 @@
           data.applicationId = resp.application_id;
           data.serverTotalUsd = resp.total_usd;
           saveDraft();
+          // A retry that worked must not leave the previous attempt's red banner
+          // standing over the payment step — read there, it says the payment failed.
+          clearNotice();
           // Funnel: application submitted (server-issued reference exists).
           mamTrack('apply_submit', { pathway: data.pathway || '', meta: { mode: data.mode || '' } });
           // The server has just emailed the confirmation + invoice. Now advance
@@ -1133,11 +1187,9 @@
         '', 'Please confirm next steps. Thank you.'
       ];
       var mailto = 'mailto:' + cfg.site.contactEmail + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(bodyLines.join('\n'));
-      var notice = ensureNotice();
-      notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> We couldn\'t reach our secure server just now. Your details are saved on this device — '
+      setNotice('We couldn\'t reach our secure server just now. Your details are saved on this device — '
         + '<a href="' + mailto + '" style="color:var(--gold-bright);font-weight:700;text-decoration:underline">email your application in one tap</a> '
-        + 'and we\'ll confirm within 24 hours, or try again shortly.';
-      notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        + 'and we\'ll confirm within 24 hours, or press <strong>Submit</strong> again to retry.', 'warn', true);
     }
     function buildPayload() {
       return {
@@ -1202,10 +1254,12 @@
     function showServerErrors(fields) {
       var target = null;
       var labels = [];
+      var firstEl = null;
       fields.forEach(function (f) {
         var spec = SERVER_FIELDS[f]; if (!spec) return;
         if (spec.id) {
           setError(spec.id);
+          if (!firstEl) firstEl = document.getElementById(spec.id);
         } else {
           // Grouped fields (pathway/mode/discipline) live in radio cards; the
           // matching .field-error has id err-<field>.
@@ -1217,9 +1271,15 @@
       });
       if (target !== null) showStep(target);
       if (labels.length) {
-        var notice = ensureNotice();
-        notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Please fix the highlighted '
-          + (labels.length === 1 ? 'field' : 'fields') + ': <strong>' + labels.join(', ') + '</strong>.';
+        setNotice('Please fix the highlighted ' + (labels.length === 1 ? 'field' : 'fields')
+          + ': <strong>' + labels.join(', ') + '</strong>.', 'error', false);
+      }
+      /* Focus the field, not the banner. The applicant has just been carried
+         back two steps by showStep(); leaving focus on <body> (measured) drops a
+         keyboard or screen-reader user at the top of the document with no idea
+         where the wizard went. role=alert reads the banner regardless. */
+      if (firstEl) {
+        try { firstEl.focus({ preventScroll: true }); } catch (e) { try { firstEl.focus(); } catch (e2) {} }
       }
     }
     function setBusy(btnId, busy, label) {
@@ -1243,25 +1303,60 @@
       }
       return notice;
     }
+    /* ONE renderer for the banner, because dressing it was previously the
+       caller's job and only one of three callers did it. Measured in a browser:
+       a server field rejection and a dropped connection both produced
+       `role=null`, `background: rgba(0,0,0,0)`, `border: 0px`, unfocused —
+       i.e. the two most likely real failures printed as ordinary body text at
+       the top of the form, with nothing to announce them to a screen reader and
+       nothing to catch the eye of anyone else. Only apiError() looked like an
+       error at all. Tone now travels with the message, so a new caller cannot
+       forget it. */
+    var NOTICE_TONES = {
+      /* Border alphas are set for WCAG 1.4.11 (3:1 for a non-text boundary), not
+         by eye: against this page's #211A13 the shipped 0.5 red measured 1.6:1
+         and 0.55 amber 2.4:1 — the outline that says "this is an error" was
+         itself below the threshold for being seen. */
+      error: { role: 'alert',  bg: 'rgba(244,63,94,0.12)',  bd: 'rgba(244,63,94,0.9)',   fg: '#FECDD3', icon: 'fa-triangle-exclamation' },
+      // Amber, not red: "we could not reach the server" is not the applicant's
+      // mistake, and colouring it like one implies they did something wrong.
+      // Still role=alert — it interrupts, because it stops their submission.
+      warn:  { role: 'alert',  bg: 'rgba(232,150,31,0.14)', bd: 'rgba(232,150,31,0.72)', fg: '#FDE7C7', icon: 'fa-triangle-exclamation' },
+      info:  { role: 'status', bg: 'rgba(34,197,94,0.12)',  bd: 'rgba(34,197,94,0.7)',   fg: '#BBF7D0', icon: 'fa-circle-check' }
+    };
+    function setNotice(html, tone, takeFocus) {
+      var t = NOTICE_TONES[tone] || NOTICE_TONES.error;
+      var notice = ensureNotice();
+      notice.hidden = false;
+      notice.setAttribute('role', t.role);
+      notice.style.cssText = 'margin:14px 0;padding:14px 16px;background:' + t.bg
+        + ';border:1px solid ' + t.bd + ';border-radius:12px;color:' + t.fg
+        + ';font-size:0.9rem;line-height:1.55;outline:none';
+      notice.innerHTML = '<i class="fa-solid ' + t.icon + '" aria-hidden="true"></i> ' + html;
+      notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (takeFocus) { try { notice.focus({ preventScroll: true }); } catch (e) {} }
+      return notice;
+    }
+    /* A banner is about ONE attempt. Left standing, a red "submission failed"
+       sits above the payment step after the retry succeeded, which reads as the
+       payment having failed too. */
+    function clearNotice() {
+      var notice = $('#apiNotice');
+      if (!notice) return;
+      notice.removeAttribute('role');
+      notice.innerHTML = '';
+      notice.style.cssText = '';
+      notice.hidden = true;
+    }
     // Error: red, role=alert (interrupts a screen reader), focused + scrolled
     // into view so the user can NEVER miss why something failed.
     function apiError(msg) {
-      var notice = ensureNotice();
-      notice.setAttribute('role', 'alert');
-      notice.style.cssText = 'margin:14px 0;padding:14px 16px;background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.5);border-radius:12px;color:#FECDD3;font-size:0.9rem;line-height:1.55;outline:none';
-      notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ' + msg + ' &middot; If this keeps happening, email <a href="mailto:' + cfg.site.contactEmail + '" style="color:var(--gold-bright)">' + cfg.site.contactEmail + '</a>';
-      notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      try { notice.focus({ preventScroll: true }); } catch (e) {}
+      setNotice(msg + ' &middot; If this keeps happening, email <a href="mailto:' + cfg.site.contactEmail
+        + '" style="color:var(--gold-bright)">' + cfg.site.contactEmail + '</a>', 'error', true);
     }
     // Positive/neutral info: green, role=status (polite) — for "no action needed"
     // outcomes (e.g. already paid / Auditer still valid) so they don't read as errors.
-    function apiInfo(msg) {
-      var notice = ensureNotice();
-      notice.setAttribute('role', 'status');
-      notice.style.cssText = 'margin:14px 0;padding:14px 16px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.5);border-radius:12px;color:#BBF7D0;font-size:0.9rem;line-height:1.55;outline:none';
-      notice.innerHTML = '<i class="fa-solid fa-circle-check" aria-hidden="true"></i> ' + msg;
-      notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    function apiInfo(msg) { setNotice(msg, 'info', false); }
 
     // ---------- Regional booking-fee pricing ----------
     // Pulled from /api/booking/pricing on page load. The server picks the tier

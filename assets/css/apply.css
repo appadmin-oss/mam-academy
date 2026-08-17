@@ -163,6 +163,11 @@
 .hs-replace:hover{background:rgba(224,138,26,0.08)}
 .hs-status{display:flex;align-items:flex-start;gap:10px;padding:11px 14px;border-radius:var(--radius-sm);font-size:0.85rem;line-height:1.5;animation:stepFade 0.3s var(--ease)}
 .hs-status i{font-size:0.95rem;margin-top:2px;flex-shrink:0}
+/* `display:flex` above outranks the UA's `[hidden]{display:none}` — without
+   this the "a photo is required" nudge would be visible before anyone asked
+   for it, i.e. an error message greeting every applicant on arrival. */
+.hs-status[hidden]{display:none}
+#hsStatus{margin-top:8px}
 .hs-status-working{background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.32);color:#C7D2FE}
 .hs-status-ok{background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.32);color:#A7F3D0}
 /* Inline confidence / framing / tilt details from the headshot validator —
@@ -172,6 +177,12 @@
 .hs-status-error{background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.32);color:#FECDD3}
 .headshot-required-pulse .hs-dropzone{border-color:var(--red-hot,#E11D48)!important;animation:hsRequiredPulse 0.7s var(--ease) 2}
 @keyframes hsRequiredPulse{0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,0.4)}50%{box-shadow:0 0 0 8px rgba(244,63,94,0)}}
+/* Keep the signal, drop the movement — the red border is what marks the field
+   as unmet, so removing the animation must not remove the cue with it. */
+@media (prefers-reduced-motion:reduce){
+  .headshot-required-pulse .hs-dropzone{animation:none}
+  .hs-status,.field-note{animation:none}
+}
 
 /* ── Headshot quality report ─────────────────────────────────────────────────
    A professional per-criterion checklist + overall grade, rendered inside

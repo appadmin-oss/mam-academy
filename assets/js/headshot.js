@@ -146,8 +146,25 @@
         var j = {};
         try { j = JSON.parse(t); } catch (e) { throw new Error('Upload response unreadable'); }
         if (!r.ok || j.ok === false || !j.url) {
-          var err = new Error((j && (j.detail || j.message)) || 'Could not save the photo.');
+          /* The endpoint is rate-limited (12 per 10 minutes). Someone whose
+             first shots keep failing the quality check reaches that ceiling
+             honestly, and "Could not save the photo." tells them nothing —
+             they retry, get the same wall, and give up at the one step of the
+             application they cannot skip. Say what happened and when to retry. */
+          var msg = (j && (j.detail || j.message)) || 'Could not save the photo.';
+          if (r.status === 429 || (j && j.error === 'rate_limited')) {
+            var secs = Math.max(30, parseInt((j && j.retry_after) || 60, 10) || 60);
+            var mins = Math.ceil(secs / 60);
+            msg = 'Too many photo uploads just now — please wait about '
+                + (mins <= 1 ? 'a minute' : mins + ' minutes') + ' and try again. Your other answers are saved.';
+          } else if (r.status === 413) {
+            msg = 'That photo is too large for our server — try a smaller one.';
+          } else if (r.status >= 500) {
+            msg = 'Our server could not store the photo just now. Please try again in a moment.';
+          }
+          var err = new Error(msg);
           err.code = j && j.error;
+          err.status = r.status;
           throw err;
         }
         return { url: j.url, publicId: null };
@@ -238,7 +255,11 @@
       '.mam-hs-spin{display:inline-block;width:13px;height:13px;border:2px solid currentColor;' +
       'border-top-color:transparent;border-radius:50%;animation:mam-hs-spin .7s linear infinite;}' +
       '.headshot-required-pulse .mam-hs{animation:mam-hs-pulse 1s 3;}' +
-      '@keyframes mam-hs-pulse{0%,100%{border-color:var(--border-gold,#7A5C1E);}50%{border-color:#e53935;}}';
+      '@keyframes mam-hs-pulse{0%,100%{border-color:var(--border-gold,#7A5C1E);}50%{border-color:#e53935;}}' +
+      // The pulse is the attention cue for a required field, so it cannot simply
+      // vanish under reduced motion — hold the red border statically instead.
+      '@media (prefers-reduced-motion:reduce){.headshot-required-pulse .mam-hs{animation:none;border-color:#e53935;}' +
+      '.mam-hs-spin{animation:none;border-top-color:currentColor;opacity:.55;}}';
     document.head.appendChild(el);
   }
 
