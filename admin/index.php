@@ -3391,12 +3391,13 @@ nav a{display:flex;align-items:center}
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="app_status">
               <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
-              <select name="status" class="tiny">
+              <?php $rowWho = mam_name($r['first_name'] ?? null, $r['last_name'] ?? null) ?: ('application #' . (int)$r['id']); ?>
+              <select name="status" class="tiny" aria-label="Status for <?= htmlspecialchars($rowWho) ?>">
                 <?php foreach (['submitted', 'in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'] as $s): ?>
                   <option value="<?= $s ?>" <?= $s === $r['status'] ? 'selected' : '' ?>><?= $s ?></option>
                 <?php endforeach; ?>
               </select>
-              <button class="tiny" type="submit">Save</button>
+              <button class="tiny" type="submit" aria-label="Save status for <?= htmlspecialchars($rowWho) ?>">Save</button>
             </form>
             <form method="post" style="display:inline" onsubmit="return confirm('Re-send the confirmation email and invoice to <?= htmlspecialchars((string)($r['email'] ?? '')) ?>?');">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -3618,8 +3619,8 @@ nav a{display:flex;align-items:center}
   <!-- Search + filter -->
   <form class="card" method="get" style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
     <input type="hidden" name="v" value="summer">
-    <input type="search" name="q" value="<?= htmlspecialchars($sQ) ?>" placeholder="Search name or email…" style="flex:1;min-width:180px">
-    <select name="status" style="min-width:160px">
+    <input type="search" name="q" value="<?= htmlspecialchars($sQ) ?>" placeholder="Search name or email…" aria-label="Search summer applications by name or email" style="flex:1;min-width:180px">
+    <select name="status" style="min-width:160px" aria-label="Filter by status">
       <option value="">All statuses</option>
       <?php foreach ($sValid as $st): ?>
         <option value="<?= htmlspecialchars($st) ?>"<?= $sStatus === $st ? ' selected' : '' ?>><?= ucfirst(htmlspecialchars($st)) ?></option>
@@ -5163,7 +5164,8 @@ nav a{display:flex;align-items:center}
       </label>
       <?php endif; ?>
       <?php if (!$editUser): ?>
-        <label>Temporary password<input type="text" name="password" minlength="8" required placeholder="≥ 8 chars"></label>
+        <label>Temporary password<input type="text" name="password" minlength="8" required placeholder="≥ 8 chars"
+          autocomplete="new-password" spellcheck="false"></label>
       <?php endif; ?>
       <div class="actions">
         <button class="btn" type="submit"><?= $editUser ? 'Save changes' : 'Create user' ?></button>
@@ -5323,7 +5325,7 @@ nav a{display:flex;align-items:center}
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
                 <input type="hidden" name="action" value="set_admin_tier">
                 <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-                <select name="tier" class="tiny">
+                <select name="tier" class="tiny" aria-label="Admin tier for <?= htmlspecialchars((string)($u['name'] ?: $u['email'])) ?>">
                   <option value="super" <?= (($u['admin_tier'] ?? 'super') !== 'manager') ? 'selected' : '' ?>>super</option>
                   <option value="manager" <?= (($u['admin_tier'] ?? '') === 'manager') ? 'selected' : '' ?>>manager</option>
                 </select>
@@ -5346,18 +5348,25 @@ nav a{display:flex;align-items:center}
           <td class="muted" data-label="Last login"><?= htmlspecialchars(substr((string)($u['last_login'] ?? ''), 0, 16)) ?></td>
           <td class="muted" data-label="Created"><?= htmlspecialchars(substr((string)$u['created_at'], 0, 16)) ?></td>
           <td data-label="">
-            <form class="inline" method="post" title="Set a new password for this user">
+            <?php $uWho = (string)($u['name'] ?: $u['email']); ?>
+            <form class="inline" method="post" title="Set a new password for this user"
+                  onsubmit="return confirm('Set a new password for <?= htmlspecialchars(addslashes($uWho)) ?>?\n\nTheir current password stops working immediately, and they cannot sign in until you give them the new one.');">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_reset">
               <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-              <input type="text" name="password" class="tiny" placeholder="new password" minlength="8" required>
-              <button class="tiny" type="submit">Reset</button>
+              <!-- Deliberately type=text: whoever sets it has to read it back to
+                   the user. autocomplete/spellcheck off so the browser neither
+                   remembers this password nor offers someone else's. -->
+              <input type="text" name="password" class="tiny" placeholder="new password" minlength="8" required
+                     autocomplete="new-password" spellcheck="false"
+                     aria-label="New password for <?= htmlspecialchars($uWho) ?>">
+              <button class="tiny" type="submit" aria-label="Set new password for <?= htmlspecialchars($uWho) ?>">Reset</button>
             </form>
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_status">
               <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-              <select name="status" class="tiny">
+              <select name="status" class="tiny" aria-label="Account status for <?= htmlspecialchars((string)($u['name'] ?: $u['email'])) ?>">
                 <option value="active" <?= $u['status']==='active'?'selected':'' ?>>active</option>
                 <option value="suspended" <?= $u['status']==='suspended'?'selected':'' ?>>suspended</option>
               </select>
@@ -5653,7 +5662,7 @@ nav a{display:flex;align-items:center}
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="class_status">
               <input type="hidden" name="class_id" value="<?= (int)$c['id'] ?>">
-              <select name="status" class="tiny">
+              <select name="status" class="tiny" aria-label="Status for class <?= htmlspecialchars((string)$c['title']) ?>">
                 <?php foreach (['active','paused','archived'] as $s): ?>
                   <option value="<?= $s ?>" <?= $s === $c['status'] ? 'selected' : '' ?>><?= $s ?></option>
                 <?php endforeach; ?>
@@ -6405,13 +6414,14 @@ nav a{display:flex;align-items:center}
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="course_approve">
               <input type="hidden" name="enrollment_id" value="<?= (int)$r['id'] ?>">
-              <select name="instructor_id" class="tiny">
+              <?php $ceWho = (string)($r['student_name'] ?: $r['student_email'] ?: ('enrolment #' . (int)$r['id'])); ?>
+              <select name="instructor_id" class="tiny" aria-label="Instructor for <?= htmlspecialchars($ceWho) ?>">
                 <option value="">— instructor —</option>
                 <?php foreach ($instructors as $ins): $ld = $loadMap[(int)$ins['id']] ?? 0; ?>
                   <option value="<?= (int)$ins['id'] ?>" <?= (int)$ins['id'] === (int)$r['instructor_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string)($ins['name'] ?: $ins['email'])) ?><?= $ld ? ' · ' . $ld . ' student' . ($ld === 1 ? '' : 's') : ' · free' ?></option>
                 <?php endforeach; ?>
               </select>
-              <select name="status" class="tiny">
+              <select name="status" class="tiny" aria-label="Enrolment status for <?= htmlspecialchars($ceWho) ?>">
                 <?php foreach (['active','pending','completed','withdrawn'] as $s): ?>
                   <option value="<?= $s ?>" <?= $s === $r['status'] ? 'selected' : '' ?>><?= $s ?></option>
                 <?php endforeach; ?>
@@ -6892,7 +6902,8 @@ nav a{display:flex;align-items:center}
       <label style="display:flex;flex-direction:column;gap:5px;font-size:.78rem;color:var(--muted)">Content &amp; learning objectives<textarea name="content" rows="12" placeholder="What this week covers…"><?= htmlspecialchars((string)($drawerMod['content'] ?? '')) ?></textarea></label>
       <button class="btn" type="submit">Save module</button>
     </form>
-    <form method="post" style="margin-top:14px;text-align:right">
+    <form method="post" style="margin-top:14px;text-align:right"
+          onsubmit="return confirm('Delete week <?= (int)($drawerMod['week'] ?? 0) ?> of this course?\n\nIts title, objectives and materials are removed for every student on the course. This cannot be undone.');">
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
       <input type="hidden" name="action" value="module_delete">
       <input type="hidden" name="module_id" value="<?= (int)$drawerMod['id'] ?>">
@@ -7096,7 +7107,7 @@ nav a{display:flex;align-items:center}
             </div>
         </form>
         <?php if (!empty($wk['id'])): ?>
-          <form method="post" style="margin-top:-4px;text-align:right;padding-right:4px"><?= $hid ?><input type="hidden" name="action" value="module_delete"><input type="hidden" name="module_id" value="<?= (int)$wk['id'] ?>"><button class="tiny" type="submit" style="background:transparent;color:var(--muted);border:0;cursor:pointer;font-size:0.74rem">✕ remove week <?= (int)$wk['week'] ?></button></form>
+          <form method="post" style="margin-top:-4px;text-align:right;padding-right:4px" onsubmit="return confirm('Delete week <?= (int)$wk['week'] ?>?\n\nIts title, objectives and materials are removed for every student on the course. This cannot be undone.');"><?= $hid ?><input type="hidden" name="action" value="module_delete"><input type="hidden" name="module_id" value="<?= (int)$wk['id'] ?>"><button class="tiny" type="submit" style="background:transparent;color:var(--muted);border:0;cursor:pointer;font-size:0.74rem">✕ remove week <?= (int)$wk['week'] ?></button></form>
         <?php endif; ?>
         <?php endforeach; ?>
         </div>

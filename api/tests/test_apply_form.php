@@ -197,3 +197,55 @@ t_ok(strpos($hs, '.headshot-required-pulse .mam-hs{animation:none;border-color:#
     '…which holds the red border statically rather than removing the cue with the motion');
 t_ok((bool) preg_match('/@media \(prefers-reduced-motion:reduce\)\{\s*\.headshot-required-pulse \.hs-dropzone\{animation:none\}/', $css),
     'and the stylesheet half does the same');
+
+t_group('apply wizard — the payment step speaks English');
+
+/* MEASURED on the payment step: with the Paystack SDK unreachable the applicant
+   read the single word `init_failed`, and with our own endpoint down,
+   `api_unavailable`. apiError(err.message) prints whatever the API layer threw,
+   and for a MAM_API error `message` IS the server's machine-readable code — so
+   the last screen before money spoke in tokens and offered no way forward. */
+t_ok(strpos($js, 'var PAY_ERRORS = {') !== false, 'the payment step has a code → words map');
+t_ok(strpos($js, 'function payErrorMessage(err)') !== false, '…behind one function');
+t_ok(strpos($js, 'apiError(payErrorMessage(err));') !== false,
+    'and the initialize failure path uses it instead of printing err.message');
+t_ok(!preg_match("/apiError\(err && err\.message \? err\.message : 'Could not start payment/", $js),
+    'the old "print the raw code" branch is gone');
+// Every code the two payment routes can actually raise must have copy. Read off
+// api/routes/payment-init.php and payment-verify.php, not invented.
+foreach (['init_failed', 'paystack_init_failed', 'upstream_error', 'api_unavailable',
+          'unsupported_provider', 'application_expired', 'application_not_found',
+          'payment_not_found', 'order_not_found', 'zero_amount', 'script_load_failed'] as $code) {
+    t_ok((bool) preg_match('/\b' . preg_quote($code, '/') . ':\s*\'/', $js),
+        "the payment step has words for $code");
+}
+// An unknown code must never be printed AS the message — that is the whole bug.
+t_ok(strpos($js, 'An unknown code must never be printed AS the message') !== false,
+    'the unknown-code fallback says the honest thing and keeps the code as a reference');
+
+t_group('apply wizard — a blocked payment SDK is named, not thrown raw');
+
+// Ad-blockers and office networks block payment scripts as a matter of course,
+// and a blocker that answers with an empty 200 loads "fine" and leaves no
+// PaystackPop — the next line threw "Cannot read properties of undefined".
+t_ok(strpos($js, "if (!window.PaystackPop || typeof window.PaystackPop.setup !== 'function') {") !== false,
+    'a loaded-but-empty Paystack SDK is detected');
+t_ok(strpos($js, "if (typeof window.FlutterwaveCheckout !== 'function') throw new Error('provider_unavailable');") !== false,
+    '…and so is Flutterwave');
+t_ok(strpos($js, 'var kobo = Math.round(Number(init.amount_ngn) * 100);') !== false,
+    'a missing amount is caught here rather than reaching Paystack as NaN');
+t_ok(strpos($js, 'if (!isFinite(kobo) || kobo <= 0)') !== false, '…and refused');
+// Two identical function declarations; the later silently won.
+t_eq(substr_count($js, 'function loadScript(src)'), 1, 'loadScript is declared exactly once');
+
+t_group('apply wizard — "Payment received" is only said when it is true');
+
+// The soft branch is a PROMISE that the webhook will reconcile. It may only be
+// made where that holds: the provider took the money and OUR verify call failed
+// transiently. A 404 from verify used to show the confetti success screen.
+t_ok(strpos($js, 'var transient = !status || status === 0 || status >= 500 || status === 429') !== false,
+    'the soft-success branch is limited to transient failures');
+t_ok(strpos($js, 'Your payment went through, but we could not record it automatically.') !== false,
+    'any other 4xx tells the truth and gives the applicant the reference to quote');
+t_ok(strpos($js, 'you will not be charged again') !== false,
+    '…and says they will not be charged twice, which is the thing they are afraid of');

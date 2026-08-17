@@ -1425,6 +1425,43 @@
     })();
 
     // ---------- Pay ----------
+    /* MEASURED on the payment step: with the Paystack SDK blocked the applicant
+       read the word `init_failed`, and with our own endpoint down, `api_unavailable`.
+       apiError(err.message) prints whatever the API layer threw, and for a MAM_API
+       error `message` IS the server's machine-readable code — so the last screen
+       before money spoke in tokens, named no cause and offered no way forward.
+       Every code the two payment routes can raise is answered here in words, and
+       every branch ends in something the applicant can actually do. The code
+       itself goes to the console (and is appended as a short reference) so support
+       can still act on it. */
+    var PAY_ERRORS = {
+      // Blocked SDK. Ad-blockers and school/office networks block payment
+      // scripts as a matter of course, so this is common, not exotic.
+      script_load_failed:   'Your browser or network blocked the secure checkout window — ad-blockers and office networks often do. Try another payment method below, or pay from the link in the email we just sent you.',
+      provider_unavailable: 'The secure checkout window did not open. Try another payment method below, or pay from the link in the email we just sent you.',
+      // Our side / the provider's side.
+      init_failed:          'We could not open the payment window just now. Please try another method below, or pay from the link in the email we just sent you — your application is already saved.',
+      paystack_init_failed: 'Paystack could not start this payment. Please try another method below, or pay from the link in the email we just sent you.',
+      upstream_error:       'The payment provider did not respond. Please try again in a moment, or pay from the link in the email we just sent you.',
+      api_unavailable:      'We could not reach our secure server just now. Your application is saved — try again in a moment, or pay from the link in the email we just sent you.',
+      unsupported_provider: 'That payment method is not available right now. Please choose another below.',
+      // Definitive states — retrying will not help, so say so plainly.
+      application_expired:  'This application has expired, so it can no longer be paid for. Please start a new application — the processing fee applies afresh.',
+      application_not_found:'We could not find this application. Please start again, or email us and we will find it for you.',
+      payment_not_found:    'We could not find this payment. Please email us your reference and we will sort it out.',
+      order_not_found:      'We could not find this order. Please email us your reference and we will sort it out.',
+      zero_amount:          'There is nothing to pay on this application. If that looks wrong, please email us.'
+    };
+    function payErrorMessage(err) {
+      var code = (err && ((err.body && err.body.error) || err.message)) || '';
+      var copy = PAY_ERRORS[code];
+      if (copy) return copy + (code ? ' <span style="opacity:.7">(ref: ' + escapeHtml(code) + ')</span>' : '');
+      /* An unknown code must never be printed AS the message — that is the bug
+         this map exists for. Say the honest thing and keep the code as a
+         reference the applicant can quote to us. */
+      return 'We could not start the payment. Your application is saved — try another method below, or pay from the link in the email we just sent you.'
+        + (code ? ' <span style="opacity:.7">(ref: ' + escapeHtml(String(code)) + ')</span>' : '');
+    }
     on($('#btnPay'), 'click', function (e) {
       e.preventDefault();
       if (!data.reference) { apiError('Please complete the previous step first.'); return; }
@@ -1454,7 +1491,8 @@
         })
         .catch(function (err) {
           setBusy('btnPay', false);
-          apiError(err && err.message ? err.message : 'Could not start payment. Try another method, or pay later via the link we just emailed you.');
+          try { console.error('[MAM_APPLY] payment init failed', { status: err && err.status, body: err && err.body, message: err && err.message, raw: err }); } catch (e) {}
+          apiError(payErrorMessage(err));
         });
     });
 
@@ -1469,10 +1507,20 @@
     function openPaystack(init) {
       return loadScript('https://js.paystack.co/v1/inline.js').then(function () {
         setBusy('btnPay', false);
+        /* A blocker that answers the request with an empty 200 loads "fine" and
+           leaves no PaystackPop, so the next line used to throw a TypeError and
+           the applicant read "Cannot read properties of undefined". Name it. */
+        if (!window.PaystackPop || typeof window.PaystackPop.setup !== 'function') {
+          throw new Error('provider_unavailable');
+        }
+        // A missing amount would reach Paystack as NaN and fail opaquely inside
+        // their iframe, where we can say nothing at all about it.
+        var kobo = Math.round(Number(init.amount_ngn) * 100);
+        if (!isFinite(kobo) || kobo <= 0) throw new Error('init_failed');
         var handler = window.PaystackPop.setup({
           key: init.public_key,
           email: data.email,
-          amount: init.amount_ngn * 100,
+          amount: kobo,
           currency: 'NGN',
           ref: init.reference,
           metadata: { reference: init.reference, application_id: data.applicationId, purpose: 'booking_fee' },
@@ -1485,6 +1533,7 @@
     function openFlutterwave(init) {
       return loadScript('https://checkout.flutterwave.com/v3.js').then(function () {
         setBusy('btnPay', false);
+        if (typeof window.FlutterwaveCheckout !== 'function') throw new Error('provider_unavailable');
         var payload = init.payload || {};
         payload.public_key = init.public_key;
         payload.payment_options = 'card, banktransfer, ussd, mobilemoneyghana, mobilemoneyfranco';
@@ -1518,24 +1567,33 @@
           // the soft "webhook will reconcile" message, since a genuine payment
           // will be confirmed by the signed webhook shortly.
           var status = err && err.status;
-          if (status === 402 || (err && err.body && err.body.error === 'verification_failed')) {
+          var code   = (err && err.body && err.body.error) || '';
+          if (status === 402 || code === 'verification_failed') {
             apiError('We could not confirm your payment amount. If you were charged, email ' +
-              cfg.site.contactEmail + ' with reference ' + reference + ' and we will sort it out.');
-          } else {
+              cfg.site.contactEmail + ' with reference ' + escapeHtml(reference) + ' and we will sort it out.');
+            return;
+          }
+          /* The soft branch is a PROMISE that the webhook will reconcile, so it
+             may only be made where that is true: the provider took the money
+             (we are here because their callback fired) and our own verify call
+             failed transiently. A network drop, a 5xx or a rate-limit qualifies.
+             Any other 4xx — a not-found reference, a rejected token, a bad
+             request — means our side does not recognise this payment, and
+             showing "Payment received" there tells someone their money is
+             accounted for when nothing has accounted for it. */
+          var transient = !status || status === 0 || status >= 500 || status === 429
+            || err.apiDown || err.message === 'api_unavailable' || err.message === 'Failed to fetch';
+          if (transient) {
             showSuccess(reference, 'Payment received. Our system will confirm shortly.');
+          } else {
+            apiError('Your payment went through, but we could not record it automatically. '
+              + 'Please email ' + cfg.site.contactEmail + ' with reference <strong>' + escapeHtml(reference)
+              + '</strong> and we will confirm your seat by hand — you will not be charged again.');
           }
         });
     }
     function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
-    function loadScript(src) {
-      return new Promise(function (resolve, reject) {
-        if (document.querySelector('script[src="' + src + '"]')) return resolve();
-        var s = document.createElement('script'); s.src = src; s.async = true;
-        s.onload = resolve; s.onerror = function () { reject(new Error('script_load_failed')); };
-        document.head.appendChild(s);
-      });
-    }
 
     function showSuccess(ref, paymentNote) {
       clearDraft();

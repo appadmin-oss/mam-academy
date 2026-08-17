@@ -171,3 +171,84 @@ t_ok(strpos($admin, "if (isset(\$_POST['level']) && \$_POST['level'] === '') \$o
 // wrote a log line, so the admin was told "Application updated" regardless.
 t_ok(strpos($admin, "\$st['ok'] ? '' : '⚠ '") !== false,
     'every step of the result is shown to the admin, failures included');
+
+t_group('admin forms — a control in a table row names its row');
+
+/* MEASURED in a browser across 38 admin views with Chromium's accessibility
+ * tree enabled: 350 visible data-entry controls, 70 with NO accessible name.
+ * Every one of them was a per-row control in a data table — an Applications
+ * status <select> repeated 21 times, identical, announced as "combo box" with
+ * nothing to say WHICH applicant it belonged to. On the screen the admin
+ * described as impossible to use, the controls that change a decision could not
+ * be told apart.
+ *
+ * A per-row control cannot have a visible <label> (there is one column heading
+ * for twenty rows), so aria-label naming the row's subject is the pattern.
+ *
+ * ⚠️ Two measurement traps, both of which produced a wrong number first:
+ *   • CDP computes accessible names only after `Accessibility.enable` — without
+ *     it every control reads as unnamed, which looked like a catastrophe.
+ *   • `Accessibility.queryAXTree` returns descendants too, and a <select>'s
+ *     <option>s each carry a name. Taking "the first named node" reports the
+ *     option text as the select's label and hides the defect entirely.
+ *   Match the AX node by backendNodeId, with accessibility enabled, or the
+ *   figure is meaningless in one direction or the other.
+ */
+t_ok(strpos($admin, 'aria-label="Status for <?= htmlspecialchars($rowWho) ?>"') !== false,
+    'the Applications row status select names its applicant');
+t_ok(strpos($admin, 'aria-label="Save status for <?= htmlspecialchars($rowWho) ?>"') !== false,
+    '…and so does its Save button (21 buttons all reading "Save" is the same defect)');
+t_ok(strpos($admin, 'aria-label="Account status for <?= htmlspecialchars((string)($u[\'name\'] ?: $u[\'email\'])) ?>"') !== false,
+    'the Users row status select names its user');
+t_ok(strpos($admin, 'aria-label="Admin tier for <?= htmlspecialchars((string)($u[\'name\'] ?: $u[\'email\'])) ?>"') !== false,
+    '…as does the admin-tier select, which is the highest-privilege control in the table');
+t_ok(strpos($admin, 'aria-label="Status for class <?= htmlspecialchars((string)$c[\'title\']) ?>"') !== false,
+    'the Classes row status select names its class');
+t_ok(strpos($admin, 'aria-label="Instructor for <?= htmlspecialchars($ceWho) ?>"') !== false,
+    'the course-enrolment instructor select names its student');
+t_ok(strpos($admin, 'aria-label="Enrolment status for <?= htmlspecialchars($ceWho) ?>"') !== false,
+    '…and so does its status select');
+t_ok(strpos($admin, 'aria-label="Filter by status"') !== false,
+    'the Summer filter select is named (a bare select beside a search box says nothing)');
+// The row subject is resolved once per row, with a fallback — a nameless row
+// must still produce a distinguishable label rather than an empty one.
+t_ok(strpos($admin, "?: ('application #' . (int)\$r['id'])") !== false,
+    'an applicant with no name falls back to the application number, never to nothing');
+t_ok(strpos($admin, "?: ('enrolment #' . (int)\$r['id'])") !== false,
+    '…and so does an enrolment');
+
+t_group('admin forms — destructive actions state their consequence');
+
+// Scale friction to blast radius. These three destroy or lock something and had
+// no confirmation at all; session_revoke deliberately still has none, because a
+// single revoked session is undone by signing in again.
+foreach (['user_reset', 'module_delete'] as $act) {
+    // Find each form that carries this action and require a confirm() on it —
+    // matching the whole <form …> … value="$act" span rather than a fixed
+    // attribute order, which differs between the three sites.
+    $found = 0; $guarded = 0;
+    if (preg_match_all('~<form\b[^>]*>.*?</form>~s', $admin, $m)) {
+        foreach ($m[0] as $form) {
+            if (strpos($form, 'value="' . $act . '"') === false) continue;
+            $found++;
+            if (strpos($form, 'return confirm(') !== false) $guarded++;
+        }
+    }
+    t_ok($found > 0 && $found === $guarded, "$act asks before it acts ($guarded/$found forms)");
+}
+// "Are you sure?" is not a confirmation — say what happens.
+t_ok(strpos($admin, 'Their current password stops working immediately') !== false,
+    'the password reset states the consequence, not "Are you sure?"');
+t_ok(strpos($admin, 'removed for every student on the course. This cannot be undone.') !== false,
+    'deleting a week states who it affects and that it is irreversible');
+
+t_group('admin forms — an admin-set password is never remembered');
+
+// Both fields are deliberately type=text: whoever sets the password has to read
+// it back to the person. That makes autocomplete off mandatory rather than
+// optional — otherwise the browser offers to save someone else's credential,
+// and may autofill the admin's own into it.
+t_eq(substr_count($admin, 'autocomplete="new-password" spellcheck="false"'), 2,
+    'both admin-set password fields are excluded from autofill and spellcheck');
+t_ok(strpos($admin, 'Deliberately type=text') !== false,
+    '…and the reason the field is visible is written down, so it is not "fixed" into type=password');

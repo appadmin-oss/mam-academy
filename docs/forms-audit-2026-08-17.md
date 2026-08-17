@@ -1,7 +1,11 @@
-# Forms audit — the application wizard
+# Forms audit — the application wizard, the payment step, and the admin
 
-**Measured in a browser** against the live page, 2026-08-17. Numbers below come
-from the DOM, not from reading the source.
+**Measured in a browser** against the running site, 2026-08-17. Numbers below
+come from the DOM and the accessibility tree, not from reading the source.
+
+Four passes, in the order they were done: the wizard's structure (pass 1), its
+error paths and the headshot step (pass 2), the payment step (pass 3), and the
+admin's 38 views (pass 4).
 
 **Why this form and not another:** it is the only revenue-critical form the
 academy has, and the funnel says it is leaking. The production export holds
@@ -25,15 +29,21 @@ That one fact causes most of what follows.
 | Finding | Severity | Measured | Status |
 |---|---|---|---|
 | **The phone field is dead without a CDN** | **4** | wizard unfinishable | ✅ fixed |
+| **"Payment received" shown when it wasn't** | **4** | verify 404 → success screen | ✅ fixed |
 | The wizard has no `<form>` element | **3** | 57 of 58 fields orphaned | ✅ fixed |
 | **A failed submit doesn't look like a failure** | **3** | `role=null`, transparent, unfocused | ✅ fixed |
 | **"A photo is required" is written to nothing** | **3** | element absent from the page | ✅ fixed |
 | ~~`autocomplete` on 13 of 58 fields~~ | ~~3~~ | **withdrawn — my error** | see below |
+| **The payment step spoke in machine tokens** | **3** | `init_failed`, `api_unavailable` | ✅ fixed |
+| **70 admin controls with no accessible name** | **3** | 70 of 350, all per-row | ✅ fixed |
 | `required` on 2 of 58 fields | **2** | validation is entirely custom JS | ✅ fixed |
 | Upload failures all read alike | **2** | one message for 429/413/5xx | ✅ fixed |
 | Banner border contrast | **2** | 1.6:1 and 2.4:1 vs 3:1 | ✅ fixed |
+| Destructive admin actions with no confirm | **2** | 3 of 10 | ✅ fixed |
+| Admin-set passwords offered to autofill | **2** | 2 fields | ✅ fixed |
 | Target sizes | **0** | no violations — measured on the label | — |
 | CSRF expiry, dropped-connection recovery | **0** | both recover; draft survives | — |
+| CSRF coverage on admin forms | **0** | every mutating form carries a token | — |
 
 ---
 
@@ -251,13 +261,152 @@ that never reaches the row is not a photo either.
 
 ---
 
+## Pass 3 — the payment step
+
+Same method: driven to the payment step five times, once per failure.
+
+### [Severity 3] The last screen before money spoke in machine tokens
+
+`apiError(err.message)` prints whatever the API layer threw, and for a
+`MAM_API` error `message` **is** the server's error code. Measured, verbatim,
+as the whole of what the applicant was shown:
+
+| Failure | What they read |
+|---|---|
+| Paystack unreachable | `init_failed` |
+| our endpoint 500s | `api_unavailable` |
+| SDK blocked after a good init | `script_load_failed` |
+
+No cause, no route forward, at the exact moment someone is about to pay. The
+generic fallback copy that *did* mention the emailed payment link was never
+reached, because `err.message` was always truthy.
+
+**Fixed.** A `PAY_ERRORS` map answers every code the two payment routes can
+actually raise — read off `payment-init.php` and `payment-verify.php`, not
+invented — and every branch ends in something the applicant can do. An unknown
+code is never printed *as* the message; it becomes a short `(ref: …)` suffix so
+support can still act on it, with the full body logged to the console.
+
+Blocked payment SDKs get their own copy, because ad-blockers and office
+networks block them routinely: *"Your browser or network blocked the secure
+checkout window — ad-blockers and office networks often do."*
+
+Also fixed while in there: a blocker that answers with an empty `200` loads
+"fine" and leaves no `PaystackPop`, so the next line threw
+*"Cannot read properties of undefined"* at the applicant — both providers now
+check before use. A missing `amount_ngn` reached Paystack as `NaN` and failed
+opaquely inside their iframe, where nothing can be said about it. And
+`loadScript` was declared twice; identical today, a divergence waiting.
+
+### [Severity 4] "Payment received" was shown when nothing had received it
+
+`afterProviderCharge()` treated **any** non-402 error from our own verify call
+as transient and showed the confetti success screen. Measured: with verify
+answering `404 payment_not_found` after a real charge, the applicant got
+*"Payment received. Our system will confirm shortly."*
+
+The soft branch is a **promise that the webhook will reconcile**, and it may
+only be made where that holds — the provider took the money and *our* call
+failed transiently. It is now limited to network failures, 5xx and 429. Any
+other 4xx says the true thing: the payment went through, we could not record it
+automatically, here is the reference to quote — *and you will not be charged
+again*, which is the thing people are actually afraid of.
+
+---
+
+## Pass 4 — the admin forms
+
+### [Severity 3] 70 controls in the admin had no accessible name
+
+Measured across 38 views with Chromium's accessibility tree: **350 visible
+data-entry controls, 70 with no accessible name.** Every one was a per-row
+control in a data table.
+
+| View | Unnamed | What it was |
+|---|---|---|
+| Applications | 43 | status `<select>` + Save, once per row |
+| Users | 15 | account status ×12, admin tier ×3 |
+| Course enrolments | 8 | instructor ×4, status ×4 |
+| Classes | 3 | class status |
+| Summer | 1 | the filter select beside the search box |
+
+On the Applications screen that means 21 identical combo boxes announced as
+"combo box, submitted", with nothing to say **which applicant**. This is the
+screen the admin called impossible to use, and the controls that change an
+admissions decision could not be told apart. The admin-tier select — the
+highest-privilege control in the whole interface — was among them.
+
+A per-row control cannot carry a visible `<label>`: there is one column heading
+for twenty rows. `aria-label` naming the row's subject is the pattern, and it is
+what the six sites now do (*"Status for Adaeze Okonkwo"*, *"Admin tier for …"*),
+with a fallback to the record number so a nameless row still produces a
+distinguishable label rather than an empty one. Re-measured: **0 unnamed.**
+
+⚠️ **Two measurement traps, both of which gave me a wrong number first**, worth
+writing down because the next person will hit them:
+
+- CDP computes accessible names only after `Accessibility.enable`. Without it
+  every control reads as unnamed — 350 of 350, which looked like a catastrophe
+  and was a bug in the harness.
+- `Accessibility.queryAXTree` returns descendants, and a `<select>`'s
+  `<option>`s each carry a name. Taking "the first named node" reports the
+  option's text as the select's label and hides the defect completely — 0 of
+  350, the opposite error.
+
+Match the AX node by `backendNodeId`, with accessibility enabled, or the figure
+is meaningless in one direction or the other.
+
+**Three remaining hits are NOT defects.** The `programs` view reports three
+controls unnamed; all three are correctly wrapped in a `<label>` whose
+`.control` resolves, and they sit inside a **closed `<details>`**, which
+Chromium excludes from the AX tree while `getBoundingClientRect()` still
+reports a height — so my "is it visible" filter let them through. Recorded
+rather than "fixed", because correct markup should not be changed on the word
+of a tool already caught being wrong twice in this pass.
+
+### [Severity 2] Three destructive actions asked nothing
+
+`user_reset`, and `module_delete` at both its sites, submitted immediately.
+Deleting a week removes its title, objectives and materials for every student
+on the course; resetting a password locks someone out until they are told the
+new one. Both now confirm, and the confirmation **states the consequence**
+rather than asking "Are you sure?".
+
+`session_revoke` deliberately still has none — a single revoked session is
+undone by signing in again, and `session_revoke_others` (the one with real
+blast radius) already confirmed.
+
+### [Severity 2] Admin-set passwords were offered to the browser's autofill
+
+Both admin-set password fields are `type="text"` on purpose — whoever sets the
+password has to read it back to the person. That makes excluding them from
+autofill mandatory rather than optional, or the browser offers to save someone
+else's credential and may autofill the admin's own into it. Both now carry
+`autocomplete="new-password" spellcheck="false"`, with the reason for the
+visible type written beside them.
+
+### What the admin got right
+
+Checked and found sound, so nobody "fixes" them:
+
+- **CSRF on every mutating form.** A first scan flagged the three `module_*`
+  forms; they carry the token through an interpolated `$hid` variable my regex
+  could not see. No gap.
+- **No mutating form defaults to GET.** The six forms without a `method`
+  attribute are all filters and JS-driven panels.
+- The account-page password fields already carry `current-password` /
+  `new-password` correctly.
+
+---
+
 ## Not yet measured
 
-- Per-step measurement past step 1 for structure/labelling (this pass drove
+- Per-step measurement past step 1 for structure/labelling (passes 2–4 drove
   every step, but audited the later ones for *failure behaviour*, not layout).
-- The admin-side forms.
-- Payment-step failures (`initializePayment` / `verifyPayment`) — a separate
-  provider surface with its own error vocabulary.
+- The instructor and guardian portals' forms.
+- Admin form **error** behaviour — this pass covered labelling, destructive
+  confirmation and autofill; what an admin sees when a POST fails is a separate
+  question from what the applicant sees.
 
 ---
 
