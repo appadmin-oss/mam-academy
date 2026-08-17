@@ -22,13 +22,13 @@ The defect is underneath: **the wizard is not a form.** `apply.php` contains
 
 That one fact causes most of what follows.
 
-| Finding | Severity | Measured |
-|---|---|---|
-| The wizard has no `<form>` element | **3** | 57 of 58 fields orphaned |
-| `autocomplete` on 13 of 58 fields | **3** | 45 fields cannot autofill |
-| `required` on 2 of 58 fields | **2** | validation is entirely custom JS |
-| Target sizes | **0** | no violations — measured on the label |
-| Error announcement plumbing | **0** | 22 live regions present |
+| Finding | Severity | Measured | Status |
+|---|---|---|---|
+| The wizard has no `<form>` element | **3** | 57 of 58 fields orphaned | ✅ fixed |
+| ~~`autocomplete` on 13 of 58 fields~~ | ~~3~~ | **withdrawn — my error** | see below |
+| `required` on 2 of 58 fields | **2** | validation is entirely custom JS | ✅ fixed |
+| Target sizes | **0** | no violations — measured on the label | — |
+| Error announcement plumbing | **0** | 22 live regions present | — |
 
 ---
 
@@ -63,19 +63,29 @@ wizard's own navigation intact.
 This is a contained change: one wrapper per step, one listener swap. It is
 listed first because it is the cheapest large win available on this page.
 
-## [Severity 3] 45 of 58 fields cannot autofill
+## ~~[Severity 3] 45 of 58 fields cannot autofill~~ — WITHDRAWN
 
-**Where:** 13 fields carry `autocomplete`; the form asks for name, email, phone,
-address, LGA, state, country and date of birth.
+**This finding was wrong, and the error was mine.** Recorded rather than
+quietly deleted, because a withdrawn finding is as useful as a confirmed one.
 
-**Why it matters.** Autofill is the single cheapest reduction in form effort
-that exists, and it compounds with the finding above — without a form wrapper
-even the 13 that are annotated work less well, because the browser cannot see
-them as one address block.
+I reported "13 of 58 fields carry `autocomplete`". The denominator was the
+mistake: **45 of those 58 are radios and checkboxes**, which take no
+autocomplete token at all. Counting them made a complete implementation look
+two-thirds missing.
 
-**Fix:** add the standard tokens — `given-name`, `family-name`, `email`,
-`tel`, `street-address`, `address-level1`, `country-name`, `bday`. On a phone,
-this is the difference between one tap and forty keystrokes.
+Checking the fields that can actually autofill — 18 of them — **13 carry a
+token and every token is correct**: `given-name`, `family-name`, `email`,
+`tel`, `street-address`, `address-level3`, `address-level2`, `address-level1`,
+`country-name`, `bday`, `name`. The five without are `applyCurrency`,
+`program`, `experience`, `goals` and `referrer` — application-specific choices
+with no personal-data token to give them.
+
+**No change made.** Autofill on this form was already right; what it lacked was
+the `<form>` element for the browser to group those fields into, which the first
+finding fixed.
+
+The lesson for the next audit: a ratio is only a finding if the denominator is
+the set that *could* have the property.
 
 ## [Severity 2] `required` appears on 2 of 58 fields
 
@@ -87,9 +97,22 @@ express — but it means there is no floor. If the JS path fails, is blocked, or
 misses a case, nothing catches it, and the browser's own "please fill in this
 field" never appears.
 
-**Fix:** mark genuinely mandatory fields `required` as a backstop beneath the
-custom logic. With a `<form>` in place (finding 1) that becomes a real second
-line of defence rather than an unused attribute.
+**Fixed.** `required` now marks exactly the eight fields `validateStep()`
+enforces unconditionally — `firstName`, `lastName`, `email`, `phone`,
+`address`, `lga`, `state`, `country` — joining `dob`, which already had it.
+
+Deliberately NOT marked:
+- **`city`** — the wizard does not validate it, so marking it required would
+  invent a rule the application does not have.
+- **`parentName` / `parentPhone`** — required only for minors. A hardcoded
+  `required` would misdescribe an adult's application, and the JS already
+  applies the conditional rule correctly.
+
+Under `novalidate` these do not block submission, and that is intended: the
+wizard's own messages stay the ones people see, rather than a second, blander
+browser voice saying "Please fill in this field". What the attribute gives is a
+screen reader announcing "required", a machine-readable description of the form,
+and a real backstop the day `novalidate` is reconsidered.
 
 ---
 

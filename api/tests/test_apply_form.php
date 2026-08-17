@@ -59,3 +59,37 @@ t_ok(!preg_match("/on\(\\\$\('#btnNext'\),\s*'click'/", $js),
     'the four per-button click listeners are gone (they would double-fire beside submit)');
 t_ok(strpos($js, 'attemptNext();') !== false,
     'and the existing validate-then-advance path is unchanged — this adds the browser underneath it');
+
+t_group('apply wizard — required describes what the wizard actually enforces');
+
+// `required` marks exactly the fields validateStep() enforces unconditionally.
+// Under novalidate it does not block submission — the wizard's own messages stay
+// the ones people see. What it gives is a screen reader announcing "required", a
+// machine-readable description of the form, and a backstop the day novalidate is
+// reconsidered.
+foreach (['firstName','lastName','email','phone','address','lga','state','country','dob'] as $id) {
+    t_ok((bool) preg_match('/<input\b[^>]*id="' . $id . '"[^>]*\brequired\b/', $apply)
+      || (bool) preg_match('/<input\b[^>]*\brequired\b[^>]*id="' . $id . '"/', $apply),
+        "$id is marked required, matching validateStep()");
+}
+
+// The two kinds of field that must NOT be marked, because doing so would state
+// a rule the application does not have.
+t_ok(!preg_match('/<input\b[^>]*id="city"[^>]*\brequired\b/', $apply),
+    'city is NOT required — the wizard never validates it');
+foreach (['parentName','parentPhone'] as $id) {
+    t_ok(!preg_match('/<input\b[^>]*id="' . $id . '"[^>]*\brequired\b/', $apply),
+        "$id is NOT hardcoded required — it applies to minors only");
+}
+
+t_group('apply wizard — autofill was already right');
+
+// A finding withdrawn, kept as a test so nobody "fixes" it back. 13 of the 18
+// fields that CAN autofill carry a correct token; the other five are
+// application-specific choices with no personal-data token to give them.
+foreach ([['firstName','given-name'], ['lastName','family-name'], ['email','email'],
+          ['phone','tel'], ['address','street-address'], ['state','address-level1'],
+          ['country','country-name'], ['dob','bday']] as [$id, $token]) {
+    t_ok(strpos($apply, 'autocomplete="' . $token . '"') !== false,
+        "$id carries autocomplete=\"$token\"");
+}

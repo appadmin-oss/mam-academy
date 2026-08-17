@@ -199,6 +199,16 @@ if ($showChooser) {
              focusable" — an error the applicant can neither see nor fix. The
              wizard's own validateStep() gates each step instead, and the
              attributes remain as a machine-readable description of the field. */ ?>
+    <?php /* `required` marks exactly the fields validateStep() enforces
+             unconditionally — not a wish-list. `city` is absent because the
+             wizard does not validate it; parentName/parentPhone are absent
+             because they apply only to minors, and a hardcoded `required`
+             would misdescribe an adult's application.
+
+             Under `novalidate` these do not block submission — the wizard's own
+             messages stay the ones people see. What they DO give is the screen
+             reader announcing "required", a machine-readable description of the
+             form, and a real backstop the day novalidate is reconsidered. */ ?>
     <form id="applyForm" novalidate autocomplete="on">
     <div class="apply-main">
       <!-- STEP 1: Programme — split into 3 sub-sections for clarity -->
@@ -413,12 +423,12 @@ if ($showChooser) {
         <div class="field-row">
           <div class="field">
             <label class="field-label" for="firstName">First Name <span class="req">*</span></label>
-            <input type="text" id="firstName" class="field-input" placeholder="e.g. Tunde" autocomplete="given-name" maxlength="60">
+            <input type="text" id="firstName" class="field-input" placeholder="e.g. Tunde" autocomplete="given-name" maxlength="60" required>
             <div class="field-error" id="err-firstName"><i class="fa-solid fa-circle-exclamation"></i><span>Enter first name</span></div>
           </div>
           <div class="field">
             <label class="field-label" for="lastName">Last Name <span class="req">*</span></label>
-            <input type="text" id="lastName" class="field-input" placeholder="e.g. Adeyemi" autocomplete="family-name" maxlength="60">
+            <input type="text" id="lastName" class="field-input" placeholder="e.g. Adeyemi" autocomplete="family-name" maxlength="60" required>
             <div class="field-error" id="err-lastName"><i class="fa-solid fa-circle-exclamation"></i><span>Enter last name</span></div>
           </div>
         </div>
@@ -426,12 +436,12 @@ if ($showChooser) {
         <div class="field-row">
           <div class="field">
             <label class="field-label" for="email">Email <span class="req">*</span></label>
-            <input type="email" id="email" class="field-input" placeholder="you@example.com" autocomplete="email">
+            <input type="email" id="email" class="field-input" placeholder="you@example.com" autocomplete="email" required>
             <div class="field-error" id="err-email"><i class="fa-solid fa-circle-exclamation"></i><span>Valid email required</span></div>
           </div>
           <div class="field">
             <label class="field-label" for="phone">Mobile Number <span class="req">*</span></label>
-            <input type="tel" id="phone" class="field-input" placeholder="+234 800 000 0000" autocomplete="tel">
+            <input type="tel" id="phone" class="field-input" placeholder="+234 800 000 0000" autocomplete="tel" required>
             <div class="field-error" id="err-phone"><i class="fa-solid fa-circle-exclamation"></i><span>Valid phone required</span></div>
           </div>
         </div>
@@ -448,14 +458,14 @@ if ($showChooser) {
 
         <div class="field">
           <label class="field-label" for="address">Address <span class="req">*</span></label>
-          <input type="text" id="address" class="field-input" placeholder="Street address" autocomplete="street-address" maxlength="200">
+          <input type="text" id="address" class="field-input" placeholder="Street address" autocomplete="street-address" maxlength="200" required>
           <div class="field-error" id="err-address"><i class="fa-solid fa-circle-exclamation"></i><span>Enter your address</span></div>
         </div>
 
         <div class="field-row">
           <div class="field">
             <label class="field-label" for="lga">Local Government (County) <span class="req">*</span></label>
-            <input type="text" id="lga" class="field-input" placeholder="e.g. Alimosho" autocomplete="address-level3" maxlength="80">
+            <input type="text" id="lga" class="field-input" placeholder="e.g. Alimosho" autocomplete="address-level3" maxlength="80" required>
             <div class="field-error" id="err-lga"><i class="fa-solid fa-circle-exclamation"></i><span>Enter LGA / county</span></div>
           </div>
           <div class="field">
@@ -467,12 +477,12 @@ if ($showChooser) {
         <div class="field-row">
           <div class="field">
             <label class="field-label" for="state">State (Province) <span class="req">*</span></label>
-            <input type="text" id="state" class="field-input" placeholder="e.g. Lagos State" autocomplete="address-level1" maxlength="80">
+            <input type="text" id="state" class="field-input" placeholder="e.g. Lagos State" autocomplete="address-level1" maxlength="80" required>
             <div class="field-error" id="err-state"><i class="fa-solid fa-circle-exclamation"></i><span>Enter state / province</span></div>
           </div>
           <div class="field">
             <label class="field-label" for="country">Country <span class="req">*</span></label>
-            <input type="text" id="country" class="field-input" placeholder="Nigeria" autocomplete="country-name">
+            <input type="text" id="country" class="field-input" placeholder="Nigeria" autocomplete="country-name" required>
             <div class="field-error" id="err-country"><i class="fa-solid fa-circle-exclamation"></i><span>Enter country</span></div>
           </div>
         </div>
