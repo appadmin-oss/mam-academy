@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 83;
+const MAM_SCHEMA_TARGET = 84;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2553,6 +2553,138 @@ function mam_db_migrate(PDO $db): void {
               created_at    TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE UNIQUE INDEX IF NOT EXISTS uq_census_term ON term_census(term_id);
+        ",
+
+        // ── v84: the NDPA 2023 / GAID 2025 compliance layer ────────────────────
+        // Five distinct legal artefacts, deliberately NOT one 'compliance' table:
+        // a request log with a statutory clock, a breach register with a 72-hour
+        // clock, a processor/DPA register, DPIA records, and the academy's
+        // annotations over the code-side processing + retention registries.
+        //
+        // What is NOT here: the ROPA and the retention schedule themselves. Those
+        // live in `api/lib/dataprotection.php` as code registries, because a
+        // register that describes what the software does must be derived from the
+        // software. Free text in a table drifts from the code the day a feature
+        // ships, and a drifted register is worse than none — it is a false
+        // assurance. `dp_register_notes` carries only what the academy adds on
+        // top: a review date, a note, and a lengthened retention period.
+        84 => "
+            CREATE TABLE IF NOT EXISTS dp_requests (
+              id              INTEGER PRIMARY KEY AUTOINCREMENT,
+              kind            TEXT    NOT NULL
+                              CHECK(kind IN ('access','erasure','rectification','portability','objection','restriction','withdraw_consent','snag')),
+              subject_email   TEXT    NOT NULL,
+              subject_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              channel         TEXT    NOT NULL DEFAULT 'email',
+              -- The clock runs from when the request was RECEIVED, not from when
+              -- somebody got round to logging it. Backdating is the whole point.
+              received_at     TEXT    NOT NULL,
+              acknowledged_at TEXT,
+              closed_at       TEXT,
+              outcome         TEXT
+                              CHECK(outcome IS NULL OR outcome IN ('fulfilled','partially_fulfilled','refused','withdrawn')),
+              refusal_reason  TEXT,
+              detail          TEXT,
+              handled_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+              CHECK(acknowledged_at IS NULL OR acknowledged_at >= received_at),
+              CHECK(closed_at       IS NULL OR closed_at       >= received_at),
+              -- A closed request must say how it ended, and a refusal must say why.
+              CHECK(closed_at IS NULL OR outcome IS NOT NULL),
+              CHECK(outcome IS NULL OR outcome <> 'refused' OR refusal_reason IS NOT NULL)
+            );
+            CREATE INDEX IF NOT EXISTS idx_dpreq_open  ON dp_requests(closed_at, received_at);
+            CREATE INDEX IF NOT EXISTS idx_dpreq_email ON dp_requests(subject_email);
+
+            CREATE TABLE IF NOT EXISTS dp_breaches (
+              id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+              reference           TEXT    NOT NULL,
+              -- NDPA s.40(2) starts the 72 hours at AWARENESS, not at occurrence.
+              -- Both are recorded because the gap between them is itself a finding.
+              occurred_at         TEXT,
+              discovered_at       TEXT    NOT NULL,
+              nature              TEXT    NOT NULL,
+              data_categories     TEXT    NOT NULL,
+              subject_categories  TEXT,
+              subjects_affected   INTEGER,
+              risk_level          TEXT    NOT NULL DEFAULT 'unknown'
+                                  CHECK(risk_level IN ('unknown','low','medium','high')),
+              containment         TEXT,
+              ndpc_notified_at    TEXT,
+              ndpc_reference      TEXT,
+              subjects_notified_at TEXT,
+              no_notify_reason    TEXT,
+              lessons             TEXT,
+              status              TEXT    NOT NULL DEFAULT 'open'
+                                  CHECK(status IN ('open','contained','closed')),
+              recorded_by         INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+              CHECK(occurred_at IS NULL OR occurred_at <= discovered_at),
+              -- A high-risk breach must either have told the subjects or say why not
+              -- (s.40(3)). 'We decided not to' is a defensible answer; silence is not.
+              CHECK(risk_level <> 'high' OR subjects_notified_at IS NOT NULL
+                    OR no_notify_reason IS NOT NULL OR status <> 'closed')
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_dpbreach_ref ON dp_breaches(reference);
+            CREATE INDEX IF NOT EXISTS idx_dpbreach_clock ON dp_breaches(discovered_at, ndpc_notified_at);
+
+            CREATE TABLE IF NOT EXISTS dp_processors (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              key_name      TEXT    NOT NULL,
+              name          TEXT    NOT NULL,
+              role          TEXT    NOT NULL DEFAULT 'processor'
+                            CHECK(role IN ('processor','joint_controller','controller')),
+              purpose       TEXT,
+              country       TEXT,
+              dpa_signed_on TEXT,
+              dpa_reference TEXT,
+              sub_processors TEXT,
+              transfer_basis TEXT,
+              review_due_on TEXT,
+              status        TEXT    NOT NULL DEFAULT 'active'
+                            CHECK(status IN ('active','suspended','retired')),
+              notes         TEXT,
+              updated_at    TEXT,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_dpproc_key ON dp_processors(key_name);
+
+            CREATE TABLE IF NOT EXISTS dp_assessments (
+              id             INTEGER PRIMARY KEY AUTOINCREMENT,
+              title          TEXT    NOT NULL,
+              scope          TEXT    NOT NULL,
+              trigger_reason TEXT,
+              necessity      TEXT,
+              risks          TEXT,
+              mitigations    TEXT,
+              residual_risk  TEXT    NOT NULL DEFAULT 'unknown'
+                             CHECK(residual_risk IN ('unknown','low','medium','high')),
+              decision       TEXT    NOT NULL DEFAULT 'draft'
+                             CHECK(decision IN ('draft','proceed','proceed_with_controls','do_not_proceed')),
+              assessed_on    TEXT,
+              assessed_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              review_due_on  TEXT,
+              consulted_ndpc INTEGER NOT NULL DEFAULT 0,
+              created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            -- Annotations over the CODE registries. `ref_key` names an entry in
+            -- mam_dp_purposes() or mam_dp_retention(); `keep_days` is meaningful
+            -- only for kind='retention' and only ever LENGTHENS the shipped period
+            -- (enforced in PHP — a shortened period would delete lawfully-held
+            -- records on somebody's guess).
+            CREATE TABLE IF NOT EXISTS dp_register_notes (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              kind        TEXT    NOT NULL CHECK(kind IN ('purpose','retention')),
+              ref_key     TEXT    NOT NULL,
+              keep_days   INTEGER,
+              notes       TEXT,
+              reviewed_on TEXT,
+              reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              updated_at  TEXT,
+              CHECK(keep_days IS NULL OR keep_days >= 0)
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_dpnote_ref ON dp_register_notes(kind, ref_key);
         ",
     ];
 

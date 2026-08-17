@@ -59,6 +59,16 @@ if (function_exists('mam_automation_week_drip_sweep')) {
     printf("week drip  : modules released %d\n", mam_automation_week_drip_sweep());
 }
 
+// NDPA retention. Gated twice on purpose: the `data_retention` automation says
+// whether to scan at all, and `dp_retention_mode` (shipped as `report`) says
+// whether anything is allowed to act on the result. In `report` this line prints
+// what WOULD go and touches nothing.
+if (function_exists('mam_dp_retention_sweep') && (!function_exists('mam_automation_on') || mam_automation_on('data_retention'))) {
+    $rt = mam_dp_retention_sweep();
+    printf("retention  : mode %s, deleted %d, anonymised %d, flagged %d\n",
+        $rt['mode'], $rt['deleted'], $rt['anonymised'], $rt['flagged']);
+}
+
 // §28 academic emails — the four swept types (gated behind academic_emails_enabled).
 // §11 — pull live Meet participation for online sessions that have finished.
 // A no-op (0) until the Google service account is configured.

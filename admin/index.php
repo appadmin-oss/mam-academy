@@ -504,6 +504,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'vetting_record' => 'users', 'vetting_delete' => 'users', 'safeguarding_mode' => 'settings',
         'term_save' => 'settings', 'term_seed_year' => 'settings', 'term_census' => 'settings',
         'term_refund_reseed' => 'settings', 'closure_add' => 'settings', 'closure_delete' => 'settings',
+        // Data protection. Requests and breaches are about identified people, so
+        // they sit under the `users` capability; the register, retention mode and
+        // processor agreements are configuration.
+        'dp_request_open' => 'users', 'dp_request_ack' => 'users', 'dp_request_close' => 'users',
+        'dp_request_export' => 'users', 'dp_breach_record' => 'users', 'dp_breach_ndpc' => 'users',
+        'dp_breach_subjects' => 'users', 'dp_breach_close' => 'users',
+        'dp_processor_save' => 'settings', 'dp_note_save' => 'settings', 'dp_assessment_save' => 'settings',
+        'dp_retention_mode' => 'settings', 'dp_retention_preview' => 'settings', 'dp_retention_run' => 'settings',
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
         'wallet_credit' => 'users',
@@ -1122,6 +1130,203 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $tid = (int)($_POST['term_id'] ?? 0);
         mam_calendar_closure_delete((int)($_POST['closure_id'] ?? 0));
         header('Location: ?v=calendar&t=' . $tid . '&ok=' . urlencode('Closure removed.')); exit;
+    }
+
+    /* ─── Data protection (NDPA 2023 / GAID 2025) ─────────────────────────
+       Every one of these writes an artefact somebody may have to produce to the
+       Commission, so each records WHO and WHEN. Note that `received_at` and
+       `discovered_at` are settable by hand: a request that arrived on Monday and
+       was logged on Thursday is three days into its clock, and a log that
+       pretends otherwise is worse than no log at all. */
+    if ($action === 'dp_request_open') {
+        try {
+            $rid = mam_dp_request_open([
+                'kind'          => trim((string)($_POST['kind'] ?? '')),
+                'subject_email' => trim((string)($_POST['subject_email'] ?? '')),
+                'channel'       => trim((string)($_POST['channel'] ?? 'email')),
+                'received_at'   => trim((string)($_POST['received_at'] ?? '')),
+                'detail'        => trim((string)($_POST['detail'] ?? '')),
+            ], (int)($adminUser['id'] ?? 0) ?: null);
+            header('Location: ?v=dataprotection&tab=requests&ok=' . urlencode('Request logged (#' . $rid . '). The clock runs from the date received.')); exit;
+        } catch (Throwable $e) {
+            $m = $e->getMessage();
+            $why = $m === 'invalid_email' ? 'That is not a valid email address for the data subject.'
+                 : ($m === 'unknown_kind' ? 'Pick a request type.' : 'Could not log the request: ' . $m);
+            header('Location: ?v=dataprotection&tab=requests&err=' . urlencode($why)); exit;
+        }
+    }
+
+    if ($action === 'dp_request_ack') {
+        mam_dp_request_acknowledge((int)($_POST['id'] ?? 0), (int)($adminUser['id'] ?? 0) ?: null);
+        header('Location: ?v=dataprotection&tab=requests&ok=' . urlencode('Acknowledgement recorded.')); exit;
+    }
+
+    if ($action === 'dp_request_close') {
+        $rid = (int)($_POST['id'] ?? 0);
+        try {
+            mam_dp_request_close($rid, trim((string)($_POST['outcome'] ?? '')), [
+                'refusal_reason' => trim((string)($_POST['refusal_reason'] ?? '')),
+                'closed_at'      => trim((string)($_POST['closed_at'] ?? '')),
+                'detail'         => trim((string)($_POST['detail'] ?? '')),
+            ], (int)($adminUser['id'] ?? 0) ?: null);
+            header('Location: ?v=dataprotection&tab=requests&ok=' . urlencode('Request closed.')); exit;
+        } catch (Throwable $e) {
+            $m = $e->getMessage();
+            $why = $m === 'reason_required' ? 'A refusal has to say why — the data subject is entitled to the reason.'
+                 : ($m === 'bad_outcome' ? 'Pick an outcome.' : 'Could not close: ' . $m);
+            header('Location: ?v=dataprotection&tab=requests&err=' . urlencode($why)); exit;
+        }
+    }
+
+    if ($action === 'dp_request_export') {
+        $r = mam_dp_request_fulfil_access((int)($_POST['id'] ?? 0), (int)($adminUser['id'] ?? 0) ?: null);
+        if (empty($r['ok'])) {
+            $why = ($r['error'] ?? '') === 'no_data'
+                ? 'Nothing is held under that email address, so there is nothing to send. Close the request as refused with that reason, or correct the address.'
+                : 'Could not produce the export (' . ($r['error'] ?? 'error') . ').';
+            header('Location: ?v=dataprotection&tab=requests&err=' . urlencode($why)); exit;
+        }
+        header('Location: ?v=dataprotection&tab=requests&ok=' . urlencode('Export produced and the request closed as fulfilled. Download it from Data Rights to send to the subject.')); exit;
+    }
+
+    if ($action === 'dp_breach_record') {
+        try {
+            $bid = mam_dp_breach_record([
+                'occurred_at'        => trim((string)($_POST['occurred_at'] ?? '')),
+                'discovered_at'      => trim((string)($_POST['discovered_at'] ?? '')),
+                'nature'             => trim((string)($_POST['nature'] ?? '')),
+                'data_categories'    => trim((string)($_POST['data_categories'] ?? '')),
+                'subject_categories' => trim((string)($_POST['subject_categories'] ?? '')),
+                'subjects_affected'  => trim((string)($_POST['subjects_affected'] ?? '')),
+                'risk_level'         => trim((string)($_POST['risk_level'] ?? 'unknown')),
+                'containment'        => trim((string)($_POST['containment'] ?? '')),
+            ], (int)($adminUser['id'] ?? 0) ?: null);
+            header('Location: ?v=dataprotection&tab=breaches&ok=' . urlencode('Breach recorded (#' . $bid . '). The 72 hours run from the time it was discovered.')); exit;
+        } catch (Throwable $e) {
+            $m = $e->getMessage();
+            $why = $m === 'nature_required' ? 'Say what happened and which categories of data were involved.'
+                 : ($m === 'occurred_after_discovered' ? 'A breach cannot have happened after it was discovered.'
+                 : 'Could not record: ' . $m);
+            header('Location: ?v=dataprotection&tab=breaches&err=' . urlencode($why)); exit;
+        }
+    }
+
+    if ($action === 'dp_breach_ndpc') {
+        mam_dp_breach_notify_ndpc((int)($_POST['id'] ?? 0), trim((string)($_POST['at'] ?? '')) ?: null, trim((string)($_POST['reference'] ?? '')));
+        header('Location: ?v=dataprotection&tab=breaches&ok=' . urlencode('NDPC notification recorded.')); exit;
+    }
+
+    if ($action === 'dp_breach_subjects') {
+        $reason = trim((string)($_POST['no_notify_reason'] ?? ''));
+        mam_dp_breach_notify_subjects((int)($_POST['id'] ?? 0), trim((string)($_POST['at'] ?? '')) ?: null, $reason);
+        header('Location: ?v=dataprotection&tab=breaches&ok=' . urlencode($reason !== '' ? 'The decision not to notify the subjects is on record.' : 'Data-subject communication recorded.')); exit;
+    }
+
+    if ($action === 'dp_breach_close') {
+        $bid = (int)($_POST['id'] ?? 0);
+        try {
+            mam_dp_breach_close($bid, [
+                'lessons'          => trim((string)($_POST['lessons'] ?? '')),
+                'containment'      => trim((string)($_POST['containment'] ?? '')),
+                'no_notify_reason' => trim((string)($_POST['no_notify_reason'] ?? '')),
+            ]);
+            header('Location: ?v=dataprotection&tab=breaches&ok=' . urlencode('Breach closed.')); exit;
+        } catch (Throwable $e) {
+            $why = $e->getMessage() === 'subjects_undecided'
+                ? 'This is a high-risk breach. Either record that the data subjects were told, or record why they were not — s.40(3) does not allow the question to be left open.'
+                : 'Could not close: ' . $e->getMessage();
+            header('Location: ?v=dataprotection&tab=breaches&err=' . urlencode($why)); exit;
+        }
+    }
+
+    if ($action === 'dp_processor_save') {
+        try {
+            mam_dp_processor_save(trim((string)($_POST['key_name'] ?? '')), [
+                'name'           => trim((string)($_POST['name'] ?? '')),
+                'role'           => trim((string)($_POST['role'] ?? 'processor')),
+                'purpose'        => trim((string)($_POST['purpose'] ?? '')),
+                'country'        => trim((string)($_POST['country'] ?? '')),
+                'dpa_signed_on'  => trim((string)($_POST['dpa_signed_on'] ?? '')),
+                'dpa_reference'  => trim((string)($_POST['dpa_reference'] ?? '')),
+                'sub_processors' => trim((string)($_POST['sub_processors'] ?? '')),
+                'transfer_basis' => trim((string)($_POST['transfer_basis'] ?? '')),
+                'review_due_on'  => trim((string)($_POST['review_due_on'] ?? '')),
+                'status'         => trim((string)($_POST['status'] ?? 'active')),
+                'notes'          => trim((string)($_POST['notes'] ?? '')),
+            ], (int)($adminUser['id'] ?? 0) ?: null);
+            header('Location: ?v=dataprotection&tab=processors&ok=' . urlencode('Processor record saved.')); exit;
+        } catch (Throwable $e) {
+            $m = $e->getMessage();
+            $why = $m === 'bad_key' ? 'A processor key is letters, numbers, hyphen or underscore (2–48 characters).'
+                 : ($m === 'name_required' ? 'A processor needs a name.' : 'Could not save: ' . $m);
+            header('Location: ?v=dataprotection&tab=processors&err=' . urlencode($why)); exit;
+        }
+    }
+
+    if ($action === 'dp_note_save') {
+        $kind = trim((string)($_POST['kind'] ?? ''));
+        $ref  = trim((string)($_POST['ref_key'] ?? ''));
+        try {
+            $r = mam_dp_note_save($kind, $ref, [
+                'keep_days'   => trim((string)($_POST['keep_days'] ?? '')),
+                'notes'       => trim((string)($_POST['notes'] ?? '')),
+                'reviewed_on' => trim((string)($_POST['reviewed_on'] ?? '')),
+            ], (int)($adminUser['id'] ?? 0) ?: null);
+            $msg = !empty($r['clamped'])
+                ? 'Saved, but the retention period was NOT shortened: the schedule states a lawful basis for the longer period, so the shipped period still applies. Change the basis in the code if the period is genuinely wrong.'
+                : 'Register entry updated.';
+            header('Location: ?v=dataprotection&tab=register&ok=' . urlencode($msg)); exit;
+        } catch (Throwable $e) {
+            header('Location: ?v=dataprotection&tab=register&err=' . urlencode('Could not save: ' . $e->getMessage())); exit;
+        }
+    }
+
+    if ($action === 'dp_assessment_save') {
+        try {
+            mam_dp_assessment_save([
+                'id'             => (int)($_POST['id'] ?? 0),
+                'title'          => trim((string)($_POST['title'] ?? '')),
+                'scope'          => trim((string)($_POST['scope'] ?? '')),
+                'trigger_reason' => trim((string)($_POST['trigger_reason'] ?? '')),
+                'necessity'      => trim((string)($_POST['necessity'] ?? '')),
+                'risks'          => trim((string)($_POST['risks'] ?? '')),
+                'mitigations'    => trim((string)($_POST['mitigations'] ?? '')),
+                'residual_risk'  => trim((string)($_POST['residual_risk'] ?? 'unknown')),
+                'decision'       => trim((string)($_POST['decision'] ?? 'draft')),
+                'assessed_on'    => trim((string)($_POST['assessed_on'] ?? '')),
+                'review_due_on'  => trim((string)($_POST['review_due_on'] ?? '')),
+                'consulted_ndpc' => !empty($_POST['consulted_ndpc']),
+            ], (int)($adminUser['id'] ?? 0) ?: null);
+            header('Location: ?v=dataprotection&tab=dpia&ok=' . urlencode('Impact assessment saved.')); exit;
+        } catch (Throwable $e) {
+            $why = $e->getMessage() === 'title_and_scope_required'
+                ? 'An assessment needs a title and a description of what it covers.' : 'Could not save: ' . $e->getMessage();
+            header('Location: ?v=dataprotection&tab=dpia&err=' . urlencode($why)); exit;
+        }
+    }
+
+    if ($action === 'dp_retention_mode') {
+        $mode = strtolower(trim((string)($_POST['mode'] ?? 'report')));
+        if (!in_array($mode, MAM_DP_RETENTION_MODES, true)) $mode = 'report';
+        mam_setting_set('dp_retention_mode', $mode);
+        mam_audit('dp_retention_mode', 'setting', 0, ['mode' => $mode]);
+        $note = $mode === 'enforce'
+            ? 'Retention is now ENFORCED — the daily job will delete records past their period. Rules marked "review" are still never applied automatically.'
+            : ($mode === 'off' ? 'The retention sweep will not run.' : 'Retention is in report mode: it will measure and audit, and delete nothing.');
+        header('Location: ?v=dataprotection&tab=retention&ok=' . urlencode($note)); exit;
+    }
+
+    if ($action === 'dp_retention_preview') {
+        $r = mam_dp_retention_sweep(true);
+        header('Location: ?v=dataprotection&tab=retention&ok=' . urlencode('Preview only, nothing changed: ' . (int)$r['flagged'] . ' record(s) are past their retention period.')); exit;
+    }
+
+    if ($action === 'dp_retention_run') {
+        $r = mam_dp_retention_sweep(false);
+        $msg = $r['applied']
+            ? 'Retention applied: ' . (int)$r['deleted'] . ' deleted, ' . (int)$r['anonymised'] . ' anonymised.'
+            : 'Nothing was applied — the sweep is in ' . $r['mode'] . ' mode. ' . (int)$r['flagged'] . ' record(s) are past their period.';
+        header('Location: ?v=dataprotection&tab=retention&ok=' . urlencode($msg)); exit;
     }
 
     /* ─── Safeguarding: record / remove a clearance, set the gate mode ───
@@ -2795,7 +3000,7 @@ nav a{display:flex;align-items:center}
       'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'upper' => ['Upper Admin', 'binoculars'], 'record' => ['Student Record', 'folder-open'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'calendar' => ['Academic Calendar', 'calendar-days'], 'vetting' => ['Staff & Vetting', 'shield-halved'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open'], 'referrals' => ['Referrals', 'user-plus'], 'bi' => ['Business Intelligence', 'chart-pie']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
-      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved']],
+      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved'], 'dataprotection' => ['Data Protection', 'user-shield']],
       'Account'    => ['account' => ['My Account', 'circle-user']],
     ];
     // Flatten to a label map so the topbar title lookup keeps working.
@@ -2852,7 +3057,7 @@ nav a{display:flex;align-items:center}
     };
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users', 'upper' => 'settings', 'vetting' => 'users', 'calendar' => 'settings'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users', 'upper' => 'settings', 'vetting' => 'users', 'calendar' => 'settings', 'dataprotection' => 'users'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -5266,6 +5471,479 @@ if (!function_exists('mam_admin_instr_metric')) {
       </div>
     </form>
   </div>
+  <?php endif; ?>
+
+<?php elseif ($view === 'dataprotection'): ?>
+<?php
+  /* ── Data Protection (NDPA 2023 / GAID 2025) ──────────────────────────────
+     `?v=datarights` is the machinery — type an email, get a bundle. This screen
+     is the RECORD, which is what the Commission actually asks for: which
+     requests arrived and whether they were answered in time, what is held and
+     on what basis, who else sees it, and what happened when something went
+     wrong.
+
+     One thing on this screen is computed and cannot be got any other way: the
+     registration tier. It turns on distinct data subjects in a rolling six
+     months, and only this system knows that number. */
+  $dpSum  = mam_dp_summary();
+  $dpTab  = (string)($_GET['tab'] ?? 'overview');
+  if (!in_array($dpTab, ['overview', 'requests', 'breaches', 'register', 'retention', 'processors', 'dpia'], true)) $dpTab = 'overview';
+  $dpTabs = [
+      'overview'   => ['Overview', 'gauge-high'],
+      'requests'   => ['Rights requests', 'envelope-open-text'],
+      'breaches'   => ['Breach register', 'triangle-exclamation'],
+      'register'   => ['Processing register', 'list-check'],
+      'retention'  => ['Retention', 'broom'],
+      'processors' => ['Processors & DPAs', 'handshake'],
+      'dpia'       => ['Impact assessments', 'clipboard-question'],
+  ];
+  $dpField = 'padding:7px 9px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.82rem;width:100%';
+  $dpTh    = 'padding:8px;text-align:left';
+  $dpBadge = static function (string $text, string $tone): string {
+      $c = ['bad' => 'var(--red)', 'warn' => 'var(--gold)', 'ok' => 'var(--green,#3aa76d)', 'mute' => 'var(--muted)'][$tone] ?? 'var(--muted)';
+      return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid ' . $c . ';color:' . $c . ';font-size:.7rem;white-space:nowrap">' . htmlspecialchars($text) . '</span>';
+  };
+?>
+  <h2 class="page-title">Data Protection</h2>
+  <p class="muted" style="margin:0 0 16px;max-width:78ch">Being <em>able</em> to export or erase someone's data is not the compliance artefact — the <strong>record</strong> is. This screen holds the request log with its clock, the breach register with its 72&nbsp;hours, what the academy processes and why, how long it is kept, and who else it is given to.</p>
+
+  <nav aria-label="Data protection sections" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+    <?php foreach ($dpTabs as $k => [$lbl, $ic]): $on = $k === $dpTab; ?>
+      <?php /* Active = the solid gold pill; the rest are ghosts. Written the
+               other way round first, which put low-contrast gold text on a
+               gold fill and made the CURRENT tab the one that looked
+               unavailable. */ ?>
+      <a class="btn<?= $on ? '' : ' ghost' ?>" href="?v=dataprotection&amp;tab=<?= $k ?>" <?= $on ? 'aria-current="page"' : '' ?>><i class="fa-solid fa-<?= $ic ?>"></i> <?= htmlspecialchars($lbl) ?></a>
+    <?php endforeach; ?>
+  </nav>
+
+  <?php /* ── Attention first, on every tab: a 72-hour clock is not something to
+           find by clicking around. ── */ ?>
+  <?php if (!empty($dpSum['attention'])): ?>
+  <div class="card" style="margin-bottom:18px;border-color:<?= $dpSum['attention'][0]['level'] === 'critical' ? 'var(--red)' : 'var(--gold)' ?>">
+    <h3 style="margin:0 0 8px">Needs attention</h3>
+    <ul style="margin:0;padding-left:18px;display:grid;gap:5px">
+      <?php foreach ($dpSum['attention'] as $a): ?>
+        <li style="color:<?= $a['level'] === 'critical' ? 'var(--red)' : ($a['level'] === 'warn' ? 'var(--gold)' : 'inherit') ?>"><?= htmlspecialchars($a['text']) ?></li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($dpTab === 'overview'): ?>
+  <?php
+    /* The tier is the one obligation on this screen the code can settle. It is
+       displayed with the measurement behind it, because "you must register" is
+       an assertion nobody should have to take on trust. */
+    $t = $dpSum['tier'];
+  ?>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:18px">
+    <div class="card"><div class="kpi-label">Data subjects (6 months)</div><div class="kpi-value"><?= (int)$t['count'] ?></div></div>
+    <div class="card"><div class="kpi-label">NDPC position</div><div class="kpi-value" style="font-size:1.05rem;<?= $t['must_register'] ? 'color:var(--gold)' : '' ?>"><?= htmlspecialchars((string)$t['tier']['label']) ?></div></div>
+    <div class="card"><div class="kpi-label">Open requests</div><div class="kpi-value" style="<?= $dpSum['requests_overdue'] > 0 ? 'color:var(--red)' : '' ?>"><?= (int)$dpSum['requests_open'] ?><?php if ($dpSum['requests_overdue']): ?><span style="font-size:.8rem"> · <?= (int)$dpSum['requests_overdue'] ?> overdue</span><?php endif; ?></div></div>
+    <div class="card"><div class="kpi-label">Open breaches</div><div class="kpi-value" style="<?= $dpSum['breaches_open'] > 0 ? 'color:var(--red)' : '' ?>"><?= (int)$dpSum['breaches_open'] ?></div></div>
+    <div class="card"><div class="kpi-label">Processors without a DPA</div><div class="kpi-value" style="<?= $dpSum['processor_gaps'] > 0 ? 'color:var(--gold)' : '' ?>"><?= (int)$dpSum['processor_gaps'] ?></div></div>
+    <div class="card"><div class="kpi-label">Retention sweep</div><div class="kpi-value" style="font-size:1.05rem"><?= htmlspecialchars((string)$dpSum['retention_mode']) ?></div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 8px">Where the academy stands with the Commission</h3>
+    <p class="muted" style="margin:0 0 10px;max-width:76ch">A controller becomes one <strong>of major importance</strong> at more than 200 Nigerian data subjects in any six months — so this is a measurement, not a diary note. The count below deduplicates by email across applications, accounts, enquiries and the newsletter: a guardian who did all four is <em>one</em> data subject, and counting them four times would put the academy in a filing tier it does not belong in.</p>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem">
+      <tbody>
+        <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>">Distinct subjects since <?= htmlspecialchars(substr((string)$t['measured']['since'], 0, 10)) ?></td><td style="<?= $dpTh ?>"><strong><?= (int)$t['count'] ?></strong></td></tr>
+        <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>">Rows read, per source</td><td style="<?= $dpTh ?>" class="muted"><?php
+            $bits = [];
+            foreach ((array)$t['measured']['per_source'] as $k => $v) $bits[] = htmlspecialchars($k) . ' ' . (int)$v;
+            echo implode(' · ', $bits);
+        ?></td></tr>
+        <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>">Must register with the NDPC</td><td style="<?= $dpTh ?>"><?= $t['must_register'] ? $dpBadge('yes', 'warn') : $dpBadge('not yet', 'ok') ?></td></tr>
+        <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>">Must file Compliance Audit Returns</td><td style="<?= $dpTh ?>"><?= $t['must_file_car'] ? $dpBadge('yes — by 31 March', 'warn') : $dpBadge('no', 'ok') ?></td></tr>
+        <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>">Subjects before the obligation changes</td><td style="<?= $dpTh ?>"><?= $t['headroom'] === null ? '—' : (int)$t['headroom'] ?></td></tr>
+        <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>">Registration reference on file</td><td style="<?= $dpTh ?>"><?php
+            $reg = trim((string)mam_setting_or_default('dp_ndpc_registration', ''));
+            echo $reg !== '' ? htmlspecialchars($reg) : '<span class="muted">none — set it in Pricing &amp; Settings once registered</span>';
+        ?></td></tr>
+        <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>">Data Protection Officer</td><td style="<?= $dpTh ?>"><?php
+            echo $dpSum['dpo'] !== '' ? htmlspecialchars((string)$dpSum['dpo']) : $dpBadge('not named', 'warn');
+        ?></td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted" style="margin:10px 0 0;font-size:.76rem">Thresholds and the filing deadline were verified on 2026-08-17 from published commentary rather than the Commission's own text, which is not reachable from this server. Confirm with counsel before acting on the filing obligation — the numbers live in one constant block in <code>api/lib/dataprotection.php</code>.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px">The academy's own commitments</h3>
+    <p class="muted" style="margin:0 0 10px;max-width:76ch">The NDPA fixes <strong>no</strong> deadline for answering a rights request — the repealed NDPR did, and 30 days is the settled professional expectation. So this is a promise the academy makes, not one the law imposes, and the request log measures against it.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+      <div><div class="kpi-label">Response commitment</div><div><strong><?= (int)mam_dp_request_days() ?> days</strong> <span class="muted">(the academy's)</span></div></div>
+      <div><div class="kpi-label">Breach → NDPC</div><div><strong><?= (int)MAM_DP_DEADLINES['breach_ndpc_hours'] ?> hours</strong> <span class="muted">(s.40(2), from awareness)</span></div></div>
+      <div><div class="kpi-label">Grievance (SNAG)</div><div><strong><?= (int)MAM_DP_DEADLINES['snag_ack_days'] ?> / <?= (int)MAM_DP_DEADLINES['snag_close_days'] ?> days</strong> <span class="muted">(acknowledge / resolve)</span></div></div>
+      <div><div class="kpi-label">High-risk breach → subjects</div><div><strong>immediately</strong> <span class="muted">(s.40(3))</span></div></div>
+    </div>
+  </div>
+
+  <?php elseif ($dpTab === 'requests'): ?>
+  <?php $dpReqs = mam_dp_requests(false, 300); ?>
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 8px">Log a request</h3>
+    <p class="muted" style="margin:0 0 10px;max-width:74ch">Set <strong>received</strong> to when it actually arrived, not to today. A request that came in on Monday and is being logged on Thursday is already three days into its clock, and a log that pretends otherwise is worse than no log.</p>
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="dp_request_open">
+      <label>Type<br><select name="kind" required style="<?= $dpField ?>">
+        <?php foreach (MAM_DP_REQUEST_KINDS as $k => $lbl): ?><option value="<?= htmlspecialchars($k) ?>"><?= htmlspecialchars($lbl) ?></option><?php endforeach; ?>
+      </select></label>
+      <label>Data subject's email<br><input type="email" name="subject_email" required style="<?= $dpField ?>"></label>
+      <label>Received<br><input type="datetime-local" name="received_at" value="<?= htmlspecialchars(date('Y-m-d\TH:i')) ?>" style="<?= $dpField ?>"></label>
+      <label>Arrived by<br><select name="channel" style="<?= $dpField ?>"><option value="email">Email</option><option value="portal">Portal</option><option value="phone">Phone</option><option value="letter">Letter</option><option value="in_person">In person</option></select></label>
+      <label style="grid-column:1/-1">What was asked for<br><textarea name="detail" rows="2" style="<?= $dpField ?>" placeholder="In the subject's own words where possible."></textarea></label>
+      <div><button class="btn" type="submit">Log request</button></div>
+    </form>
+  </div>
+
+  <?php if (!$dpReqs): ?>
+    <div class="card"><p class="muted" style="margin:0">No requests logged yet. An empty log is the correct state for an academy nobody has asked — it is only a problem if requests have been answered without being recorded.</p></div>
+  <?php else: ?>
+  <div class="card">
+    <h3 style="margin:0 0 10px">Requests</h3>
+    <div style="overflow-x:auto"><table class="stack" style="width:100%;border-collapse:collapse;font-size:.85rem">
+      <thead><tr style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="<?= $dpTh ?>">Subject</th><th style="<?= $dpTh ?>">Type</th><th style="<?= $dpTh ?>">Received</th>
+        <th style="<?= $dpTh ?>">Due</th><th style="<?= $dpTh ?>">State</th><th style="<?= $dpTh ?>">Action</th></tr></thead>
+      <tbody>
+      <?php foreach ($dpReqs as $r): $ck = $r['clock']; ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="<?= $dpTh ?>" data-label="Subject"><strong><?= htmlspecialchars((string)$r['subject_email']) ?></strong><?php if (!empty($r['detail'])): ?><br><span class="muted" style="font-size:.72rem"><?= htmlspecialchars(mb_strimwidth((string)$r['detail'], 0, 90, '…')) ?></span><?php endif; ?></td>
+          <td style="<?= $dpTh ?>" data-label="Type"><?= htmlspecialchars(MAM_DP_REQUEST_KINDS[(string)$r['kind']] ?? (string)$r['kind']) ?></td>
+          <td style="<?= $dpTh ?>" data-label="Received" class="muted"><?= htmlspecialchars(substr((string)$r['received_at'], 0, 16)) ?></td>
+          <td style="<?= $dpTh ?>" data-label="Due" class="muted"><?= htmlspecialchars(substr((string)$ck['close_due_at'], 0, 10)) ?><?php if ($ck['open'] && $ck['days_left'] !== null): ?><br><span style="font-size:.72rem"><?= (int)$ck['days_left'] ?>d left</span><?php endif; ?></td>
+          <td style="<?= $dpTh ?>" data-label="State"><?php
+              echo [
+                  'overdue'     => $dpBadge('overdue', 'bad'),
+                  'due_soon'    => $dpBadge('due soon', 'warn'),
+                  'open'        => $dpBadge('open', 'mute'),
+                  'closed'      => $dpBadge('closed in time', 'ok'),
+                  'closed_late' => $dpBadge('closed late', 'bad'),
+              ][(string)$ck['state']] ?? htmlspecialchars((string)$ck['state']);
+              if ($ck['ack_late'] && $ck['open']) echo ' ' . $dpBadge('ack overdue', 'warn');
+          ?></td>
+          <td style="<?= $dpTh ?>" data-label="Action">
+            <?php if ($ck['open']): ?>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                <?php if (empty($r['acknowledged_at'])): ?>
+                <form method="post" style="margin:0"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                  <input type="hidden" name="action" value="dp_request_ack"><input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                  <button class="btn" type="submit" style="padding:5px 10px;font-size:.76rem;min-height:24px">Acknowledge</button></form>
+                <?php endif; ?>
+                <?php if ((string)$r['kind'] === 'access'): ?>
+                <form method="post" style="margin:0"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                  <input type="hidden" name="action" value="dp_request_export"><input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                  <button class="btn" type="submit" style="padding:5px 10px;font-size:.76rem;min-height:24px">Produce export &amp; close</button></form>
+                <?php endif; ?>
+                <form method="post" style="margin:0;display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+                  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                  <input type="hidden" name="action" value="dp_request_close"><input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                  <select name="outcome" aria-label="Outcome for request <?= (int)$r['id'] ?>" style="padding:5px 7px;border-radius:7px;min-height:24px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.76rem">
+                    <option value="fulfilled">Fulfilled</option><option value="partially_fulfilled">Partly fulfilled</option>
+                    <option value="refused">Refused</option><option value="withdrawn">Withdrawn</option></select>
+                  <input type="text" name="refusal_reason" placeholder="Reason (needed to refuse)" aria-label="Reason, required if refusing request <?= (int)$r['id'] ?>" style="padding:5px 7px;border-radius:7px;min-height:24px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.76rem;width:170px">
+                  <button class="btn" type="submit" style="padding:5px 10px;font-size:.76rem;min-height:24px">Close</button>
+                </form>
+              </div>
+            <?php else: ?>
+              <span class="muted" style="font-size:.76rem"><?= htmlspecialchars(str_replace('_', ' ', (string)$r['outcome'])) ?><?= !empty($r['closed_at']) ? ' · ' . htmlspecialchars(substr((string)$r['closed_at'], 0, 10)) : '' ?></span>
+              <?php if (!empty($r['refusal_reason'])): ?><br><span class="muted" style="font-size:.72rem"><?= htmlspecialchars((string)$r['refusal_reason']) ?></span><?php endif; ?>
+            <?php endif; ?>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody></table></div>
+  </div>
+  <?php endif; ?>
+
+  <?php elseif ($dpTab === 'breaches'): ?>
+  <?php $dpBr = mam_dp_breaches(300); ?>
+  <div class="card" style="margin-bottom:18px;border-color:var(--gold)">
+    <h3 style="margin:0 0 8px">Record a breach</h3>
+    <p class="muted" style="margin:0 0 10px;max-width:74ch">The 72 hours in s.40(2) run from when the academy <strong>became aware</strong>, not from when the breach happened — so <em>discovered</em> is the required field and <em>occurred</em> is optional, because it is often not yet known. Record it before you have all the answers: the Commission accepts information in phases, and a late first report is the thing that cannot be undone.</p>
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="dp_breach_record">
+      <label>Discovered<br><input type="datetime-local" name="discovered_at" value="<?= htmlspecialchars(date('Y-m-d\TH:i')) ?>" required style="<?= $dpField ?>"></label>
+      <label>Occurred <span class="muted">(if known)</span><br><input type="datetime-local" name="occurred_at" style="<?= $dpField ?>"></label>
+      <label>Risk to the people affected<br><select name="risk_level" style="<?= $dpField ?>">
+        <option value="unknown">Not yet assessed</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+      <label>People affected <span class="muted">(estimate)</span><br><input type="number" name="subjects_affected" min="0" style="<?= $dpField ?>"></label>
+      <label style="grid-column:1/-1">What happened<br><textarea name="nature" rows="2" required style="<?= $dpField ?>" placeholder="Plainly, as you would explain it to the Commission."></textarea></label>
+      <label>Categories of data<br><input type="text" name="data_categories" required style="<?= $dpField ?>" placeholder="e.g. names, emails, photographs"></label>
+      <label>Categories of people<br><input type="text" name="subject_categories" style="<?= $dpField ?>" placeholder="e.g. students, guardians"></label>
+      <label style="grid-column:1/-1">Containment so far<br><textarea name="containment" rows="2" style="<?= $dpField ?>"></textarea></label>
+      <div><button class="btn" type="submit">Record breach</button></div>
+    </form>
+  </div>
+
+  <?php if (!$dpBr): ?>
+    <div class="card"><p class="muted" style="margin:0">The register is empty. That is the good state — but the register exists so that the <em>first</em> breach starts a clock instead of a conversation.</p></div>
+  <?php else: ?>
+    <?php foreach ($dpBr as $b): $bc = $b['clock']; ?>
+    <div class="card" style="margin-bottom:14px;<?= $bc['state'] === 'overdue' ? 'border-color:var(--red)' : ($bc['notified'] ? '' : 'border-color:var(--gold)') ?>">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
+        <h3 style="margin:0"><?= htmlspecialchars((string)$b['reference']) ?> <span class="muted" style="font-weight:400;font-size:.82rem"><?= htmlspecialchars(ucfirst((string)$b['status'])) ?></span></h3>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <?= $dpBadge('risk: ' . (string)$b['risk_level'], (string)$b['risk_level'] === 'high' ? 'bad' : ((string)$b['risk_level'] === 'unknown' ? 'warn' : 'mute')) ?>
+          <?= [
+              'overdue'        => $dpBadge('NDPC deadline passed', 'bad'),
+              'due_soon'       => $dpBadge((int)$bc['hours_left'] . 'h to notify', 'bad'),
+              'open'           => $dpBadge((int)$bc['hours_left'] . 'h to notify', 'warn'),
+              'notified'       => $dpBadge('notified in ' . (int)$bc['hours_to_notify'] . 'h', 'ok'),
+              'notified_late'  => $dpBadge('notified late (' . (int)$bc['hours_to_notify'] . 'h)', 'bad'),
+          ][(string)$bc['state']] ?? '' ?>
+          <?php if ($bc['detection_lag_h'] !== null): ?><?= $dpBadge('found ' . (int)$bc['detection_lag_h'] . 'h after it happened', 'mute') ?><?php endif; ?>
+        </div>
+      </div>
+      <p style="margin:10px 0 6px"><?= nl2br(htmlspecialchars((string)$b['nature'])) ?></p>
+      <p class="muted" style="margin:0 0 10px;font-size:.8rem">
+        Discovered <?= htmlspecialchars(substr((string)$b['discovered_at'], 0, 16)) ?> ·
+        deadline <?= htmlspecialchars(substr((string)$bc['deadline_at'], 0, 16)) ?> ·
+        data: <?= htmlspecialchars((string)$b['data_categories']) ?>
+        <?php if ($b['subjects_affected'] !== null): ?> · <?= (int)$b['subjects_affected'] ?> people<?php endif; ?>
+        <?php if (!empty($b['ndpc_reference'])): ?> · NDPC ref <?= htmlspecialchars((string)$b['ndpc_reference']) ?><?php endif; ?>
+      </p>
+      <?php if (!empty($b['containment'])): ?><p class="muted" style="margin:0 0 8px;font-size:.8rem"><strong>Containment:</strong> <?= htmlspecialchars((string)$b['containment']) ?></p><?php endif; ?>
+      <?php if (!empty($b['no_notify_reason'])): ?><p class="muted" style="margin:0 0 8px;font-size:.8rem"><strong>Subjects not notified because:</strong> <?= htmlspecialchars((string)$b['no_notify_reason']) ?></p><?php endif; ?>
+      <?php if (!empty($b['lessons'])): ?><p class="muted" style="margin:0 0 8px;font-size:.8rem"><strong>Lessons:</strong> <?= htmlspecialchars((string)$b['lessons']) ?></p><?php endif; ?>
+
+      <?php if ((string)$b['status'] !== 'closed'): ?>
+      <div style="display:grid;gap:10px;border-top:1px solid var(--border);padding-top:10px">
+        <?php if (!$bc['notified']): ?>
+        <form method="post" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:0">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+          <input type="hidden" name="action" value="dp_breach_ndpc"><input type="hidden" name="id" value="<?= (int)$b['id'] ?>">
+          <label style="font-size:.8rem">Notified the NDPC at<br><input type="datetime-local" name="at" value="<?= htmlspecialchars(date('Y-m-d\TH:i')) ?>" style="<?= $dpField ?>;width:190px"></label>
+          <label style="font-size:.8rem">Their reference<br><input type="text" name="reference" style="<?= $dpField ?>;width:170px"></label>
+          <button class="btn" type="submit">Record notification</button>
+        </form>
+        <?php endif; ?>
+        <?php if (empty($b['subjects_notified_at'])): ?>
+        <form method="post" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:0">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+          <input type="hidden" name="action" value="dp_breach_subjects"><input type="hidden" name="id" value="<?= (int)$b['id'] ?>">
+          <label style="font-size:.8rem">Told the people affected at<br><input type="datetime-local" name="at" value="<?= htmlspecialchars(date('Y-m-d\TH:i')) ?>" style="<?= $dpField ?>;width:190px"></label>
+          <label style="font-size:.8rem">…or why they were not<br><input type="text" name="no_notify_reason" style="<?= $dpField ?>;width:250px" placeholder="Fill this instead of the date"></label>
+          <button class="btn" type="submit">Record</button>
+        </form>
+        <?php endif; ?>
+        <form method="post" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:0">
+          <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+          <input type="hidden" name="action" value="dp_breach_close"><input type="hidden" name="id" value="<?= (int)$b['id'] ?>">
+          <label style="font-size:.8rem;flex:1;min-width:240px">What changed as a result<br><input type="text" name="lessons" style="<?= $dpField ?>"></label>
+          <button class="btn" type="submit">Close breach</button>
+        </form>
+      </div>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+  <?php endif; ?>
+
+  <?php elseif ($dpTab === 'register'): ?>
+  <?php $dpReg = mam_dp_register(); ?>
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 8px">Record of processing activities</h3>
+    <p class="muted" style="margin:0;max-width:78ch">This register is <strong>derived from the code</strong>, not typed into a form. Each purpose names the tables that actually implement it, and the test suite checks those names against the live schema — so a register that has drifted from the software fails the build instead of sitting in a folder looking reassuring. What you can add here is the academy's part: a review date and a note.</p>
+  </div>
+  <?php foreach ($dpReg as $key => $p): ?>
+  <div class="card" style="margin-bottom:14px;<?= !empty($p['missing_tables']) ? 'border-color:var(--red)' : '' ?>">
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
+      <h3 style="margin:0"><?= htmlspecialchars((string)$p['purpose']) ?></h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <?= $dpBadge((string)$key, 'mute') ?>
+        <?php if (!empty($p['special'])): ?><?= $dpBadge('sensitive', 'warn') ?><?php endif; ?>
+        <?php if (!empty($p['note']['reviewed_on'])): ?><?= $dpBadge('reviewed ' . substr((string)$p['note']['reviewed_on'], 0, 10), 'ok') ?><?php else: ?><?= $dpBadge('never reviewed', 'warn') ?><?php endif; ?>
+      </div>
+    </div>
+    <div style="overflow-x:auto;margin-top:8px"><table style="width:100%;border-collapse:collapse;font-size:.82rem"><tbody>
+      <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>;width:180px" class="muted">Lawful basis</td><td style="<?= $dpTh ?>"><?= htmlspecialchars((string)$p['basis_label']) ?></td></tr>
+      <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>" class="muted">Whose data</td><td style="<?= $dpTh ?>"><?= htmlspecialchars((string)$p['subjects']) ?></td></tr>
+      <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>" class="muted">What is held</td><td style="<?= $dpTh ?>"><?= htmlspecialchars((string)$p['data']) ?></td></tr>
+      <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>" class="muted">Given to</td><td style="<?= $dpTh ?>"><?= htmlspecialchars((string)$p['recipients']) ?></td></tr>
+      <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>" class="muted">Stored in</td><td style="<?= $dpTh ?>"><code style="font-size:.76rem"><?= htmlspecialchars(implode(', ', (array)$p['tables'])) ?></code><?php if (!empty($p['missing_tables'])): ?><br><span style="color:var(--red)">Missing: <?= htmlspecialchars(implode(', ', $p['missing_tables'])) ?> — the register has drifted from the code.</span><?php endif; ?></td></tr>
+      <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>" class="muted">Kept for</td><td style="<?= $dpTh ?>"><?= $p['keep_days'] !== null ? (int)$p['keep_days'] . ' days' : '—' ?> <span class="muted">(<?= htmlspecialchars((string)($p['retention']['label'] ?? '')) ?>)</span></td></tr>
+      <?php if (!empty($p['note']['notes'])): ?>
+      <tr style="border-top:1px solid var(--border)"><td style="<?= $dpTh ?>" class="muted">Academy note</td><td style="<?= $dpTh ?>"><?= nl2br(htmlspecialchars((string)$p['note']['notes'])) ?></td></tr>
+      <?php endif; ?>
+    </tbody></table></div>
+    <form method="post" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin:10px 0 0;border-top:1px solid var(--border);padding-top:10px">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="dp_note_save">
+      <input type="hidden" name="kind" value="purpose"><input type="hidden" name="ref_key" value="<?= htmlspecialchars((string)$key) ?>">
+      <label style="font-size:.8rem">Reviewed on<br><input type="date" name="reviewed_on" value="<?= htmlspecialchars(date('Y-m-d')) ?>" style="<?= $dpField ?>;width:160px"></label>
+      <label style="font-size:.8rem;flex:1;min-width:240px">Note<br><input type="text" name="notes" value="<?= htmlspecialchars((string)($p['note']['notes'] ?? '')) ?>" style="<?= $dpField ?>"></label>
+      <button class="btn" type="submit">Save review</button>
+    </form>
+  </div>
+  <?php endforeach; ?>
+
+  <?php elseif ($dpTab === 'retention'): ?>
+  <?php $dpScan = mam_dp_retention_scan(); $dpMode = mam_dp_retention_mode(); ?>
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 8px">Retention</h3>
+    <p class="muted" style="margin:0 0 12px;max-width:78ch">The sweep ships in <strong>report</strong> mode and stays there until somebody decides otherwise — a retention job that starts deleting on the first run of an install nobody has reviewed is how an academy loses records it needed. Rules marked <strong>review</strong> are never applied automatically at all: the academic record, payments, clearance evidence and the audit log are human decisions by construction.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+      <form method="post" style="display:flex;gap:8px;align-items:end;margin:0">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="dp_retention_mode">
+        <label style="font-size:.8rem">Mode<br><select name="mode" style="<?= $dpField ?>;width:150px">
+          <?php foreach (MAM_DP_RETENTION_MODES as $m): ?><option value="<?= $m ?>" <?= $m === $dpMode ? 'selected' : '' ?>><?= $m ?></option><?php endforeach; ?>
+        </select></label>
+        <button class="btn" type="submit">Set mode</button>
+      </form>
+      <form method="post" style="margin:0"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="dp_retention_preview">
+        <button class="btn" type="submit">Preview (changes nothing)</button></form>
+      <form method="post" style="margin:0"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+        <input type="hidden" name="action" value="dp_retention_run">
+        <button class="btn" type="submit">Run the sweep now</button></form>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 10px">Schedule</h3>
+    <div style="overflow-x:auto"><table class="stack" style="width:100%;border-collapse:collapse;font-size:.84rem">
+      <thead><tr style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="<?= $dpTh ?>">What</th><th style="<?= $dpTh ?>">Keep</th><th style="<?= $dpTh ?>">Then</th>
+        <th style="<?= $dpTh ?>">Rows</th><th style="<?= $dpTh ?>">Past it</th><th style="<?= $dpTh ?>">Lengthen</th></tr></thead>
+      <tbody>
+      <?php foreach ($dpScan as $key => $e): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="<?= $dpTh ?>" data-label="What"><strong><?= htmlspecialchars((string)$e['label']) ?></strong><br><span class="muted" style="font-size:.74rem"><code><?= htmlspecialchars((string)$e['table']) ?></code> · <?= htmlspecialchars((string)$e['basis']) ?></span></td>
+          <td style="<?= $dpTh ?>" data-label="Keep"><?= (int)$e['days'] ?>d<?php if (!empty($e['lengthened'])): ?><br><?= $dpBadge('lengthened', 'mute') ?><?php endif; ?></td>
+          <td style="<?= $dpTh ?>" data-label="Then"><?= $dpBadge((string)$e['action'], (string)$e['action'] === 'delete' ? 'bad' : ((string)$e['action'] === 'review' ? 'mute' : 'warn')) ?></td>
+          <td style="<?= $dpTh ?>" data-label="Rows" class="muted"><?= $e['exists'] ? (int)$e['rows'] : '—' ?></td>
+          <td style="<?= $dpTh ?>" data-label="Past it" style="<?= (int)$e['overdue'] > 0 ? 'color:var(--gold)' : '' ?>"><?= (int)$e['overdue'] ?></td>
+          <td style="<?= $dpTh ?>" data-label="Lengthen">
+            <form method="post" style="display:flex;gap:5px;align-items:center;margin:0">
+              <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+              <input type="hidden" name="action" value="dp_note_save">
+              <input type="hidden" name="kind" value="retention"><input type="hidden" name="ref_key" value="<?= htmlspecialchars((string)$key) ?>">
+              <input type="number" name="keep_days" min="0" value="<?= (int)$e['days'] ?>" aria-label="Days to keep <?= htmlspecialchars((string)$e['label']) ?>" style="padding:5px 7px;border-radius:7px;min-height:24px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.76rem;width:90px">
+              <button class="btn" type="submit" style="padding:5px 10px;font-size:.76rem;min-height:24px">Set</button>
+            </form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody></table></div>
+    <p class="muted" style="margin:10px 0 0;font-size:.76rem">A period can be <strong>lengthened</strong> here but not shortened: the schedule states a lawful basis for each period, and a shorter one typed into a form would delete records the academy has a reason to hold. Shortening one means changing the basis in <code>api/lib/dataprotection.php</code>, deliberately.</p>
+  </div>
+
+  <?php elseif ($dpTab === 'processors'): ?>
+  <?php $dpProcs = mam_dp_processors(); ?>
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 8px">Processors and data-processing agreements</h3>
+    <p class="muted" style="margin:0;max-width:78ch">Every integration the code can call is listed, and each says whether it is <strong>configured right now</strong>. That is the difference between this and the usual processor register, which lists the vendor somebody once considered and omits the mail host that has been carrying every password-reset email for a year.</p>
+  </div>
+  <?php foreach ($dpProcs as $p): ?>
+  <div class="card" style="margin-bottom:12px;<?= !empty($p['gap']) ? 'border-color:var(--gold)' : '' ?>">
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline">
+      <h3 style="margin:0"><?= htmlspecialchars((string)$p['name']) ?></h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <?php if ($p['configured'] === true): ?><?= $dpBadge('live', 'warn') ?>
+        <?php elseif ($p['configured'] === false): ?><?= $dpBadge('not configured', 'mute') ?>
+        <?php else: ?><?= $dpBadge('outside this system', 'mute') ?><?php endif; ?>
+        <?php if (!empty($p['dpa_signed_on'])): ?><?= $dpBadge('DPA ' . substr((string)$p['dpa_signed_on'], 0, 10), 'ok') ?>
+        <?php elseif (!empty($p['gap'])): ?><?= $dpBadge('no agreement on file', 'bad') ?><?php endif; ?>
+      </div>
+    </div>
+    <p class="muted" style="margin:6px 0 10px;font-size:.82rem"><?= htmlspecialchars((string)$p['purpose']) ?><?php if ((string)$p['country'] !== ''): ?> · <?= htmlspecialchars((string)$p['country']) ?><?php endif; ?><?php if (!empty($p['transfer_basis'])): ?> · transfer basis: <?= htmlspecialchars((string)$p['transfer_basis']) ?><?php endif; ?></p>
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end;border-top:1px solid var(--border);padding-top:10px">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="dp_processor_save">
+      <input type="hidden" name="key_name" value="<?= htmlspecialchars((string)$p['key']) ?>">
+      <input type="hidden" name="name" value="<?= htmlspecialchars((string)$p['name']) ?>">
+      <input type="hidden" name="purpose" value="<?= htmlspecialchars((string)$p['purpose']) ?>">
+      <label style="font-size:.78rem">Agreement signed<br><input type="date" name="dpa_signed_on" value="<?= htmlspecialchars((string)($p['dpa_signed_on'] ?? '')) ?>" style="<?= $dpField ?>"></label>
+      <label style="font-size:.78rem">Reference<br><input type="text" name="dpa_reference" value="<?= htmlspecialchars((string)($p['dpa_reference'] ?? '')) ?>" style="<?= $dpField ?>"></label>
+      <label style="font-size:.78rem">Country<br><input type="text" name="country" value="<?= htmlspecialchars((string)$p['country']) ?>" style="<?= $dpField ?>"></label>
+      <label style="font-size:.78rem">Transfer basis <span class="muted">(if outside Nigeria)</span><br><input type="text" name="transfer_basis" value="<?= htmlspecialchars((string)($p['transfer_basis'] ?? '')) ?>" style="<?= $dpField ?>"></label>
+      <label style="font-size:.78rem">Role<br><select name="role" style="<?= $dpField ?>">
+        <?php foreach (['processor' => 'Processor', 'joint_controller' => 'Joint controller', 'controller' => 'Separate controller'] as $rv => $rl): ?>
+          <option value="<?= $rv ?>" <?= (string)$p['role'] === $rv ? 'selected' : '' ?>><?= $rl ?></option>
+        <?php endforeach; ?></select></label>
+      <label style="font-size:.78rem">Review due<br><input type="date" name="review_due_on" value="<?= htmlspecialchars((string)($p['review_due_on'] ?? '')) ?>" style="<?= $dpField ?>"></label>
+      <div><button class="btn" type="submit">Save</button></div>
+    </form>
+  </div>
+  <?php endforeach; ?>
+
+  <div class="card">
+    <h3 style="margin:0 0 8px">Add a processor the code does not know about</h3>
+    <p class="muted" style="margin:0 0 10px;max-width:74ch">A print shop that receives a class list, an accountant who receives payment records — a processor engaged off-platform is exactly the kind that otherwise goes unregistered.</p>
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="dp_processor_save">
+      <label style="font-size:.8rem">Short key<br><input type="text" name="key_name" required pattern="[A-Za-z0-9_\-]{2,48}" style="<?= $dpField ?>" placeholder="print_shop"></label>
+      <label style="font-size:.8rem">Name<br><input type="text" name="name" required style="<?= $dpField ?>"></label>
+      <label style="font-size:.8rem">What they do with it<br><input type="text" name="purpose" style="<?= $dpField ?>"></label>
+      <label style="font-size:.8rem">Country<br><input type="text" name="country" style="<?= $dpField ?>"></label>
+      <label style="font-size:.8rem">Agreement signed<br><input type="date" name="dpa_signed_on" style="<?= $dpField ?>"></label>
+      <div><button class="btn" type="submit">Add</button></div>
+    </form>
+  </div>
+
+  <?php else: /* dpia */ ?>
+  <?php $dpAss = mam_dp_assessments(200); $dpGaps = mam_dp_assessment_gaps(); ?>
+  <?php if ($dpGaps): ?>
+  <div class="card" style="margin-bottom:18px;border-color:var(--gold)">
+    <h3 style="margin:0 0 8px">Sensitive processing with no assessment</h3>
+    <p class="muted" style="margin:0 0 8px">These purposes handle sensitive personal data — in most cases a child's — and no assessment names them. Mentioning the purpose key in an assessment's scope is what links the two.</p>
+    <ul style="margin:0;padding-left:18px">
+      <?php foreach ($dpGaps as $gk => $gl): ?><li><code><?= htmlspecialchars((string)$gk) ?></code> — <?= htmlspecialchars((string)$gl) ?></li><?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
+
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 8px">Record an impact assessment</h3>
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+      <input type="hidden" name="action" value="dp_assessment_save">
+      <label style="grid-column:1/-1">Title<br><input type="text" name="title" required style="<?= $dpField ?>"></label>
+      <label style="grid-column:1/-1">What it covers <span class="muted">(name the purpose keys from the register)</span><br><textarea name="scope" rows="2" required style="<?= $dpField ?>"></textarea></label>
+      <label style="grid-column:1/-1">Why an assessment was needed<br><input type="text" name="trigger_reason" style="<?= $dpField ?>"></label>
+      <label style="grid-column:1/-1">Necessity and proportionality<br><textarea name="necessity" rows="2" style="<?= $dpField ?>"></textarea></label>
+      <label style="grid-column:1/-1">Risks<br><textarea name="risks" rows="2" style="<?= $dpField ?>"></textarea></label>
+      <label style="grid-column:1/-1">Mitigations<br><textarea name="mitigations" rows="2" style="<?= $dpField ?>"></textarea></label>
+      <label>Residual risk<br><select name="residual_risk" style="<?= $dpField ?>"><option value="unknown">Not assessed</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+      <label>Decision<br><select name="decision" style="<?= $dpField ?>"><option value="draft">Draft</option><option value="proceed">Proceed</option><option value="proceed_with_controls">Proceed with controls</option><option value="do_not_proceed">Do not proceed</option></select></label>
+      <label>Assessed on<br><input type="date" name="assessed_on" value="<?= htmlspecialchars(date('Y-m-d')) ?>" style="<?= $dpField ?>"></label>
+      <label>Review due<br><input type="date" name="review_due_on" value="<?= htmlspecialchars(date('Y-m-d', strtotime('+1 year'))) ?>" style="<?= $dpField ?>"></label>
+      <label style="display:flex;gap:7px;align-items:center;font-size:.82rem"><input type="checkbox" name="consulted_ndpc" value="1"> The Commission was consulted</label>
+      <div><button class="btn" type="submit">Save assessment</button></div>
+    </form>
+  </div>
+
+  <?php if (!$dpAss): ?>
+    <div class="card"><p class="muted" style="margin:0">No assessments recorded.</p></div>
+  <?php else: ?>
+  <div class="card">
+    <h3 style="margin:0 0 10px">Assessments</h3>
+    <div style="overflow-x:auto"><table class="stack" style="width:100%;border-collapse:collapse;font-size:.84rem">
+      <thead><tr style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="<?= $dpTh ?>">Title</th><th style="<?= $dpTh ?>">Decision</th><th style="<?= $dpTh ?>">Residual risk</th>
+        <th style="<?= $dpTh ?>">Assessed</th><th style="<?= $dpTh ?>">Review due</th></tr></thead>
+      <tbody>
+      <?php foreach ($dpAss as $a): $due = (string)($a['review_due_on'] ?? ''); $overdue = $due !== '' && $due < date('Y-m-d'); ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="<?= $dpTh ?>" data-label="Title"><strong><?= htmlspecialchars((string)$a['title']) ?></strong><br><span class="muted" style="font-size:.74rem"><?= htmlspecialchars(mb_strimwidth((string)$a['scope'], 0, 110, '…')) ?></span></td>
+          <td style="<?= $dpTh ?>" data-label="Decision"><?= htmlspecialchars(str_replace('_', ' ', (string)$a['decision'])) ?></td>
+          <td style="<?= $dpTh ?>" data-label="Residual risk"><?= $dpBadge((string)$a['residual_risk'], (string)$a['residual_risk'] === 'high' ? 'bad' : ((string)$a['residual_risk'] === 'unknown' ? 'warn' : 'ok')) ?></td>
+          <td style="<?= $dpTh ?>" data-label="Assessed" class="muted"><?= htmlspecialchars(substr((string)($a['assessed_on'] ?? ''), 0, 10) ?: '—') ?></td>
+          <td style="<?= $dpTh ?>" data-label="Review due"><?= $due === '' ? '<span class="muted">—</span>' : ($overdue ? $dpBadge('overdue ' . $due, 'warn') : htmlspecialchars($due)) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody></table></div>
+  </div>
+  <?php endif; ?>
   <?php endif; ?>
 
 <?php elseif ($view === 'vetting'): ?>

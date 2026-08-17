@@ -27,7 +27,7 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | **Instructor comparison → formative-only** | ✅ **shipped** |
 | **Charges: gated in depth, flags split** | ✅ **shipped** |
 | **Academic calendar + pro-rata refunds (schema v83)** | ✅ **shipped** — the first refund authority in the repo |
-| NDPA compliance layer | not started (code + operational halves) |
+| **NDPA compliance layer (schema v84)** | ✅ **shipped** — code half done; the operational half is the academy's |
 | Scholarship funds/awards, instalments, dunning | not started |
 | TanStack Table v8 | decided, **not implemented** |
 | htmx + strict CSP | needs a funding decision (doc 4's own framing) |
@@ -283,6 +283,65 @@ calendar" as soon as rows existed, and the published table rendering
 `100% 100% 80% 60% 50% 40% 25% 10% 0%`. `api/tests/test_calendar.php` — 75+
 assertions.
 
+
+## 4e. The NDPA compliance layer (shipped — schema v84)
+
+`datarights.php` could already export and erase. What did not exist was the
+**record**: an admin typed an email, downloaded a bundle, and no trace of the
+request survived. Being *able* to answer a rights request is not the compliance
+artefact — the log of which requests arrived and whether they were answered in
+time is, and so is the register of what is held, on what basis, for how long,
+and who else sees it.
+
+`api/lib/dataprotection.php` + `?v=dataprotection` (seven tabs) supply all of it:
+the request log with its clock, the breach register with its 72 hours, the ROPA,
+the retention schedule, the processor/DPA register and DPIA records.
+
+**The design decision worth knowing.** The ROPA and the retention schedule are
+**code registries**, not tables with a CRUD form. Each purpose names the tables
+that implement it; each retention rule names a real table and date column; and
+the test suite asserts both against the live schema. A register describing what
+the software does has to be derived from the software — typed into a form it
+drifts the day a feature ships, and a *drifted* register is worse than a missing
+one, because somebody has signed it. A stale register now fails CI.
+
+Four invariants, all restated in `CLAUDE.md` #15:
+
+| Invariant | Why the obvious alternative is wrong |
+|---|---|
+| `delete` only on **leaf** tables (asserted against the live FK graph) | A cascade through an enrolment would destroy academic history to tidy up a note. Academic records, payments, vetting and the audit log are all `review` — never swept |
+| A period may be **lengthened, never shortened** | The schedule states a lawful basis for each period; a smaller number typed into a form deletes lawfully-held records |
+| Sweep ships in **`report`**; a dry run overrides `enforce` | Same reasoning as the safeguarding gate — a job that deletes on the first run of an unreviewed install is how an academy loses what it needed, and the reliable outcome is somebody disabling it |
+| Breach clock runs from **awareness** (`discovered_at`), not occurrence | s.40(2)'s trigger. Measuring from occurrence makes an instantly-reported month-old breach look late |
+
+**Two things the research got wrong, and one it could not have known.** The plan
+said to "assess the >200 threshold, register with the NDPC, diarise the annual
+CAR by 31 March". Measured: the threshold is 200 distinct subjects **in a rolling
+six months**, and **Ordinary-High Level (201–1,000) registers but does not file
+CARs at all** — filing starts at Ultra-High. MAM currently measures **19**, which
+is below the DCPMI threshold entirely, so none of it bites yet. That is exactly
+why `mam_dp_tier()` computes the position instead of leaving it as a diary note:
+the academy crosses the line by *growing*, not by deciding to.
+
+And the response deadline everyone quotes is **not in the NDPA** — the repealed
+NDPR had one; the Act does not. Thirty days ships as the academy's own
+commitment, labelled as such on the screen, and it is a setting.
+
+⚠️ The day-counts and tier thresholds were verified 2026-08-17 from published
+commentary — `ndpc.gov.ng` is blocked by this environment's egress proxy, so
+none of it came from primary text. They live in one constant block with their
+provenance. Confirm with counsel before enforcement.
+
+**The operational half is not code and is not done**: registering (when the
+count crosses), naming a DPO (the screen shows "not named"), and the DPIAs — the
+gap list currently names six sensitive purposes with no assessment.
+
+Verified in a browser across all seven tabs: requests logged and closed, a
+refusal without a reason refused with a readable message, a breach recorded with
+its clock badge, preview leaving the counts untouched, a shortened period
+refused with an explanation, and a recorded DPA closing Cloudflare's gap.
+`api/tests/test_dataprotection.php` — 130+ assertions.
+
 ---
 
 ## 5. Where things live
@@ -300,6 +359,7 @@ assertions.
 | Shared portal error translator (`P.errText` / `P.fail`) | `assets/js/portal.js` |
 | Self-hosted toast (the CDN-proof one) | `assets/js/libs.js` |
 | The academic calendar + refund authority | `api/lib/calendar.php`, admin `?v=calendar` |
+| The NDPA layer — requests, breaches, ROPA, retention, processors, DPIAs | `api/lib/dataprotection.php`, admin `?v=dataprotection` |
 | The forms audit, with every number | `docs/forms-audit-2026-08-17.md` |
 | The codebase map | `docs/codebase-index-2026-08-15.md` |
 

@@ -580,6 +580,57 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    schema's CHECKs can only police one row's own date ordering), because two
    terms covering one day makes "which refund table applies" ambiguous.
 
+15. **The NDPA layer (`api/lib/dataprotection.php`, schema v84) is the RECORD,
+   not the machinery.** `datarights.php` already exported and erased; what did
+   not exist was any trace that a request had been made. An admin typed an email,
+   downloaded a bundle, and nothing survived. Non-obvious invariants:
+   - **The ROPA and the retention schedule are CODE registries, not tables.**
+     `mam_dp_purposes()` names the tables each purpose actually touches and
+     `mam_dp_retention()` names a real table and date column;
+     `test_dataprotection.php` asserts both against the live schema. A register
+     describing what the software does must be derived from the software — free
+     text in a CRUD form drifts the day a feature ships, and a drifted register
+     is worse than a missing one because somebody has signed it. The academy's
+     additions (review date, note, a LENGTHENED period) live in
+     `dp_register_notes` on top.
+   - **`action => 'delete'` is legal only on a LEAF table**, asserted against the
+     live foreign-key graph. A cascade through an enrolment would destroy
+     academic history to tidy up a note. The academic record, payments, vetting
+     and the audit log are all `review` — a human decision by construction, never
+     applied by the sweep whatever the mode.
+   - **A retention period may be LENGTHENED, never shortened** (clamped in
+     `mam_dp_note_save()`). The schedule states a lawful basis for each period;
+     a smaller number typed into a form would delete lawfully-held records.
+     Shortening one means editing the basis in the lib, deliberately.
+   - **The sweep ships in `report`** (`dp_retention_mode`), like the safeguarding
+     gate and for the same reason. `mam_dp_retention_sweep(true)` is an explicit
+     dry run that overrides `enforce`, so the admin's preview button cannot be
+     made destructive by a setting.
+   - **Every clock is DERIVED and measured from the statutory trigger.** The
+     breach clock runs from `discovered_at` (**awareness**, NDPA s.40(2)), never
+     from `occurred_at` — measuring from occurrence makes an instantly-reported
+     month-old breach look late. `mam_dp_request_clock()` judges a CLOSED request
+     against when it was closed, not against now, or every historic record turns
+     overdue as time passes.
+   - **The registration tier is MEASURED, not diarised.** `mam_dp_tier()` counts
+     distinct subjects over a rolling six months — the window the definition
+     uses — deduplicated by email across customers/users/newsletter/messages,
+     because a guardian who did all four is one data subject and counting them
+     four times puts the academy in a filing tier it does not belong in.
+     ⚠️ **Ordinary-High Level (201–1,000) registers but does NOT file Compliance
+     Audit Returns**; filing starts at Ultra-High. The research plan overstated
+     this. MAM currently measures ~19 and is below the DCPMI threshold entirely.
+   - **`MAM_DP_DEADLINES['request_days']` is NOT statutory.** The NDPA fixes no
+     response deadline (the repealed NDPR did); 30 days is the academy's own
+     commitment and the screen says so. The 72 hours, and SNAG's 7/30, are the
+     instrument's. All carry a verified-on date because they are the facts here
+     most likely to have moved — the NDPC's own site is unreachable from this
+     environment, so they came from corroborated commentary.
+   - **The processor register probes what is CONFIGURED right now.** An
+     aspirational register lists the vendor somebody once considered and omits
+     the SMTP host that has carried every password-reset email for a year; `gap`
+     = live and no DPA on file.
+
 ## Security posture (don't weaken)
 
 **The break-glass credential has an identity.** `ADMIN_USER`/`ADMIN_PASSWORD_HASH`

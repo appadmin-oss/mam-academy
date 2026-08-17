@@ -240,11 +240,23 @@ admin screen. Gated by a new `payment_enrol` automation, separate from
    `mam_calendar_current_term()` falls back and tags its `source`. It supplies
    the refund authority the blueprints correctly identified as the dependency
    for items 3 and 4 below. See HANDOFF §4d and `CLAUDE.md` #14.
-2. **NDPA compliance layer** — per-entity retention as data, breach register,
-   DSAR workflow, DPIA record, lawful-basis-per-purpose, DPAs with
-   Paystack/Flutterwave. Plus the *operational* half that is not code: assess the
-   >200-subjects threshold, register with the NDPC, name a DPO, diarise the annual
-   CAR by 31 March.
+2. ~~**NDPA compliance layer**~~ — ✅ **shipped** as `api/lib/dataprotection.php`
+   + schema v84 + admin `?v=dataprotection`. Retention as data, breach register
+   with the s.40(2) 72-hour clock from *awareness*, a rights-request log with its
+   clock (incl. GAID's SNAG 7/30), DPIA records, lawful-basis-per-purpose, and a
+   processor/DPA register that probes what is actually configured.
+   ⚠️ **Two corrections to what this item said.** The threshold is 200 distinct
+   subjects **in a rolling six months**, and **Ordinary-High Level (201–1,000)
+   registers but does NOT file Compliance Audit Returns** — filing starts at
+   Ultra-High, so "diarise the annual CAR by 31 March" does not apply to an
+   academy of this size. MAM measures **19** and is below the DCPMI threshold
+   entirely; `mam_dp_tier()` now computes the position live, because the academy
+   crosses that line by growing rather than by deciding to. Separately, the
+   30-day response deadline is **not in the NDPA** (the repealed NDPR had one) —
+   it ships as the academy's own commitment, labelled as such.
+   The *operational* half remains the academy's: register when the count
+   crosses, name a DPO, and complete the six outstanding DPIAs. See HANDOFF §4e
+   and `CLAUDE.md` #15.
 3. **Scholarship funds + awards** — `Award` as an entity attached to a term and
    enrolment, drawing on a capped fund, reducing an invoice through an
    attributable line; waiver (contra-revenue) distinguished from funded

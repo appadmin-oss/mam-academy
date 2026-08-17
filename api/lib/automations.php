@@ -139,6 +139,18 @@ function mam_automations_registry(): array {
             'default' => true,
             'live'    => true,
         ],
+        // The rule is ON but the SWEEP still obeys `dp_retention_mode`, which
+        // ships in `report`. Two switches deliberately: this one says "run the
+        // scan at all", the mode says "and act on what it finds". A retention
+        // sweep is the one automation here that destroys data.
+        'data_retention' => [
+            'group'   => 'Compliance',
+            'trigger' => 'The daily job runs',
+            'action'  => 'Measure what is past its retention period — and delete it only in `enforce` mode',
+            'icon'    => 'broom',
+            'default' => true,
+            'live'    => true,
+        ],
     ];
 }
 

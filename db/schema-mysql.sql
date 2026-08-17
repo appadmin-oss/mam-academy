@@ -2350,3 +2350,144 @@ CREATE TABLE IF NOT EXISTS term_census (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (83) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- v84 — NDPA 2023 / GAID 2025 compliance layer.
+--
+-- Five distinct legal artefacts, deliberately not one 'compliance' table. What
+-- is NOT here: the record of processing activities and the retention schedule
+-- themselves. Those are CODE registries in `api/lib/dataprotection.php`, because
+-- a register describing what the software does must be derived from the
+-- software — free text in a table drifts the day a feature ships, and a drifted
+-- register is a false assurance rather than a missing one.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- The request log. Having an export button is not the compliance artefact; the
+-- record of requests and whether they were answered in time is.
+CREATE TABLE IF NOT EXISTS dp_requests (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  kind            VARCHAR(24)  NOT NULL,
+  subject_email   VARCHAR(190) NOT NULL,
+  subject_user_id INT          NULL,
+  channel         VARCHAR(24)  NOT NULL DEFAULT 'email',
+  -- The clock runs from RECEIPT, not from when somebody logged it. Backdating
+  -- a late-logged request is the point, not an abuse.
+  received_at     DATETIME     NOT NULL,
+  acknowledged_at DATETIME     NULL,
+  closed_at       DATETIME     NULL,
+  outcome         VARCHAR(24)  NULL,
+  refusal_reason  TEXT         NULL,
+  detail          TEXT         NULL,
+  handled_by      INT          NULL,
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_dpreq_open  (closed_at, received_at),
+  KEY idx_dpreq_email (subject_email),
+  CONSTRAINT chk_dpreq_kind CHECK (kind IN ('access','erasure','rectification','portability','objection','restriction','withdraw_consent','snag')),
+  CONSTRAINT chk_dpreq_outcome CHECK (outcome IS NULL OR outcome IN ('fulfilled','partially_fulfilled','refused','withdrawn')),
+  CONSTRAINT chk_dpreq_ack   CHECK (acknowledged_at IS NULL OR acknowledged_at >= received_at),
+  CONSTRAINT chk_dpreq_close CHECK (closed_at       IS NULL OR closed_at       >= received_at),
+  -- A closed request must say how it ended; a refusal must say why.
+  CONSTRAINT chk_dpreq_done   CHECK (closed_at IS NULL OR outcome IS NOT NULL),
+  CONSTRAINT chk_dpreq_refuse CHECK (outcome IS NULL OR outcome <> 'refused' OR refusal_reason IS NOT NULL),
+  CONSTRAINT fk_dpreq_user  FOREIGN KEY (subject_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_dpreq_actor FOREIGN KEY (handled_by)      REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The breach register. NDPA s.40(2) starts the 72 hours at AWARENESS, not at
+-- occurrence — both are stored because the gap between them is itself a finding.
+CREATE TABLE IF NOT EXISTS dp_breaches (
+  id                   INT AUTO_INCREMENT PRIMARY KEY,
+  reference            VARCHAR(48)  NOT NULL,
+  occurred_at          DATETIME     NULL,
+  discovered_at        DATETIME     NOT NULL,
+  nature               TEXT         NOT NULL,
+  data_categories      TEXT         NOT NULL,
+  subject_categories   VARCHAR(255) NULL,
+  subjects_affected    INT          NULL,
+  risk_level           VARCHAR(16)  NOT NULL DEFAULT 'unknown',
+  containment          TEXT         NULL,
+  ndpc_notified_at     DATETIME     NULL,
+  ndpc_reference       VARCHAR(120) NULL,
+  subjects_notified_at DATETIME     NULL,
+  no_notify_reason     TEXT         NULL,
+  lessons              TEXT         NULL,
+  status               VARCHAR(16)  NOT NULL DEFAULT 'open',
+  recorded_by          INT          NULL,
+  created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_dpbreach_ref (reference),
+  KEY idx_dpbreach_clock (discovered_at, ndpc_notified_at),
+  CONSTRAINT chk_dpbreach_risk   CHECK (risk_level IN ('unknown','low','medium','high')),
+  CONSTRAINT chk_dpbreach_status CHECK (status IN ('open','contained','closed')),
+  CONSTRAINT chk_dpbreach_order  CHECK (occurred_at IS NULL OR occurred_at <= discovered_at),
+  -- A closed high-risk breach must either have told the subjects (s.40(3)) or
+  -- say why not. "We decided not to" is defensible; silence is not.
+  CONSTRAINT chk_dpbreach_notify CHECK (risk_level <> 'high' OR subjects_notified_at IS NOT NULL
+                                        OR no_notify_reason IS NOT NULL OR status <> 'closed'),
+  CONSTRAINT fk_dpbreach_actor FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The processor / DPA register. Seeded from the integrations the code actually
+-- has, and the admin screen shows which of them are CONFIGURED right now — an
+-- aspirational register is the commonest kind.
+CREATE TABLE IF NOT EXISTS dp_processors (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  key_name       VARCHAR(48)  NOT NULL,
+  name           VARCHAR(120) NOT NULL,
+  role           VARCHAR(24)  NOT NULL DEFAULT 'processor',
+  purpose        VARCHAR(255) NULL,
+  country        VARCHAR(64)  NULL,
+  dpa_signed_on  DATE         NULL,
+  dpa_reference  VARCHAR(120) NULL,
+  sub_processors TEXT         NULL,
+  transfer_basis VARCHAR(255) NULL,
+  review_due_on  DATE         NULL,
+  status         VARCHAR(16)  NOT NULL DEFAULT 'active',
+  notes          TEXT         NULL,
+  updated_at     DATETIME     NULL,
+  created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_dpproc_key (key_name),
+  CONSTRAINT chk_dpproc_role   CHECK (role IN ('processor','joint_controller','controller')),
+  CONSTRAINT chk_dpproc_status CHECK (status IN ('active','suspended','retired'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- DPIA records.
+CREATE TABLE IF NOT EXISTS dp_assessments (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  title          VARCHAR(190) NOT NULL,
+  scope          TEXT         NOT NULL,
+  trigger_reason TEXT         NULL,
+  necessity      TEXT         NULL,
+  risks          TEXT         NULL,
+  mitigations    TEXT         NULL,
+  residual_risk  VARCHAR(16)  NOT NULL DEFAULT 'unknown',
+  decision       VARCHAR(32)  NOT NULL DEFAULT 'draft',
+  assessed_on    DATE         NULL,
+  assessed_by    INT          NULL,
+  review_due_on  DATE         NULL,
+  consulted_ndpc TINYINT(1)   NOT NULL DEFAULT 0,
+  created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_dpdpia_risk     CHECK (residual_risk IN ('unknown','low','medium','high')),
+  CONSTRAINT chk_dpdpia_decision CHECK (decision IN ('draft','proceed','proceed_with_controls','do_not_proceed')),
+  CONSTRAINT fk_dpdpia_actor FOREIGN KEY (assessed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Annotations over the CODE registries. `ref_key` names an entry in
+-- mam_dp_purposes() or mam_dp_retention(); `keep_days` applies only to
+-- kind='retention' and may only LENGTHEN the shipped period (enforced in PHP —
+-- a shortened one would delete lawfully-held records on somebody's guess).
+CREATE TABLE IF NOT EXISTS dp_register_notes (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  kind        VARCHAR(16)  NOT NULL,
+  ref_key     VARCHAR(64)  NOT NULL,
+  keep_days   INT          NULL,
+  notes       TEXT         NULL,
+  reviewed_on DATE         NULL,
+  reviewed_by INT          NULL,
+  updated_at  DATETIME     NULL,
+  UNIQUE KEY uq_dpnote_ref (kind, ref_key),
+  CONSTRAINT chk_dpnote_kind CHECK (kind IN ('purpose','retention')),
+  CONSTRAINT chk_dpnote_keep CHECK (keep_days IS NULL OR keep_days >= 0),
+  CONSTRAINT fk_dpnote_actor FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO schema_version (version) VALUES (84) ON DUPLICATE KEY UPDATE version = version;
