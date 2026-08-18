@@ -583,6 +583,86 @@ inert, but it should be removed or kept deliberately rather than by default.
 
 ---
 
+## 4i. The migration is loaded (2026-08-18)
+
+It is done. The v2 database is loaded on the live host, in a database beside v1,
+and verified. Nothing on the site reads it — this was the staging step, not a
+cutover, and the next decision (which screens read v2 first) is separate work
+that deliberately did not ride on the back of it.
+
+**Final shape:** 29 people · 33 applications (23 programme + 10 summer) · 15
+payments at ₦515,998.00 · 5 cohorts with both v1 enrolment models converged · 96
+modules · 244 hash-chained audit rows · 447 reference-map entries. Verifier
+16/16; the SQL checks 29/29.
+
+### What the host's constraints forced, and why each was worth it
+
+The academy runs on cPanel with **no SSH**. Three things came out of that, none
+of which were in the original design:
+
+* **`--with-schema` → `v2-full.sql`.** The first hand-load produced
+  `ERROR 1146 … tenants doesn't exist` — the schema had not reached that
+  database. Neither file was at fault, but "apply A, then B" is a step a person
+  can get wrong at 1am in a phpMyAdmin tab, and the error it produces reads like
+  a broken export. One file cannot be applied out of order. The data file's
+  header now also names 1146 as its own symptom.
+* **`v2-checks.sql`.** Whoever hand-loads a `.sql` is by definition least likely
+  to have a PHP shell that can reach the database. It carries the same
+  expectations as literals and covers every database-side check the verifier
+  makes; its header names the two it cannot (whether each source amount parsed
+  exactly, which is a question about the export, and a foreign-key sweep, which
+  MySQL enforces on write).
+* **`--batch=N`.** `max_allowed_packet` on a shared host can be smaller than one
+  hundred-row INSERT, and that failure arrives as a dropped connection rather
+  than an error naming the cause.
+
+⚠️ For a re-export without a shell, `api/tools/export-web.php` already exists —
+token-gated, dropped into a `Require all denied` directory. It is how the export
+this migration ran on was taken. Set `MAM_EXPORT_TOKEN`, use it, then **delete
+the directory**.
+
+### MySQL 8 is no longer an untested claim
+
+Installed 8.0.46 and ran the whole thing: `db/schema-v2.sql` applies clean (64
+tables, `schema_version` 200), the data loads, verification 16/16, and Yorùbá
+names round-trip byte-identically — 26 characters, 36 UTF-8 bytes, in and out.
+Every identifier in the schema and the emitted column lists was checked against
+MySQL 8.0's reserved-word list; none collide. MariaDB 10.11 and SQLite were
+already proven.
+
+### The three decisions came back, and one of them was measured
+
+* `customers:6` and `customers:7` — **both test runs**, not a guardian applying
+  for a child and not a real applicant. Recorded in `db/v2-exclusions.json`.
+* The 48 abandoned drafts — **left out**. 26 carry no address at all and 11 of
+  the 18 distinct addresses had already applied, so the "largest single pool of
+  prospects" was **seven** reachable people. That measurement changed the answer;
+  the earlier note was counting rows.
+
+`db/v2-exclusions.json` is data, not code, because the answer came from the
+academy. Read by both the transform and the verifier. Guards: it cascades to
+applications but **refuses outright** if an excluded person holds a payment; an
+exclusion matching nothing is an **error**, not a no-op; and every removal is
+written into the v2 audit log as `migration.excluded` so the database explains
+its own gaps.
+
+⚠️ **A latent bug this exposed.** `audit_log.entity_id` was copied straight from
+v1 while every other id in v2 is a v2 id — so the column looked joinable and
+pointed at a different row. It is remapped through the reference map now, with
+the v1 id kept in the metadata and NULL where it cannot resolve. Worth
+remembering as a class of bug: *any* column carrying a foreign id through an ETL
+needs remapping, and the ones without a foreign-key constraint are the ones
+nobody notices.
+
+### The one loose end
+
+`api/lib/v2/readmodel.php` and admin `?v=v2read` were built for a plan the
+academy then changed. They are env-gated and absent unless `V2_READ_DB` is set,
+so they are inert — but they should be removed or kept deliberately rather than
+by default. One commit either way.
+
+---
+
 ## 5. Where things live
 
 | What | Where |
@@ -598,6 +678,8 @@ inert, but it should be removed or kept deliberately rather than by default.
 | The ETL load + verify | `api/lib/v2/load.php`, `api/lib/v2/verify.php`, `api/tools/v2-load.php` |
 | The load-free transform → a loadable dataset | `api/lib/v2/plan.php`, `api/lib/v2/emit.php`, `api/tools/v2-transform.php` |
 | Verify a database somebody else loaded (read-only) | `api/tools/v2-verify.php` |
+| The academy's migration exclusions (data, not code) | `db/v2-exclusions.json` |
+| Browser-triggered export for a host with no shell | `api/tools/export-web.php` |
 | Shared portal error translator (`P.errText` / `P.fail`) | `assets/js/portal.js` |
 | Self-hosted toast (the CDN-proof one) | `assets/js/libs.js` |
 | The academic calendar + refund authority | `api/lib/calendar.php`, admin `?v=calendar` |

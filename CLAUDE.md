@@ -985,6 +985,20 @@ Two conventions these established:
   Emitted SQL never disables foreign-key checking (the statement order makes it
   unnecessary) and public ids are DERIVED, not random, so two transforms of one
   export are byte-identical.
+  **(4) Any column carrying a foreign id must be REMAPPED, and the ones with no
+  foreign-key constraint are the ones nobody notices** — `audit_log.entity_id`
+  was copied straight from v1 while every other id in v2 is a v2 id, so it
+  looked joinable and pointed at a different row. The v1 id goes in the
+  metadata; unresolvable means NULL, never a number that resolves to a stranger.
+  **(5) `db/v2-exclusions.json` is DATA, not code** — rows the academy decided
+  are not real records (test runs). Read by the transform AND the verifier, so a
+  correct load is not reported as a shortfall. It cascades to applications but
+  **refuses the whole run** if an excluded person holds a payment; an exclusion
+  matching nothing is an **error**, not a no-op; and every removal is written to
+  the v2 audit log as `migration.excluded` so the database explains its own gaps.
+  The migration is **loaded and verified** on the live host (29 people, 33
+  applications, ₦515,998.00) — into a database beside v1, with nothing reading
+  it yet. That was staging, not a cutover.
 - **Index/map: `docs/codebase-index-2026-08-15.md`** — libs, routes, schema,
   tests, findings. Start here for "where does X live".
 - **Spec conformance: `docs/spec-conformance-2026-08-15.md`** — the academic
