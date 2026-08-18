@@ -271,7 +271,14 @@ function mam_v2_emit_checks(array $plan, array $opts = []): string
     // Erased people are the ones the load closed. Counted from the plan rather
     // than assumed, so the check tracks the data instead of a remembered number.
     $closed = count(array_filter((array) ($plan['tables']['users'] ?? []),
-        static fn(array $u): bool => ($u['status'] ?? '') === 'active' ? false : true));
+        static fn(array $u): bool => ($u['status'] ?? '') === 'closed'));
+    // Live people carrying an unroutable address: the ones with no address in
+    // v1, the applicants kept apart from a login that owns theirs, and any
+    // summer learner whose address was already taken. Counted from the plan so
+    // the expectation tracks the data rather than a remembered number.
+    $liveInvalid = count(array_filter((array) ($plan['tables']['users'] ?? []),
+        static fn(array $u): bool => ($u['status'] ?? '') !== 'closed'
+            && str_ends_with((string) ($u['email'] ?? ''), '.invalid')));
 
     /** One row of the report: a name, what it should be, what it is. */
     $check = static function (string $name, string $actualSql, int|string $expected) use ($dialect): string {
@@ -307,6 +314,17 @@ function mam_v2_emit_checks(array $plan, array $opts = []): string
     /* ── Invariants. These must hold whatever the counts say. ─────────────── */
     $parts[] = $mk('erased people holding a password',
         "SELECT COUNT(*) FROM user_credentials c JOIN users u ON u.id = c.user_id WHERE u.status = 'closed'", 0);
+    // A tombstone carrying a real address is not a tombstone. The other
+    // direction is subtler and is the check below it: `.invalid` is what MARKS
+    // an erasure, and the load also mints `.invalid` addresses for people who
+    // never had one — so a live row under that TLD is only legitimate if it is
+    // one of those, and there must be exactly as many as the plan made.
+    $parts[] = $mk('erased people with a real address',
+        "SELECT COUNT(*) FROM users WHERE status = 'closed' AND email NOT LIKE '%.invalid'", 0);
+    $parts[] = $mk('live rows under .invalid',
+        "SELECT COUNT(*) FROM users WHERE status <> 'closed' AND email LIKE '%.invalid'", $liveInvalid);
+    $parts[] = $mk('rejections with no reason given',
+        "SELECT COUNT(*) FROM applications WHERE status = 'rejected' AND (decision_reason IS NULL OR decision_reason = '')", 0);
     $parts[] = $mk('applications with no applicant',
         "SELECT COUNT(*) FROM applications WHERE membership_id IS NULL", 0);
     $parts[] = $mk('withdrawals with no reason',
@@ -345,7 +363,12 @@ function mam_v2_emit_checks(array $plan, array $opts = []): string
        . "-- WHAT IT DOES NOT CHECK: it does not re-derive anything from the v1 export.\n"
        . "-- That reconciliation is api/tools/v2-verify.php, which recomputes the head\n"
        . "-- count and the money from the export by an independent path. This file is a\n"
-       . "-- substitute for a shell, not for that.\n\n";
+       . "-- substitute for a shell, not for that.\n"
+       . "--\n"
+       . "-- Every database-side check that verifier makes is also made here. The two it\n"
+       . "-- makes that SQL cannot are: whether every source amount parsed exactly (a\n"
+       . "-- question about the export, not this database) and a foreign-key sweep (MySQL\n"
+       . "-- enforces those on write, so there is nothing left to sweep).\n\n";
 
     return $h . implode("\nUNION ALL\n", $parts) . ";\n";
 }
