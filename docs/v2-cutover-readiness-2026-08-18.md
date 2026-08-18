@@ -318,3 +318,55 @@ Two changes, in order of how much they help:
   person reading that error is usually in a tab with no other context.
   `test_v2_plan.php` asserts both, and that the header names the right schema
   file for the dialect.
+
+## The academy's own decisions, applied (2026-08-18)
+
+The three questions the transform refused to answer for itself came back:
+
+* **`customers:6` "Aliyah Ade"** on the instructor's address — *a test run by that
+  instructor.* Not a guardian applying for a child, and not a learner.
+* **`customers:7` "Application Domain"** on the admin address, holding two
+  applications worth $663 and $684 — *also a test run.*
+* **The 48 abandoned drafts** — *leave them out.* The measurement that settled it:
+  26 carry no address at all, and 11 of the 18 distinct addresses had already
+  applied or held an account, so the genuinely new reachable prospects were
+  **seven**, not forty-eight. The earlier note calling them "the largest single
+  pool of prospects" was counting rows, not people.
+
+`db/v2-exclusions.json` records the first two — versioned beside the schema, as
+data rather than code, because the answer comes from the academy and nothing in
+the software could have worked it out. Applied by default; `--no-exclusions`
+exists and says so in the report.
+
+Three properties make it safe to run again a year from now:
+
+* **It cascades to dependents, not across them.** Excluding a person takes their
+  applications. It will NOT take their money: an excluded person holding a
+  payment **refuses the whole run** and names the payment. "It was only a test"
+  is a claim that has to survive contact with a bank statement.
+* **An exclusion matching nothing is an error.** A typo'd id would otherwise read
+  as a successful exclusion while the row it named sailed through, which is
+  exactly what makes this kind of list untrustworthy.
+* **Every removal is written into the v2 audit log** as `migration.excluded`,
+  carrying the v1 row, the reason and the file the decision lives in — so the
+  database explains its own gaps instead of leaving somebody to find a hole in
+  the numbering next term.
+
+The verifier reads the same file, because a correct load reported as a shortfall
+is the fastest way to teach somebody to ignore a verifier.
+
+### And a latent bug it exposed
+
+`audit_log.entity_id` was being copied straight from v1. Every other id in v2 is
+a v2 id, so that column *looked* joinable and silently pointed at a different
+row — v1's application 12 is not this application 12. It is now remapped through
+the same reference map everything else uses, the v1 id is kept in the metadata,
+and anything unresolvable (an entity type not carried, or a row excluded) gets a
+NULL rather than a number that resolves to a stranger.
+
+### Result
+
+29 people (was 31), 33 applications (was 36), **money unchanged at ₦515,998.00**,
+244 audit rows including the five exclusion records. Loaded into MySQL 8.0.46 from
+the one-file build: verifier **16/16**, `v2-checks.sql` **29/29 PASS**.
+

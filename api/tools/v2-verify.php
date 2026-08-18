@@ -20,6 +20,7 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 $ROOT = dirname(__DIR__);
 require $ROOT . '/lib/v2/identity.php';
 require $ROOT . '/lib/v2/transform.php';
+require $ROOT . '/lib/v2/plan.php';      // for mam_v2_apply_exclusions()
 require $ROOT . '/lib/v2/verify.php';
 
 $opt = [];
@@ -44,6 +45,32 @@ foreach (['customers', 'users', 'applications', 'payments'] as $need) {
     if (!isset($source[$need])) { fwrite(STDERR, "Missing $need.json in the export.\n"); exit(2); }
 }
 
+/* ── The same exclusions the transform applied ───────────────────────────────
+ * A row the academy declared to be test data is not missing from the database —
+ * it was never meant to be there. The verifier has to know that or it reports a
+ * correct load as a shortfall, which is the fastest way to teach somebody to
+ * ignore it.
+ *
+ * This is not the verifier borrowing the transform's arithmetic: the figures are
+ * still recomputed independently. It is both of them reading the same declared
+ * decision, which is the only way they can agree about what should be there.
+ */
+$exclFile = (string) ($opt['exclusions'] ?? ($ROOT . '/../db/v2-exclusions.json'));
+$excluded = [];
+if (empty($opt['no-exclusions']) && is_file($exclFile)) {
+    $j = json_decode((string) file_get_contents($exclFile), true);
+    if (is_array($j) && isset($j['exclusions'])) {
+        $ex = mam_v2_apply_exclusions($source, (array) $j['exclusions']);
+        if ($ex['missed']) {
+            fwrite(STDERR, "Exclusions name rows this export does not have: "
+                . implode(', ', $ex['missed']) . "\n");
+            exit(2);
+        }
+        $source   = $ex['source'];
+        $excluded = $ex['removed'];
+    }
+}
+
 try {
     if (!empty($opt['dsn'])) {
         $db = new PDO((string) $opt['dsn'], (string) ($opt['user'] ?? ''), (string) ($opt['pass'] ?? ''));
@@ -66,7 +93,12 @@ if (!empty($v['error'])) {
     fwrite(STDERR, "Cannot verify: " . (string) $v['error'] . "\n");
     exit(1);
 }
-printf("verify   : %d of %d checks passed\n\n", $v['summary']['passed'], $v['summary']['total']);
+printf("verify   : %d of %d checks passed\n", $v['summary']['passed'], $v['summary']['total']);
+if ($excluded) {
+    printf("excluded : %d v1 row(s) held out by decision (%s) and not expected in the database\n",
+        count($excluded), basename($exclFile));
+}
+printf("\n");
 foreach ($v['checks'] as $c) {
     printf("  %s %-38s expected %-12s got %-12s %s\n",
         $c['ok'] ? '✓' : '✗', $c['check'],

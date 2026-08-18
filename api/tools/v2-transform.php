@@ -5,6 +5,7 @@
  *   php api/tools/v2-transform.php --export=DIR --out=DIR [--dialect=mysql|sqlite]
  *                                    [--batch=N]       # rows per INSERT, default 100
  *                                    [--with-schema]   # also write v2-full.sql
+ *                                    [--exclusions=F] [--no-exclusions]
  *
  * The counterpart to `v2-load.php`, for when the load is not ours to run: apply
  * `db/schema-v2.sql` yourself, then apply the `v2-data.sql` this writes. Every
@@ -71,12 +72,47 @@ foreach (['customers', 'users', 'applications', 'payments'] as $need) {
     if (!isset($source[$need])) { fwrite(STDERR, "Missing $need.json in the export.\n"); exit(2); }
 }
 
+/* ── The academy's exclusions ─────────────────────────────────────────────────
+ * Loaded by DEFAULT, from the repo, so a run a year from now makes the same
+ * decisions as this one. `--no-exclusions` exists and is not a shortcut: it
+ * produces a different dataset, and the report says so rather than leaving the
+ * difference to be discovered in a row count.
+ */
+$exclusions = [];
+$exclFile = (string) ($opt['exclusions'] ?? ($ROOT . '/../db/v2-exclusions.json'));
+if (empty($opt['no-exclusions'])) {
+    if (!is_file($exclFile)) {
+        if (isset($opt['exclusions'])) { fwrite(STDERR, "No such exclusions file: $exclFile\n"); exit(2); }
+    } else {
+        $j = json_decode((string) file_get_contents($exclFile), true);
+        if (!is_array($j) || !isset($j['exclusions'])) {
+            fwrite(STDERR, "$exclFile did not parse as an object with an \"exclusions\" array.\n");
+            exit(2);
+        }
+        $exclusions = (array) $j['exclusions'];
+    }
+}
+$opt['exclusions'] = $exclusions;
+
 /* ── Plan ────────────────────────────────────────────────────────────────── */
 $plan = mam_v2_plan($source, $opt);
 if (empty($plan['ok'])) {
     fwrite(STDERR, 'TRANSFORM FAILED: ' . (string) ($plan['error'] ?? '?') . "\n");
     if (!empty($plan['unaccounted'])) {
         fwrite(STDERR, "  v1 rows that landed in no person: " . implode(', ', $plan['unaccounted']) . "\n");
+    }
+    if (!empty($plan['missed'])) {
+        fwrite(STDERR, "  excluded rows that are not in this export: " . implode(', ', $plan['missed']) . "\n");
+        fwrite(STDERR, "  Either the export predates the decision or an id is wrong. Refusing, rather than\n");
+        fwrite(STDERR, "  reporting an exclusion that did not happen.\n");
+    }
+    if (!empty($plan['money'])) {
+        fwrite(STDERR, "  an excluded person holds money, which this will not drop for you:\n");
+        foreach ($plan['money'] as $m) {
+            fwrite(STDERR, sprintf("    %s on %s, owner %s\n", $m['payment'], $m['application'], $m['owner']));
+        }
+        fwrite(STDERR, "  Decide what happened to that payment first. A migration that quietly drops a real\n");
+        fwrite(STDERR, "  transaction is not one anybody can reconcile afterwards.\n");
     }
     exit(1);
 }
@@ -144,6 +180,14 @@ printf("identity : %d customers + %d users → %d people (%d merged: %d explicit
 printf("money    : %s %s planned, %s of it succeeded, %d payment(s) with no owner\n",
     $plan['money']['currency'], number_format($plan['money']['total_minor'] / 100, 2),
     number_format($plan['money']['succeeded_minor'] / 100, 2), $plan['money']['unowned']);
+
+if (!empty($plan['excluded'])) {
+    printf("\nexcluded : %d v1 row(s), by decision in %s:\n", count($plan['excluded']), basename($exclFile));
+    foreach ($plan['excluded'] as $x) printf("  - %-18s %s\n", $x['row'], $x['reason']);
+    printf("  each is recorded in the v2 audit log as migration.excluded\n");
+} elseif (!empty($opt['no-exclusions'])) {
+    printf("\nexcluded : none — --no-exclusions was passed, so rows the academy marked as test data ARE carried\n");
+}
 
 printf("\nrows out :\n");
 foreach ($plan['counts'] as $t => $n) if ($n > 0) printf("  %-22s %6d\n", $t, $n);

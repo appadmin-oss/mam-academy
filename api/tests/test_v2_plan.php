@@ -427,6 +427,72 @@ t_ok($statusEvent !== null && $statusEvent['actor_user_id'] !== null,
 t_eq(count($plan['tables']['lifecycle_events'] ?? []), 0,
     'a status change is NOT a membership stage change — writing it to lifecycle_events would invent a journey v1 never recorded');
 
+t_group('v2 plan — audit ids point at v2 rows, not v1 ones');
+
+// The latent bug exclusions exposed: v1's `audit_log.entity_id` holds a v1 id,
+// and everything else in v2 holds a v2 id. Copied across it LOOKS joinable and
+// silently resolves to a stranger — application 10 in v1 is a different
+// application 10 here.
+$appOne = v2p_find($plan, 'applications', 'reference', 'APP-0010');
+$created = v2p_find($plan, 'audit_log', 'action', 'create');
+t_ok($created !== null, 'the v1 audit row is carried');
+t_eq($created['entity_id'], $appOne['id'], 'and its entity_id is REMAPPED to the v2 application');
+t_ok($created['entity_id'] !== 10, 'not left as the v1 id, which would point at a different row here');
+t_ok(str_contains((string) $created['metadata'], '"v1_entity_id":10'),
+    'the v1 id is kept in the metadata, so the old reference is still resolvable');
+
+t_group('v2 plan — excluding a row somebody decided is not real');
+
+// Customer 6 is the erased applicant; application 12 hangs off them and no
+// money does. Excluding the person must take the application with it.
+$exPlan = mam_v2_plan(v2p_source(), ['exclusions' => [
+    ['row' => 'customers:6', 'reason' => 'Test run, not a real applicant.'],
+]]);
+t_ok(!empty($exPlan['ok']), 'the plan still builds');
+t_eq(count($exPlan['excluded']), 2, 'excluding a person cascades to their application');
+t_ok(v2p_find($exPlan, 'applications', 'reference', 'APP-0012') === null,
+    'the application is gone');
+t_eq(count($exPlan['tables']['users']), count($plan['tables']['users']) - 1,
+    'and so is the person');
+t_eq($exPlan['money']['total_minor'], $plan['money']['total_minor'],
+    'money is untouched — they held none');
+
+$exAudit = array_values(array_filter($exPlan['tables']['audit_log'],
+    static fn($r) => $r['action'] === 'migration.excluded'));
+t_eq(count($exAudit), 2, 'each removal is written into the audit log');
+t_ok(str_contains((string) $exAudit[0]['metadata'], 'customers:6')
+     && str_contains((string) $exAudit[0]['metadata'], 'Test run'),
+    'naming the v1 row and the reason, so the database explains its own gaps');
+t_ok(str_contains((string) $exAudit[0]['metadata'], 'v2-exclusions.json'),
+    'and where the decision is recorded');
+
+// The guard that matters. Customer 2 holds application 11, which carries a
+// payment. Dropping a person who holds money is not a tidy-up.
+$exMoney = mam_v2_plan(v2p_source(), ['exclusions' => [
+    ['row' => 'customers:2', 'reason' => 'Looks like a test.'],
+]]);
+t_ok(empty($exMoney['ok']), 'excluding somebody who holds a payment REFUSES the whole run');
+t_eq($exMoney['error'], 'exclusion_holds_money', 'naming why');
+t_ok(!empty($exMoney['money']) && str_contains((string) $exMoney['money'][0]['payment'], 'payments:'),
+    'and naming the payment, because a migration that quietly drops a real transaction cannot be reconciled');
+
+// A typo would otherwise read as a successful exclusion while the row it named
+// sailed through — which is what makes this kind of list untrustworthy.
+$exGhost = mam_v2_plan(v2p_source(), ['exclusions' => [['row' => 'customers:999', 'reason' => 'x']]]);
+t_ok(empty($exGhost['ok']), 'an exclusion matching nothing is an error, not a no-op');
+t_eq($exGhost['error'], 'exclusion_not_found', 'naming the row that is not there');
+
+// The shipped decisions must stay applicable to the shipped shapes.
+$declared = json_decode((string) file_get_contents(dirname(__DIR__, 2) . '/db/v2-exclusions.json'), true);
+t_ok(is_array($declared) && isset($declared['exclusions']), 'db/v2-exclusions.json parses');
+foreach ((array) $declared['exclusions'] as $d) {
+    t_ok(preg_match('/^[a-z_]+:\d+$/', (string) ($d['row'] ?? '')) === 1,
+        'every exclusion names one v1 row as table:id [' . (string) ($d['row'] ?? '') . ']');
+    t_ok(trim((string) ($d['reason'] ?? '')) !== '', 'with a reason — a bare id is not a decision');
+    t_ok(trim((string) ($d['decided_by'] ?? '')) !== '' && trim((string) ($d['decided_on'] ?? '')) !== '',
+        'and who decided it, when — this outlives everyone who remembers the call');
+}
+
 t_group('v2 emit — the dialect is not cosmetic');
 
 $backslash = [['id' => 1, 'skey' => 'a', 'svalue' => 'C:\\path\\to', 'is_secret' => 0]];

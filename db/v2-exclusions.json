@@ -1,0 +1,32 @@
+{
+  "_note": [
+    "Rows the v1 → v2 migration deliberately does NOT carry, because a human decided",
+    "they are not real records. This file is the decision, versioned beside the schema,",
+    "so a migration run a year from now makes the same one and can say who made it.",
+    "",
+    "It is data, not code, for one reason: the answer comes from the academy, not from",
+    "anything the software can work out. Nothing here is a heuristic — each entry names",
+    "one v1 row and why.",
+    "",
+    "Excluding a person cascades to their applications. It will NOT cascade to money:",
+    "the transform refuses the whole run if an excluded person holds a payment, because",
+    "a migration that quietly drops a real transaction is not one you can reconcile.",
+    "",
+    "Every exclusion is written into the v2 audit log at load time, so the database",
+    "explains its own gaps instead of leaving somebody to notice a missing applicant."
+  ],
+  "exclusions": [
+    {
+      "row": "customers:6",
+      "reason": "Test run by the instructor whose address it used. Not a real applicant.",
+      "decided_by": "MAM Academy",
+      "decided_on": "2026-08-18"
+    },
+    {
+      "row": "customers:7",
+      "reason": "Test run on the admin account (app.admin@). The two applications on it were never real intent to enrol.",
+      "decided_by": "MAM Academy",
+      "decided_on": "2026-08-18"
+    }
+  ]
+}

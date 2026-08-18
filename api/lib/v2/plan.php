@@ -207,6 +207,83 @@ function mam_v2_plan_value_type(?string $v): string
     return 'string';
 }
 
+
+/**
+ * Apply the academy's exclusions to the export, before anything else reads it.
+ *
+ * A row somebody has decided is not a real record — a test run, a duplicate
+ * entered twice — should never reach identity resolution, because by the time it
+ * is a person it has an id, a membership and a place in every count.
+ *
+ * Three properties, each because the obvious alternative is worse:
+ *
+ *  1. **It cascades to dependents, not across them.** Excluding a customer takes
+ *     their applications with them. It does NOT take their payments: if an
+ *     excluded person holds money the whole run is REFUSED, named, and left for
+ *     a human. A migration that quietly drops a real transaction is not one
+ *     anybody can reconcile afterwards, and "it was only a test" is a claim that
+ *     has to survive contact with a bank statement.
+ *  2. **Nothing is removed silently.** Every removal is returned, reported in the
+ *     coverage ledger, and written into the v2 audit log at load time — so the
+ *     database explains its own gaps rather than leaving somebody to notice a
+ *     missing applicant next term.
+ *  3. **An exclusion that matches nothing is an ERROR.** A typo'd id would
+ *     otherwise read as a successful exclusion while the row it named sailed
+ *     through, which is the failure mode that makes this kind of list untrustworthy.
+ */
+function mam_v2_apply_exclusions(array $source, array $exclusions): array
+{
+    $removed = $missed = $money = [];
+    if (!$exclusions) return ['source' => $source, 'removed' => [], 'missed' => [], 'money' => []];
+
+    // Index the dependency chain once: application → customer, payment → application.
+    $appsOfCustomer = [];
+    foreach ((array) ($source['applications'] ?? []) as $a) {
+        $appsOfCustomer[(int) ($a['customer_id'] ?? 0)][] = (int) ($a['id'] ?? 0);
+    }
+    $paysOfApp = [];
+    foreach ((array) ($source['payments'] ?? []) as $pay) {
+        $paysOfApp[(int) ($pay['application_id'] ?? 0)][] = (string) ($pay['id'] ?? '');
+    }
+
+    $drop = [];   // table => [id => reason]
+    foreach ($exclusions as $x) {
+        $row    = trim((string) ($x['row'] ?? ''));
+        $reason = trim((string) ($x['reason'] ?? '')) ?: 'no reason recorded';
+        [$table, $id] = array_pad(explode(':', $row, 2), 2, '');
+        if ($table === '' || $id === '') { $missed[] = $row . ' (not in table:id form)'; continue; }
+
+        $present = false;
+        foreach ((array) ($source[$table] ?? []) as $r) {
+            if ((string) ($r['id'] ?? '') === $id) { $present = true; break; }
+        }
+        if (!$present) { $missed[] = $row; continue; }
+
+        $drop[$table][$id] = $reason;
+        if ($table === 'customers') {
+            foreach ($appsOfCustomer[(int) $id] ?? [] as $appId) {
+                $drop['applications'][(string) $appId] = 'applicant ' . $row . ' excluded: ' . $reason;
+                foreach ($paysOfApp[$appId] ?? [] as $payId) {
+                    $money[] = ['payment' => 'payments:' . $payId, 'application' => 'applications:' . $appId,
+                                'owner' => $row];
+                }
+            }
+        }
+    }
+
+    // Money is where this stops being reversible. Refuse rather than decide.
+    if ($money) return ['source' => $source, 'removed' => [], 'missed' => $missed, 'money' => $money];
+
+    foreach ($drop as $table => $ids) {
+        $source[$table] = array_values(array_filter((array) ($source[$table] ?? []),
+            static fn(array $r): bool => !isset($ids[(string) ($r['id'] ?? '')])));
+        foreach ($ids as $id => $reason) {
+            $removed[] = ['row' => $table . ':' . $id, 'reason' => $reason];
+        }
+    }
+    return ['source' => $source, 'removed' => $removed, 'missed' => $missed, 'money' => []];
+}
+
 /**
  * Build the whole plan.
  *
@@ -220,6 +297,21 @@ function mam_v2_plan(array $source, array $opts = []): array
     foreach (MAM_V2_PLAN_ORDER as $t) $T[$t] = [];
     $coverage = $review = $rejected = [];
     $nowFallback = (string) ($opts['migrated_at'] ?? '2026-01-01 00:00:00');
+
+    /* ── Exclusions, before anything else reads the export ────────────────── */
+    $exclusions = (array) ($opts['exclusions'] ?? []);
+    $ex = mam_v2_apply_exclusions($source, $exclusions);
+    if ($ex['money']) {
+        return ['ok' => false, 'error' => 'exclusion_holds_money', 'money' => $ex['money']];
+    }
+    if ($ex['missed']) {
+        // A named row that is not in the export means the list and the snapshot
+        // disagree. Refusing is the point: the alternative is a list that looks
+        // applied while the row it named sailed through.
+        return ['ok' => false, 'error' => 'exclusion_not_found', 'missed' => $ex['missed']];
+    }
+    $source  = $ex['source'];
+    $excluded = $ex['removed'];
 
     $rows = static fn(string $t) => array_values((array) ($source[$t] ?? []));
     $note = function (string $table, ?string $dest, string $why, int $in, int $out = 0) use (&$coverage): void {
@@ -1100,18 +1192,72 @@ function mam_v2_plan(array $source, array $opts = []): array
     // submitted to accepted is not a stage change — writing it there would
     // invent a journey the data never recorded.
     $audit = [];
+    // v1's `audit_log.entity_id` holds a v1 id, and every other id in v2 is a v2
+    // id. Copying it across leaves a column that LOOKS joinable and silently
+    // points at the wrong row — application 12 in v1 is a different application
+    // 12 here. So it is remapped through the same map everything else uses, the
+    // v1 id is kept in the metadata, and anything that cannot be resolved (an
+    // entity type this plan does not carry, or a row somebody excluded) gets a
+    // NULL rather than a number that resolves to a stranger.
+    $v2IdOf = [];
+    foreach ($map as $m) $v2IdOf[$m['legacy_table'] . ':' . $m['legacy_id']] = $m['v2_id'];
+    $entityTable = ['application' => 'applications', 'applications' => 'applications',
+                    'payment' => 'payments', 'payments' => 'payments',
+                    'customer' => 'customers', 'user' => 'users', 'users' => 'users',
+                    'course' => 'courses', 'cohort' => 'cohorts', 'module' => 'modules',
+                    'enrollment' => 'course_enrollments', 'class' => 'classes'];
+    $entityRemapped = $entityDropped = 0;
+
     foreach ($rows('audit_log') as $a) {
+        $type   = strtolower(trim((string) ($a['entity'] ?? 'unknown')));
+        $v1Id   = mam_v2_plan_int($a['entity_id'] ?? null);
+        $v2Id   = null;
+        if ($v1Id !== null && isset($entityTable[$type])) {
+            $v2Id = $v2IdOf[$entityTable[$type] . ':' . $v1Id] ?? null;
+            $v2Id === null ? $entityDropped++ : $entityRemapped++;
+        }
+        $meta = mam_v2_plan_str($a['meta'] ?? null);
+        if ($v1Id !== null) {
+            $decoded = $meta !== null ? json_decode($meta, true) : null;
+            if (!is_array($decoded)) $decoded = $meta !== null ? ['v1_meta' => $meta] : [];
+            $decoded['v1_entity_id'] = $v1Id;
+            if ($v2Id === null && isset($entityTable[$type])) {
+                $decoded['v1_entity_not_migrated'] = true;
+            }
+            $meta = (string) json_encode($decoded, JSON_UNESCAPED_UNICODE);
+        }
         $audit[] = [
             'occurred_at' => mam_v2_plan_ts($a['created_at'] ?? null, $nowFallback),
             'actor_label' => mam_v2_plan_str($a['actor'] ?? null, 120),
             'actor_user_id' => null,
             'action' => mb_substr((string) ($a['action'] ?? 'unknown'), 0, 80),
             'entity_type' => mb_substr((string) ($a['entity'] ?? 'unknown'), 0, 48),
-            'entity_id' => mam_v2_plan_int($a['entity_id'] ?? null),
-            'metadata' => mam_v2_plan_str($a['meta'] ?? null),
+            'entity_id' => $v2Id,
+            'metadata' => $meta,
             'ip' => mam_v2_plan_str($a['ip'] ?? null),
             'sort' => '1:' . str_pad((string) ($a['id'] ?? 0), 12, '0', STR_PAD_LEFT),
             'legacy' => ['audit_log', (string) ($a['id'] ?? '')],
+        ];
+    }
+
+    // The decision itself, in the log. An excluded row leaves a hole in the
+    // numbering and in the counts; without this, somebody finds the hole and has
+    // no way to learn it was deliberate.
+    foreach ($excluded as $i => $x) {
+        $audit[] = [
+            'occurred_at' => $nowFallback,
+            'actor_label' => 'migration',
+            'actor_user_id' => null,
+            'action' => 'migration.excluded',
+            'entity_type' => explode(':', (string) $x['row'])[0],
+            'entity_id' => null,
+            'metadata' => (string) json_encode([
+                'v1_row' => $x['row'], 'reason' => $x['reason'],
+                'source' => 'db/v2-exclusions.json',
+            ], JSON_UNESCAPED_UNICODE),
+            'ip' => null,
+            'sort' => '0:' . str_pad((string) $i, 12, '0', STR_PAD_LEFT),
+            'legacy' => ['(excluded)', (string) $x['row']],
         ];
     }
     foreach ($rows('application_events') as $e) {
@@ -1175,11 +1321,16 @@ function mam_v2_plan(array $source, array $opts = []): array
         $row['row_hash'] = hash('sha256', (string) $prev . '|' . (string) $canon);
         $prev = $row['row_hash'];
         $T['audit_log'][] = $row;
-        $mapped($a['legacy'][0], $a['legacy'][1], 'audit_log', $auditId);
+        // `(excluded)` is not a v1 table, so it gets no reference-map row — the
+        // map resolves old references to new rows, and there is no old row.
+        if ($a['legacy'][0] !== '(excluded)') $mapped($a['legacy'][0], $a['legacy'][1], 'audit_log', $auditId);
     }
     $note('audit_log', 'audit_log (hash-chained)',
-        'carried and CHAINED on load: row_hash = sha256(prev_hash || canonical(row)), ordered by '
-        . 'occurred_at with the source table and id as tiebreak, so the log arrives tamper-evident.',
+        sprintf('carried and CHAINED on load: row_hash = sha256(prev_hash || canonical(row)), ordered '
+        . 'by occurred_at with the source table and id as tiebreak, so the log arrives tamper-evident. '
+        . 'entity_id is REMAPPED to v2 ids (%d resolved, %d left NULL because the row they named is '
+        . 'not carried) with the v1 id kept in the metadata — a copied v1 id would look joinable and '
+        . 'point at a stranger.', $entityRemapped, $entityDropped),
         count($rows('audit_log')), count($rows('audit_log')));
     $note('application_events', 'audit_log',
         'a status change is "who changed what, when" — NOT a membership stage change, so deliberately '
@@ -1248,6 +1399,12 @@ function mam_v2_plan(array $source, array $opts = []): array
             'action' => 'Add a mapping in plan.php or record a decision not to carry it.']);
     }
 
+    if ($excluded) {
+        $note('(exclusions)', null, sprintf('%d v1 row(s) excluded by decision, not by the transform: %s. '
+            . 'Each is written into the v2 audit log, so the database explains its own gaps.',
+            count($excluded), implode(', ', array_column($excluded, 'row'))), count($excluded));
+    }
+
     $counts = [];
     foreach (MAM_V2_PLAN_ORDER as $t) $counts[$t] = count($T[$t]);
     return [
@@ -1261,5 +1418,6 @@ function mam_v2_plan(array $source, array $opts = []): array
         'identity' => $identity['report'],
         'money' => ['currency' => MAM_V2_BASE_CURRENCY, 'total_minor' => $moneyTotal,
                     'succeeded_minor' => $moneySucceeded, 'unowned' => $unowned],
+        'excluded' => $excluded,
     ];
 }
