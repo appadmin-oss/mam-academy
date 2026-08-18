@@ -631,3 +631,128 @@ function mam_lms2_ics_for_token(string $token): ?string {
     $lines[] = 'END:VCALENDAR';
     return implode("\r\n", $lines) . "\r\n";
 }
+
+/**
+ * What an instructor OWES right now — the one thing their dashboard never said.
+ *
+ * The overview showed what had happened (attendance breakdown, class fill,
+ * recent marks) and nothing about what was outstanding. That gap has a cost
+ * attached: `progress_report_deadline` fires two hours after a session is
+ * marked held and records the missing reports as overdue, so an instructor's
+ * first news of an obligation was a notification telling them they had already
+ * missed it.
+ *
+ * Two decisions worth keeping:
+ *
+ *  • **The deadline is read from the queued job, not recomputed.** A session can
+ *    be marked held long after it was scheduled, so deriving "+2 hours from
+ *    scheduled_at" would show a deadline the enforcement does not use. Reading
+ *    `jobs.run_after` means the dashboard and the fine cannot disagree about
+ *    when a report is late.
+ *  • **Every branch is best-effort.** A dashboard that 500s because one count
+ *    failed is worse than one that shows the rest; each block degrades to empty
+ *    and the caller renders what survived.
+ */
+function mam_lms2_instructor_worklist(int $instructorId, int $limit = 8): array
+{
+    $soft = static function (callable $fn, $default) {
+        try { return $fn(); } catch (\Throwable $e) {
+            if (function_exists('mam_log')) mam_log('warn', 'instructor_worklist_block_failed', ['err' => $e->getMessage()]);
+            return $default;
+        }
+    };
+    $now = date('Y-m-d H:i:s');
+
+    // The next session they are due to teach, from either model: a cohort they
+    // own, or one where they are the substitute.
+    $next = $soft(static fn () => mam_db_row(
+        "SELECT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.mode, cs.meeting_link,
+                co.title AS cohort_title, co.id AS cohort_id
+           FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
+          WHERE (co.instructor_id = ? OR cs.substitute_id = ?)
+            AND cs.status = 'scheduled' AND cs.scheduled_at >= ?
+          ORDER BY cs.scheduled_at ASC LIMIT 1",
+        [$instructorId, $instructorId, $now]
+    ), null);
+    if ($next) {
+        $mins = (int) round((strtotime((string) $next['scheduled_at']) - strtotime($now)) / 60);
+        $next['minutes_until'] = $mins;
+        $next['starts_today']  = substr((string) $next['scheduled_at'], 0, 10) === substr($now, 0, 10);
+    }
+
+    // Held sessions whose progress reports are still outstanding. The roster is
+    // the cohort's ACTIVE course enrolments — the same set the deadline check
+    // counts, so the two never disagree about how many are missing.
+    $reports = $soft(static fn () => mam_db_all(
+        "SELECT cs.id, cs.title, cs.scheduled_at, co.title AS cohort_title,
+                (SELECT COUNT(DISTINCT ce.student_id) FROM course_enrollments ce
+                  WHERE ce.cohort_id = cs.cohort_id AND ce.status = 'active') AS roster,
+                (SELECT COUNT(DISTINCT pr.student_id) FROM progress_reports pr
+                  WHERE pr.session_id = cs.id) AS done,
+                (SELECT j.run_after FROM jobs j
+                  WHERE j.kind = 'progress_report_deadline'
+                    AND j.payload LIKE '%\"session_id\":' || cs.id || '%'
+                  ORDER BY j.id DESC LIMIT 1) AS deadline_at
+           FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
+          WHERE co.instructor_id = ? AND cs.status = 'held'
+          ORDER BY cs.scheduled_at DESC LIMIT " . max(1, min(50, $limit * 3)),
+        [$instructorId]
+    ), []);
+
+    $due = [];
+    foreach ($reports as $r) {
+        $missing = max(0, (int) $r['roster'] - (int) $r['done']);
+        if ($missing === 0) continue;                 // nothing owed for this one
+        if ((int) $r['roster'] === 0) continue;       // no roster: nothing to report on
+        $deadline = $r['deadline_at'] ?: null;
+        $hoursLeft = $deadline ? (int) floor((strtotime((string) $deadline) - strtotime($now)) / 3600) : null;
+        $due[] = [
+            'session_id'   => (int) $r['id'],
+            'title'        => (string) ($r['title'] ?? 'Session'),
+            'cohort_title' => (string) ($r['cohort_title'] ?? ''),
+            'scheduled_at' => (string) $r['scheduled_at'],
+            'missing'      => $missing,
+            'roster'       => (int) $r['roster'],
+            'deadline_at'  => $deadline,
+            'hours_left'   => $hoursLeft,
+            // `overdue` is DERIVED, so a report that falls due at midnight reads
+            // as overdue on the next page load rather than the next cron run —
+            // the same rule as card expiry and vetting validity.
+            'overdue'      => $deadline !== null && $deadline < $now,
+        ];
+        if (count($due) >= $limit) break;
+    }
+
+    // Held sessions with no attendance marked at all. Attendance is the input to
+    // everything downstream — mastery, the guardian strip, the absence sweep —
+    // so an unmarked session is not a small omission.
+    $unmarked = $soft(static fn () => mam_db_all(
+        "SELECT cs.id, cs.title, cs.scheduled_at, co.title AS cohort_title
+           FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
+          WHERE co.instructor_id = ? AND cs.status = 'held'
+            AND NOT EXISTS (SELECT 1 FROM session_attendance sa WHERE sa.session_id = cs.id)
+          ORDER BY cs.scheduled_at DESC LIMIT " . max(1, min(50, $limit)),
+        [$instructorId]
+    ), []);
+
+    // Work handed in and not yet looked at.
+    $toReview = $soft(static fn () => (int) (mam_db_row(
+        "SELECT COUNT(*) c FROM submissions s
+           JOIN assignments a ON a.id = s.assignment_id
+          WHERE a.author_id = ? AND s.status IN ('submitted','resubmitted')",
+        [$instructorId]
+    )['c'] ?? 0), 0);
+
+    $overdue = 0;
+    foreach ($due as $d) if ($d['overdue']) $overdue++;
+
+    return [
+        'next_session'    => $next ?: null,
+        'reports_due'     => $due,
+        'reports_overdue' => $overdue,
+        'unmarked'        => $unmarked,
+        'to_review'       => $toReview,
+        // One number for the nav badge: everything genuinely awaiting this person.
+        'total'           => count($due) + count($unmarked) + ($toReview > 0 ? 1 : 0),
+    ];
+}

@@ -95,9 +95,16 @@
     return head + ctl + tail;
   }
 
+  /* The scheme guard, shared. It existed only inside the notifications closure,
+     so a page that needed it either re-implemented it or — the failure this
+     export prevents — reached for a `P.safeUrl` that was not there and got
+     `undefined` at render time. http(s) or a site-root path; everything else,
+     including javascript: and data:, collapses to '#'. */
+  function safeUrl(u) { u = String(u || ''); return /^(https?:\/\/|\/(?!\/))/i.test(u) ? u : '#'; }
+
   window.MAM_PORTAL = {
     fmtDate: fmtDate, fmtDateTime: fmtDateTime, fmtMoney: fmtMoney, fmtUsd: fmtUsd, today: today,
-    initials: initials, escapeHtml: escapeHtml,
+    initials: initials, escapeHtml: escapeHtml, safeUrl: safeUrl,
     kpi: uiKpi, empty: uiEmpty, panel: uiPanel, skeleton: uiSkeleton, pagedTbody: pagedTbody,
 
     /* Turn an API error into something a human can act on.
@@ -304,7 +311,6 @@
           panel = $('.mam-notif-panel', host), listEl = $('[data-notif-list]', host);
       function setBadge(u) { u = u || 0; badge.style.display = u > 0 ? 'block' : 'none'; badge.textContent = u > 99 ? '99+' : String(u); }
       // Only same-origin paths or http(s) are navigable — never javascript:/data: etc.
-      function safeUrl(u) { u = String(u || ''); return /^(https?:\/\/|\/(?!\/))/i.test(u) ? u : '#'; }
       function render(data) {
         var items = (data && data.notifications) || [];
         setBadge(data && data.unread);

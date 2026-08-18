@@ -26,6 +26,37 @@ $students = $soft(fn () => mam_db_all(
     [$instructorId]
 ), []);
 
+/**
+ * What this instructor teaches, counted across BOTH enrolment models.
+ *
+ * `$classes` and `$students` above read `classes` + `enrollments` only, so an
+ * instructor whose teaching lives in cohorts saw "You teach 0 active classes
+ * and 0 students right now" on the same screen as their outstanding progress
+ * reports for a cohort. That is gotcha #2 showing through on the first line of
+ * the page — dual-read everywhere was the rule and this line was missed.
+ *
+ * Students are counted DISTINCT across the two models: a student who is both in
+ * a backfilled legacy class and its cohort is one person, and counting them
+ * twice would overstate a roster on the instructor's own dashboard.
+ */
+$teaching = $soft(fn () => [
+    'classes'  => count($classes),
+    'cohorts'  => (int) (mam_db_row(
+        "SELECT COUNT(*) c FROM cohorts WHERE instructor_id = ? AND status = 'active'",
+        [$instructorId]
+    )['c'] ?? 0),
+    'students' => (int) (mam_db_row(
+        "SELECT COUNT(*) c FROM (
+             SELECT e.student_id AS sid FROM enrollments e JOIN classes c ON c.id = e.class_id
+              WHERE c.instructor_id = ? AND e.status = 'active'
+             UNION
+             SELECT ce.student_id AS sid FROM course_enrollments ce JOIN cohorts co ON co.id = ce.cohort_id
+              WHERE co.instructor_id = ? AND ce.status = 'active'
+         ) x",
+        [$instructorId, $instructorId]
+    )['c'] ?? 0),
+], ['classes' => count($classes), 'cohorts' => 0, 'students' => 0]);
+
 $recent_attendance = $soft(fn () => mam_db_all(
     'SELECT a.id, a.session_date, a.status, a.notes, u.name AS student_name, c.title AS class_title FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id JOIN users u ON u.id = e.student_id JOIN classes c ON c.id = e.class_id WHERE c.instructor_id = ? ORDER BY a.created_at DESC LIMIT 20',
     [$instructorId]
@@ -74,6 +105,14 @@ mam_ok([
     'announcements' => $announcements,
     'resources' => $resources,
     'assignments' => $assignments,
+    // What this instructor OWES right now — the overview reported what had
+    // happened and never what was outstanding, so the first news of a progress
+    // report being due was the notification saying it was already overdue.
+    // Soft-loaded like every other block: one failing count must not take the
+    // dashboard with it.
+    'teaching' => $teaching,
+    'worklist' => $soft(fn () => function_exists('mam_lms2_instructor_worklist')
+        ? mam_lms2_instructor_worklist($instructorId) : null, null),
     // #5: whether file uploads to Drive are configured (drives the resource
     // form's file uploader; off → the URL-only path is shown).
     'drive_enabled' => function_exists('mam_drive_enabled') ? mam_drive_enabled() : false,

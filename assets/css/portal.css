@@ -706,3 +706,40 @@ html.a11y-lowbw .cmdk-fab{box-shadow:none}
 .tk-unsupported{font-size:.86rem;color:var(--text-muted);margin:0}
 .tk-play{width:100%;margin-bottom:10px}
 .tk-rec[disabled],.tk-stop[disabled]{opacity:.5;cursor:not-allowed}
+
+/* ── "What needs you" (instructor overview) ──────────────────────────────────
+   The one panel on that screen that is about the future rather than the past.
+   Ordered by consequence, so the eye lands on what is late before what is
+   merely waiting — a list where every row looks equally urgent is the same as
+   a list with no urgency in it. */
+.wl-panel.wl-has-late{border-color:var(--red)}
+.wl-count{font-size:.76rem;font-weight:700;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.wl-count.is-late{color:var(--red-text,var(--red))}
+.wl-next{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.wl-next-k{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);font-weight:700}
+.wl-next-v{font-weight:700}
+.wl-next-w{color:var(--text-muted);font-size:.86rem;font-variant-numeric:tabular-nums}
+.wl-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:2px}
+.wl-item{display:flex;align-items:flex-start;gap:12px;padding:10px 12px;border-radius:10px;
+  /* A hairline, not a coloured left strip: the state is carried by the icon
+     colour AND the note text, never by colour alone. */
+  border:1px solid transparent}
+.wl-item + .wl-item{border-top-color:var(--border)}
+.wl-item i{width:18px;text-align:center;margin-top:2px;color:var(--text-muted)}
+.wl-late{background:var(--red-tint,rgba(198,67,92,.07))}
+.wl-late i{color:var(--red-text,var(--red))}
+.wl-due i{color:var(--gold-text)}
+.wl-body{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+/* 24px is the 2.5.8 floor and the natural line box here lands at 23.55px, so
+   the height is stated rather than left to the font metrics. */
+.wl-title{font-weight:700;font-size:.92rem;color:var(--text);text-decoration:none;
+  display:inline-block;min-height:24px;line-height:24px}
+.wl-title:hover{text-decoration:underline}
+.wl-detail{font-size:.78rem;color:var(--text-muted);overflow-wrap:anywhere}
+.wl-note{font-size:.74rem;font-weight:700;color:var(--text-muted);white-space:nowrap;
+  letter-spacing:.02em;font-variant-numeric:tabular-nums;padding-top:2px}
+.wl-late .wl-note{color:var(--red-text,var(--red))}
+@media (max-width:640px){
+  .wl-item{flex-wrap:wrap}
+  .wl-note{width:100%;padding-top:4px}
+}

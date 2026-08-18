@@ -157,10 +157,28 @@ t_ok(stripos($dnLogin, 'guardians') !== false,
     'guardians have their own portal and were not listed on the page they sign in from');
 t_ok(strpos($dnLogin, 'students, instructors and admins') === false, 'the old sentence is gone');
 
-t_group('dashboards — the stylesheet cache buster moved with the stylesheet');
+t_group('dashboards — every page requests the same portal assets');
 
-foreach (['portal/student/index.html', 'portal/parent/index.html', 'portal/instructor/index.html', 'portal/login.html'] as $f) {
-    $h = file_get_contents(__DIR__ . '/../../' . $f);
-    t_ok(strpos($h, 'portal.css?v=20260815g') === false,
-        basename(dirname($f)) . '/' . basename($f) . ' does not still request the pre-change stylesheet');
+/**
+ * Naming the stale version here dates badly — and worse, a blanket
+ * find-and-replace across the repo rewrote this very assertion, so the test
+ * that guards the cache buster was itself silently retargeted at the current
+ * value and failed. The durable property is not "not the old one" but "all of
+ * them agree": a page left on a previous version serves users the old
+ * stylesheet against new markup, which is the actual failure.
+ */
+$dnPages = ['portal/student/index.html', 'portal/parent/index.html',
+            'portal/instructor/index.html', 'portal/login.html',
+            'portal/signup.html', 'portal/reset.html', 'portal/choose.html'];
+foreach (['css/portal.css' => 'stylesheet', 'js/portal.js' => 'portal kit'] as $asset => $label) {
+    $seen = [];
+    foreach ($dnPages as $f) {
+        $h = file_get_contents(__DIR__ . '/../../' . $f);
+        if (preg_match('#' . preg_quote($asset, '#') . '\?v=([0-9a-z]+)#', $h, $m)) {
+            $seen[$m[1]][] = basename(dirname($f)) . '/' . basename($f);
+        }
+    }
+    t_eq(count($seen), 1,
+        "every portal page requests one $label version [" . implode(' | ',
+            array_map(static fn($v, $k): string => $k . ': ' . implode(',', $v), $seen, array_keys($seen))) . ']');
 }

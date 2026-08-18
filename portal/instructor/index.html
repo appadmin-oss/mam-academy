@@ -14,7 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="/assets/css/main.css?v=20260706d">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260817a">
+<link rel="stylesheet" href="/assets/css/portal.css?v=20260817c">
 <link rel="stylesheet" href="/assets/css/studio.css?v=20260531b">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -79,7 +79,7 @@
 </div>
 
 <script src="/assets/js/config.js?v=20260807a"></script>
-<script src="/assets/js/portal.js?v=20260817a"></script>
+<script src="/assets/js/portal.js?v=20260817c"></script>
 <script src="/assets/js/practice-player.js?v=20260815a" defer></script>
 <script src="/assets/js/command-palette.js?v=20260815a" defer></script>
 <script src="/assets/js/schedule-grid.js?v=20260815a"></script>
@@ -1605,6 +1605,138 @@
 
   function greeting() { var h = new Date().getHours(); return h < 12 ? 'Good morning' : (h < 18 ? 'Good afternoon' : 'Good evening'); }
 
+  /**
+   * "What needs you" — the panel the overview did not have.
+   *
+   * Everything else on this screen is retrospective: attendance already marked,
+   * classes already filled. None of it told an instructor what was outstanding,
+   * and progress reports carry a two-hour deadline that records an overdue
+   * entry against them — so the first they heard of an obligation was the
+   * notification saying they had missed it.
+   *
+   * Ordered by consequence: what is already late, then what is due, then what
+   * is merely waiting. An empty worklist renders as a short, plain reassurance
+   * rather than three empty panels.
+   */
+  function worklistPanel(w) {
+    if (!w) return '';
+    var items = [];
+
+    // Grouped by cohort, not listed per session. Ungrouped this rendered six
+    // consecutive rows all reading "1 progress report to write" — a list where
+    // every line says the same thing carries no more information than one line
+    // does, and buries anything genuinely urgent underneath it.
+    var byCohort = {};
+    (w.reports_due || []).forEach(function (r) {
+      var key = r.cohort_title || 'Sessions';
+      var g = byCohort[key] || (byCohort[key] = { reports: 0, sessions: 0, overdue: 0, oldest: null, soonest: null });
+      g.reports  += r.missing;
+      g.sessions += 1;
+      if (r.overdue) g.overdue += 1;
+      if (!g.oldest || r.scheduled_at < g.oldest) g.oldest = r.scheduled_at;
+      if (r.hours_left !== null && (g.soonest === null || r.hours_left < g.soonest)) g.soonest = r.hours_left;
+    });
+    Object.keys(byCohort).forEach(function (cohort) {
+      var g = byCohort[cohort];
+      var note = g.overdue ? (g.overdue + ' overdue')
+        : (g.soonest === null ? '' : (g.soonest <= 0 ? 'due now' : 'due in ' + g.soonest + 'h'));
+      items.push({
+        level: g.overdue ? 'late' : 'due',
+        icon: 'file-pen',
+        title: g.reports + ' progress report' + (g.reports === 1 ? '' : 's') + ' to write',
+        detail: P.escapeHtml(cohort) + ' · across ' + g.sessions + ' session' + (g.sessions === 1 ? '' : 's')
+              + (g.oldest ? ', oldest ' + P.escapeHtml(P.fmtDate(g.oldest)) : ''),
+        note: note,
+        tab: 'sessions'
+      });
+    });
+
+    var unmarked = w.unmarked || [];
+    if (unmarked.length) {
+      var cohorts = {};
+      unmarked.forEach(function (u) { cohorts[u.cohort_title || 'Sessions'] = 1; });
+      var names = Object.keys(cohorts);
+      items.push({
+        level: 'due',
+        icon: 'clipboard-check',
+        title: unmarked.length === 1 ? 'Attendance not marked'
+             : unmarked.length + ' sessions with no attendance marked',
+        detail: P.escapeHtml(names.slice(0, 2).join(', ')) + (names.length > 2 ? ' +' + (names.length - 2) + ' more' : ''),
+        note: 'already held',
+        tab: 'attendance'
+      });
+    }
+
+    if (w.to_review) {
+      items.push({
+        level: 'waiting',
+        icon: 'inbox',
+        title: w.to_review + ' submission' + (w.to_review === 1 ? '' : 's') + ' to review',
+        detail: 'Handed in and not yet looked at',
+        note: '',
+        tab: 'assignments'
+      });
+    }
+
+    var rank = { late: 0, due: 1, waiting: 2 };
+    items.sort(function (a, b) { return rank[a.level] - rank[b.level]; });
+
+    var next = w.next_session;
+    var nextHtml = '';
+    if (next) {
+      var mins = next.minutes_until;
+      var rel = mins < 0 ? 'now'
+        : (mins < 60 ? 'in ' + mins + ' min'
+        : (next.starts_today ? 'today at ' + P.escapeHtml(String(next.scheduled_at).substr(11, 5))
+        : P.escapeHtml(P.fmtDateTime(next.scheduled_at))));
+      nextHtml = '<div class="wl-next"><span class="wl-next-k">Next class</span>'
+        + '<span class="wl-next-v">' + P.escapeHtml(next.title || next.cohort_title || 'Session') + '</span>'
+        + '<span class="wl-next-w">' + rel + '</span>'
+        + (next.meeting_link ? ' <a class="panel-action" href="' + P.safeUrl(next.meeting_link) + '" rel="noopener">Join &rarr;</a>' : '')
+        + '</div>';
+    }
+
+    if (!items.length) {
+      return '<section class="panel"><div class="panel-head"><h2>What needs you</h2></div>'
+        + '<div class="panel-body" style="padding:16px 22px">' + (nextHtml || '')
+        + '<p style="margin:' + (nextHtml ? '12px 0 0' : '0') + ';color:var(--text-muted);font-size:.9rem">'
+        + 'Nothing outstanding. Reports are written, attendance is marked and no work is waiting.</p>'
+        + '</div></section>';
+    }
+
+    var late = items.filter(function (i) { return i.level === 'late'; }).length;
+    return '<section class="panel wl-panel' + (late ? ' wl-has-late' : '') + '">'
+      + '<div class="panel-head"><h2>What needs you</h2>'
+      + '<span class="wl-count' + (late ? ' is-late' : '') + '">' + items.length + (late ? ' · ' + late + ' late' : '') + '</span></div>'
+      + '<div class="panel-body" style="padding:14px 22px 16px">' + nextHtml
+      + '<ul class="wl-list">' + items.map(function (i) {
+          return '<li class="wl-item wl-' + i.level + '">'
+            + '<i class="fa-solid fa-' + i.icon + '" aria-hidden="true"></i>'
+            + '<span class="wl-body"><a href="#' + i.tab + '" data-tab="' + i.tab + '" class="wl-title">' + i.title + '</a>'
+            + '<span class="wl-detail">' + i.detail + '</span></span>'
+            + (i.note ? '<span class="wl-note">' + P.escapeHtml(i.note) + '</span>' : '')
+            + '</li>';
+        }).join('') + '</ul></div></section>';
+  }
+
+  /**
+   * "You teach N classes and M students" — written from both enrolment models.
+   * It counted legacy classes only, so an instructor with cohorts read
+   * "0 active classes and 0 students" directly above their own outstanding work.
+   */
+  function teachingLine(classes, students, t) {
+    t = t || {};
+    var cls = (t.classes != null ? t.classes : classes.length);
+    var coh = t.cohorts || 0;
+    var stu = (t.students != null ? t.students : students.length);
+    var parts = [];
+    if (cls) parts.push('<strong>' + cls + '</strong> class' + (cls === 1 ? '' : 'es'));
+    if (coh) parts.push('<strong>' + coh + '</strong> cohort' + (coh === 1 ? '' : 's'));
+    if (!parts.length) return 'No classes or cohorts are assigned to you yet.';
+    return 'You teach ' + parts.join(' and ') + ' with <strong>' + stu + '</strong> student'
+      + (stu === 1 ? '' : 's') + ' right now.';
+  }
+
   function renderOverview() {
     var classes = data.classes || [], students = data.students || [], att = data.recent_attendance || [];
     var firstName = ((data.user && data.user.name) || '').split(' ')[0] || 'there';
@@ -1617,12 +1749,19 @@
     var totalSeats = 0, takenSeats = 0;
     classes.forEach(function (c) { if (c.capacity) { totalSeats += parseInt(c.capacity,10)||0; takenSeats += parseInt(c.enrolled_count,10)||0; } });
 
+    // Dual-read (gotcha #2): a cohort-only instructor teaches real students, and
+    // the legacy `classes`/`enrollments` tables know nothing about them.
+    var t = data.teaching || {};
+    var tGroups   = (t.classes != null ? t.classes : classes.length) + (t.cohorts || 0);
+    var tStudents = (t.students != null ? t.students : students.length);
+
     content.innerHTML = ''
       + '<div class="portal-hello"><h2>' + greeting() + ', ' + P.escapeHtml(firstName) + ' <span aria-hidden="true">🎼</span></h2>'
-      +   '<p>You teach <strong>' + classes.length + '</strong> active class' + (classes.length===1?'':'es') + ' and <strong>' + students.length + '</strong> student' + (students.length===1?'':'s') + ' right now.</p></div>'
+      +   '<p>' + teachingLine(classes, students, data.teaching) + '</p></div>'
+      + worklistPanel(data.worklist)
       + '<section class="kpi-row">'
-      + kpi('Active Classes', classes.length, 'You\'re teaching now', 'gold')
-      + kpi('Students', students.length, 'Across all classes')
+      + kpi('Active Classes', tGroups, tGroups === 0 ? 'Nothing assigned yet' : 'You\'re teaching now', 'gold')
+      + kpi('Students', tStudents, 'Across classes and cohorts')
       + kpi('Attendance rate', rate === null ? '—' : (rate + '%'), rate === null ? 'No records yet' : 'present over ' + att.length + ' entries')
       + kpi('Seats filled', totalSeats ? (takenSeats + ' / ' + totalSeats) : '—', totalSeats ? Math.round(takenSeats/totalSeats*100) + '% capacity' : 'No capacity set')
       + '</section>'
