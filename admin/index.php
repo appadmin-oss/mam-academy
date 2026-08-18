@@ -3016,7 +3016,7 @@ nav a{display:flex;align-items:center}
       'Academics'  => ['courseenroll' => ['Course Registrations', 'user-check'], 'schedule' => ['Class Schedule', 'calendar-week'], 'programs' => ['Programme Catalogue', 'layer-group'], 'modules' => ['Standard Curriculum', 'book-open'], 'rubrics' => ['Competency Rubrics', 'clipboard-check'], 'recitals' => ['Recital Hall', 'masks-theater'], 'meet' => ['Meet Reconciliation', 'video'], 'classes' => ['Classes', 'chalkboard-user'], 'enrollments' => ['Enrollments', 'user-group'], 'id-cards' => ['ID Cards', 'id-card'], 'media' => ['Media & Docs', 'photo-film'], 'analytics' => ['Learning Analytics', 'chart-line'], 'academic' => ['Academic Health', 'heart-pulse'], 'upper' => ['Upper Admin', 'binoculars'], 'record' => ['Student Record', 'folder-open'], 'accountability' => ['Accountability', 'gavel'], 'guardians' => ['Guardians', 'people-roof'], 'calendar' => ['Academic Calendar', 'calendar-days'], 'vetting' => ['Staff & Vetting', 'shield-halved'], 'fines' => ['Instructor Fines', 'triangle-exclamation']],
       'Commerce'   => ['payments' => ['Payments', 'credit-card'], 'storeitems' => ['Store / Library', 'store'], 'storeorders' => ['Store Orders', 'box-open'], 'referrals' => ['Referrals', 'user-plus'], 'bi' => ['Business Intelligence', 'chart-pie']],
       'Engagement' => ['messages' => ['Messages', 'envelope'], 'newsletter' => ['Newsletter', 'paper-plane'], 'support' => ['Support Hub', 'headset']],
-      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved'], 'dataprotection' => ['Data Protection', 'user-shield']],
+      'System'     => ['users' => ['Users', 'user-gear'], 'settings' => ['Pricing & Settings', 'sliders'], 'email-branding' => ['Email Branding', 'paintbrush'], 'automations' => ['Automations', 'robot'], 'forms' => ['Form Builder', 'wpforms'], 'webhooks' => ['Webhook Events', 'bolt'], 'audit' => ['Audit Log', 'clipboard-list'], 'logs' => ['App Logs', 'scroll'], 'datarights' => ['Data Rights', 'shield-halved'], 'dataprotection' => ['Data Protection', 'user-shield'], 'v2read' => ['v2 Read Model', 'database']],
       'Account'    => ['account' => ['My Account', 'circle-user']],
     ];
     // Flatten to a label map so the topbar title lookup keeps working.
@@ -3073,7 +3073,7 @@ nav a{display:flex;align-items:center}
     };
     // RBAC: managers only see sections they can use; sensitive views are
     // super-only. A direct URL to a restricted view falls back to Overview.
-    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users', 'upper' => 'settings', 'vetting' => 'users', 'calendar' => 'settings', 'dataprotection' => 'users'];
+    $viewCaps = ['users' => 'users', 'settings' => 'settings', 'email-branding' => 'settings', 'automations' => 'settings', 'forms' => 'curriculum', 'storeitems' => 'store_catalog', 'modules' => 'curriculum', 'rubrics' => 'curriculum', 'recitals' => 'curriculum', 'meet' => 'settings', 'referrals' => 'settings', 'bi' => 'settings', 'webhooks' => 'settings', 'audit' => 'users', 'logs' => 'settings', 'datarights' => 'users', 'media' => 'media', 'support' => 'support', 'id-cards' => 'enrollments', 'record' => 'users', 'upper' => 'settings', 'vetting' => 'users', 'calendar' => 'settings', 'dataprotection' => 'users', 'v2read' => 'settings'];
     $canView = function ($k) use ($adminUser, $viewCaps) {
         return !$adminUser || mam_admin_can($adminUser, $viewCaps[$k] ?? 'view'); // Basic-Auth (null) = super
     };
@@ -5960,6 +5960,182 @@ if (!function_exists('mam_admin_instr_metric')) {
       </tbody></table></div>
   </div>
   <?php endif; ?>
+  <?php endif; ?>
+
+<?php elseif ($view === 'v2read'): ?>
+<?php
+  /* ── v2 read model (option B of the cutover readiness doc) ────────────────
+     The v2 database, loaded and verified, read for reporting only. Every screen
+     that runs the academy still reads v1; nothing here can write.
+
+     Three things are shown because they are the three v2 can answer BETTER than
+     v1 with only the identity-and-money core loaded. Anything v1 answers well
+     is deliberately not duplicated here — two screens computing one figure by
+     two routes is how a discrepancy gets discovered by a parent. */
+  $rmStatus = mam_v2_rm_status();
+  $rmQuery  = trim((string)($_GET['ref'] ?? ''));
+  $rmHits   = $rmQuery !== '' ? mam_v2_rm_resolve($rmQuery) : [];
+  $rmField  = 'padding:8px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--border);color:var(--ink);font-size:.85rem';
+  $rmTh     = 'padding:8px;text-align:left';
+?>
+  <h2 class="page-title">v2 Read Model</h2>
+  <p class="muted" style="margin:0 0 16px;max-width:78ch">The rebuilt schema, loaded from a snapshot and verified, <strong>read only</strong>. Nothing here can write and nothing else on this site reads it — the academy runs on v1 exactly as before. This exists so the migration work earns its keep before anything depends on it.</p>
+
+  <?php if (!$rmStatus['configured']): ?>
+  <div class="card" style="border-color:var(--gold)">
+    <h3 style="margin:0 0 8px;color:var(--gold)">Not configured</h3>
+    <p class="muted" style="margin:0 0 10px;max-width:74ch">No v2 database is pointed at this install, so there is nothing to report. That is the expected state until somebody runs the load — the feature is absent rather than empty.</p>
+    <pre class="mono" style="margin:0;padding:12px;background:var(--bg);border-radius:8px;overflow-x:auto;font-size:.78rem">php api/tools/v2-load.php --export=DIR --db=/path/v2.db --create --commit
+
+# then, in api/.env
+V2_READ_DB=/path/v2.db
+V2_READ_TENANT=mam</pre>
+  </div>
+
+  <?php elseif (!$rmStatus['available']): ?>
+  <div class="card" style="border-color:var(--red)">
+    <h3 style="margin:0 0 8px;color:var(--red)">Configured, but not readable</h3>
+    <p class="muted" style="margin:0">
+      <?php
+        $why = (string)$rmStatus['error'];
+        echo $why === 'tenant_not_loaded'
+          ? 'The database is reachable but holds no tenant named <code>' . htmlspecialchars($rmStatus['tenant']) . '</code>. Run the load, or set <code>V2_READ_TENANT</code>.'
+          : htmlspecialchars($why);
+      ?>
+    </p>
+    <p class="muted" style="margin:10px 0 0;font-size:.8rem">It reports the failure rather than falling back to v1: a figure attributed to the wrong database is worse than a missing one.</p>
+  </div>
+
+  <?php else: ?>
+  <?php
+    /* Staleness is the characteristic way a read model misleads, so it leads the
+       screen rather than sitting in a footnote. */
+    $rmAge  = $rmStatus['age_hours'];
+    $rmCold = $rmAge !== null && $rmAge >= 24;
+  ?>
+  <div class="card" style="margin-bottom:18px;<?= $rmCold ? 'border-color:var(--gold)' : '' ?>">
+    <div style="display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:baseline">
+      <h3 style="margin:0">Snapshot</h3>
+      <span style="font-size:.8rem;<?= $rmCold ? 'color:var(--gold);font-weight:700' : 'color:var(--muted)' ?>">
+        <?php
+          if ($rmStatus['loaded_at'] === null) echo 'load time unknown';
+          elseif ($rmAge < 1) echo 'loaded less than an hour ago';
+          elseif ($rmAge < 24) echo 'loaded ' . (int)$rmAge . 'h ago';
+          else echo 'loaded ' . (int)floor($rmAge / 24) . ' day(s) ago — re-run the load before quoting these figures';
+        ?>
+      </span>
+    </div>
+    <p class="muted" style="margin:8px 0 12px;font-size:.82rem">Every number below is as at <?= htmlspecialchars((string)($rmStatus['loaded_at'] ?? '—')) ?>. It does not move when v1 does.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+      <?php foreach (['people' => 'People', 'applications' => 'Applications', 'payments' => 'Payments', 'mapped_rows' => 'v1 rows mapped'] as $k => $lbl): ?>
+        <div><div class="kpi-label"><?= $lbl ?></div><div class="kpi-value" style="font-size:1.7rem"><?= (int)($rmStatus['counts'][$k] ?? 0) ?></div></div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
+  <?php $rmReview = mam_v2_rm_merge_review(); ?>
+  <?php if ($rmReview): ?>
+  <div class="card" style="margin-bottom:18px;border-color:var(--red)">
+    <h3 style="margin:0 0 6px;color:var(--red)">Merges a human should check before any cutover</h3>
+    <p class="muted" style="margin:0 0 12px;max-width:76ch">Identity is keyed on the email address, and these records folded together from v1 rows that <strong>disagree about whose name it is</strong>. Usually that is one person recorded twice under different labels. Sometimes it is a guardian's address used to apply for a child — and merging a parent with their child is not something a cutover can undo. v2 keeps only the winning name, so this is recorded at merge time or not at all.</p>
+    <div style="overflow-x:auto"><table class="stack" style="width:100%;border-collapse:collapse;font-size:.86rem">
+      <thead><tr style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="<?= $rmTh ?>">Kept as</th><th style="<?= $rmTh ?>">Email</th><th style="<?= $rmTh ?>">Names v1 held</th><th style="<?= $rmTh ?>">Folded from</th></tr></thead>
+      <tbody>
+      <?php foreach ($rmReview as $rv): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="<?= $rmTh ?>" data-label="Kept as"><strong><?= htmlspecialchars((string)$rv['full_name']) ?></strong></td>
+          <td style="<?= $rmTh ?>" data-label="Email" class="mono" style="font-size:.78rem"><?= htmlspecialchars((string)$rv['email']) ?></td>
+          <td style="<?= $rmTh ?>" data-label="Names v1 held"><?php
+              $n = (string)$rv['note'];
+              $pos = strpos($n, 'DISAGREE:');
+              echo htmlspecialchars($pos !== false ? trim(substr($n, $pos + 9)) : $n);
+          ?></td>
+          <td style="<?= $rmTh ?>" data-label="Folded from" class="mono" style="font-size:.78rem"><?= htmlspecialchars(str_replace(',', '  +  ', (string)$rv['came_from'])) ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody></table></div>
+    <p class="muted" style="margin:12px 0 0;font-size:.8rem">To keep two people apart, give them distinct email addresses in v1 and re-run the load — it is idempotent, so a corrected snapshot simply loads again.</p>
+  </div>
+  <?php endif; ?>
+
+  <?php $rmMoney = mam_v2_rm_money(); ?>
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 6px">Money, in exact minor units</h3>
+    <p class="muted" style="margin:0 0 12px;max-width:76ch">v1 stores an amount as a decimal string and calls every pending state "pending". Here <strong>awaiting transfer</strong> is its own status — money waiting on a bank transfer somebody must confirm, as against money waiting on a gateway, which needs nobody.</p>
+    <div style="overflow-x:auto"><table class="stack" style="width:100%;border-collapse:collapse;font-size:.86rem">
+      <thead><tr style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="<?= $rmTh ?>">Status</th><th style="<?= $rmTh ?>">Payments</th><th style="<?= $rmTh ?>">Amount</th></tr></thead>
+      <tbody>
+      <?php foreach ($rmMoney['rows'] as $r): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="<?= $rmTh ?>" data-label="Status"><?= htmlspecialchars(str_replace('_', ' ', (string)$r['status'])) ?></td>
+          <td style="<?= $rmTh ?>" data-label="Payments" class="mono"><?= (int)$r['n'] ?></td>
+          <td style="<?= $rmTh ?>" data-label="Amount" class="mono"><?= htmlspecialchars((string)$r['base_currency']) ?> <?= number_format((int)$r['minor'] / 100, 2) ?></td>
+        </tr>
+      <?php endforeach; ?>
+        <tr style="border-top:2px solid var(--border-strong,var(--border));font-weight:700">
+          <td style="<?= $rmTh ?>">Total</td>
+          <td style="<?= $rmTh ?>" class="mono"><?= array_sum(array_map(static fn($r) => (int)$r['n'], $rmMoney['rows'])) ?></td>
+          <td style="<?= $rmTh ?>" class="mono"><?= htmlspecialchars((string)($rmMoney['currency'] ?? '')) ?> <?= number_format($rmMoney['total_minor'] / 100, 2) ?></td>
+        </tr>
+      </tbody></table></div>
+  </div>
+
+  <?php $rmMerged = mam_v2_rm_merged(); ?>
+  <div class="card" style="margin-bottom:18px">
+    <h3 style="margin:0 0 6px">Duplicate people that folded together</h3>
+    <p class="muted" style="margin:0 0 12px;max-width:76ch">The one thing v1 <em>cannot</em> show. A person exists there as a <code>customers</code> row, a <code>users</code> row, or both, with no reliable join — the addresses differ in case and one may be a tombstone. Identity resolution matched them once and recorded both source rows, so this is the only place the merge is visible.</p>
+    <?php if (!$rmMerged): ?>
+      <p class="muted" style="margin:0">No person in this snapshot came from more than one v1 row.</p>
+    <?php else: ?>
+    <div style="overflow-x:auto"><table class="stack" style="width:100%;border-collapse:collapse;font-size:.86rem">
+      <thead><tr style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">
+        <th style="<?= $rmTh ?>">Person</th><th style="<?= $rmTh ?>">Folded from</th><th style="<?= $rmTh ?>">Stage</th><th style="<?= $rmTh ?>">Can sign in</th></tr></thead>
+      <tbody>
+      <?php foreach ($rmMerged as $p): ?>
+        <tr style="border-top:1px solid var(--border)">
+          <td style="<?= $rmTh ?>" data-label="Person"><strong><?= htmlspecialchars((string)($p['full_name'] ?: '—')) ?></strong><br><span class="muted" style="font-size:.76rem"><?= htmlspecialchars((string)$p['email']) ?></span></td>
+          <td style="<?= $rmTh ?>" data-label="Folded from" class="mono" style="font-size:.78rem"><?= htmlspecialchars(implode('  +  ', (array)$p['sources'])) ?></td>
+          <td style="<?= $rmTh ?>" data-label="Stage"><?= htmlspecialchars((string)$p['stage']) ?></td>
+          <td style="<?= $rmTh ?>" data-label="Can sign in"><?= ((int)$p['has_login'] > 0) ? 'yes' : '<span class="muted">no</span>' ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody></table></div>
+    <?php endif; ?>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 6px">What became of an old reference</h3>
+    <p class="muted" style="margin:0 0 12px;max-width:76ch">The references people hold are v1's — the code on a receipt, in a confirmation email, read out on the phone. This resolves one to whatever it became, which is the reason a reference map exists at all: a cutover must not make every historical reference unanswerable.</p>
+    <form method="get" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:12px">
+      <input type="hidden" name="v" value="v2read">
+      <label style="font-size:.8rem">Reference or v1 id<br>
+        <input type="text" name="ref" value="<?= htmlspecialchars($rmQuery) ?>" style="<?= $rmField ?>;width:280px" placeholder="MAM-20260530-…"></label>
+      <button class="btn" type="submit">Resolve</button>
+      <?php if ($rmQuery !== ''): ?><a class="btn ghost" href="?v=v2read">Clear</a><?php endif; ?>
+    </form>
+    <?php if ($rmQuery !== ''): ?>
+      <?php if (!$rmHits): ?>
+        <p class="muted" style="margin:0">Nothing in this snapshot matches <strong><?= htmlspecialchars($rmQuery) ?></strong>. It may predate the snapshot, or belong to a table the load does not carry.</p>
+      <?php else: ?>
+      <div style="overflow-x:auto"><table class="stack" style="width:100%;border-collapse:collapse;font-size:.86rem">
+        <thead><tr style="color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">
+          <th style="<?= $rmTh ?>">v1</th><th style="<?= $rmTh ?>">Reference</th><th style="<?= $rmTh ?>">Became</th><th style="<?= $rmTh ?>">Migrated</th><th style="<?= $rmTh ?>">Note</th></tr></thead>
+        <tbody>
+        <?php foreach ($rmHits as $h): ?>
+          <tr style="border-top:1px solid var(--border)">
+            <td style="<?= $rmTh ?>" data-label="v1" class="mono"><?= htmlspecialchars((string)$h['legacy_table']) ?> #<?= htmlspecialchars((string)$h['legacy_id']) ?></td>
+            <td style="<?= $rmTh ?>" data-label="Reference" class="mono" style="font-size:.78rem"><?= htmlspecialchars((string)($h['legacy_ref'] ?? '—')) ?></td>
+            <td style="<?= $rmTh ?>" data-label="Became" class="mono"><?= htmlspecialchars((string)$h['v2_table']) ?> #<?= (int)$h['v2_id'] ?></td>
+            <td style="<?= $rmTh ?>" data-label="Migrated" class="muted"><?= htmlspecialchars(substr((string)$h['migrated_at'], 0, 16)) ?></td>
+            <td style="<?= $rmTh ?>" data-label="Note" class="muted"><?= htmlspecialchars((string)($h['note'] ?? '')) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody></table></div>
+      <?php endif; ?>
+    <?php endif; ?>
+  </div>
   <?php endif; ?>
 
 <?php elseif ($view === 'vetting'): ?>

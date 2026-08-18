@@ -170,6 +170,14 @@ function mam_v2_transform_payments(array $payments, array $people, int $tenantId
             'fx_rate'           => null,     // nothing to freeze, so nothing invented
             'fx_source'         => null,
             'received_at'       => $p['verified_at'] ?? null,
+            // v1's OWN reference, kept apart from the gateway's. This is the
+            // string on the customer's receipt and in the confirmation email —
+            // the one they quote on the phone — and it was being dropped: the
+            // map carried `provider_reference`, which is NULL on all 15 real
+            // payments because a pending bank transfer never reached a gateway.
+            // A reference map that cannot resolve the reference people actually
+            // hold is not doing the job it exists for.
+            'legacy_ref'        => $p['reference'] ?? null,
             'failure_reason'    => $status === 'failed' ? 'Recorded as failed in the previous system' : null,
             'legacy'            => ['payments', (string) ($p['id'] ?? '')],
         ];

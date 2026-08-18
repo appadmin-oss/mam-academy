@@ -294,8 +294,19 @@ function mam_v2_load_people(PDO $db, int $tenantId, ?int $centreId, array $peopl
             [$t, $lid] = array_pad(explode(':', $src, 2), 2, '');
             if ($lid === '' || $lid === '?') continue;
             if (mam_v2_map_lookup($db, $tenantId, $t, $lid) !== null) continue;
-            mam_v2_map_write($db, $tenantId, $t, $lid, 'users', $userId, null,
-                count((array) $p['sources']) > 1 ? 'merged identity' : null);
+            // The note carries the merge AND its disagreement, because v2 keeps
+            // only the winning name — so if this is not recorded at merge time,
+            // the discarded one is gone and nobody can review the decision.
+            $note = null;
+            if (count((array) $p['sources']) > 1) {
+                $note = 'merged identity';
+                if (!empty($p['name_conflict'])) {
+                    $note = 'merged identity — SOURCE NAMES DISAGREE: '
+                          . implode(' / ', array_slice((array) $p['name_variants'], 0, 3));
+                }
+            }
+            mam_v2_map_write($db, $tenantId, $t, $lid, 'users', $userId,
+                ($v1User['enrollment_ref'] ?? null) ?: null, $note);
         }
         $ids[$i] = ['user_id' => $userId, 'membership_id' => $membershipId];
     }
@@ -382,7 +393,10 @@ function mam_v2_load_payments(PDO $db, int $tenantId, array $rows, array $ids, b
             'received_at'       => mam_v2_ts($r['received_at'] ?? null),
             'failure_reason'    => $r['failure_reason'] ?? null,
         ]);
-        mam_v2_map_write($db, $tenantId, $lTable, $lId, 'payments', $id, $r['provider_ref'] ?? null);
+        // The HUMAN reference goes in the map (see the transform); the gateway's
+        // lives on the payment row itself as provider_ref.
+        mam_v2_map_write($db, $tenantId, $lTable, $lId, 'payments', $id,
+            ($r['legacy_ref'] ?? null) ?: ($r['provider_ref'] ?? null));
         $report['created']++;
     }
     return $report;
@@ -464,6 +478,7 @@ function mam_v2_load(PDO $db, array $source, array $opts = []): array
         // right answer for an empty target and the reason the report says
         // "would load" rather than "loaded".
         $ppl = mam_v2_load_people($db, (int) ($tenant['id'] ?? 0), $centre['id'], $people, $users, $commit);
+        $report['name_conflicts'] = (int) ($identity['report']['name_conflicts'] ?? 0);
         $report['people'] = $ppl['report'];
 
         $report['applications'] = mam_v2_load_applications($db, (int) ($tenant['id'] ?? 0), $tApps['rows'], $ppl['ids'], $commit);

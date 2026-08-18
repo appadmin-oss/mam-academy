@@ -94,11 +94,11 @@ Three honest options, cheapest first.
 ETL, ready for when the application is rebuilt. Cost today: nothing. This is the
 right choice unless something is forcing the move.
 
-**B — v2 as a read model first.** Load it, serve nothing from it, and use it for
-reporting and BI where the queries are new code anyway. Gets value from the work
-already done, at close to zero risk, and exercises the load on real data
-repeatedly before anything depends on it. **Recommended next step if the v2
-direction is being kept.**
+**B — v2 as a read model first.** ✅ **CHOSEN AND SHIPPED** — see the section
+below. Load it, serve nothing from it, and use it for reporting where the queries
+are new code anyway. Gets value from the work already done, at close to zero
+risk, and exercises the load on real data repeatedly before anything depends
+on it.
 
 **C — Full cutover.** Extend the ETL over the five tables above (plus whatever
 the recreate list does not cover), then rewrite the application against v2. The
@@ -114,3 +114,86 @@ needed is a real staging host, `ab`/`k6` against the actual origin, and a look a
 the two things most likely to hurt — `admin/index.php` is ~200KB of PHP rendered
 per request, and the portals each fetch a single large dashboard payload. Neither
 has a measured number attached to it today, and I am not going to invent one.
+
+
+---
+
+# Option B, shipped: the v2 read model
+
+`api/lib/v2/readmodel.php` + admin `?v=v2read`. Configured by env
+(`V2_READ_DB` or `V2_READ_DSN`); unset, the feature is **absent rather than
+empty**, and nothing else on the site changes.
+
+## The two properties it rests on
+
+**It cannot write.** SQLite is opened with `mode=ro`, which the engine refuses at
+open, plus `PRAGMA query_only = 1` at the statement level; MySQL gets
+`SET SESSION TRANSACTION READ ONLY`. `mam_v2_rm_all()` also refuses anything that
+is not a SELECT or a CTE before the driver sees it, and there is no insert,
+update or delete path in the file to call. The tests prove it by *attempting*
+both a DDL and an UPDATE — a read model that can write is a second source of
+truth, which is strictly worse than none.
+
+**It fails closed and never falls back to v1.** Not configured, unreachable, or
+missing a tenant → every function returns an absent shape and the screen says
+why. A figure attributed to the wrong database is worse than a missing figure,
+because the reader cannot tell.
+
+Staleness leads the screen rather than sitting in a footnote: `loaded_at` comes
+from the newest `legacy_reference_map.migrated_at`, so it is the load's own
+record of when it ran, and a snapshot over 24h old says so in gold.
+
+## What it reports, and why only this
+
+Three things, because only the identity-and-money core is loaded. Anything v1
+answers well is deliberately **not** duplicated — two screens computing one
+figure by two routes is how a discrepancy gets discovered by a parent.
+
+1. **Money in exact minor units**, with `awaiting_transfer` distinguished from
+   `pending`: NGN 405,034.00 waiting on bank transfers somebody must confirm, as
+   against NGN 104,046.00 waiting on a gateway, which needs nobody.
+2. **Duplicate people that folded together** — the one thing v1 *cannot* show,
+   since a person is a `customers` row, a `users` row or both with no reliable
+   join.
+3. **Resolution of an old reference** — the code on a receipt or in a
+   confirmation email, resolved to whatever it became.
+
+## What loading it as a read model immediately found
+
+This is the argument for option B, and it paid for itself on the first real read.
+
+**Two of the five identity merges disagree about the person's name.** Identity is
+keyed on the lower-cased email, and one pair is a `customers` row and a `users`
+row sharing an address while naming **two different people**. At a children's
+academy the obvious explanation is a guardian's email used to apply for a child —
+and merging a parent with their child is not something a cutover can undo.
+`identity.php` says as much in its own header: "under-merging leaves two rows a
+human can join later; over-merging destroys data". The email rule over-merges
+here.
+
+Nothing has been changed about the rule, because that is a data decision with
+real consequences either way. What changed is that the decision is now visible:
+
+* `mam_v2_resolve_identities()` keeps every distinct name its source rows carried
+  (`name_variants`) and counts the disagreements;
+* the loader writes the disagreement into `legacy_reference_map.note` **at merge
+  time** — v2 stores only the winning name, so if it is not captured there the
+  discarded one is gone and the decision can never be reviewed;
+* `v2-load.php` prints a warning;
+* the admin screen lists them under "Merges a human should check before any
+  cutover", with the fix: give the two people distinct addresses in v1 and re-run
+  the load, which is idempotent.
+
+**Payment references were being dropped.** The map carried
+`payments.provider_reference`, which is NULL on all 15 real payments because a
+pending bank transfer never reaches a gateway. So the reference a customer
+actually holds — the one on the receipt, `MAM-…-BK` — resolved to nothing, in the
+one feature whose entire purpose is resolving the references people hold. v1's own
+`reference` now goes in the map and the gateway's stays on the payment row; all
+41 human-facing references (26 applications + 15 payments) resolve.
+
+## What this does NOT change
+
+The site still runs entirely on v1. Zero screens outside `?v=v2read` read v2, the
+92-table gap is untouched, and none of the five unmigrated-table decisions has
+been made. Option B buys time and information, not a cutover.

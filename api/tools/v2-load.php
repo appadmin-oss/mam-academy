@@ -98,6 +98,12 @@ if (empty($opt['verify-only'])) {
     printf("identity : %d customers + %d users → %d people (%d merged, %d erased, %d without an address)\n",
         $report['identity']['customers'], $report['identity']['users'], $report['identity']['people'],
         $report['identity']['merged'], $report['identity']['erased'], $report['identity']['no_email']);
+    if (!empty($report['name_conflicts'])) {
+        printf("  ⚠ %d merged identit%s where the v1 rows DISAGREE about the person's name.\n",
+            $report['name_conflicts'], $report['name_conflicts'] === 1 ? 'y' : 'ies');
+        printf("    Review them in the admin's v2 Read Model before any cutover: a guardian's\n");
+        printf("    address used to apply for a child looks like one person to an email-keyed rule.\n");
+    }
     printf("people   : %d created, %d already present, %d credentials carried\n",
         $report['people']['users_created'], $report['people']['users_existing'], $report['people']['credentials_created']);
     printf("apps     : %d of %d loaded, %d already present, %d rejected by the transform\n",

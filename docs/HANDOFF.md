@@ -19,6 +19,7 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | ETL — identity, payments, applications | ✅ transform proven |
 | **ETL load + verify** | ✅ **shipped** — real snapshot, 16 of 16 checks, on **both SQLite and MySQL** |
 | **v2 CUTOVER readiness** | ❌ **not ready** — 0 runtime files read v2; see `docs/v2-cutover-readiness-2026-08-18.md` |
+| **v2 READ MODEL (option B)** | ✅ **shipped** — `?v=v2read`, read-only, env-gated; found 2 questionable identity merges |
 | Admin usability ("impossible to use") | ✅ fixed and measured |
 | Enrolment completion chain | ✅ built and driven end to end |
 | Forms audit — 6 passes | ✅ complete; see `docs/forms-audit-2026-08-17.md` |

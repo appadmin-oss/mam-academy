@@ -81,13 +81,26 @@ function mam_v2_resolve_identities(array $customers, array $users): array
                 'merged' => 0, 'erased' => 0, 'no_email' => 0, 'conflicts' => []];
 
     $put = function (string $key, array $fields, string $source) use (&$people, &$byKey, &$report): void {
+        // Every distinct name the source rows carried is kept, not only the one
+        // that wins. A merge is decided on the email, and where the two rows
+        // disagree about WHO the email belongs to that is worth a human's eye:
+        // a guardian's address used to apply for a child looks exactly like one
+        // person to an email-keyed rule, and merging them makes a parent and
+        // their child a single record. Under-merging is recoverable; this is not.
+        $variants = ($fields['full_name'] ?? '') !== '' ? [$fields['full_name']] : [];
         if (!isset($byKey[$key])) {
             $byKey[$key] = count($people);
-            $people[] = $fields + ['sources' => [$source], 'customer_id' => null, 'user_id' => null];
+            $people[] = $fields + ['sources' => [$source], 'name_variants' => $variants,
+                                   'customer_id' => null, 'user_id' => null];
             return;
         }
         $i = $byKey[$key];
         $people[$i]['sources'][] = $source;
+        foreach ($variants as $v) {
+            if (!in_array($v, (array) ($people[$i]['name_variants'] ?? []), true)) {
+                $people[$i]['name_variants'][] = $v;
+            }
+        }
         $report['merged']++;
         foreach ($fields as $k => $v) {
             if ($k === 'sources') continue;
@@ -155,6 +168,16 @@ function mam_v2_resolve_identities(array $customers, array $users): array
             $people[$i]['emailable']   = $p['email'] !== '';
             $people[$i]['credentials'] = $p['user_id'] !== null;
         }
+    }
+
+    // A merge whose source rows disagree about the person's name. Counted here
+    // so the load can report it and nobody has to notice it by chance.
+    $report['name_conflicts'] = 0;
+    foreach ($people as $i => $p) {
+        $v = array_values(array_unique(array_filter((array) ($p['name_variants'] ?? []))));
+        $people[$i]['name_variants'] = $v;
+        $people[$i]['name_conflict'] = count($v) > 1;
+        if (count($v) > 1) $report['name_conflicts']++;
     }
 
     $report['people'] = count($people);
