@@ -276,10 +276,12 @@ Result on the real export: **22 people, not 21.** 3 merged by the explicit link,
 
 ## What was proved, not asserted
 
-* The emitted SQL applies to **both** `db/schema-v2.sql` (MariaDB 10.11, under
-  `STRICT_ALL_TABLES`) and `db/schema-v2-sqlite.sql`, with constraint checking
-  **on** in both — it never disables foreign keys, because the statement order
-  makes that unnecessary.
+* The emitted SQL applies to `db/schema-v2.sql` on **MySQL 8.0.46** and on
+  **MariaDB 10.11** (under `STRICT_ALL_TABLES`), and to `db/schema-v2-sqlite.sql`
+  on SQLite, with constraint checking **on** in all three — it never disables
+  foreign keys, because the statement order makes that unnecessary. MySQL 8 was
+  the one engine flagged as untested; it is now tested. Yorùbá names round-trip
+  byte-identically (26 characters, 36 UTF-8 bytes, in and out).
 * `PRAGMA foreign_key_check` is clean afterwards.
 * `v2-verify.php` passes **16/16** against each loaded database, and fails when a
   single kobo is altered under it (asserted in `test_v2_plan.php`).
@@ -291,7 +293,28 @@ Result on the real export: **22 people, not 21.** 3 merged by the explicit link,
 ## Still not a cutover
 
 Zero runtime screens read v2. The five unmigrated-table decisions listed above
-are still open, `MariaDB 10.11 is not MySQL 8` (the load has not been rehearsed
-on 8.x), and the `?v=v2read` read model shipped earlier is now surplus to the
+are still open, and the `?v=v2read` read model shipped earlier is now surplus to the
 stated need — it is env-gated and absent unless `V2_READ_DB` is set, so it is
 inert, but it should be removed or kept deliberately rather than by default.
+
+## `--with-schema`, after a real 1146
+
+The first hand-load produced `ERROR 1146 — Table 'mamcentr_academia_v2.tenants'
+doesn't exist` on the very first INSERT. Nothing was wrong with either file: the
+schema had not reached that database. But "apply file A, then file B" is a step a
+person can get wrong at 1am in a phpMyAdmin tab, and the error it produces reads
+like a broken export rather than a skipped step.
+
+Two changes, in order of how much they help:
+
+* **`--with-schema` writes `v2-full.sql`** — the schema and the data concatenated.
+  A file that builds the tables and then fills them cannot be applied out of
+  order. The trade is stated in its own banner rather than hidden: DDL is not
+  transactional on any engine, so a failed combined run means `DROP DATABASE` and
+  start again, which is what you would do anyway with a database that has no
+  data in it. Verified end to end on MySQL 8.0.46 and SQLite: 16/16 both.
+* **The data file's header now names its own failure.** It states the
+  prerequisite in the imperative and says what `ERROR 1146` means, because the
+  person reading that error is usually in a tab with no other context.
+  `test_v2_plan.php` asserts both, and that the header names the right schema
+  file for the dialect.

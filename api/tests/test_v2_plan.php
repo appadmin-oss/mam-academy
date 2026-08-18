@@ -454,6 +454,17 @@ t_ok(!str_contains($sql, 'FOREIGN_KEY_CHECKS') && !str_contains($sql, 'foreign_k
     'and it never turns constraint checking off — if the order is right it is never needed');
 t_ok(!str_contains($sql, 'INSERT INTO currencies'),
     'the schema seeds currencies itself, so re-inserting them would collide');
+
+// The file has to explain its own prerequisite. Applied without the schema it
+// fails with `ERROR 1146 … tenants doesn't exist`, which reads like a broken
+// export rather than a skipped step — and the person reading it is usually in a
+// phpMyAdmin tab with no other context.
+t_ok(str_contains($sql, 'schema-v2-sqlite.sql INTO THIS DATABASE FIRST'),
+    'the header states the prerequisite in the imperative, not as a footnote');
+t_ok(str_contains($sql, 'ERROR 1146'),
+    'and names the exact error skipping it produces, so the symptom is self-diagnosing');
+t_ok(str_contains(mam_v2_emit_sql($plan, ['dialect' => 'mysql']), 'schema-v2.sql INTO THIS DATABASE FIRST'),
+    'naming the right schema file for the dialect — the sqlite mirror is a different file');
 $ipLine = null;
 foreach (explode("\n", $sql) as $line) if (str_contains($line, "198.51.100.7")) $ipLine = $line;
 t_eq($ipLine, null, 'an IP is emitted as the packed bytes VARBINARY(16) holds, never as text');
