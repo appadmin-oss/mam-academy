@@ -3,6 +3,7 @@
  * ETL — transform a v1 export into a loadable v2 dataset. WRITES NO DATABASE.
  * ─────────────────────────────────────────────────────────────
  *   php api/tools/v2-transform.php --export=DIR --out=DIR [--dialect=mysql|sqlite]
+ *                                    [--batch=N]   # rows per INSERT, default 100
  *
  * The counterpart to `v2-load.php`, for when the load is not ours to run: apply
  * `db/schema-v2.sql` yourself, then apply the `v2-data.sql` this writes. Every
@@ -81,7 +82,12 @@ if (empty($plan['ok'])) {
 
 $dialect = (string) ($opt['dialect'] ?? 'mysql');
 $stamp   = basename($exportDir);
-$sql     = mam_v2_emit_sql($plan, ['dialect' => $dialect, 'stamp' => $stamp]);
+// Batch size is exposed because it is the one thing a constrained host makes you
+// change: a shared server's `max_allowed_packet` can be smaller than one
+// hundred-row insert, and that failure arrives as a dropped connection rather
+// than an error naming the cause. Smaller batches are slower and always work.
+$batch   = max(1, (int) ($opt['batch'] ?? 100));
+$sql     = mam_v2_emit_sql($plan, ['dialect' => $dialect, 'stamp' => $stamp, 'batch' => $batch]);
 $manifest = mam_v2_emit_dir($plan, $outDir, ['dialect' => $dialect, 'stamp' => $stamp]);
 $sqlPath = $outDir . '/v2-data.sql';
 file_put_contents($sqlPath, $sql);
@@ -91,8 +97,8 @@ file_put_contents($sqlPath, $sql);
 printf("export   : %s (%d tables read, %d with rows)\n", $exportDir, count($source),
     count(array_filter($source, static fn($r) => count((array) $r) > 0)));
 printf("out      : %s\n", $outDir);
-printf("dialect  : %s → %s (%s)\n", $dialect, basename($sqlPath),
-    number_format(strlen($sql) / 1024, 1) . ' KiB');
+printf("dialect  : %s → %s (%s, %d row(s) per insert)\n", $dialect, basename($sqlPath),
+    number_format(strlen($sql) / 1024, 1) . ' KiB', $batch);
 printf("identity : %d customers + %d users → %d people (%d merged: %d explicit link, %d address+name; "
      . "%d kept apart on a shared address; %d erased)\n",
     $plan['identity']['customers'], $plan['identity']['users'], $plan['identity']['people'],
