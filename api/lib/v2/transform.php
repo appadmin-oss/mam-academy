@@ -105,8 +105,13 @@ function mam_v2_person_index(array $people): array
 {
     $ix = ['customers' => [], 'users' => []];
     foreach ($people as $i => $p) {
-        if ($p['customer_id'] !== null) $ix['customers'][(int) $p['customer_id']] = $i;
-        if ($p['user_id'] !== null)     $ix['users'][(int) $p['user_id']]         = $i;
+        // `customer_ids` (plural) because two v1 customer rows on one address
+        // resolve to one person — indexing only `customer_id` lost the second
+        // one, and its applications would then have had "no resolvable applicant".
+        foreach ((array) ($p['customer_ids'] ?? array_filter([$p['customer_id'] ?? null])) as $cid) {
+            $ix['customers'][(int) $cid] = $i;
+        }
+        if (($p['user_id'] ?? null) !== null) $ix['users'][(int) $p['user_id']] = $i;
     }
     return $ix;
 }
@@ -281,4 +286,42 @@ function mam_v2_legacy_rows(array $transformed, int $tenantId = 1): array
                   'legacy_ref' => $r['reference'] ?? null];
     }
     return $out;
+}
+
+/**
+ * The v1 role a person held → the v2 membership stage.
+ *
+ * A stage is not a role: v2 keeps roles in `membership_roles` and the stage is
+ * where the person is in their journey. Mapping is deliberately coarse — an
+ * `active` student account becomes `active` and everything else becomes
+ * `applicant`, because the v1 data does not record enough to claim more, and
+ * a stage asserted on a guess is worse than one that is merely early.
+ */
+function mam_v2_stage_for(array $person, array $v1User): string
+{
+    if (!empty($person['erased']))                     return 'withdrawn';
+    if (($v1User['role'] ?? '') === 'admin')           return 'active';
+    if (($v1User['role'] ?? '') === 'instructor')      return 'active';
+    if (($v1User['status'] ?? '') === 'active')        return 'active';
+    if ($person['user_id'] !== null)                   return 'admitted';
+    return 'applicant';
+}
+
+/**
+ * v1 payments hang off an application, which hangs off a customer. The
+ * transform expects the customer already attached as `_customer_id`; joining it
+ * is a load-phase job because it needs both tables at once.
+ *
+ * A payment whose application is missing keeps a null owner rather than being
+ * dropped — see the note in the payment loader.
+ */
+function mam_v2_attach_payment_owners(array $payments, array $applications): array
+{
+    $appOwner = [];
+    foreach ($applications as $a) $appOwner[(int) ($a['id'] ?? 0)] = $a['customer_id'] ?? null;
+    foreach ($payments as $i => $p) {
+        $aid = (int) ($p['application_id'] ?? 0);
+        $payments[$i]['_customer_id'] = $aid && isset($appOwner[$aid]) ? $appOwner[$aid] : null;
+    }
+    return $payments;
 }

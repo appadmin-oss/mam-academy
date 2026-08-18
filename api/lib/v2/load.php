@@ -171,24 +171,6 @@ function mam_v2_load_centre(PDO $db, ?int $tenantId, array $opts, bool $commit):
     return ['id' => $id, 'created' => true];
 }
 
-/**
- * The v1 role a person held → the v2 membership stage.
- *
- * A stage is not a role: v2 keeps roles in `membership_roles` and the stage is
- * where the person is in their journey. Mapping is deliberately coarse — an
- * `active` student account becomes `active` and everything else becomes
- * `applicant`, because the v1 data does not record enough to claim more, and
- * a stage asserted on a guess is worse than one that is merely early.
- */
-function mam_v2_stage_for(array $person, array $v1User): string
-{
-    if (!empty($person['erased']))                     return 'withdrawn';
-    if (($v1User['role'] ?? '') === 'admin')           return 'active';
-    if (($v1User['role'] ?? '') === 'instructor')      return 'active';
-    if (($v1User['status'] ?? '') === 'active')        return 'active';
-    if ($person['user_id'] !== null)                   return 'admitted';
-    return 'applicant';
-}
 
 /**
  * People → users + credentials + memberships.
@@ -402,24 +384,6 @@ function mam_v2_load_payments(PDO $db, int $tenantId, array $rows, array $ids, b
     return $report;
 }
 
-/**
- * v1 payments hang off an application, which hangs off a customer. The
- * transform expects the customer already attached as `_customer_id`; joining it
- * is a load-phase job because it needs both tables at once.
- *
- * A payment whose application is missing keeps a null owner rather than being
- * dropped — see the note in the payment loader.
- */
-function mam_v2_attach_payment_owners(array $payments, array $applications): array
-{
-    $appOwner = [];
-    foreach ($applications as $a) $appOwner[(int) ($a['id'] ?? 0)] = $a['customer_id'] ?? null;
-    foreach ($payments as $i => $p) {
-        $aid = (int) ($p['application_id'] ?? 0);
-        $payments[$i]['_customer_id'] = $aid && isset($appOwner[$aid]) ? $appOwner[$aid] : null;
-    }
-    return $payments;
-}
 
 /**
  * Run the whole load.

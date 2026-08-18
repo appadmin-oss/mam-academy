@@ -197,3 +197,101 @@ one feature whose entire purpose is resolving the references people hold. v1's o
 The site still runs entirely on v1. Zero screens outside `?v=v2read` read v2, the
 92-table gap is untouched, and none of the five unmigrated-table decisions has
 been made. Option B buys time and information, not a cutover.
+
+---
+
+# The transform, delivered as a dataset (2026-08-18)
+
+The read model was the answer to "can we see v2 without cutting over". The
+question changed: the schema restructure is being loaded by hand, and what is
+wanted is the **data**, transformed, in a form somebody else's tooling can apply.
+
+So the ETL now has a second, load-free path:
+
+```bash
+php api/tools/v2-transform.php --export=DIR --out=DIR [--dialect=mysql|sqlite]
+php api/tools/v2-verify.php    --export=DIR --dsn=…   # after you load it
+```
+
+`v2-transform.php` opens no database at all — not even to read one. It maps the
+whole export and writes `v2-data.sql` with every foreign key already resolved,
+plus one JSON file per table for review, `_coverage.json`, `_review.json`,
+`_rejected.json` and `_manifest.json`. `v2-verify.php` then reconciles the
+database you loaded against the export by an independent arithmetic path, over a
+connection it opens **read only** — a verifier that can write is a verifier that
+can make itself pass.
+
+## Coverage went from 4 tables to 24
+
+Measured on the real export (2,206 rows across 38 tables with data):
+
+| v2 table | rows | from |
+|---|---:|---|
+| tenants / centres | 1 / 1 | configuration, the one thing not from v1 |
+| tenant_settings | 54 | `settings` (4 cached FX keys dropped, secret-shaped keys carried with a NULL value) |
+| users | 31 | `customers` + `users` + `summer_applications` |
+| user_credentials | 9 | bcrypt hashes carried; v1's own `must_change_password` honoured |
+| memberships | 31 | one per person |
+| roles / membership_roles | 4 / 12 | `user_roles` ∪ `users.role` ∪ `admin_tier` |
+| guardianships | 3 | `summer_applications.guardian_email`, where it resolved to a real person |
+| programmes / levels / courses | 5 / 4 / 12 | the catalogue, repointed by CODE — `ktams` is id 22 here and would be another number anywhere else |
+| programme_courses | 51 | level resolved from v1's `level_code` |
+| modules | 96 | `content` → `objectives`; `kind` → a custom field |
+| competencies | 5 | `assessment_types` — same shape, same purpose |
+| cohorts / cohort_staff | 5 / 5 | `cohorts` + `classes`, one spine |
+| enrolments | 3 | `course_enrollments` + `enrollments`, converged |
+| applications | 36 | 26 programme + 10 summer (`type='summer'`) |
+| payments | 15 | ₦515,998.00, exact to the kobo |
+| custom_field_defs / values | 9 / 114 | v1 columns with no v2 column |
+| message_deliveries | 3 | `mail_log` — the record, never the message body |
+| audit_log | 239 | `audit_log` + `application_events` + `enrolment_events`, hash-chained |
+| legacy_reference_map | 452 | every mapped row |
+
+16 tables with rows are deliberately not carried, each named with its reason in
+`_coverage.json` — session tokens, rate-limit counters, funnel events, abandoned
+drafts, ID cards (re-issued, not migrated), newsletter subscribers (a subscriber
+is not a member). Nothing is unaccounted for: a table the plan has never heard of
+is raised as a review item rather than ignored.
+
+## The identity rule changed, and it was wrong before
+
+v1 records the customer↔user link **explicitly**, in `users.customer_id`. Three
+of the four real merges are stated there, and the email-keyed rule was ignoring
+it while inferring merges from addresses. The rule is now:
+
+1. `users.customer_id` wins outright.
+2. A shared address merges only where the names agree.
+3. A shared address with disagreeing names and no explicit link **does not
+   merge** — it is raised for review.
+
+Rule 3 is the one that mattered. In the live data one address belongs to an
+instructor and was also used to apply on behalf of a child; the old rule fused
+them into one record. That is the mistake with no way back. The split needs
+distinct addresses because `users.email` is UNIQUE, so the login keeps the real
+one and the applicant gets an unroutable derived address — with the real address
+on the review item, so it can be acted on without going back to the export.
+
+Result on the real export: **22 people, not 21.** 3 merged by the explicit link,
+1 by address+name, 2 kept apart and flagged, 0 name conflicts left.
+
+## What was proved, not asserted
+
+* The emitted SQL applies to **both** `db/schema-v2.sql` (MariaDB 10.11, under
+  `STRICT_ALL_TABLES`) and `db/schema-v2-sqlite.sql`, with constraint checking
+  **on** in both — it never disables foreign keys, because the statement order
+  makes that unnecessary.
+* `PRAGMA foreign_key_check` is clean afterwards.
+* `v2-verify.php` passes **16/16** against each loaded database, and fails when a
+  single kobo is altered under it (asserted in `test_v2_plan.php`).
+* The audit hash chain re-verifies straight out of the loaded database, including
+  the IP pack/unpack round-trip: 239 rows, 0 broken links.
+* Two transforms of one export are **byte-identical**, so a diff between them is
+  a real change and not a new set of surrogate keys.
+
+## Still not a cutover
+
+Zero runtime screens read v2. The five unmigrated-table decisions listed above
+are still open, `MariaDB 10.11 is not MySQL 8` (the load has not been rehearsed
+on 8.x), and the `?v=v2read` read model shipped earlier is now surplus to the
+stated need — it is env-gated and absent unless `V2_READ_DB` is set, so it is
+inert, but it should be removed or kept deliberately rather than by default.

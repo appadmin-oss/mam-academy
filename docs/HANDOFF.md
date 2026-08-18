@@ -479,6 +479,110 @@ php api/tools/v2-load.php --export=$SB/export \
 
 ---
 
+## 4h. The transform, delivered as a dataset (shipped)
+
+The brief changed mid-stream: the schema restructure is being loaded by hand, so
+what is wanted is the **data**, transformed, in a form other tooling can apply.
+That is a different shape from `v2-load.php` — it must open no database at all.
+
+```bash
+php api/tools/v2-transform.php --export=$SB/export --out=$SB/v2-out            # MySQL
+php api/tools/v2-transform.php --export=$SB/export --out=$SB/v2-sq --dialect=sqlite
+mariadb DB < db/schema-v2.sql && mariadb DB < $SB/v2-out/v2-data.sql
+php api/tools/v2-verify.php --export=$SB/export --dsn=... --user=root          # 16/16
+```
+
+**Coverage went from 4 v1 tables to 24 v2 tables.** The full table is in
+`docs/v2-cutover-readiness-2026-08-18.md`. The headline: 31 people, 36
+applications (26 programme + 10 summer, now `type='summer'` rather than a
+separate system), 15 payments at ₦515,998.00 exact, 96 modules, 51 programme
+mappings, 5 cohorts with both v1 enrolment models converged onto one spine, 239
+hash-chained audit rows, 452 reference-map entries. 16 tables with rows are
+deliberately **not** carried and each says why in `_coverage.json`.
+
+### Four decisions worth knowing
+
+**Explicit ids, not AUTO_INCREMENT.** The output has to be loadable by somebody
+else, which means the foreign keys must already be resolved in the file, which
+means the plan assigns the keys. `public_id` is *derived* from the source row
+rather than a random ULID for the same reason — two transforms of one export are
+byte-identical, so a diff between them is a real change and not a new set of
+surrogate keys. There is a test for that.
+
+**Two quoters, not one.** MySQL treats `\` inside a string literal as an escape;
+SQLite does not. A single "portable" quoter is quietly wrong on one of them, and
+the damage lands on exactly the values most likely to contain a backslash — a
+path, a regex in a settings row. `--dialect` picks. A NUL goes out as a hex
+literal, because inside a quoted literal it truncates the statement in some
+clients rather than erroring.
+
+**Constraint checking stays ON.** The statement order satisfies every foreign
+key, so nothing disables it. `SET FOREIGN_KEY_CHECKS = 0` during a load is how a
+migration ends up with orphans nobody notices until a JOIN goes missing; a test
+asserts the string never appears in the output.
+
+**The audit chain is computed at transform time.** `row_hash = sha256(prev_hash
+|| canonical(row))`, ordered by `occurred_at` with the source table and id as a
+deterministic tiebreak. A chain stamped after the fact proves nothing about the
+migration. It re-verifies straight out of the loaded database, including the IP
+pack/unpack round-trip through `VARBINARY(16)`.
+
+### The identity rule was wrong, and this found it
+
+v1 records the customer↔user link **explicitly**, in `users.customer_id`, and the
+email-keyed resolver was ignoring it — inferring from addresses what the data
+already stated. Three of the four real merges are stated there. The rule now:
+
+1. `users.customer_id` wins outright.
+2. A shared address merges only where the names agree
+   (`mam_v2_names_agree()` — exact token-set equality after case folding, and
+   deliberately not fuzzy: every fuzzy rule that would merge "App Admin" with
+   "Application Domain" also merges names that are genuinely different).
+3. A shared address with disagreeing names and no explicit link **does not
+   merge**; it is raised in `report['review']`.
+
+Rule 3 is the point. In the live data one address belongs to an instructor and
+was also used to apply for a child — the old rule fused a learner's record into a
+staff one, which is the identity mistake with no way back. A split needs distinct
+addresses because `users.email` is UNIQUE: the login keeps the real one, the
+applicant gets an unroutable derived address, and the **real address is carried on
+the review item** so it can be acted on without going back to the export.
+
+Real export: **22 people, not 21** — 3 merged by the explicit link, 1 by
+address+name, 2 kept apart and flagged, 0 name conflicts left.
+
+⚠️ `mam_v2_person_index()` now reads `customer_ids` (plural). Two v1 customer
+rows on one address resolve to one person, and indexing only the singular
+`customer_id` silently lost the second — its applications would have come out as
+"no resolvable applicant".
+
+⚠️ `mam_v2_verify_people_expected()` restates the rule by a **different
+mechanism** (a union-find over source rows, not the resolver's sequential passes)
+so a sequencing bug in one shows up as a disagreement instead of being reproduced.
+Its split counter must skip customers that ARE explicitly linked, or every
+married or shortened name counts as a split — that was a real false failure.
+
+### What was proved rather than asserted
+
+* The emitted SQL applies to both `db/schema-v2.sql` (MariaDB 10.11 under
+  `STRICT_ALL_TABLES`) and `db/schema-v2-sqlite.sql`, constraints on;
+  `PRAGMA foreign_key_check` clean afterwards.
+* `v2-verify.php` 16/16 against each, over a **read-only** connection — a
+  verifier that can write is a verifier that can make itself pass.
+* It fails when a single kobo is altered under it. Asserted, not hoped.
+* 239 audit rows, 0 broken chain links, verified out of the database.
+* Suite 4067 green.
+
+### Still open
+
+`MariaDB 10.11 is not MySQL 8` — the load has not been rehearsed on 8.x. Zero
+runtime screens read v2. The five unmigrated-table decisions in §4f stand. And
+the `?v=v2read` read model shipped in the previous turn is now surplus to the
+stated need: it is env-gated and absent unless `V2_READ_DB` is set, so it is
+inert, but it should be removed or kept deliberately rather than by default.
+
+---
+
 ## 5. Where things live
 
 | What | Where |
@@ -488,10 +592,12 @@ php api/tools/v2-load.php --export=$SB/export \
 | The generator (`--check` is wired into CI) | `api/tools/schema-v2-sqlite.php` |
 | Status catalogue — 67 statuses × 3 audiences | `api/lib/v2/status-catalogue.php` |
 | Clarity read model | `api/lib/v2/clarity.php` |
-| Identity resolution (21 people, 0 unaccounted, 2 tombstones) | `api/lib/v2/identity.php` |
+| Identity resolution (22 people, 0 unaccounted, 2 tombstones, 2 flagged splits) | `api/lib/v2/identity.php` |
 | Payment/application transform | `api/lib/v2/transform.php` |
 | The enrolment completion chain | `api/lib/enrol-complete.php` |
 | The ETL load + verify | `api/lib/v2/load.php`, `api/lib/v2/verify.php`, `api/tools/v2-load.php` |
+| The load-free transform → a loadable dataset | `api/lib/v2/plan.php`, `api/lib/v2/emit.php`, `api/tools/v2-transform.php` |
+| Verify a database somebody else loaded (read-only) | `api/tools/v2-verify.php` |
 | Shared portal error translator (`P.errText` / `P.fail`) | `assets/js/portal.js` |
 | Self-hosted toast (the CDN-proof one) | `assets/js/libs.js` |
 | The academic calendar + refund authority | `api/lib/calendar.php`, admin `?v=calendar` |

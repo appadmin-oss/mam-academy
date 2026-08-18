@@ -56,23 +56,108 @@ function mam_v2_verify_minor(string|int|float|null $amount, int $exponent = 2): 
  * How many distinct humans the snapshot describes — counted here directly, not
  * by calling the identity resolver the load used.
  *
- * The rule is the resolver's (one person per lower-cased email; a row with no
- * address is its own person), restated independently. If the two disagree the
- * merge is wrong in one of them, which is exactly what wants catching: an
- * over-merge is unrecoverable.
+ * The resolver walks customers then users and folds each row into a candidate.
+ * This builds a GRAPH instead: a node per source row, an edge wherever the two
+ * rows are the same person, and counts connected components. Same rule, opposite
+ * mechanism — so a bug in the resolver's sequencing shows up as a disagreement
+ * rather than being reproduced.
+ *
+ * The rule, restated: `users.customer_id` links a user to a customer outright;
+ * otherwise a shared address links them only when the names agree. A user is
+ * never linked to another user (v2 keys logins on the address, so two logins on
+ * one address cannot both survive and the load says so at the time).
  */
 function mam_v2_verify_people_expected(array $customers, array $users): array
 {
-    $keys = [];
+    // A name reduced for comparison, by a different route to mam_v2_name_key():
+    // character filtering with a hand-rolled loop and a sort, not a regex.
+    $nameKey = static function (?string $n): string {
+        $out = ''; $s = (string) $n;
+        for ($i = 0, $len = strlen($s); $i < $len; $i++) {
+            $ch = $s[$i];
+            $out .= ctype_alnum($ch) ? strtolower($ch) : (ord($ch) > 127 ? $ch : ' ');
+        }
+        $t = preg_split('/ +/', trim($out)) ?: [];
+        $t = array_values(array_filter($t, static fn($x) => $x !== ''));
+        sort($t);
+        return implode(' ', $t);
+    };
+
+    $node = [];   // key => index
+    $names = $emails = [];
     $blank = 0;
-    foreach (['customers' => $customers, 'users' => $users] as $tbl => $rows) {
-        foreach ($rows as $r) {
-            $e = strtolower(trim((string) ($r['email'] ?? '')));
-            if ($e === '') { $keys[$tbl . '#' . (string) ($r['id'] ?? count($keys))] = true; $blank++; continue; }
-            $keys[$e] = true;
+    $add = static function (string $key) use (&$node): int {
+        if (!isset($node[$key])) $node[$key] = count($node);
+        return $node[$key];
+    };
+    foreach ($customers as $c) {
+        $i = $add('customers:' . (string) ($c['id'] ?? count($node)));
+        $emails[$i] = strtolower(trim((string) ($c['email'] ?? '')));
+        $names[$i]  = $nameKey(trim(((string) ($c['first_name'] ?? '')) . ' ' . ((string) ($c['last_name'] ?? ''))));
+        if ($emails[$i] === '') $blank++;
+    }
+    $userNode = [];
+    foreach ($users as $u) {
+        $i = $add('users:' . (string) ($u['id'] ?? count($node)));
+        $userNode[$i] = true;
+        $emails[$i] = strtolower(trim((string) ($u['email'] ?? '')));
+        $names[$i]  = $nameKey($u['name'] ?? null);
+        if ($emails[$i] === '') $blank++;
+    }
+
+    $parent = range(0, max(0, count($node) - 1));
+    $find = static function (int $x) use (&$parent): int {
+        while ($parent[$x] !== $x) { $parent[$x] = $parent[$parent[$x]]; $x = $parent[$x]; }
+        return $x;
+    };
+    $union = static function (int $a, int $b) use (&$parent, $find): void {
+        $ra = $find($a); $rb = $find($b);
+        if ($ra !== $rb) $parent[max($ra, $rb)] = min($ra, $rb);
+    };
+
+    // Edge 1 — v1's explicit statement.
+    foreach ($users as $u) {
+        $cid = isset($u['customer_id']) && $u['customer_id'] !== null ? (int) $u['customer_id'] : 0;
+        if (!$cid) continue;
+        $a = $node['users:' . (string) ($u['id'] ?? '')] ?? null;
+        $b = $node['customers:' . (string) $cid] ?? null;
+        if ($a !== null && $b !== null) $union($a, $b);
+    }
+    // Edge 2 — a shared address where the names agree, never between two logins.
+    $n = count($node);
+    for ($i = 0; $i < $n; $i++) {
+        for ($j = $i + 1; $j < $n; $j++) {
+            if ($emails[$i] === '' || $emails[$i] !== $emails[$j]) continue;
+            if (isset($userNode[$i]) && isset($userNode[$j])) continue;
+            if ($names[$i] !== '' && $names[$j] !== '' && $names[$i] !== $names[$j]) continue;
+            $union($i, $j);
         }
     }
-    return ['distinct' => count($keys), 'no_email' => $blank];
+
+    $roots = [];
+    for ($i = 0; $i < $n; $i++) $roots[$find($i)] = true;
+
+    // Customer rows whose address belongs to a login under a DIFFERENT name.
+    // The load gives each of these an unroutable address so the unique key on
+    // `users.email` holds, so they are the other legitimate source of a live
+    // `.invalid` row and the erasure check has to expect them.
+    // A customer v1 EXPLICITLY linked to a user is never a split, however much
+    // the two names differ — the link is v1's own statement and it wins. Missing
+    // this guard counted every married or shortened name as a split.
+    $linked = [];
+    foreach ($users as $u) {
+        $cid = isset($u['customer_id']) && $u['customer_id'] !== null ? (int) $u['customer_id'] : 0;
+        if ($cid && isset($node['customers:' . (string) $cid])) $linked[$node['customers:' . (string) $cid]] = true;
+    }
+    $split = 0;
+    for ($i = 0; $i < $n; $i++) {
+        if (isset($userNode[$i]) || isset($linked[$i]) || $emails[$i] === '') continue;
+        for ($j = 0; $j < $n; $j++) {
+            if (!isset($userNode[$j]) || $emails[$j] !== $emails[$i]) continue;
+            if ($names[$i] !== '' && $names[$j] !== '' && $names[$i] !== $names[$j]) { $split++; break; }
+        }
+    }
+    return ['distinct' => count($roots), 'no_email' => $blank, 'shared_split' => $split];
 }
 
 /** One check's result, in the shape the report prints. */
@@ -112,11 +197,19 @@ function mam_v2_verify(PDO $db, array $source, array $rejected = [], array $opts
     $checks    = [];
 
     // ── 1. People ────────────────────────────────────────────────────────────
+    // Whether the summer table was carried is a property of the TARGET, not an
+    // assumption: the load path carries `applications` only, the transform path
+    // carries both. Asking the database keeps one verifier honest for both.
+    $summerLoaded = (int) ($one("SELECT COUNT(*) FROM applications WHERE tenant_id = ? AND type = 'summer'", [$tid]) ?? 0) > 0;
+    $summerPeople = mam_v2_verify_summer_people($source);
+
     $expectPeople = mam_v2_verify_people_expected($customers, $users);
+    $expectHeads  = $expectPeople['distinct'] + ($summerLoaded ? $summerPeople['new'] : 0);
     $gotUsers = (int) $one("SELECT COUNT(*) FROM users u JOIN memberships m ON m.user_id = u.id WHERE m.tenant_id = ?", [$tid]);
-    $checks[] = mam_v2_check('people.count', $gotUsers === $expectPeople['distinct'],
-        $expectPeople['distinct'], $gotUsers,
-        'distinct humans, counted independently of the identity resolver');
+    $checks[] = mam_v2_check('people.count', $gotUsers === $expectHeads, $expectHeads, $gotUsers,
+        'distinct humans, counted independently of the identity resolver'
+        . ($summerLoaded ? sprintf(' (+%d from the summer table, %d folded into an existing person)',
+            $summerPeople['new'], $summerPeople['reused']) : ''));
 
     // Every source row must be findable. This is the row-preservation guarantee
     // made checkable: a person who was merged away and a person who was dropped
@@ -156,7 +249,11 @@ function mam_v2_verify(PDO $db, array $source, array $rejected = [], array $opts
     // the identity resolver they would come back as erased. The only ones
     // permitted are the synthetic no-address rows, and there must be exactly as
     // many of those as the snapshot has blank addresses.
-    $expectBlank = mam_v2_verify_people_expected($customers, $users)['no_email'];
+    $expect  = mam_v2_verify_people_expected($customers, $users);
+    // Blank addresses, plus the applicants kept apart from a login that owns
+    // their address, plus any summer learner whose address was already taken.
+    $expectBlank = $expect['no_email'] + $expect['shared_split']
+                 + ($summerLoaded ? $summerPeople['invalid'] : 0);
     $liveInvalid = (int) $one(
         "SELECT COUNT(*) FROM users u JOIN memberships m ON m.user_id = u.id
          WHERE m.tenant_id = ? AND u.status <> 'closed' AND u.email LIKE '%.invalid'", [$tid]);
@@ -166,10 +263,15 @@ function mam_v2_verify(PDO $db, array $source, array $rejected = [], array $opts
 
     // ── 3. Applications ──────────────────────────────────────────────────────
     $rejApps = count((array) ($rejected['applications'] ?? []));
-    $expectApps = count($apps) - $rejApps;
+    // Summer applications are applications in v2 (`type = 'summer'`), so they
+    // count here. Whether the target holds any is a property of what was
+    // loaded — the load path carries only `applications`, the transform path
+    // carries both — so the expectation follows the target, not an assumption.
+    $expectSummer = $summerLoaded ? count((array) ($source['summer_applications'] ?? [])) : 0;
+    $expectApps = count($apps) - $rejApps + $expectSummer;
     $gotApps = (int) $one("SELECT COUNT(*) FROM applications WHERE tenant_id = ?", [$tid]);
     $checks[] = mam_v2_check('applications.count', $gotApps === $expectApps, $expectApps, $gotApps,
-        $rejApps ? "$rejApps declared as rejected by the load" : '');
+        trim(($rejApps ? "$rejApps declared as rejected; " : '') . ($expectSummer ? "$expectSummer of type summer" : '')));
 
     $appNoMember = (int) $one("SELECT COUNT(*) FROM applications WHERE tenant_id = ? AND membership_id IS NULL", [$tid]);
     $checks[] = mam_v2_check('applications.all_linked', $appNoMember === 0, 0, $appNoMember,
@@ -244,3 +346,58 @@ function mam_v2_verify(PDO $db, array $source, array $rejected = [], array $opts
         'summary' => ['total' => count($checks), 'passed' => count(array_filter($checks, static fn(array $c): bool => $c['ok']))],
     ];
 }
+
+/**
+ * What the summer table adds to the head count, restated independently.
+ *
+ * The load reuses a person already in the data only when the address AND the
+ * name agree — the same asymmetry as everywhere else here: a guardian who used
+ * their own address to apply for a child must not be fused with the child.
+ * Everyone else becomes a new person, and gets an unroutable address where the
+ * real one already belongs to somebody (the unique key on `users.email` leaves
+ * no other honest option).
+ *
+ * Returns ['new' => people created, 'reused' => folded into an existing person,
+ * 'invalid' => of the new ones, how many carry a synthetic address].
+ */
+function mam_v2_verify_summer_people(array $source): array
+{
+    $summer = (array) ($source['summer_applications'] ?? []);
+    $out = ['new' => 0, 'reused' => 0, 'invalid' => 0];
+    if (!$summer) return $out;
+
+    $key = static function (?string $n): string {
+        $t = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower((string) $n, 'UTF-8')) ?: [];
+        $t = array_values(array_filter($t, static fn($x) => $x !== ''));
+        sort($t);
+        return implode(' ', $t);
+    };
+    $held = [];   // address => the name keys already holding it
+    foreach ((array) ($source['customers'] ?? []) as $c) {
+        $e = strtolower(trim((string) ($c['email'] ?? '')));
+        if ($e !== '') $held[$e][] = $key(trim(((string) ($c['first_name'] ?? '')) . ' ' . ((string) ($c['last_name'] ?? ''))));
+    }
+    foreach ((array) ($source['users'] ?? []) as $u) {
+        $e = strtolower(trim((string) ($u['email'] ?? '')));
+        if ($e !== '') $held[$e][] = $key($u['name'] ?? null);
+    }
+
+    foreach ($summer as $s) {
+        $e = strtolower(trim((string) ($s['email'] ?? '')));
+        $k = $key(trim(((string) ($s['first_name'] ?? '')) . ' ' . ((string) ($s['last_name'] ?? ''))));
+        if ($e === '') { $out['new']++; $out['invalid']++; continue; }
+        if (!isset($held[$e])) {
+            // Their own address, free to use.
+            $held[$e][] = $k;
+            $out['new']++;
+            continue;
+        }
+        $agrees = false;
+        foreach ($held[$e] as $h) if ($h === '' || $k === '' || $h === $k) { $agrees = true; break; }
+        if ($agrees) { $out['reused']++; continue; }
+        $out['new']++;
+        $out['invalid']++;
+    }
+    return $out;
+}
+

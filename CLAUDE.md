@@ -958,6 +958,33 @@ Two conventions these established:
   (and how each was resolved), what they get factually wrong about the shipped
   code, what was built, and the eight decisions only the academy can make.
 - **In-flight work: `docs/HANDOFF.md`.**
+- **The v1 → v2 ETL: `docs/v2-cutover-readiness-2026-08-18.md`** — what the
+  transform covers (24 v2 tables), what it deliberately does not carry and why,
+  and the two ways to run it. `api/tools/v2-load.php` loads a database itself
+  (dry run by default, `--commit` to write); `api/tools/v2-transform.php` opens
+  **no database at all** and writes a `v2-data.sql` with every foreign key
+  already resolved, for when the load is somebody else's to run.
+  `api/tools/v2-verify.php` reconciles a loaded database against the export over
+  a read-only connection.
+  ⚠️ Three things here have bitten and are easy to "simplify" back:
+  **(1) Identity is decided by v1's own `users.customer_id` link first**, then by
+  a shared address ONLY where the names agree. A shared address with disagreeing
+  names does NOT merge — in the live data one address belongs to an instructor
+  and was also used to apply for a child, and the old email-only rule fused a
+  learner's record into a staff one. Under-merging leaves two rows a human joins
+  in a minute; over-merging is unrecoverable. The split is raised in
+  `report['review']` with the real address on it.
+  **(2) `mam_v2_person_index()` reads `customer_ids` (plural)** — two v1 customer
+  rows on one address are one person, and the singular key lost the second one's
+  applications.
+  **(3) `mam_v2_verify_people_expected()` restates the merge rule by a different
+  mechanism** (union-find, not the resolver's sequential passes) on purpose. If
+  you change the rule you must change both, differently — a verifier that shares
+  the resolver's code agrees with the resolver's bugs. Its split counter must
+  skip explicitly-linked customers.
+  Emitted SQL never disables foreign-key checking (the statement order makes it
+  unnecessary) and public ids are DERIVED, not random, so two transforms of one
+  export are byte-identical.
 - **Index/map: `docs/codebase-index-2026-08-15.md`** — libs, routes, schema,
   tests, findings. Start here for "where does X live".
 - **Spec conformance: `docs/spec-conformance-2026-08-15.md`** — the academic

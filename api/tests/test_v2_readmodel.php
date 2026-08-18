@@ -53,9 +53,17 @@ $rmSrc = [
          'created_at' => '2026-02-02 09:00:00'],
     ],
     'users' => [
-        // Same email, DIFFERENT name — the guardian-applying-for-a-child shape.
+        // v1 states the link explicitly (`customer_id`), and the two rows
+        // DISAGREE about the name — a married name, a shortened one. The link
+        // wins, so this merges, and the discarded name has to be captured at
+        // merge time because v2 keeps only the winner.
+        //
+        // Note this is NOT the guardian-applying-for-a-child shape: that one
+        // shares an address with NO explicit link, and identity resolution now
+        // refuses to merge it (see test_v2_plan.php). Fusing a learner into a
+        // staff record is the one identity mistake with no way back.
         ['id' => 1, 'email' => 'shared@example.test', 'name' => 'Amaka Eze', 'role' => 'student',
-         'status' => 'active', 'password_hash' => '$2y$10$rmtestrmtestrmtestrm',
+         'status' => 'active', 'customer_id' => 1, 'password_hash' => '$2y$10$rmtestrmtestrmtestrm',
          'enrollment_ref' => 'MAM-RM-1', 'created_at' => '2026-02-01 10:00:00'],
     ],
     'applications' => [
@@ -82,7 +90,7 @@ mam_v2_rm_reset_for_test();
 t_ok(mam_v2_rm_configured() === true, 'the pointer is picked up from the environment');
 $rmS2 = mam_v2_rm_status();
 t_ok($rmS2['available'] === true, 'and the snapshot is readable [' . $rmS2['error'] . ']');
-t_eq($rmS2['counts']['people'], 2, 'two people: the shared email folded one pair together');
+t_eq($rmS2['counts']['people'], 2, "two people: v1's explicit customer_id link folded one pair together");
 t_eq($rmS2['counts']['applications'], 1, 'one application');
 t_eq($rmS2['counts']['payments'], 1, 'one payment');
 t_ok($rmS2['loaded_at'] !== null, 'the load stamped itself, so staleness is knowable');
