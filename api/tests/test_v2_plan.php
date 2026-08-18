@@ -507,6 +507,36 @@ $v = mam_v2_verify($db, $src, ['applications' => array_values(array_filter($plan
 t_ok($v['ok'], 'independent verification passes: ' . $v['summary']['passed'] . '/' . $v['summary']['total']
     . ($v['ok'] ? '' : ' — failed: ' . json_encode($v['failed'])));
 
+t_group('v2 emit — the check script, for when there is no shell');
+
+// The people most likely to hand-load a .sql file are exactly the people with
+// no PHP shell that can reach the database — a cPanel account and a phpMyAdmin
+// tab is the whole toolkit. So the same expectations ship as SQL.
+$checks = mam_v2_emit_checks($plan, ['dialect' => 'sqlite']);
+$rowsOut = $db->query($checks)->fetchAll(PDO::FETCH_ASSOC);
+t_ok(count($rowsOut) > 15, 'it produces a readable report, one row per check [' . count($rowsOut) . ']');
+$failing = array_values(array_filter($rowsOut, static fn($r) => !str_contains((string) $r['verdict'], 'PASS')));
+t_eq(count($failing), 0, 'and every check passes against the database it was emitted for'
+    . ($failing ? ' — ' . json_encode($failing) : ''));
+
+// It has to fail when the load is wrong, or it is decoration.
+$db->exec('PRAGMA query_only = 0');
+$db->exec("DELETE FROM audit_log WHERE id = (SELECT MAX(id) FROM audit_log)");
+$after = $db->query($checks)->fetchAll(PDO::FETCH_ASSOC);
+$nowFailing = array_column(array_values(array_filter($after,
+    static fn($r) => !str_contains((string) $r['verdict'], 'PASS'))), 'check');
+t_ok(count($nowFailing) > 0, 'removing one row makes it fail rather than still reading PASS');
+t_ok(count(array_filter($nowFailing, static fn($c) => str_contains($c, 'audit_log'))) > 0,
+    'naming the table that lost a row');
+
+// And it must say what it does NOT do. A script called "verify" that quietly
+// checks less than the reader assumes converts a real question into false
+// confidence, which is worse than having no script.
+t_ok(str_contains($checks, 'does not re-derive anything from the v1 export'),
+    'the header states the limit of what it proves, in the file itself');
+t_ok(str_contains($checks, 'v2-verify.php'),
+    'and points at the tool that does the real reconciliation');
+
 // A verifier nobody has seen fail is not evidence of anything.
 $db->exec('PRAGMA query_only = 0');
 $db->exec("UPDATE payments SET amount_minor = amount_minor - 1 WHERE id = 1");

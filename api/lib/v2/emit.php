@@ -232,5 +232,120 @@ function mam_v2_emit_dir(array $plan, string $dir, array $opts = []): array
         'files'         => $written,
     ];
     $put('_manifest.json', $json($manifest));
+    // The paste-into-phpMyAdmin check. Named `.sql` and not `_`-prefixed
+    // because it is something you RUN, not something you read.
+    $put('v2-checks.sql', mam_v2_emit_checks($plan, $opts));
     return $manifest;
+}
+
+/**
+ * The plan → a self-checking SQL script.
+ *
+ * `v2-verify.php` is the real verifier: it recomputes from the export by an
+ * independent path and it is what should gate a cutover. But it needs a PHP
+ * shell that can reach the database, and the people most likely to hand-load a
+ * `.sql` file are exactly the people who do not have one — a cPanel account and
+ * a phpMyAdmin tab is the whole toolkit.
+ *
+ * So this emits the same expectations as literals a database can check about
+ * itself. Be clear about what that is and is not: the expected figures were
+ * computed by the transform, so this confirms the LOAD landed — every row that
+ * was planned arrived, and the invariants that must hold still hold. It does
+ * NOT re-derive anything from the export, and it cannot: that reconciliation is
+ * `v2-verify.php`'s job and no amount of SQL substitutes for it.
+ *
+ * Stating that plainly in the file matters more than the checks. A script called
+ * "verify" that quietly checks less than the reader assumes is worse than no
+ * script, because it converts a real question into false confidence.
+ */
+function mam_v2_emit_checks(array $plan, array $opts = []): string
+{
+    $dialect = (string) ($opts['dialect'] ?? 'mysql');
+    $c = $plan['counts'];
+    $rows = static fn(string $t): int => (int) ($c[$t] ?? 0);
+
+    $money   = (int) $plan['money']['total_minor'];
+    $settled = (int) $plan['money']['succeeded_minor'];
+    $summer  = count(array_filter((array) ($plan['tables']['applications'] ?? []),
+        static fn(array $a): bool => ($a['type'] ?? '') === 'summer'));
+    // Erased people are the ones the load closed. Counted from the plan rather
+    // than assumed, so the check tracks the data instead of a remembered number.
+    $closed = count(array_filter((array) ($plan['tables']['users'] ?? []),
+        static fn(array $u): bool => ($u['status'] ?? '') === 'active' ? false : true));
+
+    /** One row of the report: a name, what it should be, what it is. */
+    $check = static function (string $name, string $actualSql, int|string $expected) use ($dialect): string {
+        $e = is_int($expected) ? (string) $expected : "'" . $expected . "'";
+        return "SELECT '" . str_pad($name, 34) . "' AS `check`, " . $e . " AS expected, ("
+             . $actualSql . ") AS actual, IF((" . $actualSql . ") = " . $e . ", 'PASS', '*** FAIL ***') AS verdict";
+    };
+    // SQLite has no IF(); CASE is the portable spelling, and it is the only
+    // difference between the two dialects here.
+    $checkSqlite = static function (string $name, string $actualSql, int|string $expected): string {
+        $e = is_int($expected) ? (string) $expected : "'" . $expected . "'";
+        return "SELECT '" . str_pad($name, 34) . "' AS \"check\", " . $e . " AS expected, ("
+             . $actualSql . ") AS actual, CASE WHEN (" . $actualSql . ") = " . $e
+             . " THEN 'PASS' ELSE '*** FAIL ***' END AS verdict";
+    };
+    $mk = $dialect === 'sqlite' ? $checkSqlite : $check;
+
+    $parts = [];
+    if ($dialect !== 'sqlite') {
+        $parts[] = $mk('tables in this database', "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()", 64);
+    }
+    foreach (['users', 'user_credentials', 'memberships', 'guardianships', 'programmes', 'courses',
+              'modules', 'cohorts', 'enrolments', 'applications', 'payments', 'tenant_settings',
+              'audit_log', 'legacy_reference_map'] as $t) {
+        if ($rows($t) === 0) continue;
+        $parts[] = $mk('rows in ' . $t, "SELECT COUNT(*) FROM $t", $rows($t));
+    }
+    $parts[] = $mk('summer applications', "SELECT COUNT(*) FROM applications WHERE type = 'summer'", $summer);
+    $parts[] = $mk('total payments, minor units', "SELECT COALESCE(SUM(amount_minor), 0) FROM payments", $money);
+    $parts[] = $mk('settled payments, minor units', "SELECT COALESCE(SUM(amount_minor), 0) FROM payments WHERE status = 'succeeded'", $settled);
+    $parts[] = $mk('closed (erased) people', "SELECT COUNT(*) FROM users WHERE status = 'closed'", $closed);
+
+    /* ── Invariants. These must hold whatever the counts say. ─────────────── */
+    $parts[] = $mk('erased people holding a password',
+        "SELECT COUNT(*) FROM user_credentials c JOIN users u ON u.id = c.user_id WHERE u.status = 'closed'", 0);
+    $parts[] = $mk('applications with no applicant',
+        "SELECT COUNT(*) FROM applications WHERE membership_id IS NULL", 0);
+    $parts[] = $mk('withdrawals with no reason',
+        "SELECT COUNT(*) FROM enrolments WHERE status = 'withdrawn' AND (withdrawal_reason IS NULL OR withdrawal_reason = '')", 0);
+    $parts[] = $mk('same-currency payments with an FX rate',
+        "SELECT COUNT(*) FROM payments WHERE currency = base_currency AND fx_rate IS NOT NULL", 0);
+    $parts[] = $mk('payments where base <> amount',
+        "SELECT COUNT(*) FROM payments WHERE currency = base_currency AND base_amount_minor <> amount_minor", 0);
+    // Linkage only — no engine here can recompute a SHA-256 portably, so this
+    // proves the chain arrived unbroken, not that each hash is correct. The
+    // content check is in the test suite and in v2-verify.php.
+    $parts[] = $mk('breaks in the audit chain',
+        "SELECT COUNT(*) FROM audit_log a LEFT JOIN audit_log b ON b.id = a.id - 1 "
+      . "WHERE (a.id = 1 AND a.prev_hash IS NOT NULL) "
+      . "OR (a.id > 1 AND (a.prev_hash IS NULL OR b.row_hash IS NULL OR a.prev_hash <> b.row_hash))", 0);
+    // The one comparison here that is not equality, and the one that catches a
+    // charset mistake before a parent sees their child's name mangled on a
+    // certificate: a name carrying diacritics must occupy MORE bytes than
+    // characters. Under three-byte `utf8` or latin1 the load "succeeds" and the
+    // damage is silent, which is why it gets its own line rather than being left
+    // to somebody noticing. SQLite has one encoding and cannot get this wrong.
+    if ($dialect !== 'sqlite') {
+        $diacritics = "SELECT COUNT(*) FROM users WHERE LENGTH(full_name) > CHAR_LENGTH(full_name)";
+        $parts[] = "SELECT '" . str_pad('names with diacritics intact', 34) . "' AS `check`, "
+            . "'more than 0' AS expected, (" . $diacritics . ") AS actual, "
+            . "IF((" . $diacritics . ") > 0, 'PASS', '*** FAIL - charset ***') AS verdict";
+    }
+
+    $h = "-- MAM Academy — did the v2 load land?\n"
+       . "-- Paste this whole file into phpMyAdmin's SQL tab (or pipe it to the client).\n"
+       . "-- Every row must read PASS. Nothing here writes.\n"
+       . "--\n"
+       . "-- WHAT THIS CHECKS: that every row the transform planned actually arrived,\n"
+       . "-- and that the invariants hold. The expected figures come FROM the transform.\n"
+       . "--\n"
+       . "-- WHAT IT DOES NOT CHECK: it does not re-derive anything from the v1 export.\n"
+       . "-- That reconciliation is api/tools/v2-verify.php, which recomputes the head\n"
+       . "-- count and the money from the export by an independent path. This file is a\n"
+       . "-- substitute for a shell, not for that.\n\n";
+
+    return $h . implode("\nUNION ALL\n", $parts) . ";\n";
 }
