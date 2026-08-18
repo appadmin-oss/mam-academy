@@ -18,6 +18,7 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | Schema v2 design + SQLite generator | ✅ built, reviewed, not loaded |
 | ETL — identity, payments, applications | ✅ transform proven |
 | **ETL load + verify** | ✅ **shipped** — real snapshot, 16 of 16 checks, on **both SQLite and MySQL** |
+| **v2 CUTOVER readiness** | ❌ **not ready** — 0 runtime files read v2; see `docs/v2-cutover-readiness-2026-08-18.md` |
 | Admin usability ("impossible to use") | ✅ fixed and measured |
 | Enrolment completion chain | ✅ built and driven end to end |
 | Forms audit — 6 passes | ✅ complete; see `docs/forms-audit-2026-08-17.md` |
@@ -37,6 +38,12 @@ of the `docs/*-audit-*.md` files and comes out of here.
 
 Nothing. The ETL is complete end to end — export → transform → load → verify —
 and has been run against the real snapshot with all 16 checks passing (§4f).
+
+⚠️ **The ETL being ready is not the SITE being ready.** Measured 2026-08-18:
+**zero** runtime files read v2, 92 of the 111 v1 tables the application queries
+have no v2 counterpart, and the ETL carries 4 of the 38 tables holding real data.
+The full assessment, with the three options and a recommendation, is in
+`docs/v2-cutover-readiness-2026-08-18.md`. Read it before scheduling anything.
 
 What remains before a cutover is not code:
 

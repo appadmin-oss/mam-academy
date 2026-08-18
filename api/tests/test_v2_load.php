@@ -446,3 +446,38 @@ t_eq(implode('; ', $tooNarrow), '',
     'every value a CHECK permits fits the column it constrains');
 t_ok(($widths['payments']['status'] ?? 0) >= 18,
     'payments.status is wide enough for partially_refunded [' . ($widths['payments']['status'] ?? '?') . ']');
+
+t_group('ETL load — what the ETL does NOT carry, stated rather than assumed');
+
+/**
+ * The load covers the identity-and-money core: customers, users, applications,
+ * payments. Everything else in v1 either is recreated by hand (courses, modules,
+ * classes, cohorts) or has no path at all.
+ *
+ * This group exists so the second set stays a DECISION rather than becoming a
+ * discovery at cutover. See docs/v2-cutover-readiness-2026-08-18.md.
+ */
+$v2lLoadSrc = file_get_contents(dirname(__DIR__) . '/lib/v2/load.php');
+$v2lToolSrc = file_get_contents(dirname(__DIR__) . '/tools/v2-load.php');
+
+// The tool reads exactly four source files. If that list grows, the coverage
+// note in the readiness doc has to grow with it.
+t_ok(preg_match("/foreach \(\['customers', 'users', 'applications', 'payments'\] as \\\$t\)/", $v2lToolSrc) === 1,
+    'the loader reads four source tables — the coverage claim is checkable, not a recollection');
+
+/**
+ * The contradiction worth failing over: dataprotection.php asserts a seven-year
+ * legal-obligation retention on `audit_log`, v2 HAS an audit_log table, and the
+ * ETL does not carry it. Both statements cannot be true at cutover.
+ *
+ * This test does not demand the ETL migrate it — that is the academy's call. It
+ * demands that the decision be WRITTEN DOWN somewhere, so nobody drops 232 rows
+ * of the evidence trail by omission while the compliance screen promises to keep
+ * it for seven years.
+ */
+$v2lReadiness = @file_get_contents(dirname(__DIR__, 2) . '/docs/v2-cutover-readiness-2026-08-18.md');
+$v2lCarriesAudit = strpos($v2lLoadSrc, 'audit_log') !== false;
+t_ok($v2lCarriesAudit || ($v2lReadiness && strpos($v2lReadiness, 'audit_log') !== false),
+    'the audit log is either migrated, or its omission is recorded against the retention basis that claims to keep it');
+t_ok($v2lReadiness !== false && strpos($v2lReadiness, 'The ETL is ready. The site is not.') !== false,
+    'and the readiness of the SITE is distinguished from the readiness of the ETL');
