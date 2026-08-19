@@ -769,7 +769,11 @@ function mam_lms_mark_attendance(int $sessionId, int $studentId, string $status,
         mam_db_update('session_attendance', ['status' => $status, 'notes' => $notes, 'marked_by' => $markedBy, 'updated_at' => $now], ['id' => (int)$existing['id']]);
         $id = (int)$existing['id'];
     } else {
-        $id = mam_db_insert('session_attendance', ['session_id' => $sessionId, 'student_id' => $studentId, 'status' => $status, 'notes' => $notes, 'marked_by' => $markedBy]);
+        $id = mam_db_insert('session_attendance', ['session_id' => $sessionId, 'student_id' => $studentId,
+            // Explicit, though it matches the column default: the other three
+            // writers each mean something different, and a row whose method is
+            // whatever the schema happened to default to is not a record.
+            'status' => $status, 'notes' => $notes, 'marked_by' => $markedBy, 'method' => 'instructor']);
     }
     mam_audit('lms_attendance_mark', 'class_session', $sessionId, ['student' => $studentId, 'status' => $status]);
     return $id;

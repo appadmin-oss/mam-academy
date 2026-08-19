@@ -184,6 +184,13 @@ function mam_attendance_session_self_checkin(int $studentUserId, int $sessionId)
             'status'     => 'present',
             'notes'      => 'Self check-in (QR)',
             'marked_by'  => $studentUserId,
+            // Set EXPLICITLY. The column defaults to 'instructor', so leaving it
+            // out recorded every scan as a hand-marked register — the note said
+            // "Self check-in (QR)" in prose while the one column built to tell
+            // the two apart said otherwise, and nothing queries prose. It
+            // matters in a dispute: "I scanned in" is answerable from this
+            // column and from nowhere else.
+            'method'     => 'qr',
         ]);
         mam_audit('checkin', 'class_session', $sessionId, ['cohort_id' => (int)$sess['cohort_id'], 'via' => 'qr']);
     } catch (\Throwable $e) {

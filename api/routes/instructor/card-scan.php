@@ -145,6 +145,11 @@ if ($sessionId) {
                 'status'     => 'present',
                 'notes'      => 'Instructor card scan',
                 'marked_by'  => $scanBy,
+                // Its own method, not 'instructor': a card presented at a door
+                // is evidence the student was physically there, which a register
+                // mark is not. Collapsing them loses the distinction the scan
+                // exists to create.
+                'method'     => 'card',
             ]);
             mam_audit('checkin', 'class_session', $sessionId, [
                 'cohort_id' => (int)$sess['cohort_id'],
