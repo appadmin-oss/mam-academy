@@ -1,0 +1,270 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   MAM Academy — portal design system (mobile-first redesign, 19 Aug 2026)
+
+   Tokens and component recipes lifted VERBATIM from the design package's
+   `HANDOFF-student-guardian.md` §1. Where a value here looks arbitrary it came
+   from the designer with a contrast measurement attached; the comments record
+   which, so nobody "tidies" one into failing.
+
+   This file replaces `portal.css` for the surfaces that have been redesigned. It
+   does not extend it: the two palettes are different products (portal.css is the
+   warm dark MAM Redesign set; this is the light one), and mixing them produces
+   the theme-on-theme bug the old dashboards had. Load exactly one.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Surfaces */
+  --bg:            #F1F3F6;   /* app background */
+  --raised:        #FFFFFF;   /* cards, rails */
+  --sunken:        #EFF1F4;   /* chips, segmented control, ghost buttons */
+  --ink:           #1B2430;   /* primary text, dark panels, primary button */
+
+  /* Text */
+  --text:          #1B2430;
+  --text-2:        #3B4453;   /* body copy */
+  --text-3:        #66707E;   /* meta — 4.6:1 on #FFFFFF, 4.5:1 on #F1F3F6 */
+  /* REQUIRED on --sunken. #66707E measures 4.44:1 there and FAILS, which is why
+     there are two meta greys rather than one. */
+  --text-on-chip:  #57616F;
+
+  /* Accent — from the logo */
+  --accent:        #E2650F;   /* fills, rules, active bars. Pair with #211A13 text */
+  --accent-ink:    #211A13;   /* text ON an accent fill */
+  --accent-text:   #B34708;   /* accent-coloured TEXT on light surfaces (5.5:1) */
+
+  /* Semantic. Note the split: a colour that passes as TEXT is not the same one
+     that reads as a BORDER, so both are named. */
+  --good:          #0F8A5F;
+  --good-fill:     rgba(15,138,95,0.10);
+  --warn:          #8A5A00;
+  --warn-fill:     rgba(176,116,15,0.14);
+  --bad:           #B0203C;
+  --bad-line:      #C6435C;
+  --bad-fill:      rgba(198,67,92,0.07);
+
+  /* Lines */
+  --hairline:      rgba(24,32,44,0.08);   /* inside a card, between list rows */
+  --border:        rgba(24,32,44,0.12);   /* card edge */
+  --border-strong: rgba(24,32,44,0.14);   /* input edge */
+  --border-btn:    rgba(24,32,44,0.17);   /* secondary button edge */
+
+  /* Geometry */
+  --radius-card:    12px;
+  --radius-card-lg: 18px;   /* mobile cards in the design run 18px */
+  --radius-control: 8px;
+  --radius-control-lg: 14px;
+  --radius-pill:    100px;
+
+  /* Type */
+  --font-ui:    'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  --font-fig:   'Bebas Neue', Impact, sans-serif;   /* figures only */
+
+  /* The mobile bottom bar, and the reserve a scroller under it needs. Named
+     because the design says under-reserving clipped the last row twice: the
+     bar is 73px and the reserve must be bar + 40px or more. */
+  --bar-h:       73px;
+  --bar-reserve: 120px;
+}
+
+/* ── Reset, kept minimal ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 13px/1.6 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; }
+
+/* ── Type scale — the one the design actually uses ────────────────────────── */
+/* 26 · 19 · 14.5 · 13 · 12.5 · 11(uppercase). NEVER below 12px: guardians skew
+   older and students include under-16s on mid-range Android. */
+.p-h1     { font: 700 26px/1.15 var(--font-serif); margin: 0 0 3px; letter-spacing: -0.01em; text-wrap: balance; }
+.p-h2     { font: 700 19px/1.25 var(--font-serif); margin: 0 0 10px; }
+.p-title  { font: 700 14.5px/1.35 var(--font-ui); }
+.p-body   { font: 400 13px/1.7 var(--font-ui); color: var(--text-2); }
+.p-meta   { font: 400 12.5px/1.55 var(--font-ui); color: var(--text-3); }
+.p-label  { font: 800 11px/1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3); }
+/* Figures: counts, money, times. Always tabular so columns of digits line up. */
+.p-fig    { font-family: var(--font-fig); font-variant-numeric: tabular-nums; line-height: 1; }
+
+/* ── Card ────────────────────────────────────────────────────────────────── */
+.p-card {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card-lg);
+  padding: 18px;
+}
+.p-card + .p-card { margin-top: 14px; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+/* Ghost. `button.p-ghost` and not `.p-ghost`: a bare class loses on specificity
+   to any element-qualified rule in a stylesheet loaded after this one, and the
+   height is load-bearing for the 44px touch target. */
+button.p-ghost, a.p-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  background: var(--sunken); border: 0; border-radius: var(--radius-control);
+  min-height: 34px; padding: 0 13px;
+  font: 600 12.5px var(--font-ui); color: var(--text); cursor: pointer;
+  text-decoration: none;
+}
+button.p-ghost i, a.p-ghost i { font-size: 11px; color: var(--text-3); }
+
+/* Primary. ONE per view — the design is explicit about that. */
+button.p-primary, a.p-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--ink); color: #fff; border: 0; border-radius: var(--radius-control);
+  min-height: 34px; padding: 0 13px;
+  font: 700 12.5px var(--font-ui); cursor: pointer; text-decoration: none;
+}
+/* Full-width action inside a mobile card: 52px, because a thumb is the input. */
+button.p-action, a.p-action {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; min-height: 52px; margin-top: 14px;
+  border: 0; border-radius: var(--radius-control-lg);
+  background: var(--ink); color: #fff;
+  font: 700 15.5px var(--font-ui); font-family: var(--font-ui); cursor: pointer;
+  text-decoration: none;
+}
+button.p-action.p-secondary, a.p-action.p-secondary {
+  background: var(--raised); color: var(--text); border: 1px solid var(--border-btn);
+}
+button:disabled, button[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent-text); outline-offset: 2px; border-radius: 4px;
+}
+
+/* ── Segmented control ───────────────────────────────────────────────────── */
+.p-seg { display: flex; background: var(--sunken); padding: 2px; border-radius: 9px; gap: 2px; }
+.p-seg button {
+  flex: 1; min-height: 34px; border: 0; background: transparent; cursor: pointer;
+  border-radius: 7px; font: 600 12.5px var(--font-ui);
+  /* Inactive label MUST be --text-on-chip: it sits on --sunken. */
+  color: var(--text-on-chip);
+}
+.p-seg button[aria-selected="true"] {
+  background: var(--raised); box-shadow: 0 1px 3px rgba(24,32,44,0.12); font-weight: 700; color: var(--text);
+}
+
+/* ── List rows — hairline, no card, no zebra ─────────────────────────────── */
+.p-list { list-style: none; margin: 0; padding: 0; }
+.p-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 0; border-bottom: 1px solid var(--hairline);
+}
+.p-row:last-child { border-bottom: 0; }
+.p-row-main { flex: 1; min-width: 0; }
+
+/* ── Chip / pill ─────────────────────────────────────────────────────────── */
+.p-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 24px; padding: 0 10px; border-radius: var(--radius-pill);
+  background: var(--sunken); color: var(--text-on-chip);
+  font: 700 11.5px var(--font-ui);
+}
+.p-chip.is-good { background: var(--good-fill); color: var(--good); }
+.p-chip.is-warn { background: var(--warn-fill); color: var(--warn); }
+.p-chip.is-bad  { background: var(--bad-fill);  color: var(--bad); }
+.p-chip.is-accent { background: var(--accent); color: var(--accent-ink); }
+
+/* ── Notice — never colour alone: every variant carries an icon and words ─── */
+.p-notice {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px; border-radius: var(--radius-card);
+  font: 600 13.5px/1.5 var(--font-ui); color: var(--text);
+  background: var(--sunken); border: 1px solid var(--border);
+}
+.p-notice.is-bad  { background: var(--bad-fill);  border-color: var(--bad-line); }
+.p-notice.is-warn { background: var(--warn-fill); border-color: rgba(138,90,0,0.35); }
+.p-notice.is-good { background: var(--good-fill); border-color: rgba(15,138,95,0.35); }
+.p-notice i { flex: 0 0 auto; margin-top: 2px; font-size: 14px; }
+.p-notice.is-bad i  { color: var(--bad); }
+.p-notice.is-warn i { color: var(--warn); }
+.p-notice.is-good i { color: var(--good); }
+
+/* ── KPI tiles ───────────────────────────────────────────────────────────── */
+.p-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+.p-kpi { background: #F6F7F9; border-radius: var(--radius-control-lg); padding: 12px 8px; text-align: center; }
+.p-kpi b { display: block; font-family: var(--font-fig); font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+.p-kpi span { display: block; font-size: 10.5px; color: var(--text-3); margin-top: 4px; }
+/* An em dash means "not measured", and it is NOT a figure — tabular-nums on a
+   dash renders it in a digit-width cell and it reads as a minus sign. */
+.p-kpi b.is-none { font-variant-numeric: normal; color: var(--text-3); }
+
+/* ── Avatar ──────────────────────────────────────────────────────────────── */
+.p-avatar {
+  width: 52px; height: 52px; border-radius: 50%; flex: 0 0 auto;
+  background: #EBEEF2; border: 1px solid var(--border-btn);
+  display: grid; place-items: center;
+  font-family: var(--font-fig); font-size: 20px; color: var(--text-2);
+  object-fit: cover; overflow: hidden;
+}
+
+/* ── "Not enough evidence yet" — a visible row, dashed, never a silent zero ─ */
+.p-insufficient {
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-card);
+  padding: 12px 14px; color: var(--text-3); font-size: 12.5px; line-height: 1.6;
+  background: transparent;
+}
+
+/* ── Competency bars. Horizontal, per the design: no radar chart — it scores
+      worst for accuracy and misleads through area. ───────────────────────── */
+.p-bar { height: 8px; border-radius: var(--radius-pill); background: var(--sunken); overflow: hidden; }
+.p-bar > span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.p-bar.is-none { border: 1px dashed var(--border-strong); background: transparent; }
+
+/* ── Mobile shell ────────────────────────────────────────────────────────── */
+.p-app { min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
+.p-top {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px 12px; background: var(--bg);
+  border-bottom: 1px solid rgba(24,32,44,0.10);
+  position: sticky; top: 0; z-index: 5;
+}
+.p-scroll { flex: 1; padding: 16px 16px var(--bar-reserve); }
+.p-bar-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  height: var(--bar-h); display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  background: var(--raised); border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+.p-bar-nav a {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  text-decoration: none; color: var(--text-3); font: 600 10.5px var(--font-ui);
+  min-height: 44px;
+}
+.p-bar-nav a i { font-size: 17px; }
+.p-bar-nav a[aria-current="page"] { color: var(--text); }
+.p-bar-nav a[aria-current="page"] i { color: var(--accent-text); }
+
+/* ── Desktop: the same information given room, not a different product ───── */
+@media (min-width: 900px) {
+  .p-app { flex-direction: row; }
+  .p-bar-nav {
+    position: sticky; inset: auto; height: 100dvh; width: 248px; flex: 0 0 248px;
+    grid-auto-flow: row; grid-auto-columns: none; align-content: start; gap: 2px;
+    border-top: 0; border-right: 1px solid var(--border); padding: 18px 12px;
+  }
+  .p-bar-nav a {
+    flex-direction: row; justify-content: flex-start; gap: 11px;
+    padding: 0 12px; border-radius: var(--radius-control); font-size: 13.5px; min-height: 40px;
+  }
+  .p-bar-nav a[aria-current="page"] { background: var(--sunken); }
+  .p-scroll { padding: 26px 32px 48px; max-width: 1180px; }
+  .p-top { position: static; border: 0; padding: 0 0 18px; background: transparent; }
+  /* Master–detail: 1fr | 1px | 1fr with the rule as a real child, and NO card
+     around either pane. */
+  .p-split { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 26px; }
+  .p-split > .p-rule { background: rgba(24,32,44,0.10); align-self: stretch; }
+}
+@media (max-width: 899.98px) { .p-split > .p-rule { display: none; } }
+
+/* Any <input> in a flex row needs min-width:0 — `flex:1` alone loses to the
+   automatic-minimum-size rule, and a text input's min-content is ~20 characters,
+   so it overflows its row and gets clipped. Hit twice in the design. */
+.p-row input, .p-field input, .p-split input { min-width: 0; }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

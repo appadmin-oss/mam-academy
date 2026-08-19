@@ -666,7 +666,12 @@ CREATE TABLE IF NOT EXISTS results (
   finalized_by  INT NULL,
   finalized_at  DATETIME NULL,
   CONSTRAINT fk_res_enroll FOREIGN KEY (enrollment_id) REFERENCES course_enrollments(id) ON DELETE CASCADE,
-  CONSTRAINT fk_res_user   FOREIGN KEY (finalized_by)  REFERENCES users(id)              ON DELETE SET NULL
+  -- `fk_result_user`, not `fk_res_user`: that name is already taken by
+  -- class_resources.posted_by earlier in this file, and MySQL scopes foreign-key
+  -- constraint names to the DATABASE, not the table. The collision made this
+  -- CREATE TABLE fail with error 1826 — so a fresh MySQL install had no `results`
+  -- table at all, while SQLite (which scopes them per table) was fine.
+  CONSTRAINT fk_result_user FOREIGN KEY (finalized_by)  REFERENCES users(id)          ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS certificates (
@@ -1152,15 +1157,10 @@ VALUES ('ktams', 'KTAMS Young Musicians', 12, 11, 12, 0, 'participation', 0, 1);
 -- The two definitions must stay IDENTICAL: they disagreed for a long time
 -- (VARCHAR(32) NULL above vs VARCHAR(24) here), which meant editing this copy
 -- changed nothing on a fresh install, silently and with no error.
-CREATE TABLE IF NOT EXISTS program_courses (
-  program_id INT NOT NULL,
-  course_id  INT NOT NULL,
-  level_code VARCHAR(32) NULL,
-  sort_order INT NOT NULL DEFAULT 0,
-  PRIMARY KEY (program_id, course_id),
-  CONSTRAINT fk_pc_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
-  CONSTRAINT fk_pc_course  FOREIGN KEY (course_id)  REFERENCES courses(id)  ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- (A duplicate `program_courses` definition stood here, byte-identical to the
+--  one earlier in this file. Removed: both were CREATE TABLE IF NOT EXISTS, so
+--  the second never ran, and a table defined twice is a table that can drift.
+--  The seed INSERT below is kept — it is idempotent and does real work.)
 
 INSERT IGNORE INTO program_courses (program_id, course_id, level_code, sort_order)
   SELECT p.id, c.id, 'precert', c.sort_order
@@ -1400,26 +1400,10 @@ INSERT INTO schema_version (version) VALUES (47) ON DUPLICATE KEY UPDATE version
 -- stray duplication — do not "tidy" it away. It is inert on any install where
 -- the earlier definition succeeded, and it is the whole repair on one where
 -- that definition failed. Keep it byte-identical to the earlier one.
-CREATE TABLE IF NOT EXISTS progress_reports (
-  id            INT AUTO_INCREMENT PRIMARY KEY,
-  session_id    INT NOT NULL,
-  student_id    INT NOT NULL,
-  instructor_id INT NOT NULL,
-  form_id       INT NULL,
-  answers_json  TEXT NOT NULL,
-  narrative     TEXT NULL,
-  email_sent    TINYINT(1) NOT NULL DEFAULT 0,
-  email_sent_at DATETIME NULL,
-  submitted_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_pr (session_id, student_id),
-  KEY idx_pr_session    (session_id),
-  KEY idx_pr_student    (student_id),
-  KEY idx_pr_instructor (instructor_id),
-  CONSTRAINT fk_pr_session    FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE CASCADE,
-  CONSTRAINT fk_pr_student    FOREIGN KEY (student_id)    REFERENCES users(id)          ON DELETE CASCADE,
-  CONSTRAINT fk_pr_instructor FOREIGN KEY (instructor_id) REFERENCES users(id)          ON DELETE CASCADE,
-  CONSTRAINT fk_pr_form       FOREIGN KEY (form_id)       REFERENCES surveys(id)        ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- (The duplicate `progress_reports` definition that stood here has been removed.
+--  It was byte-identical to the one above and only survived because both are
+--  CREATE TABLE IF NOT EXISTS, which makes the second a silent no-op — and two
+--  definitions of one table are two things to keep in step.)
 ALTER TABLE surveys      ADD COLUMN kind VARCHAR(32) NOT NULL DEFAULT 'survey';
 ALTER TABLE store_items  ADD COLUMN available_locations TEXT;
 -- Normalize collation on tables created without explicit COLLATE so they all
@@ -1585,20 +1569,26 @@ CREATE TABLE IF NOT EXISTS card_scans (
   KEY idx_card_scans_session (session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (56) ON DUPLICATE KEY UPDATE version = version;
-ALTER TABLE class_sessions ADD COLUMN IF NOT EXISTS meeting_link VARCHAR(500) NULL;
+-- Plain `ADD COLUMN`, not `ADD COLUMN IF NOT EXISTS`: the latter is MariaDB-only
+-- and MySQL 8 raises 1064, which the runner does NOT tolerate — so the column
+-- silently never landed while schema_version advanced anyway. Same trap the v46
+-- note above describes; these five were added after that fix and missed it.
+-- On a fresh apply this creates the column; on a re-run it errors 1060, which the
+-- runner tolerates like every other ALTER in this file.
+ALTER TABLE class_sessions ADD COLUMN meeting_link VARCHAR(500) NULL;
 INSERT INTO schema_version (version) VALUES (57) ON DUPLICATE KEY UPDATE version = version;
 
 -- v58: public-site promo mode (banner + time-limited discount) on promo_banners.
-ALTER TABLE promo_banners ADD COLUMN IF NOT EXISTS public TINYINT(1) NOT NULL DEFAULT 0;
-ALTER TABLE promo_banners ADD COLUMN IF NOT EXISTS discount_percent INT NOT NULL DEFAULT 0;
-ALTER TABLE promo_banners ADD COLUMN IF NOT EXISTS applies_to VARCHAR(16) NULL;
+ALTER TABLE promo_banners ADD COLUMN public TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE promo_banners ADD COLUMN discount_percent INT NOT NULL DEFAULT 0;
+ALTER TABLE promo_banners ADD COLUMN applies_to VARCHAR(16) NULL;
 INSERT INTO schema_version (version) VALUES (58) ON DUPLICATE KEY UPDATE version = version;
 
 -- v59: ID cards get a REAL expiry. The printed EXP was derived from the issue year
 -- and enforced nowhere, so an expired card kept scanning into attendance. Summer
 -- cards are meant to lapse a couple of months after the camp. Backfill derives a
 -- date from each card's own issue date so no row is left NULL (= never expires).
-ALTER TABLE id_cards ADD COLUMN IF NOT EXISTS expires_at DATETIME NULL;
+ALTER TABLE id_cards ADD COLUMN expires_at DATETIME NULL;
 UPDATE id_cards SET expires_at = DATE_ADD(issued_at, INTERVAL 2 MONTH)
  WHERE expires_at IS NULL AND summer_app_id IS NOT NULL;
 UPDATE id_cards SET expires_at = DATE_ADD(issued_at, INTERVAL 12 MONTH)

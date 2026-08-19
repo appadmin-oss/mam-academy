@@ -147,6 +147,41 @@ function mam_parent_weekly_status(int $studentId): array {
     $gpa        = function_exists('mam_lms2_student_gpa') ? mam_lms2_student_gpa($studentId) : ['avg_score' => null];
     $mastery    = $gpa['avg_score'] !== null ? (float) $gpa['avg_score'] : null;
 
+    /* The MASTERY BAND, which is what a guardian is shown — not the mean above.
+     *
+     * `mam_lms2_student_gpa()` returns a decimal average of whatever has been
+     * graded. `mam_mastery_score()` is the engine that decides whether that
+     * number may be reported at all: below MAM_MASTERY_MIN_COVERAGE there is no
+     * composite, only subscores, and above it the result is a ten-point BAND with
+     * the arithmetic bounds the unscored weight permits.
+     *
+     * The guardian payload was reaching past that and shipping the raw mean, so
+     * the one screen the coverage floor exists to protect was the screen not
+     * using it. `raw_score` is retained inside mastery.php for audit and must
+     * never reach here — hence the explicit key list rather than a spread.
+     */
+    $band = null;
+    if (function_exists('mam_mastery_score')) {
+        try {
+            $m = mam_mastery_score($studentId);
+            $band = [
+                'band'          => $m['band'] ?? null,          // [70,79] or null
+                'label'         => $m['level_label'] ?? null,
+                'blurb'         => $m['level_blurb'] ?? null,
+                'headline'      => $m['headline'] ?? null,
+                'sufficient'    => (bool) ($m['sufficient'] ?? false),
+                'coverage_pct'  => $m['coverage_pct'] ?? null,
+                'min_coverage'  => $m['min_coverage'] ?? null,
+                'bounds'        => $m['bounds'] ?? null,
+                'components'    => $m['components'] ?? [],
+                'missing'       => $m['missing'] ?? [],
+            ];
+        } catch (\Throwable $e) {
+            // A guardian screen must render without it rather than 500.
+            mam_log('warn', 'parent_mastery_band_failed', ['student' => $studentId, 'err' => $e->getMessage()]);
+        }
+    }
+
     // Preparation + teach-back from the next class card, when there is one.
     $prep = null; $teachback = null;
     if (function_exists('mam_preclass_next')) {
@@ -165,9 +200,12 @@ function mam_parent_weekly_status(int $studentId): array {
         // invent one and a screen reader is not left with a bare dot.
         'attendance_label' => mam_parent_light_label($attLight, 'Attendance'),
         'streak'           => $streak,
+        // Retained for the traffic light only. Do NOT render this as the score:
+        // `mastery_band` is what the guardian sees.
         'mastery'          => $mastery,
         'mastery_light'    => $masLight,
         'mastery_label'    => mam_parent_light_label($masLight, 'Mastery'),
+        'mastery_band'     => $band,
         'preparation'      => $prep,        // not_started / in_progress / completed
         'teachback'        => $teachback,   // null / submitted / reviewed
     ];
