@@ -176,3 +176,54 @@ t_ok(mam_report_band(null) === null, 'no score, no band');
 // ── The memo returns the same answer, and only computes once.
 t_eq(json_encode(mam_mastery_score_cached($MB_stu)), json_encode(mam_mastery_score_cached($MB_stu)),
     'the memoised score is stable within a request');
+
+t_group('parents — the children query runs against the LIVE schema');
+
+/**
+ * `mam_parent_children()` is on the critical path of the entire guardian portal:
+ * every screen starts from it, so a wrong column name there is not an empty card,
+ * it is a 500 on the first page a family opens.
+ *
+ * This is the guardian-side twin of the check `test_admin_screens.php` runs over
+ * the admin views (CLAUDE.md gotcha #9), and it exists because a real one got
+ * through: the child subtitle was written as `classes.name`, and the legacy
+ * `classes` table has `title`. Nothing in the suite touched it, and it was found
+ * by opening the portal in a browser. Executing the query is the only check that
+ * would have caught it, so the check executes it.
+ */
+$PC_par = (int) mam_db_row("SELECT id FROM users WHERE email = 'guardian@test.local'")['id'];
+$PC_kids = mam_parent_children($PC_par);
+t_ok(is_array($PC_kids), 'the children query executes against the live schema');
+foreach ($PC_kids as $PC_k) {
+    foreach (['student_id', 'student_name', 'weekly'] as $PC_key) {
+        t_ok(array_key_exists($PC_key, $PC_k), "each child carries '$PC_key'");
+    }
+    // The design's card names the course and level; these may be null, but the
+    // KEYS must exist or the client renders `undefined` into the subtitle.
+    foreach (['course_name', 'level_name', 'legacy_class'] as $PC_key) {
+        t_ok(array_key_exists($PC_key, $PC_k), "and '$PC_key' for the card subtitle (may be null)");
+    }
+    break;
+}
+
+/* Every guardian-facing READER has to execute. Extracting the SQL with a regex
+ * was tried and is the wrong tool — a query containing `IN ('active','completed')`
+ * terminates any quote-delimited pattern at the wrong place — so the check CALLS
+ * the functions instead, which is both robust and closer to what breaks: a PDO
+ * exception inside a guardian route is a 500 on the first page a family opens,
+ * not a quietly empty panel. */
+$PC_stu = $PC_kids ? (int) $PC_kids[0]['student_id'] : 0;
+$PC_readers = [
+    'mam_parent_children'            => fn() => mam_parent_children($PC_par),
+    'mam_parent_weekly_status'       => fn() => mam_parent_weekly_status($PC_stu),
+    'mam_parent_child_detail'        => fn() => mam_parent_child_detail($PC_par, $PC_stu),
+    'mam_parent_guardians_of'        => fn() => mam_parent_guardians_of($PC_stu),
+    'mam_parent_value_kpis'          => fn() => mam_parent_value_kpis($PC_stu),
+    'mam_parent_instructor_feedback' => fn() => mam_parent_instructor_feedback($PC_stu),
+    'mam_parent_scope'               => fn() => mam_parent_scope($PC_par, $PC_stu),
+    'mam_parent_scope_explain'       => fn() => mam_parent_scope_explain($PC_par, $PC_stu),
+];
+foreach ($PC_readers as $PC_name => $PC_fn) {
+    try { $PC_fn(); t_ok(true, "$PC_name() executes against the live schema"); }
+    catch (\Throwable $e) { t_ok(false, "$PC_name() executes against the live schema — " . $e->getMessage()); }
+}

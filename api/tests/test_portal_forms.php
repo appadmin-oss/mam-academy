@@ -125,17 +125,49 @@ t_ok(strpos($inst, "card.innerHTML = '<div class=\"portal-avatar\">!</div>") !==
 t_ok(strpos($inst, "content.removeAttribute('aria-busy');") !== false, '…and aria-busy is cleared');
 t_ok(strpos($inst, "id=\"dashRetry\"") !== false, 'and there is a Try again button');
 
-t_group('guardian portal — measured clean, left alone');
+t_group('guardian portal — rebuilt from the design, and the invariants moved with it');
 
-// 4 visible controls, all named; both failure paths already say what happened
-// ("Could not load your children right now.", "Could not load this child right
-// now."). Recorded so nobody "fixes" a portal that was already correct.
-t_ok(strpos($parent, 'Could not load your children right now.') !== false,
-    'a failed children list says so');
-t_ok(strpos($parent, 'Could not load this child right now.') !== false,
-    'a failed child page says so');
-t_eq(preg_match_all("/<label>[^<]{1,40}<\/label>\s*(?:\\\\?')?\s*\+?\s*(?:\\\\?')?\s*<(?:input|select|textarea)\b/", $parent),
-    0, 'the guardian portal has no caption-masquerading-as-label');
+/* The guardian portal was rebuilt from the design package, so the assertions that
+ * quoted its old strings now quote the new ones. The invariants are unchanged:
+ * every failure path SAYS what happened, every input has a real label, and no
+ * write is reported as a success the server has not confirmed. */
+$guardJs  = file_get_contents(__DIR__ . '/../../assets/js/portal-guardian.js');
+$guardCss = file_get_contents(__DIR__ . '/../../assets/css/portal-v2.css');
+
+// Every render path has a .catch that paints a sentence, not a blank screen.
+$guardCatches = preg_match_all('/\.catch\(function \(err\) \{/', $guardJs);
+t_ok($guardCatches >= 6, "every screen's load has a failure branch ($guardCatches found)");
+t_ok(strpos($guardJs, "P.errText ? P.errText(err,") !== false,
+    'and it translates the error rather than pasting a machine code into a sentence');
+t_ok(strpos($guardJs, 'Could not load the report.') !== false, 'a failed report load says so');
+t_ok(strpos($guardJs, 'Could not load the statement.') !== false, 'and so does a failed statement');
+t_ok(strpos($guardJs, 'Could not load your account.') !== false, 'and a failed boot');
+
+/* No optimistic tick — the design's refusal 7. A write goes busy and then reports
+ * what actually happened; offline it says plainly that nothing was saved, rather
+ * than showing a success state that loses the record. */
+t_ok(strpos($guardJs, "if (!navigator.onLine)") !== false, 'a failed write distinguishes offline from an error');
+t_ok(strpos($guardJs, 'has NOT been saved') !== false,
+    'and says so in as many words, instead of an optimistic tick');
+t_ok(strpos($guardJs, "setAttribute('data-busy', '1')") !== false, 'the control goes busy for the round trip');
+t_ok(strpos($guardCss, '[data-busy="1"]') !== false, 'and the stylesheet makes that visible and non-clickable');
+
+// Labels are real and persistent, never a placeholder and never a bare caption.
+t_eq(preg_match_all('/<input[^>]*placeholder=/', $guardJs), 0,
+    'no input uses a placeholder — a placeholder is not a label (§4)');
+$guardInputs = preg_match_all('/<(?:input|select|textarea)\b/', $guardJs);
+$guardLabels = preg_match_all('/<label for="/', $guardJs);
+t_ok($guardLabels >= $guardInputs - 1,
+    "each field carries a <label for> ($guardLabels labels for $guardInputs fields)");
+// A caption above a GROUP of buttons is not a label — the design says to use
+// role="group" + aria-labelledby, and the segmented controls do.
+t_eq(preg_match_all('/role="group" aria-labelledby="/', $guardJs)
+   + preg_match_all('/role="group" aria-labelledby="/', $parent), 3,
+    'and a group of controls is labelled with role="group" + aria-labelledby, not a floating caption');
+
+// The whole point of the rebuild: no inline styles anywhere in the markup.
+t_eq(preg_match_all('/\sstyle="/', $parent), 0,
+    'the guardian page carries no inline style attribute — every visual decision is in portal-v2.css');
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Student portal — pass 6. Signed in with a student enrolled on both a legacy

@@ -1,275 +1,160 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-portal="v2">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="light dark">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guardian portal · MAM Academy</title>
 <meta name="robots" content="noindex, nofollow">
-<script>(function(){var r=document.documentElement;try{var t=localStorage.getItem('mam-portal-theme');if(t!=='dark'&&t!=='light')t='light';r.setAttribute('data-portal-theme',t);}catch(e){r.setAttribute('data-portal-theme','light');}try{var a=JSON.parse(localStorage.getItem('mam-a11y')||'{}');if(a.lowbw)r.classList.add('a11y-lowbw');if(a.dyslexia)r.classList.add('a11y-dyslexia');if(a.textSize==='lg')r.classList.add('a11y-text-lg');else if(a.textSize==='xl')r.classList.add('a11y-text-xl');}catch(e){}})();</script>
-<title>Parent Portal — MAM Academy</title>
+<meta name="description" content="Attendance, ratified reports, fees and consents for your children at MAM Academy.">
 <link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/main.css?v=20260706d">
-<link rel="stylesheet" href="/assets/css/portal.css?v=20260817c">
-<style>
-  .light { display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:6px;
-    /* A ring, so the dot is still distinguishable where colour is not
-       perceived and against either theme's background. */
-    box-shadow:0 0 0 1px rgba(0,0,0,.18) inset }
-  .light.green{background:#34D399}.light.amber{background:#FBBF24}.light.red{background:#F87171}
-  /* `none` is "not measured yet" — hollow, neutral, and deliberately NOT red.
-     A child who has not started is not a child who is failing. */
-  .light.none{background:transparent;box-shadow:0 0 0 1.5px var(--text-muted,#8A8A8A) inset}
-  .stat{display:flex;flex-direction:column;gap:2px;min-width:104px}
-  .stat-k{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
-  .stat-v{font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums}
-  .stat-note{font-size:.72rem;color:var(--text-muted)}
-</style>
-</head>
-<body>
-<div class="portal-shell">
-  <aside class="portal-side">
-    <div class="portal-brand">
-      <img src="/mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
-      <div><div class="portal-brand-name">MAM ACADEMY</div><div class="portal-brand-sub">Parent Portal</div></div>
-    </div>
-    <div class="portal-user" id="userCard"><div class="portal-avatar">?</div><div><div class="portal-user-name">Loading…</div></div></div>
-    <nav class="portal-nav">
-      <a class="portal-nav-link active" href="#children" id="navChildren"><i class="fa-solid fa-children"></i>My Children</a>
-      <a class="portal-nav-link" href="#" data-action="logout"><i class="fa-solid fa-right-from-bracket"></i>Sign out</a>
-    </nav>
-    <div class="portal-side-foot">
-      <button type="button" class="portal-theme-toggle" data-action="theme-toggle" aria-pressed="false"><i class="fa-solid fa-moon" aria-hidden="true"></i><span data-theme-label>Dark mode</span></button>
-      <button type="button" class="portal-theme-toggle" data-action="a11y-menu"><i class="fa-solid fa-universal-access" aria-hidden="true"></i><span>Display &amp; access</span></button>
-    </div>
-  </aside>
-  <main class="portal-main">
-    <button class="portal-side-toggle" id="sidebarToggle"><i class="fa-solid fa-bars"></i> Menu</button>
-    <header class="portal-top"><h1 id="pageTitle">My Children <small id="pageSub">Your child's MAM journey</small></h1></header>
-    <div id="content" aria-busy="true">Loading…</div>
-  </main>
-</div>
-<script src="/assets/js/config.js?v=20260807a"></script>
-<script src="/assets/js/portal.js?v=20260817c"></script>
-<script src="/assets/js/command-palette.js?v=20260815a" defer></script>
+<!-- ONE stylesheet. portal-v2.css is scoped under [data-portal="v2"] and is a
+     complete design system in its own right; main.css and portal.css are the
+     warm dark set the student and instructor portals still use, and loading both
+     palettes on one page is the theme-on-theme bug this rebuild removes. -->
+<link rel="stylesheet" href="/assets/css/portal-v2.css?v=20260819a">
 <script>
+/* Pre-paint, so a guardian who has chosen larger text or dark never sees one
+   frame of the other. Attributes on the root; portal-v2.css does the rest. */
 (function () {
-  var P = window.MAM_PORTAL, API = window.MAM_API;
-  var content = document.getElementById('content');
-  var pageTitle = document.getElementById('pageTitle'), pageSub = document.getElementById('pageSub');
-  // An empty panel is an invitation, not a notice: `action` renders a real
-  // control so "contact the office" is something a guardian can act on.
-  function empty(icon, msg, action) {
-    var cta = action && action.label
-      ? '<div style="margin-top:14px"><a class="btn btn-primary" href="' + esc(action.href || '#')
-        + '" style="padding:9px 18px;font-size:.86rem">' + esc(action.label) + '</a></div>' : '';
-    return '<div class="empty-state"><i class="fa-solid fa-' + icon + '" aria-hidden="true"></i>' + msg + cta + '</div>';
-  }
-  function esc(s) { return P.escapeHtml(s == null ? '' : s); }
-  // The dot is decoration; the label is the information. Defaulting to 'none'
-  // rather than 'red' matters — an absent value used to arrive here as a red
-  // light, which told a guardian their child was behind when nothing had been
-  // measured at all.
-  function lightDot(cls, label) {
-    var c = cls || 'none';
-    return '<span class="light ' + c + '" role="img" aria-label="' + esc(label || '') + '"></span>';
-  }
-
-  // One metric. A null value prints an em dash and says WHY it is empty —
-  // "0%" and "not measured yet" are different statements about a child, and
-  // only one of them was true for a student who had not started.
-  function stat(key, value, unit, light, label) {
-    var absent = (value == null);
-    return '<div class="stat">'
-      + '<span class="stat-k">' + esc(key) + '</span>'
-      + '<span class="stat-v">' + lightDot(absent ? 'none' : light, label || '') + (absent ? '—' : esc(String(value)) + unit) + '</span>'
-      + '<span class="stat-note">' + esc(absent ? 'Not measured yet' : (label || '')) + '</span>'
-      + '</div>';
-  }
-
-  function setTitle(t, s) { pageTitle.firstChild.textContent = t + ' '; pageSub.textContent = s; }
-
-  function renderChildren() {
-    setTitle('My Children', 'Your child’s MAM journey');
-    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading…') + '</div></section>';
-    API.request('parent/children', { method: 'GET' }).then(function (r) {
-      var kids = (r && r.children) || [];
-      if (!kids.length) { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('children', 'No children are linked to your account yet. The academy office links a child to your account once their place is confirmed.', { href: '/contact', label: 'Contact the office' }) + '</div></section>'; return; }
-      content.innerHTML = kids.map(function (k) {
-        var w = k.weekly || {};
-        return '<section class="panel" style="margin-bottom:14px"><div class="panel-head"><h2>' + esc(k.student_name) + '</h2>'
-          + '<button class="btn btn-primary child-open" data-id="' + k.student_id + '" style="padding:6px 14px;font-size:.8rem">View journey →</button></div>'
-          + '<div class="panel-body" style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;padding:16px 22px 18px">'
-          + stat('Attendance', w.attendance_rate, '%', w.attendance, w.attendance_label)
-          + stat('Mastery', w.mastery == null ? null : Math.round(w.mastery), '%', w.mastery_light, w.mastery_label)
-          + '<div class="stat"><span class="stat-k">Practice streak</span>'
-            + '<span class="stat-v"><i class="fa-solid fa-fire" style="color:#FB923C;font-size:.85em" aria-hidden="true"></i> '
-            + (w.streak || 0) + '</span>'
-            + '<span class="stat-note">' + (w.streak ? 'days in a row' : 'no streak yet') + '</span></div>'
-          + '<div class="stat"><span class="stat-k">Preparation</span><span class="stat-v">'
-            + esc(w.preparation ? w.preparation.replace(/_/g, ' ') : '—') + '</span>'
-            + '<span class="stat-note">' + (w.preparation ? 'for the next class' : 'nothing set yet') + '</span></div>'
-          + '<div class="stat"><span class="stat-k">Teach-back</span><span class="stat-v">'
-            + esc(w.teachback || '—') + '</span>'
-            + '<span class="stat-note">' + (w.teachback ? 'latest submission' : 'not submitted yet') + '</span></div>'
-          + '</div></section>';
-      }).join('');
-      content.querySelectorAll('.child-open').forEach(function (b) {
-        b.addEventListener('click', function () { renderChild(parseInt(b.getAttribute('data-id'), 10), b.closest('.panel').querySelector('h2').textContent); });
-      });
-    }).catch(function () { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load your children right now.') + '</div></section>'; });
-  }
-
-  function renderChild(sid, name) {
-    setTitle(name || 'Child', 'Weekly status & progress');
-    content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading…') + '</div></section>';
-    API.request('parent/child?student_id=' + sid, { method: 'GET' }).then(function (d) {
-      var w = d.weekly || {}, g = (d.academic && d.academic.gpa) || {}, results = d.results || [], up = d.upcoming_sessions || [];
-      var back = '<div style="margin-bottom:14px"><a href="#children" id="backLink" class="btn btn-ghost" style="padding:6px 14px;font-size:.8rem"><i class="fa-solid fa-arrow-left"></i> All children</a></div>';
-      // §5.2 — the guardian headline strip. Attendance is preferred from the
-      // server-computed KPI block and falls back to the weekly figure, so an
-      // older payload still renders a number rather than a dash.
-      var k = d.value_kpis || {};
-      var attRate = (k.attendance_rate != null) ? k.attendance_rate : w.attendance_rate;
-      var kpis = '<section class="kpi-row">'
-        + '<div class="kpi"><div class="kpi-label">Practised</div><div class="kpi-value gold">' + (k.practice_hours != null ? k.practice_hours + 'h' : '—') + '</div><div class="kpi-sub">' + (k.practice_minutes ? esc(String(k.practice_minutes)) + ' minutes logged' : 'no practice logged yet') + '</div></div>'
-        + '<div class="kpi"><div class="kpi-label">Attendance</div><div class="kpi-value gold">' + (attRate != null ? esc(String(attRate)) + '%' : '—') + '</div><div class="kpi-sub">' + (w.streak ? esc(String(w.streak)) + '-day streak' : 'across all sessions') + '</div></div>'
-        + '<div class="kpi"><div class="kpi-label">Badges this month</div><div class="kpi-value">' + (k.badges_this_month || 0) + '</div><div class="kpi-sub">' + ((k.badges_this_month || 0) === 1 ? 'new achievement' : 'new achievements') + '</div></div>'
-        + '<div class="kpi"><div class="kpi-label">GPA</div><div class="kpi-value">' + (g.gpa != null ? esc(String(g.gpa)) + '' : '—') + '</div><div class="kpi-sub">' + (w.mastery != null ? Math.round(w.mastery) + '% mastery' : 'no results yet') + '</div></div>'
-        + '</section>';
-      // "What's next" reads better as a sentence than as a big-number tile —
-      // a date and a title don't compress into one.
-      var nx = k.next_session;
-      var nextUp = nx && nx.scheduled_at
-        ? '<section class="panel" style="border-color:var(--gold)"><div class="panel-body" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">'
-          + '<i class="fa-solid fa-calendar-day" style="color:var(--gold-bright)"></i>'
-          + '<div><div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.12em;font-weight:700">Next up</div>'
-          + '<div style="margin-top:3px"><strong>' + esc(nx.title || 'Session') + '</strong>' + (nx.cohort_title ? ' <span style="color:var(--text-muted)">· ' + esc(nx.cohort_title) + '</span>' : '') + ' — ' + esc(P.fmtDateTime(nx.scheduled_at)) + '</div></div>'
-          + '</div></section>'
-        : '';
-      // The Recital Hall, for the person who has to arrange the lift.
-      // Upcoming is deliberately first and visually loud: a date, a venue and
-      // the minute their child steps out is the most actionable thing on
-      // this page.
-      var rec = d.recitals || { upcoming: [], past: [] };
-      var recUp = (rec.upcoming || []).map(function (x) {
-        return '<div style="border-top:1px solid var(--border);padding:14px 0">'
-          + '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:baseline;justify-content:space-between">'
-          +   '<div><strong style="font-size:1.02rem">' + esc(x.recital_title) + '</strong>'
-          +     (x.venue ? '<span class="kpi-sub"> · ' + esc(x.venue) + '</span>' : '') + '</div>'
-          +   (x.slot_at ? '<div style="text-align:right"><span style="font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:700">Plays at</span><br><strong style="font-family:var(--font-display);font-size:1.5rem;color:var(--gold-text)">' + esc(x.slot_at) + '</strong></div>' : '')
-          + '</div>'
-          + '<div style="margin-top:6px">' + esc(x.title) + (x.composer ? ' <span class="kpi-sub">· ' + esc(x.composer) + '</span>' : '') + (x.instrument ? ' <span class="kpi-sub">· ' + esc(x.instrument) + '</span>' : '') + '</div>'
-          + '<div class="kpi-sub" style="margin-top:4px">' + esc(x.starts_at ? P.fmtDateTime(x.starts_at) : 'Date to be confirmed')
-          +   ' · <a href="' + esc(x.programme_url) + '" target="_blank" rel="noopener" style="color:var(--gold-text)">See the full programme ↗</a></div>'
-          + '</div>';
-      }).join('');
-      var recPast = (rec.past || []).map(function (x) {
-        return '<div style="border-top:1px solid var(--border);padding:12px 0">'
-          + '<div><strong>' + esc(x.title) + '</strong>' + (x.composer ? ' <span class="kpi-sub">· ' + esc(x.composer) + '</span>' : '') + '</div>'
-          + '<div class="kpi-sub">' + esc(x.recital_title) + (x.starts_at ? ' · ' + esc(P.fmtDateTime(x.starts_at)) : '')
-          +   ' · <a href="' + esc(x.programme_url) + '" target="_blank" rel="noopener" style="color:var(--gold-text)">Programme ↗</a></div>'
-          // Only present when the recording was published AND the family
-          // consented — the server decides that, not this template.
-          + (x.audio_url ? '<audio controls preload="none" src="' + esc(x.audio_url) + '" aria-label="' + esc(x.title + (x.composer ? ', ' + x.composer : '') + ' — recorded at ' + x.recital_title) + '" style="width:100%;max-width:340px;height:34px;margin-top:8px"></audio>' : '')
-          + '</div>';
-      }).join('');
-      var recPanel = (recUp || recPast)
-        ? '<section class="panel" style="margin-top:18px' + (recUp ? ';border-color:var(--gold)' : '') + '">'
-          + '<div class="panel-head"><h2><i class="fa-solid fa-masks-theater" style="color:var(--gold-bright);margin-right:8px"></i>Recitals</h2></div>'
-          + '<div class="panel-body">'
-          + (recUp ? '<div style="font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-text);font-weight:700">Coming up</div>' + recUp : '')
-          + (recPast ? '<div style="font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin-top:' + (recUp ? '18px' : '0') + '">Already performed</div>' + recPast : '')
-          + '</div></section>'
-        : '';
-
-      var status = '<section class="panel"><div class="panel-head"><h2>This week</h2></div><div class="panel-body" style="display:grid;gap:8px">'
-        + '<div>' + lightDot(w.attendance) + 'Attendance</div>'
-        + '<div>Preparation: <strong>' + esc(w.preparation || 'not started') + '</strong></div>'
-        + '<div>Teach-back: <strong>' + esc(w.teachback || 'not submitted') + '</strong></div>'
-        + '</div></section>';
-      var resTbl = results.length
-        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Results</h2></div><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Course</th><th>Score</th><th>Grade</th></tr></thead><tbody>'
-          + results.map(function (x) { return '<tr><td>' + esc(x.course_name) + '</td><td>' + (x.total_score != null ? esc(x.total_score) + '%' : '—') + '</td><td><span class="pill">' + esc(x.grade || '—') + '</span></td></tr>'; }).join('')
-          + '</tbody></table></div></section>'
-        : '';
-      var upTbl = up.length
-        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Upcoming sessions</h2></div><div class="ptable-wrap"><table class="ptable"><tbody>'
-          + up.map(function (s) { return '<tr><td>' + esc(s.title || s.cohort_title || 'Session') + '</td><td>' + esc(P.fmtDateTime(s.scheduled_at)) + '</td></tr>'; }).join('')
-          + '</tbody></table></div></section>'
-        : '';
-      // §26 — instructor feedback on the child's work, so guardians see remarks not just grades.
-      var fb = d.instructor_feedback || [];
-      var outLabel = { accepted: 'Accepted', revise: 'Revise & resubmit', remedial: 'Remedial assigned', rejected: 'Not accepted' };
-      var outColor = { accepted: '#1FBF8F', revise: 'var(--gold-bright)', remedial: '#FB923C', rejected: '#F87171' };
-      var fbPanel = fb.length
-        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Instructor feedback</h2></div><div class="panel-body" style="display:grid;gap:12px">'
-          + fb.map(function (f) {
-              var lbl = outLabel[f.outcome] || f.outcome || '';
-              var col = outColor[f.outcome] || 'var(--text-muted)';
-              return '<div style="border-left:3px solid ' + col + ';padding:2px 0 2px 12px">'
-                + '<div style="font-size:.8rem;color:var(--text-muted)">' + esc(f.assignment_title || 'Submission') + (f.instructor_name ? ' · ' + esc(f.instructor_name) : '') + (f.at ? ' · ' + esc(String(f.at).slice(0, 10)) : '') + '</div>'
-                + '<div style="margin:3px 0">' + esc(f.comments) + '</div>'
-                + (lbl ? '<span class="pill" style="background:transparent;color:' + col + ';border:1px solid ' + col + '">' + esc(lbl) + '</span>' : '')
-                + '</div>';
-            }).join('')
-          + '</div></section>'
-        : '';
-      // §3.1/§3.5 — badges + the gentle "wins" stream (the parent's emotional dashboard).
-      var ach = d.achievements || [];
-      var badgeIcon = { first_submission: 'paper-plane', first_accepted: 'circle-check', streak_7: 'fire', streak_30: 'fire-flame-curved', practice_10h: 'clock', practice_50h: 'stopwatch', level_pass: 'graduation-cap' };
-      var badgesPanel = ach.length
-        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Achievements</h2></div><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap">'
-          + ach.map(function (a) { return '<span class="badge-chip"><i class="fa-solid fa-' + (badgeIcon[a.code] || 'award') + '"></i> ' + esc(a.title) + '</span>'; }).join('')
-          + '</div></section>'
-        : '';
-      var wins = d.wins || [];
-      var winsPanel = wins.length
-        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Recent wins</h2></div><div class="panel-body" style="display:grid;gap:9px">'
-          + wins.map(function (w) { return '<div style="display:flex;gap:10px;align-items:baseline"><i class="fa-solid fa-' + esc(w.icon || 'star') + '" style="color:var(--gold-bright);width:16px;text-align:center"></i><span>' + esc(w.text) + '</span><span style="margin-left:auto;font-size:.76rem;color:var(--text-muted)">' + esc(String(w.at || '').slice(0, 10)) + '</span></div>'; }).join('')
-          + '</div></section>'
-        : '';
-      // §8.4 — consent & safeguarding, set by the guardian.
-      var cons = d.consent || {};
-      function cRow(id, on, label) { return '<label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + ' style="margin-top:3px"><span>' + label + '</span></label>'; }
-      var consentPanel = '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Consent &amp; safeguarding</h2></div><div class="panel-body" style="display:grid;gap:12px">'
-        + cRow('cMedia', cons.media, 'Media consent — recordings of my child may be used in lessons and progress reports')
-        + cRow('cPhoto', cons.photo, 'Photo consent — my child may appear in photos and showcases')
-        + cRow('cData', cons.data, 'Data consent — processing of my child’s data per the privacy policy')
-        + '<div><label style="display:block;font-size:.8rem;color:var(--text-muted);margin-bottom:4px">Safeguarding contact</label><input id="cContact" type="text" placeholder="Name & phone for safeguarding matters" value="' + esc(cons.safeguarding_contact || '') + '" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-raised,transparent);color:var(--text)"></div>'
-        + '<div style="display:flex;align-items:center;gap:10px"><button id="cSave" class="btn btn-primary" style="padding:8px 16px;font-size:.85rem">Save consent</button><span id="cMsg" style="font-size:.8rem;color:var(--text-muted)"></span></div>'
-        + '<p style="font-size:.76rem;color:var(--text-muted);margin:0"><i class="fa-solid fa-shield-halved" style="margin-right:5px;color:var(--gold-bright)"></i>Photo consent is enforced across MAM — a child without it never appears in a showcase.</p>'
-        + '</div></section>';
-      // §1.7 — the child's recital programme (polished + performed pieces).
-      var prog = d.programme || [];
-      var progPanel = prog.length
-        ? '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Recital programme</h2></div><div class="panel-body"><ol style="margin:0;padding-left:20px;display:grid;gap:6px">'
-          + prog.map(function (p) { return '<li><strong>' + esc(p.title) + '</strong>' + (p.composer ? ' — ' + esc(p.composer) : '') + ' <span class="pill" style="font-size:.7rem">' + esc(p.status) + '</span></li>'; }).join('')
-          + '</ol></div></section>'
-        : '';
-      content.innerHTML = back + kpis + nextUp + recPanel + status + badgesPanel + winsPanel + progPanel + fbPanel + consentPanel + resTbl + upTbl;
-      var bl = document.getElementById('backLink'); if (bl) bl.addEventListener('click', function (e) { e.preventDefault(); renderChildren(); });
-      var cSave = document.getElementById('cSave');
-      if (cSave) cSave.addEventListener('click', function () {
-        cSave.disabled = true; var msg = document.getElementById('cMsg'); msg.textContent = 'Saving…';
-        API.request('parent/consent', { method: 'POST', body: { student_id: sid, media: document.getElementById('cMedia').checked, photo: document.getElementById('cPhoto').checked, data: document.getElementById('cData').checked, safeguarding_contact: document.getElementById('cContact').value } })
-          .then(function () { msg.textContent = 'Saved ✓'; cSave.disabled = false; })
-          .catch(function () { msg.textContent = 'Could not save — please try again.'; cSave.disabled = false; });
-      });
-    }).catch(function () { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('triangle-exclamation', 'Could not load this child right now.') + '</div></section>'; });
-  }
-
-  document.querySelectorAll('[data-action=logout]').forEach(function (b) { b.addEventListener('click', function (e) { e.preventDefault(); P.logout(); }); });
-  if (P.sidebarToggle) P.sidebarToggle();
-  P.requireAuth(['parent']).then(function (user) {
-    P.mountUserCard(user);
-    content.removeAttribute('aria-busy');
-    renderChildren();
-  }).catch(function () { /* redirected by requireAuth */ });
+  var r = document.documentElement;
+  try {
+    var a = JSON.parse(localStorage.getItem('mam-guardian-a11y') || '{}');
+    if (a.text === 'lg' || a.text === 'xl') r.setAttribute('data-text', a.text);
+    if (a.ease)    r.setAttribute('data-ease', '1');
+    if (a.lowdata) r.setAttribute('data-lowdata', '1');
+    if (a.theme === 'dark' || a.theme === 'light') r.setAttribute('data-theme', a.theme);
+    else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) r.setAttribute('data-theme', 'dark');
+  } catch (e) { /* a broken preference must never stop the page rendering */ }
 })();
 </script>
+</head>
+<body>
+
+<a class="p-skip" href="#main">Skip to the main content</a>
+
+<div class="p-app">
+
+  <!-- The nav comes FIRST in the DOM. On mobile it is position:fixed so source
+       order is irrelevant; on desktop .p-app becomes a flex row and source order
+       is what puts the rail on the left, where the design has it. -->
+  <nav class="p-nav" id="nav" aria-label="Guardian portal">
+    <div class="p-switcher" id="switcher" hidden>
+      <div class="p-seg" role="group" aria-labelledby="switcherLabel" id="switcherSeg"></div>
+      <span class="p-sr" id="switcherLabel">Which child</span>
+    </div>
+    <button type="button" data-screen="dashboard" aria-current="page">
+      <i class="fa-solid fa-house" aria-hidden="true"></i>Home
+    </button>
+    <button type="button" data-screen="children">
+      <i class="fa-solid fa-children" aria-hidden="true"></i>Children
+    </button>
+    <button type="button" data-screen="reports">
+      <i class="fa-solid fa-file-lines" aria-hidden="true"></i>Reports
+    </button>
+    <button type="button" data-screen="finance">
+      <i class="fa-solid fa-credit-card" aria-hidden="true"></i>Finance
+      <span class="p-badge" id="financeBadge" hidden></span>
+    </button>
+    <button type="button" data-sheet-open>
+      <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>More
+    </button>
+  </nav>
+
+  <div class="p-body-col">
+    <header class="p-top">
+      <div class="p-top-main">
+        <div class="p-title" id="whoName">Guardian portal</div>
+        <div class="p-caption" id="whoMeta">Loading your account…</div>
+      </div>
+      <button type="button" class="p-icon" data-screen="messages" id="bell"
+              aria-label="Messages from the academy">
+        <i class="fa-regular fa-bell" aria-hidden="true"></i>
+        <span class="p-badge" id="msgBadge" hidden></span>
+      </button>
+    </header>
+
+    <main class="p-scroll" id="main">
+      <div class="p-empty">
+        <i class="fa-solid fa-circle-notch p-spin" aria-hidden="true"></i>
+        <p>Loading your children…</p>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- The More bottom-sheet. On desktop the same list renders inline (the sheet
+     positioning is unset above 900px) so nothing is only reachable by a gesture. -->
+<div class="p-sheet" id="sheet" hidden>
+  <button type="button" class="p-sheet-scrim" data-sheet-close aria-label="Close the menu"></button>
+  <div class="p-sheet-body" role="dialog" aria-modal="true" aria-label="More">
+    <div class="p-sheet-grip" aria-hidden="true"></div>
+    <button type="button" class="p-row is-tall" data-screen="a11y">
+      <i class="fa-solid fa-sliders p-row-ico is-accent" aria-hidden="true"></i>
+      <span class="p-row-main">
+        <span class="p-title">Display &amp; access</span>
+        <span class="p-caption">Text size, easier type, less data, dark mode</span>
+      </span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
+    <div class="p-sheet-rule" aria-hidden="true"></div>
+    <button type="button" class="p-row" data-screen="consents">
+      <i class="fa-solid fa-file-signature p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">Consents &amp; forms</span></span>
+      <span class="p-badge" id="consentBadge" hidden></span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="p-row" data-screen="reports">
+      <i class="fa-solid fa-file-lines p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">Reports &amp; results</span></span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="p-row" data-screen="timetable">
+      <i class="fa-solid fa-calendar-days p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">Timetable &amp; term dates</span></span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="p-row" data-screen="makeup">
+      <i class="fa-solid fa-ticket p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">Make-up lessons</span></span>
+      <span class="p-caption" id="makeupCount"></span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="p-row" data-screen="bursary">
+      <i class="fa-solid fa-hand-holding-dollar p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">Apply for a bursary</span></span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="p-row" data-screen="safeguarding">
+      <i class="fa-solid fa-shield-halved p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">Safeguarding &amp; who to tell</span></span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="p-row" data-screen="complaints">
+      <i class="fa-solid fa-scale-balanced p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">Complaints &amp; appeals</span></span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
+    <div class="p-sheet-rule" aria-hidden="true"></div>
+    <button type="button" class="p-row" id="signOut">
+      <i class="fa-solid fa-arrow-right-from-bracket p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">Sign out</span></span>
+    </button>
+  </div>
+</div>
+
+<!-- Write feedback. Never an optimistic tick (design refusal 7): a control goes
+     busy, then reports what actually happened. `aria-live=polite` so the sentence
+     reaches a screen reader without interrupting. -->
+<div class="p-toast" id="toast" role="status" aria-live="polite" hidden>
+  <i class="fa-solid fa-circle-info" aria-hidden="true"></i><span id="toastText"></span>
+</div>
+
+<script src="/assets/js/config.js?v=20260807a"></script>
+<script src="/assets/js/portal.js?v=20260817c"></script>
+<script src="/assets/js/portal-guardian.js?v=20260819a"></script>
 </body>
 </html>

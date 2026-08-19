@@ -77,18 +77,37 @@ t_ok(mam_parent_light_label('red', 'Attendance') === 'Attendance is behind',
 
 t_group('dashboards — the client renders the absent state, and never as 0%');
 
+/* The guardian portal was REBUILT from the design package, so these assertions
+ * moved with it: the invariant is that an absent measurement reads as an absence
+ * and never as a low score, and it is now carried by `.p-kpi b.is-none` plus the
+ * words in the tile, not by a coloured dot. The traffic light itself is gone from
+ * the guardian surface — the design replaced it with a BAND, and a band cannot be
+ * mistaken for a percentage the way a colour could. */
 $dnHtml = file_get_contents(__DIR__ . '/../../portal/parent/index.html');
-t_ok(strpos($dnHtml, ".light.none") !== false, 'a neutral light exists in the stylesheet');
-t_ok(preg_match('/\.light\.none\{[^}]*background:transparent/', $dnHtml) === 1,
-    'and it is hollow rather than a fourth colour nobody can name');
-t_ok(strpos($dnHtml, "lightDot(cls, label)") !== false, 'the dot takes a label');
-t_ok(strpos($dnHtml, "aria-label") !== false, 'which reaches assistive technology');
-t_ok(strpos($dnHtml, "cls || 'none'") !== false,
-    "an unknown light defaults to 'none', not to red — the old default is what made an absent value look like failure");
-t_ok(strpos($dnHtml, "Not measured yet") !== false, 'and the absence is written out for everyone else');
-t_ok(strpos($dnHtml, 'class="portal-top"') !== false,
-    'the header uses the shared class; `.portal-head` was styled nowhere, so the subtitle ran into the title');
-t_ok(strpos($dnHtml, 'tabular-nums') !== false, 'metric values use tabular numerals so they stop jittering as they update');
+$dnJs   = file_get_contents(__DIR__ . '/../../assets/js/portal-guardian.js');
+$dnCss  = file_get_contents(__DIR__ . '/../../assets/css/portal-v2.css');
+
+t_ok(strpos($dnCss, '.p-kpi b.is-none') !== false,
+    'the "not measured" state has its own presentation, distinct from a figure');
+t_ok(preg_match('/\.p-kpi b\.is-none \{[^}]*font-variant-numeric: normal/', $dnCss) === 1,
+    'and it drops tabular-nums — a dash in a digit-width cell reads as a minus sign');
+t_ok(strpos($dnJs, 'Not enough yet') !== false,
+    'a child below the mastery coverage floor reads "Not enough yet" rather than a number');
+t_ok(strpos($dnJs, "is-none") !== false, 'through the absent-value class, not a zero');
+t_ok(strpos($dnJs, "att == null ? '—' :") !== false,
+    'attendance with nothing to measure renders an em dash, never 0%');
+t_ok(strpos($dnCss, 'tabular-nums') !== false,
+    'and real figures ARE tabular, so they stop jittering as they update');
+
+/* Colour is never the only channel (WCAG 1.4.1). The bars carry a grade WORD
+ * beside them and an aria-label naming the competency, the grade and the figure. */
+t_ok(strpos($dnJs, 'role="img" aria-label="') !== false, 'a competency bar names itself to assistive technology');
+t_ok(strpos($dnJs, 'p-crit-grade') !== false, 'and prints the grade in words beside it');
+
+/* The unevidenced competency is a VISIBLE row with a dashed border. */
+t_ok(strpos($dnJs, 'p-insufficient') !== false, 'an unassessed competency is a visible row');
+t_ok(strpos($dnJs, 'Not counted as a zero.') !== false, 'and says so in as many words');
+t_ok(strpos($dnCss, 'border: 1px dashed') !== false, 'drawn dashed rather than as a low score');
 
 t_group('dashboards — the weekly email does not claim a rate that does not exist');
 
@@ -147,8 +166,13 @@ t_ok(strpos($dnStudent, "{ href: '/apply', label: 'Start an application' }") !==
     'and "you have not applied yet" now links to the form — it read "start one" with nothing to click');
 t_ok(strpos($dnStudent, 'No applications yet — start one.') === false,
     'the dead-end wording is gone');
-t_ok(strpos($dnParent, "label: 'Contact the office'") !== false,
-    'and a guardian with no linked child can reach the office rather than being told to');
+/* Same invariant, new markup: a guardian with no linked child is told who links
+ * one, rather than being left on an empty screen with nothing to do. */
+$dnParentJs = file_get_contents(__DIR__ . '/../../assets/js/portal-guardian.js');
+t_ok(strpos($dnParentJs, 'The academy office links a') !== false,
+    'a guardian with no linked child is told how a child gets linked, not just that none is');
+t_ok(strpos($dnParentJs, 'Contact the academy office') !== false,
+    'and there is a route to the office rather than an instruction to find one');
 
 t_group('dashboards — a progress bar with no denominator does not claim 0%');
 

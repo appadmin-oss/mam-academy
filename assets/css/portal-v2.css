@@ -129,6 +129,12 @@
 [data-portal="v2"] :where(button, a, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--accent-text); outline-offset: 2px; border-radius: 4px;
 }
+/* The heading is given `tabindex="-1"` and focused after a screen change, so a
+   keyboard or screen-reader user lands on the new content rather than back at the
+   top of the nav. It is NOT interactive, so it takes no focus ring: the signal
+   for that user is the heading being announced, and a box drawn round a title
+   after every tap reads as a rendering fault. Real controls keep their ring. */
+[data-portal="v2"] .p-h1[tabindex]:focus { outline: none; }
 [data-portal="v2"] [hidden] { display: none !important; }
 
 /* ── Type scale ───────────────────────────────────────────────────────────── */
@@ -185,6 +191,14 @@
 [data-portal="v2"] .p-card.is-quiet  { background: var(--quiet); }
 [data-portal="v2"] .p-card.is-flush  { padding: 0; overflow: hidden; }
 [data-portal="v2"] .p-card.is-thread { border-left: 3px solid var(--accent); padding: 16px 18px; }
+/* A card that IS the control still reads left-to-right. `<button>` centres its
+   text by UA default, and `.p-row` was the only rule undoing it — so a thread
+   card, which is a button but not a row, rendered its message centred. */
+[data-portal="v2"] button.p-card, [data-portal="v2"] a.p-card {
+  text-align: left; font-family: var(--font-ui); color: var(--text); cursor: pointer;
+  display: block; width: 100%;
+}
+[data-portal="v2"] button.p-card.p-row, [data-portal="v2"] a.p-card.p-row { display: flex; }
 [data-portal="v2"] .p-card-head { padding: 14px 18px 12px; }
 [data-portal="v2"] .p-card-foot {
   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule);
@@ -444,8 +458,9 @@
 [data-portal="v2"] .p-top-main { flex: 1; min-width: 0; }
 [data-portal="v2"] .p-scroll { flex: 1; padding: 16px 16px var(--bar-reserve); }
 [data-portal="v2"] .p-skip {
-  position: absolute; left: 16px; top: -60px; z-index: 30;
-  padding: 10px 16px; background: var(--ink); color: #fff;
+  position: absolute; left: 16px; top: -80px; z-index: 30;
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px;
+  background: var(--ink); color: #fff;
   border-radius: var(--radius-control); font: 700 13px var(--font-ui); text-decoration: none;
 }
 [data-portal="v2"] .p-skip:focus { top: 10px; }
@@ -537,6 +552,131 @@
 [data-portal="v2"] .p-spin { animation: p-spin 1s linear infinite; }
 @keyframes p-spin { to { transform: rotate(360deg); } }
 
+/* ── Layout column ────────────────────────────────────────────────────────── */
+/* The nav comes FIRST in the DOM: on mobile it is `position: fixed` so its place
+   in the source does not matter, and on desktop `.p-app` becomes a flex row and
+   source order is what puts the rail on the left where the design has it. So
+   everything else lives in this column beside it. */
+[data-portal="v2"] .p-body-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+/* ── Empty and loading states ─────────────────────────────────────────────── */
+[data-portal="v2"] .p-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 34px 20px; text-align: center;
+  background: var(--raised); border: 1px solid var(--rule); border-radius: var(--radius-card-lg);
+}
+[data-portal="v2"] .p-empty i { font-size: 22px; color: var(--text-3); }
+[data-portal="v2"] .p-empty p { max-width: 34ch; font: 400 13.5px/1.6 var(--font-ui); color: var(--text-3); }
+
+/* ── The grading legend that prints on the same screen as the marks ───────── */
+[data-portal="v2"] .p-legend { font: 400 12.5px/1.7 var(--font-ui); color: var(--text-2); }
+[data-portal="v2"] .p-legend b { color: var(--text); font-weight: 700; }
+
+/* ── Feedback. NEVER an optimistic tick (design refusal 7): a write reports
+      pending, then what actually happened. An offline write says so in the
+      words the design gives — "Saved on this phone" — because a dishonest
+      success state loses the record and a lost record breaks trust in the whole
+      screen. ───────────────────────────────────────────────────────────────── */
+[data-portal="v2"] .p-toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--bar-h) + env(safe-area-inset-bottom, 0px) + 12px); z-index: 40;
+  max-width: min(92vw, 440px);
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 15px; border-radius: var(--radius-card);
+  background: var(--ink); color: #fff;
+  font: 600 13px/1.5 var(--font-ui);
+  box-shadow: 0 12px 32px rgba(24,32,44,0.28);
+}
+[data-portal="v2"] .p-toast[hidden] { display: none; }
+[data-portal="v2"] .p-toast i { flex: 0 0 auto; margin-top: 2px; }
+[data-portal="v2"] .p-toast.is-bad  { background: var(--bad); }
+[data-portal="v2"] .p-toast.is-good { background: var(--good-text); }
+/* An in-flight control says so, and stays disabled, rather than showing a state
+   the server has not confirmed. */
+[data-portal="v2"] [data-busy="1"] { opacity: .65; pointer-events: none; }
+
+/* ── A stale read is LABELLED stale rather than passed off as current ─────── */
+[data-portal="v2"] .p-stale {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  padding: 9px 13px; border-radius: var(--radius-control);
+  background: var(--warn-fill); border: 1px solid rgba(138,90,0,0.35);
+  font: 600 12.5px var(--font-ui); color: var(--warn);
+}
+
+/* ── Child switcher, pinned above the rail on desktop ─────────────────────── */
+/* The design pins it there because a multi-child household is the DEFAULT case,
+   not an edge case. On mobile it is a segmented control at the top of a screen. */
+[data-portal="v2"] .p-switcher { margin-bottom: 14px; }
+[data-portal="v2"] .p-switcher[hidden] { display: none; }
+/* Inside the nav it is a DESKTOP control. The nav is a five-column grid at mobile
+   width, so a switcher in it became a sixth column and squashed the tabs —
+   measured. The design has no global switcher on the phone either: there, a child
+   is chosen from the Children screen and the child-scoped screens carry a
+   "My Children" back button, which is how the mock's own frames work. */
+@media (max-width: 899.98px) { [data-portal="v2"] .p-nav .p-switcher { display: none; } }
+
+/* ── Definition rows, for "what we hold" style panels ─────────────────────── */
+[data-portal="v2"] .p-def { display: grid; gap: 3px; padding: 11px 0; border-top: 1px solid var(--hairline); }
+[data-portal="v2"] .p-def:first-child { border-top: 0; }
+[data-portal="v2"] .p-def dt { font: 700 12.5px var(--font-ui); color: var(--text); }
+[data-portal="v2"] .p-def dd { margin: 0; font: 400 12.5px/1.55 var(--font-ui); color: var(--text-3); }
+
+/* ── Display & access (the More sheet's first row) ─────────────────────────
+   §4 makes these contractual, not optional: guardians span a wide age range and
+   students include under-16s on mid-range Android over metered data.
+
+   Applied as attributes on the root by a pre-paint script in the page head, so a
+   guardian who has chosen larger text never sees one frame of the smaller size.
+   Scaled with a MULTIPLIER on the root font size rather than by rewriting each
+   rule, which is why the type scale above is in px: a px scale plus one
+   multiplier survives 200% zoom and ~30% string expansion predictably, where a
+   half-converted rem scale drifts. */
+[data-portal="v2"][data-text="lg"] { font-size: 112.5%; }
+[data-portal="v2"][data-text="xl"] { font-size: 125%; }
+[data-portal="v2"][data-text="lg"] body,
+[data-portal="v2"][data-text="xl"] body { font-size: 1em; }
+[data-portal="v2"][data-text="lg"] :where(.p-title, .p-body, .p-meta, .p-caption, .p-label, .p-name),
+[data-portal="v2"][data-text="xl"] :where(.p-title, .p-body, .p-meta, .p-caption, .p-label, .p-name) { font-size: 1em; }
+
+/* A dyslexia-friendly setting: wider tracking, more leading, no italics, and a
+   face with distinguishable ascenders. Not a claim of a cure — an easing. */
+[data-portal="v2"][data-ease="1"] body,
+[data-portal="v2"][data-ease="1"] :where(.p-title, .p-body, .p-meta, .p-caption, .p-prose, .p-name) {
+  font-family: 'Atkinson Hyperlegible', 'Verdana', 'Tahoma', var(--font-ui);
+  letter-spacing: 0.012em; word-spacing: 0.06em; line-height: 1.75;
+}
+[data-portal="v2"][data-ease="1"] :where(i, em) { font-style: normal; font-weight: 600; }
+[data-portal="v2"][data-ease="1"] .p-h1,
+[data-portal="v2"][data-ease="1"] .p-h2 { font-family: 'Atkinson Hyperlegible', 'Verdana', var(--font-ui); }
+
+/* Less data: no web fonts, no shadows, no decorative images. On a metered
+   connection the fonts are the largest thing this page downloads. */
+[data-portal="v2"][data-lowdata="1"] * {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif !important;
+  box-shadow: none !important;
+}
+[data-portal="v2"][data-lowdata="1"] .p-fig { font-variant-numeric: tabular-nums; }
+[data-portal="v2"][data-lowdata="1"] img.p-avatar { display: none; }
+
+/* Dark. A separate palette rather than a filter: inverting a light theme moves
+   every contrast ratio the comments above measured. */
+[data-portal="v2"][data-theme="dark"] {
+  --bg: #14181E; --raised: #1C222B; --sunken: #232A34; --ink: #E8ECF2;
+  --quiet: #1A2028; --inset: #2A323D;
+  --text: #EDF0F5; --text-2: #C3CAD4; --text-3: #98A2B0; --text-on-chip: #A8B2C0;
+  --accent: #F2851F; --accent-text: #F2A65A; --accent-ink: #14181E;
+  --good: #2FA97C; --good-text: #62C79E;
+  --warn: #D9A340; --warn-fill: rgba(217,163,64,0.16); --warn-bar: #C9913A;
+  --bad: #E8677F; --bad-line: #C6435C; --bad-fill: rgba(232,103,127,0.12);
+  --good-fill: rgba(47,169,124,0.16);
+  --hairline: rgba(255,255,255,0.07); --rule: rgba(255,255,255,0.10);
+  --border: rgba(255,255,255,0.12); --border-strong: rgba(255,255,255,0.16);
+  --border-btn: rgba(255,255,255,0.18);
+}
+[data-portal="v2"][data-theme="dark"] button.p-primary,
+[data-portal="v2"][data-theme="dark"] button.p-action { background: var(--accent); color: var(--accent-ink); }
+[data-portal="v2"][data-theme="dark"] .p-toast { background: var(--sunken); color: var(--text); }
+
 /* ── Desktop: the same information given room, not a different product ────── */
 @media (min-width: 900px) {
   [data-portal="v2"] .p-app { flex-direction: row; }
@@ -551,15 +691,45 @@
   }
   [data-portal="v2"] .p-nav button i { font-size: 13px; width: 15px; text-align: center; }
   [data-portal="v2"] .p-nav button[aria-current="page"] { background: var(--sunken); }
+  /* The child switcher is PINNED ABOVE the rail — the design is explicit, and the
+     reason is that a multi-child household is the default case, so "which child"
+     must not be a decision buried inside one destination. */
+  [data-portal="v2"] .p-nav .p-switcher { order: -1; margin: 0 0 12px; }
+  [data-portal="v2"] .p-nav .p-seg button { min-height: 36px; font-size: 12.5px; }
   /* On the rail the marker is a left edge, not a top bar. */
   [data-portal="v2"] .p-nav button[aria-current="page"]::before {
     top: 8px; bottom: 8px; left: 0; width: 3px; height: auto; border-radius: 0 3px 3px 0;
   }
+  /* On the rail the dot becomes a COUNT, so it is text and takes the 12px floor
+     the rest of this file keeps — the mock's 10.5px is below the handoff's own
+     contractual minimum for exactly the readers it names. */
   [data-portal="v2"] .p-badge { position: static; width: auto; height: auto; margin-left: auto;
-    min-width: 19px; padding: 0 6px; border: 0; border-radius: var(--radius-pill);
-    background: var(--bad-line); color: #fff; font: 800 11px/19px var(--font-ui); text-align: center; }
-  [data-portal="v2"] .p-scroll { padding: 26px 32px 48px; max-width: 1180px; }
-  [data-portal="v2"] .p-top { position: static; padding: 0 0 18px; background: transparent; border: 0; }
+    min-width: 22px; padding: 0 7px; border: 0; border-radius: var(--radius-pill);
+    background: var(--bad-line); color: #fff; font: 800 12px/22px var(--font-ui); text-align: center; }
+  /* The scroller and the header share one measure and one gutter. They are
+     siblings rather than nested — the header must not scroll away on mobile — so
+     the padding and the max-width have to be stated on both, or the name sits
+     against the rail while the content is inset and the bell flies off to the
+     window edge past the 1180px measure. Measured at 1440: the bell was at
+     x=1424 while the widest card ended at x=1396. */
+  [data-portal="v2"] .p-scroll { padding: 8px 32px 48px; max-width: 1180px; }
+  [data-portal="v2"] .p-top {
+    position: static; background: transparent; border: 0;
+    max-width: 1180px; padding: 26px 32px 0;
+  }
+  /* A full-width action across a 1100px column is a target, not a button. The
+     design's desktop puts money behind a compact control in a row. */
+  [data-portal="v2"] button.p-action, [data-portal="v2"] a.p-action {
+    width: auto; min-width: 220px; align-self: flex-start;
+    min-height: 40px; font-size: 14px; padding: 0 20px;
+  }
+  [data-portal="v2"] button.p-action.is-pay, [data-portal="v2"] a.p-action.is-pay { min-height: 44px; font-size: 15px; }
+  [data-portal="v2"] .p-card { display: flex; flex-direction: column; align-items: stretch; }
+  [data-portal="v2"] .p-choice > * { align-self: stretch; min-width: 0; }
+  /* Informational, not controls — capped so they do not read as three buttons. */
+  [data-portal="v2"] .p-methods { max-width: 420px; }
+  [data-portal="v2"] .p-methods span { min-height: 34px; }
+  [data-portal="v2"] .p-kpis { max-width: 520px; }
   /* 34px is the DESKTOP control height §1 names ("Desktop controls ≥24px, 34px
      used here"). It applies here and at no narrower width. */
   [data-portal="v2"] button.p-ghost, [data-portal="v2"] a.p-ghost,
