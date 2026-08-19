@@ -97,6 +97,8 @@ $nullableInUniqueOk = [
     'memberships.reference'   => 'NULL = staff/guardian with no learner reference',
     'notifications.dedupe_key'=> 'NULL = deliberately not deduped (a one-off message)',
     'payments.provider_ref'   => 'NULL = cash/manual payment with no provider reference; many are legitimate',
+    'report_moderations.moderator_membership_id' => 'NULL = a sample drawn but not yet allocated to a moderator; many can queue',
+    'invoice_credits.award_id' => 'NULL = a gift-aid credit posted with no award row behind it (a goodwill credit); many are legitimate',
     'accountability_charges.session_id' => 'NULL = a charge not tied to a session; two such can coexist',
 ];
 $unregistered = [];
@@ -172,8 +174,8 @@ $ins("INSERT INTO module_progress (tenant_id,enrolment_id,module_id,status,maste
 
 // ₦120,000 tuition at 1600/USD = $75.00. The base figures are what any total
 // may be summed on; the naira pair is what the learner actually owes.
-$ins("INSERT INTO invoices (id,public_id,tenant_id,membership_id,enrolment_id,number,status,currency,total_minor,base_currency,base_total_minor,fx_rate,fx_source,issued_at)
-      VALUES (1,?,1,1,1,'INV-0001','issued','NGN',12000000,'USD',7500,1600.00000000,'openexchange','2026-09-01 00:00:00.000')", [$ulid()]);
+$ins("INSERT INTO invoices (id,public_id,tenant_id,membership_id,enrolment_id,number,status,currency,subtotal_minor,total_minor,base_currency,base_total_minor,fx_rate,fx_source,issued_at,due_at)
+      VALUES (1,?,1,1,1,'INV-0001','issued','NGN',12000000,12000000,'USD',7500,1600.00000000,'openexchange','2026-09-01 00:00:00.000','2026-09-15 00:00:00.000')", [$ulid()]);
 $ins("INSERT INTO invoice_lines (invoice_id,item_type,description,quantity,unit_amount_minor,line_total_minor) VALUES (1,'tuition','Piano L1 tuition',1,12000000,12000000)");
 $ins("INSERT INTO payments (id,public_id,tenant_id,membership_id,provider,status,currency,amount_minor,base_currency,base_amount_minor,fx_rate,fx_source,received_at)
       VALUES (1,?,1,1,'paystack','succeeded','NGN',12000000,'USD',7500,1600.00000000,'openexchange','2026-09-02 10:00:00.000')", [$ulid()]);
@@ -232,8 +234,8 @@ $rejects("INSERT INTO module_progress (tenant_id,enrolment_id,module_id,status) 
     "a module_progress status outside its vocabulary");
 $rejects("INSERT INTO enrolments (public_id,tenant_id,membership_id,cohort_id) VALUES ('01JORPHAN0000000000000000',1,1,999)",
     "an enrolment pointing at a cohort that does not exist");
-$rejects("INSERT INTO invoices (public_id,tenant_id,membership_id,number,currency,total_minor,base_currency)
-          VALUES ('01JBADFX000000000000000000',1,1,'INV-BAD','NGN',5000,'USD')",
+$rejects("INSERT INTO invoices (public_id,tenant_id,membership_id,number,currency,subtotal_minor,total_minor,base_currency)
+          VALUES ('01JBADFX000000000000000000',1,1,'INV-BAD','NGN',5000,5000,'USD')",
     "a cross-currency invoice with no frozen FX rate — the v1 bug that summed naira into dollars");
 $rejects("INSERT INTO payments (public_id,tenant_id,membership_id,provider,currency,amount_minor,base_currency,status)
           VALUES ('01JBADFY000000000000000000',1,1,'paystack','NGN',5000,'USD','pending')",
@@ -397,3 +399,87 @@ foreach (['memberships' => 'reference', 'applications' => 'reference', 'cohorts'
     $cols = array_column($db->query('PRAGMA table_info(' . $table . ')')->fetchAll(PDO::FETCH_ASSOC), 'name');
     t_ok(in_array($col, $cols, true), "$table carries a human reference a caller can read out");
 }
+
+t_group('schema-v2 — the guardian layer carried over in v2 idiom');
+
+// A ratified report states its band, its coverage, and who ratified it. The band
+// is the only score in this layer — there is no column for the raw figure.
+$treportCols = array_column($db->query('PRAGMA table_info(termly_reports)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+foreach (['raw_score', 'score', 'mastery_pct', 'mean'] as $forbidden) {
+    t_ok(!in_array($forbidden, $treportCols, true),
+        "termly_reports has no `$forbidden` column — a guardian-facing table with room for the precise figure is an invitation to print it");
+}
+
+$ins("INSERT INTO termly_reports (id,public_id,tenant_id,membership_id,enrolment_id,course_id,level_id,term_label,status,
+        band_low,band_high,coverage_evidenced,coverage_total,coverage_weight_pct,ratified_by,ratified_at)
+      VALUES (1,?,1,1,1,1,1,'TONI 2026','ratified',70,79,8,11,72,2,'2026-12-10 09:00:00.000')", [$ulid()]);
+t_eq((int) $db->query('SELECT band_high - band_low FROM termly_reports WHERE id=1')->fetchColumn(), 9,
+    'a band is ten points wide');
+
+$rejects("INSERT INTO termly_reports (public_id,tenant_id,membership_id,term_label,coverage_evidenced,coverage_total,coverage_weight_pct,band_low,band_high)
+          VALUES ('01JBADBAND00000000000000000',1,1,'TONI 2026',8,11,72,70,74)",
+    "a five-point band — a narrower band claims a precision the coverage floor exists to withhold");
+$ins("INSERT INTO termly_reports (public_id,tenant_id,membership_id,term_label,coverage_evidenced,coverage_total,coverage_weight_pct,band_low,band_high)
+      VALUES ('01JTOPBAND00000000000000000',1,1,'TONI 2026',11,11,100,100,100)", [] );
+t_ok(true, 'a perfect score clamps to (100,100) — the one legitimate zero-width band');
+$rejects("INSERT INTO termly_reports (public_id,tenant_id,membership_id,term_label,coverage_evidenced,coverage_total,coverage_weight_pct,status)
+          VALUES ('01JNORATIFY0000000000000000',1,1,'TONI 2026',8,11,72,'ratified')",
+    "a ratified report with nobody named as having ratified it");
+$rejects("INSERT INTO termly_reports (public_id,tenant_id,membership_id,term_label,coverage_evidenced,coverage_total,coverage_weight_pct)
+          VALUES ('01JBADCOV000000000000000000',1,1,'TONI 2026',12,11,72)",
+    "more competencies evidenced than exist");
+
+// An unevidenced competency is a ROW, not an absence and not a zero.
+$ins("INSERT INTO competencies (id,tenant_id,code,name,weight_pct) VALUES (1,1,'theory','Score/Notation Accuracy',10)");
+// competency_id is NOT NULL here on purpose — a criterion on a report resolves to
+// the same competency the mastery score weights, which is the thing v1's
+// label-matching could not do.
+$ins("INSERT INTO termly_report_criteria (tenant_id,report_id,competency_id,label,level,pct,weight_pct)
+      VALUES (1,1,1,'Score/Notation Accuracy','insufficient',NULL,10)");
+t_ok($db->query("SELECT 1 FROM termly_report_criteria WHERE report_id=1 AND level='insufficient' AND pct IS NULL")->fetchColumn() !== false,
+    'an unevidenced competency records a NULL pct — a zero there reports an unassessed beginner as failing');
+
+// The appeal clock. Both timestamps come from one writer at one precision.
+$openedAt = '2026-12-11 09:00:00.000';
+$ins("INSERT INTO mark_appeals (public_id,tenant_id,report_id,membership_id,reason,status,opened_at)
+      VALUES (?,1,1,3,'The recital mark does not match the video','open',?)", [$ulid(), $openedAt]);
+$ins("INSERT INTO mark_appeals (public_id,tenant_id,report_id,membership_id,reason,status,outcome_note,closed_at,opened_at)
+      VALUES (?,1,1,3,'Second look','declined','Moderation sample confirmed the mark','2026-12-11 09:20:00.000',?)", [$ulid(), $openedAt]);
+t_ok(true, 'an appeal declined twenty minutes after it was raised writes — the v1 timestamp-precision bug');
+$rejects("INSERT INTO mark_appeals (public_id,tenant_id,report_id,membership_id,reason,status,closed_at,opened_at)
+          VALUES ('01JNONOTE000000000000000000',1,1,3,'why','upheld','2026-12-12 09:00:00.000','$openedAt')",
+    "an UPHELD appeal closed with no note — a mark overturned and nothing saying why");
+$rejects("INSERT INTO mark_appeals (public_id,tenant_id,report_id,membership_id,reason,status,outcome_note,closed_at,opened_at)
+          VALUES ('01JBACKDATE00000000000000',1,1,3,'why','upheld','ok','2026-12-10 09:00:00.000','$openedAt')",
+    "an appeal closed before it was opened");
+
+// Only a guardian cancellation may cost the family's allowance.
+$ins("INSERT INTO makeup_credits (public_id,tenant_id,membership_id,year_label,reason,counts_against_allowance,expires_on)
+      VALUES (?,1,1,'2026/27','guardian_notice',1,'2027-07-31')", [$ulid()]);
+foreach (['teacher_cancellation', 'academy_closure', 'goodwill'] as $free) {
+    $rejects("INSERT INTO makeup_credits (public_id,tenant_id,membership_id,year_label,reason,counts_against_allowance,expires_on)
+              VALUES ('01JFREE" . strtoupper(substr(md5($free), 0, 20)) . "',1,1,'2026/27','$free',1,'2027-07-31')",
+        "a $free credit charged to the family's allowance — the allowance limits how often a FAMILY cancels");
+}
+$mkCols = array_column($db->query('PRAGMA table_info(makeup_credits)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+foreach (['amount_minor', 'currency', 'transfer_to_membership_id'] as $forbidden) {
+    t_ok(!in_array($forbidden, $mkCols, true),
+        "makeup_credits has no `$forbidden` — a make-up credit is a lesson, not money and not transferable");
+}
+
+// The four kinds of relief stay separable, and they add up.
+$invCols = array_column($db->query('PRAGMA table_info(invoices)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+foreach (['waiver_minor', 'aid_minor', 'sibling_minor', 'discount_minor'] as $stage) {
+    t_ok(in_array($stage, $invCols, true), "invoices separates `$stage` — one flat discount cannot say what the books say happened");
+}
+$rejects("INSERT INTO invoices (public_id,tenant_id,membership_id,number,currency,base_currency,subtotal_minor,waiver_minor,aid_minor,total_minor)
+          VALUES ('01JBADRELIEF000000000000000',1,1,'INV-R1','USD','USD',10000,3000,2000,10000)",
+    "a total that ignores the relief applied to it");
+$rejects("INSERT INTO invoices (public_id,tenant_id,membership_id,number,currency,base_currency,subtotal_minor,aid_minor,total_minor)
+          VALUES ('01JOVERRELIEF00000000000000',1,1,'INV-R2','USD','USD',10000,12000,-2000)",
+    "more relief than was ever billed — a negative total is not a refund, a refund is its own row");
+
+// A student is never a participant in a guardian thread.
+$roleCheck = (string) $db->query("SELECT sql FROM sqlite_master WHERE name='guardian_thread_participants'")->fetchColumn();
+t_ok(strpos($roleCheck, "'student'") === false && strpos($roleCheck, "'learner'") === false,
+    'the guardian-thread participant role vocabulary admits no learner — there is no signature through which a student can be added');

@@ -993,8 +993,43 @@ CREATE TABLE invoices (
   currency          TEXT      NOT NULL,
   subtotal_minor    INTEGER       NOT NULL DEFAULT 0,
   tax_minor         INTEGER       NOT NULL DEFAULT 0,
+  -- ── The four kinds of relief, kept SEPARATE ──────────────────────────────
+  -- These were one flat `discount_minor`, and collapsing them changes what the
+  -- academy's books say happened. They are four MECHANISMS, not four discounts:
+  --
+  --   waiver_minor   the academy chose not to BILL it. Non-revenue, never a cash
+  --                  entry, and it lives on the LINE (see invoice_lines) so the
+  --                  invoice can show what was charged AND what was waived.
+  --   aid_minor      GIFT AID actually paid from the aid pool — a bursary or a
+  --                  scholarship. The line stands at full value because the money
+  --                  is real, and the credit is a real transfer (invoice_credits).
+  --   sibling_minor  a DISCOUNT on the POST-AID balance, capped at the published
+  --                  maximum. After aid, because a percentage of the gross would
+  --                  discount money the aid pool paid.
+  --
+  -- The order is fixed and every stage is stored, so a family can be shown the
+  -- arithmetic and an auditor can take it apart, rather than meeting one net
+  -- figure nobody can explain:
+  --   subtotal → less waivers → less aid → less sibling → total
+  --
+  -- `discount_minor` remains for a plain commercial discount that is none of the
+  -- three (an early-payment reduction, say), so the aid figures stay meaningful.
+  waiver_minor      INTEGER       NOT NULL DEFAULT 0,
+  aid_minor         INTEGER       NOT NULL DEFAULT 0,
+  sibling_minor     INTEGER       NOT NULL DEFAULT 0,
   discount_minor    INTEGER       NOT NULL DEFAULT 0,
   total_minor       INTEGER       NOT NULL DEFAULT 0,
+  amount_paid_minor INTEGER       NOT NULL DEFAULT 0,
+  -- Dunning, not disconnection: reminders at day 0, 3 and 7, then a grace window,
+  -- then a conversation. There is deliberately NO column here that suspends
+  -- anything — an access hold must never touch a learner's academic record, a
+  -- safeguarding file, or a minor's report, and the way to keep a refusal is to
+  -- leave the mechanism unbuilt.
+  grace_until       TEXT         NULL,
+  dunning_stage     TINYINTEGER NOT NULL DEFAULT 0,
+  dunning_last_at   TEXT  NULL,
+  term_id           INTEGER NULL,
+  term_label        TEXT NULL,
   -- Base-currency mirror, frozen at issue. Reporting sums THIS, never the
   -- transaction amount, which is what makes cross-currency totals meaningful.
   base_currency     TEXT      NOT NULL,
@@ -1019,6 +1054,19 @@ CREATE TABLE invoices (
   CONSTRAINT chk_inv_fx CHECK (
     currency = base_currency OR (base_total_minor IS NOT NULL AND fx_rate IS NOT NULL)
   ),
+  -- Relief is never negative, never exceeds what was billed, and the stages add
+  -- up. A negative minor amount is not a refund — a refund is its own row.
+  CONSTRAINT chk_inv_relief CHECK (waiver_minor >= 0 AND aid_minor >= 0
+        AND sibling_minor >= 0 AND discount_minor >= 0 AND amount_paid_minor >= 0
+        AND waiver_minor + aid_minor + sibling_minor + discount_minor <= subtotal_minor + tax_minor),
+  CONSTRAINT chk_inv_total CHECK (total_minor
+        = subtotal_minor + tax_minor - waiver_minor - aid_minor - sibling_minor - discount_minor),
+  -- An ISSUED invoice has a date and something to pay by. Draft and VOID are both
+  -- exempt: a draft raised against the wrong learner is voided rather than
+  -- deleted, and never had an issue date to state.
+  CONSTRAINT chk_inv_issued CHECK (status IN ('draft','void')
+        OR (issued_at IS NOT NULL AND due_at IS NOT NULL)),
+  CONSTRAINT fk_inv_term     FOREIGN KEY (term_id)       REFERENCES academic_terms(id) ON DELETE SET NULL,
   CONSTRAINT fk_inv_tenant   FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_inv_member   FOREIGN KEY (membership_id) REFERENCES memberships(id),
   CONSTRAINT fk_inv_enrolment FOREIGN KEY (enrolment_id) REFERENCES enrolments(id),
@@ -1034,9 +1082,19 @@ CREATE TABLE invoice_lines (
   unit_amount_minor INTEGER       NOT NULL,
   tax_rate_pct      REAL NOT NULL DEFAULT 0,
   line_total_minor  INTEGER       NOT NULL,
+  -- A WAIVER reduces THIS LINE and is never a cash entry. Kept beside the amount
+  -- rather than netted into it, so the invoice can show both what was charged and
+  -- what was waived — which is what a family needs to understand the bill and
+  -- what an auditor needs to see that no money moved.
+  waiver_minor      INTEGER       NOT NULL DEFAULT 0,
+  waiver_reason     TEXT NULL,
   price_item_id     INTEGER NULL,     -- provenance: which price applied
   metadata          TEXT         NULL,
 
+  -- A waiver cannot exceed the line it reduces, and it states its reason: it is
+  -- the academy choosing not to bill, which is a decision and not a rounding.
+  CONSTRAINT chk_line_waiver CHECK (waiver_minor >= 0 AND waiver_minor <= line_total_minor
+        AND (waiver_minor = 0 OR waiver_reason IS NOT NULL)),
   CONSTRAINT fk_line_invoice FOREIGN KEY (invoice_id)    REFERENCES invoices(id) ON DELETE CASCADE,
   CONSTRAINT fk_line_price   FOREIGN KEY (price_item_id) REFERENCES price_items(id)
 );
@@ -1681,6 +1739,680 @@ CREATE TABLE legacy_reference_map (
   CONSTRAINT fk_legacy_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 );
 
+-- =============================================================================
+-- LAYER I · ACADEMIC CALENDAR
+-- =============================================================================
+-- v2 had no term table: `cohorts.term` was a free string, which is enough for a
+-- label on a page and not enough for the one thing a calendar is actually needed
+-- for. **This is the only authority on a refund.** Before v1 grew these tables
+-- there was no refund function anywhere in the codebase and every refund was a
+-- manual decision with nothing to check it against.
+--
+-- Four invariants, all of which are easy to "simplify" into being wrong:
+--   • A refund percentage is COMPUTED from a date, never stored per learner. Two
+--     families withdrawing the same day must get the same answer, and the answer
+--     must be reproducible a year later in an audit.
+--   • `term_refund_schedule` rows are the truth once seeded. A family is entitled
+--     to the table that was published when they enrolled, so re-saving a term's
+--     dates must never silently revert an edited table.
+--   • `term_census` is a SNAPSHOT and append-only (UNIQUE on term). "Enrolment as
+--     of the census date" must not move when somebody withdraws in week nine —
+--     recompute-on-read is the commonest way an official figure rewrites history.
+--   • Deadlines are adjudicated in the term's OWN timezone and displayed in the
+--     reader's. A diaspora guardian in New York must not get a different refund
+--     from a Lagos guardian because their clocks disagree about the date.
+
+CREATE TABLE academic_terms (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id         TEXT     NOT NULL,
+  tenant_id         INTEGER NOT NULL,
+  -- The academy year this term sits in ("2026/2027"), and the term's own code.
+  -- MAM runs TONI / MEDI / SUMMER / DOMI, renameable per tenant.
+  year_label        TEXT  NOT NULL,
+  code              TEXT  NOT NULL,
+  term_no           TINYINTEGER NOT NULL DEFAULT 1,
+  -- What a family sees on a receipt. Snapshotted onto reports and invoices,
+  -- because a tenant may rename a term and a published document must keep the
+  -- name it was published under.
+  label             TEXT NOT NULL,
+  starts_on         TEXT         NOT NULL,
+  ends_on           TEXT         NOT NULL,
+  add_drop_deadline TEXT         NULL,
+  withdrawal_deadline TEXT       NULL,
+  census_date       TEXT         NULL,
+  teaching_weeks    TINYINTEGER NOT NULL DEFAULT 12,
+  -- IANA zone, because a TEXT deadline is a wall-clock fact about a place.
+  timezone          TEXT  NOT NULL DEFAULT 'Africa/Lagos',
+  status            TEXT  NOT NULL DEFAULT 'planned',   -- planned|active|closed
+  notes             TEXT NULL,
+  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at        TEXT  NULL,
+  deleted_seq       INTEGER NOT NULL DEFAULT 0,
+  created_by        INTEGER NULL,
+  row_version       INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (public_id),
+  UNIQUE (tenant_id, year_label, code, deleted_seq),
+
+  CONSTRAINT chk_terms_status CHECK (status IN ('planned','active','closed')),
+  -- A term must not end before it starts, and every deadline must fall inside it
+  -- and in the right order. Enforced here rather than in PHP because a bad row
+  -- corrupts every refund computed against it.
+  CONSTRAINT chk_terms_window CHECK (ends_on >= starts_on),
+  CONSTRAINT chk_terms_addrop CHECK (add_drop_deadline IS NULL
+        OR (add_drop_deadline >= starts_on AND add_drop_deadline <= ends_on)),
+  CONSTRAINT chk_terms_wdr CHECK (withdrawal_deadline IS NULL
+        OR (withdrawal_deadline >= starts_on AND withdrawal_deadline <= ends_on)),
+  CONSTRAINT chk_terms_census CHECK (census_date IS NULL
+        OR (census_date >= starts_on AND census_date <= ends_on)),
+  CONSTRAINT chk_terms_order CHECK (add_drop_deadline IS NULL OR withdrawal_deadline IS NULL
+        OR withdrawal_deadline >= add_drop_deadline),
+  CONSTRAINT fk_terms_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+-- The published week-by-week refund table. Rows are the truth once seeded; a
+-- constant only ever SEEDS them.
+CREATE TABLE term_refund_schedule (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  term_id       INTEGER NOT NULL,
+  -- 0 means "on or before the add/drop date".
+  week_no       TINYINTEGER NOT NULL,
+  refund_pct    REAL NOT NULL,
+  -- What the transcript says: an add/drop leaves no mark, a withdrawal leaves W.
+  transcript_mark TEXT  NULL,
+  note          TEXT NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (tenant_id, term_id, week_no),
+  CONSTRAINT chk_refund_pct CHECK (refund_pct >= 0 AND refund_pct <= 100),
+  CONSTRAINT fk_refundsched_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_refundsched_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE
+);
+
+-- Enrolment as of the census date. A SNAPSHOT: one row per term, append-only.
+CREATE TABLE term_census (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id         INTEGER NOT NULL,
+  term_id           INTEGER NOT NULL,
+  taken_on          TEXT         NOT NULL,
+  enrolled_count    INTEGER NOT NULL,
+  active_count      INTEGER NOT NULL,
+  withdrawn_count   INTEGER NOT NULL DEFAULT 0,
+  breakdown         TEXT         NULL,      -- by programme/level/centre
+  taken_by          INTEGER NULL,
+  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  -- One census per term. Retaking it would rewrite an official figure.
+  UNIQUE (tenant_id, term_id),
+  CONSTRAINT fk_census_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_census_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE
+);
+
+-- Days the academy is shut. A closure is in NEITHER half of an attendance rate:
+-- a class that did not happen must not count against the learner who would have
+-- attended it.
+CREATE TABLE term_closures (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  term_id       INTEGER NOT NULL,
+  centre_id     INTEGER NULL,        -- NULL = every centre
+  kind          TEXT  NOT NULL,       -- holiday|public|closure|exam_week
+  label         TEXT NOT NULL,
+  from_on       TEXT         NOT NULL,
+  to_on         TEXT         NOT NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  CONSTRAINT chk_closure_span CHECK (to_on >= from_on),
+  CONSTRAINT fk_closure_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_closure_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE,
+  CONSTRAINT fk_closure_centre FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE CASCADE
+);
+
+-- =============================================================================
+-- LAYER J · THE RATIFIED TERMLY REPORT
+-- =============================================================================
+-- The published academic record a family is shown. NOT `progress_reports`, which
+-- is the instructor's post-session note, due within two hours, with no status and
+-- no board.
+--
+-- The whole point is that a family sees it only AFTER a board has ratified it: a
+-- provisional mark a family can see and then have overturned is worse than one
+-- that arrives a week later.
+--
+-- ⚠️ v2 improves on v1 here in one specific way worth keeping. The design asks
+-- for the competency to be a FOREIGN KEY — "v1 matched criteria by string and
+-- silently reclassified anything an instructor renamed" — and v1 had no
+-- competency table to point at, so it stored a code. v2 HAS `competencies`, so
+-- `termly_report_criteria.competency_id` is a real reference and a rename is
+-- just a rename.
+
+CREATE TABLE termly_reports (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id         TEXT     NOT NULL,
+  tenant_id         INTEGER NOT NULL,
+  -- The LEARNER, as a membership: a person's relationship to this academy is
+  -- what a report is about, not their platform account.
+  membership_id     INTEGER NOT NULL,
+  enrolment_id      INTEGER NULL,
+  cohort_id         INTEGER NULL,
+  course_id         INTEGER NULL,
+  level_id          INTEGER NULL,
+  term_id           INTEGER NULL,
+  -- Snapshotted: terms are renameable and a family has this on their receipt.
+  term_label        TEXT NOT NULL,
+  status            TEXT  NOT NULL DEFAULT 'draft',
+     -- draft|moderating|ratified|withdrawn
+  -- The BAND is the stored value. There is no raw_score column anywhere in this
+  -- layer: a guardian-facing table with a column for the precise figure is an
+  -- invitation to print it, and the mastery coverage floor exists precisely so a
+  -- thin composite is never published as a comparable number.
+  band_low          TINYINTEGER NULL,
+  band_high         TINYINTEGER NULL,
+  -- Coverage prints ON the document ("8 of 11 parts — 72% of the weight"), so it
+  -- is stored beside the band and NOT NULL with no default. `NOT NULL DEFAULT 0`
+  -- constrains nothing, because the default satisfies it — and a report that
+  -- cannot state its coverage is not a report.
+  coverage_evidenced  TINYINTEGER NOT NULL,
+  coverage_total      TINYINTEGER NOT NULL,
+  coverage_weight_pct TINYINTEGER NOT NULL,
+  instructor_membership_id INTEGER NULL,
+  instructor_comment  TEXT     NULL,
+  attendance_summary  TEXT NULL,
+  -- Ratification is a named person on a stated time. Both or neither.
+  ratified_by       INTEGER NULL,
+  ratified_at       TEXT  NULL,
+  ratified_note     TEXT NULL,
+  -- Withdrawing a published mark is a real event and must not be spelled as a
+  -- delete. It also FREES the slot, so the corrected report an upheld appeal
+  -- produces has somewhere to go.
+  withdrawn_at      TEXT  NULL,
+  withdrawn_reason  TEXT NULL,
+  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at        TEXT  NULL,
+  deleted_seq       INTEGER NOT NULL DEFAULT 0,
+  created_by        INTEGER NULL,
+  row_version       INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (public_id),
+
+  -- Lookup only. The one-LIVE-report-per-slot rule is the application's, on both
+  -- engines: with no status term a withdrawn report holds its slot forever, and
+  -- keying on `term_label` keys the rule on a renameable string. See
+  -- mam_report_slot_taken().
+
+  CONSTRAINT chk_treport_status CHECK (status IN ('draft','moderating','ratified','withdrawn')),
+  -- A band is ten points wide, or clamped against the top of the scale — which is
+  -- the ONLY reason band_high may equal band_low. `band_high > band_low` refused
+  -- the (100,100) a perfect score produces.
+  CONSTRAINT chk_treport_band CHECK ((band_low IS NULL AND band_high IS NULL)
+        OR (band_low <= band_high AND band_high <= 100
+            AND band_high - band_low <= 9
+            AND (band_high - band_low = 9 OR band_high = 100))),
+  CONSTRAINT chk_treport_cov CHECK (coverage_evidenced <= coverage_total
+        AND coverage_weight_pct <= 100),
+  CONSTRAINT chk_treport_rat CHECK (status <> 'ratified'
+        OR (ratified_by IS NOT NULL AND ratified_at IS NOT NULL)),
+  CONSTRAINT chk_treport_wdr CHECK (status <> 'withdrawn' OR withdrawn_at IS NOT NULL),
+  CONSTRAINT fk_treport_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_treport_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_treport_enrol FOREIGN KEY (enrolment_id) REFERENCES enrolments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_treport_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE SET NULL,
+  CONSTRAINT fk_treport_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE SET NULL,
+  CONSTRAINT fk_treport_level FOREIGN KEY (level_id) REFERENCES levels(id) ON DELETE SET NULL,
+  CONSTRAINT fk_treport_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE SET NULL,
+  CONSTRAINT fk_treport_instr FOREIGN KEY (instructor_membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_treport_ratby FOREIGN KEY (ratified_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE termly_report_criteria (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id         INTEGER NOT NULL,
+  report_id         INTEGER NOT NULL,
+  -- A real FOREIGN KEY, which is the thing v1 could not do. A renamed competency
+  -- stays the same competency.
+  competency_id     INTEGER NOT NULL,
+  -- The label AS PRINTED, snapshotted, so a later rename does not silently
+  -- restate a document a family already holds.
+  label             TEXT NOT NULL,
+  weight_pct        TINYINTEGER NOT NULL DEFAULT 0,
+  level             TEXT  NOT NULL,     -- strong|secure|working|insufficient
+  -- NULL for 'insufficient' and only for it. A zero there reports an unassessed
+  -- beginner as failing, which is a different statement from "no evidence".
+  pct               TINYINTEGER NULL,
+  -- The printed word. FIVE grade words map onto FOUR levels, because the design's
+  -- own mock labels both 68% and 46% "Pass" while colouring their bars
+  -- differently — the level is the colour axis, the grade is the word.
+  grade_label       TEXT  NULL,
+  first_assessed_week TINYINTEGER NULL,
+  note              TEXT NULL,
+  sort_order        INTEGER          NOT NULL DEFAULT 0,
+  UNIQUE (report_id, competency_id),
+
+  CONSTRAINT chk_tcrit_level CHECK (level IN ('strong','secure','working','insufficient')),
+  CONSTRAINT chk_tcrit_pct CHECK (weight_pct <= 100 AND (pct IS NULL OR pct <= 100)),
+  CONSTRAINT chk_tcrit_evid CHECK ((level = 'insufficient' AND pct IS NULL)
+        OR (level <> 'insufficient' AND pct IS NOT NULL)),
+  CONSTRAINT fk_tcrit_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_tcrit_report FOREIGN KEY (report_id) REFERENCES termly_reports(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tcrit_comp FOREIGN KEY (competency_id) REFERENCES competencies(id)
+);
+
+-- The moderation sample. Per-CRITERION, because "a short sample" is a count of
+-- second-marked criteria and a per-report row could not express it.
+CREATE TABLE report_moderations (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id         INTEGER NOT NULL,
+  report_id         INTEGER NOT NULL,
+  competency_id     INTEGER NOT NULL,
+  moderator_membership_id INTEGER NULL,
+  agreed            INTEGER   NOT NULL DEFAULT 1,
+  moderator_level   TEXT  NULL,
+  note              TEXT NULL,
+  moderated_at      TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  -- Plain UNIQUE with a nullable column: SQL's NULLs-are-distinct rule is the
+  -- correct semantics, so two unattributed second-markers are two rows. Under a
+  -- COALESCE(...,0) they collapsed onto one key and UNDERCOUNTED the sample that
+  -- ratification refuses on — making the refusal fire on a properly moderated
+  -- report.
+  UNIQUE (report_id, competency_id, moderator_membership_id),
+
+  CONSTRAINT chk_rmod_agreed CHECK (agreed IN (0,1)),
+  CONSTRAINT chk_rmod_level CHECK (moderator_level IS NULL
+        OR moderator_level IN ('strong','secure','working','insufficient')),
+  CONSTRAINT fk_rmod_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_rmod_report FOREIGN KEY (report_id) REFERENCES termly_reports(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rmod_comp FOREIGN KEY (competency_id) REFERENCES competencies(id),
+  CONSTRAINT fk_rmod_mod FOREIGN KEY (moderator_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+-- Its own table rather than a status on the report, because an appeal OUTLIVES
+-- the report's status: a family appeals a ratified mark too, and the design gives
+-- them three months.
+CREATE TABLE mark_appeals (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id         TEXT     NOT NULL,
+  tenant_id         INTEGER NOT NULL,
+  report_id         INTEGER NULL,
+  membership_id     INTEGER NOT NULL,       -- the learner
+  raised_by_membership_id INTEGER NULL,
+  raised_role       TEXT  NOT NULL DEFAULT 'guardian',  -- guardian|learner|staff
+  competency_id     INTEGER NULL,
+  reason            TEXT NOT NULL,
+  status            TEXT  NOT NULL DEFAULT 'open',      -- open|upheld|declined|withdrawn
+  outcome_note      TEXT NULL,
+  decided_by        INTEGER NULL,
+  -- No DB default, deliberately. `chk_appeal_order` compares these two, and a
+  -- defaulted (strftime('%Y-%m-%d %H:%M:%f','now')) carries milliseconds while a PHP caller
+  -- stamps `closed_at` from gmdate('Y-m-d H:i:s') with none — so an appeal
+  -- closed minutes after it was raised compared BELOW its own opened_at and
+  -- the write failed outright. (Same family as the v1 CURRENT_TIMESTAMP vs.
+  -- PHP-UTC bug in `mark_appeals`.) Both timestamps must come from one
+  -- writer at one precision.
+  opened_at         TEXT  NOT NULL,
+  closed_at         TEXT  NULL,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_appeal_role CHECK (raised_role IN ('guardian','learner','staff')),
+  CONSTRAINT chk_appeal_status CHECK (status IN ('open','upheld','declined','withdrawn')),
+  -- ANY closed appeal states its outcome. Written as `status <> 'declined'` it
+  -- left an UPHELD appeal free to close with no note — a mark overturned and
+  -- nothing saying why.
+  CONSTRAINT chk_appeal_closed CHECK (status = 'open'
+        OR (closed_at IS NOT NULL AND outcome_note IS NOT NULL)),
+  CONSTRAINT chk_appeal_order CHECK (closed_at IS NULL OR closed_at >= opened_at),
+  CONSTRAINT fk_appeal_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_appeal_report FOREIGN KEY (report_id) REFERENCES termly_reports(id) ON DELETE CASCADE,
+  CONSTRAINT fk_appeal_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_appeal_raiser FOREIGN KEY (raised_by_membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_appeal_comp FOREIGN KEY (competency_id) REFERENCES competencies(id) ON DELETE SET NULL,
+  CONSTRAINT fk_appeal_decider FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- =============================================================================
+-- LAYER K · FEE RELIEF AND PAYMENT PLANS
+-- =============================================================================
+-- The AWARD is the academy's decision that a learner is entitled to something.
+-- It is separate from its application to any one invoice, because an award spans a
+-- term and an invoice is a month.
+
+CREATE TABLE invoice_aid_awards (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id         TEXT     NOT NULL,
+  tenant_id         INTEGER NOT NULL,
+  membership_id     INTEGER NOT NULL,
+  kind              TEXT  NOT NULL,     -- bursary|scholarship|waiver|sibling
+  -- Either a percentage or a fixed amount, never both and never neither.
+  pct               REAL NULL,
+  amount_minor      INTEGER       NULL,
+  currency          TEXT      NULL,
+  term_id           INTEGER NULL,
+  term_label        TEXT NULL,
+  -- What the decision rested on. For a bursary this is the income BAND, never a
+  -- written account of a family's circumstances.
+  basis             TEXT NULL,
+  status            TEXT  NOT NULL DEFAULT 'active',   -- active|spent|expired|revoked
+  starts_on         TEXT         NULL,
+  expires_on        TEXT         NULL,
+  awarded_by        INTEGER NULL,
+  awarded_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  revoked_at        TEXT  NULL,
+  revoked_reason    TEXT NULL,
+  note              TEXT NULL,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_aid_kind CHECK (kind IN ('bursary','scholarship','waiver','sibling')),
+  CONSTRAINT chk_aid_status CHECK (status IN ('active','spent','expired','revoked')),
+  CONSTRAINT chk_aid_shape CHECK ((pct IS NOT NULL AND amount_minor IS NULL)
+        OR (pct IS NULL AND amount_minor IS NOT NULL)),
+  CONSTRAINT chk_aid_pct CHECK (pct IS NULL OR (pct > 0 AND pct <= 100)),
+  CONSTRAINT chk_aid_amount CHECK (amount_minor IS NULL
+        OR (amount_minor > 0 AND currency IS NOT NULL)),
+  -- An award given and taken back is an event a family may ask about.
+  CONSTRAINT chk_aid_revoke CHECK (status <> 'revoked'
+        OR (revoked_at IS NOT NULL AND revoked_reason IS NOT NULL)),
+  CONSTRAINT fk_aid_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_aid_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_aid_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE SET NULL,
+  CONSTRAINT fk_aid_awarder FOREIGN KEY (awarded_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_aid_currency FOREIGN KEY (currency) REFERENCES currencies(code)
+);
+
+-- GIFT AID applied to one invoice — bursary and scholarship ONLY. A waiver never
+-- appears here (it is on the line, and is not money); a sibling discount never
+-- appears here (it is a discount on the post-aid balance, stored on the invoice).
+-- Keeping the three apart is what makes "how much aid did the academy actually pay
+-- out this term" a question with an answer.
+CREATE TABLE invoice_credits (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id         INTEGER NOT NULL,
+  invoice_id        INTEGER NOT NULL,
+  award_id          INTEGER NULL,
+  kind              TEXT  NOT NULL,     -- bursary|scholarship
+  amount_minor      INTEGER       NOT NULL,
+  currency          TEXT      NOT NULL,
+  base_amount_minor INTEGER       NULL,
+  fx_rate           REAL NULL,
+  note              TEXT NULL,
+  applied_by        INTEGER NULL,
+  applied_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  -- One application of an award per invoice: applying one award twice is the
+  -- commonest way a double-submitted form gives away the aid pool.
+  UNIQUE (invoice_id, award_id),
+
+  CONSTRAINT chk_credit_kind CHECK (kind IN ('bursary','scholarship')),
+  CONSTRAINT chk_credit_amount CHECK (amount_minor > 0),
+  CONSTRAINT fk_credit_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_credit_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+  CONSTRAINT fk_credit_award FOREIGN KEY (award_id) REFERENCES invoice_aid_awards(id) ON DELETE SET NULL,
+  CONSTRAINT fk_credit_actor FOREIGN KEY (applied_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_credit_currency FOREIGN KEY (currency) REFERENCES currencies(code)
+);
+
+-- "Pay in 3 instalments instead." The plan does not change the TOTAL; it changes
+-- when each part falls due. So the instalments must SUM to the balance exactly and
+-- the rounding remainder lands on the FIRST one — front-loaded, so no family meets
+-- a larger final payment than the plan showed them, and none is left owing a
+-- rounding shortfall after paying every instalment.
+CREATE TABLE invoice_payment_plans (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id         TEXT     NOT NULL,
+  tenant_id         INTEGER NOT NULL,
+  invoice_id        INTEGER NOT NULL,
+  instalments       TINYINTEGER NOT NULL,
+  status            TEXT  NOT NULL DEFAULT 'active',   -- active|completed|cancelled
+  -- A family REQUESTS; the office approves. A plan a family can grant itself is a
+  -- payment term, not a plan.
+  requested_by      INTEGER NULL,
+  approved_by       INTEGER NULL,
+  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  cancelled_at      TEXT  NULL,
+  cancel_reason     TEXT NULL,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_plan_status CHECK (status IN ('active','completed','cancelled')),
+  CONSTRAINT chk_plan_n CHECK (instalments >= 2 AND instalments <= 12),
+  CONSTRAINT chk_plan_cancel CHECK (status <> 'cancelled'
+        OR (cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL)),
+  CONSTRAINT fk_plan_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_plan_invoice FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+  CONSTRAINT fk_plan_requester FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_plan_approver FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE invoice_plan_instalments (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id         INTEGER NOT NULL,
+  plan_id           INTEGER NOT NULL,
+  seq               TINYINTEGER NOT NULL,
+  due_on            TEXT         NOT NULL,
+  amount_minor      INTEGER       NOT NULL,
+  status            TEXT  NOT NULL DEFAULT 'pending',  -- pending|paid|waived
+  paid_at           TEXT  NULL,
+  payment_id        INTEGER NULL,
+  UNIQUE (plan_id, seq),
+
+  CONSTRAINT chk_inst_status CHECK (status IN ('pending','paid','waived')),
+  CONSTRAINT chk_inst_amount CHECK (seq >= 1 AND amount_minor > 0),
+  CONSTRAINT chk_inst_paid CHECK (status <> 'paid' OR paid_at IS NOT NULL),
+  CONSTRAINT fk_inst_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_inst_plan FOREIGN KEY (plan_id) REFERENCES invoice_payment_plans(id) ON DELETE CASCADE,
+  CONSTRAINT fk_inst_payment FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE SET NULL
+);
+
+-- A bursary is assessed on a declared income BAND, never a written case for
+-- hardship. A written case rewards the family best able to write one, asks a
+-- parent to describe their circumstances to their child's school, and leaves an
+-- assessor free to be inconsistent between two households in the same position.
+--
+-- ⚠️ There is deliberately NO hardship / circumstances / case_text column, and
+-- `note` is the ASSESSOR's rather than the applicant's — it is never returned to
+-- the family. There is also no column linking this to an admission decision,
+-- because applying must never affect one and the way that stays true is that
+-- admissions cannot see it.
+CREATE TABLE bursary_applications (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id         TEXT     NOT NULL,
+  tenant_id         INTEGER NOT NULL,
+  membership_id     INTEGER NOT NULL,        -- the learner
+  guardian_membership_id INTEGER NULL,
+  term_id           INTEGER NULL,
+  term_label        TEXT NULL,
+  income_band       TEXT  NOT NULL,
+  household_size    TINYINTEGER NULL,
+  dependants_in_academy TINYINTEGER NOT NULL DEFAULT 1,
+  status            TEXT  NOT NULL DEFAULT 'submitted',
+     -- submitted|assessing|awarded|declined|withdrawn
+  -- May be BELOW the band's published figure — a committee weighing a finite pool
+  -- — but never above it, because the table is published and a family that read
+  -- it is entitled to the answer it gives.
+  awarded_pct       REAL NULL,
+  award_id          INTEGER NULL,
+  decided_by        INTEGER NULL,
+  decided_at        TEXT  NULL,
+  outcome_note      TEXT NULL,
+  note              TEXT NULL,
+  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_bursary_status CHECK (status IN
+    ('submitted','assessing','awarded','declined','withdrawn')),
+  CONSTRAINT chk_bursary_house CHECK ((household_size IS NULL OR household_size >= 1)
+        AND dependants_in_academy >= 1),
+  CONSTRAINT chk_bursary_pct CHECK (awarded_pct IS NULL
+        OR (awarded_pct > 0 AND awarded_pct <= 100)),
+  -- A decision states its outcome and names who made it, whichever way it went.
+  CONSTRAINT chk_bursary_decide CHECK (status IN ('submitted','assessing')
+        OR (decided_at IS NOT NULL AND outcome_note IS NOT NULL)),
+  CONSTRAINT chk_bursary_award CHECK (status <> 'awarded' OR awarded_pct IS NOT NULL),
+  CONSTRAINT fk_bursary_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_bursary_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_bursary_guardian FOREIGN KEY (guardian_membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_bursary_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE SET NULL,
+  CONSTRAINT fk_bursary_award FOREIGN KEY (award_id) REFERENCES invoice_aid_awards(id) ON DELETE SET NULL,
+  CONSTRAINT fk_bursary_decider FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- =============================================================================
+-- LAYER L · GUARDIAN COMMUNICATION AND MAKE-UP CREDITS
+-- =============================================================================
+-- NOT `outbox_messages`, which is transactional send, and NOT the public contact
+-- form. A thread is a conversation between the adults responsible for a learner.
+--
+-- ⚠️ **A learner is never a participant in a guardian thread.** No guardian scope
+-- reaches a teenager's messages with their instructor, and the cheapest way to
+-- breach that would be to add a guardian to the learner's own conversation. So the
+-- participant role CHECK admits only adult roles, and the application derives the
+-- role from the MEMBERSHIP rather than taking it as an argument — there is no
+-- signature through which "add this learner as an office contact" is expressible.
+--
+-- The reason is not squeamishness: a young person who knows their questions are
+-- read at home stops asking the embarrassing ones, and those are where the
+-- teaching happens. What a family is owed instead is everything that affects them,
+-- reliably — which is what `guardian_channel_prefs` cannot be used to switch off.
+
+CREATE TABLE guardian_threads (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id         TEXT     NOT NULL,
+  tenant_id         INTEGER NOT NULL,
+  learner_membership_id INTEGER NOT NULL,
+  subject           TEXT NOT NULL,
+  -- Decides whether the channel preferences may suppress a notice, so it is on
+  -- the thread and constrained rather than inferred from the words.
+  kind              TEXT  NOT NULL DEFAULT 'general',
+     -- general|academic|money|safeguarding|timetable
+  status            TEXT  NOT NULL DEFAULT 'open',
+  opened_by         INTEGER NULL,
+  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  last_message_at   TEXT  NULL,
+  closed_at         TEXT  NULL,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_gthread_kind CHECK (kind IN
+    ('general','academic','money','safeguarding','timetable')),
+  CONSTRAINT chk_gthread_status CHECK (status IN ('open','closed')),
+  CONSTRAINT chk_gthread_closed CHECK (status = 'open' OR closed_at IS NOT NULL),
+  CONSTRAINT fk_gthread_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_gthread_learner FOREIGN KEY (learner_membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_gthread_opener FOREIGN KEY (opened_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE guardian_thread_participants (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id         INTEGER NOT NULL,
+  thread_id         INTEGER NOT NULL,
+  membership_id     INTEGER NOT NULL,
+  -- No 'learner'. This is a refusal, not an omission — see the layer note.
+  role              TEXT  NOT NULL,     -- guardian|instructor|office|admin
+  last_read_at      TEXT  NULL,
+  added_at          TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (thread_id, membership_id),
+
+  CONSTRAINT chk_gpart_role CHECK (role IN ('guardian','instructor','office','admin')),
+  CONSTRAINT fk_gpart_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_gpart_thread FOREIGN KEY (thread_id) REFERENCES guardian_threads(id) ON DELETE CASCADE,
+  CONSTRAINT fk_gpart_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+);
+
+CREATE TABLE guardian_thread_messages (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id         INTEGER NOT NULL,
+  thread_id         INTEGER NOT NULL,
+  author_membership_id INTEGER NULL,
+  -- Denormalised, because author_membership_id goes NULL when a staff membership
+  -- is closed and a family's thread has to still make sense afterwards. "A message
+  -- from nobody" is worse than a name.
+  author_name       TEXT NOT NULL,
+  author_role       TEXT  NOT NULL,
+  body              TEXT         NOT NULL,
+  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  CONSTRAINT chk_gmsg_role CHECK (author_role IN ('guardian','instructor','office','admin')),
+  CONSTRAINT fk_gmsg_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_gmsg_thread FOREIGN KEY (thread_id) REFERENCES guardian_threads(id) ON DELETE CASCADE,
+  CONSTRAINT fk_gmsg_author FOREIGN KEY (author_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+-- One row per guardian membership. ⚠️ There is NO per-topic column, deliberately:
+-- anything about safeguarding or money reaches a guardian on every channel the
+-- academy can use regardless of these toggles, so "mute safeguarding" is not a
+-- state this table can hold. A family that has muted notifications has muted
+-- reminders about practice, not a concern about their child or a fee falling due.
+CREATE TABLE guardian_channel_prefs (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id         INTEGER NOT NULL,
+  membership_id     INTEGER NOT NULL,
+  whatsapp          INTEGER   NOT NULL DEFAULT 1,
+  email             INTEGER   NOT NULL DEFAULT 1,
+  -- Opt-IN: it costs the academy per message and reaches the same phone WhatsApp
+  -- already does.
+  sms               INTEGER   NOT NULL DEFAULT 0,
+  updated_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (tenant_id, membership_id),
+  CONSTRAINT chk_gpref_flags CHECK (whatsapp IN (0,1) AND email IN (0,1) AND sms IN (0,1)),
+  CONSTRAINT fk_gpref_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_gpref_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+);
+
+-- 24 hours' notice earns a credit · five a year · non-transferable · they expire ·
+-- no cash in lieu · and a teacher cancellation ALWAYS credits and NEVER counts
+-- against the five.
+--
+-- Five of those six are one column each and the sixth is a refusal:
+--   • non-transferable → membership_id is on the row and there is no transfer
+--     column. A credit is not a token.
+--   • they expire      → expires_on NOT NULL. A credit with no expiry is a
+--     liability the academy can never close a year on.
+--   • no cash in lieu  → there is NO money column, no currency and no payments
+--     link. A credit buys a lesson or it lapses; making it refundable turns every
+--     cancellation into a pricing negotiation.
+--   • the allowance    → counts_against_allowance, and the CHECK forces it to 0
+--     for anything the academy itself initiated. Charging a family an allowance
+--     slot because the academy cancelled is the most resented thing a make-up
+--     policy can do, so it is not left to a caller passing the default.
+CREATE TABLE makeup_credits (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id         TEXT     NOT NULL,
+  tenant_id         INTEGER NOT NULL,
+  membership_id     INTEGER NOT NULL,
+  term_id           INTEGER NULL,
+  -- The academy year the allowance is counted over. Stored, because "five a year"
+  -- has to mean the same five in December as in March.
+  year_label        TEXT  NOT NULL,
+  reason            TEXT  NOT NULL,
+     -- guardian_notice|teacher_cancellation|academy_closure|goodwill
+  source_session_id INTEGER NULL,
+  notice_hours      REAL NULL,
+  counts_against_allowance INTEGER NOT NULL DEFAULT 1,
+  status            TEXT  NOT NULL DEFAULT 'available',
+     -- available|spent|expired|revoked
+  expires_on        TEXT         NOT NULL,
+  spent_session_id  INTEGER NULL,
+  spent_at          TEXT  NULL,
+  granted_by        INTEGER NULL,
+  granted_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  revoked_reason    TEXT NULL,
+  note              TEXT NULL,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_makeup_reason CHECK (reason IN
+    ('guardian_notice','teacher_cancellation','academy_closure','goodwill')),
+  CONSTRAINT chk_makeup_status CHECK (status IN ('available','spent','expired','revoked')),
+  CONSTRAINT chk_makeup_counts CHECK (counts_against_allowance IN (0,1)),
+  CONSTRAINT chk_makeup_notice CHECK (notice_hours IS NULL OR notice_hours >= 0),
+  CONSTRAINT chk_makeup_spent CHECK (status <> 'spent' OR spent_at IS NOT NULL),
+  CONSTRAINT chk_makeup_revoke CHECK (status <> 'revoked' OR revoked_reason IS NOT NULL),
+  -- Only a GUARDIAN cancellation may cost an allowance slot: the allowance limits
+  -- how often a FAMILY cancels, so anything the academy initiates is free by
+  -- construction rather than by a caller remembering.
+  CONSTRAINT chk_makeup_free CHECK (reason = 'guardian_notice'
+        OR counts_against_allowance = 0),
+  CONSTRAINT fk_makeup_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_makeup_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_makeup_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE SET NULL,
+  CONSTRAINT fk_makeup_src FOREIGN KEY (source_session_id) REFERENCES class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_makeup_spent FOREIGN KEY (spent_session_id) REFERENCES class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_makeup_grantor FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- Schema baseline. A fresh v2 install starts AT the target rather than
 -- replaying v1's 81 migrations.
 CREATE TABLE schema_version (
@@ -1689,7 +2421,8 @@ CREATE TABLE schema_version (
   note        TEXT NULL
 );
 
-INSERT INTO schema_version (version, note) VALUES (200, 'schema-v2 baseline');
+INSERT INTO schema_version (version, note) VALUES (201,
+  'schema-v2 baseline + guardian layer (calendar, ratified reports, fee relief, threads, make-up)');
 
 -- Seed the currencies the platform ships knowing about. Everything else is
 -- tenant data and arrives via the ETL or the admin.
@@ -1771,3 +2504,24 @@ CREATE INDEX ix_action_open ON action_items (membership_id, completed_at, dismis
 CREATE INDEX ix_action_due ON action_items (tenant_id, due_at, completed_at);
 CREATE INDEX ix_legacy_ref ON legacy_reference_map (tenant_id, legacy_ref);
 CREATE INDEX ix_legacy_target ON legacy_reference_map (v2_table, v2_id);
+CREATE INDEX ix_terms_window ON academic_terms (tenant_id, starts_on, ends_on);
+CREATE INDEX ix_terms_status ON academic_terms (tenant_id, status);
+CREATE INDEX ix_closure_span ON term_closures (tenant_id, term_id, from_on, to_on);
+CREATE INDEX ix_treport_member ON termly_reports (tenant_id, membership_id, status);
+CREATE INDEX ix_treport_cohort ON termly_reports (tenant_id, cohort_id, status);
+CREATE INDEX ix_treport_slot ON termly_reports (tenant_id, membership_id, term_id, course_id, level_id, status);
+CREATE INDEX ix_tcrit_report ON termly_report_criteria (report_id, sort_order);
+CREATE INDEX ix_rmod_report ON report_moderations (report_id);
+CREATE INDEX ix_appeal_report ON mark_appeals (tenant_id, report_id, status);
+CREATE INDEX ix_appeal_open ON mark_appeals (tenant_id, status, opened_at);
+CREATE INDEX ix_aid_member ON invoice_aid_awards (tenant_id, membership_id, status, kind);
+CREATE INDEX ix_credit_invoice ON invoice_credits (tenant_id, invoice_id);
+CREATE INDEX ix_plan_invoice ON invoice_payment_plans (tenant_id, invoice_id, status);
+CREATE INDEX ix_inst_due ON invoice_plan_instalments (tenant_id, status, due_on);
+CREATE INDEX ix_bursary_member ON bursary_applications (tenant_id, membership_id, status);
+CREATE INDEX ix_bursary_queue ON bursary_applications (tenant_id, status, created_at);
+CREATE INDEX ix_gthread_learner ON guardian_threads (tenant_id, learner_membership_id, status, last_message_at);
+CREATE INDEX ix_gpart_member ON guardian_thread_participants (tenant_id, membership_id);
+CREATE INDEX ix_gmsg_thread ON guardian_thread_messages (thread_id, created_at);
+CREATE INDEX ix_makeup_member ON makeup_credits (tenant_id, membership_id, status, expires_on);
+CREATE INDEX ix_makeup_year ON makeup_credits (tenant_id, membership_id, year_label, counts_against_allowance);
