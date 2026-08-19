@@ -252,11 +252,22 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      `users.status='roster'` identity; a `roster` row from before is promoted on
      re-enrol, but only from `roster`, so a suspended account is never quietly
      reopened. The generated password is **returned, not emailed** from the
-     provisioner (a mailer inside it would make it untestable and let a failed send
-     look like a failed enrolment) — `api/routes/admin/summer.php` sends both
-     credentials via `mam_send()` (which takes the mail-log CONTEXT; `mam_send_mail()`
-     takes an opts array instead). The guardian link is best-effort: no guardian
-     address must never stop a child enrolling. It resolves the dedicated
+     provisioner. **No password is ever emailed.** The account is created with
+     `mam_auth_unusable_password()` (real bcrypt over 32 random bytes — not a
+     sentinel string, so nothing downstream pattern-matches the column) and the
+     result carries `invite: true`; the caller mints and sends a link with
+     `mam_auth_send_invite()`. `MAM_INVITE_TTL_SEC` is **7 days**, not the reset
+     path's hour: a reset is answered in minutes, an invitation when a parent next
+     looks at their phone. Tokens reuse `password_resets` deliberately — it is
+     already a single-use hashed expiring token that sets a password and revokes
+     sessions, and a second table would mean two expiry rules and two places to get
+     the hashing wrong. `?welcome=1` on the link only changes what `portal/reset.html`
+     SAYS (the token is the whole of the security), because "set a NEW password" to
+     somebody who never had one is confusing and the 60-minute expiry line is wrong
+     for an invite. The guardian gets their OWN invite — the child's link would set
+     the child's password. Mail goes via `mam_send()` (which takes the mail-log
+     CONTEXT; `mam_send_mail()` takes an opts array instead). The guardian link is
+     best-effort: no guardian address must never stop a child enrolling. It resolves the dedicated
      `SUMMER-<year>` cohort via `mam_summer_cohort()` (keyed on `(course_id, term)` so it
      never collides with `mam_lms_ensure_cohort()`'s tuple), and enrols them. The cohort AND
      the enrolment both take the remembered instructor (`mam_lms_default_instructor`) —

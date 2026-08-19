@@ -179,3 +179,81 @@ foreach ([
     $p = (new ReflectionFunction($fn))->getParameters()[$argIndex];
     t_ok(!$p->allowsNull(), "$fn() still requires a non-null actor id");
 }
+
+t_group('account invitations — a link, never a password in an email');
+
+// The academy's position: on enrolment a family receives a link to set their own
+// password. A temporary password sits in an inbox for years, is usually reused,
+// is readable by anyone holding the phone, cannot be revoked once sent — and for
+// a children's academy that inbox is usually a shared parental one. It also
+// teaches the exact habit phishing relies on.
+t_ok(function_exists('mam_auth_invite') && function_exists('mam_auth_send_invite')
+     && function_exists('mam_auth_unusable_password'), 'the invitation helpers exist');
+
+$ivU = (int) mam_db_insert('users', ['email' => 'iv_' . bin2hex(random_bytes(4)) . '@x.dev',
+    'name' => 'Invited Person', 'role' => 'student', 'status' => 'active',
+    'password_hash' => mam_auth_unusable_password(), 'created_at' => date('Y-m-d H:i:s')]);
+$ivRow = mam_db_row('SELECT email, password_hash FROM users WHERE id = ?', [$ivU]);
+
+// An unusable password is a REAL bcrypt hash of bytes nobody has, not a sentinel
+// string: password_verify() against a non-hash returns false today, but a column
+// that sometimes holds a hash and sometimes holds 'roster:...' invites a caller
+// to start pattern-matching on it.
+t_ok(strpos((string) $ivRow['password_hash'], '$2y$') === 0 && strlen((string) $ivRow['password_hash']) >= 55,
+    'an unusable password is real bcrypt, so nothing downstream has to special-case it');
+t_eq(mam_login((string) $ivRow['email'], ''), null, 'and nothing signs in with an empty password');
+
+$iv = mam_auth_invite($ivU);
+t_ok($iv !== null, 'an invitation is minted');
+t_ok(preg_match('/^[a-f0-9]{40}$/', (string) $iv['token']) === 1,
+    'the token is 40 hex chars — the shape portal/reset.html validates before showing the form');
+t_ok(mam_db_row('SELECT 1 FROM password_resets WHERE token_hash = ?', [hash('sha256', (string) $iv['token'])]) !== null,
+    'stored as a SHA-256 hash, so a database read does not hand out working links');
+t_ok(mam_db_row('SELECT 1 FROM password_resets WHERE token_hash = ?', [(string) $iv['token']]) === null,
+    'and never in the clear');
+t_ok(strtotime((string) $iv['expires_at']) - time() > 6 * 86400,
+    'valid for days: a reset is answered in minutes, an invitation when a parent next looks at their phone');
+t_eq(MAM_INVITE_TTL_SEC, 604800, 'seven days, named as a constant rather than typed at each call site');
+
+// Only an active account. Inviting a suspended one would hand out a working
+// credential for an account somebody deliberately shut.
+foreach (['suspended', 'closed', 'roster'] as $st) {
+    mam_db_update('users', ['status' => $st], ['id' => $ivU]);
+    t_eq(mam_auth_invite($ivU), null, "a $st account cannot be invited");
+}
+mam_db_update('users', ['status' => 'active'], ['id' => $ivU]);
+t_ok(mam_auth_invite($ivU) !== null, 'and can again once active');
+
+// The mail itself must not lie about why it arrived.
+$ivMail = mam_email_account_invite('Ada', 'https://example.test/portal/reset?token=x&welcome=1', 'student', 7);
+t_ok(strpos($ivMail, 'Create your password') !== false, 'the email offers to create a password');
+t_ok(stripos($ivMail, 'temporary password') === false, 'and contains no temporary password');
+t_ok(strpos($ivMail, 'we never send passwords by email') !== false, 'saying so explicitly, which is how the habit changes');
+// Two things the reset mail says that are wrong here: they did not request it,
+// and an unexpected enrolment email is something to query, not to ignore.
+t_ok(stripos($ivMail, "didn't request this") === false, 'it does not claim they asked for it');
+t_ok(strpos($ivMail, 'MAM Academy enrolled you') !== false, 'it says the academy enrolled them');
+t_ok(strpos($ivMail, '7 days') !== false, 'and states the real window');
+$ivParent = mam_email_account_invite('G', 'https://example.test/x', 'parent', 7);
+t_ok(strpos($ivParent, "your child's lessons") !== false, 'a guardian is told what THEY will see');
+
+// The page has to greet an invitation differently from a reset — "set a NEW
+// password" to somebody who never had one is confusing, and the 60-minute line
+// on the failure state is simply wrong for an invite.
+$ivPage = (string) file_get_contents(dirname(__DIR__, 2) . '/portal/reset.html');
+t_ok(strpos($ivPage, "get('welcome') === '1'") !== false, 'reset.html recognises a welcome link');
+t_ok(strpos($ivPage, 'Create your password') !== false, 'and changes its heading');
+t_ok(strpos($ivPage, 'valid for 7 days') !== false, 'and its expiry sentence');
+
+// Settlement must send the link, not a password. The old body printed one in a
+// dashed box and told the family to change it on first sign-in.
+$ivPay = (string) file_get_contents(dirname(__DIR__) . '/lib/payments.php');
+t_ok(strpos($ivPay, 'mam_auth_send_invite') !== false, 'payment settlement sends an invitation');
+t_ok(strpos($ivPay, 'Temporary password') === false, 'and no longer emails a temporary password');
+t_ok(strpos($ivPay, 'mam_auth_unusable_password') !== false,
+    'overwriting the generated one, so no plaintext it produced is ever valid');
+$ivSummer = (string) file_get_contents(dirname(__DIR__) . '/routes/admin/summer.php');
+t_ok(strpos($ivSummer, "mam_auth_send_invite((int) \$enrolment['user_id'], 'student'") !== false,
+    'a summer enrolment invites the child');
+t_ok(strpos($ivSummer, "'parent', 'summer_guardian_invite'") !== false,
+    'and the guardian separately — the same link would set the CHILD\'s password');

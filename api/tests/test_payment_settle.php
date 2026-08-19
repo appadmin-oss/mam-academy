@@ -30,7 +30,13 @@ $aid2 = mam_db_insert('applications', ['reference' => 'MAM-SET-TU', 'customer_id
 $pid2 = mam_db_insert('payments', ['application_id' => $aid2, 'reference' => 'MAM-SET-TU', 'provider' => 'paystack', 'purpose' => 'tuition', 'status' => 'pending', 'amount' => 450000, 'currency' => 'NGN']);
 $res2 = mam_payment_settle(mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid2]), null, '{}', 'PSK-2');
 t_eq(mam_db_row('SELECT status FROM applications WHERE id = ?', [$aid2])['status'], 'paid', 'a tuition payment marks the application paid');
-t_ok(in_array($res2['portal'], ['portal_credentials_emailed', 'portal_already_provisioned'], true), 'tuition settle reports a portal outcome');
+// `portal_invite_emailed`, not `..._credentials_emailed`: settlement now sends a
+// LINK to choose a password rather than a temporary password in an email.
+// `portal_invite_failed` is a legitimate outcome here — the harness has no mailer
+// — and is deliberately distinguishable from "already provisioned", because the
+// two need different follow-up.
+t_ok(in_array($res2['portal'], ['portal_invite_emailed', 'portal_invite_failed', 'portal_already_provisioned'], true),
+    'tuition settle reports a portal outcome [' . (string) $res2['portal'] . ']');
 t_ok(mam_db_row("SELECT id FROM users WHERE email = ?", ['t_set_tui@x.dev']) !== null, 'a student portal account was provisioned');
 
 // ── Store: marks the order delivered + decrements stock ──

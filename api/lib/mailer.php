@@ -2259,3 +2259,35 @@ function mam_email_recital_programme(array $recital, array $items, array $o = []
         'reason'     => 'You received this because you or your child are performing at MAM Academy.',
     ]);
 }
+
+/**
+ * "Set up your account" — the invitation that replaces emailing a password.
+ *
+ * Deliberately different in tone from the reset mail: this is the first thing a
+ * family receives from the academy, and it is welcoming rather than a security
+ * notice. Two things it must NOT do — claim they requested it (they did not; the
+ * academy enrolled them), and tell them to ignore it if unexpected (an
+ * unexpected enrolment mail is something to query, not discard).
+ */
+function mam_email_account_invite(string $name, string $inviteUrl, string $role = 'student', int $days = 7): string {
+    $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);
+    $u = htmlspecialchars($inviteUrl, ENT_QUOTES);
+    $d = max(1, $days);
+    $window = $d === 1 ? '24 hours' : ($d . ' days');
+    $what = $role === 'parent'
+        ? "You'll be able to follow your child's lessons, attendance, results and recitals."
+        : ($role === 'instructor'
+            ? "You'll be able to take the register, set work and record results."
+            : "You'll be able to see your classes, check in to sessions, log practice and follow your results.");
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>Welcome to MAM Academy, $n</h2>
+      <p style='color:#4A3624;font-size:15px;margin:0 0 14px'>Your place is confirmed. Choose your own password to open your portal — we never send passwords by email. $what</p>
+      " . mam_email_button($inviteUrl, 'Create your password') . "
+      <p style='font-size:13px;color:#7A5C3D;line-height:1.65;margin:0'>If the button doesn't work, copy and paste this link into your browser:<br><span style='word-break:break-all;color:#B8721B'>$u</span></p>
+      <p style='font-size:13px;color:#9A8264;margin:24px 0 0'>The link works once and expires in <strong>$window</strong>. If it has already expired, use “Forgot password” on the sign-in page and we'll send a fresh one — or reply to this email and we'll help.</p>";
+    return mam_email_layout([
+        'header'    => 'MAM ACADEMY',
+        'preheader' => "Create your MAM Academy password — link valid for $window.",
+        'reason'    => 'You received this because MAM Academy enrolled you and created your account.',
+        'body'      => $inner,
+    ]);
+}

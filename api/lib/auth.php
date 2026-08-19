@@ -451,3 +451,112 @@ function mam_ensure_student_user(int $customerId): array {
     mam_audit('create', 'user', $userId, ['role' => 'student', 'auto' => true]);
     return ['user' => $user, 'password' => $plain];
 }
+
+/**
+ * ── Account invitations: a link to CREATE a password, not a password ──────────
+ *
+ * The academy's position, and the better one: on enrolment a family receives a
+ * link to set their own password, never a temporary password in an email.
+ *
+ * Why it matters more here than the change sounds. A temporary password sits in
+ * an inbox for years, is typically reused, is readable by anyone with the phone,
+ * and cannot be revoked once sent — and for a children's academy the inbox is
+ * usually a parent's, shared. A single-use token expires, can be re-issued, and
+ * proves control of the address before an account becomes usable. It also removes
+ * the worst habit the old flow taught: click a link in unexpected mail and type a
+ * password you were sent.
+ *
+ * `password_resets` is reused deliberately rather than growing an `invites`
+ * table. It is already exactly this: a single-use, hashed, expiring token that
+ * sets a password and revokes other sessions. A second table would mean two
+ * expiry rules, two revocation paths and two places to get the hashing wrong.
+ * The one difference is the WINDOW — see below.
+ */
+
+/**
+ * How long an invitation stays valid.
+ *
+ * A password RESET is answered in minutes and an hour is right for it. An
+ * INVITATION is opened when a parent next looks at their phone, which may be the
+ * following evening or after a weekend — and an expired invitation on enrolment
+ * day means a family that cannot get in and an admin who has to notice. Seven
+ * days, and it can be re-issued.
+ */
+const MAM_INVITE_TTL_SEC = 604800;   // 7 days
+
+/**
+ * Mint a single-use invitation for an account and return the link.
+ *
+ * Returns null when the user cannot be invited — no such row, or not active.
+ * Never throws: an invitation is a courtesy on top of a provisioning step that
+ * has already succeeded, and a failure to mint one must not roll back an
+ * enrolment that really happened.
+ */
+function mam_auth_invite(int $userId, int $ttl = MAM_INVITE_TTL_SEC): ?array {
+    if ($userId <= 0) return null;
+    $u = mam_db_row("SELECT id, email, name, status FROM users WHERE id = ?", [$userId]);
+    // Only an active account. Inviting a suspended or closed one would hand out
+    // a working credential for an account somebody deliberately shut.
+    if (!$u || (string) $u['status'] !== 'active') return null;
+
+    try {
+        $token = bin2hex(random_bytes(20));
+        mam_db_insert('password_resets', [
+            'token_hash' => hash('sha256', $token),
+            'user_id'    => (int) $u['id'],
+            'expires_at' => date('Y-m-d H:i:s', time() + max(600, $ttl)),
+        ]);
+    } catch (Throwable $e) {
+        mam_log('warn', 'invite_mint_failed', ['user' => $userId, 'err' => $e->getMessage()]);
+        return null;
+    }
+
+    $base = rtrim((string) mam_env('APP_URL', ''), '/');
+    if ($base === '' && function_exists('mam_setting')) {
+        $base = rtrim((string) mam_setting('site_url', 'https://academy.mamcentre.org'), '/');
+    }
+    return [
+        'user_id'    => (int) $u['id'],
+        'email'      => (string) $u['email'],
+        'name'       => (string) ($u['name'] ?? ''),
+        'token'      => $token,
+        // `welcome=1` only changes what the page SAYS. The token is the whole of
+        // the security, so a tampered flag gains nothing.
+        'link'       => $base . '/portal/reset?token=' . $token . '&welcome=1',
+        'expires_at' => date('Y-m-d H:i:s', time() + max(600, $ttl)),
+        'ttl_days'   => (int) round(max(600, $ttl) / 86400),
+    ];
+}
+
+/**
+ * Mint an invitation and email it. Returns the invite, or null if either half
+ * failed — and logs which, because "the family never got the link" is the
+ * support question this produces and the answer has to be in the log.
+ */
+function mam_auth_send_invite(int $userId, string $role = 'student', string $context = 'account_invite'): ?array {
+    $inv = mam_auth_invite($userId);
+    if (!$inv) return null;
+    if (!function_exists('mam_send') || !function_exists('mam_email_account_invite')) return $inv;
+    try {
+        $ok = mam_send($inv['email'], 'Set up your MAM Academy account',
+            mam_email_account_invite($inv['name'], $inv['link'], $role, $inv['ttl_days']), $context);
+        if (!$ok) mam_log('warn', 'invite_email_failed', ['user' => $userId, 'context' => $context]);
+    } catch (Throwable $e) {
+        mam_log('warn', 'invite_email_failed', ['user' => $userId, 'err' => $e->getMessage()]);
+    }
+    mam_audit('account_invite', 'user', $userId, ['context' => $context, 'role' => $role]);
+    return $inv;
+}
+
+/**
+ * A password nobody is told.
+ *
+ * An account awaiting its invitation still needs `password_hash` to be NOT NULL
+ * and, more importantly, must not be guessable. This writes 32 random bytes
+ * hashed with bcrypt: there is a valid hash, no plaintext exists anywhere, and
+ * the only way in is the invitation. The same construction as the break-glass
+ * recovery row, for the same reason.
+ */
+function mam_auth_unusable_password(): string {
+    return password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT);
+}

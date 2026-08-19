@@ -119,6 +119,23 @@
     s.style.display = 'block';
   }
 
+  // An INVITATION and a RESET arrive at the same page through the same token, and
+  // they should not read the same. "Set a new password" to somebody who has never
+  // had one is confusing, and the expiry sentence on the failure state is simply
+  // wrong for an invite (7 days, not 60 minutes).
+  var welcome = new URLSearchParams(location.search).get('welcome') === '1';
+  if (welcome) {
+    var h = $('#formState h1'), l = $('#formState .lede');
+    if (h) h.textContent = 'Create your password';
+    if (l) l.textContent = 'Welcome to MAM Academy. Choose a password to open your portal — minimum 8 characters.';
+    var ih = $('#invalidState h1'), il = $('#invalidState .lede');
+    if (ih) ih.textContent = 'This link has expired';
+    if (il) il.textContent = 'Invitation links are valid for 7 days and can only be used once. '
+      + 'Request a fresh one below, or reply to the email we sent and we will help.';
+    var t = document.querySelector('title');
+    if (t) t.textContent = 'Create your password — MAM Academy Portal';
+  }
+
   if (!/^[a-f0-9]{40}$/.test(token)) {
     show(invalid);
   } else {

@@ -46,34 +46,19 @@ if ($method === 'POST') {
         } catch (\Throwable $e) {
             mam_log('error', 'summer_enrol_failed', ['summer_app' => $id, 'err' => $e->getMessage()]);
         }
-        // An account nobody has the password to is not access. Sent HERE rather
-        // than inside mam_summer_enrol() so the provisioner stays testable
-        // without a mailer, and so a failed send cannot roll back an enrolment
-        // that already happened — the admin can resend from the users screen.
-        if ($enrolment && function_exists('mam_email_account_created')) {
-            $login = rtrim((string) mam_setting('site_url', 'https://academy.mamcentre.org'), '/') . '/portal/login';
-            $child = trim((string) ($app['first_name'] ?? '') . ' ' . (string) ($app['last_name'] ?? ''));
-            if (!empty($enrolment['password'])) {
-                try {
-                    // mam_send(), not mam_send_mail(): it takes the CONTEXT, which
-                    // is what mail_log is keyed by — so a failed send is findable
-                    // and re-sendable rather than an untagged row.
-                    mam_send((string) $app['email'], 'Your MAM Academy student account',
-                        mam_email_account_created($child, (string) $app['email'],
-                            (string) $enrolment['password'], 'student', $login), 'summer_account_created');
-                } catch (\Throwable $e) {
-                    mam_log('warn', 'summer_account_email_failed', ['summer_app' => $id, 'err' => $e->getMessage()]);
-                }
+        // A LINK to choose a password, never a password. Sent here rather than
+        // inside mam_summer_enrol() so the provisioner stays testable without a
+        // mailer, and so a failed send cannot roll back an enrolment that already
+        // happened — the admin can re-issue from the users screen.
+        if ($enrolment && function_exists('mam_auth_send_invite')) {
+            if (!empty($enrolment['invite'])) {
+                mam_auth_send_invite((int) $enrolment['user_id'], 'student', 'summer_student_invite');
             }
-            if (!empty($enrolment['guardian_password']) && !empty($enrolment['guardian_email'])) {
-                try {
-                    mam_send((string) $enrolment['guardian_email'], 'Your MAM Academy guardian account',
-                        mam_email_account_created((string) ($app['guardian_name'] ?? 'there'),
-                            (string) $enrolment['guardian_email'], (string) $enrolment['guardian_password'],
-                            'parent', $login), 'summer_guardian_created');
-                } catch (\Throwable $e) {
-                    mam_log('warn', 'summer_guardian_email_failed', ['summer_app' => $id, 'err' => $e->getMessage()]);
-                }
+            // The guardian gets their own invitation to their own account — the
+            // same link would set the CHILD's password, and a guardian portal a
+            // parent cannot open is not oversight.
+            if (!empty($enrolment['guardian_invite']) && !empty($enrolment['guardian_id'])) {
+                mam_auth_send_invite((int) $enrolment['guardian_id'], 'parent', 'summer_guardian_invite');
             }
         }
         // Automation #9: issue ID card when summer application is enrolled.

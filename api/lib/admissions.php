@@ -488,8 +488,9 @@ function mam_summer_cohort(int $courseId, int $year, string $courseName): int {
  *      summer children a login-less `roster` identity: the academy's position is
  *      that a summer student is a student, so they get the portal, the gradebook,
  *      practice logging and their own attendance record like anybody else. The
- *      generated password is RETURNED, not emailed from here, so the caller
- *      decides whether this is the moment to send credentials.
+ *      account is created with an UNUSABLE password — no plaintext exists — and
+ *      `invite` is set so the caller can send a link to choose one. Passwords are
+ *      never emailed.
  *   2. a GUARDIAN LINK where the application named a guardian email — a real
  *      `parent` account and a `parent_links` row, so the guardian portal works
  *      for a summer family on day one. This is the control that makes a child's
@@ -507,7 +508,8 @@ function mam_summer_cohort(int $courseId, int $year, string $courseName): int {
  * and reports why no course enrolment was made.
  *
  * @return array{user_id:int,cohort_id:?int,enrollment_id:?int,reason:string,
- *               password:?string,guardian_id:?int,account_created:bool}
+ *               invite:bool,guardian_id:?int,guardian_email:?string,
+ *               guardian_invite:bool,account_created:bool}
  */
 function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
     $app = mam_db_row('SELECT * FROM summer_applications WHERE id = ?', [$summerAppId]);
@@ -519,7 +521,7 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
     $year  = (int)($app['session_year'] ?? 0) ?: (int)date('Y');
 
     // 1. A full student account — reuse any existing one for this email as-is.
-    $plain = null;
+    $invite = false;
     $created = false;
     $user = mam_db_row('SELECT id, avatar_url, status FROM users WHERE LOWER(email) = ?', [$email]);
     if ($user) {
@@ -536,19 +538,20 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
         // because of when they first applied — but only from `roster`, so a
         // suspended or closed account is never quietly reopened by an enrolment.
         if ((string)($user['status'] ?? '') === 'roster') {
-            $plain = bin2hex(random_bytes(5));
             mam_db_update('users', [
-                'password_hash'        => password_hash($plain, PASSWORD_BCRYPT),
+                // No plaintext exists: the invitation is the only way in.
+                'password_hash'        => mam_auth_unusable_password(),
                 'status'               => 'active',
-                'must_change_password' => 1,
+                'must_change_password' => 0,
             ], ['id' => $userId]);
+            $invite = true;
             mam_audit('summer_roster_promoted', 'user', $userId, ['summer_app' => $summerAppId]);
         }
     } else {
-        // A 10-character temporary password, and must_change_password — the same
-        // shape mam_ensure_student_user() gives a year-round student, so there is
-        // one kind of student account and not two.
-        $plain = bin2hex(random_bytes(5));
+        // No temporary password. The family receives a link and chooses their
+        // own — a temp password sits in an inbox for years, is usually reused, is
+        // readable by anyone holding the phone, and cannot be revoked once sent.
+        // For a children's academy that inbox is usually a shared parental one.
         $userId = mam_db_insert('users', [
             'email' => $email,
             // Carry the registration headshot onto the account, so the portal
@@ -556,20 +559,27 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
             // stayed only on summer_applications, and a card minted against the
             // USER rather than the application printed initials.
             'avatar_url' => (string)($app['headshot_url'] ?? '') !== '' ? (string)$app['headshot_url'] : null,
-            'password_hash'        => password_hash($plain, PASSWORD_BCRYPT),
+            'password_hash'        => mam_auth_unusable_password(),
             'role'                 => 'student',
             'name'                 => $name !== '' ? $name : 'Summer participant',
             'phone'                => (string)($app['phone'] ?? '') !== '' ? (string)$app['phone'] : null,
             'status'               => 'active',
-            'must_change_password' => 1,
+            // Nothing to change: they have never had a password to change.
+            'must_change_password' => 0,
         ]);
         $created = true;
+        $invite = true;
         mam_audit('summer_student_account', 'user', $userId, ['summer_app' => $summerAppId, 'email' => $email]);
     }
 
+    // `invite` says an account was created or opened here and therefore has no
+    // password its owner knows. It is a FLAG, not a token: minting the token is
+    // the caller's job, because only the caller knows whether this is the moment
+    // to send mail — and a mint inside a provisioner makes the provisioner
+    // untestable without a mailer.
     $out = ['user_id' => $userId, 'cohort_id' => null, 'enrollment_id' => null, 'reason' => 'enrolled',
-            'password' => $plain, 'guardian_id' => null, 'guardian_email' => null,
-            'guardian_password' => null, 'account_created' => $created];
+            'invite' => $invite, 'guardian_id' => null, 'guardian_email' => null,
+            'guardian_invite' => false, 'account_created' => $created];
 
     // 2. The guardian. Best-effort by design: a summer child must still be
     //    enrolled if the guardian's address is missing or malformed, and an
@@ -579,12 +589,12 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
         && function_exists('mam_parent_link')) {
         try {
             $link = mam_parent_link($gEmail, $userId, 'guardian', $actorId);
-            $out['guardian_id']       = isset($link['parent_id']) ? (int)$link['parent_id'] : null;
-            $out['guardian_email']    = $gEmail;
-            // Non-null only when the guardian account was created just now, so a
-            // guardian who already had one is never sent a password they did not
-            // ask for and cannot use.
-            $out['guardian_password'] = $link['password'] ?? null;
+            $out['guardian_id']    = isset($link['parent_id']) ? (int)$link['parent_id'] : null;
+            $out['guardian_email'] = $gEmail;
+            // True only when the guardian account was created just now, so a
+            // guardian who already had one is never sent an invitation to an
+            // account they are already using.
+            $out['guardian_invite'] = !empty($link['password']);
         } catch (Throwable $e) {
             mam_log('warn', 'summer_guardian_link_failed', ['summer_app' => $summerAppId, 'err' => $e->getMessage()]);
         }

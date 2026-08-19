@@ -209,15 +209,35 @@ if (function_exists('mam_summer_enrol')) {
     $u = mam_db_row('SELECT email, role, status, must_change_password FROM users WHERE id = ?', [(int)$res['user_id']]);
     t_eq($u['status'], 'active', 'S1: the account is active — a summer student is a student');
     t_eq($u['role'], 'student', 'S1: with the student role');
-    t_eq((int)$u['must_change_password'], 1, 'S1: on a temporary password they must change');
-    // The password is RETURNED, not emailed from the provisioner: an account
-    // nobody has the password to is not access, and a mailer inside this
-    // function would make it untestable and let a failed send look like a
-    // failed enrolment.
-    t_ok(!empty($res['password']) && strlen((string)$res['password']) >= 10,
-        'S1: and the generated password is handed back for the caller to send');
-    t_ok(mam_login('t_enrfix_summer@x.dev', (string)$res['password']) !== null,
-        'S1: the child can actually sign in with it');
+    // No temporary password at all. The family receives a LINK and chooses their
+    // own: a temp password sits in an inbox for years, is usually reused, is
+    // readable by anyone holding the phone, and cannot be revoked once sent — and
+    // for a children's academy that inbox is usually a shared parental one.
+    t_eq((int)$u['must_change_password'], 0, 'S1: nothing to change — they never had a password');
+    t_ok(!empty($res['invite']), 'S1: the result flags that an invitation is owed');
+    t_ok(!array_key_exists('password', $res), 'S1: and no plaintext password is handed around at all');
+
+    // The stored hash must be a real bcrypt hash of something nobody knows, so
+    // the account is unreachable except through the invitation.
+    $h = mam_db_row('SELECT password_hash FROM users WHERE id = ?', [(int)$res['user_id']])['password_hash'];
+    t_ok(strlen((string)$h) >= 55 && strpos((string)$h, '$2y$') === 0,
+        'S1: the stored hash is real bcrypt, not a sentinel string');
+    foreach (['', 'password', 'roster', (string)$res['user_id']] as $guess) {
+        t_eq(mam_login('t_enrfix_summer@x.dev', $guess), null, 'S1: and nothing obvious opens it');
+    }
+
+    // The invitation is a single-use token in password_resets, with a window long
+    // enough for a parent to open it after a weekend — an hour is right for a
+    // reset and wrong for an invitation on enrolment day.
+    $inv = mam_auth_invite((int)$res['user_id']);
+    t_ok($inv !== null && !empty($inv['token']), 'S1: an invitation can be minted for them');
+    t_ok(strpos((string)$inv['link'], '/portal/reset?token=') !== false, 'S1: pointing at the reset page');
+    t_ok(strpos((string)$inv['link'], 'welcome=1') !== false, 'S1: flagged as a welcome so the page greets them');
+    t_ok(mam_db_row('SELECT 1 FROM password_resets WHERE token_hash = ? AND used_at IS NULL',
+        [hash('sha256', (string)$inv['token'])]) !== null, 'S1: stored HASHED and unused');
+    t_ok(strtotime((string)$inv['expires_at']) - time() > 6 * 86400,
+        'S1: valid for days, not the hour a password reset gets');
+    t_eq(mam_auth_invite(0), null, 'S1: an invitation cannot be minted for nobody');
 
     // The guardian, from guardian_email, with a parent_links row.
     t_ok(!empty($res['guardian_id']), 'S1: the guardian named on the application gets an account');

@@ -280,21 +280,26 @@ function mam_payment_settle_tuition(int $appId): ?string {
         }
 
         if (empty($provision['password'])) return 'portal_already_provisioned';
-        $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
-        $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
-        $name = htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? '')));
-        $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#fff'>Welcome, $name</h2>"
-              . "<p style='color:rgba(255,255,255,0.86);margin:0'>Your student portal is now active. Sign in to view your applications, classes and MAM Auditer placement.</p>"
-              . "<div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:14px;color:#FBBF24;margin:16px 0'>"
-              . "<div>Email: <strong>" . htmlspecialchars((string)$customer['email']) . "</strong></div>"
-              . "<div>Temporary password: <strong>" . htmlspecialchars((string)$provision['password']) . "</strong></div></div>"
-              . "<p style='color:rgba(255,255,255,0.86);margin:0'>Please change this password on first sign-in.</p>"
-              . mam_email_button($loginUrl, 'Open student portal');
-        mam_send((string)$customer['email'], 'Your MAM Academy student portal is ready',
-            mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'Your MAM Academy student portal is ready — sign-in details inside.',
-                'reason' => 'You received this because your payment activated a MAM Academy student portal account.', 'body' => $inner]),
-            'portal_welcome', true);
-        return 'portal_credentials_emailed';
+
+        // A LINK to choose a password, not the password itself. This used to email
+        // a temporary one in a dashed box and tell the family to change it on first
+        // sign-in — which meant a plaintext credential sitting in an inbox (usually
+        // a parent's shared one) that could not be revoked once sent, and taught
+        // exactly the habit phishing relies on.
+        //
+        // mam_ensure_student_user() still generates one, because other callers read
+        // it; it is overwritten here with a hash of random bytes so no plaintext is
+        // valid, and the invitation becomes the only way in.
+        mam_db_update('users', ['password_hash' => mam_auth_unusable_password(), 'must_change_password' => 0],
+            ['id' => (int) $provision['user']['id']]);
+        $inv = mam_auth_send_invite((int) $provision['user']['id'], 'student', 'portal_welcome');
+        // A failed mint is reported, never silent: "the family never got the link"
+        // is the support question this produces, and the answer has to be in the log.
+        if (!$inv) {
+            mam_log('warn', 'portal_invite_not_sent', ['app' => $appId, 'user' => (int) $provision['user']['id']]);
+            return 'portal_invite_failed';
+        }
+        return 'portal_invite_emailed';
     } catch (\Throwable $e) {
         mam_log('warn', 'student_provision_failed', ['app' => $appId, 'err' => $e->getMessage()]);
         return null;
