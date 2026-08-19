@@ -408,6 +408,20 @@ function mam_checkin_streak(int $studentId, int $grace = 0): int {
 }
 
 /**
+ * The session states that COUNT towards an attendance rate.
+ *
+ * Named once because the bug this replaced was the two halves of a fraction
+ * disagreeing about it. `cancelled` is absent on purpose — a class that did not
+ * happen must not count against the student who would have attended — and any
+ * status not listed is excluded from BOTH halves, so an unrecognised state can
+ * never produce a rate over 100.
+ *
+ * Adding a state here moves the numerator and the denominator together. That is
+ * the whole point of it being a constant.
+ */
+const MAM_CHECKIN_COUNTED_SESSION_STATUSES = ['scheduled', 'held'];
+
+/**
  * Attendance rate (present+late over past sessions) as a percent, or NULL when
  * there is nothing to compute it from.
  *
@@ -427,18 +441,40 @@ function mam_checkin_attendance_rate(int $studentId): ?float {
     $cohorts = mam_checkin_student_cohorts($studentId);
     if (!$cohorts) return null;
     $ph  = implode(',', array_fill(0, count($cohorts), '?'));
+    $stat = implode(',', array_fill(0, count(MAM_CHECKIN_COUNTED_SESSION_STATUSES), '?'));
     $now = date('Y-m-d H:i:s');
-    $total = (int) (mam_db_row(
-        "SELECT COUNT(*) c FROM class_sessions WHERE cohort_id IN ($ph) AND scheduled_at <= ? AND status IN ('scheduled','held')",
-        array_merge($cohorts, [$now])
-    )['c'] ?? 0);
+
+    // ONE query, so the numerator and the denominator cannot disagree about
+    // which sessions count. They used to be two: the total filtered
+    // `status IN ('scheduled','held')` and the attended count filtered nothing,
+    // so any session in another state — cancelled, or completed — was excluded
+    // from the bottom and counted on the top. Measured at 300% on a roster with
+    // three marks and one qualifying session.
+    //
+    // Nothing in v1 writes a status other than the 'scheduled' default today,
+    // which is the only reason this had not surfaced in production. It is a
+    // latent bug, not a harmless one: the first feature to close off a session
+    // turns every affected student's attendance into a number over 100.
+    //
+    // A LEFT JOIN cannot inflate the count either — session_attendance is unique
+    // on (session_id, student_id) — so `attended` is a subset of the same rows
+    // by construction rather than by arithmetic that has to be checked.
+    //
+    // A cancelled session is in NEITHER half, deliberately: a class that did not
+    // happen must not count against the student who would have attended it.
+    $row = mam_db_row(
+        "SELECT COUNT(*) AS total,
+                COALESCE(SUM(CASE WHEN sa.status IN ('present','late') THEN 1 ELSE 0 END), 0) AS attended
+           FROM class_sessions cs
+           LEFT JOIN session_attendance sa ON sa.session_id = cs.id AND sa.student_id = ?
+          WHERE cs.cohort_id IN ($ph) AND cs.scheduled_at <= ? AND cs.status IN ($stat)",
+        array_merge([$studentId], $cohorts, [$now], MAM_CHECKIN_COUNTED_SESSION_STATUSES)
+    );
+    $total = (int) ($row['total'] ?? 0);
+    // No sessions yet is not 0% attendance — it is no answer. A new student
+    // shown 0% reads as having missed everything.
     if ($total === 0) return null;
-    $attended = (int) (mam_db_row(
-        "SELECT COUNT(*) c FROM session_attendance sa JOIN class_sessions cs ON cs.id = sa.session_id
-          WHERE cs.cohort_id IN ($ph) AND sa.student_id = ? AND sa.status IN ('present','late') AND cs.scheduled_at <= ?",
-        array_merge($cohorts, [$studentId, $now])
-    )['c'] ?? 0);
-    return round($attended / $total * 100, 1);
+    return round((int) ($row['attended'] ?? 0) / $total * 100, 1);
 }
 
 /**

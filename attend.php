@@ -74,6 +74,11 @@
     return '<a class="btn btn-primary" href="/portal/login?next=' + next + '"><i class="fa-solid fa-right-to-bracket"></i> Sign in to check in</a>';
   };
   var portalBtn = '<a class="btn btn-secondary" href="/portal/student/"><i class="fa-solid fa-table-columns"></i> My portal</a>';
+  // Every failure here has the same recovery: check in without the code. A dead
+  // end on this page means the student either misses the register or has to find
+  // the instructor mid-lesson, and the QR is the one part most likely to fail —
+  // a screen they cannot see from the back row, a code that expired at midnight.
+  var manualBtn = '<a class="btn btn-primary" href="/checkin"><i class="fa-solid fa-hand-sparkles"></i> Check in without the code</a>';
 
   function boot() {
     // A cohort-session QR uses ?stoken= (writes session_attendance); a legacy
@@ -81,7 +86,7 @@
     var stok = sessionToken();
     var tok = stok || token();
     var endpoint = stok ? 'attendance/session-checkin' : 'attendance/checkin';
-    if (!tok) { render('err', 'Nothing to check in to', 'This link is missing its check-in code. Please scan the QR your instructor is showing.', null, [portalBtn]); return; }
+    if (!tok) { render('err', 'Nothing to check in to', 'This link is missing its check-in code. Scan the QR your instructor is showing, or check in from your own page.', null, [manualBtn, portalBtn]); return; }
     if (!window.MAM_API || !window.MAM_AUTH) { render('err', 'Something went wrong', 'Please reload the page and try again.', null, []); return; }
 
     window.MAM_AUTH.state().then(function (st) {
@@ -107,7 +112,7 @@
           var code = (e && (e.error || e.code)) || '';
           var detail = (e && e.detail) || '';
           if (code === 'not_enrolled') render('err', 'Not enrolled here', detail || 'You’re not enrolled in this class, so we can’t check you in. Speak to your instructor if this looks wrong.', null, [portalBtn]);
-          else if (code === 'invalid_or_expired') render('err', 'Code expired', detail || 'This check-in code has expired. Ask your instructor to show today’s QR again.', null, [portalBtn]);
+          else if (code === 'invalid_or_expired') render('err', 'Code expired', detail || 'This check-in code has expired. Ask your instructor to show today’s QR again, or check in from your own page.', null, [manualBtn, portalBtn]);
           else render('err', 'Couldn’t check you in', detail || 'Please try scanning again in a moment.', null, [portalBtn]);
         });
     }).catch(function () {

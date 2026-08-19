@@ -1620,7 +1620,15 @@
       var freezeNote = (d.streak || 0) > 0
         ? '<p class="kpi-sub" style="margin:-4px 0 14px;color:var(--text-muted)"><i class="fa-solid fa-shield-halved" style="margin-right:5px;color:var(--gold-bright)"></i>Your streak has a freeze — one missed session won’t reset it.</p>'
         : '';
-      content.innerHTML = acctBanner + kpis + freezeNote + badges
+      // The one-tap page, for the student standing at a door on a phone. This
+      // tab is where you READ about a session; /checkin exists to get you marked
+      // present and nothing else, so it is worth bookmarking and worth pointing
+      // at from here rather than leaving people to find it.
+      var quickLink = '<p class="kpi-sub" style="margin:-4px 0 14px">'
+        + '<a href="/checkin" style="color:var(--gold-bright)">'
+        + '<i class="fa-solid fa-mobile-screen-button" style="margin-right:6px"></i>'
+        + 'Open the one-tap check-in page</a> — bookmark it on your phone.</p>';
+      content.innerHTML = acctBanner + kpis + freezeNote + quickLink + badges
         + P.panel('Today', todayBody, '')
         + '<div style="margin-top:18px">' + P.panel('Your next class', nextBody, '') + '</div>'
         + '<div id="acctLedger" style="margin-top:18px"></div>';
