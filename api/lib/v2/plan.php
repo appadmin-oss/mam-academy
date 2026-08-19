@@ -989,13 +989,20 @@ function mam_v2_plan(array $source, array $opts = []): array
         . 'URL are kept in the payload, which is dropped entirely for an erased applicant.',
         count($rows('applications')), $appId);
 
-    /* ── Summer school: an application type, not a separate system ───────── */
-    // v1 kept these in their own table with their own status track and gave the
-    // children a `roster` identity that cannot log in. In v2 an application is
-    // an application: `type = 'summer'`. The learner becomes a person (stage
-    // `applicant`, no credentials — a summer child still gets no portal
-    // account), and where the guardian's address resolves to somebody already in
-    // the data, that becomes a REAL guardianship rather than a name in a payload.
+    /* ── Summer school: a CRASH-programme intake, not a separate system ──── */
+    // v1 kept these in their own table, with their own status track and a
+    // `roster` identity that could not log in. Both are gone here. The academy's
+    // position is that summer is a crash-programme intake running in the
+    // holidays and a summer student is a student, so:
+    //   • the application is `type = 'programme'` against the CRASH programme,
+    //     which is what puts it in the same funnel, the same catalogue and the
+    //     same reports as every other application. `type = 'summer'` would
+    //     rebuild the parallel system this migration exists to end;
+    //   • `intake` records that it came through the summer route, because the
+    //     route is real information even when the programme is the same;
+    //   • the learner is a full person, and where the guardian's address resolves
+    //     to somebody already in the data that becomes a REAL guardianship —
+    //     the control that makes a child's account safe rather than convenient.
     $summer = $rows('summer_applications');
     $emailToUser = [];
     foreach ($T['users'] as $u) $emailToUser[mam_v2_email_key($u['email'])] = $u['id'];
@@ -1054,9 +1061,10 @@ function mam_v2_plan(array $source, array $opts = []): array
         $id = ++$appId;
         $T['applications'][] = [
             'id' => $id, 'public_id' => mam_v2_plan_pid('application:summer:' . $v1id, $created),
-            'tenant_id' => $tenantId, 'membership_id' => $mid, 'type' => 'summer', 'status' => $status,
+            'tenant_id' => $tenantId, 'membership_id' => $mid, 'type' => 'programme', 'status' => $status,
             'submitted_at' => $created, 'decided_at' => null, 'decided_by' => null, 'decision_reason' => null,
-            'programme_id' => null, 'level_id' => null, 'centre_id' => $centreId,
+            // The crash programme, resolved by CODE like everything else here.
+            'programme_id' => $progCodeOf['crash'] ?? null, 'level_id' => null, 'centre_id' => $centreId,
             'intake_term' => mam_v2_plan_str($s['session_year'] ?? null, 32),
             'payload' => array_filter([
                 'discipline' => mam_v2_plan_str($s['discipline'] ?? null),
@@ -1075,6 +1083,10 @@ function mam_v2_plan(array $source, array $opts = []): array
                 'referrer' => mam_v2_plan_str($s['referrer'] ?? null),
                 'notes' => mam_v2_plan_str($s['notes'] ?? null),
                 'source_url' => mam_v2_plan_str($s['source'] ?? null),
+                // The programme is the same as any crash intake; the ROUTE is
+                // not, and it is the only thing distinguishing a summer cohort
+                // from a term-time one once the type column stops saying so.
+                'intake' => 'summer',
             ], static fn($v) => $v !== null),
             'readiness_signal' => null, 'reference' => mam_v2_plan_str($s['reference'] ?? null, 32),
             'source_channel' => mam_v2_source_channel($s['source'] ?? null),
@@ -1100,10 +1112,11 @@ function mam_v2_plan(array $source, array $opts = []): array
             }
         }
     }
-    $note('summer_applications', 'applications (type=summer) + users + memberships + guardianships',
-        sprintf('%d carried; %d guardianship(s) created where the guardian_email resolved to a person '
-              . 'already in the data. Summer learners get NO credentials — roster presence, not portal access.',
-              $summerOut, $guardId), count($summer), $summerOut);
+    $note('summer_applications', 'applications (type=programme, crash) + users + memberships + guardianships',
+        sprintf('%d carried as CRASH-programme applications — summer is an intake, not a separate system, so '
+              . 'they share the funnel, the catalogue and the reports. The summer route is kept in the payload '
+              . 'as `intake`. %d guardianship(s) created where the guardian_email resolved to a person already '
+              . 'in the data.', $summerOut, $guardId), count($summer), $summerOut);
 
     /* ── Money ───────────────────────────────────────────────────────────── */
     $v1payments = mam_v2_attach_payment_owners($rows('payments'), $rows('applications'));

@@ -410,6 +410,32 @@ function mam_summer_can_transition(string $from, string $to): bool {
  * ordinary (course, level, programme) cohort mam_lms_ensure_cohort() manages —
  * a summer camp is its own run, not an intake of the year-round programme.
  */
+/**
+ * Summer runs as a CRASH-programme intake, not a system of its own.
+ *
+ * A constant rather than a setting: which programme the holiday intake belongs
+ * to is a curriculum fact, and an academy able to point it somewhere else would
+ * get summer cohorts that report under a programme nobody teaches them.
+ */
+const MAM_SUMMER_PROGRAMME_CODE = 'crash';
+
+/**
+ * The programme a summer intake belongs to.
+ *
+ * Summer is not a parallel system — it is a CRASH-programme intake that runs in
+ * the holidays. Naming that here means a summer cohort carries a programme like
+ * every other cohort, so it appears in the programme catalogue, the curriculum
+ * screens and every report that groups by programme, instead of sitting outside
+ * all of them because its `program_id` was NULL.
+ *
+ * Returns null when the crash programme has not been seeded, which is a data
+ * gap, not an error: the cohort is still created and still teaches.
+ */
+function mam_summer_programme_id(): ?int {
+    $row = mam_db_row("SELECT id FROM programs WHERE code = ? AND active = 1", [MAM_SUMMER_PROGRAMME_CODE]);
+    return $row ? (int) $row['id'] : null;
+}
+
 function mam_summer_cohort(int $courseId, int $year, string $courseName): int {
     $term = 'SUMMER-' . $year;
     // The remembered instructor for this course. Without one the cohort belongs
@@ -443,6 +469,10 @@ function mam_summer_cohort(int $courseId, int $year, string $courseName): int {
         'title'         => $term . ' — ' . $courseName,
         'instructor_id' => $instructorId,
         'capacity'      => $cap > 0 ? $cap : null,
+        // A summer intake IS a crash-programme intake. Without this the cohort
+        // has no programme and drops out of the catalogue, the curriculum plan
+        // and every programme-grouped report.
+        'program_id'    => mam_summer_programme_id(),
     ]);
 }
 
@@ -453,18 +483,31 @@ function mam_summer_cohort(int $courseId, int $year, string $courseName): int {
  * from every roster, gradebook, mark sheet and attendance gate.
  *
  * Creates, idempotently:
- *   1. a ROSTER IDENTITY — a users row with status='roster', which both
- *      mam_login() and mam_session_user() reject (they require status='active'),
- *      and which mam_password_reset cannot target. Summer children get a roster
- *      presence, NOT portal access. An existing account for the same email is
- *      reused untouched, so a year-round student is never downgraded.
- *   2. the SUMMER-<year> cohort for their discipline (mam_summer_cohort).
- *   3. an active course_enrollment linking the two, with a lifecycle event.
+ *   1. a FULL STUDENT ACCOUNT — status='active', a real bcrypt password, exactly
+ *      what a year-round student gets. This reverses an earlier decision to give
+ *      summer children a login-less `roster` identity: the academy's position is
+ *      that a summer student is a student, so they get the portal, the gradebook,
+ *      practice logging and their own attendance record like anybody else. The
+ *      generated password is RETURNED, not emailed from here, so the caller
+ *      decides whether this is the moment to send credentials.
+ *   2. a GUARDIAN LINK where the application named a guardian email — a real
+ *      `parent` account and a `parent_links` row, so the guardian portal works
+ *      for a summer family on day one. This is the control that makes a child's
+ *      login safe rather than merely convenient: an adult can see everything the
+ *      child can, which is why it is created in the same breath and not left to
+ *      an admin to remember.
+ *   3. the SUMMER-<year> cohort for their discipline (mam_summer_cohort), which
+ *      now carries the crash programme.
+ *   4. an active course_enrollment linking the two, with a lifecycle event.
+ *
+ * An existing account for the same email is reused and never downgraded — a
+ * year-round student who also joins the summer intake keeps their own password.
  *
  * Never throws for a missing/unmapped discipline — it provisions the identity
  * and reports why no course enrolment was made.
  *
- * @return array{user_id:int,cohort_id:?int,enrollment_id:?int,reason:string}
+ * @return array{user_id:int,cohort_id:?int,enrollment_id:?int,reason:string,
+ *               password:?string,guardian_id:?int,account_created:bool}
  */
 function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
     $app = mam_db_row('SELECT * FROM summer_applications WHERE id = ?', [$summerAppId]);
@@ -475,8 +518,10 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
     $name  = trim((string)$app['first_name'] . ' ' . (string)$app['last_name']);
     $year  = (int)($app['session_year'] ?? 0) ?: (int)date('Y');
 
-    // 1. Roster identity — reuse any existing account for this email as-is.
-    $user = mam_db_row('SELECT id, avatar_url FROM users WHERE LOWER(email) = ?', [$email]);
+    // 1. A full student account — reuse any existing one for this email as-is.
+    $plain = null;
+    $created = false;
+    $user = mam_db_row('SELECT id, avatar_url, status FROM users WHERE LOWER(email) = ?', [$email]);
     if ($user) {
         $userId = (int)$user['id'];
         // Backfill a missing avatar from the registration headshot — never overwrite
@@ -486,27 +531,66 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
             try { mam_db_update('users', ['avatar_url' => $hs], ['id' => $userId]); }
             catch (Throwable $e) { /* cosmetic only */ }
         }
+        // A `roster` row from a previous summer, before summer students had
+        // accounts. Promote it rather than leaving a child unable to sign in
+        // because of when they first applied — but only from `roster`, so a
+        // suspended or closed account is never quietly reopened by an enrolment.
+        if ((string)($user['status'] ?? '') === 'roster') {
+            $plain = bin2hex(random_bytes(5));
+            mam_db_update('users', [
+                'password_hash'        => password_hash($plain, PASSWORD_BCRYPT),
+                'status'               => 'active',
+                'must_change_password' => 1,
+            ], ['id' => $userId]);
+            mam_audit('summer_roster_promoted', 'user', $userId, ['summer_app' => $summerAppId]);
+        }
     } else {
+        // A 10-character temporary password, and must_change_password — the same
+        // shape mam_ensure_student_user() gives a year-round student, so there is
+        // one kind of student account and not two.
+        $plain = bin2hex(random_bytes(5));
         $userId = mam_db_insert('users', [
             'email' => $email,
-            // Carry the registration headshot onto the roster identity, so the
-            // portal avatar AND the ID card both have a face. Without this the photo
-            // stayed only on summer_applications, and a card minted against the USER
-            // rather than the application printed initials.
+            // Carry the registration headshot onto the account, so the portal
+            // avatar AND the ID card both have a face. Without this the photo
+            // stayed only on summer_applications, and a card minted against the
+            // USER rather than the application printed initials.
             'avatar_url' => (string)($app['headshot_url'] ?? '') !== '' ? (string)$app['headshot_url'] : null,
-            // Not a valid hash, so password_verify() can never match it. The
-            // status gate above is the real lock; this is defence in depth.
-            'password_hash' => 'roster:' . bin2hex(random_bytes(16)),
-            'role'          => 'student',
-            'name'          => $name !== '' ? $name : 'Summer participant',
-            'status'        => 'roster',
+            'password_hash'        => password_hash($plain, PASSWORD_BCRYPT),
+            'role'                 => 'student',
+            'name'                 => $name !== '' ? $name : 'Summer participant',
+            'phone'                => (string)($app['phone'] ?? '') !== '' ? (string)$app['phone'] : null,
+            'status'               => 'active',
+            'must_change_password' => 1,
         ]);
-        mam_audit('summer_roster_identity', 'user', $userId, ['summer_app' => $summerAppId, 'email' => $email]);
+        $created = true;
+        mam_audit('summer_student_account', 'user', $userId, ['summer_app' => $summerAppId, 'email' => $email]);
     }
 
-    $out = ['user_id' => $userId, 'cohort_id' => null, 'enrollment_id' => null, 'reason' => 'enrolled'];
+    $out = ['user_id' => $userId, 'cohort_id' => null, 'enrollment_id' => null, 'reason' => 'enrolled',
+            'password' => $plain, 'guardian_id' => null, 'guardian_email' => null,
+            'guardian_password' => null, 'account_created' => $created];
 
-    // 2. Resolve the discipline → course. No discipline is a data gap, not an error.
+    // 2. The guardian. Best-effort by design: a summer child must still be
+    //    enrolled if the guardian's address is missing or malformed, and an
+    //    admin can link one later from ?v=guardians.
+    $gEmail = strtolower(trim((string)($app['guardian_email'] ?? '')));
+    if ($gEmail !== '' && $gEmail !== $email && filter_var($gEmail, FILTER_VALIDATE_EMAIL)
+        && function_exists('mam_parent_link')) {
+        try {
+            $link = mam_parent_link($gEmail, $userId, 'guardian', $actorId);
+            $out['guardian_id']       = isset($link['parent_id']) ? (int)$link['parent_id'] : null;
+            $out['guardian_email']    = $gEmail;
+            // Non-null only when the guardian account was created just now, so a
+            // guardian who already had one is never sent a password they did not
+            // ask for and cannot use.
+            $out['guardian_password'] = $link['password'] ?? null;
+        } catch (Throwable $e) {
+            mam_log('warn', 'summer_guardian_link_failed', ['summer_app' => $summerAppId, 'err' => $e->getMessage()]);
+        }
+    }
+
+    // 3. Resolve the discipline → course. No discipline is a data gap, not an error.
     $discipline = trim((string)($app['discipline'] ?? ''));
     if ($discipline === '') { $out['reason'] = 'no_discipline'; return $out; }
     $course = mam_db_row('SELECT id, name FROM courses WHERE code = ? AND active = 1', [$discipline]);
@@ -516,7 +600,7 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
     $cohortId = mam_summer_cohort($courseId, $year, (string)$course['name']);
     $out['cohort_id'] = $cohortId;
 
-    // 3. Enrol into the summer cohort — idempotent, and no capacity divert: this
+    // 4. Enrol into the summer cohort — idempotent, and no capacity divert: this
     //    is an admin decision on an already-confirmed place, so it mirrors the
     //    forced/converge paths rather than the self-service one.
     $existing = mam_db_row(

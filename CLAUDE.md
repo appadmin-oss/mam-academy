@@ -240,10 +240,23 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    - **Automation counts in tests must derive from the registry**, never a literal —
      adding `waitlist_autopromote` broke three hardcoded `=== 9` assertions in
      `test_automations.php`.
-   - **Summer 'enrolled' really enrols.** `mam_summer_enrol()` (`admissions.php`)
-     provisions a **roster identity** (`users.status='roster'`, which both `mam_login()`
-     and `mam_session_user()` reject, and `request-reset` can't target — summer children
-     get roster presence, NOT portal access), resolves the dedicated
+   - **Summer 'enrolled' really enrols, as a CRASH-programme intake.** Summer is not
+     a parallel system: `MAM_SUMMER_PROGRAMME_CODE = 'crash'` and
+     `mam_summer_programme_id()` put the SUMMER-<year> cohort under the crash
+     programme, without which it drops out of the catalogue, the curriculum plan and
+     every programme-grouped report. `mam_summer_enrol()` (`admissions.php`)
+     provisions a **full student account** — `status='active'`, a real bcrypt password,
+     `must_change_password=1`, exactly what a year-round student gets — plus a
+     **guardian** account and `parent_links` row from `guardian_email`. ⚠️ This
+     REVERSED an earlier decision to give summer children a login-less
+     `users.status='roster'` identity; a `roster` row from before is promoted on
+     re-enrol, but only from `roster`, so a suspended account is never quietly
+     reopened. The generated password is **returned, not emailed** from the
+     provisioner (a mailer inside it would make it untestable and let a failed send
+     look like a failed enrolment) — `api/routes/admin/summer.php` sends both
+     credentials via `mam_send()` (which takes the mail-log CONTEXT; `mam_send_mail()`
+     takes an opts array instead). The guardian link is best-effort: no guardian
+     address must never stop a child enrolling. It resolves the dedicated
      `SUMMER-<year>` cohort via `mam_summer_cohort()` (keyed on `(course_id, term)` so it
      never collides with `mam_lms_ensure_cohort()`'s tuple), and enrols them. The cohort AND
      the enrolment both take the remembered instructor (`mam_lms_default_instructor`) —
@@ -1003,7 +1016,13 @@ Two conventions these established:
   was copied straight from v1 while every other id in v2 is a v2 id, so it
   looked joinable and pointed at a different row. The v1 id goes in the
   metadata; unresolvable means NULL, never a number that resolves to a stranger.
-  **(5) `db/v2-exclusions.json` is DATA, not code** — rows the academy decided
+  **(5) Summer applications transform as `type='programme'` against the CRASH
+  programme**, with the route kept in the payload as `intake: 'summer'`. Mapping
+  them to `type='summer'` rebuilds the parallel system the migration exists to
+  end. ⚠️ `mam_v2_json_like()` matches BOTH `"k":"v"` and `"k": "v"` because
+  MySQL's native JSON type re-serialises on store while SQLite keeps the bytes
+  written — one spelling passes on one engine and silently misses on the other.
+  **(6) `db/v2-exclusions.json` is DATA, not code** — rows the academy decided
   are not real records (test runs). Read by the transform AND the verifier, so a
   correct load is not reported as a shortfall. It cascades to applications but
   **refuses the whole run** if an excluded person holds a payment; an exclusion

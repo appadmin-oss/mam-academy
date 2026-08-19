@@ -90,6 +90,13 @@ function v2p_source(): array {
             ['id' => 3, 'code' => 'standard', 'name' => 'Standard Program', 'weeks' => 12,
              'revision_week' => 11, 'exam_week' => 12, 'requires_core' => 0,
              'certification' => 'completion', 'sort_order' => 2, 'active' => 1],
+            // The summer intake resolves against this one by CODE. Its v1 id is
+            // deliberately not 1 — the real catalogue has crash at 1 and ktams at
+            // 22, and an id-based mapping would look correct here and be wrong
+            // against production.
+            ['id' => 9, 'code' => 'crash', 'name' => 'Crash Program', 'weeks' => 6,
+             'revision_week' => null, 'exam_week' => 6, 'requires_core' => 0,
+             'certification' => 'participation', 'sort_order' => 1, 'active' => 1],
         ],
         'levels' => [
             ['id' => 1, 'code' => 'precert', 'name' => 'Pre-Certification', 'trinity_grades' => 'Grade 1-2', 'sort_order' => 1],
@@ -376,20 +383,57 @@ foreach ($plan['tables']['custom_field_defs'] as $d) $defs[$d['entity_type'] . '
 t_ok(isset($defs['programmes.exam_week']), 'which week is the exam has no v2 column and becomes a custom field');
 t_ok(isset($defs['modules.module_kind']), 'and so does what kind of week a module is');
 t_ok(isset($defs['memberships.instructor_bio']), 'and an instructor\'s bio');
+// Keyed to the STANDARD programme's row rather than "the first value for this
+// field" — there is more than one programme now, and a positional assertion
+// would pass or fail on catalogue ordering rather than on the mapping.
+$stdProg = v2p_find($plan, 'programmes', 'code', 'standard');
 $examValue = null;
-foreach ($plan['tables']['custom_field_values'] as $v) if ($v['field_def_id'] === $defs['programmes.exam_week']) $examValue = $v;
-t_ok($examValue !== null && (string) $examValue['value_number'] === '12', 'stored in the typed column, not a text blob');
+foreach ($plan['tables']['custom_field_values'] as $v) {
+    if ($v['field_def_id'] === $defs['programmes.exam_week'] && $v['entity_id'] === $stdProg['id']) $examValue = $v;
+}
+t_ok($examValue !== null && (string) $examValue['value_number'] === '12',
+    'stored in the typed column, not a text blob');
 
-t_group('v2 plan — summer school is an application, not a separate system');
+t_group('v2 plan — summer is a crash-programme intake, not a separate system');
 
-$summerApp = v2p_find($plan, 'applications', 'type', 'summer');
-t_ok($summerApp !== null, 'a summer application is an application');
+// v1 kept summer in its own table with its own status track. Mapping it to
+// `type = 'summer'` would rebuild exactly the parallel system this migration
+// exists to end — so it lands as a CRASH-programme application and shares the
+// funnel, the catalogue and every grouped report with the rest.
+$summerApp = null;
+foreach ($plan['tables']['applications'] as $a) {
+    if (is_array($a['payload'] ?? null) && ($a['payload']['intake'] ?? '') === 'summer') { $summerApp = $a; break; }
+}
+t_ok($summerApp !== null, 'a summer application is carried');
+t_eq($summerApp['type'], 'programme', 'as an ordinary programme application, not a type of its own');
+$crashProg = v2p_find($plan, 'programmes', 'code', 'crash');
+t_ok($crashProg !== null && $summerApp['programme_id'] === $crashProg['id'],
+    'pointed at the crash programme, resolved by code');
+t_eq($summerApp['payload']['intake'], 'summer',
+    'and the ROUTE is kept in the payload — it is real information the type column no longer carries');
+t_ok(v2p_find($plan, 'applications', 'type', 'summer') === null,
+    'nothing carries the old parallel type');
+
+// An export with no crash programme is a data gap, not an error: the application
+// is still carried, with a NULL programme rather than a guessed one.
+$noCrash = v2p_source();
+$noCrash['programs'] = array_values(array_filter($noCrash['programs'],
+    static fn(array $p): bool => $p['code'] !== 'crash'));
+$planNoCrash = mam_v2_plan($noCrash);
+$sNoCrash = null;
+foreach ($planNoCrash['tables']['applications'] as $a) {
+    if (is_array($a['payload'] ?? null) && ($a['payload']['intake'] ?? '') === 'summer') { $sNoCrash = $a; break; }
+}
+t_ok($sNoCrash !== null, 'without a crash programme the summer application is still carried');
+t_eq($sNoCrash['programme_id'], null, 'with a NULL programme rather than a guessed one');
+
 $tayo = v2p_find($plan, 'users', 'full_name', 'Tayo Bello');
 t_ok($tayo !== null, 'the child becomes a person');
-t_ok(!in_array($tayo['id'], array_column($plan['tables']['user_credentials'], 'user_id'), true),
-    'with NO credentials — roster presence, never portal access, exactly as v1\'s status=roster meant');
 t_eq(count($plan['tables']['guardianships']), 1,
     'the guardian_email resolved to somebody already in the data, so the guardianship is real');
+t_eq((int) $plan['tables']['guardianships'][0]['learner_membership_id'],
+    (int) v2p_find($plan, 'memberships', 'user_id', $tayo['id'])['id'],
+    'pointing at the child, not at whoever shares their address');
 t_eq($plan['tables']['guardianships'][0]['verified_at'], null,
     'and unverified — a verified flag set by an ETL is a safeguarding claim nobody made');
 

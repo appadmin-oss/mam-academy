@@ -200,7 +200,13 @@ function mam_v2_verify(PDO $db, array $source, array $rejected = [], array $opts
     // Whether the summer table was carried is a property of the TARGET, not an
     // assumption: the load path carries `applications` only, the transform path
     // carries both. Asking the database keeps one verifier honest for both.
-    $summerLoaded = (int) ($one("SELECT COUNT(*) FROM applications WHERE tenant_id = ? AND type = 'summer'", [$tid]) ?? 0) > 0;
+    // Summer applications are CRASH-programme applications in v2 — the type
+    // column no longer distinguishes them, so the payload's `intake` does. Asking
+    // the target rather than assuming keeps one verifier honest for both the load
+    // path (which carries no summer rows) and the transform path (which does).
+    $summerLoaded = (int) ($one(
+        "SELECT COUNT(*) FROM applications WHERE tenant_id = ? AND " . mam_v2_json_like('payload', 'intake', 'summer'),
+        [$tid]) ?? 0) > 0;
     $summerPeople = mam_v2_verify_summer_people($source);
 
     $expectPeople = mam_v2_verify_people_expected($customers, $users);
@@ -263,10 +269,10 @@ function mam_v2_verify(PDO $db, array $source, array $rejected = [], array $opts
 
     // ── 3. Applications ──────────────────────────────────────────────────────
     $rejApps = count((array) ($rejected['applications'] ?? []));
-    // Summer applications are applications in v2 (`type = 'summer'`), so they
-    // count here. Whether the target holds any is a property of what was
-    // loaded — the load path carries only `applications`, the transform path
-    // carries both — so the expectation follows the target, not an assumption.
+    // Summer applications are CRASH-programme applications in v2, so they count
+    // here. Whether the target holds any is a property of what was loaded — the
+    // load path carries only `applications`, the transform path carries both —
+    // so the expectation follows the target, not an assumption.
     $expectSummer = $summerLoaded ? count((array) ($source['summer_applications'] ?? [])) : 0;
     $expectApps = count($apps) - $rejApps + $expectSummer;
     $gotApps = (int) $one("SELECT COUNT(*) FROM applications WHERE tenant_id = ?", [$tid]);
@@ -401,3 +407,30 @@ function mam_v2_verify_summer_people(array $source): array
     return $out;
 }
 
+
+/**
+ * A portable "this JSON column contains this key/value" predicate.
+ *
+ * MySQL 8 has JSON_EXTRACT and MariaDB aliases JSON to LONGTEXT; SQLite has
+ * neither unless the JSON1 extension is compiled in. The verifier has to run
+ * against all three, and it is comparing a short literal inside a payload rather
+ * than querying structure — so a LIKE over the serialised form is the honest
+ * portable answer, and json_encode produces the exact bytes to look for.
+ *
+ * ⚠️ MySQL's native JSON type RE-SERIALISES on store — it emits `"k": "v"` with
+ * a space after the colon, where SQLite keeps the bytes we wrote (`"k":"v"`).
+ * A single spelling matches one engine and silently misses on the other, which
+ * is exactly how this first failed: the verifier read zero summer applications
+ * on MySQL and expected nine fewer people than the database held. Both spellings
+ * are matched, and nothing else about the serialisation is relied on.
+ *
+ * Not for user input: the value is a literal this codebase chose.
+ */
+function mam_v2_json_like(string $column, string $key, string $value): string
+{
+    $q = static fn(string $v): string => str_replace("'", "''", $v);
+    $k = $q((string) json_encode($key));
+    $v = $q((string) json_encode($value));
+    return '(' . $column . " LIKE '%" . $k . ':' . $v . "%'"
+         . ' OR ' . $column . " LIKE '%" . $k . ': ' . $v . "%')";
+}

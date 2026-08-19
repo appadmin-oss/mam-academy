@@ -181,30 +181,63 @@ if (function_exists('mam_summer_can_transition')) {
     t_eq(mam_summer_can_transition('enrolled', 'cancelled'), true,   'S2: an enrolled place can still be cancelled');
 }
 
-/* ── S1: 'enrolled' provisions a no-login roster identity + summer cohort ── */
+/* ── S1: 'enrolled' provisions a FULL student account + guardian + cohort ──
+ *
+ * This used to assert the opposite: a `roster` identity that could never log in.
+ * The academy reversed that — a summer student is a student, so they get the
+ * portal, the gradebook and their own attendance record like anybody else, and
+ * the guardian gets an account in the same breath. The guardian link is what
+ * makes a child's login safe rather than merely convenient, so it is asserted
+ * here and not left to an admin to remember.
+ */
 t_ok(function_exists('mam_summer_enrol'), 'S1: a summer enrolment provisioner exists');
 if (function_exists('mam_summer_enrol')) {
     $ref = 'SUM-ENRFIX-1';
     $sumId = mam_db_insert('summer_applications', [
         'reference' => $ref, 'first_name' => 'Sum', 'last_name' => 'Kid',
         'email' => 't_enrfix_summer@x.dev', 'dob' => '2014-05-05', 'age_at_submission' => 11,
-        'guardian_name' => 'G', 'guardian_phone' => '+2340000000', 'discipline' => 'piano',
+        'guardian_name' => 'G', 'guardian_phone' => '+2340000000',
+        'guardian_email' => 't_enrfix_guardian@x.dev', 'discipline' => 'piano',
         'policy_agreed' => 1, 'policy_signed_name' => 'G', 'session_year' => 2030,
         'status' => 'confirmed',
     ]);
     $res = mam_summer_enrol($sumId, null);
-    t_ok(!empty($res['user_id']), 'S1: a roster identity is provisioned');
+    t_ok(!empty($res['user_id']), 'S1: a student account is provisioned');
     t_ok(!empty($res['enrollment_id']), 'S1: a course enrolment is created');
     t_ok(!empty($res['cohort_id']), 'S1: a summer cohort is resolved');
 
-    $u = mam_db_row('SELECT email, role, status FROM users WHERE id = ?', [(int)$res['user_id']]);
-    t_eq($u['status'], 'roster', 'S1: the identity is status=roster so it can never log in');
-    t_eq($u['role'], 'student', 'S1: the identity is a student for roster purposes');
-    t_eq(mam_login('t_enrfix_summer@x.dev', 'anything'), null, 'S1: the roster identity cannot log in');
+    $u = mam_db_row('SELECT email, role, status, must_change_password FROM users WHERE id = ?', [(int)$res['user_id']]);
+    t_eq($u['status'], 'active', 'S1: the account is active — a summer student is a student');
+    t_eq($u['role'], 'student', 'S1: with the student role');
+    t_eq((int)$u['must_change_password'], 1, 'S1: on a temporary password they must change');
+    // The password is RETURNED, not emailed from the provisioner: an account
+    // nobody has the password to is not access, and a mailer inside this
+    // function would make it untestable and let a failed send look like a
+    // failed enrolment.
+    t_ok(!empty($res['password']) && strlen((string)$res['password']) >= 10,
+        'S1: and the generated password is handed back for the caller to send');
+    t_ok(mam_login('t_enrfix_summer@x.dev', (string)$res['password']) !== null,
+        'S1: the child can actually sign in with it');
 
-    $co = mam_db_row('SELECT title, course_id FROM cohorts WHERE id = ?', [(int)$res['cohort_id']]);
+    // The guardian, from guardian_email, with a parent_links row.
+    t_ok(!empty($res['guardian_id']), 'S1: the guardian named on the application gets an account');
+    $g = mam_db_row('SELECT role, status FROM users WHERE id = ?', [(int)$res['guardian_id']]);
+    t_eq($g['role'], 'parent', 'S1: with the parent role, so the guardian portal opens');
+    t_ok(mam_db_row('SELECT 1 FROM parent_links WHERE parent_id = ? AND student_id = ?',
+        [(int)$res['guardian_id'], (int)$res['user_id']]) !== null,
+        'S1: and is linked to the child — the control that makes a child login safe');
+
+    $co = mam_db_row('SELECT title, course_id, program_id FROM cohorts WHERE id = ?', [(int)$res['cohort_id']]);
     t_ok(strpos((string)$co['title'], 'SUMMER-2030') === 0, 'S1: the cohort is the dedicated SUMMER-<year> run');
     t_eq((int)$co['course_id'], $pid, 'S1: the cohort maps to the applied discipline');
+    // Summer is a CRASH-programme intake, not a parallel system. Without a
+    // programme the cohort drops out of the catalogue and every grouped report.
+    $crash = mam_db_row("SELECT id FROM programs WHERE code = 'crash'");
+    if ($crash) {
+        t_eq((int)$co['program_id'], (int)$crash['id'],
+            'S1: and belongs to the crash programme');
+        t_eq(mam_summer_programme_id(), (int)$crash['id'], 'S1: which is what the resolver reports');
+    }
 
     $ce = mam_db_row('SELECT status, cohort_id FROM course_enrollments WHERE id = ?', [(int)$res['enrollment_id']]);
     t_eq($ce['status'], 'active', 'S1: the summer enrolment is active');
@@ -226,7 +259,10 @@ if (function_exists('mam_summer_enrol')) {
         'status' => 'confirmed',
     ]);
     $r2 = mam_summer_enrol($noDisc, null);
-    t_ok(!empty($r2['user_id']), 'S1: an identity is still provisioned without a discipline');
+    t_ok(!empty($r2['user_id']), 'S1: an account is still provisioned without a discipline');
+    // The guardian link is best-effort: an application with no guardian address
+    // must still enrol the child. An admin can link one later from ?v=guardians.
+    t_eq($r2['guardian_id'], null, 'S1: no guardian email means no guardian, not a failure');
     t_eq($r2['enrollment_id'], null, 'S1: but no course enrolment is invented');
     t_eq($r2['reason'], 'no_discipline', 'S1: and the reason is reported');
 }
