@@ -129,6 +129,36 @@ function mam_admin_pager(int $page, int $total, int $perPage): string {
 }
 
 /* ─── CSV export (no state change) ─── */
+/* ⚠️ Defined HERE, at the top level, and not inside the ?v=academic branch where
+   it used to live. PHP declares a top-level function at COMPILE time, but a
+   function inside an `if` block is only declared when that block RUNS — so a
+   helper defined in one view branch and called from another is a hard fatal on
+   the second view. ?v=upper threw "Call to undefined function" for exactly that
+   reason while ?v=academic worked, which is why it survived: the two screens are
+   never open at once. Same family as the card.php/join.php trap in CLAUDE.md #4. */
+/* One renderer for an instructor-comparison cell, used by BOTH surfaces that
+   show this table (?v=academic and ?v=upper). Below the comparison floor the
+   figure is withheld and the reason given; above it the 95% interval is shown
+   beside the mean, because a mean on a roster of twenty without its interval
+   invites exactly the ranking the research warns against. */
+if (!function_exists('mam_admin_instr_metric')) {
+    function mam_admin_instr_metric($value, array $row, bool $withCi = false): string {
+        if (!($row['comparable'] ?? true)) {
+            return '<span class="muted" title="Needs at least ' . (int) MAM_ANALYTICS_MIN_ROSTER
+                 . ' graded results before an average can be compared fairly">not enough results ('
+                 . (int) ($row['graded_n'] ?? 0) . ')</span>';
+        }
+        if ($value === null) return '<span class="muted">—</span>';
+        $out = htmlspecialchars((string) $value) . '%';
+        $ci = $row['confidence'] ?? null;
+        if ($withCi && is_array($ci)) {
+            $out .= ' <span class="muted" style="font-size:.78rem;white-space:nowrap">±'
+                  . htmlspecialchars((string) $ci['half_width']) . '</span>';
+        }
+        return $out;
+    }
+}
+
 if ($view === 'export') {
     $type = $_GET['type'] ?? 'applications.csv';
 
@@ -4240,28 +4270,6 @@ nav a{display:flex;align-items:center}
 
   <div class="card">
 <?php
-/* One renderer for an instructor-comparison cell, used by BOTH surfaces that
-   show this table (?v=academic and ?v=upper). Below the comparison floor the
-   figure is withheld and the reason given; above it the 95% interval is shown
-   beside the mean, because a mean on a roster of twenty without its interval
-   invites exactly the ranking the research warns against. */
-if (!function_exists('mam_admin_instr_metric')) {
-    function mam_admin_instr_metric($value, array $row, bool $withCi = false): string {
-        if (!($row['comparable'] ?? true)) {
-            return '<span class="muted" title="Needs at least ' . (int) MAM_ANALYTICS_MIN_ROSTER
-                 . ' graded results before an average can be compared fairly">not enough results ('
-                 . (int) ($row['graded_n'] ?? 0) . ')</span>';
-        }
-        if ($value === null) return '<span class="muted">—</span>';
-        $out = htmlspecialchars((string) $value) . '%';
-        $ci = $row['confidence'] ?? null;
-        if ($withCi && is_array($ci)) {
-            $out .= ' <span class="muted" style="font-size:.78rem;white-space:nowrap">±'
-                  . htmlspecialchars((string) $ci['half_width']) . '</span>';
-        }
-        return $out;
-    }
-}
 ?>
     <h3 style="margin:0 0 6px">Instructor performance</h3>
     <p class="muted" style="margin:0 0 10px;font-size:.78rem;border-left:3px solid var(--gold);padding-left:10px">
@@ -7086,10 +7094,14 @@ V2_READ_TENANT=mam</pre>
       <thead><tr><th>Student</th><th>Class</th><th>Status</th><th>Enrolled</th><th></th></tr></thead>
       <tbody>
       <?php
+      // `enrolled_at`, not `created_at`: this table has never had a created_at
+      // column, so the query threw and the whole All-enrollments card rendered as
+      // nothing at all. Silent, because the page handler logs a PDO exception
+      // rather than showing it — the heading simply never appeared.
       $enrolls = mam_db_all(
         "SELECT e.*, u.name AS student_name, u.email AS student_email, c.title AS class_title
          FROM enrollments e JOIN users u ON u.id = e.student_id JOIN classes c ON c.id = e.class_id
-         ORDER BY e.created_at DESC LIMIT 300"
+         ORDER BY e.enrolled_at DESC LIMIT 300"
       );
       if (!$enrolls): ?><tr><td colspan="5" class="empty">No enrollments yet</td></tr><?php endif;
       foreach ($enrolls as $e): ?>

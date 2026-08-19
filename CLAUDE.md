@@ -501,6 +501,19 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    ensures the student account + enrols them at the recommended level. The student Auditer
    tab still falls back to live `mam_auditer_status()` for validity/booking state.
 9. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
+   ⚠️ **A helper must be defined ABOVE the `$view === …` dispatch, never inside a
+   branch.** PHP declares a top-level function at compile time, but one inside an
+   `if` block is declared only when that block RUNS — so a helper defined in one
+   view and called from another is a hard fatal on the second. `?v=upper` threw
+   `Call to undefined function mam_admin_instr_metric()` while `?v=academic` worked,
+   and it survived because the two screens are never open at once. Same family as
+   gotcha #4. `test_admin_screens.php` now fails on any such helper.
+   ⚠️ **A PDO exception in a view is caught and LOGGED, not shown** — so a bad
+   column renders the card as nothing at all rather than as an error. `ORDER BY
+   e.created_at` on `enrollments` (which has `enrolled_at`) silently emptied the
+   All-enrollments table. The same test checks every aliased `ORDER BY` column
+   against the live schema. **Read `api/logs/app-*.log` after touching this file**;
+   a clean-looking screen is not evidence.
    ⚠️ It has NO `mam_admin_redirect()` helper — writing one from memory produced a
    blank page on every POST of a new screen. Redirect with
    `header('Location: ?v=…&ok=' . urlencode($msg)); exit;`, which is what every
