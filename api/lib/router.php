@@ -129,6 +129,20 @@ function mw_rate_limit(string $bucket, int $limit, int $windowSec): callable {
         $next();
     };
 }
+/**
+ * Throttle FAILURES, not requests — for sign-in, where a request that succeeds
+ * cost the caller nothing to be forgiven for. The handler records the failure
+ * itself, because only it knows whether one happened.
+ *
+ * Never use this on a route where the request itself is the cost (sending mail,
+ * an AI call): there, a "successful" request is exactly what you are limiting.
+ */
+function mw_rate_limit_failures(string $bucket, int $limit): callable {
+    return function (callable $next) use ($bucket, $limit) {
+        mam_rate_limit_check($bucket, mam_client_ip(), $limit, true);
+        $next();
+    };
+}
 function mw_role(string ...$roles): callable {
     return function (callable $next) use ($roles) {
         mam_require_role(...$roles);

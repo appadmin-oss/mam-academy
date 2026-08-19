@@ -234,7 +234,16 @@
         }
         var msg;
         if (code === 'invalid_credentials')  msg = "We couldn't sign you in with that email & password.";
-        else if (status === 429)             msg = 'Too many attempts. Please try again in a few minutes.';
+        else if (status === 429) {
+          // The server sends retry_after in seconds. A locked-out person needs
+          // to know whether to wait or to go and do something else; "a few
+          // minutes" answers neither.
+          var wait = (e.body && e.body.retry_after) || 0;
+          var mins = wait > 0 ? Math.ceil(wait / 60) : 0;
+          msg = mins > 1 ? 'Too many failed attempts. Please try again in ' + mins + ' minutes.'
+              : mins === 1 ? 'Too many failed attempts. Please try again in about a minute.'
+              : 'Too many failed attempts. Please try again in a few minutes.';
+        }
         else if (status === 503)             msg = 'Portal is being configured. Please try again shortly.';
         else if (code === 'csrf_invalid')    msg = 'Session expired — please refresh the page and try again.';
         else                                 msg = 'Could not sign you in. Please try again.';

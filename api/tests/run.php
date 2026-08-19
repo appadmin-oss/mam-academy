@@ -55,6 +55,7 @@ require $ROOT . '/lib/validation.php';      // pricing engine lives here
 require $ROOT . '/lib/booking-pricing.php';
 require $ROOT . '/lib/payments.php';        // shared payment settlement (verify + webhooks)
 require $ROOT . '/lib/csrf.php';
+require $ROOT . '/lib/rate-limit.php';    // request and FAILURE throttles
 require $ROOT . '/lib/paystack.php';
 require $ROOT . '/lib/flutterwave.php';
 require $ROOT . '/lib/lms.php';

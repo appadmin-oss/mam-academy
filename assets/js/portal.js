@@ -137,11 +137,21 @@
         not_enrolled:         'They are not enrolled on that.',
         save_failed:          'The change did not save. Please try again.',
         server_error:         'Something went wrong on our side. Please try again in a moment.',
-        rate_limited:         'Too many attempts just now — wait a minute and try again.',
+        rate_limited:         'Too many attempts just now — wait a few minutes and try again.',
         csrf_invalid:         'Your session expired. Reload the page and try again.',
         unauthenticated:      'You have been signed out. Reload the page to sign in again.',
         api_unavailable:      'We could not reach the server. Check your connection and try again.'
       };
+      // The server says exactly how long to wait, so saying "a few minutes" when
+      // it told us nine is a worse answer than the one we were handed.
+      if (code === 'rate_limited') {
+        var wait = err && err.body && err.body.retry_after;
+        if (wait > 0) {
+          var mins = Math.ceil(wait / 60);
+          return 'Too many attempts just now — try again in '
+               + (mins > 1 ? mins + ' minutes.' : 'about a minute.');
+        }
+      }
       // A dropped connection surfaces as fetch's own "Failed to fetch"/TypeError
       // rather than a server code, and it needs the network answer, not a
       // reference number.

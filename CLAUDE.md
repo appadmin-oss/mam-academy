@@ -648,6 +648,19 @@ result and both matter — the ledger names the identity, `audit_log.actor` name
 the credential (`PHP_AUTH_USER`). Don't re-add a role check inside an
 `mw_admin_cap()` route, and don't make an actor id nullable to "simplify" this.
 
+**Sign-in throttles count FAILURES, never requests.** `mw_rate_limit()` counts
+requests, which is right for a public form — there the request itself is the
+cost. On a login it locked out people who typed their password correctly: eight
+sign-ins per IP per ten minutes, and the key is the IP, so on carrier-grade NAT
+(most Nigerian mobile traffic) or an office connection those eight are shared by
+unrelated people. `mw_rate_limit_failures()` + `mam_rate_limit_check()` /
+`mam_rate_limit_record()` are the pair for auth: the middleware checks without
+consuming, the handler charges the bucket only where authentication actually
+failed. A success must neither increment **nor clear** it — clearing would let an
+attacker holding one valid credential reset the counter between guesses at other
+accounts. Don't put `mw_rate_limit_failures()` on a route where the request IS
+the cost (mail, AI): there a success is exactly what you're limiting.
+
 bcrypt + rehash-on-login; hashed session tokens; HttpOnly/SameSite=Lax cookies
 (`COOKIE_SECURE`); rate-limited auth; password reset/change revoke other sessions;
 CSRF on all mutations + session-bound; webhooks HMAC-verified + idempotent; payments

@@ -135,7 +135,7 @@ $r->group('/payment', function (MamRouter $r) use ($f) {
 /* ─── Auth ─── */
 $r->group('/auth', function (MamRouter $r) use ($f) {
     $r->get ('/me',                $f('auth/me.php'));
-    $r->post('/login',             $f('auth/login.php'),            [mw_csrf(), mw_rate_limit('login',          8,  600)]);
+    $r->post('/login',             $f('auth/login.php'),            [mw_csrf(), mw_rate_limit_failures('login', 8)]);
     $r->post('/logout',            $f('auth/logout.php'),           [mw_csrf()]);
     $r->post('/change-password',   $f('auth/change-password.php'),  [mw_csrf(), mw_user()]);
     $r->post('/request-reset',     $f('auth/request-reset.php'),    [mw_csrf(), mw_rate_limit('reset_request',  5,  600)]);
