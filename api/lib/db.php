@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 84;
+const MAM_SCHEMA_TARGET = 85;
 
 /**
  * Open (and cache) the PDO connection.
@@ -2685,6 +2685,162 @@ function mam_db_migrate(PDO $db): void {
               CHECK(keep_days IS NULL OR keep_days >= 0)
             );
             CREATE UNIQUE INDEX IF NOT EXISTS uq_dpnote_ref ON dp_register_notes(kind, ref_key);
+        ",
+
+        /* v85 — the ratified termly report (guardian redesign §3.3).
+         *
+         * The repo already had `progress_reports`, but that is a DIFFERENT
+         * artefact: the instructor's post-session report, due within two hours,
+         * with no status, no board, and no per-competency rows. The design's
+         * termly report is a published academic record with a band on its face,
+         * and the whole point of it is that a family sees it only AFTER a board
+         * has ratified it. A provisional mark a family can see and then have
+         * overturned is worse than one that arrives a week later.
+         *
+         * Four things here are deliberate and easy to "simplify" into being wrong:
+         *
+         *   1. The BAND is stored, not the score. `band_low`/`band_high` with a
+         *      CHECK that they are a real ten-point band. `raw_score` appears
+         *      nowhere in this schema: a guardian-facing table with a column for
+         *      the precise figure is an invitation to print it, and the mastery
+         *      coverage floor exists precisely so a thin composite is never
+         *      published as a comparable number.
+         *   2. Coverage is on the face, so it is stored beside the band and NOT
+         *      NULL. "Based on 8 of 11 parts — 72% of the weight" is part of the
+         *      report, not a derivation somebody might forget to run.
+         *   3. A criterion with no evidence is a ROW with level 'insufficient'
+         *      and a NULL pct — never a zero, never absent. `pct IS NULL` is
+         *      required for that level and forbidden for the others, so the
+         *      distinction cannot be lost by a careless write.
+         *   4. Ratification is a transition with a person and a time on it, and
+         *      the CHECK enforces that a ratified row has both. Nothing else in
+         *      the guardian API is allowed to read a report that lacks them.
+         *
+         * `mark_appeals` is the other half of the refusal rule: a report cannot
+         * be ratified while an appeal against it is open. It is its own table
+         * rather than a status on the report because an appeal outlives the
+         * report's status — a family appeals a ratified mark too, and the design
+         * gives them three months to do it.
+         */
+        85 => "
+            CREATE TABLE IF NOT EXISTS termly_reports (
+              id                INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              cohort_id         INTEGER REFERENCES cohorts(id) ON DELETE SET NULL,
+              course_id         INTEGER REFERENCES courses(id) ON DELETE SET NULL,
+              level_id          INTEGER REFERENCES levels(id) ON DELETE SET NULL,
+              term_id           INTEGER REFERENCES academic_terms(id) ON DELETE SET NULL,
+              -- The session label the family has on their receipt. Stored, not
+              -- looked up: session names are renameable in Settings and a report
+              -- must keep the name it was published under.
+              term_label        TEXT    NOT NULL,
+              -- draft: being written. moderating: with the sample. ratified:
+              -- visible to the family. withdrawn: ratified then pulled, which is
+              -- a real event and must not be spelled as a delete.
+              status            TEXT    NOT NULL DEFAULT 'draft'
+                                CHECK(status IN ('draft','moderating','ratified','withdrawn')),
+              band_low          INTEGER,
+              band_high         INTEGER,
+              coverage_evidenced INTEGER NOT NULL DEFAULT 0,
+              coverage_total     INTEGER NOT NULL DEFAULT 0,
+              coverage_weight_pct INTEGER,
+              instructor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              instructor_comment TEXT,
+              attendance_summary TEXT,
+              -- The board. `ratified_by` is the panel chair's user id; NULL until
+              -- it happens, and a ratified row may not have it NULL.
+              ratified_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              ratified_at       TEXT,
+              ratified_note     TEXT,
+              withdrawn_at      TEXT,
+              withdrawn_reason  TEXT,
+              created_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at        TEXT,
+              -- A band is a real ten-point band or it is absent entirely. 74.3
+              -- has no representation here at all, which is the point.
+              CHECK((band_low IS NULL AND band_high IS NULL)
+                 OR (band_low >= 0 AND band_high > band_low AND band_high <= 100)),
+              CHECK(coverage_evidenced >= 0 AND coverage_total >= 0
+                    AND coverage_evidenced <= coverage_total),
+              CHECK(coverage_weight_pct IS NULL
+                    OR (coverage_weight_pct >= 0 AND coverage_weight_pct <= 100)),
+              -- Ratified means a named person on a stated date. Both or neither.
+              CHECK(status <> 'ratified' OR (ratified_by IS NOT NULL AND ratified_at IS NOT NULL)),
+              CHECK(status <> 'withdrawn' OR withdrawn_at IS NOT NULL)
+            );
+            CREATE INDEX IF NOT EXISTS idx_treport_student ON termly_reports(student_id, status);
+            CREATE INDEX IF NOT EXISTS idx_treport_cohort  ON termly_reports(cohort_id, status);
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_treport_slot
+              ON termly_reports(student_id, term_label, COALESCE(course_id, 0), COALESCE(level_id, 0));
+
+            CREATE TABLE IF NOT EXISTS termly_report_criteria (
+              id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+              report_id          INTEGER NOT NULL REFERENCES termly_reports(id) ON DELETE CASCADE,
+              -- The competency this criterion belongs to, as a CODE, not a
+              -- keyword match on the label. v1 matched criteria by string and
+              -- silently reclassified anything an instructor renamed.
+              competency_code    TEXT    NOT NULL,
+              label              TEXT    NOT NULL,
+              weight_pct         INTEGER NOT NULL DEFAULT 0,
+              level              TEXT    NOT NULL
+                                 CHECK(level IN ('strong','secure','working','insufficient')),
+              -- NULL for 'insufficient' and only for it. A zero there would be a
+              -- fail; there is no evidence, which is a different statement.
+              pct                INTEGER,
+              grade_label        TEXT,
+              first_assessed_week INTEGER,
+              note               TEXT,
+              sort_order         INTEGER NOT NULL DEFAULT 0,
+              CHECK(weight_pct >= 0 AND weight_pct <= 100),
+              CHECK(pct IS NULL OR (pct >= 0 AND pct <= 100)),
+              CHECK((level =  'insufficient' AND pct IS NULL)
+                 OR (level <> 'insufficient' AND pct IS NOT NULL))
+            );
+            CREATE INDEX IF NOT EXISTS idx_tcrit_report ON termly_report_criteria(report_id, sort_order);
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_tcrit_slot ON termly_report_criteria(report_id, competency_code);
+
+            CREATE TABLE IF NOT EXISTS report_moderations (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              report_id    INTEGER NOT NULL REFERENCES termly_reports(id) ON DELETE CASCADE,
+              -- A second marker looked at this criterion. The sample is the set
+              -- of these rows; 'short sample' is a count, which is why the row
+              -- is per-criterion and not per-report.
+              competency_code TEXT NOT NULL,
+              moderator_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              agreed        INTEGER NOT NULL DEFAULT 1 CHECK(agreed IN (0,1)),
+              moderator_level TEXT
+                            CHECK(moderator_level IS NULL OR moderator_level IN ('strong','secure','working','insufficient')),
+              note          TEXT,
+              moderated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_rmod_report ON report_moderations(report_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_rmod_slot
+              ON report_moderations(report_id, competency_code, COALESCE(moderator_id, 0));
+
+            CREATE TABLE IF NOT EXISTS mark_appeals (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              report_id     INTEGER REFERENCES termly_reports(id) ON DELETE CASCADE,
+              student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              -- Who raised it. A guardian, the student, or staff on their behalf.
+              raised_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              raised_role   TEXT    NOT NULL DEFAULT 'parent'
+                            CHECK(raised_role IN ('parent','student','staff')),
+              competency_code TEXT,
+              reason        TEXT    NOT NULL,
+              status        TEXT    NOT NULL DEFAULT 'open'
+                            CHECK(status IN ('open','upheld','declined','withdrawn')),
+              outcome_note  TEXT,
+              decided_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              opened_at     TEXT NOT NULL DEFAULT (datetime('now')),
+              closed_at     TEXT,
+              -- A closed appeal states its outcome and a declined one says why.
+              CHECK(status = 'open' OR closed_at IS NOT NULL),
+              CHECK(status <> 'declined' OR outcome_note IS NOT NULL),
+              CHECK(closed_at IS NULL OR closed_at >= opened_at)
+            );
+            CREATE INDEX IF NOT EXISTS idx_appeal_report ON mark_appeals(report_id, status);
+            CREATE INDEX IF NOT EXISTS idx_appeal_open   ON mark_appeals(status, opened_at);
         ",
     ];
 

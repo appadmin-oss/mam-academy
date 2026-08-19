@@ -2480,4 +2480,142 @@ CREATE TABLE IF NOT EXISTS dp_register_notes (
   CONSTRAINT fk_dpnote_actor FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO schema_version (version) VALUES (84) ON DUPLICATE KEY UPDATE version = version;
+-- ---------------------------------------------------------------------------
+-- v85 — the ratified termly report (guardian redesign §3.3)
+--
+-- A published academic record a family sees only after a board has ratified it.
+-- NOT `progress_reports`, which is the instructor's two-hour post-session note.
+--
+-- `raw_score` deliberately has no column anywhere here. The band IS the stored
+-- value, with a CHECK that it is a real band rather than a decimal wearing a
+-- range's clothes. Coverage is NOT NULL because it prints on the face of the
+-- report, and an unevidenced criterion is a row with a NULL pct — never a zero.
+--
+-- MySQL note: the SQLite mirror uses expression indexes (COALESCE) for the
+-- one-report-per-slot rule. MySQL 8 needs generated columns for that, and a
+-- functional UNIQUE would have to be spelled differently on each engine — so
+-- the slot rule is enforced in PHP (mam_report_slot_taken) and the index here
+-- is a plain non-unique one over the same columns. The other UNIQUEs are over
+-- NOT NULL columns and translate directly.
+CREATE TABLE IF NOT EXISTS termly_reports (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  student_id          INT          NOT NULL,
+  cohort_id           INT          NULL,
+  course_id           INT          NULL,
+  level_id            INT          NULL,
+  term_id             INT          NULL,
+  term_label          VARCHAR(64)  NOT NULL,
+  status              VARCHAR(16)  NOT NULL DEFAULT 'draft',
+  band_low            INT          NULL,
+  band_high           INT          NULL,
+  coverage_evidenced  INT          NOT NULL DEFAULT 0,
+  coverage_total      INT          NOT NULL DEFAULT 0,
+  coverage_weight_pct INT          NULL,
+  instructor_id       INT          NULL,
+  instructor_comment  TEXT         NULL,
+  attendance_summary  TEXT         NULL,
+  ratified_by         INT          NULL,
+  ratified_at         DATETIME     NULL,
+  ratified_note       TEXT         NULL,
+  withdrawn_at        DATETIME     NULL,
+  withdrawn_reason    TEXT         NULL,
+  created_by          INT          NULL,
+  created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME     NULL,
+  KEY idx_treport_student (student_id, status),
+  KEY idx_treport_cohort  (cohort_id, status),
+  KEY idx_treport_slot    (student_id, term_label, course_id, level_id),
+  CONSTRAINT chk_treport_status CHECK (status IN ('draft','moderating','ratified','withdrawn')),
+  CONSTRAINT chk_treport_band CHECK ((band_low IS NULL AND band_high IS NULL)
+        OR (band_low >= 0 AND band_high > band_low AND band_high <= 100)),
+  CONSTRAINT chk_treport_cov  CHECK (coverage_evidenced >= 0 AND coverage_total >= 0
+        AND coverage_evidenced <= coverage_total),
+  CONSTRAINT chk_treport_covw CHECK (coverage_weight_pct IS NULL
+        OR (coverage_weight_pct >= 0 AND coverage_weight_pct <= 100)),
+  CONSTRAINT chk_treport_rat  CHECK (status <> 'ratified'
+        OR (ratified_by IS NOT NULL AND ratified_at IS NOT NULL)),
+  CONSTRAINT chk_treport_wdr  CHECK (status <> 'withdrawn' OR withdrawn_at IS NOT NULL),
+  CONSTRAINT fk_treport_student FOREIGN KEY (student_id)    REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_treport_cohort  FOREIGN KEY (cohort_id)     REFERENCES cohorts(id)        ON DELETE SET NULL,
+  CONSTRAINT fk_treport_course  FOREIGN KEY (course_id)     REFERENCES courses(id)        ON DELETE SET NULL,
+  CONSTRAINT fk_treport_level   FOREIGN KEY (level_id)      REFERENCES levels(id)         ON DELETE SET NULL,
+  CONSTRAINT fk_treport_term    FOREIGN KEY (term_id)       REFERENCES academic_terms(id) ON DELETE SET NULL,
+  CONSTRAINT fk_treport_instr   FOREIGN KEY (instructor_id) REFERENCES users(id)          ON DELETE SET NULL,
+  CONSTRAINT fk_treport_ratby   FOREIGN KEY (ratified_by)   REFERENCES users(id)          ON DELETE SET NULL,
+  CONSTRAINT fk_treport_creator FOREIGN KEY (created_by)    REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The competency is a CODE, not a keyword match on the label. v1 matched by
+-- string and silently reclassified anything an instructor renamed.
+CREATE TABLE IF NOT EXISTS termly_report_criteria (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  report_id           INT          NOT NULL,
+  competency_code     VARCHAR(64)  NOT NULL,
+  label               VARCHAR(160) NOT NULL,
+  weight_pct          INT          NOT NULL DEFAULT 0,
+  level               VARCHAR(16)  NOT NULL,
+  pct                 INT          NULL,
+  grade_label         VARCHAR(48)  NULL,
+  first_assessed_week INT          NULL,
+  note                TEXT         NULL,
+  sort_order          INT          NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_tcrit_slot (report_id, competency_code),
+  KEY idx_tcrit_report (report_id, sort_order),
+  CONSTRAINT chk_tcrit_level  CHECK (level IN ('strong','secure','working','insufficient')),
+  CONSTRAINT chk_tcrit_weight CHECK (weight_pct >= 0 AND weight_pct <= 100),
+  CONSTRAINT chk_tcrit_pct    CHECK (pct IS NULL OR (pct >= 0 AND pct <= 100)),
+  CONSTRAINT chk_tcrit_evid   CHECK ((level =  'insufficient' AND pct IS NULL)
+        OR (level <> 'insufficient' AND pct IS NOT NULL)),
+  CONSTRAINT fk_tcrit_report FOREIGN KEY (report_id) REFERENCES termly_reports(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The moderation sample. Per-CRITERION, because "a short sample" is a count of
+-- second-marked criteria and a per-report row could not express it.
+CREATE TABLE IF NOT EXISTS report_moderations (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  report_id       INT          NOT NULL,
+  competency_code VARCHAR(64)  NOT NULL,
+  moderator_id    INT          NULL,
+  agreed          TINYINT(1)   NOT NULL DEFAULT 1,
+  moderator_level VARCHAR(16)  NULL,
+  note            TEXT         NULL,
+  moderated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_rmod_report (report_id),
+  KEY idx_rmod_slot   (report_id, competency_code, moderator_id),
+  CONSTRAINT chk_rmod_agreed CHECK (agreed IN (0,1)),
+  CONSTRAINT chk_rmod_level  CHECK (moderator_level IS NULL
+        OR moderator_level IN ('strong','secure','working','insufficient')),
+  CONSTRAINT fk_rmod_report FOREIGN KEY (report_id)    REFERENCES termly_reports(id) ON DELETE CASCADE,
+  CONSTRAINT fk_rmod_actor  FOREIGN KEY (moderator_id) REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Its own table rather than a status on the report, because an appeal outlives
+-- the report's status: a family appeals a RATIFIED mark too, and the design
+-- gives them three months to do it. An open appeal blocks ratification.
+CREATE TABLE IF NOT EXISTS mark_appeals (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  report_id       INT          NULL,
+  student_id      INT          NOT NULL,
+  raised_by       INT          NULL,
+  raised_role     VARCHAR(16)  NOT NULL DEFAULT 'parent',
+  competency_code VARCHAR(64)  NULL,
+  reason          TEXT         NOT NULL,
+  status          VARCHAR(16)  NOT NULL DEFAULT 'open',
+  outcome_note    TEXT         NULL,
+  decided_by      INT          NULL,
+  opened_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  closed_at       DATETIME     NULL,
+  KEY idx_appeal_report (report_id, status),
+  KEY idx_appeal_open   (status, opened_at),
+  CONSTRAINT chk_appeal_role   CHECK (raised_role IN ('parent','student','staff')),
+  CONSTRAINT chk_appeal_status CHECK (status IN ('open','upheld','declined','withdrawn')),
+  CONSTRAINT chk_appeal_closed CHECK (status = 'open' OR closed_at IS NOT NULL),
+  CONSTRAINT chk_appeal_why    CHECK (status <> 'declined' OR outcome_note IS NOT NULL),
+  CONSTRAINT chk_appeal_order  CHECK (closed_at IS NULL OR closed_at >= opened_at),
+  CONSTRAINT fk_appeal_report  FOREIGN KEY (report_id)  REFERENCES termly_reports(id) ON DELETE CASCADE,
+  CONSTRAINT fk_appeal_student FOREIGN KEY (student_id) REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_appeal_raiser  FOREIGN KEY (raised_by)  REFERENCES users(id)          ON DELETE SET NULL,
+  CONSTRAINT fk_appeal_decider FOREIGN KEY (decided_by) REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO schema_version (version) VALUES (85) ON DUPLICATE KEY UPDATE version = version;
