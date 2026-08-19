@@ -497,9 +497,9 @@ foreach (['submissions', 'assessments', 'teachbacks', 'enrolment_results'] as $t
         "$table is keyed on the enrolment, not on the student");
 }
 
-$ins("INSERT INTO assessment_types (id,tenant_id,code,name,weight_pct) VALUES (1,1,'recital','Recital',40)");
+$ins("INSERT INTO assessment_kinds (id,tenant_id,code,name,weight_pct) VALUES (1,1,'recital','Recital',40)");
 $ins("INSERT INTO assignment_groups (id,public_id,tenant_id,cohort_id,title) VALUES (1,?,1,1,'Term 1 practice')", [$ulid()]);
-$ins("INSERT INTO assignments (id,public_id,tenant_id,group_id,cohort_id,title,points_max,due_at,due_timezone,assessment_type_id)
+$ins("INSERT INTO assignments (id,public_id,tenant_id,group_id,cohort_id,title,points_max,due_at,due_timezone,assessment_kind_id)
       VALUES (1,?,1,1,1,'Play the C major scale, hands together',20,'2026-10-03 17:00:00.000','Africa/Lagos',1)", [$ulid()]);
 $rejects("INSERT INTO assignments (public_id,tenant_id,title) VALUES ('01JNOTARGET0000000000000000',1,'Work set at nobody')",
     "an assignment with neither a cohort nor an enrolment to hand it in — work nobody can do");
@@ -520,7 +520,7 @@ $rejects("INSERT INTO submissions (public_id,tenant_id,enrolment_id,assignment_i
 
 // A mark has an author. This is what an appeal is answered from.
 $ins("INSERT INTO submission_markers (tenant_id,submission_id,marker_membership_id,role) VALUES (1,1,2,'primary')");
-$ins("INSERT INTO assessments (id,public_id,tenant_id,enrolment_id,assessment_type_id,submission_id,rubric_id,rubric_version,
+$ins("INSERT INTO assessments (id,public_id,tenant_id,enrolment_id,assessment_kind_id,submission_id,rubric_id,rubric_version,
         points_awarded,points_max,pct,status,marker_membership_id,marked_at)
       VALUES (1,?,1,1,1,1,NULL,NULL,16,20,80,'marked',2,'2026-10-03 09:00:00.000')", [$ulid()]);
 $rejects("INSERT INTO assessments (public_id,tenant_id,enrolment_id,points_awarded,points_max,status)

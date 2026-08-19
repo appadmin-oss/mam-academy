@@ -229,6 +229,119 @@ function v2p_source(): array {
              'attempts' => 1, 'body' => 'A rendered email nobody needs to keep.', 'opts' => null,
              'created_at' => '2026-01-04 09:40:00', 'updated_at' => '2026-01-04 09:40:00', 'sent_at' => null],
         ],
+        /* Academic work. Student 1 (user 1) has exactly ONE enrolment — the
+         * cohort both v1 models point at — so a row naming no class resolves.
+         * Student 3 is enrolled in cohort 8, NOT in the cohort class 1 became,
+         * which is the rejection case. */
+        'lessons' => [
+            ['id' => 1, 'cohort_id' => 1, 'module_id' => 1, 'title' => 'Week one, Friday',
+             'body' => null, 'url' => null, 'sort_order' => 1, 'published' => 1, 'created_by' => 2,
+             'created_at' => '2026-01-16 09:00:00', 'week_no' => 1, 'objectives' => null,
+             'prep_instructions' => null, 'resources_json' => null, 'teachback_required' => 1],
+        ],
+        'teachbacks' => [
+            ['id' => 1, 'lesson_id' => 1, 'student_id' => 1, 'cohort_id' => 1, 'kind' => 'written',
+             'artifact_url' => 'https://files.example.test/tb1.m4a', 'body' => 'Scales go up.',
+             'status' => 'reviewed', 'reviewer_id' => 2, 'decision' => 'developing', 'understanding' => 3,
+             'feedback' => 'Good start.', 'created_at' => '2026-01-17 09:00:00',
+             'reviewed_at' => '2026-01-17 18:00:00',
+             'accuracy' => 4, 'vocabulary' => 3, 'explanation' => 4, 'application' => 3, 'confidence' => 90],
+            // A second teach-back on the same module: v1's UNIQUE was (lesson,
+            // student), v2's is (enrolment, module), so this one collides.
+            ['id' => 2, 'lesson_id' => 1, 'student_id' => 1, 'cohort_id' => 1, 'kind' => 'audio',
+             'artifact_url' => null, 'body' => 'Second go.', 'status' => 'submitted', 'reviewer_id' => null,
+             'decision' => null, 'understanding' => null, 'feedback' => null,
+             'created_at' => '2026-01-18 09:00:00', 'reviewed_at' => null,
+             'accuracy' => null, 'vocabulary' => null, 'explanation' => null, 'application' => null, 'confidence' => null],
+            // Marked reviewed in v1 with no decision recorded: v2 says that is
+            // not a review.
+            ['id' => 3, 'lesson_id' => 1, 'student_id' => 3, 'cohort_id' => 8, 'kind' => 'written',
+             'artifact_url' => null, 'body' => 'Mine.', 'status' => 'reviewed', 'reviewer_id' => 2,
+             'decision' => null, 'understanding' => null, 'feedback' => 'Seen.',
+             'created_at' => '2026-01-19 09:00:00', 'reviewed_at' => '2026-01-19 10:00:00',
+             'accuracy' => null, 'vocabulary' => null, 'explanation' => null, 'application' => null, 'confidence' => null],
+        ],
+        'rubrics' => [
+            ['id' => 1, 'title' => 'Performance', 'cohort_id' => 1, 'created_by' => 2, 'active' => 1,
+             'created_at' => '2026-01-15 09:00:00'],
+            // Same title, second rubric: in v2 that is a VERSION.
+            ['id' => 2, 'title' => 'Performance', 'cohort_id' => 1, 'created_by' => 2, 'active' => 0,
+             'created_at' => '2026-01-20 09:00:00'],
+        ],
+        'rubric_criteria' => [
+            ['id' => 1, 'rubric_id' => 1, 'label' => 'Score/Notation Accuracy', 'max_points' => 10,
+             'weight' => 1.0, 'sort_order' => 1],
+            ['id' => 2, 'rubric_id' => 1, 'label' => 'Ensemble', 'max_points' => 5, 'weight' => 1.0, 'sort_order' => 2],
+        ],
+        'assignment_groups' => [
+            ['id' => 1, 'class_id' => 1, 'title' => 'Term one practice', 'description' => null,
+             'sort_order' => 1, 'created_by' => 2, 'created_at' => '2026-01-15 09:00:00'],
+        ],
+        'assignments' => [
+            ['id' => 1, 'student_id' => 1, 'author_id' => 2, 'class_id' => 1, 'group_id' => 1,
+             'title' => 'C major, hands together', 'instructions' => 'Slowly.', 'due_on' => '2026-02-06',
+             'status' => 'open', 'completed_at' => null, 'created_at' => '2026-01-16 09:00:00',
+             'reference_url' => null, 'reference_kind' => null],
+            // Set to a student who is not in the cohort that class became.
+            ['id' => 2, 'student_id' => 3, 'author_id' => 2, 'class_id' => 1, 'group_id' => null,
+             'title' => 'Wrong class', 'instructions' => null, 'due_on' => null, 'status' => 'open',
+             'completed_at' => null, 'created_at' => '2026-01-16 09:00:00',
+             'reference_url' => null, 'reference_kind' => null],
+        ],
+        'submissions' => [
+            ['id' => 1, 'assignment_id' => 1, 'student_id' => 1,
+             'artifact_url' => 'https://files.example.test/scale.mp3', 'artifact_kind' => 'recording',
+             'note' => 'Third take.', 'status' => 'graded', 'submitted_at' => '2026-02-05 20:11:00',
+             'created_at' => '2026-02-05 20:00:00', 'updated_at' => '2026-02-06 09:00:00'],
+        ],
+        'submission_files' => [
+            ['id' => 1, 'submission_id' => 1, 'url' => 'https://files.example.test/score.pdf',
+             'kind' => 'score', 'filename' => 'score.pdf', 'size_bytes' => 1024,
+             'created_at' => '2026-02-05 20:12:00'],
+        ],
+        'submission_reviews' => [
+            // scores_json is {criterion_id: points}. The NULL is a criterion that
+            // was in scope and had no evidence — a row, not a zero.
+            ['id' => 1, 'submission_id' => 1, 'rubric_id' => 1, 'reviewer_id' => 2,
+             'scores_json' => '{"1":8,"2":null}', 'total_points' => 8, 'max_points' => 15,
+             'feedback' => 'Even tone.', 'created_at' => '2026-02-06 09:00:00'],
+        ],
+        // v1's gradebook: typed by what v2 calls a competency.
+        'assessments' => [
+            ['id' => 1, 'enrollment_id' => 1, 'type_id' => 1, 'instructor_id' => 2, 'week' => 3,
+             'score' => 72, 'max_score' => 100, 'notes' => 'Improving.', 'created_at' => '2026-02-10 09:00:00'],
+        ],
+        'results' => [
+            ['id' => 1, 'enrollment_id' => 1, 'total_score' => 78.5, 'grade' => 'B', 'outcome' => 'passed',
+             'finalized_by' => 4, 'finalized_at' => '2026-03-01 09:00:00'],
+            // Finalised in v1 with a score off any percentage scale and no
+            // outcome: both facts have to survive as questions, not as data.
+            ['id' => 2, 'enrollment_id' => 2, 'total_score' => 900, 'grade' => null, 'outcome' => null,
+             'finalized_by' => null, 'finalized_at' => '2026-03-01 09:00:00'],
+        ],
+        'certificates' => [
+            ['id' => 1, 'reference' => 'MAM-CERT-1', 'student_id' => 1, 'program_id' => 3, 'level_id' => 1,
+             'kind' => 'completion', 'title' => 'Standard Programme', 'issued_by' => 4,
+             'issued_at' => '2026-03-02 09:00:00'],
+        ],
+        'module_proposals' => [
+            ['id' => 1, 'course_id' => 5, 'level_id' => 1, 'week' => 3, 'title' => 'Swing feel',
+             'kind' => 'module', 'content' => 'Listen first.', 'proposed_by' => 2, 'status' => 'approved',
+             'review_note' => null, 'reviewed_by' => 4, 'reviewed_at' => '2026-01-25 09:00:00',
+             'created_at' => '2026-01-24 09:00:00'],
+            // Rejected with no reason: the proposer could not revise it.
+            ['id' => 2, 'course_id' => 5, 'level_id' => 1, 'week' => 4, 'title' => 'Unclear week',
+             'kind' => 'module', 'content' => null, 'proposed_by' => 2, 'status' => 'rejected',
+             'review_note' => null, 'reviewed_by' => 4, 'reviewed_at' => '2026-01-26 09:00:00',
+             'created_at' => '2026-01-24 10:00:00'],
+        ],
+        'tool_scores' => [
+            ['id' => 1, 'user_id' => 1, 'tool' => 'metronome', 'best_score' => 90, 'plays' => 3,
+             'updated_at' => '2026-02-01 09:00:00', 'created_at' => '2026-01-20 09:00:00'],
+            // v1 put no unique key on (user, tool): two rows, one person.
+            ['id' => 2, 'user_id' => 1, 'tool' => 'metronome', 'best_score' => 96, 'plays' => 2,
+             'updated_at' => '2026-02-02 09:00:00', 'created_at' => '2026-01-21 09:00:00'],
+        ],
         // Deliberately not carried, and must still be accounted for.
         'rate_limits' => [['k' => 'x', 'hits' => 3]],
         'newsletter'  => [['id' => 1, 'email' => 'x@example.test', 'source' => 'footer', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00']],
@@ -363,6 +476,119 @@ $cohort = v2p_find($plan, 'cohorts', 'title', 'PRIVATE PIANO');
 t_eq($cohort['meeting_days'], 'fri', "'Fri 16:00-18:00' parses into a day");
 t_eq($cohort['meeting_time'], '16:00:00', 'and a wall-clock start');
 t_eq($cohort['timezone'], 'Africa/Lagos', 'stored with a zone, so a lesson stays at 16:00 if offset rules change');
+
+t_group('v2 plan — academic work lands on an enrolment or not at all');
+
+// Set work: v1 keyed it on a student, v2 on an enrolment. A row naming a class
+// the student is not in must be REJECTED, never attached to a nearby enrolment.
+$asg = v2p_find($plan, 'assignments', 'title', 'C major, hands together');
+t_ok($asg !== null && (int) $asg['enrolment_id'] > 0 && $asg['cohort_id'] === null,
+    'an assignment resolves to the learner\'s enrolment, and keeps exactly one target');
+t_eq($asg['due_at'], '2026-02-06 23:59:59.999',
+    'a v1 due DATE becomes the END of that day — midnight would move every historic deadline a day earlier');
+t_eq($asg['due_timezone'], 'Africa/Lagos', 'stated in a zone, so a diaspora learner reads the same Friday');
+$wrongClass = array_values(array_filter($plan['rejected'],
+    static fn($r) => $r['table'] === 'assignments' && (int) $r['id'] === 2));
+t_eq(count($wrongClass), 1, 'work set to a student who is not in that class is rejected, not reattached');
+t_ok(str_contains((string) $wrongClass[0]['why'], 'not enrolled'),
+    'and the ledger says why, so a human can place it: ' . ($wrongClass[0]['why'] ?? ''));
+
+// The blob becoming rows. This is the point of the migration.
+$marks = $plan['tables']['assessment_marks'];
+t_eq(count($marks), 3, 'scores_json became one row per criterion, plus the gradebook mark');
+$insuff = array_values(array_filter($marks, static fn($m) => (int) $m['is_insufficient'] === 1));
+t_eq(count($insuff), 1, 'a criterion in scope with no evidence is a ROW, not a zero and not an absence');
+t_ok($insuff[0]['points_awarded'] === null, 'and it carries no award');
+$scored = array_values(array_filter($marks, static fn($m) => $m['label'] === 'Score/Notation Accuracy'));
+t_eq($scored[0]['points_awarded'], '8.00', 'the awarded points survive');
+t_ok($scored[0]['competency_id'] === null,
+    'competency_id is NULL on a rubric mark: v1 matched a criterion to a component by LABEL, and a '
+    . 'guessed foreign key would make that guess permanent');
+$gradebook = array_values(array_filter($marks, static fn($m) => $m['competency_id'] !== null));
+t_eq(count($gradebook), 1,
+    'the gradebook mark is the ONE place the competency is known — v1 typed it by what v2 calls a competency');
+
+// A mark has an author, or it is not a mark.
+$assess = $plan['tables']['assessments'];
+t_eq(count($assess), 2, 'a rubric review and a gradebook row are both assessments');
+foreach ($assess as $a) {
+    t_ok($a['status'] === 'draft' || ($a['marker_membership_id'] !== null && $a['marked_at'] !== null),
+        'every marked assessment names who marked it and when [' . $a['status'] . ']');
+}
+
+t_group('v2 plan — what v1 recorded loosely arrives as a question, not as data');
+
+$results = $plan['tables']['enrolment_results'];
+t_eq(count($results), 2, 'both results are carried');
+$good = array_values(array_filter($results, static fn($r) => $r['status'] === 'finalised'));
+t_eq(count($good), 1, 'the signed one is finalised');
+t_eq($good[0]['total_pct'], '78.50', 'with its percentage');
+t_ok($good[0]['coverage_evidenced'] === null,
+    'and NULL coverage: v1 stored a percentage with nothing saying how much of the syllabus it covered, '
+    . 'and "unknown" is a different statement from "all of it"');
+$prov = array_values(array_filter($results, static fn($r) => $r['status'] === 'provisional'));
+t_eq(count($prov), 1, 'a result v1 called final with no signatory and no outcome stays PROVISIONAL');
+t_ok($prov[0]['total_pct'] === null, 'a score off any percentage scale is dropped, not rescaled');
+$kinds = array_column($plan['review'], 'kind');
+t_ok(in_array('result_off_scale', $kinds, true), 'the off-scale score is raised for a human');
+t_ok(in_array('result_unsigned', $kinds, true), 'as is the unsigned finalisation');
+t_ok(in_array('criteria_need_competency', $kinds, true),
+    'and the criteria a human must map to competencies before the mastery score has rubric evidence');
+
+// A decision missing its decider, its time or (for a rejection) its reason is
+// not a decision.
+$props = v2p_by_id($plan, 'module_proposals');
+$approved = v2p_find($plan, 'module_proposals', 'title', 'Swing feel');
+t_eq($approved['status'], 'approved', 'a complete decision is carried as made');
+$unclear = v2p_find($plan, 'module_proposals', 'title', 'Unclear week');
+t_eq($unclear['status'], 'pending',
+    'a rejection with no reason returns to the review queue rather than claiming a decision nobody explained');
+t_ok(in_array('proposal_decision_incomplete', $kinds, true), 'and it is raised');
+
+t_group('v2 plan — the teach-back moves from a lesson to a module');
+
+$tbs = $plan['tables']['teachbacks'];
+t_eq(count($tbs), 3, 'every teach-back is carried');
+$live = array_values(array_filter($tbs, static fn($t) => (int) $t['deleted_seq'] === 0));
+t_eq(count($live), 2,
+    'two teach-backs on one module keep the first LIVE and soft-delete the second — the record survives '
+    . 'and the slot stays free');
+$rev = array_values(array_filter($tbs, static fn($t) => $t['status'] === 'reviewed'));
+t_eq(count($rev), 1, 'only the one with a reviewer, a time AND a decision counts as reviewed');
+t_eq($rev[0]['confidence'], null,
+    'a dimension scored 90 on a 5-point scale is DROPPED, not rescaled — inventing a conversion would keep '
+    . 'v1\'s habit of averaging two different scales');
+t_eq($rev[0]['accuracy'], 4, 'the in-scale dimensions survive');
+t_ok((int) $rev[0]['module_id'] > 0, 'and it points at the module its lesson instanced');
+$seen = v2p_find($plan, 'teachbacks', 'feedback', 'Seen.');
+t_eq($seen['status'], 'submitted', 'a v1 "reviewed" with no decision is not a review');
+
+t_group('v2 plan — rubrics, attachments and practice');
+
+t_eq(count($plan['tables']['rubrics']), 2, 'both rubrics are carried');
+$versions = array_column($plan['tables']['rubrics'], 'version');
+t_eq(array_sum($versions), 3, 'two rubrics sharing a title become version 1 and version 2');
+t_ok(v2p_find($plan, 'rubrics', 'version', 1)['course_id'] !== null,
+    "a v1 rubric scoped to a cohort takes that cohort's course, which is what makes it reusable");
+
+$atts = $plan['tables']['attachments'];
+t_eq(count($atts), 3, 'the submission artifact, its extra file and the teach-back recording are all attachments');
+foreach ($atts as $a) {
+    t_eq($a['storage'], 'external',
+        'the bytes were never in the academy\'s own store, and calling it local would promise a file the '
+        . 'loader does not have');
+}
+
+$tool = $plan['tables']['tool_scores'];
+t_eq(count($tool), 1, 'two v1 rows for one person and one tool become one');
+t_eq((int) $tool[0]['best_score'], 96, 'keeping the better best-score');
+t_eq((int) $tool[0]['plays'], 5, 'and the SUM of the plays, which is what that figure means');
+
+$cert = $plan['tables']['certificates'][0];
+t_eq(strlen((string) $cert['verification_code']), 32, 'a certificate carries a verification code');
+t_ok($cert['verification_code'] !== $cert['reference'],
+    'and it is not the printed reference — a verifier who can read the certificate must not be able to '
+    . 'derive the code from it');
 
 t_group('v2 plan — settings');
 

@@ -45,6 +45,11 @@ const MAM_V2_PLAN_ORDER = [
     'users', 'user_credentials', 'memberships', 'roles', 'membership_roles', 'guardianships',
     'programmes', 'levels', 'courses', 'programme_courses', 'modules', 'competencies',
     'cohorts', 'cohort_staff', 'enrolments',
+    'rubrics', 'rubric_criteria',
+    'assessment_kinds', 'assignment_groups', 'assignments',
+    'submissions', 'attachments', 'submission_markers',
+    'assessments', 'assessment_marks',
+    'teachbacks', 'enrolment_results', 'certificates', 'module_proposals', 'tool_scores',
     'applications', 'payments',
     'custom_field_defs', 'custom_field_values',
     'message_deliveries', 'audit_log',
@@ -627,7 +632,7 @@ function mam_v2_plan(array $source, array $opts = []): array
         'level resolved from v1\'s level_code; is_required derived from courses.kind = core.',
         count($rows('program_courses')), $pcId);
 
-    $modId = 0;
+    $modId = 0; $modIdOf = [];
     $fModKind = $defineField('modules', 'module_kind', 'Week kind (module/revision/exam)', 'string');
     foreach ($rows('modules') as $m) {
         $cid = $crsIdOf[(int) ($m['course_id'] ?? 0)] ?? null;
@@ -646,6 +651,7 @@ function mam_v2_plan(array $source, array $opts = []): array
             'requires_teachback' => 0, 'is_published' => 1];
         // `module|revision|exam` has no v2 column and it decides what a week IS.
         $setField($fModKind, $id, mam_v2_plan_str($m['kind'] ?? null), 'string');
+        $modIdOf[(int) ($m['id'] ?? 0)] = $id;
         $mapped('modules', (int) ($m['id'] ?? 0), 'modules', $id);
     }
     $note('modules', 'modules (+ custom field module_kind)',
@@ -654,7 +660,7 @@ function mam_v2_plan(array $source, array $opts = []): array
 
     // v1's assessment weighting IS v2's competency weighting: same shape, same
     // purpose (code, name, share of the score).
-    $compId = 0;
+    $compId = 0; $compIdOf = [];
     foreach ($rows('assessment_types') as $a) {
         $code = mam_v2_plan_str($a['code'] ?? null, 48);
         if ($code === null) continue;
@@ -663,6 +669,7 @@ function mam_v2_plan(array $source, array $opts = []): array
             'weight_pct' => number_format((float) ($a['weight'] ?? 0), 2, '.', ''),
             'sort_order' => mam_v2_plan_int($a['sort_order'] ?? null) ?? 0,
             'is_active' => mam_v2_plan_bool($a['active'] ?? null, 1)];
+        $compIdOf[(int) ($a['id'] ?? 0)] = $compId;
         $mapped('assessment_types', (int) ($a['id'] ?? 0), 'competencies', $compId, $code);
     }
     $note('assessment_types', 'competencies',
@@ -919,6 +926,662 @@ function mam_v2_plan(array $source, array $opts = []): array
         '"this instructor may teach this course at this level" has no v2 table — v2 attaches staff to a '
         . 'COHORT (cohort_staff), not to a catalogue entry. Left for the new system\'s own permissions.',
         count($rows('instructor_assignments')));
+
+    /* ── Rubrics, and why competency_id stays NULL ───────────────────────── */
+    // v1's rubric is scoped to a COHORT; v2's is scoped to a course + level,
+    // because a rubric that only exists for one class cannot be reused and
+    // cannot be versioned. The course is derived from the cohort.
+    $rubId = 0; $rubIdOf = []; $rubVersion = [];
+    foreach ($rows('rubrics') as $r) {
+        $v1id = (int) ($r['id'] ?? 0);
+        $title = mam_v2_plan_str($r['title'] ?? null, 160) ?? 'Untitled rubric';
+        // uq_rubrics_version(tenant_id, title, version, deleted_seq): two v1
+        // rubrics may share a title, and in v2 that is what a version IS.
+        $ver = ($rubVersion[$title] = ($rubVersion[$title] ?? 0) + 1);
+        $coh = $cohIdOfV1[(int) ($r['cohort_id'] ?? 0)] ?? null;
+        $created = mam_v2_plan_ts($r['created_at'] ?? null, $nowFallback);
+        $active  = mam_v2_plan_bool($r['active'] ?? null, 1);
+        $id = ++$rubId;
+        $T['rubrics'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('rubric:' . $v1id, $created),
+            'tenant_id' => $tenantId,
+            'course_id' => $coh !== null ? ($cohCourseOf[$coh] ?? null) : null,
+            'level_id' => null, 'title' => $title, 'version' => $ver,
+            'is_published' => $active,
+            // A rubric that has been used to score work IS published. v1 kept no
+            // publication date, so the creation time is the honest floor rather
+            // than a guessed one.
+            'published_at' => $active ? $created : null,
+            'created_at' => $created,
+            'created_by' => $userOfV1User[(int) ($r['created_by'] ?? 0)] ?? null,
+            'deleted_seq' => 0];
+        $rubIdOf[$v1id] = $id;
+        $mapped('rubrics', $v1id, 'rubrics', $id);
+    }
+    $note('rubrics', 'rubrics', 'cohort scope → the cohort\'s course; a shared title becomes a version.',
+        count($rows('rubrics')), $rubId);
+
+    $critId = 0; $critIdOf = []; $critUnmapped = 0;
+    foreach ($rows('rubric_criteria') as $c) {
+        $rub = $rubIdOf[(int) ($c['rubric_id'] ?? 0)] ?? null;
+        if ($rub === null) { $rejected[] = ['table' => 'rubric_criteria', 'id' => $c['id'] ?? null, 'why' => 'rubric did not map']; continue; }
+        $id = ++$critId;
+        $T['rubric_criteria'][] = ['id' => $id, 'rubric_id' => $rub,
+            // NULL, and this is the point of the migration rather than a gap in
+            // it. v2 joins a criterion to a competency by FOREIGN KEY; v1 joined
+            // it by matching the LABEL at read time (mam_mastery_component_for_criterion).
+            // Guessing the link here would bake v1's keyword matching into v2's
+            // data, and a wrong guess is invisible — it just weights the wrong
+            // competency for ever. A human maps these once, after the load.
+            'competency_id' => null,
+            'label' => mam_v2_plan_str($c['label'] ?? null, 190) ?? 'Criterion',
+            'descriptor' => null,
+            'max_points' => mam_v2_plan_int($c['max_points'] ?? null) ?? 10,
+            'weight' => number_format((float) ($c['weight'] ?? 1), 3, '.', ''),
+            'sort_order' => mam_v2_plan_int($c['sort_order'] ?? null) ?? 0];
+        $critIdOf[(int) ($c['id'] ?? 0)] = $id;
+        $critUnmapped++;
+        $mapped('rubric_criteria', (int) ($c['id'] ?? 0), 'rubric_criteria', $id);
+    }
+    $note('rubric_criteria', 'rubric_criteria',
+        'competency_id is left NULL on every row: v1 linked a criterion to a mastery component by matching '
+        . 'its LABEL at read time, and writing a guessed foreign key would make that guess permanent.',
+        count($rows('rubric_criteria')), $critId);
+    if ($critUnmapped > 0) $flag('criteria_need_competency', ['rows' => $critUnmapped,
+        'action' => 'Map each rubric criterion to a competency after the load. Until then the mastery '
+            . 'score has no evidence from rubric-scored work.']);
+
+    /* ── Assessment kinds ────────────────────────────────────────────────── */
+    // v1 has no table of these. Its `assessment_types` rows are the mastery
+    // COMPONENTS (they map to `competencies` above), and the kind of thing being
+    // assessed lived in a string in the code. So v2's own shipped set is seeded
+    // rather than migrated, and nothing claims it came from v1.
+    $kindId = 0; $kindIdOfCode = [];
+    foreach ([['assignment', 'Assignment', 1], ['teachback', 'Teach-back', 1],
+              ['recital', 'Recital', 1], ['exam', 'Examination', 1],
+              ['practical', 'Practical', 1], ['formative', 'Formative check', 0]] as $i => [$code, $name, $mastery]) {
+        $kindIdOfCode[$code] = ++$kindId;
+        $T['assessment_kinds'][] = ['id' => $kindId, 'tenant_id' => $tenantId, 'code' => $code,
+            'name' => $name, 'description' => null, 'weight_pct' => '0.00',
+            'counts_to_mastery' => $mastery, 'sort_order' => $i, 'is_active' => 1];
+    }
+    $note('(none)', 'assessment_kinds',
+        'seeded, not migrated: v1 kept the kind of assessment in code, and its `assessment_types` table '
+        . 'is the mastery components (see competencies). Weights are left at 0 for the academy to set.',
+        0, $kindId);
+
+    /* ── Set work, handed-in work, and the marks awarded on it ───────────── */
+    // Every row here has to resolve to an ENROLMENT, because that is what v2
+    // keys academic work on. v1 keyed it on a student, so where a student has
+    // more than one enrolment and the row names no class, the row is REJECTED
+    // rather than attached to whichever enrolment came first.
+    $enrolsOfMember = [];
+    foreach ($enrSeen as $k => $eid) {
+        [$c, $m] = explode(':', (string) $k);
+        $enrolsOfMember[(int) $m][(int) $c] = $eid;
+    }
+    $enrolFor = function (?int $v1UserId, ?int $v1ClassId) use ($memberOfV1User, $cohIdOfClass, $enrolsOfMember): array {
+        $mid = $memberOfV1User[(int) $v1UserId] ?? null;
+        if ($mid === null) return [null, 'student did not map to a membership'];
+        $mine = $enrolsOfMember[$mid] ?? [];
+        if (!$mine) return [null, 'student has no enrolment in v2 to attach the work to'];
+        $coh = $v1ClassId ? ($cohIdOfClass[(int) $v1ClassId] ?? null) : null;
+        if ($coh !== null) {
+            return isset($mine[$coh]) ? [$mine[$coh], null]
+                : [null, 'student is not enrolled in the cohort the class became'];
+        }
+        if (count($mine) === 1) return [(int) reset($mine), null];
+        // Nothing is invented: attaching a mark to the wrong course is worse
+        // than leaving it for a human, and the row is named in `rejected`.
+        return [null, 'student has ' . count($mine) . ' enrolments and the row names no class'];
+    };
+
+    $agId = 0; $agIdOf = [];
+    foreach ($rows('assignment_groups') as $g) {
+        $v1id = (int) ($g['id'] ?? 0);
+        $coh  = $cohIdOfClass[(int) ($g['class_id'] ?? 0)] ?? ($cohIdOfV1[(int) ($g['cohort_id'] ?? 0)] ?? null);
+        $created = mam_v2_plan_ts($g['created_at'] ?? null, $nowFallback);
+        $id = ++$agId;
+        $T['assignment_groups'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('asgroup:' . $v1id, $created),
+            'tenant_id' => $tenantId, 'cohort_id' => $coh,
+            'course_id' => $coh !== null ? ($cohCourseOf[$coh] ?? null) : null,
+            'title' => mam_v2_plan_str($g['title'] ?? null, 190) ?? 'Set work',
+            'description' => mam_v2_plan_str($g['description'] ?? null),
+            'sort_order' => mam_v2_plan_int($g['sort_order'] ?? null) ?? 0,
+            'created_at' => $created,
+            'created_by' => $userOfV1User[(int) ($g['created_by'] ?? ($g['author_id'] ?? 0))] ?? null,
+            'deleted_seq' => 0];
+        $agIdOf[$v1id] = $id;
+        $mapped('assignment_groups', $v1id, 'assignment_groups', $id);
+    }
+    $note('assignment_groups', 'assignment_groups', 'a named block of set work.',
+        count($rows('assignment_groups')), $agId);
+
+    $asgId = 0; $asgIdOf = []; $asgEnrolOf = [];
+    foreach ($rows('assignments') as $a) {
+        $v1id = (int) ($a['id'] ?? 0);
+        [$enr, $why] = $enrolFor(mam_v2_plan_int($a['student_id'] ?? null), mam_v2_plan_int($a['class_id'] ?? null));
+        if ($enr === null) { $rejected[] = ['table' => 'assignments', 'id' => $v1id, 'why' => $why]; continue; }
+        $created = mam_v2_plan_ts($a['created_at'] ?? null, $nowFallback);
+        $v1status = strtolower((string) ($a['status'] ?? 'open'));
+        $status = match ($v1status) {
+            'draft' => 'draft',
+            'completed', 'done', 'closed' => 'closed',
+            'archived' => 'archived',
+            default => 'open',
+        };
+        // v1 held a DATE. A task was late only once that day had ENDED, so the
+        // end of the day in the academy's own zone is the faithful reading —
+        // midnight would move every historic deadline a day earlier.
+        $dueOn = mam_v2_plan_str($a['due_on'] ?? null, 10);
+        $id = ++$asgId;
+        $T['assignments'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('assignment:' . $v1id, $created),
+            'tenant_id' => $tenantId, 'group_id' => $agIdOf[(int) ($a['group_id'] ?? 0)] ?? null,
+            // v1's assignments are per-STUDENT even when a whole class was set
+            // the same work. They stay per-student: converging them would be a
+            // guess that these nine rows were once one, and chk_assign_target
+            // admits exactly one target either way.
+            'cohort_id' => null, 'enrolment_id' => $enr,
+            'module_id' => null, 'assessment_kind_id' => $kindIdOfCode['assignment'],
+            'rubric_id' => null,
+            'title' => mam_v2_plan_str($a['title'] ?? null, 190) ?? 'Set work',
+            'instructions' => mam_v2_plan_str($a['instructions'] ?? null),
+            'reference_url' => mam_v2_plan_str($a['reference_url'] ?? null, 1000),
+            'reference_kind' => mam_v2_plan_str($a['reference_kind'] ?? null, 24),
+            'points_max' => null,
+            'due_at' => $dueOn !== null ? ($dueOn . ' 23:59:59.999') : null,
+            'due_timezone' => $dueOn !== null ? 'Africa/Lagos' : null,
+            'status' => $status, 'allows_resubmission' => 1,
+            'created_at' => $created,
+            'created_by' => $userOfV1User[(int) ($a['author_id'] ?? 0)] ?? null,
+            'deleted_seq' => 0];
+        $asgIdOf[$v1id] = $id;
+        $asgEnrolOf[$v1id] = $enr;
+        $mapped('assignments', $v1id, 'assignments', $id);
+    }
+    $note('assignments', 'assignments',
+        'v1 set work per STUDENT (with an optional class), so each row keeps its own learner as its target. '
+        . 'due_on is a DATE and becomes the END of that day in Africa/Lagos — midnight would move every '
+        . 'historic deadline a day earlier.',
+        count($rows('assignments')), $asgId);
+
+    $attId = 0;
+    $addAttachment = function (string $entity, ?int $entityId, ?string $url, ?string $kind,
+                               ?string $created, ?int $uploadedBy = null, ?string $seed = null) use (&$T, &$attId, $tenantId): ?int {
+        if ($url === null || $url === '') return null;
+        $id = ++$attId;
+        $T['attachments'][] = ['id' => $id,
+            'public_id' => mam_v2_plan_pid('attachment:' . ($seed ?? ($entity . ':' . (string) $entityId . ':' . $url)), $created),
+            'tenant_id' => $tenantId, 'entity_type' => $entity, 'entity_id' => $entityId,
+            'kind' => in_array($kind, ['recording', 'take', 'document', 'score', 'headshot'], true) ? $kind : 'document',
+            // The bytes are wherever v1 put them. `external` states that this
+            // row is a POINTER and the file was never in the academy's store —
+            // calling it 'local' would promise a file the loader does not have.
+            'storage' => 'external', 'storage_key' => mb_substr($url, 0, 500),
+            'mime_type' => null, 'byte_size' => null, 'checksum' => null,
+            'visibility' => 'private', 'uploaded_by' => $uploadedBy, 'created_at' => $created];
+        return $id;
+    };
+
+    $subId = 0; $subIdOf = [];
+    foreach ($rows('submissions') as $sm) {
+        $v1id = (int) ($sm['id'] ?? 0);
+        $asg  = $asgIdOf[(int) ($sm['assignment_id'] ?? 0)] ?? null;
+        $enr  = $asgEnrolOf[(int) ($sm['assignment_id'] ?? 0)] ?? null;
+        if ($enr === null) {
+            [$enr, $why] = $enrolFor(mam_v2_plan_int($sm['student_id'] ?? null), null);
+            if ($enr === null) { $rejected[] = ['table' => 'submissions', 'id' => $v1id, 'why' => $why]; continue; }
+        }
+        $created = mam_v2_plan_ts($sm['created_at'] ?? null, $nowFallback);
+        $v1status = strtolower((string) ($sm['status'] ?? 'submitted'));
+        $status = match ($v1status) {
+            'draft' => 'draft',
+            'graded', 'marked', 'reviewed' => 'marked',
+            'returned' => 'returned',
+            'withdrawn' => 'withdrawn',
+            default => 'submitted',
+        };
+        $submitted = mam_v2_plan_ts($sm['submitted_at'] ?? null, $status === 'draft' ? null : $created);
+        $id = ++$subId;
+        $T['submissions'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('submission:' . $v1id, $created),
+            'tenant_id' => $tenantId, 'enrolment_id' => $enr, 'assignment_id' => $asg,
+            'module_id' => null, 'session_id' => null, 'attempt_no' => 1,
+            'kind' => mam_v2_plan_str($sm['artifact_kind'] ?? null, 24) ?? 'link',
+            'body' => mam_v2_plan_str($sm['note'] ?? null),
+            'status' => $status, 'submitted_at' => $submitted, 'is_late' => 0,
+            'created_at' => $created, 'deleted_seq' => 0];
+        $subIdOf[$v1id] = $id;
+        // v1 kept ONE artifact on the submission row and any others in
+        // `submission_files`. Both become attachments, so a recording, a
+        // photographed score and a PDF are one mechanism.
+        $addAttachment('submission', $id, mam_v2_plan_str($sm['artifact_url'] ?? null, 1000),
+            mam_v2_plan_str($sm['artifact_kind'] ?? null, 24), $created, null, 'submission-artifact:' . $v1id);
+        $mapped('submissions', $v1id, 'submissions', $id);
+    }
+    $note('submissions', 'submissions (+ attachments)',
+        'attempt_no is 1 on every migrated row: v1 overwrote a resubmission in place, so the earlier '
+        . 'attempts it replaced are not in the export and cannot be reconstructed.',
+        count($rows('submissions')), $subId);
+
+    $sfOut = 0;
+    foreach ($rows('submission_files') as $f) {
+        $sub = $subIdOf[(int) ($f['submission_id'] ?? 0)] ?? null;
+        if ($sub === null) { $rejected[] = ['table' => 'submission_files', 'id' => $f['id'] ?? null, 'why' => 'submission did not map']; continue; }
+        $aid = $addAttachment('submission', $sub, mam_v2_plan_str($f['url'] ?? null, 1000),
+            mam_v2_plan_str($f['kind'] ?? null, 24), mam_v2_plan_ts($f['created_at'] ?? null, $nowFallback),
+            null, 'submission-file:' . (string) ($f['id'] ?? ''));
+        if ($aid !== null) { $sfOut++; $mapped('submission_files', (int) ($f['id'] ?? 0), 'attachments', $aid); }
+    }
+    $note('submission_files', 'attachments',
+        'polymorphic, so takes, recordings and photographed scores are one mechanism. `storage=external`: '
+        . 'the row is a pointer and the bytes were never in the academy\'s own store.',
+        count($rows('submission_files')), $sfOut);
+    $note('resource_versions', null,
+        'v1 versioned a class resource in its own table; v2 carries version provenance on `attachments`. '
+        . 'Left unmapped until class resources are carried over (batch 3).',
+        count($rows('resource_versions')));
+
+    $smkOut = 0;
+    foreach ($rows('submission_markers') as $mk) {
+        $sub = $subIdOf[(int) ($mk['submission_id'] ?? 0)] ?? null;
+        $mid = $memberOfV1User[(int) ($mk['marker_id'] ?? ($mk['user_id'] ?? 0))] ?? null;
+        if ($sub === null || $mid === null) {
+            $rejected[] = ['table' => 'submission_markers', 'id' => $mk['id'] ?? null,
+                'why' => $sub === null ? 'submission did not map' : 'marker did not map to a membership'];
+            continue;
+        }
+        $role = strtolower((string) ($mk['role'] ?? 'primary'));
+        $T['submission_markers'][] = ['tenant_id' => $tenantId, 'submission_id' => $sub,
+            'marker_membership_id' => $mid,
+            'role' => in_array($role, ['primary', 'moderator', 'second'], true) ? $role : 'primary',
+            'allocated_at' => mam_v2_plan_ts($mk['created_at'] ?? null, $nowFallback),
+            'allocated_by' => null,
+            'completed_at' => mam_v2_plan_ts($mk['completed_at'] ?? null, null)];
+        $smkOut++;
+    }
+    $note('submission_markers', 'submission_markers', 'who was allocated to mark, which is a different fact '
+        . 'from what they marked (the moderation share the report layer requires is counted from it).',
+        count($rows('submission_markers')), $smkOut);
+
+    /* ── The marks themselves ────────────────────────────────────────────── */
+    $assId = 0; $markId = 0; $marksFromJson = 0;
+    foreach ($rows('submission_reviews') as $rv) {
+        $v1id = (int) ($rv['id'] ?? 0);
+        $sub  = $subIdOf[(int) ($rv['submission_id'] ?? 0)] ?? null;
+        if ($sub === null) { $rejected[] = ['table' => 'submission_reviews', 'id' => $v1id, 'why' => 'submission did not map']; continue; }
+        $enr = null;
+        foreach ($T['submissions'] as $srow) if ((int) $srow['id'] === $sub) { $enr = (int) $srow['enrolment_id']; break; }
+        $created = mam_v2_plan_ts($rv['created_at'] ?? null, $nowFallback);
+        $marker  = $memberOfV1User[(int) ($rv['reviewer_id'] ?? 0)] ?? null;
+        $pts = $rv['total_points'] ?? null; $max = $rv['max_points'] ?? null;
+        $hasPts = is_numeric($pts) && is_numeric($max) && (float) $max > 0;
+        // chk_assess_marked: a MARKED assessment names its marker, states when,
+        // and carries an award. A review missing any of the three is carried as
+        // a draft rather than dropped — the feedback is still the academy's
+        // record of what was said.
+        $status = ($marker !== null && $hasPts) ? 'marked' : 'draft';
+        $id = ++$assId;
+        $T['assessments'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('assessment:review:' . $v1id, $created),
+            'tenant_id' => $tenantId, 'enrolment_id' => $enr,
+            'assessment_kind_id' => $kindIdOfCode['assignment'],
+            'submission_id' => $sub, 'session_id' => null, 'module_id' => null, 'title' => null,
+            'rubric_id' => $rubIdOf[(int) ($rv['rubric_id'] ?? 0)] ?? null,
+            // v1 had no rubric versioning, so every migrated mark was awarded
+            // against version 1 by construction.
+            'rubric_version' => isset($rubIdOf[(int) ($rv['rubric_id'] ?? 0)]) ? 1 : null,
+            'points_awarded' => $hasPts ? number_format((float) $pts, 2, '.', '') : null,
+            'points_max' => $hasPts ? number_format((float) $max, 2, '.', '') : null,
+            'pct' => $hasPts ? number_format(((float) $pts / (float) $max) * 100, 2, '.', '') : null,
+            'feedback' => mam_v2_plan_str($rv['feedback'] ?? null),
+            'status' => $status,
+            'marker_membership_id' => $status === 'marked' ? $marker : null,
+            'marked_at' => $status === 'marked' ? $created : null,
+            'moderated_by' => null, 'moderated_at' => null,
+            // v1 had no release step: a review was visible the moment it was
+            // written. Every migrated mark is therefore released, and saying so
+            // is more honest than importing them as unreleased and hiding marks
+            // families have already seen.
+            'released_at' => $status === 'marked' ? $created : null,
+            'created_at' => $created, 'deleted_seq' => 0];
+        if ($status === 'marked') $T['assessments'][count($T['assessments']) - 1]['status'] = 'released';
+        $mapped('submission_reviews', $v1id, 'assessments', $id);
+
+        // scores_json is {criterion_id: points}. This is the blob becoming rows.
+        $scores = json_decode((string) ($rv['scores_json'] ?? ''), true);
+        if (is_array($scores)) {
+            $seenLabel = [];
+            foreach ($scores as $critV1 => $points) {
+                $crit = $critIdOf[(int) $critV1] ?? null;
+                $label = null; $critMax = null;
+                foreach ($T['rubric_criteria'] as $cr) if ((int) $cr['id'] === (int) $crit) { $label = $cr['label']; $critMax = (float) $cr['max_points']; break; }
+                if ($label === null) continue;
+                // uq_assmark(tenant_id, assessment_id, label): two criteria of one
+                // rubric may share a label, and the second would collide.
+                if (isset($seenLabel[$label])) continue;
+                $seenLabel[$label] = true;
+                $awarded = is_numeric($points) ? min((float) $points, $critMax ?: 1.0) : null;
+                $T['assessment_marks'][] = ['id' => ++$markId, 'tenant_id' => $tenantId,
+                    'assessment_id' => $id, 'criterion_id' => $crit,
+                    // NULL for the same reason as on the criterion itself.
+                    'competency_id' => null, 'label' => $label,
+                    'points_awarded' => $awarded !== null ? number_format($awarded, 2, '.', '') : null,
+                    'points_max' => number_format(max(1.0, (float) ($critMax ?? 1.0)), 2, '.', ''),
+                    'weight' => '1.000',
+                    'is_insufficient' => $awarded === null ? 1 : 0,
+                    'comment' => null, 'sort_order' => 0];
+                $marksFromJson++;
+            }
+        }
+    }
+    $note('submission_reviews', 'assessments + assessment_marks',
+        sprintf('scores_json became %d mark rows. A review with no marker or no points is carried as a '
+            . 'DRAFT assessment rather than dropped — the feedback is still the record of what was said.',
+            $marksFromJson),
+        count($rows('submission_reviews')), $assId);
+
+    // v1's `assessments` is the GRADEBOOK: a score against an enrolment, typed
+    // by what v2 calls a competency. It becomes an assessment with one mark, and
+    // that mark is the one place in this migration where competency_id IS known.
+    $gradebookOut = 0;
+    foreach ($rows('assessments') as $a) {
+        $v1id = (int) ($a['id'] ?? 0);
+        $enr = $enrOfCourseEnrol[(int) ($a['enrollment_id'] ?? 0)] ?? null;
+        if ($enr === null) { $rejected[] = ['table' => 'assessments', 'id' => $v1id, 'why' => 'enrolment did not map']; continue; }
+        $created = mam_v2_plan_ts($a['created_at'] ?? null, $nowFallback);
+        $marker  = $memberOfV1User[(int) ($a['instructor_id'] ?? 0)] ?? null;
+        $score = $a['score'] ?? null; $max = $a['max_score'] ?? null;
+        $hasPts = is_numeric($score) && is_numeric($max) && (float) $max > 0;
+        $status = ($marker !== null && $hasPts) ? 'released' : 'draft';
+        $comp = $compIdOf[(int) ($a['type_id'] ?? 0)] ?? null;
+        $id = ++$assId;
+        $T['assessments'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('assessment:gradebook:' . $v1id, $created),
+            'tenant_id' => $tenantId, 'enrolment_id' => $enr,
+            'assessment_kind_id' => $kindIdOfCode['assignment'],
+            'submission_id' => null, 'session_id' => null, 'module_id' => null,
+            'title' => $a['week'] !== null && $a['week'] !== '' ? ('Week ' . (string) $a['week']) : null,
+            'rubric_id' => null, 'rubric_version' => null,
+            'points_awarded' => $hasPts ? number_format((float) $score, 2, '.', '') : null,
+            'points_max' => $hasPts ? number_format((float) $max, 2, '.', '') : null,
+            'pct' => $hasPts ? number_format(((float) $score / (float) $max) * 100, 2, '.', '') : null,
+            'feedback' => mam_v2_plan_str($a['notes'] ?? null),
+            'status' => $status,
+            'marker_membership_id' => $status === 'released' ? $marker : null,
+            'marked_at' => $status === 'released' ? $created : null,
+            'moderated_by' => null, 'moderated_at' => null,
+            'released_at' => $status === 'released' ? $created : null,
+            'created_at' => $created, 'deleted_seq' => 0];
+        if ($comp !== null && $hasPts) {
+            $T['assessment_marks'][] = ['id' => ++$markId, 'tenant_id' => $tenantId,
+                'assessment_id' => $id, 'criterion_id' => null, 'competency_id' => $comp,
+                'label' => mb_substr((string) ($a['type_code'] ?? 'Gradebook'), 0, 190),
+                'points_awarded' => number_format((float) $score, 2, '.', ''),
+                'points_max' => number_format((float) $max, 2, '.', ''),
+                'weight' => '1.000', 'is_insufficient' => 0, 'comment' => null, 'sort_order' => 0];
+        }
+        $gradebookOut++;
+        $mapped('assessments', $v1id, 'assessments', $id);
+    }
+    $note('assessments', 'assessments (+ one assessment_mark carrying the competency)',
+        'v1\'s gradebook row is typed by what v2 calls a competency, so this is the one place in the '
+        . 'migration where a mark\'s competency_id is KNOWN rather than left for a human.',
+        count($rows('assessments')), $gradebookOut);
+
+    /* ── Teach-backs ─────────────────────────────────────────────────────── */
+    // v1's teachbacks point at `lessons` — a cohort's instance of a week — while
+    // v2 points at the MODULE. The lesson's own module_id is the bridge; a
+    // lesson with none leaves module_id NULL rather than guessing a week.
+    $lessonModule = [];
+    foreach ($rows('lessons') as $l) {
+        $m = $modIdOf[(int) ($l['module_id'] ?? 0)] ?? null;
+        if ($m !== null) $lessonModule[(int) ($l['id'] ?? 0)] = $m;
+    }
+    $tbId = 0; $tbSlot = [];
+    foreach ($rows('teachbacks') as $tb) {
+        $v1id = (int) ($tb['id'] ?? 0);
+        $coh  = $cohIdOfV1[(int) ($tb['cohort_id'] ?? 0)] ?? null;
+        $mid  = $memberOfV1User[(int) ($tb['student_id'] ?? 0)] ?? null;
+        $enr  = ($mid !== null && $coh !== null) ? ($enrolsOfMember[$mid][$coh] ?? null) : null;
+        if ($enr === null) {
+            [$enr, $why] = $enrolFor(mam_v2_plan_int($tb['student_id'] ?? null), null);
+            if ($enr === null) { $rejected[] = ['table' => 'teachbacks', 'id' => $v1id, 'why' => $why]; continue; }
+        }
+        $mod = $lessonModule[(int) ($tb['lesson_id'] ?? 0)] ?? null;
+        // uq_teachback_module(tenant_id, enrolment_id, module_id, deleted_seq).
+        // v1's UNIQUE was (lesson, student); two lessons of one module could
+        // therefore hold two teach-backs that collide here. The later one is
+        // carried as soft-deleted so the record survives and the slot stays free.
+        $slotKey = $enr . ':' . (string) $mod;
+        $dup = $mod !== null && isset($tbSlot[$slotKey]);
+        $tbSlot[$slotKey] = true;
+        $created = mam_v2_plan_ts($tb['created_at'] ?? null, $nowFallback);
+        $v1status = strtolower((string) ($tb['status'] ?? 'submitted'));
+        $reviewer = $memberOfV1User[(int) ($tb['reviewer_id'] ?? 0)] ?? null;
+        $decisionRaw = strtolower((string) ($tb['decision'] ?? ''));
+        $decision = match ($decisionRaw) {
+            'secure', 'pass', 'approved' => 'secure',
+            'developing', 'partial' => 'developing',
+            'revisit', 'redo', 'rejected' => 'revisit',
+            default => null,
+        };
+        $reviewedAt = mam_v2_plan_ts($tb['reviewed_at'] ?? null, null);
+        // chk_teachback_reviewed: 'reviewed' means a named reviewer, a time AND a
+        // decision. Without all three the row is carried as still submitted,
+        // which is what it actually was.
+        $status = ($v1status === 'reviewed' && $reviewer !== null && $reviewedAt !== null && $decision !== null)
+            ? 'reviewed'
+            : (in_array($v1status, ['returned', 'withdrawn'], true) ? $v1status : 'submitted');
+        $scale = function (mixed $v): ?int {
+            $n = mam_v2_plan_int($v);
+            // v1 left these unbounded. Anything above the 5-point scale is not
+            // rescaled — a 5-point column and a 100-point one were being
+            // averaged, and inventing a conversion would keep that mistake.
+            return ($n === null || $n < 0 || $n > 5) ? null : $n;
+        };
+        $id = ++$tbId;
+        $T['teachbacks'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('teachback:' . $v1id, $created),
+            'tenant_id' => $tenantId, 'enrolment_id' => $enr, 'module_id' => $mod, 'session_id' => null,
+            'kind' => in_array((string) ($tb['kind'] ?? 'written'), ['written', 'audio', 'video', 'live'], true)
+                ? (string) $tb['kind'] : 'written',
+            'body' => mam_v2_plan_str($tb['body'] ?? null),
+            'status' => $status,
+            'reviewer_membership_id' => $status === 'reviewed' ? $reviewer : null,
+            'decision' => $status === 'reviewed' ? $decision : null,
+            'accuracy' => $scale($tb['accuracy'] ?? null), 'vocabulary' => $scale($tb['vocabulary'] ?? null),
+            'explanation' => $scale($tb['explanation'] ?? null), 'application' => $scale($tb['application'] ?? null),
+            'confidence' => $scale($tb['confidence'] ?? null),
+            'feedback' => mam_v2_plan_str($tb['feedback'] ?? null),
+            'created_at' => $created,
+            'reviewed_at' => $status === 'reviewed' ? $reviewedAt : null,
+            'deleted_seq' => $dup ? $id : 0];
+        $addAttachment('teachback', $id, mam_v2_plan_str($tb['artifact_url'] ?? null, 1000),
+            'recording', $created, null, 'teachback-artifact:' . $v1id);
+        $mapped('teachbacks', $v1id, 'teachbacks', $id,
+            null, $dup ? 'soft-deleted: another teach-back already holds this module slot' : null);
+    }
+    $note('lessons', null,
+        'v1\'s lesson is a COHORT\'s instance of a curriculum week — the same week taught to a different '
+        . 'class. v2 has no such row: a cohort\'s delivery of a module is its `class_sessions`, and the '
+        . 'teaching content belongs to the module. The lesson\'s only irreplaceable fact is which module '
+        . 'it instanced, and that is used here to place every teach-back.',
+        count($rows('lessons')));
+    $note('lesson_progress', null,
+        'per-lesson progress follows `lessons`: v2 tracks progress against the MODULE (module_progress), '
+        . 'which the cohort spine already carries. Left unmapped until module_progress is populated (batch 3).',
+        count($rows('lesson_progress')));
+    $note('teachbacks', 'teachbacks (+ attachments)',
+        'v1 pointed at a LESSON (a cohort\'s instance of a week); v2 points at the module, bridged by the '
+        . 'lesson\'s own module_id. A dimension scored outside 0–5 is dropped, not rescaled.',
+        count($rows('teachbacks')), $tbId);
+
+    /* ── Results and certificates ────────────────────────────────────────── */
+    $resId = 0;
+    foreach ($rows('results') as $r) {
+        $v1id = (int) ($r['id'] ?? 0);
+        $enr = $enrOfCourseEnrol[(int) ($r['enrollment_id'] ?? 0)] ?? null;
+        if ($enr === null) { $rejected[] = ['table' => 'results', 'id' => $v1id, 'why' => 'enrolment did not map']; continue; }
+        $pct = is_numeric($r['total_score'] ?? null) ? (float) $r['total_score'] : null;
+        if ($pct !== null && ($pct < 0 || $pct > 100)) {
+            // v1's `total_score REAL` said nothing about its scale. A value off
+            // the percentage scale is not rescaled — it is dropped and raised.
+            $flag('result_off_scale', ['table' => 'results', 'id' => $v1id, 'value' => $pct,
+                'action' => 'v1 stored a bare score with no stated scale. Re-enter it as a percentage.']);
+            $pct = null;
+        }
+        $outcomeRaw = strtolower((string) ($r['outcome'] ?? ''));
+        $outcome = match ($outcomeRaw) {
+            'passed', 'pass' => 'passed',
+            'referred', 'refer' => 'referred',
+            'failed', 'fail' => 'failed',
+            'withdrawn' => 'withdrawn',
+            'incomplete' => 'incomplete',
+            default => null,
+        };
+        $finalisedBy = $userOfV1User[(int) ($r['finalized_by'] ?? 0)] ?? null;
+        $finalisedAt = mam_v2_plan_ts($r['finalized_at'] ?? null, null);
+        // chk_enresult_final: a finalised result is SIGNED and states an outcome.
+        // v1 could finalise without either, and those rows stay provisional.
+        $final = $finalisedBy !== null && $finalisedAt !== null && $outcome !== null;
+        if (!$final && ($finalisedAt !== null || $finalisedBy !== null)) {
+            $flag('result_unsigned', ['table' => 'results', 'id' => $v1id,
+                'action' => 'v1 marked this result final without a signatory, a time or an outcome. '
+                    . 'It is carried as provisional; an academic decision-maker must confirm it.']);
+        }
+        $id = ++$resId;
+        $T['enrolment_results'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('result:' . $v1id, $finalisedAt),
+            'tenant_id' => $tenantId, 'enrolment_id' => $enr, 'term_id' => null,
+            'total_pct' => $pct !== null ? number_format($pct, 2, '.', '') : null,
+            'grade' => mam_v2_plan_str($r['grade'] ?? null, 16),
+            'outcome' => $outcome,
+            // v1 recorded no coverage beside the figure, and that is exactly the
+            // gap the v2 column exists to close. NULL says "unknown", which is
+            // a different statement from "all of it".
+            'coverage_evidenced' => null, 'coverage_total' => null,
+            'status' => $final ? 'finalised' : 'provisional',
+            'finalised_by' => $final ? $finalisedBy : null,
+            'finalised_at' => $final ? $finalisedAt : null,
+            'note' => null,
+            'created_at' => mam_v2_plan_ts($r['finalized_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $mapped('results', $v1id, 'enrolment_results', $id);
+    }
+    $note('results', 'enrolment_results',
+        'coverage is NULL on every row: v1 stored a percentage with nothing saying how much of the '
+        . 'syllabus it covered, and "unknown" is a different statement from "all of it".',
+        count($rows('results')), $resId);
+
+    $certId = 0;
+    foreach ($rows('certificates') as $c) {
+        $v1id = (int) ($c['id'] ?? 0);
+        $mid = $memberOfV1User[(int) ($c['student_id'] ?? 0)] ?? null;
+        if ($mid === null) { $rejected[] = ['table' => 'certificates', 'id' => $v1id, 'why' => 'holder did not map to a membership']; continue; }
+        $issued = mam_v2_plan_ts($c['issued_at'] ?? null, $nowFallback);
+        $kindRaw = strtolower((string) ($c['kind'] ?? ''));
+        $kind = match ($kindRaw) {
+            'level', 'level_completion' => 'level',
+            'participation' => 'participation',
+            'merit', 'distinction' => 'merit',
+            default => 'completion',
+        };
+        $ref = mam_v2_plan_str($c['reference'] ?? null, 64) ?? ('MAM-CERT-' . $v1id);
+        $id = ++$certId;
+        $T['certificates'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('certificate:' . $v1id, $issued),
+            'tenant_id' => $tenantId, 'membership_id' => $mid, 'enrolment_id' => null,
+            'programme_id' => $progIdOf[(int) ($c['program_id'] ?? 0)] ?? null,
+            'course_id' => null,
+            'level_id' => $lvlIdOf[(int) ($c['level_id'] ?? 0)] ?? null,
+            'term_id' => null, 'kind' => $kind,
+            'title' => mam_v2_plan_str($c['title'] ?? null, 190),
+            // The printed reference is what a holder quotes; the verification
+            // code is DERIVED from it and the row's identity so a re-run of the
+            // transform produces the same code, and it is not guessable from the
+            // reference alone.
+            'reference' => $ref,
+            'verification_code' => strtoupper(substr(hash('sha256', 'mam:v2:certificate:' . $v1id . ':' . $ref), 0, 32)),
+            'status' => 'issued', 'issued_by' => $userOfV1User[(int) ($c['issued_by'] ?? 0)] ?? null,
+            'issued_at' => $issued, 'revoked_at' => null, 'revoked_reason' => null];
+        $mapped('certificates', $v1id, 'certificates', $id, $ref);
+    }
+    $note('certificates', 'certificates',
+        'the verification code is DERIVED from the certificate\'s identity, so two runs of the transform '
+        . 'produce the same code and a re-issued certificate is not silently re-keyed.',
+        count($rows('certificates')), $certId);
+
+    /* ── Curriculum proposals and studio practice ────────────────────────── */
+    $mpId = 0;
+    foreach ($rows('module_proposals') as $mp) {
+        $v1id = (int) ($mp['id'] ?? 0);
+        $cid = $crsIdOf[(int) ($mp['course_id'] ?? 0)] ?? null;
+        if ($cid === null) { $rejected[] = ['table' => 'module_proposals', 'id' => $v1id, 'why' => 'course did not map']; continue; }
+        $created = mam_v2_plan_ts($mp['created_at'] ?? null, $nowFallback);
+        $statusRaw = strtolower((string) ($mp['status'] ?? 'pending'));
+        $reviewedBy = $userOfV1User[(int) ($mp['reviewed_by'] ?? 0)] ?? null;
+        $reviewedAt = mam_v2_plan_ts($mp['reviewed_at'] ?? null, null);
+        $noteText = mam_v2_plan_str($mp['review_note'] ?? null, 1000);
+        $status = match ($statusRaw) {
+            'approved' => 'approved', 'rejected' => 'rejected', 'withdrawn' => 'withdrawn',
+            default => 'pending',
+        };
+        // chk_mprop_reviewed / chk_mprop_rejected: a decision has a decider and a
+        // time, and a rejection states why. v1 enforced none of it, so a decision
+        // missing any of those facts is carried as still PENDING — the proposal
+        // returns to the review queue rather than claiming a decision nobody made.
+        if ($status === 'approved' && ($reviewedBy === null || $reviewedAt === null)) $status = 'pending';
+        if ($status === 'rejected' && ($reviewedBy === null || $reviewedAt === null || $noteText === null)) $status = 'pending';
+        if ($status === 'pending' && $statusRaw !== 'pending') {
+            $flag('proposal_decision_incomplete', ['table' => 'module_proposals', 'id' => $v1id,
+                'was' => $statusRaw, 'action' => 'The decision named no decider, no time or (for a rejection) '
+                    . 'no reason. Re-decide it in the new system.']);
+        }
+        $id = ++$mpId;
+        $T['module_proposals'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('proposal:' . $v1id, $created),
+            'tenant_id' => $tenantId, 'course_id' => $cid,
+            'level_id' => $lvlIdOf[(int) ($mp['level_id'] ?? 0)] ?? null,
+            'week_no' => max(1, mam_v2_plan_int($mp['week'] ?? null) ?? 1),
+            'title' => mam_v2_plan_str($mp['title'] ?? null, 190) ?? 'Proposed week',
+            'kind' => mam_v2_plan_str($mp['kind'] ?? null, 24) ?? 'module',
+            'content' => mam_v2_plan_str($mp['content'] ?? null),
+            'proposed_by_membership_id' => $memberOfV1User[(int) ($mp['proposed_by'] ?? 0)] ?? null,
+            'status' => $status, 'review_note' => $noteText,
+            'reviewed_by' => $status === 'pending' ? null : $reviewedBy,
+            'reviewed_at' => $status === 'pending' ? null : $reviewedAt,
+            'module_id' => null, 'created_at' => $created, 'deleted_seq' => 0];
+        $mapped('module_proposals', $v1id, 'module_proposals', $id);
+    }
+    $note('module_proposals', 'module_proposals',
+        'a decision with no decider, no time or (for a rejection) no reason returns to PENDING rather than '
+        . 'claiming a decision nobody made.',
+        count($rows('module_proposals')), $mpId);
+
+    $tsOut = 0; $tsSeen = [];
+    foreach ($rows('tool_scores') as $ts) {
+        $mid = $memberOfV1User[(int) ($ts['user_id'] ?? 0)] ?? null;
+        $tool = mam_v2_plan_str($ts['tool'] ?? null, 48);
+        if ($mid === null || $tool === null) {
+            $rejected[] = ['table' => 'tool_scores', 'id' => $ts['id'] ?? null,
+                'why' => $mid === null ? 'player did not map to a membership' : 'no tool named'];
+            continue;
+        }
+        // uq_toolscore(tenant_id, membership_id, tool). Two v1 users merged into
+        // one person keep the BETTER score and the SUM of the plays, which is
+        // what both figures mean.
+        $k = $mid . ':' . $tool;
+        if (isset($tsSeen[$k])) {
+            $i = $tsSeen[$k];
+            $T['tool_scores'][$i]['best_score'] = max((int) $T['tool_scores'][$i]['best_score'],
+                mam_v2_plan_int($ts['best_score'] ?? null) ?? 0);
+            $T['tool_scores'][$i]['plays'] += mam_v2_plan_int($ts['plays'] ?? null) ?? 0;
+            continue;
+        }
+        $tsSeen[$k] = count($T['tool_scores']);
+        $T['tool_scores'][] = ['tenant_id' => $tenantId, 'membership_id' => $mid, 'tool' => $tool,
+            'best_score' => mam_v2_plan_int($ts['best_score'] ?? null) ?? 0,
+            'best_at' => mam_v2_plan_ts($ts['updated_at'] ?? null, null),
+            'plays' => mam_v2_plan_int($ts['plays'] ?? null) ?? 0,
+            'created_at' => mam_v2_plan_ts($ts['created_at'] ?? null, $nowFallback)];
+        $tsOut++;
+    }
+    $note('tool_scores', 'tool_scores',
+        'client-attested practice results, so they stay a practice record with no route into `assessments`. '
+        . 'Two merged identities keep the better best-score and the sum of the plays.',
+        count($rows('tool_scores')), $tsOut);
 
     /* ── Admissions ──────────────────────────────────────────────────────── */
     // The programme an application was for. v1's `program` column holds a

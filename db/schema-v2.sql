@@ -2437,10 +2437,16 @@ CREATE TABLE makeup_credits (
 -- withdrawing from one course cannot orphan the other's marks.
 
 -- What the academy assesses, and whether it counts toward the mastery score.
+--
+-- NOT called `assessment_types`, deliberately. v1 has a table of that name and
+-- it means something else entirely — its rows are the mastery COMPONENTS, and
+-- the ETL maps them to `competencies`. A v2 table sharing the name would invite
+-- the next person extending the ETL to map v1's rows straight into it, which
+-- would put the mastery weighting in the wrong table with nothing complaining.
 -- Configuration, not code: an academy adding a "studio recording" assessment
 -- must not need a deploy, and the mastery weighting must not be a constant
 -- somebody has to remember to change alongside it.
-CREATE TABLE assessment_types (
+CREATE TABLE assessment_kinds (
   id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   tenant_id     BIGINT UNSIGNED NOT NULL,
   code          VARCHAR(48)  NOT NULL,     -- recital|exam|coursework|teachback|practical
@@ -2453,11 +2459,11 @@ CREATE TABLE assessment_types (
   counts_to_mastery TINYINT(1) NOT NULL DEFAULT 1,
   sort_order    INT          NOT NULL DEFAULT 0,
   is_active     TINYINT(1)   NOT NULL DEFAULT 1,
-  UNIQUE KEY uq_asstype (tenant_id, code),
-  CONSTRAINT chk_asstype_weight CHECK (weight_pct >= 0 AND weight_pct <= 100),
-  CONSTRAINT chk_asstype_mastery CHECK (counts_to_mastery IN (0,1)),
-  CONSTRAINT chk_asstype_active CHECK (is_active IN (0,1)),
-  CONSTRAINT fk_asstype_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+  UNIQUE KEY uq_asskind (tenant_id, code),
+  CONSTRAINT chk_asskind_weight CHECK (weight_pct >= 0 AND weight_pct <= 100),
+  CONSTRAINT chk_asskind_mastery CHECK (counts_to_mastery IN (0,1)),
+  CONSTRAINT chk_asskind_active CHECK (is_active IN (0,1)),
+  CONSTRAINT fk_asskind_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- A piece of work handed in. `attempt_no` is part of the natural key because a
@@ -2532,7 +2538,7 @@ CREATE TABLE assessments (
   public_id     CHAR(26)     NOT NULL,
   tenant_id     BIGINT UNSIGNED NOT NULL,
   enrolment_id  BIGINT UNSIGNED NOT NULL,
-  assessment_type_id BIGINT UNSIGNED NULL,
+  assessment_kind_id BIGINT UNSIGNED NULL,
   submission_id BIGINT UNSIGNED NULL,
   session_id    BIGINT UNSIGNED NULL,
   module_id     BIGINT UNSIGNED NULL,
@@ -2581,7 +2587,7 @@ CREATE TABLE assessments (
         OR (moderated_by IS NOT NULL AND moderated_at IS NOT NULL)),
   CONSTRAINT fk_assess_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_assess_enrol  FOREIGN KEY (enrolment_id)  REFERENCES enrolments(id) ON DELETE CASCADE,
-  CONSTRAINT fk_assess_type   FOREIGN KEY (assessment_type_id) REFERENCES assessment_types(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assess_kind   FOREIGN KEY (assessment_kind_id) REFERENCES assessment_kinds(id) ON DELETE SET NULL,
   CONSTRAINT fk_assess_subm   FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE SET NULL,
   CONSTRAINT fk_assess_sess   FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE SET NULL,
   CONSTRAINT fk_assess_module FOREIGN KEY (module_id)     REFERENCES modules(id) ON DELETE SET NULL,
@@ -2708,7 +2714,7 @@ CREATE TABLE assignments (
   cohort_id     BIGINT UNSIGNED NULL,
   enrolment_id  BIGINT UNSIGNED NULL,
   module_id     BIGINT UNSIGNED NULL,
-  assessment_type_id BIGINT UNSIGNED NULL,
+  assessment_kind_id BIGINT UNSIGNED NULL,
   rubric_id     BIGINT UNSIGNED NULL,
   title         VARCHAR(190) NOT NULL,
   instructions  TEXT         NULL,
@@ -2743,7 +2749,7 @@ CREATE TABLE assignments (
   CONSTRAINT fk_assign_cohort FOREIGN KEY (cohort_id)    REFERENCES cohorts(id) ON DELETE CASCADE,
   CONSTRAINT fk_assign_enrol  FOREIGN KEY (enrolment_id) REFERENCES enrolments(id) ON DELETE CASCADE,
   CONSTRAINT fk_assign_module FOREIGN KEY (module_id)    REFERENCES modules(id) ON DELETE SET NULL,
-  CONSTRAINT fk_assign_type   FOREIGN KEY (assessment_type_id) REFERENCES assessment_types(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assign_kind   FOREIGN KEY (assessment_kind_id) REFERENCES assessment_kinds(id) ON DELETE SET NULL,
   CONSTRAINT fk_assign_rubric FOREIGN KEY (rubric_id)    REFERENCES rubrics(id) ON DELETE SET NULL,
   CONSTRAINT fk_assign_by     FOREIGN KEY (created_by)   REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

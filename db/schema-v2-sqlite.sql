@@ -2427,10 +2427,16 @@ CREATE TABLE makeup_credits (
 -- withdrawing from one course cannot orphan the other's marks.
 
 -- What the academy assesses, and whether it counts toward the mastery score.
+--
+-- NOT called `assessment_types`, deliberately. v1 has a table of that name and
+-- it means something else entirely — its rows are the mastery COMPONENTS, and
+-- the ETL maps them to `competencies`. A v2 table sharing the name would invite
+-- the next person extending the ETL to map v1's rows straight into it, which
+-- would put the mastery weighting in the wrong table with nothing complaining.
 -- Configuration, not code: an academy adding a "studio recording" assessment
 -- must not need a deploy, and the mastery weighting must not be a constant
 -- somebody has to remember to change alongside it.
-CREATE TABLE assessment_types (
+CREATE TABLE assessment_kinds (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   tenant_id     INTEGER NOT NULL,
   code          TEXT  NOT NULL,     -- recital|exam|coursework|teachback|practical
@@ -2444,10 +2450,10 @@ CREATE TABLE assessment_types (
   sort_order    INTEGER          NOT NULL DEFAULT 0,
   is_active     INTEGER   NOT NULL DEFAULT 1,
   UNIQUE (tenant_id, code),
-  CONSTRAINT chk_asstype_weight CHECK (weight_pct >= 0 AND weight_pct <= 100),
-  CONSTRAINT chk_asstype_mastery CHECK (counts_to_mastery IN (0,1)),
-  CONSTRAINT chk_asstype_active CHECK (is_active IN (0,1)),
-  CONSTRAINT fk_asstype_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+  CONSTRAINT chk_asskind_weight CHECK (weight_pct >= 0 AND weight_pct <= 100),
+  CONSTRAINT chk_asskind_mastery CHECK (counts_to_mastery IN (0,1)),
+  CONSTRAINT chk_asskind_active CHECK (is_active IN (0,1)),
+  CONSTRAINT fk_asskind_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 );
 
 -- A piece of work handed in. `attempt_no` is part of the natural key because a
@@ -2521,7 +2527,7 @@ CREATE TABLE assessments (
   public_id     TEXT     NOT NULL,
   tenant_id     INTEGER NOT NULL,
   enrolment_id  INTEGER NOT NULL,
-  assessment_type_id INTEGER NULL,
+  assessment_kind_id INTEGER NULL,
   submission_id INTEGER NULL,
   session_id    INTEGER NULL,
   module_id     INTEGER NULL,
@@ -2568,7 +2574,7 @@ CREATE TABLE assessments (
         OR (moderated_by IS NOT NULL AND moderated_at IS NOT NULL)),
   CONSTRAINT fk_assess_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_assess_enrol  FOREIGN KEY (enrolment_id)  REFERENCES enrolments(id) ON DELETE CASCADE,
-  CONSTRAINT fk_assess_type   FOREIGN KEY (assessment_type_id) REFERENCES assessment_types(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assess_kind   FOREIGN KEY (assessment_kind_id) REFERENCES assessment_kinds(id) ON DELETE SET NULL,
   CONSTRAINT fk_assess_subm   FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE SET NULL,
   CONSTRAINT fk_assess_sess   FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE SET NULL,
   CONSTRAINT fk_assess_module FOREIGN KEY (module_id)     REFERENCES modules(id) ON DELETE SET NULL,
@@ -2695,7 +2701,7 @@ CREATE TABLE assignments (
   cohort_id     INTEGER NULL,
   enrolment_id  INTEGER NULL,
   module_id     INTEGER NULL,
-  assessment_type_id INTEGER NULL,
+  assessment_kind_id INTEGER NULL,
   rubric_id     INTEGER NULL,
   title         TEXT NOT NULL,
   instructions  TEXT         NULL,
@@ -2729,7 +2735,7 @@ CREATE TABLE assignments (
   CONSTRAINT fk_assign_cohort FOREIGN KEY (cohort_id)    REFERENCES cohorts(id) ON DELETE CASCADE,
   CONSTRAINT fk_assign_enrol  FOREIGN KEY (enrolment_id) REFERENCES enrolments(id) ON DELETE CASCADE,
   CONSTRAINT fk_assign_module FOREIGN KEY (module_id)    REFERENCES modules(id) ON DELETE SET NULL,
-  CONSTRAINT fk_assign_type   FOREIGN KEY (assessment_type_id) REFERENCES assessment_types(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assign_kind   FOREIGN KEY (assessment_kind_id) REFERENCES assessment_kinds(id) ON DELETE SET NULL,
   CONSTRAINT fk_assign_rubric FOREIGN KEY (rubric_id)    REFERENCES rubrics(id) ON DELETE SET NULL,
   CONSTRAINT fk_assign_by     FOREIGN KEY (created_by)   REFERENCES users(id) ON DELETE SET NULL
 );
