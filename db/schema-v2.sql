@@ -2423,6 +2423,491 @@ CREATE TABLE makeup_credits (
   CONSTRAINT fk_makeup_grantor FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- =============================================================================
+-- LAYER M · ASSESSMENT AND PROGRESS
+-- =============================================================================
+-- v1 kept the act of marking in `submission_reviews.scores_json`: a blob of
+-- criterion → points that no query could join to a competency, which is why the
+-- mastery score had to map rubric criteria to components BY LABEL. Here a mark
+-- is a row, the criterion is a foreign key, and the competency comes with it.
+--
+-- Everything in this layer is keyed on `enrolment_id`, not `student_id`. A mark
+-- belongs to a person's enrolment on a course, so the same person taking piano
+-- and voice has two independent records instead of one interleaved one — and
+-- withdrawing from one course cannot orphan the other's marks.
+
+-- What the academy assesses, and whether it counts toward the mastery score.
+-- Configuration, not code: an academy adding a "studio recording" assessment
+-- must not need a deploy, and the mastery weighting must not be a constant
+-- somebody has to remember to change alongside it.
+CREATE TABLE assessment_types (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  code          VARCHAR(48)  NOT NULL,     -- recital|exam|coursework|teachback|practical
+  name          VARCHAR(120) NOT NULL,
+  description   VARCHAR(500) NULL,
+  -- Share of the enrolment result. A type that does NOT count to mastery
+  -- (a formative check) carries 0 and `counts_to_mastery = 0` — the two say
+  -- different things and both are read.
+  weight_pct    DECIMAL(5,2) NOT NULL DEFAULT 0,
+  counts_to_mastery TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order    INT          NOT NULL DEFAULT 0,
+  is_active     TINYINT(1)   NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_asstype (tenant_id, code),
+  CONSTRAINT chk_asstype_weight CHECK (weight_pct >= 0 AND weight_pct <= 100),
+  CONSTRAINT chk_asstype_mastery CHECK (counts_to_mastery IN (0,1)),
+  CONSTRAINT chk_asstype_active CHECK (is_active IN (0,1)),
+  CONSTRAINT fk_asstype_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A piece of work handed in. `attempt_no` is part of the natural key because a
+-- resubmission is a NEW submission, not an edit of the old one: the mark that
+-- was awarded against the first attempt has to stay readable.
+CREATE TABLE submissions (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  enrolment_id  BIGINT UNSIGNED NOT NULL,
+  assignment_id BIGINT UNSIGNED NULL,
+  module_id     BIGINT UNSIGNED NULL,
+  session_id    BIGINT UNSIGNED NULL,
+  attempt_no    SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  kind          VARCHAR(24)  NOT NULL DEFAULT 'link',   -- link|text|recording|take|document
+  body          TEXT         NULL,
+  -- Files live in `attachments` (entity_type='submission'), so a recording, a
+  -- photographed score and a PDF are one mechanism instead of v1's
+  -- `submission_files` beside a bare `artifact_url`.
+  status        VARCHAR(16)  NOT NULL DEFAULT 'submitted',
+     -- draft|submitted|returned|marked|withdrawn
+  submitted_at  DATETIME(3)  NULL,
+  is_late       TINYINT(1)   NOT NULL DEFAULT 0,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  deleted_at    DATETIME(3)  NULL,
+  deleted_seq   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  row_version   INT UNSIGNED NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_subm_public (public_id),
+  UNIQUE KEY uq_subm_attempt (tenant_id, assignment_id, enrolment_id, attempt_no, deleted_seq),
+  KEY ix_subm_enrol (tenant_id, enrolment_id, status),
+  KEY ix_subm_module (tenant_id, module_id, status),
+  CONSTRAINT chk_subm_status CHECK (status IN ('draft','submitted','returned','marked','withdrawn')),
+  CONSTRAINT chk_subm_late CHECK (is_late IN (0,1)),
+  -- A submitted piece of work states WHEN it arrived: lateness, the two-hour
+  -- marking clock and the assignment deadline are all measured from it.
+  CONSTRAINT chk_subm_when CHECK (status = 'draft' OR submitted_at IS NOT NULL),
+  CONSTRAINT chk_subm_attempt CHECK (attempt_no >= 1),
+  CONSTRAINT fk_subm_tenant  FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_subm_enrol   FOREIGN KEY (enrolment_id)  REFERENCES enrolments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_subm_module  FOREIGN KEY (module_id)     REFERENCES modules(id) ON DELETE SET NULL,
+  CONSTRAINT fk_subm_session FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- WHO is to mark a submission, which is a different fact from what they marked.
+-- The moderation share the report layer requires (MAM_REPORT_MODERATION_SHARE)
+-- is a count of allocations with role='moderator' — derivable only if the
+-- allocation is recorded before the mark exists.
+CREATE TABLE submission_markers (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  submission_id BIGINT UNSIGNED NOT NULL,
+  marker_membership_id BIGINT UNSIGNED NOT NULL,
+  role          VARCHAR(16)  NOT NULL DEFAULT 'primary',   -- primary|moderator|second
+  allocated_at  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  allocated_by  BIGINT UNSIGNED NULL,
+  completed_at  DATETIME(3)  NULL,
+  UNIQUE KEY uq_submarker (tenant_id, submission_id, marker_membership_id),
+  KEY ix_submarker_who (tenant_id, marker_membership_id, completed_at),
+  CONSTRAINT chk_submarker_role CHECK (role IN ('primary','moderator','second')),
+  CONSTRAINT fk_submarker_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_submarker_subm   FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_submarker_who    FOREIGN KEY (marker_membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_submarker_by     FOREIGN KEY (allocated_by)  REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The marking EVENT. v1's `submission_reviews` could only exist against a
+-- submission; a recital marked in the room and an exam sat on paper had nowhere
+-- to go, so they were entered as a submission that nobody submitted.
+CREATE TABLE assessments (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  enrolment_id  BIGINT UNSIGNED NOT NULL,
+  assessment_type_id BIGINT UNSIGNED NULL,
+  submission_id BIGINT UNSIGNED NULL,
+  session_id    BIGINT UNSIGNED NULL,
+  module_id     BIGINT UNSIGNED NULL,
+  title         VARCHAR(190) NULL,
+  rubric_id     BIGINT UNSIGNED NULL,
+  -- The rubric VERSION is frozen here, because rubrics/uq_rubrics_version keeps
+  -- editing a published rubric to a new version and a mark must state which one
+  -- it was awarded against.
+  rubric_version INT UNSIGNED NULL,
+  points_awarded DECIMAL(8,2) NULL,
+  points_max     DECIMAL(8,2) NULL,
+  -- Derived and STORED at mark time, like every other percentage in this schema:
+  -- the marker's rubric can be re-versioned afterwards and the awarded figure
+  -- must not move with it.
+  pct           DECIMAL(5,2) NULL,
+  feedback      TEXT         NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'draft',
+     -- draft|marked|moderated|released|withdrawn
+  marker_membership_id BIGINT UNSIGNED NULL,
+  marked_at     DATETIME(3)  NULL,
+  moderated_by  BIGINT UNSIGNED NULL,
+  moderated_at  DATETIME(3)  NULL,
+  -- RELEASED is the only status a learner or guardian may be shown. A mark
+  -- exists for a while before anybody is entitled to read it.
+  released_at   DATETIME(3)  NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  deleted_at    DATETIME(3)  NULL,
+  deleted_seq   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  created_by    BIGINT UNSIGNED NULL,
+  row_version   INT UNSIGNED NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_assess_public (public_id),
+  KEY ix_assess_enrol (tenant_id, enrolment_id, status),
+  KEY ix_assess_subm (tenant_id, submission_id),
+  KEY ix_assess_marker (tenant_id, marker_membership_id, marked_at),
+  CONSTRAINT chk_assess_status CHECK (status IN ('draft','marked','moderated','released','withdrawn')),
+  CONSTRAINT chk_assess_points CHECK ((points_awarded IS NULL AND points_max IS NULL)
+        OR (points_awarded >= 0 AND points_max > 0 AND points_awarded <= points_max)),
+  CONSTRAINT chk_assess_pct CHECK (pct IS NULL OR (pct >= 0 AND pct <= 100)),
+  -- A mark states who awarded it and when. Without this a released figure has no
+  -- author, which is exactly what an appeal has to be answered from.
+  CONSTRAINT chk_assess_marked CHECK (status IN ('draft','withdrawn')
+        OR (marker_membership_id IS NOT NULL AND marked_at IS NOT NULL AND points_awarded IS NOT NULL)),
+  CONSTRAINT chk_assess_released CHECK (status <> 'released' OR released_at IS NOT NULL),
+  CONSTRAINT chk_assess_moderated CHECK ((moderated_by IS NULL AND moderated_at IS NULL)
+        OR (moderated_by IS NOT NULL AND moderated_at IS NOT NULL)),
+  CONSTRAINT fk_assess_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_assess_enrol  FOREIGN KEY (enrolment_id)  REFERENCES enrolments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_assess_type   FOREIGN KEY (assessment_type_id) REFERENCES assessment_types(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assess_subm   FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assess_sess   FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assess_module FOREIGN KEY (module_id)     REFERENCES modules(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assess_rubric FOREIGN KEY (rubric_id)     REFERENCES rubrics(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assess_marker FOREIGN KEY (marker_membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assess_modby  FOREIGN KEY (moderated_by)  REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per criterion marked. This is the table `scores_json` should always
+-- have been: `competency_id` is carried BESIDE the criterion (denormalised on
+-- purpose) so a mastery query joins nothing and a re-versioned rubric cannot
+-- change which competency an awarded mark counted toward.
+CREATE TABLE assessment_marks (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  assessment_id BIGINT UNSIGNED NOT NULL,
+  criterion_id  BIGINT UNSIGNED NULL,
+  competency_id BIGINT UNSIGNED NULL,
+  label         VARCHAR(190) NOT NULL,
+  points_awarded DECIMAL(8,2) NULL,
+  points_max     DECIMAL(8,2) NOT NULL,
+  weight        DECIMAL(6,3) NOT NULL DEFAULT 1.000,
+  -- An unevidenced criterion is a ROW with a NULL award, never a zero and never
+  -- an absent row: scoring an unassessed beginner 0 reports them as failing, and
+  -- omitting the row hides that the criterion was in scope at all.
+  is_insufficient TINYINT(1) NOT NULL DEFAULT 0,
+  comment       VARCHAR(1000) NULL,
+  sort_order    INT          NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_assmark (tenant_id, assessment_id, label),
+  KEY ix_assmark_comp (tenant_id, competency_id),
+  CONSTRAINT chk_assmark_points CHECK (points_max > 0
+        AND (points_awarded IS NULL OR (points_awarded >= 0 AND points_awarded <= points_max))),
+  CONSTRAINT chk_assmark_insuff CHECK (is_insufficient IN (0,1)
+        AND (is_insufficient = 0 OR points_awarded IS NULL)),
+  CONSTRAINT fk_assmark_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_assmark_assess FOREIGN KEY (assessment_id) REFERENCES assessments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_assmark_crit   FOREIGN KEY (criterion_id)  REFERENCES rubric_criteria(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assmark_comp   FOREIGN KEY (competency_id) REFERENCES competencies(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The learner explains the material back. Five named dimensions rather than
+-- v1's single `understanding` plus five columns bolted on afterwards.
+CREATE TABLE teachbacks (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  enrolment_id  BIGINT UNSIGNED NOT NULL,
+  module_id     BIGINT UNSIGNED NULL,
+  session_id    BIGINT UNSIGNED NULL,
+  kind          VARCHAR(16)  NOT NULL DEFAULT 'written',   -- written|audio|video|live
+  body          TEXT         NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'submitted',
+     -- submitted|reviewed|returned|withdrawn
+  reviewer_membership_id BIGINT UNSIGNED NULL,
+  decision      VARCHAR(16)  NULL,          -- secure|developing|revisit
+  accuracy      TINYINT UNSIGNED NULL,
+  vocabulary    TINYINT UNSIGNED NULL,
+  explanation   TINYINT UNSIGNED NULL,
+  application   TINYINT UNSIGNED NULL,
+  confidence    TINYINT UNSIGNED NULL,
+  feedback      TEXT         NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  reviewed_at   DATETIME(3)  NULL,
+  deleted_at    DATETIME(3)  NULL,
+  deleted_seq   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_teachback_public (public_id),
+  -- One LIVE teach-back per module per enrolment; a withdrawn one frees the slot
+  -- (deleted_seq), which is how a re-record replaces rather than duplicates.
+  UNIQUE KEY uq_teachback_module (tenant_id, enrolment_id, module_id, deleted_seq),
+  KEY ix_teachback_review (tenant_id, status, created_at),
+  CONSTRAINT chk_teachback_kind CHECK (kind IN ('written','audio','video','live')),
+  CONSTRAINT chk_teachback_status CHECK (status IN ('submitted','reviewed','returned','withdrawn')),
+  CONSTRAINT chk_teachback_decision CHECK (decision IS NULL
+        OR decision IN ('secure','developing','revisit')),
+  -- The five dimensions share ONE scale (0–5). v1 left them unbounded, so a
+  -- 5-point column and a 100-point column were averaged together.
+  CONSTRAINT chk_teachback_scale CHECK (
+        (accuracy    IS NULL OR accuracy    <= 5)
+    AND (vocabulary  IS NULL OR vocabulary  <= 5)
+    AND (explanation IS NULL OR explanation <= 5)
+    AND (application IS NULL OR application <= 5)
+    AND (confidence  IS NULL OR confidence  <= 5)),
+  CONSTRAINT chk_teachback_reviewed CHECK (status <> 'reviewed'
+        OR (reviewer_membership_id IS NOT NULL AND reviewed_at IS NOT NULL AND decision IS NOT NULL)),
+  CONSTRAINT fk_teachback_tenant FOREIGN KEY (tenant_id)    REFERENCES tenants(id),
+  CONSTRAINT fk_teachback_enrol  FOREIGN KEY (enrolment_id) REFERENCES enrolments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_teachback_module FOREIGN KEY (module_id)    REFERENCES modules(id) ON DELETE SET NULL,
+  CONSTRAINT fk_teachback_sess   FOREIGN KEY (session_id)   REFERENCES class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_teachback_rev    FOREIGN KEY (reviewer_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A named set of assignments (a unit of work, a practice block).
+CREATE TABLE assignment_groups (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  cohort_id     BIGINT UNSIGNED NULL,
+  course_id     BIGINT UNSIGNED NULL,
+  title         VARCHAR(190) NOT NULL,
+  description   TEXT         NULL,
+  sort_order    INT          NOT NULL DEFAULT 0,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  created_by    BIGINT UNSIGNED NULL,
+  deleted_at    DATETIME(3)  NULL,
+  deleted_seq   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_asgroup_public (public_id),
+  KEY ix_asgroup_cohort (tenant_id, cohort_id, sort_order),
+  CONSTRAINT fk_asgroup_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_asgroup_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_asgroup_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE SET NULL,
+  CONSTRAINT fk_asgroup_by     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Set work. v1's `assignments` was per-STUDENT with an optional class, so
+-- setting one piece of work for a cohort of nine wrote nine rows that then
+-- drifted apart when the instructor edited the instructions. Here the
+-- assignment is the work and the target is either a cohort or one enrolment;
+-- what each learner did about it is a `submissions` row.
+CREATE TABLE assignments (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  group_id      BIGINT UNSIGNED NULL,
+  cohort_id     BIGINT UNSIGNED NULL,
+  enrolment_id  BIGINT UNSIGNED NULL,
+  module_id     BIGINT UNSIGNED NULL,
+  assessment_type_id BIGINT UNSIGNED NULL,
+  rubric_id     BIGINT UNSIGNED NULL,
+  title         VARCHAR(190) NOT NULL,
+  instructions  TEXT         NULL,
+  reference_url VARCHAR(1000) NULL,
+  reference_kind VARCHAR(24)  NULL,
+  points_max    DECIMAL(8,2) NULL,
+  due_at        DATETIME(3)  NULL,
+  due_timezone  VARCHAR(64)  NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'open',
+     -- draft|open|closed|archived
+  allows_resubmission TINYINT(1) NOT NULL DEFAULT 1,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  created_by    BIGINT UNSIGNED NULL,
+  deleted_at    DATETIME(3)  NULL,
+  deleted_seq   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  row_version   INT UNSIGNED NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_assign_public (public_id),
+  KEY ix_assign_cohort (tenant_id, cohort_id, status, due_at),
+  KEY ix_assign_enrol (tenant_id, enrolment_id, status, due_at),
+  CONSTRAINT chk_assign_status CHECK (status IN ('draft','open','closed','archived')),
+  CONSTRAINT chk_assign_resub CHECK (allows_resubmission IN (0,1)),
+  CONSTRAINT chk_assign_points CHECK (points_max IS NULL OR points_max > 0),
+  -- Work set at nobody is work nobody can hand in. Exactly one target, so a
+  -- cohort assignment cannot also claim to be one learner's.
+  CONSTRAINT chk_assign_target CHECK ((cohort_id IS NULL) <> (enrolment_id IS NULL)),
+  -- A deadline is a wall-clock time in a stated zone, per the header note: a
+  -- diaspora learner and a Lagos learner must read the same Friday.
+  CONSTRAINT chk_assign_due_tz CHECK (due_at IS NULL OR due_timezone IS NOT NULL),
+  CONSTRAINT fk_assign_tenant FOREIGN KEY (tenant_id)    REFERENCES tenants(id),
+  CONSTRAINT fk_assign_group  FOREIGN KEY (group_id)     REFERENCES assignment_groups(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assign_cohort FOREIGN KEY (cohort_id)    REFERENCES cohorts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_assign_enrol  FOREIGN KEY (enrolment_id) REFERENCES enrolments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_assign_module FOREIGN KEY (module_id)    REFERENCES modules(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assign_type   FOREIGN KEY (assessment_type_id) REFERENCES assessment_types(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assign_rubric FOREIGN KEY (rubric_id)    REFERENCES rubrics(id) ON DELETE SET NULL,
+  CONSTRAINT fk_assign_by     FOREIGN KEY (created_by)   REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The finalised outcome of an enrolment. v1's `results` carried a bare
+-- `total_score REAL` with nothing saying what scale it was on or who signed it.
+CREATE TABLE enrolment_results (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  enrolment_id  BIGINT UNSIGNED NOT NULL,
+  term_id       BIGINT UNSIGNED NULL,
+  -- INTERNAL. This is the figure the mastery coverage floor governs the
+  -- PUBLICATION of, not the storage of: the academy needs it for progression and
+  -- an audit needs it reproducible. What a learner or guardian is shown is the
+  -- band on `termly_reports`. See mam_mastery_publishable().
+  total_pct     DECIMAL(5,2) NULL,
+  grade         VARCHAR(16)  NULL,
+  outcome       VARCHAR(24)  NULL,      -- passed|referred|failed|withdrawn|incomplete
+  -- Coverage travels WITH the figure. A percentage computed over three of eleven
+  -- competencies is not the same number as one computed over all eleven, and
+  -- without this nothing downstream can tell them apart.
+  coverage_evidenced TINYINT UNSIGNED NULL,
+  coverage_total     TINYINT UNSIGNED NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'provisional',
+     -- provisional|finalised|withdrawn
+  finalised_by  BIGINT UNSIGNED NULL,
+  finalised_at  DATETIME(3)  NULL,
+  note          VARCHAR(500) NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  deleted_at    DATETIME(3)  NULL,
+  deleted_seq   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  row_version   INT UNSIGNED NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_enresult_public (public_id),
+  -- One LIVE result per enrolment per term. v1's UNIQUE(enrollment_id) could not
+  -- express a year-long enrolment reported twice.
+  UNIQUE KEY uq_enresult_slot (tenant_id, enrolment_id, term_id, deleted_seq),
+  KEY ix_enresult_status (tenant_id, status, finalised_at),
+  CONSTRAINT chk_enresult_status CHECK (status IN ('provisional','finalised','withdrawn')),
+  CONSTRAINT chk_enresult_pct CHECK (total_pct IS NULL OR (total_pct >= 0 AND total_pct <= 100)),
+  CONSTRAINT chk_enresult_outcome CHECK (outcome IS NULL
+        OR outcome IN ('passed','referred','failed','withdrawn','incomplete')),
+  CONSTRAINT chk_enresult_cov CHECK (coverage_evidenced IS NULL
+        OR coverage_total IS NULL OR coverage_evidenced <= coverage_total),
+  -- A finalised result is signed. An unsigned final grade is the thing an appeal
+  -- cannot be answered from.
+  CONSTRAINT chk_enresult_final CHECK (status <> 'finalised'
+        OR (finalised_by IS NOT NULL AND finalised_at IS NOT NULL AND outcome IS NOT NULL)),
+  CONSTRAINT fk_enresult_tenant FOREIGN KEY (tenant_id)    REFERENCES tenants(id),
+  CONSTRAINT fk_enresult_enrol  FOREIGN KEY (enrolment_id) REFERENCES enrolments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_enresult_term   FOREIGN KEY (term_id)      REFERENCES academic_terms(id) ON DELETE SET NULL,
+  CONSTRAINT fk_enresult_by     FOREIGN KEY (finalised_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- An awarded certificate, and the code a third party verifies it by.
+CREATE TABLE certificates (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  enrolment_id  BIGINT UNSIGNED NULL,
+  programme_id  BIGINT UNSIGNED NULL,
+  course_id     BIGINT UNSIGNED NULL,
+  level_id      BIGINT UNSIGNED NULL,
+  term_id       BIGINT UNSIGNED NULL,
+  kind          VARCHAR(24)  NOT NULL,     -- completion|level|participation|merit
+  title         VARCHAR(190) NULL,
+  -- The reference a holder quotes and the code a verifier types are DIFFERENT
+  -- strings on purpose: the reference is printed on the certificate and readable
+  -- over the phone, the verification code is not derivable from it.
+  reference        VARCHAR(64) NOT NULL,
+  verification_code CHAR(32)   NOT NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'issued',   -- issued|revoked|reissued
+  issued_by     BIGINT UNSIGNED NULL,
+  issued_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  revoked_at    DATETIME(3)  NULL,
+  revoked_reason VARCHAR(500) NULL,
+  UNIQUE KEY uq_cert_public (public_id),
+  UNIQUE KEY uq_cert_reference (tenant_id, reference),
+  -- Verification is looked up by code ALONE (a verifier has no tenant), so the
+  -- code is unique across the platform, not within a tenant.
+  UNIQUE KEY uq_cert_verify (verification_code),
+  KEY ix_cert_member (tenant_id, membership_id, status),
+  CONSTRAINT chk_cert_kind CHECK (kind IN ('completion','level','participation','merit')),
+  CONSTRAINT chk_cert_status CHECK (status IN ('issued','revoked','reissued')),
+  -- A revoked certificate says why. A certificate that stops verifying with no
+  -- stated reason is indistinguishable from a database fault to the holder.
+  CONSTRAINT chk_cert_revoked CHECK (status <> 'revoked'
+        OR (revoked_at IS NOT NULL AND revoked_reason IS NOT NULL)),
+  CONSTRAINT fk_cert_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_cert_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cert_enrol  FOREIGN KEY (enrolment_id)  REFERENCES enrolments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_cert_prog   FOREIGN KEY (programme_id)  REFERENCES programmes(id) ON DELETE SET NULL,
+  CONSTRAINT fk_cert_course FOREIGN KEY (course_id)     REFERENCES courses(id) ON DELETE SET NULL,
+  CONSTRAINT fk_cert_level  FOREIGN KEY (level_id)      REFERENCES levels(id) ON DELETE SET NULL,
+  CONSTRAINT fk_cert_term   FOREIGN KEY (term_id)       REFERENCES academic_terms(id) ON DELETE SET NULL,
+  CONSTRAINT fk_cert_by     FOREIGN KEY (issued_by)     REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- An instructor's proposed curriculum week, awaiting academic review. Kept
+-- separate from `modules` so an unreviewed proposal can never be taught.
+CREATE TABLE module_proposals (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  course_id     BIGINT UNSIGNED NOT NULL,
+  level_id      BIGINT UNSIGNED NULL,
+  week_no       SMALLINT UNSIGNED NOT NULL,
+  title         VARCHAR(190) NOT NULL,
+  kind          VARCHAR(24)  NOT NULL DEFAULT 'module',
+  content       TEXT         NULL,
+  proposed_by_membership_id BIGINT UNSIGNED NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'pending',
+     -- pending|approved|rejected|withdrawn
+  review_note   VARCHAR(1000) NULL,
+  reviewed_by   BIGINT UNSIGNED NULL,
+  reviewed_at   DATETIME(3)  NULL,
+  -- Set when an approval created the real module, so the proposal and what it
+  -- became are joinable rather than merely adjacent.
+  module_id     BIGINT UNSIGNED NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  deleted_at    DATETIME(3)  NULL,
+  deleted_seq   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_mprop_public (public_id),
+  KEY ix_mprop_review (tenant_id, status, created_at),
+  KEY ix_mprop_course (tenant_id, course_id, level_id, week_no),
+  CONSTRAINT chk_mprop_status CHECK (status IN ('pending','approved','rejected','withdrawn')),
+  CONSTRAINT chk_mprop_week CHECK (week_no >= 1),
+  -- A decision has a decider and a time. A rejection also states why: the
+  -- proposer is a colleague who has to be able to revise it.
+  CONSTRAINT chk_mprop_reviewed CHECK (status = 'pending'
+        OR status = 'withdrawn'
+        OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)),
+  CONSTRAINT chk_mprop_rejected CHECK (status <> 'rejected' OR review_note IS NOT NULL),
+  CONSTRAINT fk_mprop_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_mprop_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mprop_level  FOREIGN KEY (level_id)  REFERENCES levels(id) ON DELETE SET NULL,
+  CONSTRAINT fk_mprop_by     FOREIGN KEY (proposed_by_membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_mprop_revby  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_mprop_module FOREIGN KEY (module_id)  REFERENCES modules(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Studio practice-tool results. A personal best and a play count, per person per
+-- tool. Deliberately NOT a ranking: there is no table in v2 that orders learners
+-- against each other, and the 2026-08 redesign refuses one.
+CREATE TABLE tool_scores (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  tool          VARCHAR(48)  NOT NULL,
+  best_score    INT UNSIGNED NOT NULL DEFAULT 0,
+  best_at       DATETIME(3)  NULL,
+  plays         INT UNSIGNED NOT NULL DEFAULT 0,
+  -- The score is CLIENT-ATTESTED (it is measured by a microphone in a browser
+  -- and the server cannot recompute it), so it is a practice record and never an
+  -- assessment. It has no route into `assessments` on purpose.
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_toolscore (tenant_id, membership_id, tool),
+  CONSTRAINT fk_toolscore_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_toolscore_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Schema baseline. A fresh v2 install starts AT the target rather than
 -- replaying v1's 81 migrations.
 CREATE TABLE schema_version (
@@ -2431,8 +2916,8 @@ CREATE TABLE schema_version (
   note        VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO schema_version (version, note) VALUES (201,
-  'schema-v2 baseline + guardian layer (calendar, ratified reports, fee relief, threads, make-up)');
+INSERT INTO schema_version (version, note) VALUES (202,
+  'schema-v2 baseline + guardian layer + assessment and progress');
 
 -- Seed the currencies the platform ships knowing about. Everything else is
 -- tenant data and arrives via the ETL or the admin.

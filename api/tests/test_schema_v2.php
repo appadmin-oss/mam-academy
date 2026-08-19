@@ -97,6 +97,9 @@ $nullableInUniqueOk = [
     'memberships.reference'   => 'NULL = staff/guardian with no learner reference',
     'notifications.dedupe_key'=> 'NULL = deliberately not deduped (a one-off message)',
     'payments.provider_ref'   => 'NULL = cash/manual payment with no provider reference; many are legitimate',
+    'submissions.assignment_id' => 'NULL = work handed in against a module rather than a set assignment; the attempt key does not apply to it',
+    'teachbacks.module_id'      => 'NULL = a teach-back not tied to a curriculum week; the one-per-module rule does not apply to it',
+    'enrolment_results.term_id' => 'NULL = a result for the whole enrolment rather than one term; the per-term slot does not apply to it',
     'report_moderations.moderator_membership_id' => 'NULL = a sample drawn but not yet allocated to a moderator; many can queue',
     'invoice_credits.award_id' => 'NULL = a gift-aid credit posted with no award row behind it (a goodwill credit); many are legitimate',
     'accountability_charges.session_id' => 'NULL = a charge not tied to a session; two such can coexist',
@@ -483,3 +486,95 @@ $rejects("INSERT INTO invoices (public_id,tenant_id,membership_id,number,currenc
 $roleCheck = (string) $db->query("SELECT sql FROM sqlite_master WHERE name='guardian_thread_participants'")->fetchColumn();
 t_ok(strpos($roleCheck, "'student'") === false && strpos($roleCheck, "'learner'") === false,
     'the guardian-thread participant role vocabulary admits no learner — there is no signature through which a student can be added');
+
+t_group('schema-v2 — assessment and progress');
+
+// Everything in this layer hangs off the ENROLMENT, so one person taking piano
+// and voice has two independent records rather than one interleaved one.
+foreach (['submissions', 'assessments', 'teachbacks', 'enrolment_results'] as $table) {
+    $cols = array_column($db->query('PRAGMA table_info(' . $table . ')')->fetchAll(PDO::FETCH_ASSOC), 'name');
+    t_ok(in_array('enrolment_id', $cols, true) && !in_array('student_id', $cols, true),
+        "$table is keyed on the enrolment, not on the student");
+}
+
+$ins("INSERT INTO assessment_types (id,tenant_id,code,name,weight_pct) VALUES (1,1,'recital','Recital',40)");
+$ins("INSERT INTO assignment_groups (id,public_id,tenant_id,cohort_id,title) VALUES (1,?,1,1,'Term 1 practice')", [$ulid()]);
+$ins("INSERT INTO assignments (id,public_id,tenant_id,group_id,cohort_id,title,points_max,due_at,due_timezone,assessment_type_id)
+      VALUES (1,?,1,1,1,'Play the C major scale, hands together',20,'2026-10-03 17:00:00.000','Africa/Lagos',1)", [$ulid()]);
+$rejects("INSERT INTO assignments (public_id,tenant_id,title) VALUES ('01JNOTARGET0000000000000000',1,'Work set at nobody')",
+    "an assignment with neither a cohort nor an enrolment to hand it in — work nobody can do");
+$rejects("INSERT INTO assignments (public_id,tenant_id,cohort_id,enrolment_id,title) VALUES ('01JBOTHTARGET00000000000000',1,1,1,'Both')",
+    "an assignment claiming to be both a cohort's and one learner's");
+$rejects("INSERT INTO assignments (public_id,tenant_id,cohort_id,title,due_at) VALUES ('01JNOTZ00000000000000000000',1,1,'Due when?','2026-10-03 17:00:00.000')",
+    "a deadline with no timezone — a diaspora learner and a Lagos learner would read different Fridays");
+
+$ins("INSERT INTO submissions (id,public_id,tenant_id,enrolment_id,assignment_id,status,submitted_at)
+      VALUES (1,?,1,1,1,'submitted','2026-10-02 20:11:00.000')", [$ulid()]);
+$rejects("INSERT INTO submissions (public_id,tenant_id,enrolment_id,assignment_id,attempt_no,status,submitted_at)
+          VALUES ('01JDUPATTEMPT000000000000',1,1,1,1,'submitted','2026-10-02 21:00:00.000')",
+    "a second attempt numbered the same as the first — the mark awarded against attempt 1 must stay readable");
+$ins("INSERT INTO submissions (public_id,tenant_id,enrolment_id,assignment_id,attempt_no,status,submitted_at)
+      VALUES (?,1,1,1,2,'submitted','2026-10-02 21:00:00.000')", [$ulid()]);
+$rejects("INSERT INTO submissions (public_id,tenant_id,enrolment_id,assignment_id,status) VALUES ('01JNOWHEN000000000000000000',1,1,1,'submitted')",
+    "submitted work with no time on it — lateness and the marking clock are both measured from it");
+
+// A mark has an author. This is what an appeal is answered from.
+$ins("INSERT INTO submission_markers (tenant_id,submission_id,marker_membership_id,role) VALUES (1,1,2,'primary')");
+$ins("INSERT INTO assessments (id,public_id,tenant_id,enrolment_id,assessment_type_id,submission_id,rubric_id,rubric_version,
+        points_awarded,points_max,pct,status,marker_membership_id,marked_at)
+      VALUES (1,?,1,1,1,1,NULL,NULL,16,20,80,'marked',2,'2026-10-03 09:00:00.000')", [$ulid()]);
+$rejects("INSERT INTO assessments (public_id,tenant_id,enrolment_id,points_awarded,points_max,status)
+          VALUES ('01JNOMARKER00000000000000',1,1,16,20,'marked')",
+    "a marked assessment with nobody named as having marked it");
+$rejects("INSERT INTO assessments (public_id,tenant_id,enrolment_id,points_awarded,points_max,status,marker_membership_id,marked_at)
+          VALUES ('01JOVERMAX000000000000000',1,1,21,20,'marked',2,'2026-10-03 09:00:00.000')",
+    "more points awarded than the assessment was out of");
+$rejects("INSERT INTO assessments (public_id,tenant_id,enrolment_id,points_awarded,points_max,status,marker_membership_id,marked_at)
+          VALUES ('01JNOTRELEASED000000000000',1,1,16,20,'released',2,'2026-10-03 09:00:00.000')",
+    "a released mark with no release time — released is the only status a learner may be shown");
+
+// The mark-per-criterion table `scores_json` should always have been.
+$ins("INSERT INTO assessment_marks (tenant_id,assessment_id,criterion_id,competency_id,label,points_awarded,points_max)
+      VALUES (1,1,NULL,1,'Score/Notation Accuracy',8,10)");
+$ins("INSERT INTO assessment_marks (tenant_id,assessment_id,competency_id,label,points_max,is_insufficient)
+      VALUES (1,1,1,'Ensemble',10,1)");
+$rejects("INSERT INTO assessment_marks (tenant_id,assessment_id,competency_id,label,points_awarded,points_max,is_insufficient)
+          VALUES (1,1,1,'Sight-reading',0,10,1)",
+    "a criterion marked insufficient AND scored zero — the two are different statements and only one can be true");
+t_ok((int) $db->query("SELECT count(*) FROM assessment_marks WHERE competency_id IS NOT NULL")->fetchColumn() === 2,
+    'every mark carries its competency as a foreign key — the mastery score no longer matches criteria by label');
+
+// The five teach-back dimensions share one scale.
+$ins("INSERT INTO teachbacks (public_id,tenant_id,enrolment_id,module_id,status,reviewer_membership_id,decision,
+        accuracy,vocabulary,explanation,application,confidence,reviewed_at)
+      VALUES (?,1,1,1,'reviewed',2,'developing',4,3,4,3,5,'2026-10-04 10:00:00.000')", [$ulid()]);
+$rejects("INSERT INTO teachbacks (public_id,tenant_id,enrolment_id,module_id,accuracy) VALUES ('01JOFFSCALE00000000000000',1,1,1,80)",
+    "a teach-back dimension on a 100-point scale beside four on a 5-point one");
+$rejects("INSERT INTO teachbacks (public_id,tenant_id,enrolment_id,status,reviewer_membership_id,reviewed_at)
+          VALUES ('01JNODECISION0000000000000',1,1,'reviewed',2,'2026-10-04 10:00:00.000')",
+    "a reviewed teach-back with no decision — the learner is told it was looked at and nothing else");
+
+// A finalised result is signed; a certificate that stops verifying says why.
+$ins("INSERT INTO enrolment_results (public_id,tenant_id,enrolment_id,total_pct,grade,outcome,status,finalised_by,finalised_at)
+      VALUES (?,1,1,78.5,'B','passed','finalised',2,'2026-12-12 12:00:00.000')", [$ulid()]);
+$rejects("INSERT INTO enrolment_results (public_id,tenant_id,enrolment_id,total_pct,status)
+          VALUES ('01JUNSIGNED000000000000000',1,1,78.5,'finalised')",
+    "a finalised result nobody signed");
+$ins("INSERT INTO certificates (public_id,tenant_id,membership_id,enrolment_id,kind,reference,verification_code)
+      VALUES (?,1,1,1,'level','MAM-CERT-0001','A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4')", [$ulid()]);
+$rejects("INSERT INTO certificates (public_id,tenant_id,membership_id,kind,reference,verification_code,status,revoked_at)
+          VALUES ('01JNOREASON000000000000000',1,1,'level','MAM-CERT-0002','B1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4','revoked','2026-12-13 00:00:00.000')",
+    "a revoked certificate with no stated reason — indistinguishable from a database fault to the holder");
+$rejects("INSERT INTO certificates (public_id,tenant_id,membership_id,kind,reference,verification_code)
+          VALUES ('01JDUPCODE0000000000000000',1,1,'level','MAM-CERT-0003','A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4')",
+    "two certificates sharing a verification code — a verifier has no tenant to disambiguate with");
+
+// A rejected curriculum proposal is revisable, so it says what was wrong.
+$rejects("INSERT INTO module_proposals (public_id,tenant_id,course_id,week_no,title,status,reviewed_by,reviewed_at)
+          VALUES ('01JNONOTE20000000000000000',1,1,3,'Week 3: swing feel','rejected',2,'2026-10-05 09:00:00.000')",
+    "a rejected proposal with no review note — the proposer is a colleague who has to revise it");
+
+// Nothing in v2 ranks learners against each other.
+$ranking = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE '%leaderboard%' OR name LIKE '%ranking%')")->fetchAll(PDO::FETCH_COLUMN);
+t_eq(count($ranking), 0, 'no table in v2 orders learners against each other — the 2026-08 redesign refuses a cohort ranking'
+    . ($ranking ? ': ' . implode(', ', $ranking) : ''));
