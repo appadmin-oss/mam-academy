@@ -663,6 +663,124 @@ by default. One commit either way.
 
 ---
 
+## 4j. Check-in, corrected to the academy's actual model (2026-08-19)
+
+⚠️ **The student-initiated flows were built on the wrong assumption.** The children
+here are young: a nine-year-old does not arrive with a phone. The academy's model
+is that **the instructor logs the session and signs each child in from the QR on
+their ID card**, and **summer camp arrives as a group and is marked in one action**.
+
+Everything student-facing still exists and still works — `/checkin`, `/attend`,
+the portal tab — and is right for the older students and for anyone attending
+online. It is just not the primary path, which is worth knowing before designing
+anything else around it.
+
+| Surface | Who initiates | Writes | Notes |
+|---|---|---|---|
+| **`/scan`** (new) | instructor, phone | `session_attendance`, `method='card'` | the primary path |
+| group button on `/scan` | instructor | whole roster | summer camp |
+| `/attend?token=` | student scans instructor's QR | either model | offers `/checkin` when the QR is the problem |
+| `/checkin` | student, phone | `session_attendance`, `method='self'` | one-tap, no SPA |
+| portal Check-in tab | student | as above | where you READ about a session |
+
+`POST /api/instructor/card-scan` already existed with **no UI at all** — jsQR was
+vendored, the endpoint worked, nothing anywhere opened a camera. `/scan` is that
+page. `mam_lms_mark_attendance_all()` + `POST /api/instructor/session-checkin-all`
+are the group half and are new.
+
+Three things in `/scan` that are not obvious and will look like noise until they
+are removed and something breaks:
+
+* **The result map is keyed to the endpoint's exact strings.** It returns
+  `marked`, not `present`, and an unknown key falls back to `invalid` — so my
+  first version rendered every SUCCESSFUL scan as "Not a MAM card" while the child
+  was being marked. Silent and total. The test derives the set from the route
+  source so they cannot drift.
+* **A code held in frame is debounced 4s.** Without it one card is twenty marks.
+* **Only the framed centre is decoded.** Decoding the whole frame picks up the
+  next card in the queue behind the one being presented.
+
+⚠️ `mam_lms_mark_attendance_all()` does **not** overwrite by default. An
+instructor who recorded somebody late must not lose it by pressing the group
+button afterwards, and one student's failure is collected and NAMED rather than
+aborting a register halfway — "three failed" is not actionable.
+
+## 4k. Summer is a crash-programme intake whose students are students
+
+Two earlier decisions reversed, both by the academy:
+
+* **`MAM_SUMMER_PROGRAMME_CODE = 'crash'`.** The `SUMMER-<year>` cohort carries the
+  crash programme, without which it sat outside the catalogue, the curriculum plan
+  and every programme-grouped report. In the ETL the applications are
+  `type='programme'` against crash with the route kept as `intake: 'summer'` in the
+  payload — `type='summer'` would have rebuilt in v2 the parallel structure the
+  migration exists to end.
+* **Full accounts, not `roster` identities.** A summer student gets the portal, the
+  gradebook, practice logging and their own attendance record. The **guardian** gets
+  an account and a `parent_links` row in the same call, because an adult who can see
+  everything the child can is what makes a child's login safe rather than merely
+  convenient.
+
+## 4l. No password is ever emailed
+
+Every enrolment path used to email a temporary password — settlement printed one in
+a dashed box and told the family to change it on first sign-in. That credential
+then sits in an inbox for years, is usually reused, is readable by anyone holding
+the phone, cannot be revoked once sent, and for a children's academy that inbox is
+usually a shared parental one. It also teaches the habit phishing depends on.
+
+`mam_auth_invite()` / `mam_auth_send_invite()` / `mam_auth_unusable_password()`
+(`auth.php`) replace it. Non-obvious parts:
+
+* **`password_resets` is reused on purpose.** It is already a single-use, hashed,
+  expiring token that sets a password and revokes other sessions. A second
+  `invites` table would mean two expiry rules, two revocation paths and two places
+  to get the hashing wrong.
+* **`MAM_INVITE_TTL_SEC` is 7 days, not the reset path's hour.** A reset is
+  answered in minutes; an invitation is opened when a parent next looks at their
+  phone. An expired invitation on enrolment day means a family that cannot get in.
+* **The unusable password is real bcrypt over 32 random bytes**, not a sentinel
+  string like `roster:…`. A column that sometimes holds a hash and sometimes holds
+  a marker invites callers to pattern-match it.
+* **`?welcome=1` changes only what the page SAYS.** The token is the whole of the
+  security. "Set a NEW password" to somebody who never had one is confusing, and
+  the failure state's 60-minute line is wrong for an invite.
+* **The guardian gets their OWN link.** The child's link would set the child's
+  password.
+
+Driven in a browser, not just asserted: invite → "Create your password" → sessions
+revoked → child signs in to the student portal; the guardian's own link lands in
+the parent portal; the same link refused on reuse.
+
+## 4m. The v2 artefacts, checked end to end (2026-08-19)
+
+"Is v2 functional" has a precise answer, and it is worth separating from "does the
+site run on v2", which it does not — **zero screens read a v2 table.** What exists
+is a schema, a transform, a verifier and one admin read model, and all of it works:
+
+| # | Check | Result |
+|---|---|---|
+| 1 | `schema-v2-sqlite.php --check` — the mirror is generated, not hand-edited | ✓ matches |
+| 2 | Two transforms of one export | ✓ byte-identical |
+| 3 | Rejected rows / unmapped tables with rows | 0 / 0 |
+| 4 | `db/schema-v2.sql` + data on **MySQL 8.0.46**, constraints ON | ✓ 64 tables, `schema_version` 200 |
+| 5 | `v2-verify.php` vs the export, read-only connection | **16/16** |
+| 6 | `v2-checks.sql` | **29 PASS, 0 FAIL** |
+| 7 | Foreign keys enforced by the engine | 112 |
+| 8 | Same build on SQLite, `foreign_key_check` | ✓ clean, 16/16 |
+| 9 | Audit hash chain re-verified from the database | 244 rows, 0 broken links |
+| 10 | Read model, pointed at the loaded database | 29 people / 33 apps / 15 payments; an UPDATE refused |
+
+Data: 29 people, 33 applications (10 summer-route crash), ₦515,998.00, 3
+guardianships, 5 exclusions recorded in the audit log.
+
+**What "functional v2" would additionally require** — none of it started:
+authentication against `user_credentials`, a session layer on `auth_sessions`, and
+one screen at a time repointed from v1 tables to v2 ones behind a flag. That is the
+work the dashboard redesign should be sequenced with, not before it.
+
+---
+
 ## 5. Where things live
 
 | What | Where |
@@ -680,6 +798,9 @@ by default. One commit either way.
 | Verify a database somebody else loaded (read-only) | `api/tools/v2-verify.php` |
 | The academy's migration exclusions (data, not code) | `db/v2-exclusions.json` |
 | Browser-triggered export for a host with no shell | `api/tools/export-web.php` |
+| Instructor's register — camera + card QR + group check-in | `scan.php` |
+| Student one-tap check-in | `checkin.php` |
+| Account invitations (a link, never a password) | `mam_auth_invite()` in `api/lib/auth.php` |
 | Shared portal error translator (`P.errText` / `P.fail`) | `assets/js/portal.js` |
 | Self-hosted toast (the CDN-proof one) | `assets/js/libs.js` |
 | The academic calendar + refund authority | `api/lib/calendar.php`, admin `?v=calendar` |
@@ -695,25 +816,36 @@ request. It *is* in `api/tests/run.php`.
 
 ## 6. Next, in the order I would do it
 
-1. **`load.php` + `verify.php`.** Nothing blocks these now. `verify.php` must
-   reconcile by an independent path, the way the payment transform did — it
-   matched the admin screen's NGN 405,034 by arithmetic that never touched the
-   admin's own query, which is the only reason the figure is trustworthy.
-2. **Watch the first real settlement after deploy.** The auto-enrol path is
-   proven against fixtures; the live `discipline` column is the messy part, and
-   `auto_enroll_needs_admin` in the log is the signal to read. If that line is
-   common, the fix is a course-code alias map, not a fuzzier match.
-3. **TanStack Table v8** over the admin's server-rendered tables, as progressive
-   enhancement. The pinned actions column and the stacked mobile layout are both
-   load-bearing and must survive; that is why headless was the choice.
-4. **Admin form error behaviour.** Passes 4 covered labelling, destructive
-   confirmation and autofill. What an admin sees when a POST *fails* has not
-   been measured — a different question from what the applicant sees.
-5. **The student portal's interaction-gated forms.** The default render measured
-   clean, but reschedule, teach-back and upload forms only appear after a click
-   and were fixed from source rather than driven. Worth one browser pass.
-
----
+1. **The dashboard redesigns, when they arrive.** The instruction is explicit:
+   delete the old styles and redesign, not patch. Two things to establish before
+   writing any CSS, because getting them wrong costs a rebuild — whether the
+   designs are the source of truth for TOKENS (colour, type scale, radii) or only
+   for layout, and which dashboard goes first.
+   ⚠️ Several things in the current dashboards are load-bearing rather than
+   decorative and a redesign will silently drop them unless they are carried
+   deliberately: the admin's pinned actions column, `table.stack` +
+   `data-label` (the whole mobile layout for Applications/Users/Payments/Store),
+   `ORDER BY u.name` on the instructor comparison (sorting by a metric turns a
+   formative table into a ranking, whatever the heading says),
+   `MAM_ANALYTICS_INSTRUCTOR_NOTICE` on both rendering surfaces, the mastery
+   band rather than a raw score, and every em dash that means "not measured"
+   rather than zero. Flag each one that a design changes rather than preserving
+   or dropping it quietly.
+2. **Features in those designs that do not exist yet.** Expect some. Build them
+   against the existing libs where one fits; say so plainly where a design implies
+   a table or an integration that is not there, rather than faking the screen.
+3. **Watch the first real enrolment after deploying the invitation change.** The
+   whole flow is proven in a browser, but nothing here has sent mail through the
+   academy's own SMTP. `mail_log` is keyed by context — `summer_student_invite`,
+   `summer_guardian_invite`, `portal_welcome` — so a failed send is findable and
+   re-sendable. `portal_invite_failed` in the settlement return is the signal.
+4. **Then, if a v2 cutover is still wanted:** authentication against
+   `user_credentials`, sessions on `auth_sessions`, and one screen at a time
+   repointed behind a flag. Sequence it WITH the redesign, not before — repointing
+   a screen that is about to be rebuilt is work done twice.
+5. **The read model decision.** `api/lib/v2/readmodel.php` and `?v=v2read` were
+   built for a plan the academy changed. Inert without `V2_READ_DB`, so harmless,
+   but there by default rather than by decision. One commit either way.
 
 ## 7. How to reproduce any of the measurements
 
