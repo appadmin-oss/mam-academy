@@ -262,6 +262,12 @@ $r->group('/parent', function (MamRouter $r) use ($f) {
     $r->get('/children', $f('parent/children.php'), [mw_role('parent')]);
     $r->get('/child',    $f('parent/child.php'),    [mw_role('parent')]);
     $r->post('/consent', $f('parent/consent.php'),  [mw_csrf(), mw_role('parent', 'admin')]);
+    // Ratified termly reports (guardian redesign §3.3). The design writes these
+    // as /api/guardian/*; they live here because /parent is this repo's guardian
+    // namespace and role, and a parallel group would mean two middleware stacks
+    // to keep in step for one audience.
+    $r->get ('/reports', $f('parent/reports.php'), [mw_role('parent')]);
+    $r->post('/appeal',  $f('parent/appeal.php'),  [mw_csrf(), mw_role('parent'), mw_rate_limit('appeal', 10, 3600)]);
 });
 
 /* ─── Instructor portal ─── */

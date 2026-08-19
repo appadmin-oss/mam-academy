@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 85;
+const MAM_SCHEMA_TARGET = 86;
 
 /**
  * Open (and cache) the PDO connection.
@@ -39,6 +39,23 @@ function mam_db(): PDO {
         if ($driver === 'mysql') {
             $pdo->exec("SET NAMES utf8mb4");
             $pdo->exec("SET SESSION sql_mode='STRICT_ALL_TABLES,NO_ENGINE_SUBSTITUTION'");
+            /* Pin the SESSION time zone to UTC, because bootstrap.php pins PHP's to
+             * UTC and the two have to agree.
+             *
+             * Every timestamp this application WRITES is `date('Y-m-d H:i:s')` in
+             * UTC. Every timestamp the schema DEFAULTS is MySQL's
+             * CURRENT_TIMESTAMP, which resolves in the server's time zone — SYSTEM
+             * on a shared host, which for this academy's own hosting is WAT
+             * (UTC+1). Mixing the two is not a cosmetic drift: `mark_appeals` has
+             * `CHECK(closed_at IS NULL OR closed_at >= opened_at)`, and with
+             * opened_at stamped an hour into the future by the server, an appeal
+             * declined twenty minutes after it was raised is a HARD WRITE FAILURE
+             * on MySQL that SQLite never sees. The same shape appears anywhere a
+             * PHP-written time is compared against a defaulted one.
+             *
+             * DATETIME columns store no zone, so this changes nothing about rows
+             * already written — it only makes new defaults agree with PHP. */
+            $pdo->exec("SET SESSION time_zone = '+00:00'");
             mam_db_migrate_mysql($pdo);
         }
         return $pdo;
@@ -69,6 +86,34 @@ function mam_db(): PDO {
  * scoped together within one PDO::exec call.
  */
 function mam_db_migrate_mysql(PDO $db): void {
+    /* Does this server ENFORCE a CHECK constraint, or merely parse one?
+     *
+     * MySQL 5.7 accepts a CREATE TABLE CHECK clause and silently discards it;
+     * enforcement arrived in 8.0.16. MariaDB has enforced since 10.2.1. The
+     * schema now leans on CHECKs for guarantees whole subsystems assume — the
+     * termly report's band and coverage rules, the appeal state machine, the money
+     * invariants — so on an older server those guarantees are decoration, the
+     * load reports success, and the first symptom is data that cannot be right.
+     * Logged as an ERROR, loudly, because a silent inert schema is worse than one
+     * that failed to load. Not fatal: refusing to serve a site over this would
+     * take an academy offline for a condition an operator can fix in an upgrade
+     * window. */
+    try {
+        $ver = (string) ($db->query('SELECT VERSION()')->fetchColumn() ?: '');
+        $isMaria = stripos($ver, 'mariadb') !== false;
+        if (preg_match('/^(\d+)\.(\d+)\.(\d+)/', $ver, $m)) {
+            $num = ((int) $m[1]) * 10000 + ((int) $m[2]) * 100 + (int) $m[3];
+            $enforcesChecks = $isMaria ? $num >= 100201 : $num >= 80016;
+            if (!$enforcesChecks) {
+                mam_log('error', 'mysql_checks_not_enforced', [
+                    'version' => $ver,
+                    'needs'   => $isMaria ? 'MariaDB 10.2.1+' : 'MySQL 8.0.16+',
+                    'effect'  => 'every CHECK constraint in db/schema-mysql.sql is parsed and ignored on this server',
+                ]);
+            }
+        }
+    } catch (Throwable $e) { /* a version probe must never stop a migration */ }
+
     try { $db->exec("CREATE TABLE IF NOT EXISTS schema_version (version INT PRIMARY KEY)"); } catch (Throwable $e) {}
     $current = 0;
     try { $current = (int)($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0); } catch (Throwable $e) {}
@@ -2699,12 +2744,34 @@ function mam_db_migrate(PDO $db): void {
          *
          * Four things here are deliberate and easy to "simplify" into being wrong:
          *
-         *   1. The BAND is stored, not the score. `band_low`/`band_high` with a
-         *      CHECK that they are a real ten-point band. `raw_score` appears
-         *      nowhere in this schema: a guardian-facing table with a column for
-         *      the precise figure is an invitation to print it, and the mastery
-         *      coverage floor exists precisely so a thin composite is never
-         *      published as a comparable number.
+         *   1. The BAND is stored, not the score. `raw_score` appears nowhere in
+         *      this schema: a guardian-facing table with a column for the precise
+         *      figure is an invitation to print it, and the mastery coverage floor
+         *      exists precisely so a thin composite is never published as a
+         *      comparable number.
+         *
+         *      ⚠️ Saying so is not enforcing it, and `band_high > band_low` did
+         *      NOT enforce it — three wrong writes were MEASURED through it:
+         *        • `band_low = 74.3` stored verbatim as a REAL. SQLite's INTEGER
+         *          is an affinity, not a type: a value it cannot convert without
+         *          loss is kept as given. So the one number this table exists to
+         *          make unrepresentable was representable.
+         *        • `(70, 71)` — a one-point "band", which is false precision
+         *          wearing a band's clothes, exactly what the design refuses.
+         *        • `(0, 100)` — a "band" spanning the whole scale, which says
+         *          nothing while looking like a measurement.
+         *      And it refused a write that is CORRECT: `mam_mastery_score()`
+         *      floors the score to a ten-point band and clamps the top, so a
+         *      student scoring 100 yields `(100, 100)` — `band_high > band_low`
+         *      rejected the report of a student who got everything right.
+         *
+         *      The CHECK now states the real invariant: both bounds are whole
+         *      numbers (`x = CAST(x AS INTEGER)`, which SQLite and MySQL spell
+         *      the same way), and the band is either exactly MAM_MASTERY_BAND
+         *      wide or clamped against the top of the scale. `mam_report_band()`
+         *      in api/lib/reports.php restates it in PHP, because a database that
+         *      already ran the loose version keeps it — `CREATE TABLE IF NOT
+         *      EXISTS` does not revise a table that is already there.
          *   2. Coverage is on the face, so it is stored beside the band and NOT
          *      NULL. "Based on 8 of 11 parts — 72% of the weight" is part of the
          *      report, not a derivation somebody might forget to run.
@@ -2741,9 +2808,15 @@ function mam_db_migrate(PDO $db): void {
                                 CHECK(status IN ('draft','moderating','ratified','withdrawn')),
               band_low          INTEGER,
               band_high         INTEGER,
-              coverage_evidenced INTEGER NOT NULL DEFAULT 0,
-              coverage_total     INTEGER NOT NULL DEFAULT 0,
-              coverage_weight_pct INTEGER,
+              /* NOT NULL and NO DEFAULT, all three. `NOT NULL DEFAULT 0`
+               * constrains nothing — the default satisfies it, so a writer that
+               * simply forgot the coverage arguments succeeded and the report
+               * face rendered its mandatory sentence as 'Based on 0 of 11 parts
+               * — 0% of what counts'. Coverage prints ON the document; a report
+               * that cannot state it is not a report. */
+              coverage_evidenced  INTEGER NOT NULL,
+              coverage_total      INTEGER NOT NULL,
+              coverage_weight_pct INTEGER NOT NULL,
               instructor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
               instructor_comment TEXT,
               attendance_summary TEXT,
@@ -2757,22 +2830,58 @@ function mam_db_migrate(PDO $db): void {
               created_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
               created_at        TEXT NOT NULL DEFAULT (datetime('now')),
               updated_at        TEXT,
-              -- A band is a real ten-point band or it is absent entirely. 74.3
-              -- has no representation here at all, which is the point.
+              -- A band is a real ten-point band or it is absent entirely. Both
+              -- bounds whole (an INTEGER column does NOT guarantee that in
+              -- SQLite), and ten points wide unless clamped at the top of the
+              -- scale — which is the only reason band_high may equal band_low.
               CHECK((band_low IS NULL AND band_high IS NULL)
-                 OR (band_low >= 0 AND band_high > band_low AND band_high <= 100)),
+                 OR (band_low  = CAST(band_low  AS INTEGER)
+                 AND band_high = CAST(band_high AS INTEGER)
+                 AND band_low >= 0 AND band_high <= 100
+                 AND band_high >= band_low
+                 AND band_high - band_low <= 9
+                 AND (band_high - band_low = 9 OR band_high = 100))),
               CHECK(coverage_evidenced >= 0 AND coverage_total >= 0
                     AND coverage_evidenced <= coverage_total),
-              CHECK(coverage_weight_pct IS NULL
-                    OR (coverage_weight_pct >= 0 AND coverage_weight_pct <= 100)),
+              -- Whole per cent, for the same affinity reason as the band: '72% of
+              -- the weight' prints on the face of the report and 71.6 does not.
+              CHECK(coverage_weight_pct = CAST(coverage_weight_pct AS INTEGER)
+                    AND coverage_weight_pct >= 0 AND coverage_weight_pct <= 100),
               -- Ratified means a named person on a stated date. Both or neither.
               CHECK(status <> 'ratified' OR (ratified_by IS NOT NULL AND ratified_at IS NOT NULL)),
               CHECK(status <> 'withdrawn' OR withdrawn_at IS NOT NULL)
             );
             CREATE INDEX IF NOT EXISTS idx_treport_student ON termly_reports(student_id, status);
             CREATE INDEX IF NOT EXISTS idx_treport_cohort  ON termly_reports(cohort_id, status);
-            CREATE UNIQUE INDEX IF NOT EXISTS uq_treport_slot
-              ON termly_reports(student_id, term_label, COALESCE(course_id, 0), COALESCE(level_id, 0));
+            /* One LIVE report per slot — a lookup index here, and the rule itself
+             * in mam_report_slot_taken(). A UNIQUE index cannot state this rule
+             * on either engine, and the three ways it got it wrong are worth
+             * recording because each looks like a tightening:
+             *
+             *   • `UNIQUE(..., term_label, ...)` with no status term permanently
+             *     consumes the slot. Withdrawing a ratified report keeps its row
+             *     on purpose — pulling a published mark is an event, not a delete
+             *     — so the corrected report that a upheld appeal exists to
+             *     produce could never be written. SQLite could express the
+             *     exclusion as a partial index; MySQL 8 has no partial index, so
+             *     the two engines would then enforce different rules.
+             *   • Keying on `term_label` keys the rule on a MUTABLE display
+             *     string. Session names are renameable in Settings (which is why
+             *     the label is snapshotted here at all), and after a rename the
+             *     same term reads as a different slot — two ratified reports for
+             *     one term, neither marked as superseding the other. The rule
+             *     needs term_id when there is one and the label only as the
+             *     fallback for an unauthored calendar, which is a CASE, not a
+             *     column list.
+             *   • `COALESCE(course_id, 0)` inside a UNIQUE index turns the
+             *     `ON DELETE SET NULL` above into an abort: retiring a course
+             *     collapses a course-scoped report onto a course-less one for the
+             *     same term and the whole DELETE rolls back citing an index name
+             *     the admin has never seen. Without COALESCE, SQL's NULLs-are-
+             *     distinct rule makes the cascade harmless.
+             */
+            CREATE INDEX IF NOT EXISTS idx_treport_slot
+              ON termly_reports(student_id, term_id, term_label, course_id, level_id, status);
 
             CREATE TABLE IF NOT EXISTS termly_report_criteria (
               id                 INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2792,8 +2901,12 @@ function mam_db_migrate(PDO $db): void {
               first_assessed_week INTEGER,
               note               TEXT,
               sort_order         INTEGER NOT NULL DEFAULT 0,
-              CHECK(weight_pct >= 0 AND weight_pct <= 100),
-              CHECK(pct IS NULL OR (pct >= 0 AND pct <= 100)),
+              CHECK(weight_pct = CAST(weight_pct AS INTEGER)
+                    AND weight_pct >= 0 AND weight_pct <= 100),
+              -- Whole per cent here too: the bar on the report is drawn from it,
+              -- and a decimal is the false precision the band exists to refuse.
+              CHECK(pct IS NULL
+                    OR (pct = CAST(pct AS INTEGER) AND pct >= 0 AND pct <= 100)),
               CHECK((level =  'insufficient' AND pct IS NULL)
                  OR (level <> 'insufficient' AND pct IS NOT NULL))
             );
@@ -2815,8 +2928,17 @@ function mam_db_migrate(PDO $db): void {
               moderated_at  TEXT NOT NULL DEFAULT (datetime('now'))
             );
             CREATE INDEX IF NOT EXISTS idx_rmod_report ON report_moderations(report_id);
+            /* Plain UNIQUE, no COALESCE: SQL's NULLs-are-distinct rule is the
+             * correct semantics here. Under `COALESCE(moderator_id, 0)` every
+             * unattributed moderation collapsed onto one key, so a criterion
+             * second-marked twice without the marker recorded stored ONE row —
+             * and the sample size is a count of these rows, which is the gate
+             * mam_report_ratify() refuses on. An index that undercounts the
+             * sample makes the refusal fire on a report that was moderated
+             * properly. It also made the ON DELETE SET NULL above abort once a
+             * second moderator's row had already been nulled onto key 0. */
             CREATE UNIQUE INDEX IF NOT EXISTS uq_rmod_slot
-              ON report_moderations(report_id, competency_code, COALESCE(moderator_id, 0));
+              ON report_moderations(report_id, competency_code, moderator_id);
 
             CREATE TABLE IF NOT EXISTS mark_appeals (
               id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2834,13 +2956,63 @@ function mam_db_migrate(PDO $db): void {
               decided_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
               opened_at     TEXT NOT NULL DEFAULT (datetime('now')),
               closed_at     TEXT,
-              -- A closed appeal states its outcome and a declined one says why.
-              CHECK(status = 'open' OR closed_at IS NOT NULL),
-              CHECK(status <> 'declined' OR outcome_note IS NOT NULL),
+              /* A closed appeal states its outcome — ANY closed appeal. The
+               * rule was written as `status <> 'declined'`, which left an UPHELD
+               * appeal free to close with no note: the family's appeal history
+               * then showed a mark overturned and nothing saying why, the exact
+               * silent gap the declined-side check was added to prevent. A
+               * withdrawal states who withdrew it and when, for the same reason. */
+              CHECK(status = 'open' OR (closed_at IS NOT NULL AND outcome_note IS NOT NULL)),
               CHECK(closed_at IS NULL OR closed_at >= opened_at)
             );
             CREATE INDEX IF NOT EXISTS idx_appeal_report ON mark_appeals(report_id, status);
             CREATE INDEX IF NOT EXISTS idx_appeal_open   ON mark_appeals(status, opened_at);
+        ",
+
+        /* v86 — the guardian ACCESS SCOPE (guardian redesign §3.2).
+         *
+         * The design gives a guardian one of three scopes, and says the boundary
+         * must be enforced SERVER-SIDE, "not by hiding UI. Say it on the screen so
+         * the boundary is understood rather than discovered." Until now every
+         * linked guardian saw everything the parent routes returned, so the
+         * distinction did not exist to enforce.
+         *
+         *   billing  — invoices and receipts. No marks, no attendance.
+         *   standard — the above plus ratified reports, attendance, timetable.
+         *   full     — the above plus consents, and can act for the child.
+         *
+         * `standard` is the DEFAULT, and is what every existing link becomes: a
+         * migration that silently narrowed live guardians to billing-only would
+         * take away access families already have, which is a worse failure than
+         * the one being fixed. Widening to `full` is a deliberate admin act.
+         *
+         * ⚠️ What no scope reaches — and this is a refusal, not a gap — is
+         * practice logs, teach-back recordings, and a teenager's messages with
+         * their instructor. `full` is not "everything"; it is "everything the
+         * academy has assessed, plus the ability to act". That boundary lives in
+         * mam_parent_scope_allows(), which is why the scope is a column here and
+         * a predicate there rather than a set of flags a caller assembles.
+         *
+         * The column is on parent_links, not users: one adult can be the billing
+         * contact for a nephew and the full guardian of their own child.
+         *
+         * ⚠️ No CHECK on the value here, because SQLite cannot add one through
+         * ALTER TABLE and rebuilding parent_links is not worth it. The MySQL
+         * mirror does carry `chk_plink_scope`, so the two engines differ — which
+         * means the authority is `mam_parent_scope_set()`, the only writer, and it
+         * validates against MAM_PARENT_SCOPES. `mam_parent_scope()` also treats an
+         * unrecognised stored value as the NARROWEST scope rather than trusting
+         * it, so a hand-edited row cannot widen access.
+         */
+        86 => "
+            ALTER TABLE parent_links ADD COLUMN access_scope TEXT NOT NULL DEFAULT 'standard';
+            ALTER TABLE parent_links ADD COLUMN scope_set_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+            ALTER TABLE parent_links ADD COLUMN scope_set_at TEXT;
+            CREATE INDEX IF NOT EXISTS idx_plink_scope ON parent_links(parent_id, access_scope);
+            -- One link per guardian↔child pair. mam_parent_link() already checks
+            -- before inserting, but the scope now hangs off this row, so a second
+            -- row would mean two different answers to 'what may this guardian see'.
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_plink_pair ON parent_links(parent_id, student_id);
         ",
     ];
 

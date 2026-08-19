@@ -7,7 +7,20 @@
 -- Usage:
 --   mysql -u USER -p DBNAME < db/schema-mysql.sql
 --
--- Requires MySQL 5.7+ or MariaDB 10.2+ (JSON column type).
+-- Requires **MySQL 8.0.16+** or **MariaDB 10.2.1+**.
+--
+-- Not 5.7, which this header used to claim. MySQL 5.7 PARSES a CREATE TABLE
+-- CHECK clause and then SILENTLY IGNORES it — enforcement landed in 8.0.16 —
+-- and this file now carries 20-odd CHECK constraints that whole subsystems rely
+-- on rather than trusting callers with (the termly report's band and coverage
+-- rules, the appeal state machine, the money invariants). On 5.7 every one of
+-- them is decoration, the load reports success, and the first sign of trouble is
+-- a guardian looking at a report that says 0 of 0 parts. MariaDB has enforced
+-- CHECK since 10.2.1.
+--
+-- mam_db_migrate_mysql() logs an ERROR naming the server version when it detects
+-- an engine that ignores CHECK, because a schema whose guarantees are inert is
+-- worse than one that failed to load.
 -- ============================================================
 
 SET NAMES utf8mb4;
@@ -1150,17 +1163,20 @@ INSERT INTO schema_version (version) VALUES (40) ON DUPLICATE KEY UPDATE version
 INSERT IGNORE INTO programs (code, name, weeks, revision_week, exam_week, requires_core, certification, sort_order, active)
 VALUES ('ktams', 'KTAMS Young Musicians', 12, 11, 12, 0, 'participation', 0, 1);
 
--- NOTE: program_courses is ALSO created in the consolidated section above, so
--- on a fresh install this CREATE is inert (IF NOT EXISTS) and the earlier
--- definition is the one that takes effect. It is kept here so an install that
--- predates the consolidated section still gets the table when it reaches v41.
--- The two definitions must stay IDENTICAL: they disagreed for a long time
--- (VARCHAR(32) NULL above vs VARCHAR(24) here), which meant editing this copy
+-- program_courses is created once, in the consolidated section above (line ~574,
+-- after `programs` and `courses`, which it references). A second copy stood here
+-- and has been REMOVED, along with the note that argued for keeping it.
+--
+-- The argument was that the second copy repaired an install where the first had
+-- failed. It does not: both are CREATE TABLE IF NOT EXISTS, so the second never
+-- runs when the first succeeded, and when the first FAILED the whole file is
+-- re-executed on the next apply (the migrator re-runs it whenever schema_version
+-- is behind MAM_SCHEMA_TARGET) and the now-portable first definition creates the
+-- table then. What the duplicate did achieve was drift: the two disagreed for a
+-- long time (VARCHAR(32) NULL above vs VARCHAR(24) here), so editing this copy
 -- changed nothing on a fresh install, silently and with no error.
--- (A duplicate `program_courses` definition stood here, byte-identical to the
---  one earlier in this file. Removed: both were CREATE TABLE IF NOT EXISTS, so
---  the second never ran, and a table defined twice is a table that can drift.
---  The seed INSERT below is kept — it is idempotent and does real work.)
+--
+-- The seed INSERT below is kept — it is idempotent and does real work.
 
 INSERT IGNORE INTO program_courses (program_id, course_id, level_code, sort_order)
   SELECT p.id, c.id, 'precert', c.sort_order
@@ -1396,14 +1412,13 @@ INSERT INTO schema_version (version) VALUES (47) ON DUPLICATE KEY UPDATE version
 -- tolerated-duplicate ALTER re-runs recreate whatever was missing. These extra
 -- guards make the repair explicit and order-independent.
 --
--- The progress_reports CREATE below is therefore a DELIBERATE second copy, not
--- stray duplication — do not "tidy" it away. It is inert on any install where
--- the earlier definition succeeded, and it is the whole repair on one where
--- that definition failed. Keep it byte-identical to the earlier one.
--- (The duplicate `progress_reports` definition that stood here has been removed.
---  It was byte-identical to the one above and only survived because both are
---  CREATE TABLE IF NOT EXISTS, which makes the second a silent no-op — and two
---  definitions of one table are two things to keep in step.)
+-- A second `progress_reports` CREATE stood here and has been REMOVED, along with
+-- the note that told the next maintainer not to remove it. Same reasoning as
+-- program_courses above: the repair is the RE-RUN of the corrected first
+-- definition (line ~1353, after users, class_sessions and surveys, all of which
+-- it references), not a second copy of it. `CREATE TABLE IF NOT EXISTS` makes a
+-- duplicate a silent no-op whenever the original worked, so all the second copy
+-- could ever contribute is a divergence nothing reports.
 ALTER TABLE surveys      ADD COLUMN kind VARCHAR(32) NOT NULL DEFAULT 'survey';
 ALTER TABLE store_items  ADD COLUMN available_locations TEXT;
 -- Normalize collation on tables created without explicit COLLATE so they all
@@ -1573,8 +1588,16 @@ INSERT INTO schema_version (version) VALUES (56) ON DUPLICATE KEY UPDATE version
 -- and MySQL 8 raises 1064, which the runner does NOT tolerate — so the column
 -- silently never landed while schema_version advanced anyway. Same trap the v46
 -- note above describes; these five were added after that fix and missed it.
--- On a fresh apply this creates the column; on a re-run it errors 1060, which the
--- runner tolerates like every other ALTER in this file.
+--
+-- ⚠️ Only ONE of the five actually creates anything: `class_sessions.meeting_link`.
+-- The other four columns (promo_banners.public / .discount_percent / .applies_to
+-- and id_cards.expires_at) are ALREADY declared inside their own CREATE TABLE
+-- earlier in this file, so these ALTERs raise 1060 on EVERY apply including the
+-- first — not "on a re-run", as this note used to say. That is harmless (the
+-- runner tolerates 1050/1060/1061/1091 exactly so an idempotent file can re-run)
+-- and they are kept as the legacy repair for a host whose original CREATE
+-- predated those columns. But do not read them as the statements that put the
+-- columns there on a fresh install; the CREATE TABLE does.
 ALTER TABLE class_sessions ADD COLUMN meeting_link VARCHAR(500) NULL;
 INSERT INTO schema_version (version) VALUES (57) ON DUPLICATE KEY UPDATE version = version;
 
@@ -2504,13 +2527,19 @@ CREATE TABLE IF NOT EXISTS termly_reports (
   course_id           INT          NULL,
   level_id            INT          NULL,
   term_id             INT          NULL,
-  term_label          VARCHAR(64)  NOT NULL,
+  -- 190, not 64: the natural source is academic_terms.label (VARCHAR(80)),
+  -- often composed with a year label, and under STRICT_ALL_TABLES MySQL raises
+  -- 1406 where SQLite's TEXT silently accepts. 190 also stays inside the
+  -- utf8mb4 index-prefix limit.
+  term_label          VARCHAR(190) NOT NULL,
   status              VARCHAR(16)  NOT NULL DEFAULT 'draft',
   band_low            INT          NULL,
   band_high           INT          NULL,
-  coverage_evidenced  INT          NOT NULL DEFAULT 0,
-  coverage_total      INT          NOT NULL DEFAULT 0,
-  coverage_weight_pct INT          NULL,
+  -- NOT NULL and NO DEFAULT: `NOT NULL DEFAULT 0` constrains nothing, because
+  -- the default satisfies it. Coverage prints on the face of the report.
+  coverage_evidenced  INT          NOT NULL,
+  coverage_total      INT          NOT NULL,
+  coverage_weight_pct INT          NOT NULL,
   instructor_id       INT          NULL,
   instructor_comment  TEXT         NULL,
   attendance_summary  TEXT         NULL,
@@ -2524,14 +2553,29 @@ CREATE TABLE IF NOT EXISTS termly_reports (
   updated_at          DATETIME     NULL,
   KEY idx_treport_student (student_id, status),
   KEY idx_treport_cohort  (cohort_id, status),
-  KEY idx_treport_slot    (student_id, term_label, course_id, level_id),
+  -- Lookup only, on BOTH engines: the one-live-report-per-slot rule is
+  -- mam_report_slot_taken()'s. See the SQLite migration for the three ways a
+  -- UNIQUE index states it wrongly (a withdrawn report keeps the slot forever, a
+  -- renamed session opens a second one, and COALESCE turns SET NULL into an abort).
+  KEY idx_treport_slot    (student_id, term_id, term_label, course_id, level_id, status),
   CONSTRAINT chk_treport_status CHECK (status IN ('draft','moderating','ratified','withdrawn')),
+  -- Ten points wide, or clamped at the top of the scale — which is the only
+  -- reason band_high may EQUAL band_low. `band_high > band_low` refused the
+  -- correct (100, 100) a perfect score produces, and admitted (70, 71) and
+  -- (0, 100), neither of which is a band. INT already refuses 74.3 here under
+  -- the STRICT_ALL_TABLES sql_mode mam_db() sets, but the CAST is kept so the
+  -- constraint reads identically to the SQLite one, where it is load-bearing.
   CONSTRAINT chk_treport_band CHECK ((band_low IS NULL AND band_high IS NULL)
-        OR (band_low >= 0 AND band_high > band_low AND band_high <= 100)),
+        OR (band_low  = CAST(band_low  AS SIGNED)
+        AND band_high = CAST(band_high AS SIGNED)
+        AND band_low >= 0 AND band_high <= 100
+        AND band_high >= band_low
+        AND band_high - band_low <= 9
+        AND (band_high - band_low = 9 OR band_high = 100))),
   CONSTRAINT chk_treport_cov  CHECK (coverage_evidenced >= 0 AND coverage_total >= 0
         AND coverage_evidenced <= coverage_total),
-  CONSTRAINT chk_treport_covw CHECK (coverage_weight_pct IS NULL
-        OR (coverage_weight_pct >= 0 AND coverage_weight_pct <= 100)),
+  CONSTRAINT chk_treport_covw CHECK (coverage_weight_pct = CAST(coverage_weight_pct AS SIGNED)
+        AND coverage_weight_pct >= 0 AND coverage_weight_pct <= 100),
   CONSTRAINT chk_treport_rat  CHECK (status <> 'ratified'
         OR (ratified_by IS NOT NULL AND ratified_at IS NOT NULL)),
   CONSTRAINT chk_treport_wdr  CHECK (status <> 'withdrawn' OR withdrawn_at IS NOT NULL),
@@ -2551,7 +2595,7 @@ CREATE TABLE IF NOT EXISTS termly_report_criteria (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   report_id           INT          NOT NULL,
   competency_code     VARCHAR(64)  NOT NULL,
-  label               VARCHAR(160) NOT NULL,
+  label               VARCHAR(190) NOT NULL,
   weight_pct          INT          NOT NULL DEFAULT 0,
   level               VARCHAR(16)  NOT NULL,
   pct                 INT          NULL,
@@ -2562,8 +2606,10 @@ CREATE TABLE IF NOT EXISTS termly_report_criteria (
   UNIQUE KEY uq_tcrit_slot (report_id, competency_code),
   KEY idx_tcrit_report (report_id, sort_order),
   CONSTRAINT chk_tcrit_level  CHECK (level IN ('strong','secure','working','insufficient')),
-  CONSTRAINT chk_tcrit_weight CHECK (weight_pct >= 0 AND weight_pct <= 100),
-  CONSTRAINT chk_tcrit_pct    CHECK (pct IS NULL OR (pct >= 0 AND pct <= 100)),
+  CONSTRAINT chk_tcrit_weight CHECK (weight_pct = CAST(weight_pct AS SIGNED)
+        AND weight_pct >= 0 AND weight_pct <= 100),
+  CONSTRAINT chk_tcrit_pct    CHECK (pct IS NULL
+        OR (pct = CAST(pct AS SIGNED) AND pct >= 0 AND pct <= 100)),
   CONSTRAINT chk_tcrit_evid   CHECK ((level =  'insufficient' AND pct IS NULL)
         OR (level <> 'insufficient' AND pct IS NOT NULL)),
   CONSTRAINT fk_tcrit_report FOREIGN KEY (report_id) REFERENCES termly_reports(id) ON DELETE CASCADE
@@ -2581,7 +2627,10 @@ CREATE TABLE IF NOT EXISTS report_moderations (
   note            TEXT         NULL,
   moderated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_rmod_report (report_id),
-  KEY idx_rmod_slot   (report_id, competency_code, moderator_id),
+  -- UNIQUE with a nullable column, matching the SQLite index: NULLs are
+  -- distinct, so two unattributed second-markers are two rows and the sample
+  -- count mam_report_ratify() gates on is the real one.
+  UNIQUE KEY uq_rmod_slot (report_id, competency_code, moderator_id),
   CONSTRAINT chk_rmod_agreed CHECK (agreed IN (0,1)),
   CONSTRAINT chk_rmod_level  CHECK (moderator_level IS NULL
         OR moderator_level IN ('strong','secure','working','insufficient')),
@@ -2609,8 +2658,10 @@ CREATE TABLE IF NOT EXISTS mark_appeals (
   KEY idx_appeal_open   (status, opened_at),
   CONSTRAINT chk_appeal_role   CHECK (raised_role IN ('parent','student','staff')),
   CONSTRAINT chk_appeal_status CHECK (status IN ('open','upheld','declined','withdrawn')),
-  CONSTRAINT chk_appeal_closed CHECK (status = 'open' OR closed_at IS NOT NULL),
-  CONSTRAINT chk_appeal_why    CHECK (status <> 'declined' OR outcome_note IS NOT NULL),
+  -- ANY closed appeal states its outcome. `status <> 'declined'` left an UPHELD
+  -- appeal free to close with no note — a mark overturned and nothing saying why.
+  CONSTRAINT chk_appeal_closed CHECK (status = 'open'
+        OR (closed_at IS NOT NULL AND outcome_note IS NOT NULL)),
   CONSTRAINT chk_appeal_order  CHECK (closed_at IS NULL OR closed_at >= opened_at),
   CONSTRAINT fk_appeal_report  FOREIGN KEY (report_id)  REFERENCES termly_reports(id) ON DELETE CASCADE,
   CONSTRAINT fk_appeal_student FOREIGN KEY (student_id) REFERENCES users(id)          ON DELETE CASCADE,
@@ -2619,3 +2670,23 @@ CREATE TABLE IF NOT EXISTS mark_appeals (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (85) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- v86 — the guardian ACCESS SCOPE (guardian redesign §3.2), enforced server-side.
+--   billing  — invoices and receipts. No marks, no attendance.
+--   standard — the above plus ratified reports, attendance, timetable. DEFAULT.
+--   full     — the above plus consents, and can act for the child.
+-- No scope reaches practice logs, teach-back recordings, or a teenager's messages
+-- with their instructor: that is a refusal, not a gap. See mam_parent_scope_allows().
+-- `standard` is the default so the migration cannot narrow access families
+-- already have. Plain ADD COLUMN — 1060 on a re-run, which the runner tolerates.
+ALTER TABLE parent_links ADD COLUMN access_scope VARCHAR(16) NOT NULL DEFAULT 'standard';
+ALTER TABLE parent_links ADD COLUMN scope_set_by INT      NULL;
+ALTER TABLE parent_links ADD COLUMN scope_set_at DATETIME NULL;
+ALTER TABLE parent_links ADD CONSTRAINT fk_plink_scopeby FOREIGN KEY (scope_set_by) REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE parent_links ADD CONSTRAINT chk_plink_scope CHECK (access_scope IN ('billing','standard','full'));
+CREATE INDEX idx_plink_scope ON parent_links (parent_id, access_scope);
+-- One link per guardian↔child pair: the scope hangs off this row, so a second row
+-- would mean two different answers to "what may this guardian see".
+CREATE UNIQUE INDEX uq_plink_pair ON parent_links (parent_id, student_id);
+INSERT INTO schema_version (version) VALUES (86) ON DUPLICATE KEY UPDATE version = version;

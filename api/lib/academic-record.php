@@ -66,7 +66,7 @@ function mam_academic_record(int $studentId): array {
         'time'         => mam_record_time($studentId),
         'evidence'     => mam_record_evidence($studentId),
         'competency'   => mam_record_competency($studentId),
-        'mastery'      => function_exists('mam_mastery_score') ? mam_mastery_score($studentId) : null,
+        'mastery'      => function_exists('mam_mastery_score') ? mam_mastery_score_cached($studentId) : null,
         'intervention' => mam_record_intervention($studentId),
         'carry_forward'=> mam_record_carry_forward($studentId),
         'communication'=> mam_record_communication($studentId),
@@ -271,7 +271,7 @@ function mam_record_certification(int $studentId): array {
         [$studentId]
     );
     $prep = mam_record_preparation($studentId);
-    $mast = function_exists('mam_mastery_score') ? mam_mastery_score($studentId) : null;
+    $mast = function_exists('mam_mastery_score') ? mam_mastery_score_cached($studentId) : null;
     // Readiness is advisory, not a gate: it says what the record currently
     // supports, and the academy still decides.
     $ready = $prep['completion_pct'] !== null && $prep['completion_pct'] >= 80

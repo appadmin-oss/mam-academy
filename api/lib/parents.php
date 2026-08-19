@@ -64,6 +64,144 @@ function mam_parent_can_view(int $parentId, int $studentId): bool {
     return (bool) mam_db_row('SELECT 1 FROM parent_links WHERE parent_id = ? AND student_id = ? LIMIT 1', [$parentId, $studentId]);
 }
 
+/**
+ * The guardian ACCESS SCOPES (guardian redesign §3.2), narrowest first.
+ *
+ * `grants` is the closed set of things a scope reaches. It is a list rather than
+ * a boolean per feature because the design's own table is cumulative — Standard
+ * is "Billing plus marks", Full is "Standard plus acting for the child" — and
+ * spelling that as independent flags is how a new feature ends up reachable by a
+ * billing-only contact because nobody remembered to add a flag for it.
+ *
+ * ⚠️ **What NO scope grants** is the part to keep: practice logs, teach-back
+ * recordings, and a teenager's messages with their instructor. `full` is not
+ * "everything"; it is "everything the academy has assessed, plus the ability to
+ * act". The design is explicit that this must be enforced server-side and SAID on
+ * the screen, "so the boundary is understood rather than discovered" — and the
+ * reason is not squeamishness: a 14-year-old who knows their practice log is read
+ * at home stops using it honestly, and the log is the input the whole teaching
+ * loop runs on.
+ *
+ * That refusal is spelled here as MAM_PARENT_NEVER, checked FIRST, so adding a
+ * grant to `full` cannot accidentally open one of them.
+ */
+const MAM_PARENT_SCOPES = [
+    'billing'  => [
+        'label'  => 'Billing only',
+        'blurb'  => 'Invoices and receipts. No marks and no attendance.',
+        'grants' => ['invoices', 'receipts', 'payments', 'announcements'],
+    ],
+    'standard' => [
+        'label'  => 'Standard',
+        'blurb'  => 'Invoices and receipts, plus ratified reports, attendance and the timetable.',
+        'grants' => ['invoices', 'receipts', 'payments', 'announcements',
+                     'reports', 'attendance', 'timetable', 'messages_staff'],
+    ],
+    'full'     => [
+        'label'  => 'Full access',
+        'blurb'  => 'Everything Standard reaches, plus consents, and can act for the child.',
+        'grants' => ['invoices', 'receipts', 'payments', 'announcements',
+                     'reports', 'attendance', 'timetable', 'messages_staff',
+                     'consents', 'act_for_child', 'data_requests'],
+    ],
+];
+
+/**
+ * Things no guardian scope ever reaches. Checked before the grants, so this is a
+ * refusal and not the absence of a permission.
+ */
+const MAM_PARENT_NEVER = ['practice_logs', 'teachback_recordings', 'student_instructor_messages', 'takes'];
+
+/** The narrowest scope — what an unrecognised stored value is treated as. */
+const MAM_PARENT_SCOPE_DEFAULT = 'standard';
+
+/**
+ * This guardian's scope for this child, or null when they are not linked.
+ *
+ * An unrecognised stored value reads as the NARROWEST scope, never as the widest
+ * and never as the default: SQLite carries no CHECK on the column (it cannot be
+ * added by ALTER), so a hand-edited or migrated row must not be able to widen
+ * access by containing something this code does not know about.
+ */
+function mam_parent_scope(int $parentId, int $studentId): ?string {
+    $row = mam_db_row('SELECT access_scope FROM parent_links WHERE parent_id = ? AND student_id = ? LIMIT 1', [$parentId, $studentId]);
+    if (!$row) return null;
+    $scope = (string) ($row['access_scope'] ?? '');
+    return isset(MAM_PARENT_SCOPES[$scope]) ? $scope : 'billing';
+}
+
+/**
+ * May this guardian see/do `$what` for this child?
+ *
+ * The one predicate for the boundary. Every guardian-facing read and write goes
+ * through it, so there is one place to read to know what a scope means — and one
+ * place a new capability has to be added, which is the point.
+ */
+function mam_parent_scope_allows(int $parentId, int $studentId, string $what): bool {
+    if (in_array($what, MAM_PARENT_NEVER, true)) return false;
+    $scope = mam_parent_scope($parentId, $studentId);
+    if ($scope === null) return false;
+    return in_array($what, MAM_PARENT_SCOPES[$scope]['grants'], true);
+}
+
+/**
+ * Set a guardian's scope. The only writer, and therefore the validator: the
+ * SQLite column has no CHECK, so an unknown value must be refused here or it
+ * reaches the database and is then read as `billing` forever.
+ */
+function mam_parent_scope_set(int $parentId, int $studentId, string $scope, ?int $by = null): void {
+    if (!isset(MAM_PARENT_SCOPES[$scope])) throw new InvalidArgumentException('bad_scope');
+    if (!mam_parent_can_view($parentId, $studentId)) throw new RuntimeException('not_linked');
+    $before = mam_parent_scope($parentId, $studentId);
+    mam_db_update('parent_links', [
+        'access_scope' => $scope,
+        'scope_set_by' => $by !== null && $by > 0 ? $by : null,
+        'scope_set_at' => date('Y-m-d H:i:s'),
+    ], ['parent_id' => $parentId, 'student_id' => $studentId]);
+    mam_audit('parent_scope', 'user', $studentId, ['parent' => $parentId, 'from' => $before, 'to' => $scope, 'by' => $by]);
+}
+
+/**
+ * What this guardian CANNOT see, and why — the design's explicit
+ * "What you cannot see, and why" panel, as data.
+ *
+ * A panel, not a silence. The design's reasoning is that a boundary a family
+ * discovers by finding an empty screen reads as a bug or as concealment, while a
+ * boundary stated in a sentence reads as a policy — and this one IS a policy the
+ * academy is willing to defend.
+ */
+function mam_parent_scope_explain(int $parentId, int $studentId): array {
+    $scope = mam_parent_scope($parentId, $studentId);
+    if ($scope === null) return [];
+    $out = [];
+    // The universal refusals come first, because they are the ones that hold
+    // however wide the scope is.
+    $out[] = [
+        'what' => 'Practice logs and teach-back recordings',
+        'why'  => 'These are the child\'s own working notes. No guardian scope reaches them — a learner '
+                . 'who knows their practice log is read at home stops recording it honestly, and that log is '
+                . 'what the teaching plan is built from.',
+        'scope_could_change' => false,
+    ];
+    $out[] = [
+        'what' => 'Messages between the child and their instructor',
+        'why'  => 'A young person needs somewhere to ask a question they are embarrassed by. Anything about '
+                . 'safeguarding, money, or a change that affects you reaches you directly and always.',
+        'scope_could_change' => false,
+    ];
+    if ($scope === 'billing') {
+        $out[] = ['what' => 'Reports, marks and attendance',
+                  'why'  => 'Your access is set to Billing only. The academy office can widen it.',
+                  'scope_could_change' => true];
+    }
+    if ($scope !== 'full') {
+        $out[] = ['what' => 'Giving and withdrawing consents',
+                  'why'  => 'Consents are held by the guardian with Full access for this child.',
+                  'scope_could_change' => true];
+    }
+    return $out;
+}
+
 /** The students a parent is linked to, each with a compact weekly status. */
 function mam_parent_children(int $parentId): array {
     $rows = mam_db_all(
@@ -144,38 +282,58 @@ function mam_parent_weekly_status(int $studentId): array {
     // assessed" and turned it into a failing grade on the way to the parent.
     $attendance = function_exists('mam_checkin_attendance_rate') ? mam_checkin_attendance_rate($studentId) : null;
     $streak     = function_exists('mam_checkin_streak') ? mam_checkin_streak($studentId) : 0;
-    $gpa        = function_exists('mam_lms2_student_gpa') ? mam_lms2_student_gpa($studentId) : ['avg_score' => null];
-    $mastery    = $gpa['avg_score'] !== null ? (float) $gpa['avg_score'] : null;
-
-    /* The MASTERY BAND, which is what a guardian is shown — not the mean above.
+    /* The MASTERY BAND — the only mastery figure a guardian is given.
      *
-     * `mam_lms2_student_gpa()` returns a decimal average of whatever has been
-     * graded. `mam_mastery_score()` is the engine that decides whether that
-     * number may be reported at all: below MAM_MASTERY_MIN_COVERAGE there is no
-     * composite, only subscores, and above it the result is a ten-point BAND with
-     * the arithmetic bounds the unscored weight permits.
+     * `mam_lms2_student_gpa()` returns a decimal average of whatever happens to
+     * have been graded. `mam_mastery_score()` is the engine that decides whether
+     * such a number may be reported at all: below MAM_MASTERY_MIN_COVERAGE there
+     * is no composite, only subscores, and above it the result is a ten-point
+     * BAND. This payload used to carry the gradebook mean instead, so the one
+     * screen the coverage floor exists to protect was the screen not using it.
      *
-     * The guardian payload was reaching past that and shipping the raw mean, so
-     * the one screen the coverage floor exists to protect was the screen not
-     * using it. `raw_score` is retained inside mastery.php for audit and must
-     * never reach here — hence the explicit key list rather than a spread.
+     * ⚠️ Adding the band BESIDE the mean did not fix that, and this is the trap
+     * worth remembering: the guardian screen went on rendering
+     * `Math.round(w.mastery) + '%'`, the traffic light went on being derived from
+     * the mean, and the payload merely gained a key nobody read. A withheld
+     * number is not withheld while anything downstream can still print it — so
+     * the mean is GONE from here, and `mastery_light` is now derived from the
+     * band, which reports `none` when the evidence is too thin rather than
+     * quantising a withheld composite into a colour.
+     *
+     * Everything published goes through mam_mastery_publishable() (one predicate,
+     * shared with the student's own route) rather than an allowlist spelled out
+     * here — an allowlist has to be re-audited every time the engine gains a key,
+     * and the `bounds`/`coverage_pct` pair showed why: `raw = bounds.min × 100 ÷
+     * coverage_pct` recovered the withheld figure from two allow-listed keys.
      */
-    $band = null;
+    $band = null; $masLight = 'none';
     if (function_exists('mam_mastery_score')) {
         try {
-            $m = mam_mastery_score($studentId);
+            /* The UNCACHED engine on purpose. The guardian children list computes
+             * a band for every child (the design puts one in each child's tile),
+             * so this is one mastery computation per child per request and a memo
+             * would save nothing while risking a stale read. That cost is
+             * inherent to the screen; see mam_mastery_score_cached() for where a
+             * memo does earn its keep. */
+            $m = mam_mastery_publishable(mam_mastery_score($studentId));
             $band = [
-                'band'          => $m['band'] ?? null,          // [70,79] or null
-                'label'         => $m['level_label'] ?? null,
-                'blurb'         => $m['level_blurb'] ?? null,
+                'band'          => $m['band'] ?? null,   // ['low'=>70,'high'=>79,'label'=>'70–79'] or null
+                'level_label'   => $m['level_label'] ?? null,
+                'level_blurb'   => $m['level_blurb'] ?? null,
                 'headline'      => $m['headline'] ?? null,
                 'sufficient'    => (bool) ($m['sufficient'] ?? false),
                 'coverage_pct'  => $m['coverage_pct'] ?? null,
                 'min_coverage'  => $m['min_coverage'] ?? null,
+                'provisional'   => (bool) ($m['provisional'] ?? false),
                 'bounds'        => $m['bounds'] ?? null,
                 'components'    => $m['components'] ?? [],
                 'missing'       => $m['missing'] ?? [],
+                'withheld_reason' => $m['withheld_reason'] ?? null,
             ];
+            // The light follows the LEVEL the band reports, never a percentage:
+            // level 0 is "not assessed", which is an absence and not a red flag.
+            $lvl = (int) ($m['level'] ?? 0);
+            $masLight = $lvl === 0 ? 'none' : ($lvl >= 4 ? 'green' : ($lvl >= 3 ? 'amber' : 'red'));
         } catch (\Throwable $e) {
             // A guardian screen must render without it rather than 500.
             mam_log('warn', 'parent_mastery_band_failed', ['student' => $studentId, 'err' => $e->getMessage()]);
@@ -192,7 +350,6 @@ function mam_parent_weekly_status(int $studentId): array {
         }
     }
     $attLight = mam_parent_light($attendance);
-    $masLight = mam_parent_light($mastery);
     return [
         'attendance_rate'  => $attendance,
         'attendance'       => $attLight,
@@ -200,11 +357,16 @@ function mam_parent_weekly_status(int $studentId): array {
         // invent one and a screen reader is not left with a bare dot.
         'attendance_label' => mam_parent_light_label($attLight, 'Attendance'),
         'streak'           => $streak,
-        // Retained for the traffic light only. Do NOT render this as the score:
-        // `mastery_band` is what the guardian sees.
-        'mastery'          => $mastery,
+        /* No `mastery` key. It carried the raw gradebook mean and every consumer
+         * printed it as a percentage; the band below is the whole of what a
+         * guardian is told about mastery. Deliberately absent rather than null,
+         * so a client still reading it fails visibly instead of rendering `NaN%`
+         * or, worse, `0%` — which is the failing grade this engine exists to
+         * avoid reporting about an unassessed child. */
         'mastery_light'    => $masLight,
-        'mastery_label'    => mam_parent_light_label($masLight, 'Mastery'),
+        'mastery_label'    => $masLight === 'none'
+            ? 'Not enough assessed work yet'
+            : mam_parent_light_label($masLight, 'Mastery'),
         'mastery_band'     => $band,
         'preparation'      => $prep,        // not_started / in_progress / completed
         'teachback'        => $teachback,   // null / submitted / reviewed

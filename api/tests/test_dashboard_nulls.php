@@ -53,11 +53,19 @@ t_ok($dnGpa['avg_score'] === null, 'the grading engine already reported "not ass
 
 $dnW = mam_parent_weekly_status($dnU);
 t_ok($dnW['attendance_rate'] === null, 'the guardian payload keeps attendance null rather than flattening it');
-t_ok($dnW['mastery'] === null, 'and mastery too — this is the line that used to read ": 0.0"');
 t_eq($dnW['attendance'], 'none', 'so the attendance light is neutral, NOT red');
 t_eq($dnW['mastery_light'], 'none', 'and so is mastery');
 t_eq($dnW['attendance_label'], 'Not measured yet', 'with the reason stated in text');
-t_eq($dnW['mastery_label'], 'Not measured yet', 'for both');
+t_eq($dnW['mastery_label'], 'Not enough assessed work yet', 'and mastery names its own absence');
+
+/* The `mastery` key is GONE, not null. It carried the raw gradebook mean, and
+ * "null when there is nothing" was only half the problem: once there WAS
+ * something, every consumer printed the mean as a percentage, which is exactly
+ * the thin composite the coverage floor exists to withhold. Absent rather than
+ * null so a client still reading it fails visibly instead of rendering 0%. */
+t_ok(!array_key_exists('mastery', $dnW),
+    'the raw gradebook mean is absent from the guardian payload, not merely nulled');
+t_ok(array_key_exists('mastery_band', $dnW), 'the band replaces it');
 
 t_group('dashboards — a student who genuinely is behind still reads as behind');
 

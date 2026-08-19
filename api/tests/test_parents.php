@@ -100,3 +100,79 @@ t_group('parents — unlink');
 
 mam_parent_unlink($parentId, $PR_stu2);
 t_eq(count(mam_parent_children($parentId)), 1, 'unlinking removes a child');
+
+t_group('parents — the mastery BAND, and the mean that is no longer published');
+
+/**
+ * The guardian surface is the one the mastery coverage floor exists to protect
+ * (CLAUDE.md gotcha #12), and it was the one surface reaching past it: the
+ * payload carried `mastery`, the raw renormalised mean out of the gradebook, and
+ * both places the screen rendered it printed `Math.round(w.mastery) + '%'`.
+ *
+ * Adding a band BESIDE the mean did not fix that. These assertions pin the parts
+ * that made the earlier attempt inert, so a later "tidy" cannot restore any of
+ * them: the mean is absent, nothing in the payload equals `raw_score`, and the
+ * traffic light comes from the reported LEVEL rather than from a percentage.
+ */
+$MB_stu = mam_db_insert('users', [
+    'name' => 'Band Kid', 'email' => 'bandkid@test.local', 'role' => 'student',
+    'password_hash' => 'x', 'status' => 'active',
+]);
+mam_parent_link('guardian@test.local', $MB_stu);
+$MB_par = (int) mam_db_row("SELECT id FROM users WHERE email = 'guardian@test.local'")['id'];
+
+// ── A child with nothing assessed: withheld, and said so.
+$MB_w0 = mam_parent_weekly_status($MB_stu);
+t_ok(!array_key_exists('mastery', $MB_w0), 'the raw mean has no key in the guardian payload');
+t_ok($MB_w0['mastery_band'] !== null, 'the band block is present even with no evidence');
+t_ok($MB_w0['mastery_band']['band'] === null, 'and reports no band rather than a zero');
+t_ok($MB_w0['mastery_band']['sufficient'] === false, 'flagged as insufficient evidence');
+t_eq($MB_w0['mastery_light'], 'none', 'so the light is neutral, not red');
+
+// ── Thin evidence: a composite EXISTS internally but must not be recoverable.
+// Two lesson_progress rows evidence `preparation` only — 10 of 100 weight, far
+// below MAM_MASTERY_MIN_COVERAGE — so mam_mastery_score() withholds the score.
+$MB_coh = mam_db_insert('cohorts', ['course_id' => $PR_course, 'title' => 'MB Cohort', 'status' => 'active', 'capacity' => 10]);
+$MB_les = mam_db_insert('lessons', ['cohort_id' => $MB_coh, 'title' => 'MB Module', 'week_no' => 1, 'published' => 1]);
+mam_lms2_lesson_progress_set($MB_les, $MB_stu, 80);
+
+$MB_raw = mam_mastery_score($MB_stu);
+t_ok($MB_raw['raw_score'] !== null, 'the engine does compute a renormalised mean at this coverage');
+t_ok($MB_raw['sufficient'] === false, 'but withholds it — coverage is below the floor');
+
+$MB_pub = mam_mastery_publishable($MB_raw);
+t_ok(!array_key_exists('raw_score', $MB_pub), 'mam_mastery_publishable() strips raw_score');
+t_ok($MB_pub['bounds'] === null,
+    'and strips the bounds while the score is withheld: raw = bounds.min x 100 / coverage_pct recovers it exactly');
+t_eq($MB_pub['withheld_reason'], 'below_coverage_floor', 'the reason is stated rather than left to be inferred');
+
+/* The whole guardian payload, flattened, must contain the raw score nowhere —
+ * not as a value, not as a string, not reachable by the bounds arithmetic. */
+$MB_w1 = mam_parent_weekly_status($MB_stu);
+$MB_flat = [];
+array_walk_recursive($MB_w1, function ($v) use (&$MB_flat) { $MB_flat[] = $v; });
+$MB_needle = (float) $MB_raw['raw_score'];
+$MB_hit = false;
+foreach ($MB_flat as $v) {
+    if (is_numeric($v) && abs((float) $v - $MB_needle) < 0.05) { $MB_hit = true; break; }
+}
+t_ok(!$MB_hit, 'no value anywhere in the guardian payload is the withheld composite (' . $MB_needle . ')');
+t_ok($MB_w1['mastery_band']['bounds'] === null, 'the band block carries no bounds while withheld');
+t_ok(!empty($MB_w1['mastery_band']['components']),
+    'per-component evidence still travels — the design draws a bar per criterion, so subscores are guardian-facing');
+
+// ── The band, when it is reported, is a BAND: whole numbers, ten points wide
+// unless clamped at the top of the scale. This is the shape the v85 CHECK
+// admits, so the engine and the schema cannot disagree.
+$MB_band = mam_report_band($MB_raw['raw_score']);
+t_ok($MB_band !== null, 'a score yields a band');
+t_ok($MB_band['low'] === (int) $MB_band['low'] && $MB_band['high'] === (int) $MB_band['high'], 'both bounds are whole');
+t_ok($MB_band['high'] - $MB_band['low'] === 9 || $MB_band['high'] === 100,
+    'ten points wide, or clamped against the top of the scale');
+t_ok(mam_report_band(100)['low'] === 100 && mam_report_band(100)['high'] === 100,
+    'a perfect score bands as (100,100) — the shape the old CHECK refused');
+t_ok(mam_report_band(null) === null, 'no score, no band');
+
+// ── The memo returns the same answer, and only computes once.
+t_eq(json_encode(mam_mastery_score_cached($MB_stu)), json_encode(mam_mastery_score_cached($MB_stu)),
+    'the memoised score is stable within a request');

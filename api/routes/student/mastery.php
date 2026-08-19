@@ -10,7 +10,11 @@
 declare(strict_types=1);
 
 $u = mam_require_user();
+/* Through mam_mastery_publishable(): this route used to return the engine's whole
+ * array, `raw_score` included, so the precise composite the coverage floor exists
+ * to withhold arrived in the student's own browser. See mastery.php for the two
+ * keys it strips and why the bounds are only stripped when the score is withheld. */
 mam_ok([
-    'mastery' => mam_mastery_score((int) $u['id']),
+    'mastery' => mam_mastery_publishable(mam_mastery_score_cached((int) $u['id'])),
     'levels'  => MAM_MASTERY_LEVELS,
 ]);

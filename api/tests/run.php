@@ -115,6 +115,7 @@ require $ROOT . '/lib/recital.php';           // the Recital Hall
 require $ROOT . '/lib/mastery.php';           // mastery scale + MAM Mastery Score (PDF §23-24)
 require $ROOT . '/lib/academic-record.php';   // unified student academic record (PDF §43)
 require $ROOT . '/lib/upper-admin.php';       // upper-admin strategic intelligence (PDF §34-35)
+require $ROOT . '/lib/reports.php';           // ratified termly reports + moderation + appeals (v85)
 
 require __DIR__ . '/assert.php';
 

@@ -374,3 +374,88 @@ function mam_mastery_score(int $studentId): array {
         ],
     ];
 }
+
+/**
+ * Memoised `mam_mastery_score()` — for a caller that reads one student's score
+ * MORE THAN ONCE in a single request. The engine is eight queries deep
+ * (lesson_progress twice, teachbacks, submission_reviews, results, repertoire,
+ * and session_attendance twice), so a second read is eight wasted round trips.
+ *
+ * ⚠️ **Only use this where the repeat is real, and never after a write.** The
+ * memo is request-scoped and does not observe evidence recorded after the first
+ * call; a route that grades work and then reports a score must call
+ * `mam_mastery_forget()` in between. The guardian children list deliberately
+ * does NOT use it: it computes each child exactly once, so there is nothing to
+ * save and the staleness would be pure downside. Its per-child cost is inherent
+ * — the design puts a band in every child's tile — and the fix for that, if it
+ * ever bites, is a summary table maintained on write, not a cache on read.
+ */
+function mam_mastery_score_cached(int $studentId): array {
+    // Held in a reference a second function can reach, not a bare `static`:
+    // `mam_mastery_forget()` has to be able to drop it, and a static declared
+    // inside this body is invisible from anywhere else.
+    if (!isset($GLOBALS['__mam_mastery_memo'])) $GLOBALS['__mam_mastery_memo'] = [];
+    if (!array_key_exists($studentId, $GLOBALS['__mam_mastery_memo'])) {
+        $GLOBALS['__mam_mastery_memo'][$studentId] = mam_mastery_score($studentId);
+    }
+    return $GLOBALS['__mam_mastery_memo'][$studentId];
+}
+
+/** Drop the memo — one student, or all of them. Call after writing evidence. */
+function mam_mastery_forget(?int $studentId = null): void {
+    if ($studentId === null) { $GLOBALS['__mam_mastery_memo'] = []; return; }
+    unset($GLOBALS['__mam_mastery_memo'][$studentId]);
+}
+
+/**
+ * The mastery result as it may be shown to a STUDENT or a GUARDIAN — the one
+ * predicate for that, so the two surfaces cannot disagree about what is
+ * publishable.
+ *
+ * Two things are removed, and both were reachable:
+ *
+ *  1. **`raw_score`.** The header above says plainly not to surface it, and
+ *     `GET /api/student/mastery` was returning this whole array verbatim, so the
+ *     precise composite the coverage floor exists to withhold was in the JSON
+ *     the student's own browser received. Saying "do not surface" in a comment is
+ *     not a control; removing the key is.
+ *
+ *  2. **`bounds`, but only when the score is WITHHELD.** Beside a reported band
+ *     the bounds are a deliberate disclosure — the arithmetic a parent can
+ *     follow, as the comment on them explains — and the band is already public.
+ *     Beside a withheld score they are the opposite: `bounds.min` is
+ *     `raw × coverage ÷ 100`, so `raw = bounds.min × 100 ÷ coverage_pct` recovers
+ *     the withheld figure exactly from two keys sitting next to each other in the
+ *     same payload. That is a number the academy would be PRESENTING, in a
+ *     payload whose own `sufficient: false` says it has decided not to.
+ *
+ * ⚠️ **This does not make `raw_score` unrecoverable, and no honest version of it
+ * could.** `components` carries a percentage and a weight per evidenced
+ * component, the full weight table is a public constant, and the composite is
+ * their weighted mean — so anyone who wants the figure can compute it from what
+ * is published. Subscores are published ON PURPOSE (the file header: "Subscores
+ * remain available throughout, because per-component evidence is real even when
+ * the composite is not", and the design's guardian report draws a bar per
+ * criterion), so the alternative is withholding real evidence to obstruct
+ * arithmetic.
+ *
+ * What the coverage floor governs is therefore what the academy STATES as a
+ * comparable headline figure — the thing a parent anchors on and compares
+ * between two children — not the information content of the payload. Claiming
+ * otherwise would be theatre, and the previous attempt at this made exactly that
+ * claim ("an explicit key allowlist, so raw_score cannot leak") while shipping
+ * both the mean itself and two keys that invert to it.
+ *
+ * Everything else stays: per-component percentages ARE guardian-facing, and
+ * attendance/punctuality are §24's required companions to the score.
+ */
+function mam_mastery_publishable(array $m): array {
+    unset($m['raw_score']);
+    if (empty($m['sufficient'])) {
+        $m['bounds'] = null;
+        $m['withheld_reason'] = ($m['coverage_pct'] ?? 0) > 0
+            ? 'below_coverage_floor'
+            : 'not_assessed';
+    }
+    return $m;
+}
