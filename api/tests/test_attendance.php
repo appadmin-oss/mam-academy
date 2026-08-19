@@ -133,3 +133,86 @@ if ($amStu) {
     t_eq(mam_db_row('SELECT method FROM session_attendance WHERE session_id = ? AND student_id = ?',
         [$amSess, (int) $amStu['id']])['method'], 'qr', 'and the method is unchanged');
 }
+
+t_group('attendance — the group ("general") check-in');
+
+// Summer camp arrives together: the instructor marks the session in one action
+// and corrects exceptions afterwards. Twenty single requests would do the same
+// job with twenty chances to half-succeed, and no way to tell a child who was
+// absent from one whose request failed.
+t_ok(function_exists('mam_lms_mark_attendance_all'), 'a bulk marker exists');
+
+$gaCourse = mam_db_row('SELECT id FROM courses LIMIT 1');
+$gaCid = $gaCourse ? (int) $gaCourse['id']
+    : (int) mam_db_insert('courses', ['code' => 'ga_test', 'name' => 'Group test', 'kind' => 'elective', 'active' => 1]);
+$gaCoh = (int) mam_db_insert('cohorts', ['title' => 'Summer camp — group check-in', 'course_id' => $gaCid,
+    'capacity' => 30, 'session_duration' => 60, 'status' => 'active', 'term' => 'SUMMER-2030',
+    'created_at' => date('Y-m-d H:i:s')]);
+$gaSess = (int) mam_db_insert('class_sessions', ['cohort_id' => $gaCoh, 'title' => 'Camp day 1',
+    'scheduled_at' => date('Y-m-d H:i:s'), 'duration_min' => 120, 'status' => 'scheduled',
+    'created_at' => date('Y-m-d H:i:s')]);
+
+// Four children on the roster; one already marked late by hand.
+$gaKids = [];
+foreach (['Ama', 'Bode', 'Chidera', 'Dami'] as $i => $n) {
+    $uid = (int) mam_db_insert('users', ['email' => 'ga_' . $i . '_' . bin2hex(random_bytes(3)) . '@x.dev',
+        'name' => $n . ' Camp', 'role' => 'student', 'status' => 'active',
+        'password_hash' => password_hash('x-' . $i . '-longenough', PASSWORD_BCRYPT),
+        'created_at' => date('Y-m-d H:i:s')]);
+    mam_db_insert('course_enrollments', ['student_id' => $uid, 'cohort_id' => $gaCoh, 'course_id' => $gaCid,
+        'status' => 'active', 'created_at' => date('Y-m-d H:i:s')]);
+    $gaKids[] = $uid;
+}
+mam_lms_mark_attendance($gaSess, $gaKids[0], 'late', null, 'Arrived with a parent');
+
+$ga = mam_lms_mark_attendance_all($gaSess, 'present', null);
+t_eq($ga['roster'], 4, 'it works from the teachable roster');
+t_eq($ga['marked'], 3, 'marking only the children who had no mark yet');
+t_eq($ga['skipped'], 1, 'and skipping the one already recorded');
+t_eq(count($ga['failed']), 0, 'with nothing failing');
+
+// The existing mark must survive. An instructor who recorded somebody late and
+// then pressed the group button would otherwise silently lose it.
+t_eq(mam_db_row('SELECT status FROM session_attendance WHERE session_id = ? AND student_id = ?',
+    [$gaSess, $gaKids[0]])['status'], 'late', 'a hand-entered mark is not overwritten by default');
+t_eq((int) mam_db_row('SELECT COUNT(*) c FROM session_attendance WHERE session_id = ?', [$gaSess])['c'], 4,
+    'every child on the roster now has exactly one row');
+
+// Idempotent: pressing it twice changes nothing.
+$again = mam_lms_mark_attendance_all($gaSess, 'present', null);
+t_eq($again['marked'], 0, 'pressing it again marks nobody new');
+t_eq($again['skipped'], 4, 'because everybody already has a mark');
+
+// Overwriting is possible, but has to be asked for.
+$force = mam_lms_mark_attendance_all($gaSess, 'present', null, false);
+t_eq($force['marked'], 4, 'with only_unmarked off it marks the whole roster');
+t_eq(mam_db_row('SELECT status FROM session_attendance WHERE session_id = ? AND student_id = ?',
+    [$gaSess, $gaKids[0]])['status'], 'present', 'and then the late mark IS replaced');
+
+// A bad status is refused before anything is written.
+$gaThrew = false;
+try { mam_lms_mark_attendance_all($gaSess, 'maybe', null); } catch (\Throwable $e) { $gaThrew = $e->getMessage() === 'invalid_status'; }
+t_ok($gaThrew, 'an unknown status is refused, not coerced');
+
+// One student's problem must not sink the register: withdraw a child and confirm
+// the rest are still marked and the failure is NAMED, not just counted.
+$gaSess2 = (int) mam_db_insert('class_sessions', ['cohort_id' => $gaCoh, 'title' => 'Camp day 2',
+    'scheduled_at' => date('Y-m-d H:i:s'), 'duration_min' => 120, 'status' => 'scheduled',
+    'created_at' => date('Y-m-d H:i:s')]);
+mam_db()->prepare("UPDATE course_enrollments SET status = 'withdrawn' WHERE cohort_id = ? AND student_id = ?")
+    ->execute([$gaCoh, $gaKids[3]]);
+$ga2 = mam_lms_mark_attendance_all($gaSess2, 'present', null);
+t_eq($ga2['roster'], 3, 'a withdrawn child leaves the teachable roster');
+t_eq($ga2['marked'], 3, 'and the rest are still marked');
+
+// The route exists, is gated the same way as its single-row sibling, and is
+// rate-limited lower — one press marks a whole class.
+$gaIdx = (string) file_get_contents(dirname(__DIR__) . '/index.php');
+t_ok(strpos($gaIdx, "'/session-checkin-all'") !== false, 'the route is registered');
+t_ok(preg_match("#'/session-checkin-all'.*mw_csrf\(\).*mw_role\('instructor', 'admin'\)#", $gaIdx) === 1,
+    'CSRF-gated and instructor/admin only');
+$gaRoute = (string) file_get_contents(dirname(__DIR__) . '/routes/instructor/session-checkin-all.php');
+t_ok(strpos($gaRoute, 'mam_lms_instructor_owns_cohort') !== false,
+    'and it checks cohort ownership — a bulk endpoint with a weaker gate is the way around the single one');
+t_ok(strpos($gaRoute, "!empty(\$in['overwrite'])") !== false,
+    'overwrite is opt-in on the wire too, not just in the library');

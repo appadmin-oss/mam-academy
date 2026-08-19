@@ -137,3 +137,55 @@ if ($ciStu) {
     t_ok($rate <= 100.0, 'and it cannot exceed 100% however the other sessions are stated [' . $rate . ']');
     t_eq($rate, 100.0, 'the one counted session was attended, so it reads 100');
 }
+
+t_group('/scan — the instructor takes the register');
+
+// The academy's real model: children are young, so the INSTRUCTOR logs the
+// session and signs each child in from the QR on their ID card. Summer camp
+// arrives as a group and is marked in one action. Both live on this page.
+$scPath = dirname(__DIR__, 2) . '/scan.php';
+t_ok(is_file($scPath), '/scan exists at the repo root');
+$sc = (string) file_get_contents($scPath);
+
+// Thin client over three endpoints that already existed.
+foreach (['instructor/sessions', 'instructor/card-scan', 'instructor/session-checkin-all'] as $ep) {
+    t_ok(strpos($sc, "'" . $ep . "'") !== false, "it uses the existing $ep endpoint");
+}
+foreach (['mam_db_', 'SELECT ', 'mam_lms_'] as $forbidden) {
+    t_ok(strpos($sc, $forbidden) === false, "and never reaches past the API [$forbidden]");
+}
+
+// The bug this page shipped with, and the reason it is worth a test: an unknown
+// result key falls back to `invalid`, so a wrong map renders every SUCCESSFUL
+// scan as "Not a MAM card" while the child is in fact marked. Silent and total.
+$scRoute = (string) file_get_contents(dirname(__DIR__) . '/routes/instructor/card-scan.php');
+preg_match_all("/'result'\s*=>\s*'([a-z_]+)'|\\\$scanResult\s*=\s*'([a-z_]+)'/", $scRoute, $m);
+$scResults = array_values(array_unique(array_filter(array_merge($m[1], $m[2]))));
+t_ok(count($scResults) >= 5, 'the endpoint has a known set of results [' . implode(',', $scResults) . ']');
+foreach ($scResults as $res) {
+    t_ok(preg_match('/^\s*' . preg_quote($res, '/') . ':\s*\[/m', $sc) === 1,
+        "the page renders `$res` explicitly rather than falling through to invalid");
+}
+
+// One card, one mark: the same code stays in frame for many frames.
+t_ok(strpos($sc, 'Date.now() - seen[key] > 4000') !== false,
+    'a code held in frame is debounced, so one card is one mark and not twenty');
+// Centre crop matching the reticle — decoding the whole frame picks up the next
+// card in the queue.
+t_ok(strpos($sc, 'v.videoWidth - side) / 2') !== false, 'only the framed centre is decoded');
+// The decoder is ours: a CDN copy is CSP-blocked, and a camera page whose reader
+// silently fails to load is worse than no page.
+t_ok(strpos($sc, "'/assets/js/vendor/jsQR.min.js'") !== false, 'jsQR is loaded self-hosted');
+t_ok(is_file(dirname(__DIR__, 2) . '/assets/js/vendor/jsQR.min.js'), 'and is actually vendored');
+// Loaded on demand: 130KB, and most visits press the group button instead.
+t_ok(strpos($sc, 'window.jsQR ? Promise.resolve()') !== false, 'and only when a camera is wanted');
+
+// Colour is never the only signal — WCAG 1.4.1, and a doorway is exactly where
+// somebody glances rather than reads.
+t_ok(substr_count($sc, "'sc-ok',") + substr_count($sc, "'sc-dup',") + substr_count($sc, "'sc-bad',") >= 5,
+    'each outcome carries an icon and words, not just a colour');
+t_ok(strpos($sc, 'camera=(self)') !== false, 'the camera permission is declared on the page itself');
+t_ok(strpos($sc, "addEventListener('pagehide'") !== false,
+    'and the camera is released on leaving — a live indicator and a flat battery teach people not to use it');
+t_ok(preg_match('/button\.sc-btn\{[^}]*min-height:56px/', $sc) === 1,
+    'its buttons state their own height, past main.css\'s 44px floor');

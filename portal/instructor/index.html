@@ -43,6 +43,10 @@
       <a class="portal-nav-link" href="#gradebook" data-tab="gradebook"><i class="fa-solid fa-graduation-cap"></i>Gradebook</a>
       <a class="portal-nav-link" href="#analytics" data-tab="analytics"><i class="fa-solid fa-chart-line"></i>Analytics</a>
       <a class="portal-nav-link" href="#attendance" data-tab="attendance"><i class="fa-solid fa-clipboard-list"></i>Attendance</a>
+      <!-- Not a tab: /scan is a standalone page an instructor opens on a phone at
+           the door, with a camera and no portal chrome around it. Putting it in the
+           SPA would mean loading the whole dashboard to take a register. -->
+      <a class="portal-nav-link" href="/scan"><i class="fa-solid fa-qrcode"></i>Take the register</a>
 
       <div class="portal-nav-group">Account</div>
       <a class="portal-nav-link" href="#earnings" data-tab="earnings"><i class="fa-solid fa-wallet"></i>Earnings</a>

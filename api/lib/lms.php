@@ -747,6 +747,65 @@ function mam_lms_set_session_status(int $id, string $to, ?int $by = null): array
     return ['ok' => true, 'changed' => true, 'from' => $from, 'to' => $to];
 }
 
+/**
+ * Mark a whole roster at once — the "general check-in".
+ *
+ * The academy's summer camp does not scan a card per child: a group arrives
+ * together and the instructor marks the session in one action, then corrects the
+ * exceptions. Twenty single requests from the browser would do the same job with
+ * twenty chances to half-succeed, and no way afterwards to tell a child who was
+ * absent from one whose request failed.
+ *
+ * Two properties that make it safe to put behind one button:
+ *
+ *  • **It does not overwrite by default.** `$onlyUnmarked` leaves every existing
+ *    mark alone, so an instructor who already recorded somebody late or excused
+ *    does not lose it by pressing the group button afterwards. Overwriting is
+ *    possible but has to be asked for.
+ *  • **One student's failure does not sink the rest.** A roster row whose student
+ *    has since been withdrawn throws in `mam_lms_mark_attendance()`; that is
+ *    collected and reported rather than aborting a class register halfway.
+ *
+ * @return array{marked:int,skipped:int,failed:array<int,string>,roster:int}
+ */
+function mam_lms_mark_attendance_all(int $sessionId, string $status, ?int $markedBy = null,
+                                     bool $onlyUnmarked = true, ?string $notes = null): array {
+    $sess = mam_db_row('SELECT id, cohort_id FROM class_sessions WHERE id = ?', [$sessionId]);
+    if (!$sess) throw new RuntimeException('session_not_found');
+    if (!in_array($status, ['present', 'absent', 'late', 'excused'], true)) throw new RuntimeException('invalid_status');
+
+    // The teachable roster: mam_lms_cohort_roster() counts DISTINCT students at
+    // active+completed, which is the same set mam_lms_mark_attendance() gates on.
+    // Reusing it means the button cannot mark somebody the single path would refuse.
+    $roster = mam_lms_cohort_roster((int) $sess['cohort_id']);
+    $out = ['marked' => 0, 'skipped' => 0, 'failed' => [], 'roster' => count($roster)];
+    if (!$roster) return $out;
+
+    $already = [];
+    foreach (mam_db_all('SELECT student_id FROM session_attendance WHERE session_id = ?', [$sessionId]) as $r) {
+        $already[(int) $r['student_id']] = true;
+    }
+
+    foreach ($roster as $row) {
+        $sid = (int) ($row['student_id'] ?? $row['id'] ?? 0);
+        if ($sid <= 0) continue;
+        if ($onlyUnmarked && isset($already[$sid])) { $out['skipped']++; continue; }
+        try {
+            mam_lms_mark_attendance($sessionId, $sid, $status, $markedBy, $notes);
+            $out['marked']++;
+        } catch (Throwable $e) {
+            $out['failed'][$sid] = $e->getMessage();
+        }
+    }
+    // One audit row for the action, plus the per-student rows the single path
+    // already writes — so the register shows both "who" and "this was a group
+    // check-in", which is the distinction a dispute turns on.
+    mam_audit('lms_attendance_mark_all', 'class_session', $sessionId,
+        ['status' => $status, 'marked' => $out['marked'], 'skipped' => $out['skipped'],
+         'failed' => count($out['failed']), 'only_unmarked' => $onlyUnmarked]);
+    return $out;
+}
+
 /** Mark (or re-mark) a student's attendance for a class session. Upserts one
  *  record per (session, student). Validates the session + status. Returns the
  *  row id. Throws session_not_found / invalid_status. */

@@ -292,6 +292,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/sessions',           $f('instructor/sessions.php'),           [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->get ('/session-attendance', $f('instructor/session-attendance.php'), [mw_role('instructor', 'admin')]);
     $r->post('/session-attendance', $f('instructor/session-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('sess_att', 240, 600)]);
+    // The group ("general") check-in — one action for a whole roster. Summer camp
+    // arrives together; a card queue for twenty children is not a register.
+    $r->post('/session-checkin-all', $f('instructor/session-checkin-all.php'), [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('sess_att_all', 60, 600)]);
     // Paid rescheduling (LMS 2.0 Part C) — approve/decline queue for owned cohorts.
     $r->get ('/reschedule',         $f('instructor/reschedule.php'),         [mw_role('instructor', 'admin')]);
     $r->post('/reschedule',         $f('instructor/reschedule.php'),         [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('reschedule_decide', 60, 600)]);
