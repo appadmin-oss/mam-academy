@@ -851,12 +851,20 @@ the notation showcase.**
 Built after the portal brief and **not covered anywhere else in this file**, which
 is why it kept getting rediscovered. Roughly a third of the system.
 
-- **Parent / guardian portal** — `portal/parent/index.html`, `api/lib/parents.php`,
-  role `parent`, routes `/parent/{children,child,consent}`. Guardians are linked to
-  students via `parent_links` (admin `?v=guardians`). `mam_parent_child_detail()`
-  is the single payload behind the child page: weekly status, academics, attendance,
-  results, sessions, announcements, instructor feedback, achievements, wins,
-  consent, recital programme, and the §5.2 `value_kpis` headline strip.
+- **Parent / guardian portal** — **REDESIGNED (2026-08-19)** from the academy's
+  design package, and the only portal on the new palette. `portal/parent/index.html`
+  is class-only markup with its app in `assets/js/portal-guardian.js`, styled by
+  `assets/css/portal-v2.css` — which is **scoped under `[data-portal="v2"]`** so it
+  can coexist with `main.css`/`portal.css`, still used by the student and instructor
+  portals. **Load exactly one palette per page.** Routes:
+  `/parent/{dashboard,children,child,consent,reports,appeal,fees,plan,bursary,makeup,threads,thread-post,channels}`.
+  Guardians link via `parent_links` (admin `?v=guardians`) and now carry an **access
+  scope** (v86: billing / standard / full) enforced server-side by
+  `mam_parent_scope_allows()`; `MAM_PARENT_NEVER` is checked first and is a refusal,
+  not a missing permission. `mam_parent_child_detail()` remains the child payload.
+  ⚠️ `mam_parent_weekly_status()` no longer returns `mastery` — the raw gradebook
+  mean is gone on purpose, and `mastery_band` is what a guardian is shown.
+  Read docs/HANDOFF.md §4n before touching any of it.
 - **Pre-class + teach-back** (`preclass.php`) — students prepare before a session
   and teach the material back; instructors get a command centre to review it.
 - **Instructor clock-in + meeting reconciliation** (`meetings.php`) — clock in/out
@@ -872,6 +880,92 @@ is why it kept getting rediscovered. Roughly a third of the system.
   performance, today snapshot, intervention list (admin `?v=academic`).
 - **Academic email engine** (`academic-emails.php`) — event-driven transactional
   academic mail.
+
+### The guardian layer (schema v85–v88) — reports, money, and how a family is reached
+
+Built for the 2026-08 portal redesign. Four libs, and the invariants that are
+easy to "simplify" into being wrong:
+
+- **`reports.php` (v85–86) — the RATIFIED termly report.** NOT `progress_reports`,
+  which is the instructor's two-hour post-session note. A family sees a report only
+  after a board ratifies it, and `mam_report_ratify()` **throws** on an open
+  `mark_appeals` row, on a moderation sample below `MAM_REPORT_MODERATION_MIN` /
+  `MAM_REPORT_MODERATION_SHARE`, on a report with no scored criterion, and on an
+  unnamed ratifier. A boolean return would let a caller publish an unmoderated mark
+  by ignoring it.
+  - **The band comes from `mam_mastery_score()` and is never recomputed.** A mean
+    computed here would be exactly the thin composite the coverage floor withholds.
+  - **A band is whole numbers, ten points wide, or clamped at the top.** The v85
+    CHECK enforces it, and `mam_report_band()` produces exactly what it admits —
+    including `(100, 100)` for a perfect score, which an earlier
+    `band_high > band_low` rejected. SQLite's INTEGER is an AFFINITY: without
+    `x = CAST(x AS INTEGER)`, `74.3` stores verbatim.
+  - **An unevidenced competency is a ROW** with `level='insufficient'` and a NULL
+    pct. A zero there reports an unassessed beginner as failing.
+  - **The one-report-per-slot rule is PHP's on BOTH engines** —
+    `mam_report_slot_taken()`. No UNIQUE index can state it: with no status term a
+    withdrawn report holds its slot forever (so the corrected report an upheld
+    appeal produces can never be written), keying on `term_label` keys it on a
+    renameable string, and `COALESCE(course_id,0)` turns `ON DELETE SET NULL` into
+    an abort.
+- **Guardian ACCESS SCOPES (v86)** — `parent_links.access_scope`: billing /
+  standard / full, every existing link defaulting to **standard** because a
+  migration that narrowed live access is worse than the bug. One predicate,
+  `mam_parent_scope_allows()`. **`MAM_PARENT_NEVER` is checked FIRST** — practice
+  logs, teach-back recordings, a teenager's messages — so adding a grant to `full`
+  cannot open one. SQLite carries no CHECK on the column (ALTER can't add one), so
+  `mam_parent_scope()` reads an unrecognised value as the NARROWEST scope.
+- **`fees.php` (v87) — the fee invoice.** NOT `invoicing.php`, which is the
+  application processing-fee lifecycle. **The four kinds of aid are four
+  MECHANISMS**, and `mam_fee_recalc()` is the only implementation of the order:
+  `gross → waivers → aid credits → sibling (capped) → total`.
+  - a **waiver** reduces the LINE and is never a cash entry; a **bursary** and a
+    **scholarship** are gift-aid CREDITS against the invoice; **sibling** is a
+    discount on the POST-AID balance, because a percentage of the gross would
+    discount money the aid pool paid. The cap is on the AMOUNT, not the percentage.
+  - **`mam_fee_to_minor()` is string arithmetic** — the decimal point is MOVED.
+    `8.07 * 100` is `806.9999999999999`; `2.675` rounds to 268 where the float route
+    gives 267. Prefer it over `mam_money_to_minor()` wherever the value arrives as
+    text.
+  - Totals compute ONCE from the lines in the invoice's own currency and are
+    STORED. **Never sum per-line conversions** — a one-naira gap reads to a parent
+    as a pricing error. The rate is FROZEN at issue for reconciliation; the naira
+    charge is labelled an estimate.
+  - **There is no column and no function that suspends anything over money.** The
+    refusal is kept by leaving the mechanism unbuilt.
+  - A **bursary** is assessed on a declared income BAND; there is no hardship /
+    circumstances / case_text column and nothing linking it to an admission
+    decision, both asserted by test. The published table is a CEILING a committee
+    may go under and never over.
+- **`guardian-comms.php` (v88) — threads, channels, make-up credits.** NOT the
+  `messages` table, which is the public contact form.
+  - **A student is never a participant in a guardian thread.** The role CHECK
+    admits no 'student' and `mam_thread_add_participant()` derives the role from
+    the ACCOUNT, so there is no signature through which a student can be added.
+  - **`mam_guardian_channels()` ignores the toggles for safeguarding and money**
+    and returns `override: true` with the reason in words. `guardian_channel_prefs`
+    has no per-topic column, so "mute safeguarding" is not a storable state.
+  - **Only `guardian_notice` spends the make-up allowance.** The allowance limits
+    how often a FAMILY cancels; a teacher cancellation, a closure and a goodwill
+    credit are all free, forced by CHECK on both engines. No money column, no
+    transfer column, and `expires_on` NOT NULL — swept on READ, so a lapsed credit
+    reads expired on the next page load.
+- **`mam_mastery_publishable()`** is the one predicate for what a student or
+  guardian may be shown: it strips `raw_score`, and strips `bounds` while the score
+  is withheld (`bounds.min × 100 ÷ coverage_pct` recovers the withheld figure). It
+  does NOT claim the figure is unrecoverable — subscores are published on purpose —
+  and the comment says so. What the floor governs is what the academy STATES as a
+  comparable headline number.
+
+⚠️ **`mam_db()` pins the MySQL session time zone to UTC**, because bootstrap pins
+PHP's to UTC while `CURRENT_TIMESTAMP` resolves in the server's (WAT on this
+academy's hosting). Without it, `CHECK(closed_at >= opened_at)` made an appeal
+declined twenty minutes after it was raised a hard write failure SQLite never sees.
+
+⚠️ **`db/schema-mysql.sql` requires MySQL 8.0.16+ / MariaDB 10.2.1+**, not the 5.7
+its header used to claim: 5.7 PARSES a CREATE TABLE CHECK and silently discards it,
+and the file now leans on ~20 of them. `mam_db_migrate_mysql()` logs an ERROR
+naming the version on a server that ignores them.
 
 ### The attendance clock, mastery, and the unified record (schema v81)
 
@@ -951,7 +1045,9 @@ and takes — added **no** migration).
 
 Shipped: timestamped feedback · practice player + waveform · side-by-side
 reference · repertoire→recital · achievements / streak-freeze / guardian wins ·
-practice challenges · opt-in effort leaderboards · **milestone celebrations
+practice challenges · ~~opt-in effort leaderboards~~ (⛔ **to be REMOVED** — the
+2026-08 portal redesign refuses a cohort ranking outright; see docs/HANDOFF.md
+§4n's status table for the files) · **milestone celebrations
 (§3.6)** · command palette · pins · bulk-accept · continue-where-left-off ·
 practice insights · instructor cohort analytics · **admin Business Intelligence
 (§5.4, `?v=bi`)** · **richer guardian KPIs (§5.2)** · referrals · certificate

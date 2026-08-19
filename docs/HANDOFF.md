@@ -1,7 +1,14 @@
 # Handoff — forms, error paths, and the ETL
 
-**Branch:** `claude/repo-audit-index-nr17nr` · **Last commit at time of writing:** `545af41`
+**Branch:** verify with `git log --oneline -3` and `git status -sb`.
 **Started from:** production at `f3ca21e`, schema v59.
+
+⚠️ A branch name and a commit hash were written here and both went stale — the
+header named `claude/repo-audit-index-nr17nr` at `545af41` while the guardian
+redesign was five commits further on, so an agent told to "pick this up" checked
+out a branch with none of the work in it. The same trap CLAUDE.md's Workflow
+section already warns about for its own branch name: **do not write a branch or a
+hash into a document that outlives them.**
 
 This is the working file for the current stream of work. `CLAUDE.md` holds the
 permanent conventions and gotchas; this holds *what is in flight*, *what was
@@ -781,140 +788,186 @@ work the dashboard redesign should be sequenced with, not before it.
 
 ---
 
-## 4n. The guardian portal redesign — IN PROGRESS, INCOMPLETE (2026-08-19)
+## 4n. The guardian portal redesign — the guardian surface is DONE (2026-08-19)
 
-⚠️ **Read this section before touching `portal/parent/` or the four new
-subsystems below.** The work is deliberately staged; a later agent picking it up
-mid-way needs to know which stages landed.
+⚠️ **Read this before touching `portal/parent/`, `assets/css/portal-v2.css`, or
+the five subsystems below.** The guardian portal is rebuilt and working; the
+student and instructor portals are not, and both still use the old palette.
 
 ### What was asked
 
 The academy sent `Mobilefirst_portal_redesign.zip` — a self-contained design
-package (mobile 390, desktop 1440, plus a staff console) with a written
-developer handoff. The instruction was **build exactly as-is**, integrating by
-**deleting the old styles and redesigning, not patching**, guardian portal
-first, and **"some features in it may have not been created — create them and
-ensure they work."**
-
-The package lives in the session scratchpad only. Its substance is transcribed
-below so the work survives without it:
+package (mobile 390, desktop 1440, plus a staff console) with a written developer
+handoff. The instruction was **build exactly as-is**, integrating by **deleting
+the old styles and redesigning, not patching**, guardian portal first, and *"some
+features in it may have not been created — create them and ensure they work."*
 
 | File | Role |
 |---|---|
 | `Portals Mobile.dc.html` → `#3b data-phone="guardianv2"` | **canonical**. Six screens: dashboard · children · reports · finance · consents · messages, a More bottom-sheet, a five-tab bottom bar |
 | `Portals Desktop.dc.html` → `g-overview` `g-progress` `g-attend` `g-money` | the same information given room; child switcher **pinned above** the left rail |
-| `HANDOFF-student-guardian.md` | 32 design tokens, component recipes, seven **⛔ by design** refusals, build order |
+| `HANDOFF-student-guardian.md` | the tokens, component recipes, the ⛔ refusals, build order |
 
-Where mobile and desktop disagree, **mobile wins** — the handoff says so
-explicitly. Note the mobile guardian screens use LARGER geometry than the token
-table (18px card radius, 52–64px control heights, 15–16.5px body) because
-guardians skew older; that is not drift, it is the guardian surface.
+Where mobile and desktop disagree, **mobile wins** — the handoff says so.
 
-### The seven refusals — do not "fix" these into existence
+⚠️ **Two corrections to what an earlier pass of this section claimed:**
 
-Each is marked ⛔ in the design and each has research behind it:
+- The written handoff §3 specifies **SIX** desktop rail destinations (Overview ·
+  Progress & reports · Attendance · Fees · Consents · Announcements). The mock
+  implements **four** — Consents and Announcements are rail labels with no
+  `data-goto`. The written handoff is authoritative for the destination set; the
+  mock's gap is a gap, not the spec.
+- The design's endpoints are written `/api/guardian/*`. They map onto this repo's
+  existing `/api/parent/*` group and role `parent`. A parallel `/guardian` group
+  would mean two middleware stacks to keep in step for one audience.
+
+### The refusals — do not "fix" these into existence
+
+**There are EIGHT**, not seven, and the package's own two documents disagree about
+which seven they list — so this is the union, with the eighth (the access hold)
+kept inside the numbered list because the fee subsystem is the thing most likely
+to break it:
 
 1. No automatic pitch/rhythm scoring of a child's playing.
 2. Teach-back is **three** self-checks and **formative only** — never in the band.
 3. Spaced retrieval is opt-in, never scored; skipping costs nothing.
 4. Intervention flags are **staff-side only**. The family sees the booking, never the flag.
-5. **No cohort effort board / leaderboard.** It exists in v1 and is to be removed. The personal streak stays, and the screen says nobody else sees it.
-6. **No guardian scope** — not even "Full" — grants practice logs, teach-back recordings, or a teenager's messages with their instructor. Enforce **server-side**.
-7. Never an optimistic write tick. An offline write says "Saved on this phone".
+5. **No cohort effort board / leaderboard.** It exists in v1 and is to be removed — see the removal stage in the status table below.
+6. **No guardian scope** — not even "Full" — grants practice logs, teach-back recordings, or a teenager's messages with their instructor. Enforced server-side in `mam_parent_scope_allows()` via `MAM_PARENT_NEVER`, which is checked FIRST.
+7. Never an optimistic write tick.
+8. **An access hold never touches the academic record, a safeguarding-relevant file, or a minor's report.** Kept by leaving the mechanism unbuilt: there is no function and no column in `fees.php` or v87 that suspends anything, and `mam_fee_statement()` returns *"Nothing is withheld from a child over money"* as DATA so the screen cannot forget it.
 
-Two more that read as copy but are policy: **"Nothing is withheld from a child
-over money"** (an access hold never touches the academic record, a
-safeguarding file, or a minor's report) and **lateness is recorded for everyone
-and charged to nobody** on the guardian-facing attendance screen.
+Also policy, not copy: **lateness is recorded for everyone and charged to nobody**
+on a guardian-facing screen.
 
-### Tokens — landed
+### Tokens — landed, and the provenance matters
 
-`assets/css/portal-v2.css` (committed) carries all 32 tokens verbatim plus the
-component recipes. Two things in it are load-bearing:
+`assets/css/portal-v2.css` was **rewritten clean** (twice — the second time after
+the audit), and every value is marked:
 
-- **`--text-on-chip: #57616F`** is REQUIRED on `--sunken` (`#EFF1F4`).
-  `--text-3` (`#66707E`) is 4.44:1 there and fails AA. It passes on white and
-  on `#F1F3F6`, which is why the design uses three greys and not two.
-- Buttons are **element-qualified** (`button.p-primary`, not `.p-primary`).
-  `main.css` already carries `.btn,button.btn,a.btn{min-height:44px}`, so a
-  bare class selector loses the specificity fight and the touch target silently
-  reverts. This has bitten twice — once on `/checkin`, once here.
+- ✱DESIGN — one of the **21** custom properties §1 declares. Not 32, which an
+  earlier pass of this section claimed: 21 come from the designer and the rest
+  were named locally. An agent told all of them are contractual will not question
+  the ones that are not.
+- ✱MOCK — a value the guardian frame demonstrably uses that §1 never named (the
+  18px card radius, `#F6F7F9`, the 73px bar).
+- ✱OURS — five decisions, each with its reason in the comment.
+
+**Three of the five ✱OURS exist because the mock breaks the written handoff's own
+§4 accessibility contract**, and §4 wins because the handoff says it does:
+
+- **44px, not 34px, on mobile.** 34px is explicitly a DESKTOP figure ("Desktop
+  controls ≥24px, 34px used here") and now applies only above 900px.
+- **12px is the floor for running text.** The frame puts 10px and 10.5px on the
+  stat captions and 11.5px on the chips — below its own stated minimum, for
+  exactly the readers §4 names as the reason for it.
+- **`--good` is not a text colour.** Measured 4.36:1 on white and 3.83:1 on its
+  own fill, against §4's contractual 4.5:1, and both places the mock writes words
+  in it are small bold text (WCAG large text needs 18.66px bold). `--good-text`
+  (#0B6E4C, 6.27:1) carries words; `--good` keeps the bars.
+
+Two more measured corrections to figures copied verbatim from the design:
+`--text-3` is **5.02:1** on white (§1 says 4.6) and **4.44:1** on `--sunken`,
+which fails — that last pairing is the whole reason there are three greys.
 
 **Sticky-bar reserve:** the mock's scroller uses `padding-bottom:108px` under a
-73px bar. The written handoff overrides it — **use ≥120px** ("under-reserving
-clipped the last row twice in this design"). `--bar-reserve: 120px` in
-portal-v2.css is the correct figure; the mock is wrong.
+73px bar. §4 requires bar + 40px, so the mock is below its own rule.
+`--bar-reserve: 120px` is right, and both it and the bar grow by
+`env(safe-area-inset-bottom)`.
 
-### The guardian payload was shipping a raw mean (fixed)
+⚠️ **The file is SCOPED under `[data-portal="v2"]`, reset included.** `main.css`
+owns `--bg`/`--text`/`--raised` site-wide and `portal.css` reads them ~30 times
+while declaring none, so a bare `:root` block here repaints the dark portal theme
+with this light palette on any page loading both — and every surface this file
+does not override keeps its dark value, giving dark text on dark ground. The
+student and instructor portals are not redesigned yet, so both stylesheets have
+to coexist. Put `data-portal="v2"` on `<html>` and it applies; leave it off and
+the file is inert.
 
-`mam_parent_weekly_status()` reported `avg_score` straight out of the gradebook.
-The mastery coverage floor exists precisely so a thin composite is never
-published as a comparable number — and the one surface it exists to protect was
-the surface not using it. It now carries `mastery_band` from
-`mam_mastery_score()` through an explicit key allowlist, so `raw_score` cannot
-reach a guardian, wrapped in try/catch because an unscored child must not break
-the page.
+### The guardian payload was shipping a raw mean — now actually fixed
 
-### Four subsystems the design needs and the repo did not have
+The first attempt added `mastery_band` BESIDE the raw gradebook mean and recorded
+the defect as closed. Nothing read the new key: both places the screen rendered
+mastery still printed `Math.round(w.mastery) + '%'`, and `mastery_light` was still
+quantised from the mean, so a child with 15% of their work assessed showed
+"Mastery 82%" behind a GREEN light.
 
-This is the substance of the remaining work. **None of these are cosmetic** —
-each is a screen in the design that has no data behind it:
+**The lesson worth keeping: a correct value beside an incorrect one is not a fix
+while anything downstream can still print the incorrect one.** The mean is now
+ABSENT from the payload (not nulled — absent, so a client still reading it fails
+visibly instead of rendering 0%), and `mastery_light` derives from the reported
+LEVEL, so level 0 reads as an absence.
 
-1. **Ratified termly reports.** `GET /api/guardian/reports?student={id}` must
-   return `status='ratified'` only. The repo's `progress_reports` is a
-   different artefact — the instructor's 2-hour post-session report — and has
-   no status column, no board, no bands, no per-competency rows. Needed:
-   `termly_reports` + `termly_report_criteria` + a moderation record +
-   `mark_appeals`. Ratification is **refused while an appeal is open or the
-   moderation sample is short** — both concepts are new. A provisional mark a
-   family can see and then have overturned is worse than one arriving late.
-2. **Fee invoices with frozen FX and four kinds of aid.** There is no invoice
-   table at all — `invoicing.php` is the application processing-fee lifecycle,
-   not a per-child statement. The design's Fees screen needs line items, a
-   **sibling discount that stacks AFTER aid and is capped at the published
-   maximum**, and the rate frozen on each invoice so a May figure reconciles
-   next year. Bursary · scholarship · waiver · sibling are **four distinct
-   things**, not four discounts: a waiver reduces the invoice line and is never
-   a cash entry; gift aid is a credit from the aid pool.
-   Decimal→minor conversion must be **string arithmetic** — `8.07 * 100` is
-   `806.9999999999999` in float. Totals compute from the base-currency source;
-   **never sum rounded per-line conversions**, because a one-naira mismatch
-   reads to a parent as a pricing error.
-3. **Payment plans.** "Pay in 3 instalments instead" is a button in the design
-   with nothing behind it.
-4. **Guardian↔staff message threads and channel preferences.** The `messages`
-   table is the public contact form (name/email/phone/topic/message) — it is
-   not a thread and has no participants. The design's Messages screen also
-   carries WhatsApp/Email/SMS toggles with the rule that **anything about
-   safeguarding or money reaches the guardian on every channel left on,
-   regardless of these settings.**
+The claim that a key allowlist meant `raw_score` "cannot leak" was also false:
+`bounds.min` is `raw × coverage ÷ 100`, so `raw = bounds.min × 100 ÷ coverage_pct`
+recovered it from two allow-listed keys. `mam_mastery_publishable()` is now the
+one predicate for what a student or guardian may see, shared with
+`GET /api/student/mastery` — which was returning `raw_score` to the student's own
+browser.
 
-Two smaller ones: **bursary applications assessed on a declared income band**
-(never a written case for hardship, and applying never affects an admission
-decision), and a **make-up credit ledger** — 24 hours' notice earns a credit,
-5 a year, non-transferable, they expire, no cash in lieu, and **a teacher
-cancellation always credits and never counts against the five**.
-`makeup.php` today only *suggests* sessions; it holds no credits.
+⚠️ It does **not** claim to make the figure unrecoverable, and the comment says
+so: `components` carries a percentage and a weight each, the weight table is a
+public constant, and subscores are published on purpose. What the coverage floor
+governs is what the academy **states** as a comparable headline figure, not the
+information content of the payload. The earlier claim was theatre.
 
-### Status at the time of writing
+### Five subsystems the design needed — all built
+
+| Subsystem | Where | Schema |
+|---|---|---|
+| Ratified termly reports, moderation, mark appeals | `api/lib/reports.php` | v85 |
+| Guardian access scopes (§3.2) | `api/lib/parents.php` | v86 |
+| Fee invoices, four kinds of aid, payment plans, bursaries | `api/lib/fees.php` | v87 |
+| Guardian↔staff threads, channel prefs, make-up credits | `api/lib/guardian-comms.php` | v88 |
+
+Verified absent before building: there was **no invoice table at all**
+(`invoicing.php` is the application processing-fee lifecycle), `messages` is the
+public contact form with no participants and no reply, and `makeup.php` only ever
+*suggested* sessions while two guardian screens count credits.
+
+**Money.** The invoice states what is OWED in its own currency (USD, matching the
+published price list) with the rate FROZEN at issue; the naira figure is a
+conversion labelled an ESTIMATE, because the rate it settles at is the payment
+row's own. `MAM_V2_BASE_CURRENCY` (`api/lib/v2/transform.php`) is `'NGN'` and is
+the v2 ETL's, not this layer's; the wallet ledger stays USD cents, deliberately.
+`mam_fee_to_minor()` is string arithmetic — the decimal point is MOVED, so `8.07`
+is 807 and not the `806.9999999999999` a float gives.
+
+**The four kinds of aid apply in a fixed order**, and `mam_fee_recalc()` is the
+only implementation of it: gross → waivers → aid credits → sibling (capped) →
+total. Sibling last, because a percentage of a post-aid balance is smaller than a
+percentage of the gross. The cap is on the AMOUNT, not the percentage.
+
+### Status
 
 | Stage | State |
 |---|---|
-| Design read, canonical screens identified | ✅ |
-| Tokens + component recipes (`assets/css/portal-v2.css`) | ✅ committed |
-| `mastery_band` into the guardian payload | ✅ committed |
-| `db/schema-mysql.sql` defects that blocked a fresh MySQL 8 install | ✅ committed |
-| Schema for the four subsystems | 🚧 **in progress** |
-| Libs + routes + tests for them | ⬜ |
-| `portal/parent/index.html` rebuilt from the canonical screens | ⬜ |
-| Old parent-scoped styles deleted | ⬜ — must be SCOPED: `portal.css` is shared with the student and instructor portals, which are not being redesigned yet |
-| Student, then instructor portals | ⬜ later |
+| Tokens + components (`assets/css/portal-v2.css`), scoped | ✅ |
+| Schema v85–v88 + libs + routes + tests | ✅ |
+| `portal/parent/index.html` rebuilt, class-only, app in `assets/js/portal-guardian.js` | ✅ |
+| Old parent styles | ✅ the page loads portal-v2.css ONLY; portal.css is untouched and still serves the other two portals |
+| Driven in Chromium at 390 and 1440, all twelve destinations | ✅ 0 inline styles, 0 controls under target, 0 text under 12px |
+| **Remove the cohort leaderboard (refusal 5)** | ⬜ `api/lib/leaderboard.php`, its two routes in `api/index.php`, and the student-portal UI. CLAUDE.md still lists it under shipped features — fix both together |
+| Student portal (Train loop, offline queue, teach-back, spaced retrieval) | ⬜ |
+| Instructor portal | ⬜ desktop is not designed yet; mobile only, in `Portals Mobile.dc.html` |
+| Payment gateway on the Fees screen | ⬜ deliberately not wired: the Pay button says the office will send a link rather than opening a half-built flow |
 
-**If you are picking this up:** the schema is the gate. Everything else reads
-from it, and the four subsystems are independent of each other, so they can be
-built and tested one at a time in the order listed above.
+### What running it found that no test would have
 
----
+Worth reading before the student portal, because the same traps are there:
+
+1. **Every competency bar drew full width regardless of the mark.** `paintBars()`
+   ran at the end of the router, but the renders are asynchronous, so it painted
+   the loading state. All render paths now go through one `paint()`.
+2. **`classes.name` does not exist** — the legacy table has `title`. On the
+   critical path of the whole portal, so a 500 on the first page a family opens.
+   `test_parents.php` now CALLS every reader against the live schema.
+3. **The child switcher landed inside the mobile bottom bar**, making a sixth
+   grid column. It is a desktop control.
+4. A `<button>` centres its text by UA default; `.p-row` was the only rule
+   undoing it, so a thread card rendered centred.
+5. The desktop header sat outside the content measure, so the bell flew to x=1424
+   past a 1180px column.
 
 ## 5. Where things live
 
