@@ -2690,3 +2690,360 @@ CREATE INDEX idx_plink_scope ON parent_links (parent_id, access_scope);
 -- would mean two different answers to "what may this guardian see".
 CREATE UNIQUE INDEX uq_plink_pair ON parent_links (parent_id, student_id);
 INSERT INTO schema_version (version) VALUES (86) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- v87 — the FEE INVOICE, and the four things that are not one discount
+-- (guardian redesign §3.4). See the SQLite migration in api/lib/db.php for the
+-- reasoning; the invariants below are the same ones, spelled for MySQL 8.
+--
+-- Money is integer minor units + an ISO currency + a rate frozen at issue.
+-- Totals are STORED, computed once from the lines in the invoice's own currency,
+-- never summed from per-line conversions — rounding eleven lines and adding them
+-- differs from converting the sum, and a one-naira gap reads as a pricing error.
+--
+-- The four kinds of aid are four MECHANISMS: a waiver reduces the LINE and is
+-- never a cash entry; bursary and scholarship are GIFT AID credits against the
+-- invoice; a sibling discount applies AFTER aid and is capped. The order is
+-- fixed: gross → waivers → aid → sibling → total, with each stage stored so the
+-- arithmetic can be shown to a family and checked by an auditor.
+--
+-- There is deliberately no column that suspends anything over money: an access
+-- hold must never touch a child's academic record, a safeguarding file, or a
+-- minor's report, and the way to keep a refusal is to leave the mechanism unbuilt.
+CREATE TABLE IF NOT EXISTS fee_invoices (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  public_ref      VARCHAR(48)  NOT NULL,
+  student_id      INT          NOT NULL,
+  guardian_id     INT          NULL,
+  term_id         INT          NULL,
+  term_label      VARCHAR(190) NOT NULL,
+  currency        CHAR(3)      NOT NULL DEFAULT 'USD',
+  status          VARCHAR(16)  NOT NULL DEFAULT 'draft',
+  issued_on       DATE         NULL,
+  due_on          DATE         NULL,
+  grace_until     DATE         NULL,
+  dunning_stage   INT          NOT NULL DEFAULT 0,
+  dunning_last    DATETIME     NULL,
+  fx_rate_usd_ngn DECIMAL(14,4) NULL,
+  gross_minor     BIGINT       NOT NULL DEFAULT 0,
+  waiver_minor    BIGINT       NOT NULL DEFAULT 0,
+  aid_minor       BIGINT       NOT NULL DEFAULT 0,
+  sibling_minor   BIGINT       NOT NULL DEFAULT 0,
+  total_minor     BIGINT       NOT NULL DEFAULT 0,
+  paid_minor      BIGINT       NOT NULL DEFAULT 0,
+  total_usd_cents BIGINT       NULL,
+  note            TEXT         NULL,
+  void_reason     TEXT         NULL,
+  created_by      INT          NULL,
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME     NULL,
+  UNIQUE KEY uq_feeinv_ref (public_ref),
+  KEY idx_feeinv_student  (student_id, status),
+  KEY idx_feeinv_guardian (guardian_id, status),
+  KEY idx_feeinv_due      (status, due_on),
+  CONSTRAINT chk_feeinv_status CHECK (status IN ('draft','issued','part_paid','paid','void')),
+  -- A negative minor amount is not a refund, it is a data error; a refund is its
+  -- own payment row.
+  CONSTRAINT chk_feeinv_signs CHECK (gross_minor >= 0 AND waiver_minor >= 0
+        AND aid_minor >= 0 AND sibling_minor >= 0 AND total_minor >= 0 AND paid_minor >= 0),
+  -- Nothing may reduce the bill below zero, and the stages must add up.
+  CONSTRAINT chk_feeinv_relief CHECK (waiver_minor + aid_minor + sibling_minor <= gross_minor),
+  CONSTRAINT chk_feeinv_total  CHECK (total_minor = gross_minor - waiver_minor - aid_minor - sibling_minor),
+  -- Draft and VOID are both exempt: a draft raised against the wrong child is
+  -- voided rather than deleted, and never had an issue date to state.
+  CONSTRAINT chk_feeinv_issued CHECK (status IN ('draft','void') OR (issued_on IS NOT NULL AND due_on IS NOT NULL)),
+  CONSTRAINT chk_feeinv_void   CHECK (status <> 'void' OR void_reason IS NOT NULL),
+  CONSTRAINT fk_feeinv_student  FOREIGN KEY (student_id)  REFERENCES users(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_feeinv_guardian FOREIGN KEY (guardian_id) REFERENCES users(id)           ON DELETE SET NULL,
+  CONSTRAINT fk_feeinv_term     FOREIGN KEY (term_id)     REFERENCES academic_terms(id)  ON DELETE SET NULL,
+  CONSTRAINT fk_feeinv_creator  FOREIGN KEY (created_by)  REFERENCES users(id)           ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS fee_invoice_lines (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  invoice_id    INT          NOT NULL,
+  kind          VARCHAR(16)  NOT NULL DEFAULT 'tuition',
+  label         VARCHAR(190) NOT NULL,
+  enrollment_id INT          NULL,
+  cohort_id     INT          NULL,
+  qty           INT          NOT NULL DEFAULT 1,
+  unit_minor    BIGINT       NOT NULL DEFAULT 0,
+  amount_minor  BIGINT       NOT NULL DEFAULT 0,
+  -- A WAIVER reduces the line and is never a cash entry. Kept beside the amount
+  -- rather than netted into it, so the invoice can show what was charged AND what
+  -- was waived — which is what a family and an auditor each need.
+  waiver_minor  BIGINT       NOT NULL DEFAULT 0,
+  waiver_reason TEXT         NULL,
+  sort_order    INT          NOT NULL DEFAULT 0,
+  KEY idx_feeline_invoice (invoice_id, sort_order),
+  CONSTRAINT chk_feeline_kind   CHECK (kind IN ('tuition','materials','exam','registration','recital','late','other')),
+  CONSTRAINT chk_feeline_qty    CHECK (qty > 0),
+  CONSTRAINT chk_feeline_signs  CHECK (unit_minor >= 0 AND amount_minor >= 0 AND waiver_minor >= 0),
+  CONSTRAINT chk_feeline_waiver CHECK (waiver_minor <= amount_minor),
+  CONSTRAINT chk_feeline_amount CHECK (amount_minor = unit_minor * qty),
+  CONSTRAINT chk_feeline_why    CHECK (waiver_minor = 0 OR waiver_reason IS NOT NULL),
+  CONSTRAINT fk_feeline_invoice FOREIGN KEY (invoice_id)    REFERENCES fee_invoices(id)        ON DELETE CASCADE,
+  CONSTRAINT fk_feeline_enrol   FOREIGN KEY (enrollment_id) REFERENCES course_enrollments(id)  ON DELETE SET NULL,
+  CONSTRAINT fk_feeline_cohort  FOREIGN KEY (cohort_id)     REFERENCES cohorts(id)             ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The AWARD — the academy's decision that a student is entitled to something.
+-- Separate from its application to any one invoice: an award spans a term.
+CREATE TABLE IF NOT EXISTS fee_aid_awards (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  student_id     INT          NOT NULL,
+  kind           VARCHAR(16)  NOT NULL,
+  pct            DECIMAL(6,3) NULL,
+  amount_minor   BIGINT       NULL,
+  currency       CHAR(3)      NULL,
+  term_id        INT          NULL,
+  term_label     VARCHAR(190) NULL,
+  basis          VARCHAR(190) NULL,
+  status         VARCHAR(16)  NOT NULL DEFAULT 'active',
+  starts_on      DATE         NULL,
+  expires_on     DATE         NULL,
+  awarded_by     INT          NULL,
+  awarded_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  revoked_at     DATETIME     NULL,
+  revoked_reason TEXT         NULL,
+  note           TEXT         NULL,
+  KEY idx_aid_student (student_id, status, kind),
+  CONSTRAINT chk_aid_kind   CHECK (kind IN ('bursary','scholarship','waiver','sibling')),
+  CONSTRAINT chk_aid_status CHECK (status IN ('active','spent','expired','revoked')),
+  -- Either a percentage or a fixed amount, never both and never neither.
+  CONSTRAINT chk_aid_shape  CHECK ((pct IS NOT NULL AND amount_minor IS NULL)
+        OR (pct IS NULL AND amount_minor IS NOT NULL)),
+  CONSTRAINT chk_aid_pct    CHECK (pct IS NULL OR (pct > 0 AND pct <= 100)),
+  CONSTRAINT chk_aid_amount CHECK (amount_minor IS NULL OR amount_minor > 0),
+  CONSTRAINT chk_aid_cur    CHECK (amount_minor IS NULL OR currency IS NOT NULL),
+  CONSTRAINT chk_aid_revoke CHECK (status <> 'revoked' OR (revoked_at IS NOT NULL AND revoked_reason IS NOT NULL)),
+  CONSTRAINT fk_aid_student FOREIGN KEY (student_id) REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_aid_term    FOREIGN KEY (term_id)    REFERENCES academic_terms(id) ON DELETE SET NULL,
+  CONSTRAINT fk_aid_awarder FOREIGN KEY (awarded_by) REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- GIFT AID applied to one invoice — bursary and scholarship only. A waiver never
+-- appears here (it is on the line, and is not money); a sibling discount never
+-- appears here (it is a discount on the post-aid balance). Keeping the three
+-- apart is what makes "how much aid did the academy actually pay out" answerable.
+CREATE TABLE IF NOT EXISTS fee_invoice_credits (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  invoice_id   INT          NOT NULL,
+  award_id     INT          NULL,
+  kind         VARCHAR(16)  NOT NULL,
+  amount_minor BIGINT       NOT NULL,
+  currency     CHAR(3)      NOT NULL,
+  note         TEXT         NULL,
+  applied_by   INT          NULL,
+  applied_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_feecredit_invoice (invoice_id),
+  -- One application of an award per invoice: applying one award twice is the
+  -- commonest way a double-submitted form gives away the aid pool.
+  UNIQUE KEY uq_feecredit_award (invoice_id, award_id),
+  CONSTRAINT chk_feecredit_kind   CHECK (kind IN ('bursary','scholarship')),
+  CONSTRAINT chk_feecredit_amount CHECK (amount_minor > 0),
+  CONSTRAINT fk_feecredit_invoice FOREIGN KEY (invoice_id) REFERENCES fee_invoices(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_feecredit_award   FOREIGN KEY (award_id)   REFERENCES fee_aid_awards(id) ON DELETE SET NULL,
+  CONSTRAINT fk_feecredit_actor   FOREIGN KEY (applied_by) REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- "Pay in 3 instalments instead". The plan does not change the total; it changes
+-- when each part falls due, so the instalments must SUM to the invoice total
+-- exactly and the remainder lands on the FIRST one rather than being rounded away.
+CREATE TABLE IF NOT EXISTS fee_payment_plans (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  invoice_id    INT          NOT NULL,
+  instalments   INT          NOT NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'active',
+  requested_by  INT          NULL,
+  approved_by   INT          NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  cancelled_at  DATETIME     NULL,
+  cancel_reason TEXT         NULL,
+  KEY idx_feeplan_invoice (invoice_id, status),
+  CONSTRAINT chk_feeplan_status CHECK (status IN ('active','completed','cancelled')),
+  CONSTRAINT chk_feeplan_n      CHECK (instalments >= 2 AND instalments <= 12),
+  CONSTRAINT chk_feeplan_cancel CHECK (status <> 'cancelled' OR (cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL)),
+  CONSTRAINT fk_feeplan_invoice   FOREIGN KEY (invoice_id)   REFERENCES fee_invoices(id) ON DELETE CASCADE,
+  CONSTRAINT fk_feeplan_requester FOREIGN KEY (requested_by) REFERENCES users(id)        ON DELETE SET NULL,
+  CONSTRAINT fk_feeplan_approver  FOREIGN KEY (approved_by)  REFERENCES users(id)        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS fee_plan_instalments (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  plan_id      INT          NOT NULL,
+  seq          INT          NOT NULL,
+  due_on       DATE         NOT NULL,
+  amount_minor BIGINT       NOT NULL,
+  status       VARCHAR(16)  NOT NULL DEFAULT 'pending',
+  paid_at      DATETIME     NULL,
+  payment_id   INT          NULL,
+  UNIQUE KEY uq_feeinst_seq (plan_id, seq),
+  KEY idx_feeinst_due (status, due_on),
+  CONSTRAINT chk_feeinst_status CHECK (status IN ('pending','paid','waived')),
+  CONSTRAINT chk_feeinst_seq    CHECK (seq >= 1),
+  CONSTRAINT chk_feeinst_amount CHECK (amount_minor > 0),
+  CONSTRAINT chk_feeinst_paid   CHECK (status <> 'paid' OR paid_at IS NOT NULL),
+  CONSTRAINT fk_feeinst_plan    FOREIGN KEY (plan_id)    REFERENCES fee_payment_plans(id) ON DELETE CASCADE,
+  CONSTRAINT fk_feeinst_payment FOREIGN KEY (payment_id) REFERENCES payments(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A bursary is assessed on a DECLARED INCOME BAND, never a written case for
+-- hardship: a written case rewards the family best able to write one, asks a
+-- parent to describe their circumstances to their child's school, and gives an
+-- assessor room to be inconsistent. There is deliberately no free-text hardship
+-- column — `note` is the ASSESSOR's and is not shown to the family — and no
+-- column linking this to an admission decision, because applying must never
+-- affect one and the way to keep that true is to leave it unrepresentable.
+CREATE TABLE IF NOT EXISTS bursary_applications (
+  id                    INT AUTO_INCREMENT PRIMARY KEY,
+  student_id            INT          NOT NULL,
+  guardian_id           INT          NULL,
+  term_id               INT          NULL,
+  term_label            VARCHAR(190) NULL,
+  income_band           VARCHAR(32)  NOT NULL,
+  household_size        INT          NULL,
+  dependants_in_academy INT          NOT NULL DEFAULT 1,
+  status                VARCHAR(16)  NOT NULL DEFAULT 'submitted',
+  awarded_pct           DECIMAL(6,3) NULL,
+  award_id              INT          NULL,
+  decided_by            INT          NULL,
+  decided_at            DATETIME     NULL,
+  outcome_note          TEXT         NULL,
+  note                  TEXT         NULL,
+  created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_bursary_student (student_id, status),
+  KEY idx_bursary_queue   (status, created_at),
+  CONSTRAINT chk_bursary_status CHECK (status IN ('submitted','assessing','awarded','declined','withdrawn')),
+  CONSTRAINT chk_bursary_house  CHECK (household_size IS NULL OR household_size >= 1),
+  CONSTRAINT chk_bursary_deps   CHECK (dependants_in_academy >= 1),
+  CONSTRAINT chk_bursary_pct    CHECK (awarded_pct IS NULL OR (awarded_pct > 0 AND awarded_pct <= 100)),
+  -- A decision states its outcome and names who made it, whichever way it went.
+  CONSTRAINT chk_bursary_decide CHECK (status IN ('submitted','assessing')
+        OR (decided_at IS NOT NULL AND outcome_note IS NOT NULL)),
+  CONSTRAINT chk_bursary_award  CHECK (status <> 'awarded' OR awarded_pct IS NOT NULL),
+  CONSTRAINT fk_bursary_student  FOREIGN KEY (student_id)  REFERENCES users(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_bursary_guardian FOREIGN KEY (guardian_id) REFERENCES users(id)           ON DELETE SET NULL,
+  CONSTRAINT fk_bursary_term     FOREIGN KEY (term_id)     REFERENCES academic_terms(id)  ON DELETE SET NULL,
+  CONSTRAINT fk_bursary_award    FOREIGN KEY (award_id)    REFERENCES fee_aid_awards(id)  ON DELETE SET NULL,
+  CONSTRAINT fk_bursary_decider  FOREIGN KEY (decided_by)  REFERENCES users(id)           ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO schema_version (version) VALUES (87) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- v88 — guardian↔staff THREADS, how the academy reaches a family, and the
+-- make-up credit ledger. See the SQLite migration for the reasoning.
+--
+-- The existing `messages` table is the PUBLIC CONTACT FORM and cannot be a
+-- thread. A STUDENT is never a participant here: no guardian scope reaches a
+-- teenager's messages with their instructor, and the cheapest breach of that
+-- would be adding a guardian to the student's own thread — so the participant
+-- role CHECK admits only adult roles.
+CREATE TABLE IF NOT EXISTS guardian_threads (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  student_id      INT          NOT NULL,
+  subject         VARCHAR(190) NOT NULL,
+  kind            VARCHAR(16)  NOT NULL DEFAULT 'general',
+  status          VARCHAR(16)  NOT NULL DEFAULT 'open',
+  opened_by       INT          NULL,
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_message_at DATETIME     NULL,
+  closed_at       DATETIME     NULL,
+  KEY idx_gthread_student (student_id, status, last_message_at),
+  CONSTRAINT chk_gthread_kind   CHECK (kind IN ('general','academic','money','safeguarding','timetable')),
+  CONSTRAINT chk_gthread_status CHECK (status IN ('open','closed')),
+  CONSTRAINT chk_gthread_closed CHECK (status = 'open' OR closed_at IS NOT NULL),
+  CONSTRAINT fk_gthread_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_gthread_opener  FOREIGN KEY (opened_by)  REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS guardian_thread_participants (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  thread_id    INT          NOT NULL,
+  user_id      INT          NOT NULL,
+  role         VARCHAR(16)  NOT NULL,
+  last_read_at DATETIME     NULL,
+  added_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_gpart_pair (thread_id, user_id),
+  KEY idx_gpart_user (user_id),
+  -- No 'student'. See the note above; this is a refusal, not an omission.
+  CONSTRAINT chk_gpart_role CHECK (role IN ('guardian','instructor','office','admin')),
+  CONSTRAINT fk_gpart_thread FOREIGN KEY (thread_id) REFERENCES guardian_threads(id) ON DELETE CASCADE,
+  CONSTRAINT fk_gpart_user   FOREIGN KEY (user_id)   REFERENCES users(id)            ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS guardian_thread_messages (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  thread_id   INT          NOT NULL,
+  author_id   INT          NULL,
+  -- Kept because author_id goes NULL when a staff account is deleted and a
+  -- family's thread must still make sense afterwards.
+  author_name VARCHAR(190) NOT NULL,
+  author_role VARCHAR(16)  NOT NULL,
+  body        TEXT         NOT NULL,
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_gmsg_thread (thread_id, created_at),
+  CONSTRAINT chk_gmsg_role   CHECK (author_role IN ('guardian','instructor','office','admin')),
+  CONSTRAINT fk_gmsg_thread  FOREIGN KEY (thread_id) REFERENCES guardian_threads(id) ON DELETE CASCADE,
+  CONSTRAINT fk_gmsg_author  FOREIGN KEY (author_id) REFERENCES users(id)            ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per guardian. No per-topic column, deliberately: there is nowhere to
+-- record "mute safeguarding", because anything about safeguarding or money
+-- reaches a guardian on every channel the academy can use regardless of these
+-- toggles. That rule lives in mam_guardian_channels().
+CREATE TABLE IF NOT EXISTS guardian_channel_prefs (
+  user_id    INT        PRIMARY KEY,
+  whatsapp   TINYINT(1) NOT NULL DEFAULT 1,
+  email      TINYINT(1) NOT NULL DEFAULT 1,
+  sms        TINYINT(1) NOT NULL DEFAULT 0,
+  updated_at DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_gpref_flags CHECK (whatsapp IN (0,1) AND email IN (0,1) AND sms IN (0,1)),
+  CONSTRAINT fk_gpref_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 24 hours' notice earns a credit · five a year · non-transferable (student_id is
+-- on the row and there is no transfer column) · they expire (expires_on NOT NULL,
+-- because a credit with no expiry is a liability the academy can never close a
+-- year on) · no cash in lieu (there is deliberately no money column, no currency
+-- and no payments link) · and a teacher cancellation ALWAYS credits and NEVER
+-- counts against the five, which the last CHECK enforces rather than trusting a
+-- caller not to pass the default.
+CREATE TABLE IF NOT EXISTS makeup_credits (
+  id                       INT AUTO_INCREMENT PRIMARY KEY,
+  student_id               INT          NOT NULL,
+  term_id                  INT          NULL,
+  year_label               VARCHAR(32)  NOT NULL,
+  reason                   VARCHAR(24)  NOT NULL,
+  source_session_id        INT          NULL,
+  notice_hours             DECIMAL(8,2) NULL,
+  counts_against_allowance TINYINT(1)   NOT NULL DEFAULT 1,
+  status                   VARCHAR(16)  NOT NULL DEFAULT 'available',
+  expires_on               DATE         NOT NULL,
+  spent_session_id         INT          NULL,
+  spent_at                 DATETIME     NULL,
+  granted_by               INT          NULL,
+  granted_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  revoked_reason           TEXT         NULL,
+  note                     TEXT         NULL,
+  KEY idx_makeup_student (student_id, status, expires_on),
+  KEY idx_makeup_year    (student_id, year_label, counts_against_allowance),
+  CONSTRAINT chk_makeup_reason  CHECK (reason IN ('guardian_notice','teacher_cancellation','academy_closure','goodwill')),
+  CONSTRAINT chk_makeup_status  CHECK (status IN ('available','spent','expired','revoked')),
+  CONSTRAINT chk_makeup_counts  CHECK (counts_against_allowance IN (0,1)),
+  CONSTRAINT chk_makeup_notice  CHECK (notice_hours IS NULL OR notice_hours >= 0),
+  CONSTRAINT chk_makeup_spent   CHECK (status <> 'spent' OR spent_at IS NOT NULL),
+  CONSTRAINT chk_makeup_revoke  CHECK (status <> 'revoked' OR revoked_reason IS NOT NULL),
+  -- Only a GUARDIAN cancellation may cost an allowance slot: the allowance limits
+  -- how often a FAMILY cancels, so anything the academy initiates is free by
+  -- construction rather than by a caller remembering.
+  CONSTRAINT chk_makeup_free    CHECK (reason = 'guardian_notice' OR counts_against_allowance = 0),
+  CONSTRAINT fk_makeup_student FOREIGN KEY (student_id)        REFERENCES users(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_makeup_term    FOREIGN KEY (term_id)           REFERENCES academic_terms(id)  ON DELETE SET NULL,
+  CONSTRAINT fk_makeup_src     FOREIGN KEY (source_session_id) REFERENCES class_sessions(id)  ON DELETE SET NULL,
+  CONSTRAINT fk_makeup_spent   FOREIGN KEY (spent_session_id)  REFERENCES class_sessions(id)  ON DELETE SET NULL,
+  CONSTRAINT fk_makeup_grantor FOREIGN KEY (granted_by)        REFERENCES users(id)           ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO schema_version (version) VALUES (88) ON DUPLICATE KEY UPDATE version = version;

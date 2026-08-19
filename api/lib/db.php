@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 86;
+const MAM_SCHEMA_TARGET = 88;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3013,6 +3013,459 @@ function mam_db_migrate(PDO $db): void {
             -- before inserting, but the scope now hangs off this row, so a second
             -- row would mean two different answers to 'what may this guardian see'.
             CREATE UNIQUE INDEX IF NOT EXISTS uq_plink_pair ON parent_links(parent_id, student_id);
+        ",
+
+        /* v87 — the FEE INVOICE, and the four things that are not one discount
+         * (guardian redesign §3.4).
+         *
+         * There was no invoice table in this repo at all. `invoicing.php` is the
+         * APPLICATION processing-fee lifecycle — one charge, one applicant, a
+         * reminder schedule — not a per-child statement of account. The design's
+         * Fees screen needs line items, receipts, a refund rule, and the four
+         * kinds of aid, none of which that file can express.
+         *
+         * ── Money is integer minor units + an ISO currency + a frozen rate ────
+         * Never a float, and never a bare number whose meaning depends on a
+         * sibling column — that ambiguity is the bug `payments.amount_usd_cents`
+         * was added in v61 to end, and it was found by someone summing naira into
+         * dollars and rendering the total with a naira sign.
+         *
+         * Each invoice carries `currency` + `*_minor` in that currency, plus
+         * `fx_rate_usd_ngn` FROZEN at issue and `total_usd_cents` derived once.
+         * The frozen rate is not decoration: it is what lets a May figure
+         * reconcile in the following audit, and the design asks for it on the
+         * face of the invoice. The rate a payment actually settles at is the
+         * payment row's own, which is why the screen says the naira figure is an
+         * estimate until it clears.
+         *
+         * ⚠️ Totals are STORED, computed once from the lines in the invoice's own
+         * currency. Not recomputed on read — a family has a number; and NOT
+         * summed from per-line currency conversions, because rounding eleven
+         * lines individually and adding them gives a total a naira away from
+         * converting the sum, and a one-naira mismatch reads to a parent as a
+         * pricing error rather than as arithmetic.
+         *
+         * ── The four kinds of aid are four MECHANISMS, not four discounts ─────
+         * This is the part that is easy to collapse and expensive to get wrong,
+         * because it changes what the academy's books say happened:
+         *
+         *   waiver      — reduces the invoice LINE. Non-revenue: the academy never
+         *                 billed it, so it must never appear as a cash entry.
+         *                 Lives on `fee_invoice_lines.waiver_minor`.
+         *   bursary     — needs-based GIFT AID. A credit against the invoice from
+         *                 the aid pool. The line stands at full value and the
+         *                 credit is a real transfer, because the money exists.
+         *   scholarship — merit gift aid. Same mechanism, different criteria.
+         *   sibling     — a DISCOUNT, applied AFTER aid and capped at the
+         *                 published maximum. After, because a percentage of a
+         *                 post-aid balance is smaller than a percentage of the
+         *                 gross, and applying it first would hand the household
+         *                 a discount on money the aid pool paid.
+         *
+         * The order is therefore fixed and stated: gross lines → waivers → aid
+         * credits → sibling discount (capped) → total. `fee_invoices` stores each
+         * stage so a family can be shown the arithmetic and an auditor can check
+         * it, rather than one net figure nobody can take apart.
+         *
+         * ── Dunning, not disconnection ────────────────────────────────────────
+         * `dunning_stage` records how far the reminders have gone (day 0, 3, 7)
+         * and `grace_until` the 14-day window. There is deliberately NO column
+         * that suspends anything: the design's refusal is that an access hold
+         * never touches a child's academic record, a safeguarding file, or a
+         * minor's report, and the way to keep a refusal is to leave the
+         * mechanism unbuilt. The next step after the grace window is a
+         * conversation, which is a task for a human and not a flag here.
+         */
+        87 => "
+            CREATE TABLE IF NOT EXISTS fee_invoices (
+              id             INTEGER PRIMARY KEY AUTOINCREMENT,
+              public_ref     TEXT    NOT NULL,
+              student_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              -- The billing contact. A guardian, and not necessarily the guardian
+              -- with academic access — one adult can be the payer for a nephew
+              -- and the full guardian of their own child.
+              guardian_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              term_id        INTEGER REFERENCES academic_terms(id) ON DELETE SET NULL,
+              -- Snapshotted, like the report's: session names are renameable and
+              -- the family has this one on their receipt.
+              term_label     TEXT    NOT NULL,
+              currency       TEXT    NOT NULL DEFAULT 'USD',
+              status         TEXT    NOT NULL DEFAULT 'draft'
+                             CHECK(status IN ('draft','issued','part_paid','paid','void')),
+              issued_on      TEXT,
+              due_on         TEXT,
+              grace_until    TEXT,
+              dunning_stage  INTEGER NOT NULL DEFAULT 0,
+              dunning_last   TEXT,
+              -- Frozen at issue. Display uses the live rate and says so; this is
+              -- the number an audit reconciles against.
+              fx_rate_usd_ngn REAL,
+              -- The stages, in the order they apply. All in `currency` minor units.
+              gross_minor    INTEGER NOT NULL DEFAULT 0,
+              waiver_minor   INTEGER NOT NULL DEFAULT 0,
+              aid_minor      INTEGER NOT NULL DEFAULT 0,
+              sibling_minor  INTEGER NOT NULL DEFAULT 0,
+              total_minor    INTEGER NOT NULL DEFAULT 0,
+              paid_minor     INTEGER NOT NULL DEFAULT 0,
+              -- The only cross-invoice summable figure, frozen with the rate.
+              total_usd_cents INTEGER,
+              note           TEXT,
+              void_reason    TEXT,
+              created_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at     TEXT,
+              -- Minor units are counts of the smallest coin. A negative one is not
+              -- a refund, it is a data error; a refund is its own payment row.
+              CHECK(gross_minor   >= 0 AND gross_minor   = CAST(gross_minor   AS INTEGER)),
+              CHECK(waiver_minor  >= 0 AND waiver_minor  = CAST(waiver_minor  AS INTEGER)),
+              CHECK(aid_minor     >= 0 AND aid_minor     = CAST(aid_minor     AS INTEGER)),
+              CHECK(sibling_minor >= 0 AND sibling_minor = CAST(sibling_minor AS INTEGER)),
+              CHECK(total_minor   >= 0 AND total_minor   = CAST(total_minor   AS INTEGER)),
+              CHECK(paid_minor    >= 0 AND paid_minor    = CAST(paid_minor    AS INTEGER)),
+              -- Nothing may reduce the bill below zero, and the stages must add up.
+              CHECK(waiver_minor + aid_minor + sibling_minor <= gross_minor),
+              CHECK(total_minor = gross_minor - waiver_minor - aid_minor - sibling_minor),
+              CHECK(length(currency) = 3),
+              /* An ISSUED invoice has a date and something to pay by. Draft and
+               * VOID are both exempt: a draft raised against the wrong child is
+               * voided rather than deleted (the row and its reason are the
+               * record), and it never had an issue date to state. Writing this as
+               * `status = 'draft' OR …` made that void a hard write failure. */
+              CHECK(status IN ('draft','void') OR (issued_on IS NOT NULL AND due_on IS NOT NULL)),
+              CHECK(status <> 'void' OR void_reason IS NOT NULL)
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_feeinv_ref ON fee_invoices(public_ref);
+            CREATE INDEX IF NOT EXISTS idx_feeinv_student  ON fee_invoices(student_id, status);
+            CREATE INDEX IF NOT EXISTS idx_feeinv_guardian ON fee_invoices(guardian_id, status);
+            CREATE INDEX IF NOT EXISTS idx_feeinv_due      ON fee_invoices(status, due_on);
+
+            CREATE TABLE IF NOT EXISTS fee_invoice_lines (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              invoice_id    INTEGER NOT NULL REFERENCES fee_invoices(id) ON DELETE CASCADE,
+              kind          TEXT    NOT NULL DEFAULT 'tuition'
+                            CHECK(kind IN ('tuition','materials','exam','registration','recital','late','other')),
+              label         TEXT    NOT NULL,
+              enrollment_id INTEGER REFERENCES course_enrollments(id) ON DELETE SET NULL,
+              cohort_id     INTEGER REFERENCES cohorts(id) ON DELETE SET NULL,
+              qty           INTEGER NOT NULL DEFAULT 1,
+              unit_minor    INTEGER NOT NULL DEFAULT 0,
+              amount_minor  INTEGER NOT NULL DEFAULT 0,
+              -- A WAIVER reduces the line and is never a cash entry. Kept on the
+              -- line rather than netted into amount_minor so the invoice can show
+              -- what was charged and what was waived, which is what a family and
+              -- an auditor both need to see.
+              waiver_minor  INTEGER NOT NULL DEFAULT 0,
+              waiver_reason TEXT,
+              sort_order    INTEGER NOT NULL DEFAULT 0,
+              CHECK(qty > 0),
+              CHECK(unit_minor   >= 0 AND unit_minor   = CAST(unit_minor   AS INTEGER)),
+              CHECK(amount_minor >= 0 AND amount_minor = CAST(amount_minor AS INTEGER)),
+              CHECK(waiver_minor >= 0 AND waiver_minor = CAST(waiver_minor AS INTEGER)),
+              CHECK(waiver_minor <= amount_minor),
+              CHECK(amount_minor = unit_minor * qty),
+              CHECK(waiver_minor = 0 OR waiver_reason IS NOT NULL)
+            );
+            CREATE INDEX IF NOT EXISTS idx_feeline_invoice ON fee_invoice_lines(invoice_id, sort_order);
+
+            /* The AWARD — the academy's decision that a student is entitled to
+             * something. Separate from its application to any one invoice,
+             * because an award spans a term and an invoice is a month. */
+            CREATE TABLE IF NOT EXISTS fee_aid_awards (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              kind         TEXT    NOT NULL
+                           CHECK(kind IN ('bursary','scholarship','waiver','sibling')),
+              -- Either a percentage or a fixed amount, never both and never neither.
+              pct          REAL,
+              amount_minor INTEGER,
+              currency     TEXT,
+              term_id      INTEGER REFERENCES academic_terms(id) ON DELETE SET NULL,
+              term_label   TEXT,
+              basis        TEXT,
+              status       TEXT    NOT NULL DEFAULT 'active'
+                           CHECK(status IN ('active','spent','expired','revoked')),
+              starts_on    TEXT,
+              expires_on   TEXT,
+              awarded_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              awarded_at   TEXT NOT NULL DEFAULT (datetime('now')),
+              revoked_at   TEXT,
+              revoked_reason TEXT,
+              note         TEXT,
+              CHECK((pct IS NOT NULL AND amount_minor IS NULL)
+                 OR (pct IS NULL AND amount_minor IS NOT NULL)),
+              CHECK(pct IS NULL OR (pct > 0 AND pct <= 100)),
+              CHECK(amount_minor IS NULL OR (amount_minor > 0 AND amount_minor = CAST(amount_minor AS INTEGER))),
+              CHECK(amount_minor IS NULL OR currency IS NOT NULL),
+              CHECK(status <> 'revoked' OR (revoked_at IS NOT NULL AND revoked_reason IS NOT NULL))
+            );
+            CREATE INDEX IF NOT EXISTS idx_aid_student ON fee_aid_awards(student_id, status, kind);
+
+            /* GIFT AID applied to one invoice — bursary and scholarship only.
+             * A waiver never appears here (it is on the line, and is not money);
+             * a sibling discount never appears here (it is a discount on the
+             * post-aid balance, stored on the invoice). Keeping the three apart
+             * is what makes 'how much aid did the academy actually pay out this
+             * term' a question with an answer. */
+            CREATE TABLE IF NOT EXISTS fee_invoice_credits (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              invoice_id   INTEGER NOT NULL REFERENCES fee_invoices(id) ON DELETE CASCADE,
+              award_id     INTEGER REFERENCES fee_aid_awards(id) ON DELETE SET NULL,
+              kind         TEXT    NOT NULL CHECK(kind IN ('bursary','scholarship')),
+              amount_minor INTEGER NOT NULL,
+              currency     TEXT    NOT NULL,
+              note         TEXT,
+              applied_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              applied_at   TEXT NOT NULL DEFAULT (datetime('now')),
+              CHECK(amount_minor > 0 AND amount_minor = CAST(amount_minor AS INTEGER)),
+              CHECK(length(currency) = 3)
+            );
+            CREATE INDEX IF NOT EXISTS idx_feecredit_invoice ON fee_invoice_credits(invoice_id);
+            -- One application of an award per invoice: the design's Fees screen
+            -- shows a single aid line, and applying one award twice is the
+            -- commonest way a double-submitted form gives away the aid pool.
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_feecredit_award ON fee_invoice_credits(invoice_id, award_id);
+
+            /* 'Pay in 3 instalments instead' — a button in the design with
+             * nothing behind it. The plan does not change the total; it changes
+             * when each part falls due, so the instalments must SUM to the
+             * invoice total exactly and the remainder goes on the FIRST one
+             * rather than being lost to rounding. */
+            CREATE TABLE IF NOT EXISTS fee_payment_plans (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              invoice_id    INTEGER NOT NULL REFERENCES fee_invoices(id) ON DELETE CASCADE,
+              instalments   INTEGER NOT NULL,
+              status        TEXT    NOT NULL DEFAULT 'active'
+                            CHECK(status IN ('active','completed','cancelled')),
+              requested_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              approved_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+              cancelled_at  TEXT,
+              cancel_reason TEXT,
+              CHECK(instalments >= 2 AND instalments <= 12),
+              CHECK(status <> 'cancelled' OR (cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL))
+            );
+            -- One live plan per invoice. Two would make 'what is due next' ambiguous.
+            CREATE INDEX IF NOT EXISTS idx_feeplan_invoice ON fee_payment_plans(invoice_id, status);
+
+            CREATE TABLE IF NOT EXISTS fee_plan_instalments (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              plan_id      INTEGER NOT NULL REFERENCES fee_payment_plans(id) ON DELETE CASCADE,
+              seq          INTEGER NOT NULL,
+              due_on       TEXT    NOT NULL,
+              amount_minor INTEGER NOT NULL,
+              status       TEXT    NOT NULL DEFAULT 'pending'
+                           CHECK(status IN ('pending','paid','waived')),
+              paid_at      TEXT,
+              payment_id   INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+              CHECK(seq >= 1),
+              CHECK(amount_minor > 0 AND amount_minor = CAST(amount_minor AS INTEGER)),
+              CHECK(status <> 'paid' OR paid_at IS NOT NULL)
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_feeinst_seq ON fee_plan_instalments(plan_id, seq);
+            CREATE INDEX IF NOT EXISTS idx_feeinst_due ON fee_plan_instalments(status, due_on);
+
+            /* A bursary is assessed on a DECLARED INCOME BAND — never a written
+             * case for hardship. The design is explicit, and the reason is that a
+             * written case rewards the family best able to write one, asks a
+             * parent to describe their circumstances to their child's school, and
+             * gives an assessor room to be inconsistent. A band is a fact the
+             * academy can apply a published table to.
+             *
+             * There is deliberately NO free-text hardship column. `note` is the
+             * ASSESSOR's, not the applicant's, and is not shown to the family.
+             *
+             * `affects_admission` does not exist either, and must not: applying
+             * never affects an admission decision, and the way to keep that true
+             * is to leave admissions unable to see this table. */
+            CREATE TABLE IF NOT EXISTS bursary_applications (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              guardian_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              term_id       INTEGER REFERENCES academic_terms(id) ON DELETE SET NULL,
+              term_label    TEXT,
+              income_band   TEXT    NOT NULL,
+              household_size INTEGER,
+              dependants_in_academy INTEGER NOT NULL DEFAULT 1,
+              status        TEXT    NOT NULL DEFAULT 'submitted'
+                            CHECK(status IN ('submitted','assessing','awarded','declined','withdrawn')),
+              awarded_pct   REAL,
+              award_id      INTEGER REFERENCES fee_aid_awards(id) ON DELETE SET NULL,
+              decided_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              decided_at    TEXT,
+              outcome_note  TEXT,
+              note          TEXT,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+              CHECK(household_size IS NULL OR household_size >= 1),
+              CHECK(dependants_in_academy >= 1),
+              CHECK(awarded_pct IS NULL OR (awarded_pct > 0 AND awarded_pct <= 100)),
+              -- A decision states its outcome and names who made it, whichever way
+              -- it went. Same rule as a mark appeal, and for the same reason.
+              CHECK(status IN ('submitted','assessing')
+                 OR (decided_at IS NOT NULL AND outcome_note IS NOT NULL)),
+              CHECK(status <> 'awarded' OR awarded_pct IS NOT NULL)
+            );
+            CREATE INDEX IF NOT EXISTS idx_bursary_student ON bursary_applications(student_id, status);
+            CREATE INDEX IF NOT EXISTS idx_bursary_queue   ON bursary_applications(status, created_at);
+        ",
+
+        /* v88 — guardian↔staff THREADS, how the academy reaches a family, and the
+         * make-up credit ledger (guardian redesign §3.5 and the Messages screen).
+         *
+         * ── Threads ───────────────────────────────────────────────────────────
+         * The existing `messages` table is the PUBLIC CONTACT FORM — name, email,
+         * phone, topic, body — with no participants and no notion of a reply. It
+         * cannot be a thread, and bending it into one would put anonymous website
+         * enquiries in the same table as a safeguarding conversation about a named
+         * child.
+         *
+         * ⚠️ **A student is never a participant in a guardian thread.** That is
+         * the refusal, not an omission: no guardian scope reaches a teenager's
+         * messages with their instructor, and the cheapest way to breach that
+         * would be to let a guardian be added to the student's own thread. The
+         * two conversations are separate tables' worth of separate — this one is
+         * `guardian_threads`, and the participant CHECK admits only the adult
+         * roles. `mam_thread_add_participant()` refuses a student outright.
+         *
+         * `kind` is not cosmetic. It decides whether the channel preferences
+         * below may suppress a notification, so it is on the thread and
+         * constrained.
+         *
+         * ── Channel preferences, and what they cannot mute ────────────────────
+         * WhatsApp / Email / SMS, per the design's Messages screen. The rule
+         * beneath them is the important part: **anything about safeguarding or
+         * money reaches the guardian on every channel the academy can use,
+         * regardless of these toggles.** A family that has muted notifications
+         * has muted reminders about practice, not a fee falling due or a concern
+         * about their child.
+         *
+         * That is enforced in `mam_guardian_channels()`, not here, because it is a
+         * rule about topics and this table holds preferences. What the schema does
+         * is refuse to store a preference that claims otherwise: there is no
+         * per-topic column, so there is nowhere to record "mute safeguarding".
+         *
+         * ── Make-up credits ───────────────────────────────────────────────────
+         * `makeup.php` only ever SUGGESTED sessions; it held no credits, and the
+         * guardian screens count them ("3 · 5", "credits left"). Six rules, five
+         * of which are one column each and the sixth of which is a refusal:
+         *
+         *   • 24 hours' notice earns a credit  → `notice_hours` recorded, and the
+         *     grant path checks it.
+         *   • five a year                       → counted over the ALLOWANCE rows
+         *     only, see below.
+         *   • non-transferable                  → `student_id` is on the row and
+         *     there is no transfer column. A credit is not a token.
+         *   • they expire                       → `expires_on` NOT NULL. A credit
+         *     with no expiry is a liability the academy cannot close a year on.
+         *   • no cash in lieu                   → there is deliberately NO money
+         *     column, no currency, and no link to `payments`. A credit buys a
+         *     lesson or it lapses; making it refundable would turn every
+         *     cancellation into a pricing negotiation.
+         *   • **a teacher cancellation always credits and never counts against the
+         *     five** → `counts_against_allowance = 0` for that reason, and the
+         *     allowance query sums only the rows where it is 1. Charging a family
+         *     an allowance slot because the academy cancelled is the single most
+         *     resented thing a make-up policy can do.
+         */
+        88 => "
+            CREATE TABLE IF NOT EXISTS guardian_threads (
+              id             INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              subject        TEXT    NOT NULL,
+              -- Decides whether the channel preferences may suppress a notice.
+              kind           TEXT    NOT NULL DEFAULT 'general'
+                             CHECK(kind IN ('general','academic','money','safeguarding','timetable')),
+              status         TEXT    NOT NULL DEFAULT 'open'
+                             CHECK(status IN ('open','closed')),
+              opened_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+              last_message_at TEXT,
+              closed_at      TEXT,
+              CHECK(status = 'open' OR closed_at IS NOT NULL)
+            );
+            CREATE INDEX IF NOT EXISTS idx_gthread_student ON guardian_threads(student_id, status, last_message_at);
+
+            CREATE TABLE IF NOT EXISTS guardian_thread_participants (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              thread_id  INTEGER NOT NULL REFERENCES guardian_threads(id) ON DELETE CASCADE,
+              user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              -- No 'student'. A guardian thread has adults in it; a young person's
+              -- conversation with their instructor is a different thing that no
+              -- guardian scope reaches, and the cheapest breach of that would be
+              -- adding a guardian to the student's own thread.
+              role       TEXT    NOT NULL
+                         CHECK(role IN ('guardian','instructor','office','admin')),
+              last_read_at TEXT,
+              added_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_gpart_pair ON guardian_thread_participants(thread_id, user_id);
+            CREATE INDEX IF NOT EXISTS idx_gpart_user ON guardian_thread_participants(user_id);
+
+            CREATE TABLE IF NOT EXISTS guardian_thread_messages (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              thread_id  INTEGER NOT NULL REFERENCES guardian_threads(id) ON DELETE CASCADE,
+              author_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              -- Who it read as. Kept because author_id goes NULL when a staff
+              -- account is deleted and a family's thread must still make sense.
+              author_name TEXT   NOT NULL,
+              author_role TEXT   NOT NULL
+                          CHECK(author_role IN ('guardian','instructor','office','admin')),
+              body       TEXT    NOT NULL,
+              created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_gmsg_thread ON guardian_thread_messages(thread_id, created_at);
+
+            /* One row per guardian. No per-topic column, deliberately: there is
+             * nowhere to record 'mute safeguarding', because that is not a
+             * preference the academy offers. */
+            CREATE TABLE IF NOT EXISTS guardian_channel_prefs (
+              user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+              whatsapp   INTEGER NOT NULL DEFAULT 1 CHECK(whatsapp IN (0,1)),
+              email      INTEGER NOT NULL DEFAULT 1 CHECK(email IN (0,1)),
+              sms        INTEGER NOT NULL DEFAULT 0 CHECK(sms IN (0,1)),
+              updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS makeup_credits (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              term_id      INTEGER REFERENCES academic_terms(id) ON DELETE SET NULL,
+              -- The academy year the allowance is counted over. Stored, because
+              -- 'five a year' has to mean the same five in December as in March.
+              year_label   TEXT    NOT NULL,
+              reason       TEXT    NOT NULL
+                           CHECK(reason IN ('guardian_notice','teacher_cancellation','academy_closure','goodwill')),
+              -- The session that was missed, when there was one.
+              source_session_id INTEGER REFERENCES class_sessions(id) ON DELETE SET NULL,
+              notice_hours REAL,
+              /* 0 for a teacher cancellation and an academy closure: the family
+               * did not spend anything, so it must not cost them an allowance
+               * slot. The allowance query counts only the 1s. */
+              counts_against_allowance INTEGER NOT NULL DEFAULT 1
+                           CHECK(counts_against_allowance IN (0,1)),
+              status       TEXT    NOT NULL DEFAULT 'available'
+                           CHECK(status IN ('available','spent','expired','revoked')),
+              -- NOT NULL: a credit with no expiry is a liability the academy can
+              -- never close a year on.
+              expires_on   TEXT    NOT NULL,
+              spent_session_id INTEGER REFERENCES class_sessions(id) ON DELETE SET NULL,
+              spent_at     TEXT,
+              granted_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              granted_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+              revoked_reason TEXT,
+              note         TEXT,
+              CHECK(notice_hours IS NULL OR notice_hours >= 0),
+              CHECK(status <> 'spent' OR spent_at IS NOT NULL),
+              CHECK(status <> 'revoked' OR revoked_reason IS NOT NULL),
+              /* Only a GUARDIAN cancellation may cost an allowance slot. Stated
+               * here as well as in PHP because it is the rule most likely to be
+               * lost to a caller passing the default — and the allowance limits
+               * how often a FAMILY cancels, so anything the academy initiates
+               * (its instructor unwell, its building shut, a goodwill gesture) is
+               * free by construction rather than by remembering. */
+              CHECK(reason = 'guardian_notice' OR counts_against_allowance = 0)
+            );
+            CREATE INDEX IF NOT EXISTS idx_makeup_student ON makeup_credits(student_id, status, expires_on);
+            CREATE INDEX IF NOT EXISTS idx_makeup_year    ON makeup_credits(student_id, year_label, counts_against_allowance);
         ",
     ];
 

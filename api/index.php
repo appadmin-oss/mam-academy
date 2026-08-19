@@ -268,6 +268,20 @@ $r->group('/parent', function (MamRouter $r) use ($f) {
     // to keep in step for one audience.
     $r->get ('/reports', $f('parent/reports.php'), [mw_role('parent')]);
     $r->post('/appeal',  $f('parent/appeal.php'),  [mw_csrf(), mw_role('parent'), mw_rate_limit('appeal', 10, 3600)]);
+    // The whole Home screen in one request: a phone on metered data should not
+    // make four round trips to draw one card.
+    $r->get ('/dashboard', $f('parent/dashboard.php'), [mw_role('parent')]);
+    // Fees, and the four kinds of aid (§3.4). Every scope reaches these,
+    // including billing-only — that is what the scope exists for.
+    $r->get ('/fees',    $f('parent/fees.php'),    [mw_role('parent')]);
+    $r->post('/plan',    $f('parent/plan.php'),    [mw_csrf(), mw_role('parent')]);
+    $r->get ('/bursary', $f('parent/bursary.php'), [mw_role('parent')]);
+    $r->post('/bursary', $f('parent/bursary.php'), [mw_csrf(), mw_role('parent'), mw_rate_limit('bursary', 5, 3600)]);
+    $r->get ('/makeup',  $f('parent/makeup.php'),  [mw_role('parent')]);
+    // Threads + how the academy reaches a family.
+    $r->get ('/threads',      $f('parent/threads.php'),     [mw_role('parent')]);
+    $r->post('/thread-post',  $f('parent/thread-post.php'), [mw_csrf(), mw_role('parent'), mw_rate_limit('thread', 40, 3600)]);
+    $r->post('/channels',     $f('parent/channels.php'),    [mw_csrf(), mw_role('parent')]);
 });
 
 /* ─── Instructor portal ─── */
