@@ -156,7 +156,10 @@ $adaRows = $db->query("SELECT legacy_table, legacy_id, v2_id, note FROM legacy_r
                        WHERE v2_table = 'users' AND v2_id = (SELECT id FROM users WHERE email = 'ada.okoye@example.test')")
               ->fetchAll(PDO::FETCH_ASSOC);
 t_eq(count($adaRows), 2, 'the merged person is reachable from BOTH v1 rows');
-t_eq($adaRows[0]['note'], 'merged identity', 'and the merge is noted rather than left to be inferred');
+t_ok(str_starts_with((string) $adaRows[0]['note'], 'merged identity'),
+    'and the merge is noted rather than left to be inferred [' . $adaRows[0]['note'] . ']');
+t_ok(str_contains((string) $adaRows[0]['note'], 'via '),
+    'naming WHICH rule merged them, which is what a reviewer needs to judge it');
 t_eq((string) $db->query("SELECT email FROM users WHERE id = " . (int) $adaRows[0]['v2_id'])->fetchColumn(),
     'ada.okoye@example.test', 'the LOGIN address wins over the applicant record\'s casing');
 
@@ -447,23 +450,48 @@ t_eq(implode('; ', $tooNarrow), '',
 t_ok(($widths['payments']['status'] ?? 0) >= 18,
     'payments.status is wide enough for partially_refunded [' . ($widths['payments']['status'] ?? '?') . ']');
 
-t_group('ETL load — what the ETL does NOT carry, stated rather than assumed');
+t_group('ETL load — coverage is derived from the plan, not hand-listed');
 
 /**
- * The load covers the identity-and-money core: customers, users, applications,
- * payments. Everything else in v1 either is recreated by hand (courses, modules,
- * classes, cohorts) or has no path at all.
+ * This group used to assert that the loader read exactly four source files —
+ * customers, users, applications, payments — on the grounds that the coverage
+ * claim should be checkable rather than remembered. The claim was checkable and
+ * the coverage was WRONG: the loader carried four tables while the plan carried
+ * 112, so every other table arrived empty and nothing said so.
  *
- * This group exists so the second set stays a DECISION rather than becoming a
- * discovery at cutover. See docs/v2-cutover-readiness-2026-08-18.md.
+ * What is asserted now is the property that makes that impossible to repeat:
+ * there is ONE list of what a migration carries, `$plan['order']`, and both the
+ * SQL emitter and the loader walk it.
  */
 $v2lLoadSrc = file_get_contents(dirname(__DIR__) . '/lib/v2/load.php');
 $v2lToolSrc = file_get_contents(dirname(__DIR__) . '/tools/v2-load.php');
 
-// The tool reads exactly four source files. If that list grows, the coverage
-// note in the readiness doc has to grow with it.
-t_ok(preg_match("/foreach \(\['customers', 'users', 'applications', 'payments'\] as \\\$t\)/", $v2lToolSrc) === 1,
-    'the loader reads four source tables — the coverage claim is checkable, not a recollection');
+t_ok(str_contains($v2lLoadSrc, "\$plan['order']") || str_contains($v2lLoadSrc, '$order = (array) ($plan'),
+    'the loader walks the plan\'s own order rather than a list of stages');
+t_ok(!str_contains($v2lLoadSrc, 'MAM_V2_LOAD_STAGES'),
+    'and the six-stage constant is gone — it was the shorter of two answers to "what does this carry"');
+t_ok(str_contains($v2lToolSrc, "glob(rtrim(\$exportDir"),
+    'the tool reads the WHOLE export directory, so a new v1 table cannot be skipped by omission');
+t_ok(str_contains($v2lToolSrc, 'unmapped') && str_contains($v2lToolSrc, 'BEFORE cutting over'),
+    'and it prints any table with rows that the plan does not carry, rather than leaving it to be discovered');
+
+// The load and the emitter must agree about the encoding rules, or the same plan
+// produces two different databases depending on which path ran.
+t_ok(str_contains($v2lLoadSrc, 'MAM_V2_IP_COLUMNS') && str_contains($v2lLoadSrc, 'MAM_V2_EMIT_JSON'),
+    'both write paths read one registry of packed-address and JSON columns');
+
+// Every table the plan can write must exist in the shipped schema, or the load
+// fails on a table nobody noticed was missing.
+$v2lPlanOrder = MAM_V2_PLAN_ORDER;
+$v2lSchemaTables = [];
+foreach (preg_split('/\r?\n/', (string) file_get_contents(dirname(__DIR__, 2) . '/db/schema-v2-sqlite.sql')) as $line) {
+    if (preg_match('/^CREATE TABLE (?:IF NOT EXISTS )?"?([a-z_0-9]+)"?/i', $line, $m)) $v2lSchemaTables[] = $m[1];
+}
+$v2lMissing = array_values(array_diff($v2lPlanOrder, $v2lSchemaTables));
+t_eq(implode(', ', $v2lMissing), '',
+    'every table the plan writes exists in the schema the loader creates');
+t_ok(count($v2lPlanOrder) > 100,
+    'and the plan carries the whole product, not a core [' . count($v2lPlanOrder) . ' tables]');
 
 /**
  * The contradiction worth failing over: dataprotection.php asserts a seven-year
@@ -481,3 +509,151 @@ t_ok($v2lCarriesAudit || ($v2lReadiness && strpos($v2lReadiness, 'audit_log') !=
     'the audit log is either migrated, or its omission is recorded against the retention basis that claims to keep it');
 t_ok($v2lReadiness !== false && strpos($v2lReadiness, 'The ETL is ready. The site is not.') !== false,
     'and the readiness of the SITE is distinguished from the readiness of the ETL');
+
+t_group('ETL load — plan-driven: the loader and the emitter carry the same tables');
+
+// The defect this replaced: the loader had six hand-written stages carrying four
+// tables while the plan carried 112, so every other table arrived EMPTY on
+// cutover day and nothing said so.
+$dbPD = v2l_db();
+// ⚠️ The ids are OFFSET before loading, and that is the whole point of doing it
+// here. The plan numbers its rows 1..N per table; in a fresh database the
+// database's own ids come out 1..N too, so a loader that wrote plan ids straight
+// through would pass every check by coincidence. Advancing each AUTOINCREMENT
+// sequence first makes the two sets of ids disagree, which is the only way the
+// translation is actually tested. (Measured: without this, removing the
+// soft-reference remapping entirely breaks nothing.)
+foreach (['users', 'memberships', 'applications', 'payments', 'courses', 'cohorts',
+          'programmes', 'levels', 'contact_messages'] as $t) {
+    $dbPD->exec("INSERT INTO sqlite_sequence (name, seq) SELECT '$t', 500
+                  WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = '$t')");
+    $dbPD->exec("UPDATE sqlite_sequence SET seq = 500 WHERE name = '$t'");
+}
+$srcPD = v2l_source();
+// A source with academic rows, so the load has to reach past the four tables the
+// old stages knew about.
+$srcPD['programs'] = [['id' => 3, 'code' => 'standard', 'name' => 'Standard', 'weeks' => 12,
+                       'sort_order' => 1, 'active' => 1]];
+$srcPD['levels']   = [['id' => 1, 'code' => 'precert', 'name' => 'Pre-Certification', 'sort_order' => 1]];
+$srcPD['courses']  = [['id' => 5, 'code' => 'piano', 'name' => 'Piano', 'kind' => 'elective',
+                       'sort_order' => 1, 'active' => 1]];
+$srcPD['cohorts']  = [['id' => 1, 'course_id' => 5, 'level_id' => 1, 'program_id' => 3, 'instructor_id' => null,
+                       'title' => 'Piano — Pre-Cert', 'capacity' => 12, 'status' => 'active',
+                       'created_at' => '2026-01-10 09:00:00']];
+$srcPD['messages'] = [['id' => 1, 'name' => 'A Parent', 'email' => 'enquirer@example.test', 'phone' => null,
+                       'topic' => 'tuition', 'message' => 'How much?', 'ip' => '198.51.100.20',
+                       'status' => 'unread', 'created_at' => '2026-01-15 09:00:00']];
+$srcPD['newsletter'] = [['id' => 1, 'email' => 'sub@example.test', 'source' => 'footer',
+                         'status' => 'active', 'created_at' => '2026-01-01 00:00:00']];
+// An append-only row: audit_log has no public_id and nothing to probe on, which
+// is what the skip-on-re-run path exists for.
+$srcPD['audit_log'] = [['id' => 1, 'actor' => 'admin', 'action' => 'update', 'entity' => 'application',
+                        'entity_id' => 90, 'meta' => null, 'ip' => '198.51.100.7',
+                        'created_at' => '2026-01-13 09:05:00']];
+
+$pd = mam_v2_load($dbPD, $srcPD, ['commit' => true]);
+t_ok($pd['ok'] === true, 'the plan-driven load succeeds [' . json_encode($pd['error'] ?? '') . ']');
+t_ok($pd['tables_written'] >= 15,
+    'and writes far more than the four tables the old stages carried [' . $pd['tables_written'] . ']');
+foreach (['programmes', 'levels', 'courses', 'cohorts', 'contact_messages', 'marketing_contacts'] as $t) {
+    t_ok((int) $dbPD->query("SELECT COUNT(*) FROM $t")->fetchColumn() > 0,
+        "$t arrives with rows — before this it arrived empty and nothing said so");
+}
+t_ok((int) $dbPD->query("SELECT COUNT(*) FROM legacy_reference_map")->fetchColumn() > 0,
+    'and every row is still traceable to where it came from');
+
+t_group('ETL load — no plan id reaches the database');
+
+// The plan resolves foreign keys against its OWN synthetic ids. Writing one of
+// those into the database is the defect this ETL has been bitten by five times,
+// and the columns with no foreign key are the ones nobody notices.
+$dangling = [];
+foreach ($dbPD->query("SELECT v2_table, v2_id FROM legacy_reference_map")->fetchAll(PDO::FETCH_ASSOC) as $m) {
+    $t = (string) $m['v2_table'];
+    $q = $dbPD->prepare("SELECT 1 FROM $t WHERE id = ?");
+    $q->execute([(int) $m['v2_id']]);
+    if ($q->fetchColumn() === false) $dangling[] = $t . ':' . $m['v2_id'];
+}
+t_eq(implode(', ', $dangling), '',
+    'legacy_reference_map.v2_id resolves in the table its own row names — it has no foreign key, so nothing '
+    . 'but this would catch a plan id written straight through');
+
+$auditDangling = 0;
+foreach ($dbPD->query("SELECT entity_type, entity_id FROM audit_log WHERE entity_id IS NOT NULL")->fetchAll(PDO::FETCH_ASSOC) as $a) {
+    $map = ['application' => 'applications', 'payment' => 'payments', 'user' => 'users',
+            'customer' => 'users', 'course' => 'courses', 'cohort' => 'cohorts'];
+    $t = $map[strtolower((string) $a['entity_type'])] ?? null;
+    if ($t === null) continue;
+    $q = $dbPD->prepare("SELECT 1 FROM $t WHERE id = ?");
+    $q->execute([(int) $a['entity_id']]);
+    if ($q->fetchColumn() === false) $auditDangling++;
+}
+t_eq($auditDangling, 0, 'audit_log.entity_id resolves too — the column that WAS copied straight from v1');
+
+$cfvDangling = 0;
+foreach ($dbPD->query("SELECT d.entity_type t, v.entity_id i FROM custom_field_values v
+                        JOIN custom_field_defs d ON d.id = v.field_def_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    $q = $dbPD->prepare('SELECT 1 FROM ' . $r['t'] . ' WHERE id = ?');
+    $q->execute([(int) $r['i']]);
+    if ($q->fetchColumn() === false) $cfvDangling++;
+}
+t_eq($cfvDangling, 0,
+    'and a custom field value points at the entity its DEFINITION names, resolved before any id was translated');
+
+// A foreign key onto a natural column is a VALUE, not an id.
+t_eq((string) $dbPD->query("SELECT currency FROM payments LIMIT 1")->fetchColumn(), 'NGN',
+    'payments.currency references currencies(code) and is written as it stands — treating "NGN" as a plan id '
+    . 'is how a loader turns money into a constraint violation');
+
+t_group('ETL load — an address is stored packed, which SQLite hides and MySQL refuses');
+
+$ipRaw = $dbPD->query("SELECT source_ip FROM contact_messages WHERE source_ip IS NOT NULL LIMIT 1")->fetchColumn();
+t_ok($ipRaw !== false && strlen((string) $ipRaw) === 4,
+    'a v4 address in a VARBINARY(16) column is four bytes, not fifteen characters — SQLite accepts the text '
+    . 'and MySQL refuses it, so this is invisible until the real load [' . strlen((string) $ipRaw) . ']');
+t_eq(@inet_ntop((string) $ipRaw), '198.51.100.20', 'and it reads back as the address it came from');
+
+t_group('ETL load — a re-run writes nothing, across every table');
+
+$countsBefore = [];
+foreach ($dbPD->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")->fetchAll(PDO::FETCH_COLUMN) as $t) {
+    $countsBefore[$t] = (int) $dbPD->query("SELECT COUNT(*) FROM $t")->fetchColumn();
+}
+$pd2 = mam_v2_load($dbPD, $srcPD, ['commit' => true]);
+t_ok($pd2['ok'] === true, 'the second run succeeds');
+t_eq((int) ($pd2['totals']['created'] ?? -1), 0, 'and creates NOTHING — idempotent across all 112 tables');
+$grew = [];
+foreach ($countsBefore as $t => $n) {
+    $now = (int) $dbPD->query("SELECT COUNT(*) FROM $t")->fetchColumn();
+    if ($now !== $n) $grew[] = "$t $n→$now";
+}
+t_eq(implode(', ', $grew), '', 'no table grew');
+t_ok((int) ($pd2['totals']['skipped'] ?? 0) > 0,
+    'the rows that cannot be recognised — no public_id, no fillable unique key — are SKIPPED and counted '
+    . 'rather than appended [' . (int) ($pd2['totals']['skipped'] ?? 0) . ']');
+
+t_group('ETL load — the dry run is a real one');
+
+// The old dry run reported what it "would" write without writing it, so the
+// first time a constraint was tested was the run that mattered. This one inserts
+// inside a transaction and rolls back, which means a plan that violates a CHECK
+// fails on the DRY RUN.
+$dbDry = v2l_db();
+$dry2 = mam_v2_load($dbDry, $srcPD);
+t_ok($dry2['ok'] === true, 'a valid plan passes the dry run');
+t_ok(($dry2['totals']['created'] ?? 0) > 0,
+    'having actually inserted every row [' . ($dry2['totals']['created'] ?? 0) . ']');
+$leftBehind = 0;
+foreach (['users', 'cohorts', 'contact_messages', 'legacy_reference_map'] as $t) {
+    $leftBehind += (int) $dbDry->query("SELECT COUNT(*) FROM $t")->fetchColumn();
+}
+t_eq($leftBehind, 0, 'and rolled every one of them back');
+
+// The proof that it is a real dry run: break a constraint and the DRY RUN says so.
+$dbDry2 = v2l_db();
+$dbDry2->exec("DROP TABLE contact_messages");
+$dryBad = mam_v2_load($dbDry2, $srcPD);
+t_ok($dryBad['ok'] === false,
+    'a target the plan cannot be loaded into FAILS the dry run — the whole point of writing and rolling back');
+t_ok(str_contains((string) ($dryBad['message'] ?? ''), 'contact_messages'),
+    'naming the table: ' . ($dryBad['message'] ?? ''));

@@ -480,10 +480,19 @@ function mam_v2_plan(array $source, array $opts = []): array
 
         // BOTH source rows map to the one v2 user — that is what makes a merge
         // auditable rather than a fact somebody has to take on trust.
+        //
+        // The note also carries the DISAGREEMENT where there is one. v2 keeps
+        // only the winning name, so a name the merge discarded is captured here
+        // or it is gone: `mam_v2_rm_merge_review()` reads exactly this string,
+        // and a merge nobody can review is a merge nobody can undo.
+        $mergeNote = $p['merged_by'] !== null ? 'merged identity via ' . $p['merged_by'] : null;
+        if (!empty($p['name_conflict'])) {
+            $mergeNote = ($mergeNote ?? 'merged identity') . ' — SOURCE NAMES DISAGREE: '
+                       . implode(' / ', array_slice((array) ($p['name_variants'] ?? []), 0, 3));
+        }
         foreach ((array) $p['sources'] as $src) {
             [$lt, $lid] = array_pad(explode(':', $src, 2), 2, '');
-            $mapped($lt, $lid, 'users', $uid, mam_v2_plan_str($v1u['enrollment_ref'] ?? null, 64),
-                $p['merged_by'] !== null ? 'merged identity via ' . $p['merged_by'] : null);
+            $mapped($lt, $lid, 'users', $uid, mam_v2_plan_str($v1u['enrollment_ref'] ?? null, 64), $mergeNote);
         }
     }
     $note('customers', 'users + memberships', 'merged with `users` by identity resolution.', count($customers));

@@ -31,6 +31,24 @@ declare(strict_types=1);
 /** Columns the emitter derives rather than copies, keyed by table. */
 const MAM_V2_EMIT_DERIVED = ['audit_log' => ['ip_text' => 'ip']];
 
+/**
+ * Columns declared VARBINARY(16) — a PACKED address, not text.
+ *
+ * ⚠️ This registry is load-bearing on MySQL and invisible on SQLite, which is
+ * exactly how it came to be wrong. SQLite's BLOB affinity accepts a 45-character
+ * string into a VARBINARY(16) column without complaint, so a plan that put
+ * `198.51.100.9` there passed every test in this repo; MySQL refuses it as "data
+ * too long". Anything writing an address must pack it with `inet_pton()` — both
+ * `emit.php` and the plan-driven loader read this list.
+ */
+const MAM_V2_IP_COLUMNS = [
+    'audit_log'                => ['ip'],
+    'auth_sessions'            => ['ip'],
+    'contact_messages'         => ['source_ip'],
+    'scholarship_applications' => ['source_ip'],
+    'instructor_applications'  => ['source_ip'],
+];
+
 /** Values that are JSON columns and must be encoded, keyed by table. */
 const MAM_V2_EMIT_JSON = [
     'applications'  => ['payload'],
@@ -119,9 +137,10 @@ function mam_v2_emit_table(string $table, array $rows, string $dialect, int $bat
                 if (!array_key_exists($c, $r)) {
                     throw new RuntimeException("emit: $table row is missing column '$c'");
                 }
-                $lit[] = isset($derived[$c]) && $derived[$c] === 'ip'
+                $target = $derived[$c] ?? $c;
+                $lit[] = in_array($target, MAM_V2_IP_COLUMNS[$table] ?? [], true)
                     ? (mam_v2_emit_ip(is_string($r[$c]) ? $r[$c] : null, $dialect) ?? 'NULL')
-                    : mam_v2_emit_value($r[$c], $dialect, in_array($derived[$c] ?? $c, $jsonCols, true));
+                    : mam_v2_emit_value($r[$c], $dialect, in_array($target, $jsonCols, true));
             }
             $values[] = '  (' . implode(', ', $lit) . ')';
         }
