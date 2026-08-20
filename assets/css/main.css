@@ -324,7 +324,7 @@ input[type="radio"]:not(.native):disabled{opacity:.5;cursor:not-allowed}
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.08), var(--shadow-md), 0 0 0 1px var(--border-gold), 0 14px 38px rgba(245,168,35,0.10);
 }
 /* Buttons feel more tactile: soft top sheen + warmer, springier hover */
-.btn-primary,.btn-nav-cta,.btn-pay,.btn-signup{position:relative}
+.btn-primary,.btn-nav-cta,.btn-pay,.hero-cta{position:relative}
 .btn-primary::after,.btn-pay::after{content:'';position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg,rgba(255,255,255,0.22),transparent 45%);pointer-events:none;opacity:0.7}
 .btn-primary,.btn-secondary,.btn-step,.btn-pay{transition:transform 0.2s var(--ease-bounce),box-shadow 0.25s var(--ease),background 0.25s,border-color 0.25s}
 .btn-secondary:hover{box-shadow:0 6px 22px rgba(245,168,35,0.14)}
@@ -429,101 +429,203 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .btn-block{width:100%}
 
 /* ===== Hero — original 4-slide carousel with promo cards (restored) ===== */
+/* ══════════════════════════════════════════════════════════════════════════════
+   HERO — rewritten 20 Aug 2026 from the canonical design frame
+   (Hero_Nav_Fixed.dc.html #10a desktop / #10b phone).
+
+   What changed, and why it is a rewrite rather than a patch: the old hero put
+   every slide inside its own coloured card — white, gold-bordered, red-bordered,
+   indigo — so the first screen carried four different visual identities in
+   twenty-six seconds, duplicated the logo sitting 40px above it, and floated a
+   620px `backdrop-filter: blur(20px)` panel over a full-bleed photograph. That
+   blur is a real cost on a mid-range Android, which is most of this academy's
+   Lagos traffic. There is now ONE editorial block, identical on all four
+   slides, varying only by an accent.
+
+   The accent is a custom property set from `data-accent` on the slide, so the
+   markup carries no `style=` attribute and a fifth slide is one CSS block
+   rather than four hand-written colours.
+   ════════════════════════════════════════════════════════════════════════════ */
 #hero{position:relative;width:100%;min-height:calc(100vh - var(--nav-h));min-height:calc(100dvh - var(--nav-h));overflow:hidden;background:var(--bg-surface)}
 .hero-slides{position:absolute;inset:0}
-.hero-slide{position:absolute;inset:0;opacity:0;transition:opacity 0.9s var(--ease);pointer-events:none}
-.hero-slide.active{opacity:1;pointer-events:auto}
-.hero-slide .slide-bg{position:absolute;inset:0;background-size:cover;background-position:center top;background-color:var(--bg-surface);transform:scale(1.06);transition:transform 8s ease-out}
-.hero-slide.active .slide-bg{transform:scale(1)}
-.hero-slide .slide-overlay{position:absolute;inset:0;pointer-events:none}
-.slide-overlay-1{background:linear-gradient(180deg,rgba(18,13,8,0.25) 0%,rgba(18,13,8,0.15) 40%,rgba(18,13,8,0.85) 75%,rgba(18,13,8,0.97) 100%)}
-.slide-overlay-2{background:linear-gradient(180deg,rgba(18,13,8,0.2) 0%,rgba(18,13,8,0.1) 40%,rgba(18,13,8,0.82) 75%,rgba(18,13,8,0.97) 100%)}
-.slide-overlay-3{background:linear-gradient(180deg,rgba(0,0,0,0.32) 0%,rgba(0,0,0,0.1) 40%,rgba(18,13,8,0.85) 75%,rgba(18,13,8,0.98) 100%)}
-.slide-overlay-4{background:linear-gradient(180deg,rgba(18,13,8,0.22) 0%,rgba(18,13,8,0.06) 40%,rgba(18,13,8,0.82) 75%,rgba(18,13,8,0.97) 100%)}
 
-.hero-deco{position:absolute;font-size:6rem;opacity:0.04;pointer-events:none;user-select:none;font-family:serif;color:#fff}
-.hero-deco-1{top:8%;left:5%;font-size:8rem}
-.hero-deco-2{top:12%;right:8%;font-size:5rem}
+/* ── One slide ──────────────────────────────────────────────────────────── */
+.hero-slide{
+  position:absolute;inset:0;opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .9s var(--ease-out),visibility .9s var(--ease-out);
+  /* Accent defaults. Every slide overrides these three via data-accent; the
+     defaults exist so a slide with no accent still renders in brand colour
+     rather than in nothing. */
+  --hero-accent:var(--gold-bright);
+  --hero-accent-soft:var(--gold-pale);
+  --hero-cta-bg:var(--gold-bright);
+  --hero-cta-ink:#1A120B;
+  --hero-cta-glow:rgba(252,198,71,.36);
+}
+/* `visibility` as well as opacity: an opacity-0 slide still takes focus, so a
+   keyboard user used to tab through four invisible sets of links. */
+.hero-slide.active{opacity:1;visibility:visible;pointer-events:auto}
 
-/* The card centres in the hero (not pinned to the bottom edge): the headline
-   and CTAs sit above the fold on every viewport instead of leaving a huge
-   empty crown and a half-hidden card. Bottom padding clears the slide dots. */
-.hero-content{position:absolute;inset:0;padding:28px 24px 96px;display:flex;align-items:center;justify-content:center;z-index:10}
-.hero-card{width:100%;max-width:720px;border-radius:var(--radius-xl);padding:30px 34px;display:grid;grid-template-columns:1.1fr 1fr;gap:20px 26px;align-items:center;position:relative;overflow:hidden;transform:translateY(28px);opacity:0;transition:transform 0.7s var(--ease-bounce),opacity 0.5s var(--ease)}
-.hero-slide.active .hero-card{transform:translateY(0);opacity:1;transition-delay:0.25s}
+.hero-slide[data-accent="orange"]{
+  --hero-accent:#F05A28;--hero-accent-soft:#FFB08A;
+  --hero-cta-bg:linear-gradient(135deg,#F05A28,#D97706);--hero-cta-ink:#1A120B;
+  --hero-cta-glow:rgba(240,90,40,.42);
+}
+.hero-slide[data-accent="gold"]{
+  --hero-accent:var(--gold-bright);--hero-accent-soft:var(--gold-bright);
+  --hero-cta-bg:var(--gold-bright);--hero-cta-ink:#1A120B;
+  --hero-cta-glow:rgba(251,198,71,.36);
+}
+.hero-slide[data-accent="red"]{
+  --hero-accent:#FF7A7A;--hero-accent-soft:#FF9E9E;
+  --hero-cta-bg:linear-gradient(135deg,#C22B2B,#9A3412);--hero-cta-ink:#fff;
+  --hero-cta-glow:rgba(194,43,43,.42);
+}
+.hero-slide[data-accent="indigo"]{
+  --hero-accent:#A5B4FC;--hero-accent-soft:#C7D2FE;
+  --hero-cta-bg:#A5B4FC;--hero-cta-ink:#1E1B4B;
+  --hero-cta-glow:rgba(99,102,241,.40);
+}
 
-/* Card themes */
-.card-white{background:rgba(255,255,255,0.97);backdrop-filter:blur(20px);box-shadow:0 -8px 60px rgba(0,0,0,0.3),0 20px 80px rgba(0,0,0,0.4);color:#1A120B}
-.card-dark{background:rgba(10,8,4,0.96);backdrop-filter:blur(20px);border:3px solid var(--gold-bright);box-shadow:0 -8px 60px rgba(0,0,0,0.3),0 0 60px rgba(251,191,36,0.15);color:var(--text)}
-.card-dark-red{background:rgba(10,8,4,0.96);backdrop-filter:blur(20px);border:3px solid transparent;background-clip:padding-box;position:relative;box-shadow:0 -8px 60px rgba(0,0,0,0.4);color:var(--text)}
-.card-dark-red::before{content:'';position:absolute;inset:-3px;border-radius:inherit;background:linear-gradient(135deg,#DC2626,#F05A28,#D97706);z-index:-1}
-.card-purple{background:rgba(67,56,202,0.95);backdrop-filter:blur(20px);border:2px solid rgba(167,139,250,0.4);box-shadow:0 -8px 60px rgba(0,0,0,0.4),0 0 60px rgba(79,70,229,0.2);color:var(--text)}
+/* The photograph is an <img>, not a background-image: only an <img> can carry
+   fetchpriority and be the LCP element the browser prioritises, and only an
+   <img> can be lazily deferred on the three slides nobody has seen yet. */
+.hero-bg{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  object-position:center top;background:var(--bg-surface);
+  transform:scale(1.06);transition:transform 8s ease-out
+}
+.hero-slide.active .hero-bg{transform:scale(1)}
 
-.card-brand{grid-column:1 / -1;display:flex;align-items:center;gap:10px}
-.card-brand img{width:34px;height:34px;border-radius:8px}
-.card-brand-name{font-family:var(--font-display);font-size:0.88rem;letter-spacing:0.14em;opacity:0.85}
-.card-white .card-brand-name{color:#3D2B1A}
+/* Two scrims, doing two different jobs. The angled one earns the left third
+   for type; the bottom one carries the page into the section below and gives
+   the proof strip and the controls a floor to sit on. */
+.hero-scrim{position:absolute;inset:0;pointer-events:none;background:linear-gradient(96deg,rgba(18,13,8,.94) 0%,rgba(18,13,8,.80) 36%,rgba(18,13,8,.22) 66%,rgba(18,13,8,.46) 100%)}
+.hero-scrim-b{position:absolute;left:0;right:0;bottom:0;height:220px;pointer-events:none;background:linear-gradient(180deg,rgba(18,13,8,0),rgba(18,13,8,.86))}
 
-.card-headline{font-family:var(--font-display);line-height:0.92;letter-spacing:0.01em}
-.card-headline.xl{font-size:clamp(2.4rem,7vw,3.6rem)}
-.card-headline.lg{font-size:clamp(2rem,6vw,3rem)}
-.text-red{color:#DC2626}
-/* On the dark hero cards the deep red is muddy against near-black — lift it
-   (#FF7A7A ≈ 7.8:1 on the card) while the white card keeps the deep brand red. */
-.card-dark .text-red,.card-dark-red .text-red,.card-purple .text-red{color:#FF7A7A}
-.text-gold{color:var(--gold-bright)}
-.text-white{color:#fff}
-.text-dark{color:#1A120B}
-.text-orange{color:var(--orange)}
+/* The design frame put a faint treble clef in the top-right corner. It is
+   deliberately NOT reproduced: motion.js already renders the site's signature
+   sculptural wireframe at top 8% / right 6% — the same corner — and that file
+   says of it "one sculptural element, never particles, never noise". A second
+   decoration behind the first is the noise it is guarding against. */
 
-.card-body{display:flex;flex-direction:column;gap:14px}
-.card-subtitle{font-size:0.98rem;font-weight:700;line-height:1.3}
-.card-white .card-subtitle{color:#1A120B}
-.card-desc{font-size:0.9rem;line-height:1.6}
-.card-white .card-desc{color:#4A3120}
-.card-dark .card-desc,.card-dark-red .card-desc{color:rgba(251,247,243,0.86)}
-.card-purple .card-desc{color:rgba(255,255,255,0.92)}
+/* ── The editorial block ────────────────────────────────────────────────── */
+.hero-stack{position:absolute;left:clamp(20px,7.8vw,112px);right:clamp(20px,5vw,72px);top:50%;transform:translateY(-50%);max-width:640px;z-index:10;opacity:0}
+.hero-slide.active .hero-stack{opacity:1;transition:opacity .5s var(--ease-out) .2s}
+.hero-stack-inner{transform:translateY(22px);transition:transform .7s var(--ease-bounce) .2s}
+.hero-slide.active .hero-stack-inner{transform:none}
 
-.btn-signup{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px 26px;border-radius:100px;font-family:var(--font-body);font-size:0.86rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;transition:all 0.2s var(--ease);width:100%}
-.btn-signup-orange{background:linear-gradient(135deg,#F05A28,#D97706);color:#1A120B;box-shadow:0 4px 20px rgba(240,90,40,0.4)}
-.btn-signup-orange:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(240,90,40,0.55)}
-.btn-signup-gold{background:var(--gold-bright);color:#1A120B;box-shadow:0 4px 20px rgba(251,191,36,0.4)}
-.btn-signup-gold:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(251,191,36,0.55)}
-.btn-signup-red{background:linear-gradient(135deg,#B91C1C,#9A3412);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.35);box-shadow:0 4px 20px rgba(220,38,38,0.4)}
-.btn-signup-red:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(220,38,38,0.55)}
-.btn-signup-blue{background:rgba(99,102,241,0.3);border:2px solid rgba(165,180,252,0.6);color:#fff;box-shadow:0 4px 20px rgba(79,70,229,0.3)}
-.btn-signup-blue:hover{background:rgba(99,102,241,0.5);transform:translateY(-2px)}
-.btn-signup-ghost-dark{background:transparent;color:#1A120B;border:2px solid rgba(26,18,11,0.55)}
-.btn-signup-ghost-dark:hover{background:rgba(26,18,11,0.08);border-color:#1A120B}
-.btn-signup-ghost-light{background:transparent;color:#fff;border:2px solid rgba(255,255,255,0.65)}
-.btn-signup-ghost-light:hover{background:rgba(255,255,255,0.12);border-color:#fff}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:13px;margin-bottom:22px;font-size:.72rem;font-weight:800;letter-spacing:.17em;text-transform:uppercase;color:var(--hero-accent-soft)}
+.hero-eyebrow-rule{display:block;width:30px;height:2px;border-radius:2px;background:var(--hero-accent);flex:0 0 auto}
 
-.hero-card-actions{display:flex;flex-direction:column;gap:10px}
+.hero-hl{font-family:var(--font-display);font-size:clamp(2.55rem,6.4vw,4.5rem);line-height:.9;letter-spacing:.012em;margin:0;color:#fff;text-shadow:0 2px 30px rgba(18,13,8,.7)}
+.hero-lede{margin:20px 0 0;font-size:clamp(.94rem,1.3vw,1.06rem);line-height:1.7;color:rgba(251,247,243,.9);max-width:46ch;text-shadow:0 1px 16px rgba(18,13,8,.8)}
 
-.hero-arrow{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,0.55);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.25);color:#fff;display:flex;align-items:center;justify-content:center;z-index:20;transition:all 0.2s var(--ease)}
-.hero-arrow:hover{background:rgba(224,138,26,0.75);border-color:var(--gold)}
+/* One primary action, not two. The old slides stacked two full-width buttons of
+   equal weight, so neither read as the next step; now a solid pill plus an
+   underlined link — still one tap, and it stops competing. */
+.hero-ctas{display:flex;align-items:center;gap:22px;margin-top:32px;flex-wrap:wrap}
+.hero-cta{
+  display:inline-flex;align-items:center;justify-content:center;gap:11px;
+  min-height:56px;padding:0 32px;border-radius:100px;
+  font-size:.9rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  background:var(--hero-cta-bg);color:var(--hero-cta-ink);
+  box-shadow:0 6px 26px var(--hero-cta-glow);
+  transition:transform .2s var(--ease),box-shadow .2s var(--ease)
+}
+.hero-cta:hover{transform:translateY(-2px);box-shadow:0 10px 34px var(--hero-cta-glow);color:var(--hero-cta-ink)}
+.hero-cta-text{
+  display:inline-flex;align-items:center;gap:10px;min-height:56px;
+  font-size:.9rem;font-weight:700;color:#FBF7F3;
+  border-bottom:1.5px solid rgba(251,247,243,.32);
+  transition:color .2s var(--ease),border-color .2s var(--ease)
+}
+.hero-cta-text:hover{color:var(--gold-bright);border-color:var(--gold-bright)}
+
+/* ── The bottom furniture, as a ROW ─────────────────────────────────────────
+   Proof on the left, controls in the middle, the scroll cue on the right, all
+   on one baseline. They used to be three absolutely-positioned things sharing
+   one edge, and MEASURED at 1440 the proof strip overlapped the dot pill by
+   five pixels — the pill is 278px wide once the dots are a comfortable 44px
+   rather than the design frame's 24px. A row cannot collide, at any width,
+   without anybody having to re-measure. ─────────────────────────────────── */
+.hero-footer{
+  position:absolute;left:clamp(20px,7.8vw,112px);right:clamp(20px,5vw,72px);bottom:26px;
+  z-index:12;display:flex;align-items:center;gap:clamp(16px,2.4vw,32px)
+}
+
+/* Persistent, so nothing essential lives inside one slide: a visitor who sees
+   only the fourth still learns where the academy is and what it certifies. */
+.hero-proof{flex:1 1 auto;min-width:0;display:flex;gap:clamp(14px,2vw,28px);flex-wrap:wrap;row-gap:4px;font-size:.72rem;font-weight:600;color:rgba(251,247,243,.74)}
+.hero-proof i{color:var(--gold-bright);margin-right:8px}
+
+/* ── Controls. 44px is the smallest comfortable touch target, and the arrows
+      and pause button are the two things a visitor reaches for on a phone.
+      These four DO keep a backdrop-filter, unlike the card that was removed:
+      the objection was never to the effect, it was to compositing a 620px
+      panel across a full-bleed photograph on every frame of an 8-second Ken
+      Burns. Four 44–52px controls is a different order of cost. ─────────── */
+.hero-arrow{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,.42);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.22);color:#fff;font-size:1rem;display:flex;align-items:center;justify-content:center;z-index:12;cursor:pointer;transition:background .2s var(--ease),border-color .2s var(--ease)}
+.hero-arrow:hover{background:rgba(224,138,26,.75);border-color:var(--gold)}
 .hero-arrow-prev{left:24px}.hero-arrow-next{right:24px}
-.hero-nav{position:absolute;bottom:24px;left:0;right:0;display:flex;justify-content:center;gap:8px;z-index:20}
-.hero-dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.55);transition:all 0.3s var(--ease);border:none;cursor:pointer}
-.hero-dot.active{width:30px;border-radius:5px;background:var(--gold-bright)}
-.hero-dot:hover{background:rgba(255,255,255,0.85)}
 
-.slide-url{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:0.74rem;color:rgba(255,255,255,0.75);letter-spacing:0.04em;z-index:5;pointer-events:none}
-.slide-url span{color:rgba(255,255,255,0.85);font-weight:600;font-style:italic}
+.hero-nav{flex:0 0 auto;display:flex;align-items:center;gap:4px}
 
-.scroll-cue{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);z-index:15;display:flex;flex-direction:column;align-items:center;gap:8px;animation:scrollCue 3s ease-in-out infinite;pointer-events:none}
-@keyframes scrollCue{0%,100%{opacity:.3;transform:translateX(-50%) translateY(0)}50%{opacity:.8;transform:translateX(-50%) translateY(4px)}}
-.scroll-cue-text{font-size:0.66rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.55)}
-.scroll-cue-icon{font-size:1rem;color:rgba(255,255,255,0.45)}
+/* The active dot doubles as a progress bar, so the interval is visible rather
+   than a surprise — and pausing visibly stops it. The fill animates scaleX, not
+   width: a 0 → 100% width transition does not interpolate (a length to a
+   percentage), and a transform runs on the compositor. */
+.hero-dot{position:relative;width:44px;height:44px;padding:0;border:0;background:none;cursor:pointer;display:grid;place-items:center}
+.hero-dot-face{display:block;width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,.55);overflow:hidden;transition:width .3s var(--ease-out),border-radius .3s var(--ease),background .3s var(--ease)}
+.hero-dot.active .hero-dot-face{width:32px;border-radius:7px;background:rgba(255,255,255,.26)}
+.hero-dot:hover .hero-dot-face{background:rgba(255,255,255,.85)}
+.hero-dot.active:hover .hero-dot-face{background:rgba(255,255,255,.26)}
+.hero-dot-fill{display:block;height:100%;width:100%;border-radius:inherit;background:var(--gold-bright);transform:scaleX(0);transform-origin:left center;will-change:transform}
+.hero-dot-tip{position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%) translateY(4px);white-space:nowrap;padding:6px 11px;border-radius:8px;background:rgba(10,8,4,.94);border:1px solid var(--border);color:#FBF7F3;font-size:.72rem;font-weight:700;opacity:0;pointer-events:none;transition:opacity .18s var(--ease),transform .18s var(--ease)}
+.hero-dot:hover .hero-dot-tip,.hero-dot:focus-visible .hero-dot-tip{opacity:1;transform:translateX(-50%) translateY(0)}
 
+.hero-pause{width:44px;height:44px;margin-left:4px;border-radius:50%;background:rgba(0,0,0,.5);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:.8rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s var(--ease),border-color .2s var(--ease)}
+.hero-pause:hover{background:rgba(224,138,26,.75);border-color:var(--gold)}
+
+.scroll-cue{flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:9px;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(251,247,243,.66);pointer-events:none;white-space:nowrap}
+.scroll-cue-icon{color:var(--gold-bright);font-size:.62rem;animation:scrollCue 3s ease-in-out infinite}
+@keyframes scrollCue{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(3px);opacity:1}}
+
+/* ── Phone. The block goes to the floor so the photograph keeps its top half,
+      which is the whole reason for paying to shoot one. ─────────────────── */
 @media (max-width:768px){
-  .hero-content{padding:20px 16px 84px}
-  .hero-card{grid-template-columns:1fr;padding:22px 22px;border-radius:var(--radius-lg);gap:14px}
-  .card-headline.xl{font-size:clamp(2rem,8vw,2.8rem)}
-  .card-headline.lg{font-size:clamp(1.8rem,7vw,2.4rem)}
+  /* Clears the wrapped footer row. MEASURED at 390px: the footer is 118px tall
+     (controls 44 + gap 12 + a two-line proof strip 42) and sits 20px off the
+     floor, so the block must start above 138. At 320px the proof takes a third
+     line, hence the extra headroom rather than a tight 146. */
+  .hero-stack{left:18px;right:18px;top:auto;bottom:178px;transform:none;max-width:none}
+  .hero-hl{font-size:clamp(2.1rem,9vw,2.55rem)}
+  .hero-lede{font-size:.94rem;margin-top:13px;line-height:1.65}
+  .hero-eyebrow{margin-bottom:15px;font-size:.66rem;gap:10px}
+  .hero-eyebrow-rule{width:22px}
+  .hero-ctas{margin-top:20px;gap:12px;flex-direction:column;align-items:stretch}
+  .hero-cta{min-height:52px;width:100%}
+  .hero-cta-text{min-height:48px;justify-content:center;border-bottom:0;border:1.5px solid rgba(251,247,243,.32);border-radius:100px}
+  /* The row wraps: controls first, proof underneath. The strip stays a sibling
+     of the slides rather than moving inside one — it must be persistent, and
+     there is one copy, not four. */
+  .hero-footer{left:18px;right:18px;bottom:20px;flex-direction:column-reverse;align-items:center;gap:12px}
+  .hero-proof{flex:0 0 auto;justify-content:center;text-align:center;gap:14px;font-size:.66rem}
   .hero-arrow{display:none}
   .scroll-cue{display:none}
 }
+
+/* An 8-second Ken Burns and a 6.5-second auto-advance are both motion. The
+   carousel additionally starts PAUSED under this query — see main.js — so this
+   only has to stop the transitions the browser owns. */
+@media (prefers-reduced-motion:reduce){
+  .hero-bg,.hero-slide.active .hero-bg{transform:none;transition:none}
+  .hero-slide,.hero-stack,.hero-stack-inner{transition:none}
+  .hero-stack-inner{transform:none}
+  .hero-dot-fill{transition:none!important}
+  .scroll-cue-icon{animation:none}
+}
+
 
 /* Compact page hero (used on inner pages). Curved bottom: the hero's darkened
    base (::after fades to near-black) curves against the lighter body below,
@@ -1058,8 +1160,6 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   /* Homepage carousel: cap height so there's no tall empty void above the card,
      and let the promo card breathe near the bottom. */
   #hero{min-height:80vh;min-height:80dvh}
-  .hero-content{padding:16px 14px 78px}
-  .hero-deco-1{font-size:5rem}.hero-deco-2{font-size:3.4rem}
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -1082,7 +1182,6 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .pathway-card{padding:26px 22px}
   .school-card{padding:28px 22px}
   .unique-card{padding:28px 22px}
-  .hero-content{padding:14px 12px 72px}
   /* Keep brand + CTA + hamburger on one line without overflow, and clear
      the notch / rounded corners on landscape phones via safe-area insets */
   .nav-inner{padding:0 max(14px,env(safe-area-inset-right)) 0 max(14px,env(safe-area-inset-left));gap:8px}
@@ -1094,11 +1193,9 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .btn-nav-ghost{padding:9px 12px;font-size:0.72rem}
 }
 @media (max-width:380px){
-  .hero-card{padding:18px 16px;gap:12px;border-radius:var(--radius-md)}
-  .card-headline.xl{font-size:clamp(1.9rem,9vw,2.5rem)}
-  .card-headline.lg{font-size:clamp(1.7rem,8vw,2.3rem)}
-  .card-desc{font-size:0.85rem}
-  .btn-signup{padding:12px 16px;font-size:0.78rem;letter-spacing:0.04em}
+  .hero-hl{font-size:clamp(1.9rem,9vw,2.35rem)}
+  .hero-lede{font-size:0.88rem}
+  .hero-cta{padding:0 18px;font-size:0.78rem;letter-spacing:0.04em}
   .stat-number{font-size:clamp(1.6rem,6vw,2.2rem)}
   .stat-label{font-size:0.7rem}
   .page-hero{padding:72px 16px 48px}
@@ -1119,7 +1216,7 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .nav-brand img{width:34px;height:34px}
   .btn-nav-ghost{padding:8px 10px;font-size:0;gap:0}
   .btn-nav-ghost .nav-ico{width:15px;height:15px}
-  .hero-card-actions{gap:8px}
+  .hero-ctas{gap:8px}
 }
 
 /* Wide screens — cap content width but keep grids breathing */
@@ -1203,9 +1300,13 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   #hero{min-height:auto}
   .hero-slide{position:relative}
   .hero-slide:not(.active){display:none}
-  .hero-content{position:relative;padding:24px 20px 32px}
-  .hero-card{transform:none;opacity:1}
-  .scroll-cue,.hero-nav{display:none}
+  /* The block flows instead of being vertically centred in a height that no
+     longer exists, and the proof strip comes with it. */
+  .hero-stack{position:relative;top:auto;bottom:auto;transform:none;max-width:none;padding:24px 20px 32px;opacity:1}
+  .hero-stack-inner{transform:none}
+  .hero-bg{position:absolute}
+  .hero-footer{position:relative;left:auto;right:auto;bottom:auto;padding:0 20px 20px}
+  .scroll-cue{display:none}
 }
 
 /* ---- Fluid typography polish so headings never crowd on mid widths ---- */
@@ -1318,11 +1419,11 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
    A warm halo behind the promo card gives the hero depth/focus even before
    the slide imagery loads; the slide-nav dots gain a subtle glass pill so
    they stay legible over any slide. */
-.hero-content{isolation:isolate}
-.hero-content::before{content:'';position:absolute;left:50%;bottom:-4%;width:min(880px,94%);height:78%;transform:translateX(-50%);z-index:-1;pointer-events:none;
-  background:radial-gradient(58% 64% at 50% 100%,rgba(232,150,31,0.20),rgba(232,150,31,0.06) 45%,transparent 72%)}
-.hero-card{box-shadow:0 -8px 60px rgba(0,0,0,0.34),0 28px 80px rgba(0,0,0,0.5)}
-.hero-nav{left:50%;right:auto;transform:translateX(-50%);width:max-content;padding:8px 14px;background:rgba(10,8,4,0.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.22);border-radius:100px}
+/* The dots keep their glass pill so they stay legible over any slide. The
+   warm halo that used to sit behind the promo card is gone with the card — a
+   glow whose job was to lift a floating panel off the photograph has nothing
+   left to lift, and the angled scrim already earns the type its contrast. */
+.hero-nav{width:max-content;padding:6px 10px;background:rgba(10,8,4,0.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.22);border-radius:100px}
 .hero-arrow{background:rgba(10,8,4,0.6);border-color:rgba(255,255,255,0.35)}
 
 /* Aurora mesh — layered radial glows for premium section depth (no markup;
@@ -1379,17 +1480,15 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 
 /* A quick, subtle "shine" sweeps across the primary CTAs on hover — the kind of
    tactile micro-interaction modern product pages use. Clipped to the button. */
-.btn-primary,.btn-nav-cta,.btn-signup-orange,.btn-signup-gold{overflow:hidden}
-.btn-primary::before,.btn-nav-cta::before,.btn-signup-orange::before,.btn-signup-gold::before{
+.btn-primary,.btn-nav-cta,.hero-cta{overflow:hidden}
+.btn-primary::before,.btn-nav-cta::before,.hero-cta::before{
   content:'';position:absolute;top:-15%;left:-130%;width:55%;height:130%;pointer-events:none;z-index:1;
   background:linear-gradient(100deg,transparent,rgba(255,255,255,0.5),transparent);
   transform:skewX(-18deg);transition:left .6s var(--ease)}
-.btn-primary:hover::before,.btn-nav-cta:hover::before,
-.btn-signup-orange:hover::before,.btn-signup-gold:hover::before{left:155%}
+.btn-primary:hover::before,.btn-nav-cta:hover::before,.hero-cta:hover::before{left:155%}
 
 @media (prefers-reduced-motion:reduce){
-  .btn-primary::before,.btn-nav-cta::before,
-  .btn-signup-orange::before,.btn-signup-gold::before{display:none}
+  .btn-primary::before,.btn-nav-cta::before,.hero-cta::before{display:none}
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1470,7 +1569,7 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 .btn:active,.btn-primary:active{transform:translateY(1px);box-shadow:0 2px 8px rgba(224,138,26,0.2)}
 .btn-secondary:active{transform:translateY(1px)}
 .btn-nav-cta:active{transform:translateY(0);box-shadow:0 2px 10px rgba(224,138,26,0.3)}
-.btn-signup:active{transform:translateY(1px);filter:brightness(0.94)}
+.hero-cta:active{transform:translateY(1px);filter:brightness(0.94)}
 .floating-enroll-btn:active{transform:translateY(-1px);filter:brightness(0.92)}
 .t-arrow:active{transform:scale(0.92)}
 
@@ -1495,5 +1594,5 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 /* Reduced-motion: cancel any new transform transitions we introduced */
 @media (prefers-reduced-motion:reduce){
   .btn:active,.btn-primary:active,.btn-secondary:active,
-  .btn-nav-cta:active,.btn-signup:active,.floating-enroll-btn:active{transform:none}
+  .btn-nav-cta:active,.hero-cta:active,.floating-enroll-btn:active{transform:none}
 }

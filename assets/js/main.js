@@ -514,39 +514,188 @@
   }
 
   // ============================================================
-  // Hero carousel
+  // Hero carousel — rewritten 20 Aug 2026 from the canonical design frame
+  // (Hero_Nav_Fixed.dc.html). What the old one lacked, and why each matters:
+  //
+  //   • It had no pause control, which makes an auto-advancing carousel a
+  //     WCAG 2.2.2 failure however pretty it is.
+  //   • It ignored prefers-reduced-motion, so a visitor who asked for less
+  //     motion got a slide change every six and a half seconds anyway.
+  //   • It announced nothing, so a screen-reader user was read a heading that
+  //     silently became a different heading.
+  //   • Steering it restarted the timer, so a visitor who navigated
+  //     deliberately was moved on anyway. Deliberate navigation means they want
+  //     to stay: it now hands over control and stops.
+  //   • aria-selected on a button that is not in a listbox is meaningless;
+  //     aria-current is what "this is the one you are on" is spelled.
   // ============================================================
   function initHero() {
     var slides = $$('.hero-slide');
-    var dots = $$('.hero-dot');
-    if (!slides.length) return;
-    var current = 0, timer = null;
-    function go(i) {
-      slides[current].classList.remove('active');
-      if (dots[current]) { dots[current].classList.remove('active'); dots[current].setAttribute('aria-selected', 'false'); }
-      current = (i + slides.length) % slides.length;
-      slides[current].classList.add('active');
-      if (dots[current]) { dots[current].classList.add('active'); dots[current].setAttribute('aria-selected', 'true'); }
+    var dots   = $$('.hero-dot');
+    var live   = $('#heroLive');
+    var toggle = $('#heroPause');
+    var stage  = $('#hero');
+    if (!slides.length || !stage) return;
+
+    var INTERVAL = 6500;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var i = 0, timer = null, paused = !!reduce;
+
+    var fills = dots.map(function (d) { return d.querySelector('.hero-dot-fill'); });
+
+    // The active dot doubles as a progress bar. scaleX rather than width: a
+    // 0 → 100% width transition does not interpolate (a length to a
+    // percentage), and a transform runs on the compositor rather than
+    // relayouting the dot forty times a second.
+    function setFill(mode) {
+      fills.forEach(function (f, k) {
+        if (!f) return;
+        f.style.transition = 'none';
+        f.style.transform = (k === i && mode === 'solid') ? 'scaleX(1)' : 'scaleX(0)';
+      });
+      var f = fills[i];
+      if (!f || mode !== 'run') return;
+      void f.offsetWidth;                       // commit the reset before animating
+      f.style.transition = 'transform ' + INTERVAL + 'ms linear';
+      f.style.transform = 'scaleX(1)';
     }
-    function next() { go(current + 1); }
-    function prev() { go(current - 1); }
-    function start() { stop(); timer = setInterval(next, 6500); }
+
+    // Freeze where it actually is, so a hover does not rewind the bar.
+    function freezeFill() {
+      var f = fills[i];
+      if (!f) return;
+      var t = getComputedStyle(f).transform;
+      var x = 0;
+      if (t && t !== 'none') {
+        if (window.DOMMatrixReadOnly) { try { x = new DOMMatrixReadOnly(t).a || 0; } catch (e) { x = 0; } }
+        else { var m = t.match(/matrix\(([^,]+)/); x = m ? parseFloat(m[1]) || 0 : 0; }
+      }
+      f.style.transition = 'none';
+      f.style.transform = 'scaleX(' + x + ')';
+    }
+
+    // `visibility` takes a slide out of the tab order, but it transitions over
+    // .9s and computes as `visible` for the whole fade — MEASURED: for those
+    // 900ms the outgoing slide's two links were still focusable. `inert` closes
+    // that window immediately, and is what actually expresses "this subtree is
+    // not interactive" rather than leaving it to a paint property.
+    function setInert(el, on) {
+      if ('inert' in HTMLElement.prototype) el.inert = on;
+      else if (on) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+    }
+    slides.forEach(function (sl, k) { setInert(sl, k !== 0); });
+
+    function go(n, announce) {
+      var prevEl = slides[i];
+      prevEl.classList.remove('active');
+      prevEl.setAttribute('aria-hidden', 'true');
+      setInert(prevEl, true);
+      if (dots[i]) { dots[i].classList.remove('active'); dots[i].removeAttribute('aria-current'); }
+
+      i = (n + slides.length) % slides.length;
+
+      var cur = slides[i];
+      cur.classList.add('active');
+      cur.removeAttribute('aria-hidden');
+      setInert(cur, false);
+      if (dots[i]) { dots[i].classList.add('active'); dots[i].setAttribute('aria-current', 'true'); }
+
+      setFill(paused ? 'solid' : 'run');
+      if (announce && live) {
+        live.textContent = 'Slide ' + (i + 1) + ' of ' + slides.length + ': ' +
+          (cur.getAttribute('data-title') || '');
+      }
+    }
+
     function stop()  { if (timer) { clearInterval(timer); timer = null; } }
-    on($('#nextArrow'), 'click', function () { next(); start(); });
-    on($('#prevArrow'), 'click', function () { prev(); start(); });
-    dots.forEach(function (d) { on(d, 'click', function () { go(parseInt(d.getAttribute('data-dot'), 10)); start(); }); });
-    var hero = $('#hero'); if (hero) {
-      var tx0 = 0, ty0 = 0;
-      on(hero, 'touchstart', function (e) { tx0 = e.changedTouches[0].clientX; ty0 = e.changedTouches[0].clientY; }, { passive: true });
-      on(hero, 'touchend', function (e) {
-        var dx = e.changedTouches[0].clientX - tx0;
-        var dy = e.changedTouches[0].clientY - ty0;
-        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) { dx < 0 ? next() : prev(); start(); }
-      }, { passive: true });
-      on(hero, 'mouseenter', stop);
-      on(hero, 'mouseleave', start);
+    function start() {
+      if (paused) return;
+      stop();
+      timer = setInterval(function () { go(i + 1, false); }, INTERVAL);
     }
-    on(document, 'visibilitychange', function () { document.hidden ? stop() : start(); });
+
+    function syncToggle() {
+      if (!toggle) return;
+      toggle.setAttribute('aria-pressed', paused ? 'true' : 'false');
+      toggle.setAttribute('aria-label', paused ? 'Play the slideshow' : 'Pause the slideshow');
+      toggle.innerHTML = '<i class="fa-solid fa-' + (paused ? 'play' : 'pause') + '" aria-hidden="true"></i>';
+    }
+
+    // Deliberate navigation hands over control: it stops the timer for good
+    // rather than restarting it under the visitor.
+    function steer(fn) {
+      return function (e) {
+        if (e && e.preventDefault) e.preventDefault();
+        paused = true;
+        stop();
+        syncToggle();
+        fn();
+        setFill('solid');
+      };
+    }
+
+    on($('#nextArrow'), 'click', steer(function () { go(i + 1, true); }));
+    on($('#prevArrow'), 'click', steer(function () { go(i - 1, true); }));
+    dots.forEach(function (d) {
+      on(d, 'click', steer(function () { go(parseInt(d.getAttribute('data-dot'), 10) || 0, true); }));
+    });
+
+    if (toggle) on(toggle, 'click', function () {
+      paused = !paused;
+      syncToggle();
+      if (paused) { stop(); setFill('solid'); } else { start(); setFill('run'); }
+    });
+
+    // Arrow keys work anywhere inside the hero once focus is in it, but never
+    // steal them from a link or a field.
+    on(stage, 'keydown', function (e) {
+      if (e.target && e.target.closest && e.target.closest('a,input,textarea,select')) return;
+      if (e.key === 'ArrowRight') steer(function () { go(i + 1, true); })(e);
+      else if (e.key === 'ArrowLeft') steer(function () { go(i - 1, true); })(e);
+    });
+
+    // Drag with a mouse — the gesture that already worked with a finger.
+    var px = null;
+    on(stage, 'pointerdown', function (e) {
+      if (e.pointerType !== 'mouse' || (e.target.closest && e.target.closest('a,button'))) return;
+      px = e.clientX;
+      stage.style.cursor = 'grabbing';
+    });
+    function endDrag(e) {
+      if (px === null) return;
+      var dx = e.clientX - px;
+      px = null;
+      stage.style.cursor = '';
+      if (Math.abs(dx) > 60) steer(function () { go(i + (dx < 0 ? 1 : -1), true); })();
+    }
+    on(stage, 'pointerup', endDrag);
+    on(stage, 'pointerleave', endDrag);
+
+    var tx0 = 0, ty0 = 0;
+    on(stage, 'touchstart', function (e) {
+      tx0 = e.changedTouches[0].clientX; ty0 = e.changedTouches[0].clientY;
+    }, { passive: true });
+    on(stage, 'touchend', function (e) {
+      var dx = e.changedTouches[0].clientX - tx0;
+      var dy = e.changedTouches[0].clientY - ty0;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+        steer(function () { go(i + (dx < 0 ? 1 : -1), true); })();
+      }
+    }, { passive: true });
+
+    // Hover and focus HOLD rather than pause: the visitor is reading, and the
+    // bar resumes from where it stopped instead of restarting the interval.
+    function hold()   { stop(); freezeFill(); }
+    function resume() { if (!paused) { start(); setFill('run'); } }
+    on(stage, 'mouseenter', hold);
+    on(stage, 'mouseleave', resume);
+    on(stage, 'focusin', hold);
+    on(stage, 'focusout', resume);
+
+    on(document, 'visibilitychange', function () { document.hidden ? hold() : resume(); });
+
+    syncToggle();
+    setFill(paused ? 'solid' : 'run');
     start();
   }
 

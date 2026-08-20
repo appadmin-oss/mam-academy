@@ -35,9 +35,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
+<link rel="preload" as="image" fetchpriority="high" href="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&amp;q=80">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706d">
+<link rel="stylesheet" href="assets/css/main.css?v=20260820a">
 
 <!-- The canonical #organization + #website entity now lives sitewide in
      partials/header.html (on every page). The page-specific Course/ItemList/
@@ -68,114 +69,103 @@
 
 <main id="main">
 
-<!-- ====================== HERO — original 4-slide carousel ====================== -->
-<section id="hero" aria-label="Hero carousel">
+<!-- ══════════════════════════════════════════════════════════════════════════
+     HERO — rewritten 20 Aug 2026 from the canonical design frame
+     (Hero_Nav_Fixed.dc.html #10a / #10b).
+
+     One editorial block, identical on all four slides, varying only by the
+     accent that `data-accent` selects in main.css. No coloured card, no
+     backdrop-filter over the photograph, no logo duplicated 40px below the
+     navbar's own. The proof strip is persistent, so nothing a visitor needs
+     lives inside a single slide.
+
+     The first photograph carries fetchpriority="high" and is preloaded in the
+     head — it is the page's LCP element. The other three are lazy: three
+     1920px images nobody has scrolled to are three images nobody should pay
+     for. main.js deliberately does not touch loading attributes inside #hero.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<section id="hero" aria-label="Hero carousel" aria-roledescription="carousel">
   <div class="hero-slides" id="heroSlides">
 
-    <!-- Slide 1: Become a Meta-Musician -->
-    <article class="hero-slide active" data-slide="0">
-      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&q=80')"></div>
-      <div class="slide-overlay slide-overlay-1" aria-hidden="true"></div>
-      <div class="hero-deco hero-deco-1" aria-hidden="true">♩</div>
-      <div class="hero-deco hero-deco-2" aria-hidden="true">𝄞</div>
-      <div class="hero-content">
-        <div class="hero-card card-white" role="region" aria-label="Slide 1: Become a Meta-Musician">
-          <div class="card-brand">
-            <img src="mam-academy-logo.svg" alt="MAM Academy" onerror="this.style.display='none'">
-            <div class="card-brand-name" style="color:#3D2B1A">MAM ACADEMY</div>
-          </div>
-          <h1 class="card-headline xl">
-            <span class="text-red">BECOME</span><br>
-            <span class="text-dark">A META-</span><br>
-            <span class="text-red">MUSICIAN</span>
-          </h1>
-          <div class="card-body">
-            <p class="card-subtitle">A Creative Intelligence &amp; Performance Academy</p>
-            <p class="card-desc">We interpret the timeless using instruments and replay it in time — forming complete musicians, performers and creative thinkers.</p>
-            <div class="hero-card-actions">
-              <a href="apply" class="btn-signup btn-signup-orange">Apply Now</a>
-              <a href="auditer" class="btn-signup btn-signup-ghost-dark">Book Auditer</a>
-            </div>
+    <!-- Slide 1 — Become a Meta-Musician -->
+    <article class="hero-slide active" data-slide="0" data-accent="orange"
+             data-title="Become a Meta-Musician" aria-roledescription="slide"
+             aria-label="Slide 1 of 4: Become a Meta-Musician">
+      <img class="hero-bg" src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&amp;q=80"
+           alt="" fetchpriority="high" decoding="async" width="1920" height="1080">
+      <div class="hero-scrim" aria-hidden="true"></div>
+      <div class="hero-scrim-b" aria-hidden="true"></div>
+      <div class="hero-stack">
+        <div class="hero-stack-inner">
+          <p class="hero-eyebrow"><span class="hero-eyebrow-rule" aria-hidden="true"></span>A Creative Intelligence &amp; Performance Academy</p>
+          <h1 class="hero-hl" aria-label="Become a Meta-Musician">BECOME A<br>META-MUSICIAN</h1>
+          <p class="hero-lede">We interpret the timeless using instruments and replay it in time — forming complete musicians, performers and creative thinkers.</p>
+          <div class="hero-ctas">
+            <a href="apply" class="hero-cta">Apply now<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+            <a href="auditer" class="hero-cta-text">Book an auditer</a>
           </div>
         </div>
       </div>
     </article>
 
-    <!-- Slide 2: Music Changes -->
-    <article class="hero-slide" data-slide="1">
-      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1920&q=80')"></div>
-      <div class="slide-overlay slide-overlay-2" aria-hidden="true"></div>
-      <div class="hero-content">
-        <div class="hero-card card-dark" role="region" aria-label="Slide 2: Music Changes">
-          <div class="card-brand">
-            <img src="mam-academy-logo.svg" alt="MAM Academy" onerror="this.style.display='none'">
-            <div class="card-brand-name">MAM ACADEMY</div>
-          </div>
-          <h2 class="card-headline xl">
-            <span class="text-gold">Music</span><br>
-            <span class="text-red">Changes</span>
-          </h2>
-          <div class="card-body">
-            <p class="card-subtitle" style="color:#FBBF24">Trinity-Equivalent · Grade 1 – 8</p>
-            <p class="card-desc">Pre-Certification, Certification, Pre-Diploma &amp; Diploma — pathways built for measurable, professional formation.</p>
-            <div class="hero-card-actions">
-              <a href="pathways" class="btn-signup btn-signup-gold">View Pathways</a>
-              <a href="apply" class="btn-signup btn-signup-ghost-light">Apply</a>
-            </div>
+    <!-- Slide 2 — Music Changes -->
+    <article class="hero-slide" data-slide="1" data-accent="gold" aria-hidden="true"
+             data-title="Music Changes" aria-roledescription="slide"
+             aria-label="Slide 2 of 4: Music Changes">
+      <img class="hero-bg" src="https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1920&amp;q=80"
+           alt="" loading="lazy" fetchpriority="low" decoding="async" width="1920" height="1080">
+      <div class="hero-scrim" aria-hidden="true"></div>
+      <div class="hero-scrim-b" aria-hidden="true"></div>
+      <div class="hero-stack">
+        <div class="hero-stack-inner">
+          <p class="hero-eyebrow"><span class="hero-eyebrow-rule" aria-hidden="true"></span>Trinity-equivalent · Grades 1 – 8</p>
+          <h2 class="hero-hl">MUSIC<br>CHANGES</h2>
+          <p class="hero-lede">Pre-Certification, Certification, Pre-Diploma and Diploma — four pathways built for measurable, professional formation.</p>
+          <div class="hero-ctas">
+            <a href="pathways" class="hero-cta">View pathways<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+            <a href="tuition" class="hero-cta-text">Compare the four levels</a>
           </div>
         </div>
       </div>
     </article>
 
-    <!-- Slide 3: Practice With Focus -->
-    <article class="hero-slide" data-slide="2">
-      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=1920&q=80')"></div>
-      <div class="slide-overlay slide-overlay-3" aria-hidden="true"></div>
-      <div class="hero-content">
-        <div class="hero-card card-dark-red" role="region" aria-label="Slide 3: Practice with Focus">
-          <div class="card-brand">
-            <img src="mam-academy-logo.svg" alt="MAM Academy" onerror="this.style.display='none'">
-            <div class="card-brand-name">MAM ACADEMY</div>
-          </div>
-          <h2 class="card-headline lg">
-            <span class="text-red">PRACTICE</span><br>
-            <span class="text-white">WITH</span><br>
-            <span class="text-red">FOCUS</span>
-          </h2>
-          <div class="card-body">
-            <p class="card-subtitle" style="color:#fff">The MAM Rapid Rhythm Intelligence System</p>
-            <p class="card-desc">Sight read. Sight sing. Lock the timing. A signature method for fast rhythm fluency &amp; ensemble synchronization.</p>
-            <div class="hero-card-actions">
-              <a href="schools#rhythm" class="btn-signup btn-signup-red">Explore Rhythm</a>
-              <a href="crash" class="btn-signup btn-signup-ghost-light">Crash Course <span data-cur-sym>$</span><span data-price="70">70</span></a>
-            </div>
+    <!-- Slide 3 — Practice with Focus -->
+    <article class="hero-slide" data-slide="2" data-accent="red" aria-hidden="true"
+             data-title="Practice with Focus" aria-roledescription="slide"
+             aria-label="Slide 3 of 4: Practice with Focus">
+      <img class="hero-bg" src="https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=1920&amp;q=80"
+           alt="" loading="lazy" fetchpriority="low" decoding="async" width="1920" height="1080">
+      <div class="hero-scrim" aria-hidden="true"></div>
+      <div class="hero-scrim-b" aria-hidden="true"></div>
+      <div class="hero-stack">
+        <div class="hero-stack-inner">
+          <p class="hero-eyebrow"><span class="hero-eyebrow-rule" aria-hidden="true"></span>The MAM Rapid Rhythm Intelligence System</p>
+          <h2 class="hero-hl">PRACTICE<br>WITH FOCUS</h2>
+          <p class="hero-lede">Sight read. Sight sing. Lock the timing. A signature method for fast rhythm fluency and ensemble synchronisation.</p>
+          <div class="hero-ctas">
+            <a href="studio" class="hero-cta">Explore rhythm<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+            <a href="crash" class="hero-cta-text">The crash programme</a>
           </div>
         </div>
       </div>
     </article>
 
-    <!-- Slide 4: Music Shapes You -->
-    <article class="hero-slide" data-slide="3">
-      <div class="slide-bg" style="background-image:url('https://images.unsplash.com/photo-1555685813-4a31571be76a?w=1920&q=80')"></div>
-      <div class="slide-overlay slide-overlay-4" aria-hidden="true"></div>
-      <div class="hero-content">
-        <div class="hero-card card-purple" role="region" aria-label="Slide 4: Music Shapes You">
-          <div class="card-brand">
-            <img src="mam-academy-logo.svg" alt="MAM Academy" onerror="this.style.display='none'">
-            <div class="card-brand-name">MAM ACADEMY</div>
-          </div>
-          <h2 class="card-headline xl">
-            <span class="text-white">MUSIC</span><br>
-            <span class="text-white">SHAPES</span><br>
-            <span class="text-white">YOU</span>
-          </h2>
-          <div class="card-body">
-            <p class="card-subtitle" style="color:#C7D2FE">MetaMusic &amp; Creative Consciousness</p>
-            <p class="card-desc">Philosophy, civilization &amp; consciousness of sound. Beyond skill — we form thinkers and architects of culture.</p>
-            <div class="hero-card-actions">
-              <a href="metamusic-order" class="btn-signup btn-signup-blue">The MetaMusic Order</a>
-              <a href="power-play" class="btn-signup btn-signup-ghost-light" style="display:inline-flex;align-items:center;justify-content:center;gap:8px"><iconify-icon icon="fluent-emoji:high-voltage" class="fx-emoji" width="20" aria-hidden="true"></iconify-icon>Free · Power Play</a>
-            </div>
+    <!-- Slide 4 — Music Shapes You -->
+    <article class="hero-slide" data-slide="3" data-accent="indigo" aria-hidden="true"
+             data-title="Music Shapes You" aria-roledescription="slide"
+             aria-label="Slide 4 of 4: Music Shapes You">
+      <img class="hero-bg" src="https://images.unsplash.com/photo-1555685813-4a31571be76a?w=1920&amp;q=80"
+           alt="" loading="lazy" fetchpriority="low" decoding="async" width="1920" height="1080">
+      <div class="hero-scrim" aria-hidden="true"></div>
+      <div class="hero-scrim-b" aria-hidden="true"></div>
+      <div class="hero-stack">
+        <div class="hero-stack-inner">
+          <p class="hero-eyebrow"><span class="hero-eyebrow-rule" aria-hidden="true"></span>MetaMusic &amp; Creative Consciousness</p>
+          <h2 class="hero-hl">MUSIC<br>SHAPES YOU</h2>
+          <p class="hero-lede">Philosophy, civilisation and the consciousness of sound. Beyond skill — we form thinkers and architects of culture.</p>
+          <div class="hero-ctas">
+            <a href="metamusic-order" class="hero-cta">The MetaMusic Order<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
+            <a href="studio" class="hero-cta-text">Free · Power Play</a>
           </div>
         </div>
       </div>
@@ -183,24 +173,39 @@
 
   </div><!-- /.hero-slides -->
 
-  <button class="hero-arrow hero-arrow-prev" id="prevArrow" aria-label="Previous slide"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
-  <button class="hero-arrow hero-arrow-next" id="nextArrow" aria-label="Next slide"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+  <button type="button" class="hero-arrow hero-arrow-prev" id="prevArrow" aria-label="Previous slide"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+  <button type="button" class="hero-arrow hero-arrow-next" id="nextArrow" aria-label="Next slide"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
 
-  <div class="hero-nav" role="tablist" aria-label="Slide navigation">
-    <button class="hero-dot active" role="tab" aria-selected="true" aria-label="Slide 1" data-dot="0"></button>
-    <button class="hero-dot" role="tab" aria-selected="false" aria-label="Slide 2" data-dot="1"></button>
-    <button class="hero-dot" role="tab" aria-selected="false" aria-label="Slide 3" data-dot="2"></button>
-    <button class="hero-dot" role="tab" aria-selected="false" aria-label="Slide 4" data-dot="3"></button>
+  <!-- The bottom furniture is laid out as a ROW rather than three things
+       positioned against the same edge. Measured: with 44px dots the nav pill
+       is 278px wide, and at 1440 it overlapped the proof strip by five pixels
+       while both were absolutely positioned. A row cannot collide. -->
+  <div class="hero-footer">
+    <!-- Persistent: a visitor who only ever sees slide four still learns where
+         the academy is and what it certifies. -->
+    <div class="hero-proof">
+      <span><i class="fa-solid fa-location-dot" aria-hidden="true"></i>Ikeja studios &amp; online</span>
+      <span><i class="fa-solid fa-award" aria-hidden="true"></i>Trinity-equivalent, Grades 1–8</span>
+      <span><i class="fa-solid fa-calendar-check" aria-hidden="true"></i>Commissioned 2008</span>
+    </div>
+
+    <!-- 44px targets. The active dot doubles as the interval's progress bar, so
+         the auto-advance is visible rather than a surprise. -->
+    <div class="hero-nav" aria-label="Slide navigation">
+      <button type="button" class="hero-dot active" data-dot="0" aria-current="true" aria-label="Go to slide 1: Become a Meta-Musician"><span class="hero-dot-face"><span class="hero-dot-fill"></span></span><span class="hero-dot-tip" aria-hidden="true">Become a Meta-Musician</span></button>
+      <button type="button" class="hero-dot" data-dot="1" aria-label="Go to slide 2: Music Changes"><span class="hero-dot-face"><span class="hero-dot-fill"></span></span><span class="hero-dot-tip" aria-hidden="true">Music Changes</span></button>
+      <button type="button" class="hero-dot" data-dot="2" aria-label="Go to slide 3: Practice with Focus"><span class="hero-dot-face"><span class="hero-dot-fill"></span></span><span class="hero-dot-tip" aria-hidden="true">Practice with Focus</span></button>
+      <button type="button" class="hero-dot" data-dot="3" aria-label="Go to slide 4: Music Shapes You"><span class="hero-dot-face"><span class="hero-dot-fill"></span></span><span class="hero-dot-tip" aria-hidden="true">Music Shapes You</span></button>
+      <button type="button" class="hero-pause" id="heroPause" aria-pressed="false" aria-label="Pause the slideshow"><i class="fa-solid fa-pause" aria-hidden="true"></i></button>
+    </div>
+
+    <div class="scroll-cue" aria-hidden="true">
+      <span>Four schools below</span>
+      <i class="fa-solid fa-chevron-down scroll-cue-icon"></i>
+    </div>
   </div>
 
-  <div class="scroll-cue" aria-hidden="true">
-    <span class="scroll-cue-text">Scroll</span>
-    <i class="fa-solid fa-chevron-down scroll-cue-icon"></i>
-  </div>
-
-  <div class="slide-url" aria-hidden="true">
-    <span>academy.mamcentre.org</span> · Online &amp; Onsite · Trinity-Equivalent
-  </div>
+  <p class="sr-only" id="heroLive" aria-live="polite" aria-atomic="true"></p>
 </section>
 
 <!-- ====================== STATS ====================== -->
@@ -599,6 +604,6 @@
 <?php include __DIR__ . '/partials/footer.html'; ?>
 
 <script src="assets/js/config.js?v=20260807a"></script>
-<script src="assets/js/main.js?v=20260724b"></script>
+<script src="assets/js/main.js?v=20260820a"></script>
 </body>
 </html>

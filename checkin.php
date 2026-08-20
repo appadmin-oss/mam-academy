@@ -36,7 +36,7 @@ $MAM_CI_VER = '20260819a';
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260706d">
+<link rel="stylesheet" href="assets/css/main.css?v=20260820a">
 <style>
   /* Phone-first and deliberately narrow: this is held in one hand, in a
      corridor. Nothing here is wider than a thumb's reach. */

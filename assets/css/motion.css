@@ -96,8 +96,7 @@
 .program-card,
 .method-step,
 .unique-card,
-.next-step-card,
-.hero-card{
+.next-step-card{
   transform-style:preserve-3d;
   backface-visibility:hidden;
 }
@@ -194,7 +193,7 @@
 .btn-nav-cta:active,
 .btn-pay:active,
 .btn-hero:active,
-.btn-signup:active{
+.hero-cta:active{
   transform: translateY(1px) scale(0.985) !important;
   transition: transform 80ms ease-out !important;
 }
