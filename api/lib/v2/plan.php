@@ -66,6 +66,12 @@ const MAM_V2_PLAN_ORDER = [
     'surveys', 'survey_responses', 'learner_feedback', 'application_notes',
     'scholarship_applications', 'auditer_results', 'marketing_contacts',
     'promotions', 'announcement_banners',
+    'consents', 'vetting_records', 'id_cards', 'card_scans',
+    'achievements', 'practice_logs', 'practice_challenges', 'repertoire',
+    'recitals', 'recital_items', 'referral_codes', 'referrals',
+    'dp_assessments', 'dp_breaches', 'dp_processors', 'dp_register_notes',
+    'automation_rules', 'ai_runs',
+    'store_products', 'store_orders', 'store_order_items', 'notifications',
     'custom_field_defs', 'custom_field_values',
     'message_deliveries', 'audit_log',
     'legacy_reference_map',
@@ -760,6 +766,8 @@ function mam_v2_plan(array $source, array $opts = []): array
         count($rows('assessment_types')), $kindId);
 
     /* ── Instructor profiles → custom fields on the membership ───────────── */
+    $fSafeguard = $defineField('memberships', 'safeguarding_contact',
+        'Safeguarding contact (as recorded in v1)', 'string');
     $fBio  = $defineField('memberships', 'instructor_bio', 'Instructor bio', 'string');
     $fSpec = $defineField('memberships', 'instructor_specialties', 'Specialties', 'string');
     $fYrs  = $defineField('memberships', 'instructor_years', 'Years of experience', 'int');
@@ -3968,6 +3976,863 @@ function mam_v2_plan(array $source, array $opts = []): array
             $bannerOut, $promoId),
         count($rows('promo_banners')), $bannerOut + $promoId);
 
+    /* ── Safeguarding, identity and consent ───────────────────────────────── */
+    $vetOut = 0; $vetSeen = [];
+    foreach ($rows('vetting_records') as $v) {
+        $mid = $memberOfV1User[(int) ($v['instructor_id'] ?? 0)] ?? null;
+        $type = mam_v2_plan_str($v['clearance_type'] ?? null, 48);
+        $issued = mam_v2_plan_str($v['issued_on'] ?? null, 10);
+        if ($mid === null || $type === null || $issued === null) {
+            $rejected[] = ['table' => 'vetting_records', 'id' => $v['id'] ?? null,
+                'why' => $mid === null ? 'instructor did not map to a membership'
+                    : 'a clearance with no type or no issue date cannot be checked for currency'];
+            continue;
+        }
+        // uq_vetting_type: re-recording REPLACES, so the LATEST record of each
+        // check wins. v1 had the same unique key, but a merged instructor (two
+        // v1 accounts, one person) can produce two records of one check here.
+        $k = $mid . ':' . $type;
+        $expires = mam_v2_plan_str($v['expires_on'] ?? null, 10);
+        if (isset($vetSeen[$k])) {
+            $i = $vetSeen[$k];
+            $keep = ($T['vetting_records'][$i]['expires_on'] ?? null);
+            // The one that stays current is the one that lasts longer. A gate
+            // asking "is there a current clearance" must not be answered by an
+            // older record that happened to load second.
+            if ($expires !== null && ($keep === null || $expires > $keep)) {
+                $T['vetting_records'][$i]['issued_on'] = $issued;
+                $T['vetting_records'][$i]['expires_on'] = $expires;
+                $T['vetting_records'][$i]['reference_no'] = mam_v2_plan_str($v['reference_no'] ?? null, 190);
+            }
+            $flag('vetting_duplicate', ['membership_id' => $mid, 'clearance_type' => $type,
+                'action' => 'Two records of one check for one person (usually a merged instructor). The '
+                    . 'later-expiring one was kept; confirm which certificate is on file.']);
+            continue;
+        }
+        $vetSeen[$k] = count($T['vetting_records']);
+        $verBy = $userOfV1User[(int) ($v['verified_by'] ?? 0)] ?? null;
+        $verAt = mam_v2_plan_ts($v['verified_at'] ?? null, null);
+        // chk_vetting_verified: both halves or neither. A record verified by
+        // somebody with no date is not a verification, and the safe reading of a
+        // half-record is UNVERIFIED — the gate then asks for it again, which is
+        // the outcome that protects a child.
+        if ($verBy === null || $verAt === null) { $verBy = null; $verAt = null; }
+        $T['vetting_records'][] = ['public_id' => mam_v2_plan_pid('vetting:' . (int) ($v['id'] ?? 0)),
+            'tenant_id' => $tenantId, 'membership_id' => $mid, 'clearance_type' => $type,
+            'issuing_body' => mam_v2_plan_str($v['issuing_body'] ?? null, 190),
+            'reference_no' => mam_v2_plan_str($v['reference_no'] ?? null, 190),
+            'issued_on' => $issued,
+            'expires_on' => ($expires !== null && $expires >= $issued) ? $expires : null,
+            'verified_by' => $verBy, 'verified_at' => $verAt,
+            // WHERE the paper is. Nothing about what it says: no scan, no
+            // findings, no offence data — there is no column for any of it.
+            'evidence_held' => mam_v2_plan_str($v['evidence_held'] ?? null, 255),
+            'created_at' => mam_v2_plan_ts($v['created_at'] ?? null, $nowFallback), 'created_by' => null];
+        $vetOut++;
+    }
+    $note('vetting_records', 'vetting_records',
+        'the safeguarding gate. No check CONTENT and no offence data are carried, because there is nowhere '
+        . 'to put them. A half-recorded verification (a verifier with no date) reads as UNVERIFIED, so the '
+        . 'gate asks for it again — which is the outcome that protects a child.',
+        count($rows('vetting_records')), $vetOut);
+
+    // v1's three boolean consent flags become a ROW PER PURPOSE. v1 could not
+    // say WHEN a consent was withdrawn, which is the NDPA-relevant fact — so
+    // every migrated consent states its effective_from and nothing more,
+    // rather than implying a history it never had.
+    $consentOut = 0;
+    foreach ($rows('student_consents') as $c) {
+        $mid = $memberOfV1User[(int) ($c['student_id'] ?? 0)] ?? null;
+        if ($mid === null) { $rejected[] = ['table' => 'student_consents', 'id' => $c['student_id'] ?? null, 'why' => 'the learner did not map to a membership']; continue; }
+        $when = mam_v2_plan_ts($c['updated_at'] ?? null, $nowFallback);
+        $by = $memberOfV1User[(int) ($c['updated_by'] ?? 0)] ?? null;
+        foreach (['media_consent' => 'media', 'photo_consent' => 'photography', 'data_consent' => 'data_processing'] as $col => $purpose) {
+            $granted = mam_v2_plan_bool($c[$col] ?? null, 0);
+            $T['consents'][] = ['tenant_id' => $tenantId, 'membership_id' => $mid, 'purpose' => $purpose,
+                'is_granted' => $granted,
+                // WHO granted it, which for a child is the guardian. v1 recorded
+                // only who last edited the row, and that is the honest reading of
+                // it — not a claim that the guardian pressed the button.
+                'granted_by_membership_id' => $by,
+                'evidence' => json_encode(['migrated_from' => 'v1.student_consents.' . $col,
+                                           'recorded_by_admin' => $by !== null]),
+                'effective_from' => $when, 'effective_to' => null, 'created_at' => $when];
+            $consentOut++;
+        }
+        // The safeguarding contact is a FACT ABOUT THE FAMILY, not a consent. It
+        // goes to a custom field rather than being lost or turned into a fourth
+        // consent row that means something different from the other three.
+        $sc = mam_v2_plan_str($c['safeguarding_contact'] ?? null);
+        if ($sc !== null) $setField($fSafeguard, $mid, $sc, 'string');
+    }
+    $note('student_consents', 'consents (one row per purpose) + a safeguarding-contact custom field',
+        'v1 had three booleans and could not say WHEN a consent was withdrawn, which is the NDPA-relevant '
+        . 'fact. Each migrated row states when it took effect and nothing more, rather than implying a '
+        . 'history it never had. The safeguarding contact is a fact about the family, not a consent.',
+        count($rows('student_consents')), $consentOut);
+
+    $cardId = 0; $cardIdOf = [];
+    foreach ($rows('id_cards') as $c) {
+        $v1id = (int) ($c['id'] ?? 0);
+        $mid = $memberOfV1User[(int) ($c['user_id'] ?? 0)] ?? null;
+        $serial = mam_v2_plan_str($c['serial'] ?? null, 64);
+        if ($mid === null || $serial === null) {
+            $rejected[] = ['table' => 'id_cards', 'id' => $v1id,
+                'why' => $mid === null
+                    ? 'the holder did not map to a membership (a summer-only card whose child has no account)'
+                    : 'no serial, so the card cannot be scanned or reprinted'];
+            continue;
+        }
+        $issued = mam_v2_plan_ts($c['issued_at'] ?? null, $nowFallback);
+        $expires = mam_v2_plan_ts($c['expires_at'] ?? null, null);
+        if ($expires === null || $expires <= $issued) {
+            // chk_card_dates, and the v59 lesson: before expiry was a real date
+            // the face printed EXP.12/<issue year> and NOTHING enforced it, so a
+            // lapsed card scanned into attendance for ever. A card with no
+            // expiry is given one YEAR from issue — the shipped default — and
+            // raised, because guessing a longer one keeps the old bug.
+            $expires = gmdate('Y-m-d H:i:s.v', strtotime($issued . ' +1 year'));
+            $flag('card_expiry_assumed', ['table' => 'id_cards', 'id' => $v1id, 'serial' => $serial,
+                'action' => 'The card had no expiry (it predates schema v59). One year from issue was '
+                    . 'stamped, matching the shipped default. Re-mint if the academy used another period.']);
+        }
+        $status = (string) ($c['status'] ?? 'active');
+        $vocab = ['active' => 'active', 'printed' => 'printed', 'expired' => 'expired',
+                  'revoked' => 'revoked', 'replaced' => 'replaced'];
+        $status = $vocab[$status] ?? 'active';
+        $revAt = mam_v2_plan_ts($c['revoked_at'] ?? null, null);
+        $revWhy = mam_v2_plan_str($c['revoke_reason'] ?? null, 500);
+        if ($status === 'revoked') {
+            if ($revAt === null) $revAt = mam_v2_plan_ts($c['created_at'] ?? null, $nowFallback);
+            if ($revWhy === null) $revWhy = 'Reason not recorded in the previous system';
+        }
+        $id = ++$cardId;
+        $T['id_cards'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('card:' . $v1id, $issued),
+            'tenant_id' => $tenantId, 'membership_id' => $mid,
+            'role' => (string) ($c['role'] ?? 'student') === 'student' ? 'learner'
+                : (in_array((string) $c['role'], ['staff', 'guardian', 'visitor'], true) ? (string) $c['role'] : 'learner'),
+            'serial' => $serial,
+            'version' => max(1, mam_v2_plan_int($c['version'] ?? null) ?? 1),
+            'status' => $status,
+            'session_code' => mam_v2_plan_str($c['session_code'] ?? null, 32),
+            // The photo is an attachment in v2; the v1 URL is carried on the
+            // attachment, not here, so a card cannot point at a file the media
+            // proxy does not know about.
+            'photo_attachment_id' => null,
+            'issued_at' => $issued, 'expires_at' => $expires,
+            'printed_at' => mam_v2_plan_ts($c['printed_at'] ?? null, null),
+            'revoked_at' => $status === 'revoked' ? $revAt : null,
+            'revoke_reason' => $status === 'revoked' ? $revWhy : null,
+            'replaced_by_id' => null,
+            'created_at' => mam_v2_plan_ts($c['created_at'] ?? null, $nowFallback),
+            'created_by' => $userOfV1User[(int) ($c['created_by'] ?? 0)] ?? null];
+        $cardIdOf[$v1id] = $id;
+        $addAttachment('id_card', $id, mam_v2_plan_str($c['photo_url'] ?? null, 1000), 'headshot',
+            $issued, null, 'card-photo:' . $v1id);
+        $mapped('id_cards', $v1id, 'id_cards', $id, $serial);
+    }
+    $note('id_cards', 'id_cards (+ the photo as an attachment)',
+        'a card with no expiry — one minted before expiry was a real date, when the face printed '
+        . '"EXP.12/<issue year>" and nothing enforced it — is stamped one year from issue and raised. '
+        . 'Guessing longer would keep the bug where a lapsed card scanned into attendance for ever.',
+        count($rows('id_cards')), $cardId);
+
+    $scanOut = 0;
+    foreach ($rows('card_scans') as $sc) {
+        $result = (string) ($sc['result'] ?? 'unknown');
+        $vocab = ['ok' => 'ok', 'valid' => 'ok', 'unknown' => 'unknown', 'not_found' => 'unknown',
+                  'expired' => 'expired', 'revoked' => 'revoked', 'wrong_session' => 'wrong_session',
+                  'duplicate' => 'duplicate', 'not_enrolled' => 'not_enrolled'];
+        $T['card_scans'][] = ['tenant_id' => $tenantId,
+            'card_id' => $cardIdOf[(int) ($sc['card_id'] ?? 0)] ?? null,
+            // Kept verbatim even when it matched no card: an unmatched serial at
+            // a door is the row somebody investigates.
+            'raw_serial' => mb_substr((string) ($sc['raw_serial'] ?? ''), 0, 190),
+            'session_id' => $sessIdOf[(int) ($sc['session_id'] ?? 0)] ?? null,
+            'cohort_id' => $cohIdOfClass[(int) ($sc['class_id'] ?? 0)] ?? null,
+            'scanned_by_membership_id' => $memberOfV1User[(int) ($sc['scanned_by'] ?? 0)] ?? null,
+            'result' => $vocab[$result] ?? 'unknown',
+            'scanned_at' => mam_v2_plan_ts($sc['scanned_at'] ?? null, $nowFallback)];
+        $scanOut++;
+    }
+    $note('card_scans', 'card_scans',
+        'including every FAILED scan: a door log recording only successes cannot answer "did somebody try '
+        . 'to get in with a revoked card".', count($rows('card_scans')), $scanOut);
+
+    $note('password_resets', null,
+        'single-use tokens with an expiry. v2 has ONE table for them (`signed_tokens`, holding only a hash), '
+        . 'but a live token is a credential: carrying one extends a window that should close, and re-issuing '
+        . 'costs an email.', count($rows('password_resets')));
+    $note('progress_report_tokens', null,
+        'as password_resets, and v1 stored these in the CLEAR — so the table was a set of live share links. '
+        . 'Re-issued, not migrated.', count($rows('progress_report_tokens')));
+    $note('calendar_tokens', null,
+        'as above. v1 calendar tokens NEVER expired, which makes a leaked URL a permanent subscription to a '
+        . "child's timetable; v2 requires an expiry, so these cannot be carried unchanged anyway.",
+        count($rows('calendar_tokens')));
+    $note('rate_limits', null,
+        'a request counter, which regenerates in minutes. The AUTH failure counter it is not — that is '
+        . '`auth_throttle` in v2, and it starts empty by design: carrying failure counts would lock people '
+        . 'out of a system they have never signed in to.', count($rows('rate_limits')));
+
+    /* ── Practice, repertoire, recognition ────────────────────────────────── */
+    $achOut = 0; $achSeen = [];
+    foreach ($rows('achievements') as $a) {
+        $mid = $memberOfV1User[(int) ($a['student_id'] ?? 0)] ?? null;
+        $code = mam_v2_plan_str($a['code'] ?? null, 48);
+        if ($mid === null || $code === null) {
+            $rejected[] = ['table' => 'achievements', 'id' => $a['id'] ?? null,
+                'why' => $mid === null ? 'the learner did not map to a membership' : 'no badge code'];
+            continue;
+        }
+        // uq_achievement: awarded once. v1 had no unique key, so the same badge
+        // could be granted twice — and the second row would replay the
+        // celebration on the learner's next visit.
+        $k = $mid . ':' . $code;
+        if (isset($achSeen[$k])) continue;
+        $achSeen[$k] = true;
+        $T['achievements'][] = ['tenant_id' => $tenantId, 'membership_id' => $mid, 'code' => $code,
+            'title' => mam_v2_plan_str($a['title'] ?? null, 190) ?? $code,
+            'awarded_at' => mam_v2_plan_ts($a['awarded_at'] ?? null, $nowFallback)];
+        $achOut++;
+    }
+    $note('achievements', 'achievements',
+        'deduplicated on (person, badge): v1 had no unique key, and a second row replays the celebration.',
+        count($rows('achievements')), $achOut);
+
+    $plogOut = 0;
+    foreach ($rows('practice_logs') as $l) {
+        $mid = $memberOfV1User[(int) ($l['student_id'] ?? 0)] ?? null;
+        if ($mid === null) { $rejected[] = ['table' => 'practice_logs', 'id' => $l['id'] ?? null, 'why' => 'the learner did not map to a membership']; continue; }
+        $on = mam_v2_plan_str($l['logged_on'] ?? null, 10)
+            ?? substr((string) mam_v2_plan_ts($l['created_at'] ?? null, $nowFallback), 0, 10);
+        $mins = mam_v2_plan_int($l['minutes'] ?? null) ?? 0;
+        if ($mins > 1440) {
+            // chk_plog_minutes. More practice than a day contains is a typo, and
+            // a streak built on typos is worthless — so it is CLAMPED and raised
+            // rather than dropped: the learner did practise that day.
+            $flag('practice_minutes_clamped', ['table' => 'practice_logs', 'id' => $l['id'] ?? null,
+                'value' => $mins, 'action' => 'More minutes than a day contains; clamped to 1440.']);
+            $mins = 1440;
+        }
+        $T['practice_logs'][] = ['tenant_id' => $tenantId, 'membership_id' => $mid, 'enrolment_id' => null,
+            'logged_on' => $on, 'minutes' => max(0, $mins),
+            'focus' => mam_v2_plan_str($l['focus'] ?? null, 190),
+            'notes' => mam_v2_plan_str($l['notes'] ?? null),
+            'created_at' => mam_v2_plan_ts($l['created_at'] ?? null, $nowFallback)];
+        $plogOut++;
+    }
+    $note('practice_logs', 'practice_logs',
+        'the DAY is stored as a date, not an instant: "did I practise on Tuesday" must not depend on the '
+        . "reader's timezone.", count($rows('practice_logs')), $plogOut);
+
+    $pchOut = 0;
+    foreach ($rows('practice_challenges') as $c) {
+        $mid = $memberOfV1User[(int) ($c['student_id'] ?? 0)] ?? null;
+        $from = mam_v2_plan_str($c['starts_on'] ?? null, 10);
+        $to   = mam_v2_plan_str($c['ends_on'] ?? null, 10);
+        if ($mid === null || $from === null || $to === null || $to < $from) {
+            $rejected[] = ['table' => 'practice_challenges', 'id' => $c['id'] ?? null,
+                'why' => $mid === null ? 'the learner did not map to a membership'
+                    : 'the challenge window is missing or ends before it starts'];
+            continue;
+        }
+        $metric = (string) ($c['metric'] ?? 'sessions');
+        $T['practice_challenges'][] = ['public_id' => mam_v2_plan_pid('challenge:' . (int) ($c['id'] ?? 0)),
+            'tenant_id' => $tenantId, 'membership_id' => $mid,
+            'title' => mam_v2_plan_str($c['title'] ?? null, 190) ?? 'Practice challenge',
+            'metric' => in_array($metric, ['sessions', 'minutes', 'days'], true) ? $metric : 'sessions',
+            'target' => max(1, mam_v2_plan_int($c['target'] ?? null) ?? 1),
+            'starts_on' => $from, 'ends_on' => $to,
+            // v1 recorded no outcome. A finished window whose result was never
+            // written is not a success: it is carried ACTIVE if still open, and
+            // otherwise as 'missed' would be a claim, so it stays active and the
+            // sweep decides on its own next run.
+            'status' => 'active', 'completed_on' => null,
+            'created_at' => mam_v2_plan_ts($c['created_at'] ?? null, $nowFallback)];
+        $pchOut++;
+    }
+    $note('practice_challenges', 'practice_challenges',
+        'carried as ACTIVE: v1 recorded no outcome, and marking a finished window "missed" would be a claim '
+        . 'about a learner the data does not support. The sweep decides on its next run.',
+        count($rows('practice_challenges')), $pchOut);
+
+    $repId = 0; $repIdOf = [];
+    foreach ($rows('repertoire') as $r) {
+        $mid = $memberOfV1User[(int) ($r['student_id'] ?? 0)] ?? null;
+        if ($mid === null) { $rejected[] = ['table' => 'repertoire', 'id' => $r['id'] ?? null, 'why' => 'the learner did not map to a membership']; continue; }
+        $status = (string) ($r['status'] ?? 'learning');
+        $vocab = ['learning' => 'learning', 'polishing' => 'polishing',
+                  'performance_ready' => 'performance_ready', 'ready' => 'performance_ready',
+                  'retired' => 'retired', 'shelved' => 'retired'];
+        $id = ++$repId;
+        $T['repertoire'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('repertoire:' . (int) ($r['id'] ?? 0)),
+            'tenant_id' => $tenantId, 'membership_id' => $mid,
+            'title' => mam_v2_plan_str($r['title'] ?? null, 190) ?? 'Untitled',
+            'composer' => mam_v2_plan_str($r['composer'] ?? null, 190),
+            'arranger' => null, 'instrument' => null,
+            'status' => $vocab[$status] ?? 'learning',
+            'notes' => mam_v2_plan_str($r['notes'] ?? null),
+            'sort_order' => mam_v2_plan_int($r['sort_order'] ?? null) ?? 0,
+            'created_at' => mam_v2_plan_ts($r['created_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $repIdOf[(int) ($r['id'] ?? 0)] = $id;
+    }
+    $note('repertoire', 'repertoire', 'what a learner is working on, and how far along it is.',
+        count($rows('repertoire')), $repId);
+
+    $recId = 0; $recIdOf = [];
+    foreach ($rows('recitals') as $r) {
+        $v1id = (int) ($r['id'] ?? 0);
+        $slug = mam_v2_plan_str($r['slug'] ?? null, 96);
+        if ($slug === null) { $rejected[] = ['table' => 'recitals', 'id' => $v1id, 'why' => 'no slug, so the programme page has no address']; continue; }
+        $status = (string) ($r['status'] ?? 'draft');
+        $vocab = ['draft' => 'draft', 'open' => 'open', 'programmed' => 'programmed',
+                  'published' => 'programmed', 'performed' => 'performed', 'done' => 'performed',
+                  'cancelled' => 'cancelled'];
+        $status = $vocab[$status] ?? 'draft';
+        // v1 stored one datetime per recital and no zone, the same ambiguity as
+        // `class_sessions` — and resolved the same way: the value is the UTC
+        // instant v1's own code compared, and the LOCAL time is derived from it.
+        $startUtc = mam_v2_plan_ts($r['starts_at'] ?? null, null);
+        $doorsUtc = mam_v2_plan_ts($r['doors_open_at'] ?? null, null);
+        $closeUtc = mam_v2_plan_ts($r['submissions_close_at'] ?? null, null);
+        $toLocal = static function (?string $utc) use ($utcZone, $locZone): ?string {
+            if ($utc === null) return null;
+            return (new DateTimeImmutable(substr($utc, 0, 19), $utcZone))->setTimezone($locZone)->format('Y-m-d H:i:s.v');
+        };
+        $startLocal = $toLocal($startUtc);
+        $doorsLocal = $toLocal($doorsUtc);
+        $closeLocal = $toLocal($closeUtc);
+        // chk_recital_when: an announced concert has a time.
+        if ($startLocal === null && !in_array($status, ['draft', 'cancelled'], true)) {
+            $flag('recital_no_date', ['table' => 'recitals', 'id' => $v1id,
+                'action' => 'Announced with no date. Carried as a draft; set the date and re-publish.']);
+            $status = 'draft';
+        }
+        if ($doorsLocal !== null && $startLocal !== null && $doorsLocal > $startLocal) $doorsLocal = null;
+        if ($closeLocal !== null && $startLocal !== null && $closeLocal > $startLocal) $closeLocal = null;
+        $id = ++$recId;
+        $T['recitals'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('recital:' . $v1id, $startUtc),
+            'tenant_id' => $tenantId, 'centre_id' => null, 'slug' => $slug,
+            'title' => mam_v2_plan_str($r['title'] ?? null, 190) ?? 'Recital',
+            'subtitle' => mam_v2_plan_str($r['subtitle'] ?? null, 190),
+            'venue' => mam_v2_plan_str($r['venue'] ?? null, 190),
+            'starts_local' => $startLocal, 'timezone' => $sessTz, 'doors_open_local' => $doorsLocal,
+            'interval_after_item' => mam_v2_plan_int($r['interval_after'] ?? null),
+            'interval_minutes' => mam_v2_plan_int($r['interval_min'] ?? null) ?? 15,
+            'status' => $status, 'submissions_close_local' => $closeLocal,
+            'description' => mam_v2_plan_str($r['description'] ?? null),
+            'programme_note' => mam_v2_plan_str($r['programme_note'] ?? null),
+            'created_by' => $userOfV1User[(int) ($r['created_by'] ?? 0)] ?? null,
+            'created_at' => mam_v2_plan_ts($r['created_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $recIdOf[$v1id] = $id;
+        $mapped('recitals', $v1id, 'recitals', $id, $slug);
+    }
+    $note('recitals', 'recitals',
+        'the concert time is a LOCAL wall clock plus a zone (families read the doors time off a poster), '
+        . 'derived from the UTC instant v1 stored — the same ambiguity as class_sessions, resolved the same '
+        . 'way. One announced with no date is carried as a draft.',
+        count($rows('recitals')), $recId);
+
+    $ritemOut = 0;
+    foreach ($rows('recital_items') as $it) {
+        $rec = $recIdOf[(int) ($it['recital_id'] ?? 0)] ?? null;
+        $mid = $memberOfV1User[(int) ($it['student_id'] ?? 0)] ?? null;
+        if ($rec === null || $mid === null) {
+            $rejected[] = ['table' => 'recital_items', 'id' => $it['id'] ?? null,
+                'why' => $rec === null ? 'recital did not map' : 'the performer did not map to a membership'];
+            continue;
+        }
+        $status = (string) ($it['status'] ?? 'proposed');
+        $vocab = ['proposed' => 'proposed', 'accepted' => 'accepted', 'approved' => 'accepted',
+                  'declined' => 'declined', 'rejected' => 'declined', 'withdrawn' => 'withdrawn',
+                  'performed' => 'performed'];
+        $status = $vocab[$status] ?? 'proposed';
+        $decBy = $userOfV1User[(int) ($it['decided_by'] ?? 0)] ?? null;
+        $decAt = mam_v2_plan_ts($it['decided_at'] ?? null, null);
+        $noteTxt = mam_v2_plan_str($it['note'] ?? null, 1000);
+        // chk_ritem_declined: a learner told no is told why and by whom. Where v1
+        // recorded none of that, the piece returns to PROPOSED rather than
+        // standing as an unexplained refusal on a child's record.
+        if ($status === 'declined' && ($decBy === null || $decAt === null || $noteTxt === null)) {
+            $flag('recital_decline_unexplained', ['table' => 'recital_items', 'id' => $it['id'] ?? null,
+                'action' => 'Declined with no decider, date or reason. Carried as proposed; decide it again.']);
+            $status = 'proposed';
+        }
+        $T['recital_items'][] = ['tenant_id' => $tenantId, 'recital_id' => $rec, 'membership_id' => $mid,
+            'repertoire_id' => $repIdOf[(int) ($it['repertoire_id'] ?? 0)] ?? null,
+            'submission_id' => $subIdOf[(int) ($it['submission_id'] ?? 0)] ?? null,
+            'title' => mam_v2_plan_str($it['title'] ?? null, 190) ?? 'Untitled',
+            'composer' => mam_v2_plan_str($it['composer'] ?? null, 190),
+            'arranger' => mam_v2_plan_str($it['arranger'] ?? null, 190),
+            'movement' => mam_v2_plan_str($it['movement'] ?? null, 190),
+            'instrument' => mam_v2_plan_str($it['instrument'] ?? null, 48),
+            'duration_minutes' => min(120, max(1, mam_v2_plan_int($it['duration_min'] ?? null) ?? 4)),
+            'section' => in_array((string) ($it['section'] ?? 'main'), ['opening', 'main', 'closing', 'encore'], true)
+                ? (string) $it['section'] : 'main',
+            'sort_order' => mam_v2_plan_int($it['sort_order'] ?? null) ?? 0,
+            'status' => $status, 'note' => $noteTxt,
+            'decided_by' => $status === 'proposed' ? null : $decBy,
+            'decided_at' => $status === 'proposed' ? null : $decAt,
+            'created_at' => mam_v2_plan_ts($it['created_at'] ?? null, $nowFallback)];
+        $ritemOut++;
+    }
+    $note('recital_items', 'recital_items',
+        'a decline with no decider, date or reason returns to PROPOSED rather than standing as an '
+        . "unexplained refusal on a child's record.", count($rows('recital_items')), $ritemOut);
+
+    $rcOut = 0; $rcSeen = [];
+    foreach ($rows('referral_codes') as $rc) {
+        $mid = $memberOfV1User[(int) ($rc['user_id'] ?? 0)] ?? null;
+        $code = mam_v2_plan_str($rc['code'] ?? null, 32);
+        if ($mid === null || $code === null || isset($rcSeen[$mid])) continue;
+        $rcSeen[$mid] = true;
+        $T['referral_codes'][] = ['tenant_id' => $tenantId, 'membership_id' => $mid, 'code' => $code,
+            'is_active' => 1, 'created_at' => mam_v2_plan_ts($rc['created_at'] ?? null, $nowFallback)];
+        $rcOut++;
+    }
+    $note('referral_codes', 'referral_codes', 'one code per person.', count($rows('referral_codes')), $rcOut);
+
+    $refOut = 0;
+    foreach ($rows('referrals') as $r) {
+        $mid = $memberOfV1User[(int) ($r['referrer_id'] ?? 0)] ?? null;
+        $code = mam_v2_plan_str($r['code'] ?? null, 32);
+        $email = mam_v2_plan_str($r['referred_email'] ?? null, 320);
+        $name = mam_v2_plan_str($r['referred_name'] ?? null, 190);
+        $referred = $memberOfV1User[(int) ($r['referred_user_id'] ?? 0)] ?? null;
+        if ($mid === null || $code === null || ($email === null && $name === null && $referred === null)) {
+            $rejected[] = ['table' => 'referrals', 'id' => $r['id'] ?? null,
+                'why' => $mid === null ? 'the referrer did not map to a membership'
+                    : 'a referral of nobody: no name, no address and no account'];
+            continue;
+        }
+        $status = (string) ($r['status'] ?? 'pending');
+        $vocab = ['pending' => 'pending', 'joined' => 'joined', 'enrolled' => 'joined',
+                  'rewarded' => 'rewarded', 'expired' => 'expired', 'rejected' => 'rejected'];
+        $status = $vocab[$status] ?? 'pending';
+        $reward = max(0, mam_v2_plan_int($r['reward_cents'] ?? null) ?? 0);
+        $rewardedAt = mam_v2_plan_ts($r['rewarded_at'] ?? null, null);
+        // chk_referral_rewarded: a reward is an amount on a date. v1 could mark
+        // one rewarded with neither, which is a promise to a family that nothing
+        // backs.
+        if ($status === 'rewarded' && ($reward <= 0 || $rewardedAt === null)) {
+            $flag('referral_reward_unevidenced', ['table' => 'referrals', 'id' => $r['id'] ?? null,
+                'action' => 'Marked rewarded with no amount or no date. Carried as joined; pay it or '
+                    . 'record what was paid.']);
+            $status = 'joined';
+        }
+        $T['referrals'][] = ['public_id' => mam_v2_plan_pid('referral:' . (int) ($r['id'] ?? 0)),
+            'tenant_id' => $tenantId, 'referrer_membership_id' => $mid, 'code' => $code,
+            'referred_name' => $name, 'referred_email' => $email,
+            'referred_membership_id' => $referred, 'status' => $status,
+            'reward_minor' => $reward,
+            // v1's column was `reward_cents` with no currency. USD is the only
+            // reading consistent with the name, and it is stated rather than left
+            // to whoever sums the column.
+            'currency' => $reward > 0 ? 'USD' : null,
+            'rewarded_at' => $status === 'rewarded' ? $rewardedAt : null,
+            'created_at' => mam_v2_plan_ts($r['created_at'] ?? null, $nowFallback)];
+        $refOut++;
+    }
+    $note('referrals', 'referrals',
+        'v1\'s `reward_cents` had no currency column, so the figure meant whatever the reader assumed; USD '
+        . 'is stated explicitly. A reward with no amount or no date is carried as JOINED — a reward nothing '
+        . 'backs is a promise to a family.', count($rows('referrals')), $refOut);
+
+    /* ── Compliance, automation, the shop ─────────────────────────────────── */
+    $dpaOut = 0;
+    foreach ($rows('dp_assessments') as $a) {
+        $decision = (string) ($a['decision'] ?? 'draft');
+        $risk = (string) ($a['residual_risk'] ?? 'unknown');
+        $on = mam_v2_plan_str($a['assessed_on'] ?? null, 10);
+        $by = $userOfV1User[(int) ($a['assessed_by'] ?? 0)] ?? null;
+        // chk_dpa_decided and chk_dpa_high_risk. An unsigned decision is a draft,
+        // and 'proceed' on high residual risk becomes 'proceed_with_controls' —
+        // which is what the NDPA expects of it, and what the mitigations column
+        // already describes.
+        if ($decision !== 'draft' && ($on === null || $by === null)) {
+            $flag('dp_assessment_unsigned', ['table' => 'dp_assessments', 'id' => $a['id'] ?? null,
+                'was' => $decision, 'action' => 'No assessor or no date. Carried as a draft; sign it.']);
+            $decision = 'draft';
+        }
+        if ($risk === 'high' && $decision === 'proceed') {
+            $flag('dp_assessment_high_risk', ['table' => 'dp_assessments', 'id' => $a['id'] ?? null,
+                'action' => 'High residual risk with a bare "proceed". Recorded as proceed_with_controls; '
+                    . 'confirm the controls and whether the regulator was consulted.']);
+            $decision = 'proceed_with_controls';
+        }
+        $T['dp_assessments'][] = ['public_id' => mam_v2_plan_pid('dpa:' . (int) ($a['id'] ?? 0)),
+            'tenant_id' => $tenantId,
+            'title' => mam_v2_plan_str($a['title'] ?? null, 190) ?? 'Assessment',
+            'scope' => (string) ($a['scope'] ?? ''),
+            'trigger_reason' => mam_v2_plan_str($a['trigger_reason'] ?? null),
+            'necessity' => mam_v2_plan_str($a['necessity'] ?? null),
+            'risks' => mam_v2_plan_str($a['risks'] ?? null),
+            'mitigations' => mam_v2_plan_str($a['mitigations'] ?? null),
+            'residual_risk' => in_array($risk, ['unknown', 'low', 'medium', 'high'], true) ? $risk : 'unknown',
+            'decision' => $decision,
+            'assessed_on' => $decision === 'draft' ? null : $on,
+            'assessed_by' => $decision === 'draft' ? null : $by,
+            'review_due_on' => mam_v2_plan_str($a['review_due_on'] ?? null, 10),
+            'consulted_regulator' => mam_v2_plan_bool($a['consulted_ndpc'] ?? null, 0),
+            'created_at' => mam_v2_plan_ts($a['created_at'] ?? null, $nowFallback)];
+        $dpaOut++;
+    }
+    $note('dp_assessments', 'dp_assessments',
+        'an unsigned decision is a DRAFT, and a bare "proceed" on high residual risk becomes '
+        . '"proceed_with_controls" — which is what the NDPA expects and what the mitigations already say.',
+        count($rows('dp_assessments')), $dpaOut);
+
+    $brOut = 0;
+    foreach ($rows('dp_breaches') as $b) {
+        $disc = mam_v2_plan_ts($b['discovered_at'] ?? null, null);
+        if ($disc === null) {
+            // The 72-hour clock runs from AWARENESS. A breach record with no
+            // discovery time cannot be measured at all, and inventing one would
+            // fabricate compliance.
+            $rejected[] = ['table' => 'dp_breaches', 'id' => $b['id'] ?? null,
+                'why' => 'no discovery time: the NDPA clock runs from awareness, and inventing one would '
+                    . 'fabricate compliance'];
+            continue;
+        }
+        $occ = mam_v2_plan_ts($b['occurred_at'] ?? null, null);
+        if ($occ !== null && $occ > $disc) $occ = null;
+        $risk = (string) ($b['risk_level'] ?? 'unknown');
+        $status = (string) ($b['status'] ?? 'open');
+        $vocab = ['open' => 'open', 'contained' => 'contained', 'closed' => 'closed'];
+        $status = $vocab[$status] ?? 'open';
+        $lessons = mam_v2_plan_str($b['lessons'] ?? null);
+        $notified = mam_v2_plan_ts($b['subjects_notified_at'] ?? null, null);
+        $noWhy = mam_v2_plan_str($b['no_notify_reason'] ?? null);
+        // chk_breach_notify / chk_breach_closed. A high-risk breach cannot be
+        // closed until the affected people were told or there is a written
+        // reason they were not, and a closed breach says what was learned. A
+        // record failing either is REOPENED — which is the honest state, and the
+        // one that makes somebody finish it.
+        if ($status === 'closed' && ($lessons === null
+            || ($risk === 'high' && $notified === null && $noWhy === null))) {
+            $flag('breach_closed_incomplete', ['table' => 'dp_breaches', 'id' => $b['id'] ?? null,
+                'action' => $lessons === null
+                    ? 'Closed with nothing learned. Reopened as contained; record the lessons.'
+                    : 'A HIGH-risk breach was closed without notifying the affected people and without a '
+                      . 'written reason. Reopened as contained; discharge the duty or record why not.']);
+            $status = 'contained';
+        }
+        $T['dp_breaches'][] = ['public_id' => mam_v2_plan_pid('breach:' . (int) ($b['id'] ?? 0), $disc),
+            'tenant_id' => $tenantId,
+            'reference' => mam_v2_plan_str($b['reference'] ?? null, 64) ?? ('BR-' . (string) ($b['id'] ?? '0')),
+            'occurred_at' => $occ, 'discovered_at' => $disc,
+            'nature' => (string) ($b['nature'] ?? ''),
+            'data_categories' => (string) ($b['data_categories'] ?? ''),
+            'subject_categories' => mam_v2_plan_str($b['subject_categories'] ?? null),
+            'subjects_affected' => mam_v2_plan_int($b['subjects_affected'] ?? null),
+            'risk_level' => in_array($risk, ['unknown', 'low', 'medium', 'high'], true) ? $risk : 'unknown',
+            'containment' => mam_v2_plan_str($b['containment'] ?? null),
+            'regulator_notified_at' => mam_v2_plan_ts($b['ndpc_notified_at'] ?? null, null),
+            'regulator_reference' => mam_v2_plan_str($b['ndpc_reference'] ?? null, 190),
+            'subjects_notified_at' => $notified, 'no_notify_reason' => $noWhy,
+            'lessons' => $lessons, 'status' => $status,
+            'recorded_by' => $userOfV1User[(int) ($b['recorded_by'] ?? 0)] ?? null,
+            'created_at' => mam_v2_plan_ts($b['created_at'] ?? null, $nowFallback)];
+        $brOut++;
+    }
+    $note('dp_breaches', 'dp_breaches',
+        'the clock runs from `discovered_at` (NDPA s.40(2) measures from AWARENESS), so a record with no '
+        . 'discovery time is refused rather than given one. A breach closed with nothing learned — or a '
+        . 'high-risk one closed without notifying anybody and without a written reason — is REOPENED as '
+        . 'contained.', count($rows('dp_breaches')), $brOut);
+
+    $procOut = 0; $procSeen = [];
+    foreach ($rows('dp_processors') as $pr) {
+        $key = mam_v2_plan_str($pr['key_name'] ?? null, 64);
+        if ($key === null || isset($procSeen[$key])) continue;
+        $procSeen[$key] = true;
+        $country = mam_v2_plan_str($pr['country'] ?? null, 64);
+        $basis = mam_v2_plan_str($pr['transfer_basis'] ?? null, 190);
+        $status = (string) ($pr['status'] ?? 'active');
+        $vocab = ['active' => 'active', 'suspended' => 'suspended', 'retired' => 'retired'];
+        $status = $vocab[$status] ?? 'active';
+        // chk_dpproc_transfer: a live processor abroad states its transfer basis.
+        // Naming the country records the risk and nothing about how it is
+        // answered, so an unanswered one is SUSPENDED and raised — the register
+        // then shows a gap somebody has to close.
+        if ($status === 'active' && $country !== null
+            && !in_array($country, ['Nigeria', 'NG'], true) && $basis === null) {
+            $flag('processor_transfer_unstated', ['table' => 'dp_processors', 'key' => $key,
+                'country' => $country,
+                'action' => 'A live processor outside Nigeria with no stated transfer basis. Recorded as '
+                    . 'suspended; state the basis (or confirm the vendor is no longer used).']);
+            $status = 'suspended';
+        }
+        $T['dp_processors'][] = ['tenant_id' => $tenantId, 'key_name' => $key,
+            'name' => mam_v2_plan_str($pr['name'] ?? null, 190) ?? $key,
+            'role' => in_array((string) ($pr['role'] ?? 'processor'), ['processor', 'joint_controller', 'controller'], true)
+                ? (string) $pr['role'] : 'processor',
+            'purpose' => mam_v2_plan_str($pr['purpose'] ?? null),
+            'country' => $country,
+            'dpa_signed_on' => mam_v2_plan_str($pr['dpa_signed_on'] ?? null, 10),
+            'dpa_reference' => mam_v2_plan_str($pr['dpa_reference'] ?? null, 190),
+            'sub_processors' => mam_v2_plan_str($pr['sub_processors'] ?? null),
+            'transfer_basis' => $basis,
+            'review_due_on' => mam_v2_plan_str($pr['review_due_on'] ?? null, 10),
+            'status' => $status,
+            'notes' => mam_v2_plan_str($pr['notes'] ?? null),
+            'created_at' => mam_v2_plan_ts($pr['created_at'] ?? null, $nowFallback)];
+        $procOut++;
+    }
+    $note('dp_processors', 'dp_processors',
+        'a live processor outside Nigeria with no stated transfer basis is recorded as SUSPENDED and raised: '
+        . 'naming the country records the risk and nothing about how it is answered.',
+        count($rows('dp_processors')), $procOut);
+
+    $dpnOut = 0; $dpnSeen = [];
+    foreach ($rows('dp_register_notes') as $n) {
+        $kind = (string) ($n['kind'] ?? 'purpose');
+        $ref = mam_v2_plan_str($n['ref_key'] ?? null, 64);
+        if ($ref === null || !in_array($kind, ['purpose', 'retention'], true)) continue;
+        $k = $kind . ':' . $ref;
+        if (isset($dpnSeen[$k])) continue;
+        $dpnSeen[$k] = true;
+        $T['dp_register_notes'][] = ['tenant_id' => $tenantId, 'kind' => $kind, 'ref_key' => $ref,
+            'keep_days' => mam_v2_plan_int($n['keep_days'] ?? null),
+            'notes' => mam_v2_plan_str($n['notes'] ?? null),
+            'reviewed_on' => mam_v2_plan_str($n['reviewed_on'] ?? null, 10),
+            'reviewed_by' => $userOfV1User[(int) ($n['reviewed_by'] ?? 0)] ?? null];
+        $dpnOut++;
+    }
+    $note('dp_register_notes', 'dp_register_notes',
+        'the academy\'s annotations only. The ROPA and the retention schedule themselves are CODE registries '
+        . 'asserted against the live schema, because a register describing what the software does must be '
+        . 'derived from it.', count($rows('dp_register_notes')), $dpnOut);
+
+    $autoOut = 0;
+    foreach ($rows('automations') as $a) {
+        $key = mam_v2_plan_str($a['akey'] ?? null, 64);
+        if ($key === null) continue;
+        $T['automation_rules'][] = ['tenant_id' => $tenantId, 'rule_key' => $key,
+            'is_enabled' => mam_v2_plan_bool($a['enabled'] ?? null, 1),
+            'params' => mam_v2_plan_str($a['params'] ?? null),
+            // Telemetry is carried: "when did this last run" is how an admin
+            // tells a broken sweep from an idle one, and resetting it to zero on
+            // cutover day hides a rule that has never fired.
+            'last_run_at' => mam_v2_plan_ts($a['last_run_at'] ?? null, null),
+            'run_count' => max(0, mam_v2_plan_int($a['run_count'] ?? null) ?? 0),
+            'last_error' => null];
+        $autoOut++;
+    }
+    $note('automations', 'automation_rules',
+        'the on/off flags AND the run telemetry: "when did this last run" is how an admin tells a broken '
+        . 'sweep from an idle one, and zeroing it on cutover day hides a rule that has never fired.',
+        count($rows('automations')), $autoOut);
+
+    $aiOut = 0;
+    foreach ($rows('ai_runs') as $r) {
+        $ok = mam_v2_plan_bool($r['ok'] ?? null, 0);
+        $err = mam_v2_plan_str($r['error'] ?? null, 500);
+        // chk_airun_failed: a failed call says what went wrong. v1 could store a
+        // failure with no error, which is a row that proves only that something
+        // happened.
+        if ($ok === 0 && $err === null) $err = 'Error not recorded in the previous system';
+        $revBy = $userOfV1User[(int) ($r['reviewed_by'] ?? 0)] ?? null;
+        $revAt = mam_v2_plan_ts($r['reviewed_at'] ?? null, null);
+        if ($revBy === null || $revAt === null) { $revBy = null; $revAt = null; }
+        $T['ai_runs'][] = ['tenant_id' => $tenantId,
+            'use_case' => mam_v2_plan_str($r['use_case'] ?? null, 48) ?? 'unknown',
+            'provider' => mam_v2_plan_str($r['provider'] ?? null, 32),
+            'model' => mam_v2_plan_str($r['model'] ?? null, 64),
+            'ok' => $ok,
+            // Only the HASH. v1 kept no prompt text either, and v2 has no column
+            // for it: the prompts contain applicants' words about their children.
+            'prompt_hash' => mam_v2_plan_str($r['prompt_hash'] ?? null, 64),
+            'input_tokens' => max(0, mam_v2_plan_int($r['input_tokens'] ?? null) ?? 0),
+            'output_tokens' => max(0, mam_v2_plan_int($r['output_tokens'] ?? null) ?? 0),
+            'latency_ms' => null, 'error' => $err,
+            'reviewed_by' => $revBy, 'reviewed_at' => $revAt,
+            'created_at' => mam_v2_plan_ts($r['created_at'] ?? null, $nowFallback)];
+        $aiOut++;
+    }
+    $note('ai_runs', 'ai_runs',
+        'cost and outcome telemetry, with no prompt or output text on either side — keeping them would turn '
+        . 'a cost ledger into a second copy of the most sensitive free text in the system.',
+        count($rows('ai_runs')), $aiOut);
+
+    $prodId = 0; $prodIdOfSku = [];
+    foreach ($rows('store_items') as $it) {
+        $sku = mam_v2_plan_str($it['sku'] ?? null, 64);
+        $slug = mam_v2_plan_str($it['slug'] ?? null, 96);
+        if ($sku === null || $slug === null) { $rejected[] = ['table' => 'store_items', 'id' => $it['id'] ?? null, 'why' => 'no SKU or no slug']; continue; }
+        $goods = (string) ($it['goods_type'] ?? 'digital');
+        $delivery = (string) ($it['delivery_type'] ?? 'instant');
+        $fileUrl = mam_v2_plan_str($it['file_url'] ?? null, 1000);
+        // chk_sprod_file: an instantly-delivered digital product needs a file.
+        // Where v1 has none the product is carried as NOT active — it cannot be
+        // fulfilled, and listing it sells somebody nothing.
+        $active = mam_v2_plan_bool($it['active'] ?? null, 1);
+        $att = null;
+        if ($goods === 'digital' && $delivery === 'instant') {
+            if ($fileUrl === null) {
+                $flag('store_digital_no_file', ['table' => 'store_items', 'sku' => $sku,
+                    'action' => 'An instantly-delivered digital product with no file. Carried as inactive; '
+                        . 'attach the file before listing it.']);
+                $active = 0;
+                $delivery = 'email';
+            }
+        }
+        // v1 priced in REAL dollars. Converted through string arithmetic, not a
+        // float multiply: measured on PHP 8.4, `8.29 * 100` is 828.99999999999989,
+        // so `(int)` truncation loses a kobo on a price the academy set exactly.
+        $price = (string) ($it['price_usd'] ?? '0');
+        $minor = mam_v2_plan_int(str_replace('.', '', number_format((float) $price, 2, '.', '')));
+        $stockRaw = mam_v2_plan_int($it['stock'] ?? null);
+        $id = ++$prodId;
+        $T['store_products'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('product:' . $sku),
+            'tenant_id' => $tenantId, 'sku' => $sku, 'slug' => $slug,
+            'name' => mam_v2_plan_str($it['name'] ?? null, 190) ?? $sku,
+            'description' => mam_v2_plan_str($it['description'] ?? null),
+            'goods_type' => in_array($goods, ['digital', 'physical', 'service'], true) ? $goods : 'digital',
+            'delivery_type' => in_array($delivery, ['instant', 'ship', 'collect', 'email'], true) ? $delivery : 'email',
+            'availability' => in_array((string) ($it['availability'] ?? 'in_stock'),
+                ['in_stock', 'out_of_stock', 'preorder', 'discontinued'], true)
+                ? (string) $it['availability'] : 'in_stock',
+            // v1 used -1 to mean "not tracked", which sorts and sums as a real
+            // quantity — "total stock" across the catalogue came out negative.
+            // NULL says untracked and cannot be added up by accident.
+            'stock' => ($stockRaw === null || $stockRaw < 0) ? null : $stockRaw,
+            'price_minor' => $minor ?? 0,
+            'currency' => strtoupper(mam_v2_plan_str($it['currency'] ?? null, 3) ?? 'USD'),
+            'tax_rate_pct' => number_format((float) ($it['tax_rate'] ?? 0), 2, '.', ''),
+            'weight_grams' => mam_v2_plan_int($it['weight_grams'] ?? null),
+            'category' => mam_v2_plan_str($it['category'] ?? null, 48),
+            'file_attachment_id' => $att,
+            'sort_order' => mam_v2_plan_int($it['sort_order'] ?? null) ?? 0,
+            'is_active' => $active,
+            'created_at' => mam_v2_plan_ts($it['created_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $prodIdOfSku[mb_strtolower($sku)] = $id;
+        $addAttachment('store_product', $id, $fileUrl, 'document',
+            mam_v2_plan_ts($it['created_at'] ?? null, $nowFallback), null, 'store-file:' . $sku);
+        $mapped('store_items', (int) ($it['id'] ?? 0), 'store_products', $id, $sku);
+    }
+    $note('store_items', 'store_products (+ the deliverable file as an attachment)',
+        'merchandise is NOT tuition: mapping a hoodie into `price_items` would misstate what it is and put '
+        . 'it in every tuition report. v1\'s -1 stock sentinel becomes NULL — it sorted and summed as a real '
+        . 'quantity, so "total stock" came out negative.',
+        count($rows('store_items')), $prodId);
+
+    $ordId = 0; $ordItems = 0;
+    foreach ($rows('store_orders') as $o) {
+        $v1id = (int) ($o['id'] ?? 0);
+        $ref = mam_v2_plan_str($o['reference'] ?? null, 64);
+        $email = mam_v2_plan_str($o['customer_email'] ?? null, 320);
+        $mid = null;
+        if ($email !== null) {
+            foreach ($rows('users') as $u) {
+                if (strcasecmp((string) ($u['email'] ?? ''), $email) === 0) {
+                    $mid = $memberOfV1User[(int) ($u['id'] ?? 0)] ?? null; break;
+                }
+            }
+        }
+        if ($ref === null || ($email === null && $mid === null)) {
+            $rejected[] = ['table' => 'store_orders', 'id' => $v1id,
+                'why' => $ref === null ? 'no reference to quote back' : 'no customer and no address to send it to'];
+            continue;
+        }
+        $toMinor = static fn($v) => (int) str_replace('.', '', number_format((float) ($v ?? 0), 2, '.', ''));
+        $sub = $toMinor($o['subtotal_usd'] ?? 0);
+        $tax = $toMinor($o['tax_usd'] ?? 0);
+        $ship = $toMinor($o['shipping_usd'] ?? 0);
+        $stated = $toMinor($o['total_usd'] ?? 0);
+        // chk_sorder_total. As with an invoice, the ARITHMETIC wins and a
+        // disagreement is raised: v1 stored REAL dollars, so a rounding
+        // difference between the cart and the receipt was invisible until a
+        // customer added it up.
+        $total = $sub + $tax + $ship;
+        $discount = 0;
+        if ($stated !== $total) {
+            if ($stated < $total) { $discount = $total - $stated; $total = $stated; }
+            $flag('store_total_restated', ['table' => 'store_orders', 'id' => $v1id, 'stated' => $stated,
+                'computed' => $sub + $tax + $ship,
+                'action' => $stated < $sub + $tax + $ship
+                    ? 'The stated total is lower than its own lines; the difference is recorded as a discount.'
+                    : 'The stated total is HIGHER than its own lines. The arithmetic was kept; confirm what '
+                      . 'the customer was charged.']);
+        }
+        $status = (string) ($o['status'] ?? 'pending');
+        $vocab = ['pending' => 'pending', 'paid' => 'paid', 'fulfilled' => 'fulfilled',
+                  'delivered' => 'delivered', 'cancelled' => 'cancelled', 'refunded' => 'refunded'];
+        $status = $vocab[$status] ?? 'pending';
+        $delivered = mam_v2_plan_ts($o['delivered_at'] ?? null, null);
+        $created = mam_v2_plan_ts($o['created_at'] ?? null, $nowFallback);
+        // chk_sorder_paid: anything past pending was paid at some point. v1 kept
+        // no paid_at, so the delivery time (or the order time) is the honest
+        // floor rather than a guess at the gateway's clock.
+        $paidAt = in_array($status, ['pending', 'cancelled'], true) ? null : ($delivered ?? $created);
+        $id = ++$ordId;
+        $T['store_orders'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('order:' . $ref, $created),
+            'tenant_id' => $tenantId, 'reference' => $ref, 'membership_id' => $mid,
+            'customer_name' => mam_v2_plan_str($o['customer_name'] ?? null, 190),
+            'customer_email' => $email,
+            'customer_phone' => mam_v2_plan_str($o['customer_phone'] ?? null, 32),
+            'customer_country' => mam_v2_plan_str($o['customer_country'] ?? null, 64),
+            'shipping_address' => mam_v2_plan_str($o['shipping_address'] ?? null),
+            'status' => $status,
+            'subtotal_minor' => $sub, 'tax_minor' => $tax, 'shipping_minor' => $ship,
+            'discount_minor' => $discount, 'total_minor' => $total,
+            'currency' => 'USD', 'base_currency' => 'USD',
+            'base_total_minor' => null, 'fx_rate' => null,
+            'promotion_id' => null, 'payment_id' => null,
+            'notes' => mam_v2_plan_str($o['notes'] ?? null),
+            'paid_at' => $paidAt, 'delivered_at' => $delivered, 'created_at' => $created];
+        $mapped('store_orders', $v1id, 'store_orders', $id, $ref);
+        // items_json becomes ROWS. In v1 "how many hoodies did we sell" was a
+        // question no query could answer.
+        $items = json_decode((string) ($o['items_json'] ?? ''), true);
+        if (is_array($items)) {
+            foreach ($items as $line) {
+                if (!is_array($line)) continue;
+                $sku = mam_v2_plan_str($line['sku'] ?? null, 64);
+                $qty = max(1, mam_v2_plan_int($line['qty'] ?? ($line['quantity'] ?? 1)) ?? 1);
+                $unit = $toMinor($line['price_usd'] ?? ($line['price'] ?? 0));
+                $T['store_order_items'][] = ['tenant_id' => $tenantId, 'order_id' => $id,
+                    'product_id' => $sku !== null ? ($prodIdOfSku[mb_strtolower($sku)] ?? null) : null,
+                    'sku' => $sku,
+                    // The name AT THE TIME: a receipt must not change because
+                    // somebody edited the catalogue afterwards.
+                    'name' => mam_v2_plan_str($line['name'] ?? null, 190) ?? ($sku ?? 'Item'),
+                    'quantity' => $qty, 'unit_price_minor' => $unit,
+                    'line_total_minor' => $unit * $qty, 'currency' => 'USD'];
+                $ordItems++;
+            }
+        }
+    }
+    $note('store_orders', 'store_orders + store_order_items',
+        sprintf('`items_json` becomes %d ROW(S): in v1 "how many hoodies did we sell" was a question no '
+            . 'query could answer, and a line\'s product could be renamed underneath it. Totals are '
+            . 'recomputed in minor units — v1 stored REAL dollars, so a rounding difference between the '
+            . 'cart and the receipt was invisible until a customer added it up.', $ordItems),
+        count($rows('store_orders')), $ordId);
+
+    $notifOut = 0;
+    foreach ($rows('notifications') as $n) {
+        $mid = $memberOfV1User[(int) ($n['user_id'] ?? 0)] ?? null;
+        if ($mid === null) { $rejected[] = ['table' => 'notifications', 'id' => $n['id'] ?? null, 'why' => 'the recipient did not map to a membership']; continue; }
+        $T['notifications'][] = ['tenant_id' => $tenantId, 'membership_id' => $mid,
+            'type' => mam_v2_plan_str($n['type'] ?? null, 48) ?? 'notice',
+            'title' => mam_v2_plan_str($n['title'] ?? null, 190) ?? 'Notice',
+            'body' => mam_v2_plan_str($n['body'] ?? null),
+            'url' => mam_v2_plan_str($n['url'] ?? null, 500),
+            'action_label' => null, 'severity' => 'info',
+            // No dedupe key: v1 had none, and inventing one would suppress the
+            // new system's first legitimate send of the same notice.
+            'dedupe_key' => null, 'group_key' => null, 'expires_at' => null,
+            'read_at' => mam_v2_plan_ts($n['read_at'] ?? null, null),
+            'acknowledged_at' => null,
+            'created_at' => mam_v2_plan_ts($n['created_at'] ?? null, $nowFallback)];
+        $notifOut++;
+    }
+    $note('notifications', 'notifications',
+        'carried with no dedupe key: v1 had none, and inventing one would suppress the new system\'s first '
+        . 'legitimate send of the same notice.', count($rows('notifications')), $notifOut);
+
     /* ── Mail ────────────────────────────────────────────────────────────── */
     $mailOut = 0;
     foreach ($rows('mail_log') as $m) {
@@ -4164,10 +5029,6 @@ function mam_v2_plan(array $source, array $opts = []): array
     $skips = [
         ['sessions', 'a live session must not survive a cutover — carrying session tokens across would '
             . 'hand the new system a set of credentials nobody re-authenticated.'],
-        ['password_resets', 'single-use tokens with an expiry; carrying them extends a window that should close.'],
-        ['progress_report_tokens', 'as password_resets — a share link is re-issued, not migrated.'],
-        ['rate_limits', 'a counter, not a fact. It regenerates in minutes and carrying it would apply v1\'s '
-            . 'throttling state to unrelated traffic.'],
         ['idempotency_cache', 'request de-duplication for calls that have already returned.'],
         ['webhook_events', 'replay guards for events already processed.'],
         ['funnel_events', 'an analytics stream with no v2 table. It is derived behaviour, not record — and it '

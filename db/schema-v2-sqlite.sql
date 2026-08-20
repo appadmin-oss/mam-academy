@@ -3875,6 +3875,766 @@ CREATE TABLE announcement_banners (
   CONSTRAINT fk_banner_promo  FOREIGN KEY (promotion_id) REFERENCES promotions(id) ON DELETE SET NULL
 );
 
+-- =============================================================================
+-- LAYER P · SAFEGUARDING, IDENTITY AND COMPLIANCE
+-- =============================================================================
+-- The highest-consequence tables in the schema. An academy that teaches children
+-- one-to-one has to be able to answer three questions from its own database:
+-- who is cleared to be alone with a child, what a family agreed to, and what
+-- happened when something went wrong.
+
+-- ⚠️ THE SAFEGUARDING GATE. Child Rights Act 2003 s.2(2) requires standards on
+-- the suitability of staff; the Lagos State Safeguarding and Child Protection
+-- Policy 2016 mandates the specific safer-recruitment checks and a named
+-- Designated Safeguarding Officer.
+--
+-- This table stores NO CHECK CONTENT AND NO OFFENCE DATA, and there is nowhere
+-- for either to go — no `certificate_scan`, no `attachment_id`, no `findings`,
+-- no `disclosure`. What is kept is the TYPE of check, who issued it, its
+-- reference, its dates, who verified it, and a pointer to where the evidence is
+-- filed offline. Under the NDPA a certificate's contents are sensitive personal
+-- data about the instructor; holding a scan in a shared-hosting database is a
+-- liability, not a control. `test_vetting.php` asserts the absence.
+--
+-- Validity is DERIVED from `expires_on`, never stored as a status: a clearance
+-- lapsing at midnight must read as expired on the next page load, not the next
+-- cron run.
+CREATE TABLE vetting_records (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  clearance_type TEXT NOT NULL,
+  issuing_body  TEXT NULL,
+  reference_no  TEXT NULL,
+  issued_on     TEXT         NOT NULL,
+  expires_on    TEXT         NULL,
+  verified_by   INTEGER NULL,
+  verified_at   TEXT  NULL,
+  -- WHERE the paper is, not what it says. "Safeguarding file, cabinet 2".
+  evidence_held TEXT NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  created_by    INTEGER NULL,
+  UNIQUE (public_id),
+  -- Re-recording REPLACES. The gate asks "is there a current one"; a history of
+  -- superseded certificate numbers is exactly the sensitive data this design
+  -- avoids accumulating.
+  UNIQUE (tenant_id, membership_id, clearance_type),
+
+  CONSTRAINT chk_vetting_dates CHECK (expires_on IS NULL OR expires_on >= issued_on),
+  -- A record nobody checked is not a clearance. Both halves or neither.
+  CONSTRAINT chk_vetting_verified CHECK ((verified_by IS NULL) = (verified_at IS NULL)),
+  CONSTRAINT fk_vetting_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_vetting_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_vetting_ver    FOREIGN KEY (verified_by)   REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_vetting_by     FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- The printed card a learner carries.
+--
+-- Expiry is a REAL TEXT stamped at mint from the admin's validity period, not a
+-- label and not computed on read: the card in a child's hand prints a date, so
+-- changing the setting must only affect cards minted afterwards. Anything
+-- filtering cards must filter on the DERIVED state — between two cron runs a
+-- lapsed card still reads `active`.
+CREATE TABLE id_cards (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  role          TEXT  NOT NULL DEFAULT 'learner',   -- learner|staff|guardian|visitor
+  serial        TEXT  NOT NULL,
+  version       INTEGER NOT NULL DEFAULT 1,
+  status        TEXT  NOT NULL DEFAULT 'active',
+     -- active|printed|expired|revoked|replaced
+  session_code  TEXT  NULL,
+  photo_attachment_id INTEGER NULL,
+  issued_at     TEXT  NOT NULL,
+  expires_at    TEXT  NOT NULL,
+  printed_at    TEXT  NULL,
+  revoked_at    TEXT  NULL,
+  revoke_reason TEXT NULL,
+  replaced_by_id INTEGER NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  created_by    INTEGER NULL,
+  UNIQUE (public_id),
+  -- The serial is printed on the card and scanned at a door, so it is unique
+  -- across the platform rather than within a tenant: a scanner has no tenant.
+  UNIQUE (serial),
+
+  CONSTRAINT chk_card_role CHECK (role IN ('learner','staff','guardian','visitor')),
+  CONSTRAINT chk_card_status CHECK (status IN ('active','printed','expired','revoked','replaced')),
+  CONSTRAINT chk_card_dates CHECK (expires_at > issued_at),
+  -- REVOKED means somebody took the card away and says why; EXPIRED means time
+  -- did. They are deliberately different states.
+  CONSTRAINT chk_card_revoked CHECK (status <> 'revoked'
+        OR (revoked_at IS NOT NULL AND revoke_reason IS NOT NULL)),
+  CONSTRAINT chk_card_replaced CHECK (status <> 'replaced' OR replaced_by_id IS NOT NULL),
+  CONSTRAINT fk_card_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_card_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_card_photo  FOREIGN KEY (photo_attachment_id) REFERENCES attachments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_card_repl   FOREIGN KEY (replaced_by_id) REFERENCES id_cards(id) ON DELETE SET NULL,
+  CONSTRAINT fk_card_by     FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Every scan, including the ones that failed. A door log that records only
+-- successes cannot answer "did somebody try to get in with a revoked card".
+CREATE TABLE card_scans (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  card_id       INTEGER NULL,
+  -- The string the scanner actually read, kept even when it matched no card —
+  -- that row is the interesting one.
+  raw_serial    TEXT NOT NULL,
+  session_id    INTEGER NULL,
+  cohort_id     INTEGER NULL,
+  scanned_by_membership_id INTEGER NULL,
+  result        TEXT  NOT NULL,
+     -- ok|unknown|expired|revoked|wrong_session|duplicate|not_enrolled
+  scanned_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  CONSTRAINT chk_scan_result CHECK (result IN
+    ('ok','unknown','expired','revoked','wrong_session','duplicate','not_enrolled')),
+  CONSTRAINT fk_scan_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
+  CONSTRAINT fk_scan_card    FOREIGN KEY (card_id)    REFERENCES id_cards(id) ON DELETE SET NULL,
+  CONSTRAINT fk_scan_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_scan_cohort  FOREIGN KEY (cohort_id)  REFERENCES cohorts(id) ON DELETE SET NULL,
+  CONSTRAINT fk_scan_by      FOREIGN KEY (scanned_by_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+-- ONE table for every single-use expiring token the platform issues. v1 had
+-- three (`password_resets`, `progress_report_tokens`, `calendar_tokens`) for one
+-- idea, which meant three expiry rules and three places to get the hashing
+-- wrong — and two of them stored the token in the CLEAR, so the table was a set
+-- of live credentials.
+--
+-- Only the HASH is stored. A token that can be read out of the database is not a
+-- token, it is a password somebody else chose.
+CREATE TABLE signed_tokens (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NULL,
+  purpose       TEXT  NOT NULL,
+     -- password_reset|invite|report_share|calendar_feed|attendance_qr|unsubscribe
+  token_hash    TEXT     NOT NULL,
+  user_id       INTEGER NULL,
+  membership_id INTEGER NULL,
+  scope         TEXT  NULL,
+  label         TEXT NULL,
+  -- A feed token is used many times; a reset token once. `max_uses` says which,
+  -- so "single use" is data rather than a rule living in one caller.
+  max_uses      INTEGER NULL,
+  used_count    INTEGER NOT NULL DEFAULT 0,
+  last_used_at  TEXT  NULL,
+  expires_at    TEXT  NOT NULL,
+  revoked_at    TEXT  NULL,
+  created_by    INTEGER NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (token_hash),
+
+  CONSTRAINT chk_stoken_purpose CHECK (purpose IN
+    ('password_reset','invite','report_share','calendar_feed','attendance_qr','unsubscribe')),
+  -- Every token expires. v1's calendar feed tokens never did, which makes a
+  -- leaked URL a permanent subscription to a child's timetable.
+  CONSTRAINT chk_stoken_uses CHECK (max_uses IS NULL OR used_count <= max_uses),
+  -- A token belongs to somebody. One with neither an account nor a membership
+  -- authorises a caller nobody can name.
+  CONSTRAINT chk_stoken_subject CHECK (user_id IS NOT NULL OR membership_id IS NOT NULL),
+  CONSTRAINT fk_stoken_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_stoken_user   FOREIGN KEY (user_id)       REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stoken_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stoken_by     FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- The sign-in failure counter.
+--
+-- v2's conventions put throttling outside the schema, and for a public form that
+-- is right — there the request itself is the cost, and a cache is the correct
+-- home. This table exists because the AUTH throttle is a different thing: it
+-- counts FAILURES, not requests, so that eight correct sign-ins from one
+-- carrier-grade-NAT address (most Nigerian mobile traffic) cannot lock out
+-- unrelated people. A security control that vanishes in a migration is a
+-- regression whatever the convention says, so it is written down here rather
+-- than left to whatever cache the new host happens to have.
+--
+-- A SUCCESS must neither increment nor CLEAR the bucket: clearing would let an
+-- attacker holding one valid credential reset the counter between guesses at
+-- other accounts.
+CREATE TABLE auth_throttle (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  bucket        TEXT  NOT NULL,      -- login|reset|invite|admin
+  -- The IP or the account being guessed at. Hashed, because a table of the
+  -- addresses people failed to sign in from is a log of where they were.
+  key_hash      TEXT     NOT NULL,
+  failures      INTEGER NOT NULL DEFAULT 0,
+  first_failure_at TEXT NOT NULL,
+  last_failure_at  TEXT NOT NULL,
+  locked_until  TEXT  NULL,
+  UNIQUE (bucket, key_hash),
+
+  CONSTRAINT chk_throttle_order CHECK (last_failure_at >= first_failure_at)
+);
+
+-- =============================================================================
+-- LAYER Q · PRACTICE, REPERTOIRE AND RECOGNITION
+-- =============================================================================
+-- What a learner does between lessons, and what the academy says about it.
+--
+-- ⛔ There is NO leaderboard table here and there must not be one. The 2026-08
+-- redesign refuses a cohort ranking: a practice log is a conversation between a
+-- learner and their teacher, and turning it into a league table changes what
+-- gets logged. `test_schema_v2.php` asserts that no table in v2 orders learners
+-- against each other.
+
+CREATE TABLE achievements (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  code          TEXT  NOT NULL,
+  title         TEXT NOT NULL,
+  awarded_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  -- Awarded ONCE. v1 had no unique key, so a re-run of the sweep that grants
+  -- them could hand somebody the same badge twice and replay the celebration.
+  UNIQUE (tenant_id, membership_id, code),
+
+  CONSTRAINT fk_ach_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_ach_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+);
+
+CREATE TABLE practice_logs (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  enrolment_id  INTEGER NULL,
+  -- The DAY it was practised, in the learner's own reckoning, plus the minutes.
+  -- Stored as a date rather than an instant: "did I practise on Tuesday" must
+  -- not depend on the reader's timezone.
+  logged_on     TEXT         NOT NULL,
+  minutes       SMALLINTEGER NOT NULL DEFAULT 0,
+  focus         TEXT NULL,
+  notes         TEXT         NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  -- A practice session is minutes, not hours: 24 hours of practice in one day is
+  -- a typo, and a streak built on typos is worthless.
+  CONSTRAINT chk_plog_minutes CHECK (minutes <= 1440),
+  CONSTRAINT fk_plog_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_plog_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_plog_enrol  FOREIGN KEY (enrolment_id)  REFERENCES enrolments(id) ON DELETE SET NULL
+);
+
+CREATE TABLE practice_challenges (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  title         TEXT NOT NULL,
+  metric        TEXT  NOT NULL DEFAULT 'sessions',  -- sessions|minutes|days
+  target        INTEGER NOT NULL DEFAULT 1,
+  starts_on     TEXT         NOT NULL,
+  ends_on       TEXT         NOT NULL,
+  status        TEXT  NOT NULL DEFAULT 'active',    -- active|met|missed|abandoned
+  completed_on  TEXT         NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_pchal_metric CHECK (metric IN ('sessions','minutes','days')),
+  CONSTRAINT chk_pchal_status CHECK (status IN ('active','met','missed','abandoned')),
+  CONSTRAINT chk_pchal_target CHECK (target >= 1),
+  CONSTRAINT chk_pchal_window CHECK (ends_on >= starts_on),
+  CONSTRAINT chk_pchal_met CHECK (status <> 'met' OR completed_on IS NOT NULL),
+  CONSTRAINT fk_pchal_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_pchal_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+);
+
+CREATE TABLE repertoire (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  title         TEXT NOT NULL,
+  composer      TEXT NULL,
+  arranger      TEXT NULL,
+  instrument    TEXT  NULL,
+  -- TEXT, not 16: 'performance_ready' is 17 characters, and a CHECK that
+  -- permits a value the column cannot hold is a write that fails at runtime.
+  status        TEXT  NOT NULL DEFAULT 'learning',
+     -- learning|polishing|performance_ready|retired
+  notes         TEXT         NULL,
+  sort_order    INTEGER          NOT NULL DEFAULT 0,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at    TEXT  NULL,
+  deleted_seq   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_rep_status CHECK (status IN ('learning','polishing','performance_ready','retired')),
+  CONSTRAINT fk_rep_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_rep_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+);
+
+CREATE TABLE recitals (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  centre_id     INTEGER NULL,
+  slug          TEXT  NOT NULL,
+  title         TEXT NOT NULL,
+  subtitle      TEXT NULL,
+  venue         TEXT NULL,
+  -- A concert is a wall-clock event at a place: local time plus the zone, never
+  -- an instant. Families read the doors time off a poster.
+  starts_local  TEXT  NULL,
+  timezone      TEXT  NOT NULL DEFAULT 'Africa/Lagos',
+  doors_open_local TEXT NULL,
+  interval_after_item INTEGER NULL,
+  interval_minutes SMALLINTEGER NOT NULL DEFAULT 15,
+  status        TEXT  NOT NULL DEFAULT 'draft',
+     -- draft|open|programmed|performed|cancelled
+  submissions_close_local TEXT NULL,
+  description   TEXT         NULL,
+  programme_note TEXT        NULL,
+  created_by    INTEGER NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at    TEXT  NULL,
+  deleted_seq   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (public_id),
+  UNIQUE (tenant_id, slug, deleted_seq),
+
+  CONSTRAINT chk_recital_status CHECK (status IN ('draft','open','programmed','performed','cancelled')),
+  -- Doors open before the music starts, and submissions close before both.
+  CONSTRAINT chk_recital_doors CHECK (doors_open_local IS NULL OR starts_local IS NULL
+        OR doors_open_local <= starts_local),
+  CONSTRAINT chk_recital_close CHECK (submissions_close_local IS NULL OR starts_local IS NULL
+        OR submissions_close_local <= starts_local),
+  -- An announced concert has a time. "Programmed" with no date is a poster
+  -- nobody can act on.
+  CONSTRAINT chk_recital_when CHECK (status IN ('draft','cancelled') OR starts_local IS NOT NULL),
+  CONSTRAINT fk_recital_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_recital_centre FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE SET NULL,
+  CONSTRAINT fk_recital_by     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE recital_items (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  recital_id    INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  repertoire_id INTEGER NULL,
+  submission_id INTEGER NULL,
+  title         TEXT NOT NULL,
+  composer      TEXT NULL,
+  arranger      TEXT NULL,
+  movement      TEXT NULL,
+  instrument    TEXT  NULL,
+  duration_minutes SMALLINTEGER NOT NULL DEFAULT 4,
+  section       TEXT  NOT NULL DEFAULT 'main',      -- opening|main|closing|encore
+  sort_order    INTEGER          NOT NULL DEFAULT 0,
+  status        TEXT  NOT NULL DEFAULT 'proposed',
+     -- proposed|accepted|declined|withdrawn|performed
+  note          TEXT NULL,
+  decided_by    INTEGER NULL,
+  decided_at    TEXT  NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  CONSTRAINT chk_ritem_section CHECK (section IN ('opening','main','closing','encore')),
+  CONSTRAINT chk_ritem_status CHECK (status IN ('proposed','accepted','declined','withdrawn','performed')),
+  CONSTRAINT chk_ritem_duration CHECK (duration_minutes >= 1 AND duration_minutes <= 120),
+  -- A learner told no is told WHY and by whom: the programme is the most
+  -- visible judgement the academy makes about a child's playing.
+  CONSTRAINT chk_ritem_declined CHECK (status <> 'declined'
+        OR (decided_by IS NOT NULL AND decided_at IS NOT NULL AND note IS NOT NULL)),
+  CONSTRAINT fk_ritem_tenant  FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_ritem_recital FOREIGN KEY (recital_id)    REFERENCES recitals(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ritem_member  FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ritem_rep     FOREIGN KEY (repertoire_id) REFERENCES repertoire(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ritem_subm    FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ritem_by      FOREIGN KEY (decided_by)    REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- One referral code per person, and the referrals made with it.
+CREATE TABLE referral_codes (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  code          TEXT  NOT NULL,
+  is_active     INTEGER   NOT NULL DEFAULT 1,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (tenant_id, membership_id),
+  -- A code is typed by a stranger who has no tenant, so it is unique platform-wide.
+  UNIQUE (code),
+  CONSTRAINT chk_refcode_active CHECK (is_active IN (0,1)),
+  CONSTRAINT fk_refcode_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_refcode_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+);
+
+CREATE TABLE referrals (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  referrer_membership_id INTEGER NOT NULL,
+  code          TEXT  NOT NULL,
+  referred_name  TEXT NULL,
+  referred_email TEXT NULL,
+  referred_membership_id INTEGER NULL,
+  status        TEXT  NOT NULL DEFAULT 'pending',
+     -- pending|joined|rewarded|expired|rejected
+  -- Minor units and a currency, like every other amount in the schema. v1 kept
+  -- `reward_cents` with no currency column, so the figure meant whatever the
+  -- reader assumed.
+  reward_minor  INTEGER       NOT NULL DEFAULT 0,
+  currency      TEXT      NULL,
+  rewarded_at   TEXT  NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_referral_status CHECK (status IN ('pending','joined','rewarded','expired','rejected')),
+  CONSTRAINT chk_referral_reward CHECK (reward_minor >= 0
+        AND (reward_minor = 0 OR currency IS NOT NULL)),
+  CONSTRAINT chk_referral_rewarded CHECK (status <> 'rewarded'
+        OR (rewarded_at IS NOT NULL AND reward_minor > 0)),
+  -- Somebody to point at: a name, an address, or the account they became.
+  CONSTRAINT chk_referral_who CHECK (referred_email IS NOT NULL
+        OR referred_name IS NOT NULL OR referred_membership_id IS NOT NULL),
+  CONSTRAINT fk_referral_tenant   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_referral_referrer FOREIGN KEY (referrer_membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_referral_referred FOREIGN KEY (referred_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+-- =============================================================================
+-- LAYER R · DATA PROTECTION, AUTOMATION AND THE SHOP
+-- =============================================================================
+-- The NDPA layer is the RECORD, not the machinery: exporting and erasing already
+-- work, and what did not exist before was any trace that a request had been made.
+-- An admin typed an email, downloaded a bundle, and nothing survived.
+
+-- A data protection impact assessment.
+CREATE TABLE dp_assessments (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  title         TEXT NOT NULL,
+  scope         TEXT         NOT NULL,
+  trigger_reason TEXT        NULL,
+  necessity     TEXT         NULL,
+  risks         TEXT         NULL,
+  mitigations   TEXT         NULL,
+  residual_risk TEXT  NOT NULL DEFAULT 'unknown',   -- unknown|low|medium|high
+  decision      TEXT  NOT NULL DEFAULT 'draft',
+     -- draft|proceed|proceed_with_controls|do_not_proceed
+  assessed_on   TEXT         NULL,
+  assessed_by   INTEGER NULL,
+  review_due_on TEXT         NULL,
+  consulted_regulator INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_dpa_risk CHECK (residual_risk IN ('unknown','low','medium','high')),
+  CONSTRAINT chk_dpa_decision CHECK (decision IN
+    ('draft','proceed','proceed_with_controls','do_not_proceed')),
+  CONSTRAINT chk_dpa_regulator CHECK (consulted_regulator IN (0,1)),
+  -- A decision is a named person on a stated date. An assessment nobody signed
+  -- is a draft whatever the decision column says.
+  CONSTRAINT chk_dpa_decided CHECK (decision = 'draft'
+        OR (assessed_on IS NOT NULL AND assessed_by IS NOT NULL)),
+  -- A decision to proceed with high residual risk is exactly the case the NDPA
+  -- expects the regulator to have been consulted on, and controls to exist for.
+  CONSTRAINT chk_dpa_high_risk CHECK (residual_risk <> 'high'
+        OR decision IN ('draft','do_not_proceed','proceed_with_controls')),
+  CONSTRAINT fk_dpa_tenant FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
+  CONSTRAINT fk_dpa_by     FOREIGN KEY (assessed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- A personal data breach.
+--
+-- ⚠️ THE CLOCK RUNS FROM AWARENESS. NDPA s.40(2) measures the 72 hours from
+-- `discovered_at`, never from `occurred_at`: measuring from occurrence makes an
+-- instantly-reported month-old breach look late, and makes a breach discovered
+-- quickly look fine when it was not. `occurred_at` is nullable because the
+-- academy often cannot know it, and it may not be LATER than discovery.
+CREATE TABLE dp_breaches (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  reference     TEXT  NOT NULL,
+  occurred_at   TEXT  NULL,
+  discovered_at TEXT  NOT NULL,
+  nature        TEXT         NOT NULL,
+  data_categories TEXT       NOT NULL,
+  subject_categories TEXT    NULL,
+  subjects_affected INTEGER NULL,
+  risk_level    TEXT  NOT NULL DEFAULT 'unknown',   -- unknown|low|medium|high
+  containment   TEXT         NULL,
+  regulator_notified_at TEXT NULL,
+  regulator_reference TEXT NULL,
+  subjects_notified_at TEXT NULL,
+  no_notify_reason TEXT      NULL,
+  lessons       TEXT         NULL,
+  status        TEXT  NOT NULL DEFAULT 'open',      -- open|contained|closed
+  recorded_by   INTEGER NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (public_id),
+  UNIQUE (tenant_id, reference),
+
+  CONSTRAINT chk_breach_risk CHECK (risk_level IN ('unknown','low','medium','high')),
+  CONSTRAINT chk_breach_status CHECK (status IN ('open','contained','closed')),
+  CONSTRAINT chk_breach_order CHECK (occurred_at IS NULL OR occurred_at <= discovered_at),
+  -- A HIGH-risk breach cannot be closed until the affected people were told, or
+  -- there is a written reason they were not. This is the one CHECK in the schema
+  -- standing between "we dealt with it" and a statutory duty nobody discharged.
+  CONSTRAINT chk_breach_notify CHECK (status <> 'closed' OR risk_level <> 'high'
+        OR subjects_notified_at IS NOT NULL OR no_notify_reason IS NOT NULL),
+  -- And a closed breach says what was learned. The register exists to change
+  -- what happens next time.
+  CONSTRAINT chk_breach_closed CHECK (status <> 'closed' OR lessons IS NOT NULL),
+  CONSTRAINT fk_breach_tenant FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
+  CONSTRAINT fk_breach_by     FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Who else processes the academy's data. The register probes what is CONFIGURED
+-- right now, not what somebody once considered: an aspirational register lists
+-- the vendor nobody uses and omits the SMTP host that has carried every
+-- password-reset email for a year. `gap` = live and no agreement on file.
+CREATE TABLE dp_processors (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  key_name      TEXT  NOT NULL,
+  name          TEXT NOT NULL,
+  role          TEXT  NOT NULL DEFAULT 'processor',
+     -- processor|joint_controller|controller
+  purpose       TEXT         NULL,
+  country       TEXT  NULL,
+  dpa_signed_on TEXT         NULL,
+  dpa_reference TEXT NULL,
+  sub_processors TEXT        NULL,
+  transfer_basis TEXT NULL,
+  review_due_on TEXT         NULL,
+  status        TEXT  NOT NULL DEFAULT 'active',    -- active|suspended|retired
+  notes         TEXT         NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (tenant_id, key_name),
+
+  CONSTRAINT chk_dpproc_role CHECK (role IN ('processor','joint_controller','controller')),
+  CONSTRAINT chk_dpproc_status CHECK (status IN ('active','suspended','retired')),
+  -- A transfer out of the country needs a stated basis. Naming the country
+  -- without one records the risk and nothing about how it is answered.
+  CONSTRAINT chk_dpproc_transfer CHECK (country IS NULL OR country IN ('Nigeria','NG')
+        OR status <> 'active' OR transfer_basis IS NOT NULL),
+  CONSTRAINT fk_dpproc_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+-- The academy's annotations on the ROPA and the retention schedule.
+--
+-- ⚠️ The registers themselves are CODE, not rows: `mam_dp_purposes()` names the
+-- tables each purpose actually touches and `mam_dp_retention()` names a real
+-- table and date column, both asserted against the live schema by test. A
+-- register describing what the software does must be DERIVED from the software —
+-- free text in a CRUD form drifts the day a feature ships, and a drifted
+-- register is worse than a missing one because somebody has signed it. This
+-- table holds only what the academy adds on top: a review date, a note, and a
+-- LENGTHENED retention period.
+CREATE TABLE dp_register_notes (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  kind          TEXT  NOT NULL,      -- purpose|retention
+  ref_key       TEXT  NOT NULL,
+  -- A period may be LENGTHENED, never shortened: the schedule states a lawful
+  -- basis for each period, and a smaller number typed into a form would delete
+  -- lawfully-held records. Shortening one means editing the basis in the lib,
+  -- deliberately. The floor is enforced in `mam_dp_note_save()`, which is the
+  -- only thing that can know the code default.
+  keep_days     INTEGER NULL,
+  notes         TEXT         NULL,
+  reviewed_on   TEXT         NULL,
+  reviewed_by   INTEGER NULL,
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (tenant_id, kind, ref_key),
+  CONSTRAINT chk_dpnote_kind CHECK (kind IN ('purpose','retention')),
+  CONSTRAINT fk_dpnote_tenant FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
+  CONSTRAINT fk_dpnote_by     FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Lifecycle automation rules: a per-tenant on/off flag plus run telemetry. The
+-- REGISTRY of rules is code (`mam_automations_registry()`); this is the state.
+-- Named `automation_rules` rather than `automations` so it cannot be mistaken
+-- for the queue in `jobs`.
+CREATE TABLE automation_rules (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  rule_key      TEXT  NOT NULL,
+  is_enabled    INTEGER   NOT NULL DEFAULT 1,
+  params        TEXT         NULL,
+  last_run_at   TEXT  NULL,
+  run_count     INTEGER NOT NULL DEFAULT 0,
+  last_error    TEXT NULL,
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (tenant_id, rule_key),
+  CONSTRAINT chk_autorule_enabled CHECK (is_enabled IN (0,1)),
+  CONSTRAINT fk_autorule_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+-- AI provider telemetry: what was called, whether it worked, what it cost.
+--
+-- There is no column for the PROMPT or the OUTPUT, and that is the design. The
+-- prompts contain applicants' words about their children; keeping them turns a
+-- cost ledger into a second copy of the most sensitive free text in the system,
+-- held for a purpose ("debugging") that is not in the ROPA. A hash is enough to
+-- tell whether two calls were the same call.
+CREATE TABLE ai_runs (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NULL,
+  use_case      TEXT  NOT NULL,
+  provider      TEXT  NULL,
+  model         TEXT  NULL,
+  ok            INTEGER   NOT NULL DEFAULT 0,
+  prompt_hash   TEXT     NULL,
+  input_tokens  INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  latency_ms    INTEGER NULL,
+  -- The provider's error CODE or message, which is about the call and not about
+  -- the person it was made for.
+  error         TEXT NULL,
+  -- A human checked the output. Recorded because an AI suggestion acted on
+  -- without review is the thing an academy has to be able to rule out.
+  reviewed_by   INTEGER NULL,
+  reviewed_at   TEXT  NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  CONSTRAINT chk_airun_ok CHECK (ok IN (0,1)),
+  CONSTRAINT chk_airun_failed CHECK (ok = 1 OR error IS NOT NULL),
+  CONSTRAINT chk_airun_reviewed CHECK ((reviewed_by IS NULL) = (reviewed_at IS NULL)),
+  CONSTRAINT fk_airun_tenant FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
+  CONSTRAINT fk_airun_by     FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- The shop. Merchandise is NOT tuition: `price_books`/`price_items` model what a
+-- family pays to learn, and mapping a hoodie into them would misstate what it
+-- is and put it in every tuition report.
+CREATE TABLE store_products (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  sku           TEXT  NOT NULL,
+  slug          TEXT  NOT NULL,
+  name          TEXT NOT NULL,
+  description   TEXT         NULL,
+  goods_type    TEXT  NOT NULL DEFAULT 'digital',   -- digital|physical|service
+  delivery_type TEXT  NOT NULL DEFAULT 'instant',   -- instant|ship|collect|email
+  availability  TEXT  NOT NULL DEFAULT 'in_stock',
+     -- in_stock|out_of_stock|preorder|discontinued
+  -- NULL = not stock-tracked. v1 used -1 as the sentinel, which sorts and sums
+  -- as a real quantity: "total stock" across the catalogue came out negative.
+  stock         INTEGER          NULL,
+  price_minor   INTEGER       NOT NULL,
+  currency      TEXT      NOT NULL,
+  tax_rate_pct  REAL NOT NULL DEFAULT 0,
+  weight_grams  INTEGER NULL,
+  category      TEXT  NULL,
+  file_attachment_id INTEGER NULL,
+  sort_order    INTEGER          NOT NULL DEFAULT 0,
+  is_active     INTEGER   NOT NULL DEFAULT 1,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at    TEXT  NULL,
+  deleted_seq   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (public_id),
+  UNIQUE (tenant_id, sku, deleted_seq),
+  UNIQUE (tenant_id, slug, deleted_seq),
+
+  CONSTRAINT chk_sprod_goods CHECK (goods_type IN ('digital','physical','service')),
+  CONSTRAINT chk_sprod_delivery CHECK (delivery_type IN ('instant','ship','collect','email')),
+  CONSTRAINT chk_sprod_avail CHECK (availability IN
+    ('in_stock','out_of_stock','preorder','discontinued')),
+  CONSTRAINT chk_sprod_price CHECK (price_minor >= 0),
+  CONSTRAINT chk_sprod_stock CHECK (stock IS NULL OR stock >= 0),
+  CONSTRAINT chk_sprod_active CHECK (is_active IN (0,1)),
+  -- A digital product needs a file to deliver. v1 shipped "instant delivery"
+  -- items with an empty file_url, which sells somebody nothing.
+  CONSTRAINT chk_sprod_file CHECK (goods_type <> 'digital'
+        OR delivery_type <> 'instant' OR file_attachment_id IS NOT NULL),
+  CONSTRAINT fk_sprod_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_sprod_file   FOREIGN KEY (file_attachment_id) REFERENCES attachments(id) ON DELETE SET NULL
+);
+
+CREATE TABLE store_orders (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  reference     TEXT  NOT NULL,
+  membership_id INTEGER NULL,
+  customer_name  TEXT NULL,
+  customer_email TEXT NULL,
+  customer_phone TEXT  NULL,
+  customer_country TEXT NULL,
+  shipping_address TEXT       NULL,
+  status        TEXT  NOT NULL DEFAULT 'pending',
+     -- pending|paid|fulfilled|delivered|cancelled|refunded
+  -- Totals in minor units with the frozen rate, exactly as for an invoice. v1
+  -- stored REAL dollars, so a rounding difference between the cart and the
+  -- receipt was invisible until a customer added it up.
+  subtotal_minor INTEGER      NOT NULL DEFAULT 0,
+  tax_minor     INTEGER       NOT NULL DEFAULT 0,
+  shipping_minor INTEGER      NOT NULL DEFAULT 0,
+  discount_minor INTEGER      NOT NULL DEFAULT 0,
+  total_minor   INTEGER       NOT NULL DEFAULT 0,
+  currency      TEXT      NOT NULL,
+  base_currency TEXT      NOT NULL,
+  base_total_minor INTEGER    NULL,
+  fx_rate       REAL NULL,
+  promotion_id  INTEGER NULL,
+  payment_id    INTEGER NULL,
+  notes         TEXT         NULL,
+  paid_at       TEXT  NULL,
+  delivered_at  TEXT  NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  row_version   INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (public_id),
+  UNIQUE (tenant_id, reference),
+
+  CONSTRAINT chk_sorder_status CHECK (status IN
+    ('pending','paid','fulfilled','delivered','cancelled','refunded')),
+  CONSTRAINT chk_sorder_amounts CHECK (subtotal_minor >= 0 AND tax_minor >= 0
+        AND shipping_minor >= 0 AND discount_minor >= 0 AND total_minor >= 0),
+  CONSTRAINT chk_sorder_total CHECK (total_minor
+        = subtotal_minor + tax_minor + shipping_minor - discount_minor),
+  CONSTRAINT chk_sorder_fx CHECK (currency = base_currency
+        OR (base_total_minor IS NOT NULL AND fx_rate IS NOT NULL)),
+  -- Somewhere to send it, and somebody to send it to.
+  CONSTRAINT chk_sorder_contact CHECK (membership_id IS NOT NULL OR customer_email IS NOT NULL),
+  CONSTRAINT chk_sorder_paid CHECK (status = 'pending' OR status = 'cancelled' OR paid_at IS NOT NULL),
+  CONSTRAINT fk_sorder_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_sorder_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_sorder_promo  FOREIGN KEY (promotion_id)  REFERENCES promotions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_sorder_pay    FOREIGN KEY (payment_id)    REFERENCES payments(id) ON DELETE SET NULL
+);
+
+-- What was in the order, as ROWS. v1 kept `items_json`, so "how many hoodies did
+-- we sell" was a question no query could answer, and the product a line referred
+-- to could be renamed underneath it.
+CREATE TABLE store_order_items (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  order_id      INTEGER NOT NULL,
+  product_id    INTEGER NULL,
+  -- The name and price AT THE TIME. A receipt must not change because somebody
+  -- edited the catalogue afterwards.
+  sku           TEXT  NULL,
+  name          TEXT NOT NULL,
+  quantity      INTEGER NOT NULL DEFAULT 1,
+  unit_price_minor INTEGER    NOT NULL,
+  line_total_minor INTEGER    NOT NULL,
+  currency      TEXT      NOT NULL,
+
+  CONSTRAINT chk_sitem_qty CHECK (quantity >= 1),
+  CONSTRAINT chk_sitem_amounts CHECK (unit_price_minor >= 0 AND line_total_minor >= 0),
+  CONSTRAINT chk_sitem_line CHECK (line_total_minor = unit_price_minor * quantity),
+  CONSTRAINT fk_sitem_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
+  CONSTRAINT fk_sitem_order   FOREIGN KEY (order_id)   REFERENCES store_orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sitem_product FOREIGN KEY (product_id) REFERENCES store_products(id) ON DELETE SET NULL
+);
+
 -- Schema baseline. A fresh v2 install starts AT the target rather than
 -- replaying v1's 81 migrations.
 CREATE TABLE schema_version (
@@ -3883,8 +4643,9 @@ CREATE TABLE schema_version (
   note        TEXT NULL
 );
 
-INSERT INTO schema_version (version, note) VALUES (204,
-  'schema-v2 baseline + guardian layer + assessment + teaching operations + communications');
+INSERT INTO schema_version (version, note) VALUES (205,
+  'schema-v2 complete: guardian layer, assessment, teaching operations, communications, '
+  || 'safeguarding, practice and compliance');
 
 -- Seed the currencies the platform ships knowing about. Everything else is
 -- tenant data and arrives via the ETL or the admin.
@@ -4034,3 +4795,28 @@ CREATE INDEX ix_auditer_member ON auditer_results (tenant_id, membership_id, aud
 CREATE INDEX ix_mkt_status ON marketing_contacts (tenant_id, status);
 CREATE INDEX ix_promo_window ON promotions (tenant_id, is_active, starts_at, ends_at);
 CREATE INDEX ix_banner_window ON announcement_banners (tenant_id, is_active, starts_at, ends_at);
+CREATE INDEX ix_vetting_expiry ON vetting_records (tenant_id, expires_on);
+CREATE INDEX ix_card_member ON id_cards (tenant_id, membership_id, status);
+CREATE INDEX ix_card_expiry ON id_cards (tenant_id, expires_at, status);
+CREATE INDEX ix_scan_card ON card_scans (tenant_id, card_id, scanned_at);
+CREATE INDEX ix_scan_result ON card_scans (tenant_id, result, scanned_at);
+CREATE INDEX ix_stoken_purpose ON signed_tokens (purpose, expires_at);
+CREATE INDEX ix_stoken_user ON signed_tokens (user_id, purpose);
+CREATE INDEX ix_throttle_window ON auth_throttle (bucket, last_failure_at);
+CREATE INDEX ix_achievement_member ON achievements (tenant_id, membership_id, awarded_at);
+CREATE INDEX ix_plog_member ON practice_logs (tenant_id, membership_id, logged_on);
+CREATE INDEX ix_pchal_member ON practice_challenges (tenant_id, membership_id, status, ends_on);
+CREATE INDEX ix_rep_member ON repertoire (tenant_id, membership_id, status, sort_order);
+CREATE INDEX ix_recital_status ON recitals (tenant_id, status, starts_local);
+CREATE INDEX ix_ritem_recital ON recital_items (tenant_id, recital_id, section, sort_order);
+CREATE INDEX ix_ritem_member ON recital_items (tenant_id, membership_id);
+CREATE INDEX ix_referral_referrer ON referrals (tenant_id, referrer_membership_id, status);
+CREATE INDEX ix_referral_email ON referrals (tenant_id, referred_email);
+CREATE INDEX ix_dpa_review ON dp_assessments (tenant_id, review_due_on);
+CREATE INDEX ix_breach_clock ON dp_breaches (tenant_id, status, discovered_at);
+CREATE INDEX ix_dpproc_status ON dp_processors (tenant_id, status, review_due_on);
+CREATE INDEX ix_airun_case ON ai_runs (tenant_id, use_case, created_at);
+CREATE INDEX ix_sprod_active ON store_products (tenant_id, is_active, sort_order);
+CREATE INDEX ix_sorder_status ON store_orders (tenant_id, status, created_at);
+CREATE INDEX ix_sitem_order ON store_order_items (tenant_id, order_id);
+CREATE INDEX ix_sitem_product ON store_order_items (tenant_id, product_id);

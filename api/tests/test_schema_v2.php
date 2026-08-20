@@ -74,7 +74,12 @@ $tenantless = ['tenants', 'currencies', 'users', 'user_credentials', 'user_ident
                'user_preferences',
                // The glossary's tenant_id is NULLABLE (NULL = platform default),
                // so it is not a tenant-scoped table in the usual sense.
-               'status_definitions'];
+               'status_definitions',
+               // The sign-in failure counter is keyed on a hashed IP or account
+               // BEFORE any tenant is known — a login attempt does not have one
+               // yet, and scoping the bucket by tenant would let an attacker
+               // reset it by guessing at a different academy.
+               'auth_throttle'];
 $missing = [];
 foreach ($db->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")->fetchAll(PDO::FETCH_COLUMN) as $t) {
     if (in_array($t, $tenantless, true)) continue;
@@ -846,3 +851,189 @@ $rejects("INSERT INTO promotions (public_id,tenant_id,name,discount_pct,max_disc
     "a cap with no currency — a bare number that means one thing in kobo and another in cents");
 $rejects("INSERT INTO announcement_banners (public_id,tenant_id,title,cta_label) VALUES ('01JBANNERDEADEND000000',1,'Half a link','Click here')",
     "a labelled button with no destination — a dead end on the academy's front page");
+
+t_group('schema-v2 — the safeguarding gate stores no offence data');
+
+// The highest-consequence assertion in this file. Child Rights Act 2003 s.2(2)
+// requires standards on the suitability of staff; the record of a check must not
+// become a copy of the check.
+$vetCols = array_column($db->query('PRAGMA table_info(vetting_records)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+foreach (['certificate_scan', 'attachment_id', 'document_url', 'findings', 'disclosure',
+          'offences', 'convictions', 'notes', 'result'] as $forbidden) {
+    t_ok(!in_array($forbidden, $vetCols, true),
+        "vetting_records has no `$forbidden` — a certificate's contents are sensitive personal data about "
+        . 'the instructor, and holding a scan in a shared-hosting database is a liability, not a control');
+}
+t_ok(in_array('evidence_held', $vetCols, true),
+    'it records WHERE the paper is filed offline, which is the control');
+t_ok(!in_array('is_valid', $vetCols, true) && !in_array('status', $vetCols, true),
+    'and validity is DERIVED from expires_on, never a stored status: a clearance lapsing at midnight must '
+    . 'read as expired on the next page load, not the next cron run');
+
+$ins("INSERT INTO vetting_records (public_id,tenant_id,membership_id,clearance_type,issuing_body,reference_no,issued_on,expires_on,verified_by,verified_at,evidence_held)
+      VALUES (?,1,2,'criminal_record','Lagos State CID','CID-2026-114','2026-01-05','2029-01-04',2,'2026-01-06 09:00:00.000','Safeguarding file, cabinet 2')", [$ulid()]);
+$rejects("INSERT INTO vetting_records (public_id,tenant_id,membership_id,clearance_type,issued_on)
+          VALUES ('01JDUPVET000000000000000',1,2,'criminal_record','2026-06-01')",
+    "a second record of the same check for one instructor — re-recording REPLACES, because the gate asks "
+    . "'is there a current one' and a history of certificate numbers is the sensitive data this avoids");
+$rejects("INSERT INTO vetting_records (public_id,tenant_id,membership_id,clearance_type,issued_on,expires_on)
+          VALUES ('01JVETBACKWARDS0000000',1,2,'reference_check','2026-06-01','2026-01-01')",
+    "a clearance that expired before it was issued");
+$rejects("INSERT INTO vetting_records (public_id,tenant_id,membership_id,clearance_type,issued_on,verified_by)
+          VALUES ('01JVETHALFCHECK000000',1,2,'identity','2026-06-01',2)",
+    "a record verified by somebody with no date — a record nobody checked is not a clearance");
+
+t_group('schema-v2 — cards, scans and tokens');
+
+$ins("INSERT INTO id_cards (id,public_id,tenant_id,membership_id,serial,status,issued_at,expires_at)
+      VALUES (1,?,1,1,'MAM-0001-A','active','2026-09-01 00:00:00.000','2027-08-31 23:59:59.999')", [$ulid()]);
+$rejects("INSERT INTO id_cards (public_id,tenant_id,membership_id,serial,issued_at,expires_at)
+          VALUES ('01JCARDNOEXP0000000000',1,1,'MAM-0002-A','2026-09-01 00:00:00.000','2026-08-01 00:00:00.000')",
+    "a card that expires before it is issued");
+$rejects("INSERT INTO id_cards (public_id,tenant_id,membership_id,serial,status,issued_at,expires_at,revoked_at)
+          VALUES ('01JCARDNOWHY000000000',1,1,'MAM-0003-A','revoked','2026-09-01 00:00:00.000','2027-08-31 00:00:00.000','2026-10-01 00:00:00.000')",
+    "a revoked card with no reason — REVOKED means somebody took it away and says why, EXPIRED means time "
+    . "did, and they are deliberately different states");
+$rejects("INSERT INTO id_cards (public_id,tenant_id,membership_id,serial,issued_at,expires_at)
+          VALUES ('01JCARDDUPSERIAL00000',1,1,'MAM-0001-A','2026-09-01 00:00:00.000','2027-08-31 00:00:00.000')",
+    "two cards sharing a serial — a scanner at a door has no tenant to disambiguate with");
+// The failed scans are the point of the log.
+foreach (['ok', 'unknown', 'expired', 'revoked'] as $result) {
+    $ins("INSERT INTO card_scans (tenant_id,card_id,raw_serial,scanned_by_membership_id,result)
+          VALUES (1," . ($result === 'unknown' ? 'NULL' : '1') . ",'MAM-0001-A',2,'" . $result . "')");
+}
+t_eq((int) $db->query("SELECT count(*) FROM card_scans WHERE result <> 'ok'")->fetchColumn(), 3,
+    'a failed scan is a ROW: a door log recording only successes cannot answer "did somebody try to get in '
+    . 'with a revoked card"');
+
+$tokCols = array_column($db->query('PRAGMA table_info(signed_tokens)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+t_ok(in_array('token_hash', $tokCols, true) && !in_array('token', $tokCols, true),
+    'signed_tokens stores only a HASH — v1 had three token tables and two kept the token in the clear, so '
+    . 'the table was a set of live credentials');
+$ins("INSERT INTO signed_tokens (tenant_id,purpose,token_hash,user_id,max_uses,expires_at)
+      VALUES (1,'password_reset',?,1,1,'2026-09-01 01:00:00.000')", [str_repeat('c', 64)]);
+$rejects("INSERT INTO signed_tokens (tenant_id,purpose,token_hash,expires_at) VALUES (1,'invite','" . str_repeat('d', 64) . "','2026-09-08 00:00:00.000')",
+    "a token belonging to nobody — it would authorise a caller nobody can name");
+$rejects("INSERT INTO signed_tokens (tenant_id,purpose,token_hash,user_id,max_uses,used_count,expires_at)
+          VALUES (1,'password_reset','" . str_repeat('e', 64) . "',1,1,2,'2026-09-01 01:00:00.000')",
+    "a single-use token used twice");
+$tokInfo = [];
+foreach ($db->query('PRAGMA table_info(signed_tokens)')->fetchAll(PDO::FETCH_ASSOC) as $c) $tokInfo[$c['name']] = $c;
+t_ok(isset($tokInfo['expires_at']) && (int) $tokInfo['expires_at']['notnull'] === 1,
+    'and every token expires: v1 calendar feed tokens never did, which makes a leaked URL a permanent '
+    . "subscription to a child's timetable");
+
+$thrCols = array_column($db->query('PRAGMA table_info(auth_throttle)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+t_ok(in_array('failures', $thrCols, true) && !in_array('requests', $thrCols, true),
+    'the auth throttle counts FAILURES, not requests: on carrier-grade NAT (most Nigerian mobile traffic) '
+    . 'counting requests locks out people who typed their password correctly');
+t_ok(in_array('key_hash', $thrCols, true) && !in_array('ip', $thrCols, true),
+    'and the key is hashed — a table of the addresses people failed to sign in from is a log of where they were');
+
+t_group('schema-v2 — practice, repertoire and recognition');
+
+$ins("INSERT INTO practice_logs (tenant_id,membership_id,logged_on,minutes,focus) VALUES (1,1,'2026-10-02',35,'Scales')");
+$rejects("INSERT INTO practice_logs (tenant_id,membership_id,logged_on,minutes) VALUES (1,1,'2026-10-03',2000)",
+    "more practice in a day than a day contains — a streak built on typos is worthless");
+$ins("INSERT INTO achievements (tenant_id,membership_id,code,title) VALUES (1,1,'first_week','First week done')");
+$rejects("INSERT INTO achievements (tenant_id,membership_id,code,title) VALUES (1,1,'first_week','First week done')",
+    "the same badge awarded twice — v1 had no unique key, so a re-run of the sweep replayed the celebration");
+$ins("INSERT INTO repertoire (id,public_id,tenant_id,membership_id,title,composer,status)
+      VALUES (1,?,1,1,'Prelude in C','J. S. Bach','performance_ready')", [$ulid()]);
+t_ok(true, "'performance_ready' fits its column — a CHECK permitting a value the column cannot hold is a "
+    . 'write that fails at runtime');
+$ins("INSERT INTO recitals (id,public_id,tenant_id,slug,title,status,starts_local,doors_open_local,timezone)
+      VALUES (1,?,1,'toni-2026','Toni Recital','programmed','2026-12-12 17:00:00.000','2026-12-12 16:30:00.000','Africa/Lagos')", [$ulid()]);
+$rejects("INSERT INTO recitals (public_id,tenant_id,slug,title,status) VALUES ('01JRECNOWHEN00000000',1,'x','No date','programmed')",
+    "an announced concert with no time — a poster nobody can act on");
+$rejects("INSERT INTO recitals (public_id,tenant_id,slug,title,status,starts_local,doors_open_local)
+          VALUES ('01JRECDOORS0000000000',1,'y','Doors after','programmed','2026-12-12 17:00:00.000','2026-12-12 18:00:00.000')",
+    "doors opening after the music starts");
+$ins("INSERT INTO recital_items (tenant_id,recital_id,membership_id,repertoire_id,title,duration_minutes,status)
+      VALUES (1,1,1,1,'Prelude in C',4,'accepted')");
+$rejects("INSERT INTO recital_items (tenant_id,recital_id,membership_id,title,status,decided_by,decided_at)
+          VALUES (1,1,1,'Something long','declined',2,'2026-11-01 09:00:00.000')",
+    "a learner told no with no reason — the programme is the most visible judgement the academy makes "
+    . "about a child's playing");
+$rejects("INSERT INTO referrals (public_id,tenant_id,referrer_membership_id,code,referred_email,status,reward_minor)
+          VALUES ('01JREFNOCUR000000000',1,1,'ADA26','friend@example.test','pending',5000)",
+    "a reward amount with no currency — v1 kept `reward_cents` and the figure meant whatever the reader assumed");
+$rejects("INSERT INTO referrals (public_id,tenant_id,referrer_membership_id,code,status) VALUES ('01JREFNOBODY00000000',1,1,'ADA26','pending')",
+    "a referral of nobody");
+
+t_group('schema-v2 — the compliance record');
+
+// The clock runs from AWARENESS, not occurrence (NDPA s.40(2)).
+$ins("INSERT INTO dp_breaches (public_id,tenant_id,reference,occurred_at,discovered_at,nature,data_categories,risk_level,status,lessons)
+      VALUES (?,1,'BR-2026-01','2026-07-01 09:00:00.000','2026-07-20 09:00:00.000','Misdirected email','Contact details','low','closed','Address book cleaned.')", [$ulid()]);
+$rejects("INSERT INTO dp_breaches (public_id,tenant_id,reference,occurred_at,discovered_at,nature,data_categories)
+          VALUES ('01JBRFUTURE000000000',1,'BR-2026-02','2026-08-01 09:00:00.000','2026-07-01 09:00:00.000','x','y')",
+    "a breach discovered before it happened");
+$rejects("INSERT INTO dp_breaches (public_id,tenant_id,reference,discovered_at,nature,data_categories,risk_level,status,lessons)
+          VALUES ('01JBRHIGHQUIET000000',1,'BR-2026-03','2026-07-20 09:00:00.000','Portal exposure','Learner records','high','closed','Patched.')",
+    "a HIGH-risk breach closed without telling the affected people and without a written reason they were "
+    . "not told — the one CHECK standing between 'we dealt with it' and a statutory duty nobody discharged");
+$rejects("INSERT INTO dp_breaches (public_id,tenant_id,reference,discovered_at,nature,data_categories,status)
+          VALUES ('01JBRNOLESSON0000000',1,'BR-2026-04','2026-07-20 09:00:00.000','x','y','closed')",
+    "a closed breach with nothing learned — the register exists to change what happens next time");
+
+$ins("INSERT INTO dp_assessments (public_id,tenant_id,title,scope,residual_risk,decision,assessed_on,assessed_by)
+      VALUES (?,1,'Guardian portal','Reports and fees','low','proceed','2026-08-01',2)", [$ulid()]);
+$rejects("INSERT INTO dp_assessments (public_id,tenant_id,title,scope,decision) VALUES ('01JDPAUNSIGNED000000',1,'x','y','proceed')",
+    "a decision to proceed that nobody signed or dated");
+$rejects("INSERT INTO dp_assessments (public_id,tenant_id,title,scope,residual_risk,decision,assessed_on,assessed_by)
+          VALUES ('01JDPAHIGHPROCEED000',1,'x','y','high','proceed','2026-08-01',2)",
+    "proceeding with HIGH residual risk and no controls — the case the NDPA expects controls and a "
+    . "regulator conversation for");
+
+$ins("INSERT INTO dp_processors (tenant_id,key_name,name,role,country,transfer_basis,status)
+      VALUES (1,'smtp','A Mail Host','processor','United States','Standard contractual clauses','active')");
+$rejects("INSERT INTO dp_processors (tenant_id,key_name,name,country,status) VALUES (1,'cdn','A CDN','Ireland','active')",
+    "a live processor abroad with no stated transfer basis — naming the country records the risk and "
+    . "nothing about how it is answered");
+
+$noteCols = array_column($db->query('PRAGMA table_info(dp_register_notes)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+t_ok(!in_array('tables', $noteCols, true) && !in_array('purpose_text', $noteCols, true),
+    'the ROPA itself is CODE, not rows: a register describing what the software does must be derived from '
+    . 'the software, because free text in a CRUD form drifts the day a feature ships — and a drifted '
+    . 'register is worse than a missing one, because somebody has signed it');
+
+t_group('schema-v2 — AI telemetry keeps no prompts, and the shop is not tuition');
+
+$aiCols = array_column($db->query('PRAGMA table_info(ai_runs)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+foreach (['prompt', 'prompt_text', 'response', 'output', 'completion', 'messages'] as $forbidden) {
+    t_ok(!in_array($forbidden, $aiCols, true),
+        "ai_runs has no `$forbidden` — the prompts contain applicants' words about their children, and "
+        . 'keeping them turns a cost ledger into a second copy of the most sensitive free text in the '
+        . 'system, held for a purpose that is not in the ROPA');
+}
+t_ok(in_array('prompt_hash', $aiCols, true), 'a hash is enough to tell whether two calls were the same call');
+$rejects("INSERT INTO ai_runs (tenant_id,use_case,provider,ok) VALUES (1,'advisor','test',0)",
+    "a failed AI call with no error recorded");
+
+$ins("INSERT INTO store_products (id,public_id,tenant_id,sku,slug,name,goods_type,delivery_type,price_minor,currency)
+      VALUES (1,?,1,'HOODIE-M','hoodie-m','MAM hoodie (M)','physical','ship',1500000,'NGN')", [$ulid()]);
+$rejects("INSERT INTO store_products (public_id,tenant_id,sku,slug,name,goods_type,delivery_type,price_minor,currency)
+          VALUES ('01JSPRODNOFILE000000',1,'EBOOK','ebook','Scales ebook','digital','instant',500000,'NGN')",
+    "an instantly-delivered digital product with no file — v1 shipped these with an empty file_url, which "
+    . "sells somebody nothing");
+$rejects("INSERT INTO store_products (public_id,tenant_id,sku,slug,name,price_minor,currency,stock)
+          VALUES ('01JSPRODNEGSTOCK0000',1,'X','x','X',100,'NGN',-1)",
+    "a stock sentinel of -1 — it sorts and sums as a real quantity, so 'total stock' came out negative in v1");
+$ins("INSERT INTO store_orders (id,public_id,tenant_id,reference,membership_id,status,subtotal_minor,tax_minor,shipping_minor,total_minor,currency,base_currency,paid_at)
+      VALUES (1,?,1,'ORD-0001',1,'paid',1500000,0,200000,1700000,'NGN','NGN','2026-10-05 09:00:00.000')", [$ulid()]);
+$rejects("INSERT INTO store_orders (public_id,tenant_id,reference,membership_id,status,subtotal_minor,total_minor,currency,base_currency)
+          VALUES ('01JORDBADTOTAL000000',1,'ORD-0002',1,'pending',1500000,999,'NGN','NGN')",
+    "an order total that is not its own lines plus tax and shipping");
+$rejects("INSERT INTO store_orders (public_id,tenant_id,reference,status,subtotal_minor,total_minor,currency,base_currency)
+          VALUES ('01JORDNOBODY00000000',1,'ORD-0003','pending',0,0,'NGN','NGN')",
+    "an order with no member and no email — nobody to send it to");
+$ins("INSERT INTO store_order_items (tenant_id,order_id,product_id,sku,name,quantity,unit_price_minor,line_total_minor,currency)
+      VALUES (1,1,1,'HOODIE-M','MAM hoodie (M)',1,1500000,1500000,'NGN')");
+$rejects("INSERT INTO store_order_items (tenant_id,order_id,product_id,name,quantity,unit_price_minor,line_total_minor,currency)
+          VALUES (1,1,1,'MAM hoodie (M)',2,1500000,1500000,'NGN')",
+    "a line whose total is not its unit price times its quantity");
+$itemCols = array_column($db->query('PRAGMA table_info(store_order_items)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+t_ok(in_array('name', $itemCols, true) && in_array('unit_price_minor', $itemCols, true),
+    'an order line keeps the name and price AT THE TIME, so a receipt does not change because somebody '
+    . 'edited the catalogue afterwards');

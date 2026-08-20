@@ -924,9 +924,12 @@ easy to "simplify" into being wrong:
     discount on the POST-AID balance, because a percentage of the gross would
     discount money the aid pool paid. The cap is on the AMOUNT, not the percentage.
   - **`mam_fee_to_minor()` is string arithmetic** — the decimal point is MOVED.
-    `8.07 * 100` is `806.9999999999999`; `2.675` rounds to 268 where the float route
-    gives 267. Prefer it over `mam_money_to_minor()` wherever the value arrives as
-    text.
+    MEASURED on PHP 8.4: `8.29 * 100` is 828.99999999999989 and `0.29 * 100` is
+    28.999999999999996, so a truncating conversion loses a kobo; and `2.675`
+    rounds to 268 by string where the float route gives 267. ⚠️ An earlier note
+    here cited `8.07`, which is EXACT on this build — the reasoning held, the
+    example did not. Prefer it over `mam_money_to_minor()` wherever the value
+    arrives as text.
   - Totals compute ONCE from the lines in the invoice's own currency and are
     STORED. **Never sum per-line conversions** — a one-naira gap reads to a parent
     as a pricing error. The rate is FROZEN at issue for reconciliation; the naira

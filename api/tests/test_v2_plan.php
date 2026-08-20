@@ -234,6 +234,165 @@ function v2p_source(): array {
              'attempts' => 1, 'body' => 'A rendered email nobody needs to keep.', 'opts' => null,
              'created_at' => '2026-01-04 09:40:00', 'updated_at' => '2026-01-04 09:40:00', 'sent_at' => null],
         ],
+        /* Safeguarding, identity, practice and compliance. */
+        'vetting_records' => [
+            ['id' => 1, 'instructor_id' => 2, 'clearance_type' => 'criminal_record',
+             'issuing_body' => 'Lagos State CID', 'reference_no' => 'CID-2026-114',
+             'issued_on' => '2026-01-05', 'expires_on' => '2029-01-04', 'verified_by' => 4,
+             'verified_at' => '2026-01-06 09:00:00', 'evidence_held' => 'Safeguarding file, cabinet 2',
+             'created_at' => '2026-01-06 09:00:00'],
+            // A verifier with no date: not a verification.
+            ['id' => 2, 'instructor_id' => 2, 'clearance_type' => 'identity',
+             'issuing_body' => 'NIMC', 'reference_no' => 'NIN-***', 'issued_on' => '2026-01-05',
+             'expires_on' => null, 'verified_by' => 4, 'verified_at' => null,
+             'evidence_held' => null, 'created_at' => '2026-01-06 09:00:00'],
+        ],
+        'student_consents' => [
+            ['student_id' => 1, 'media_consent' => 1, 'photo_consent' => 1, 'data_consent' => 1,
+             'safeguarding_contact' => 'Ifeoma Bello, +2348000000002', 'updated_by' => 4,
+             'updated_at' => '2026-01-14 09:00:00'],
+        ],
+        'id_cards' => [
+            ['id' => 1, 'user_id' => 1, 'summer_app_id' => null, 'role' => 'student',
+             'serial' => 'MAM-0001-A', 'version' => 1, 'status' => 'active', 'session_code' => 'TONI26',
+             'photo_url' => 'https://files.example.test/ada.jpg', 'issued_at' => '2026-02-01 09:00:00',
+             'printed_at' => '2026-02-02 09:00:00', 'revoked_at' => null, 'revoke_reason' => null,
+             'created_by' => 4, 'created_at' => '2026-02-01 09:00:00', 'expires_at' => '2027-01-31 23:59:59'],
+            // Minted before expiry was a real date (pre-v59).
+            ['id' => 2, 'user_id' => 3, 'summer_app_id' => null, 'role' => 'student',
+             'serial' => 'MAM-0003-A', 'version' => 1, 'status' => 'active', 'session_code' => '',
+             'photo_url' => null, 'issued_at' => '2026-02-01 09:00:00', 'printed_at' => null,
+             'revoked_at' => null, 'revoke_reason' => null, 'created_by' => 4,
+             'created_at' => '2026-02-01 09:00:00', 'expires_at' => null],
+        ],
+        'card_scans' => [
+            ['id' => 1, 'card_id' => 1, 'raw_serial' => 'MAM-0001-A', 'session_id' => 1, 'class_id' => 1,
+             'scanned_by' => 2, 'result' => 'ok', 'scanned_at' => '2026-02-06 16:01:00'],
+            // Matched no card at all — the row somebody investigates.
+            ['id' => 2, 'card_id' => null, 'raw_serial' => 'NOT-A-CARD', 'session_id' => 1,
+             'class_id' => 1, 'scanned_by' => 2, 'result' => 'not_found',
+             'scanned_at' => '2026-02-06 16:02:00'],
+        ],
+        'achievements' => [
+            ['id' => 1, 'student_id' => 1, 'code' => 'first_week', 'title' => 'First week done',
+             'awarded_at' => '2026-02-13 09:00:00'],
+            // The same badge twice: v1 had no unique key.
+            ['id' => 2, 'student_id' => 1, 'code' => 'first_week', 'title' => 'First week done',
+             'awarded_at' => '2026-02-20 09:00:00'],
+        ],
+        'practice_logs' => [
+            ['id' => 1, 'student_id' => 1, 'minutes' => 35, 'focus' => 'Scales', 'notes' => null,
+             'logged_on' => '2026-02-07', 'created_at' => '2026-02-07 20:00:00'],
+            // More minutes than a day contains.
+            ['id' => 2, 'student_id' => 1, 'minutes' => 2000, 'focus' => 'Typo', 'notes' => null,
+             'logged_on' => '2026-02-08', 'created_at' => '2026-02-08 20:00:00'],
+        ],
+        'repertoire' => [
+            ['id' => 1, 'student_id' => 1, 'title' => 'Prelude in C', 'composer' => 'J. S. Bach',
+             'status' => 'performance_ready', 'notes' => null, 'sort_order' => 1,
+             'created_at' => '2026-02-01 09:00:00', 'updated_at' => null],
+        ],
+        'recitals' => [
+            ['id' => 1, 'slug' => 'toni-2026', 'title' => 'Toni Recital', 'subtitle' => null,
+             'venue' => 'Studio A', 'starts_at' => '2026-04-25 16:00:00',
+             'doors_open_at' => '2026-04-25 15:30:00', 'interval_after' => 5, 'interval_min' => 15,
+             'status' => 'programmed', 'submissions_close_at' => '2026-04-10 00:00:00',
+             'description' => null, 'programme_note' => null, 'created_by' => 4,
+             'created_at' => '2026-03-01 09:00:00', 'updated_at' => null],
+        ],
+        'recital_items' => [
+            ['id' => 1, 'recital_id' => 1, 'student_id' => 1, 'repertoire_id' => 1, 'submission_id' => null,
+             'title' => 'Prelude in C', 'composer' => 'J. S. Bach', 'arranger' => null, 'movement' => null,
+             'instrument' => 'Piano', 'duration_min' => 4, 'section' => 'main', 'sort_order' => 1,
+             'status' => 'accepted', 'note' => null, 'decided_by' => 4,
+             'decided_at' => '2026-04-11 09:00:00', 'created_at' => '2026-04-01 09:00:00'],
+            // Declined with no decider, date or reason.
+            ['id' => 2, 'recital_id' => 1, 'student_id' => 3, 'repertoire_id' => null,
+             'submission_id' => null, 'title' => 'Something long', 'composer' => null, 'arranger' => null,
+             'movement' => null, 'instrument' => 'Voice', 'duration_min' => 20, 'section' => 'main',
+             'sort_order' => 2, 'status' => 'declined', 'note' => null, 'decided_by' => null,
+             'decided_at' => null, 'created_at' => '2026-04-01 09:00:00'],
+        ],
+        'referral_codes' => [
+            ['user_id' => 1, 'code' => 'ADA26', 'created_at' => '2026-01-20 09:00:00'],
+        ],
+        'referrals' => [
+            // Marked rewarded with no amount and no date.
+            ['id' => 1, 'referrer_id' => 1, 'code' => 'ADA26', 'referred_name' => 'A Friend',
+             'referred_email' => 'friend@example.test', 'referred_user_id' => null, 'status' => 'rewarded',
+             'reward_cents' => 0, 'created_at' => '2026-02-01 09:00:00', 'rewarded_at' => null],
+        ],
+        'dp_assessments' => [
+            ['id' => 1, 'title' => 'Guardian portal', 'scope' => 'Reports and fees',
+             'trigger_reason' => 'New processing', 'necessity' => 'Contract', 'risks' => 'Disclosure',
+             'mitigations' => 'Access scopes', 'residual_risk' => 'high', 'decision' => 'proceed',
+             'assessed_on' => '2026-08-01', 'assessed_by' => 4, 'review_due_on' => '2027-08-01',
+             'consulted_ndpc' => 0, 'created_at' => '2026-08-01 09:00:00'],
+        ],
+        'dp_breaches' => [
+            // HIGH risk, closed, nobody told and no reason given.
+            ['id' => 1, 'reference' => 'BR-2026-01', 'occurred_at' => '2026-07-01 09:00:00',
+             'discovered_at' => '2026-07-20 09:00:00', 'nature' => 'Portal exposure',
+             'data_categories' => 'Learner records', 'subject_categories' => 'Learners',
+             'subjects_affected' => 12, 'risk_level' => 'high', 'containment' => 'Patched',
+             'ndpc_notified_at' => null, 'ndpc_reference' => null, 'subjects_notified_at' => null,
+             'no_notify_reason' => null, 'lessons' => 'Review portal scopes.', 'status' => 'closed',
+             'recorded_by' => 4, 'created_at' => '2026-07-20 10:00:00'],
+        ],
+        'dp_processors' => [
+            ['id' => 1, 'key_name' => 'smtp', 'name' => 'A Mail Host', 'role' => 'processor',
+             'purpose' => 'Transactional email', 'country' => 'United States', 'dpa_signed_on' => null,
+             'dpa_reference' => null, 'sub_processors' => null, 'transfer_basis' => null,
+             'review_due_on' => null, 'status' => 'active', 'notes' => null, 'updated_at' => null,
+             'created_at' => '2026-01-01 09:00:00'],
+        ],
+        'dp_register_notes' => [
+            ['id' => 1, 'kind' => 'retention', 'ref_key' => 'contact_messages', 'keep_days' => 730,
+             'notes' => 'Kept for two years.', 'reviewed_on' => '2026-08-01', 'reviewed_by' => 4,
+             'updated_at' => null],
+        ],
+        'automations' => [
+            ['akey' => 'payment_provision', 'enabled' => 1, 'params' => null,
+             'last_run_at' => '2026-08-19 09:00:00', 'run_count' => 42, 'updated_at' => null],
+            // Never fired. Zeroing telemetry on cutover day would hide that.
+            ['akey' => 'week_drip', 'enabled' => 1, 'params' => null, 'last_run_at' => null,
+             'run_count' => 0, 'updated_at' => null],
+        ],
+        'ai_runs' => [
+            ['id' => 1, 'use_case' => 'advisor', 'provider' => 'test', 'model' => 'test-1', 'ok' => 0,
+             'prompt_hash' => 'abc', 'input_tokens' => 100, 'output_tokens' => 0, 'error' => null,
+             'reviewed_by' => null, 'reviewed_at' => null, 'created_at' => '2026-08-01 09:00:00'],
+        ],
+        'store_items' => [
+            ['id' => 1, 'sku' => 'HOODIE-M', 'slug' => 'hoodie-m', 'name' => 'MAM hoodie (M)',
+             'description' => null, 'goods_type' => 'physical', 'delivery_type' => 'ship',
+             'availability' => 'in_stock', 'stock' => 12, 'available_locations' => '*',
+             'price_usd' => 25.00, 'currency' => 'USD', 'images' => null, 'category' => 'apparel',
+             'file_url' => null, 'weight_grams' => 600, 'tax_rate' => 0, 'sort_order' => 1,
+             'active' => 1, 'created_at' => '2026-01-05 09:00:00', 'updated_at' => null],
+            // Instant digital delivery with no file, and the -1 stock sentinel.
+            ['id' => 2, 'sku' => 'EBOOK', 'slug' => 'scales-ebook', 'name' => 'Scales ebook',
+             'description' => null, 'goods_type' => 'digital', 'delivery_type' => 'instant',
+             'availability' => 'in_stock', 'stock' => -1, 'available_locations' => '*',
+             'price_usd' => 8.29, 'currency' => 'USD', 'images' => null, 'category' => 'books',
+             'file_url' => null, 'weight_grams' => null, 'tax_rate' => 0, 'sort_order' => 2,
+             'active' => 1, 'created_at' => '2026-01-05 09:00:00', 'updated_at' => null],
+        ],
+        'store_orders' => [
+            ['id' => 1, 'reference' => 'ORD-0001', 'customer_id' => null,
+             'customer_email' => 'ada@example.test', 'customer_name' => 'Ada Okoye',
+             'customer_country' => 'Nigeria', 'customer_phone' => null,
+             'shipping_address' => '1 Example Street, Lagos',
+             'items_json' => '[{"sku":"HOODIE-M","name":"MAM hoodie (M)","qty":2,"price_usd":25.00}]',
+             'subtotal_usd' => 50.00, 'tax_usd' => 0, 'shipping_usd' => 5.00, 'total_usd' => 50.00,
+             'status' => 'paid', 'notes' => null, 'delivered_at' => null,
+             'created_at' => '2026-02-20 09:00:00', 'updated_at' => null],
+        ],
+        'notifications' => [
+            ['id' => 1, 'user_id' => 1, 'type' => 'invoice.due', 'title' => 'Your tuition is due Friday',
+             'body' => null, 'url' => '/portal/student', 'read_at' => null,
+             'created_at' => '2026-02-05 09:00:00'],
+        ],
         /* Communications and admissions. */
         'announcements' => [
             ['id' => 1, 'class_id' => 1, 'cohort_id' => null, 'author_id' => 2, 'title' => 'Friday moves',
@@ -988,6 +1147,181 @@ t_eq((int) $att['counts_to_mastery'], 0,
     'attendance is carried as a kind that does NOT count to mastery — §24 keeps attendance beside the '
     . 'score, never inside it');
 
+t_group('v2 plan — the safeguarding gate carries no offence data');
+
+$vets = $plan['tables']['vetting_records'];
+t_eq(count($vets), 2, 'both clearances carry');
+foreach ($vets as $v) {
+    foreach (['certificate_scan', 'attachment_id', 'findings', 'disclosure', 'offences'] as $forbidden) {
+        t_ok(!array_key_exists($forbidden, $v),
+            "no `$forbidden` travels with a clearance — the record of a check must not become a copy of it");
+    }
+}
+$half = array_values(array_filter($vets, static fn($v) => $v['clearance_type'] === 'identity'));
+t_ok($half[0]['verified_by'] === null && $half[0]['verified_at'] === null,
+    'a record "verified" by somebody with no date arrives UNVERIFIED — so the gate asks for it again, '
+    . 'which is the outcome that protects a child');
+$cleared = array_values(array_filter($vets, static fn($v) => $v['clearance_type'] === 'criminal_record'));
+t_ok($cleared[0]['verified_at'] !== null && $cleared[0]['evidence_held'] !== null,
+    'a complete one keeps its verification and the pointer to where the paper is filed');
+
+// v1's three booleans become a row per purpose.
+$consents = $plan['tables']['consents'];
+t_eq(count($consents), 3, 'three boolean columns become three rows, one per purpose');
+t_eq(array_column($consents, 'purpose'), ['media', 'photography', 'data_processing'],
+    'each naming what was agreed to, which v1 could only express as a column name');
+foreach ($consents as $c) {
+    t_ok($c['effective_from'] !== null,
+        'and each states when it took effect — v1 could not say WHEN a consent was withdrawn, which is the '
+        . 'NDPA-relevant fact');
+}
+$cfields = array_column($plan['tables']['custom_field_defs'], 'field_key');
+t_ok(in_array('safeguarding_contact', $cfields, true),
+    'the safeguarding contact is a fact about the family, not a fourth consent that would mean something '
+    . 'different from the other three');
+
+t_group('v2 plan — a card that cannot lapse is the bug expiry was added to fix');
+
+$cards = v2p_by_id($plan, 'id_cards');
+t_eq(count($cards), 2, 'both cards carry');
+t_eq($cards[1]['expires_at'], '2027-01-31 23:59:59', 'a card with an expiry keeps it');
+t_ok($cards[2]['expires_at'] !== null, 'and one minted before expiry was a real date is GIVEN one');
+t_eq(substr((string) $cards[2]['expires_at'], 0, 10), '2027-02-01',
+    'one year from issue, matching the shipped default rather than a guess');
+$kinds5 = array_column($plan['review'], 'kind');
+t_ok(in_array('card_expiry_assumed', $kinds5, true),
+    'and it is raised: before v59 the face printed EXP.12/<issue year> and nothing enforced it, so a lapsed '
+    . 'card scanned into attendance for ever');
+$scans = $plan['tables']['card_scans'];
+t_eq(count($scans), 2, 'both scans carry');
+$miss = array_values(array_filter($scans, static fn($s) => $s['card_id'] === null));
+t_eq($miss[0]['raw_serial'], 'NOT-A-CARD',
+    'a scan that matched no card keeps what the scanner READ — a door log recording only successes cannot '
+    . 'answer "did somebody try to get in with a revoked card"');
+t_eq($miss[0]['result'], 'unknown', 'under v2\'s vocabulary');
+
+$cov5 = v2p_coverage($plan);
+foreach (['password_resets', 'progress_report_tokens', 'calendar_tokens'] as $tokenTable) {
+    t_ok($cov5[$tokenTable]['destination'] === null,
+        "$tokenTable is not carried: a live token is a credential, and re-issuing one costs an email while "
+        . 'migrating a table of them extends every window that should have closed');
+}
+t_ok(str_contains((string) $cov5['calendar_tokens']['note'], 'NEVER expired'),
+    "and the ledger names why v1's calendar tokens especially cannot come across unchanged");
+t_ok(str_contains((string) $cov5['rate_limits']['note'], 'auth_throttle'),
+    'the request counter is dropped, but the ledger points at the AUTH failure counter that replaces it — a '
+    . 'security control must not vanish in a migration');
+
+t_group('v2 plan — practice, recognition and the claims v1 could not back');
+
+$achs = $plan['tables']['achievements'];
+t_eq(count($achs), 1, 'the same badge awarded twice becomes one row — a second replays the celebration');
+$plogs = $plan['tables']['practice_logs'];
+t_eq(count($plogs), 2, 'both practice logs carry');
+$clamped = array_values(array_filter($plogs, static fn($l) => (int) $l['minutes'] === 1440));
+t_eq(count($clamped), 1,
+    'more minutes than a day contains is CLAMPED, not dropped: the learner did practise that day, and a '
+    . 'streak built on typos is worthless');
+t_ok(in_array('practice_minutes_clamped', $kinds5, true), 'and it is raised');
+
+$rec = $plan['tables']['recitals'][0];
+t_eq($rec['starts_local'], '2026-04-25 17:00:00.000',
+    'a concert time is a LOCAL wall clock derived from the UTC instant v1 stored — families read the doors '
+    . 'time off a poster');
+t_eq($rec['timezone'], 'Africa/Lagos', 'with the zone stated');
+$items = $plan['tables']['recital_items'];
+t_eq(count($items), 2, 'both programme items carry');
+$declined = array_values(array_filter($items, static fn($i) => $i['status'] === 'declined'));
+t_eq(count($declined), 0,
+    'a decline with no decider, date or reason returns to PROPOSED rather than standing as an unexplained '
+    . "refusal on a child's record");
+t_ok(in_array('recital_decline_unexplained', $kinds5, true), 'raised for somebody to decide again');
+
+$refs = $plan['tables']['referrals'];
+t_eq($refs[0]['status'], 'joined',
+    'a referral marked rewarded with no amount and no date is carried as JOINED — a reward nothing backs is '
+    . 'a promise to a family');
+t_ok($refs[0]['currency'] === null, 'and no currency is asserted for a reward that was never paid');
+
+t_group('v2 plan — the compliance record refuses to fabricate compliance');
+
+$brs = $plan['tables']['dp_breaches'];
+t_eq(count($brs), 1, 'the breach carries');
+t_eq($brs[0]['status'], 'contained',
+    'a HIGH-risk breach closed without telling anybody and without a written reason is REOPENED — the '
+    . 'honest state, and the one that makes somebody finish it');
+t_ok(in_array('breach_closed_incomplete', $kinds5, true), 'and it is raised');
+t_eq($brs[0]['discovered_at'], '2026-07-20 09:00:00',
+    'the clock runs from AWARENESS (NDPA s.40(2)), not from occurrence');
+t_ok($brs[0]['occurred_at'] !== null && $brs[0]['occurred_at'] < $brs[0]['discovered_at'],
+    'and occurrence, where known, precedes it');
+
+$dpas = $plan['tables']['dp_assessments'];
+t_eq($dpas[0]['decision'], 'proceed_with_controls',
+    'a bare "proceed" on HIGH residual risk becomes proceed_with_controls — what the NDPA expects, and '
+    . 'what the mitigations column already describes');
+t_ok(in_array('dp_assessment_high_risk', $kinds5, true), 'raised for the academy to confirm the controls');
+
+$procs = $plan['tables']['dp_processors'];
+t_eq($procs[0]['status'], 'suspended',
+    'a live processor outside Nigeria with no stated transfer basis is recorded as SUSPENDED: naming the '
+    . 'country records the risk and nothing about how it is answered');
+t_ok(in_array('processor_transfer_unstated', $kinds5, true), 'and raised');
+
+$autos = $plan['tables']['automation_rules'];
+t_eq(count($autos), 2, 'both automation rules carry');
+$never = array_values(array_filter($autos, static fn($a) => (int) $a['run_count'] === 0));
+t_eq(count($never), 1, 'including the telemetry of one that has NEVER run');
+t_ok($never[0]['last_run_at'] === null,
+    'zeroing telemetry on cutover day would hide a rule that has never fired');
+
+$ai = $plan['tables']['ai_runs'][0];
+t_ok($ai['error'] !== null, 'a failed AI call says what went wrong, even where v1 recorded nothing');
+foreach (['prompt', 'response', 'output', 'completion'] as $forbidden) {
+    t_ok(!array_key_exists($forbidden, $ai),
+        "and no `$forbidden` travels with it — the prompts contain applicants' words about their children");
+}
+
+t_group('v2 plan — the shop, in minor units and in rows');
+
+$prods = v2p_by_id($plan, 'store_products');
+t_eq(count($prods), 2, 'both products carry');
+t_eq((int) $prods[1]['price_minor'], 2500, '$25.00 becomes 2500 minor units');
+t_eq((int) $prods[2]['price_minor'], 829,
+    '$8.29 becomes 829 — through string arithmetic. Measured: (int)(8.29 * 100) is 828, so a float '
+    . 'multiply loses a kobo on a price the academy set exactly');
+t_ok($prods[2]['stock'] === null,
+    "v1's -1 stock sentinel becomes NULL: it sorted and summed as a real quantity, so a catalogue-wide "
+    . 'stock total came out negative');
+t_eq((int) $prods[2]['is_active'], 0,
+    'and an instantly-delivered digital product with no file is carried INACTIVE — it cannot be fulfilled, '
+    . 'and listing it sells somebody nothing');
+t_ok(in_array('store_digital_no_file', $kinds5, true), 'raised so the file can be attached');
+
+$orders = $plan['tables']['store_orders'];
+t_eq(count($orders), 1, 'the order carries');
+t_eq((int) $orders[0]['total_minor'],
+    (int) $orders[0]['subtotal_minor'] + (int) $orders[0]['tax_minor']
+    + (int) $orders[0]['shipping_minor'] - (int) $orders[0]['discount_minor'],
+    'and its total is its own arithmetic, which is what chk_sorder_total states');
+t_eq((int) $orders[0]['discount_minor'], 500,
+    "a stated total below its own lines is recorded as a DISCOUNT rather than silently dropped — v1 stored "
+    . 'REAL dollars, so the gap was invisible until a customer added it up');
+t_ok(in_array('store_total_restated', $kinds5, true), 'and raised');
+$lines = $plan['tables']['store_order_items'];
+t_eq(count($lines), 1, 'items_json becomes a ROW');
+t_eq((int) $lines[0]['quantity'], 2, 'with the quantity');
+t_eq((int) $lines[0]['line_total_minor'], 5000, 'and a line total that is unit price times quantity');
+t_ok((int) $lines[0]['product_id'] > 0, 'resolved to the product by SKU');
+t_eq($lines[0]['name'], 'MAM hoodie (M)',
+    'keeping the name AT THE TIME, so a receipt does not change because somebody edited the catalogue');
+
+$notifs = $plan['tables']['notifications'];
+t_eq(count($notifs), 1, 'the notification carries');
+t_ok($notifs[0]['dedupe_key'] === null,
+    'with no dedupe key: v1 had none, and inventing one would suppress the new system\'s first legitimate '
+    . 'send of the same notice');
+
 t_group('v2 plan — anonymity, and the promise v1 did not keep');
 
 // The defect: v1's `student_feedback` stored `is_anonymous` BESIDE `student_id`,
@@ -1519,7 +1853,11 @@ t_ok(v2p_find($plan, 'rubrics', 'version', 1)['course_id'] !== null,
     "a v1 rubric scoped to a cohort takes that cohort's course, which is what makes it reusable");
 
 $atts = $plan['tables']['attachments'];
-t_eq(count($atts), 3, 'the submission artifact, its extra file and the teach-back recording are all attachments');
+// The submission artifact, its extra file, the teach-back recording and the ID
+// card photo. Everything a v1 URL column held becomes one mechanism.
+t_eq(count($atts), 4, 'every v1 file URL becomes an attachment, whatever column it lived in');
+t_eq(count(array_filter($atts, static fn($a) => $a['entity_type'] === 'id_card')), 1,
+    "including a card photo — a card cannot point at a file the media proxy does not know about");
 foreach ($atts as $a) {
     t_eq($a['storage'], 'external',
         'the bytes were never in the academy\'s own store, and calling it local would promise a file the '

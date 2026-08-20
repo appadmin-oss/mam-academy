@@ -99,10 +99,14 @@ const MAM_BURSARY_BANDS = [
  * A decimal amount, as a STRING, into integer minor units.
  *
  * String arithmetic, not `(int) round($x * 100)`. The design says so and the
- * reason is arithmetic rather than taste: `8.07 * 100` is `806.9999999999999` in
- * IEEE-754 double, so a truncating conversion loses a kobo and a rounding one is
- * only correct until a value lands near a half. Here the decimal point is MOVED,
- * which cannot be wrong.
+ * reason is arithmetic rather than taste. MEASURED on PHP 8.4: `8.29 * 100` is
+ * 828.99999999999989 and `0.29 * 100` is 28.999999999999996, so a truncating
+ * conversion loses a kobo on both; and rounding is only correct until a value
+ * lands near a half — `2.675` rounds to 267 by the float route where the true
+ * answer is 268. Here the decimal point is MOVED, which cannot be wrong.
+ * (An earlier version of this note cited `8.07`, which is exact on this build:
+ * the reasoning held but the example did not, and an example that does not
+ * reproduce is worse than none.)
  *
  * `mam_money_to_minor()` in money.php takes a float and rounds, which is right
  * for its callers (they hold floats already, from a form or a legacy column).

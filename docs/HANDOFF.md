@@ -76,7 +76,7 @@ What remains before a cutover is not code:
 - **Courses and classes are not migrated** — you are recreating them.
 - **Money is integer minor units + ISO currency + frozen FX**, enforced by a
   CHECK. Decimal→minor conversion is **string arithmetic**, because
-  `8.07 * 100` is `806.9999999999999` in float.
+  `8.29 * 100` is 828.99999999999989 in float (measured on PHP 8.4).
 - **Erasure tombstones use the RFC 2606 `.invalid` TLD.** `mam_enrol_complete()`
   checks it *first*, before anything else, so an erased applicant cannot be
   re-enrolled by a well-meaning admin.
@@ -930,8 +930,8 @@ published price list) with the rate FROZEN at issue; the naira figure is a
 conversion labelled an ESTIMATE, because the rate it settles at is the payment
 row's own. `MAM_V2_BASE_CURRENCY` (`api/lib/v2/transform.php`) is `'NGN'` and is
 the v2 ETL's, not this layer's; the wallet ledger stays USD cents, deliberately.
-`mam_fee_to_minor()` is string arithmetic — the decimal point is MOVED, so `8.07`
-is 807 and not the `806.9999999999999` a float gives.
+`mam_fee_to_minor()` is string arithmetic — the decimal point is MOVED, so `8.29`
+is 829 and not the 828 a truncating float conversion gives.
 
 **The four kinds of aid apply in a fixed order**, and `mam_fee_recalc()` is the
 only implementation of it: gross → waivers → aid credits → sibling (capped) →

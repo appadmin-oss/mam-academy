@@ -3897,6 +3897,772 @@ CREATE TABLE announcement_banners (
   CONSTRAINT fk_banner_promo  FOREIGN KEY (promotion_id) REFERENCES promotions(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- =============================================================================
+-- LAYER P · SAFEGUARDING, IDENTITY AND COMPLIANCE
+-- =============================================================================
+-- The highest-consequence tables in the schema. An academy that teaches children
+-- one-to-one has to be able to answer three questions from its own database:
+-- who is cleared to be alone with a child, what a family agreed to, and what
+-- happened when something went wrong.
+
+-- ⚠️ THE SAFEGUARDING GATE. Child Rights Act 2003 s.2(2) requires standards on
+-- the suitability of staff; the Lagos State Safeguarding and Child Protection
+-- Policy 2016 mandates the specific safer-recruitment checks and a named
+-- Designated Safeguarding Officer.
+--
+-- This table stores NO CHECK CONTENT AND NO OFFENCE DATA, and there is nowhere
+-- for either to go — no `certificate_scan`, no `attachment_id`, no `findings`,
+-- no `disclosure`. What is kept is the TYPE of check, who issued it, its
+-- reference, its dates, who verified it, and a pointer to where the evidence is
+-- filed offline. Under the NDPA a certificate's contents are sensitive personal
+-- data about the instructor; holding a scan in a shared-hosting database is a
+-- liability, not a control. `test_vetting.php` asserts the absence.
+--
+-- Validity is DERIVED from `expires_on`, never stored as a status: a clearance
+-- lapsing at midnight must read as expired on the next page load, not the next
+-- cron run.
+CREATE TABLE vetting_records (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  clearance_type VARCHAR(48) NOT NULL,
+  issuing_body  VARCHAR(190) NULL,
+  reference_no  VARCHAR(190) NULL,
+  issued_on     DATE         NOT NULL,
+  expires_on    DATE         NULL,
+  verified_by   BIGINT UNSIGNED NULL,
+  verified_at   DATETIME(3)  NULL,
+  -- WHERE the paper is, not what it says. "Safeguarding file, cabinet 2".
+  evidence_held VARCHAR(255) NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  created_by    BIGINT UNSIGNED NULL,
+  UNIQUE KEY uq_vetting_public (public_id),
+  -- Re-recording REPLACES. The gate asks "is there a current one"; a history of
+  -- superseded certificate numbers is exactly the sensitive data this design
+  -- avoids accumulating.
+  UNIQUE KEY uq_vetting_type (tenant_id, membership_id, clearance_type),
+  KEY ix_vetting_expiry (tenant_id, expires_on),
+  CONSTRAINT chk_vetting_dates CHECK (expires_on IS NULL OR expires_on >= issued_on),
+  -- A record nobody checked is not a clearance. Both halves or neither.
+  CONSTRAINT chk_vetting_verified CHECK ((verified_by IS NULL) = (verified_at IS NULL)),
+  CONSTRAINT fk_vetting_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_vetting_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_vetting_ver    FOREIGN KEY (verified_by)   REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_vetting_by     FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The printed card a learner carries.
+--
+-- Expiry is a REAL DATE stamped at mint from the admin's validity period, not a
+-- label and not computed on read: the card in a child's hand prints a date, so
+-- changing the setting must only affect cards minted afterwards. Anything
+-- filtering cards must filter on the DERIVED state — between two cron runs a
+-- lapsed card still reads `active`.
+CREATE TABLE id_cards (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  role          VARCHAR(16)  NOT NULL DEFAULT 'learner',   -- learner|staff|guardian|visitor
+  serial        VARCHAR(64)  NOT NULL,
+  version       INT UNSIGNED NOT NULL DEFAULT 1,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'active',
+     -- active|printed|expired|revoked|replaced
+  session_code  VARCHAR(32)  NULL,
+  photo_attachment_id BIGINT UNSIGNED NULL,
+  issued_at     DATETIME(3)  NOT NULL,
+  expires_at    DATETIME(3)  NOT NULL,
+  printed_at    DATETIME(3)  NULL,
+  revoked_at    DATETIME(3)  NULL,
+  revoke_reason VARCHAR(500) NULL,
+  replaced_by_id BIGINT UNSIGNED NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  created_by    BIGINT UNSIGNED NULL,
+  UNIQUE KEY uq_card_public (public_id),
+  -- The serial is printed on the card and scanned at a door, so it is unique
+  -- across the platform rather than within a tenant: a scanner has no tenant.
+  UNIQUE KEY uq_card_serial (serial),
+  KEY ix_card_member (tenant_id, membership_id, status),
+  KEY ix_card_expiry (tenant_id, expires_at, status),
+  CONSTRAINT chk_card_role CHECK (role IN ('learner','staff','guardian','visitor')),
+  CONSTRAINT chk_card_status CHECK (status IN ('active','printed','expired','revoked','replaced')),
+  CONSTRAINT chk_card_dates CHECK (expires_at > issued_at),
+  -- REVOKED means somebody took the card away and says why; EXPIRED means time
+  -- did. They are deliberately different states.
+  CONSTRAINT chk_card_revoked CHECK (status <> 'revoked'
+        OR (revoked_at IS NOT NULL AND revoke_reason IS NOT NULL)),
+  CONSTRAINT chk_card_replaced CHECK (status <> 'replaced' OR replaced_by_id IS NOT NULL),
+  CONSTRAINT fk_card_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_card_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_card_photo  FOREIGN KEY (photo_attachment_id) REFERENCES attachments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_card_repl   FOREIGN KEY (replaced_by_id) REFERENCES id_cards(id) ON DELETE SET NULL,
+  CONSTRAINT fk_card_by     FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Every scan, including the ones that failed. A door log that records only
+-- successes cannot answer "did somebody try to get in with a revoked card".
+CREATE TABLE card_scans (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  card_id       BIGINT UNSIGNED NULL,
+  -- The string the scanner actually read, kept even when it matched no card —
+  -- that row is the interesting one.
+  raw_serial    VARCHAR(190) NOT NULL,
+  session_id    BIGINT UNSIGNED NULL,
+  cohort_id     BIGINT UNSIGNED NULL,
+  scanned_by_membership_id BIGINT UNSIGNED NULL,
+  result        VARCHAR(24)  NOT NULL,
+     -- ok|unknown|expired|revoked|wrong_session|duplicate|not_enrolled
+  scanned_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY ix_scan_card (tenant_id, card_id, scanned_at),
+  KEY ix_scan_result (tenant_id, result, scanned_at),
+  CONSTRAINT chk_scan_result CHECK (result IN
+    ('ok','unknown','expired','revoked','wrong_session','duplicate','not_enrolled')),
+  CONSTRAINT fk_scan_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
+  CONSTRAINT fk_scan_card    FOREIGN KEY (card_id)    REFERENCES id_cards(id) ON DELETE SET NULL,
+  CONSTRAINT fk_scan_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_scan_cohort  FOREIGN KEY (cohort_id)  REFERENCES cohorts(id) ON DELETE SET NULL,
+  CONSTRAINT fk_scan_by      FOREIGN KEY (scanned_by_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ONE table for every single-use expiring token the platform issues. v1 had
+-- three (`password_resets`, `progress_report_tokens`, `calendar_tokens`) for one
+-- idea, which meant three expiry rules and three places to get the hashing
+-- wrong — and two of them stored the token in the CLEAR, so the table was a set
+-- of live credentials.
+--
+-- Only the HASH is stored. A token that can be read out of the database is not a
+-- token, it is a password somebody else chose.
+CREATE TABLE signed_tokens (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NULL,
+  purpose       VARCHAR(32)  NOT NULL,
+     -- password_reset|invite|report_share|calendar_feed|attendance_qr|unsubscribe
+  token_hash    CHAR(64)     NOT NULL,
+  user_id       BIGINT UNSIGNED NULL,
+  membership_id BIGINT UNSIGNED NULL,
+  scope         VARCHAR(64)  NULL,
+  label         VARCHAR(190) NULL,
+  -- A feed token is used many times; a reset token once. `max_uses` says which,
+  -- so "single use" is data rather than a rule living in one caller.
+  max_uses      INT UNSIGNED NULL,
+  used_count    INT UNSIGNED NOT NULL DEFAULT 0,
+  last_used_at  DATETIME(3)  NULL,
+  expires_at    DATETIME(3)  NOT NULL,
+  revoked_at    DATETIME(3)  NULL,
+  created_by    BIGINT UNSIGNED NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_stoken_hash (token_hash),
+  KEY ix_stoken_purpose (purpose, expires_at),
+  KEY ix_stoken_user (user_id, purpose),
+  CONSTRAINT chk_stoken_purpose CHECK (purpose IN
+    ('password_reset','invite','report_share','calendar_feed','attendance_qr','unsubscribe')),
+  -- Every token expires. v1's calendar feed tokens never did, which makes a
+  -- leaked URL a permanent subscription to a child's timetable.
+  CONSTRAINT chk_stoken_uses CHECK (max_uses IS NULL OR used_count <= max_uses),
+  -- A token belongs to somebody. One with neither an account nor a membership
+  -- authorises a caller nobody can name.
+  CONSTRAINT chk_stoken_subject CHECK (user_id IS NOT NULL OR membership_id IS NOT NULL),
+  CONSTRAINT fk_stoken_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_stoken_user   FOREIGN KEY (user_id)       REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stoken_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_stoken_by     FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The sign-in failure counter.
+--
+-- v2's conventions put throttling outside the schema, and for a public form that
+-- is right — there the request itself is the cost, and a cache is the correct
+-- home. This table exists because the AUTH throttle is a different thing: it
+-- counts FAILURES, not requests, so that eight correct sign-ins from one
+-- carrier-grade-NAT address (most Nigerian mobile traffic) cannot lock out
+-- unrelated people. A security control that vanishes in a migration is a
+-- regression whatever the convention says, so it is written down here rather
+-- than left to whatever cache the new host happens to have.
+--
+-- A SUCCESS must neither increment nor CLEAR the bucket: clearing would let an
+-- attacker holding one valid credential reset the counter between guesses at
+-- other accounts.
+CREATE TABLE auth_throttle (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  bucket        VARCHAR(32)  NOT NULL,      -- login|reset|invite|admin
+  -- The IP or the account being guessed at. Hashed, because a table of the
+  -- addresses people failed to sign in from is a log of where they were.
+  key_hash      CHAR(64)     NOT NULL,
+  failures      INT UNSIGNED NOT NULL DEFAULT 0,
+  first_failure_at DATETIME(3) NOT NULL,
+  last_failure_at  DATETIME(3) NOT NULL,
+  locked_until  DATETIME(3)  NULL,
+  UNIQUE KEY uq_throttle (bucket, key_hash),
+  KEY ix_throttle_window (bucket, last_failure_at),
+  CONSTRAINT chk_throttle_order CHECK (last_failure_at >= first_failure_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
+-- LAYER Q · PRACTICE, REPERTOIRE AND RECOGNITION
+-- =============================================================================
+-- What a learner does between lessons, and what the academy says about it.
+--
+-- ⛔ There is NO leaderboard table here and there must not be one. The 2026-08
+-- redesign refuses a cohort ranking: a practice log is a conversation between a
+-- learner and their teacher, and turning it into a league table changes what
+-- gets logged. `test_schema_v2.php` asserts that no table in v2 orders learners
+-- against each other.
+
+CREATE TABLE achievements (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  code          VARCHAR(48)  NOT NULL,
+  title         VARCHAR(190) NOT NULL,
+  awarded_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  -- Awarded ONCE. v1 had no unique key, so a re-run of the sweep that grants
+  -- them could hand somebody the same badge twice and replay the celebration.
+  UNIQUE KEY uq_achievement (tenant_id, membership_id, code),
+  KEY ix_achievement_member (tenant_id, membership_id, awarded_at),
+  CONSTRAINT fk_ach_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_ach_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE practice_logs (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  enrolment_id  BIGINT UNSIGNED NULL,
+  -- The DAY it was practised, in the learner's own reckoning, plus the minutes.
+  -- Stored as a date rather than an instant: "did I practise on Tuesday" must
+  -- not depend on the reader's timezone.
+  logged_on     DATE         NOT NULL,
+  minutes       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  focus         VARCHAR(190) NULL,
+  notes         TEXT         NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY ix_plog_member (tenant_id, membership_id, logged_on),
+  -- A practice session is minutes, not hours: 24 hours of practice in one day is
+  -- a typo, and a streak built on typos is worthless.
+  CONSTRAINT chk_plog_minutes CHECK (minutes <= 1440),
+  CONSTRAINT fk_plog_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_plog_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_plog_enrol  FOREIGN KEY (enrolment_id)  REFERENCES enrolments(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE practice_challenges (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  title         VARCHAR(190) NOT NULL,
+  metric        VARCHAR(24)  NOT NULL DEFAULT 'sessions',  -- sessions|minutes|days
+  target        INT UNSIGNED NOT NULL DEFAULT 1,
+  starts_on     DATE         NOT NULL,
+  ends_on       DATE         NOT NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'active',    -- active|met|missed|abandoned
+  completed_on  DATE         NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_pchal_public (public_id),
+  KEY ix_pchal_member (tenant_id, membership_id, status, ends_on),
+  CONSTRAINT chk_pchal_metric CHECK (metric IN ('sessions','minutes','days')),
+  CONSTRAINT chk_pchal_status CHECK (status IN ('active','met','missed','abandoned')),
+  CONSTRAINT chk_pchal_target CHECK (target >= 1),
+  CONSTRAINT chk_pchal_window CHECK (ends_on >= starts_on),
+  CONSTRAINT chk_pchal_met CHECK (status <> 'met' OR completed_on IS NOT NULL),
+  CONSTRAINT fk_pchal_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_pchal_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE repertoire (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  title         VARCHAR(190) NOT NULL,
+  composer      VARCHAR(190) NULL,
+  arranger      VARCHAR(190) NULL,
+  instrument    VARCHAR(48)  NULL,
+  -- VARCHAR(24), not 16: 'performance_ready' is 17 characters, and a CHECK that
+  -- permits a value the column cannot hold is a write that fails at runtime.
+  status        VARCHAR(24)  NOT NULL DEFAULT 'learning',
+     -- learning|polishing|performance_ready|retired
+  notes         TEXT         NULL,
+  sort_order    INT          NOT NULL DEFAULT 0,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  deleted_at    DATETIME(3)  NULL,
+  deleted_seq   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_rep_public (public_id),
+  KEY ix_rep_member (tenant_id, membership_id, status, sort_order),
+  CONSTRAINT chk_rep_status CHECK (status IN ('learning','polishing','performance_ready','retired')),
+  CONSTRAINT fk_rep_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_rep_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE recitals (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  centre_id     BIGINT UNSIGNED NULL,
+  slug          VARCHAR(96)  NOT NULL,
+  title         VARCHAR(190) NOT NULL,
+  subtitle      VARCHAR(190) NULL,
+  venue         VARCHAR(190) NULL,
+  -- A concert is a wall-clock event at a place: local time plus the zone, never
+  -- an instant. Families read the doors time off a poster.
+  starts_local  DATETIME(3)  NULL,
+  timezone      VARCHAR(64)  NOT NULL DEFAULT 'Africa/Lagos',
+  doors_open_local DATETIME(3) NULL,
+  interval_after_item INT UNSIGNED NULL,
+  interval_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 15,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'draft',
+     -- draft|open|programmed|performed|cancelled
+  submissions_close_local DATETIME(3) NULL,
+  description   TEXT         NULL,
+  programme_note TEXT        NULL,
+  created_by    BIGINT UNSIGNED NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  deleted_at    DATETIME(3)  NULL,
+  deleted_seq   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_recital_public (public_id),
+  UNIQUE KEY uq_recital_slug (tenant_id, slug, deleted_seq),
+  KEY ix_recital_status (tenant_id, status, starts_local),
+  CONSTRAINT chk_recital_status CHECK (status IN ('draft','open','programmed','performed','cancelled')),
+  -- Doors open before the music starts, and submissions close before both.
+  CONSTRAINT chk_recital_doors CHECK (doors_open_local IS NULL OR starts_local IS NULL
+        OR doors_open_local <= starts_local),
+  CONSTRAINT chk_recital_close CHECK (submissions_close_local IS NULL OR starts_local IS NULL
+        OR submissions_close_local <= starts_local),
+  -- An announced concert has a time. "Programmed" with no date is a poster
+  -- nobody can act on.
+  CONSTRAINT chk_recital_when CHECK (status IN ('draft','cancelled') OR starts_local IS NOT NULL),
+  CONSTRAINT fk_recital_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_recital_centre FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE SET NULL,
+  CONSTRAINT fk_recital_by     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE recital_items (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  recital_id    BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  repertoire_id BIGINT UNSIGNED NULL,
+  submission_id BIGINT UNSIGNED NULL,
+  title         VARCHAR(190) NOT NULL,
+  composer      VARCHAR(190) NULL,
+  arranger      VARCHAR(190) NULL,
+  movement      VARCHAR(190) NULL,
+  instrument    VARCHAR(48)  NULL,
+  duration_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 4,
+  section       VARCHAR(24)  NOT NULL DEFAULT 'main',      -- opening|main|closing|encore
+  sort_order    INT          NOT NULL DEFAULT 0,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'proposed',
+     -- proposed|accepted|declined|withdrawn|performed
+  note          VARCHAR(1000) NULL,
+  decided_by    BIGINT UNSIGNED NULL,
+  decided_at    DATETIME(3)  NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY ix_ritem_recital (tenant_id, recital_id, section, sort_order),
+  KEY ix_ritem_member (tenant_id, membership_id),
+  CONSTRAINT chk_ritem_section CHECK (section IN ('opening','main','closing','encore')),
+  CONSTRAINT chk_ritem_status CHECK (status IN ('proposed','accepted','declined','withdrawn','performed')),
+  CONSTRAINT chk_ritem_duration CHECK (duration_minutes >= 1 AND duration_minutes <= 120),
+  -- A learner told no is told WHY and by whom: the programme is the most
+  -- visible judgement the academy makes about a child's playing.
+  CONSTRAINT chk_ritem_declined CHECK (status <> 'declined'
+        OR (decided_by IS NOT NULL AND decided_at IS NOT NULL AND note IS NOT NULL)),
+  CONSTRAINT fk_ritem_tenant  FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_ritem_recital FOREIGN KEY (recital_id)    REFERENCES recitals(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ritem_member  FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ritem_rep     FOREIGN KEY (repertoire_id) REFERENCES repertoire(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ritem_subm    FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ritem_by      FOREIGN KEY (decided_by)    REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One referral code per person, and the referrals made with it.
+CREATE TABLE referral_codes (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  membership_id BIGINT UNSIGNED NOT NULL,
+  code          VARCHAR(32)  NOT NULL,
+  is_active     TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_refcode_member (tenant_id, membership_id),
+  -- A code is typed by a stranger who has no tenant, so it is unique platform-wide.
+  UNIQUE KEY uq_refcode_code (code),
+  CONSTRAINT chk_refcode_active CHECK (is_active IN (0,1)),
+  CONSTRAINT fk_refcode_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_refcode_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE referrals (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  referrer_membership_id BIGINT UNSIGNED NOT NULL,
+  code          VARCHAR(32)  NOT NULL,
+  referred_name  VARCHAR(190) NULL,
+  referred_email VARCHAR(320) NULL,
+  referred_membership_id BIGINT UNSIGNED NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'pending',
+     -- pending|joined|rewarded|expired|rejected
+  -- Minor units and a currency, like every other amount in the schema. v1 kept
+  -- `reward_cents` with no currency column, so the figure meant whatever the
+  -- reader assumed.
+  reward_minor  BIGINT       NOT NULL DEFAULT 0,
+  currency      CHAR(3)      NULL,
+  rewarded_at   DATETIME(3)  NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_referral_public (public_id),
+  KEY ix_referral_referrer (tenant_id, referrer_membership_id, status),
+  KEY ix_referral_email (tenant_id, referred_email),
+  CONSTRAINT chk_referral_status CHECK (status IN ('pending','joined','rewarded','expired','rejected')),
+  CONSTRAINT chk_referral_reward CHECK (reward_minor >= 0
+        AND (reward_minor = 0 OR currency IS NOT NULL)),
+  CONSTRAINT chk_referral_rewarded CHECK (status <> 'rewarded'
+        OR (rewarded_at IS NOT NULL AND reward_minor > 0)),
+  -- Somebody to point at: a name, an address, or the account they became.
+  CONSTRAINT chk_referral_who CHECK (referred_email IS NOT NULL
+        OR referred_name IS NOT NULL OR referred_membership_id IS NOT NULL),
+  CONSTRAINT fk_referral_tenant   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_referral_referrer FOREIGN KEY (referrer_membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_referral_referred FOREIGN KEY (referred_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
+-- LAYER R · DATA PROTECTION, AUTOMATION AND THE SHOP
+-- =============================================================================
+-- The NDPA layer is the RECORD, not the machinery: exporting and erasing already
+-- work, and what did not exist before was any trace that a request had been made.
+-- An admin typed an email, downloaded a bundle, and nothing survived.
+
+-- A data protection impact assessment.
+CREATE TABLE dp_assessments (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  title         VARCHAR(190) NOT NULL,
+  scope         TEXT         NOT NULL,
+  trigger_reason TEXT        NULL,
+  necessity     TEXT         NULL,
+  risks         TEXT         NULL,
+  mitigations   TEXT         NULL,
+  residual_risk VARCHAR(16)  NOT NULL DEFAULT 'unknown',   -- unknown|low|medium|high
+  decision      VARCHAR(24)  NOT NULL DEFAULT 'draft',
+     -- draft|proceed|proceed_with_controls|do_not_proceed
+  assessed_on   DATE         NULL,
+  assessed_by   BIGINT UNSIGNED NULL,
+  review_due_on DATE         NULL,
+  consulted_regulator TINYINT(1) NOT NULL DEFAULT 0,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_dpa_public (public_id),
+  KEY ix_dpa_review (tenant_id, review_due_on),
+  CONSTRAINT chk_dpa_risk CHECK (residual_risk IN ('unknown','low','medium','high')),
+  CONSTRAINT chk_dpa_decision CHECK (decision IN
+    ('draft','proceed','proceed_with_controls','do_not_proceed')),
+  CONSTRAINT chk_dpa_regulator CHECK (consulted_regulator IN (0,1)),
+  -- A decision is a named person on a stated date. An assessment nobody signed
+  -- is a draft whatever the decision column says.
+  CONSTRAINT chk_dpa_decided CHECK (decision = 'draft'
+        OR (assessed_on IS NOT NULL AND assessed_by IS NOT NULL)),
+  -- A decision to proceed with high residual risk is exactly the case the NDPA
+  -- expects the regulator to have been consulted on, and controls to exist for.
+  CONSTRAINT chk_dpa_high_risk CHECK (residual_risk <> 'high'
+        OR decision IN ('draft','do_not_proceed','proceed_with_controls')),
+  CONSTRAINT fk_dpa_tenant FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
+  CONSTRAINT fk_dpa_by     FOREIGN KEY (assessed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- A personal data breach.
+--
+-- ⚠️ THE CLOCK RUNS FROM AWARENESS. NDPA s.40(2) measures the 72 hours from
+-- `discovered_at`, never from `occurred_at`: measuring from occurrence makes an
+-- instantly-reported month-old breach look late, and makes a breach discovered
+-- quickly look fine when it was not. `occurred_at` is nullable because the
+-- academy often cannot know it, and it may not be LATER than discovery.
+CREATE TABLE dp_breaches (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  reference     VARCHAR(64)  NOT NULL,
+  occurred_at   DATETIME(3)  NULL,
+  discovered_at DATETIME(3)  NOT NULL,
+  nature        TEXT         NOT NULL,
+  data_categories TEXT       NOT NULL,
+  subject_categories TEXT    NULL,
+  subjects_affected INT UNSIGNED NULL,
+  risk_level    VARCHAR(16)  NOT NULL DEFAULT 'unknown',   -- unknown|low|medium|high
+  containment   TEXT         NULL,
+  regulator_notified_at DATETIME(3) NULL,
+  regulator_reference VARCHAR(190) NULL,
+  subjects_notified_at DATETIME(3) NULL,
+  no_notify_reason TEXT      NULL,
+  lessons       TEXT         NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'open',      -- open|contained|closed
+  recorded_by   BIGINT UNSIGNED NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_breach_public (public_id),
+  UNIQUE KEY uq_breach_ref (tenant_id, reference),
+  KEY ix_breach_clock (tenant_id, status, discovered_at),
+  CONSTRAINT chk_breach_risk CHECK (risk_level IN ('unknown','low','medium','high')),
+  CONSTRAINT chk_breach_status CHECK (status IN ('open','contained','closed')),
+  CONSTRAINT chk_breach_order CHECK (occurred_at IS NULL OR occurred_at <= discovered_at),
+  -- A HIGH-risk breach cannot be closed until the affected people were told, or
+  -- there is a written reason they were not. This is the one CHECK in the schema
+  -- standing between "we dealt with it" and a statutory duty nobody discharged.
+  CONSTRAINT chk_breach_notify CHECK (status <> 'closed' OR risk_level <> 'high'
+        OR subjects_notified_at IS NOT NULL OR no_notify_reason IS NOT NULL),
+  -- And a closed breach says what was learned. The register exists to change
+  -- what happens next time.
+  CONSTRAINT chk_breach_closed CHECK (status <> 'closed' OR lessons IS NOT NULL),
+  CONSTRAINT fk_breach_tenant FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
+  CONSTRAINT fk_breach_by     FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Who else processes the academy's data. The register probes what is CONFIGURED
+-- right now, not what somebody once considered: an aspirational register lists
+-- the vendor nobody uses and omits the SMTP host that has carried every
+-- password-reset email for a year. `gap` = live and no agreement on file.
+CREATE TABLE dp_processors (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  key_name      VARCHAR(64)  NOT NULL,
+  name          VARCHAR(190) NOT NULL,
+  role          VARCHAR(24)  NOT NULL DEFAULT 'processor',
+     -- processor|joint_controller|controller
+  purpose       TEXT         NULL,
+  country       VARCHAR(64)  NULL,
+  dpa_signed_on DATE         NULL,
+  dpa_reference VARCHAR(190) NULL,
+  sub_processors TEXT        NULL,
+  transfer_basis VARCHAR(190) NULL,
+  review_due_on DATE         NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'active',    -- active|suspended|retired
+  notes         TEXT         NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_dpproc (tenant_id, key_name),
+  KEY ix_dpproc_status (tenant_id, status, review_due_on),
+  CONSTRAINT chk_dpproc_role CHECK (role IN ('processor','joint_controller','controller')),
+  CONSTRAINT chk_dpproc_status CHECK (status IN ('active','suspended','retired')),
+  -- A transfer out of the country needs a stated basis. Naming the country
+  -- without one records the risk and nothing about how it is answered.
+  CONSTRAINT chk_dpproc_transfer CHECK (country IS NULL OR country IN ('Nigeria','NG')
+        OR status <> 'active' OR transfer_basis IS NOT NULL),
+  CONSTRAINT fk_dpproc_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The academy's annotations on the ROPA and the retention schedule.
+--
+-- ⚠️ The registers themselves are CODE, not rows: `mam_dp_purposes()` names the
+-- tables each purpose actually touches and `mam_dp_retention()` names a real
+-- table and date column, both asserted against the live schema by test. A
+-- register describing what the software does must be DERIVED from the software —
+-- free text in a CRUD form drifts the day a feature ships, and a drifted
+-- register is worse than a missing one because somebody has signed it. This
+-- table holds only what the academy adds on top: a review date, a note, and a
+-- LENGTHENED retention period.
+CREATE TABLE dp_register_notes (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  kind          VARCHAR(16)  NOT NULL,      -- purpose|retention
+  ref_key       VARCHAR(64)  NOT NULL,
+  -- A period may be LENGTHENED, never shortened: the schedule states a lawful
+  -- basis for each period, and a smaller number typed into a form would delete
+  -- lawfully-held records. Shortening one means editing the basis in the lib,
+  -- deliberately. The floor is enforced in `mam_dp_note_save()`, which is the
+  -- only thing that can know the code default.
+  keep_days     INT UNSIGNED NULL,
+  notes         TEXT         NULL,
+  reviewed_on   DATE         NULL,
+  reviewed_by   BIGINT UNSIGNED NULL,
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_dpnote (tenant_id, kind, ref_key),
+  CONSTRAINT chk_dpnote_kind CHECK (kind IN ('purpose','retention')),
+  CONSTRAINT fk_dpnote_tenant FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
+  CONSTRAINT fk_dpnote_by     FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Lifecycle automation rules: a per-tenant on/off flag plus run telemetry. The
+-- REGISTRY of rules is code (`mam_automations_registry()`); this is the state.
+-- Named `automation_rules` rather than `automations` so it cannot be mistaken
+-- for the queue in `jobs`.
+CREATE TABLE automation_rules (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  rule_key      VARCHAR(64)  NOT NULL,
+  is_enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+  params        JSON         NULL,
+  last_run_at   DATETIME(3)  NULL,
+  run_count     INT UNSIGNED NOT NULL DEFAULT 0,
+  last_error    VARCHAR(1000) NULL,
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_autorule (tenant_id, rule_key),
+  CONSTRAINT chk_autorule_enabled CHECK (is_enabled IN (0,1)),
+  CONSTRAINT fk_autorule_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AI provider telemetry: what was called, whether it worked, what it cost.
+--
+-- There is no column for the PROMPT or the OUTPUT, and that is the design. The
+-- prompts contain applicants' words about their children; keeping them turns a
+-- cost ledger into a second copy of the most sensitive free text in the system,
+-- held for a purpose ("debugging") that is not in the ROPA. A hash is enough to
+-- tell whether two calls were the same call.
+CREATE TABLE ai_runs (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NULL,
+  use_case      VARCHAR(48)  NOT NULL,
+  provider      VARCHAR(32)  NULL,
+  model         VARCHAR(64)  NULL,
+  ok            TINYINT(1)   NOT NULL DEFAULT 0,
+  prompt_hash   CHAR(64)     NULL,
+  input_tokens  INT UNSIGNED NOT NULL DEFAULT 0,
+  output_tokens INT UNSIGNED NOT NULL DEFAULT 0,
+  latency_ms    INT UNSIGNED NULL,
+  -- The provider's error CODE or message, which is about the call and not about
+  -- the person it was made for.
+  error         VARCHAR(500) NULL,
+  -- A human checked the output. Recorded because an AI suggestion acted on
+  -- without review is the thing an academy has to be able to rule out.
+  reviewed_by   BIGINT UNSIGNED NULL,
+  reviewed_at   DATETIME(3)  NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY ix_airun_case (tenant_id, use_case, created_at),
+  CONSTRAINT chk_airun_ok CHECK (ok IN (0,1)),
+  CONSTRAINT chk_airun_failed CHECK (ok = 1 OR error IS NOT NULL),
+  CONSTRAINT chk_airun_reviewed CHECK ((reviewed_by IS NULL) = (reviewed_at IS NULL)),
+  CONSTRAINT fk_airun_tenant FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
+  CONSTRAINT fk_airun_by     FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The shop. Merchandise is NOT tuition: `price_books`/`price_items` model what a
+-- family pays to learn, and mapping a hoodie into them would misstate what it
+-- is and put it in every tuition report.
+CREATE TABLE store_products (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  sku           VARCHAR(64)  NOT NULL,
+  slug          VARCHAR(96)  NOT NULL,
+  name          VARCHAR(190) NOT NULL,
+  description   TEXT         NULL,
+  goods_type    VARCHAR(16)  NOT NULL DEFAULT 'digital',   -- digital|physical|service
+  delivery_type VARCHAR(16)  NOT NULL DEFAULT 'instant',   -- instant|ship|collect|email
+  availability  VARCHAR(16)  NOT NULL DEFAULT 'in_stock',
+     -- in_stock|out_of_stock|preorder|discontinued
+  -- NULL = not stock-tracked. v1 used -1 as the sentinel, which sorts and sums
+  -- as a real quantity: "total stock" across the catalogue came out negative.
+  stock         INT          NULL,
+  price_minor   BIGINT       NOT NULL,
+  currency      CHAR(3)      NOT NULL,
+  tax_rate_pct  DECIMAL(5,2) NOT NULL DEFAULT 0,
+  weight_grams  INT UNSIGNED NULL,
+  category      VARCHAR(48)  NULL,
+  file_attachment_id BIGINT UNSIGNED NULL,
+  sort_order    INT          NOT NULL DEFAULT 0,
+  is_active     TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  deleted_at    DATETIME(3)  NULL,
+  deleted_seq   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_sprod_public (public_id),
+  UNIQUE KEY uq_sprod_sku (tenant_id, sku, deleted_seq),
+  UNIQUE KEY uq_sprod_slug (tenant_id, slug, deleted_seq),
+  KEY ix_sprod_active (tenant_id, is_active, sort_order),
+  CONSTRAINT chk_sprod_goods CHECK (goods_type IN ('digital','physical','service')),
+  CONSTRAINT chk_sprod_delivery CHECK (delivery_type IN ('instant','ship','collect','email')),
+  CONSTRAINT chk_sprod_avail CHECK (availability IN
+    ('in_stock','out_of_stock','preorder','discontinued')),
+  CONSTRAINT chk_sprod_price CHECK (price_minor >= 0),
+  CONSTRAINT chk_sprod_stock CHECK (stock IS NULL OR stock >= 0),
+  CONSTRAINT chk_sprod_active CHECK (is_active IN (0,1)),
+  -- A digital product needs a file to deliver. v1 shipped "instant delivery"
+  -- items with an empty file_url, which sells somebody nothing.
+  CONSTRAINT chk_sprod_file CHECK (goods_type <> 'digital'
+        OR delivery_type <> 'instant' OR file_attachment_id IS NOT NULL),
+  CONSTRAINT fk_sprod_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_sprod_file   FOREIGN KEY (file_attachment_id) REFERENCES attachments(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE store_orders (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id     CHAR(26)     NOT NULL,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  reference     VARCHAR(64)  NOT NULL,
+  membership_id BIGINT UNSIGNED NULL,
+  customer_name  VARCHAR(190) NULL,
+  customer_email VARCHAR(320) NULL,
+  customer_phone VARCHAR(32)  NULL,
+  customer_country VARCHAR(64) NULL,
+  shipping_address TEXT       NULL,
+  status        VARCHAR(16)  NOT NULL DEFAULT 'pending',
+     -- pending|paid|fulfilled|delivered|cancelled|refunded
+  -- Totals in minor units with the frozen rate, exactly as for an invoice. v1
+  -- stored REAL dollars, so a rounding difference between the cart and the
+  -- receipt was invisible until a customer added it up.
+  subtotal_minor BIGINT      NOT NULL DEFAULT 0,
+  tax_minor     BIGINT       NOT NULL DEFAULT 0,
+  shipping_minor BIGINT      NOT NULL DEFAULT 0,
+  discount_minor BIGINT      NOT NULL DEFAULT 0,
+  total_minor   BIGINT       NOT NULL DEFAULT 0,
+  currency      CHAR(3)      NOT NULL,
+  base_currency CHAR(3)      NOT NULL,
+  base_total_minor BIGINT    NULL,
+  fx_rate       DECIMAL(20,8) NULL,
+  promotion_id  BIGINT UNSIGNED NULL,
+  payment_id    BIGINT UNSIGNED NULL,
+  notes         TEXT         NULL,
+  paid_at       DATETIME(3)  NULL,
+  delivered_at  DATETIME(3)  NULL,
+  created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  row_version   INT UNSIGNED NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_sorder_public (public_id),
+  UNIQUE KEY uq_sorder_ref (tenant_id, reference),
+  KEY ix_sorder_status (tenant_id, status, created_at),
+  CONSTRAINT chk_sorder_status CHECK (status IN
+    ('pending','paid','fulfilled','delivered','cancelled','refunded')),
+  CONSTRAINT chk_sorder_amounts CHECK (subtotal_minor >= 0 AND tax_minor >= 0
+        AND shipping_minor >= 0 AND discount_minor >= 0 AND total_minor >= 0),
+  CONSTRAINT chk_sorder_total CHECK (total_minor
+        = subtotal_minor + tax_minor + shipping_minor - discount_minor),
+  CONSTRAINT chk_sorder_fx CHECK (currency = base_currency
+        OR (base_total_minor IS NOT NULL AND fx_rate IS NOT NULL)),
+  -- Somewhere to send it, and somebody to send it to.
+  CONSTRAINT chk_sorder_contact CHECK (membership_id IS NOT NULL OR customer_email IS NOT NULL),
+  CONSTRAINT chk_sorder_paid CHECK (status = 'pending' OR status = 'cancelled' OR paid_at IS NOT NULL),
+  CONSTRAINT fk_sorder_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_sorder_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_sorder_promo  FOREIGN KEY (promotion_id)  REFERENCES promotions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_sorder_pay    FOREIGN KEY (payment_id)    REFERENCES payments(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What was in the order, as ROWS. v1 kept `items_json`, so "how many hoodies did
+-- we sell" was a question no query could answer, and the product a line referred
+-- to could be renamed underneath it.
+CREATE TABLE store_order_items (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  tenant_id     BIGINT UNSIGNED NOT NULL,
+  order_id      BIGINT UNSIGNED NOT NULL,
+  product_id    BIGINT UNSIGNED NULL,
+  -- The name and price AT THE TIME. A receipt must not change because somebody
+  -- edited the catalogue afterwards.
+  sku           VARCHAR(64)  NULL,
+  name          VARCHAR(190) NOT NULL,
+  quantity      INT UNSIGNED NOT NULL DEFAULT 1,
+  unit_price_minor BIGINT    NOT NULL,
+  line_total_minor BIGINT    NOT NULL,
+  currency      CHAR(3)      NOT NULL,
+  KEY ix_sitem_order (tenant_id, order_id),
+  KEY ix_sitem_product (tenant_id, product_id),
+  CONSTRAINT chk_sitem_qty CHECK (quantity >= 1),
+  CONSTRAINT chk_sitem_amounts CHECK (unit_price_minor >= 0 AND line_total_minor >= 0),
+  CONSTRAINT chk_sitem_line CHECK (line_total_minor = unit_price_minor * quantity),
+  CONSTRAINT fk_sitem_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
+  CONSTRAINT fk_sitem_order   FOREIGN KEY (order_id)   REFERENCES store_orders(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sitem_product FOREIGN KEY (product_id) REFERENCES store_products(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Schema baseline. A fresh v2 install starts AT the target rather than
 -- replaying v1's 81 migrations.
 CREATE TABLE schema_version (
@@ -3905,8 +4671,9 @@ CREATE TABLE schema_version (
   note        VARCHAR(255) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO schema_version (version, note) VALUES (204,
-  'schema-v2 baseline + guardian layer + assessment + teaching operations + communications');
+INSERT INTO schema_version (version, note) VALUES (205,
+  'schema-v2 complete: guardian layer, assessment, teaching operations, communications, '
+  || 'safeguarding, practice and compliance');
 
 -- Seed the currencies the platform ships knowing about. Everything else is
 -- tenant data and arrives via the ETL or the admin.
