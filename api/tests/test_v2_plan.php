@@ -234,6 +234,170 @@ function v2p_source(): array {
              'attempts' => 1, 'body' => 'A rendered email nobody needs to keep.', 'opts' => null,
              'created_at' => '2026-01-04 09:40:00', 'updated_at' => '2026-01-04 09:40:00', 'sent_at' => null],
         ],
+        /* Teaching operations. Cohort 1 is the private class student 1 is in. */
+        'rooms' => [
+            ['id' => 1, 'name' => 'Studio A', 'capacity' => 6, 'resources' => 'Upright piano', 'active' => 1],
+        ],
+        'class_sessions' => [
+            ['id' => 1, 'cohort_id' => 1, 'title' => 'Week one', 'scheduled_at' => '2026-02-06 16:00:00',
+             'duration_min' => 60, 'kind' => 'class', 'location' => null, 'status' => 'held', 'notes' => 'Went well.',
+             'created_by' => 2, 'created_at' => '2026-01-20 09:00:00', 'lesson_notes' => 'Scales.',
+             'topics' => 'C major', 'learning_outcomes' => 'Hands together', 'substitute_id' => null,
+             'rescheduled_from' => null, 'cancellation_reason' => null, 'room' => 'Studio A',
+             'meeting_link' => null, 'room_id' => 1, 'lesson_id' => 1, 'meeting_provider' => null,
+             'mode' => 'onsite'],
+            // Cancelled with no reason recorded: v1 allowed it, v2 does not.
+            ['id' => 2, 'cohort_id' => 1, 'title' => 'Week two', 'scheduled_at' => '2026-02-13 16:00:00',
+             'duration_min' => 60, 'kind' => 'class', 'location' => null, 'status' => 'cancelled', 'notes' => null,
+             'created_by' => 2, 'created_at' => '2026-01-20 09:00:00', 'lesson_notes' => null,
+             'topics' => null, 'learning_outcomes' => null, 'substitute_id' => null,
+             'rescheduled_from' => null, 'cancellation_reason' => null, 'room' => null,
+             'meeting_link' => 'https://meet.example.test/w2', 'room_id' => null, 'lesson_id' => null,
+             'meeting_provider' => 'meet', 'mode' => 'online'],
+            // A replacement for the cancelled one.
+            ['id' => 3, 'cohort_id' => 1, 'title' => 'Week two (moved)', 'scheduled_at' => '2026-02-14 16:00:00',
+             'duration_min' => 60, 'kind' => 'class', 'location' => null, 'status' => 'held', 'notes' => null,
+             'created_by' => 2, 'created_at' => '2026-02-13 09:00:00', 'lesson_notes' => null,
+             'topics' => null, 'learning_outcomes' => null, 'substitute_id' => null,
+             'rescheduled_from' => 2, 'cancellation_reason' => null, 'room' => null, 'meeting_link' => null,
+             'room_id' => null, 'lesson_id' => null, 'meeting_provider' => null, 'mode' => 'onsite'],
+            // No time at all: cannot be attended, reported on or moved.
+            ['id' => 4, 'cohort_id' => 1, 'title' => 'Someday', 'scheduled_at' => null,
+             'duration_min' => 60, 'kind' => 'class', 'location' => null, 'status' => 'scheduled', 'notes' => null,
+             'created_by' => 2, 'created_at' => '2026-01-20 09:00:00', 'lesson_notes' => null,
+             'topics' => null, 'learning_outcomes' => null, 'substitute_id' => null,
+             'rescheduled_from' => null, 'cancellation_reason' => null, 'room' => null, 'meeting_link' => null,
+             'room_id' => null, 'lesson_id' => null, 'meeting_provider' => null, 'mode' => 'onsite'],
+        ],
+        'session_attendance' => [
+            ['id' => 1, 'session_id' => 1, 'student_id' => 1, 'status' => 'late', 'mode' => 'onsite',
+             'notes' => null, 'marked_by' => 2, 'checked_in_at' => '2026-02-06 16:06:00',
+             'clocked_out_at' => '2026-02-06 17:00:00', 'duration_min' => 54, 'minutes_late' => 6,
+             'method' => 'self', 'checkin_lat' => 6.5244, 'checkin_lng' => 3.3792,
+             'created_at' => '2026-02-06 16:06:00', 'updated_at' => null],
+            // Student 3 is enrolled in cohort 8, not in the cohort this session
+            // belongs to: v1 could store the mark, v2 cannot express it.
+            ['id' => 2, 'session_id' => 1, 'student_id' => 3, 'status' => 'absent', 'mode' => 'onsite',
+             'notes' => null, 'marked_by' => 2, 'checked_in_at' => null, 'clocked_out_at' => null,
+             'duration_min' => null, 'minutes_late' => 0, 'method' => 'instructor',
+             'checkin_lat' => null, 'checkin_lng' => null, 'created_at' => '2026-02-06 17:00:00',
+             'updated_at' => null],
+        ],
+        'lesson_progress' => [
+            ['id' => 1, 'lesson_id' => 1, 'student_id' => 1, 'status' => 'completed', 'percent' => 100,
+             'updated_at' => '2026-02-07 09:00:00'],
+            // A second lesson instancing the same module, less far along: the
+            // FURTHEST progress must win.
+            ['id' => 2, 'lesson_id' => 2, 'student_id' => 1, 'status' => 'in_progress', 'percent' => 40,
+             'updated_at' => '2026-02-08 09:00:00'],
+        ],
+        'instructor_availability' => [
+            ['id' => 1, 'instructor_id' => 2, 'day_of_week' => 5, 'start_time' => '16:00',
+             'end_time' => '18:00', 'effective_from' => '2026-02-01', 'effective_to' => null,
+             'active' => 1, 'created_at' => '2026-01-10 09:00:00'],
+            // Ends before it starts.
+            ['id' => 2, 'instructor_id' => 2, 'day_of_week' => 6, 'start_time' => '18:00',
+             'end_time' => '16:00', 'effective_from' => null, 'effective_to' => null, 'active' => 1,
+             'created_at' => '2026-01-10 09:00:00'],
+        ],
+        'instructor_clockins' => [
+            ['id' => 1, 'session_id' => 1, 'instructor_id' => 2, 'clock_in_at' => '2026-02-06 15:58:00',
+             'clock_out_at' => '2026-02-06 17:04:00', 'status' => 'present', 'minutes_late' => 0,
+             'source' => 'portal', 'created_at' => '2026-02-06 15:58:00'],
+            // Marked present with no clock-in time at all.
+            ['id' => 2, 'session_id' => 3, 'instructor_id' => 2, 'clock_in_at' => null,
+             'clock_out_at' => null, 'status' => 'present', 'minutes_late' => 0, 'source' => 'portal',
+             'created_at' => '2026-02-14 16:00:00'],
+        ],
+        'instructor_fines' => [
+            ['id' => 1, 'instructor_id' => 2, 'session_id' => 1, 'reason' => 'late_progress_report',
+             'amount_kobo' => 500000, 'status' => 'pending', 'created_at' => '2026-02-07 09:00:00',
+             'resolved_at' => null, 'resolved_by' => null, 'resolution_note' => null, 'currency' => 'NGN',
+             'amount_usd_cents' => null, 'fx_rate_usd_ngn' => null],
+            // Waived in v1 with no decider and no date.
+            ['id' => 2, 'instructor_id' => 2, 'session_id' => null, 'reason' => 'late_progress_report',
+             'amount_kobo' => 500000, 'status' => 'waived', 'created_at' => '2026-02-08 09:00:00',
+             'resolved_at' => null, 'resolved_by' => null, 'resolution_note' => null, 'currency' => 'NGN',
+             'amount_usd_cents' => null, 'fx_rate_usd_ngn' => null],
+        ],
+        'faculty_invites' => [
+            ['id' => 1, 'email' => 'candidate@example.test', 'name' => 'A Candidate', 'source' => 'contact',
+             'status' => 'invited', 'nonce' => 'live-secret-nonce', 'expires_at' => '2026-03-01 09:00:00',
+             'invited_by' => 4, 'invited_at' => '2026-02-01 09:00:00', 'used_at' => null,
+             'created_at' => '2026-01-30 09:00:00'],
+        ],
+        'instructor_applications' => [
+            ['id' => 1, 'email' => 'candidate@example.test', 'full_name' => 'A Candidate',
+             'phone' => '+2348000000009', 'disciplines' => 'Piano', 'experience_years' => 7,
+             'bio' => 'Taught for years.', 'links' => null, 'cv_url' => 'https://files.example.test/cv.pdf',
+             'headshot_url' => null, 'status' => 'submitted', 'ip' => '198.51.100.44',
+             'created_at' => '2026-02-02 09:00:00'],
+            // Appointed in v1, but no account exists on that address.
+            ['id' => 2, 'email' => 'ghost@example.test', 'full_name' => 'Never Onboarded',
+             'phone' => null, 'disciplines' => 'Voice', 'experience_years' => 3, 'bio' => null,
+             'links' => null, 'cv_url' => null, 'headshot_url' => null, 'status' => 'approved',
+             'ip' => null, 'created_at' => '2026-02-03 09:00:00'],
+        ],
+        'meeting_reconciliation' => [
+            ['id' => 1, 'session_id' => 1, 'subject_type' => 'student', 'subject_id' => 1,
+             'display_name' => 'Ada O.', 'join_at' => '2026-02-06 16:06:00',
+             'leave_at' => '2026-02-06 17:00:00', 'minutes' => 54, 'provider' => 'meet',
+             'source' => 'import', 'created_at' => '2026-02-06 18:00:00'],
+            // Nobody matched the reported name — the interesting row.
+            ['id' => 2, 'session_id' => 1, 'subject_type' => 'guest', 'subject_id' => null,
+             'display_name' => 'iPhone (2)', 'join_at' => null, 'leave_at' => '2026-02-06 16:40:00',
+             'minutes' => 12, 'provider' => 'meet', 'source' => 'import',
+             'created_at' => '2026-02-06 18:00:00'],
+        ],
+        'progress_reports' => [
+            ['id' => 1, 'session_id' => 1, 'student_id' => 1, 'instructor_id' => 2, 'form_id' => null,
+             'answers_json' => '{"focus":"good"}', 'narrative' => 'Slow the left hand.', 'email_sent' => 1,
+             'email_sent_at' => '2026-02-06 18:05:00', 'submitted_at' => '2026-02-06 17:40:00'],
+        ],
+        'class_waitlist' => [
+            // Marked promoted, but student 3 has no enrolment in cohort 1.
+            ['id' => 1, 'student_id' => 3, 'cohort_id' => 1, 'position' => 1, 'status' => 'promoted',
+             'notified_at' => '2026-02-01 09:00:00', 'created_at' => '2026-01-28 09:00:00',
+             'updated_at' => '2026-02-01 09:00:00'],
+            // Offered with no record of the family being told.
+            ['id' => 2, 'student_id' => 1, 'cohort_id' => 8, 'position' => 2, 'status' => 'offered',
+             'notified_at' => null, 'created_at' => '2026-01-29 09:00:00',
+             'updated_at' => '2026-01-29 09:00:00'],
+        ],
+        'class_resources' => [
+            ['id' => 1, 'class_id' => 1, 'cohort_id' => null, 'title' => 'C major sheet',
+             'url' => 'https://files.example.test/cmaj.pdf', 'type' => 'score', 'posted_by' => 2,
+             'created_at' => '2026-02-01 09:00:00'],
+        ],
+        'resource_versions' => [
+            ['id' => 1, 'resource_id' => 1, 'version' => 2, 'title' => 'C major sheet (fingering added)',
+             'url' => 'https://files.example.test/cmaj-v2.pdf', 'note' => 'Fingering added.',
+             'created_by' => 2, 'created_at' => '2026-02-20 09:00:00'],
+        ],
+        'reschedule_requests' => [
+            ['id' => 1, 'requester_id' => 1, 'cohort_id' => 1, 'status' => 'applied',
+             'reason' => 'Travelling.', 'session_count' => 1, 'fee_usd_cents' => 1000,
+             'fee_currency' => 'USD', 'fx_rate_usd_ngn' => 1600.0, 'waived' => 0, 'waived_reason' => null,
+             'payment_ref' => 'PAY-100', 'payment_provider' => 'paystack', 'paid_at' => '2026-02-10 09:00:00',
+             'decided_by' => 4, 'decided_at' => '2026-02-10 10:00:00', 'decision_note' => 'Fine.',
+             'applied_at' => '2026-02-10 10:05:00', 'expires_at' => null,
+             'created_at' => '2026-02-09 09:00:00', 'updated_at' => '2026-02-10 10:05:00'],
+            // Paid against a reference the ledger has never heard of.
+            ['id' => 2, 'requester_id' => 1, 'cohort_id' => 1, 'status' => 'pending_approval',
+             'reason' => 'Again.', 'session_count' => 1, 'fee_usd_cents' => 1000, 'fee_currency' => 'USD',
+             'fx_rate_usd_ngn' => 1600.0, 'waived' => 0, 'waived_reason' => null,
+             'payment_ref' => 'PAY-NOPE', 'payment_provider' => 'bank', 'paid_at' => '2026-02-20 09:00:00',
+             'decided_by' => null, 'decided_at' => null, 'decision_note' => null, 'applied_at' => null,
+             'expires_at' => null, 'created_at' => '2026-02-19 09:00:00', 'updated_at' => null],
+        ],
+        'reschedule_items' => [
+            ['id' => 1, 'request_id' => 1, 'session_id' => 3, 'old_scheduled_at' => '2026-02-14 16:00:00',
+             'new_scheduled_at' => '2026-02-21 16:00:00', 'applied' => 1, 'created_at' => '2026-02-10 10:05:00'],
+        ],
+        'reschedule_events' => [
+            ['id' => 1, 'request_id' => 1, 'event' => 'approved', 'actor_id' => 4, 'detail' => null,
+             'created_at' => '2026-02-10 10:00:00'],
+        ],
         /* The academic calendar: the only authority on a refund. */
         'academic_terms' => [
             ['id' => 1, 'year_label' => '2026', 'code' => 'TONI', 'term_no' => 1, 'label' => 'Toni 2026',
@@ -449,7 +613,12 @@ function v2p_source(): array {
              'body' => null, 'url' => null, 'sort_order' => 1, 'published' => 1, 'created_by' => 2,
              'created_at' => '2026-01-16 09:00:00', 'week_no' => 1, 'objectives' => null,
              'prep_instructions' => null, 'resources_json' => null, 'teachback_required' => 1],
+            ['id' => 2, 'cohort_id' => 1, 'module_id' => 1, 'title' => 'Week one, repeat',
+             'body' => null, 'url' => null, 'sort_order' => 2, 'published' => 1, 'created_by' => 2,
+             'created_at' => '2026-01-23 09:00:00', 'week_no' => 1, 'objectives' => null,
+             'prep_instructions' => null, 'resources_json' => null, 'teachback_required' => 0],
         ],
+        /* A second lesson instancing the SAME module, for the progress merge. */
         'teachbacks' => [
             ['id' => 1, 'lesson_id' => 1, 'student_id' => 1, 'cohort_id' => 1, 'kind' => 'written',
              'artifact_url' => 'https://files.example.test/tb1.m4a', 'body' => 'Scales go up.',
@@ -718,6 +887,165 @@ $att = v2p_find($plan, 'assessment_kinds', 'code', 'attendance');
 t_eq((int) $att['counts_to_mastery'], 0,
     'attendance is carried as a kind that does NOT count to mastery — §24 keeps attendance beside the '
     . 'score, never inside it');
+
+t_group('v2 plan — sessions, and the one assumption only the academy can settle');
+
+$sessions = v2p_by_id($plan, 'class_sessions');
+t_eq(count($sessions), 3, 'three sessions carry; the one with no time at all does not');
+$noTime = array_values(array_filter($plan['rejected'],
+    static fn($r) => $r['table'] === 'class_sessions'));
+t_eq(count($noTime), 1, 'a session with no scheduled time is rejected');
+t_ok(str_contains((string) $noTime[0]['why'], 'no scheduled time'),
+    'because it cannot be attended, reported on or moved: ' . $noTime[0]['why']);
+
+$w1 = v2p_find($plan, 'class_sessions', 'title', 'Week one');
+t_eq($w1['scheduled_start_utc'], '2026-02-06 16:00:00.000',
+    "v1's single datetime is carried as the UTC INSTANT — the reading v1's own code used, with PHP pinned "
+    . 'to UTC, and the reading its stored lateness figures were computed against');
+t_eq($w1['scheduled_start_local'], '2026-02-06 17:00:00.000',
+    'and the local wall clock is derived from it (Lagos is UTC+1)');
+t_eq($w1['timezone'], 'Africa/Lagos', 'stated, so 16:00 stays 16:00 if an offset rule changes');
+$kinds3 = array_column($plan['review'], 'kind');
+t_ok(in_array('session_timezone_assumption', $kinds3, true),
+    'and the assumption is raised ONCE with a count: if those values were typed as Lagos wall-clock times '
+    . 'then every migrated session displays an hour early, and only the academy can say');
+t_ok(str_contains((string) $w1['notes'], 'Topics:') && str_contains((string) $w1['notes'], 'Outcomes:'),
+    "v1's three teaching-note columns are joined into v2's one rather than two of them being dropped");
+t_ok((int) $w1['room_id'] > 0, 'a free-text room name that matches a real room resolves to it');
+
+$cancelled = v2p_find($plan, 'class_sessions', 'status', 'cancelled');
+t_ok($cancelled['cancellation_reason'] !== null,
+    'a cancelled session says why — v1 did not require it, and "cancelled, no reason" is the row a family '
+    . 'disputes');
+$moved = v2p_find($plan, 'class_sessions', 'title', 'Week two (moved)');
+t_eq((int) $moved['rescheduled_from_id'], (int) $cancelled['id'],
+    'a replacement session links to the one it replaced, resolved in a second pass once both exist');
+
+$att = $plan['tables']['attendance'];
+t_eq(count($att), 1, 'one mark carries');
+t_eq((int) $att[0]['minutes_late'], 6, 'with the lateness v1 recorded, STORED and not recomputed');
+t_ok((int) $att[0]['enrolment_id'] > 0, 'keyed on the enrolment, because a register belongs to a course');
+$wrongCohort = array_values(array_filter($plan['rejected'],
+    static fn($r) => $r['table'] === 'session_attendance'));
+t_eq(count($wrongCohort), 1,
+    'a mark against a session of a cohort the learner was never enrolled in is rejected — inventing an '
+    . 'enrolment to hold it would put somebody on a register they were never on');
+
+$mp = $plan['tables']['module_progress'];
+t_eq(count($mp), 1, 'two lessons instancing one module become ONE module_progress row');
+t_eq($mp[0]['status'], 'completed',
+    'and the FURTHEST progress wins: completing the material must not be undone by a second lesson row');
+t_eq((int) $mp[0]['percent_complete'], 100, 'keeping the higher percentage');
+t_ok($mp[0]['mastery_pct'] === null,
+    'with NULL mastery — v1 kept no per-module figure, and 0 would report an unassessed learner as having '
+    . 'mastered nothing');
+
+t_group('v2 plan — teaching operations');
+
+t_eq(count($plan['tables']['instructor_availability']), 1,
+    'a window that ends before it starts is rejected rather than reversed');
+t_eq($plan['tables']['instructor_availability'][0]['timezone'], 'Africa/Lagos',
+    'and the academy\'s zone is stated rather than implied — v1 recorded none');
+
+$clock = $plan['tables']['instructor_clockins'];
+t_eq(count($clock), 2, 'both clock-ins carry');
+$present = array_values(array_filter($clock, static fn($c) => $c['clocked_in_at'] !== null));
+t_eq((int) $present[0]['minutes_present'], 66,
+    'minutes_present is derived once from the two timestamps and STORED, because v1 stored neither');
+$noTimeClock = array_values(array_filter($clock, static fn($c) => $c['clocked_in_at'] === null));
+t_eq($noTimeClock[0]['status'], 'absent',
+    'an instructor marked present with no time becomes an ABSENCE: present means they were in the room at '
+    . 'a stated moment');
+
+$fines = $plan['tables']['instructor_fines'];
+t_eq(count($fines), 2, 'both charges carry');
+$waived = array_values(array_filter($fines, static fn($f) => $f['status'] === 'waived'));
+t_eq(count($waived), 0,
+    'a waiver with no decider and no date is NOT carried as waived — an unaccountable waiver of a '
+    . "colleague's money is worse than an open question");
+t_ok(in_array('fine_resolution_incomplete', $kinds3, true), 'it is carried as pending and raised');
+foreach ($fines as $f) {
+    t_eq($f['currency'], 'NGN', 'the charge keeps the currency the academy stated');
+    t_ok($f['base_amount_minor'] === null,
+        'and needs no frozen rate, because that IS the base currency — v1 kept kobo in one column and USD '
+        . 'cents in another, so a sum depended on which the reader picked');
+}
+
+$fi = $plan['tables']['faculty_invites'][0];
+t_ok($fi['nonce_hash'] === null, 'the invitation nonce is not carried, in any form');
+t_eq($fi['status'], 'approved',
+    'and a live "sent" invitation lands as APPROVED: re-issuing costs an email, while migrating a table of '
+    . 'live nonces extends every window that should have closed');
+t_ok(!in_array('nonce', array_keys($fi), true), 'there is no column for it to be carried in');
+
+$iapps = $plan['tables']['instructor_applications'];
+t_eq(count($iapps), 2, 'both applications carry');
+$ghost = array_values(array_filter($iapps, static fn($a) => $a['email'] === 'ghost@example.test'));
+t_eq($ghost[0]['status'], 'offered',
+    'an application v1 called appointed with no account on that address lands as OFFERED — the decision is '
+    . 'real, the account is the missing half');
+t_ok(in_array('instructor_appointed_no_account', $kinds3, true), 'and it is raised');
+t_ok($ghost[0]['decided_by'] === null && $ghost[0]['decided_at'] !== null,
+    'a migrated decision is dated but attributed to nobody, which is what v1 recorded');
+t_ok(str_contains((string) $ghost[0]['decision_note'], 'decider not recorded'),
+    'and says so on the row rather than in a comment somewhere');
+
+$mparts = $plan['tables']['meeting_participants'];
+t_eq(count($mparts), 2, 'both reported participants carry');
+$guest = array_values(array_filter($mparts, static fn($m) => $m['membership_id'] === null));
+t_eq($guest[0]['display_name'], 'iPhone (2)',
+    'a participant who matched nobody keeps the reported NAME — that is the interesting row, not a '
+    . 'discardable one');
+t_eq((int) $guest[0]['joined_at_is_derived'], 0, 'with no join time, so nothing is claimed about one');
+$known = array_values(array_filter($mparts, static fn($m) => $m['membership_id'] !== null));
+t_eq((int) $known[0]['joined_at_is_derived'], 1,
+    'a join time that could only have come from subtraction is flagged as derived — Google Reports emits '
+    . 'the leave time and a duration, and a derived instant presented as an observation loses a dispute');
+
+$sprep = $plan['tables']['session_progress_reports'][0];
+t_ok($sprep['due_at'] === null && $sprep['minutes_late'] === null,
+    'the two-hour deadline and its lateness are NULL: v1 never wrote them, and 0 would claim every '
+    . 'migrated report was on time');
+t_ok($sprep['sent_at'] !== null, 'whether the family was sent it is a different fact, and v1 did record that');
+
+$wl = $plan['tables']['cohort_waitlist'];
+t_eq(count($wl), 2, 'both queue entries carry');
+t_eq(count(array_filter($wl, static fn($w) => $w['status'] !== 'waiting')), 0,
+    'an entry marked promoted with no enrolment behind it, and one offered with no record of the family '
+    . 'being told, are both carried as WAITING — which is what their position actually was');
+t_ok(in_array('waitlist_promotion_unevidenced', $kinds3, true)
+    && in_array('waitlist_offer_unnotified', $kinds3, true), 'both are raised');
+
+$lres = $plan['tables']['learning_resources'];
+t_eq(count($lres), 2, 'the resource and its second version are both rows');
+$v2res = array_values(array_filter($lres, static fn($r) => (int) $r['version'] === 2));
+t_eq((int) $v2res[0]['supersedes_id'], (int) $lres[0]['id'],
+    'a new version POINTS AT the one it replaces, so a learner given version 1 can still be shown what '
+    . 'they were given');
+t_ok((int) $lres[0]['cohort_id'] > 0,
+    "a v1 resource attached to a legacy CLASS resolves onto the one cohort spine");
+
+t_group('v2 plan — moving a lesson');
+
+$rr = v2p_by_id($plan, 'reschedule_requests');
+t_eq(count($rr), 2, 'both requests carry');
+t_eq($rr[1]['currency'], 'USD', 'the fee keeps the currency the family was quoted in');
+t_eq((int) $rr[1]['base_fee_minor'], 1600000, 'with the base amount computed at the rate v1 froze');
+t_eq((int) $rr[1]['payment_id'], (int) v2p_find($plan, 'payments', 'provider_ref', 'ps_100')['id'],
+    "the payment is matched through the ledger's own human reference — the string on the receipt");
+t_ok($rr[2]['paid_at'] === null && $rr[2]['payment_id'] === null,
+    'a fee marked paid against a reference the ledger never heard of reads as UNPAID rather than as '
+    . 'settled by nobody');
+t_ok(in_array('reschedule_payment_unmatched', $kinds3, true),
+    'and is raised, so the family is not asked twice');
+$ri = $plan['tables']['reschedule_items'][0];
+t_ok($ri['old_scheduled_at'] !== null,
+    'an item keeps the time it moved FROM: "what was it before" is the first question asked when a family '
+    . 'says a lesson moved and nobody told them');
+t_ok($ri['applied_at'] !== null, 'and an applied move states when');
+$cov3 = v2p_coverage($plan);
+t_eq($cov3['reschedule_events']['destination'], 'lifecycle_events',
+    'reschedule events go to v2\'s one stage machine rather than a table of their own');
 
 t_group('v2 plan — the calendar, which is the only authority on a refund');
 

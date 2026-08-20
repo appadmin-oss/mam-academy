@@ -2901,6 +2901,493 @@ CREATE TABLE tool_scores (
   CONSTRAINT fk_toolscore_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
 );
 
+-- =============================================================================
+-- LAYER N · TEACHING OPERATIONS
+-- =============================================================================
+-- Who may teach what, when they were in the room, what they wrote afterwards,
+-- and what it costs a family to move a lesson. v1 spread this across eleven
+-- tables keyed on `users.id`; here it is keyed on the MEMBERSHIP, so a person
+-- who teaches at one centre and guardians a child at another is one account with
+-- two relationships rather than one row with an ambiguous role.
+--
+-- Two v1 tables deliberately have NO table here:
+--   • `instructor_profiles` (bio, specialties, years, photo) is absorbed into
+--     `custom_field_values` on the membership — four optional strings do not
+--     need a table, and the ETL already carries them there. Two homes for one
+--     fact is how they drift.
+--   • `reschedule_events` is absorbed into `lifecycle_events`, which is v2's one
+--     stage machine. A reschedule request moving from pending to approved is the
+--     same shape of fact as an application moving from submitted to enrolled.
+
+-- When an instructor is available to teach. A wall-clock time plus a zone, per
+-- the header note: 16:00 in Lagos must stay 16:00 if an offset rule changes.
+CREATE TABLE instructor_availability (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  centre_id     INTEGER NULL,
+  day_of_week   TINYINTEGER NOT NULL,      -- 0 = Sunday … 6 = Saturday
+  start_time    TIME         NOT NULL,
+  end_time      TIME         NOT NULL,
+  timezone      TEXT  NOT NULL DEFAULT 'Africa/Lagos',
+  -- An availability window is a PERIOD, not a standing fact: a teacher who can
+  -- take Friday afternoons this term may not next term, and last term's
+  -- timetable has to stay explicable.
+  effective_from TEXT        NULL,
+  effective_to   TEXT        NULL,
+  is_active     INTEGER   NOT NULL DEFAULT 1,
+  note          TEXT NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  CONSTRAINT chk_avail_dow CHECK (day_of_week <= 6),
+  CONSTRAINT chk_avail_time CHECK (end_time > start_time),
+  CONSTRAINT chk_avail_period CHECK (effective_to IS NULL
+        OR effective_from IS NULL OR effective_to >= effective_from),
+  CONSTRAINT chk_avail_active CHECK (is_active IN (0,1)),
+  CONSTRAINT fk_avail_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_avail_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_avail_centre FOREIGN KEY (centre_id)     REFERENCES centres(id) ON DELETE SET NULL
+);
+
+-- The courses an instructor may be assigned to teach. NOT `cohort_staff`, which
+-- records who IS teaching a class: this is eligibility, read when an admin is
+-- choosing somebody, and the two answer different questions. Named
+-- `instructor_courses` rather than v1's `instructor_assignments` because
+-- "assignment" in v2 is a piece of set work.
+CREATE TABLE instructor_courses (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  course_id     INTEGER NOT NULL,
+  level_id      INTEGER NULL,           -- NULL = every level of the course
+  -- 0 = every level, otherwise the level id — the same companion column
+  -- `programme_courses` uses, and for the same reason: both engines treat NULLs
+  -- as distinct in a unique index, so a key ending in a nullable level_id would
+  -- let two identical "may teach every level of piano" rows coexist.
+  level_scope   INTEGER NOT NULL DEFAULT 0,
+  is_lead       INTEGER   NOT NULL DEFAULT 0,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  created_by    INTEGER NULL,
+  UNIQUE (tenant_id, membership_id, course_id, level_scope),
+
+  CONSTRAINT chk_icourse_lead CHECK (is_lead IN (0,1)),
+  CONSTRAINT fk_icourse_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_icourse_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_icourse_course FOREIGN KEY (course_id)     REFERENCES courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_icourse_level  FOREIGN KEY (level_id)      REFERENCES levels(id) ON DELETE CASCADE,
+  CONSTRAINT fk_icourse_by     FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- The instructor's own attendance clock. §11: this is the OFFICIAL record of
+-- whether a lesson was taught, and a video-conference report is only evidence
+-- beside it — so nothing here is derived from a provider.
+CREATE TABLE instructor_clockins (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  session_id    INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  role          TEXT  NOT NULL DEFAULT 'instructor',   -- instructor|substitute|assistant
+  clocked_in_at  TEXT NULL,
+  clocked_out_at TEXT NULL,
+  -- STORED, never recomputed on read. A session's scheduled_at can be edited
+  -- afterwards and the record of what actually happened must not move with it.
+  minutes_late  SMALLINTEGER NOT NULL DEFAULT 0,
+  minutes_present SMALLINTEGER NULL,
+  status        TEXT  NOT NULL DEFAULT 'present',
+     -- present|late|absent|substituted|cancelled
+  source        TEXT  NOT NULL DEFAULT 'portal',       -- portal|admin|api
+  note          TEXT NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  -- One clock per person per session per role. A second clock-in is an EDIT of
+  -- the first, not another attendance.
+  UNIQUE (tenant_id, session_id, membership_id, role),
+
+  CONSTRAINT chk_clockin_role CHECK (role IN ('instructor','substitute','assistant')),
+  CONSTRAINT chk_clockin_status CHECK (status IN ('present','late','absent','substituted','cancelled')),
+  -- Both timestamps come from one writer, so this compares like with like (the
+  -- lesson `mark_appeals.opened_at` records above).
+  CONSTRAINT chk_clockin_order CHECK (clocked_out_at IS NULL
+        OR clocked_in_at IS NULL OR clocked_out_at >= clocked_in_at),
+  -- An instructor recorded as present was in the room at a stated time. Absent
+  -- and cancelled are the statuses with nothing to state.
+  CONSTRAINT chk_clockin_when CHECK (status IN ('absent','cancelled')
+        OR clocked_in_at IS NOT NULL),
+  CONSTRAINT fk_clockin_tenant  FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_clockin_session FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_clockin_member  FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+);
+
+-- A charge raised against an instructor — in practice a late progress report.
+--
+-- ⚠️ This table RECORDS a charge. It does not deduct anything, and nothing here
+-- links to a payroll run or to `ledger_entries`: Labour Act s.5(1) bars
+-- deductions from wages for fines without an authorised labour officer's written
+-- consent, so the deduction is a decision somebody takes outside this system
+-- with that consent in hand. There is deliberately no `deducted_at`, no
+-- `payroll_run_id` and no route from here into the money layer.
+CREATE TABLE instructor_fines (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  session_id    INTEGER NULL,
+  reason        TEXT  NOT NULL DEFAULT 'late_progress_report',
+  -- Minor units + ISO currency + the base amount and frozen rate whenever they
+  -- differ, exactly as for money owed BY a family. v1 kept kobo in one column
+  -- and USD cents in another, so a sum over the table depended on which column
+  -- the reader happened to pick.
+  amount_minor  INTEGER       NOT NULL DEFAULT 0,
+  currency      TEXT      NOT NULL,
+  base_currency TEXT      NOT NULL,
+  base_amount_minor INTEGER   NULL,
+  fx_rate       REAL NULL,
+  fx_source     TEXT  NULL,
+  status        TEXT  NOT NULL DEFAULT 'pending',
+     -- pending|upheld|waived|cancelled|disputed
+  note          TEXT NULL,
+  resolved_by   INTEGER NULL,
+  resolved_at   TEXT  NULL,
+  resolution_note TEXT NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  created_by    INTEGER NULL,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_ifine_status CHECK (status IN ('pending','upheld','waived','cancelled','disputed')),
+  CONSTRAINT chk_ifine_amount CHECK (amount_minor >= 0),
+  CONSTRAINT chk_ifine_fx CHECK (currency = base_currency
+        OR (base_amount_minor IS NOT NULL AND fx_rate IS NOT NULL)),
+  -- A resolution is a named person on a stated date, and anything other than
+  -- upholding it says why. "Waived" with no reason is the record of a decision
+  -- nobody can account for.
+  CONSTRAINT chk_ifine_resolved CHECK (status IN ('pending','disputed')
+        OR (resolved_by IS NOT NULL AND resolved_at IS NOT NULL)),
+  CONSTRAINT chk_ifine_waived CHECK (status NOT IN ('waived','cancelled')
+        OR resolution_note IS NOT NULL),
+  CONSTRAINT fk_ifine_tenant  FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_ifine_member  FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ifine_session FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ifine_res     FOREIGN KEY (resolved_by)   REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ifine_by      FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Somebody the academy has invited to apply for a teaching post, and the
+-- application they send back.
+--
+-- The invitation TOKEN is not stored here in usable form: v1 kept the nonce, and
+-- a leaked table of live nonces is a set of credentials. Only its hash is kept,
+-- so an arriving link can be verified and nothing in the table can be replayed.
+CREATE TABLE faculty_invites (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  email         TEXT NOT NULL,
+  name          TEXT NULL,
+  source        TEXT  NOT NULL DEFAULT 'contact',   -- contact|referral|admin|event
+  status        TEXT  NOT NULL DEFAULT 'requested',
+     -- requested|approved|sent|used|expired|declined
+  nonce_hash    TEXT     NULL,
+  expires_at    TEXT  NULL,
+  invited_by    INTEGER NULL,
+  invited_at    TEXT  NULL,
+  used_at       TEXT  NULL,
+  note          TEXT NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_finvite_status CHECK (status IN
+    ('requested','approved','sent','used','expired','declined')),
+  CONSTRAINT chk_finvite_source CHECK (source IN ('contact','referral','admin','event')),
+  -- A sent invitation has something to verify and a moment it stops working. An
+  -- invitation that never expires is a permanent credential.
+  CONSTRAINT chk_finvite_sent CHECK (status NOT IN ('sent','used')
+        OR (nonce_hash IS NOT NULL AND expires_at IS NOT NULL AND invited_at IS NOT NULL)),
+  CONSTRAINT chk_finvite_used CHECK (status <> 'used' OR used_at IS NOT NULL),
+  CONSTRAINT fk_finvite_tenant FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
+  CONSTRAINT fk_finvite_by     FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE instructor_applications (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  invite_id     INTEGER NULL,
+  -- The candidate may have no account at all, so this is an ADDRESS and not a
+  -- membership. It becomes a membership if they are appointed.
+  email         TEXT NOT NULL,
+  full_name     TEXT NULL,
+  phone         TEXT  NULL,
+  disciplines   TEXT NULL,
+  experience_years SMALLINTEGER NULL,
+  bio           TEXT         NULL,
+  links         TEXT NULL,
+  status        TEXT  NOT NULL DEFAULT 'submitted',
+     -- submitted|screening|interview|offered|appointed|declined|withdrawn
+  membership_id INTEGER NULL,     -- set when they are appointed
+  decided_by    INTEGER NULL,
+  decided_at    TEXT  NULL,
+  decision_note TEXT NULL,
+  -- The CV and the headshot are `attachments` (entity_type='instructor_application'):
+  -- a candidate's documents are files and belong where every other file is.
+  source_ip     BLOB NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at    TEXT  NULL,
+  deleted_seq   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_iapp_status CHECK (status IN
+    ('submitted','screening','interview','offered','appointed','declined','withdrawn')),
+  -- An appointment is the one status that must point at the account it created,
+  -- otherwise the hire and the teacher are two unconnected records.
+  CONSTRAINT chk_iapp_appointed CHECK (status <> 'appointed' OR membership_id IS NOT NULL),
+  -- A decided application states WHEN and says something about the decision.
+  -- Deliberately NOT "and who": v1 recorded no decider, and refusing those rows
+  -- would either lose the decisions (putting declined candidates back in the
+  -- queue) or force a fabricated name into the record. Contrast
+  -- `chk_treport_rat`, which does demand a named ratifier — a mark shown to a
+  -- family has to be attributable because it can be appealed, while a
+  -- recruitment decision affects no-one's rights that way.
+  CONSTRAINT chk_iapp_decided CHECK (status IN ('submitted','screening','interview')
+        OR (decided_at IS NOT NULL AND decision_note IS NOT NULL)),
+  CONSTRAINT fk_iapp_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_iapp_invite FOREIGN KEY (invite_id)     REFERENCES faculty_invites(id) ON DELETE SET NULL,
+  CONSTRAINT fk_iapp_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_iapp_by     FOREIGN KEY (decided_by)    REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- What a video-conference provider says happened, beside what the portal
+-- recorded. §11 is explicit that the portal clock-in is the official record and
+-- this is corroboration — so it is a separate table and never writes to
+-- `attendance`.
+--
+-- ⚠️ Google's Reports API emits the moment a participant LEFT plus a duration;
+-- there is no join timestamp. `joined_at` is therefore DERIVED by subtraction
+-- and `joined_at_is_derived` says so, because a derived instant presented as an
+-- observation is the kind of evidence that loses a dispute.
+CREATE TABLE meeting_participants (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  session_id    INTEGER NOT NULL,
+  subject_type  TEXT  NOT NULL DEFAULT 'learner',   -- learner|staff|guest|unknown
+  membership_id INTEGER NULL,
+  -- The name the provider reported. Kept even when it matched nobody: an
+  -- unmatched participant is the interesting row, not a discardable one.
+  display_name  TEXT NULL,
+  joined_at     TEXT  NULL,
+  left_at       TEXT  NULL,
+  minutes       SMALLINTEGER NULL,
+  joined_at_is_derived INTEGER NOT NULL DEFAULT 0,
+  provider      TEXT  NOT NULL DEFAULT 'meet',      -- meet|jitsi|zoom|manual
+  source        TEXT  NOT NULL DEFAULT 'import',    -- import|api|manual
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  CONSTRAINT chk_mpart_subject CHECK (subject_type IN ('learner','staff','guest','unknown')),
+  CONSTRAINT chk_mpart_source CHECK (source IN ('import','api','manual')),
+  CONSTRAINT chk_mpart_derived CHECK (joined_at_is_derived IN (0,1)),
+  CONSTRAINT chk_mpart_order CHECK (left_at IS NULL OR joined_at IS NULL OR left_at >= joined_at),
+  CONSTRAINT fk_mpart_tenant  FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_mpart_session FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mpart_member  FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+-- The instructor's note after a single lesson, due within two hours of it.
+--
+-- ⚠️ Named `session_progress_reports`, NOT `progress_reports`. v1's
+-- `progress_reports` and its `termly_reports` are different documents with
+-- different audiences and different rules — one is a two-hour note about one
+-- lesson, the other is a board-ratified termly record — and the bare name has
+-- already caused them to be confused in code. The name states which is which.
+CREATE TABLE session_progress_reports (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  session_id    INTEGER NOT NULL,
+  enrolment_id  INTEGER NOT NULL,
+  instructor_membership_id INTEGER NOT NULL,
+  answers       TEXT         NULL,
+  narrative     TEXT         NULL,
+  -- The deadline is STORED, so lateness is a fact about this report rather than
+  -- something recomputed from a policy that may since have changed.
+  due_at        TEXT  NULL,
+  submitted_at  TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  minutes_late  INTEGER NULL,
+  -- Whether the FAMILY has been sent it, which is a different fact from whether
+  -- it was written.
+  sent_at       TEXT  NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at    TEXT  NULL,
+  deleted_seq   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (public_id),
+  -- One LIVE report per learner per session. v1's UNIQUE(session, student) could
+  -- not express a report withdrawn and rewritten.
+  UNIQUE (tenant_id, session_id, enrolment_id, deleted_seq),
+
+  CONSTRAINT fk_sprep_tenant  FOREIGN KEY (tenant_id)    REFERENCES tenants(id),
+  CONSTRAINT fk_sprep_session FOREIGN KEY (session_id)   REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sprep_enrol   FOREIGN KEY (enrolment_id) REFERENCES enrolments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sprep_instr   FOREIGN KEY (instructor_membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+);
+
+-- A family asking to move lessons, priced by the academy and decided by a human.
+CREATE TABLE reschedule_requests (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  requester_membership_id INTEGER NOT NULL,
+  enrolment_id  INTEGER NULL,
+  cohort_id     INTEGER NOT NULL,
+  status        TEXT  NOT NULL DEFAULT 'pending_payment',
+     -- pending_payment|pending_approval|approved|declined|applied|expired|cancelled
+  reason        TEXT NULL,
+  session_count SMALLINTEGER NOT NULL DEFAULT 0,
+  -- SERVER-PRICED, in minor units, with the base amount and frozen rate whenever
+  -- they differ. The client sends intent; what it costs is never the client's to
+  -- state.
+  fee_minor     INTEGER       NOT NULL DEFAULT 0,
+  currency      TEXT      NOT NULL,
+  base_currency TEXT      NOT NULL,
+  base_fee_minor INTEGER      NULL,
+  fx_rate       REAL NULL,
+  is_waived     INTEGER   NOT NULL DEFAULT 0,
+  waived_reason TEXT NULL,
+  payment_id    INTEGER NULL,
+  paid_at       TEXT  NULL,
+  decided_by    INTEGER NULL,
+  decided_at    TEXT  NULL,
+  decision_note TEXT NULL,
+  applied_at    TEXT  NULL,
+  expires_at    TEXT  NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  row_version   INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_resch_status CHECK (status IN ('pending_payment','pending_approval',
+    'approved','declined','applied','expired','cancelled')),
+  CONSTRAINT chk_resch_fee CHECK (fee_minor >= 0),
+  CONSTRAINT chk_resch_fx CHECK (currency = base_currency
+        OR (base_fee_minor IS NOT NULL AND fx_rate IS NOT NULL)),
+  CONSTRAINT chk_resch_waived CHECK (is_waived IN (0,1)
+        AND (is_waived = 0 OR waived_reason IS NOT NULL)),
+  -- A decision is a named person on a stated date, and a refusal says why: the
+  -- family paid a fee to ask.
+  CONSTRAINT chk_resch_decided CHECK (status IN ('pending_payment','pending_approval','expired','cancelled')
+        OR (decided_by IS NOT NULL AND decided_at IS NOT NULL)),
+  CONSTRAINT chk_resch_declined CHECK (status <> 'declined' OR decision_note IS NOT NULL),
+  CONSTRAINT chk_resch_applied CHECK (status <> 'applied' OR applied_at IS NOT NULL),
+  -- A fee that has been PAID names the payment. Reconciling "did this family pay
+  -- to move their lessons" by matching amounts and dates is how money goes
+  -- missing.
+  CONSTRAINT chk_resch_paid CHECK (paid_at IS NULL OR is_waived = 1 OR payment_id IS NOT NULL),
+  CONSTRAINT fk_resch_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_resch_member FOREIGN KEY (requester_membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_resch_enrol  FOREIGN KEY (enrolment_id)  REFERENCES enrolments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_resch_cohort FOREIGN KEY (cohort_id)     REFERENCES cohorts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_resch_pay    FOREIGN KEY (payment_id)    REFERENCES payments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_resch_by     FOREIGN KEY (decided_by)    REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- One session inside a reschedule request. The OLD time is kept because "what
+-- was it before" is the first question asked when a family says a lesson moved
+-- and nobody told them.
+CREATE TABLE reschedule_items (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  request_id    INTEGER NOT NULL,
+  session_id    INTEGER NOT NULL,
+  old_scheduled_at TEXT NULL,
+  new_scheduled_at TEXT NOT NULL,
+  timezone      TEXT  NOT NULL DEFAULT 'Africa/Lagos',
+  is_applied    INTEGER   NOT NULL DEFAULT 0,
+  applied_at    TEXT  NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (request_id, session_id),
+
+  CONSTRAINT chk_reschitem_applied CHECK (is_applied IN (0,1)
+        AND (is_applied = 0 OR applied_at IS NOT NULL)),
+  CONSTRAINT fk_reschitem_tenant  FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
+  CONSTRAINT fk_reschitem_request FOREIGN KEY (request_id) REFERENCES reschedule_requests(id) ON DELETE CASCADE,
+  CONSTRAINT fk_reschitem_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE CASCADE
+);
+
+-- The queue for a full cohort.
+CREATE TABLE cohort_waitlist (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  cohort_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  position      INTEGER NOT NULL,
+  status        TEXT  NOT NULL DEFAULT 'waiting',
+     -- waiting|offered|promoted|declined|expired|withdrawn
+  -- Set when the family was TOLD a seat had come free. The column existed in v1
+  -- and nothing ever wrote it, so promotions were silent — hence the CHECK.
+  notified_at   TEXT  NULL,
+  offer_expires_at TEXT NULL,
+  promoted_enrolment_id INTEGER NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_seq   INTEGER NOT NULL DEFAULT 0,
+  -- One LIVE place in one queue per person; leaving and rejoining is legal and
+  -- takes a new position.
+  UNIQUE (tenant_id, cohort_id, membership_id, deleted_seq),
+
+  CONSTRAINT chk_waitlist_status CHECK (status IN
+    ('waiting','offered','promoted','declined','expired','withdrawn')),
+  CONSTRAINT chk_waitlist_position CHECK (position >= 1),
+  CONSTRAINT chk_waitlist_offered CHECK (status <> 'offered' OR notified_at IS NOT NULL),
+  -- A promotion points at the enrolment it produced. Without it, "promoted" is a
+  -- claim with nothing behind it — which is exactly the v1 bug where entries
+  -- were marked promoted while nobody was enrolled.
+  CONSTRAINT chk_waitlist_promoted CHECK (status <> 'promoted'
+        OR (promoted_enrolment_id IS NOT NULL AND notified_at IS NOT NULL)),
+  CONSTRAINT fk_waitlist_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_waitlist_cohort FOREIGN KEY (cohort_id)     REFERENCES cohorts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_waitlist_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_waitlist_enrol  FOREIGN KEY (promoted_enrolment_id) REFERENCES enrolments(id) ON DELETE SET NULL
+);
+
+-- Material shared with learners. v1 had `class_resources` (dual-read across both
+-- enrolment models) plus `resource_versions` beside it; here a new version is a
+-- NEW ROW that supersedes the old one, which is the same idiom `rubrics` uses.
+-- A learner who was given version 1 can still be shown what they were given.
+CREATE TABLE learning_resources (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  cohort_id     INTEGER NULL,
+  course_id     INTEGER NULL,
+  module_id     INTEGER NULL,
+  title         TEXT NOT NULL,
+  kind          TEXT  NOT NULL DEFAULT 'link',   -- link|document|score|audio|video|drive
+  url           TEXT NULL,
+  attachment_id INTEGER NULL,
+  visibility    TEXT  NOT NULL DEFAULT 'cohort', -- cohort|course|tenant|staff
+  version       INTEGER NOT NULL DEFAULT 1,
+  supersedes_id INTEGER NULL,
+  note          TEXT NULL,
+  posted_by     INTEGER NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at    TEXT  NULL,
+  deleted_seq   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_lres_visibility CHECK (visibility IN ('cohort','course','tenant','staff')),
+  CONSTRAINT chk_lres_version CHECK (version >= 1),
+  -- Something to open: either a URL or a stored file. A resource with neither is
+  -- a title in a list that disappoints whoever clicks it.
+  CONSTRAINT chk_lres_target CHECK (url IS NOT NULL OR attachment_id IS NOT NULL),
+  -- And somewhere to belong. v1 allowed both class_id and cohort_id to be NULL,
+  -- which made a resource nobody could reach.
+  CONSTRAINT chk_lres_scope CHECK (cohort_id IS NOT NULL
+        OR course_id IS NOT NULL OR module_id IS NOT NULL OR visibility IN ('tenant','staff')),
+  CONSTRAINT fk_lres_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_lres_cohort FOREIGN KEY (cohort_id)     REFERENCES cohorts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_lres_course FOREIGN KEY (course_id)     REFERENCES courses(id) ON DELETE SET NULL,
+  CONSTRAINT fk_lres_module FOREIGN KEY (module_id)     REFERENCES modules(id) ON DELETE SET NULL,
+  CONSTRAINT fk_lres_att    FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_lres_super  FOREIGN KEY (supersedes_id) REFERENCES learning_resources(id) ON DELETE SET NULL,
+  CONSTRAINT fk_lres_by     FOREIGN KEY (posted_by)     REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- Schema baseline. A fresh v2 install starts AT the target rather than
 -- replaying v1's 81 migrations.
 CREATE TABLE schema_version (
@@ -2909,8 +3396,8 @@ CREATE TABLE schema_version (
   note        TEXT NULL
 );
 
-INSERT INTO schema_version (version, note) VALUES (202,
-  'schema-v2 baseline + guardian layer + assessment and progress');
+INSERT INTO schema_version (version, note) VALUES (203,
+  'schema-v2 baseline + guardian layer + assessment + teaching operations');
 
 -- Seed the currencies the platform ships knowing about. Everything else is
 -- tenant data and arrives via the ETL or the admin.
@@ -3028,3 +3515,19 @@ CREATE INDEX ix_enresult_status ON enrolment_results (tenant_id, status, finalis
 CREATE INDEX ix_cert_member ON certificates (tenant_id, membership_id, status);
 CREATE INDEX ix_mprop_review ON module_proposals (tenant_id, status, created_at);
 CREATE INDEX ix_mprop_course ON module_proposals (tenant_id, course_id, level_id, week_no);
+CREATE INDEX ix_avail_member ON instructor_availability (tenant_id, membership_id, day_of_week, is_active);
+CREATE INDEX ix_icourse_course ON instructor_courses (tenant_id, course_id, level_id);
+CREATE INDEX ix_clockin_member ON instructor_clockins (tenant_id, membership_id, clocked_in_at);
+CREATE INDEX ix_ifine_member ON instructor_fines (tenant_id, membership_id, status, created_at);
+CREATE INDEX ix_finvite_email ON faculty_invites (tenant_id, email, status);
+CREATE INDEX ix_iapp_status ON instructor_applications (tenant_id, status, created_at);
+CREATE INDEX ix_iapp_email ON instructor_applications (tenant_id, email);
+CREATE INDEX ix_mpart_session ON meeting_participants (tenant_id, session_id, subject_type);
+CREATE INDEX ix_mpart_member ON meeting_participants (tenant_id, membership_id);
+CREATE INDEX ix_sprep_instructor ON session_progress_reports (tenant_id, instructor_membership_id, submitted_at);
+CREATE INDEX ix_resch_status ON reschedule_requests (tenant_id, status, created_at);
+CREATE INDEX ix_resch_member ON reschedule_requests (tenant_id, requester_membership_id, status);
+CREATE INDEX ix_reschitem_session ON reschedule_items (tenant_id, session_id);
+CREATE INDEX ix_waitlist_queue ON cohort_waitlist (tenant_id, cohort_id, status, position);
+CREATE INDEX ix_lres_cohort ON learning_resources (tenant_id, cohort_id, deleted_seq);
+CREATE INDEX ix_lres_module ON learning_resources (tenant_id, module_id, deleted_seq);

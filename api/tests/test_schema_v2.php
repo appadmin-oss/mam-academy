@@ -578,3 +578,133 @@ $rejects("INSERT INTO module_proposals (public_id,tenant_id,course_id,week_no,ti
 $ranking = $db->query("SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE '%leaderboard%' OR name LIKE '%ranking%')")->fetchAll(PDO::FETCH_COLUMN);
 t_eq(count($ranking), 0, 'no table in v2 orders learners against each other — the 2026-08 redesign refuses a cohort ranking'
     . ($ranking ? ': ' . implode(', ', $ranking) : ''));
+
+t_group('schema-v2 — teaching operations');
+
+// The two v1 tables that deliberately have no table here.
+$allTables = $db->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(PDO::FETCH_COLUMN);
+t_ok(!in_array('instructor_profiles', $allTables, true),
+    'no instructor_profiles table: four optional strings live in custom_field_values on the membership, and '
+    . 'two homes for one fact is how they drift');
+t_ok(!in_array('reschedule_events', $allTables, true),
+    'no reschedule_events table: v2 has one stage machine (lifecycle_events)');
+t_ok(in_array('session_progress_reports', $allTables, true) && !in_array('progress_reports', $allTables, true),
+    'the two-hour lesson note is session_progress_reports — the bare name has already been confused with '
+    . 'the board-ratified termly report');
+
+$ins("INSERT INTO instructor_availability (tenant_id,membership_id,day_of_week,start_time,end_time,timezone)
+      VALUES (1,2,5,'16:00:00','18:00:00','Africa/Lagos')");
+$rejects("INSERT INTO instructor_availability (tenant_id,membership_id,day_of_week,start_time,end_time) VALUES (1,2,7,'16:00:00','18:00:00')",
+    "an eighth day of the week");
+$rejects("INSERT INTO instructor_availability (tenant_id,membership_id,day_of_week,start_time,end_time) VALUES (1,2,4,'18:00:00','16:00:00')",
+    "a window that ends before it starts");
+
+$ins("INSERT INTO instructor_courses (tenant_id,membership_id,course_id,level_id,level_scope) VALUES (1,2,1,NULL,0)");
+$rejects("INSERT INTO instructor_courses (tenant_id,membership_id,course_id,level_id,level_scope) VALUES (1,2,1,NULL,0)",
+    "a second 'may teach every level of this course' row — the companion level_scope column is what stops "
+    . "two NULL levels reading as distinct");
+$ins("INSERT INTO instructor_courses (tenant_id,membership_id,course_id,level_id,level_scope) VALUES (1,2,1,1,1)");
+t_ok(true, 'while the same instructor at a NAMED level is a different, legitimate row');
+
+// The instructor's clock is the official record of whether a lesson happened.
+$ins("INSERT INTO instructor_clockins (tenant_id,session_id,membership_id,clocked_in_at,clocked_out_at,minutes_late,minutes_present,status)
+      VALUES (1,1,2,'2026-10-02 16:04:00.000','2026-10-02 17:02:00.000',4,58,'late')");
+$rejects("INSERT INTO instructor_clockins (tenant_id,session_id,membership_id,clocked_in_at,clocked_out_at,status)
+          VALUES (1,1,2,'2026-10-02 16:04:00.000','2026-10-02 17:02:00.000','present')",
+    "a second clock-in for one person on one session in one role — that is an EDIT, not another attendance");
+$rejects("INSERT INTO instructor_clockins (tenant_id,session_id,membership_id,role,clocked_in_at,clocked_out_at,status)
+          VALUES (1,1,2,'substitute','2026-10-02 17:02:00.000','2026-10-02 16:04:00.000','present')",
+    "clocking out before clocking in");
+$rejects("INSERT INTO instructor_clockins (tenant_id,session_id,membership_id,role,status) VALUES (1,1,2,'assistant','present')",
+    "an instructor recorded present with no time — present means they were in the room at a stated moment");
+
+// A fine is a RECORD. Nothing here deducts anything.
+$fineCols = array_column($db->query('PRAGMA table_info(instructor_fines)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+foreach (['deducted_at', 'payroll_run_id', 'ledger_entry_id'] as $forbidden) {
+    t_ok(!in_array($forbidden, $fineCols, true),
+        "instructor_fines has no `$forbidden` — Labour Act s.5(1) bars deducting a fine from wages without "
+        . "an authorised labour officer's written consent, so the deduction is not this system's to make");
+}
+$ins("INSERT INTO instructor_fines (public_id,tenant_id,membership_id,session_id,reason,amount_minor,currency,base_currency,status,resolved_by,resolved_at)
+      VALUES (?,1,2,1,'late_progress_report',500000,'NGN','NGN','upheld',2,'2026-10-04 09:00:00.000')", [$ulid()]);
+$rejects("INSERT INTO instructor_fines (public_id,tenant_id,membership_id,amount_minor,currency,base_currency,status,resolved_by,resolved_at)
+          VALUES ('01JWAIVENOTE00000000000000',1,2,500000,'NGN','NGN','waived',2,'2026-10-04 09:00:00.000')",
+    "a waived fine with no reason — a decision nobody can account for");
+$rejects("INSERT INTO instructor_fines (public_id,tenant_id,membership_id,amount_minor,currency,base_currency)
+          VALUES ('01JFINEFX000000000000000000',1,2,500000,'NGN','USD')",
+    "a fine in one currency with no frozen rate to the books' currency");
+
+// An invitation is a credential. The table holds no usable token.
+$invCols2 = array_column($db->query('PRAGMA table_info(faculty_invites)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+t_ok(in_array('nonce_hash', $invCols2, true) && !in_array('nonce', $invCols2, true),
+    'faculty_invites stores a HASH, not the nonce: a leaked table of live nonces is a set of credentials');
+$ins("INSERT INTO faculty_invites (id,public_id,tenant_id,email,name,status,nonce_hash,expires_at,invited_by,invited_at)
+      VALUES (1,?,1,'candidate@example.test','A Candidate','sent',?, '2026-10-10 00:00:00.000',2,'2026-10-03 09:00:00.000')",
+    [$ulid(), str_repeat('a', 64)]);
+$rejects("INSERT INTO faculty_invites (public_id,tenant_id,email,status) VALUES ('01JNOEXPIRY0000000000000000',1,'x@example.test','sent')",
+    "a sent invitation with nothing to verify and no expiry — a permanent credential");
+
+$ins("INSERT INTO instructor_applications (public_id,tenant_id,invite_id,email,full_name,status)
+      VALUES (?,1,1,'candidate@example.test','A Candidate','submitted')", [$ulid()]);
+$rejects("INSERT INTO instructor_applications (public_id,tenant_id,email,status,decided_by,decided_at)
+          VALUES ('01JAPPOINTED000000000000000',1,'x@example.test','appointed',2,'2026-10-05 09:00:00.000')",
+    "an appointment that points at no account — the hire and the teacher would be two unconnected records");
+
+// Provider evidence sits beside the portal clock, never inside attendance.
+$ins("INSERT INTO meeting_participants (tenant_id,session_id,subject_type,membership_id,display_name,joined_at,left_at,minutes,joined_at_is_derived)
+      VALUES (1,1,'learner',1,'Ada O.','2026-10-02 16:01:00.000','2026-10-02 17:00:00.000',59,1)");
+$mpCols = array_column($db->query('PRAGMA table_info(meeting_participants)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+t_ok(in_array('joined_at_is_derived', $mpCols, true),
+    'a joined_at derived by subtraction says so: Google Reports emits only the leave time and a duration, '
+    . 'and a derived instant presented as an observation is evidence that loses a dispute');
+$rejects("INSERT INTO meeting_participants (tenant_id,session_id,joined_at,left_at) VALUES (1,1,'2026-10-02 17:00:00.000','2026-10-02 16:00:00.000')",
+    "leaving before joining");
+
+// The two-hour note, and the deadline stored beside it.
+$ins("INSERT INTO session_progress_reports (public_id,tenant_id,session_id,enrolment_id,instructor_membership_id,narrative,due_at,submitted_at,minutes_late)
+      VALUES (?,1,1,1,2,'Scales secure; slow the left hand.','2026-10-02 19:00:00.000','2026-10-02 18:10:00.000',0)", [$ulid()]);
+$rejects("INSERT INTO session_progress_reports (public_id,tenant_id,session_id,enrolment_id,instructor_membership_id)
+          VALUES ('01JDUPSPREP0000000000000000',1,1,1,2)",
+    "a second live report for one learner on one session");
+
+// Moving a lesson: server-priced, decided by a human, and the payment is named.
+$ins("INSERT INTO reschedule_requests (id,public_id,tenant_id,requester_membership_id,cohort_id,status,session_count,fee_minor,currency,base_currency,payment_id,paid_at,decided_by,decided_at,applied_at)
+      VALUES (1,?,1,1,1,'applied',2,1600000,'NGN','NGN',1,'2026-10-03 09:00:00.000',2,'2026-10-03 10:00:00.000','2026-10-03 10:05:00.000')", [$ulid()]);
+$rejects("INSERT INTO reschedule_requests (public_id,tenant_id,requester_membership_id,cohort_id,status,fee_minor,currency,base_currency,decision_note,decided_by,decided_at)
+          VALUES ('01JRESCHFX00000000000000000',1,1,1,'approved',1000,'USD','NGN','ok',2,'2026-10-03 10:00:00.000')",
+    "a fee quoted in dollars with no frozen rate into the books' currency");
+$rejects("INSERT INTO reschedule_requests (public_id,tenant_id,requester_membership_id,cohort_id,status,fee_minor,currency,base_currency,decided_by,decided_at)
+          VALUES ('01JRESCHNOWHY000000000000',1,1,1,'declined',1600000,'NGN','NGN',2,'2026-10-03 10:00:00.000')",
+    "a refusal with no reason — the family paid a fee to ask");
+$rejects("INSERT INTO reschedule_requests (public_id,tenant_id,requester_membership_id,cohort_id,status,fee_minor,currency,base_currency,paid_at)
+          VALUES ('01JRESCHGHOSTPAY000000000',1,1,1,'pending_approval',1600000,'NGN','NGN','2026-10-03 09:00:00.000')",
+    "a fee marked paid that names no payment — reconciling by amount and date is how money goes missing");
+$rejects("INSERT INTO reschedule_requests (public_id,tenant_id,requester_membership_id,cohort_id,status,fee_minor,currency,base_currency,is_waived)
+          VALUES ('01JRESCHWAIVENOWHY0000000',1,1,1,'pending_approval',0,'NGN','NGN',1)",
+    "a waived fee with no reason");
+$ins("INSERT INTO reschedule_items (tenant_id,request_id,session_id,old_scheduled_at,new_scheduled_at,is_applied,applied_at)
+      VALUES (1,1,1,'2026-10-02 16:00:00.000','2026-10-09 16:00:00.000',1,'2026-10-03 10:05:00.000')");
+$rejects("INSERT INTO reschedule_items (tenant_id,request_id,session_id,new_scheduled_at,is_applied) VALUES (1,1,1,'2026-10-16 16:00:00.000',1)",
+    "the same session moved twice inside one request");
+
+// The queue, and the two things v1 let it claim without evidence.
+$ins("INSERT INTO cohort_waitlist (tenant_id,cohort_id,membership_id,position,status,notified_at,promoted_enrolment_id)
+      VALUES (1,1,3,1,'promoted','2026-10-01 09:00:00.000',1)");
+$rejects("INSERT INTO cohort_waitlist (tenant_id,cohort_id,membership_id,position,status,notified_at)
+          VALUES (1,1,2,2,'promoted','2026-10-01 09:00:00.000')",
+    "an entry marked promoted with no enrolment behind it — the v1 bug where promotions enrolled nobody");
+$rejects("INSERT INTO cohort_waitlist (tenant_id,cohort_id,membership_id,position,status) VALUES (1,1,2,3,'offered')",
+    "a seat offered without telling the family — the notified_at column existed in v1 and nothing wrote it");
+$rejects("INSERT INTO cohort_waitlist (tenant_id,cohort_id,membership_id,position) VALUES (1,1,3,4)",
+    "a second live place in one queue for one person");
+
+// Shared material: something to open, and somewhere to belong.
+$ins("INSERT INTO learning_resources (id,public_id,tenant_id,cohort_id,title,kind,url,visibility,version)
+      VALUES (1,?,1,1,'C major scale sheet','score','https://files.example.test/cmaj.pdf','cohort',1)", [$ulid()]);
+$ins("INSERT INTO learning_resources (public_id,tenant_id,cohort_id,title,kind,url,visibility,version,supersedes_id)
+      VALUES (?,1,1,'C major scale sheet','score','https://files.example.test/cmaj-v2.pdf','cohort',2,1)", [$ulid()]);
+t_ok(true, 'a new version is a NEW ROW that supersedes the old one, so a learner can still be shown what they were given');
+$rejects("INSERT INTO learning_resources (public_id,tenant_id,cohort_id,title,kind,visibility) VALUES ('01JLRESNOURL000000000000',1,1,'Nothing to open','link','cohort')",
+    "a resource with neither a URL nor a stored file — a title in a list that disappoints whoever clicks it");
+$rejects("INSERT INTO learning_resources (public_id,tenant_id,title,kind,url,visibility) VALUES ('01JLRESNOSCOPE00000000000',1,'Orphan','link','https://x.test','cohort')",
+    "a cohort-visible resource attached to no cohort, course or module — v1 allowed it and nobody could reach it");

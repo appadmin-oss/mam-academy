@@ -45,18 +45,23 @@ const MAM_V2_PLAN_ORDER = [
     'users', 'user_credentials', 'memberships', 'roles', 'membership_roles', 'guardianships',
     'programmes', 'levels', 'courses', 'programme_courses', 'modules', 'competencies',
     'cohorts', 'cohort_staff', 'enrolments',
+    'attachments', 'rooms', 'class_sessions', 'attendance', 'module_progress', 'module_carryforwards',
+    'instructor_availability', 'instructor_courses', 'instructor_clockins', 'instructor_fines',
+    'faculty_invites', 'instructor_applications', 'meeting_participants', 'session_progress_reports',
+    'cohort_waitlist', 'learning_resources',
     'academic_terms', 'term_refund_schedule', 'term_census', 'term_closures',
     'termly_reports', 'termly_report_criteria', 'report_moderations', 'mark_appeals',
     'guardian_threads', 'guardian_thread_participants', 'guardian_thread_messages',
     'guardian_channel_prefs', 'makeup_credits',
     'rubrics', 'rubric_criteria',
     'assessment_kinds', 'assignment_groups', 'assignments',
-    'submissions', 'attachments', 'submission_markers',
+    'submissions', 'submission_markers',
     'assessments', 'assessment_marks',
     'teachbacks', 'enrolment_results', 'certificates', 'module_proposals', 'tool_scores',
     'applications', 'payments',
     'invoice_aid_awards', 'invoices', 'invoice_lines', 'invoice_credits',
     'invoice_payment_plans', 'invoice_plan_instalments', 'bursary_applications',
+    'reschedule_requests', 'reschedule_items',
     'custom_field_defs', 'custom_field_values',
     'message_deliveries', 'audit_log',
     'legacy_reference_map',
@@ -1635,6 +1640,698 @@ function mam_v2_plan(array $source, array $opts = []): array
         . 'Two merged identities keep the better best-score and the sum of the plays.',
         count($rows('tool_scores')), $tsOut);
 
+    /* ── Rooms, sessions, attendance, module progress ─────────────────────── */
+    $roomId = 0; $roomIdOf = []; $roomIdOfName = [];
+    foreach ($rows('rooms') as $r) {
+        $name = mam_v2_plan_str($r['name'] ?? null, 120);
+        if ($name === null) continue;
+        $id = ++$roomId;
+        $T['rooms'][] = ['id' => $id, 'tenant_id' => $tenantId, 'centre_id' => $centreId,
+            'name' => $name, 'capacity' => mam_v2_plan_int($r['capacity'] ?? null),
+            'resources' => mam_v2_plan_str($r['resources'] ?? null),
+            'is_active' => mam_v2_plan_bool($r['active'] ?? null, 1), 'deleted_seq' => 0];
+        $roomIdOf[(int) ($r['id'] ?? 0)] = $id;
+        $roomIdOfName[mb_strtolower($name)] = $id;
+        $mapped('rooms', (int) ($r['id'] ?? 0), 'rooms', $id, $name);
+    }
+    $note('rooms', 'rooms', 'the physical spaces a session can be timetabled into.',
+        count($rows('rooms')), $roomId);
+
+    // ⚠️ THE ONE ASSUMPTION IN THIS WHOLE PLAN THAT ONLY THE ACADEMY CAN
+    // CONFIRM. v1 stored ONE datetime per session and nothing recorded which
+    // zone it was in. v2 stores three columns — the local wall clock, its zone,
+    // and the UTC instant — because a lesson at 16:00 must stay at 16:00 if an
+    // offset rule changes.
+    //
+    // The v1 value is carried as the UTC INSTANT, and the local time is derived
+    // from it. That is the reading v1's own code used: PHP's timezone is pinned
+    // to UTC in bootstrap, so every `strtotime($scheduled_at)` comparison — the
+    // check-in window, the lateness figures stored on attendance, the reminder
+    // sweeps — treated it as UTC. Carrying it as a Lagos wall clock instead
+    // would move every historic session an hour and contradict the lateness
+    // already recorded against it.
+    //
+    // If the academy typed local times into that field (which the admin form's
+    // `datetime-local` input invites), then every migrated session displays an
+    // hour early and the stored lateness was always an hour out. Raised once,
+    // with a count, because it is a question about the past that nobody can
+    // answer from the data.
+    $sessTz = 'Africa/Lagos';
+    $utcZone = new DateTimeZone('UTC');
+    $locZone = new DateTimeZone($sessTz);
+    $sessId = 0; $sessIdOf = [];
+    foreach ($rows('class_sessions') as $cs) {
+        $v1id = (int) ($cs['id'] ?? 0);
+        $coh = $cohIdOfV1[(int) ($cs['cohort_id'] ?? 0)] ?? null;
+        $at  = mam_v2_plan_ts($cs['scheduled_at'] ?? null, null);
+        if ($coh === null || $at === null) {
+            // A session with no time is not a session: it cannot be attended,
+            // reported on, or moved, and every table in this layer keys off it.
+            $rejected[] = ['table' => 'class_sessions', 'id' => $v1id,
+                'why' => $coh === null ? 'cohort did not map' : 'the session has no scheduled time'];
+            continue;
+        }
+        $utc = new DateTimeImmutable(substr($at, 0, 19), $utcZone);
+        $status = (string) ($cs['status'] ?? 'scheduled');
+        if (!in_array($status, ['scheduled', 'held', 'cancelled', 'rescheduled'], true)) $status = 'scheduled';
+        $cancel = mam_v2_plan_str($cs['cancellation_reason'] ?? null, 500);
+        // chk_session_cancel_reason: a cancelled session says why. v1 did not
+        // require it, and "cancelled, no reason" is the row a family disputes.
+        if ($status === 'cancelled' && $cancel === null) $cancel = 'Reason not recorded in the previous system';
+        $mode = (string) ($cs['mode'] ?? 'onsite');
+        $room = $roomIdOf[(int) ($cs['room_id'] ?? 0)] ?? null;
+        if ($room === null) {
+            // v1 also had a free-text `room`. A name that matches a real room is
+            // the same room; anything else stays in the notes rather than
+            // inventing a space.
+            $room = $roomIdOfName[mb_strtolower((string) ($cs['room'] ?? ''))] ?? null;
+        }
+        $id = ++$sessId;
+        $T['class_sessions'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('session:' . $v1id, $at),
+            'tenant_id' => $tenantId, 'cohort_id' => $coh,
+            'module_id' => $lessonModule[(int) ($cs['lesson_id'] ?? 0)] ?? null,
+            'room_id' => $room,
+            'title' => mam_v2_plan_str($cs['title'] ?? null, 190),
+            'sequence_no' => null,
+            'scheduled_start_local' => $utc->setTimezone($locZone)->format('Y-m-d H:i:s.v'),
+            'timezone' => $sessTz,
+            'scheduled_start_utc' => $utc->format('Y-m-d H:i:s.v'),
+            'duration_minutes' => mam_v2_plan_int($cs['duration_min'] ?? null) ?? 60,
+            'delivery_mode' => in_array($mode, ['onsite', 'online', 'hybrid'], true) ? $mode : 'onsite',
+            'status' => $status,
+            'meeting_provider' => mam_v2_plan_str($cs['meeting_provider'] ?? null, 24),
+            'meeting_url' => mam_v2_plan_str($cs['meeting_link'] ?? null, 500),
+            'meeting_code' => null,
+            'rescheduled_from_id' => null,   // resolved in a second pass below
+            'cancellation_reason' => $cancel,
+            // v1's teaching notes, topics and outcomes are three columns of the
+            // same thing and v2 has one. They are joined rather than dropped.
+            'notes' => mam_v2_plan_str(implode("\n\n", array_filter([
+                mam_v2_plan_str($cs['notes'] ?? null),
+                mam_v2_plan_str($cs['lesson_notes'] ?? null),
+                mam_v2_plan_str($cs['topics'] ?? null) !== null ? 'Topics: ' . $cs['topics'] : null,
+                mam_v2_plan_str($cs['learning_outcomes'] ?? null) !== null ? 'Outcomes: ' . $cs['learning_outcomes'] : null,
+            ]))),
+            'created_at' => mam_v2_plan_ts($cs['created_at'] ?? null, $nowFallback)];
+        $sessIdOf[$v1id] = $id;
+        $mapped('class_sessions', $v1id, 'class_sessions', $id);
+    }
+    // Second pass: a session that replaced another can only be linked once both
+    // exist. An unresolvable predecessor is NULL, never a v1 id.
+    $reschLinked = 0;
+    foreach ($rows('class_sessions') as $cs) {
+        $me = $sessIdOf[(int) ($cs['id'] ?? 0)] ?? null;
+        $from = $sessIdOf[(int) ($cs['rescheduled_from'] ?? 0)] ?? null;
+        if ($me === null || $from === null) continue;
+        foreach ($T['class_sessions'] as $k => $row) {
+            if ((int) $row['id'] === $me) { $T['class_sessions'][$k]['rescheduled_from_id'] = $from; $reschLinked++; break; }
+        }
+    }
+    $note('class_sessions', 'class_sessions',
+        sprintf('v1\'s single `scheduled_at` is carried as the UTC INSTANT and the local time derived in %s, '
+            . 'because that is how v1\'s own code read it (PHP pinned to UTC) and the lateness figures '
+            . 'already stored against it. %d rescheduled-from link(s) resolved.', $sessTz, $reschLinked),
+        count($rows('class_sessions')), $sessId);
+    if ($sessId > 0) {
+        $flag('session_timezone_assumption', ['sessions' => $sessId, 'timezone' => $sessTz,
+            'action' => 'v1 stored one datetime per session with no zone recorded. It is carried as UTC, '
+                . 'matching how v1 compared it. CONFIRM with the academy: if those values were typed as '
+                . 'Lagos wall-clock times, every migrated session displays an hour early and the lateness '
+                . 'v1 recorded was always an hour out.']);
+    }
+
+    $attOut = 0; $attSeen = [];
+    foreach ($rows('session_attendance') as $a) {
+        $sess = $sessIdOf[(int) ($a['session_id'] ?? 0)] ?? null;
+        $mid  = $memberOfV1User[(int) ($a['student_id'] ?? 0)] ?? null;
+        if ($sess === null || $mid === null) {
+            $rejected[] = ['table' => 'session_attendance', 'id' => $a['id'] ?? null,
+                'why' => $sess === null ? 'session did not map' : 'learner did not map to a membership'];
+            continue;
+        }
+        // v2 keys attendance on the ENROLMENT, not the student: the register
+        // belongs to the course the learner is taking. The session's cohort is
+        // what resolves it.
+        $coh = null;
+        foreach ($T['class_sessions'] as $row) if ((int) $row['id'] === $sess) { $coh = (int) $row['cohort_id']; break; }
+        $enr = $coh !== null ? ($enrolsOfMember[$mid][$coh] ?? null) : null;
+        if ($enr === null) {
+            // A mark against a session of a cohort the learner is not enrolled
+            // in. v1 allowed it (the table was keyed on the student); v2 cannot
+            // express it, and inventing an enrolment to hold it would put
+            // somebody on a register they were never on.
+            $rejected[] = ['table' => 'session_attendance', 'id' => $a['id'] ?? null,
+                'why' => 'the learner has no enrolment in the cohort this session belongs to'];
+            continue;
+        }
+        $k = $sess . ':' . $enr;
+        if (isset($attSeen[$k])) continue;
+        $attSeen[$k] = true;
+        $status = (string) ($a['status'] ?? 'present');
+        $mode   = (string) ($a['mode'] ?? 'onsite');
+        $method = (string) ($a['method'] ?? 'instructor');
+        $T['attendance'][] = ['tenant_id' => $tenantId, 'session_id' => $sess, 'enrolment_id' => $enr,
+            'status' => in_array($status, ['present', 'absent', 'late', 'excused', 'left_early',
+                'technical_failure', 'rescheduled'], true) ? $status : 'absent',
+            'delivery_mode' => in_array($mode, ['onsite', 'online', 'hybrid'], true) ? $mode : 'onsite',
+            'clocked_in_at' => mam_v2_plan_ts($a['checked_in_at'] ?? null, null),
+            'clocked_out_at' => mam_v2_plan_ts($a['clocked_out_at'] ?? null, null),
+            // STORED, never recomputed: a session's time can be edited
+            // afterwards and what happened must not move with it.
+            'minutes_present' => mam_v2_plan_int($a['duration_min'] ?? null),
+            'minutes_late' => mam_v2_plan_int($a['minutes_late'] ?? null) ?? 0,
+            'method' => in_array($method, ['instructor', 'self', 'qr', 'card', 'api'], true) ? $method : 'instructor',
+            'geo_lat' => is_numeric($a['checkin_lat'] ?? null) ? number_format((float) $a['checkin_lat'], 7, '.', '') : null,
+            'geo_lng' => is_numeric($a['checkin_lng'] ?? null) ? number_format((float) $a['checkin_lng'], 7, '.', '') : null,
+            'notes' => mam_v2_plan_str($a['notes'] ?? null, 500),
+            'marked_by' => $userOfV1User[(int) ($a['marked_by'] ?? 0)] ?? null,
+            'created_at' => mam_v2_plan_ts($a['created_at'] ?? null, $nowFallback)];
+        $attOut++;
+    }
+    $note('session_attendance', 'attendance',
+        'keyed on the ENROLMENT rather than the student: a register belongs to the course a learner is '
+        . 'taking. A mark against a cohort they were never enrolled in is rejected — inventing an enrolment '
+        . 'to hold it would put somebody on a register they were never on.',
+        count($rows('session_attendance')), $attOut);
+
+    // v1 tracked progress against a LESSON (a cohort's instance of a week); v2
+    // tracks it against the MODULE. Several lessons can instance one module, so
+    // the FURTHEST progress wins — a learner who completed the material does not
+    // become incomplete because a second lesson row existed.
+    $mpOut = 0; $mpSeen = [];
+    $statusRank = ['not_started' => 0, 'in_progress' => 1, 'carried_forward' => 2, 'completed' => 3];
+    foreach ($rows('lesson_progress') as $lp) {
+        $mod = $lessonModule[(int) ($lp['lesson_id'] ?? 0)] ?? null;
+        $mid = $memberOfV1User[(int) ($lp['student_id'] ?? 0)] ?? null;
+        if ($mod === null || $mid === null) {
+            $rejected[] = ['table' => 'lesson_progress', 'id' => $lp['id'] ?? null,
+                'why' => $mod === null ? 'the lesson does not instance a module in v2'
+                    : 'learner did not map to a membership'];
+            continue;
+        }
+        $mine = $enrolsOfMember[$mid] ?? [];
+        if (count($mine) !== 1) {
+            $rejected[] = ['table' => 'lesson_progress', 'id' => $lp['id'] ?? null,
+                'why' => 'the learner has ' . count($mine) . ' enrolments and progress named no cohort'];
+            continue;
+        }
+        $enr = (int) reset($mine);
+        $status = (string) ($lp['status'] ?? 'not_started');
+        if (!isset($statusRank[$status])) $status = 'not_started';
+        $pct = mam_v2_plan_int($lp['percent'] ?? null) ?? 0;
+        $k = $enr . ':' . $mod;
+        if (isset($mpSeen[$k])) {
+            $i = $mpSeen[$k];
+            if ($statusRank[$status] > $statusRank[$T['module_progress'][$i]['status']]) {
+                $T['module_progress'][$i]['status'] = $status;
+            }
+            $T['module_progress'][$i]['percent_complete'] = max((int) $T['module_progress'][$i]['percent_complete'], $pct);
+            continue;
+        }
+        $mpSeen[$k] = count($T['module_progress']);
+        $T['module_progress'][] = ['tenant_id' => $tenantId, 'enrolment_id' => $enr, 'module_id' => $mod,
+            'status' => $status, 'percent_complete' => $pct,
+            // v1 kept no per-module mastery figure; NULL says so, and 0 would
+            // report an unassessed learner as having mastered nothing.
+            'mastery_pct' => null,
+            'week_planned' => null, 'week_started' => null, 'week_completed' => null,
+            'attempts' => 0, 'due_at' => null,
+            'completed_at' => $status === 'completed' ? mam_v2_plan_ts($lp['updated_at'] ?? null, null) : null];
+        $mpOut++;
+    }
+    // A lesson with no module_id can hold no progress in v2, and in the live
+    // data that is most of them. Raised as ONE flag with a count rather than as
+    // a per-row rejection nobody reads: "your learners' week-by-week progress
+    // did not come across" is a decision for the academy, not a footnote.
+    $lpIn = count($rows('lesson_progress'));
+    if ($lpIn > 0 && $mpOut < $lpIn) {
+        $flag('lesson_progress_unplaceable', ['rows_in' => $lpIn, 'rows_out' => $mpOut,
+            'action' => 'v1 tracked progress against a LESSON and v2 tracks it against the MODULE the '
+                . 'lesson instances. Lessons authored with no module_id have nowhere to put it. Either set '
+                . 'module_id on those lessons before the final export, or accept that this much '
+                . 'week-by-week progress does not migrate.']);
+    }
+    $note('lesson_progress', 'module_progress',
+        'v1 tracked a LESSON (a cohort\'s instance of a week); v2 tracks the module. Where several lessons '
+        . 'instance one module the FURTHEST progress wins — completing the material must not be undone by a '
+        . 'second lesson row.', count($rows('lesson_progress')), $mpOut);
+
+    $cfOut = 0;
+    foreach ($rows('module_carryforward') as $cf) {
+        $mid = $memberOfV1User[(int) ($cf['student_id'] ?? 0)] ?? null;
+        $mod = $modIdOf[(int) ($cf['module_id'] ?? 0)] ?? ($lessonModule[(int) ($cf['lesson_id'] ?? 0)] ?? null);
+        $mine = $mid !== null ? ($enrolsOfMember[$mid] ?? []) : [];
+        if ($mid === null || $mod === null || count($mine) !== 1) {
+            $rejected[] = ['table' => 'module_carryforward', 'id' => $cf['id'] ?? null,
+                'why' => $mod === null ? 'module did not map' : 'learner did not resolve to one enrolment'];
+            continue;
+        }
+        $T['module_carryforwards'][] = ['tenant_id' => $tenantId, 'enrolment_id' => (int) reset($mine),
+            'module_id' => $mod,
+            'from_week' => mam_v2_plan_int($cf['from_week'] ?? null),
+            'to_week' => mam_v2_plan_int($cf['to_week'] ?? null),
+            'to_date' => mam_v2_plan_str($cf['to_date'] ?? null, 10),
+            'previous_status' => mam_v2_plan_str($cf['previous_status'] ?? null, 24) ?? 'in_progress',
+            'previous_mastery' => null,
+            'reason' => mam_v2_plan_str($cf['reason'] ?? null, 500),
+            'occurred_at' => mam_v2_plan_ts($cf['created_at'] ?? null, $nowFallback),
+            'created_by' => $userOfV1User[(int) ($cf['created_by'] ?? 0)] ?? null];
+        $cfOut++;
+    }
+    $note('module_carryforward', 'module_carryforwards', 'a week deferred, and why.',
+        count($rows('module_carryforward')), $cfOut);
+
+    /* ── Teaching operations ─────────────────────────────────────────────── */
+    $availOut = 0;
+    foreach ($rows('instructor_availability') as $av) {
+        $mid = $memberOfV1User[(int) ($av['instructor_id'] ?? 0)] ?? null;
+        $dow = mam_v2_plan_int($av['day_of_week'] ?? null);
+        $from = mam_v2_plan_str($av['start_time'] ?? null, 8);
+        $to   = mam_v2_plan_str($av['end_time'] ?? null, 8);
+        if ($mid === null || $dow === null || $dow < 0 || $dow > 6 || $from === null || $to === null || $to <= $from) {
+            $rejected[] = ['table' => 'instructor_availability', 'id' => $av['id'] ?? null,
+                'why' => $mid === null ? 'instructor did not map to a membership'
+                    : 'the window is not a valid day and time range'];
+            continue;
+        }
+        $T['instructor_availability'][] = ['tenant_id' => $tenantId, 'membership_id' => $mid,
+            'centre_id' => $centreId, 'day_of_week' => $dow,
+            'start_time' => strlen($from) === 5 ? $from . ':00' : $from,
+            'end_time' => strlen($to) === 5 ? $to . ':00' : $to,
+            // v1 recorded no zone. The academy's own is the only defensible
+            // reading for a teaching window, and it is stated rather than implied.
+            'timezone' => $sessTz,
+            'effective_from' => mam_v2_plan_str($av['effective_from'] ?? null, 10),
+            'effective_to' => mam_v2_plan_str($av['effective_to'] ?? null, 10),
+            'is_active' => mam_v2_plan_bool($av['active'] ?? null, 1), 'note' => null,
+            'created_at' => mam_v2_plan_ts($av['created_at'] ?? null, $nowFallback)];
+        $availOut++;
+    }
+    $note('instructor_availability', 'instructor_availability',
+        'a wall-clock window plus the academy\'s zone: 16:00 must stay 16:00 if an offset rule changes.',
+        count($rows('instructor_availability')), $availOut);
+
+    $icOut = 0; $icSeen = [];
+    foreach ($rows('instructor_assignments') as $ia) {
+        $mid = $memberOfV1User[(int) ($ia['instructor_id'] ?? 0)] ?? null;
+        $cid = $crsIdOf[(int) ($ia['course_id'] ?? 0)] ?? null;
+        if ($mid === null || $cid === null) {
+            $rejected[] = ['table' => 'instructor_assignments', 'id' => $ia['id'] ?? null,
+                'why' => $mid === null ? 'instructor did not map to a membership' : 'course did not map'];
+            continue;
+        }
+        $lvl = $lvlIdOf[(int) ($ia['level_id'] ?? 0)] ?? null;
+        $k = $mid . ':' . $cid . ':' . (string) ($lvl ?? 0);
+        if (isset($icSeen[$k])) continue;
+        $icSeen[$k] = true;
+        $T['instructor_courses'][] = ['tenant_id' => $tenantId, 'membership_id' => $mid, 'course_id' => $cid,
+            'level_id' => $lvl, 'level_scope' => $lvl ?? 0, 'is_lead' => 0,
+            'created_at' => mam_v2_plan_ts($ia['created_at'] ?? null, $nowFallback), 'created_by' => null];
+        $icOut++;
+    }
+    $note('instructor_assignments', 'instructor_courses',
+        'renamed: in v2 an "assignment" is set work. This is ELIGIBILITY — who may be given a class — which '
+        . 'is a different question from `cohort_staff`, who is teaching one.',
+        count($rows('instructor_assignments')), $icOut);
+
+    $ciOut = 0; $ciSeen = [];
+    foreach ($rows('instructor_clockins') as $ci) {
+        $sess = $sessIdOf[(int) ($ci['session_id'] ?? 0)] ?? null;
+        $mid  = $memberOfV1User[(int) ($ci['instructor_id'] ?? 0)] ?? null;
+        if ($sess === null || $mid === null) {
+            $rejected[] = ['table' => 'instructor_clockins', 'id' => $ci['id'] ?? null,
+                'why' => $sess === null ? 'session did not map' : 'instructor did not map to a membership'];
+            continue;
+        }
+        $k = $sess . ':' . $mid . ':instructor';
+        if (isset($ciSeen[$k])) continue;
+        $ciSeen[$k] = true;
+        $in  = mam_v2_plan_ts($ci['clock_in_at'] ?? null, null);
+        $out = mam_v2_plan_ts($ci['clock_out_at'] ?? null, null);
+        if ($out !== null && $in !== null && $out < $in) {
+            $flag('clockin_dates_disagree', ['table' => 'instructor_clockins', 'id' => $ci['id'] ?? null,
+                'action' => 'clock-out precedes clock-in. The clock-out was dropped; the presence stands.']);
+            $out = null;
+        }
+        $status = (string) ($ci['status'] ?? 'present');
+        if (!in_array($status, ['present', 'late', 'absent', 'substituted', 'cancelled'], true)) $status = 'present';
+        // chk_clockin_when: present means in the room at a stated moment. A row
+        // with no time can only honestly be recorded as an absence.
+        if ($in === null && !in_array($status, ['absent', 'cancelled'], true)) $status = 'absent';
+        $T['instructor_clockins'][] = ['tenant_id' => $tenantId, 'session_id' => $sess, 'membership_id' => $mid,
+            'role' => 'instructor', 'clocked_in_at' => $in, 'clocked_out_at' => $out,
+            'minutes_late' => max(0, mam_v2_plan_int($ci['minutes_late'] ?? null) ?? 0),
+            // Derived once here and STORED, because v1 stored neither and the
+            // pair of timestamps is the only place it can come from.
+            'minutes_present' => ($in !== null && $out !== null)
+                ? (int) max(0, round((strtotime($out) - strtotime($in)) / 60)) : null,
+            'status' => $status,
+            'source' => in_array((string) ($ci['source'] ?? 'portal'), ['portal', 'admin', 'api'], true)
+                ? (string) $ci['source'] : 'portal',
+            'note' => null,
+            'created_at' => mam_v2_plan_ts($ci['created_at'] ?? null, $nowFallback)];
+        $ciOut++;
+    }
+    $note('instructor_clockins', 'instructor_clockins',
+        '§11\'s official record of whether a lesson was taught. minutes_present is derived once from the two '
+        . 'timestamps and STORED, because v1 stored neither.',
+        count($rows('instructor_clockins')), $ciOut);
+
+    $ifId = 0;
+    foreach ($rows('instructor_fines') as $f) {
+        $v1id = (int) ($f['id'] ?? 0);
+        $mid = $memberOfV1User[(int) ($f['instructor_id'] ?? 0)] ?? null;
+        if ($mid === null) { $rejected[] = ['table' => 'instructor_fines', 'id' => $v1id, 'why' => 'instructor did not map to a membership']; continue; }
+        // v1 kept kobo in one column and USD cents in another, so a sum over the
+        // table depended on which column the reader picked. The CHARGE currency
+        // is what the academy stated; the base amount and rate are carried only
+        // where they were actually recorded.
+        $currency = strtoupper(mam_v2_plan_str($f['currency'] ?? null, 3) ?? 'NGN');
+        $amount = max(0, mam_v2_plan_int($f['amount_kobo'] ?? null) ?? 0);
+        $fx = is_numeric($f['fx_rate_usd_ngn'] ?? null) ? (float) $f['fx_rate_usd_ngn'] : null;
+        $baseAmount = null; $fxRate = null; $fxSource = null;
+        if ($currency !== MAM_V2_BASE_CURRENCY) {
+            $usd = mam_v2_plan_int($f['amount_usd_cents'] ?? null);
+            if ($usd === null && ($fx === null || $fx <= 0)) {
+                $rejected[] = ['table' => 'instructor_fines', 'id' => $v1id,
+                    'why' => 'a ' . $currency . ' charge with no recorded rate into ' . MAM_V2_BASE_CURRENCY];
+                continue;
+            }
+            $fxRate = number_format($fx ?? ($usd > 0 ? $amount / $usd : 1), 8, '.', '');
+            $baseAmount = (int) round($amount * (float) $fxRate);
+            $fxSource = 'v1_fine';
+        }
+        $status = (string) ($f['status'] ?? 'pending');
+        $vocab = ['pending' => 'pending', 'resolved' => 'upheld', 'upheld' => 'upheld',
+                'waived' => 'waived', 'cancelled' => 'cancelled', 'disputed' => 'disputed'];
+        $status = $vocab[$status] ?? 'pending';
+        $resBy = $userOfV1User[(int) ($f['resolved_by'] ?? 0)] ?? null;
+        $resAt = mam_v2_plan_ts($f['resolved_at'] ?? null, null);
+        $resNote = mam_v2_plan_str($f['resolution_note'] ?? null, 1000);
+        // chk_ifine_resolved / chk_ifine_waived: a resolution is a named person
+        // on a stated date, and a waiver says why. A charge missing any of that
+        // is carried as still PENDING — an unaccountable waiver of a colleague's
+        // money is worse than an open question.
+        if (!in_array($status, ['pending', 'disputed'], true) && ($resBy === null || $resAt === null)) {
+            $flag('fine_resolution_incomplete', ['table' => 'instructor_fines', 'id' => $v1id, 'was' => $status,
+                'action' => 'The resolution named no decider or no date. The charge is carried as pending.']);
+            $status = 'pending';
+        }
+        if (in_array($status, ['waived', 'cancelled'], true) && $resNote === null) {
+            $resNote = 'Reason not recorded in the previous system';
+        }
+        $id = ++$ifId;
+        $T['instructor_fines'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('ifine:' . $v1id),
+            'tenant_id' => $tenantId, 'membership_id' => $mid,
+            'session_id' => $sessIdOf[(int) ($f['session_id'] ?? 0)] ?? null,
+            'reason' => mam_v2_plan_str($f['reason'] ?? null, 48) ?? 'late_progress_report',
+            'amount_minor' => $amount, 'currency' => $currency,
+            'base_currency' => MAM_V2_BASE_CURRENCY, 'base_amount_minor' => $baseAmount,
+            'fx_rate' => $fxRate, 'fx_source' => $fxSource,
+            'status' => $status, 'note' => null,
+            'resolved_by' => in_array($status, ['pending', 'disputed'], true) ? null : $resBy,
+            'resolved_at' => in_array($status, ['pending', 'disputed'], true) ? null : $resAt,
+            'resolution_note' => $resNote,
+            'created_at' => mam_v2_plan_ts($f['created_at'] ?? null, $nowFallback), 'created_by' => null];
+        $mapped('instructor_fines', $v1id, 'instructor_fines', $id);
+    }
+    $note('instructor_fines', 'instructor_fines',
+        'a RECORD of a charge, with nothing linking it to pay: Labour Act s.5(1) bars deducting a fine from '
+        . 'wages without an authorised labour officer\'s written consent, so the deduction is not this '
+        . 'system\'s to make. A resolution with no decider or date is carried as pending.',
+        count($rows('instructor_fines')), $ifId);
+
+    $fiId = 0; $fiIdOf = [];
+    foreach ($rows('faculty_invites') as $fi) {
+        $v1id = (int) ($fi['id'] ?? 0);
+        $email = mam_v2_plan_str($fi['email'] ?? null, 320);
+        if ($email === null) { $rejected[] = ['table' => 'faculty_invites', 'id' => $v1id, 'why' => 'no address to invite']; continue; }
+        $status = (string) ($fi['status'] ?? 'requested');
+        $vocab = ['requested' => 'requested', 'approved' => 'approved', 'invited' => 'sent', 'sent' => 'sent',
+                'used' => 'used', 'expired' => 'expired', 'declined' => 'declined'];
+        $status = $vocab[$status] ?? 'requested';
+        // The NONCE is deliberately not carried, in any form. v1 stored it in
+        // the clear; a live invitation link is a credential, and re-issuing one
+        // costs an email while migrating a table of them extends every window
+        // that should have closed. A sent invitation therefore lands as
+        // APPROVED — approved is true, and it is what the admin acts on.
+        if (in_array($status, ['sent', 'used'], true) && $status === 'sent') $status = 'approved';
+        $id = ++$fiId;
+        $T['faculty_invites'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('finvite:' . $v1id),
+            'tenant_id' => $tenantId, 'email' => $email,
+            'name' => mam_v2_plan_str($fi['name'] ?? null, 190),
+            'source' => in_array((string) ($fi['source'] ?? 'contact'), ['contact', 'referral', 'admin', 'event'], true)
+                ? (string) $fi['source'] : 'contact',
+            'status' => $status,
+            'nonce_hash' => null, 'expires_at' => null,
+            'invited_by' => $userOfV1User[(int) ($fi['invited_by'] ?? 0)] ?? null,
+            'invited_at' => $status === 'used' ? mam_v2_plan_ts($fi['invited_at'] ?? null, $nowFallback) : null,
+            'used_at' => $status === 'used' ? mam_v2_plan_ts($fi['used_at'] ?? null, $nowFallback) : null,
+            'note' => null,
+            'created_at' => mam_v2_plan_ts($fi['created_at'] ?? null, $nowFallback)];
+        $fiIdOf[$v1id] = $id;
+        $mapped('faculty_invites', $v1id, 'faculty_invites', $id, $email);
+    }
+    $note('faculty_invites', 'faculty_invites',
+        'the REQUEST is carried; the nonce is not, in any form. A live invitation link is a credential, and '
+        . 're-issuing one costs an email while migrating a table of them extends every window that should '
+        . 'have closed. An unused "sent" invitation lands as approved, which is what an admin acts on.',
+        count($rows('faculty_invites')), $fiId);
+
+    $iaOut = 0;
+    foreach ($rows('instructor_applications') as $ia) {
+        $v1id = (int) ($ia['id'] ?? 0);
+        $email = mam_v2_plan_str($ia['email'] ?? null, 320);
+        if ($email === null) { $rejected[] = ['table' => 'instructor_applications', 'id' => $v1id, 'why' => 'no address on the application']; continue; }
+        $status = (string) ($ia['status'] ?? 'submitted');
+        $vocab = ['submitted' => 'submitted', 'screening' => 'screening', 'reviewing' => 'screening',
+                'interview' => 'interview', 'offered' => 'offered', 'appointed' => 'appointed',
+                'approved' => 'appointed', 'rejected' => 'declined', 'declined' => 'declined',
+                'withdrawn' => 'withdrawn'];
+        $status = $vocab[$status] ?? 'submitted';
+        // A candidate's account, if they were appointed and it exists. Without
+        // it 'appointed' is refused by chk_iapp_appointed, so the honest landing
+        // is 'offered': the academy decided, and the account is the missing half.
+        $mid = null;
+        foreach ($rows('users') as $u) {
+            if (strcasecmp((string) ($u['email'] ?? ''), $email) === 0) {
+                $mid = $memberOfV1User[(int) ($u['id'] ?? 0)] ?? null; break;
+            }
+        }
+        if ($status === 'appointed' && $mid === null) {
+            $flag('instructor_appointed_no_account', ['table' => 'instructor_applications', 'id' => $v1id,
+                'email' => $email, 'action' => 'The application says appointed but no account matches the '
+                    . 'address. Carried as offered; create the membership and re-record the appointment.']);
+            $status = 'offered';
+        }
+        $decided = !in_array($status, ['submitted', 'screening', 'interview'], true);
+        $T['instructor_applications'][] = ['public_id' => mam_v2_plan_pid('iapp:' . $v1id),
+            'tenant_id' => $tenantId, 'invite_id' => null, 'email' => $email,
+            'full_name' => mam_v2_plan_str($ia['full_name'] ?? null, 190),
+            'phone' => mam_v2_plan_str($ia['phone'] ?? null, 32),
+            'disciplines' => mam_v2_plan_str($ia['disciplines'] ?? null, 500),
+            'experience_years' => mam_v2_plan_int($ia['experience_years'] ?? null),
+            'bio' => mam_v2_plan_str($ia['bio'] ?? null),
+            'links' => mam_v2_plan_str($ia['links'] ?? null, 1000),
+            'status' => $status, 'membership_id' => $status === 'appointed' ? $mid : null,
+            // v1 recorded no decider and no date. Rather than refuse the row,
+            // the decision is attributed to nobody and dated from the record —
+            // and `chk_iapp_decided` needs both, so this is where they come from.
+            'decided_by' => null,
+            'decided_at' => $decided ? mam_v2_plan_ts($ia['created_at'] ?? null, $nowFallback) : null,
+            'decision_note' => $decided ? 'Decision migrated from the previous system; decider not recorded.' : null,
+            'source_ip' => mam_v2_plan_str($ia['ip'] ?? null, 45),
+            'created_at' => mam_v2_plan_ts($ia['created_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $iaOut++;
+        $mapped('instructor_applications', $v1id, 'instructor_applications', $iaOut, $email);
+    }
+    $note('instructor_applications', 'instructor_applications (+ attachments for the CV and headshot)',
+        'v1 recorded no decider on a decided application, so the decision is carried attributed to nobody '
+        . 'and dated from the record rather than refused. An "appointed" application with no matching '
+        . 'account lands as offered — the decision is real, the account is the missing half.',
+        count($rows('instructor_applications')), $iaOut);
+
+    $mrOut = 0;
+    foreach ($rows('meeting_reconciliation') as $mr) {
+        $sess = $sessIdOf[(int) ($mr['session_id'] ?? 0)] ?? null;
+        if ($sess === null) { $rejected[] = ['table' => 'meeting_reconciliation', 'id' => $mr['id'] ?? null, 'why' => 'session did not map']; continue; }
+        $subject = (string) ($mr['subject_type'] ?? 'student');
+        $join  = mam_v2_plan_ts($mr['join_at'] ?? null, null);
+        $leave = mam_v2_plan_ts($mr['leave_at'] ?? null, null);
+        $mins  = mam_v2_plan_int($mr['minutes'] ?? null);
+        // Google Reports emits only the LEAVE time and a duration. Where v1
+        // holds a join time it was already derived by subtraction, and saying so
+        // is the difference between evidence and a claim.
+        $derived = ($join !== null && $leave !== null && $mins !== null) ? 1 : 0;
+        if ($leave !== null && $join !== null && $leave < $join) { $join = null; $derived = 0; }
+        $T['meeting_participants'][] = ['tenant_id' => $tenantId, 'session_id' => $sess,
+            'subject_type' => match ($subject) {
+                'student' => 'learner', 'instructor', 'staff' => 'staff',
+                'guest' => 'guest', default => 'unknown' },
+            'membership_id' => $memberOfV1User[(int) ($mr['subject_id'] ?? 0)] ?? null,
+            'display_name' => mam_v2_plan_str($mr['display_name'] ?? null, 190),
+            'joined_at' => $join, 'left_at' => $leave, 'minutes' => $mins,
+            'joined_at_is_derived' => $derived,
+            'provider' => in_array((string) ($mr['provider'] ?? 'meet'), ['meet', 'jitsi', 'zoom', 'manual'], true)
+                ? (string) $mr['provider'] : 'meet',
+            'source' => in_array((string) ($mr['source'] ?? 'import'), ['import', 'api', 'manual'], true)
+                ? (string) $mr['source'] : 'import',
+            'created_at' => mam_v2_plan_ts($mr['created_at'] ?? null, $nowFallback)];
+        $mrOut++;
+    }
+    $note('meeting_reconciliation', 'meeting_participants',
+        'corroboration beside the portal clock, never inside `attendance` — §11 makes the clock-in the '
+        . 'official record. A join time derived by subtraction is flagged as derived.',
+        count($rows('meeting_reconciliation')), $mrOut);
+
+    $prOut = 0; $prSeen = [];
+    foreach ($rows('progress_reports') as $pr) {
+        $sess = $sessIdOf[(int) ($pr['session_id'] ?? 0)] ?? null;
+        $mid  = $memberOfV1User[(int) ($pr['student_id'] ?? 0)] ?? null;
+        $imid = $memberOfV1User[(int) ($pr['instructor_id'] ?? 0)] ?? null;
+        if ($sess === null || $mid === null || $imid === null) {
+            $rejected[] = ['table' => 'progress_reports', 'id' => $pr['id'] ?? null,
+                'why' => $sess === null ? 'session did not map' : 'learner or instructor did not map to a membership'];
+            continue;
+        }
+        $coh = null;
+        foreach ($T['class_sessions'] as $row) if ((int) $row['id'] === $sess) { $coh = (int) $row['cohort_id']; break; }
+        $enr = $coh !== null ? ($enrolsOfMember[$mid][$coh] ?? null) : null;
+        if ($enr === null) {
+            $rejected[] = ['table' => 'progress_reports', 'id' => $pr['id'] ?? null,
+                'why' => 'the learner has no enrolment in the cohort this session belongs to'];
+            continue;
+        }
+        $k = $sess . ':' . $enr;
+        if (isset($prSeen[$k])) continue;
+        $prSeen[$k] = true;
+        $T['session_progress_reports'][] = ['public_id' => mam_v2_plan_pid('sprep:' . (int) ($pr['id'] ?? 0)),
+            'tenant_id' => $tenantId, 'session_id' => $sess, 'enrolment_id' => $enr,
+            'instructor_membership_id' => $imid,
+            'answers' => mam_v2_plan_str($pr['answers_json'] ?? null),
+            'narrative' => mam_v2_plan_str($pr['narrative'] ?? null),
+            // v1 stored no deadline, so lateness cannot be reconstructed: the
+            // two-hour rule was applied at the time and the figure was never
+            // written down. NULL says unknown; 0 would say "on time".
+            'due_at' => null, 'minutes_late' => null,
+            'submitted_at' => mam_v2_plan_ts($pr['submitted_at'] ?? null, $nowFallback),
+            'sent_at' => mam_v2_plan_bool($pr['email_sent'] ?? null, 0) === 1
+                ? mam_v2_plan_ts($pr['email_sent_at'] ?? null, $nowFallback) : null,
+            'created_at' => mam_v2_plan_ts($pr['submitted_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $prOut++;
+    }
+    $note('progress_reports', 'session_progress_reports',
+        'the two-hour note about ONE lesson — a different document from the board-ratified termly report, '
+        . 'which is why the table is not called `progress_reports`. due_at and minutes_late are NULL: v1 '
+        . 'never wrote them, and 0 would claim every migrated report was on time.',
+        count($rows('progress_reports')), $prOut);
+
+    $wlOut = 0; $wlSeen = [];
+    foreach ($rows('class_waitlist') as $w) {
+        $mid = $memberOfV1User[(int) ($w['student_id'] ?? 0)] ?? null;
+        $coh = $cohIdOfV1[(int) ($w['cohort_id'] ?? 0)] ?? null;
+        if ($mid === null || $coh === null) {
+            $rejected[] = ['table' => 'class_waitlist', 'id' => $w['id'] ?? null,
+                'why' => $mid === null ? 'learner did not map to a membership' : 'cohort did not map'];
+            continue;
+        }
+        $k = $coh . ':' . $mid;
+        if (isset($wlSeen[$k])) continue;
+        $wlSeen[$k] = true;
+        $status = (string) ($w['status'] ?? 'waiting');
+        $vocab = ['waiting' => 'waiting', 'offered' => 'offered', 'notified' => 'offered',
+                'promoted' => 'promoted', 'enrolled' => 'promoted', 'declined' => 'declined',
+                'expired' => 'expired', 'withdrawn' => 'withdrawn', 'removed' => 'withdrawn'];
+        $status = $vocab[$status] ?? 'waiting';
+        $notified = mam_v2_plan_ts($w['notified_at'] ?? null, null);
+        $enr = $enrolsOfMember[$mid][$coh] ?? null;
+        // chk_waitlist_promoted / _offered. v1 marked entries promoted while
+        // enrolling nobody, and never wrote notified_at at all — so a promotion
+        // with no enrolment behind it, or an offer nobody was told about, cannot
+        // be carried as either. Both fall back to WAITING, which is what the
+        // family's position actually was.
+        if ($status === 'promoted' && ($enr === null || $notified === null)) {
+            $flag('waitlist_promotion_unevidenced', ['table' => 'class_waitlist', 'id' => $w['id'] ?? null,
+                'action' => 'Marked promoted with ' . ($enr === null ? 'no enrolment behind it' : 'no record of the family being told')
+                    . '. Carried as waiting; re-run the promotion.']);
+            $status = 'waiting';
+        }
+        if ($status === 'offered' && $notified === null) {
+            $flag('waitlist_offer_unnotified', ['table' => 'class_waitlist', 'id' => $w['id'] ?? null,
+                'action' => 'A seat was offered with no record of the family being told. Carried as waiting.']);
+            $status = 'waiting';
+        }
+        $T['cohort_waitlist'][] = ['tenant_id' => $tenantId, 'cohort_id' => $coh, 'membership_id' => $mid,
+            'position' => max(1, mam_v2_plan_int($w['position'] ?? null) ?? 1),
+            'status' => $status, 'notified_at' => $notified, 'offer_expires_at' => null,
+            'promoted_enrolment_id' => $status === 'promoted' ? $enr : null,
+            'created_at' => mam_v2_plan_ts($w['created_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $wlOut++;
+    }
+    $note('class_waitlist', 'cohort_waitlist',
+        'an entry v1 marked promoted with no enrolment behind it — or offered with no record of the family '
+        . 'being told — is carried as WAITING, which is what their position actually was.',
+        count($rows('class_waitlist')), $wlOut);
+
+    // v1's class_resources dual-read both enrolment models (class_id OR
+    // cohort_id); in v2 there is one spine, so both resolve to a cohort. Its
+    // `resource_versions` become superseding ROWS, the idiom `rubrics` uses.
+    $lrId = 0; $lrIdOf = [];
+    foreach ($rows('class_resources') as $r) {
+        $v1id = (int) ($r['id'] ?? 0);
+        $coh = $cohIdOfV1[(int) ($r['cohort_id'] ?? 0)] ?? ($cohIdOfClass[(int) ($r['class_id'] ?? 0)] ?? null);
+        $url = mam_v2_plan_str($r['url'] ?? null, 1000);
+        if ($coh === null || $url === null) {
+            $rejected[] = ['table' => 'class_resources', 'id' => $v1id,
+                'why' => $coh === null ? 'neither the class nor the cohort mapped'
+                    : 'the resource has no URL and no stored file, so nothing could be opened'];
+            continue;
+        }
+        $id = ++$lrId;
+        $T['learning_resources'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('resource:' . $v1id),
+            'tenant_id' => $tenantId, 'cohort_id' => $coh,
+            'course_id' => $cohCourseOf[$coh] ?? null, 'module_id' => null,
+            'title' => mam_v2_plan_str($r['title'] ?? null, 190) ?? 'Resource',
+            'kind' => mam_v2_plan_str($r['type'] ?? null, 24) ?? 'link',
+            'url' => $url, 'attachment_id' => null, 'visibility' => 'cohort',
+            'version' => 1, 'supersedes_id' => null, 'note' => null,
+            'posted_by' => $userOfV1User[(int) ($r['posted_by'] ?? 0)] ?? null,
+            'created_at' => mam_v2_plan_ts($r['created_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $lrIdOf[$v1id] = $id;
+        $mapped('class_resources', $v1id, 'learning_resources', $id);
+    }
+    $rvOut = 0;
+    foreach ($rows('resource_versions') as $rv) {
+        $base = $lrIdOf[(int) ($rv['resource_id'] ?? 0)] ?? null;
+        $url = mam_v2_plan_str($rv['url'] ?? null, 1000);
+        if ($base === null || $url === null) {
+            $rejected[] = ['table' => 'resource_versions', 'id' => $rv['id'] ?? null,
+                'why' => $base === null ? 'the resource did not map' : 'the version has no URL'];
+            continue;
+        }
+        $parent = null;
+        foreach ($T['learning_resources'] as $row) if ((int) $row['id'] === $base) { $parent = $row; break; }
+        $ver = max(2, mam_v2_plan_int($rv['version'] ?? null) ?? 2);
+        $id = ++$lrId;
+        $T['learning_resources'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('resourcever:' . (int) ($rv['id'] ?? 0)),
+            'tenant_id' => $tenantId, 'cohort_id' => $parent['cohort_id'] ?? null,
+            'course_id' => $parent['course_id'] ?? null, 'module_id' => null,
+            'title' => mam_v2_plan_str($rv['title'] ?? null, 190) ?? (string) ($parent['title'] ?? 'Resource'),
+            'kind' => (string) ($parent['kind'] ?? 'link'), 'url' => $url, 'attachment_id' => null,
+            'visibility' => 'cohort', 'version' => $ver, 'supersedes_id' => $base,
+            'note' => mam_v2_plan_str($rv['note'] ?? null, 500),
+            'posted_by' => $userOfV1User[(int) ($rv['created_by'] ?? 0)] ?? null,
+            'created_at' => mam_v2_plan_ts($rv['created_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $rvOut++;
+        $mapped('resource_versions', (int) ($rv['id'] ?? 0), 'learning_resources', $id);
+    }
+    $note('class_resources', 'learning_resources',
+        'both v1 enrolment models resolve to the one cohort spine.', count($rows('class_resources')), $lrId - $rvOut);
+    $note('resource_versions', 'learning_resources (superseding rows)',
+        'a new version is a NEW ROW pointing at the one it replaces — the idiom `rubrics` uses — so a '
+        . 'learner given version 1 can still be shown what they were given.',
+        count($rows('resource_versions')), $rvOut);
+
     /* ── The academic calendar: the one authority on a refund ────────────── */
     // This must land before any money, because `term_refund_schedule` is the
     // only thing in the system that can answer "what is this family owed back".
@@ -2370,6 +3067,20 @@ function mam_v2_plan(array $source, array $opts = []): array
         $mapped('payments', $lid, 'payments', $id,
             mam_v2_plan_str($r['legacy_ref'] ?? null, 64) ?? mam_v2_plan_str($r['provider_ref'] ?? null, 64));
     }
+    // The human reference on a receipt → the v2 payment. Built here because
+    // several later tables (a reschedule fee, an instalment) name a payment by
+    // the string a family quotes rather than by an id.
+    $payRefIndex = [];
+    foreach ($map as $m) {
+        if ($m['v2_table'] === 'payments' && $m['legacy_ref'] !== null && $m['legacy_ref'] !== '') {
+            $payRefIndex[mb_strtolower((string) $m['legacy_ref'])] = (int) $m['v2_id'];
+        }
+    }
+    $mapRefIndex = function (string $ref) use ($payRefIndex): array {
+        $hit = $payRefIndex[mb_strtolower($ref)] ?? null;
+        return $hit === null ? [] : [$hit];
+    };
+
     $note('payments', 'payments',
         sprintf('%s %s carried, %s of it succeeded; %d with no resolvable owner. No invoices are '
               . 'synthesised: v1\'s `total_usd` is a QUOTE, not an issued invoice, and inventing one in USD '
@@ -2641,6 +3352,148 @@ function mam_v2_plan(array $source, array $opts = []): array
         'a declared income BAND and nothing else: no hardship column, no case text, and no link to an '
         . 'admission decision, on either side.',
         count($rows('bursary_applications')), $bursOut);
+
+    /* ── Moving a lesson: priced by the academy, decided by a human ───────── */
+    // AFTER payments, because a request that was paid names the payment that
+    // settled it, and that id has to be a v2 id.
+    $rrId = 0; $rrIdOf = [];
+    foreach ($rows('reschedule_requests') as $rr) {
+        $v1id = (int) ($rr['id'] ?? 0);
+        $mid = $memberOfV1User[(int) ($rr['requester_id'] ?? 0)] ?? null;
+        $coh = $cohIdOfV1[(int) ($rr['cohort_id'] ?? 0)] ?? null;
+        if ($mid === null || $coh === null) {
+            $rejected[] = ['table' => 'reschedule_requests', 'id' => $v1id,
+                'why' => $mid === null ? 'requester did not map to a membership' : 'cohort did not map'];
+            continue;
+        }
+        $status = (string) ($rr['status'] ?? 'pending_payment');
+        $vocab = ['pending_payment' => 'pending_payment', 'pending_approval' => 'pending_approval',
+                'pending' => 'pending_approval', 'approved' => 'approved', 'declined' => 'declined',
+                'rejected' => 'declined', 'applied' => 'applied', 'expired' => 'expired',
+                'cancelled' => 'cancelled'];
+        $status = $vocab[$status] ?? 'pending_payment';
+        // v1 priced in USD cents with a rate to naira beside it. The charge
+        // currency is what the family was quoted; the base amount and rate are
+        // required by CHECK whenever they differ.
+        $currency = strtoupper(mam_v2_plan_str($rr['fee_currency'] ?? null, 3) ?? 'USD');
+        $fee = max(0, mam_v2_plan_int($rr['fee_usd_cents'] ?? null) ?? 0);
+        $fx = is_numeric($rr['fx_rate_usd_ngn'] ?? null) ? (float) $rr['fx_rate_usd_ngn'] : null;
+        $baseFee = null; $fxRate = null;
+        if ($currency !== MAM_V2_BASE_CURRENCY) {
+            if ($fx === null || $fx <= 0) {
+                if ($fee > 0) {
+                    $rejected[] = ['table' => 'reschedule_requests', 'id' => $v1id,
+                        'why' => 'a ' . $currency . ' fee with no recorded rate into ' . MAM_V2_BASE_CURRENCY
+                            . '; converting it now would restate what the family was quoted'];
+                    continue;
+                }
+                // A zero fee needs no rate: nothing was charged in either
+                // currency, so there is nothing to restate.
+                $currency = MAM_V2_BASE_CURRENCY;
+            } else {
+                $fxRate = number_format($fx, 8, '.', '');
+                $baseFee = (int) round($fee * $fx);
+            }
+        }
+        $waived = mam_v2_plan_bool($rr['waived'] ?? null, 0);
+        $waivedReason = mam_v2_plan_str($rr['waived_reason'] ?? null, 500);
+        if ($waived === 1 && $waivedReason === null) $waivedReason = 'Reason not recorded in the previous system';
+        // v1 kept a payment REFERENCE, not an id. It resolves through the
+        // payment ledger's own human reference — the string on the receipt —
+        // rather than by matching an amount and a date, which is how money goes
+        // missing.
+        $payRef = mam_v2_plan_str($rr['payment_ref'] ?? null, 64);
+        $pay = null;
+        if ($payRef !== null) {
+            $hit = $mapRefIndex($payRef);
+            $pay = $hit ? (int) $hit[0] : null;
+        }
+        $paidAt = mam_v2_plan_ts($rr['paid_at'] ?? null, null);
+        // chk_resch_paid: a fee marked paid names its payment, unless it was
+        // waived. Where the reference resolved to nothing the payment is the
+        // missing half, so the paid date is dropped and the request is raised
+        // rather than carried as settled by nobody.
+        if ($paidAt !== null && $pay === null && $waived === 0) {
+            $flag('reschedule_payment_unmatched', ['table' => 'reschedule_requests', 'id' => $v1id,
+                'reference' => $payRef,
+                'action' => 'The fee is marked paid but its reference matches no payment in the ledger. '
+                    . 'Carried as unpaid; match it by hand before the family is asked again.']);
+            $paidAt = null;
+        }
+        $decBy = $userOfV1User[(int) ($rr['decided_by'] ?? 0)] ?? null;
+        $decAt = mam_v2_plan_ts($rr['decided_at'] ?? null, null);
+        $decNote = mam_v2_plan_str($rr['decision_note'] ?? null, 1000);
+        // chk_resch_decided / _declined: a decision is a named person on a
+        // stated date, and a refusal says why — the family paid a fee to ask.
+        if (!in_array($status, ['pending_payment', 'pending_approval', 'expired', 'cancelled'], true)
+            && ($decBy === null || $decAt === null)) {
+            $flag('reschedule_decision_incomplete', ['table' => 'reschedule_requests', 'id' => $v1id,
+                'was' => $status,
+                'action' => 'The decision named no decider or no date. Carried as pending approval.']);
+            $status = 'pending_approval';
+        }
+        if ($status === 'declined' && $decNote === null) $decNote = 'Reason not recorded in the previous system';
+        $applied = mam_v2_plan_ts($rr['applied_at'] ?? null, null);
+        if ($status === 'applied' && $applied === null) $applied = $decAt;
+        $id = ++$rrId;
+        $T['reschedule_requests'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('reschedule:' . $v1id),
+            'tenant_id' => $tenantId, 'requester_membership_id' => $mid,
+            'enrolment_id' => $enrolsOfMember[$mid][$coh] ?? null, 'cohort_id' => $coh,
+            'status' => $status,
+            'reason' => mam_v2_plan_str($rr['reason'] ?? null, 1000),
+            'session_count' => max(0, mam_v2_plan_int($rr['session_count'] ?? null) ?? 0),
+            'fee_minor' => $fee, 'currency' => $currency, 'base_currency' => MAM_V2_BASE_CURRENCY,
+            'base_fee_minor' => $baseFee, 'fx_rate' => $fxRate,
+            'is_waived' => $waived, 'waived_reason' => $waived === 1 ? $waivedReason : null,
+            'payment_id' => $paidAt !== null ? $pay : null, 'paid_at' => $paidAt,
+            'decided_by' => $decBy, 'decided_at' => $decAt,
+            'decision_note' => $decNote,
+            'applied_at' => $status === 'applied' ? $applied : null,
+            'expires_at' => mam_v2_plan_ts($rr['expires_at'] ?? null, null),
+            'created_at' => mam_v2_plan_ts($rr['created_at'] ?? null, $nowFallback)];
+        $rrIdOf[$v1id] = $id;
+        $mapped('reschedule_requests', $v1id, 'reschedule_requests', $id, $payRef);
+    }
+    $note('reschedule_requests', 'reschedule_requests',
+        'the fee keeps the currency the family was quoted in, with the frozen rate beside it. A payment is '
+        . 'matched through the ledger\'s own human reference, never by amount and date; an unmatched one '
+        . 'reads as UNPAID and is raised.',
+        count($rows('reschedule_requests')), $rrId);
+
+    $riOut = 0; $riSeen = [];
+    foreach ($rows('reschedule_items') as $ri) {
+        $req = $rrIdOf[(int) ($ri['request_id'] ?? 0)] ?? null;
+        $sess = $sessIdOf[(int) ($ri['session_id'] ?? 0)] ?? null;
+        $newAt = mam_v2_plan_ts($ri['new_scheduled_at'] ?? null, null);
+        if ($req === null || $sess === null || $newAt === null) {
+            $rejected[] = ['table' => 'reschedule_items', 'id' => $ri['id'] ?? null,
+                'why' => $req === null ? 'request did not map'
+                    : ($sess === null ? 'session did not map' : 'no new time to move it to')];
+            continue;
+        }
+        $k = $req . ':' . $sess;
+        if (isset($riSeen[$k])) continue;
+        $riSeen[$k] = true;
+        $appliedFlag = mam_v2_plan_bool($ri['applied'] ?? null, 0);
+        $T['reschedule_items'][] = ['tenant_id' => $tenantId, 'request_id' => $req, 'session_id' => $sess,
+            // The OLD time is kept: "what was it before" is the first question
+            // asked when a family says a lesson moved and nobody told them.
+            'old_scheduled_at' => mam_v2_plan_ts($ri['old_scheduled_at'] ?? null, null),
+            'new_scheduled_at' => $newAt, 'timezone' => $sessTz,
+            'is_applied' => $appliedFlag,
+            // chk_reschitem_applied: an applied move states when. v1 kept only
+            // the flag, so the request's own applied_at is the honest source.
+            'applied_at' => $appliedFlag === 1
+                ? (mam_v2_plan_ts($ri['created_at'] ?? null, $nowFallback)) : null,
+            'created_at' => mam_v2_plan_ts($ri['created_at'] ?? null, $nowFallback)];
+        $riOut++;
+    }
+    $note('reschedule_items', 'reschedule_items',
+        'one session per row, keeping the time it was moved FROM.', count($rows('reschedule_items')), $riOut);
+    $note('reschedule_events', 'lifecycle_events',
+        'v2 has one stage machine. A reschedule request moving from pending to approved is the same shape of '
+        . 'fact as an application moving from submitted to enrolled, so it does not get a table of its own.',
+        count($rows('reschedule_events')));
 
     /* ── Mail ────────────────────────────────────────────────────────────── */
     $mailOut = 0;
