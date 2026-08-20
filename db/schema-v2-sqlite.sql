@@ -3388,6 +3388,493 @@ CREATE TABLE learning_resources (
   CONSTRAINT fk_lres_by     FOREIGN KEY (posted_by)     REFERENCES users(id) ON DELETE SET NULL
 );
 
+-- =============================================================================
+-- LAYER O · COMMUNICATIONS AND ADMISSIONS
+-- =============================================================================
+-- Everything the academy says to people, and everything people say back before
+-- they are members. Three v1 tables deliberately have no table here:
+--   • `feedback` (per-submission rubric + comments) is `assessments` +
+--     `assessment_marks` — one marking mechanism, not two.
+--   • `summer_applications` is `applications` with `type='programme'` against
+--     the CRASH programme. A parallel intake table is the thing the migration
+--     exists to end.
+--   • `application_drafts` is abandoned wizard state keyed by a browser token.
+--     A draft nobody submitted is not an application, and after cutover it is
+--     personal data held for no purpose anybody can name.
+--
+-- Two rules run through the whole layer and are enforced by CHECK rather than
+-- left to a caller:
+--   1. ANONYMOUS MEANS ANONYMOUS. v1 stored `is_anonymous` beside the author's
+--      id, so "anonymous" feedback named its author to anyone with database
+--      access — which is everyone who can read a backup. Here an anonymous row
+--      has NOWHERE to put an identity, and one-per-person is enforced by a
+--      salted hash instead.
+--   2. A STAFF-ONLY NOTE SAYS SO. Visibility is a column, never an inference
+--      from who wrote it.
+
+-- What the academy tells a cohort. v1 had class_id OR cohort_id (the two
+-- enrolment models); v2 has one spine, plus a wider scope for a whole course or
+-- the whole tenant.
+CREATE TABLE announcements (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  cohort_id     INTEGER NULL,
+  course_id     INTEGER NULL,
+  centre_id     INTEGER NULL,
+  scope         TEXT  NOT NULL DEFAULT 'cohort',   -- cohort|course|centre|tenant
+  -- WHO is meant to read it. A timetable change is for guardians, a practice
+  -- reminder is for learners, and sending both to both is how people stop
+  -- reading either.
+  audience      TEXT  NOT NULL DEFAULT 'both',     -- learners|guardians|both|staff
+  title         TEXT NULL,
+  body          TEXT         NOT NULL,
+  author_membership_id INTEGER NULL,
+  publish_at    TEXT  NULL,
+  expires_at    TEXT  NULL,
+  is_pinned     INTEGER   NOT NULL DEFAULT 0,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at    TEXT  NULL,
+  deleted_seq   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_ann_scope CHECK (scope IN ('cohort','course','centre','tenant')),
+  CONSTRAINT chk_ann_audience CHECK (audience IN ('learners','guardians','both','staff')),
+  CONSTRAINT chk_ann_pinned CHECK (is_pinned IN (0,1)),
+  -- The scope has to name what it is scoped TO, or nobody can be resolved as a
+  -- recipient. v1 allowed both ids to be NULL, which made an announcement with
+  -- no readers.
+  CONSTRAINT chk_ann_target CHECK (
+        (scope = 'cohort' AND cohort_id IS NOT NULL)
+     OR (scope = 'course' AND course_id IS NOT NULL)
+     OR (scope = 'centre' AND centre_id IS NOT NULL)
+     OR scope = 'tenant'),
+  CONSTRAINT chk_ann_window CHECK (expires_at IS NULL OR publish_at IS NULL OR expires_at >= publish_at),
+  CONSTRAINT fk_ann_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_ann_cohort FOREIGN KEY (cohort_id) REFERENCES cohorts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ann_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ann_centre FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ann_author FOREIGN KEY (author_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+-- The public contact form. NOT `messages`, and NOT the guardian threads: this is
+-- a stranger's enquiry, held under legitimate interest, with no account behind
+-- it — a different lawful basis, a different retention period and a different
+-- audience from anything in LAYER L. The bare name `messages` is what let the
+-- two be confused in v1.
+CREATE TABLE contact_messages (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  name          TEXT NULL,
+  email         TEXT NULL,
+  phone         TEXT  NULL,
+  topic         TEXT  NULL,
+  body          TEXT         NOT NULL,
+  status        TEXT  NOT NULL DEFAULT 'unread',   -- unread|read|answered|spam|closed
+  -- The enquirer may become a member later. Set when somebody makes that link
+  -- BY HAND; never matched on an address alone, because two people share a
+  -- family inbox and one of them is a child.
+  membership_id INTEGER NULL,
+  answered_by   INTEGER NULL,
+  answered_at   TEXT  NULL,
+  source_ip     BLOB NULL,
+  user_agent    TEXT NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  -- The retention anchor. `dp_retention()` names a real table and a real date
+  -- column, so an enquiry has to carry one the sweep can measure from.
+  deleted_at    TEXT  NULL,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_cmsg_status CHECK (status IN ('unread','read','answered','spam','closed')),
+  -- Something to answer, and somewhere to send it. v1 accepted a message with
+  -- neither an address nor a phone number, which is a complaint nobody can reply
+  -- to sitting in a queue looking actionable.
+  CONSTRAINT chk_cmsg_reachable CHECK (email IS NOT NULL OR phone IS NOT NULL),
+  CONSTRAINT chk_cmsg_answered CHECK (status <> 'answered' OR answered_at IS NOT NULL),
+  CONSTRAINT fk_cmsg_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_cmsg_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_cmsg_by     FOREIGN KEY (answered_by)   REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE support_tickets (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  -- The person who raised it, which may be a guardian on a learner's behalf —
+  -- so both are recorded and neither is inferred from the other.
+  raised_by_membership_id INTEGER NOT NULL,
+  subject_membership_id   INTEGER NULL,
+  reference     TEXT  NOT NULL,
+  category      TEXT  NOT NULL DEFAULT 'general',
+  subject       TEXT NOT NULL,
+  status        TEXT  NOT NULL DEFAULT 'open',
+     -- open|waiting_on_us|waiting_on_them|resolved|closed
+  priority      TEXT  NOT NULL DEFAULT 'normal',   -- low|normal|high|urgent
+  assigned_to_membership_id INTEGER NULL,
+  -- Stored, not recomputed: a support target that changes must not restate
+  -- whether last term's tickets were answered in time.
+  first_response_due_at TEXT NULL,
+  first_response_at     TEXT NULL,
+  resolved_at   TEXT  NULL,
+  closed_at     TEXT  NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  row_version   INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (public_id),
+  UNIQUE (tenant_id, reference),
+
+  CONSTRAINT chk_ticket_status CHECK (status IN
+    ('open','waiting_on_us','waiting_on_them','resolved','closed')),
+  CONSTRAINT chk_ticket_priority CHECK (priority IN ('low','normal','high','urgent')),
+  CONSTRAINT chk_ticket_resolved CHECK (status NOT IN ('resolved','closed') OR resolved_at IS NOT NULL),
+  CONSTRAINT fk_ticket_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_ticket_raiser FOREIGN KEY (raised_by_membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ticket_subject FOREIGN KEY (subject_membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ticket_assignee FOREIGN KEY (assigned_to_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+CREATE TABLE ticket_messages (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  ticket_id     INTEGER NOT NULL,
+  author_membership_id INTEGER NULL,
+  author_name   TEXT NOT NULL,
+  body          TEXT         NOT NULL,
+  -- An internal note is invisible to the family. It is a COLUMN, never an
+  -- inference from the author's role: a staff member also writes replies the
+  -- family is meant to read, and getting that inference wrong discloses a
+  -- private note about a child.
+  visibility    TEXT  NOT NULL DEFAULT 'family',   -- family|internal
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  CONSTRAINT chk_tmsg_visibility CHECK (visibility IN ('family','internal')),
+  CONSTRAINT fk_tmsg_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_tmsg_ticket FOREIGN KEY (ticket_id) REFERENCES support_tickets(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tmsg_author FOREIGN KEY (author_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+CREATE TABLE surveys (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  kind          TEXT  NOT NULL DEFAULT 'survey',   -- survey|form|progress_form|poll
+  title         TEXT NOT NULL,
+  description   TEXT         NULL,
+  questions     TEXT         NOT NULL,
+  status        TEXT  NOT NULL DEFAULT 'draft',    -- draft|open|closed|archived
+  audience      TEXT  NOT NULL DEFAULT 'learners', -- learners|guardians|staff
+  target_course_id INTEGER NULL,
+  target_cohort_id INTEGER NULL,
+  -- Declared ONCE, on the survey, before anybody answers. An anonymity promise
+  -- that can be switched off after the fact is not a promise, so
+  -- `mam_survey_*` must refuse to change it once a response exists.
+  is_anonymous  INTEGER   NOT NULL DEFAULT 0,
+  opens_at      TEXT  NULL,
+  closes_at     TEXT  NULL,
+  created_by    INTEGER NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at    TEXT  NULL,
+  deleted_seq   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_survey_kind CHECK (kind IN ('survey','form','progress_form','poll')),
+  CONSTRAINT chk_survey_status CHECK (status IN ('draft','open','closed','archived')),
+  CONSTRAINT chk_survey_audience CHECK (audience IN ('learners','guardians','staff')),
+  CONSTRAINT chk_survey_anon CHECK (is_anonymous IN (0,1)),
+  CONSTRAINT chk_survey_window CHECK (closes_at IS NULL OR opens_at IS NULL OR closes_at >= opens_at),
+  CONSTRAINT fk_survey_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_survey_course FOREIGN KEY (target_course_id) REFERENCES courses(id) ON DELETE SET NULL,
+  CONSTRAINT fk_survey_cohort FOREIGN KEY (target_cohort_id) REFERENCES cohorts(id) ON DELETE SET NULL,
+  CONSTRAINT fk_survey_by     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- One answered survey.
+--
+-- ⚠️ v1's `survey_responses` had UNIQUE(survey_id, student_id) and NOT NULL on
+-- the student — so every response was identifiable whatever the survey claimed.
+-- Here an anonymous response carries NO membership and one-per-person is kept by
+-- `respondent_hash`: a salted hash of the identity, with the salt held per
+-- survey outside the row. It answers "has this person already replied" without
+-- answering "who said this".
+CREATE TABLE survey_responses (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  survey_id     INTEGER NOT NULL,
+  membership_id INTEGER NULL,
+  respondent_hash TEXT   NULL,
+  is_anonymous  INTEGER   NOT NULL DEFAULT 0,
+  answers       TEXT         NOT NULL,
+  submitted_at  TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  -- One reply per person per survey, whichever way the survey is run. Both keys
+  -- exist because exactly one of the two columns is populated.
+  UNIQUE (survey_id, membership_id),
+  UNIQUE (survey_id, respondent_hash),
+
+  CONSTRAINT chk_sresp_anon CHECK (is_anonymous IN (0,1)),
+  -- The whole point of the table. An anonymous response has nowhere to put an
+  -- identity, and an attributed one must state whose it is.
+  CONSTRAINT chk_sresp_identity CHECK (
+        (is_anonymous = 1 AND membership_id IS NULL AND respondent_hash IS NOT NULL)
+     OR (is_anonymous = 0 AND membership_id IS NOT NULL)),
+  CONSTRAINT fk_sresp_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_sresp_survey FOREIGN KEY (survey_id)     REFERENCES surveys(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sresp_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE
+);
+
+-- What a learner or family says about the teaching. Same anonymity rule as
+-- survey_responses, and for the same reason: v1 kept `is_anonymous` next to
+-- `student_id`, so the promise was worth nothing to anybody who could read the
+-- table — which includes anyone with a backup.
+CREATE TABLE learner_feedback (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NULL,
+  is_anonymous  INTEGER   NOT NULL DEFAULT 0,
+  -- Context WITHOUT identity. A cohort of nine is small enough that naming the
+  -- cohort can identify the author, so an anonymous row keeps the COURSE and
+  -- drops the cohort rather than pretending the distinction does not matter.
+  course_id     INTEGER NULL,
+  cohort_id     INTEGER NULL,
+  rating        TINYINTEGER NULL,
+  category      TEXT  NOT NULL DEFAULT 'general',
+  subject       TEXT NULL,
+  body          TEXT         NOT NULL,
+  status        TEXT  NOT NULL DEFAULT 'new',      -- new|reviewed|actioned|closed
+  reviewed_by   INTEGER NULL,
+  reviewed_at   TEXT  NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_lfb_anon CHECK (is_anonymous IN (0,1)),
+  CONSTRAINT chk_lfb_rating CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5)),
+  CONSTRAINT chk_lfb_status CHECK (status IN ('new','reviewed','actioned','closed')),
+  CONSTRAINT chk_lfb_identity CHECK (
+        (is_anonymous = 1 AND membership_id IS NULL AND cohort_id IS NULL)
+     OR is_anonymous = 0),
+  CONSTRAINT fk_lfb_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_lfb_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_lfb_course FOREIGN KEY (course_id)     REFERENCES courses(id) ON DELETE SET NULL,
+  CONSTRAINT fk_lfb_cohort FOREIGN KEY (cohort_id)     REFERENCES cohorts(id) ON DELETE SET NULL,
+  CONSTRAINT fk_lfb_rev    FOREIGN KEY (reviewed_by)   REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- An admissions officer's note on an application. Internal by default: this is
+-- where a judgement about a child gets written down, and a family reading it in
+-- a subject-access response should find a professional record, not a surprise.
+CREATE TABLE application_notes (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  application_id INTEGER NOT NULL,
+  author_membership_id INTEGER NULL,
+  author_name   TEXT NOT NULL,
+  note          TEXT         NOT NULL,
+  visibility    TEXT  NOT NULL DEFAULT 'internal', -- internal|family
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  CONSTRAINT chk_anote_visibility CHECK (visibility IN ('internal','family')),
+  CONSTRAINT fk_anote_tenant FOREIGN KEY (tenant_id)      REFERENCES tenants(id),
+  CONSTRAINT fk_anote_app    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_anote_author FOREIGN KEY (author_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+-- The MAM Scholars Initiative: its own track, assessed on essays.
+--
+-- Like `bursary_applications`, there is NO column linking this to an admission
+-- decision, and there is not one by accident. A scholarship is decided by a
+-- committee on the essays; an admission is decided on readiness. A foreign key
+-- between them would make "did we admit this child because they asked for money"
+-- a question the schema cannot answer no.
+CREATE TABLE scholarship_applications (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  reference     TEXT  NOT NULL,
+  application_id INTEGER NULL,
+  membership_id INTEGER NULL,
+  full_name     TEXT NOT NULL,
+  email         TEXT NOT NULL,
+  age_band      TEXT  NULL,
+  experience    TEXT         NULL,
+  -- The five assessed sections. Free text about a family's finances is the most
+  -- sensitive thing in this layer, and `dp_retention()` measures its period from
+  -- `created_at`: it is kept for the award cycle, not for ever.
+  financial_need     TEXT    NULL,
+  musical_journey    TEXT    NULL,
+  values_alignment   TEXT    NULL,
+  community_impact   TEXT    NULL,
+  commitment_ack INTEGER  NOT NULL DEFAULT 0,
+  readiness_signal TEXT NULL,
+  status        TEXT  NOT NULL DEFAULT 'submitted',
+     -- submitted|screening|shortlisted|awarded|declined|withdrawn
+  decided_by    INTEGER NULL,
+  decided_at    TEXT  NULL,
+  outcome_note  TEXT NULL,
+  source_ip     BLOB NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at    TEXT  NULL,
+  deleted_seq   INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (public_id),
+  UNIQUE (tenant_id, reference),
+
+  CONSTRAINT chk_schol_status CHECK (status IN
+    ('submitted','screening','shortlisted','awarded','declined','withdrawn')),
+  CONSTRAINT chk_schol_ack CHECK (commitment_ack IN (0,1)),
+  -- A decision states when and why. An award or a refusal a family cannot be
+  -- given a reason for is the thing that makes a scholarship scheme look
+  -- arbitrary.
+  CONSTRAINT chk_schol_decided CHECK (status IN ('submitted','screening','shortlisted')
+        OR (decided_at IS NOT NULL AND outcome_note IS NOT NULL)),
+  CONSTRAINT fk_schol_tenant FOREIGN KEY (tenant_id)      REFERENCES tenants(id),
+  CONSTRAINT fk_schol_app    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE SET NULL,
+  CONSTRAINT fk_schol_member FOREIGN KEY (membership_id)  REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_schol_by     FOREIGN KEY (decided_by)     REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- A recorded Auditer placement: the academy's judgement of where a learner
+-- should start. It is ADVICE with an author and a date, not a score — and it
+-- expires, because a placement taken two years ago says nothing about a
+-- teenager now.
+CREATE TABLE auditer_results (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  application_id INTEGER NULL,
+  dimensions    TEXT         NULL,
+  recommended_programme_id INTEGER NULL,
+  recommended_level_id     INTEGER NULL,
+  recommended_pathway      TEXT NULL,
+  notes         TEXT         NULL,
+  audited_by_membership_id INTEGER NULL,
+  audited_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  valid_until   TEXT         NULL,
+  UNIQUE (public_id),
+
+  CONSTRAINT fk_auditer_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_auditer_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
+  CONSTRAINT fk_auditer_app    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE SET NULL,
+  CONSTRAINT fk_auditer_prog   FOREIGN KEY (recommended_programme_id) REFERENCES programmes(id) ON DELETE SET NULL,
+  CONSTRAINT fk_auditer_level  FOREIGN KEY (recommended_level_id) REFERENCES levels(id) ON DELETE SET NULL,
+  CONSTRAINT fk_auditer_by     FOREIGN KEY (audited_by_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+-- Newsletter subscribers. A subscriber is a DATA SUBJECT, not a member, which is
+-- why this is its own table and not a `consents` row: `consents` requires a
+-- membership, and creating one would put marketing contacts into the academy's
+-- roster and into every report that counts learners.
+--
+-- Unsubscribing is a FACT, recorded — not a delete. Proving the academy stopped
+-- contacting somebody requires the row that says when it stopped, and deleting
+-- it also loses the suppression list, so the next import mails them again.
+CREATE TABLE marketing_contacts (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  email         TEXT NOT NULL,
+  name          TEXT NULL,
+  status        TEXT  NOT NULL DEFAULT 'subscribed',
+     -- subscribed|unsubscribed|bounced|suppressed
+  -- The provenance of the consent, which is the whole reason this table can be
+  -- carried across a migration at all: where they signed up, when, and what
+  -- they were shown.
+  source        TEXT  NULL,
+  consent_at    TEXT  NULL,
+  consent_evidence TEXT      NULL,
+  unsubscribed_at TEXT NULL,
+  bounced_at    TEXT  NULL,
+  membership_id INTEGER NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (public_id),
+  UNIQUE (tenant_id, email),
+
+  CONSTRAINT chk_mkt_status CHECK (status IN ('subscribed','unsubscribed','bounced','suppressed')),
+  -- An unsubscribe states WHEN. Without the date the row cannot prove the
+  -- academy stopped, which is the only thing it is for.
+  CONSTRAINT chk_mkt_unsub CHECK (status <> 'unsubscribed' OR unsubscribed_at IS NOT NULL),
+  CONSTRAINT fk_mkt_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
+  CONSTRAINT fk_mkt_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+);
+
+-- A time-limited discount.
+--
+-- ⚠️ This is SPLIT OUT of v1's `promo_banners` deliberately. There, one row held
+-- the banner's title, body and background colour AND a `discount_percent` that
+-- `validation.php` and `store.php` read when pricing tuition and orders — so
+-- editing a banner's colour and editing what every family pays were the same
+-- operation on the same row, and "why was this invoice cheaper" was answered by
+-- a marketing record somebody had since overwritten. The price lives here, with
+-- a window and an audit trail; the copy lives in `announcement_banners`.
+--
+-- An ISSUED invoice stores its own totals (LAYER F), so changing or ending a
+-- promotion can never restate what a family was already asked for.
+CREATE TABLE promotions (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  code          TEXT  NULL,          -- NULL = automatic, no code to type
+  name          TEXT NOT NULL,
+  applies_to    TEXT  NOT NULL DEFAULT 'tuition',   -- tuition|store|registration|all
+  discount_pct  REAL NOT NULL DEFAULT 0,
+  max_discount_minor INTEGER  NULL,
+  currency      TEXT      NULL,
+  starts_at     TEXT  NULL,
+  ends_at       TEXT  NULL,
+  is_active     INTEGER   NOT NULL DEFAULT 1,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  created_by    INTEGER NULL,
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  row_version   INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (public_id),
+  UNIQUE (tenant_id, code),
+
+  CONSTRAINT chk_promo_applies CHECK (applies_to IN ('tuition','store','registration','all')),
+  -- A discount is a percentage of something, between nothing and everything. A
+  -- negative one is a surcharge nobody agreed to; one above 100 is a refund.
+  CONSTRAINT chk_promo_pct CHECK (discount_pct >= 0 AND discount_pct <= 100),
+  CONSTRAINT chk_promo_cap CHECK (max_discount_minor IS NULL
+        OR (max_discount_minor >= 0 AND currency IS NOT NULL)),
+  CONSTRAINT chk_promo_active CHECK (is_active IN (0,1)),
+  CONSTRAINT chk_promo_window CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at >= starts_at),
+  CONSTRAINT fk_promo_tenant FOREIGN KEY (tenant_id)  REFERENCES tenants(id),
+  CONSTRAINT fk_promo_by     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- The banner itself: copy, colour and a link. It may POINT AT a promotion so the
+-- headline and the price cannot drift apart, but it cannot set one.
+CREATE TABLE announcement_banners (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id     TEXT     NOT NULL,
+  tenant_id     INTEGER NOT NULL,
+  promotion_id  INTEGER NULL,
+  title         TEXT NOT NULL,
+  body          TEXT NOT NULL DEFAULT '',
+  cta_label     TEXT  NULL,
+  cta_url       TEXT NULL,
+  -- A token name, not a hex value: a colour typed into a marketing form is how a
+  -- banner ends up with 2:1 contrast against its own text. The palette is the
+  -- design system's, and the admin picks from it.
+  tone          TEXT  NOT NULL DEFAULT 'notice',   -- notice|warning|success|brand
+  audience      TEXT  NOT NULL DEFAULT 'public',   -- public|learners|guardians|staff
+  starts_at     TEXT  NULL,
+  ends_at       TEXT  NULL,
+  is_active     INTEGER   NOT NULL DEFAULT 1,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (public_id),
+
+  CONSTRAINT chk_banner_tone CHECK (tone IN ('notice','warning','success','brand')),
+  CONSTRAINT chk_banner_audience CHECK (audience IN ('public','learners','guardians','staff')),
+  CONSTRAINT chk_banner_active CHECK (is_active IN (0,1)),
+  CONSTRAINT chk_banner_window CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at >= starts_at),
+  -- A call to action needs both halves. A labelled button with no destination is
+  -- a dead end on the academy's front page.
+  CONSTRAINT chk_banner_cta CHECK ((cta_label IS NULL) = (cta_url IS NULL)),
+  CONSTRAINT fk_banner_tenant FOREIGN KEY (tenant_id)    REFERENCES tenants(id),
+  CONSTRAINT fk_banner_promo  FOREIGN KEY (promotion_id) REFERENCES promotions(id) ON DELETE SET NULL
+);
+
 -- Schema baseline. A fresh v2 install starts AT the target rather than
 -- replaying v1's 81 migrations.
 CREATE TABLE schema_version (
@@ -3396,8 +3883,8 @@ CREATE TABLE schema_version (
   note        TEXT NULL
 );
 
-INSERT INTO schema_version (version, note) VALUES (203,
-  'schema-v2 baseline + guardian layer + assessment + teaching operations');
+INSERT INTO schema_version (version, note) VALUES (204,
+  'schema-v2 baseline + guardian layer + assessment + teaching operations + communications');
 
 -- Seed the currencies the platform ships knowing about. Everything else is
 -- tenant data and arrives via the ETL or the admin.
@@ -3531,3 +4018,19 @@ CREATE INDEX ix_reschitem_session ON reschedule_items (tenant_id, session_id);
 CREATE INDEX ix_waitlist_queue ON cohort_waitlist (tenant_id, cohort_id, status, position);
 CREATE INDEX ix_lres_cohort ON learning_resources (tenant_id, cohort_id, deleted_seq);
 CREATE INDEX ix_lres_module ON learning_resources (tenant_id, module_id, deleted_seq);
+CREATE INDEX ix_ann_cohort ON announcements (tenant_id, cohort_id, deleted_seq);
+CREATE INDEX ix_ann_scope ON announcements (tenant_id, scope, publish_at);
+CREATE INDEX ix_cmsg_status ON contact_messages (tenant_id, status, created_at);
+CREATE INDEX ix_cmsg_email ON contact_messages (tenant_id, email);
+CREATE INDEX ix_ticket_queue ON support_tickets (tenant_id, status, priority, created_at);
+CREATE INDEX ix_ticket_member ON support_tickets (tenant_id, raised_by_membership_id, status);
+CREATE INDEX ix_tmsg_ticket ON ticket_messages (tenant_id, ticket_id, created_at);
+CREATE INDEX ix_survey_status ON surveys (tenant_id, status, closes_at);
+CREATE INDEX ix_sresp_survey ON survey_responses (tenant_id, survey_id, submitted_at);
+CREATE INDEX ix_lfb_status ON learner_feedback (tenant_id, status, created_at);
+CREATE INDEX ix_anote_app ON application_notes (tenant_id, application_id, created_at);
+CREATE INDEX ix_schol_status ON scholarship_applications (tenant_id, status, created_at);
+CREATE INDEX ix_auditer_member ON auditer_results (tenant_id, membership_id, audited_at);
+CREATE INDEX ix_mkt_status ON marketing_contacts (tenant_id, status);
+CREATE INDEX ix_promo_window ON promotions (tenant_id, is_active, starts_at, ends_at);
+CREATE INDEX ix_banner_window ON announcement_banners (tenant_id, is_active, starts_at, ends_at);

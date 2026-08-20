@@ -234,6 +234,101 @@ function v2p_source(): array {
              'attempts' => 1, 'body' => 'A rendered email nobody needs to keep.', 'opts' => null,
              'created_at' => '2026-01-04 09:40:00', 'updated_at' => '2026-01-04 09:40:00', 'sent_at' => null],
         ],
+        /* Communications and admissions. */
+        'announcements' => [
+            ['id' => 1, 'class_id' => 1, 'cohort_id' => null, 'author_id' => 2, 'title' => 'Friday moves',
+             'body' => 'Next Friday is 17:00.', 'created_at' => '2026-02-03 09:00:00'],
+            // Neither a class nor a cohort: v1 allowed it, and it had no readers.
+            ['id' => 2, 'class_id' => null, 'cohort_id' => null, 'author_id' => 4, 'title' => 'Term starts',
+             'body' => 'Term starts Monday.', 'created_at' => '2026-01-28 09:00:00'],
+        ],
+        'messages' => [
+            ['id' => 1, 'name' => 'A Parent', 'email' => 'enquirer@example.test', 'phone' => null,
+             'topic' => 'tuition', 'message' => 'How much is piano?', 'ip' => '198.51.100.20',
+             'status' => 'answered', 'created_at' => '2026-01-15 09:00:00'],
+            // No address and no phone: nobody could ever have replied.
+            ['id' => 2, 'name' => 'Anon', 'email' => null, 'phone' => null, 'topic' => 'other',
+             'message' => 'No way to reply to this.', 'ip' => null, 'status' => 'unread',
+             'created_at' => '2026-01-16 09:00:00'],
+        ],
+        'support_tickets' => [
+            ['id' => 1, 'student_id' => 1, 'reference' => 'TKT-0001', 'category' => 'billing',
+             'subject' => 'Cannot see my invoice', 'body' => 'The payments tab is empty.', 'status' => 'open',
+             'priority' => 'normal', 'assigned_to' => 4, 'resolved_at' => null,
+             'created_at' => '2026-02-11 09:00:00', 'updated_at' => '2026-02-11 09:00:00'],
+            // Resolved in v1 with no resolution date.
+            ['id' => 2, 'student_id' => 1, 'reference' => 'TKT-0002', 'category' => 'general',
+             'subject' => 'Room change', 'body' => 'Which studio?', 'status' => 'resolved',
+             'priority' => 'low', 'assigned_to' => null, 'resolved_at' => null,
+             'created_at' => '2026-02-12 09:00:00', 'updated_at' => '2026-02-12 09:00:00'],
+        ],
+        'ticket_messages' => [
+            ['id' => 1, 'ticket_id' => 1, 'author_id' => 4, 'body' => 'Looking into it.', 'is_internal' => 0,
+             'created_at' => '2026-02-11 10:00:00'],
+            // A staff-only note. Defaulting this to family-visible would
+            // disclose a private note about a child.
+            ['id' => 2, 'ticket_id' => 1, 'author_id' => 4, 'body' => 'Their card was declined twice.',
+             'is_internal' => 1, 'created_at' => '2026-02-11 10:05:00'],
+        ],
+        'surveys' => [
+            ['id' => 1, 'title' => 'How is the term going?', 'description' => null,
+             'questions_json' => '[{"q":"Pace?"}]', 'status' => 'active', 'target_track' => null,
+             'created_by' => 4, 'closes_at' => '2026-03-01 00:00:00', 'created_at' => '2026-02-01 09:00:00',
+             'kind' => 'survey'],
+        ],
+        'survey_responses' => [
+            ['id' => 1, 'survey_id' => 1, 'student_id' => 1, 'answers_json' => '{"Pace?":"good"}',
+             'submitted_at' => '2026-02-02 09:00:00'],
+        ],
+        'student_feedback' => [
+            // Told it was anonymous, stored with the author's id beside the flag.
+            ['id' => 1, 'student_id' => 1, 'rating' => 4, 'category' => 'teaching', 'subject' => 'Pace',
+             'body' => 'The pace suits me.', 'enrollment_id' => null, 'course_enrollment_id' => 1,
+             'is_anonymous' => 1, 'created_at' => '2026-02-15 09:00:00'],
+            ['id' => 2, 'student_id' => 1, 'rating' => 5, 'category' => 'general', 'subject' => null,
+             'body' => 'Happy to be named.', 'enrollment_id' => null, 'course_enrollment_id' => 1,
+             'is_anonymous' => 0, 'created_at' => '2026-02-16 09:00:00'],
+        ],
+        'feedback' => [
+            ['id' => 1, 'submission_id' => 1, 'instructor_id' => 2, 'rubric_json' => '{"1":8}',
+             'comments' => 'Even tone.', 'outcome' => 'pass', 'created_at' => '2026-02-06 09:00:00',
+             'updated_at' => null],
+        ],
+        'application_notes' => [
+            ['id' => 1, 'application_id' => 10, 'author_id' => 4,
+             'note' => 'Guardian asked about a bursary; do not discuss with the child.',
+             'created_at' => '2026-01-05 09:00:00'],
+        ],
+        'scholarship_applications' => [
+            ['id' => 1, 'reference' => 'SCH-0001', 'application_reference' => 'APP-0010',
+             'full_name' => 'A. Okoye-Balogun', 'email' => 'ada@example.test', 'age_band' => '13-15',
+             'experience' => 'Two years.', 'financial_need' => 'One income.',
+             'musical_journey' => 'Started on a keyboard.', 'values_alignment' => 'Community.',
+             'community_impact' => 'Church band.', 'commitment_ack' => 1, 'readiness_signal' => 'ready',
+             'status' => 'awarded', 'ip' => '198.51.100.31', 'created_at' => '2026-01-10 09:00:00'],
+        ],
+        'auditer_results' => [
+            ['id' => 1, 'student_id' => 1, 'dimensions' => '{"pitch":4,"rhythm":3}',
+             'recommended_pathway' => 'standard', 'notes' => 'Start at pre-cert.',
+             'audited_at' => '2026-01-11 09:00:00', 'audited_by' => 2],
+            // A pathway that is not a programme code any more.
+            ['id' => 2, 'student_id' => 3, 'dimensions' => null, 'recommended_pathway' => 'legacy-track',
+             'notes' => null, 'audited_at' => '2026-01-12 09:00:00', 'audited_by' => 2],
+        ],
+        'promo_banners' => [
+            // ONE v1 row holding the copy, the colour AND the discount that
+            // priced tuition.
+            ['id' => 1, 'title' => 'Early-bird closes Friday', 'body' => '10% off Toni tuition.',
+             'cta_label' => 'Apply now', 'cta_url' => '/apply', 'bg_color' => '#FEF3C7', 'active' => 1,
+             'starts_at' => '2026-01-01 00:00:00', 'ends_at' => '2026-01-31 23:59:59',
+             'created_at' => '2025-12-20 09:00:00', 'updated_at' => null, 'public' => 1,
+             'discount_percent' => 10, 'applies_to' => 'tuition'],
+            // Copy only, and a half-configured call to action.
+            ['id' => 2, 'title' => 'Studio closed Monday', 'body' => 'Public holiday.',
+             'cta_label' => 'Read more', 'cta_url' => '', 'bg_color' => '#FEE2E2', 'active' => 1,
+             'starts_at' => null, 'ends_at' => null, 'created_at' => '2026-01-02 09:00:00',
+             'updated_at' => null, 'public' => 0, 'discount_percent' => 0, 'applies_to' => null],
+        ],
         /* Teaching operations. Cohort 1 is the private class student 1 is in. */
         'rooms' => [
             ['id' => 1, 'name' => 'Studio A', 'capacity' => 6, 'resources' => 'Upright piano', 'active' => 1],
@@ -724,7 +819,12 @@ function v2p_source(): array {
         ],
         // Deliberately not carried, and must still be accounted for.
         'rate_limits' => [['k' => 'x', 'hits' => 3]],
-        'newsletter'  => [['id' => 1, 'email' => 'x@example.test', 'source' => 'footer', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00']],
+        'newsletter'  => [
+            ['id' => 1, 'email' => 'x@example.test', 'source' => 'footer', 'status' => 'active', 'created_at' => '2026-01-01 00:00:00'],
+            // Asked not to be mailed. Dropping this row drops the SUPPRESSION
+            // list, and the next import mails them again.
+            ['id' => 2, 'email' => 'gone@example.test', 'source' => 'footer', 'status' => 'unsubscribed', 'created_at' => '2026-01-02 00:00:00'],
+        ],
     ];
 }
 
@@ -887,6 +987,146 @@ $att = v2p_find($plan, 'assessment_kinds', 'code', 'attendance');
 t_eq((int) $att['counts_to_mastery'], 0,
     'attendance is carried as a kind that does NOT count to mastery — §24 keeps attendance beside the '
     . 'score, never inside it');
+
+t_group('v2 plan — anonymity, and the promise v1 did not keep');
+
+// The defect: v1's `student_feedback` stored `is_anonymous` BESIDE `student_id`,
+// so feedback a learner was told was anonymous named them to anybody who could
+// read the table — which includes anybody with a backup.
+$lfb = $plan['tables']['learner_feedback'];
+t_eq(count($lfb), 2, 'both pieces of feedback carry');
+$anon = array_values(array_filter($lfb, static fn($f) => (int) $f['is_anonymous'] === 1));
+t_eq(count($anon), 1, 'one was given anonymously');
+t_ok($anon[0]['membership_id'] === null,
+    'and it arrives with the author REMOVED — v2 has nowhere to put the identity, so the migration is '
+    . 'where the promise is made true');
+t_ok($anon[0]['cohort_id'] === null,
+    'and with the cohort removed too: a cohort of nine is small enough that naming it identifies the author');
+t_ok($anon[0]['course_id'] !== null, 'while the course is kept, which is context without identity');
+$named = array_values(array_filter($lfb, static fn($f) => (int) $f['is_anonymous'] === 0));
+t_ok($named[0]['membership_id'] !== null, 'attributed feedback keeps its author');
+
+// And no migrated survey may claim anonymity it never had.
+$svy = $plan['tables']['surveys'][0];
+t_eq((int) $svy['is_anonymous'], 0,
+    'every migrated survey is NOT anonymous: v1 stored a NOT NULL student_id on every response, so '
+    . 'claiming anonymity retroactively would be a promise about data never collected that way');
+$sresp = $plan['tables']['survey_responses'][0];
+t_ok($sresp['membership_id'] !== null && $sresp['respondent_hash'] === null,
+    'so the responses stay attributed, matching how they were collected');
+
+t_group('v2 plan — a staff note stays a staff note');
+
+$tmsgs = $plan['tables']['ticket_messages'];
+t_eq(count($tmsgs), 4, "each ticket's body becomes its opening message, plus the two replies");
+$internal = array_values(array_filter($tmsgs, static fn($m) => $m['visibility'] === 'internal'));
+t_eq(count($internal), 1, 'the internal note is carried as internal');
+t_ok(str_contains((string) $internal[0]['body'], 'card was declined'),
+    'and it is the right one — defaulting this to family-visible would disclose a private note about a child');
+foreach ($tmsgs as $m) {
+    t_ok(($m['author_name'] ?? '') !== '',
+        'every message names its author in words, so what a family reads survives the account being closed');
+}
+$anotes = $plan['tables']['application_notes'];
+t_eq($anotes[0]['visibility'], 'internal',
+    'an admissions note is carried as INTERNAL without exception: a migration must not be the moment a '
+    . 'judgement about a child becomes family-visible');
+
+$tickets = v2p_by_id($plan, 'support_tickets');
+t_eq($tickets[2]['status'], 'open',
+    'a ticket v1 called resolved with no resolution date is carried OPEN — which is what the family '
+    . 'experienced');
+t_ok($tickets[1]['first_response_due_at'] === null && $tickets[1]['first_response_at'] === null,
+    'and no response target is invented: v1 recorded none, and a computed one would claim the academy met '
+    . 'a target it never had');
+
+t_group('v2 plan — enquiries, announcements and the suppression list');
+
+$cmsgs = $plan['tables']['contact_messages'];
+t_eq(count($cmsgs), 1, 'the answerable enquiry carries');
+$unanswerable = array_values(array_filter($plan['rejected'], static fn($r) => $r['table'] === 'messages'));
+t_eq(count($unanswerable), 1,
+    'one with no address and no phone number is DROPPED — nobody could ever have replied, and it is still '
+    . "somebody's personal data");
+t_ok($cmsgs[0]['membership_id'] === null,
+    'an enquiry is NOT matched to a member by address: two people share a family inbox and one of them is '
+    . "a child, so linking the wrong one attaches a stranger's words to a learner's record");
+
+$anns = $plan['tables']['announcements'];
+t_eq(count($anns), 2, 'both announcements carry');
+$tenantWide = array_values(array_filter($anns, static fn($a) => $a['scope'] === 'tenant'));
+t_eq(count($tenantWide), 1,
+    'one that resolves to no cohort becomes a TENANT-wide notice rather than an announcement with no readers');
+
+$mkt = $plan['tables']['marketing_contacts'];
+t_eq(count($mkt), 2, 'subscribers are CARRIED, not dropped');
+$unsub = array_values(array_filter($mkt, static fn($m) => $m['status'] === 'unsubscribed'));
+t_eq(count($unsub), 1, 'including the one who asked not to be mailed');
+t_ok($unsub[0]['unsubscribed_at'] !== null,
+    'with a date, because the row exists to prove the academy stopped — dropping the list would drop the '
+    . 'SUPPRESSION list and the next import would mail them again');
+t_ok($mkt[0]['consent_at'] !== null && $mkt[0]['consent_evidence'] !== null,
+    'and each carries the provenance of its consent, which is what makes it lawful to carry at all');
+
+t_group('v2 plan — the banner and the price are different rows');
+
+// In v1 ONE row held the headline, the background colour and a discount_percent
+// that validation.php and store.php read when pricing tuition and orders.
+$promos = $plan['tables']['promotions'];
+$banners = $plan['tables']['announcement_banners'];
+t_eq(count($banners), 2, 'both banners keep their copy');
+t_eq(count($promos), 1, 'only the one that carried a discount becomes a promotion');
+t_eq((float) $promos[0]['discount_pct'], 10.0, 'with the percentage, in the money layer where it belongs');
+t_eq($promos[0]['applies_to'], 'tuition', 'and what it applies to');
+$priced = array_values(array_filter($banners, static fn($b) => $b['promotion_id'] !== null));
+t_eq(count($priced), 1, 'the banner POINTS AT the promotion, so the headline and the price cannot drift');
+foreach ($banners as $b) {
+    t_ok(!array_key_exists('discount_pct', $b) && !array_key_exists('bg_color', $b),
+        'a banner carries no discount and no hex colour — editing a colour and repricing every family were '
+        . 'the same operation in v1, and a colour typed into a marketing form is how a banner ends up at '
+        . '2:1 contrast against its own text');
+    t_eq($b['tone'], 'notice', 'every migrated banner takes a palette token an admin can change');
+}
+$halfCta = array_values(array_filter($banners, static fn($b) => $b['cta_label'] === null));
+t_eq(count($halfCta), 1,
+    "a half-configured call to action drops BOTH halves rather than leaving a labelled button with no "
+    . "destination on the academy's front page");
+
+t_group('v2 plan — scholarships and placements');
+
+$schol = $plan['tables']['scholarship_applications'][0];
+t_eq((int) $schol['application_id'], (int) v2p_find($plan, 'applications', 'reference', 'APP-0010')['id'],
+    'v1 links a scholarship to an application by the REFERENCE the applicant quoted, and it resolves '
+    . 'through that string');
+t_ok($schol['membership_id'] !== null,
+    'the applicant is matched to their own account on the address they applied WITH — safe here, unlike a '
+    . 'contact-form enquiry, because that address IS the identity the application was made under');
+t_eq($schol['status'], 'awarded', 'the decision is carried');
+t_ok($schol['decided_at'] !== null && str_contains((string) $schol['outcome_note'], 'was not kept'),
+    'dated from the record and saying the reason was not kept — which is the fact, and what the family '
+    . 'would be told if they asked');
+t_ok(!array_key_exists('admission_decision_id', $schol),
+    'and nothing links it to an admission decision, on either side');
+
+$aud = $plan['tables']['auditer_results'];
+t_eq(count($aud), 2, 'both placements carry');
+$resolvedPath = array_values(array_filter($aud, static fn($a) => $a['recommended_programme_id'] !== null));
+t_eq(count($resolvedPath), 1, 'one pathway resolves to a real programme');
+$stalePath = array_values(array_filter($aud, static fn($a) => $a['recommended_programme_id'] === null));
+t_eq($stalePath[0]['recommended_pathway'], 'legacy-track',
+    'and one that no longer exists keeps the WORD: a code that has gone is still what the placement said, '
+    . 'and it must not silently become "no recommendation"');
+foreach ($aud as $a) {
+    t_ok($a['valid_until'] === null,
+        'no expiry is invented — how long a placement stays good is the academy\'s policy, and a computed '
+        . 'date would expire real placements on a day nobody chose');
+}
+
+$cov4 = v2p_coverage($plan);
+t_eq($cov4['feedback']['destination'], 'assessments + assessment_marks',
+    "v1's per-submission feedback is a MARK: one marking mechanism, not two");
+t_ok(str_contains((string) $cov4['application_drafts']['note'], 'no lawful purpose'),
+    'and abandoned wizard state is still accounted for, with the reason it is not carried');
 
 t_group('v2 plan — sessions, and the one assumption only the academy can settle');
 

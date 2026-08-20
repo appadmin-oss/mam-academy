@@ -97,6 +97,9 @@ $nullableInUniqueOk = [
     'memberships.reference'   => 'NULL = staff/guardian with no learner reference',
     'notifications.dedupe_key'=> 'NULL = deliberately not deduped (a one-off message)',
     'payments.provider_ref'   => 'NULL = cash/manual payment with no provider reference; many are legitimate',
+    'survey_responses.membership_id'   => 'NULL on an ANONYMOUS response, which is the point: exactly one of membership_id and respondent_hash is populated, enforced by chk_sresp_identity',
+    'survey_responses.respondent_hash' => 'NULL on an attributed response; the membership key covers one-reply-per-person there',
+    'promotions.code' => 'NULL = an automatic promotion with no code to type; several can run at once and only typed codes must be unique',
     'submissions.assignment_id' => 'NULL = work handed in against a module rather than a set assignment; the attempt key does not apply to it',
     'teachbacks.module_id'      => 'NULL = a teach-back not tied to a curriculum week; the one-per-module rule does not apply to it',
     'enrolment_results.term_id' => 'NULL = a result for the whole enrolment rather than one term; the per-term slot does not apply to it',
@@ -221,10 +224,26 @@ t_eq((int) ($row['base_total_minor'] ?? 0), 7500, '…to a USD-denominated total
 
 t_group('schema-v2 — the constraints bite');
 
-/** Assert a statement is REJECTED. A constraint that has never fired proves nothing. */
+/**
+ * Assert a statement is REJECTED **by a constraint**. A constraint that has
+ * never fired proves nothing — but neither does a statement that failed because
+ * it was malformed, and that failure looks identical from here. So the error is
+ * checked: a syntax error, an unbound parameter or a misspelled column FAILS the
+ * assertion rather than quietly passing it, which is how a probe ends up
+ * asserting nothing at all.
+ */
 $rejects = function (string $sql, string $why) use ($db): void {
-    try { $db->exec($sql); t_ok(false, "REJECTED: $why (it was accepted)"); }
-    catch (Throwable $e) { t_ok(true, "REJECTED: $why"); }
+    try {
+        $db->exec($sql);
+        t_ok(false, "REJECTED: $why (it was accepted)");
+    } catch (Throwable $e) {
+        $m = $e->getMessage();
+        $constraint = str_contains($m, 'constraint failed')
+            || str_contains($m, 'Integrity constraint violation')
+            || str_contains($m, 'NOT NULL')
+            || str_contains($m, 'UNIQUE');
+        t_ok($constraint, "REJECTED: $why" . ($constraint ? '' : " — but by a MALFORMED STATEMENT, not a constraint: $m"));
+    }
 };
 
 $rejects("INSERT INTO attendance (tenant_id,session_id,enrolment_id,status) VALUES (1,1,1,'maybe')",
@@ -247,7 +266,7 @@ $rejects("INSERT INTO payment_allocations (payment_id,invoice_id,amount_minor) V
     "a zero-amount payment allocation");
 $rejects("INSERT INTO fx_rates (base_currency,quote_currency,rate,source,observed_at) VALUES ('USD','NGN',-1,'test','2026-09-01 00:00:00.000')",
     "a negative FX rate");
-$rejects("INSERT INTO users (public_id,email,display_name) VALUES ('01JDUPMAIL00000000000000000','ada@example.test','Impostor')",
+$rejects("INSERT INTO users (public_id,email,full_name) VALUES ('01JDUPMAIL00000000000000000','ada@example.test','Impostor')",
     "a second global user on one email address");
 $rejects("INSERT INTO memberships (public_id,tenant_id,user_id,reference) VALUES ('01JDUPREF000000000000000000',1,1,'MAM-0002')",
     "a second live membership for one user at one tenant");
@@ -708,3 +727,122 @@ $rejects("INSERT INTO learning_resources (public_id,tenant_id,cohort_id,title,ki
     "a resource with neither a URL nor a stored file — a title in a list that disappoints whoever clicks it");
 $rejects("INSERT INTO learning_resources (public_id,tenant_id,title,kind,url,visibility) VALUES ('01JLRESNOSCOPE00000000000',1,'Orphan','link','https://x.test','cohort')",
     "a cohort-visible resource attached to no cohort, course or module — v1 allowed it and nobody could reach it");
+
+t_group('schema-v2 — communications and admissions');
+
+$allTables2 = $db->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(PDO::FETCH_COLUMN);
+t_ok(!in_array('messages', $allTables2, true) && in_array('contact_messages', $allTables2, true),
+    'the public contact form is contact_messages — a stranger\'s enquiry under a different lawful basis, '
+    . 'retention and audience from the guardian threads, and the bare name is what let the two be confused');
+t_ok(!in_array('application_drafts', $allTables2, true),
+    'no application_drafts: a draft nobody submitted is not an application, and after cutover it is '
+    . 'personal data held for no purpose anybody can name');
+t_ok(!in_array('feedback', $allTables2, true),
+    'no per-submission feedback table: a mark and its comments are assessments + assessment_marks');
+t_ok(!in_array('newsletter', $allTables2, true) && in_array('marketing_contacts', $allTables2, true),
+    'subscribers are marketing_contacts, carrying consent provenance — a subscriber is a data subject, not '
+    . 'a member, so `consents` (which needs a membership) is the wrong home');
+
+// Anonymity is enforced by the schema, not promised by a flag beside the author.
+$ins("INSERT INTO surveys (id,public_id,tenant_id,title,questions,status,is_anonymous)
+      VALUES (1,?,1,'How is the term going?','[]','open',1)", [$ulid()]);
+$ins("INSERT INTO surveys (id,public_id,tenant_id,title,questions,status,is_anonymous)
+      VALUES (2,?,1,'Instrument preference','[]','open',0)", [$ulid()]);
+$ins("INSERT INTO survey_responses (tenant_id,survey_id,is_anonymous,respondent_hash,answers)
+      VALUES (1,1,1,?, '{}')", [str_repeat('b', 64)]);
+$rejects("INSERT INTO survey_responses (tenant_id,survey_id,membership_id,is_anonymous,answers) VALUES (1,1,1,1,'{}')",
+    "an 'anonymous' response that names its author — v1 stored is_anonymous beside a NOT NULL student_id, "
+    . "so the promise was worth nothing to anybody who could read a backup");
+$rejects("INSERT INTO survey_responses (tenant_id,survey_id,is_anonymous,answers) VALUES (1,1,0,'{}')",
+    "an attributed response with nobody attributed to it");
+$rejects("INSERT INTO survey_responses (tenant_id,survey_id,is_anonymous,respondent_hash,answers)
+          VALUES (1,1,1,'" . str_repeat('b', 64) . "','{}')",
+    "a second anonymous reply from the same person — the salted hash keeps one-per-person WITHOUT keeping "
+    . "who said what");
+$ins("INSERT INTO survey_responses (tenant_id,survey_id,membership_id,is_anonymous,answers) VALUES (1,2,1,0,'{}')");
+$rejects("INSERT INTO survey_responses (tenant_id,survey_id,membership_id,is_anonymous,answers) VALUES (1,2,1,0,'{}')",
+    "a second attributed reply from one person to one survey");
+
+$ins("INSERT INTO learner_feedback (public_id,tenant_id,course_id,rating,body,is_anonymous)
+      VALUES (?,1,1,4,'The pace suits me.',1)", [$ulid()]);
+$rejects("INSERT INTO learner_feedback (public_id,tenant_id,membership_id,body,is_anonymous)
+          VALUES ('01JANONNAMED000000000000',1,1,'Anonymous, apparently.',1)",
+    "anonymous feedback that names its author");
+$rejects("INSERT INTO learner_feedback (public_id,tenant_id,cohort_id,body,is_anonymous)
+          VALUES ('01JANONCOHORT00000000000',1,1,'In a class of nine.',1)",
+    "anonymous feedback tagged with a cohort — a cohort of nine is small enough that naming it identifies "
+    . "the author");
+$rejects("INSERT INTO learner_feedback (public_id,tenant_id,membership_id,rating,body) VALUES ('01JBADRATING000000000000',1,1,6,'x')",
+    "a rating off the 1–5 scale");
+
+// A staff-only note is a column, never an inference from the author's role.
+foreach (['ticket_messages', 'application_notes'] as $table) {
+    $cols = array_column($db->query('PRAGMA table_info(' . $table . ')')->fetchAll(PDO::FETCH_ASSOC), 'name');
+    t_ok(in_array('visibility', $cols, true),
+        "$table carries an explicit visibility — a staff member also writes replies the family is meant to "
+        . 'read, and getting that inference wrong discloses a private note about a child');
+}
+$ins("INSERT INTO support_tickets (id,public_id,tenant_id,raised_by_membership_id,reference,subject,status)
+      VALUES (1,?,1,1,'TKT-0001','Cannot see my invoice','open')", [$ulid()]);
+$rejects("INSERT INTO ticket_messages (tenant_id,ticket_id,author_name,body,visibility) VALUES (1,1,'Office','x','secret')",
+    "a visibility outside the two the UI can render");
+$rejects("INSERT INTO support_tickets (public_id,tenant_id,raised_by_membership_id,reference,subject,status)
+          VALUES ('01JTKTRESOLVED0000000000',1,1,'TKT-0002','x','resolved')",
+    "a resolved ticket with no resolution time");
+
+// An enquiry the academy cannot answer is not an enquiry.
+$ins("INSERT INTO contact_messages (public_id,tenant_id,name,email,topic,body)
+      VALUES (?,1,'A Parent','parent@example.test','tuition','How much is piano?')", [$ulid()]);
+$rejects("INSERT INTO contact_messages (public_id,tenant_id,name,body) VALUES ('01JNOREPLY00000000000000',1,'Anon','No way to reply')",
+    "a message with neither an address nor a phone number — a complaint nobody can answer, sitting in a "
+    . "queue looking actionable");
+
+// Announcements need somebody to read them.
+$ins("INSERT INTO announcements (public_id,tenant_id,cohort_id,scope,audience,title,body)
+      VALUES (?,1,1,'cohort','guardians','Friday moves','Next Friday is 17:00.')", [$ulid()]);
+$ins("INSERT INTO announcements (public_id,tenant_id,scope,audience,body) VALUES (?,1,'tenant','both','Term starts Monday.')", [$ulid()]);
+$rejects("INSERT INTO announcements (public_id,tenant_id,scope,body) VALUES ('01JANNORPHAN000000000000',1,'cohort','To nobody.')",
+    "a cohort-scoped announcement with no cohort — v1 allowed both ids to be NULL, making an announcement "
+    . "with no readers");
+
+// The scholarship track, and the foreign key that is absent on purpose.
+$scholCols = array_column($db->query('PRAGMA table_info(scholarship_applications)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+t_ok(!in_array('admission_decision_id', $scholCols, true) && !in_array('affects_admission', $scholCols, true),
+    'nothing links a scholarship application to an admission decision — a scholarship is decided on the '
+    . 'essays and an admission on readiness, and a foreign key between them would make "did we admit this '
+    . 'child because they asked for money" a question the schema cannot answer no');
+$ins("INSERT INTO scholarship_applications (public_id,tenant_id,reference,full_name,email,status,commitment_ack)
+      VALUES (?,1,'SCH-0001','A Learner','learner@example.test','submitted',1)", [$ulid()]);
+$rejects("INSERT INTO scholarship_applications (public_id,tenant_id,reference,full_name,email,status,decided_at)
+          VALUES ('01JSCHNOWHY00000000000000',1,'SCH-0002','B','b@example.test','declined','2026-11-01 09:00:00.000')",
+    "a refusal with no reason — what makes a scholarship scheme look arbitrary to the family that asked");
+
+// Unsubscribing is a fact, recorded.
+$ins("INSERT INTO marketing_contacts (public_id,tenant_id,email,status,source,consent_at)
+      VALUES (?,1,'subscriber@example.test','subscribed','footer','2026-01-05 09:00:00.000')", [$ulid()]);
+$rejects("INSERT INTO marketing_contacts (public_id,tenant_id,email,status) VALUES ('01JUNSUBNODATE0000000000',1,'x@example.test','unsubscribed')",
+    "an unsubscribe with no date — the row cannot prove the academy stopped, which is the only thing it is for");
+
+// The price and the poster are different rows.
+$bannerCols = array_column($db->query('PRAGMA table_info(announcement_banners)')->fetchAll(PDO::FETCH_ASSOC), 'name');
+foreach (['discount_percent', 'discount_pct', 'applies_to'] as $forbidden) {
+    t_ok(!in_array($forbidden, $bannerCols, true),
+        "a banner has no `$forbidden`: in v1 one row held the headline, the background colour AND the "
+        . 'discount that priced tuition, so editing a colour and repricing every family were the same '
+        . 'operation on the same row');
+}
+t_ok(!in_array('bg_color', $bannerCols, true),
+    'and no free-text colour — a hex value typed into a marketing form is how a banner ends up at 2:1 '
+    . 'contrast against its own text');
+$ins("INSERT INTO promotions (id,public_id,tenant_id,code,name,applies_to,discount_pct,starts_at,ends_at)
+      VALUES (1,?,1,'EARLY26','Early-bird 2026','tuition',10,'2026-01-01 00:00:00.000','2026-01-31 23:59:59.999')", [$ulid()]);
+$ins("INSERT INTO announcement_banners (public_id,tenant_id,promotion_id,title,body,cta_label,cta_url,tone)
+      VALUES (?,1,1,'Early-bird closes Friday','10% off Toni tuition.','Apply now','/apply','brand')", [$ulid()]);
+$rejects("INSERT INTO promotions (public_id,tenant_id,name,discount_pct) VALUES ('01JPROMO150000000000000',1,'Too generous',150)",
+    "a discount above 100% — that is a refund, not a promotion");
+$rejects("INSERT INTO promotions (public_id,tenant_id,name,discount_pct) VALUES ('01JPROMONEG00000000000',1,'Surcharge',-10)",
+    "a negative discount — a surcharge nobody agreed to");
+$rejects("INSERT INTO promotions (public_id,tenant_id,name,discount_pct,max_discount_minor) VALUES ('01JPROMONOCUR000000000',1,'Capped',10,50000)",
+    "a cap with no currency — a bare number that means one thing in kobo and another in cents");
+$rejects("INSERT INTO announcement_banners (public_id,tenant_id,title,cta_label) VALUES ('01JBANNERDEADEND000000',1,'Half a link','Click here')",
+    "a labelled button with no destination — a dead end on the academy's front page");

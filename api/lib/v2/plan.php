@@ -62,6 +62,10 @@ const MAM_V2_PLAN_ORDER = [
     'invoice_aid_awards', 'invoices', 'invoice_lines', 'invoice_credits',
     'invoice_payment_plans', 'invoice_plan_instalments', 'bursary_applications',
     'reschedule_requests', 'reschedule_items',
+    'announcements', 'contact_messages', 'support_tickets', 'ticket_messages',
+    'surveys', 'survey_responses', 'learner_feedback', 'application_notes',
+    'scholarship_applications', 'auditer_results', 'marketing_contacts',
+    'promotions', 'announcement_banners',
     'custom_field_defs', 'custom_field_values',
     'message_deliveries', 'audit_log',
     'legacy_reference_map',
@@ -404,6 +408,8 @@ function mam_v2_plan(array $source, array $opts = []): array
 
     $userId = $credId = $memId = 0;
     $memberOfPerson = [];        // person index => membership id
+    $nameOfUser = [];            // v2 user id  => display name
+    $peopleNameOfMember = [];    // membership  => display name
     $userOfV1User   = [];        // v1 user id   => v2 user id
     $memberOfV1User = [];        // v1 user id   => membership id
     $userOfPerson   = [];
@@ -432,6 +438,11 @@ function mam_v2_plan(array $source, array $opts = []): array
             'created_at' => $created,
         ];
         $userOfPerson[$i] = $uid;
+        // Membership → the person's NAME. Several later tables carry a NOT NULL
+        // author_name beside a nullable author id, on purpose: what a family
+        // reads is who wrote to them, and that has to survive an account being
+        // closed or a person being erased.
+        $nameOfUser[$uid] = mb_substr(((string) ($p['full_name'] ?? '')) !== '' ? (string) $p['full_name'] : 'MAM Academy', 0, 190);
 
         // Credentials: bcrypt hashes ARE carried. They are the only thing v1
         // holds, and the alternative — a forced reset for every family on
@@ -457,6 +468,7 @@ function mam_v2_plan(array $source, array $opts = []): array
         $memberOfPerson[$i] = $mid;
         if ($p['user_id'] !== null) {
             $memberOfV1User[(int) $p['user_id']] = $mid;
+            $peopleNameOfMember[$mid] = $nameOfUser[$uid] ?? 'MAM Academy';
             $userOfV1User[(int) $p['user_id']]   = $uid;
         }
 
@@ -2831,7 +2843,7 @@ function mam_v2_plan(array $source, array $opts = []): array
     $pathwayLevel     = ['pre-cert' => 'precert', 'cert' => 'cert',
                          'pre-diploma' => 'prediploma', 'diploma' => 'diploma'];
 
-    $appId = 0; $appIdOfV1 = []; $appPersonOf = [];
+    $appId = 0; $appIdOfV1 = []; $appPersonOf = []; $appIdOfRef = [];
     $tApps = mam_v2_transform_applications($rows('applications'), $people, $tenantId);
     foreach ($tApps['rejected'] as $r) $rejected[] = ['table' => 'applications'] + $r;
     $v1AppsById = [];
@@ -2853,6 +2865,10 @@ function mam_v2_plan(array $source, array $opts = []): array
         $id = ++$appId;
         $appIdOfV1[(int) $lid] = $id;
         $appPersonOf[(int) $lid] = $r['person_ix'];
+        // Reference → v2 id. v1's scholarship applications name an application by
+        // the REFERENCE the applicant quoted, not by an id.
+        $refStr = mam_v2_plan_str($r['reference'] ?? null, 64);
+        if ($refStr !== null) $appIdOfRef[mb_strtolower($refStr)] = $id;
         // An erased applicant's payload was already dropped by the transform;
         // the quoted total and the guardian's details are part of the payload, so
         // they go with it. That is the point of the tombstone.
@@ -3494,6 +3510,463 @@ function mam_v2_plan(array $source, array $opts = []): array
         'v2 has one stage machine. A reschedule request moving from pending to approved is the same shape of '
         . 'fact as an application moving from submitted to enrolled, so it does not get a table of its own.',
         count($rows('reschedule_events')));
+
+    /* ── Communications ───────────────────────────────────────────────────── */
+    $annOut = 0;
+    foreach ($rows('announcements') as $an) {
+        $coh = $cohIdOfV1[(int) ($an['cohort_id'] ?? 0)] ?? ($cohIdOfClass[(int) ($an['class_id'] ?? 0)] ?? null);
+        // chk_ann_target: a scope has to name what it is scoped TO. v1 allowed
+        // BOTH ids to be NULL, which made an announcement with no readers — so
+        // one that resolves to no cohort becomes a TENANT-wide notice, which is
+        // the only honest reading of "everybody saw this".
+        $scope = $coh !== null ? 'cohort' : 'tenant';
+        $T['announcements'][] = ['public_id' => mam_v2_plan_pid('announcement:' . (int) ($an['id'] ?? 0)),
+            'tenant_id' => $tenantId, 'cohort_id' => $coh,
+            'course_id' => $coh !== null ? ($cohCourseOf[$coh] ?? null) : null,
+            'centre_id' => null, 'scope' => $scope,
+            // v1 had no audience column and the portals showed announcements to
+            // learners AND guardians, so 'both' is what actually happened.
+            'audience' => 'both',
+            'title' => mam_v2_plan_str($an['title'] ?? null, 190),
+            'body' => (string) ($an['body'] ?? ''),
+            'author_membership_id' => $memberOfV1User[(int) ($an['author_id'] ?? 0)] ?? null,
+            'publish_at' => mam_v2_plan_ts($an['created_at'] ?? null, $nowFallback),
+            'expires_at' => null, 'is_pinned' => 0,
+            'created_at' => mam_v2_plan_ts($an['created_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $annOut++;
+    }
+    $note('announcements', 'announcements',
+        'both v1 enrolment models resolve to the one cohort spine; one that resolves to neither becomes a '
+        . 'TENANT-wide notice rather than an announcement with no readers.',
+        count($rows('announcements')), $annOut);
+
+    $cmOut = 0; $cmDropped = 0;
+    foreach ($rows('messages') as $m) {
+        $email = mam_v2_plan_str($m['email'] ?? null, 320);
+        $phone = mam_v2_plan_str($m['phone'] ?? null, 32);
+        // chk_cmsg_reachable. v1 accepted a message with no address and no phone
+        // number — a complaint nobody could answer, sitting in the queue looking
+        // actionable. Those rows are DROPPED rather than carried: there is
+        // nothing to do with them and they are somebody's personal data.
+        if ($email === null && $phone === null) {
+            $cmDropped++;
+            $rejected[] = ['table' => 'messages', 'id' => $m['id'] ?? null,
+                'why' => 'no address and no phone number: nobody could ever have replied to it'];
+            continue;
+        }
+        $status = (string) ($m['status'] ?? 'unread');
+        $vocab = ['unread' => 'unread', 'read' => 'read', 'answered' => 'answered', 'replied' => 'answered',
+                  'spam' => 'spam', 'closed' => 'closed', 'archived' => 'closed'];
+        $status = $vocab[$status] ?? 'unread';
+        $created = mam_v2_plan_ts($m['created_at'] ?? null, $nowFallback);
+        // chk_cmsg_answered: v1 recorded no answer time, so "answered" would have
+        // to be dated from the record. Rather than invent the moment somebody
+        // replied, it is dated from the message and said so in the ledger.
+        $T['contact_messages'][] = ['public_id' => mam_v2_plan_pid('contactmsg:' . (int) ($m['id'] ?? 0), $created),
+            'tenant_id' => $tenantId,
+            'name' => mam_v2_plan_str($m['name'] ?? null, 190),
+            'email' => $email, 'phone' => $phone,
+            'topic' => mam_v2_plan_str($m['topic'] ?? null, 48),
+            'body' => (string) ($m['message'] ?? ''),
+            'status' => $status,
+            // NOT matched to a membership by address. Two people share a family
+            // inbox and one of them is a child; linking an enquiry to the wrong
+            // person attaches a stranger's words to a learner's record.
+            'membership_id' => null,
+            'answered_by' => null,
+            'answered_at' => $status === 'answered' ? $created : null,
+            'source_ip' => mam_v2_plan_str($m['ip'] ?? null, 45),
+            'user_agent' => null, 'created_at' => $created];
+        $cmOut++;
+    }
+    $note('messages', 'contact_messages',
+        sprintf('the public contact form — a different lawful basis, retention and audience from the '
+            . 'guardian threads, which is why the name is not `messages`. %d row(s) with no address and no '
+            . 'phone number are dropped: nobody could ever have replied, and they are still somebody\'s '
+            . 'personal data. An "answered" message is dated from the message itself, because v1 recorded '
+            . 'no reply time.', $cmDropped),
+        count($rows('messages')), $cmOut);
+
+    $tkId = 0; $tkIdOf = [];
+    foreach ($rows('support_tickets') as $t) {
+        $v1id = (int) ($t['id'] ?? 0);
+        $mid = $memberOfV1User[(int) ($t['student_id'] ?? 0)] ?? null;
+        if ($mid === null) { $rejected[] = ['table' => 'support_tickets', 'id' => $v1id, 'why' => 'the person who raised it did not map to a membership']; continue; }
+        $status = (string) ($t['status'] ?? 'open');
+        $vocab = ['open' => 'open', 'pending' => 'waiting_on_them', 'waiting' => 'waiting_on_them',
+                  'in_progress' => 'waiting_on_us', 'resolved' => 'resolved', 'closed' => 'closed'];
+        $status = $vocab[$status] ?? 'open';
+        $resolved = mam_v2_plan_ts($t['resolved_at'] ?? null, null);
+        // chk_ticket_resolved: a resolved ticket states when. Without a date it
+        // is still open, which is what the family experienced.
+        if (in_array($status, ['resolved', 'closed'], true) && $resolved === null) $status = 'open';
+        $priority = (string) ($t['priority'] ?? 'normal');
+        $id = ++$tkId;
+        $T['support_tickets'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('ticket:' . $v1id),
+            'tenant_id' => $tenantId, 'raised_by_membership_id' => $mid, 'subject_membership_id' => $mid,
+            'reference' => mam_v2_plan_str($t['reference'] ?? null, 64) ?? ('TKT-' . str_pad((string) $v1id, 6, '0', STR_PAD_LEFT)),
+            'category' => mam_v2_plan_str($t['category'] ?? null, 32) ?? 'general',
+            'subject' => mam_v2_plan_str($t['subject'] ?? null, 190) ?? '(no subject)',
+            'status' => $status,
+            'priority' => in_array($priority, ['low', 'normal', 'high', 'urgent'], true) ? $priority : 'normal',
+            'assigned_to_membership_id' => $memberOfV1User[(int) ($t['assigned_to'] ?? 0)] ?? null,
+            // v1 kept no response target and no first-response time, so neither
+            // can be reconstructed. NULL says unknown; a computed value would
+            // claim the academy met a target it never recorded.
+            'first_response_due_at' => null, 'first_response_at' => null,
+            'resolved_at' => in_array($status, ['resolved', 'closed'], true) ? $resolved : null,
+            'closed_at' => $status === 'closed' ? $resolved : null,
+            'created_at' => mam_v2_plan_ts($t['created_at'] ?? null, $nowFallback)];
+        $tkIdOf[$v1id] = $id;
+        $mapped('support_tickets', $v1id, 'support_tickets', $id, (string) ($t['reference'] ?? ''));
+        // v1's ticket BODY is the first message. Carrying it as a column would
+        // leave one thread whose opening post is somewhere else.
+        $T['ticket_messages'][] = ['tenant_id' => $tenantId, 'ticket_id' => $id,
+            'author_membership_id' => $mid,
+            'author_name' => (string) ($peopleNameOfMember[$mid] ?? 'The family'),
+            'body' => (string) ($t['body'] ?? ''), 'visibility' => 'family',
+            'created_at' => mam_v2_plan_ts($t['created_at'] ?? null, $nowFallback)];
+    }
+    $note('support_tickets', 'support_tickets (+ the opening ticket_message)',
+        'v1 kept the first message as a column on the ticket; carrying it that way would leave one thread '
+        . 'whose opening post is somewhere else. No response target is invented — v1 recorded none, and a '
+        . 'computed one would claim the academy met a target it never had.',
+        count($rows('support_tickets')), $tkId);
+
+    $tmOut2 = 0;
+    foreach ($rows('ticket_messages') as $m) {
+        $tk = $tkIdOf[(int) ($m['ticket_id'] ?? 0)] ?? null;
+        if ($tk === null) { $rejected[] = ['table' => 'ticket_messages', 'id' => $m['id'] ?? null, 'why' => 'ticket did not map']; continue; }
+        $mid = $memberOfV1User[(int) ($m['author_id'] ?? 0)] ?? null;
+        $T['ticket_messages'][] = ['tenant_id' => $tenantId, 'ticket_id' => $tk,
+            'author_membership_id' => $mid,
+            'author_name' => (string) ($peopleNameOfMember[$mid] ?? 'MAM Academy'),
+            'body' => (string) ($m['body'] ?? ''),
+            // The one field that must not be guessed: an internal note the
+            // family cannot see. v1 recorded it, so it is carried verbatim —
+            // defaulting it to 'family' would disclose staff notes about a child.
+            'visibility' => mam_v2_plan_bool($m['is_internal'] ?? null, 0) === 1 ? 'internal' : 'family',
+            'created_at' => mam_v2_plan_ts($m['created_at'] ?? null, $nowFallback)];
+        $tmOut2++;
+    }
+    $note('ticket_messages', 'ticket_messages',
+        '`is_internal` is carried VERBATIM: defaulting it to family-visible would disclose staff notes '
+        . 'about a child, and it is the one field in this layer that must never be guessed.',
+        count($rows('ticket_messages')), $tmOut2);
+
+    /* ── Surveys, and the anonymity v1 promised but did not keep ──────────── */
+    $svId = 0; $svIdOf = []; $svAnon = [];
+    foreach ($rows('surveys') as $sv) {
+        $v1id = (int) ($sv['id'] ?? 0);
+        $status = (string) ($sv['status'] ?? 'draft');
+        $vocab = ['draft' => 'draft', 'open' => 'open', 'active' => 'open', 'closed' => 'closed',
+                  'archived' => 'archived'];
+        $id = ++$svId;
+        // v1 had no `is_anonymous` on a survey at all — every response carried a
+        // NOT NULL student_id. So no migrated survey can be presented as
+        // anonymous: claiming it retroactively would be a promise about data that
+        // was never collected that way.
+        $T['surveys'][] = ['id' => $id, 'public_id' => mam_v2_plan_pid('survey:' . $v1id),
+            'tenant_id' => $tenantId,
+            'kind' => in_array((string) ($sv['kind'] ?? 'survey'), ['survey', 'form', 'progress_form', 'poll'], true)
+                ? (string) $sv['kind'] : 'survey',
+            'title' => mam_v2_plan_str($sv['title'] ?? null, 190) ?? 'Survey',
+            'description' => mam_v2_plan_str($sv['description'] ?? null),
+            'questions' => mam_v2_plan_str($sv['questions_json'] ?? null) ?? '[]',
+            'status' => $vocab[$status] ?? 'draft',
+            'audience' => 'learners',
+            'target_course_id' => null, 'target_cohort_id' => null,
+            'is_anonymous' => 0,
+            'opens_at' => null,
+            'closes_at' => mam_v2_plan_ts($sv['closes_at'] ?? null, null),
+            'created_by' => $userOfV1User[(int) ($sv['created_by'] ?? 0)] ?? null,
+            'created_at' => mam_v2_plan_ts($sv['created_at'] ?? null, $nowFallback), 'deleted_seq' => 0];
+        $svIdOf[$v1id] = $id;
+        $svAnon[$id] = false;
+        $mapped('surveys', $v1id, 'surveys', $id);
+    }
+    $note('surveys', 'surveys',
+        'every migrated survey is marked NOT anonymous, because v1 stored a NOT NULL student_id on every '
+        . 'response. Claiming anonymity retroactively would be a promise about data that was never '
+        . 'collected that way.', count($rows('surveys')), $svId);
+
+    $srOut = 0; $srSeen = [];
+    foreach ($rows('survey_responses') as $sr) {
+        $sv = $svIdOf[(int) ($sr['survey_id'] ?? 0)] ?? null;
+        $mid = $memberOfV1User[(int) ($sr['student_id'] ?? 0)] ?? null;
+        if ($sv === null || $mid === null) {
+            $rejected[] = ['table' => 'survey_responses', 'id' => $sr['id'] ?? null,
+                'why' => $sv === null ? 'survey did not map' : 'respondent did not map to a membership'];
+            continue;
+        }
+        $k = $sv . ':' . $mid;
+        if (isset($srSeen[$k])) continue;
+        $srSeen[$k] = true;
+        $T['survey_responses'][] = ['tenant_id' => $tenantId, 'survey_id' => $sv, 'membership_id' => $mid,
+            'respondent_hash' => null, 'is_anonymous' => 0,
+            'answers' => mam_v2_plan_str($sr['answers_json'] ?? null) ?? '{}',
+            'submitted_at' => mam_v2_plan_ts($sr['submitted_at'] ?? null, $nowFallback)];
+        $srOut++;
+    }
+    $note('survey_responses', 'survey_responses',
+        'attributed, matching how they were collected.', count($rows('survey_responses')), $srOut);
+
+    // ⚠️ v1's `student_feedback` stored `is_anonymous` BESIDE `student_id`, so
+    // feedback a learner was told was anonymous named them to anybody who could
+    // read the table — which includes anybody with a backup. v2 has nowhere to
+    // put the identity on an anonymous row, so the migration has to make the
+    // promise true: the membership and the cohort are DROPPED (a cohort of nine
+    // identifies its author), and the course is kept for context.
+    $lfOut = 0; $lfAnon = 0;
+    foreach ($rows('student_feedback') as $fb) {
+        $mid = $memberOfV1User[(int) ($fb['student_id'] ?? 0)] ?? null;
+        $anon = mam_v2_plan_bool($fb['is_anonymous'] ?? null, 0);
+        if ($mid === null && $anon === 0) {
+            $rejected[] = ['table' => 'student_feedback', 'id' => $fb['id'] ?? null,
+                'why' => 'attributed feedback whose author did not map to a membership'];
+            continue;
+        }
+        $enr = $enrOfCourseEnrol[(int) ($fb['course_enrollment_id'] ?? 0)] ?? null;
+        $course = null;
+        if ($enr !== null) {
+            foreach ($T['enrolments'] as $e) {
+                if ((int) $e['id'] === $enr) { $course = $cohCourseOf[(int) $e['cohort_id']] ?? null; break; }
+            }
+        }
+        if ($anon === 1) $lfAnon++;
+        $T['learner_feedback'][] = ['public_id' => mam_v2_plan_pid('feedback:' . (int) ($fb['id'] ?? 0)),
+            'tenant_id' => $tenantId,
+            'membership_id' => $anon === 1 ? null : $mid,
+            'is_anonymous' => $anon,
+            'course_id' => $course,
+            'cohort_id' => null,
+            'rating' => min(5, max(1, mam_v2_plan_int($fb['rating'] ?? null) ?? 3)),
+            'category' => mam_v2_plan_str($fb['category'] ?? null, 32) ?? 'general',
+            'subject' => mam_v2_plan_str($fb['subject'] ?? null, 190),
+            'body' => (string) ($fb['body'] ?? ''),
+            'status' => 'new', 'reviewed_by' => null, 'reviewed_at' => null,
+            'created_at' => mam_v2_plan_ts($fb['created_at'] ?? null, $nowFallback)];
+        $lfOut++;
+    }
+    $note('student_feedback', 'learner_feedback',
+        sprintf('%d row(s) marked anonymous in v1 arrive with the author and the cohort REMOVED. v1 kept '
+            . '`is_anonymous` beside `student_id`, so the promise was worth nothing to anybody with a '
+            . 'backup; v2 has nowhere to put the identity, and this is where the promise is made true.',
+            $lfAnon),
+        count($rows('student_feedback')), $lfOut);
+    $note('feedback', 'assessments + assessment_marks',
+        'v1\'s per-submission `feedback` (a rubric blob and comments) is a MARK. One marking mechanism, not '
+        . 'two — see LAYER M.', count($rows('feedback')));
+
+    /* ── Admissions: notes, scholarships, placements ──────────────────────── */
+    $anOut = 0;
+    foreach ($rows('application_notes') as $n) {
+        $app = $appIdOfV1[(int) ($n['application_id'] ?? 0)] ?? null;
+        if ($app === null) { $rejected[] = ['table' => 'application_notes', 'id' => $n['id'] ?? null, 'why' => 'application did not map']; continue; }
+        $mid = $memberOfV1User[(int) ($n['author_id'] ?? 0)] ?? null;
+        $T['application_notes'][] = ['tenant_id' => $tenantId, 'application_id' => $app,
+            'author_membership_id' => $mid,
+            'author_name' => (string) ($peopleNameOfMember[$mid] ?? 'Admissions'),
+            'note' => (string) ($n['note'] ?? ''),
+            // INTERNAL, always. These are judgements about a child written for
+            // colleagues; a migration must not be the moment they become
+            // family-visible.
+            'visibility' => 'internal',
+            'created_at' => mam_v2_plan_ts($n['created_at'] ?? null, $nowFallback)];
+        $anOut++;
+    }
+    $note('application_notes', 'application_notes',
+        'carried as INTERNAL without exception: these are judgements about a child written for colleagues, '
+        . 'and a migration must not be the moment they become family-visible.',
+        count($rows('application_notes')), $anOut);
+
+    $schOut = 0;
+    foreach ($rows('scholarship_applications') as $sc) {
+        $v1id = (int) ($sc['id'] ?? 0);
+        $email = mam_v2_plan_str($sc['email'] ?? null, 320);
+        $ref = mam_v2_plan_str($sc['reference'] ?? null, 64);
+        if ($email === null || $ref === null) {
+            $rejected[] = ['table' => 'scholarship_applications', 'id' => $v1id,
+                'why' => $email === null ? 'no address on the application' : 'no reference to quote back'];
+            continue;
+        }
+        $status = (string) ($sc['status'] ?? 'submitted');
+        $vocab = ['submitted' => 'submitted', 'screening' => 'screening', 'reviewing' => 'screening',
+                  'shortlisted' => 'shortlisted', 'awarded' => 'awarded', 'approved' => 'awarded',
+                  'declined' => 'declined', 'rejected' => 'declined', 'withdrawn' => 'withdrawn'];
+        $status = $vocab[$status] ?? 'submitted';
+        $created = mam_v2_plan_ts($sc['created_at'] ?? null, $nowFallback);
+        // chk_schol_decided: a decision states when and why. v1 recorded neither,
+        // so a decided application is dated from the record and given a note
+        // saying the reason was not kept — which is the fact, and is what the
+        // family would be told if they asked.
+        $decided = !in_array($status, ['submitted', 'screening', 'shortlisted'], true);
+        // The applicant's own account, matched on the address they applied with —
+        // safe here, unlike a contact-form enquiry, because the address IS the
+        // identity the application was made under.
+        $mid = null;
+        foreach ($rows('users') as $u) {
+            if (strcasecmp((string) ($u['email'] ?? ''), $email) === 0) {
+                $mid = $memberOfV1User[(int) ($u['id'] ?? 0)] ?? null; break;
+            }
+        }
+        $T['scholarship_applications'][] = ['public_id' => mam_v2_plan_pid('scholarship:' . $v1id, $created),
+            'tenant_id' => $tenantId, 'reference' => $ref,
+            // The v1 link is a REFERENCE STRING to an application, not an id, so
+            // it resolves through the reference the applicant quoted.
+            'application_id' => $appIdOfRef[mb_strtolower((string) ($sc['application_reference'] ?? ''))] ?? null,
+            'membership_id' => $mid,
+            'full_name' => mam_v2_plan_str($sc['full_name'] ?? null, 190) ?? '',
+            'email' => $email,
+            'age_band' => mam_v2_plan_str($sc['age_band'] ?? null, 24),
+            'experience' => mam_v2_plan_str($sc['experience'] ?? null),
+            'financial_need' => mam_v2_plan_str($sc['financial_need'] ?? null),
+            'musical_journey' => mam_v2_plan_str($sc['musical_journey'] ?? null),
+            'values_alignment' => mam_v2_plan_str($sc['values_alignment'] ?? null),
+            'community_impact' => mam_v2_plan_str($sc['community_impact'] ?? null),
+            'commitment_ack' => mam_v2_plan_bool($sc['commitment_ack'] ?? null, 0),
+            'readiness_signal' => mam_v2_plan_str($sc['readiness_signal'] ?? null, 24),
+            'status' => $status,
+            'decided_by' => null,
+            'decided_at' => $decided ? $created : null,
+            'outcome_note' => $decided ? 'Decision migrated from the previous system; the reason recorded at the time was not kept.' : null,
+            'source_ip' => mam_v2_plan_str($sc['ip'] ?? null, 45),
+            'created_at' => $created, 'deleted_seq' => 0];
+        $schOut++;
+        $mapped('scholarship_applications', $v1id, 'scholarship_applications', $schOut, $ref);
+    }
+    $note('scholarship_applications', 'scholarship_applications',
+        'the v1 link to an application is a REFERENCE STRING and resolves through it. A decided application '
+        . 'is dated from the record and says the reason was not kept — which is the fact, and what the '
+        . 'family would be told if they asked. Nothing links it to an admission decision, on either side.',
+        count($rows('scholarship_applications')), $schOut);
+
+    $auOut = 0;
+    foreach ($rows('auditer_results') as $ar) {
+        $mid = $memberOfV1User[(int) ($ar['student_id'] ?? 0)] ?? null;
+        if ($mid === null) { $rejected[] = ['table' => 'auditer_results', 'id' => $ar['id'] ?? null, 'why' => 'the learner did not map to a membership']; continue; }
+        $pathway = mam_v2_plan_str($ar['recommended_pathway'] ?? null, 48);
+        $T['auditer_results'][] = ['public_id' => mam_v2_plan_pid('auditer:' . (int) ($ar['id'] ?? 0)),
+            'tenant_id' => $tenantId, 'membership_id' => $mid, 'application_id' => null,
+            'dimensions' => mam_v2_plan_str($ar['dimensions'] ?? null),
+            // The pathway is kept as the WORD as well as resolved, because a
+            // programme code that no longer exists is still what the placement
+            // said, and an unresolvable one must not silently become "no
+            // recommendation".
+            'recommended_programme_id' => $pathway !== null ? ($progCodeOf[strtolower($pathway)] ?? null) : null,
+            'recommended_level_id' => null,
+            'recommended_pathway' => $pathway,
+            'notes' => mam_v2_plan_str($ar['notes'] ?? null),
+            'audited_by_membership_id' => $memberOfV1User[(int) ($ar['audited_by'] ?? 0)] ?? null,
+            'audited_at' => mam_v2_plan_ts($ar['audited_at'] ?? null, $nowFallback),
+            // v1 set no expiry. It is left NULL rather than computed: how long a
+            // placement stays good is the academy's policy, and inventing one
+            // here would expire real placements on a date nobody chose.
+            'valid_until' => null];
+        $auOut++;
+    }
+    $note('auditer_results', 'auditer_results',
+        'the recommended pathway is kept as the WORD as well as resolved to a programme: a code that no '
+        . 'longer exists is still what the placement said, and an unresolvable one must not silently become '
+        . '"no recommendation". No expiry is invented — how long a placement stays good is policy.',
+        count($rows('auditer_results')), $auOut);
+
+    // Newsletter subscribers. Carried, unlike v1's ETL which dropped them:
+    // consent given at signup is a lawful basis the academy still holds, and
+    // deleting the list also deletes the SUPPRESSION list, so the next import
+    // mails the people who asked not to be mailed.
+    $mkOut = 0; $mkSeen = [];
+    foreach ($rows('newsletter') as $n) {
+        $email = mam_v2_plan_str($n['email'] ?? null, 320);
+        if ($email === null) continue;
+        $k = mb_strtolower($email);
+        if (isset($mkSeen[$k])) continue;
+        $mkSeen[$k] = true;
+        $status = (string) ($n['status'] ?? 'subscribed');
+        $vocab = ['subscribed' => 'subscribed', 'active' => 'subscribed',
+                  'unsubscribed' => 'unsubscribed', 'inactive' => 'unsubscribed',
+                  'bounced' => 'bounced', 'suppressed' => 'suppressed'];
+        $status = $vocab[$status] ?? 'subscribed';
+        $created = mam_v2_plan_ts($n['created_at'] ?? null, $nowFallback);
+        $T['marketing_contacts'][] = ['public_id' => mam_v2_plan_pid('marketing:' . $k, $created),
+            'tenant_id' => $tenantId, 'email' => $email, 'name' => null,
+            'status' => $status,
+            'source' => mam_v2_plan_str($n['source'] ?? null, 48),
+            // The consent moment is the subscription. v1 kept no separate
+            // timestamp, and this is the closest true statement — the row exists
+            // because somebody signed up then.
+            'consent_at' => $created,
+            'consent_evidence' => json_encode(['migrated_from' => 'v1.newsletter',
+                                               'source' => $n['source'] ?? null]),
+            // chk_mkt_unsub: an unsubscribe states WHEN, and v1 recorded no date.
+            // Dated from the record, because the row's only job is to prove the
+            // academy stopped — and a suppression with no date cannot.
+            'unsubscribed_at' => $status === 'unsubscribed' ? $created : null,
+            'bounced_at' => $status === 'bounced' ? $created : null,
+            'membership_id' => null, 'created_at' => $created];
+        $mkOut++;
+    }
+    $note('newsletter', 'marketing_contacts',
+        'CARRIED, with consent provenance. Dropping the list would also drop the SUPPRESSION list, so the '
+        . 'next import would mail the people who asked not to be mailed. A subscriber is a data subject, '
+        . 'not a member, which is why this is not a `consents` row.',
+        count($rows('newsletter')), $mkOut);
+
+    // A banner and a price are different things. In v1 they were one row, and
+    // `validation.php` + `store.php` read its `discount_percent` when pricing
+    // tuition and orders — so editing a banner's colour and repricing every
+    // family were the same operation. The split happens here.
+    $promoId = 0; $bannerOut = 0;
+    foreach ($rows('promo_banners') as $b) {
+        $v1id = (int) ($b['id'] ?? 0);
+        $pct = (float) (mam_v2_plan_int($b['discount_percent'] ?? null) ?? 0);
+        $promo = null;
+        if ($pct > 0) {
+            $applies = (string) ($b['applies_to'] ?? 'tuition');
+            $promo = ++$promoId;
+            $T['promotions'][] = ['id' => $promo, 'public_id' => mam_v2_plan_pid('promotion:' . $v1id),
+                'tenant_id' => $tenantId, 'code' => null,
+                'name' => mam_v2_plan_str($b['title'] ?? null, 190) ?? 'Promotion',
+                'applies_to' => in_array($applies, ['tuition', 'store', 'registration', 'all'], true) ? $applies : 'tuition',
+                'discount_pct' => number_format(min(100.0, max(0.0, $pct)), 2, '.', ''),
+                'max_discount_minor' => null, 'currency' => null,
+                'starts_at' => mam_v2_plan_ts($b['starts_at'] ?? null, null),
+                'ends_at' => mam_v2_plan_ts($b['ends_at'] ?? null, null),
+                'is_active' => mam_v2_plan_bool($b['active'] ?? null, 1),
+                'created_at' => mam_v2_plan_ts($b['created_at'] ?? null, $nowFallback),
+                'created_by' => null];
+            $mapped('promo_banners', $v1id, 'promotions', $promo, null,
+                'the priced half; the copy became an announcement_banner');
+        }
+        $label = mam_v2_plan_str($b['cta_label'] ?? null, 64);
+        $url   = mam_v2_plan_str($b['cta_url'] ?? null, 1000);
+        // chk_banner_cta: a labelled button needs a destination and vice versa.
+        // v1 defaulted both to '' so half-configured banners were normal.
+        if ($label === null || $url === null) { $label = null; $url = null; }
+        $T['announcement_banners'][] = ['public_id' => mam_v2_plan_pid('banner:' . $v1id),
+            'tenant_id' => $tenantId, 'promotion_id' => $promo,
+            'title' => mam_v2_plan_str($b['title'] ?? null, 190) ?? 'Notice',
+            'body' => mam_v2_plan_str($b['body'] ?? null, 1000) ?? '',
+            'cta_label' => $label, 'cta_url' => $url,
+            // The hex colour is NOT carried: a value typed into a marketing form
+            // is how a banner ends up at 2:1 contrast against its own text. Every
+            // migrated banner takes the design system's neutral tone, which an
+            // admin can change to another token.
+            'tone' => 'notice',
+            'audience' => mam_v2_plan_bool($b['public'] ?? null, 0) === 1 ? 'public' : 'learners',
+            'starts_at' => mam_v2_plan_ts($b['starts_at'] ?? null, null),
+            'ends_at' => mam_v2_plan_ts($b['ends_at'] ?? null, null),
+            'is_active' => mam_v2_plan_bool($b['active'] ?? null, 1),
+            'created_at' => mam_v2_plan_ts($b['created_at'] ?? null, $nowFallback)];
+        $bannerOut++;
+    }
+    $note('promo_banners', 'promotions + announcement_banners',
+        sprintf('SPLIT: %d banner(s) carried the copy, %d of them also carried a discount that priced '
+            . 'tuition and store orders. In v1 those were one row, so editing a colour and repricing every '
+            . 'family were the same operation. The hex colour is dropped for a palette token — a colour '
+            . 'typed into a marketing form is how a banner ends up at 2:1 contrast against its own text.',
+            $bannerOut, $promoId),
+        count($rows('promo_banners')), $bannerOut + $promoId);
 
     /* ── Mail ────────────────────────────────────────────────────────────── */
     $mailOut = 0;
