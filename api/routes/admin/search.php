@@ -16,14 +16,21 @@ $q = trim((string) ($_GET['q'] ?? ''));
 if (mb_strlen($q) < 2) mam_ok(['users' => [], 'applications' => [], 'payments' => []]);
 if (mb_strlen($q) > 80) $q = mb_substr($q, 0, 80);
 
-/* LIKE, with the wildcards ours and the user's escaped. Without this a query of
-   "100%" matches every row and "_" matches any single character — harmless
-   here, but a search box that quietly ignores what was typed is a bug. */
-$like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
+/* LIKE, with the user's own wildcards escaped. Without this a query of "100%"
+   matches every row and "_" matches any single character — harmless here, but a
+   search box that quietly ignores what was typed is a bug.
+ *
+ * The escape character is `!`, NOT a backslash, and that is load-bearing rather
+ * than a matter of taste. `ESCAPE '\'` is one backslash in the SQL text; SQLite
+ * accepts it, and MariaDB reads the backslash as escaping the closing quote, so
+ * the string literal runs on and the whole statement is a syntax error. It
+ * passed every test on SQLite and 500'd on the first MySQL request. A character
+ * that is not itself an escape needs no escaping to write. */
+$like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $q) . '%';
 
 $users = mam_db_all(
     "SELECT id, name, email, role, status FROM users
-      WHERE name LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\' OR enrollment_ref LIKE ? ESCAPE '\\'
+      WHERE name LIKE ? ESCAPE '!' OR email LIKE ? ESCAPE '!' OR enrollment_ref LIKE ? ESCAPE '!'
       ORDER BY (role = 'student') DESC, name LIMIT 6",
     [$like, $like, $like]
 );
@@ -34,8 +41,8 @@ $users = mam_db_all(
 $applications = mam_db_all(
     "SELECT a.id, a.reference, a.status, a.program, c.first_name, c.last_name
        FROM applications a LEFT JOIN customers c ON c.id = a.customer_id
-      WHERE a.reference LIKE ? ESCAPE '\\' OR c.first_name LIKE ? ESCAPE '\\'
-         OR c.last_name LIKE ? ESCAPE '\\' OR c.email LIKE ? ESCAPE '\\'
+      WHERE a.reference LIKE ? ESCAPE '!' OR c.first_name LIKE ? ESCAPE '!'
+         OR c.last_name LIKE ? ESCAPE '!' OR c.email LIKE ? ESCAPE '!'
       ORDER BY a.created_at DESC LIMIT 6",
     [$like, $like, $like, $like]
 );
@@ -48,7 +55,7 @@ unset($a);
 $payments = mam_db_all(
     "SELECT id, reference, provider_reference, status, amount, currency, created_at
        FROM payments
-      WHERE reference LIKE ? ESCAPE '\\' OR provider_reference LIKE ? ESCAPE '\\'
+      WHERE reference LIKE ? ESCAPE '!' OR provider_reference LIKE ? ESCAPE '!'
       ORDER BY created_at DESC LIMIT 6",
     [$like, $like]
 );

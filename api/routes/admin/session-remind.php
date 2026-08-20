@@ -13,7 +13,9 @@
  */
 declare(strict_types=1);
 
-$adminId  = (int)mam_require_user()['id']; // DB-backed session; route gated by mw_admin_cap('enrollments')
+// Gated by mw_admin_cap('enrollments'); what is needed here is an identity for
+// the audit row, not a second session check that 401s a break-glass operator.
+$adminId  = (int) mam_admin_require_actor()['id'];
 $in       = mam_json_input();
 $action   = strtolower(trim((string)($in['action'] ?? 'send')));
 $appUrl   = rtrim((string)mam_env('APP_URL', ''), '/');

@@ -223,7 +223,64 @@ t_ok($CN_fnAt !== false && $CN_useAt !== false && $CN_fnAt < $CN_useAt,
 t_group('console — the search endpoint is engine-portable');
 
 $CN_search = (string) file_get_contents(dirname(__DIR__) . '/routes/admin/search.php');
-t_eq(preg_match('/\|\|/', preg_replace('#/\*.*?\*/#s', '', $CN_search)), 0,
+$CN_searchSql = preg_replace('#/\*.*?\*/#s', '', $CN_search);
+t_eq(preg_match('/\|\|/', $CN_searchSql), 0,
     'the palette search never uses `||` — it concatenates in SQLite and means OR in MySQL');
-t_ok(strpos($CN_search, "ESCAPE '\\\\'") !== false,
+t_ok(strpos($CN_searchSql, "ESCAPE ") !== false,
     'LIKE patterns declare an escape character, so a query containing % or _ searches for those characters');
+/* And the escape character is not a backslash. `ESCAPE '\'` is one backslash in
+   the SQL text: SQLite accepts it, MariaDB reads it as escaping the closing
+   quote and the statement becomes a syntax error. This shipped, passed every
+   SQLite test, and 500'd on the first MySQL request. */
+t_eq(preg_match("/ESCAPE\s+'\\\\+'/", $CN_searchSql), 0,
+    "the LIKE escape character is not a backslash — `ESCAPE '\\' ` is a hard syntax error on MariaDB");
+
+/* Exercise it against the live engine, both ways: a plain query and one made
+   entirely of LIKE metacharacters. A statement that cannot even parse is the
+   failure mode this is guarding. */
+foreach (['oko', '100%', 'a_b', '!', '%_!'] as $CN_q) {
+    $CN_like = '%' . str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $CN_q) . '%';
+    $CN_ok = true;
+    try {
+        mam_db_all("SELECT id FROM users WHERE name LIKE ? ESCAPE '!' LIMIT 1", [$CN_like]);
+    } catch (\Throwable $e) { $CN_ok = false; }
+    t_ok($CN_ok, "a LIKE search for " . json_encode($CN_q) . " parses and runs on this engine");
+}
+
+t_group('break glass — no capability-gated admin route re-checks the session');
+
+/* The security posture is explicit: a route behind mw_admin_cap() is already
+ * authorised, so calling mam_require_user() inside its body adds nothing except
+ * a 401 for the Basic-Auth break-glass operator — who is precisely the person
+ * using it during a recovery. Three routes still did (`recitals` on the GET as
+ * well as the POST, so nobody could even read the programme; `id-cards` on
+ * revoke; `session-remind` entirely), and the sweep that found them was a real
+ * HTTP request rather than a test. This asserts the class of bug, not the three
+ * instances, so the next route to be written cannot reintroduce it.
+ *
+ * `mam_admin_require_actor()` is the sanctioned call: it returns the session
+ * admin, or the recovery identity, so the ledger still names who acted. */
+$BG_dir = dirname(__DIR__) . '/routes/admin';
+$BG_index = (string) file_get_contents(dirname(__DIR__) . '/index.php');
+$BG_offenders = [];
+foreach (glob($BG_dir . '/*.php') as $BG_f) {
+    $BG_name = basename($BG_f);
+    // Only routes registered behind a capability. inline-edit is registered
+    // with mw_user() and resolves a per-FIELD capability against that user, so
+    // a session is genuinely part of its contract.
+    if (!preg_match("#admin/" . preg_quote($BG_name, '#') . "'[^;]*mw_admin_cap#", $BG_index)) continue;
+    $BG_src = (string) file_get_contents($BG_f);
+    // Strip comments: several of these files EXPLAIN the rule in prose that
+    // names the very function they must not call.
+    $BG_code = preg_replace(['#/\*.*?\*/#s', '#//[^\n]*#'], '', $BG_src);
+    if (preg_match("/mam_require_user\s*\(|mam_require_role\s*\(\s*'admin'/", $BG_code)) {
+        $BG_offenders[] = $BG_name;
+    }
+}
+t_eq(count($BG_offenders), 0,
+    'no capability-gated admin route re-checks the session in its body'
+    . ($BG_offenders ? ' (found: ' . implode(', ', $BG_offenders) . ')' : ''));
+
+// And the helper they should use resolves for a break-glass caller.
+t_ok(function_exists('mam_admin_require_actor'), 'mam_admin_require_actor() exists');
+t_ok(function_exists('mam_admin_actor'), 'mam_admin_actor() exists');

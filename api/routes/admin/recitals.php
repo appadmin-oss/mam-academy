@@ -10,9 +10,13 @@
  */
 declare(strict_types=1);
 
-$u  = mam_require_user();
-if (!mam_admin_can($u, 'curriculum')) mam_fail('forbidden', 403);
-$by = (int) $u['id'];
+/* The route already carries mw_admin_cap('curriculum'), which is the stronger
+   check, so re-checking here adds nothing except a mam_require_user() that
+   401s a Basic-Auth break-glass operator — this route did exactly that, on the
+   GET as well as the POST, so during a recovery nobody could even READ the
+   programme. What is still needed is an identity to attribute a decision to,
+   which is what mam_admin_require_actor() returns. */
+$by = (int) mam_admin_require_actor()['id'];
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $in     = mam_json_input();

@@ -11,7 +11,11 @@ if ($method === 'POST') {
     $input  = mam_json_input();
     $action = (string)($input['action'] ?? '');
     $cardId = (int)($input['card_id'] ?? 0);
-    $adminId = (int)mam_require_user()['id']; // DB-backed session; route gated by mw_admin_cap('enrollments')
+    // The route is gated by mw_admin_cap('enrollments'); this only needs an
+    // identity to attribute the revoke/reissue to. mam_require_user() would
+    // 401 a break-glass operator, who is exactly who is revoking a card during
+    // a recovery.
+    $adminId = (int) mam_admin_require_actor()['id'];
 
     if (!$cardId) mam_fail('invalid_params', 422);
 
