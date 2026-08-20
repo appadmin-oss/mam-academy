@@ -137,7 +137,14 @@ function mam_mail_log_record(string $to, string $subject, string $context, strin
             'attempts'  => (int)($result['attempts'] ?? 1),
             'body'      => $ok ? null : $body,
             'opts'      => $ok ? null : json_encode($opts, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-            'sent_at'   => $ok ? date('c') : null,
+            // gmdate, not date('c'): the ISO-8601 form carries a "+00:00"
+            // offset that a MySQL DATETIME column cannot parse, so under the
+            // STRICT_ALL_TABLES sql_mode mam_db() sets the INSERT threw, the
+            // catch below set $disabled, and every mail_log row for the rest of
+            // the request was dropped SILENTLY. Measured against MariaDB: no
+            // mail was ever logged on a MySQL host, so the admin mail log and
+            // the failed-send retry queue were both permanently empty.
+            'sent_at'   => $ok ? gmdate('Y-m-d H:i:s') : null,
         ]);
     } catch (\Throwable $e) {
         // Table missing or DB unavailable — stop trying for this request.
@@ -188,8 +195,8 @@ function mam_mail_retry_failed(int $limit = 25, int $maxAttempts = 6, int $onlyI
                 'attempts'   => (int)($r['attempts'] ?? 0) + (int)($res['attempts'] ?? 1),
                 'body'       => $ok ? null : $body,
                 'opts'       => $ok ? null : ($r['opts'] ?? null),
-                'sent_at'    => $ok ? date('c') : null,
-                'updated_at' => date('c'),
+                'sent_at'    => $ok ? gmdate('Y-m-d H:i:s') : null,
+                'updated_at' => gmdate('Y-m-d H:i:s'),
             ], ['id' => (int)$r['id']]);
         } catch (\Throwable $e) { /* a single bad row must not abort the batch */ }
         if ($ok) $summary['sent']++; else $summary['failed']++;

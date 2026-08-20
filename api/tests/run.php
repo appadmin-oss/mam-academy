@@ -28,6 +28,15 @@ register_shutdown_function(function () use ($tmp) { @array_map('unlink', glob("$
 
 // ---- Settable env (tests can inject keys/secrets) --------------------------
 $GLOBALS['__env'] = ['APP_KEY' => str_repeat('k', 48)]; // deterministic CSRF key
+// The suite runs against SQLite by default. Setting DB_DSN in the PROCESS
+// environment runs the whole of it against a real MySQL/MariaDB instead, which
+// is the only way the engine differences show up — three schema defects were
+// invisible on SQLite and cost 32 tables on a MariaDB host. CI stays on SQLite;
+// this is the switch for running it against the production engine deliberately.
+foreach (['DB_DSN', 'DB_USERNAME', 'DB_PASSWORD'] as $__k) {
+    $__v = getenv($__k);
+    if ($__v !== false && $__v !== '') $GLOBALS['__env'][$__k] = $__v;
+}
 function mam_env($key, $default = null) { return $GLOBALS['__env'][$key] ?? $default; }
 function mam_test_env(array $kv) { foreach ($kv as $k => $v) $GLOBALS['__env'][$k] = $v; }
 
@@ -122,5 +131,30 @@ require $ROOT . '/lib/guardian-comms.php';    // guardian threads, channels, mak
 require __DIR__ . '/assert.php';
 
 echo "MAM API test suite (PHP " . PHP_VERSION . ")\n\n";
-foreach (glob(__DIR__ . '/test_*.php') as $f) { require $f; }
+/*
+ * Files that introspect the SQLite schema directly (`sqlite_master`, `PRAGMA
+ * table_info`) are skipped when the suite is pointed at MySQL. They assert the
+ * SHAPE of the shipped DDL, which is a different question from whether the
+ * libraries behave the same on both engines — and that second question is the
+ * one a MySQL run exists to answer.
+ */
+$__sqliteOnly = ['test_admin_screens.php', 'test_card_expiry.php', 'test_dataprotection.php',
+                 'test_fees.php', 'test_guardian_comms.php', 'test_inline_edit.php',
+                 'test_payment_enrol.php', 'test_schema_mysql.php', 'test_schema_v2.php',
+                 'test_v2_clarity.php', 'test_v2_load.php', 'test_v2_plan.php',
+                 'test_v2_readmodel.php', 'test_vetting.php'];
+$__driver = 'sqlite';
+try { $__driver = (string) mam_db()->getAttribute(PDO::ATTR_DRIVER_NAME); } catch (Throwable $e) {}
+$__skipped = [];
+foreach (glob(__DIR__ . '/test_*.php') as $f) {
+    if ($__driver !== 'sqlite' && in_array(basename($f), $__sqliteOnly, true)) {
+        $__skipped[] = basename($f);
+        continue;
+    }
+    require $f;
+}
+if ($__skipped) {
+    echo "\n(driver: $__driver — skipped " . count($__skipped) . " SQLite-schema file(s): "
+       . implode(', ', $__skipped) . ")\n";
+}
 mam_test_summary();

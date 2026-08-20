@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 88;
+const MAM_SCHEMA_TARGET = 89;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3467,6 +3467,26 @@ function mam_db_migrate(PDO $db): void {
             CREATE INDEX IF NOT EXISTS idx_makeup_student ON makeup_credits(student_id, status, expires_on);
             CREATE INDEX IF NOT EXISTS idx_makeup_year    ON makeup_credits(student_id, year_label, counts_against_allowance);
         ",
+
+        /* v89 — No-op on SQLite, load-bearing on MySQL.
+         *
+         * `users.role` and `user_roles.role` were declared ENUM('admin',
+         * 'instructor','student') in db/schema-mysql.sql. The application writes
+         * 'parent' — every guardian account — so under the STRICT_ALL_TABLES
+         * sql_mode mam_db() sets, creating a guardian on a MySQL host raised
+         * 1265 "Data truncated for column 'role'" and the guardian portal could
+         * not be used at all. SQLite's TEXT accepted it, so the whole guardian
+         * layer was built and tested against an engine that could not reject it.
+         *
+         * VARCHAR, not a wider ENUM: the role vocabulary lives in code
+         * (mam_user_roles / mam_require_role) and grows with the product, and an
+         * ENUM makes every new role a schema migration on a live host. The
+         * portable form is the one SQLite already had.
+         *
+         * MySQL applies this through the file re-exec; the SQLite side has
+         * nothing to do, and bumping the target is what makes MySQL re-run.
+         */
+        89 => "SELECT 1;",
     ];
 
     foreach ($migrations as $version => $sql) {

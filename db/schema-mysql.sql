@@ -167,7 +167,13 @@ CREATE TABLE IF NOT EXISTS users (
   id                     INT AUTO_INCREMENT PRIMARY KEY,
   email                  VARCHAR(190) UNIQUE NOT NULL,
   password_hash          VARCHAR(255) NOT NULL,
-  role                   ENUM('admin', 'instructor', 'student') NOT NULL,
+  -- VARCHAR, not ENUM. The application writes 'parent' for every guardian, and
+  -- an ENUM of three values made that a 1265 "Data truncated" under the
+  -- STRICT_ALL_TABLES sql_mode mam_db() sets — so a guardian account could not
+  -- be created on MySQL at all, while SQLite's TEXT accepted it silently. The
+  -- vocabulary lives in code and grows with the product; an ENUM turns every new
+  -- role into a schema migration on a live host.
+  role                   VARCHAR(20) NOT NULL,
   name                   VARCHAR(120),
   phone                  VARCHAR(32),
   avatar_url             VARCHAR(255),
@@ -507,7 +513,8 @@ INSERT INTO schema_version (version) VALUES (15) ON DUPLICATE KEY UPDATE version
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_roles (
   user_id INT NOT NULL,
-  role    ENUM('admin','instructor','student') NOT NULL,
+  role    VARCHAR(20) NOT NULL,   -- see users.role: 'parent' is a real value
+
   PRIMARY KEY (user_id, role),
   CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -3059,3 +3066,20 @@ CREATE TABLE IF NOT EXISTS makeup_credits (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (88) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- v89 — role columns from ENUM to VARCHAR.
+--
+-- Found by applying this file to MariaDB 10.11 and running the suite against
+-- it: `users.role` was ENUM('admin','instructor','student') and the application
+-- writes 'parent' for every guardian, so under STRICT_ALL_TABLES the insert
+-- raised 1265 and the guardian portal was unusable on MySQL. SQLite's TEXT
+-- accepted it, which is why the whole layer shipped without anybody noticing.
+--
+-- MODIFY is idempotent in effect: re-running it on a VARCHAR column is a no-op
+-- rewrite, and on the ENUM it converts every existing row's label to the same
+-- string. Existing data is preserved either way.
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE users      MODIFY role VARCHAR(20) NOT NULL;
+ALTER TABLE user_roles MODIFY role VARCHAR(20) NOT NULL;
+INSERT INTO schema_version (version) VALUES (89) ON DUPLICATE KEY UPDATE version = version;

@@ -74,8 +74,23 @@ t_ok(!rp_write(['student_id' => $RP_stu, 'term_label' => 'RP-f']),
 // array_merge, NOT `+`: PHP's array union keeps the LEFT operand's value for a
 // duplicate key, so `$RP_base + ['coverage_weight_pct' => 71.6]` silently kept
 // the base's 72 and the assertion tested nothing.
-t_ok(!rp_write(array_merge($RP_base, ['term_label' => 'RP-g', 'coverage_weight_pct' => 71.6])),
-    'a fractional coverage percentage is refused — "72% of the weight" prints on the face');
+/* A whole number is what prints on the face — "72% of the weight" is the
+ * sentence and 71.6 is not — and the two engines keep that differently, so the
+ * test asks each for what it actually guarantees. SQLite's INTEGER is an
+ * AFFINITY that stores 71.6 verbatim, so the CHECK (`x = CAST(x AS INTEGER)`) is
+ * the only thing refusing it. MySQL's INT COERCES the value to 72 before any
+ * CHECK sees it, so the write succeeds and the printed sentence is still whole.
+ * `mam_report_build()` rounds at the point of storage on both, which is where
+ * the guarantee really lives; this asserts the belt as each engine fastens it. */
+if (mam_db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+    t_ok(!rp_write(array_merge($RP_base, ['term_label' => 'RP-g', 'coverage_weight_pct' => 71.6])),
+        'a fractional coverage percentage is refused — "72% of the weight" prints on the face');
+} else {
+    t_ok(rp_write(array_merge($RP_base, ['term_label' => 'RP-g', 'coverage_weight_pct' => 71.6])),
+        'MySQL accepts a fractional coverage figure…');
+    t_eq((int) mam_db_row("SELECT coverage_weight_pct c FROM termly_reports WHERE term_label = 'RP-g'")['c'], 72,
+        '…having COERCED it to a whole number, which is the guarantee the face needs');
+}
 
 // And the shapes mam_report_band() actually produces are all accepted.
 t_ok(rp_write($RP_base + ['term_label' => 'RP-ok1', 'band_low' => 70, 'band_high' => 79]), 'a ten-point band is accepted');
@@ -95,8 +110,19 @@ t_ok(!rp_crit((int) $RP_r, ['competency_code' => 'x1', 'label' => 'X', 'level' =
     "'insufficient' with pct 0 is refused — a zero there reports an unassessed beginner as failing");
 t_ok(!rp_crit((int) $RP_r, ['competency_code' => 'x2', 'label' => 'X', 'level' => 'strong', 'pct' => null]),
     'an evidenced level with no percentage is refused — the two are inseparable in both directions');
-t_ok(!rp_crit((int) $RP_r, ['competency_code' => 'x3', 'label' => 'X', 'level' => 'strong', 'pct' => 88.5]),
-    'a fractional criterion percentage is refused — the bar is drawn from it');
+// Engine-dependent, and the guarantee the face needs is the same either way: what
+// comes back out is a whole number. SQLite's INTEGER is an affinity, so it would store
+// 88.5 verbatim and the CHECK is what refuses it; MySQL's INT coerces on the way in.
+if (mam_db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+    t_ok(!rp_crit((int) $RP_r, ['competency_code' => 'x3', 'label' => 'X', 'level' => 'strong', 'pct' => 88.5]),
+        'a fractional criterion percentage is refused — the bar is drawn from it');
+} else {
+    t_ok(rp_crit((int) $RP_r, ['competency_code' => 'x3', 'label' => 'X', 'level' => 'strong', 'pct' => 88.5]),
+        'MySQL accepts a fractional criterion percentage…');
+    t_eq((int) mam_db_row("SELECT pct FROM termly_report_criteria WHERE report_id = " . (int) $RP_r
+        . " AND competency_code = 'x3'")['pct'], 89,
+        '…having COERCED it to a whole number, so the bar is still drawn from an integer');
+}
 t_ok(rp_crit((int) $RP_r, ['competency_code' => 'ok1', 'label' => 'Pitch', 'level' => 'strong', 'pct' => 88]),
     'a scored criterion is accepted');
 t_ok(rp_crit((int) $RP_r, ['competency_code' => 'ok2', 'label' => 'Ensemble', 'level' => 'insufficient', 'pct' => null]),
@@ -302,13 +328,22 @@ mam_parent_scope_set($RP_par, $RP_stu, 'standard', $RP_chair);
 try { mam_parent_scope_set($RP_par, $RP_stu, 'everything', $RP_chair); t_ok(false, 'an unknown scope is refused'); }
 catch (\InvalidArgumentException $e) { t_ok(true, 'an unknown scope is refused at the only writer'); }
 
-// A stored value this code does not recognise reads as the NARROWEST scope. The
-// SQLite column carries no CHECK (ALTER cannot add one), so a hand-edited row
-// must not be able to widen access by containing something unexpected.
-mam_db_update('parent_links', ['access_scope' => 'superuser'], ['parent_id' => $RP_par, 'student_id' => $RP_stu]);
-t_eq(mam_parent_scope($RP_par, $RP_stu), 'billing',
-    'an unrecognised stored scope reads as billing — the narrowest, never the widest');
-mam_parent_scope_set($RP_par, $RP_stu, 'standard', $RP_chair);
+// A stored value this code does not recognise reads as the NARROWEST scope, and
+// the two engines guarantee that differently — so the test asks each for what it
+// actually promises. MySQL carries `chk_plink_scope` and REFUSES the write; the
+// SQLite column has no CHECK (ALTER cannot add one), so the defensive read is
+// the only thing stopping a hand-edited row from widening access.
+if (mam_db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite') {
+    mam_db_update('parent_links', ['access_scope' => 'superuser'], ['parent_id' => $RP_par, 'student_id' => $RP_stu]);
+    t_eq(mam_parent_scope($RP_par, $RP_stu), 'billing',
+        'an unrecognised stored scope reads as billing — the narrowest, never the widest');
+    mam_parent_scope_set($RP_par, $RP_stu, 'standard', $RP_chair);
+} else {
+    $RP_refused = false;
+    try { mam_db_update('parent_links', ['access_scope' => 'superuser'], ['parent_id' => $RP_par, 'student_id' => $RP_stu]); }
+    catch (\Throwable $e) { $RP_refused = str_contains($e->getMessage(), 'chk_plink_scope'); }
+    t_ok($RP_refused, 'on MySQL the column CHECK refuses an unrecognised scope outright');
+}
 
 // The "what you cannot see, and why" panel is data, not a silence.
 $RP_ex = mam_parent_scope_explain($RP_par, $RP_stu);

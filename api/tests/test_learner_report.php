@@ -40,14 +40,17 @@ t_ok($threw, 'a missing student throws student_not_found (core identity stays st
 
 // ── Degradation: a section whose table is missing (DB behind on migrations)
 // must NOT 500 the report — that section degrades to empty, the rest survives.
-// Done inside a transaction so the DROP is rolled back and the shared test DB
-// is left intact for the tests that run after this one.
+//
+// The table is RENAMED aside and renamed back, not dropped inside a transaction.
+// DDL is transactional on SQLite, so the original version rolled the DROP back;
+// on MySQL a DROP is an implicit COMMIT, so the rollBack() threw "there is no
+// active transaction" AND `practice_logs` stayed dropped, breaking every test
+// that ran afterwards. A rename is portable and reversible on both engines.
 $pdo = mam_db();
-$pdo->beginTransaction();
-$pdo->exec('DROP TABLE practice_logs');   // simulate a not-yet-migrated table
+$pdo->exec('ALTER TABLE practice_logs RENAME TO practice_logs_hidden');
 $degraded = null; $degradeThrew = false;
 try { $degraded = mam_progress_report_data((int)$lrStu); } catch (\Throwable $e) { $degradeThrew = true; }
-$pdo->rollBack();                          // restore practice_logs for later tests
+$pdo->exec('ALTER TABLE practice_logs_hidden RENAME TO practice_logs');
 
 t_ok(!$degradeThrew, 'a missing section table does NOT throw (report degrades instead of 500)');
 t_ok(is_array($degraded) && $degraded['practice_logs'] === [], 'the missing section degrades to an empty list');
