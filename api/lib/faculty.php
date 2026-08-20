@@ -141,9 +141,16 @@ function mam_faculty_validate(array $in): array {
     if (mb_strlen($bio) < 40 || mb_strlen($bio) > 4000) $errors[] = 'bio';
     if ($phone !== '' && mb_strlen($phone) > 40) $errors[] = 'phone';
     if (mb_strlen($links) > 1000) $errors[] = 'links';
-    // URL fields must be https and sane, when provided.
-    foreach ([['cv_url', $cv], ['headshot_url', $shot]] as [$k, $v]) {
-        if ($v !== '' && !preg_match('#^https://[^\s"\'<>]{4,500}$#i', $v)) $errors[] = $k;
+    // The CV is an external link, so it must be https. The headshot may be our
+    // OWN first-party upload (/api/media/headshot?k=…), which is NOT https — the
+    // same guard that silently dropped student photos (see CLAUDE.md gotcha #5).
+    // Use the shared predicate so a photo the uploader just stored is accepted.
+    if ($cv !== '' && !preg_match('#^https://[^\s"\'<>]{4,500}$#i', $cv)) $errors[] = 'cv_url';
+    if ($shot !== '') {
+        $shotOk = function_exists('mam_upload_photo_url_ok')
+            ? mam_upload_photo_url_ok($shot)
+            : (bool)preg_match('#^https://[^\s"\'<>]{4,500}$#i', $shot);
+        if (!$shotOk) $errors[] = 'headshot_url';
     }
 
     return ['errors' => $errors, 'data' => [
@@ -165,4 +172,58 @@ function mam_faculty_application_create(string $email, array $data, ?string $ip 
     $id = mam_db_insert('instructor_applications', $data + ['email' => $email, 'status' => 'submitted', 'ip' => $ip]);
     mam_audit('faculty_apply', 'instructor_application', $id, ['email' => $email]);
     return $id;
+}
+
+/**
+ * Approving an instructor application makes them an instructor — automatically.
+ * Previously "approved" only flipped a status column, so an accepted teacher had
+ * no account, no portal and could not be assigned a cohort until an admin
+ * re-typed everything into the user-create form. This provisions (or promotes)
+ * the account and carries the application headshot onto it as the portal avatar.
+ *
+ * Idempotent and non-destructive:
+ *  - an existing active instructor is returned unchanged (invite:false);
+ *  - a student/roster account is promoted to instructor (never an admin — that
+ *    would be a privilege change nobody asked for, and never reopens a suspended
+ *    account);
+ *  - a brand-new account is created with an UNUSABLE password and invite:true,
+ *    so the caller sends a set-your-password link rather than a plaintext secret.
+ *
+ * Returns ['user_id','invite','created'] or null if the application is missing.
+ */
+function mam_faculty_promote_to_instructor(int $appId, ?int $by = null): ?array {
+    $app = mam_db_row('SELECT * FROM instructor_applications WHERE id = ?', [$appId]);
+    if (!$app) return null;
+    $email = strtolower(trim((string)$app['email']));
+    if ($email === '') return null;
+
+    $shot = (string)($app['headshot_url'] ?? '');
+    $photoOk = $shot !== '' && (function_exists('mam_upload_photo_url_ok') ? mam_upload_photo_url_ok($shot) : true);
+
+    $user = mam_db_row('SELECT id, role, status, avatar_url FROM users WHERE LOWER(email) = ?', [$email]);
+    if ($user) {
+        $uid = (int)$user['id'];
+        $patch = [];
+        // Promote to instructor, but never touch an admin's role.
+        if ((string)$user['role'] !== 'instructor' && (string)$user['role'] !== 'admin') $patch['role'] = 'instructor';
+        // Only reopen a login-less roster row — never a suspended/closed account.
+        if ((string)($user['status'] ?? '') === 'roster') $patch['status'] = 'active';
+        if ($photoOk && empty($user['avatar_url'])) $patch['avatar_url'] = $shot;
+        if ($patch) mam_db_update('users', $patch, ['id' => $uid]);
+        mam_audit('faculty_promote', 'user', $uid, ['app' => $appId, 'existing' => true, 'patched' => array_keys($patch)]);
+        return ['user_id' => $uid, 'invite' => false, 'created' => false];
+    }
+
+    $uid = (int)mam_db_insert('users', [
+        'email'                => $email,
+        'password_hash'        => mam_auth_unusable_password(),
+        'role'                 => 'instructor',
+        'name'                 => (string)($app['full_name'] ?? '') !== '' ? (string)$app['full_name'] : 'Instructor',
+        'phone'                => (string)($app['phone'] ?? '') !== '' ? (string)$app['phone'] : null,
+        'avatar_url'           => $photoOk ? $shot : null,
+        'status'               => 'active',
+        'must_change_password' => 0,
+    ]);
+    mam_audit('faculty_promote', 'user', $uid, ['app' => $appId, 'created' => true, 'by' => $by]);
+    return ['user_id' => $uid, 'invite' => true, 'created' => true];
 }

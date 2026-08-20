@@ -1696,11 +1696,32 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($action === 'faculty_app_status') {
         $fid = (int)($_POST['app_id'] ?? 0);
         $st  = (string)($_POST['status'] ?? '');
+        $okMsg = '1';
         if ($fid > 0 && in_array($st, ['submitted', 'reviewing', 'approved', 'declined'], true)) {
+            $prev = mam_db_row('SELECT status FROM instructor_applications WHERE id = ?', [$fid]);
             mam_db_update('instructor_applications', ['status' => $st], ['id' => $fid]);
             mam_audit('faculty_app_status', 'instructor_application', $fid, ['status' => $st]);
+            // Approving makes them an instructor automatically — provision (or
+            // promote) the account and send a set-your-password invite. Only on
+            // the transition INTO approved, so re-saving 'approved' is a no-op.
+            if ($st === 'approved' && (string)($prev['status'] ?? '') !== 'approved') {
+                try {
+                    $me = mam_current_user();
+                    $prom = mam_faculty_promote_to_instructor($fid, $me ? (int)$me['id'] : null);
+                    if ($prom && !empty($prom['invite']) && function_exists('mam_auth_send_invite')) {
+                        mam_auth_send_invite((int)$prom['user_id'], 'instructor', 'instructor_welcome');
+                    }
+                    $okMsg = $prom
+                        ? ($prom['created'] ? 'Approved — instructor account created and invited.'
+                                            : 'Approved — existing account promoted to instructor.')
+                        : '1';
+                } catch (\Throwable $e) {
+                    mam_log('error', 'faculty_promote_failed', ['app' => $fid, 'err' => $e->getMessage()]);
+                    $okMsg = 'Approved, but the instructor account could not be created automatically — create it from the users screen.';
+                }
+            }
         }
-        header('Location: ?v=users&ok=1#faculty'); exit;
+        header('Location: ?v=users&ok=' . urlencode($okMsg) . '#faculty'); exit;
     }
 
     // ─── Review a faculty curriculum proposal (approve → applied to modules) ──
@@ -6859,7 +6880,8 @@ V2_READ_TENANT=mam</pre>
       <button class="tiny" type="submit">Send form</button>
     </form>
     <table>
-      <thead><tr><th>Candidate</th><th>Disciplines · Experience</th><th>Materials</th><th>Bio</th><th>Status</th></tr></thead>
+      <caption class="sr-only">Instructor applications — approving one provisions their instructor account automatically</caption>
+      <thead><tr><th scope="col">Candidate</th><th scope="col">Disciplines · Experience</th><th scope="col">Materials</th><th scope="col">Bio</th><th scope="col">Status</th></tr></thead>
       <tbody>
       <?php
         $facApps = mam_admin_rows("SELECT * FROM instructor_applications ORDER BY (status='submitted') DESC, id DESC LIMIT 100");
@@ -6883,15 +6905,27 @@ V2_READ_TENANT=mam</pre>
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="faculty_app_status">
               <input type="hidden" name="app_id" value="<?= (int)$fa['id'] ?>">
-              <select name="status" class="tiny">
+              <select name="status" class="tiny" aria-label="Application status for <?= htmlspecialchars((string)($fa['full_name'] ?: $fa['email'])) ?>">
                 <?php foreach (['submitted','reviewing','approved','declined'] as $st): ?>
                   <option value="<?= $st ?>" <?= $fa['status'] === $st ? 'selected' : '' ?>><?= $st ?></option>
                 <?php endforeach; ?>
               </select>
               <button class="tiny" type="submit">Save</button>
             </form>
-            <?php if ($fa['status'] === 'approved' && !mam_db_row('SELECT id FROM users WHERE email = ?', [(string)$fa['email']])): ?>
-              <span class="muted" style="display:block;font-size:.74rem;margin-top:4px">→ create their instructor account above (welcome email sends automatically)</span>
+            <?php
+              // Approving provisions the instructor account automatically (see
+              // mam_faculty_promote_to_instructor). Reflect the real state rather
+              // than the old "go create it yourself" instruction.
+              $facAcct = mam_db_row("SELECT role, status FROM users WHERE LOWER(email) = ?", [strtolower((string)$fa['email'])]);
+            ?>
+            <?php if ($fa['status'] === 'approved'): ?>
+              <?php if ($facAcct && (string)$facAcct['role'] === 'instructor'): ?>
+                <span class="pill active" style="display:inline-block;font-size:.72rem;margin-top:4px"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> instructor account active</span>
+              <?php elseif ($facAcct): ?>
+                <span class="muted" style="display:block;font-size:.74rem;margin-top:4px">Account exists as <?= htmlspecialchars((string)$facAcct['role']) ?> — role left unchanged.</span>
+              <?php else: ?>
+                <span class="muted" style="display:block;font-size:.74rem;margin-top:4px">Re-save “approved” to provision their instructor account &amp; invite.</span>
+              <?php endif; ?>
             <?php endif; ?>
           </td>
         </tr>
@@ -7561,47 +7595,57 @@ V2_READ_TENANT=mam</pre>
       <h3 style="margin:0">Cohorts <span class="muted" style="font-weight:400">· the unified &ldquo;scheduled run&rdquo; grouping</span></h3>
       <div style="display:flex;gap:8px;align-items:center">
         <a class="btn ghost tiny" href="?v=schedule"><i class="fa-solid fa-calendar-week" aria-hidden="true"></i> Schedule Calendar</a>
-        <button class="btn tiny" type="button" onclick="document.getElementById('newCohortForm').hidden=!document.getElementById('newCohortForm').hidden" title="Create a new cohort"><i class="fa-solid fa-plus"></i> New cohort</button>
+        <button class="btn tiny" type="button" aria-expanded="false" aria-controls="newCohortForm" title="Create a new cohort" onclick="var f=document.getElementById('newCohortForm');f.hidden=!f.hidden;this.setAttribute('aria-expanded',String(!f.hidden));if(!f.hidden){var t=f.querySelector('input,select');if(t)t.focus();}"><i class="fa-solid fa-plus" aria-hidden="true"></i> New cohort</button>
       </div>
     </div>
-    <div id="newCohortForm" hidden style="border:1px solid var(--border-gold);border-radius:10px;padding:16px 18px;margin:8px 0 16px;background:var(--surface)">
-      <h4 style="margin:0 0 12px;font-size:.9rem">Create cohort</h4>
-      <form method="post" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div id="newCohortForm" hidden style="border:1px solid var(--border-gold);border-radius:10px;margin:8px 0 16px;background:var(--surface)">
+      <form method="post" class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;align-items:start">
         <?= mam_csrf_field() ?>
         <input type="hidden" name="action" value="cohort_create">
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600;grid-column:1/-1">Title <span style="font-weight:400;color:var(--muted)">(required)</span>
-          <input type="text" name="title" required maxlength="200" placeholder="e.g. Piano — Cert I · Jan 2026" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Course
-          <select name="course_id" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+        <h4 style="grid-column:1/-1;margin:0;font-size:1rem;color:var(--ink);text-transform:none;letter-spacing:0">Create cohort</h4>
+        <div class="full">
+          <label for="ncTitle">Title <span class="req-star" aria-hidden="true">*</span></label>
+          <input type="text" id="ncTitle" name="title" required aria-required="true" maxlength="200" placeholder="e.g. Piano — Cert I · Jan 2026">
+          <span class="field-hint">The name admins, instructors and reports see. Include the course, level and term.</span>
+        </div>
+        <div>
+          <label for="ncCourse">Course</label>
+          <select id="ncCourse" name="course_id" aria-describedby="ncCourseHint">
             <option value="">— none —</option>
             <?php foreach ($courseOpts as $c): ?>
               <option value="<?= (int)$c['id'] ?>"><?= htmlspecialchars((string)$c['name']) ?></option>
             <?php endforeach; ?>
           </select>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Instructor
-          <select name="instructor_id" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+          <span id="ncCourseHint" class="field-hint">Optional now, but a cohort with no course can't be graded or certified until one is mapped.</span>
+        </div>
+        <div>
+          <label for="ncInstr">Instructor</label>
+          <select id="ncInstr" name="instructor_id">
             <option value="">— unassigned —</option>
             <?php foreach ($instrOpts as $i): ?>
               <option value="<?= (int)$i['id'] ?>"><?= htmlspecialchars((string)$i['name']) ?></option>
             <?php endforeach; ?>
           </select>
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Capacity
-          <input type="number" name="capacity" min="1" max="500" value="12" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Term
-          <input type="text" name="term" maxlength="60" placeholder="e.g. Jan 2026" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">Start date
-          <input type="date" name="starts_on" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
-        </label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:.82rem;font-weight:600">End date
-          <input type="date" name="ends_on" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
-        </label>
-        <div style="grid-column:1/-1;margin-top:4px">
-          <button class="btn" type="submit">Create cohort</button>
+        </div>
+        <div>
+          <label for="ncCap">Capacity</label>
+          <input type="number" id="ncCap" name="capacity" min="1" max="500" value="12" aria-describedby="ncCapHint">
+          <span id="ncCapHint" class="field-hint">Seats before new registrations are waitlisted. Default 12.</span>
+        </div>
+        <div>
+          <label for="ncTerm">Term</label>
+          <input type="text" id="ncTerm" name="term" maxlength="60" placeholder="e.g. Jan 2026">
+        </div>
+        <div>
+          <label for="ncStart">Start date</label>
+          <input type="date" id="ncStart" name="starts_on">
+        </div>
+        <div>
+          <label for="ncEnd">End date</label>
+          <input type="date" id="ncEnd" name="ends_on">
+        </div>
+        <div class="actions full" style="align-self:end">
+          <button class="btn" type="submit"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create cohort</button>
         </div>
       </form>
     </div>

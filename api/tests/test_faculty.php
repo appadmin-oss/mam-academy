@@ -64,3 +64,38 @@ $bad = mam_faculty_validate(['full_name' => '', 'disciplines' => '', 'bio' => 't
 t_ok(in_array('full_name', $bad['errors'], true) && in_array('bio', $bad['errors'], true), 'empty/short fields rejected');
 $badUrl = mam_faculty_validate(['full_name' => 'A B', 'disciplines' => 'Piano', 'bio' => str_repeat('Teaching experience across levels. ', 3), 'headshot_url' => 'javascript:alert(1)']);
 t_ok(in_array('headshot_url', $badUrl['errors'], true), 'non-https headshot URL rejected');
+
+// ── A FIRST-PARTY headshot must be accepted (the photo-save bug) ──
+// The uploader stores /api/media/headshot?k=… — not https — so the old
+// https-only guard silently dropped every instructor's photo. It must validate.
+$ownShot = '/api/media/headshot?k=202608/0123456789abcdef0123456789abcdef';
+$fp = mam_faculty_validate(['full_name' => 'Prof Pic', 'disciplines' => 'Voice',
+    'bio' => str_repeat('Vocal coach and choral director. ', 3), 'headshot_url' => $ownShot]);
+t_eq($fp['errors'], [], 'a first-party /api/media/headshot URL validates (photo now saves)');
+t_eq($fp['data']['headshot_url'], $ownShot, 'and is carried through, not dropped');
+
+// ── Approval makes them an instructor automatically (with the photo as avatar) ──
+$promEmail = 'prof.promote@example.com';
+$promApp = mam_faculty_application_create($promEmail, mam_faculty_validate([
+    'full_name' => 'Prof Promote', 'phone' => '+2348111111', 'disciplines' => 'Piano',
+    'bio' => str_repeat('Experienced studio teacher. ', 3), 'headshot_url' => $ownShot,
+])['data'], '10.0.0.2');
+t_ok(mam_db_row('SELECT id FROM users WHERE LOWER(email) = ?', [$promEmail]) === null, 'no account exists before approval');
+$prom = mam_faculty_promote_to_instructor($promApp, null);
+t_ok($prom !== null && $prom['created'] === true && $prom['invite'] === true, 'approval creates an invited account');
+$iu = mam_db_row('SELECT role, status, avatar_url FROM users WHERE LOWER(email) = ?', [$promEmail]);
+t_eq($iu['role'], 'instructor', 'the new account is an instructor');
+t_eq($iu['status'], 'active', 'and active, so they can sign in and be assigned a cohort');
+t_eq($iu['avatar_url'], $ownShot, 'the application headshot became their portal avatar');
+// Idempotent: a second approval must not duplicate or re-invite.
+$prom2 = mam_faculty_promote_to_instructor($promApp, null);
+t_ok($prom2['created'] === false && $prom2['invite'] === false, 're-approving is idempotent — no second account, no re-invite');
+t_eq((int)mam_db_row('SELECT COUNT(*) n FROM users WHERE LOWER(email) = ?', [$promEmail])['n'], 1, 'exactly one instructor account');
+// An admin account is never silently downgraded to instructor by an approval.
+mam_db_insert('users', ['email' => 'boss@example.com', 'password_hash' => 'x', 'role' => 'admin', 'name' => 'Boss', 'status' => 'active']);
+$adminApp = mam_faculty_application_create('boss@example.com', mam_faculty_validate([
+    'full_name' => 'Boss', 'disciplines' => 'Piano', 'bio' => str_repeat('Teaches too. ', 4),
+])['data'], '10.0.0.3');
+mam_faculty_promote_to_instructor($adminApp, null);
+t_eq(mam_db_row('SELECT role FROM users WHERE LOWER(email) = ?', ['boss@example.com'])['role'], 'admin',
+    'an admin is never downgraded to instructor by an approval');
