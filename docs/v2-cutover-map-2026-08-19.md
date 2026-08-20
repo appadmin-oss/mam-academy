@@ -298,12 +298,12 @@ new names, and a table that skips one is a table that has to be revisited:
    missing — so against a real export the coverage ledger now accounts for
    **144** v1 tables with **zero** unmapped-with-rows, and the emitted SQL loads
    with constraint checking ON and a clean `foreign_key_check`.
-   ⚠️ **`api/tools/v2-load.php` is NOT plan-driven.** It has its own six stages
-   (currencies, tenant, centre, people, applications, payments) and carries none
-   of the new tables. The plan-driven path is `v2-transform.php` → `v2-data.sql`,
-   which is the one verified against the real export. Either teach the loader to
-   consume `$plan['order']` or use the transform path on cutover night — do not
-   assume the loader carries what the plan does.
+   ✅ **`api/tools/v2-load.php` is plan-driven too.** It reads the whole export
+   directory, walks `$plan['order']`, and derives id translation, idempotency and
+   value encoding from the TARGET's own schema. Both write paths — the loader and
+   `v2-transform.php` → `v2-data.sql` — now carry the same tables by
+   construction. Its dry run inserts inside a transaction and rolls back, so it
+   exercises every CHECK rather than reporting what it "would" do.
 4. **Rewrite the call sites**, subsystem by subsystem, against a repository layer
    that enforces §6 in one place rather than in 1,478.
 5. **Migrate the 114 test files.** They seed v1 tables directly, so they are not

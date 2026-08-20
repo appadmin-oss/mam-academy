@@ -1173,9 +1173,23 @@ Two conventions these established:
   `assessment_types`, so the mis-mapping cannot be made again), and `competencies`
   is seeded from the registry, mirrored in `plan.php` with a test asserting the two
   agree.
-  **(2) `api/tools/v2-load.php` is NOT plan-driven.** It has its own six stages and
-  carries none of the newer tables; the verified path is `v2-transform.php` →
-  `v2-data.sql`. Don't assume the loader carries what the plan does.
+  **(2) BOTH write paths are plan-driven, and the loader derives everything from
+  the target's schema.** `api/tools/v2-load.php` walks `$plan['order']` (it used
+  to have six hand-written stages carrying four tables while the plan carried
+  112). Four rules there are easy to break: TRANSLATE ids before probing for an
+  existing row (unique keys often include a foreign key — probing first asks
+  whether a row exists carrying somebody else's id, and in an empty database plan
+  ids and row ids coincide so the bug is invisible); not every FK points at an
+  `id` (`payments.currency` → `currencies(code)`); idempotency needs the schema's
+  column DEFAULTS (`levels` is keyed on a `deleted_seq` the plan never sets); and
+  whether a row is recognisable is a per-ROW question, not per-table
+  (`notifications` has a unique key most rows cannot fill). Its dry run INSERTS
+  and rolls back, so it exercises every CHECK.
+  ⚠️ **`MAM_V2_IP_COLUMNS` (emit.php) is load-bearing on MySQL and invisible on
+  SQLite.** SQLite's BLOB affinity accepts a 45-character string into a
+  `VARBINARY(16)` column; MySQL refuses it. Any new column holding an address
+  must be registered there, or it passes every test here and fails on the real
+  load.
   **(3) The session TIMEZONE is the one assumption only the academy can settle.**
   v1 stored one datetime per session and no zone; the ETL carries it as the UTC
   instant because that is how v1's own code read it (PHP pinned to UTC) and what
