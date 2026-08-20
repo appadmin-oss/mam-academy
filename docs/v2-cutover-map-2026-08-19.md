@@ -9,8 +9,8 @@ Measured surface at the time of writing:
 |---|---|
 | v1 tables (SQLite runtime, schema v88) | **129** |
 | v2 tables (`db/schema-v2.sql`, before this work) | **64** |
-| v2 tables now (batches 1–4 authored) | **119** |
-| ETL tables the plan writes (was 25) | **90** |
+| v2 tables now (all five batches authored) | **141** |
+| ETL tables the plan writes (was 25) | **112** |
 | SQL call sites in `api/lib/` | 1,035 |
 | SQL call sites in `api/routes/` | 279 |
 | SQL call sites in `admin/` | 157 |
@@ -219,19 +219,45 @@ mails the people who asked not to be mailed. They go to `marketing_contacts`
 with consent provenance — a subscriber is a data subject, not a member, so
 `consents` (which needs a membership) is the wrong home.
 
-### Batch 5 · Identity, safeguarding, engagement, compliance, infra (15)
+### Batch 5 · Identity, safeguarding, engagement, compliance, infra (22) — ✅ AUTHORED
 
-`vetting_records`, `id_cards`, `card_scans`, `signed_tokens` (absorbing
+`vetting_records`, `id_cards`, `card_scans`, **`signed_tokens`** (absorbing
 `password_resets` + `progress_report_tokens` + `calendar_tokens`),
-`achievements`, `practice_logs`, `practice_challenges`, `repertoire`, `recitals`,
-`recital_items`, `referrals`, `referral_codes`, `dp_assessments`, `dp_breaches`,
-`dp_processors`, `dp_register_notes`, `automations`, `ai_runs`,
-`auth_throttle` (the failure counter `mw_rate_limit_failures()` needs),
-`store_items`, `store_orders`, `promo_banners`
+**`auth_throttle`**, `achievements`, `practice_logs`, `practice_challenges`,
+`repertoire`, `recitals`, `recital_items`, `referral_codes`, `referrals`,
+`dp_assessments`, `dp_breaches`, `dp_processors`, `dp_register_notes`,
+**`automation_rules`**, `ai_runs`, **`store_products`**, `store_orders`,
+**`store_order_items`**
+
+⚠️ **`auth_throttle` exists against §6's convention on purpose.** v2 puts
+throttling outside the schema, which is right for a public form where the request
+itself is the cost. The AUTH throttle counts FAILURES, so eight correct sign-ins
+from one carrier-grade-NAT address (most Nigerian mobile traffic) cannot lock out
+unrelated people — and a security control that vanishes in a migration is a
+regression whatever the convention says. It is also the ONE table with no
+`tenant_id`: a login attempt has no tenant yet, and scoping the bucket by tenant
+would let an attacker reset it by guessing at another academy. That exception is
+registered in the test that enforces the tenant_id rule.
+
+⚠️ **Three token tables become one, and none of them is carried.**
+`password_resets`, `progress_report_tokens` and `calendar_tokens` are one idea
+with three expiry rules and three places to get the hashing wrong — and two of
+them stored the token in the CLEAR, so the table was a set of live credentials.
+`signed_tokens` holds only a hash and REQUIRES an expiry (v1's calendar tokens
+never expired, which makes a leaked URL a permanent subscription to a child's
+timetable). Live tokens are re-issued, not migrated.
+
+⚠️ **`store_items` → `store_products`, and `items_json` becomes ROWS.** In v1
+"how many hoodies did we sell" was a question no query could answer, and a line's
+product could be renamed underneath it. Merchandise stays out of
+`price_books`/`price_items`, which model tuition — a hoodie in there misstates
+what it is and lands in every tuition report.
 
 ⚠️ `vetting_records` is the safeguarding gate (CLAUDE.md gotcha #10) and
-**stores no check content and no offence data** by design. Carry that constraint
-across: the v2 table must have nowhere to put a certificate scan.
+**stores no check content and no offence data** by design. That constraint is
+carried: the v2 table has nowhere to put a certificate scan, and
+`test_schema_v2.php` asserts the absence of `certificate_scan`, `attachment_id`,
+`findings`, `disclosure` and `offences` on both the table and every planned row.
 
 ⛔ **`leaderboard` has no v2 destination and must not get one.** The 2026-08
 redesign refuses a cohort ranking; the v1 table and its two routes are to be
@@ -266,9 +292,12 @@ new names, and a table that skips one is a table that has to be revisited:
    and keep `test_schema_v2.php` green; it asserts the two files agree and that
    the canonical file uses no ENUM, generated column or FULLTEXT index, because
    none of the three mirrors.
-3. **Extend the ETL** — `api/lib/v2/plan.php` now writes **60** tables
-   (batches 1–2 done). A table in the schema but not in the plan is a table that
-   silently arrives empty on cutover day, which is worse than one that is missing.
+3. **Extend the ETL** — ✅ done. `api/lib/v2/plan.php` writes **112** tables (all
+   five batches). A table in the schema but not in the plan is a table that
+   silently arrives empty on cutover day, which is worse than one that is
+   missing — so against a real export the coverage ledger now accounts for
+   **144** v1 tables with **zero** unmapped-with-rows, and the emitted SQL loads
+   with constraint checking ON and a clean `foreign_key_check`.
    ⚠️ **`api/tools/v2-load.php` is NOT plan-driven.** It has its own six stages
    (currencies, tenant, centre, people, applications, payments) and carries none
    of the new tables. The plan-driven path is `v2-transform.php` → `v2-data.sql`,

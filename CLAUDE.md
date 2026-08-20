@@ -1157,9 +1157,11 @@ Two conventions these established:
 - **The v2 cutover map: `docs/v2-cutover-map-2026-08-19.md`** — every v1 table's
   v2 destination (RENAME 21 / ABSORB 9 / DROP 4 / NEW ~72 in five batches), the six
   conventions a new v2 table must follow, and the order of work. `db/schema-v2.sql`
-  is at **119 tables** (batches 1–4 authored: the guardian layer, the assessment
-  layer, teaching operations and communications, all in v2 idiom) and
-  `api/lib/v2/plan.php` writes **90** of them.
+  is at **141 tables** (all five batches authored: the guardian layer, the
+  assessment layer, teaching operations, communications, and safeguarding /
+  practice / compliance — all in v2 idiom) and `api/lib/v2/plan.php` writes
+  **112** of them. Against a real export every v1 table now has a destination or
+  a recorded reason: 144 accounted for, zero unmapped-with-rows.
   ⚠️ Three things here bite:
   **(1) v1's `assessment_types` are NOT v2's `competencies`.** v1's rows are KINDS
   of assessment (assignment|final|practical|attendance) weighted for the gradebook;
@@ -1192,7 +1194,19 @@ Two conventions these established:
   one row. v2 splits it into `promotions` (the percentage, in the money layer)
   and `announcement_banners` (the copy, with a palette token instead of a hex
   colour). Don't put a discount back on a banner.
-  **(6) `mark_appeals.opened_at` has no DB default, on purpose.** `chk_appeal_order`
+  **(6) `auth_throttle` breaks v2's "no throttling in the schema" rule on
+  purpose.** That rule is right for a public form, where the request itself is
+  the cost; the AUTH throttle counts FAILURES so eight correct sign-ins from one
+  carrier-grade-NAT address cannot lock out unrelated people, and a security
+  control must not vanish in a migration. It is also the only table with no
+  `tenant_id` — a login attempt has no tenant yet — and that exception is
+  registered in the test enforcing the rule.
+  **(7) Three v1 token tables become one `signed_tokens`, and NONE is carried.**
+  `password_resets`, `progress_report_tokens` and `calendar_tokens` are one idea
+  with three expiry rules; two stored the token in the CLEAR. v2 keeps only a
+  hash and requires an expiry (v1's calendar tokens never expired). Live tokens
+  are re-issued, not migrated.
+  **(8) `mark_appeals.opened_at` has no DB default, on purpose.** `chk_appeal_order`
   compares it with `closed_at`, and a defaulted `CURRENT_TIMESTAMP(3)` carries
   milliseconds that a PHP-supplied `gmdate()` does not — so an appeal declined
   twenty minutes after it was raised compared BELOW its own opened_at and the write
