@@ -1156,7 +1156,7 @@ Two conventions these established:
   conventions a new v2 table must follow, and the order of work. `db/schema-v2.sql`
   is at **119 tables** (batches 1–4 authored: the guardian layer, the assessment
   layer, teaching operations and communications, all in v2 idiom) and
-  `api/lib/v2/plan.php` writes **91** of them.
+  `api/lib/v2/plan.php` writes **90** of them.
   ⚠️ Three things here bite:
   **(1) v1's `assessment_types` are NOT v2's `competencies`.** v1's rows are KINDS
   of assessment (assignment|final|practical|attendance) weighted for the gradebook;

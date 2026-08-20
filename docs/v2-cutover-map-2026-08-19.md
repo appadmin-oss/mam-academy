@@ -10,7 +10,7 @@ Measured surface at the time of writing:
 | v1 tables (SQLite runtime, schema v88) | **129** |
 | v2 tables (`db/schema-v2.sql`, before this work) | **64** |
 | v2 tables now (batches 1–4 authored) | **119** |
-| ETL tables the plan writes (was 25) | **91** |
+| ETL tables the plan writes (was 25) | **90** |
 | SQL call sites in `api/lib/` | 1,035 |
 | SQL call sites in `api/routes/` | 279 |
 | SQL call sites in `admin/` | 157 |
