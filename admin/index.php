@@ -1502,9 +1502,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $uid  = (int)($_POST['user_id'] ?? 0);
         $code = trim((string)($_POST['course_code'] ?? ''));
         $iid  = (int)($_POST['instructor_id'] ?? 0);
-        if (!$uid || !$code) { header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Select a course.')); exit; }
-        $student = mam_db_row("SELECT id FROM users WHERE id = ?", [$uid]);
-        if (!$student) { header('Location: ?v=users&err=' . urlencode('Student not found.')); exit; }
+        // This action is reachable from BOTH the user-edit page and the Course
+        // Registrations screen; `return=courseenroll` sends the admin back to the
+        // screen they were on. Without this the registrations screen had no way to
+        // add a student at all — the non-legacy course enrolment was only
+        // reachable one user at a time from a buried tab.
+        $back = (($_POST['return'] ?? '') === 'courseenroll') ? '?v=courseenroll' : '?v=users&edit=' . $uid;
+        if (!$uid || !$code) { header('Location: ' . $back . '&err=' . urlencode('Pick a student and a course.')); exit; }
+        $student = mam_db_row("SELECT id FROM users WHERE id = ? AND role = 'student'", [$uid]);
+        if (!$student) { header('Location: ' . $back . '&err=' . urlencode('Student not found.')); exit; }
         $ceId = 0;
         $ceWaitPos = null;
         try {
@@ -1517,10 +1523,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 $existing = mam_lms_find_enrollment($uid, $code);
                 $ceId = $existing ? (int)$existing['id'] : 0;
             } else {
-                header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode($e->getMessage() === 'course_not_found' ? 'Course not found — check the course catalogue.' : $e->getMessage())); exit;
+                header('Location: ' . $back . '&err=' . urlencode($e->getMessage() === 'course_not_found' ? 'Course not found — check the course catalogue.' : $e->getMessage())); exit;
             }
         } catch (\Throwable $e) {
-            header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Could not add course: ' . $e->getMessage())); exit;
+            header('Location: ' . $back . '&err=' . urlencode('Could not add course: ' . $e->getMessage())); exit;
         }
         if ($ceId > 0) {
             try { mam_lms_approve($ceId, $iid ?: null, (int)($adminUser['id'] ?? 0)); }
@@ -1528,9 +1534,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             mam_audit('admin_course_assign', 'course_enrollment', $ceId, ['student' => $uid, 'course' => $code, 'instructor' => $iid]);
         }
         if ($ceWaitPos !== null) {
-            header('Location: ?v=users&edit=' . $uid . '&ok=' . urlencode('That course is at capacity — the student was added to the waitlist at position ' . $ceWaitPos . '.')); exit;
+            header('Location: ' . $back . '&ok=' . urlencode('That course is at capacity — the student was added to the waitlist at position ' . $ceWaitPos . '.')); exit;
         }
-        header('Location: ?v=users&edit=' . $uid . '&ok=1'); exit;
+        header('Location: ' . $back . '&ok=' . urlencode('Student registered into the course.')); exit;
     }
 
     // Manually advance a passed enrolment to the same course at the next level.
@@ -7402,6 +7408,60 @@ V2_READ_TENANT=mam</pre>
   <?php if (!empty($_GET['promoted'])): ?>
     <div class="banner ok">↑ Advanced to <?= htmlspecialchars($lvlName[(string)$_GET['promoted']] ?? (string)$_GET['promoted']) ?><?= !empty($_GET['dup']) ? ' (already enrolled there)' : '' ?>.</div>
   <?php endif; ?>
+
+  <?php
+    // Register a student into a course — the non-legacy (course_enrollments)
+    // enrolment, right where an admin expects it. Previously this could only be
+    // done one user at a time from a buried tab on each user's edit page, so the
+    // Course Registrations screen was effectively read-only. Reuses the
+    // student_course_assign handler with return=courseenroll.
+    $regStudents = [];
+    try { $regStudents = mam_db_all("SELECT id, name, email FROM users WHERE role = 'student' AND status = 'active' ORDER BY name LIMIT 1000"); } catch (\Throwable $e) {}
+    $regCourses = [];
+    try { $regCourses = mam_db_all("SELECT code, name FROM courses WHERE active = 1 ORDER BY name"); } catch (\Throwable $e) {}
+    $regInstrs = [];
+    try { $regInstrs = mam_db_all("SELECT id, name FROM users WHERE role = 'instructor' AND status = 'active' ORDER BY name"); } catch (\Throwable $e) {}
+  ?>
+  <?php if ($regCourses): ?>
+  <div class="card" style="border-color:var(--border-gold)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 4px 6px">
+      <h3 style="margin:0">Register a student <span class="muted" style="font-weight:400">· into a course (capacity-aware; a full cohort waitlists)</span></h3>
+    </div>
+    <form method="post" class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end">
+      <?= mam_csrf_field() ?>
+      <input type="hidden" name="action" value="student_course_assign">
+      <input type="hidden" name="return" value="courseenroll">
+      <label>Student
+        <select name="user_id" required style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+          <option value="">— select a student —</option>
+          <?php foreach ($regStudents as $s): ?>
+            <option value="<?= (int)$s['id'] ?>"><?= htmlspecialchars((string)($s['name'] ?: $s['email'])) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <label>Course
+        <select name="course_code" required style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+          <option value="">— select a course —</option>
+          <?php foreach ($regCourses as $co): ?>
+            <option value="<?= htmlspecialchars((string)$co['code']) ?>"><?= htmlspecialchars((string)$co['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <?php if ($regInstrs): ?>
+      <label>Instructor <span class="muted" style="font-weight:400">— optional</span>
+        <select name="instructor_id" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+          <option value="0">— course default —</option>
+          <?php foreach ($regInstrs as $ins): ?>
+            <option value="<?= (int)$ins['id'] ?>"><?= htmlspecialchars((string)$ins['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <?php endif; ?>
+      <div class="actions"><button class="btn" type="submit">Register &amp; activate</button></div>
+    </form>
+  </div>
+  <?php endif; ?>
+
   <?php $cohortList = function_exists('mam_lms_cohorts') ? mam_lms_cohorts() : []; ?>
   <?php if ($cohortList): ?>
   <?php
