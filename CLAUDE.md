@@ -1151,6 +1151,31 @@ Two conventions these established:
   The migration is **loaded and verified** on the live host (29 people, 33
   applications, ₦515,998.00) — into a database beside v1, with nothing reading
   it yet. That was staging, not a cutover.
+- **The v2 cutover map: `docs/v2-cutover-map-2026-08-19.md`** — every v1 table's
+  v2 destination (RENAME 21 / ABSORB 9 / DROP 4 / NEW ~72 in five batches), the six
+  conventions a new v2 table must follow, and the order of work. `db/schema-v2.sql`
+  is at **94 tables** (batches 1–2 authored: the guardian layer and the assessment
+  layer, both in v2 idiom) and `api/lib/v2/plan.php` writes **60** of them.
+  ⚠️ Three things here bite:
+  **(1) v1's `assessment_types` are NOT v2's `competencies`.** v1's rows are KINDS
+  of assessment (assignment|final|practical|attendance) weighted for the gradebook;
+  a competency is one of the ELEVEN mastery components in `mastery.php`'s registry.
+  The inherited ETL seeded `competencies` from `assessment_types`, so nothing a
+  `termly_report_criteria` row carried could resolve and **every criterion on every
+  report was rejected** — the reports would have reached families with no marks on
+  them. v1's table maps to **`assessment_kinds`** (deliberately not named
+  `assessment_types`, so the mis-mapping cannot be made again), and `competencies`
+  is seeded from the registry, mirrored in `plan.php` with a test asserting the two
+  agree.
+  **(2) `api/tools/v2-load.php` is NOT plan-driven.** It has its own six stages and
+  carries none of the newer tables; the verified path is `v2-transform.php` →
+  `v2-data.sql`. Don't assume the loader carries what the plan does.
+  **(3) `mark_appeals.opened_at` has no DB default, on purpose.** `chk_appeal_order`
+  compares it with `closed_at`, and a defaulted `CURRENT_TIMESTAMP(3)` carries
+  milliseconds that a PHP-supplied `gmdate()` does not — so an appeal declined
+  twenty minutes after it was raised compared BELOW its own opened_at and the write
+  failed. Both timestamps must come from one writer at one precision. (Same family
+  as the v1 MySQL-vs-PHP-UTC bug in this table.)
 - **Index/map: `docs/codebase-index-2026-08-15.md`** — libs, routes, schema,
   tests, findings. Start here for "where does X live".
 - **Spec conformance: `docs/spec-conformance-2026-08-15.md`** — the academic

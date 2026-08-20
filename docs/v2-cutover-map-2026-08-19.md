@@ -9,6 +9,8 @@ Measured surface at the time of writing:
 |---|---|
 | v1 tables (SQLite runtime, schema v88) | **129** |
 | v2 tables (`db/schema-v2.sql`, before this work) | **64** |
+| v2 tables now (batches 1–2 authored) | **94** |
+| ETL tables the plan writes (was 25) | **60** |
 | SQL call sites in `api/lib/` | 1,035 |
 | SQL call sites in `api/routes/` | 279 |
 | SQL call sites in `admin/` | 157 |
@@ -53,7 +55,7 @@ four ways:
 | `lessons` | `modules` | |
 | `lesson_progress` | `module_progress` | Keyed on `enrolment_id`; keeps `mastery_pct` and the week fields. |
 | `module_carryforward` | `module_carryforwards` | |
-| `parent_links` | `guardianships` | ⚠️ **`guardianships.scope` already exists** (`VARCHAR(24) DEFAULT 'standard'`), so the v86 access scope needs no new column — `mam_parent_scope()` maps straight onto it. `permissions JSON` is the finer grain. |
+| `parent_links` | `guardianships` | ⚠️ Carried by the ETL. **`guardianships.scope` already exists** (`VARCHAR(24) DEFAULT 'standard'`), so the v86 access scope needs no new column — but the VALUES differ: v1 spells the narrowest scope `billing`, v2 spells it `billing_only`. The ETL translates; `mam_parent_scope()` must too when it is cut over. `permissions JSON` is the finer grain. |
 | `user_roles` | `membership_roles` | Roles attach to a MEMBERSHIP, not a user, so one person can be an instructor at one centre and a guardian at another. |
 | `sessions` | `auth_sessions` | |
 | `settings` | `tenant_settings` | Per tenant, not global. |
@@ -93,7 +95,7 @@ four ways:
 **~72 tables.** These are features the academy runs today that v2 cannot hold. In
 the order they should be authored, because later batches depend on earlier ones.
 
-### Batch 1 · The guardian layer (16 tables) — carried over in v2 idiom
+### Batch 1 · The guardian layer (18 tables) — ✅ AUTHORED, carried over in v2 idiom
 
 The 2026-08 redesign's subsystems. v2 has `invoices`/`invoice_lines`, but they
 **cannot express the design's fee model**: one flat `discount_minor` where the
@@ -107,11 +109,35 @@ design says changes what the academy's books say happened.
 - `guardian_threads`, `guardian_thread_participants`, `guardian_thread_messages`, `guardian_channel_prefs`
 - `makeup_credits`
 
-### Batch 2 · Assessment and progress (11)
+### Batch 2 · Assessment and progress (12) — ✅ AUTHORED
 
-`enrolment_results`, `assessments`, `assessment_types`, `submissions`,
-`submission_markers`, `teachbacks`, `assignments`, `assignment_groups`,
-`certificates`, `module_proposals`, `tool_scores`
+`enrolment_results`, `assessments`, **`assessment_marks`**,
+**`assessment_kinds`**, `submissions`, `submission_markers`, `teachbacks`,
+`assignments`, `assignment_groups`, `certificates`, `module_proposals`,
+`tool_scores`
+
+Two names changed from the plan above, both for a reason worth keeping:
+
+- **`assessment_marks` was added.** Without it a mark is a JSON blob
+  (v1's `submission_reviews.scores_json`) and nothing can join a mark to a
+  competency, which is the whole reason the mastery score matches rubric
+  criteria BY LABEL today.
+- **It is `assessment_kinds`, NOT `assessment_types`.** v1 has a table
+  called `assessment_types` and it means something else: its rows are the
+  mastery COMPONENTS and they map to `competencies`. A v2 table sharing
+  that name invites exactly the mis-mapping described below.
+
+⚠️ **The trap this batch actually sprang.** v1's `assessment_types`
+(`assignment|final|continuous|practical|attendance`) are KINDS of
+assessment weighted for the gradebook. v2's `competencies` are the ELEVEN
+mastery components (`rhythm_timing`, `theory`, …) which live in
+`mastery.php`'s registry as a code constant. The inherited ETL seeded
+`competencies` from `assessment_types`, so the loaded vocabulary had
+nothing a `termly_report_criteria` row could resolve to and **every
+criterion on every report was rejected** — 22 of 22 in the export tested.
+The reports would have reached families with no marks on them. Fixed, and
+`test_v2_plan.php` now asserts the mirrored registry in `plan.php` matches
+`mastery.php` exactly so the copy cannot drift.
 
 ### Batch 3 · Teaching operations and the calendar (16)
 
@@ -180,9 +206,15 @@ new names, and a table that skips one is a table that has to be revisited:
    and keep `test_schema_v2.php` green; it asserts the two files agree and that
    the canonical file uses no ENUM, generated column or FULLTEXT index, because
    none of the three mirrors.
-3. **Extend the ETL** — `api/lib/v2/{plan,transform,load,verify}.php` currently
-   carry 24 tables. A table in the schema but not in the plan is a table that
+3. **Extend the ETL** — `api/lib/v2/plan.php` now writes **60** tables
+   (batches 1–2 done). A table in the schema but not in the plan is a table that
    silently arrives empty on cutover day, which is worse than one that is missing.
+   ⚠️ **`api/tools/v2-load.php` is NOT plan-driven.** It has its own six stages
+   (currencies, tenant, centre, people, applications, payments) and carries none
+   of the new tables. The plan-driven path is `v2-transform.php` → `v2-data.sql`,
+   which is the one verified against the real export. Either teach the loader to
+   consume `$plan['order']` or use the transform path on cutover night — do not
+   assume the loader carries what the plan does.
 4. **Rewrite the call sites**, subsystem by subsystem, against a repository layer
    that enforces §6 in one place rather than in 1,478.
 5. **Migrate the 114 test files.** They seed v1 tables directly, so they are not
