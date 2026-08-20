@@ -113,7 +113,12 @@ function v2p_source(): array {
             ['id' => 1, 'course_id' => 5, 'level_id' => 1, 'week' => 1, 'title' => 'Week one', 'kind' => 'module', 'content' => 'Scales.'],
             ['id' => 2, 'course_id' => 5, 'level_id' => 1, 'week' => 12, 'title' => 'Exam', 'kind' => 'exam', 'content' => 'Perform.'],
         ],
-        'assessment_types' => [['id' => 1, 'code' => 'practical', 'name' => 'Practical', 'weight' => 30, 'sort_order' => 1, 'active' => 1]],
+        'assessment_types' => [
+            ['id' => 1, 'code' => 'practical', 'name' => 'Practical', 'weight' => 30, 'sort_order' => 1, 'active' => 1],
+            ['id' => 2, 'code' => 'final', 'name' => 'Final examination', 'weight' => 40, 'sort_order' => 2, 'active' => 1],
+            // Weighted in v1's gradebook; §24 keeps it OUT of the mastery score.
+            ['id' => 3, 'code' => 'attendance', 'name' => 'Attendance', 'weight' => 10, 'sort_order' => 3, 'active' => 1],
+        ],
         'instructor_profiles' => [['user_id' => 2, 'bio' => 'Teaches piano.', 'specialties' => 'Piano',
                                    'photo_url' => null, 'years_experience' => 9, 'updated_at' => '2026-01-02 08:00:00']],
         'cohorts' => [
@@ -228,6 +233,212 @@ function v2p_source(): array {
              'is_html' => 1, 'status' => 'failed', 'transport' => 'smtp', 'error' => 'tls_handshake',
              'attempts' => 1, 'body' => 'A rendered email nobody needs to keep.', 'opts' => null,
              'created_at' => '2026-01-04 09:40:00', 'updated_at' => '2026-01-04 09:40:00', 'sent_at' => null],
+        ],
+        /* The academic calendar: the only authority on a refund. */
+        'academic_terms' => [
+            ['id' => 1, 'year_label' => '2026', 'code' => 'TONI', 'term_no' => 1, 'label' => 'Toni 2026',
+             'starts_on' => '2026-02-01', 'ends_on' => '2026-04-30', 'add_drop_deadline' => '2026-02-14',
+             'withdrawal_deadline' => '2026-03-31', 'census_date' => '2026-02-21', 'teaching_weeks' => 12,
+             'timezone' => 'Africa/Lagos', 'status' => 'active', 'notes' => null,
+             'created_at' => '2026-01-05 09:00:00'],
+        ],
+        'term_refund_schedule' => [
+            // A BAND in v1: weeks 1–2 at 100%, 3–5 at 50%. v2 stores a row per week.
+            ['id' => 1, 'term_id' => 1, 'week_from' => 1, 'week_to' => 2, 'percent' => 100],
+            ['id' => 2, 'term_id' => 1, 'week_from' => 3, 'week_to' => 5, 'percent' => 50],
+            // Overlaps week 5: the first band must win, and it must be raised.
+            ['id' => 3, 'term_id' => 1, 'week_from' => 5, 'week_to' => 6, 'percent' => 25],
+        ],
+        'term_census' => [
+            ['id' => 1, 'term_id' => 1, 'taken_on' => '2026-02-21', 'enrolled' => 19, 'active_cohorts' => 4,
+             'detail_json' => '{"by_programme":{"standard":19}}', 'created_at' => '2026-02-21 09:00:00'],
+        ],
+        'term_closures' => [
+            ['id' => 1, 'term_id' => 1, 'kind' => 'holiday', 'label' => 'Easter', 'from_on' => '2026-04-03',
+             'to_on' => '2026-04-06'],
+        ],
+        // A guardian link, carrying the v86 access scope.
+        'parent_links' => [
+            ['id' => 1, 'parent_id' => 2, 'student_id' => 1, 'relationship' => 'mother', 'created_by' => 4,
+             'created_at' => '2026-01-14 09:00:00', 'access_scope' => 'full', 'scope_set_by' => 4,
+             'scope_set_at' => '2026-01-14 09:00:00'],
+            // An unrecognised scope must read as the NARROWEST, not the widest.
+            ['id' => 2, 'parent_id' => 2, 'student_id' => 3, 'relationship' => 'guardian', 'created_by' => 4,
+             'created_at' => '2026-01-15 09:00:00', 'access_scope' => 'everything', 'scope_set_by' => 4,
+             'scope_set_at' => '2026-01-15 09:00:00'],
+        ],
+        'termly_reports' => [
+            ['id' => 1, 'student_id' => 1, 'cohort_id' => 1, 'course_id' => 5, 'level_id' => 1, 'term_id' => 1,
+             'term_label' => 'Toni 2026', 'status' => 'ratified', 'band_low' => 70, 'band_high' => 79,
+             'coverage_evidenced' => 8, 'coverage_total' => 11, 'coverage_weight_pct' => 72,
+             'instructor_id' => 2, 'instructor_comment' => 'Steady work.', 'attendance_summary' => '11 of 12',
+             'ratified_by' => 4, 'ratified_at' => '2026-05-02 09:00:00', 'ratified_note' => 'Board of 3.',
+             'withdrawn_at' => null, 'withdrawn_reason' => null, 'created_by' => 2,
+             'created_at' => '2026-05-01 09:00:00', 'updated_at' => null],
+            // Ratified by an account that does not exist: must return to moderating.
+            ['id' => 2, 'student_id' => 3, 'cohort_id' => 8, 'course_id' => 5, 'level_id' => 1, 'term_id' => 1,
+             'term_label' => 'Toni 2026', 'status' => 'ratified', 'band_low' => 100, 'band_high' => 100,
+             'coverage_evidenced' => 11, 'coverage_total' => 11, 'coverage_weight_pct' => 100,
+             'instructor_id' => 2, 'instructor_comment' => null, 'attendance_summary' => null,
+             'ratified_by' => 99, 'ratified_at' => '2026-05-02 09:00:00', 'ratified_note' => null,
+             'withdrawn_at' => null, 'withdrawn_reason' => null, 'created_by' => 2,
+             'created_at' => '2026-05-01 10:00:00', 'updated_at' => null],
+        ],
+        'termly_report_criteria' => [
+            // 'practical' is a real competency code (assessment_types above), so
+            // this resolves to a FOREIGN KEY rather than a guess.
+            ['id' => 1, 'report_id' => 1, 'competency_code' => 'rhythm_timing', 'label' => 'Rhythm & timing',
+             'weight_pct' => 10, 'level' => 'secure', 'pct' => 74, 'grade_label' => 'Secure',
+             'first_assessed_week' => 3, 'note' => null, 'sort_order' => 1],
+            // Unevidenced: a ROW with no percentage, not a zero.
+            ['id' => 2, 'report_id' => 1, 'competency_code' => 'theory', 'label' => 'Theory',
+             'weight_pct' => 10, 'level' => 'insufficient', 'pct' => null, 'grade_label' => null,
+             'first_assessed_week' => null, 'note' => 'Not yet assessed.', 'sort_order' => 2],
+            // A code with no competency in v2: rejected, never written as an
+            // orphan label.
+            ['id' => 3, 'report_id' => 1, 'competency_code' => 'telepathy', 'label' => 'Telepathy',
+             'weight_pct' => 5, 'level' => 'working', 'pct' => 50, 'grade_label' => null,
+             'first_assessed_week' => null, 'note' => null, 'sort_order' => 3],
+            // A second row for a competency the report already scored. v1 had no
+            // unique key, v2 does — the first must win rather than the load failing.
+            ['id' => 4, 'report_id' => 1, 'competency_code' => 'rhythm_timing', 'label' => 'Rhythm (again)',
+             'weight_pct' => 10, 'level' => 'working', 'pct' => 55, 'grade_label' => null,
+             'first_assessed_week' => null, 'note' => null, 'sort_order' => 4],
+        ],
+        'report_moderations' => [
+            ['id' => 1, 'report_id' => 1, 'competency_code' => 'rhythm_timing', 'moderator_id' => 2,
+             'agreed' => 1, 'moderator_level' => 'secure', 'note' => null,
+             'moderated_at' => '2026-05-01 18:00:00'],
+            // The moderator's account did not map; the sample still happened.
+            ['id' => 2, 'report_id' => 1, 'competency_code' => 'rhythm_timing', 'moderator_id' => 99,
+             'agreed' => 0, 'moderator_level' => 'working', 'note' => 'Would mark lower.',
+             'moderated_at' => '2026-05-01 19:00:00'],
+        ],
+        'mark_appeals' => [
+            // Closed twenty minutes after it was raised — the timestamp-precision
+            // case that used to fail the load outright.
+            ['id' => 1, 'report_id' => 1, 'student_id' => 1, 'raised_by' => 2, 'raised_role' => 'parent',
+             'competency_code' => 'rhythm_timing', 'reason' => 'The recital mark does not match the video.',
+             'status' => 'declined', 'outcome_note' => 'Moderation sample confirmed the mark.',
+             'decided_by' => 4, 'opened_at' => '2026-05-03 09:00:00', 'closed_at' => '2026-05-03 09:20:00'],
+            // Upheld with no note recorded: carried OPEN, because the family is
+            // still owed an answer.
+            ['id' => 2, 'report_id' => 1, 'student_id' => 1, 'raised_by' => 2, 'raised_role' => 'parent',
+             'competency_code' => null, 'reason' => 'Second look please.', 'status' => 'upheld',
+             'outcome_note' => null, 'decided_by' => 4, 'opened_at' => '2026-05-04 09:00:00',
+             'closed_at' => '2026-05-05 09:00:00'],
+        ],
+        'guardian_threads' => [
+            ['id' => 1, 'student_id' => 1, 'subject' => 'Friday timetable', 'kind' => 'timetable',
+             'status' => 'open', 'opened_by' => 2, 'created_at' => '2026-02-10 09:00:00',
+             'last_message_at' => '2026-02-10 10:00:00', 'closed_at' => null],
+        ],
+        'guardian_thread_participants' => [
+            ['id' => 1, 'thread_id' => 1, 'user_id' => 2, 'role' => 'guardian',
+             'last_read_at' => '2026-02-10 10:05:00', 'added_at' => '2026-02-10 09:00:00'],
+            // A learner named as a participant in a thread ABOUT them: dropped,
+            // never coerced into 'guardian'.
+            ['id' => 2, 'thread_id' => 1, 'user_id' => 1, 'role' => 'student',
+             'last_read_at' => null, 'added_at' => '2026-02-10 09:01:00'],
+        ],
+        'guardian_thread_messages' => [
+            ['id' => 1, 'thread_id' => 1, 'author_id' => 2, 'author_name' => 'Ifeoma Bello',
+             'author_role' => 'guardian', 'body' => 'Can we move Friday?',
+             'created_at' => '2026-02-10 09:00:00'],
+            // The author's account did not map; the NAME is what a family reads.
+            ['id' => 2, 'thread_id' => 1, 'author_id' => 99, 'author_name' => 'The Office',
+             'author_role' => 'office', 'body' => 'Yes — 17:00 works.',
+             'created_at' => '2026-02-10 10:00:00'],
+        ],
+        'guardian_channel_prefs' => [
+            ['user_id' => 2, 'whatsapp' => 1, 'email' => 1, 'sms' => 0, 'updated_at' => '2026-02-01 09:00:00'],
+        ],
+        'makeup_credits' => [
+            ['id' => 1, 'student_id' => 1, 'term_id' => 1, 'year_label' => '2026/27', 'reason' => 'guardian_notice',
+             'source_session_id' => null, 'notice_hours' => 30.0, 'counts_against_allowance' => 1,
+             'status' => 'available', 'expires_on' => '2027-07-31', 'spent_session_id' => null,
+             'spent_at' => null, 'granted_by' => 4, 'granted_at' => '2026-02-12 09:00:00',
+             'revoked_reason' => null, 'note' => null],
+            // v1 charged a goodwill credit to the family's allowance. The CHECK
+            // on both engines refuses it, so it must arrive free.
+            ['id' => 2, 'student_id' => 1, 'term_id' => 1, 'year_label' => '2026/27', 'reason' => 'goodwill',
+             'source_session_id' => null, 'notice_hours' => null, 'counts_against_allowance' => 1,
+             'status' => 'available', 'expires_on' => '2027-07-31', 'spent_session_id' => null,
+             'spent_at' => null, 'granted_by' => 4, 'granted_at' => '2026-02-13 09:00:00',
+             'revoked_reason' => null, 'note' => 'Apology for a late start.'],
+        ],
+        /* Fees. The base currency is NGN, so a naira invoice needs no rate and a
+         * dollar one with no frozen rate must be REFUSED, not converted. */
+        'fee_aid_awards' => [
+            ['id' => 1, 'student_id' => 1, 'kind' => 'bursary', 'pct' => 25, 'amount_minor' => null,
+             'currency' => 'NGN', 'term_id' => 1, 'term_label' => 'Toni 2026', 'basis' => 'band_b',
+             'status' => 'active', 'starts_on' => '2026-02-01', 'expires_on' => null, 'awarded_by' => 4,
+             'awarded_at' => '2026-01-20 09:00:00', 'revoked_at' => null, 'revoked_reason' => null,
+             'note' => null],
+        ],
+        'fee_invoices' => [
+            ['id' => 1, 'public_ref' => 'INV-2026-0001', 'student_id' => 1, 'guardian_id' => 2, 'term_id' => 1,
+             'term_label' => 'Toni 2026', 'currency' => 'NGN', 'status' => 'part_paid',
+             'issued_on' => '2026-01-25', 'due_on' => '2026-02-08', 'grace_until' => null,
+             'dunning_stage' => 0, 'dunning_last' => null, 'fx_rate_usd_ngn' => 1600.0,
+             'gross_minor' => 12000000, 'waiver_minor' => 500000, 'aid_minor' => 2875000,
+             'sibling_minor' => 100000, 'total_minor' => 8525000, 'paid_minor' => 4000000,
+             'total_usd_cents' => null, 'note' => null, 'void_reason' => null, 'created_by' => 4,
+             'created_at' => '2026-01-25 09:00:00', 'updated_at' => '2026-02-03 09:00:00'],
+            // A stated total that does not equal its own arithmetic.
+            ['id' => 2, 'public_ref' => 'INV-2026-0002', 'student_id' => 3, 'guardian_id' => 2, 'term_id' => 1,
+             'term_label' => 'Toni 2026', 'currency' => 'NGN', 'status' => 'issued',
+             'issued_on' => '2026-01-25', 'due_on' => '2026-02-08', 'grace_until' => null,
+             'dunning_stage' => 0, 'dunning_last' => null, 'fx_rate_usd_ngn' => null,
+             'gross_minor' => 5000000, 'waiver_minor' => 0, 'aid_minor' => 0, 'sibling_minor' => 0,
+             'total_minor' => 4000000, 'paid_minor' => 0, 'total_usd_cents' => null, 'note' => null,
+             'void_reason' => null, 'created_by' => 4, 'created_at' => '2026-01-25 09:00:00',
+             'updated_at' => null],
+            // A dollar invoice with no frozen rate: refused.
+            ['id' => 3, 'public_ref' => 'INV-2026-0003', 'student_id' => 1, 'guardian_id' => 2, 'term_id' => 1,
+             'term_label' => 'Toni 2026', 'currency' => 'USD', 'status' => 'issued',
+             'issued_on' => '2026-01-26', 'due_on' => '2026-02-09', 'grace_until' => null,
+             'dunning_stage' => 0, 'dunning_last' => null, 'fx_rate_usd_ngn' => null,
+             'gross_minor' => 18500, 'waiver_minor' => 0, 'aid_minor' => 0, 'sibling_minor' => 0,
+             'total_minor' => 18500, 'paid_minor' => 0, 'total_usd_cents' => 18500, 'note' => null,
+             'void_reason' => null, 'created_by' => 4, 'created_at' => '2026-01-26 09:00:00',
+             'updated_at' => null],
+        ],
+        'fee_invoice_lines' => [
+            ['id' => 1, 'invoice_id' => 1, 'kind' => 'tuition', 'label' => 'Piano, Toni 2026',
+             'enrollment_id' => 1, 'cohort_id' => 1, 'qty' => 1, 'unit_minor' => 11000000,
+             'amount_minor' => 11000000, 'waiver_minor' => 0, 'waiver_reason' => null, 'sort_order' => 1],
+            ['id' => 2, 'invoice_id' => 1, 'kind' => 'exam', 'label' => 'Theory paper',
+             'enrollment_id' => 1, 'cohort_id' => 1, 'qty' => 1, 'unit_minor' => 1000000,
+             'amount_minor' => 1000000, 'waiver_minor' => 500000, 'waiver_reason' => 'Sat internally',
+             'sort_order' => 2],
+        ],
+        'fee_invoice_credits' => [
+            ['id' => 1, 'invoice_id' => 1, 'award_id' => 1, 'kind' => 'bursary', 'amount_minor' => 2875000,
+             'currency' => 'NGN', 'note' => '25% of tuition', 'applied_by' => 4,
+             'applied_at' => '2026-01-25 09:05:00'],
+        ],
+        'fee_payment_plans' => [
+            ['id' => 1, 'invoice_id' => 1, 'instalments' => 3, 'status' => 'active', 'requested_by' => 2,
+             'approved_by' => 4, 'created_at' => '2026-01-26 09:00:00', 'cancelled_at' => null,
+             'cancel_reason' => null],
+        ],
+        'fee_plan_instalments' => [
+            // Settled by v1 payment 100, which must be REMAPPED to its v2 id.
+            ['id' => 1, 'plan_id' => 1, 'seq' => 1, 'due_on' => '2026-02-08', 'amount_minor' => 4000000,
+             'status' => 'paid', 'paid_at' => '2026-02-03 09:00:00', 'payment_id' => 100],
+            // Names a payment that is not in the export at all.
+            ['id' => 2, 'plan_id' => 1, 'seq' => 2, 'due_on' => '2026-03-08', 'amount_minor' => 2262500,
+             'status' => 'pending', 'paid_at' => null, 'payment_id' => 999],
+            ['id' => 3, 'plan_id' => 1, 'seq' => 3, 'due_on' => '2026-04-08', 'amount_minor' => 2262500,
+             'status' => 'pending', 'paid_at' => null, 'payment_id' => null],
+        ],
+        'bursary_applications' => [
+            ['id' => 1, 'student_id' => 1, 'guardian_id' => 2, 'term_id' => 1, 'term_label' => 'Toni 2026',
+             'income_band' => 'band_b', 'household_size' => 5, 'dependants_in_academy' => 2,
+             'status' => 'awarded', 'awarded_pct' => 25, 'award_id' => 1, 'decided_by' => 4,
+             'decided_at' => '2026-01-20 09:00:00', 'outcome_note' => 'Band B, 25%.', 'note' => null,
+             'created_at' => '2026-01-18 09:00:00'],
         ],
         /* Academic work. Student 1 (user 1) has exactly ONE enrolment — the
          * cohort both v1 models point at — so a row naming no class resolves.
@@ -477,6 +688,174 @@ t_eq($cohort['meeting_days'], 'fri', "'Fri 16:00-18:00' parses into a day");
 t_eq($cohort['meeting_time'], '16:00:00', 'and a wall-clock start');
 t_eq($cohort['timezone'], 'Africa/Lagos', 'stored with a zone, so a lesson stays at 16:00 if offset rules change');
 
+t_group('v2 plan — the competency vocabulary is the mastery registry, not v1\'s gradebook');
+
+// The inherited mapping seeded `competencies` from v1's `assessment_types`. Its
+// codes are KINDS of assessment (assignment|final|practical|attendance), so the
+// loaded vocabulary had nothing in it that a report criterion could resolve to —
+// and every criterion on every report was rejected as an unknown code. The
+// families' reports would have arrived with no marks on them at all.
+$comps = array_column($plan['tables']['competencies'], 'code');
+t_ok(in_array('rhythm_timing', $comps, true) && in_array('theory', $comps, true),
+    'the competencies are the mastery components');
+t_ok(!in_array('assignment', $comps, true) && !in_array('attendance', $comps, true),
+    'and NOT v1\'s gradebook weightings, which are kinds of assessment');
+if (defined('MAM_MASTERY_COMPONENTS')) {
+    // plan.php mirrors the registry rather than requiring mastery.php (which
+    // pulls in the application). This is what stops the copy drifting.
+    t_eq($comps, array_keys(MAM_MASTERY_COMPONENTS),
+        'the mirrored registry in plan.php matches mastery.php exactly, in the same order');
+    $planWeights = [];
+    foreach ($plan['tables']['competencies'] as $c) $planWeights[$c['code']] = (float) $c['weight_pct'];
+    $regWeights = [];
+    foreach (MAM_MASTERY_COMPONENTS as $k => $m) $regWeights[$k] = (float) $m['weight'];
+    t_eq($planWeights, $regWeights, 'and so do the weights');
+}
+$kinds2 = array_column($plan['tables']['assessment_kinds'], 'code');
+t_ok(in_array('practical', $kinds2, true) && in_array('final', $kinds2, true),
+    'v1\'s assessment_types land in assessment_kinds instead, keeping their weights');
+$att = v2p_find($plan, 'assessment_kinds', 'code', 'attendance');
+t_eq((int) $att['counts_to_mastery'], 0,
+    'attendance is carried as a kind that does NOT count to mastery — §24 keeps attendance beside the '
+    . 'score, never inside it');
+
+t_group('v2 plan — the calendar, which is the only authority on a refund');
+
+$term = v2p_find($plan, 'academic_terms', 'code', 'TONI');
+t_ok($term !== null, 'the authored term is carried');
+t_eq($term['timezone'], 'Africa/Lagos',
+    'with the zone its deadlines are adjudicated in — a refund must not depend on whose clock is read');
+$sched = $plan['tables']['term_refund_schedule'];
+t_eq(count($sched), 6, 'v1 week RANGES expand to one row per week (1–2, 3–5, and week 6 of the overlap)');
+$byWeek = [];
+foreach ($sched as $r) $byWeek[(int) $r['week_no']] = (int) $r['refund_pct'];
+t_eq($byWeek[2], 100, 'week 2 keeps its 100%');
+t_eq($byWeek[4], 50, 'week 4 keeps its 50%');
+t_eq($byWeek[5], 50,
+    'a week covered by two bands keeps the FIRST — taking the last would change a published refund table '
+    . 'by row order');
+$kinds0 = array_column($plan['review'], 'kind');
+t_ok(in_array('refund_week_overlap', $kinds0, true), 'and the overlap is raised for a human');
+$census = $plan['tables']['term_census'][0];
+t_eq((int) $census['enrolled_count'], 19, 'the census figure is carried verbatim');
+t_ok($census['withdrawn_count'] === null,
+    'and a figure v1 never counted arrives NULL, not 0 — 0 would state that nobody withdrew');
+
+t_group('v2 plan — a guardian\'s reach is translated, not assumed');
+
+$gs = $plan['tables']['guardianships'];
+$full = array_values(array_filter($gs, static fn($g) => $g['scope'] === 'full'));
+t_eq(count($full), 1, 'a full-access link keeps its scope');
+$narrow = array_values(array_filter($gs, static fn($g) => $g['scope'] === 'billing_only'));
+t_eq(count($narrow), 1,
+    'an unrecognised scope reads as the NARROWEST — a typo must not widen what a guardian can see');
+t_ok(!in_array('billing', array_column($gs, 'scope'), true),
+    "v1 spells the narrowest scope 'billing' and v2 spells it 'billing_only'; the value is translated "
+    . 'rather than left for a CHECK to refuse on cutover night');
+
+t_group('v2 plan — the ratified report, and its competency FOREIGN KEY');
+
+$reps = v2p_by_id($plan, 'termly_reports');
+t_eq(count($reps), 2, 'both reports are carried');
+t_eq($reps[1]['status'], 'ratified', 'a report with a mapped ratifier stays ratified');
+t_eq($reps[2]['status'], 'moderating',
+    'a report whose ratifying account did not map returns to MODERATING — an unattributable ratification '
+    . 'is what a family\'s appeal cannot be answered from');
+$kinds1 = array_column($plan['review'], 'kind');
+t_ok(in_array('report_ratifier_lost', $kinds1, true), 'and it is raised');
+t_eq((int) $reps[1]['band_high'] - (int) $reps[1]['band_low'], 9, 'the band is carried as a band');
+t_eq((int) $reps[2]['band_low'], 100, 'and a perfect score keeps its (100,100) clamp');
+
+$crit = $plan['tables']['termly_report_criteria'];
+t_eq(count($crit), 2, 'two criteria resolve; the unknown code and the duplicate do not');
+foreach ($crit as $c) {
+    t_ok((int) $c['competency_id'] > 0,
+        'every criterion carries a real competency FOREIGN KEY — the upgrade this layer exists for');
+}
+$insuf = array_values(array_filter($crit, static fn($c) => $c['level'] === 'insufficient'));
+t_eq(count($insuf), 1, 'an unevidenced competency is a ROW');
+t_ok($insuf[0]['pct'] === null, 'with no percentage — a zero there reports an unassessed beginner as failing');
+$lost = array_values(array_filter($plan['rejected'],
+    static fn($r) => $r['table'] === 'termly_report_criteria'));
+t_eq(count($lost), 1, 'a competency code with no competency in v2 is rejected, not written as an orphan label');
+t_ok(str_contains((string) $lost[0]['why'], 'telepathy'), 'naming the code: ' . $lost[0]['why']);
+t_ok(in_array('report_criterion_duplicate', $kinds1, true),
+    'and a report scoring one competency twice keeps the first rather than failing the load');
+
+t_eq(count($plan['tables']['report_moderations']), 2, 'both moderations are carried');
+$anon = array_values(array_filter($plan['tables']['report_moderations'],
+    static fn($m) => $m['moderator_membership_id'] === null));
+t_eq(count($anon), 1,
+    'a moderation whose moderator did not map keeps the ROW: the sample happened, and dropping it would '
+    . 'take the report below the moderation floor and make it unratifiable');
+
+$appeals = v2p_by_id($plan, 'mark_appeals');
+t_eq($appeals[1]['status'], 'declined',
+    'an appeal declined twenty minutes after it was raised is carried — the timestamp-precision bug that '
+    . 'used to fail the load outright');
+t_eq($appeals[1]['raised_role'], 'guardian', "v1's 'parent' becomes v2's 'guardian': same person, the word the redesign uses");
+t_eq($appeals[2]['status'], 'open',
+    'an upheld appeal with no outcome note is carried OPEN — the family is still owed an answer');
+t_ok($appeals[2]['closed_at'] === null, 'and it carries no closing date it cannot justify');
+t_ok(in_array('appeal_outcome_incomplete', $kinds1, true), 'raised, not silently reshaped');
+
+t_group('v2 plan — threads, channels and make-up credits');
+
+t_eq(count($plan['tables']['guardian_thread_participants']), 1,
+    'a learner named as a participant in a thread ABOUT them is DROPPED, never coerced into a guardian');
+$msgs = $plan['tables']['guardian_thread_messages'];
+t_eq(count($msgs), 2, 'both messages are carried');
+$orphan = array_values(array_filter($msgs, static fn($m) => $m['author_membership_id'] === null));
+t_eq(count($orphan), 1, 'a message whose author did not map keeps the row');
+t_eq($orphan[0]['author_name'], 'The Office', 'with the NAME, because that is what a family reads');
+$mk = v2p_by_id($plan, 'makeup_credits');
+t_eq((int) $mk[1]['counts_against_allowance'], 1, 'a guardian cancellation costs the family a slot');
+t_eq((int) $mk[2]['counts_against_allowance'], 0,
+    'a goodwill credit v1 charged to the allowance arrives FREE — the allowance limits how often a FAMILY '
+    . 'cancels, not how often the academy apologises');
+
+t_group('v2 plan — an invoice states its own arithmetic');
+
+$invs = v2p_by_id($plan, 'invoices');
+t_eq(count($invs), 2, 'two invoices load; the dollar one with no frozen rate does not');
+$refused = array_values(array_filter($plan['rejected'], static fn($r) => $r['table'] === 'fee_invoices'));
+t_eq(count($refused), 1, 'a non-base-currency invoice with no rate is REFUSED, not converted at today\'s rate');
+t_ok(str_contains((string) $refused[0]['why'], 'restate what the family was charged'),
+    'and the ledger says why: ' . $refused[0]['why']);
+$inv1 = $invs[1];
+t_eq((int) $inv1['subtotal_minor'], 12000000, 'the gross is the subtotal');
+t_eq((int) $inv1['total_minor'],
+    (int) $inv1['subtotal_minor'] - (int) $inv1['waiver_minor'] - (int) $inv1['aid_minor']
+    - (int) $inv1['sibling_minor'] - (int) $inv1['discount_minor'],
+    'and the total is its own arithmetic, which is what chk_inv_total states');
+t_eq($inv1['due_at'], '2026-02-08 23:59:59.999',
+    'a due DATE becomes the end of that day: nobody is late until the day they were given has passed');
+$restated = array_values(array_filter($plan['review'], static fn($r) => $r['kind'] === 'invoice_total_restated'));
+t_eq(count($restated), 1, 'an invoice whose stated total disagreed with its own relief is raised');
+t_eq((int) $restated[0]['computed'], 5000000, 'with both figures, so a human can see which was sent');
+
+$lines = $plan['tables']['invoice_lines'];
+$waived = array_values(array_filter($lines, static fn($l) => (int) $l['waiver_minor'] > 0));
+t_eq(count($waived), 1, 'the waiver stays ON the line it applies to');
+t_eq($waived[0]['waiver_reason'], 'Sat internally', 'with the reason, which is the fact a parent asks about');
+
+$inst = $plan['tables']['invoice_plan_instalments'];
+t_eq(count($inst), 3, 'every instalment is carried');
+$paid = array_values(array_filter($inst, static fn($i) => $i['status'] === 'paid'));
+$v2pay = (int) v2p_find($plan, 'payments', 'provider_ref', 'ps_100')['id'];
+t_eq((int) $paid[0]['payment_id'], $v2pay,
+    'the payment an instalment names is REMAPPED to its v2 id — a v1 id copied across is the defect this '
+    . 'ETL keeps rediscovering');
+$ghost = array_values(array_filter($inst, static fn($i) => (int) $i['seq'] === 2));
+t_ok($ghost[0]['payment_id'] === null,
+    'and a payment that is not in the export at all arrives NULL, never as a number that resolves to a stranger');
+
+$burs = $plan['tables']['bursary_applications'][0];
+t_eq($burs['income_band'], 'band_b', 'a bursary is assessed on a declared income BAND');
+foreach (['hardship', 'circumstances', 'case_text'] as $forbidden) {
+    t_ok(!array_key_exists($forbidden, $burs), "and carries no `$forbidden` — there is no such column on either side");
+}
+
 t_group('v2 plan — academic work lands on an enrolment or not at all');
 
 // Set work: v1 keyed it on a student, v2 on an enrolment. A row naming a class
@@ -504,9 +883,9 @@ t_eq($scored[0]['points_awarded'], '8.00', 'the awarded points survive');
 t_ok($scored[0]['competency_id'] === null,
     'competency_id is NULL on a rubric mark: v1 matched a criterion to a component by LABEL, and a '
     . 'guessed foreign key would make that guess permanent');
-$gradebook = array_values(array_filter($marks, static fn($m) => $m['competency_id'] !== null));
-t_eq(count($gradebook), 1,
-    'the gradebook mark is the ONE place the competency is known — v1 typed it by what v2 calls a competency');
+t_eq(count(array_filter($marks, static fn($m) => $m['competency_id'] !== null)), 0,
+    'NO migrated mark claims a competency: v1\'s gradebook row is typed by an assessment KIND ("final", '
+    . '"practical"), which says what the mark was for and not which musical competency it evidences');
 
 // A mark has an author, or it is not a mark.
 $assess = $plan['tables']['assessments'];
@@ -655,10 +1034,12 @@ t_eq($sNoCrash['programme_id'], null, 'with a NULL programme rather than a guess
 
 $tayo = v2p_find($plan, 'users', 'full_name', 'Tayo Bello');
 t_ok($tayo !== null, 'the child becomes a person');
-t_eq(count($plan['tables']['guardianships']), 1,
+$tayoMember = (int) v2p_find($plan, 'memberships', 'user_id', $tayo['id'])['id'];
+$tayoGuard = array_values(array_filter($plan['tables']['guardianships'],
+    static fn($g) => (int) $g['learner_membership_id'] === $tayoMember));
+t_eq(count($tayoGuard), 1,
     'the guardian_email resolved to somebody already in the data, so the guardianship is real');
-t_eq((int) $plan['tables']['guardianships'][0]['learner_membership_id'],
-    (int) v2p_find($plan, 'memberships', 'user_id', $tayo['id'])['id'],
+t_ok((int) $tayoGuard[0]['guardian_membership_id'] !== $tayoMember,
     'pointing at the child, not at whoever shares their address');
 t_eq($plan['tables']['guardianships'][0]['verified_at'], null,
     'and unverified — a verified flag set by an ETL is a safeguarding claim nobody made');

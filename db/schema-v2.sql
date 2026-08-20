@@ -1843,7 +1843,9 @@ CREATE TABLE term_census (
   taken_on          DATE         NOT NULL,
   enrolled_count    INT UNSIGNED NOT NULL,
   active_count      INT UNSIGNED NOT NULL,
-  withdrawn_count   INT UNSIGNED NOT NULL DEFAULT 0,
+  -- NULLABLE, unlike the other two: a census taken by a system that did not
+  -- count withdrawals has no figure, and 0 would state that nobody withdrew.
+  withdrawn_count   INT UNSIGNED NULL,
   breakdown         JSON         NULL,      -- by programme/level/centre
   taken_by          BIGINT UNSIGNED NULL,
   created_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),

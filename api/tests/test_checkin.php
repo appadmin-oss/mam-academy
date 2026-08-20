@@ -114,7 +114,14 @@ t_eq(mam_checkin_streak($stu), 3, 'streak counts the 3 attended sessions back to
 t_eq(mam_checkin_attendance_rate($stu), 75.0, 'attendance rate = 3 of 4 past sessions');
 
 $ck_session($coh, 3 * 86400); // a future session for next_session
-$ck_session($coh, 5 * 60);    // a session starting soon (inside the open window)
+// A session inside the check-in window AND on today's date. Five minutes from
+// now crosses midnight for the last five minutes of every day, and
+// `mam_checkin_session_on()` looks the session up BY DATE — so the assertion
+// below used to fail for those five minutes and pass for the other 1,435.
+// Five minutes AGO is equally inside the window (it opens 30 minutes before),
+// so one of the two is always on today's date.
+$ck_soonOffset = gmdate('Y-m-d', time() + 5 * 60) === gmdate('Y-m-d') ? 5 * 60 : -5 * 60;
+$ck_session($coh, $ck_soonOffset);
 $dash = mam_checkin_dashboard($stu);
 t_ok($dash['week'] >= 1 && $dash['week'] <= $dash['total_weeks'], 'week is within the programme length');
 t_eq($dash['xp'], 40, 'dashboard surfaces XP');

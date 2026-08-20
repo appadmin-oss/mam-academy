@@ -1837,7 +1837,9 @@ CREATE TABLE term_census (
   taken_on          TEXT         NOT NULL,
   enrolled_count    INTEGER NOT NULL,
   active_count      INTEGER NOT NULL,
-  withdrawn_count   INTEGER NOT NULL DEFAULT 0,
+  -- NULLABLE, unlike the other two: a census taken by a system that did not
+  -- count withdrawals has no figure, and 0 would state that nobody withdrew.
+  withdrawn_count   INTEGER NULL,
   breakdown         TEXT         NULL,      -- by programme/level/centre
   taken_by          INTEGER NULL,
   created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
