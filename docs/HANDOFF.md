@@ -1,4 +1,4 @@
-# Handoff — forms, error paths, and the ETL
+# Handoff — the redesigns, the ETL, and what only MySQL finds
 
 **Branch:** verify with `git log --oneline -3` and `git status -sb`.
 **Started from:** production at `f3ca21e`, schema v59.
@@ -38,6 +38,14 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | **Charges: gated in depth, flags split** | ✅ **shipped** |
 | **Academic calendar + pro-rata refunds (schema v83)** | ✅ **shipped** — the first refund authority in the repo |
 | **NDPA compliance layer (schema v84)** | ✅ **shipped** — code half done; the operational half is the academy's |
+| **The guardian layer (schema v85–v88)** | ✅ **shipped** — reports, fees, threads, make-up credits |
+| **Schema v2 extended to the whole product** | ✅ **141 tables**; the ETL writes 112 of them |
+| **Admin console redesign (31 screens)** | ✅ **shipped** — `admin/console.php`; §4o |
+| **Homepage hero redesign** | ✅ **shipped** — the card is gone; §4o |
+| **The suite runs against MySQL** | ✅ **shipped** — found 7 defects that existed only there |
+| **Every route swept against MySQL, logs read** | ✅ clean — found 3 more (break-glass 401s) |
+| The console's phone subset (`#5b`) | not built — §6.2 |
+| Student + instructor portal redesigns | not started — still on the old palette |
 | Scholarship funds/awards, instalments, dunning | not started |
 | TanStack Table v8 | decided, **not implemented** |
 | htmx + strict CSP | needs a funding decision (doc 4's own framing) |
@@ -456,6 +464,12 @@ and would have caught both without a database:
   (swept across all 64 tables).
 
 **What the real engine then confirmed that SQLite cannot:**
+
+> The table figures in this section and in §4m are the schema **as it stood on
+> 2026-08-18/19** — 64 tables. It is 141 now (all five batches authored) and the
+> ETL writes 112 of them. These runs are left as the record of what was verified
+> when, not corrected into a claim about today.
+
 
 | | Result |
 |---|---|
@@ -969,11 +983,110 @@ Worth reading before the student portal, because the same traps are there:
 5. The desktop header sat outside the content measure, so the bell flew to x=1424
    past a 1180px column.
 
+## 4o. The admin console and the homepage hero (2026-08-20)
+
+Two design frames landed and are both shipped. Same instruction as the guardian
+portal: **delete the old styles and rewrite, not patch.**
+
+### The console — `admin/console.php`
+
+Thirty-one screens on the frame's information architecture (Dashboard, then
+Recruit / Teach / Bursary / Govern). The frame is written against the v2 schema,
+which nothing reads yet, so every screen is wired to **v1** and dual-reads both
+enrolment models wherever the frame says "one roster".
+
+The two decisions worth knowing:
+
+**Reads record their failures.** `mam_console_rows()` / `_scalar()` / `_try()`
+append to a per-request register instead of swallowing, and the page prints it
+with the database's own words. This exists because a PDO exception in a legacy
+view is caught, logged, and renders as *nothing* — a bad column silently empties
+a table and the screen still looks fine. The register also makes the test strong:
+it calls all 34 providers and asserts the register is empty. That caught **eight**
+bad column names while this was being written, and **three status filters naming
+values the CHECK constraints forbid** — a badge that could never be non-zero and
+nothing failing. Worth remembering: `fee_invoices` has no `overdue` status
+(derived from `due_on`), and `bursary_applications` uses `assessing`, not
+`review`.
+
+**Writes stay in `admin/index.php`.** Every action form posts to `/admin/`, so
+there is one capability table, one audit call, one implementation of each verb.
+`_console=<screen>` makes `mam_admin_console_return()` rewrite the handler's
+`Location` header **at shutdown** — every handler exits having set a header and
+no body, so it is still mutable there. One hook instead of a parameter threaded
+through ~140 branches. It validates the screen against `mam_console_screens()`
+rather than sanitising: `../evil?x=1` reduced to `evilx` is safe but lands an
+admin nowhere. The helper sits **above the first `$view ===` branch** or it is a
+fatal on any other screen, and `test_admin_screens.php` enforces that.
+
+Verified in a browser against MySQL: all 31 destinations click through with no
+failed read and no horizontal overflow, ⌘K searches/highlights/arrow-selects/
+escapes, density and the collapsed rail persist across a navigation, and a real
+POST lands back on its screen with the handler's own flash.
+
+Two of my own bugs, both found by the tests I wrote for them:
+`mam_console_usd_short()` compared a float to `floor()` strictly, so every KPI
+tile grew two decimals; and `mam_console_ngn()` substituted today's rate for a
+stored rate of zero, printing a plausible naira figure against a payment never
+taken at it. A corrupt rate reads as a dash now. `null` still means "no rate of
+its own, use today's and label it an estimate" — the two are different states.
+
+### The hero — `index.php` + the hero block in `main.css` + `initHero()`
+
+The coloured card is gone. Four panels meant four visual identities in
+twenty-six seconds, the card duplicated the logo 40px above it, and a 620px
+`backdrop-filter: blur(20px)` over a full-bleed photograph is a real cost on the
+mid-range Android that is most of this academy's traffic. One editorial block,
+varied only by an accent that `data-accent` selects as a custom property — so
+the markup has no `style=` and a fifth slide is one CSS block. Every `.card-*`,
+`.btn-signup*` and `.hero-content` rule is deleted, in all four places they were
+scattered down the file.
+
+Five accessibility failures fixed, all verified in a browser rather than
+reasoned about: no pause control (WCAG 2.2.2), `prefers-reduced-motion` ignored,
+nothing announced, steering restarted the timer instead of handing over control,
+and `aria-selected` on a button in no listbox.
+
+Two defects found by **measuring**, which is the point:
+
+- The bottom furniture was three things positioned against one edge, and at 1440
+  the proof strip overlapped the dot pill by five pixels — the pill is 278px wide
+  once the dots are a comfortable 44px instead of the frame's 24px. It is a flex
+  **row** now, so it cannot collide at any width. Checked at 1920/1440/1180/900/
+  430/390/320.
+- `visibility:hidden` takes a slide out of the tab order but transitions over
+  .9s and computes as `visible` throughout, so for 900ms after every advance the
+  outgoing slide's two links were still focusable. Inactive slides are `inert`.
+
+The frame's corner treble clef is deliberately **not** reproduced: `motion.js`
+already renders the site's signature wireframe at that exact position and calls
+it "one sculptural element, never particles, never noise".
+
+### MySQL, and the sweep
+
+MariaDB installed and the suite made runnable against it. Seven defects existed
+only there — two of which meant a shipped feature did not work at all on any
+MySQL host (no guardian account could be created, because `users.role` was an
+ENUM without `'parent'`; and all mail logging died silently on the first
+`date('c')` written to a DATETIME). The full list is in CLAUDE.md under
+"Running the site against MySQL".
+
+**A green suite is not a working site.** The route sweep after it — every page,
+every clean URL, all 31 console screens, all 40 legacy views, every GET API
+route, then `api/logs` read for what a 200 hides — found three admin routes
+still calling `mam_require_user()` inside a body already gated by
+`mw_admin_cap()`, which 401s the Basic-Auth break-glass operator.
+`recitals.php` did it unconditionally, so during a recovery nobody could even
+read the programme. All three take `mam_admin_require_actor()` now, and
+`test_console.php` asserts the class of bug rather than the three instances.
+
+---
+
 ## 5. Where things live
 
 | What | Where |
 |---|---|
-| Schema v2 (canonical MySQL, 64 tables) | `db/schema-v2.sql` |
+| Schema v2 (canonical MySQL, 141 tables) | `db/schema-v2.sql` |
 | SQLite mirror — **generated, never hand-edited** | `db/schema-v2-sqlite.sql` |
 | The generator (`--check` is wired into CI) | `api/tools/schema-v2-sqlite.php` |
 | Status catalogue — 67 statuses × 3 audiences | `api/lib/v2/status-catalogue.php` |
@@ -995,6 +1108,10 @@ Worth reading before the student portal, because the same traps are there:
 | The NDPA layer — requests, breaches, ROPA, retention, processors, DPIAs | `api/lib/dataprotection.php`, admin `?v=dataprotection` |
 | The forms audit, with every number | `docs/forms-audit-2026-08-17.md` |
 | The codebase map | `docs/codebase-index-2026-08-15.md` |
+| The admin console — shell, screens, reads, helpers | `admin/console.php`, `partials/admin-console/`, `api/lib/console.php` |
+| The console's design system (scoped `[data-admin="v2"]`) | `assets/css/admin-v2.css` |
+| The console → legacy-handler return hook | `mam_admin_console_return()` in `admin/index.php` |
+| The homepage hero (markup / styles / behaviour) | `index.php`, the hero block in `assets/css/main.css`, `initHero()` in `assets/js/main.js` |
 
 ⚠️ **`api/lib/v2/*` is deliberately NOT in `bootstrap.php`'s `$mam_libs`** — it
 queries v2 tables that do not exist in v1. Adding it there boots a 500 on every
@@ -1004,34 +1121,42 @@ request. It *is* in `api/tests/run.php`.
 
 ## 6. Next, in the order I would do it
 
-1. **The dashboard redesigns, when they arrive.** The instruction is explicit:
-   delete the old styles and redesign, not patch. Two things to establish before
-   writing any CSS, because getting them wrong costs a rebuild — whether the
-   designs are the source of truth for TOKENS (colour, type scale, radii) or only
-   for layout, and which dashboard goes first.
-   ⚠️ Several things in the current dashboards are load-bearing rather than
-   decorative and a redesign will silently drop them unless they are carried
-   deliberately: the admin's pinned actions column, `table.stack` +
-   `data-label` (the whole mobile layout for Applications/Users/Payments/Store),
-   `ORDER BY u.name` on the instructor comparison (sorting by a metric turns a
-   formative table into a ranking, whatever the heading says),
-   `MAM_ANALYTICS_INSTRUCTOR_NOTICE` on both rendering surfaces, the mastery
-   band rather than a raw score, and every em dash that means "not measured"
-   rather than zero. Flag each one that a design changes rather than preserving
-   or dropping it quietly.
-2. **Features in those designs that do not exist yet.** Expect some. Build them
+1. ~~**The admin dashboard redesign**~~ — **done, see §4o.** That item carried a
+   checklist of things a redesign would silently drop. Against the console as
+   built, honestly:
+
+   | Load-bearing thing | In the console? |
+   |---|---|
+   | `MAM_ANALYTICS_INSTRUCTOR_NOTICE` on every rendering surface | ✅ printed on Reports |
+   | The mastery **band**, never a raw score | ✅ via `mam_mastery_publishable()` |
+   | An em dash meaning "not measured", never zero | ✅ throughout — a cohort with no marks reads "nothing marked" |
+   | `ORDER BY u.name` on the instructor comparison | ✅ by not duplicating the table; the console links to `?v=analytics` |
+   | The pinned "in use" actions column | ❌ **dropped** — the frame replaces it with a grouped rail + live badge counts. Deliberate, but it is a loss for an admin who used the same four screens daily. |
+   | `table.stack` + `data-label` mobile tables | ❌ **not carried.** The console scrolls its tables horizontally instead. The frame is explicit that the console is desktop-first, but this is weaker on a phone than what `admin/index.php` already does, and it is the gap most likely to be noticed first. |
+
+2. **The console's phone subset (`#5b` in the frame) is not built.** Four
+   panels — Decide / Today / Assign / Look up — deliberately narrower than the
+   desktop console, with amending a record, voiding an invoice and closing a
+   period unavailable on purpose ("a consequential, hard-to-reverse action taken
+   one-handed on a bus is how a ledger acquires a mystery"). The desktop console
+   is responsive down to 320px and usable there, so this is an enhancement
+   rather than a blocker — but it is the other half of the frame.
+3. **The student and instructor portals are still on the old palette.**
+   `portal-v2.css` is scoped, so they and the guardian portal coexist; those two
+   dashboards are the remaining redesign work.
+4. **Features in those designs that do not exist yet.** Expect some. Build them
    against the existing libs where one fits; say so plainly where a design implies
    a table or an integration that is not there, rather than faking the screen.
-3. **Watch the first real enrolment after deploying the invitation change.** The
+5. **Watch the first real enrolment after deploying the invitation change.** The
    whole flow is proven in a browser, but nothing here has sent mail through the
    academy's own SMTP. `mail_log` is keyed by context — `summer_student_invite`,
    `summer_guardian_invite`, `portal_welcome` — so a failed send is findable and
    re-sendable. `portal_invite_failed` in the settlement return is the signal.
-4. **Then, if a v2 cutover is still wanted:** authentication against
+6. **Then, if a v2 cutover is still wanted:** authentication against
    `user_credentials`, sessions on `auth_sessions`, and one screen at a time
    repointed behind a flag. Sequence it WITH the redesign, not before — repointing
    a screen that is about to be rebuilt is work done twice.
-5. **The read model decision.** `api/lib/v2/readmodel.php` and `?v=v2read` were
+7. **The read model decision.** `api/lib/v2/readmodel.php` and `?v=v2read` were
    built for a plan the academy changed. Inert without `V2_READ_DB`, so harmless,
    but there by default rather than by decision. One commit either way.
 

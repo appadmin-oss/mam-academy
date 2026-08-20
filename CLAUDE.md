@@ -15,17 +15,26 @@ hosting behind Cloudflare.
 
 - Public pages: 38 `*.php` at the repo root (index, apply, store, book, tuition,
   pathways, terms, etc.). Clean URLs via root `.htaccess` (`.php`/`.html` → 301 → clean).
+- `admin/console.php` — the **redesigned admin console**, 31 screens, reads via
+  `api/lib/console.php` and renderers in `partials/admin-console/`. Where new
+  admin work goes. See "The admin console" below.
 - `admin/index.php` — large (~8.6K lines) server-rendered + JS admin dashboard
-  with **37 views**. Edit carefully.
+  with **37 views**, and still the owner of **every admin POST handler**,
+  including the console's. Edit carefully.
 - `portal/{student,instructor,parent}/index.html` — SPA-style portals (note the
   **parent/guardian portal**); `portal/{login,signup,reset,choose}.html`.
   The three dashboards carry ~4,800 lines of **inline** `<script>`.
 - `assets/js/` — `config.js` (the `MAM_API` client + `MAM_CONFIG`), `portal.js`
   (shared portal kit `P.*`), `main.js`, `tools.js` (studio), etc.
-- `api/` — front controller `api/index.php` → `lib/router.php`; **63 libs** in
-  `api/lib/`, **120 routes** registered, **78 test files** in `api/tests/`.
-- `db/schema-mysql.sql` — canonical MySQL schema (**106 tables**); mirrored by
-  SQLite migrations in `api/lib/db.php`.
+- `api/` — front controller `api/index.php` → `lib/router.php`; the libs in
+  `api/lib/`, the routes registered in `api/index.php`, the tests in
+  `api/tests/`. Counts are deliberately not repeated here: three separate
+  numbers in this paragraph went stale within a fortnight. `ls api/lib | wc -l`,
+  `grep -c '\$r->\(get\|post\)' api/index.php` and `ls api/tests/test_*.php |
+  wc -l` are always right.
+- `db/schema-mysql.sql` — canonical MySQL schema, applied with **`mysql
+  --force`** (see below); mirrored by SQLite migrations in `api/lib/db.php`.
+  `db/schema-v2.sql` is the 141-table v2 target, not yet read by anything.
 
 📍 **`docs/codebase-index-2026-08-15.md` is the map** — the full library, route,
 schema and test index, plus a findings list. Read it before a wide change; this
@@ -39,6 +48,11 @@ DB: **SQLite by default** (auto-migrates at `api/storage/mam.db`), MySQL in prod
 ```bash
 # Full test suite (zero-dependency runner; CI runs this). MUST stay green.
 php api/tests/run.php            # → "✅ PASS: N passed, 0 failed"
+
+# The same suite against MySQL — seven defects have existed only there. See
+# "Running the site against MySQL" below for the --force and fresh-DB caveats.
+DB_DSN='mysql:host=127.0.0.1;dbname=mam_suite;charset=utf8mb4' \
+  DB_USERNAME=… DB_PASSWORD=… php api/tests/run.php
 
 # Lint everything
 find . -name '*.php' -not -path './api/vendor/*' -print0 | xargs -0 -n1 php -l
@@ -748,6 +762,31 @@ the notation showcase.**
   (`renderReadiness` in `apply.js`) mirrors it. ⚠️ An earlier attempt that **added** three
   Step-3 questions (instrument access / weekend availability / values statement) was
   **reverted** — do NOT reintroduce applicant-facing eligibility questions.
+- ✅ **Homepage hero rewritten (2026-08-20)** from `Hero_Nav_Fixed.dc.html`. The
+  coloured card is **gone** — four panels meant four visual identities in
+  twenty-six seconds, the card duplicated the logo 40px above it, and
+  `backdrop-filter: blur(20px)` on a 620px panel over a full-bleed photograph is
+  a real cost on the mid-range Android that is most of this academy's traffic.
+  One editorial block now, varied only by an accent that `data-accent` selects
+  as a custom property (no `style=` in the markup; a fifth slide is one CSS
+  block). Every `.card-*` / `.btn-signup*` / `.hero-content` rule is deleted, in
+  all four places they were scattered. Non-obvious:
+  • **The bottom furniture is a flex ROW** (`.hero-footer`), not three things
+    positioned against one edge — measured, the proof strip overlapped the dot
+    pill by 5px at 1440 once the dots became a comfortable 44px instead of the
+    frame's 24px. Verified collision-free at 1920/1440/1180/900/430/390/320.
+  • **Inactive slides are `inert`**, not merely `visibility:hidden`: visibility
+    transitions over .9s and computes as `visible` throughout, so for 900ms
+    after every advance the outgoing slide's links were still focusable.
+  • The carousel **starts paused under `prefers-reduced-motion`**, has a real
+    pause control (WCAG 2.2.2), announces into a live region, and **steering it
+    hands over control** rather than restarting the timer.
+  • The frame's corner treble clef is deliberately NOT reproduced: `motion.js`
+    already renders the site's signature wireframe in that exact corner and
+    calls it "one sculptural element, never particles, never noise".
+  • The photograph is an `<img>` so the first can be preloaded as the LCP
+    element and the other three deferred. `main.js` skips `#hero` when adding
+    lazy attributes, which is why the explicit ones survive.
 - 🧭 **Apply "Find Your Path" advisor** (not a brief item, but shipped) —
   `assets/js/apply-discovery.js` + `#mamAdvisor` in `apply.php`. A *non-intrusive*
   invitation (never a takeover) that opens a warm advisor; it **uses AI** (server
@@ -1100,6 +1139,115 @@ Two conventions these established:
   `payments.amount` — that is the *charge* currency, and summing NGN into a USD
   total is the bug the v61 column exists to prevent. NULL = unpriced, counted
   and disclosed separately rather than silently dropped.
+
+## The admin console (`admin/console.php`) — the 2026-08 redesign
+
+Thirty-one screens on the design frame's information architecture, built
+2026-08-20. **The legacy `admin/index.php` is NOT retired**: it still serves 37
+views and — this is the load-bearing part — **every POST handler the console
+uses**. Both are reachable; each links to the other.
+
+```
+admin/console.php               the shell: rail, topbar, ⌘K, flash, screen dispatch
+assets/css/admin-v2.css         the design system, scoped to [data-admin="v2"]
+assets/js/admin-console.js      progressive enhancement ONLY — nothing depends on it
+api/lib/console.php             one read provider per screen (mam_console_<screen>())
+partials/admin-console/*.php    one renderer per screen, + _ui.php helpers (ac_*)
+api/routes/admin/search.php     the palette's lookup
+api/tests/test_console.php      the guards below
+```
+
+- **Reads go through `mam_console_rows()` / `_scalar()` / `_try()`, which RECORD
+  a failure instead of swallowing it.** `mam_console_failures()` is a
+  per-request register, and the page prints it — with the database's own words —
+  at the bottom of the screen. This exists because of gotcha #9: a PDO
+  exception in a legacy view is caught, logged, and renders as *nothing*, so a
+  bad column silently empties a table and the screen still looks fine. That
+  register is also what makes the test strong — it calls every provider and
+  asserts the register is empty, which caught **eight** bad column names and
+  **three** status filters naming values the CHECK constraints forbid (an
+  always-zero badge nobody would ever have seen). Add a provider → add it to
+  `$CN_providers` in the test, which asserts every screen is covered.
+- **Writes stay in `admin/index.php`.** Every action form posts to `/admin/`, so
+  there is one capability table, one audit call and one implementation of
+  "approve"/"waive"/"enrol". `_console=<screen>` on the form tells
+  `mam_admin_console_return()` (defined **above the first `$view ===` branch** —
+  gotcha #9 again, and `test_admin_screens.php` enforces it) to rewrite the
+  handler's `Location` header at **shutdown**: each handler exits having set a
+  header and no body, so it is still mutable there. That is one hook instead of
+  threading a parameter through ~140 branches. It **validates the screen against
+  `mam_console_screens()`**, not a character class — `../evil?x=1` sanitised to
+  `evilx` is safe but lands an admin nowhere, and a name the console does not
+  know means the POST was not from the console.
+- **No partial carries a `style=` attribute.** The stylesheet says so about
+  itself and the test enforces it; the one exception is `--ac-fill` on a meter,
+  which is a *value*, not a design decision. The test also rejects a duplicated
+  `class` attribute — a bulk edit produced 38 of them, and a browser keeps the
+  first and drops the second.
+- **A status filter must name a value the schema admits.** The test derives the
+  legal set from the live CHECK constraints. Note `fee_invoices` has **no
+  `overdue` status** — overdue is DERIVED from `due_on` on read, and
+  `bursary_applications` uses `assessing`, not `review`.
+- **`mam_console_ngn($cents, $rate)`**: `null` means "this figure has no rate of
+  its own, use today's and label it an estimate"; a **rate ≤ 0 is a corrupt row
+  and returns a dash**, never today's rate — substituting would print a
+  plausible naira figure against a payment never taken at it.
+  `mam_console_usd_short()` compares against `floor()` **loosely**, because
+  `$cents / 100` is a float even when it divides exactly and a strict comparison
+  makes every KPI tile grow two decimals.
+
+## Running the site against MySQL, and what only MySQL finds
+
+The suite ran on SQLite alone for its whole life. `api/tests/run.php` now reads
+`DB_DSN` / `DB_USERNAME` / `DB_PASSWORD` from the environment and skips the 14
+files that introspect `sqlite_master` or `PRAGMA`:
+
+```bash
+DB_DSN='mysql:host=127.0.0.1;dbname=mam_suite;charset=utf8mb4' \
+  DB_USERNAME=… DB_PASSWORD=… php api/tests/run.php
+```
+
+⚠️ Apply `db/schema-mysql.sql` with **`mysql --force`**: the file re-runs its own
+migration blocks, so ~36 "duplicate column" errors on a fresh database are
+expected and everything after them still applies. Without `--force` you get 18
+tables instead of 129. Use a **fresh database** each run — the suite leaves its
+fixtures behind, so a second run fails on a duplicate email.
+
+Seven defects existed **only** on MySQL, and each was invisible to a green
+SQLite suite:
+
+1. **`users.role` / `user_roles.role` were `ENUM` without `'parent'`.** Under
+   `STRICT_ALL_TABLES` that is error 1265, so no guardian account could be
+   created on any MySQL host — the whole parent portal was unreachable. Both are
+   `VARCHAR(20)` now (matching the SQLite authority, which enumerates nothing),
+   via the v89 migration.
+2. **`mailer.php` wrote `date('c')` into three DATETIME columns.** The ISO-8601
+   offset is refused, the catch sets `$disabled`, and every `mail_log` row for
+   the rest of the request is dropped silently.
+3. **`termly_reports.fk_treport_ratby` had `ON DELETE SET NULL` on a
+   CHECK-referenced column** — MariaDB error 1901 — which took four tables
+   (`termly_reports`, `termly_report_criteria`, `report_moderations`,
+   `mark_appeals`) out of the schema entirely.
+4. **`ESCAPE '\'`** is one backslash in the SQL text. SQLite accepts it;
+   MariaDB reads it as escaping the closing quote and the statement is a syntax
+   error. Use an escape character that is not itself an escape (`!`).
+5. **`||` is OR in MySQL, not concatenation.** Compose names in PHP.
+6. **MySQL DDL causes an implicit COMMIT**, so a test that DROPs a table inside
+   a transaction cannot roll it back — it leaves the table gone for every later
+   test. Rename it aside and back instead.
+7. **MySQL's `INT` coerces a fractional value; SQLite's INTEGER is an
+   AFFINITY** and stores it verbatim. Two `test_reports.php` assertions state
+   both engines: the CHECK refuses on one, the column coerces on the other, and
+   the guarantee — what comes back out is a whole number — is the same.
+
+**A green suite is not a working site.** The route sweep that followed
+(every page, every clean URL, all 31 console screens, all 40 legacy views,
+every GET API route, then `api/logs` read for what a 200 hides) found three
+more: `recitals.php`, `id-cards.php` and `session-remind.php` still called
+`mam_require_user()` inside a body already gated by `mw_admin_cap()`, which
+401s the Basic-Auth break-glass operator. `recitals` did it unconditionally, so
+during a recovery nobody could even read the programme. Use
+**`mam_admin_require_actor()`**; `test_console.php` now asserts the class.
 
 ## Where to look
 - **Research plan: `docs/research-plan-2026-08-17.md`** — the five commissioned
