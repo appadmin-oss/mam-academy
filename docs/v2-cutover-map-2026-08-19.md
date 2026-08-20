@@ -9,8 +9,8 @@ Measured surface at the time of writing:
 |---|---|
 | v1 tables (SQLite runtime, schema v88) | **129** |
 | v2 tables (`db/schema-v2.sql`, before this work) | **64** |
-| v2 tables now (batches 1–3 authored) | **106** |
-| ETL tables the plan writes (was 25) | **78** |
+| v2 tables now (batches 1–4 authored) | **119** |
+| ETL tables the plan writes (was 25) | **91** |
 | SQL call sites in `api/lib/` | 1,035 |
 | SQL call sites in `api/routes/` | 279 |
 | SQL call sites in `admin/` | 157 |
@@ -178,13 +178,46 @@ early and v1's recorded lateness was always an hour out. Raised in
 refund** in this codebase (CLAUDE.md gotcha #14). They must land before any money
 code is cut over, or every refund becomes a manual decision again.
 
-### Batch 4 · Communications and admissions (14)
+### Batch 4 · Communications and admissions (13) — ✅ AUTHORED
 
-`announcements`, `messages` (the public contact form — NOT the guardian threads),
-`support_tickets`, `ticket_messages`, `surveys`, `survey_responses`, `feedback`,
-`student_feedback`, `application_drafts`, `application_notes`,
-`summer_applications`, `scholarship_applications`, `auditer_results`,
-`newsletter`
+`announcements`, **`contact_messages`**, `support_tickets`, `ticket_messages`,
+`surveys`, `survey_responses`, **`learner_feedback`**, `application_notes`,
+`scholarship_applications`, `auditer_results`, **`marketing_contacts`**,
+**`promotions`**, **`announcement_banners`**
+
+**Three v1 tables get no v2 table.** `feedback` (per-submission rubric and
+comments) is a MARK — `assessments` + `assessment_marks`, one marking mechanism
+rather than two. `summer_applications` is an `applications` row against the CRASH
+programme. `application_drafts` is abandoned wizard state keyed by a browser
+token: a draft nobody submitted is not an application, and after cutover it is
+personal data held for no purpose anybody can name.
+
+⚠️ **Anonymity was a promise v1 did not keep.** `student_feedback` stored
+`is_anonymous` beside a NOT NULL `student_id`, and `survey_responses` was keyed
+UNIQUE(survey_id, student_id) — so "anonymous" feedback named its author to
+anybody with database access, which is anybody with a backup. In v2 an anonymous
+row has nowhere to put an identity, and one-reply-per-person is kept by a salted
+`respondent_hash`. The ETL is where the promise is made true: an anonymous row
+arrives with the author and the cohort removed (a cohort of nine identifies its
+author) and keeps the course as context. No migrated survey is marked anonymous.
+
+⚠️ **A banner was a pricing authority.** One `promo_banners` row held the
+headline, the background colour and a `discount_percent` that `validation.php`
+and `store.php` read when pricing tuition and store orders — so editing a colour
+and repricing every family were the same operation, and "why was this invoice
+cheaper" was answered by a marketing record somebody had since overwritten. v2
+splits it: `promotions` owns the percentage (with a window, a cap that must name
+its currency, and CHECKs refusing a negative discount or one above 100%), and
+`announcement_banners` owns the copy — taking a palette TOKEN rather than a hex
+value, because a colour typed into a marketing form is how a banner ends up at
+2:1 contrast against its own text. An issued invoice stores its own totals, so
+changing a promotion cannot restate what a family was already asked for.
+
+**Newsletter subscribers are carried**, against the inherited ETL's decision to
+drop them: dropping the list also drops the SUPPRESSION list, so the next import
+mails the people who asked not to be mailed. They go to `marketing_contacts`
+with consent provenance — a subscriber is a data subject, not a member, so
+`consents` (which needs a membership) is the wrong home.
 
 ### Batch 5 · Identity, safeguarding, engagement, compliance, infra (15)
 

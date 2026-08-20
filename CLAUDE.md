@@ -1154,9 +1154,9 @@ Two conventions these established:
 - **The v2 cutover map: `docs/v2-cutover-map-2026-08-19.md`** — every v1 table's
   v2 destination (RENAME 21 / ABSORB 9 / DROP 4 / NEW ~72 in five batches), the six
   conventions a new v2 table must follow, and the order of work. `db/schema-v2.sql`
-  is at **106 tables** (batches 1–3 authored: the guardian layer, the assessment
-  layer and teaching operations, all in v2 idiom) and `api/lib/v2/plan.php` writes
-  **78** of them.
+  is at **119 tables** (batches 1–4 authored: the guardian layer, the assessment
+  layer, teaching operations and communications, all in v2 idiom) and
+  `api/lib/v2/plan.php` writes **91** of them.
   ⚠️ Three things here bite:
   **(1) v1's `assessment_types` are NOT v2's `competencies`.** v1's rows are KINDS
   of assessment (assignment|final|practical|attendance) weighted for the gradebook;
@@ -1177,7 +1177,19 @@ Two conventions these established:
   its stored lateness figures were computed against. If the academy typed Lagos
   wall-clock times, every migrated session displays an hour early. Raised as
   `session_timezone_assumption` in `_review.json`.
-  **(4) `mark_appeals.opened_at` has no DB default, on purpose.** `chk_appeal_order`
+  **(4) Anonymity in v1 was a flag beside the author's id.** `student_feedback`
+  stored `is_anonymous` next to a NOT NULL `student_id`, and `survey_responses`
+  was keyed UNIQUE(survey_id, student_id) — so "anonymous" feedback named its
+  author to anybody with a backup. v2's rows have nowhere to put an identity and
+  keep one-reply-per-person with a salted `respondent_hash`. Don't add a
+  membership column back to either.
+  **(5) v1's `promo_banners` was a PRICING authority** — `validation.php` and
+  `store.php` read its `discount_percent` when pricing tuition and store orders,
+  so editing a banner's colour and repricing every family were one operation on
+  one row. v2 splits it into `promotions` (the percentage, in the money layer)
+  and `announcement_banners` (the copy, with a palette token instead of a hex
+  colour). Don't put a discount back on a banner.
+  **(6) `mark_appeals.opened_at` has no DB default, on purpose.** `chk_appeal_order`
   compares it with `closed_at`, and a defaulted `CURRENT_TIMESTAMP(3)` carries
   milliseconds that a PHP-supplied `gmdate()` does not — so an appeal declined
   twenty minutes after it was raised compared BELOW its own opened_at and the write
