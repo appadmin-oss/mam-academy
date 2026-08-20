@@ -926,6 +926,136 @@ CREATE TABLE module_carryforwards (
 );
 
 -- =============================================================================
+-- LAYER I · ACADEMIC CALENDAR
+-- =============================================================================
+-- v2 had no term table: `cohorts.term` was a free string, which is enough for a
+-- label on a page and not enough for the one thing a calendar is actually needed
+-- for. **This is the only authority on a refund.** Before v1 grew these tables
+-- there was no refund function anywhere in the codebase and every refund was a
+-- manual decision with nothing to check it against.
+--
+-- Four invariants, all of which are easy to "simplify" into being wrong:
+--   • A refund percentage is COMPUTED from a date, never stored per learner. Two
+--     families withdrawing the same day must get the same answer, and the answer
+--     must be reproducible a year later in an audit.
+--   • `term_refund_schedule` rows are the truth once seeded. A family is entitled
+--     to the table that was published when they enrolled, so re-saving a term's
+--     dates must never silently revert an edited table.
+--   • `term_census` is a SNAPSHOT and append-only (UNIQUE on term). "Enrolment as
+--     of the census date" must not move when somebody withdraws in week nine —
+--     recompute-on-read is the commonest way an official figure rewrites history.
+--   • Deadlines are adjudicated in the term's OWN timezone and displayed in the
+--     reader's. A diaspora guardian in New York must not get a different refund
+--     from a Lagos guardian because their clocks disagree about the date.
+
+CREATE TABLE academic_terms (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  public_id         TEXT     NOT NULL,
+  tenant_id         INTEGER NOT NULL,
+  -- The academy year this term sits in ("2026/2027"), and the term's own code.
+  -- MAM runs TONI / MEDI / SUMMER / DOMI, renameable per tenant.
+  year_label        TEXT  NOT NULL,
+  code              TEXT  NOT NULL,
+  term_no           TINYINTEGER NOT NULL DEFAULT 1,
+  -- What a family sees on a receipt. Snapshotted onto reports and invoices,
+  -- because a tenant may rename a term and a published document must keep the
+  -- name it was published under.
+  label             TEXT NOT NULL,
+  starts_on         TEXT         NOT NULL,
+  ends_on           TEXT         NOT NULL,
+  add_drop_deadline TEXT         NULL,
+  withdrawal_deadline TEXT       NULL,
+  census_date       TEXT         NULL,
+  teaching_weeks    TINYINTEGER NOT NULL DEFAULT 12,
+  -- IANA zone, because a TEXT deadline is a wall-clock fact about a place.
+  timezone          TEXT  NOT NULL DEFAULT 'Africa/Lagos',
+  status            TEXT  NOT NULL DEFAULT 'planned',   -- planned|active|closed
+  notes             TEXT NULL,
+  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  updated_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  deleted_at        TEXT  NULL,
+  deleted_seq       INTEGER NOT NULL DEFAULT 0,
+  created_by        INTEGER NULL,
+  row_version       INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (public_id),
+  UNIQUE (tenant_id, year_label, code, deleted_seq),
+
+  CONSTRAINT chk_terms_status CHECK (status IN ('planned','active','closed')),
+  -- A term must not end before it starts, and every deadline must fall inside it
+  -- and in the right order. Enforced here rather than in PHP because a bad row
+  -- corrupts every refund computed against it.
+  CONSTRAINT chk_terms_window CHECK (ends_on >= starts_on),
+  CONSTRAINT chk_terms_addrop CHECK (add_drop_deadline IS NULL
+        OR (add_drop_deadline >= starts_on AND add_drop_deadline <= ends_on)),
+  CONSTRAINT chk_terms_wdr CHECK (withdrawal_deadline IS NULL
+        OR (withdrawal_deadline >= starts_on AND withdrawal_deadline <= ends_on)),
+  CONSTRAINT chk_terms_census CHECK (census_date IS NULL
+        OR (census_date >= starts_on AND census_date <= ends_on)),
+  CONSTRAINT chk_terms_order CHECK (add_drop_deadline IS NULL OR withdrawal_deadline IS NULL
+        OR withdrawal_deadline >= add_drop_deadline),
+  CONSTRAINT fk_terms_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+);
+
+-- The published week-by-week refund table. Rows are the truth once seeded; a
+-- constant only ever SEEDS them.
+CREATE TABLE term_refund_schedule (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  term_id       INTEGER NOT NULL,
+  -- 0 means "on or before the add/drop date".
+  week_no       TINYINTEGER NOT NULL,
+  refund_pct    REAL NOT NULL,
+  -- What the transcript says: an add/drop leaves no mark, a withdrawal leaves W.
+  transcript_mark TEXT  NULL,
+  note          TEXT NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  UNIQUE (tenant_id, term_id, week_no),
+  CONSTRAINT chk_refund_pct CHECK (refund_pct >= 0 AND refund_pct <= 100),
+  CONSTRAINT fk_refundsched_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_refundsched_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE
+);
+
+-- Enrolment as of the census date. A SNAPSHOT: one row per term, append-only.
+CREATE TABLE term_census (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id         INTEGER NOT NULL,
+  term_id           INTEGER NOT NULL,
+  taken_on          TEXT         NOT NULL,
+  enrolled_count    INTEGER NOT NULL,
+  active_count      INTEGER NOT NULL,
+  -- NULLABLE, unlike the other two: a census taken by a system that did not
+  -- count withdrawals has no figure, and 0 would state that nobody withdrew.
+  withdrawn_count   INTEGER NULL,
+  breakdown         TEXT         NULL,      -- by programme/level/centre
+  taken_by          INTEGER NULL,
+  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+  -- One census per term. Retaking it would rewrite an official figure.
+  UNIQUE (tenant_id, term_id),
+  CONSTRAINT fk_census_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_census_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE
+);
+
+-- Days the academy is shut. A closure is in NEITHER half of an attendance rate:
+-- a class that did not happen must not count against the learner who would have
+-- attended it.
+CREATE TABLE term_closures (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id     INTEGER NOT NULL,
+  term_id       INTEGER NOT NULL,
+  centre_id     INTEGER NULL,        -- NULL = every centre
+  kind          TEXT  NOT NULL,       -- holiday|public|closure|exam_week
+  label         TEXT NOT NULL,
+  from_on       TEXT         NOT NULL,
+  to_on         TEXT         NOT NULL,
+  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
+
+  CONSTRAINT chk_closure_span CHECK (to_on >= from_on),
+  CONSTRAINT fk_closure_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+  CONSTRAINT fk_closure_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE,
+  CONSTRAINT fk_closure_centre FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE CASCADE
+);
+
+-- =============================================================================
 -- LAYER F · MONEY
 -- =============================================================================
 -- v1 stored a bare `amount` that meant whole naira on one row and dollars on
@@ -1740,136 +1870,6 @@ CREATE TABLE legacy_reference_map (
 );
 
 -- =============================================================================
--- LAYER I · ACADEMIC CALENDAR
--- =============================================================================
--- v2 had no term table: `cohorts.term` was a free string, which is enough for a
--- label on a page and not enough for the one thing a calendar is actually needed
--- for. **This is the only authority on a refund.** Before v1 grew these tables
--- there was no refund function anywhere in the codebase and every refund was a
--- manual decision with nothing to check it against.
---
--- Four invariants, all of which are easy to "simplify" into being wrong:
---   • A refund percentage is COMPUTED from a date, never stored per learner. Two
---     families withdrawing the same day must get the same answer, and the answer
---     must be reproducible a year later in an audit.
---   • `term_refund_schedule` rows are the truth once seeded. A family is entitled
---     to the table that was published when they enrolled, so re-saving a term's
---     dates must never silently revert an edited table.
---   • `term_census` is a SNAPSHOT and append-only (UNIQUE on term). "Enrolment as
---     of the census date" must not move when somebody withdraws in week nine —
---     recompute-on-read is the commonest way an official figure rewrites history.
---   • Deadlines are adjudicated in the term's OWN timezone and displayed in the
---     reader's. A diaspora guardian in New York must not get a different refund
---     from a Lagos guardian because their clocks disagree about the date.
-
-CREATE TABLE academic_terms (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
-  public_id         TEXT     NOT NULL,
-  tenant_id         INTEGER NOT NULL,
-  -- The academy year this term sits in ("2026/2027"), and the term's own code.
-  -- MAM runs TONI / MEDI / SUMMER / DOMI, renameable per tenant.
-  year_label        TEXT  NOT NULL,
-  code              TEXT  NOT NULL,
-  term_no           TINYINTEGER NOT NULL DEFAULT 1,
-  -- What a family sees on a receipt. Snapshotted onto reports and invoices,
-  -- because a tenant may rename a term and a published document must keep the
-  -- name it was published under.
-  label             TEXT NOT NULL,
-  starts_on         TEXT         NOT NULL,
-  ends_on           TEXT         NOT NULL,
-  add_drop_deadline TEXT         NULL,
-  withdrawal_deadline TEXT       NULL,
-  census_date       TEXT         NULL,
-  teaching_weeks    TINYINTEGER NOT NULL DEFAULT 12,
-  -- IANA zone, because a TEXT deadline is a wall-clock fact about a place.
-  timezone          TEXT  NOT NULL DEFAULT 'Africa/Lagos',
-  status            TEXT  NOT NULL DEFAULT 'planned',   -- planned|active|closed
-  notes             TEXT NULL,
-  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
-  updated_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
-  deleted_at        TEXT  NULL,
-  deleted_seq       INTEGER NOT NULL DEFAULT 0,
-  created_by        INTEGER NULL,
-  row_version       INTEGER NOT NULL DEFAULT 1,
-  UNIQUE (public_id),
-  UNIQUE (tenant_id, year_label, code, deleted_seq),
-
-  CONSTRAINT chk_terms_status CHECK (status IN ('planned','active','closed')),
-  -- A term must not end before it starts, and every deadline must fall inside it
-  -- and in the right order. Enforced here rather than in PHP because a bad row
-  -- corrupts every refund computed against it.
-  CONSTRAINT chk_terms_window CHECK (ends_on >= starts_on),
-  CONSTRAINT chk_terms_addrop CHECK (add_drop_deadline IS NULL
-        OR (add_drop_deadline >= starts_on AND add_drop_deadline <= ends_on)),
-  CONSTRAINT chk_terms_wdr CHECK (withdrawal_deadline IS NULL
-        OR (withdrawal_deadline >= starts_on AND withdrawal_deadline <= ends_on)),
-  CONSTRAINT chk_terms_census CHECK (census_date IS NULL
-        OR (census_date >= starts_on AND census_date <= ends_on)),
-  CONSTRAINT chk_terms_order CHECK (add_drop_deadline IS NULL OR withdrawal_deadline IS NULL
-        OR withdrawal_deadline >= add_drop_deadline),
-  CONSTRAINT fk_terms_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
-);
-
--- The published week-by-week refund table. Rows are the truth once seeded; a
--- constant only ever SEEDS them.
-CREATE TABLE term_refund_schedule (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  tenant_id     INTEGER NOT NULL,
-  term_id       INTEGER NOT NULL,
-  -- 0 means "on or before the add/drop date".
-  week_no       TINYINTEGER NOT NULL,
-  refund_pct    REAL NOT NULL,
-  -- What the transcript says: an add/drop leaves no mark, a withdrawal leaves W.
-  transcript_mark TEXT  NULL,
-  note          TEXT NULL,
-  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
-  UNIQUE (tenant_id, term_id, week_no),
-  CONSTRAINT chk_refund_pct CHECK (refund_pct >= 0 AND refund_pct <= 100),
-  CONSTRAINT fk_refundsched_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-  CONSTRAINT fk_refundsched_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE
-);
-
--- Enrolment as of the census date. A SNAPSHOT: one row per term, append-only.
-CREATE TABLE term_census (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
-  tenant_id         INTEGER NOT NULL,
-  term_id           INTEGER NOT NULL,
-  taken_on          TEXT         NOT NULL,
-  enrolled_count    INTEGER NOT NULL,
-  active_count      INTEGER NOT NULL,
-  -- NULLABLE, unlike the other two: a census taken by a system that did not
-  -- count withdrawals has no figure, and 0 would state that nobody withdrew.
-  withdrawn_count   INTEGER NULL,
-  breakdown         TEXT         NULL,      -- by programme/level/centre
-  taken_by          INTEGER NULL,
-  created_at        TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
-  -- One census per term. Retaking it would rewrite an official figure.
-  UNIQUE (tenant_id, term_id),
-  CONSTRAINT fk_census_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-  CONSTRAINT fk_census_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE
-);
-
--- Days the academy is shut. A closure is in NEITHER half of an attendance rate:
--- a class that did not happen must not count against the learner who would have
--- attended it.
-CREATE TABLE term_closures (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  tenant_id     INTEGER NOT NULL,
-  term_id       INTEGER NOT NULL,
-  centre_id     INTEGER NULL,        -- NULL = every centre
-  kind          TEXT  NOT NULL,       -- holiday|public|closure|exam_week
-  label         TEXT NOT NULL,
-  from_on       TEXT         NOT NULL,
-  to_on         TEXT         NOT NULL,
-  created_at    TEXT  NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f','now')),
-
-  CONSTRAINT chk_closure_span CHECK (to_on >= from_on),
-  CONSTRAINT fk_closure_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-  CONSTRAINT fk_closure_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE CASCADE,
-  CONSTRAINT fk_closure_centre FOREIGN KEY (centre_id) REFERENCES centres(id) ON DELETE CASCADE
-);
-
--- =============================================================================
 -- LAYER J · THE RATIFIED TERMLY REPORT
 -- =============================================================================
 -- The published academic record a family is shown. NOT `progress_reports`, which
@@ -1962,7 +1962,7 @@ CREATE TABLE termly_reports (
   CONSTRAINT fk_treport_level FOREIGN KEY (level_id) REFERENCES levels(id) ON DELETE SET NULL,
   CONSTRAINT fk_treport_term FOREIGN KEY (term_id) REFERENCES academic_terms(id) ON DELETE SET NULL,
   CONSTRAINT fk_treport_instr FOREIGN KEY (instructor_membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
-  CONSTRAINT fk_treport_ratby FOREIGN KEY (ratified_by) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_treport_ratby FOREIGN KEY (ratified_by) REFERENCES users(id)
 );
 
 CREATE TABLE termly_report_criteria (
@@ -2581,8 +2581,8 @@ CREATE TABLE assessments (
   CONSTRAINT fk_assess_sess   FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE SET NULL,
   CONSTRAINT fk_assess_module FOREIGN KEY (module_id)     REFERENCES modules(id) ON DELETE SET NULL,
   CONSTRAINT fk_assess_rubric FOREIGN KEY (rubric_id)     REFERENCES rubrics(id) ON DELETE SET NULL,
-  CONSTRAINT fk_assess_marker FOREIGN KEY (marker_membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
-  CONSTRAINT fk_assess_modby  FOREIGN KEY (moderated_by)  REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_assess_marker FOREIGN KEY (marker_membership_id) REFERENCES memberships(id),
+  CONSTRAINT fk_assess_modby  FOREIGN KEY (moderated_by)  REFERENCES users(id)
 );
 
 -- One row per criterion marked. This is the table `scores_json` should always
@@ -2665,7 +2665,7 @@ CREATE TABLE teachbacks (
   CONSTRAINT fk_teachback_enrol  FOREIGN KEY (enrolment_id) REFERENCES enrolments(id) ON DELETE CASCADE,
   CONSTRAINT fk_teachback_module FOREIGN KEY (module_id)    REFERENCES modules(id) ON DELETE SET NULL,
   CONSTRAINT fk_teachback_sess   FOREIGN KEY (session_id)   REFERENCES class_sessions(id) ON DELETE SET NULL,
-  CONSTRAINT fk_teachback_rev    FOREIGN KEY (reviewer_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+  CONSTRAINT fk_teachback_rev    FOREIGN KEY (reviewer_membership_id) REFERENCES memberships(id)
 );
 
 -- A named set of assignments (a unit of work, a practice block).
@@ -2790,7 +2790,7 @@ CREATE TABLE enrolment_results (
   CONSTRAINT fk_enresult_tenant FOREIGN KEY (tenant_id)    REFERENCES tenants(id),
   CONSTRAINT fk_enresult_enrol  FOREIGN KEY (enrolment_id) REFERENCES enrolments(id) ON DELETE CASCADE,
   CONSTRAINT fk_enresult_term   FOREIGN KEY (term_id)      REFERENCES academic_terms(id) ON DELETE SET NULL,
-  CONSTRAINT fk_enresult_by     FOREIGN KEY (finalised_by) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_enresult_by     FOREIGN KEY (finalised_by) REFERENCES users(id)
 );
 
 -- An awarded certificate, and the code a third party verifies it by.
@@ -2876,7 +2876,7 @@ CREATE TABLE module_proposals (
   CONSTRAINT fk_mprop_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   CONSTRAINT fk_mprop_level  FOREIGN KEY (level_id)  REFERENCES levels(id) ON DELETE SET NULL,
   CONSTRAINT fk_mprop_by     FOREIGN KEY (proposed_by_membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
-  CONSTRAINT fk_mprop_revby  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_mprop_revby  FOREIGN KEY (reviewed_by) REFERENCES users(id),
   CONSTRAINT fk_mprop_module FOREIGN KEY (module_id)  REFERENCES modules(id) ON DELETE SET NULL
 );
 
@@ -3066,7 +3066,7 @@ CREATE TABLE instructor_fines (
   CONSTRAINT fk_ifine_tenant  FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_ifine_member  FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
   CONSTRAINT fk_ifine_session FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE SET NULL,
-  CONSTRAINT fk_ifine_res     FOREIGN KEY (resolved_by)   REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_ifine_res     FOREIGN KEY (resolved_by)   REFERENCES users(id),
   CONSTRAINT fk_ifine_by      FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
 );
 
@@ -3150,7 +3150,7 @@ CREATE TABLE instructor_applications (
         OR (decided_at IS NOT NULL AND decision_note IS NOT NULL)),
   CONSTRAINT fk_iapp_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_iapp_invite FOREIGN KEY (invite_id)     REFERENCES faculty_invites(id) ON DELETE SET NULL,
-  CONSTRAINT fk_iapp_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_iapp_member FOREIGN KEY (membership_id) REFERENCES memberships(id),
   CONSTRAINT fk_iapp_by     FOREIGN KEY (decided_by)    REFERENCES users(id) ON DELETE SET NULL
 );
 
@@ -3282,8 +3282,8 @@ CREATE TABLE reschedule_requests (
   CONSTRAINT fk_resch_member FOREIGN KEY (requester_membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
   CONSTRAINT fk_resch_enrol  FOREIGN KEY (enrolment_id)  REFERENCES enrolments(id) ON DELETE SET NULL,
   CONSTRAINT fk_resch_cohort FOREIGN KEY (cohort_id)     REFERENCES cohorts(id) ON DELETE CASCADE,
-  CONSTRAINT fk_resch_pay    FOREIGN KEY (payment_id)    REFERENCES payments(id) ON DELETE SET NULL,
-  CONSTRAINT fk_resch_by     FOREIGN KEY (decided_by)    REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_resch_pay    FOREIGN KEY (payment_id)    REFERENCES payments(id),
+  CONSTRAINT fk_resch_by     FOREIGN KEY (decided_by)    REFERENCES users(id)
 );
 
 -- One session inside a reschedule request. The OLD time is kept because "what
@@ -3342,7 +3342,7 @@ CREATE TABLE cohort_waitlist (
   CONSTRAINT fk_waitlist_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_waitlist_cohort FOREIGN KEY (cohort_id)     REFERENCES cohorts(id) ON DELETE CASCADE,
   CONSTRAINT fk_waitlist_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
-  CONSTRAINT fk_waitlist_enrol  FOREIGN KEY (promoted_enrolment_id) REFERENCES enrolments(id) ON DELETE SET NULL
+  CONSTRAINT fk_waitlist_enrol  FOREIGN KEY (promoted_enrolment_id) REFERENCES enrolments(id)
 );
 
 -- Material shared with learners. v1 had `class_resources` (dual-read across both
@@ -3381,9 +3381,9 @@ CREATE TABLE learning_resources (
         OR course_id IS NOT NULL OR module_id IS NOT NULL OR visibility IN ('tenant','staff')),
   CONSTRAINT fk_lres_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_lres_cohort FOREIGN KEY (cohort_id)     REFERENCES cohorts(id) ON DELETE CASCADE,
-  CONSTRAINT fk_lres_course FOREIGN KEY (course_id)     REFERENCES courses(id) ON DELETE SET NULL,
-  CONSTRAINT fk_lres_module FOREIGN KEY (module_id)     REFERENCES modules(id) ON DELETE SET NULL,
-  CONSTRAINT fk_lres_att    FOREIGN KEY (attachment_id) REFERENCES attachments(id) ON DELETE SET NULL,
+  CONSTRAINT fk_lres_course FOREIGN KEY (course_id)     REFERENCES courses(id),
+  CONSTRAINT fk_lres_module FOREIGN KEY (module_id)     REFERENCES modules(id),
+  CONSTRAINT fk_lres_att    FOREIGN KEY (attachment_id) REFERENCES attachments(id),
   CONSTRAINT fk_lres_super  FOREIGN KEY (supersedes_id) REFERENCES learning_resources(id) ON DELETE SET NULL,
   CONSTRAINT fk_lres_by     FOREIGN KEY (posted_by)     REFERENCES users(id) ON DELETE SET NULL
 );
@@ -3656,7 +3656,7 @@ CREATE TABLE learner_feedback (
   CONSTRAINT fk_lfb_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_lfb_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
   CONSTRAINT fk_lfb_course FOREIGN KEY (course_id)     REFERENCES courses(id) ON DELETE SET NULL,
-  CONSTRAINT fk_lfb_cohort FOREIGN KEY (cohort_id)     REFERENCES cohorts(id) ON DELETE SET NULL,
+  CONSTRAINT fk_lfb_cohort FOREIGN KEY (cohort_id)     REFERENCES cohorts(id),
   CONSTRAINT fk_lfb_rev    FOREIGN KEY (reviewed_by)   REFERENCES users(id) ON DELETE SET NULL
 );
 
@@ -3926,7 +3926,7 @@ CREATE TABLE vetting_records (
   CONSTRAINT chk_vetting_verified CHECK ((verified_by IS NULL) = (verified_at IS NULL)),
   CONSTRAINT fk_vetting_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_vetting_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
-  CONSTRAINT fk_vetting_ver    FOREIGN KEY (verified_by)   REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_vetting_ver    FOREIGN KEY (verified_by)   REFERENCES users(id),
   CONSTRAINT fk_vetting_by     FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
 );
 
@@ -3973,7 +3973,7 @@ CREATE TABLE id_cards (
   CONSTRAINT fk_card_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
   CONSTRAINT fk_card_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
   CONSTRAINT fk_card_photo  FOREIGN KEY (photo_attachment_id) REFERENCES attachments(id) ON DELETE SET NULL,
-  CONSTRAINT fk_card_repl   FOREIGN KEY (replaced_by_id) REFERENCES id_cards(id) ON DELETE SET NULL,
+  CONSTRAINT fk_card_repl   FOREIGN KEY (replaced_by_id) REFERENCES id_cards(id),
   CONSTRAINT fk_card_by     FOREIGN KEY (created_by)    REFERENCES users(id) ON DELETE SET NULL
 );
 
@@ -4249,7 +4249,7 @@ CREATE TABLE recital_items (
   CONSTRAINT fk_ritem_member  FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
   CONSTRAINT fk_ritem_rep     FOREIGN KEY (repertoire_id) REFERENCES repertoire(id) ON DELETE SET NULL,
   CONSTRAINT fk_ritem_subm    FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE SET NULL,
-  CONSTRAINT fk_ritem_by      FOREIGN KEY (decided_by)    REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_ritem_by      FOREIGN KEY (decided_by)    REFERENCES users(id)
 );
 
 -- One referral code per person, and the referrals made with it.
@@ -4298,7 +4298,7 @@ CREATE TABLE referrals (
         OR referred_name IS NOT NULL OR referred_membership_id IS NOT NULL),
   CONSTRAINT fk_referral_tenant   FOREIGN KEY (tenant_id) REFERENCES tenants(id),
   CONSTRAINT fk_referral_referrer FOREIGN KEY (referrer_membership_id) REFERENCES memberships(id) ON DELETE CASCADE,
-  CONSTRAINT fk_referral_referred FOREIGN KEY (referred_membership_id) REFERENCES memberships(id) ON DELETE SET NULL
+  CONSTRAINT fk_referral_referred FOREIGN KEY (referred_membership_id) REFERENCES memberships(id)
 );
 
 -- =============================================================================
@@ -4342,7 +4342,7 @@ CREATE TABLE dp_assessments (
   CONSTRAINT chk_dpa_high_risk CHECK (residual_risk <> 'high'
         OR decision IN ('draft','do_not_proceed','proceed_with_controls')),
   CONSTRAINT fk_dpa_tenant FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
-  CONSTRAINT fk_dpa_by     FOREIGN KEY (assessed_by) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_dpa_by     FOREIGN KEY (assessed_by) REFERENCES users(id)
 );
 
 -- A personal data breach.
@@ -4505,7 +4505,7 @@ CREATE TABLE ai_runs (
   CONSTRAINT chk_airun_failed CHECK (ok = 1 OR error IS NOT NULL),
   CONSTRAINT chk_airun_reviewed CHECK ((reviewed_by IS NULL) = (reviewed_at IS NULL)),
   CONSTRAINT fk_airun_tenant FOREIGN KEY (tenant_id)   REFERENCES tenants(id),
-  CONSTRAINT fk_airun_by     FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_airun_by     FOREIGN KEY (reviewed_by) REFERENCES users(id)
 );
 
 -- The shop. Merchandise is NOT tuition: `price_books`/`price_items` model what a
@@ -4554,7 +4554,7 @@ CREATE TABLE store_products (
   CONSTRAINT chk_sprod_file CHECK (goods_type <> 'digital'
         OR delivery_type <> 'instant' OR file_attachment_id IS NOT NULL),
   CONSTRAINT fk_sprod_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id),
-  CONSTRAINT fk_sprod_file   FOREIGN KEY (file_attachment_id) REFERENCES attachments(id) ON DELETE SET NULL
+  CONSTRAINT fk_sprod_file   FOREIGN KEY (file_attachment_id) REFERENCES attachments(id)
 );
 
 CREATE TABLE store_orders (
@@ -4605,7 +4605,7 @@ CREATE TABLE store_orders (
   CONSTRAINT chk_sorder_contact CHECK (membership_id IS NOT NULL OR customer_email IS NOT NULL),
   CONSTRAINT chk_sorder_paid CHECK (status = 'pending' OR status = 'cancelled' OR paid_at IS NOT NULL),
   CONSTRAINT fk_sorder_tenant FOREIGN KEY (tenant_id)     REFERENCES tenants(id),
-  CONSTRAINT fk_sorder_member FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE SET NULL,
+  CONSTRAINT fk_sorder_member FOREIGN KEY (membership_id) REFERENCES memberships(id),
   CONSTRAINT fk_sorder_promo  FOREIGN KEY (promotion_id)  REFERENCES promotions(id) ON DELETE SET NULL,
   CONSTRAINT fk_sorder_pay    FOREIGN KEY (payment_id)    REFERENCES payments(id) ON DELETE SET NULL
 );
@@ -4644,8 +4644,7 @@ CREATE TABLE schema_version (
 );
 
 INSERT INTO schema_version (version, note) VALUES (205,
-  'schema-v2 complete: guardian layer, assessment, teaching operations, communications, '
-  || 'safeguarding, practice and compliance');
+  'schema-v2 complete: guardian layer, assessment, teaching operations, communications, safeguarding, practice and compliance');
 
 -- Seed the currencies the platform ships knowing about. Everything else is
 -- tenant data and arrives via the ETL or the admin.
@@ -4689,6 +4688,9 @@ CREATE INDEX ix_attendance_enrolment ON attendance (enrolment_id, status);
 CREATE INDEX ix_attendance_tenant ON attendance (tenant_id, status, created_at);
 CREATE INDEX ix_progress_status ON module_progress (tenant_id, status);
 CREATE INDEX ix_carry_enrolment ON module_carryforwards (enrolment_id, occurred_at);
+CREATE INDEX ix_terms_window ON academic_terms (tenant_id, starts_on, ends_on);
+CREATE INDEX ix_terms_status ON academic_terms (tenant_id, status);
+CREATE INDEX ix_closure_span ON term_closures (tenant_id, term_id, from_on, to_on);
 CREATE INDEX ix_fx_lookup ON fx_rates (base_currency, quote_currency, observed_at);
 CREATE INDEX ix_price_books_window ON price_books (tenant_id, valid_from, valid_to);
 CREATE INDEX ix_price_items_book ON price_items (price_book_id, item_type);
@@ -4727,9 +4729,6 @@ CREATE INDEX ix_action_open ON action_items (membership_id, completed_at, dismis
 CREATE INDEX ix_action_due ON action_items (tenant_id, due_at, completed_at);
 CREATE INDEX ix_legacy_ref ON legacy_reference_map (tenant_id, legacy_ref);
 CREATE INDEX ix_legacy_target ON legacy_reference_map (v2_table, v2_id);
-CREATE INDEX ix_terms_window ON academic_terms (tenant_id, starts_on, ends_on);
-CREATE INDEX ix_terms_status ON academic_terms (tenant_id, status);
-CREATE INDEX ix_closure_span ON term_closures (tenant_id, term_id, from_on, to_on);
 CREATE INDEX ix_treport_member ON termly_reports (tenant_id, membership_id, status);
 CREATE INDEX ix_treport_cohort ON termly_reports (tenant_id, cohort_id, status);
 CREATE INDEX ix_treport_slot ON termly_reports (tenant_id, membership_id, term_id, course_id, level_id, status);

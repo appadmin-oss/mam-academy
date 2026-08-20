@@ -2585,7 +2585,19 @@ CREATE TABLE IF NOT EXISTS termly_reports (
   CONSTRAINT fk_treport_level   FOREIGN KEY (level_id)      REFERENCES levels(id)         ON DELETE SET NULL,
   CONSTRAINT fk_treport_term    FOREIGN KEY (term_id)       REFERENCES academic_terms(id) ON DELETE SET NULL,
   CONSTRAINT fk_treport_instr   FOREIGN KEY (instructor_id) REFERENCES users(id)          ON DELETE SET NULL,
-  CONSTRAINT fk_treport_ratby   FOREIGN KEY (ratified_by)   REFERENCES users(id)          ON DELETE SET NULL,
+  -- NOT `ON DELETE SET NULL`, and MariaDB is what forced the issue: it refuses
+  -- (error 1901) a CHECK that references a column a referential action can
+  -- null, because the cascade would silently break the constraint. Here the
+  -- CHECK is `chk_treport_rat` — a ratified report names its ratifier — and the
+  -- domain answer is the same as the engine's: an academic mark must stay
+  -- attributable, so a user who has ratified a report cannot be DELETED. This
+  -- codebase closes accounts (`status='closed'`) and keeps a tombstone row
+  -- rather than deleting people, so RESTRICT costs nothing operationally.
+  -- ⚠️ SQLite and MySQL 8 both ACCEPT the SET NULL form, so this failure is
+  -- invisible until a MariaDB host applies the file — where the whole CREATE
+  -- TABLE fails and all four v85 tables are simply absent while schema_version
+  -- still reads 88.
+  CONSTRAINT fk_treport_ratby   FOREIGN KEY (ratified_by)   REFERENCES users(id),
   CONSTRAINT fk_treport_creator FOREIGN KEY (created_by)    REFERENCES users(id)          ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

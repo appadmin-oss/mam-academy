@@ -259,3 +259,89 @@ foreach (explode("\n", $smMutG) as $line) {
     if (preg_match('/\b(TINYTEXT|TEXT|MEDIUMTEXT|LONGTEXT|BLOB)\b[^,]*\bDEFAULT\s+(?!NULL)/i', $line)) $smMutGHit = true;
 }
 t_ok($smMutGHit, 'a TEXT column with a literal DEFAULT IS detected');
+
+t_group('schema portability — two defects only a real MariaDB reveals');
+
+/**
+ * Both of these were found by applying the shipped files to MariaDB 10.11 and
+ * counting the tables that arrived. Both are INVISIBLE on SQLite, and the first
+ * is invisible on MySQL 8 as well, so a static check is the only guard that runs
+ * in CI.
+ *
+ * 1 · MariaDB refuses (error 1901) a CHECK constraint that references a column a
+ *     referential action can NULL — the cascade would silently break the
+ *     constraint. The whole CREATE TABLE fails, so the table is simply ABSENT
+ *     while `schema_version` still reads the target. Measured: four v85 tables
+ *     (termly_reports and its three companions) were missing from every MariaDB
+ *     install, which is the guardian portal's entire report subsystem.
+ *
+ * 2 · MySQL requires a foreign key's TARGET table to exist already; SQLite
+ *     resolves references at runtime. A table declared before the one it points
+ *     at fails with errno 150. Measured: six invoice/payment tables, because the
+ *     calendar layer was declared after the money layer that references it.
+ */
+$portFiles = ['db/schema-mysql.sql', 'db/schema-v2.sql'];
+foreach ($portFiles as $rel) {
+    $src = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $rel);
+    $blocks = [];
+    if (preg_match_all('/CREATE TABLE (?:IF NOT EXISTS )?`?([a-z_0-9]+)`?\s*\((.*?)\n\)\s*ENGINE/is',
+                       $src, $m, PREG_SET_ORDER)) {
+        foreach ($m as $b) $blocks[] = [$b[1], $b[2]];
+    }
+    t_ok(count($blocks) > 90, "$rel parsed into table blocks [" . count($blocks) . ']');
+
+    // 1 · a CHECK may not name a column a referential action nulls.
+    $clash = [];
+    foreach ($blocks as [$table, $body]) {
+        $nulled = [];
+        if (preg_match_all('/FOREIGN\s+KEY\s*\(\s*`?([a-z_0-9]+)`?\s*\)[^,]*?ON\s+(?:DELETE|UPDATE)\s+SET\s+NULL/is',
+                           $body, $fk, PREG_SET_ORDER)) {
+            foreach ($fk as $f) $nulled[strtolower($f[1])] = true;
+        }
+        if (!$nulled) continue;
+        if (preg_match_all('/CHECK\s*\((.*?)\)\s*(?:,\s*\n?\s*(?:CONSTRAINT|KEY|UNIQUE|PRIMARY|FOREIGN)|\s*\n\)\s*ENGINE)/is',
+                           $body . "\n) ENGINE", $ck, PREG_SET_ORDER)) {
+            foreach ($ck as $c) {
+                foreach (array_keys($nulled) as $col) {
+                    if (preg_match('/\b' . preg_quote($col, '/') . '\b/i', $c[1])) $clash[] = "$table.$col";
+                }
+            }
+        }
+    }
+    $clash = array_values(array_unique($clash));
+    t_eq(implode(', ', $clash), '',
+        "$rel: no CHECK names a column an ON DELETE/UPDATE SET NULL can blank — MariaDB refuses the whole "
+        . 'table with error 1901, and the table is then absent while schema_version reads the target');
+
+    // 2 · every foreign key target is declared EARLIER in the file.
+    $seen = [];
+    $forward = [];
+    foreach ($blocks as [$table, $body]) {
+        $seen[$table] = true;
+        if (preg_match_all('/REFERENCES\s+`?([a-z_0-9]+)`?\s*\(/i', $body, $ref)) {
+            foreach ($ref[1] as $target) {
+                if ($target === $table) continue;                 // self-reference is fine
+                if (!isset($seen[$target])) $forward[] = "$table → $target";
+            }
+        }
+    }
+    $forward = array_values(array_unique($forward));
+    t_eq(implode(', ', $forward), '',
+        "$rel: every foreign key points at a table declared BEFORE it — MySQL cannot create a key onto a "
+        . 'table that does not exist yet, and SQLite resolves it at runtime so the ordering error is '
+        . 'invisible there');
+}
+
+// 3 · `||` is OR in MySQL, not string concatenation. A version note built with it
+//     collapsed into a numeric comparison and MySQL refused the INSERT as a
+//     truncated DOUBLE — losing the schema_version stamp at the end of the file.
+foreach ($portFiles as $rel) {
+    $src = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $rel);
+    $pipes = [];
+    foreach (explode("\n", $src) as $i => $line) {
+        if (preg_match('/^\s*--/', $line)) continue;
+        if (str_contains($line, '||')) $pipes[] = $i + 1;
+    }
+    t_eq(count($pipes), 0, "$rel uses no `||` — MySQL reads it as OR, not concatenation"
+        . ($pipes ? ' — line(s) ' . implode(', ', $pipes) : ''));
+}
