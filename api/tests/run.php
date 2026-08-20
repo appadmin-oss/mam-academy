@@ -127,6 +127,7 @@ require $ROOT . '/lib/upper-admin.php';       // upper-admin strategic intellige
 require $ROOT . '/lib/reports.php';           // ratified termly reports + moderation + appeals (v85)
 require $ROOT . '/lib/fees.php';              // fee invoices, four kinds of aid, payment plans (v87)
 require $ROOT . '/lib/guardian-comms.php';    // guardian threads, channels, make-up credits (v88)
+require $ROOT . '/lib/console.php';           // admin console read model (one provider per screen)
 
 require __DIR__ . '/assert.php';
 

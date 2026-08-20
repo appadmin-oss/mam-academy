@@ -1,0 +1,679 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   MAM Academy — admin console design system v2 (20 Aug 2026)
+
+   Every value here is measured out of the canonical design frame
+   (`Admin_Console.dc.html`, `#5a data-phone="admin"` for the desktop console and
+   `#5b data-phone="adminmobile"` for the phone subset). The mock states
+   everything as inline `style=` attributes; this file is where those become
+   named components ONCE, so the console markup carries classes and nothing else.
+   No page loading this stylesheet should contain a `style=` attribute — the one
+   exception is a width/percentage computed from live data (a fill bar, a seat
+   meter), which is a value, not a design decision.
+
+   ── SCOPED, deliberately ────────────────────────────────────────────────────
+   Everything hangs off `[data-admin="v2"]`, reset included, for exactly the
+   reason `portal-v2.css` is scoped: `main.css` owns `--bg`/`--text`/`--raised`
+   site-wide and the legacy `admin/index.php` reads them, so a bare `:root` block
+   here would repaint the warm dark admin with this light palette on any page
+   loading both. The legacy admin has not been retired — it still owns every
+   POST handler this console posts to — so both stylesheets must coexist in one
+   build. Put `data-admin="v2"` on <html> and this applies; leave it off and the
+   file is inert.
+
+   ── Provenance ──────────────────────────────────────────────────────────────
+   ✱MOCK — a value the frame demonstrably uses (measured from the inline styles).
+   ✱OURS — a decision made here, each with its reason in the comment.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+[data-admin="v2"] {
+  /* ── Surfaces ─────────────────────────────────────────────────────────── */
+  --ac-page:     #E4E7EC;  /* ✱MOCK the page behind the console frame */
+  --ac-app:      #F1F3F6;  /* ✱MOCK the console's own ground */
+  --ac-surface:  #FFFFFF;  /* ✱MOCK cards, tables, drawers */
+  --ac-sunken:   #F6F7F9;  /* ✱MOCK table headers, ghost buttons, footers */
+  --ac-chip:     #EBEEF2;  /* ✱MOCK neutral pills, keyboard hints */
+  --ac-ink:      #1B2430;  /* ✱MOCK primary text, the rail, the primary button */
+
+  /* ── Ink ramp. Four steps, and they are used consistently: heading, body,
+        secondary, and the muted label/meta tier. ────────────────────────── */
+  --ac-ink-2:    #3B4453;  /* ✱MOCK body copy, form labels */
+  --ac-ink-3:    #57616F;  /* ✱MOCK neutral pill text, kbd glyphs */
+  --ac-ink-4:    #66707E;  /* ✱MOCK meta, notes, column headers */
+  --ac-ink-5:    #98A1AE;  /* ✱MOCK dismiss affordances only */
+
+  /* ── Accent. One orange, used for the active rail marker, the primary
+        button and the search highlight. Nothing else. ───────────────────── */
+  --ac-accent:   #E2650F;  /* ✱MOCK */
+  --ac-accent-d: #B34708;  /* ✱MOCK links, icons on light ground (AA on white) */
+  --ac-accent-w: rgba(226, 101, 15, 0.09);  /* ✱MOCK selected row wash */
+
+  /* ── Status. Three, and they mean three different things: settled/held,
+        overdue/refused, and needs-a-decision. ──────────────────────────── */
+  --ac-good:     #0A6344;  --ac-good-w: rgba(15, 138, 95, 0.12);   /* ✱MOCK */
+  --ac-bad:      #B0203C;  --ac-bad-w:  rgba(176, 32, 60, 0.10);   /* ✱MOCK */
+  --ac-warn:     #8A5A00;  --ac-warn-w: rgba(176, 116, 15, 0.09);  /* ✱MOCK */
+
+  /* ── Hairlines. The mock uses four opacities of one ink and they are not
+        interchangeable: .10 divides rows, .14 draws a nested box, .17 draws a
+        button, .20 draws a field a cursor goes into. ────────────────────── */
+  --ac-line:     rgba(24, 32, 44, 0.10);
+  --ac-line-2:   rgba(24, 32, 44, 0.14);
+  --ac-line-3:   rgba(24, 32, 44, 0.17);
+  --ac-line-4:   rgba(24, 32, 44, 0.20);
+
+  /* ── Type ─────────────────────────────────────────────────────────────── */
+  --ac-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --ac-serif: 'Cormorant Garamond', Georgia, serif;
+  --ac-num:   'Bebas Neue', Impact, sans-serif;
+  --ac-mono:  ui-monospace, Menlo, Consolas, monospace;
+
+  /* ── Radii ────────────────────────────────────────────────────────────── */
+  --ac-r-sm: 6px; --ac-r: 8px; --ac-r-md: 10px; --ac-r-lg: 12px;
+  --ac-r-xl: 14px; --ac-r-2xl: 16px; --ac-pill: 100px;
+
+  /* ── Rail. Two widths, one custom property, so the collapse is a single
+        attribute flip rather than a dozen inline writes the mock's script
+        does by hand. ───────────────────────────────────────────────────── */
+  --ac-rail: 236px;
+
+  /* ── Row density. The topbar toggle writes one variable; every table reads
+        it, so comfortable/compact is not 40 separate rules. ─────────────── */
+  --ac-row-y: 11px;
+
+  color: var(--ac-ink);
+  font-family: var(--ac-sans);
+  background: var(--ac-page);
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-admin="v2"] *,
+[data-admin="v2"] *::before,
+[data-admin="v2"] *::after { box-sizing: border-box; }
+
+[data-admin="v2"] body { margin: 0; background: var(--ac-page); color: var(--ac-ink); font-family: var(--ac-sans); }
+[data-admin="v2"] a { color: var(--ac-accent-d); }
+[data-admin="v2"] a:hover { color: var(--ac-ink); }
+[data-admin="v2"][data-density="compact"] { --ac-row-y: 7px; }
+
+/* Hide a scrollbar without hiding the scroll. Used on the rail and the main
+   scroller only — a table that scrolls horizontally keeps its bar. */
+[data-admin="v2"] .sc { scrollbar-width: none; }
+[data-admin="v2"] .sc::-webkit-scrollbar { width: 0; height: 0; }
+
+[data-admin="v2"] .ac-skip {
+  position: absolute; left: -9999px; top: 0; z-index: 200;
+  padding: 10px 16px; background: var(--ac-ink); color: #fff;
+  font-size: 13px; font-weight: 700; border-radius: 0 0 var(--ac-r) 0;
+}
+[data-admin="v2"] .ac-skip:focus { left: 0; }
+[data-admin="v2"] :focus-visible { outline: 2px solid var(--ac-accent); outline-offset: 2px; }
+
+/* ══ SHELL ══════════════════════════════════════════════════════════════════
+   The mock is a fixed 1440×900 frame because a design doc has to be. A real
+   console is the viewport, so the shell fills it and the rail is the only
+   fixed dimension. ─────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-shell {
+  display: flex; min-height: 100vh; background: var(--ac-app);
+}
+
+/* ── Rail ─────────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-rail {
+  flex: 0 0 var(--ac-rail); width: var(--ac-rail);
+  background: var(--ac-ink); color: rgba(255, 255, 255, 0.72);
+  display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden;
+  position: sticky; top: 0; height: 100vh;
+}
+[data-admin="v2"][data-rail="collapsed"] { --ac-rail: 62px; }
+
+[data-admin="v2"] .ac-railstick {
+  position: sticky; top: 0; z-index: 2; background: var(--ac-ink);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  padding: 14px 12px 12px; display: flex; flex-direction: column; gap: 10px;
+}
+/* The mock lifts the rail head on scroll. One class, set by script. */
+[data-admin="v2"] .ac-railstick.is-lifted {
+  background: rgba(27, 36, 48, 0.72);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 8px 22px rgba(9, 13, 19, 0.34);
+  border-bottom-color: rgba(255, 255, 255, 0.18);
+}
+[data-admin="v2"] .ac-railhead { display: flex; align-items: center; gap: 10px; }
+[data-admin="v2"] .ac-railhead img { width: 28px; height: 28px; border-radius: var(--ac-r-sm); flex: 0 0 auto; }
+[data-admin="v2"] .ac-railhead .ac-rt { flex: 1; min-width: 0; }
+[data-admin="v2"] .ac-railname { font-family: var(--ac-num); font-size: 15px; letter-spacing: 0.06em; color: #fff; line-height: 1; }
+[data-admin="v2"] .ac-railsub { font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.52); margin-top: 3px; }
+[data-admin="v2"] .ac-railtoggle {
+  width: 26px; height: 26px; flex: 0 0 auto; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.16); border-radius: var(--ac-r-sm);
+  background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.72); font-size: 10px;
+}
+[data-admin="v2"] .ac-centre {
+  display: flex; align-items: center; gap: 9px; width: 100%; min-height: 34px;
+  padding: 0 10px; cursor: pointer; text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: var(--ac-r);
+  background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.86);
+  font-family: inherit; font-size: 12.5px; font-weight: 600;
+}
+[data-admin="v2"] .ac-centre span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+[data-admin="v2"] .ac-navlist { padding: 10px 0 14px; display: flex; flex-direction: column; }
+[data-admin="v2"] .ac-navgroup {
+  padding: 14px 14px 6px; font-size: 10px; font-weight: 800;
+  letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.38);
+}
+[data-admin="v2"] .ac-nav {
+  position: relative; display: flex; align-items: center; gap: 11px;
+  min-height: 34px; padding: 0 12px; cursor: pointer; text-align: left;
+  border: 0; background: none; color: rgba(255, 255, 255, 0.72);
+  font-family: inherit; font-size: 13px; font-weight: 500; text-decoration: none;
+}
+[data-admin="v2"] .ac-nav i { font-size: 12.5px; width: 15px; text-align: center; flex: 0 0 auto; }
+[data-admin="v2"] .ac-nav .ac-navlabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-admin="v2"] .ac-nav:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+[data-admin="v2"] .ac-navbar {
+  position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--ac-accent); opacity: 0;
+}
+[data-admin="v2"] .ac-nav[aria-current="page"] { background: rgba(255, 255, 255, 0.10); color: #fff; font-weight: 700; }
+[data-admin="v2"] .ac-nav[aria-current="page"] .ac-navbar { opacity: 1; }
+/* A count is a call to action, so it reads as one — but only when non-zero,
+   which is the server's decision, not this file's. */
+[data-admin="v2"] .ac-navcount {
+  flex: 0 0 auto; min-width: 20px; height: 18px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--ac-pill); background: var(--ac-accent); color: var(--ac-ink);
+  font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+[data-admin="v2"] .ac-railfoot {
+  margin-top: auto; padding: 12px; display: flex; align-items: center; gap: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+[data-admin="v2"] .ac-railfoot .ac-avatar { background: rgba(255, 255, 255, 0.12); color: #fff; }
+[data-admin="v2"] .ac-railwho { font-size: 12.5px; font-weight: 700; color: #fff; }
+[data-admin="v2"] .ac-railrole { font-size: 11px; color: rgba(255, 255, 255, 0.52); margin-top: 2px; }
+
+/* Collapsed rail. The mock's script rewrites a dozen inline styles; the same
+   result falls out of one attribute because the labels share a class. */
+[data-admin="v2"][data-rail="collapsed"] .ac-rt,
+[data-admin="v2"][data-rail="collapsed"] .ac-navlabel,
+[data-admin="v2"][data-rail="collapsed"] .ac-navcount,
+[data-admin="v2"][data-rail="collapsed"] .ac-navgroup,
+[data-admin="v2"][data-rail="collapsed"] .ac-centre span,
+[data-admin="v2"][data-rail="collapsed"] .ac-railfoot .ac-rt { display: none; }
+[data-admin="v2"][data-rail="collapsed"] .ac-nav,
+[data-admin="v2"][data-rail="collapsed"] .ac-centre { justify-content: center; padding: 0; }
+[data-admin="v2"][data-rail="collapsed"] .ac-railhead { flex-direction: column; gap: 10px; }
+
+/* ── Main column ──────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+[data-admin="v2"] .ac-topbar {
+  position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px;
+  padding: 11px 20px; background: rgba(241, 243, 246, 0.92);
+  border-bottom: 1px solid var(--ac-line);
+}
+[data-admin="v2"] .ac-search {
+  display: flex; align-items: center; gap: 10px; min-width: 260px; height: 34px;
+  padding: 0 12px; cursor: pointer; text-align: left;
+  border: 1px solid var(--ac-line-3); border-radius: var(--ac-r);
+  background: var(--ac-surface); color: var(--ac-ink-4);
+  font-family: inherit; font-size: 13px;
+}
+[data-admin="v2"] .ac-search span:first-of-type { flex: 1; }
+[data-admin="v2"] .ac-kbd, [data-admin="v2"] kbd {
+  display: inline-flex; align-items: center; height: 19px; padding: 0 5px;
+  border-radius: 4px; background: var(--ac-chip); color: var(--ac-ink-3);
+  font-family: inherit; font-size: 11px; font-weight: 700;
+}
+[data-admin="v2"] .ac-spacer { flex: 1; }
+[data-admin="v2"] .ac-termchip {
+  display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 0 11px;
+  border-radius: var(--ac-pill); background: var(--ac-chip); color: var(--ac-ink-3);
+  font-size: 11.5px; font-weight: 700;
+}
+[data-admin="v2"] .ac-seg {
+  display: inline-flex; padding: 2px; gap: 2px;
+  border: 1px solid var(--ac-line-3); border-radius: var(--ac-r); background: var(--ac-surface);
+}
+[data-admin="v2"] .ac-seg > * {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 26px; padding: 0 9px; cursor: pointer;
+  border: 0; border-radius: var(--ac-r-sm); background: none;
+  color: var(--ac-ink-4); font-family: inherit; font-size: 11.5px; font-weight: 700;
+  text-decoration: none;
+}
+[data-admin="v2"] .ac-seg > [aria-pressed="true"],
+[data-admin="v2"] .ac-seg > .is-on { background: var(--ac-ink); color: #fff; }
+[data-admin="v2"] .ac-bell { position: relative; }
+[data-admin="v2"] .ac-bell .ac-dot {
+  position: absolute; top: 4px; right: 4px; width: 7px; height: 7px;
+  border-radius: 50%; background: var(--ac-bad);
+}
+
+[data-admin="v2"] .ac-scroll { flex: 1; min-width: 0; overflow-y: auto; padding: 22px 20px 56px; }
+[data-admin="v2"] .ac-screen { display: flex; flex-direction: column; gap: 16px; max-width: 1400px; }
+
+/* ── Screen header ────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+[data-admin="v2"] .ac-head h2 {
+  margin: 0; font-family: var(--ac-serif); font-size: 30px; font-weight: 700;
+  line-height: 1.05; letter-spacing: -0.01em;
+}
+[data-admin="v2"] .ac-head p { margin: 6px 0 0; font-size: 12.5px; color: var(--ac-ink-4); line-height: 1.6; }
+[data-admin="v2"] .ac-headactions { margin-left: auto; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 32px; padding: 0 13px; cursor: pointer; text-decoration: none;
+  border: 1px solid var(--ac-line-3); border-radius: var(--ac-r);
+  background: var(--ac-surface); color: var(--ac-ink);
+  font-family: inherit; font-size: 12.5px; font-weight: 700; white-space: nowrap;
+}
+[data-admin="v2"] .ac-btn:hover { background: var(--ac-sunken); color: var(--ac-ink); }
+[data-admin="v2"] .ac-btn--primary { background: var(--ac-ink); border-color: var(--ac-ink); color: #fff; }
+[data-admin="v2"] .ac-btn--primary:hover { background: #101821; color: #fff; }
+[data-admin="v2"] .ac-btn--accent { background: var(--ac-accent); border-color: var(--ac-accent); color: var(--ac-ink); }
+[data-admin="v2"] .ac-btn--danger { border-color: rgba(176, 32, 60, 0.34); color: var(--ac-bad); }
+[data-admin="v2"] .ac-btn--ghost { border-color: transparent; background: none; color: var(--ac-ink-4); }
+[data-admin="v2"] .ac-btn--sm { min-height: 28px; padding: 0 10px; font-size: 11.5px; }
+[data-admin="v2"] .ac-btn--icon { width: 32px; padding: 0; }
+[data-admin="v2"] .ac-btn[disabled], [data-admin="v2"] .ac-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+
+/* ── KPI strip ────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+[data-admin="v2"] .ac-kpi {
+  background: var(--ac-surface); border: 1px solid var(--ac-line);
+  border-radius: var(--ac-r-2xl); padding: 14px 16px; text-decoration: none; color: inherit;
+  display: block;
+}
+[data-admin="v2"] a.ac-kpi:hover { border-color: var(--ac-line-3); }
+[data-admin="v2"] .ac-kpi-l { font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ac-ink-4); }
+[data-admin="v2"] .ac-kpi-v {
+  font-family: var(--ac-num); font-size: 30px; line-height: 1;
+  letter-spacing: -0.02em; margin-top: 8px; font-variant-numeric: tabular-nums;
+}
+[data-admin="v2"] .ac-kpi-n { font-size: 11.5px; color: var(--ac-ink-4); margin-top: 5px; line-height: 1.5; }
+[data-admin="v2"] .ac-kpi-v.is-bad { color: var(--ac-bad); }
+[data-admin="v2"] .ac-kpi-v.is-warn { color: var(--ac-warn); }
+[data-admin="v2"] .ac-kpi-v.is-good { color: var(--ac-good); }
+
+/* ── Cards ────────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-card {
+  background: var(--ac-surface); border: 1px solid var(--ac-line);
+  border-radius: var(--ac-r-2xl); overflow: hidden;
+}
+[data-admin="v2"] .ac-cardhead {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-bottom: 1px solid var(--ac-line);
+}
+[data-admin="v2"] .ac-cardtitle { font-size: 13px; font-weight: 700; }
+[data-admin="v2"] .ac-cardmeta { font-size: 11.5px; color: var(--ac-ink-4); }
+[data-admin="v2"] .ac-cardbody { padding: 14px 16px; }
+[data-admin="v2"] .ac-cardfoot {
+  padding: 11px 16px; background: var(--ac-sunken); border-top: 1px solid var(--ac-line);
+  font-size: 12px; color: var(--ac-ink-4); line-height: 1.65;
+}
+[data-admin="v2"] .ac-cols { display: grid; gap: 16px; align-items: start; }
+[data-admin="v2"] .ac-cols--2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+[data-admin="v2"] .ac-cols--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+[data-admin="v2"] .ac-cols--main { grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); }
+[data-admin="v2"] .ac-cols--rail { grid-template-columns: minmax(0, 1fr) minmax(0, 2.1fr); }
+[data-admin="v2"] .ac-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* ── The note. Every panel in the design ends with one, and it is load-bearing
+      editorial: it says what the screen deliberately does not do. ────────── */
+[data-admin="v2"] .ac-note { font-size: 12px; color: var(--ac-ink-4); line-height: 1.65; }
+[data-admin="v2"] .ac-note strong { color: var(--ac-ink); }
+[data-admin="v2"] .ac-cardbody > .ac-note:not(:first-child) { margin-top: 12px; }
+
+/* ── Banners ──────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-banner {
+  display: flex; align-items: flex-start; gap: 12px; padding: 13px 16px;
+  border-radius: var(--ac-r-lg); font-size: 12.5px; line-height: 1.65; color: var(--ac-ink-2);
+}
+[data-admin="v2"] .ac-banner i { margin-top: 2px; font-size: 13px; flex: 0 0 auto; }
+[data-admin="v2"] .ac-banner strong { color: var(--ac-ink); }
+[data-admin="v2"] .ac-banner .ac-spacer { flex: 1; }
+[data-admin="v2"] .ac-banner--warn { background: var(--ac-warn-w); }
+[data-admin="v2"] .ac-banner--warn i { color: var(--ac-warn); }
+[data-admin="v2"] .ac-banner--bad { background: var(--ac-bad-w); }
+[data-admin="v2"] .ac-banner--bad i { color: var(--ac-bad); }
+[data-admin="v2"] .ac-banner--good { background: var(--ac-good-w); }
+[data-admin="v2"] .ac-banner--good i { color: var(--ac-good); }
+[data-admin="v2"] .ac-banner--flat { background: var(--ac-surface); border: 1px solid var(--ac-line); }
+[data-admin="v2"] .ac-bannertitle { font-size: 13px; font-weight: 700; color: var(--ac-ink); }
+[data-admin="v2"] .ac-banner p { margin: 5px 0 0; }
+
+/* ── Pills ────────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-pill {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px;
+  border-radius: var(--ac-pill); background: var(--ac-chip); color: var(--ac-ink-3);
+  font-size: 11px; font-weight: 800; white-space: nowrap;
+}
+[data-admin="v2"] .ac-pill--good { background: var(--ac-good-w); color: var(--ac-good); }
+[data-admin="v2"] .ac-pill--bad  { background: var(--ac-bad-w);  color: var(--ac-bad); }
+[data-admin="v2"] .ac-pill--warn { background: var(--ac-warn-w); color: var(--ac-warn); }
+[data-admin="v2"] .ac-pill--ink  { background: var(--ac-ink); color: #fff; }
+[data-admin="v2"] .ac-pill--accent { background: var(--ac-accent); color: var(--ac-ink); }
+[data-admin="v2"] .ac-tag {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px;
+  border-radius: 4px; background: var(--ac-chip); color: var(--ac-ink-3);
+  font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+/* ── Tables. The design's rows are flex, not <tr>, because several columns are
+      two-line cells. Real data needs a real table for a screen reader, so this
+      is a <table> that renders like the mock. ─────────────────────────────── */
+[data-admin="v2"] .ac-tablewrap { overflow-x: auto; }
+[data-admin="v2"] .ac-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+[data-admin="v2"] .ac-table th {
+  text-align: left; padding: 10px 16px; background: var(--ac-sunken);
+  border-bottom: 1px solid var(--ac-line);
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ac-ink-4); white-space: nowrap;
+}
+[data-admin="v2"] .ac-table td {
+  padding: var(--ac-row-y) 16px; border-bottom: 1px solid var(--ac-line);
+  vertical-align: middle;
+}
+[data-admin="v2"] .ac-table tbody tr:last-child td { border-bottom: 0; }
+[data-admin="v2"] .ac-table tbody tr:hover td { background: var(--ac-sunken); }
+[data-admin="v2"] .ac-table tbody tr.is-selected td { background: var(--ac-accent-w); }
+[data-admin="v2"] .ac-num, [data-admin="v2"] .ac-table .ac-num { text-align: right; font-variant-numeric: tabular-nums; }
+[data-admin="v2"] .ac-mono { font-family: var(--ac-mono); font-size: 12px; }
+[data-admin="v2"] .ac-strong { font-weight: 700; }
+[data-admin="v2"] .ac-sub { font-size: 11.5px; color: var(--ac-ink-4); margin-top: 3px; line-height: 1.5; }
+[data-admin="v2"] .ac-empty { padding: 26px 16px; text-align: center; color: var(--ac-ink-4); font-size: 12.5px; }
+[data-admin="v2"] .ac-empty-t { font-size: 14px; font-weight: 700; color: var(--ac-ink); margin-bottom: 6px; }
+
+/* ── Definition rows — the "label · value" list the design uses in every side
+      panel. ──────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-defs { display: flex; flex-direction: column; }
+[data-admin="v2"] .ac-def {
+  display: flex; align-items: baseline; gap: 12px; padding: 9px 0;
+  border-bottom: 1px solid var(--ac-line); font-size: 12.5px;
+}
+[data-admin="v2"] .ac-def:last-child { border-bottom: 0; }
+[data-admin="v2"] .ac-def dt, [data-admin="v2"] .ac-def > :first-child { flex: 0 0 42%; color: var(--ac-ink-4); }
+[data-admin="v2"] .ac-def dd, [data-admin="v2"] .ac-def > :last-child { flex: 1; margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ── Meters. A fill width is live data, so the markup sets --ac-fill. ────── */
+[data-admin="v2"] .ac-meter { height: 6px; border-radius: var(--ac-pill); background: var(--ac-chip); overflow: hidden; }
+[data-admin="v2"] .ac-meter > span { display: block; height: 100%; border-radius: var(--ac-pill); background: var(--ac-ink); width: var(--ac-fill, 0%); }
+[data-admin="v2"] .ac-meter--accent > span { background: var(--ac-accent); }
+[data-admin="v2"] .ac-meter--good > span { background: var(--ac-good); }
+[data-admin="v2"] .ac-meter--bad > span { background: var(--ac-bad); }
+[data-admin="v2"] .ac-meter--warn > span { background: var(--ac-warn); }
+
+/* A funnel/bar row: label, bar, figure. */
+[data-admin="v2"] .ac-bars { display: flex; flex-direction: column; gap: 10px; }
+[data-admin="v2"] .ac-bar { display: flex; align-items: center; gap: 12px; font-size: 12.5px; }
+[data-admin="v2"] .ac-bar > :first-child { flex: 0 0 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-admin="v2"] .ac-bar .ac-meter { flex: 1; }
+[data-admin="v2"] .ac-bar > :last-child { flex: 0 0 74px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── The decision queue — the dashboard's lead component. Each row is a link
+      to the screen that resolves it, with an age on the right. ──────────── */
+[data-admin="v2"] .ac-queue { display: flex; flex-direction: column; }
+[data-admin="v2"] .ac-qitem {
+  display: flex; align-items: center; gap: 14px; width: 100%;
+  padding: 12px 16px; text-align: left; text-decoration: none; cursor: pointer;
+  border: 0; border-bottom: 1px solid var(--ac-line); background: none;
+  color: inherit; font-family: inherit;
+}
+[data-admin="v2"] .ac-qitem:last-child { border-bottom: 0; }
+[data-admin="v2"] .ac-qitem:hover { background: var(--ac-sunken); }
+[data-admin="v2"] .ac-qitem > div { flex: 1; min-width: 0; }
+[data-admin="v2"] .ac-qtitle { font-size: 13px; font-weight: 700; }
+[data-admin="v2"] .ac-qwhy { font-size: 12px; color: var(--ac-ink-4); margin-top: 3px; line-height: 1.5; }
+[data-admin="v2"] .ac-qage { flex: 0 0 auto; font-size: 11px; font-weight: 800; color: var(--ac-ink-4); font-variant-numeric: tabular-nums; }
+[data-admin="v2"] .ac-qitem.is-blocking .ac-qage { color: var(--ac-bad); }
+
+/* ── Tabs / filter chips ─────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-tabs {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 12px; background: var(--ac-surface);
+  border: 1px solid var(--ac-line); border-radius: var(--ac-r-xl);
+}
+[data-admin="v2"] .ac-tab {
+  display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px;
+  cursor: pointer; text-decoration: none; border: 1px solid transparent;
+  border-radius: var(--ac-r); background: var(--ac-sunken); color: var(--ac-ink-2);
+  font-family: inherit; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+}
+[data-admin="v2"] .ac-tab:hover { border-color: var(--ac-line-3); color: var(--ac-ink); }
+[data-admin="v2"] .ac-tab[aria-current="true"], [data-admin="v2"] .ac-tab.is-on { background: var(--ac-ink); color: #fff; }
+[data-admin="v2"] .ac-tab .ac-tabn { font-weight: 800; font-variant-numeric: tabular-nums; }
+[data-admin="v2"] .ac-tabnote { margin-left: auto; font-size: 11.5px; color: var(--ac-ink-4); }
+
+/* ── Forms ───────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-field { display: block; min-width: 0; }
+[data-admin="v2"] .ac-label { display: block; font-size: 11.5px; font-weight: 700; color: var(--ac-ink-2); margin-bottom: 7px; }
+[data-admin="v2"] .ac-input, [data-admin="v2"] .ac-select, [data-admin="v2"] .ac-textarea {
+  width: 100%; min-height: 38px; padding: 9px 12px;
+  border: 1px solid var(--ac-line-4); border-radius: var(--ac-r-md);
+  background: var(--ac-surface); color: var(--ac-ink);
+  font-family: inherit; font-size: 13.5px;
+}
+[data-admin="v2"] .ac-textarea { line-height: 1.6; resize: vertical; }
+[data-admin="v2"] .ac-input:focus, [data-admin="v2"] .ac-select:focus, [data-admin="v2"] .ac-textarea:focus {
+  outline: 0; border-color: var(--ac-accent); box-shadow: 0 0 0 3px var(--ac-accent-w);
+}
+[data-admin="v2"] .ac-hint { margin-top: 7px; font-size: 12px; color: var(--ac-ink-4); line-height: 1.55; }
+[data-admin="v2"] .ac-grid { display: grid; gap: 12px; }
+[data-admin="v2"] .ac-grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+[data-admin="v2"] .ac-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+[data-admin="v2"] .ac-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+[data-admin="v2"] .ac-inline { display: flex; align-items: flex-end; gap: 9px; flex-wrap: wrap; }
+[data-admin="v2"] .ac-inline .ac-field { flex: 1 1 150px; }
+
+/* A toggle that is a real checkbox underneath. */
+[data-admin="v2"] .ac-toggle { display: flex; align-items: center; gap: 12px; }
+[data-admin="v2"] .ac-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+[data-admin="v2"] .ac-switch {
+  position: relative; flex: 0 0 auto; width: 44px; height: 26px;
+  border-radius: 999px; background: var(--ac-chip); cursor: pointer;
+}
+[data-admin="v2"] .ac-switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(24, 32, 44, 0.3);
+  transition: left 120ms ease;
+}
+[data-admin="v2"] .ac-toggle input:checked + .ac-switch { background: var(--ac-accent); }
+[data-admin="v2"] .ac-toggle input:checked + .ac-switch::after { left: 21px; box-shadow: none; }
+[data-admin="v2"] .ac-toggle input:focus-visible + .ac-switch { outline: 2px solid var(--ac-accent); outline-offset: 2px; }
+[data-admin="v2"] .ac-toggletext { flex: 1; min-width: 0; }
+[data-admin="v2"] .ac-toggletext > :first-child { font-size: 13px; font-weight: 700; }
+
+/* ── Timeline ────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-timeline { display: flex; flex-direction: column; }
+[data-admin="v2"] .ac-tl { display: flex; gap: 12px; }
+[data-admin="v2"] .ac-tlmark { flex: 0 0 15px; display: flex; flex-direction: column; align-items: center; }
+[data-admin="v2"] .ac-tlmark i { width: 9px; height: 9px; border-radius: 50%; background: var(--ac-ink-5); margin-top: 5px; }
+[data-admin="v2"] .ac-tl:first-child .ac-tlmark i { background: var(--ac-accent); }
+[data-admin="v2"] .ac-tlmark span { flex: 1; width: 1px; background: var(--ac-line-2); }
+[data-admin="v2"] .ac-tl:last-child .ac-tlmark span { display: none; }
+[data-admin="v2"] .ac-tlbody { flex: 1; min-width: 0; padding-bottom: 14px; }
+[data-admin="v2"] .ac-tlbody > :first-child { font-size: 12.5px; font-weight: 700; }
+
+/* ── Chips (competency tags, custom fields) ──────────────────────────────── */
+[data-admin="v2"] .ac-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+[data-admin="v2"] .ac-chip {
+  display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px;
+  border-radius: var(--ac-r); background: var(--ac-ink); color: #fff;
+  font-size: 12px; font-weight: 600;
+}
+[data-admin="v2"] .ac-chip--out {
+  background: var(--ac-surface); color: var(--ac-ink-4);
+  border: 1px dashed var(--ac-line-4);
+}
+
+/* ── Choice list — the design's "Decision" block: a stack of buttons each with
+      a title and the consequence underneath. ─────────────────────────────── */
+[data-admin="v2"] .ac-choices { display: flex; flex-direction: column; gap: 9px; }
+[data-admin="v2"] .ac-choice {
+  display: block; width: 100%; text-align: left; cursor: pointer; text-decoration: none;
+  padding: 12px 14px; border: 1px solid var(--ac-line-3); border-radius: var(--ac-r-lg);
+  background: var(--ac-surface); color: inherit; font-family: inherit;
+}
+[data-admin="v2"] .ac-choice:hover { border-color: var(--ac-ink); }
+[data-admin="v2"] .ac-choice > :first-child { font-size: 13px; font-weight: 700; }
+[data-admin="v2"] .ac-choice > :last-child { font-size: 12px; color: var(--ac-ink-4); margin-top: 4px; line-height: 1.55; }
+[data-admin="v2"] .ac-choice--danger { border-color: rgba(176, 32, 60, 0.30); }
+[data-admin="v2"] .ac-choice--danger > :first-child { color: var(--ac-bad); }
+
+/* ── Avatar ──────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-avatar {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ac-chip); color: var(--ac-ink-3);
+  font-size: 11px; font-weight: 800; letter-spacing: 0.02em;
+}
+
+/* ── Week grid (timetable) ───────────────────────────────────────────────── */
+[data-admin="v2"] .ac-week { min-width: 900px; display: grid; grid-template-columns: 62px repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--ac-line); }
+[data-admin="v2"] .ac-week > * { background: var(--ac-surface); min-height: 46px; padding: 6px; font-size: 11.5px; }
+[data-admin="v2"] .ac-week .ac-wk-h { background: var(--ac-sunken); font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ac-ink-4); text-align: center; min-height: 30px; padding: 8px 4px; }
+[data-admin="v2"] .ac-week .ac-wk-t { background: var(--ac-sunken); font-variant-numeric: tabular-nums; color: var(--ac-ink-4); font-weight: 700; text-align: right; }
+[data-admin="v2"] .ac-wk-ev { display: block; border-radius: var(--ac-r-sm); background: var(--ac-accent-w); border-left: 3px solid var(--ac-accent); padding: 5px 7px; text-decoration: none; color: inherit; }
+[data-admin="v2"] .ac-wk-ev strong { display: block; font-size: 11.5px; }
+[data-admin="v2"] .ac-wk-ev span { font-size: 10.5px; color: var(--ac-ink-4); }
+[data-admin="v2"] .ac-wk-ev.is-clash { background: var(--ac-bad-w); border-left-color: var(--ac-bad); }
+
+/* ── Utilities ────────────────────────────────────────────────────────────
+   A deliberately short list. The rule at the top of this file is that markup
+   carries classes and nothing else; these are what make that possible without
+   inventing a component for every gap. Anything not expressible here belongs
+   in a named component instead. ───────────────────────────────────────────── */
+[data-admin="v2"] .ac-mt    { margin-top: 12px; }
+[data-admin="v2"] .ac-mt-sm { margin-top: 10px; }
+[data-admin="v2"] .ac-mt-xs { margin-top: 5px; }
+[data-admin="v2"] .ac-mb    { margin-bottom: 14px; }
+[data-admin="v2"] .ac-mb-sm { margin-bottom: 9px; }
+[data-admin="v2"] .ac-push  { margin-left: auto; }
+[data-admin="v2"] .ac-grow  { flex: 1; min-width: 0; }
+[data-admin="v2"] .ac-center { justify-content: center; }
+[data-admin="v2"] .ac-baseline { align-items: baseline; }
+[data-admin="v2"] .ac-bad-text { color: var(--ac-bad); }
+
+/* The meta tier, used mid-sentence rather than as its own line. */
+[data-admin="v2"] .ac-subi { font-size: 11.5px; color: var(--ac-ink-4); }
+
+/* A big number inside a card body, smaller than a KPI tile's. */
+[data-admin="v2"] .ac-figure {
+  font-family: var(--ac-num); font-size: 26px; line-height: 1;
+  letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+}
+
+/* The percentage that sits after a meter in a table cell. */
+[data-admin="v2"] .ac-pctfig { flex: 0 0 52px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* A time column in a table: narrow, and never wraps. */
+[data-admin="v2"] .ac-col-time { width: 74px; white-space: nowrap; }
+
+/* Field widths, for an inline form row. */
+[data-admin="v2"] .ac-w-xs { flex: 0 0 110px; }
+[data-admin="v2"] .ac-w-sm { flex: 0 0 150px; }
+[data-admin="v2"] .ac-w-md { flex: 0 0 190px; }
+[data-admin="v2"] .ac-input--sm, [data-admin="v2"] .ac-select--sm { min-height: 30px; padding: 5px 10px; font-size: 13px; }
+[data-admin="v2"] .ac-searchbox { width: min(230px, 100%); }
+
+/* The selected row in a list of things to pick from. */
+[data-admin="v2"] .ac-qitem.is-on { background: var(--ac-accent-w); }
+
+/* ══ OVERLAYS ═══════════════════════════════════════════════════════════════ */
+[data-admin="v2"] .ac-overlay { position: fixed; inset: 0; z-index: 60; }
+[data-admin="v2"] .ac-overlay[hidden] { display: none; }
+[data-admin="v2"] .ac-scrim { position: absolute; inset: 0; background: rgba(15, 20, 28, 0.52); border: 0; width: 100%; cursor: default; }
+
+[data-admin="v2"] .ac-palette {
+  position: absolute; left: 50%; top: 76px; transform: translateX(-50%);
+  width: min(660px, calc(100vw - 32px)); background: var(--ac-surface);
+  border-radius: var(--ac-r-xl); box-shadow: 0 30px 80px rgba(15, 20, 28, 0.38); overflow: hidden;
+}
+[data-admin="v2"] .ac-palettehead { display: flex; align-items: center; gap: 11px; padding: 16px 18px; border-bottom: 1px solid var(--ac-line); }
+[data-admin="v2"] .ac-palettehead input { flex: 1; border: 0; background: none; font-family: inherit; font-size: 16px; color: var(--ac-ink); outline: none; }
+[data-admin="v2"] .ac-palettelist { max-height: 420px; overflow: auto; }
+[data-admin="v2"] .ac-palettegroup {
+  padding: 12px 18px 7px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ac-ink-4); border-top: 1px solid var(--ac-line);
+}
+[data-admin="v2"] .ac-palettelist > .ac-palettegroup:first-child { border-top: 0; }
+[data-admin="v2"] .ac-presult {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 10px 18px; text-align: left; text-decoration: none; cursor: pointer;
+  border: 0; border-left: 3px solid transparent; background: none; color: inherit;
+  font-family: inherit; font-size: 13.5px;
+}
+[data-admin="v2"] .ac-presult i { flex: 0 0 16px; font-size: 12px; color: var(--ac-ink-4); }
+[data-admin="v2"] .ac-presult > span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-admin="v2"] .ac-presult .ac-pmeta { flex: 0 0 auto; font-size: 11.5px; color: var(--ac-ink-4); }
+[data-admin="v2"] .ac-presult.is-active { background: var(--ac-accent-w); border-left-color: var(--ac-accent); }
+[data-admin="v2"] .ac-presult.is-active i { color: var(--ac-accent-d); }
+[data-admin="v2"] .ac-presult mark { background: rgba(226, 101, 15, 0.28); color: var(--ac-ink); padding: 0 1px; }
+[data-admin="v2"] .ac-palettefoot {
+  display: flex; align-items: center; gap: 16px; padding: 11px 18px;
+  border-top: 1px solid var(--ac-line); background: var(--ac-sunken);
+  font-size: 11.5px; color: var(--ac-ink-4); flex-wrap: wrap;
+}
+[data-admin="v2"] .ac-palettefoot strong { color: var(--ac-ink-2); }
+
+[data-admin="v2"] .ac-drawer {
+  position: absolute; right: 0; top: 0; bottom: 0;
+  width: min(660px, 100vw); background: var(--ac-surface);
+  box-shadow: -24px 0 60px rgba(15, 20, 28, 0.28);
+  overflow: auto; display: flex; flex-direction: column;
+}
+[data-admin="v2"] .ac-drawerhead {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: flex-start; gap: 14px;
+  padding: 16px 22px; background: var(--ac-surface); border-bottom: 1px solid var(--ac-line-2);
+}
+[data-admin="v2"] .ac-drawereyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ac-ink-4); }
+[data-admin="v2"] .ac-drawertitle { font-size: 19px; font-weight: 700; margin-top: 5px; }
+[data-admin="v2"] .ac-drawerbody { padding: 20px 22px; display: flex; flex-direction: column; gap: 20px; }
+[data-admin="v2"] .ac-drawerfoot {
+  position: sticky; bottom: 0; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 13px 22px; background: var(--ac-sunken); border-top: 1px solid var(--ac-line-2);
+}
+
+/* ══ RESPONSIVE ═════════════════════════════════════════════════════════════
+   The design is explicit that the phone build is "a deliberately narrow subset,
+   not the whole console squeezed". So below 1100px the two-column screens
+   linearise, and below 900px the rail becomes an off-canvas drawer — the
+   console stays usable on a tablet, and the phone gets `console.php?m=1`. */
+@media (max-width: 1180px) {
+  [data-admin="v2"] .ac-cols--2,
+  [data-admin="v2"] .ac-cols--3,
+  [data-admin="v2"] .ac-cols--main,
+  [data-admin="v2"] .ac-cols--rail { grid-template-columns: minmax(0, 1fr); }
+  [data-admin="v2"] .ac-grid--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  [data-admin="v2"] .ac-rail {
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 70; height: 100vh;
+    transform: translateX(-100%); transition: transform 160ms ease;
+    box-shadow: 12px 0 40px rgba(9, 13, 19, 0.34);
+  }
+  [data-admin="v2"][data-nav="open"] .ac-rail { transform: none; }
+  [data-admin="v2"] .ac-navscrim { position: fixed; inset: 0; z-index: 65; background: rgba(15, 20, 28, 0.46); border: 0; width: 100%; }
+  [data-admin="v2"] .ac-navscrim[hidden] { display: none; }
+  [data-admin="v2"] .ac-hamburger { display: inline-flex; }
+  [data-admin="v2"] .ac-search { min-width: 0; }
+  [data-admin="v2"] .ac-grid--2, [data-admin="v2"] .ac-grid--3 { grid-template-columns: minmax(0, 1fr); }
+  [data-admin="v2"] .ac-scroll { padding: 16px 14px 48px; }
+  [data-admin="v2"] .ac-head h2 { font-size: 24px; }
+  [data-admin="v2"] .ac-hide-sm { display: none; }
+}
+@media (min-width: 901px) { [data-admin="v2"] .ac-hamburger { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-admin="v2"] .ac-rail, [data-admin="v2"] .ac-switch::after { transition: none; }
+}
+
+@media print {
+  [data-admin="v2"] .ac-rail, [data-admin="v2"] .ac-topbar, [data-admin="v2"] .ac-overlay,
+  [data-admin="v2"] .ac-headactions, [data-admin="v2"] .ac-navscrim { display: none !important; }
+  [data-admin="v2"] .ac-scroll { overflow: visible; padding: 0; }
+  [data-admin="v2"] .ac-card { break-inside: avoid; }
+}

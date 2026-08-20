@@ -352,6 +352,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
 $r->group('/admin', function (MamRouter $r) use ($f) {
     // RBAC: sensitive control is super-only; operational endpoints allow managers.
     $r->get ('/list-users',      $f('admin/list-users.php'),     [mw_admin_cap('users')]);
+    // The console's ⌘K palette. Read-only, capped at six rows a group, and
+    // gated on `users` because every group it returns can name a person.
+    $r->get ('/search',          $f('admin/search.php'),         [mw_admin_cap('users')]);
     $r->post('/create-user',     $f('admin/create-user.php'),    [mw_csrf(), mw_admin_cap('users')]);
     $r->post('/reset-password',  $f('admin/reset-password.php'), [mw_csrf(), mw_admin_cap('users')]);
     $r->post('/create-class',    $f('admin/create-class.php'),   [mw_csrf(), mw_admin_cap('enrollments')]);

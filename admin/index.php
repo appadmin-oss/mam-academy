@@ -79,6 +79,50 @@ function mam_admin_rows(string $sql, array $args = []): array {
     catch (Throwable $e) { return []; }
 }
 
+/**
+ * Redirect a console POST back to the console.
+ *
+ * The redesigned console (admin/console.php) posts every action to THIS file so
+ * that there is one implementation of each action — one capability check, one
+ * audit call, one set of transition rules. But each handler below ends with its
+ * own `header('Location: ?v=…'); exit;`, naming a legacy view. Threading a
+ * "come back here" parameter through ~140 branches would be 140 chances to
+ * forget one.
+ *
+ * Instead: every handler exits having written a Location header and NO body, so
+ * headers are still mutable at shutdown. Rewrite it there, once. The ?ok=/?err=
+ * message the handler chose is carried over verbatim — it is the whole point of
+ * the redirect — and anything else in the query string is dropped, because the
+ * console screen re-reads its own data.
+ *
+ * Only a relative `?…` Location is rewritten. A handler that redirects
+ * somewhere absolute (a download, an external provider) means it, and must not
+ * be hijacked.
+ */
+function mam_admin_console_return(string $screen): void {
+    // Validated against the console's OWN list of screens, not merely sanitised:
+    // a stripped-down version of a hostile value ("../evil?x=1" -> "evilx") is
+    // safe but still lands the admin somewhere that does not exist. An
+    // unrecognised name means this was not a console POST, so leave the
+    // handler's own redirect alone.
+    $screen = strtolower(trim($screen));
+    if (!function_exists('mam_console_screens') || !in_array($screen, mam_console_screens(), true)) return;
+    register_shutdown_function(function () use ($screen) {
+        if (headers_sent()) return;
+        $loc = null;
+        foreach (headers_list() as $h) {
+            if (stripos($h, 'Location:') === 0) $loc = trim(substr($h, strlen('Location:')));
+        }
+        if ($loc === null || $loc === '' || $loc[0] !== '?') return;
+        $q = [];
+        parse_str(ltrim($loc, '?'), $q);
+        $keep = ['v' => $screen];
+        foreach (['ok', 'err'] as $k) if (isset($q[$k]) && is_string($q[$k])) $keep[$k] = $q[$k];
+        header_remove('Location');
+        header('Location: /admin/console.php?' . http_build_query($keep));
+    });
+}
+
 /* ─── Pagination: keep every list bounded + navigable as data grows ─── */
 function mam_admin_page(): int { return max(1, (int)($_GET['page'] ?? 1)); }
 
@@ -525,6 +569,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     $action = $_POST['action'] ?? '';
+
+    // A POST from the redesigned console reuses every handler below and must
+    // land back on the console, not on the legacy view the handler names.
+    if (($_POST['_console'] ?? '') !== '') {
+        mam_admin_console_return((string) $_POST['_console']);
+    }
 
     // RBAC: gate sensitive actions to the right admin tier in one place.
     // Operational actions (course/enrolment/messages/orders/own-account) are
@@ -3007,6 +3057,13 @@ nav a{display:flex;align-items:center}
     </div>
   </div>
   <nav id="adminNav" aria-label="Admin sections">
+    <?php
+    // The redesigned console. Linked first because it is where new work goes;
+    // this dashboard stays because it still owns every POST handler the console
+    // posts to, and thirty-seven views the console has not replaced.
+    ?>
+    <div class="nav-group">Console</div>
+    <a href="/admin/console.php"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i><span>New console</span></a>
     <?php
     // "What needs me" counts — the difference between a nav you wander and a
     // nav that points. Each is a cheap COUNT, individually fault-tolerant so a

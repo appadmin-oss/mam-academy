@@ -1,0 +1,150 @@
+<?php
+/** System health — automations, outbound events, and the schema. */
+declare(strict_types=1);
+/** @var array $d */
+$h = $d['health'] ?? [];
+$behind = ($d['schema']['target'] ?? null) !== null
+    && (int) $d['schema']['version'] < (int) $d['schema']['target'];
+?>
+<?php ac_head('System health',
+    'Automations, outbound events, mail and the schema',
+    '<a class="ac-btn" href="/admin/?v=diag">Diagnostics</a>'); ?>
+
+<?php if ($behind): ?>
+  <?php ac_banner('bad', 'fa-database',
+    '<strong>The database is behind the code.</strong> Schema ' . (int) $d['schema']['version']
+    . ' against a target of ' . (int) $d['schema']['target']
+    . '. Screens that read a newer column will report a failed read rather than showing an empty table.',
+    '<a class="ac-btn ac-btn--sm" href="/admin/?v=migrate">Run migrations</a>'); ?>
+<?php endif; ?>
+
+<?php ac_kpis([
+    ['label' => 'Automations on', 'value' => (int) ($d['on'] ?? 0) . ' of ' . (int) ($d['total'] ?? 0),
+     'note' => ((int) ($d['total'] ?? 0) - (int) ($d['on'] ?? 0)) . ' deliberately off'],
+    ['label' => 'Unverified webhooks', 'value' => (string) (int) ($h['webhooks']['unverified'] ?? 0),
+     'tone' => (int) ($h['webhooks']['unverified'] ?? 0) > 0 ? 'bad' : '', 'note' => 'signature did not check out'],
+    ['label' => 'Failed mail', 'value' => (string) count($d['failed_mail'] ?? []),
+     'tone' => count($d['failed_mail'] ?? []) > 0 ? 'warn' : '', 'note' => 'retryable, with the error on the row'],
+    ['label' => 'Schema', 'value' => (string) (int) ($d['schema']['version'] ?? 0),
+     'tone' => $behind ? 'bad' : 'good',
+     'note' => 'target ' . (int) ($d['schema']['target'] ?? 0) . ' · ' . ac_h((string) ($d['driver'] ?? ''))],
+]); ?>
+
+<?php ac_card_open('Automations', (int) ($d['on'] ?? 0) . ' on',
+    (function () { ob_start(); ac_action_btn('run_automations', 'system', [], 'Run the sweeps now', 'ac-btn ac-btn--sm'); return ob_get_clean(); })()); ?>
+  <div class="ac-tablewrap">
+    <table class="ac-table">
+      <thead><tr><th>Rule</th><th>Fires when</th><th class="ac-num">Runs</th><th class="ac-num">Last</th><th>State</th><th></th></tr></thead>
+      <tbody>
+        <?php if (!($d['registry'] ?? [])): ?>
+          <?php ac_table_empty(6, 'The automation registry could not be read.'); ?>
+        <?php else: foreach ($d['registry'] as $key => $rule):
+          $st = $d['state'][$key] ?? null;
+          $on = (int) ($st['enabled'] ?? 0) === 1; ?>
+          <tr>
+            <td><div class="ac-strong"><?= ac_h((string) ($rule['label'] ?? $key)) ?></div>
+                <div class="ac-sub ac-mono"><?= ac_h((string) $key) ?></div></td>
+            <td class="ac-sub"><?= ac_h((string) ($rule['when'] ?? $rule['description'] ?? '')) ?></td>
+            <td class="ac-num"><?= (int) ($st['run_count'] ?? 0) ?></td>
+            <td class="ac-num"><?= $st && !empty($st['last_run_at'])
+                ? ac_h(mam_console_age((string) $st['last_run_at'])) : '<span class="ac-sub">never</span>' ?></td>
+            <td><?= $on ? ac_pill('On', 'good') : ac_pill('Off') ?></td>
+            <td class="ac-num">
+              <?php ac_action_btn('automation_toggle', 'system',
+                  ['key' => (string) $key, 'enabled' => $on ? '0' : '1'],
+                  $on ? 'Turn off' : 'Turn on', 'ac-btn ac-btn--sm'); ?>
+            </td>
+          </tr>
+        <?php endforeach; endif; ?>
+      </tbody>
+    </table>
+  </div>
+<?php ac_card_close('Each rule is honoured at ITS trigger point, not by a scheduler that decides for it. The count of rules is derived from the registry — hardcoding it is how adding a rule has broken the suite twice. Placing a class and provisioning a login are deliberately two different switches: a login and a class placement are two different decisions.'); ?>
+
+<div class="ac-cols ac-cols--main">
+  <div class="ac-stack">
+    <?php ac_card_open('Outbound events', count($d['events'] ?? []) . ' most recent'); ?>
+      <div class="ac-tablewrap">
+        <table class="ac-table">
+          <thead><tr><th>Provider</th><th>Event</th><th>Signature</th><th>Status</th><th class="ac-num">When</th></tr></thead>
+          <tbody>
+            <?php if (!($d['events'] ?? [])): ?>
+              <?php ac_table_empty(5, 'No webhooks received.'); ?>
+            <?php else: foreach ($d['events'] as $e): ?>
+              <tr>
+                <td><?= ac_h((string) $e['provider']) ?></td>
+                <td class="ac-mono"><?= ac_h((string) ($e['event_type'] ?? '')) ?>
+                    <?php if (!empty($e['error'])): ?><div class="ac-sub"><?= ac_h(mb_strimwidth((string) $e['error'], 0, 80, '…')) ?></div><?php endif; ?></td>
+                <td><?= (int) ($e['signature_valid'] ?? 0) === 1 ? ac_pill('Verified', 'good') : ac_pill('Failed', 'bad') ?></td>
+                <td><?= ac_status((string) $e['status']) ?></td>
+                <td class="ac-num"><?= ac_h(mam_console_age((string) $e['received_at'])) ?></td>
+              </tr>
+            <?php endforeach; endif; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php ac_card_close('A webhook is HMAC-verified and idempotent, so a provider replaying a delivery cannot double-credit a payment. A payment re-checks the amount and the currency against what is owed before it settles anything.'); ?>
+
+    <?php if ($d['failed_mail'] ?? []): ?>
+      <?php ac_card_open('Failed mail', count($d['failed_mail']) . ''); ?>
+        <div class="ac-tablewrap">
+          <table class="ac-table">
+            <thead><tr><th>To</th><th>Context</th><th>Error</th><th class="ac-num">Attempts</th></tr></thead>
+            <tbody>
+              <?php foreach ($d['failed_mail'] as $m): ?>
+                <tr>
+                  <td><?= ac_h((string) $m['to_email']) ?>
+                      <div class="ac-sub"><?= ac_h(mb_strimwidth((string) $m['subject'], 0, 50, '…')) ?></div></td>
+                  <td class="ac-mono"><?= ac_h((string) ($m['context'] ?? '')) ?></td>
+                  <td class="ac-sub"><?= ac_h(mb_strimwidth((string) ($m['error'] ?? ''), 0, 100, '…')) ?></td>
+                  <td class="ac-num"><?= (int) ($m['attempts'] ?? 0) ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php ac_card_close('<a href="/admin/?v=mail">Retry from the outbox</a>. A failure is a row with its error, which is what makes a retry possible.'); ?>
+    <?php endif; ?>
+  </div>
+
+  <div class="ac-stack">
+    <?php ac_card_open('Build'); ?>
+      <div class="ac-cardbody">
+        <div class="ac-defs">
+          <?php
+            ac_def('Database driver', ac_h((string) ($d['driver'] ?? '')));
+            ac_def('Schema version', (string) (int) ($d['schema']['version'] ?? 0)
+                . ' <span class="ac-subi">target ' . (int) ($d['schema']['target'] ?? 0) . '</span>');
+            ac_def('API version', ac_h((string) ($d['api']['version'] ?? '—')));
+            ac_def('PHP', ac_h(PHP_VERSION));
+            ac_def('Audit head', number_format((int) ($h['audit']['head'] ?? 0)));
+          ?>
+        </div>
+      </div>
+    <?php ac_card_close('The suite runs against SQLite and MySQL, and four defects existed only on one of them — the driver line matters.'); ?>
+
+    <?php if ($d['jobs'] ?? []): ?>
+      <?php ac_card_open('Jobs', count($d['jobs']) . ''); ?>
+        <div class="ac-cardbody">
+          <div class="ac-defs">
+            <?php foreach (array_slice($d['jobs'], 0, 8) as $j): ?>
+              <?php ac_def((string) ($j['kind'] ?? 'job') . ' #' . (int) $j['id'],
+                  ac_status((string) $j['status'])
+                  . ((int) ($j['attempts'] ?? 0) > 1 ? ' <span class="ac-subi">' . (int) $j['attempts'] . ' attempts</span>' : '')); ?>
+            <?php endforeach; ?>
+          </div>
+        </div>
+      <?php ac_card_close('The job runner holds an exclusive lock, so two crons overlapping cannot run the same sweep twice.'); ?>
+    <?php endif; ?>
+
+    <?php ac_card_open('Reading a failure'); ?>
+      <div class="ac-cardbody">
+        <p class="ac-note">Every read in this console goes through one helper that <strong>records</strong> a failure
+        instead of swallowing it, and a screen that could not read its data prints the failure at the bottom with the
+        database's own words.</p>
+        <p class="ac-note">That is deliberate: the legacy admin caught a bad column, logged it, and rendered the table
+        as nothing at all — so a screen that was silently empty looked correct for months.</p>
+      </div>
+    <?php ac_card_close('The same lines land in <span class="ac-mono">api/logs/app-*.log</span> against <span class="ac-mono">console_read_failed</span>.'); ?>
+  </div>
+</div>
