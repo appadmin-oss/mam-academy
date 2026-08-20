@@ -9,8 +9,8 @@ Measured surface at the time of writing:
 |---|---|
 | v1 tables (SQLite runtime, schema v88) | **129** |
 | v2 tables (`db/schema-v2.sql`, before this work) | **64** |
-| v2 tables now (batches 1–2 authored) | **94** |
-| ETL tables the plan writes (was 25) | **60** |
+| v2 tables now (batches 1–3 authored) | **106** |
+| ETL tables the plan writes (was 25) | **78** |
 | SQL call sites in `api/lib/` | 1,035 |
 | SQL call sites in `api/routes/` | 279 |
 | SQL call sites in `admin/` | 157 |
@@ -139,13 +139,40 @@ The reports would have reached families with no marks on them. Fixed, and
 `test_v2_plan.php` now asserts the mirrored registry in `plan.php` matches
 `mastery.php` exactly so the copy cannot drift.
 
-### Batch 3 · Teaching operations and the calendar (16)
+### Batch 3 · Teaching operations (12) — ✅ AUTHORED
 
-`instructor_profiles`, `instructor_availability`, `instructor_assignments`,
-`instructor_clockins`, `instructor_fines`, `instructor_applications`,
-`faculty_invites`, `meeting_reconciliation`, `progress_reports`,
-`reschedule_requests`, `reschedule_items`, `class_waitlist`, `class_resources`,
-`academic_terms`, `term_census`, `term_closures`, `term_refund_schedule`
+`instructor_availability`, **`instructor_courses`**, `instructor_clockins`,
+`instructor_fines`, `faculty_invites`, `instructor_applications`,
+**`meeting_participants`**, **`session_progress_reports`**,
+`reschedule_requests`, `reschedule_items`, **`cohort_waitlist`**,
+**`learning_resources`**
+
+(The calendar tables — `academic_terms`, `term_refund_schedule`, `term_census`,
+`term_closures` — landed with batch 1, because they gate every money decision.)
+
+Five names differ from v1's, each stating a decision:
+
+- **`session_progress_reports`**, not `progress_reports`: v1's two-hour note
+  about one lesson and its board-ratified `termly_reports` are different
+  documents, and the bare name has already caused them to be confused in code.
+- **`instructor_courses`**, not `instructor_assignments`: in v2 an "assignment"
+  is set work. This is eligibility — a different question from `cohort_staff`.
+- **`meeting_participants`**, and it never writes to `attendance`.
+- **`cohort_waitlist`** and **`learning_resources`**, since v2 has no `classes`.
+
+**Two v1 tables deliberately get no v2 table.** `instructor_profiles` (four
+optional strings) is absorbed into `custom_field_values` on the membership, which
+is where the ETL already put it — two homes for one fact is how they drift. And
+`reschedule_events` goes to `lifecycle_events`, v2's one stage machine.
+
+⚠️ **The session timezone is the one assumption only the academy can settle.**
+v1 stored ONE datetime per session and recorded no zone. The ETL carries it as
+the UTC instant, because that is how v1's own code read it (PHP is pinned to UTC
+in bootstrap) and what the lateness figures stored on attendance were computed
+against. If those values were typed as Lagos wall-clock times — which the admin
+form's `datetime-local` input invites — every migrated session displays an hour
+early and v1's recorded lateness was always an hour out. Raised in
+`_review.json` as `session_timezone_assumption`, with a count.
 
 ⚠️ `academic_terms` and `term_refund_schedule` are the **only authority on a
 refund** in this codebase (CLAUDE.md gotcha #14). They must land before any money
