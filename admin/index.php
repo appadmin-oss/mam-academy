@@ -2683,6 +2683,10 @@ main:focus{outline:none}
 .skip-link{position:absolute;left:16px;top:-60px;z-index:10001;background:var(--goldhi);color:#1A120B;font-weight:800;padding:10px 16px;border-radius:10px;transition:top .18s}
 .skip-link:focus{top:12px}
 @media(prefers-reduced-motion:reduce){.skip-link{transition:none}}
+/* Visually hidden but available to screen readers (accessible captions/legends). */
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.req-star{color:var(--goldhi)}
+.field-hint{font-size:.72rem;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400;margin-top:2px}
 body{font:14px/1.55 'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:grid;grid-template-columns:244px 1fr}
 a{color:inherit;text-decoration:none}
 aside{background:var(--panel);border-right:1px solid var(--border);padding:18px 14px;height:100vh;overflow:auto}
@@ -7424,40 +7428,51 @@ V2_READ_TENANT=mam</pre>
   ?>
   <?php if ($regCourses): ?>
   <div class="card" style="border-color:var(--border-gold)">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 4px 6px">
-      <h3 style="margin:0">Register a student <span class="muted" style="font-weight:400">· into a course (capacity-aware; a full cohort waitlists)</span></h3>
-    </div>
-    <form method="post" class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end">
+    <form method="post" class="form-grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;align-items:start;padding-top:6px" aria-describedby="regHelp">
       <?= mam_csrf_field() ?>
       <input type="hidden" name="action" value="student_course_assign">
       <input type="hidden" name="return" value="courseenroll">
-      <label>Student
-        <select name="user_id" required style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+      <fieldset style="border:0;padding:0;margin:0;grid-column:1/-1;display:contents">
+        <legend style="grid-column:1/-1;font-size:1.05rem;font-weight:700;color:var(--ink);text-transform:none;letter-spacing:0;padding:0;margin:0 0 2px">Register a student into a course</legend>
+        <p id="regHelp" class="field-hint" style="grid-column:1/-1;margin:0 0 6px">Creates a course registration (the non-legacy enrolment). Capacity-aware — a full cohort places the student on the waitlist instead of over-filling it.</p>
+      </fieldset>
+
+      <?php if (!$regStudents): ?>
+        <p class="empty" style="grid-column:1/-1;margin:0">No active students yet. <a href="?v=users" style="color:var(--gold)">Add or activate a student</a> first.</p>
+      <?php else: ?>
+      <div>
+        <label for="regStudent">Student <span class="req-star" aria-hidden="true">*</span></label>
+        <select id="regStudent" name="user_id" required aria-required="true" aria-describedby="regStudentHint">
           <option value="">— select a student —</option>
           <?php foreach ($regStudents as $s): ?>
-            <option value="<?= (int)$s['id'] ?>"><?= htmlspecialchars((string)($s['name'] ?: $s['email'])) ?></option>
+            <option value="<?= (int)$s['id'] ?>"><?= htmlspecialchars((string)($s['name'] ?: $s['email'])) ?><?= $s['name'] ? ' · ' . htmlspecialchars((string)$s['email']) : '' ?></option>
           <?php endforeach; ?>
         </select>
-      </label>
-      <label>Course
-        <select name="course_code" required style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+        <span id="regStudentHint" class="field-hint">Type to filter — active students only.</span>
+      </div>
+      <div>
+        <label for="regCourse">Course <span class="req-star" aria-hidden="true">*</span></label>
+        <select id="regCourse" name="course_code" required aria-required="true">
           <option value="">— select a course —</option>
           <?php foreach ($regCourses as $co): ?>
             <option value="<?= htmlspecialchars((string)$co['code']) ?>"><?= htmlspecialchars((string)$co['name']) ?></option>
           <?php endforeach; ?>
         </select>
-      </label>
+      </div>
       <?php if ($regInstrs): ?>
-      <label>Instructor <span class="muted" style="font-weight:400">— optional</span>
-        <select name="instructor_id" style="padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg);color:var(--ink)">
+      <div>
+        <label for="regInstr">Instructor</label>
+        <select id="regInstr" name="instructor_id" aria-describedby="regInstrHint">
           <option value="0">— course default —</option>
           <?php foreach ($regInstrs as $ins): ?>
             <option value="<?= (int)$ins['id'] ?>"><?= htmlspecialchars((string)$ins['name']) ?></option>
           <?php endforeach; ?>
         </select>
-      </label>
+        <span id="regInstrHint" class="field-hint">Optional — leave as default to use the cohort's instructor.</span>
+      </div>
       <?php endif; ?>
-      <div class="actions"><button class="btn" type="submit">Register &amp; activate</button></div>
+      <div class="actions" style="align-self:end"><button class="btn" type="submit"><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Register &amp; activate</button></div>
+      <?php endif; ?>
     </form>
   </div>
   <?php endif; ?>
@@ -7591,7 +7606,8 @@ V2_READ_TENANT=mam</pre>
       </form>
     </div>
     <table>
-      <thead><tr><th>Cohort</th><th>Course / Level</th><th>Instructor</th><th>Capacity</th><th>Waitlist</th><th>Sessions</th><th>Status</th><th>Actions</th></tr></thead>
+      <caption class="sr-only">Cohorts — the scheduled runs students are registered into</caption>
+      <thead><tr><th scope="col">Cohort</th><th scope="col">Course / Level</th><th scope="col">Instructor</th><th scope="col">Capacity</th><th scope="col">Waitlist</th><th scope="col">Sessions</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead>
       <tbody>
       <?php foreach ($cohortList as $co):
         $cid     = (int)$co['id'];
@@ -7832,7 +7848,8 @@ V2_READ_TENANT=mam</pre>
       </div>
     </div>
     <table>
-      <thead><tr><th>Student</th><th>Course</th><th>Level · Programme</th><th>Status</th><th>Approve / assign</th></tr></thead>
+      <caption class="sr-only">Course registrations — each student's non-legacy course enrolment, with approval and instructor assignment</caption>
+      <thead><tr><th scope="col">Student</th><th scope="col">Course</th><th scope="col">Level · Programme</th><th scope="col">Status</th><th scope="col">Approve / assign</th></tr></thead>
       <tbody>
       <?php if (!$ces): ?><tr><td colspan="5" class="empty">No course registrations yet</td></tr><?php endif;
       foreach ($ces as $r): ?>
