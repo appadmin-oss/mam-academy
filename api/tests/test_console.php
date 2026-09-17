@@ -26,13 +26,57 @@ $CN_screens = mam_console_screens();
 t_eq(count($CN_screens), count(array_unique($CN_screens)), 'no screen key is registered twice');
 t_ok(in_array('dashboard', $CN_screens, true), 'dashboard is a screen');
 
-$CN_groups = mam_console_nav();
+/* The IA is TWO levels: nine areas in the rail, that area's sections in a
+   strip under the page title. The handoff names a flat 31-item rail as the
+   superseded pass — "still too long to scan on every navigation" — so these
+   assertions pin the shape, not just the contents. */
+$CN_areas = mam_console_nav();
+t_eq(count($CN_areas), 9, 'nine areas — the rail is re-scanned on every navigation, and nine is the stated ceiling');
+
 $CN_flat = [];
-foreach ($CN_groups as $g) foreach ($g['items'] as $it) $CN_flat[] = $it;
-t_eq(count($CN_flat), count($CN_screens), 'mam_console_screens() flattens the whole rail, losing nothing');
+foreach ($CN_areas as $a) foreach ($a['sections'] as $sec) $CN_flat[] = $sec;
+t_eq(count($CN_flat), count($CN_screens), 'mam_console_screens() flattens every section, losing nothing');
+
+foreach ($CN_areas as $a) {
+    t_ok(isset($a['key'], $a['label'], $a['icon']) && !empty($a['sections']),
+        'area ' . (string) ($a['key'] ?? '?') . ' carries a key, a label, an icon and at least one section');
+    // Past about eight a strip needs its own overflow, and at that point the
+    // handoff says the AREA should split instead.
+    t_ok(count($a['sections']) <= 8,
+        'area ' . (string) ($a['key'] ?? '?') . ' has at most eight sections (' . count($a['sections']) . ')');
+}
 foreach ($CN_flat as $it) {
-    t_ok(isset($it['key'], $it['label'], $it['icon']) && array_key_exists('cap', $it),
-        'rail entry ' . (string) ($it['key'] ?? '?') . ' carries a key, a label, an icon and a capability');
+    t_ok(isset($it['key'], $it['label']) && array_key_exists('cap', $it),
+        'section ' . (string) ($it['key'] ?? '?') . ' carries a key, a label and a capability');
+}
+
+// Decision 1: Reports is its OWN area, never a Governance section. Governance
+// is quarterly work and Reports is daily; mixing cadences buries the frequent
+// thing, which is the whole reason it was pulled out.
+$CN_areaKeys = array_column($CN_areas, 'key');
+t_ok(in_array('reports', $CN_areaKeys, true), 'Reports is a top-level area');
+$CN_gov = array_values(array_filter($CN_areas, fn($a) => $a['key'] === 'governance'))[0] ?? ['sections' => []];
+t_ok(!in_array('reports', array_column($CN_gov['sections'], 'key'), true),
+    'Reports is NOT a Governance section');
+
+// Decision 3: the rail follows the AREA. A screen with no area orphans the
+// rail — an admin on it cannot tell where they are.
+foreach ($CN_screens as $CN_s) {
+    t_ok(mam_console_area_of($CN_s) !== null, "screen '$CN_s' resolves to a rail area");
+}
+
+// Decision 2: a rail click lands on the first section the CALLER may see, so a
+// manager without a capability is never sent to a screen that refuses them.
+$CN_people = array_values(array_filter($CN_areas, fn($a) => $a['key'] === 'people'))[0];
+t_eq(mam_console_area_home($CN_people, fn($c) => true), 'access', 'People opens on People & access');
+t_eq(mam_console_area_home($CN_people, fn($c) => $c !== 'users'), null,
+    'an area whose every section is barred returns no home, so the rail omits it rather than offering a dead end');
+
+// Dashboard and Reports are single destinations: a strip holding one tab that
+// is the page you are on is furniture with no function.
+foreach ($CN_areas as $a) {
+    $flat = mam_console_area_is_flat($a);
+    t_eq($flat, count($a['sections']) < 2, 'area ' . $a['key'] . ' reports its flatness honestly');
 }
 
 // A capability named here that mam_admin_can() does not understand would hide a

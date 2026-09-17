@@ -59,6 +59,7 @@ if (!in_array($screen, $screens, true)) $screen = 'dashboard';
 
 $MAM_CONSOLE_CSRF = mam_csrf_token();
 $nav    = mam_console_nav();
+$activeArea = mam_console_area_of($screen);   // decision 3: the rail follows the AREA
 $badges = mam_console_badges();
 $term   = mam_console_term();
 
@@ -119,8 +120,14 @@ $providers = [
 $d = isset($providers[$screen]) ? ($providers[$screen])() : [];
 
 /* Every screen's label, for the topbar title and the palette. */
-$labels = [];
-foreach ($nav as $g) foreach ($g['items'] as $it) $labels[$it['key']] = $it['label'];
+$labels = [];      // screen key → section label
+$areaOf = [];      // screen key → area label, for the palette
+foreach ($nav as $g) {
+    foreach ($g['sections'] as $sec) {
+        $labels[$sec['key']] = $sec['label'];
+        $areaOf[$sec['key']] = $g['label'];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" data-admin="v2" data-density="<?= ac_h($density) ?>" data-rail="<?= ac_h($railState) ?>">
@@ -159,26 +166,35 @@ foreach ($nav as $g) foreach ($g['items'] as $it) $labels[$it['key']] = $it['lab
       </a>
     </div>
 
+    <?php /* NINE areas, never the thirty-one destinations. The rail is
+             re-scanned on every navigation, so its length is paid repeatedly —
+             see mam_console_nav()'s note and the design's §IA. Breadth lives in
+             the section strip below the page title. */ ?>
     <div class="ac-navlist">
-      <?php foreach ($nav as $group): ?>
-        <?php
-          $items = array_values(array_filter($group['items'], fn($it) => $canSee($it['cap'] ?? null)));
-          if (!$items) continue;
-          if ($group['group'] !== null): ?>
-          <div class="ac-navgroup"><?= ac_h($group['group']) ?></div>
-        <?php endif; ?>
-        <?php foreach ($items as $it):
-          $on = $it['key'] === $screen;
-          $n  = (int) ($badges[$it['key']] ?? 0); ?>
-          <a class="ac-nav" href="<?= ac_h(ac_url($it['key'])) ?>" <?= $on ? 'aria-current="page"' : '' ?>
-             title="<?= ac_h($it['label']) ?>"
-             aria-label="<?= ac_h($it['label'] . ($n > 0 ? ', ' . $n . ' need attention' : '')) ?>">
-            <span class="ac-navbar"></span>
-            <i class="fa-solid <?= ac_h($it['icon']) ?>"></i>
-            <span class="ac-navlabel"><?= ac_h($it['label']) ?></span>
-            <?php if ($n > 0): ?><span class="ac-navcount"><?= $n ?></span><?php endif; ?>
-          </a>
-        <?php endforeach; ?>
+      <?php foreach ($nav as $area):
+        $home = mam_console_area_home($area, $canSee);
+        if ($home === null) continue;                 // no visible section → no dead end
+        $on = ($activeArea !== null && $activeArea['key'] === $area['key']);
+        // The rail badge rolls the area's sections up: an admin scanning nine
+        // buttons needs to know the area holds a decision, then finds which in
+        // the strip.
+        $n = 0;
+        foreach ($area['sections'] as $sec) { if ($canSee($sec['cap'] ?? null)) $n += (int) ($badges[$sec['key']] ?? 0); }
+        $count = count(array_filter($area['sections'], fn($sec) => $canSee($sec['cap'] ?? null)));
+        /* A collapsed rail is icon-only, so the accessible name is the ONLY
+           label — and a bare "2" tells a screen reader nothing. Say what the
+           number means, and how much is behind the area. */
+        $aria = $area['label']
+              . ($n > 0 ? ', ' . $n . ' needing a decision' : '')
+              . ($count > 1 ? ', ' . $count . ' sections' : ''); ?>
+        <a class="ac-nav" href="<?= ac_h(ac_url($home)) ?>" data-area="<?= ac_h($area['key']) ?>"
+           <?= $on ? 'aria-current="page"' : '' ?>
+           title="<?= ac_h($area['label']) ?>" aria-label="<?= ac_h($aria) ?>">
+          <span class="ac-navbar"></span>
+          <i class="fa-solid <?= ac_h($area['icon']) ?>"></i>
+          <span class="ac-navlabel"><?= ac_h($area['label']) ?></span>
+          <?php if ($n > 0): ?><span class="ac-navcount"><?= $n ?></span><?php endif; ?>
+        </a>
       <?php endforeach; ?>
       <div class="ac-navgroup">Legacy</div>
       <a class="ac-nav" href="/admin/" title="The 37-view admin">
@@ -223,7 +239,32 @@ foreach ($nav as $g) foreach ($g['items'] as $it) $labels[$it['key']] = $it['lab
       </a>
     </div>
 
-    <main class="ac-scroll sc" id="ac-main">
+    <main class="ac-scroll sc" id="ac-main" data-area="<?= ac_h($activeArea['key'] ?? '') ?>">
+      <?php
+        /* The section strip — level 2. A <nav>, deliberately NOT role="tablist":
+           these navigate between separate screens rather than toggling panels in
+           place, so tab semantics would be a lie to a screen reader.
+           Omitted for a one-destination area (Dashboard, Reports): a strip
+           holding one tab that is the page you are on is furniture. */
+        $stripSections = [];
+        if ($activeArea !== null && !mam_console_area_is_flat($activeArea)) {
+            $stripSections = array_values(array_filter($activeArea['sections'], fn($sec) => $canSee($sec['cap'] ?? null)));
+        }
+        if (count($stripSections) > 1): ?>
+        <nav class="ac-strip" aria-label="<?= ac_h($activeArea['label']) ?> sections">
+          <span class="ac-strip-eyebrow"><?= ac_h($activeArea['label']) ?></span>
+          <div class="ac-strip-tabs">
+            <?php foreach ($stripSections as $sec):
+              $sn = (int) ($badges[$sec['key']] ?? 0); ?>
+              <a class="ac-strip-tab" href="<?= ac_h(ac_url($sec['key'])) ?>"
+                 <?= $sec['key'] === $screen ? 'aria-current="page"' : '' ?>>
+                <?= ac_h($sec['label']) ?><?php if ($sn > 0): ?><span class="ac-strip-count"><?= $sn ?></span><?php endif; ?>
+              </a>
+            <?php endforeach; ?>
+          </div>
+        </nav>
+      <?php endif; ?>
+
       <?php if ($flashOk !== null): ?>
         <?php ac_banner('good', 'fa-circle-check', '<strong>' . ac_h($flashOk) . '</strong>'); ?>
       <?php endif; ?>
@@ -284,8 +325,14 @@ foreach ($nav as $g) foreach ($g['items'] as $it) $labels[$it['key']] = $it['lab
       <button type="button" class="ac-btn ac-btn--sm" data-ac-close>ESC</button>
     </div>
     <div class="ac-palettelist" id="ac-presults"></div>
+    <?php /* The handoff is explicit that a keyboard hint lists ONLY what is
+             implemented — an earlier version of its own prototype advertised
+             J/K row movement, X to select and ⌘Z undo, none of which existed,
+             and they were removed rather than faked. Everything named here
+             works. Row selection is deliberately not built and not claimed. */ ?>
     <div class="ac-palettefoot">
       <span><strong>↑↓</strong> move</span><span><strong>↵</strong> open</span>
+      <span><strong>G</strong> then <strong>D A S T C F P R G</strong> jumps to an area</span>
       <span class="ac-spacer"></span><span>Searches only what your role can see</span>
     </div>
   </div>
@@ -294,7 +341,31 @@ foreach ($nav as $g) foreach ($g['items'] as $it) $labels[$it['key']] = $it['lab
 <script>
 window.MAM_CONSOLE = {
   screen: <?= json_encode($screen) ?>,
-  destinations: <?= json_encode(array_map(fn($k) => ['key' => $k, 'label' => $labels[$k] ?? $k], $screens)) ?>,
+  area: <?= json_encode($activeArea['key'] ?? '') ?>,
+  <?php /* `G` then a letter jumps to an AREA, per the handoff's keyboard table:
+           D A S T C F P R G. All nine area initials happen to be distinct, so
+           the letter is derived rather than hand-maintained — a hardcoded map
+           would drift the day an area is renamed. Each carries the section a
+           rail click lands on, filtered by what this admin may see. */ ?>
+  areas: <?= json_encode(array_values(array_filter(array_map(function ($a) use ($canSee) {
+      $home = mam_console_area_home($a, $canSee);
+      return $home === null ? null : [
+          'key'    => $a['key'],
+          'label'  => $a['label'],
+          'letter' => strtolower(mb_substr($a['label'], 0, 1)),
+          'home'   => $home,
+      ];
+  }, $nav)))) ?>,
+  <?php /* ⌘K carries all 31 destinations and is what makes demoting 22 of them
+           to a second level safe — layered navigation costs discoverability and
+           the palette is the compensation. The handoff requires each to be
+           findable by SECTION or by AREA name ("finance" should surface Price
+           books), so the area travels with the row. */ ?>
+  destinations: <?= json_encode(array_map(fn($k) => [
+      'key'   => $k,
+      'label' => $labels[$k] ?? $k,
+      'area'  => $areaOf[$k] ?? '',
+  ], $screens)) ?>,
   csrf: <?= json_encode($MAM_CONSOLE_CSRF) ?>
 };
 </script>

@@ -111,10 +111,17 @@
   });
   if (opener) opener.addEventListener('click', openPalette);
 
+  /* Matches on the SECTION name or its AREA name — the handoff requires both,
+     because with 22 destinations demoted to a second level, "finance" is how
+     somebody looks for Price books when they cannot remember what it is
+     called. */
   function destinationMatches(q) {
     var needle = q.toLowerCase();
     return (CFG.destinations || []).filter(function (d) {
-      return !needle || d.label.toLowerCase().indexOf(needle) >= 0 || d.key.indexOf(needle) === 0;
+      if (!needle) return true;
+      return d.label.toLowerCase().indexOf(needle) >= 0
+        || d.key.indexOf(needle) === 0
+        || (d.area || '').toLowerCase().indexOf(needle) >= 0;
     }).slice(0, 6);
   }
 
@@ -234,14 +241,21 @@
 
     if (chord === 'g') {
       clearTimeout(chordTimer); chord = null;
-      var to = (CFG.destinations || []).filter(function (d) { return d.key[0] === e.key.toLowerCase(); })[0];
-      if (to) { e.preventDefault(); location.href = '?v=' + encodeURIComponent(to.key); }
+      /* G then D A S T C F P R G — the nine AREAS, per the handoff's keyboard
+         table. This used to take the first DESTINATION whose key began with
+         the letter, which across 31 keys is arbitrary: `G C` reached whichever
+         of calendar / charges / cohorts / comms / curriculum happened to be
+         registered first, and that answer changed whenever the rail was
+         reordered. */
+      var k = e.key.toLowerCase();
+      var to = (CFG.areas || []).filter(function (a) { return a.letter === k; })[0];
+      if (to) { e.preventDefault(); location.href = '?v=' + encodeURIComponent(to.home); }
       return;
     }
     if (e.key === 'g' || e.key === 'G') {
       chord = 'g';
       clearTimeout(chordTimer);
-      chordTimer = setTimeout(function () { chord = null; }, 1500);
+      chordTimer = setTimeout(function () { chord = null; }, 1400);
     }
   });
 

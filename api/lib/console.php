@@ -165,62 +165,133 @@ function mam_console_pct(int $part, int $whole): int {
    ───────────────────────────────────────────────────────────────────────── */
 
 /**
- * The console's information architecture, exactly as the design frame's rail
- * declares it: thirty-one destinations in four named groups, plus Dashboard
- * above them. `cap` is the admin capability the screen needs; a manager who
- * lacks it never sees the entry (the capability table in admin/index.php is
- * still the enforcement — this only stops us advertising a dead end).
+ * The console's information architecture: NINE areas, each holding its
+ * sections. Thirty-one destinations, but never thirty-one on screen at once.
+ *
+ * ⚠️ THIS REPLACED A FLAT RAIL OF ALL 31, GROUPED FOUR WAYS. That was not a
+ * style preference — the design handoff
+ * (docs/design/2026-08-portal-redesign/README-admin-console.md §IA) names it
+ * as the first redesign pass and says why it was abandoned: "the legacy 40-view
+ * flat sidebar was unscannable; the first redesign pass made it 31 items
+ * grouped four ways, which was still too long to scan on every navigation."
+ * The rail is re-scanned on EVERY navigation, so its length is paid
+ * repeatedly. Nine is the stated ceiling.
+ *
+ * Breadth moved to a section strip under the page title, where you only ever
+ * see the siblings of where you already are. ⌘K is what makes demoting 22
+ * destinations to a second level safe — layered navigation costs
+ * discoverability and the palette is the compensation. It already existed.
+ *
+ * Four decisions the handoff asks to be preserved, all load-bearing:
+ *  1. Reports is its OWN area, not a Governance section. Governance is
+ *     quarterly work; Reports is daily, and mixing cadences buries the
+ *     frequent thing.
+ *  2. No area overview pages. A rail click lands on the area's first section
+ *     the caller can actually see — an index page listing the tabs already
+ *     visible below it is a click tax.
+ *  3. The rail highlight follows the AREA, not the screen (see
+ *     mam_console_area_of): opening Attendance keeps Teaching lit. A child
+ *     screen must never orphan the rail.
+ *  4. Six is the widest strip. Past about eight a strip needs its own
+ *     overflow, and at that point the area should split instead.
+ *
+ * `cap` is the admin capability a section needs; a manager lacking it never
+ * sees the entry. The capability table in admin/index.php is still the
+ * enforcement — this only stops us advertising a dead end.
  */
 function mam_console_nav(): array {
     return [
-        ['group' => null, 'items' => [
-            ['key' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'fa-gauge', 'cap' => null],
+        ['key' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'fa-gauge', 'sections' => [
+            ['key' => 'dashboard', 'label' => 'Dashboard', 'cap' => null],
         ]],
-        ['group' => 'Recruit', 'items' => [
-            ['key' => 'admissions', 'label' => 'Admissions',        'icon' => 'fa-inbox',                'cap' => 'admissions'],
-            ['key' => 'auditions',  'label' => 'Auditions',         'icon' => 'fa-music',                'cap' => 'admissions'],
-            ['key' => 'bursaries',  'label' => 'Bursaries & awards','icon' => 'fa-hand-holding-dollar',  'cap' => null],
-            ['key' => 'funnel',     'label' => 'Intake funnel',     'icon' => 'fa-filter',               'cap' => null],
+        ['key' => 'admissions', 'label' => 'Admissions', 'icon' => 'fa-file-lines', 'sections' => [
+            ['key' => 'admissions', 'label' => 'Applications',         'cap' => 'admissions'],
+            ['key' => 'auditions',  'label' => 'Auditions',            'cap' => 'admissions'],
+            ['key' => 'funnel',     'label' => 'Intake funnel',        'cap' => null],
+            ['key' => 'bursaries',  'label' => 'Bursary applications', 'cap' => null],
         ]],
-        ['group' => 'Teach', 'items' => [
-            ['key' => 'students',   'label' => 'Students',            'icon' => 'fa-user-graduate',   'cap' => null],
-            ['key' => 'cohorts',    'label' => 'Cohorts & enrolments','icon' => 'fa-users-rectangle', 'cap' => null],
-            ['key' => 'roster',     'label' => 'Enrol & staffing',    'icon' => 'fa-user-plus',       'cap' => 'enrollments'],
-            ['key' => 'timetable',  'label' => 'Timetable & rooms',   'icon' => 'fa-calendar-days',   'cap' => null],
-            ['key' => 'curriculum', 'label' => 'Curriculum',          'icon' => 'fa-sitemap',         'cap' => 'curriculum'],
-            ['key' => 'assessment', 'label' => 'Assessment & boards', 'icon' => 'fa-scale-balanced',  'cap' => null],
-            ['key' => 'attendance', 'label' => 'Attendance',          'icon' => 'fa-user-check',      'cap' => null],
-            ['key' => 'guardians',  'label' => 'Guardians & consent', 'icon' => 'fa-people-roof',     'cap' => 'enrollments'],
-            ['key' => 'calendar',   'label' => 'Academic calendar',   'icon' => 'fa-calendar-check',  'cap' => null],
-            ['key' => 'events',     'label' => 'Recitals & events',   'icon' => 'fa-masks-theater',   'cap' => null],
-            ['key' => 'files',      'label' => 'Files & ID cards',    'icon' => 'fa-photo-film',      'cap' => 'media'],
+        ['key' => 'students', 'label' => 'Students', 'icon' => 'fa-user-group', 'sections' => [
+            ['key' => 'students',  'label' => 'Students',            'cap' => null],
+            ['key' => 'guardians', 'label' => 'Guardians & consent',  'cap' => 'enrollments'],
+            ['key' => 'files',     'label' => 'Files & ID cards',     'cap' => 'media'],
         ]],
-        ['group' => 'Bursary', 'items' => [
-            ['key' => 'invoices',   'label' => 'Invoices & payments',  'icon' => 'fa-file-invoice-dollar', 'cap' => null],
-            ['key' => 'ledger',     'label' => 'Ledger & FX',          'icon' => 'fa-book',                'cap' => null],
-            ['key' => 'pricebooks', 'label' => 'Price books',          'icon' => 'fa-tags',                'cap' => null],
-            ['key' => 'charges',    'label' => 'Charges & exceptions', 'icon' => 'fa-gavel',               'cap' => 'enrollments'],
-            ['key' => 'store',      'label' => 'Store & orders',       'icon' => 'fa-store',               'cap' => null],
-            ['key' => 'deductions', 'label' => 'Instructor deductions','icon' => 'fa-triangle-exclamation','cap' => null],
+        ['key' => 'teaching', 'label' => 'Teaching', 'icon' => 'fa-chalkboard-user', 'sections' => [
+            ['key' => 'cohorts',    'label' => 'Cohorts',            'cap' => null],
+            ['key' => 'roster',     'label' => 'Enrol & staffing',   'cap' => 'enrollments'],
+            ['key' => 'timetable',  'label' => 'Timetable & rooms',  'cap' => null],
+            ['key' => 'attendance', 'label' => 'Attendance',         'cap' => null],
+            ['key' => 'calendar',   'label' => 'Calendar',           'cap' => null],
+            ['key' => 'events',     'label' => 'Recitals & events',  'cap' => null],
         ]],
-        ['group' => 'Govern', 'items' => [
-            ['key' => 'access',         'label' => 'People & access',      'icon' => 'fa-user-shield',    'cap' => 'users'],
-            ['key' => 'governance',     'label' => 'Governance & audit',   'icon' => 'fa-shield-halved',  'cap' => null],
-            ['key' => 'reports',        'label' => 'Reports',              'icon' => 'fa-chart-line',     'cap' => null],
-            ['key' => 'comms',          'label' => 'Communications',       'icon' => 'fa-comment-dots',   'cap' => null],
-            ['key' => 'vetting',        'label' => 'Staff & vetting',      'icon' => 'fa-user-lock',      'cap' => 'users'],
-            ['key' => 'dataprotection', 'label' => 'Data protection',      'icon' => 'fa-scroll',         'cap' => 'users'],
-            ['key' => 'support',        'label' => 'Support',              'icon' => 'fa-headset',        'cap' => 'support'],
-            ['key' => 'system',         'label' => 'System health',        'icon' => 'fa-bolt',           'cap' => 'settings'],
-            ['key' => 'settings',       'label' => 'Settings & vocabulary','icon' => 'fa-gears',          'cap' => 'settings'],
+        ['key' => 'curriculum', 'label' => 'Curriculum', 'icon' => 'fa-book-open', 'sections' => [
+            ['key' => 'curriculum', 'label' => 'Modules',             'cap' => 'curriculum'],
+            ['key' => 'assessment', 'label' => 'Assessment & boards', 'cap' => null],
+        ]],
+        ['key' => 'finance', 'label' => 'Finance', 'icon' => 'fa-naira-sign', 'sections' => [
+            ['key' => 'invoices',   'label' => 'Invoices & payments',  'cap' => null],
+            ['key' => 'ledger',     'label' => 'Ledger & FX',          'cap' => null],
+            ['key' => 'pricebooks', 'label' => 'Price books',          'cap' => null],
+            ['key' => 'charges',    'label' => 'Charges & exceptions', 'cap' => 'enrollments'],
+            ['key' => 'store',      'label' => 'Store & orders',       'cap' => null],
+            ['key' => 'deductions', 'label' => 'Instructor deductions','cap' => null],
+        ]],
+        ['key' => 'people', 'label' => 'People', 'icon' => 'fa-user-gear', 'sections' => [
+            ['key' => 'access',  'label' => 'People & access', 'cap' => 'users'],
+            ['key' => 'vetting', 'label' => 'Staff & vetting',  'cap' => 'users'],
+        ]],
+        ['key' => 'reports', 'label' => 'Reports', 'icon' => 'fa-chart-line', 'sections' => [
+            ['key' => 'reports', 'label' => 'Reports', 'cap' => null],
+        ]],
+        ['key' => 'governance', 'label' => 'Governance', 'icon' => 'fa-scale-balanced', 'sections' => [
+            ['key' => 'governance',     'label' => 'Audit trail',            'cap' => null],
+            ['key' => 'dataprotection', 'label' => 'Data protection',        'cap' => 'users'],
+            ['key' => 'comms',          'label' => 'Communications',         'cap' => null],
+            ['key' => 'support',        'label' => 'Support',                'cap' => 'support'],
+            ['key' => 'system',         'label' => 'System health',          'cap' => 'settings'],
+            ['key' => 'settings',       'label' => 'Settings & vocabulary',  'cap' => 'settings'],
         ]],
     ];
 }
 
-/** Every screen key the rail offers, flattened. The router validates against this. */
+/**
+ * The area a screen belongs to — decision 3. Opening Attendance must keep
+ * Teaching lit; a child screen that orphans the rail leaves an admin unable to
+ * tell where they are.
+ */
+function mam_console_area_of(string $screen): ?array {
+    foreach (mam_console_nav() as $area) {
+        foreach ($area['sections'] as $s) if ($s['key'] === $screen) return $area;
+    }
+    return null;
+}
+
+/**
+ * Where a rail click lands — decision 2, no area overview pages.
+ *
+ * The FIRST section this caller may actually see, not simply the first: a
+ * manager without the `users` capability clicking People would otherwise land
+ * on a screen that refuses them. Returns null when they may see none, and the
+ * rail then omits the area entirely rather than offering a dead end.
+ */
+function mam_console_area_home(array $area, ?callable $canSee = null): ?string {
+    foreach ($area['sections'] as $s) {
+        if ($canSee === null || $canSee($s['cap'] ?? null)) return $s['key'];
+    }
+    return null;
+}
+
+/**
+ * True when an area is a single destination and needs no section strip —
+ * Dashboard and Reports. A strip holding one tab that is the page you are on
+ * is furniture with no function.
+ */
+function mam_console_area_is_flat(array $area): bool {
+    return count($area['sections']) < 2;
+}
+
 function mam_console_screens(): array {
     $out = [];
-    foreach (mam_console_nav() as $g) foreach ($g['items'] as $it) $out[] = $it['key'];
+    foreach (mam_console_nav() as $area) foreach ($area['sections'] as $s) $out[] = $s['key'];
     return $out;
 }
 

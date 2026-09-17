@@ -1150,8 +1150,26 @@ Two conventions these established:
 
 ## The admin console (`admin/console.php`) — the 2026-08 redesign
 
-Thirty-one screens on the design frame's information architecture, built
-2026-08-20. **The legacy `admin/index.php` is NOT retired**: it still serves 37
+Thirty-one screens, built 2026-08-20 and **re-navigated 2026-09-17** when the
+design package finally reached the repo (`docs/design/2026-08-portal-redesign/`).
+
+⚠️ **The IA is TWO levels: nine rail areas, each holding its sections.** The
+original build was a flat rail of all 31 grouped four ways — and the handoff
+names exactly that as the *superseded* pass: "the legacy 40-view flat sidebar
+was unscannable; the first redesign pass made it 31 items grouped four ways,
+which was still too long to scan on every navigation." The rail is re-scanned
+on every navigation, so its length is paid repeatedly; nine is the stated
+ceiling. Breadth lives in a section strip under the page title, and ⌘K (which
+already existed) is what makes demoting 22 destinations to a second level safe.
+Four decisions to preserve, each with its reason in `mam_console_nav()`:
+Reports is its OWN area (daily work, not quarterly); no area overview pages (a
+rail click lands on the area's first *visible* section); the rail highlight
+follows the AREA not the screen (`mam_console_area_of`, so Attendance keeps
+Teaching lit); and the three navigation levels keep three different shapes —
+do not unify the rail, the strip and in-screen pill filters.
+⚠️ The strip is a `<nav>`, deliberately **not** `role="tablist"` — it navigates
+between separate screens rather than toggling panels, so tab semantics would
+promise arrow-key movement that does not exist. **The legacy `admin/index.php` is NOT retired**: it still serves 37
 views and — this is the load-bearing part — **every POST handler the console
 uses**. Both are reachable; each links to the other.
 

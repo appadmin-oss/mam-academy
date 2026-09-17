@@ -677,3 +677,66 @@
   [data-admin="v2"] .ac-scroll { overflow: visible; padding: 0; }
   [data-admin="v2"] .ac-card { break-inside: avoid; }
 }
+
+/* ── Section strip — navigation level 2 ───────────────────────────────────────
+   The design's IA is two levels: nine areas in the rail, and that area's
+   sections here. See mam_console_nav() for why the flat 31-item rail went.
+
+   ⚠️ It is a <nav>, deliberately NOT role="tablist". These links navigate to
+   separate screens rather than toggling panels in place, so tab semantics
+   would be a lie to a screen reader — it would promise arrow-key movement
+   between panels that do not exist.
+
+   The strip bleeds to the scroll region's edges with a negative margin so
+   nothing slides underneath while it is sticky. The handoff writes
+   `margin:-22px -24px 20px; padding:20px 24px 0` against ITS gutter; ours is
+   20px (and 14px on small), so the bleed is matched to .ac-scroll's real
+   padding instead of copied — a copied -24px against a 20px gutter leaks 4px
+   of content past the edge.
+   ───────────────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ac-strip {
+  position: sticky; top: 0; z-index: 20;
+  margin: -22px -20px 20px; padding: 16px 20px 0;
+  background: var(--ac-app);
+  border-bottom: 1px solid var(--ac-line);
+}
+[data-admin="v2"] .ac-strip-eyebrow {
+  display: block; margin-bottom: 8px;
+  font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ac-ink-3);
+}
+[data-admin="v2"] .ac-strip-tabs {
+  display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none;
+}
+[data-admin="v2"] .ac-strip-tabs::-webkit-scrollbar { display: none; }
+
+[data-admin="v2"] .ac-strip-tab {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px;
+  /* -1px so the active underline covers the container's own hairline rather
+     than sitting a pixel above it. */
+  padding: 0 0 11px; margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--ac-ink-3); font-size: 13px; font-weight: 500; text-decoration: none;
+  white-space: nowrap; min-height: 34px;
+}
+[data-admin="v2"] .ac-strip-tab:hover { color: var(--ac-ink); }
+[data-admin="v2"] .ac-strip-tab[aria-current="page"] {
+  border-bottom-color: var(--ac-ink); color: var(--ac-ink); font-weight: 700;
+}
+/* No :focus-visible rule here on purpose — the global one at the top of this
+   file already rings every focusable control, and a second declaration is a
+   second thing to keep in step. */
+[data-admin="v2"] .ac-strip-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 100px;
+  background: var(--ac-chip); color: var(--ac-ink-3);
+  font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+[data-admin="v2"] .ac-strip-tab[aria-current="page"] .ac-strip-count {
+  background: var(--ac-ink); color: #fff;
+}
+
+@media (max-width: 720px) {
+  [data-admin="v2"] .ac-strip { margin: -16px -14px 16px; padding: 12px 14px 0; }
+  [data-admin="v2"] .ac-strip-tabs { gap: 16px; }
+}
