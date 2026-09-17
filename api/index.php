@@ -289,6 +289,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->post('/mark-attendance',  $f('instructor/mark-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
     // Per-session QR check-in token for a class the instructor teaches (#9/#10).
     $r->get ('/attendance-qr',    $f('instructor/attendance-qr.php'),   [mw_role('instructor', 'admin')]);
+    // The Grade entry sheet. The SERVER decides whether video travels with a
+    // criterion — see the route file and api/lib/marking.php.
+    $r->get ('/marking-sheet',    $f('instructor/marking-sheet.php'),   [mw_role('instructor', 'admin')]);
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/resource',         $f('instructor/resource.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);

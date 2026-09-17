@@ -1180,6 +1180,46 @@ Two conventions these established:
   total is the bug the v61 column exists to prevent. NULL = unpriced, counted
   and disclosed separately rather than silently dropped.
 
+## Performance marking — the audio-only control (`api/lib/marking.php`)
+
+Built from the instructor mobile frame's **Grade entry** screen
+(`docs/design/2026-08-portal-redesign/portals-mobile.dc.html`,
+`data-phone="instructorv2"`). The screen's whole point is a bias control, and
+it is stated on its own face: *"Video is hidden while you mark pitch, time and
+tone. Seeing a performance measurably lifts the marks given for it, so the
+technical criteria are heard, not watched."*
+
+- **Modality is a property of the CRITERION, never a preference of the
+  marker.** `pitch`/`time`/`tone` are marked from audio; `shape` is the one
+  criterion that cannot be judged without sight, and it is sorted LAST so the
+  technical marks are committed before the video is ever shown. There is
+  deliberately no setting that turns this off — an instructor who could
+  disable it is the instructor it exists for.
+- **The server decides, and withholds rather than hides.**
+  `GET /api/instructor/marking-sheet` computes `show_video` per criterion, and
+  a sheet whose criteria are all technical is sent with **no artifact URL at
+  all**. A client-side flag is one devtools toggle away; `display:none` on a
+  `<video src>` is not a control.
+- **An unknown criterion fails SAFE, to audio.** Withholding video from
+  something that did not need it costs nothing; showing it for a technical
+  mark is the failure being prevented. Labels are matched technical-first, the
+  same ordering trap `mastery.php` documents ("Tone and shape" is technical).
+- ⚠️ **Band thresholds are exact FRACTIONS, not decimals.** Written as
+  `0.6667` the pass floor computed as 21 of 30 where two-thirds is 20 — a
+  rounded decimal standing in for a fraction moves a band boundary, and a band
+  boundary is a pass or a fail for a real child. At max 30 the table
+  reproduces the design exactly: Pass 20–23, Merit 24–26, Distinction 27–30.
+- **`null` is "Not assessed" and is NOT zero** — the same line the mastery
+  score and the termly report hold. A real 0 is an assessment; not marking is
+  not.
+- **Second marking is DETERMINISTIC on the submission id**, 1 in 8. Not
+  random: a marker must not be able to re-roll until it says no, a refresh
+  must not change the answer, and an audit a year later has to reproduce which
+  marks were double-marked from the ids alone.
+- **No automatic scoring of a child's playing, anywhere.** The design's first
+  refusal; a test asserts the file contains no such path. It helps a human
+  mark; it never marks.
+
 ## The admin console (`admin/console.php`) — the 2026-08 redesign
 
 Thirty-one screens, built 2026-08-20 and **re-navigated 2026-09-17** when the

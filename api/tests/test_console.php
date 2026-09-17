@@ -328,3 +328,53 @@ t_eq(count($BG_offenders), 0,
 // And the helper they should use resolves for a break-glass caller.
 t_ok(function_exists('mam_admin_require_actor'), 'mam_admin_require_actor() exists');
 t_ok(function_exists('mam_admin_actor'), 'mam_admin_actor() exists');
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Performance marking — the audio-only control and what it refuses.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+t_group('marking — technical criteria are heard, not watched');
+
+// The control, stated once: video is a property of the CRITERION.
+t_ok(!mam_marking_video_allowed('pitch'), 'pitch is marked by ear');
+t_ok(!mam_marking_video_allowed('time'),  'time is marked by ear');
+t_ok(!mam_marking_video_allowed('tone'),  'tone is marked by ear');
+t_ok(mam_marking_video_allowed('shape'),  'shape needs sight — it is the one that does');
+
+// An unknown criterion withholds the video. Showing it for a technical mark is
+// the failure this exists to prevent; withholding it needlessly costs nothing.
+t_ok(!mam_marking_video_allowed('something nobody registered'), 'an unknown criterion fails SAFE, to audio');
+
+// Rubric criteria are authored by instructors, so a LABEL is what arrives.
+t_eq(mam_marking_criterion('Pitch & intonation')['key'], 'pitch', 'a real rubric label resolves');
+t_eq(mam_marking_criterion('Rhythmic accuracy')['key'], 'time', 'rhythm is a timing criterion');
+t_eq(mam_marking_criterion('Tone and shape')['key'], 'tone',
+    'a label naming BOTH resolves technical — the order is load-bearing, as in mastery.php');
+t_eq(mam_marking_criterion('Stagecraft')['key'], 'shape', 'presentation words reach shape');
+t_eq(mam_marking_criterion(''), null, 'an empty label resolves to nothing rather than guessing');
+
+// The band table reproduces the design's own figures at max = 30.
+$MK_b = mam_marking_bands(30);
+t_eq($MK_b[0]['low'] . '-' . $MK_b[0]['high'], '27-30', 'Distinction 27–30');
+t_eq($MK_b[1]['low'] . '-' . $MK_b[1]['high'], '24-26', 'Merit 24–26');
+t_eq($MK_b[2]['low'] . '-' . $MK_b[2]['high'], '20-23', 'Pass 20–23');
+t_eq(mam_marking_band_of(25, 30)['label'], 'Merit', '25 of 30 is a Merit');
+t_eq(mam_marking_band_of(19, 30)['label'], 'Below pass', 'below the pass floor is named, not blank');
+
+// "Not assessed" is not zero — the invariant the whole repo holds.
+t_eq(mam_marking_band_of(null, 30)['band'], 'not_assessed', 'an unmarked criterion is "not assessed"');
+t_ok(mam_marking_band_of(null, 30)['assessed'] === false, '…and reports itself as unassessed');
+t_ok(mam_marking_band_of(0, 30)['assessed'] === true, 'a real zero IS an assessment, and differs from not marking');
+
+// Second marking is deterministic: a marker must not be able to re-roll it.
+$MK_first = mam_marking_needs_second_marker(41);
+t_eq(mam_marking_needs_second_marker(41), $MK_first, 'the same submission always gives the same answer');
+$MK_hits = 0;
+for ($i = 1; $i <= 800; $i++) if (mam_marking_needs_second_marker($i)) $MK_hits++;
+t_ok($MK_hits > 60 && $MK_hits < 140, "roughly one in eight is second-marked (got $MK_hits of 800)");
+t_ok(mam_marking_needs_second_marker(7, 1), 'an every-of-1 double-marks everything rather than dividing by zero');
+
+// No automatic scoring of a child's playing, anywhere in this file.
+$MK_src = file_get_contents(dirname(__DIR__) . '/lib/marking.php');
+foreach (['detectPitch', 'autoscore', 'auto_score', 'analyse_audio'] as $MK_no) {
+    t_ok(!str_contains($MK_src, $MK_no), "marking.php contains no '$MK_no' — it helps a human mark, it never marks");
+}
