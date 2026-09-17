@@ -326,8 +326,24 @@
         var hero = $('#hero, .page-hero');
         var threshold = hero ? hero.offsetHeight * 0.6 : 400;
         var visible = y > threshold;
+        /* Never two Apply calls-to-action at once. lead.js already puts a
+           persistent "Next intake is open — APPLY NOW" bar in the same dock,
+           and the design asking for this pill on mobile could not know that:
+           MEASURED at 390, the two stacked above the cookie banner and shouted
+           the same thing twice. The bar is dismissible for 30 days, so
+           deleting the pill would leave mobile with no persistent Apply path
+           afterwards — which is the thing the design wanted. So they are
+           mutually exclusive: the bar wins while it is up, the pill takes over
+           once it is gone. */
+        if (visible && document.querySelector('.mam-cta-bar')) visible = false;
         floatingEnroll.classList.toggle('visible', visible);
-        floatingEnroll.setAttribute('aria-hidden', !visible);
+        // `inert` rather than aria-hidden: aria-hidden on a container wrapping
+        // a focusable link is a known trap — the link stays tabbable but loses
+        // its name, so a screen-reader user lands on an unlabelled "link".
+        // inert removes focusability and AT exposure together, so the two can
+        // never drift out of step with the CSS.
+        if (visible) floatingEnroll.removeAttribute('inert');
+        else floatingEnroll.setAttribute('inert', '');
 
         // Dock above the footer on large screens so the button never covers
         // the footer links. Below 1024px it stays a normal fixed pill.
@@ -963,6 +979,34 @@
     return d;
   }
   window.mamDock = mamDock;
+
+  /**
+   * The floating Apply pill shares the bottom-right corner with the cookie
+   * banner. MEASURED at 390: with the pill no longer hidden on mobile they
+   * overlap — the pill's own `docked` class is about the FOOTER and only runs
+   * above 1024px, so nothing was stacking them.
+   *
+   * The dock is what exists for this: a fixed, column-reverse flex container
+   * that the cookie banner already lives in, so stacking is the browser's job
+   * rather than a per-component offset. Below the desktop breakpoint the pill
+   * joins it; above, it stays a free-floating pill in the corner where there
+   * is room for one.
+   */
+  function dockFloatingEnroll() {
+    var fe = document.getElementById('floatingEnroll');
+    if (!fe) return;
+    var wantDock = window.innerWidth <= 1024;
+    var inDock = fe.parentElement && fe.parentElement.id === 'mamDock';
+    if (wantDock && !inDock) {
+      fe.classList.add('in-dock');
+      mamDock().appendChild(fe);
+    } else if (!wantDock && inDock) {
+      fe.classList.remove('in-dock');
+      document.body.appendChild(fe);
+    }
+  }
+  window.addEventListener('resize', dockFloatingEnroll);
+  dockFloatingEnroll();
 
   function initCookie() {
     var banner = $('#cookieBanner'); if (!banner) return;

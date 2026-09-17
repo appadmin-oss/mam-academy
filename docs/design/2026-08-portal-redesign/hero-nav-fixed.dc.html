@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="preload" as="image" href="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&amp;q=80" fetchpriority="high">
+<style>
+  body{margin:0;background:#181310;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#FBF7F3;-webkit-font-smoothing:antialiased}
+  a{color:#FCC647}
+  a:hover{color:#FDE9A8}
+  *{box-sizing:border-box}
+  .sc::-webkit-scrollbar{width:0;height:0}
+  .sronly{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+  .hslide{position:absolute;inset:0;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .9s cubic-bezier(.22,.61,.36,1),visibility .9s cubic-bezier(.22,.61,.36,1)}
+  .hslide.on{opacity:1;visibility:visible;pointer-events:auto}
+  .hslide .bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;background:#2A2119;transform:scale(1.06);transition:transform 8s ease-out}
+  .hslide.on .bg{transform:scale(1)}
+  .scrim{position:absolute;inset:0;pointer-events:none;background:linear-gradient(96deg,rgba(18,13,8,.94) 0%,rgba(18,13,8,.80) 36%,rgba(18,13,8,.22) 66%,rgba(18,13,8,.46) 100%)}
+  .scrim-b{position:absolute;left:0;right:0;bottom:0;height:220px;pointer-events:none;background:linear-gradient(180deg,rgba(18,13,8,0),rgba(18,13,8,.86))}
+
+  /* The old design put every slide inside its own coloured card, so the hero
+     carried four different identities in 26 seconds. One editorial block now,
+     varied only by an accent. */
+  .stack{position:absolute;left:112px;right:72px;top:50%;transform:translateY(-50%);max-width:640px;z-index:10;opacity:0}
+  .hslide.on .stack{opacity:1;transition:opacity .5s cubic-bezier(.22,.61,.36,1) .2s}
+  .stack .inner{transform:translateY(22px);transition:transform .7s cubic-bezier(.34,1.56,.64,1) .2s}
+  .hslide.on .stack .inner{transform:translateY(0)}
+  .eyebrow{display:inline-flex;align-items:center;gap:13px;margin-bottom:22px;font-size:11.5px;font-weight:800;letter-spacing:.17em;text-transform:uppercase}
+  .eyebrow span.rule{display:block;width:30px;height:2px;border-radius:2px}
+  .hl{font-family:'Bebas Neue',Impact,sans-serif;font-size:4.5rem;line-height:.9;letter-spacing:.012em;margin:0;color:#fff;text-shadow:0 2px 30px rgba(18,13,8,.7)}
+  .lede{margin:20px 0 0;font-size:1.06rem;line-height:1.7;color:rgba(251,247,243,.9);max-width:46ch;text-shadow:0 1px 16px rgba(18,13,8,.8)}
+  .ctas{display:flex;align-items:center;gap:22px;margin-top:32px;flex-wrap:wrap}
+  .cta{display:inline-flex;align-items:center;justify-content:center;gap:11px;min-height:56px;padding:0 32px;border-radius:100px;font-size:.9rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;transition:transform .2s,box-shadow .2s,filter .2s}
+  .cta:hover{transform:translateY(-2px)}
+  .ctat{display:inline-flex;align-items:center;gap:10px;min-height:56px;font-size:.9rem;font-weight:700;color:#FBF7F3;text-decoration:none;border-bottom:1.5px solid rgba(251,247,243,.32);transition:color .2s,border-color .2s}
+  .ctat:hover{color:#FCC647;border-color:#FCC647}
+  .proof{position:absolute;left:112px;bottom:30px;z-index:12;display:flex;gap:28px;font-size:11.5px;font-weight:600;color:rgba(251,247,243,.74)}
+
+  .dot{position:relative;width:24px;height:24px;padding:0;border:0;background:none;cursor:pointer;display:grid;place-items:center;transition:width .3s cubic-bezier(.22,.61,.36,1)}
+  .dot .face{display:block;width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.55);overflow:hidden;transition:width .3s cubic-bezier(.22,.61,.36,1),border-radius .3s,background .3s}
+  .dot.on{width:44px}
+  .dot.on .face{width:30px;border-radius:5px;background:rgba(255,255,255,.26)}
+  .dot:hover .face{background:rgba(255,255,255,.85)}
+  .dot.on:hover .face{background:rgba(255,255,255,.26)}
+  .dot .fill{display:block;height:100%;width:100%;border-radius:inherit;background:#FCC647;transform:scaleX(0);transform-origin:left center;will-change:transform}
+  .dot .tip{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(4px);white-space:nowrap;padding:6px 11px;border-radius:8px;background:rgba(10,8,4,.94);border:1px solid rgba(232,201,160,.28);color:#FBF7F3;font-size:11.5px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+  .dot:hover .tip,.dot:focus-visible .tip{opacity:1;transform:translateX(-50%) translateY(0)}
+  .dotm{width:44px;height:44px}
+  .dotm .face{width:14px;height:14px}
+  .dotm.on{width:52px}
+  .dotm.on .face{width:32px;height:14px;border-radius:7px}
+  .pausebtn{width:32px;height:32px;margin-left:4px;border-radius:50%;background:rgba(0,0,0,.5);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:.66rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s,border-color .2s}
+  .pausebtn:hover{background:rgba(224,138,26,.75);border-color:#E8961F}
+  .pausebtnm{width:44px;height:44px;font-size:.8rem}
+  .arrow{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,.42);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.22);color:#fff;font-size:1rem;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:12;transition:background .2s,border-color .2s}
+  .arrow:hover{background:rgba(224,138,26,.75);border-color:#E8961F}
+  .cue{position:absolute;right:26px;bottom:30px;z-index:12;display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(251,247,243,.66)}
+  .navlink{font-size:.9rem;font-weight:600;color:#FBF7F3;text-decoration:none;background:none;border:0;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:8px 2px}
+  .navlink:hover{color:#FCC647}
+  *:focus-visible{outline:3px solid #FCC647;outline-offset:3px;border-radius:6px;box-shadow:0 0 0 6px rgba(0,0,0,.55)}
+
+  /* Phone: the block goes to the floor so the photograph keeps its top half. */
+  .stack-m{position:absolute;left:18px;right:18px;bottom:100px;top:auto;transform:none;max-width:none}
+  .stack-m .hl{font-size:2.55rem}
+  .stack-m .lede{font-size:.94rem;margin-top:13px;line-height:1.65}
+  .stack-m .eyebrow{margin-bottom:15px;font-size:10.5px;gap:10px}
+  .stack-m .eyebrow span.rule{width:22px}
+  .stack-m .ctas{margin-top:20px;gap:12px;flex-direction:column;align-items:stretch}
+  .stack-m .cta{min-height:52px;width:100%}
+  .stack-m .ctat{min-height:48px;justify-content:center;border-bottom:0;border:1.5px solid rgba(251,247,243,.32);border-radius:100px}
+  .proof-m{position:static;display:flex;gap:16px;margin-top:16px;font-size:10.5px;flex-wrap:wrap}
+</style>
+</helmet>
+
+<section style="padding:56px 48px 40px;display:flex;flex-direction:column;gap:20px">
+  <div style="max-width:1100px">
+    <div style="font-size:11px;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:rgba(251,247,243,0.55)">Turn 10 · Hero redesigned</div>
+    <h1 style="font-size:38px;font-weight:800;line-height:1.1;margin:8px 0 0;letter-spacing:-0.02em">The card is gone. The photograph does the work.</h1>
+    <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:rgba(251,247,243,0.82);max-width:66ch;text-wrap:pretty">The old hero put every slide inside its own coloured panel — white, gold-bordered, red-bordered, indigo — so the first screen carried four different visual identities in twenty-six seconds, and a blurred 620px box sat on top of a photograph you'd paid to shoot. One editorial block now, identical on all four slides, varying only by a single accent colour. All twelve accessibility fixes and the new interactions are intact.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:18px">
+      <span style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 14px;border-radius:100px;background:rgba(240,90,40,0.16);border:1px solid rgba(240,90,40,0.45);color:#FFB08A;font-size:12px;font-weight:700">One identity, four accents</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 14px;border-radius:100px;background:rgba(240,90,40,0.16);border:1px solid rgba(240,90,40,0.45);color:#FFB08A;font-size:12px;font-weight:700">Headline 3.05rem → 4.5rem</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 14px;border-radius:100px;background:rgba(240,90,40,0.16);border:1px solid rgba(240,90,40,0.45);color:#FFB08A;font-size:12px;font-weight:700">One primary action per slide</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 14px;border-radius:100px;background:rgba(240,90,40,0.16);border:1px solid rgba(240,90,40,0.45);color:#FFB08A;font-size:12px;font-weight:700">No backdrop-filter over the image</span>
+      <span style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 14px;border-radius:100px;background:rgba(240,90,40,0.16);border:1px solid rgba(240,90,40,0.45);color:#FFB08A;font-size:12px;font-weight:700">Persistent proof strip</span>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;padding-top:12px">
+
+    <div id="10a" data-hero style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:100px;background:#F05A28;color:#1A120B;font-size:12px;font-weight:800;letter-spacing:0.04em">10a</span>
+        <span style="font-size:13px;font-weight:700;color:rgba(251,247,243,0.86)">Desktop · 1440</span>
+      </div>
+
+      <div style="width:1440px;border-radius:14px;overflow:hidden;border:1px solid rgba(232,201,160,0.20);background:#2A2119">
+
+        <div style="height:34px;display:flex;align-items:center;justify-content:center;gap:14px;padding:0 24px;background:#1A120B;border-bottom:1px solid rgba(232,201,160,0.14);font-size:12px;color:rgba(251,247,243,0.86)">
+          <span><i class="fa-solid fa-bullhorn" style="color:#FCC647;margin-right:8px;font-size:10px"></i>First Term enrolment closes 5 September · Trinity-equivalent Grades 1–8</span>
+          <button type="button" aria-label="Dismiss this announcement" style="width:24px;height:24px;border:0;background:none;color:rgba(251,247,243,0.62);font-size:11px;cursor:pointer;display:grid;place-items:center"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <nav aria-label="Main" style="height:72px;display:flex;align-items:center;gap:26px;padding:0 32px;background:rgba(26,18,11,0.96);border-bottom:1px solid rgba(232,201,160,0.14)">
+          <a href="#10a" style="display:flex;align-items:center;gap:11px;text-decoration:none;color:#FBF7F3">
+            <img src="mam-logo-mark.png" alt="" style="width:38px;height:38px;border-radius:9px">
+            <span><span style="display:block;font-family:'Bebas Neue',Impact,sans-serif;font-size:19px;letter-spacing:0.08em;line-height:1">MAM ACADEMY</span><span style="display:block;font-size:8.5px;letter-spacing:0.2em;text-transform:uppercase;color:rgba(251,247,243,0.55);margin-top:2px">Mystery · Art · Music</span></span>
+          </a>
+          <ul style="flex:1;display:flex;align-items:center;justify-content:center;gap:22px;margin:0;padding:0;list-style:none">
+            <li><a href="#10a" class="navlink" aria-current="page" style="color:#FCC647">Home</a></li>
+            <li style="display:flex;align-items:center;gap:2px"><a href="#10a" class="navlink">Disciplines</a><button type="button" class="navlink" aria-expanded="false" aria-label="Show Disciplines menu" style="width:44px;height:44px;padding:0;justify-content:center"><i class="fa-solid fa-chevron-down" style="font-size:9px" aria-hidden="true"></i></button></li>
+            <li style="display:flex;align-items:center;gap:2px"><button type="button" class="navlink" aria-expanded="false">Experiences <i class="fa-solid fa-chevron-down" style="font-size:9px" aria-hidden="true"></i></button></li>
+            <li><a href="#10a" class="navlink">Pathways</a></li>
+            <li><a href="#10a" class="navlink">Tuition</a></li>
+            <li style="display:flex;align-items:center;gap:2px"><a href="#10a" class="navlink">About</a><button type="button" class="navlink" aria-expanded="false" aria-label="Show About menu" style="width:44px;height:44px;padding:0;justify-content:center"><i class="fa-solid fa-chevron-down" style="font-size:9px" aria-hidden="true"></i></button></li>
+            <li><a href="#10a" class="navlink">Contact</a></li>
+          </ul>
+          <div style="display:flex;align-items:center;gap:14px">
+            <a href="#10a" class="navlink">Sign in</a>
+            <a href="#10a" class="cta" style="min-height:44px;padding:0 22px;font-size:0.8rem;background:linear-gradient(135deg,#F05A28,#D97706);color:#1A120B;box-shadow:0 4px 20px rgba(240,90,40,0.4)">Apply Now</a>
+          </div>
+        </nav>
+
+        <div data-stage style="position:relative;height:704px;overflow:hidden;background:#2A2119">
+
+          <div class="hslide on" data-slide="0" data-title="Become a Meta-Musician">
+            <img class="bg" src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&amp;q=80" alt="" fetchpriority="high" decoding="async">
+            <div class="scrim" aria-hidden="true"></div>
+            <div class="scrim-b" aria-hidden="true"></div>
+            <div aria-hidden="true" style="position:absolute;top:9%;right:7%;font-size:9rem;opacity:0.05;font-family:serif;color:#fff;pointer-events:none;line-height:1">𝄞</div>
+            <div class="stack">
+              <div class="inner">
+                <div class="eyebrow" style="color:#FFB08A"><span class="rule" style="background:#F05A28"></span>A Creative Intelligence &amp; Performance Academy</div>
+                <h1 class="hl" aria-label="Become a Meta-Musician">BECOME A<br>META-MUSICIAN</h1>
+                <p class="lede">We interpret the timeless using instruments and replay it in time — forming complete musicians, performers and creative thinkers.</p>
+                <div class="ctas">
+                  <a href="#10a" class="cta" style="background:linear-gradient(135deg,#F05A28,#D97706);color:#1A120B;box-shadow:0 6px 26px rgba(240,90,40,0.42)">Apply Now<i class="fa-solid fa-arrow-right" style="font-size:11px" aria-hidden="true"></i></a>
+                  <a href="#10a" class="ctat">Book an auditer</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hslide" data-slide="1" data-title="Music Changes" aria-hidden="true">
+            <img class="bg" src="https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1920&amp;q=80" alt="" loading="lazy" fetchpriority="low" decoding="async">
+            <div class="scrim" aria-hidden="true"></div>
+            <div class="scrim-b" aria-hidden="true"></div>
+            <div class="stack">
+              <div class="inner">
+                <div class="eyebrow" style="color:#FCC647"><span class="rule" style="background:#FCC647"></span>Trinity-equivalent · Grades 1 – 8</div>
+                <h1 class="hl">MUSIC<br>CHANGES</h1>
+                <p class="lede">Pre-Certification, Certification, Pre-Diploma and Diploma — four pathways built for measurable, professional formation.</p>
+                <div class="ctas">
+                  <a href="#10a" class="cta" style="background:#FCC647;color:#1A120B;box-shadow:0 6px 26px rgba(251,198,71,0.36)">View pathways<i class="fa-solid fa-arrow-right" style="font-size:11px" aria-hidden="true"></i></a>
+                  <a href="#10a" class="ctat">Compare the four grades</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hslide" data-slide="2" data-title="Practice with Focus" aria-hidden="true">
+            <img class="bg" src="https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=1920&amp;q=80" alt="" loading="lazy" fetchpriority="low" decoding="async">
+            <div class="scrim" aria-hidden="true"></div>
+            <div class="scrim-b" aria-hidden="true"></div>
+            <div class="stack">
+              <div class="inner">
+                <div class="eyebrow" style="color:#FF9E9E"><span class="rule" style="background:#FF7A7A"></span>The MAM Rapid Rhythm Intelligence System</div>
+                <h1 class="hl">PRACTICE<br>WITH FOCUS</h1>
+                <p class="lede">Sight read. Sight sing. Lock the timing. A signature method for fast rhythm fluency and ensemble synchronisation.</p>
+                <div class="ctas">
+                  <a href="#10a" class="cta" style="background:linear-gradient(135deg,#C22B2B,#9A3412);color:#fff;box-shadow:0 6px 26px rgba(194,43,43,0.42)">Explore rhythm<i class="fa-solid fa-arrow-right" style="font-size:11px" aria-hidden="true"></i></a>
+                  <a href="#10a" class="ctat">Crash course · ₦110,000</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hslide" data-slide="3" data-title="Music Shapes You" aria-hidden="true">
+            <img class="bg" src="https://images.unsplash.com/photo-1555685813-4a31571be76a?w=1920&amp;q=80" alt="" loading="lazy" fetchpriority="low" decoding="async">
+            <div class="scrim" aria-hidden="true"></div>
+            <div class="scrim-b" aria-hidden="true"></div>
+            <div class="stack">
+              <div class="inner">
+                <div class="eyebrow" style="color:#C7D2FE"><span class="rule" style="background:#A5B4FC"></span>MetaMusic &amp; Creative Consciousness</div>
+                <h1 class="hl">MUSIC<br>SHAPES YOU</h1>
+                <p class="lede">Philosophy, civilisation and the consciousness of sound. Beyond skill — we form thinkers and architects of culture.</p>
+                <div class="ctas">
+                  <a href="#10a" class="cta" style="background:#A5B4FC;color:#1E1B4B;box-shadow:0 6px 26px rgba(99,102,241,0.40)">The MetaMusic Order<i class="fa-solid fa-arrow-right" style="font-size:11px" aria-hidden="true"></i></a>
+                  <a href="#10a" class="ctat">Free · Power Play</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" class="arrow" data-prev style="left:24px" aria-label="Previous slide"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+          <button type="button" class="arrow" data-next style="right:24px" aria-label="Next slide"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+
+          <div class="proof">
+            <span><i class="fa-solid fa-location-dot" style="color:#FCC647;margin-right:8px"></i>Ikeja studios &amp; online</span>
+            <span><i class="fa-solid fa-award" style="color:#FCC647;margin-right:8px"></i>Trinity-equivalent, Grades 1–8</span>
+            <span><i class="fa-solid fa-calendar-check" style="color:#FCC647;margin-right:8px"></i>Commissioned 2008</span>
+          </div>
+
+          <div data-nav style="position:absolute;left:50%;transform:translateX(-50%);bottom:26px;display:flex;align-items:center;gap:8px;z-index:12">
+            <button type="button" class="dot on" data-dot="0" aria-current="true" aria-label="Go to slide 1: Become a Meta-Musician"><span class="face"><span class="fill"></span></span><span class="tip" aria-hidden="true">Become a Meta-Musician</span></button>
+            <button type="button" class="dot" data-dot="1" aria-label="Go to slide 2: Music Changes"><span class="face"><span class="fill"></span></span><span class="tip" aria-hidden="true">Music Changes</span></button>
+            <button type="button" class="dot" data-dot="2" aria-label="Go to slide 3: Practice with Focus"><span class="face"><span class="fill"></span></span><span class="tip" aria-hidden="true">Practice with Focus</span></button>
+            <button type="button" class="dot" data-dot="3" aria-label="Go to slide 4: Music Shapes You"><span class="face"><span class="fill"></span></span><span class="tip" aria-hidden="true">Music Shapes You</span></button>
+            <button type="button" class="pausebtn" data-pause aria-pressed="false" aria-label="Pause the slideshow"><i class="fa-solid fa-pause" aria-hidden="true"></i></button>
+          </div>
+
+          <div class="cue" aria-hidden="true"><span>Four schools below</span><i class="fa-solid fa-chevron-down" style="color:#FCC647;font-size:10px"></i></div>
+          <p class="sronly" data-live aria-live="polite" aria-atomic="true"></p>
+        </div>
+      </div>
+
+      <div style="width:1440px;display:flex;gap:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:300px;background:#2A2119;border:1px solid rgba(232,201,160,0.20);border-radius:14px;padding:16px 18px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">What the card was costing you</div>
+          <div style="font-size:12.5px;line-height:1.65;color:rgba(251,247,243,0.82)">Four themes meant no consistent brand read. It duplicated the logo sitting 40px above it. And <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px">backdrop-filter:blur(20px)</span> across a 620px panel over a full-bleed photo is a real cost on a mid-range Android — which is most of your Lagos traffic.</div>
+        </div>
+        <div style="flex:1;min-width:300px;background:#2A2119;border:1px solid rgba(232,201,160,0.20);border-radius:14px;padding:16px 18px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">One primary action, not two</div>
+          <div style="font-size:12.5px;line-height:1.65;color:rgba(251,247,243,0.82)">The old slides stacked two full-width buttons of equal weight, so neither read as the next step. Now a solid pill plus an underlined text link — the secondary is still one tap, and it stops competing.</div>
+        </div>
+        <div style="flex:1;min-width:300px;background:#2A2119;border:1px solid rgba(232,201,160,0.20);border-radius:14px;padding:16px 18px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">Still intact</div>
+          <div style="font-size:12.5px;line-height:1.65;color:rgba(251,247,243,0.82)">Pause control, reduced-motion, inactive slides out of the tab order, steering stops autoplay, 24/44px dots, live region, dot progress fill, hover labels, drag, arrow keys. The proof strip is persistent, so nothing essential lives in one slide.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="10b" data-hero style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:100px;background:#F05A28;color:#1A120B;font-size:12px;font-weight:800;letter-spacing:0.04em">10b</span>
+        <span style="font-size:13px;font-weight:700;color:rgba(251,247,243,0.86)">Phone · 390 — the photograph is finally visible</span>
+      </div>
+      <div style="width:390px;height:844px;border-radius:40px;background:#0F0C0A;padding:9px;border:1px solid rgba(232,201,160,0.20)">
+        <div style="height:100%;border-radius:32px;overflow:hidden;background:#211A13;display:flex;flex-direction:column;position:relative">
+          <div style="flex:0 0 36px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:12px;font-weight:700"><span>9:41</span><span style="display:flex;gap:5px;align-items:center;color:rgba(251,247,243,0.74)"><i class="fa-solid fa-signal" style="font-size:10px"></i><i class="fa-solid fa-wifi" style="font-size:10px"></i><i class="fa-solid fa-battery-three-quarters" style="font-size:11px"></i></span></div>
+
+          <div style="flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:6px 12px;background:#1A120B;border-bottom:1px solid rgba(232,201,160,0.14);font-size:11px;color:rgba(251,247,243,0.86)">
+            <span style="flex:1;line-height:1.4"><i class="fa-solid fa-bullhorn" style="color:#FCC647;margin-right:6px;font-size:9px"></i>Enrolment closes 5 September</span>
+            <button type="button" aria-label="Dismiss this announcement" style="width:32px;height:32px;border:0;background:none;color:rgba(251,247,243,0.62);font-size:12px;cursor:pointer;display:grid;place-items:center;flex:0 0 auto"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+
+          <nav aria-label="Main" style="flex:0 0 56px;display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(26,18,11,0.96);border-bottom:1px solid rgba(232,201,160,0.14)">
+            <img src="mam-logo-mark.png" alt="" style="width:32px;height:32px;border-radius:7px">
+            <div style="flex:1;min-width:0"><div style="font-family:'Bebas Neue',Impact,sans-serif;font-size:15px;letter-spacing:0.08em;line-height:1">MAM ACADEMY</div></div>
+            <a href="#10b" class="cta" style="min-height:44px;padding:0 16px;font-size:0.74rem;background:linear-gradient(135deg,#F05A28,#D97706);color:#1A120B">Apply</a>
+            <button type="button" aria-expanded="false" aria-label="Open the menu" style="width:44px;height:44px;border-radius:11px;border:1px solid rgba(251,247,243,0.32);background:rgba(20,15,11,0.35);color:#FBF7F3;font-size:15px;flex:0 0 auto;cursor:pointer"><i class="fa-solid fa-bars" aria-hidden="true"></i></button>
+          </nav>
+
+          <div data-stage style="position:relative;flex:1;overflow:hidden;background:#2A2119">
+
+            <div class="hslide on" data-slide="0" data-title="Become a Meta-Musician">
+              <img class="bg" src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&amp;q=80" alt="" fetchpriority="high" decoding="async">
+              <div aria-hidden="true" style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(18,13,8,.30) 0%,rgba(18,13,8,.12) 26%,rgba(18,13,8,.80) 56%,rgba(18,13,8,.96) 100%)"></div>
+              <div class="stack stack-m">
+                <div class="inner">
+                  <div class="eyebrow" style="color:#FFB08A"><span class="rule" style="background:#F05A28"></span>Creative intelligence academy</div>
+                  <h1 class="hl" aria-label="Become a Meta-Musician">BECOME A<br>META-MUSICIAN</h1>
+                  <p class="lede">We interpret the timeless using instruments and replay it in time.</p>
+                  <div class="ctas">
+                    <a href="#10b" class="cta" style="background:linear-gradient(135deg,#F05A28,#D97706);color:#1A120B">Apply Now<i class="fa-solid fa-arrow-right" style="font-size:11px" aria-hidden="true"></i></a>
+                    <a href="#10b" class="ctat">Book an auditer</a>
+                  </div>
+                  <div class="proof proof-m"><span>Ikeja &amp; online</span><span>Grades 1–8</span><span>Since 2008</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hslide" data-slide="1" data-title="Music Changes" aria-hidden="true">
+              <img class="bg" src="https://images.unsplash.com/photo-1509062522246-3755977927d7?w=1920&amp;q=80" alt="" loading="lazy" fetchpriority="low" decoding="async">
+              <div aria-hidden="true" style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(18,13,8,.28) 0%,rgba(18,13,8,.10) 26%,rgba(18,13,8,.78) 56%,rgba(18,13,8,.96) 100%)"></div>
+              <div class="stack stack-m">
+                <div class="inner">
+                  <div class="eyebrow" style="color:#FCC647"><span class="rule" style="background:#FCC647"></span>Trinity-equivalent · Grades 1 – 8</div>
+                  <h1 class="hl">MUSIC<br>CHANGES</h1>
+                  <p class="lede">Four pathways built for measurable, professional formation.</p>
+                  <div class="ctas">
+                    <a href="#10b" class="cta" style="background:#FCC647;color:#1A120B">View pathways<i class="fa-solid fa-arrow-right" style="font-size:11px" aria-hidden="true"></i></a>
+                    <a href="#10b" class="ctat">Compare the grades</a>
+                  </div>
+                  <div class="proof proof-m"><span>Ikeja &amp; online</span><span>Grades 1–8</span><span>Since 2008</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hslide" data-slide="2" data-title="Practice with Focus" aria-hidden="true">
+              <img class="bg" src="https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=1920&amp;q=80" alt="" loading="lazy" fetchpriority="low" decoding="async">
+              <div aria-hidden="true" style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.34) 0%,rgba(18,13,8,.12) 26%,rgba(18,13,8,.80) 56%,rgba(18,13,8,.97) 100%)"></div>
+              <div class="stack stack-m">
+                <div class="inner">
+                  <div class="eyebrow" style="color:#FF9E9E"><span class="rule" style="background:#FF7A7A"></span>Rapid Rhythm Intelligence</div>
+                  <h1 class="hl">PRACTICE<br>WITH FOCUS</h1>
+                  <p class="lede">Sight read. Sight sing. Lock the timing.</p>
+                  <div class="ctas">
+                    <a href="#10b" class="cta" style="background:linear-gradient(135deg,#C22B2B,#9A3412);color:#fff">Explore rhythm<i class="fa-solid fa-arrow-right" style="font-size:11px" aria-hidden="true"></i></a>
+                    <a href="#10b" class="ctat">Crash course · ₦110,000</a>
+                  </div>
+                  <div class="proof proof-m"><span>Ikeja &amp; online</span><span>Grades 1–8</span><span>Since 2008</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hslide" data-slide="3" data-title="Music Shapes You" aria-hidden="true">
+              <img class="bg" src="https://images.unsplash.com/photo-1555685813-4a31571be76a?w=1920&amp;q=80" alt="" loading="lazy" fetchpriority="low" decoding="async">
+              <div aria-hidden="true" style="position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(18,13,8,.28) 0%,rgba(18,13,8,.08) 26%,rgba(18,13,8,.78) 56%,rgba(18,13,8,.96) 100%)"></div>
+              <div class="stack stack-m">
+                <div class="inner">
+                  <div class="eyebrow" style="color:#C7D2FE"><span class="rule" style="background:#A5B4FC"></span>MetaMusic &amp; Consciousness</div>
+                  <h1 class="hl">MUSIC<br>SHAPES YOU</h1>
+                  <p class="lede">Philosophy, civilisation and the consciousness of sound.</p>
+                  <div class="ctas">
+                    <a href="#10b" class="cta" style="background:#A5B4FC;color:#1E1B4B">The MetaMusic Order<i class="fa-solid fa-arrow-right" style="font-size:11px" aria-hidden="true"></i></a>
+                    <a href="#10b" class="ctat">Free · Power Play</a>
+                  </div>
+                  <div class="proof proof-m"><span>Ikeja &amp; online</span><span>Grades 1–8</span><span>Since 2008</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div data-nav style="position:absolute;left:50%;transform:translateX(-50%);bottom:12px;display:flex;align-items:center;gap:2px;z-index:12">
+              <button type="button" class="dot dotm on" data-dot="0" aria-current="true" aria-label="Go to slide 1: Become a Meta-Musician"><span class="face"><span class="fill"></span></span></button>
+              <button type="button" class="dot dotm" data-dot="1" aria-label="Go to slide 2: Music Changes"><span class="face"><span class="fill"></span></span></button>
+              <button type="button" class="dot dotm" data-dot="2" aria-label="Go to slide 3: Practice with Focus"><span class="face"><span class="fill"></span></span></button>
+              <button type="button" class="dot dotm" data-dot="3" aria-label="Go to slide 4: Music Shapes You"><span class="face"><span class="fill"></span></span></button>
+              <button type="button" class="pausebtn pausebtnm" data-pause aria-pressed="false" aria-label="Pause the slideshow"><i class="fa-solid fa-pause" aria-hidden="true"></i></button>
+            </div>
+
+            <p class="sronly" data-live aria-live="polite" aria-atomic="true"></p>
+          </div>
+        </div>
+      </div>
+      <div style="width:390px;font-size:12.5px;color:rgba(251,247,243,0.78);line-height:1.7">The old mobile card was a solid full-width panel that covered the photograph completely — which made the image pointless on the device most of your traffic uses. The block now sits on the floor with the top half of the picture clear, and the two actions stack as a solid pill plus an outlined one, both above the dots.</div>
+    </div>
+
+  </div>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() {
+    const root = this.el || document;
+    root.querySelectorAll('[data-hero]').forEach((hero) => this.wire(hero));
+  }
+
+  wire(hero) {
+    const stage = hero.querySelector('[data-stage]');
+    if (!stage) return;
+    const slides = Array.from(stage.querySelectorAll('.hslide'));
+    const dots = Array.from(stage.querySelectorAll('[data-dot]'));
+    const live = stage.querySelector('[data-live]');
+    const toggle = stage.querySelector('[data-pause]');
+    if (!slides.length) return;
+
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const st = { i: 0, timer: null, paused: !!reduce };
+
+    // The active dot doubles as a progress bar, so the 6.5s is visible rather
+    // than a surprise — and pausing visibly stops it.
+    const fills = dots.map((d) => d.querySelector('.fill'));
+    // scaleX, not width: a 0 → 100% width transition doesn't interpolate
+    // (length to percentage), and a transform runs on the compositor.
+    const setFill = (mode) => {
+      fills.forEach((f, k) => {
+        if (!f) return;
+        f.style.transition = 'none';
+        f.style.transform = (k === st.i && mode === 'solid') ? 'scaleX(1)' : 'scaleX(0)';
+      });
+      const f = fills[st.i];
+      if (!f) return;
+      if (mode === 'run') {
+        void f.offsetWidth;
+        f.style.transition = 'transform 6500ms linear';
+        f.style.transform = 'scaleX(1)';
+      }
+    };
+    const freezeFill = () => {
+      const f = fills[st.i];
+      if (!f) return;
+      const m = new DOMMatrixReadOnly(getComputedStyle(f).transform);
+      f.style.transition = 'none';
+      f.style.transform = 'scaleX(' + (m.a || 0) + ')';
+    };
+
+    const go = (n, announce) => {
+      const prev = slides[st.i];
+      prev.classList.remove('on');
+      prev.setAttribute('aria-hidden', 'true');
+      if (dots[st.i]) { dots[st.i].classList.remove('on'); dots[st.i].removeAttribute('aria-current'); }
+      st.i = (n + slides.length) % slides.length;
+      const cur = slides[st.i];
+      cur.classList.add('on');
+      cur.removeAttribute('aria-hidden');
+      if (dots[st.i]) { dots[st.i].classList.add('on'); dots[st.i].setAttribute('aria-current', 'true'); }
+      setFill(st.paused ? 'solid' : 'run');
+      if (announce && live) {
+        live.textContent = 'Slide ' + (st.i + 1) + ' of ' + slides.length + ': ' + (cur.getAttribute('data-title') || '');
+      }
+    };
+
+    const stop = () => { if (st.timer) { clearInterval(st.timer); st.timer = null; } };
+    const start = () => {
+      if (st.paused) return;
+      stop();
+      st.timer = setInterval(() => go(st.i + 1, false), 6500);
+    };
+
+    const syncToggle = () => {
+      if (!toggle) return;
+      toggle.setAttribute('aria-pressed', st.paused ? 'true' : 'false');
+      toggle.setAttribute('aria-label', st.paused ? 'Play the slideshow' : 'Pause the slideshow');
+      toggle.innerHTML = '<i class="fa-solid fa-' + (st.paused ? 'play' : 'pause') + '" aria-hidden="true"></i>';
+    };
+
+    // Deliberate navigation means the visitor wants to stay. Hand over control.
+    const steer = (fn) => (e) => {
+      if (e) e.preventDefault();
+      st.paused = true;
+      stop();
+      syncToggle();
+      fn();
+      setFill('solid');
+    };
+
+    const prevBtn = stage.querySelector('[data-prev]');
+    const nextBtn = stage.querySelector('[data-next]');
+    if (prevBtn) prevBtn.addEventListener('click', steer(() => go(st.i - 1, true)));
+    if (nextBtn) nextBtn.addEventListener('click', steer(() => go(st.i + 1, true)));
+    dots.forEach((d) => d.addEventListener('click', steer(() => go(parseInt(d.getAttribute('data-dot'), 10), true))));
+
+    if (toggle) toggle.addEventListener('click', () => {
+      st.paused = !st.paused;
+      syncToggle();
+      if (st.paused) { stop(); setFill('solid'); } else { start(); setFill('run'); }
+    });
+
+    // Arrow keys work anywhere inside the hero once focus is in it.
+    stage.addEventListener('keydown', (e) => {
+      if (e.target.closest('a,input,textarea')) return;
+      if (e.key === 'ArrowRight') steer(() => go(st.i + 1, true))(e);
+      else if (e.key === 'ArrowLeft') steer(() => go(st.i - 1, true))(e);
+    });
+
+    // Drag with a mouse, the same gesture that already worked with a finger.
+    let px = null;
+    stage.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.target.closest('a,button')) return;
+      px = e.clientX;
+      stage.style.cursor = 'grabbing';
+    });
+    const endDrag = (e) => {
+      if (px === null) return;
+      const dx = e.clientX - px;
+      px = null;
+      stage.style.cursor = '';
+      if (Math.abs(dx) > 60) steer(() => go(st.i + (dx < 0 ? 1 : -1), true))();
+    };
+    stage.addEventListener('pointerup', endDrag);
+    stage.addEventListener('pointerleave', endDrag);
+
+    let tx = 0, ty = 0;
+    stage.addEventListener('touchstart', (e) => { tx = e.changedTouches[0].clientX; ty = e.changedTouches[0].clientY; }, { passive: true });
+    stage.addEventListener('touchend', (e) => {
+      const dx = e.changedTouches[0].clientX - tx;
+      const dy = e.changedTouches[0].clientY - ty;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) steer(() => go(st.i + (dx < 0 ? 1 : -1), true))();
+    }, { passive: true });
+
+    const hold = () => { stop(); freezeFill(); };
+    const resume = () => { if (!st.paused) { start(); setFill('run'); } };
+    stage.addEventListener('mouseenter', hold);
+    stage.addEventListener('mouseleave', resume);
+    stage.addEventListener('focusin', hold);
+    stage.addEventListener('focusout', resume);
+
+    syncToggle();
+    setFill(st.paused ? 'solid' : 'run');
+    start();
+  }
+
+  renderVals() { return {}; }
+}
+
+</script>
+</body>
+</html>

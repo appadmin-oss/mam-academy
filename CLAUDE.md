@@ -787,6 +787,38 @@ the notation showcase.**
   • The photograph is an `<img>` so the first can be preloaded as the LCP
     element and the other three deferred. `main.js` skips `#hero` when adding
     lazy attributes, which is why the explicit ones survive.
+- ✅ **Nav patches from the design review (2026-09-17)** — `docs/design/2026-08-portal-redesign/PATCHES-hero-and-nav.md`.
+  ⚠️ **Patches 1–6 are STALE — do not apply them.** They are written against the
+  pre-2026-08-20 hero and would REGRESS it: patch 1 asks for `visibility:hidden`
+  on inactive slides, which is exactly what the hero note above records as
+  insufficient (visibility transitions over .9s and computes as `visible`
+  throughout, so the outgoing slide stayed focusable for 900ms — the repo uses
+  `inert`), and patch 2 asks for 24px dots where the repo already has 44px.
+  Patches 10 and 12 were also already done, 10 more thoroughly (it marks
+  dropdown items and the mobile menu too, and picks exactly one top-level
+  underline). **Patches 7, 8, 9 and 11 were live and are now applied:**
+  • the `menubar`/`menuitem`/`menu` roles are gone — they promise an
+    application-menu keyboard contract (arrows move, Tab exits the bar as one
+    stop) that the code never implemented, and `role="menu"` may not contain
+    the `<h5>` headings these panels hold;
+  • **Experiences** is a `<button class="nav-link-disclosure">`, not
+    `<a href="#">` — it never navigated, and the bare hash jumped to the top of
+    the page. 44px box, because padding around a 9px chevron measures 17px;
+  • **Schools is merged into Disciplines**, desktop and mobile. Both resolved
+    to `/schools`, so a parent hunting for piano had a coin-flip with no
+    feedback. `initActiveNav()` still contains the workaround for the duplicate
+    ("avoids two links … underlining at once") — harmless, and now unreachable;
+  • the floating Apply pill uses **`inert`**, not `aria-hidden` on a container
+    wrapping a focusable link.
+  ⚠️ **The mobile floating pill needed more than the patch says.** Un-hiding it
+  put it under the cookie banner (its own `docked` class is about the FOOTER
+  and only runs above 1024px), so it now joins `window.mamDock` — the
+  column-reverse flex stack the cookie banner already lives in. And because
+  `lead.js` ALREADY puts a persistent "APPLY NOW" bar in that dock, the two
+  shouted the same thing twice: they are now mutually exclusive, the bar
+  winning while it is up and the pill taking over once it is dismissed (it
+  remembers for 30 days, so deleting the pill would leave mobile with no
+  persistent Apply path — the thing the patch wanted).
 - 🧭 **Apply "Find Your Path" advisor** (not a brief item, but shipped) —
   `assets/js/apply-discovery.js` + `#mamAdvisor` in `apply.php`. A *non-intrusive*
   invitation (never a takeover) that opens a warm advisor; it **uses AI** (server

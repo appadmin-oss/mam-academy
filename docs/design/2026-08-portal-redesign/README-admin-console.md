@@ -312,10 +312,22 @@ Two jobs only: marking a register, and an **Assign** tab for one-tap enrolment. 
 
 | Path | What it is |
 |---|---|
-| `Admin Console.dc.html` | **The design.** Desktop 1440 + mobile 390. Open in a browser; click the rail, press `⌘K` |
+| `Admin Console.dc.html` | **The console design.** Desktop 1440 + mobile 390. Open in a browser; click the rail, press `⌘K` |
+| `Portals Mobile.dc.html` | **Student, guardian and instructor mobile, 390 — the primary experience.** The instructor portal exists only here; it is mobile-only by design |
+| `Portals Desktop.dc.html` | Student, guardian and instructor desktop, 1440 |
 | `HANDOFF-student-guardian.md` | The portal handoff. Shares tokens and component recipes with this console — read its token and refusal sections alongside this one |
-| `README-portals.md` | The earlier package index: vocabulary, the seven refusals, order of work |
+| `README-portals.md` | The portal package index: vocabulary, the seven refusals, order of work |
+| `Hero Nav Fixed.dc.html` | Public-site hero and nav. **Separate design system** — dark candlelit palette, Bebas/Cormorant. Not the v2 token set below |
+| `REVIEW-hero-and-nav.md` | Fifteen findings on the public site, severity-sorted, with decision flags |
+| `PATCHES-hero-and-nav.md` | Twelve copy-paste patches against the real `index.php` / `main.css` / `main.js` |
 | `mam-logo.png`, `mam-logo-mark.png` | Logo assets |
+| `support.js` | Runtime for the `.dc.html` files. Required to view them; not part of the design |
+
+### Two design systems in this bundle, deliberately
+
+The portals and console use the **light v2 token set** documented above (`#F1F3F6` canvas, `#1B2430` ink, `#E2650F` accent). The public site uses its own **dark candlelit palette** with Bebas/Cormorant type, and was not re-skinned — see `REVIEW-hero-and-nav.md`.
+
+This matters for any page that sits between the public site's dark header and footer. `instructor-apply.php` is one: re-skinning it to v2 tokens would put a light form between dark chrome, which is a decision about the public site's direction rather than about that one page. **No design exists in this package for the instructor application page.** Until one does, keep it on the public site's system and apply only the universal parts of this handoff — the accessibility contract (focus rings, landmarks, skip link, contrast floor, named controls), which is system-independent.
 
 The console is self-contained (fonts and icons from CDN) and needs no build step to view.
 
