@@ -1140,6 +1140,12 @@
       + kpi('This week', wk, Math.min(100, Math.round((ps.weekMin || 0) / 150 * 100)) + '% of 150-min goal')
       + kpi('Total logged', (ps.total || 0) + ' min', (ps.sessions || 0) + ' session' + (ps.sessions === 1 ? '' : 's'))
       + '</section>'
+      // Refusal 2 has two halves and only one of them is a deletion. The design
+      // says the personal streak stays BECAUSE it is a commitment device rather
+      // than a ranking — "and nobody else sees it: say so on the screen". A
+      // streak that a student assumes is visible to classmates is the ranking
+      // the refusal removed, just implied rather than drawn.
+      + '<p class="practice-private"><i class="fa-solid fa-lock" aria-hidden="true"></i> Your streak and practice minutes are yours. No one else sees them &mdash; there is no class board and no ranking.</p>'
       + practiceInsights(logs)
       + '<section id="challengesArea"></section>'
       + '<section class="panel" id="coachNote" hidden><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;color:var(--gold-bright)"></i>Your practice coach</h2></div><div class="panel-body" id="coachNoteBody"></div></section>'

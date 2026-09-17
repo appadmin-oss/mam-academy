@@ -41,6 +41,20 @@
     headshotUrl: ''
   };
 
+  /**
+   * The handoff's §4 accessibility contract is explicit that
+   * `prefers-reduced-motion` is respected, and smooth scrolling is motion the
+   * user did not ask for — for some vestibular conditions it is the motion
+   * that actually causes symptoms. Read at CALL time, not captured once: the
+   * setting can change while the page is open, and a seven-step form is open
+   * for a while.
+   */
+  function motionOk() {
+    try { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+    catch (e) { return true; }
+  }
+  function scrollBehavior() { return motionOk() ? 'smooth' : 'auto'; }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -272,7 +286,7 @@
       head.setAttribute('tabindex', '-1');
       head.focus({ preventScroll: true });
     }
-    window.scrollTo({ top: 0, behavior: silent ? 'auto' : 'smooth' });
+    window.scrollTo({ top: 0, behavior: silent ? 'auto' : scrollBehavior() });
     saveDraft();
   }
 
@@ -330,7 +344,7 @@
     }
     if (!ok) {
       var firstErr = document.querySelector('#facForm .step.active .field-error.shown');
-      if (firstErr) firstErr.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      if (firstErr) firstErr.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
     }
     return ok;
   }
@@ -583,7 +597,7 @@
         $('facResume').hidden = true;
         $('facDone').hidden = false;
         announce.textContent = 'Application submitted. Please book your interview.';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: scrollBehavior() });
       })
       .catch(function (e2) {
         btn.disabled = false; btn.innerHTML = orig;
@@ -598,7 +612,7 @@
         else msg = 'We could not submit this just now. Your answers are saved on this device — please try again in a moment.';
         $('err-submit-text').textContent = msg;
         setErr('err-submit', true);
-        $('err-submit').scrollIntoView({ block: 'center', behavior: 'smooth' });
+        $('err-submit').scrollIntoView({ block: 'center', behavior: scrollBehavior() });
       });
   }
 

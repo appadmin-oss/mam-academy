@@ -743,3 +743,12 @@ html.a11y-lowbw .cmdk-fab{box-shadow:none}
   .wl-item{flex-wrap:wrap}
   .wl-note{width:100%;padding-top:4px}
 }
+
+/* The streak's privacy statement (portal redesign refusal 2). The design keeps
+   the personal streak but requires the screen to SAY nobody else sees it —
+   a streak a student assumes is public is the ranking the refusal removed,
+   just implied instead of drawn. */
+.practice-private{display:flex;align-items:center;gap:9px;margin:0 0 18px;padding:11px 15px;
+  background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;
+  color:var(--text-muted);font-size:0.84rem;line-height:1.5}
+.practice-private i{color:var(--gold-bright);flex-shrink:0}
