@@ -196,6 +196,11 @@ function mam_settings_schema(): array {
         ['Safeguarding',            'safeguarding_unknown_age_is_minor', 'Treat a student of unknown age as a minor for safeguarding (1=yes)', 1, ''],
         ['Safeguarding',            'safeguarding_officer_user_id', 'Designated Safeguarding Officer (user id) — required by the Lagos policy', 0, ''],
         ['Safeguarding',            'safeguarding_policy_url',     'Published child-protection policy URL', '', ''],
+        // ── Faculty recruitment. Open applications publish /instructor-apply to
+        //    anyone; turning this off restores the v36 invite-only flow exactly
+        //    (an emailed single-use link remains the only way in). Either way the
+        //    panel interviews, and safer-recruitment checks precede any offer.
+        ['Faculty',                 'faculty_open_applications',   'Accept instructor applications without an invitation (1=open, 0=invite-only)', 1, ''],
         // ── Data protection (NDPA 2023 / GAID 2025). The statutory deadlines are
         //    constants in dataprotection.php; what is configurable is the
         //    academy's OWN response commitment (the NDPA fixes none), who the DPO

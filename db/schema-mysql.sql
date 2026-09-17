@@ -3083,3 +3083,62 @@ INSERT INTO schema_version (version) VALUES (88) ON DUPLICATE KEY UPDATE version
 ALTER TABLE users      MODIFY role VARCHAR(20) NOT NULL;
 ALTER TABLE user_roles MODIFY role VARCHAR(20) NOT NULL;
 INSERT INTO schema_version (version) VALUES (89) ON DUPLICATE KEY UPDATE version = version;
+
+-- ─────────────────────────────────────────────────────────────
+-- v90 — the instructor application becomes an ASSESSMENT.
+--
+-- v36 held a candidate's subjects in one free-text column
+-- (`disciplines`), which nothing can join on. The teaching model is
+-- `instructor_assignments(instructor_id, course_id, level_id)`, so
+-- approving an application meant re-keying it, and "who can teach
+-- Diploma piano" was unanswerable.
+--
+-- The referees table carries CONTACTS ONLY. `vetting_records`
+-- deliberately stores no check content, and an applicant's own claim is
+-- never a clearance: a verifier takes the reference up and records the
+-- OUTCOME there. There is nowhere here to type a certificate number or
+-- offence data, and that absence is the control.
+--
+-- Every added TEXT column is nullable with no DEFAULT — MySQL TEXT
+-- cannot carry one, so NULL is read as the default in code.
+-- ─────────────────────────────────────────────────────────────
+ALTER TABLE instructor_applications ADD COLUMN programmes          TEXT;
+ALTER TABLE instructor_applications ADD COLUMN teaching_modes      TEXT;
+ALTER TABLE instructor_applications ADD COLUMN location            VARCHAR(190);
+ALTER TABLE instructor_applications ADD COLUMN qualifications      TEXT;
+ALTER TABLE instructor_applications ADD COLUMN teaching_philosophy TEXT;
+ALTER TABLE instructor_applications ADD COLUMN availability        TEXT;
+ALTER TABLE instructor_applications ADD COLUMN weekly_hours        INT;
+ALTER TABLE instructor_applications ADD COLUMN earliest_start      VARCHAR(32);
+ALTER TABLE instructor_applications ADD COLUMN safeguarding_ack    TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE instructor_applications ADD COLUMN policy_ack          TINYINT(1) NOT NULL DEFAULT 0;
+ALTER TABLE instructor_applications ADD COLUMN readiness_signal    VARCHAR(24);
+ALTER TABLE instructor_applications ADD COLUMN submitted_at        DATETIME;
+
+CREATE TABLE IF NOT EXISTS instructor_application_subjects (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL,
+  course_id      INT NOT NULL,
+  level_id       INT NULL,
+  years          INT,
+  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_iasubj_app (application_id),
+  KEY idx_iasubj_course (course_id, level_id),
+  CONSTRAINT fk_iasubj_app    FOREIGN KEY (application_id) REFERENCES instructor_applications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_iasubj_course FOREIGN KEY (course_id)      REFERENCES courses(id)                 ON DELETE CASCADE,
+  CONSTRAINT fk_iasubj_level  FOREIGN KEY (level_id)       REFERENCES levels(id)                  ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS instructor_application_referees (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL,
+  name           VARCHAR(160) NOT NULL,
+  relationship   VARCHAR(120),
+  organisation   VARCHAR(190),
+  email          VARCHAR(190),
+  phone          VARCHAR(40),
+  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_iaref_app (application_id),
+  CONSTRAINT fk_iaref_app FOREIGN KEY (application_id) REFERENCES instructor_applications(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (90) ON DUPLICATE KEY UPDATE version = version;

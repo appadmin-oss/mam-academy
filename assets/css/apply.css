@@ -553,3 +553,127 @@ body.mam-advisor-open #applyMobileBar{display:none!important}
   .btn-step-next:active,.btn-step-back:active,.btn-pay:active{transform:none}
   .choice-card:hover:not(.is-disabled){transform:none}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Instructor application — the teaching matrix, availability and referees.
+ *
+ * These live beside the student wizard's own components on purpose: both forms
+ * are the same wizard, so a restyle of `.step` / `.field` / `.btn-step` reaches
+ * both and they cannot drift into two house styles.
+ *
+ * Two contractual floors carried over from the guardian redesign, where they
+ * were measured rather than assumed: interactive targets are ≥44px on touch,
+ * and NO running text is below 12px. Several of the frame's own values broke
+ * its stated accessibility rule; these do not repeat that.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.fac-matrix { display: grid; gap: 14px; }
+
+.fac-subject {
+  border: 1.5px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--bg-raised);
+  padding: 14px 16px;
+  transition: border-color .18s ease, background .18s ease;
+}
+.fac-subject.is-chosen { border-color: var(--gold-bright); background: rgba(252, 198, 71, .06); }
+
+.fac-subject-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.fac-subject-name { font-weight: 700; color: var(--text); font-size: 0.98rem; }
+.fac-subject-kind {
+  font-size: 0.72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--gold-bright); border: 1px solid rgba(252, 198, 71, .4);
+  border-radius: 999px; padding: 2px 8px;
+}
+
+/* A level is a checkbox that looks like a chip. It stays a real <input> so the
+   keyboard, the screen reader and the form all behave without help. */
+.fac-levels { display: flex; flex-wrap: wrap; gap: 8px; }
+.fac-level { position: relative; }
+.fac-level input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.fac-level span {
+  /* Column, not row: the level name and its Trinity grade are two lines. As a
+     row the <small> lands beside the name ("Pre-CertificationGrade 1-2"). */
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 44px; padding: 8px 14px;
+  border: 1.5px solid var(--border-strong); border-radius: 999px;
+  background: var(--bg-surface); color: var(--text-soft);
+  font-size: 0.86rem; font-weight: 600; line-height: 1.25; text-align: center;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.fac-level input:checked + span { border-color: var(--gold-bright); color: var(--text); background: rgba(252, 198, 71, .14); }
+.fac-level input:focus-visible + span { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, .28); }
+.fac-level small { font-size: 0.72rem; opacity: .75; font-weight: 500; letter-spacing: .02em; }
+
+.fac-years { margin-top: 10px; max-width: 230px; }
+
+/* Availability: seven days × three parts. A grid of real checkboxes — the
+   header row is the only text allowed under 0.8rem, and it is a LABEL, not
+   running text. */
+.fac-avail { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.fac-avail-grid { display: grid; grid-template-columns: 84px repeat(7, minmax(52px, 1fr)); gap: 6px; min-width: 460px; }
+.fac-avail-head { font-size: 0.76rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); text-align: center; padding-bottom: 2px; align-self: end; }
+.fac-avail-row-label { font-size: 0.82rem; font-weight: 600; color: var(--text-soft); display: flex; align-items: center; }
+.fac-avail-cell { position: relative; }
+.fac-avail-cell input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.fac-avail-cell span {
+  display: block; min-height: 44px; border-radius: 10px;
+  border: 1.5px solid var(--border-strong); background: var(--bg-surface);
+  transition: background .15s ease, border-color .15s ease;
+}
+.fac-avail-cell input:checked + span { background: rgba(252, 198, 71, .22); border-color: var(--gold-bright); }
+.fac-avail-cell input:focus-visible + span { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, .28); }
+
+.fac-referee { border: 1.5px solid var(--border-strong); border-radius: 14px; background: var(--bg-raised); padding: 16px; margin-bottom: 14px; }
+.fac-referee-head { font-size: 0.76rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-bright); margin-bottom: 12px; }
+
+/* The safeguarding statement. Deliberately prominent: safer-recruitment
+   guidance is explicit that the commitment and the fact of pre-employment
+   checks belong in the advert itself, not in a policy nobody opens. */
+.fac-safenote {
+  border: 1px solid rgba(252, 198, 71, .38); background: rgba(252, 198, 71, .07);
+  border-radius: 14px; padding: 16px 18px; margin-bottom: 20px;
+  color: var(--text-soft); font-size: 0.9rem; line-height: 1.65;
+}
+.fac-safenote p { margin: 0 0 10px; }
+.fac-safenote p:last-child { margin-bottom: 0; }
+.fac-safenote strong { color: var(--text); }
+.fac-safenote i { color: var(--gold-bright); margin-right: 6px; }
+
+.fac-gate { padding: 40px 26px; text-align: center; color: var(--text-soft); line-height: 1.7; font-size: 0.95rem; }
+.fac-gate i { font-size: 1.7rem; color: var(--gold-bright); display: block; margin-bottom: 12px; }
+.fac-gate-actions { margin-top: 18px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+.fac-count { font-size: 0.84rem; color: var(--text-muted); margin-top: 10px; }
+.fac-count strong { color: var(--gold-bright); }
+
+@media (max-width: 620px) {
+  .fac-subject { padding: 13px 13px; }
+  .fac-level span { padding: 8px 12px; font-size: 0.84rem; }
+}
+
+/* Desktop may use the design's tighter 34px control height; touch may not.
+   34px is explicitly a DESKTOP figure in the handoff's own accessibility
+   section, and applying it to a phone is what that section exists to prevent. */
+@media (min-width: 900px) and (pointer: fine) {
+  .fac-level span { min-height: 38px; }
+  .fac-avail-cell span { min-height: 38px; }
+}
+
+/* Honeypot. A class rather than an inline style: the repo's other honeypots
+   carry `style="position:absolute;left:-9999px"`, which is the one thing a
+   strict CSP (`style-src` without 'unsafe-inline') cannot allow. Same effect,
+   and it does not have to be revisited when that lands. */
+.hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+/* The review step's per-row "Edit" jump. A real button, not a link: it moves
+   the wizard, it does not navigate, and a link that does not go anywhere is
+   the commonest way a keyboard user loses their place in a form. */
+.review-edit {
+  margin-left: 8px; padding: 2px 8px; min-height: 0;
+  background: transparent; border: 1px solid var(--border-strong); border-radius: 999px;
+  color: var(--text-muted); font-size: 0.75rem; font-weight: 700; font-family: inherit;
+  letter-spacing: .04em; cursor: pointer;
+}
+.review-edit:hover { color: var(--gold-bright); border-color: var(--gold-bright); }
+.review-edit:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, .32); }

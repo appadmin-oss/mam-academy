@@ -166,3 +166,301 @@ function mam_faculty_application_create(string $email, array $data, ?string $ip 
     mam_audit('faculty_apply', 'instructor_application', $id, ['email' => $email]);
     return $id;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * v90 — the application as an ASSESSMENT
+ *
+ * v36 asked for a name, a free-text list of disciplines and a bio. That is an
+ * expression of interest. What the academy actually has to decide is whether
+ * this person may teach a NAMED COURSE at a NAMED LEVEL to children, and the
+ * two things that decision needs — a structured teaching matrix and the
+ * safer-recruitment groundwork — were both missing.
+ *
+ * The matrix is stated against the same (course, level) tuple as
+ * `instructor_assignments`, so approving a candidate copies rows instead of
+ * re-keying a sentence.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Teaching modes a candidate can offer. Matches `class_sessions.mode` (v81). */
+const MAM_FACULTY_MODES = ['onsite', 'online', 'hybrid'];
+
+/** Advisory triage bands. Never shown to the candidate — see mam_faculty_readiness(). */
+const MAM_FACULTY_READINESS = ['ready', 'developing', 'review'];
+
+/**
+ * Whether someone may apply WITHOUT an invitation.
+ *
+ * The v36 flow was invite-only: a request queued, an admin approved, and a
+ * single-use HMAC link was emailed. That is the right shape for head-hunting
+ * and the wrong shape for a published "teach at MAM" page, which is what an
+ * academy recruiting at scale needs.
+ *
+ * Both now coexist. An invite still pre-verifies the address and is still
+ * consumed exactly once; an open application is rate-limited, honeypotted and
+ * CSRF-gated like any other public form. Turning this OFF restores v36
+ * behaviour exactly, which is why it is a setting and not a deletion.
+ */
+function mam_faculty_open_applications(): bool {
+    return (string) mam_setting_or_default('faculty_open_applications', '1') === '1';
+}
+
+/**
+ * What the form offers: the live catalogue, never a hardcoded list.
+ *
+ * The courses and levels a candidate picks from are the ones the academy
+ * actually teaches. Hardcoding them here would mean a course added in the
+ * admin screens is one nobody can apply to teach.
+ */
+function mam_faculty_catalogue(): array {
+    $courses = mam_db_all("SELECT id, code, name, kind FROM courses WHERE active = 1 ORDER BY sort_order, name");
+    $levels  = mam_db_all("SELECT id, code, name, trinity_grades FROM levels ORDER BY sort_order");
+    $progs   = mam_db_all("SELECT code, name FROM programs WHERE active = 1 ORDER BY sort_order, name");
+    return ['courses' => $courses, 'levels' => $levels, 'programmes' => $progs, 'modes' => MAM_FACULTY_MODES];
+}
+
+/**
+ * Resolve a submitted teaching matrix against the live catalogue.
+ *
+ * An unknown course or level code is DROPPED, never guessed — the same refusal
+ * `mam_enrol_resolve()` makes for an instrument that is not a course. A
+ * candidate who claims something the academy does not teach has said something
+ * the panel should read in their own words, not something this should invent a
+ * row for.
+ *
+ * Deduplicated on (course, level): the UNIQUE index on
+ * `instructor_assignments` has the same shape, and a NULL level is distinct
+ * from a levelled row in SQLite, so the dedupe is done here rather than left
+ * to the index.
+ */
+function mam_faculty_normalise_subjects(array $in): array {
+    $cat = mam_faculty_catalogue();
+    $courseByCode = []; foreach ($cat['courses'] as $c) $courseByCode[$c['code']] = $c;
+    $levelByCode  = []; foreach ($cat['levels']  as $l) $levelByCode[$l['code']]  = $l;
+
+    $out = [];
+    foreach ($in as $row) {
+        if (!is_array($row)) continue;
+        $cc = trim((string)($row['course'] ?? $row['course_code'] ?? ''));
+        if ($cc === '' || !isset($courseByCode[$cc])) continue;          // unknown course → dropped
+        $lc = trim((string)($row['level'] ?? $row['level_code'] ?? ''));
+        $level = ($lc !== '' && isset($levelByCode[$lc])) ? $levelByCode[$lc] : null;
+        $years = isset($row['years']) && $row['years'] !== '' ? max(0, min(60, (int)$row['years'])) : null;
+
+        $key = $courseByCode[$cc]['id'] . ':' . ($level ? $level['id'] : '0');
+        if (isset($out[$key])) continue;                                  // dedupe (course, level)
+        $out[$key] = [
+            'course_id'   => (int)$courseByCode[$cc]['id'],
+            'course_code' => $cc,
+            'course_name' => (string)$courseByCode[$cc]['name'],
+            'level_id'    => $level ? (int)$level['id'] : null,
+            'level_code'  => $level ? (string)$level['code'] : null,
+            'level_name'  => $level ? (string)$level['name'] : null,
+            'years'       => $years,
+        ];
+    }
+    return array_values($out);
+}
+
+/**
+ * Referees — CONTACTS ONLY.
+ *
+ * `MAM_VETTING_REQUIRED` names reference_1 and reference_2, and this is the
+ * moment to collect who to ask. It is NOT the moment to record an outcome:
+ * `vetting_records` holds no check content by design (a certificate scan in a
+ * shared-hosting database is a liability, not a control), and an applicant's
+ * own claim about themselves is never a clearance. A verifier takes the
+ * reference up and records the result there, attributed to them.
+ */
+function mam_faculty_normalise_referees(array $in): array {
+    $out = [];
+    foreach ($in as $row) {
+        if (!is_array($row)) continue;
+        $name = trim((string)($row['name'] ?? ''));
+        if ($name === '') continue;
+        $email = strtolower(trim((string)($row['email'] ?? '')));
+        $out[] = [
+            'name'         => mb_substr($name, 0, 160),
+            'relationship' => mb_substr(trim((string)($row['relationship'] ?? '')), 0, 120) ?: null,
+            'organisation' => mb_substr(trim((string)($row['organisation'] ?? '')), 0, 190) ?: null,
+            'email'        => ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) ? mb_substr($email, 0, 190) : null,
+            'phone'        => mb_substr(trim((string)($row['phone'] ?? '')), 0, 40) ?: null,
+        ];
+        if (count($out) >= 4) break;
+    }
+    return $out;
+}
+
+/**
+ * Advisory triage for the faculty panel. STAFF-SIDE ONLY.
+ *
+ * This mirrors `mam_application_readiness()` in intent — it routes, it never
+ * rejects — with one deliberate difference: the student's readiness note is
+ * shown to the applicant warmly, and this one is NOT shown to the candidate at
+ * all. Telling someone "your application scores as weak" the moment they
+ * submit is neither useful nor kind, and a band produced by counting fields is
+ * not a hiring judgement. The same reasoning the repo already applies to
+ * intervention flags (staff-side only) and to the instructor comparison table
+ * (formative, never a ranking).
+ *
+ * It never gates submission. Nothing reads it but the panel's own queue.
+ */
+function mam_faculty_readiness(array $data, array $subjects, array $referees): string {
+    $years = (int)($data['experience_years'] ?? 0);
+    $hasQuals = trim((string)($data['qualifications'] ?? '')) !== '';
+    $refs = count($referees);
+    $levelled = 0;
+    foreach ($subjects as $s) if (!empty($s['level_id'])) $levelled++;
+
+    // "review" means a human should look sooner, not that the candidate is weak:
+    // an application with no subjects or no referees cannot be progressed at all.
+    if (!$subjects || $refs < 2) return 'review';
+    if ($years >= 3 && $hasQuals && $levelled > 0 && $refs >= 2) return 'ready';
+    return 'developing';
+}
+
+/**
+ * Validate the full application. Backward compatible with the v36 shape:
+ * `disciplines` free text is still accepted and still stored, because
+ * `admin/index.php` renders that column. When a structured matrix is supplied
+ * it WINS and `disciplines` is derived from it, so the two can never disagree.
+ */
+function mam_faculty_validate_full(array $in): array {
+    $base = mam_faculty_validate($in);
+    $errors = $base['errors'];
+    $data = $base['data'];
+
+    $subjects = mam_faculty_normalise_subjects(is_array($in['subjects'] ?? null) ? $in['subjects'] : []);
+    $referees = mam_faculty_normalise_referees(is_array($in['referees'] ?? null) ? $in['referees'] : []);
+
+    // A structured matrix is authoritative; keep the legacy column in step.
+    if ($subjects) {
+        $labels = [];
+        foreach ($subjects as $s) {
+            $labels[] = $s['level_name'] ? $s['course_name'] . ' (' . $s['level_name'] . ')' : $s['course_name'];
+        }
+        $data['disciplines'] = mb_substr(implode(', ', $labels), 0, 300);
+        $errors = array_values(array_diff($errors, ['disciplines']));
+    }
+
+    $modes = [];
+    foreach ((array)($in['teaching_modes'] ?? []) as $m) {
+        $m = strtolower(trim((string)$m));
+        if (in_array($m, MAM_FACULTY_MODES, true) && !in_array($m, $modes, true)) $modes[] = $m;
+    }
+
+    $cat = mam_faculty_catalogue();
+    $progCodes = array_column($cat['programmes'], 'code');
+    $progs = [];
+    foreach ((array)($in['programmes'] ?? []) as $p) {
+        $p = strtolower(trim((string)$p));
+        if (in_array($p, $progCodes, true) && !in_array($p, $progs, true)) $progs[] = $p;
+    }
+
+    $hours = isset($in['weekly_hours']) && $in['weekly_hours'] !== '' ? max(0, min(80, (int)$in['weekly_hours'])) : null;
+    $start = trim((string)($in['earliest_start'] ?? ''));
+    if ($start !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)) { $errors[] = 'earliest_start'; $start = ''; }
+
+    $philosophy = trim((string)($in['teaching_philosophy'] ?? ''));
+    if (mb_strlen($philosophy) > 4000) $errors[] = 'teaching_philosophy';
+    $quals = trim((string)($in['qualifications'] ?? ''));
+    if (mb_strlen($quals) > 2000) $errors[] = 'qualifications';
+    $location = trim((string)($in['location'] ?? ''));
+    if (mb_strlen($location) > 190) $errors[] = 'location';
+
+    // The two commitments are the `policy_commitment` limb of the vetting set.
+    // Both are REQUIRED: an academy teaching children one-to-one cannot accept
+    // an application from somebody unwilling to state them.
+    $safeAck = !empty($in['safeguarding_ack']);
+    $polAck  = !empty($in['policy_ack']);
+    if (!$safeAck) $errors[] = 'safeguarding_ack';
+    if (!$polAck)  $errors[] = 'policy_ack';
+
+    if (!$subjects) $errors[] = 'subjects';
+    if (count($referees) < 2) $errors[] = 'referees';
+
+    $data += [
+        'programmes'          => $progs ? json_encode($progs) : null,
+        'teaching_modes'      => $modes ? json_encode($modes) : null,
+        'location'            => $location ?: null,
+        'qualifications'      => $quals ?: null,
+        'teaching_philosophy' => $philosophy ?: null,
+        'availability'        => mam_faculty_availability_json($in['availability'] ?? null),
+        'weekly_hours'        => $hours,
+        'earliest_start'      => $start ?: null,
+        'safeguarding_ack'    => $safeAck ? 1 : 0,
+        'policy_ack'          => $polAck ? 1 : 0,
+    ];
+
+    return [
+        'errors'   => array_values(array_unique($errors)),
+        'data'     => $data,
+        'subjects' => $subjects,
+        'referees' => $referees,
+    ];
+}
+
+/** Availability is a free-shaped grid from the client; store it as vetted JSON or nothing. */
+function mam_faculty_availability_json($in): ?string {
+    if (!is_array($in) || !$in) return null;
+    $slots = [];
+    $days = ['mon','tue','wed','thu','fri','sat','sun'];
+    $parts = ['morning','afternoon','evening'];
+    foreach ($in as $slot) {
+        $slot = strtolower(trim((string)$slot));
+        if (!str_contains($slot, ':')) continue;
+        [$d, $p] = explode(':', $slot, 2);
+        if (in_array($d, $days, true) && in_array($p, $parts, true) && !in_array($slot, $slots, true)) $slots[] = $slot;
+    }
+    return $slots ? json_encode($slots) : null;
+}
+
+/**
+ * Store a full application: the row, its teaching matrix and its referees.
+ *
+ * Resubmission REPLACES the matrix and the referees rather than adding to
+ * them. `mam_faculty_application_create()` already updates one live
+ * application per email, so appending would leave a candidate who corrected a
+ * level claiming both.
+ */
+function mam_faculty_application_save(string $email, array $v, ?string $ip = null): int {
+    $data = $v['data'];
+    $data['readiness_signal'] = mam_faculty_readiness($data, $v['subjects'], $v['referees']);
+    $data['submitted_at'] = gmdate('Y-m-d H:i:s');
+
+    $id = mam_faculty_application_create($email, $data, $ip);
+
+    mam_db()->prepare('DELETE FROM instructor_application_subjects WHERE application_id = ?')->execute([$id]);
+    foreach ($v['subjects'] as $s) {
+        mam_db_insert('instructor_application_subjects', [
+            'application_id' => $id,
+            'course_id'      => $s['course_id'],
+            'level_id'       => $s['level_id'],
+            'years'          => $s['years'],
+        ]);
+    }
+
+    mam_db()->prepare('DELETE FROM instructor_application_referees WHERE application_id = ?')->execute([$id]);
+    foreach ($v['referees'] as $r) {
+        mam_db_insert('instructor_application_referees', $r + ['application_id' => $id]);
+    }
+
+    return $id;
+}
+
+/** Read one application back with its matrix and referees, for the panel. */
+function mam_faculty_application_detail(int $id): ?array {
+    $app = mam_db_row('SELECT * FROM instructor_applications WHERE id = ?', [$id]);
+    if (!$app) return null;
+    $app['subjects'] = mam_db_all(
+        "SELECT s.id, s.years, c.code AS course_code, c.name AS course_name,
+                l.code AS level_code, l.name AS level_name
+           FROM instructor_application_subjects s
+           JOIN courses c ON c.id = s.course_id
+           LEFT JOIN levels l ON l.id = s.level_id
+          WHERE s.application_id = ?
+          ORDER BY c.sort_order, c.name, l.sort_order", [$id]);
+    $app['referees'] = mam_db_all(
+        'SELECT id, name, relationship, organisation, email, phone
+           FROM instructor_application_referees WHERE application_id = ? ORDER BY id', [$id]);
+    return $app;
+}

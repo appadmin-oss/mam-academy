@@ -6910,6 +6910,27 @@ V2_READ_TENANT=mam</pre>
       <tbody>
       <?php
         $facApps = mam_admin_rows("SELECT * FROM instructor_applications ORDER BY (status='submitted') DESC, id DESC LIMIT 100");
+        // The v90 teaching matrix and referees, batched: one query each for the
+        // whole page rather than two per row, which at 100 applications is 200
+        // round trips for a screen nobody would notice was slow until it was.
+        $facSubs = $facRefs = [];
+        if ($facApps) {
+            $ids = implode(',', array_map(fn($r) => (int)$r['id'], $facApps));
+            foreach (mam_admin_rows(
+                "SELECT s.application_id, s.years, c.name AS course_name, l.name AS level_name
+                   FROM instructor_application_subjects s
+                   JOIN courses c ON c.id = s.course_id
+                   LEFT JOIN levels l ON l.id = s.level_id
+                  WHERE s.application_id IN ($ids)
+                  ORDER BY c.sort_order, c.name, l.sort_order") as $r) {
+                $facSubs[(int)$r['application_id']][] = $r;
+            }
+            foreach (mam_admin_rows(
+                "SELECT application_id, name, relationship, organisation, email, phone
+                   FROM instructor_application_referees WHERE application_id IN ($ids) ORDER BY id") as $r) {
+                $facRefs[(int)$r['application_id']][] = $r;
+            }
+        }
         if (!$facApps): ?><tr><td colspan="5" class="empty">No instructor applications yet. Teaching-interest contact messages are automatically sent the form; you can also invite someone above.</td></tr><?php endif;
       foreach ($facApps as $fa): ?>
         <tr>
@@ -6919,13 +6940,67 @@ V2_READ_TENANT=mam</pre>
             <span class="muted"><?= htmlspecialchars((string)$fa['email']) ?><?= $fa['phone'] ? ' · ' . htmlspecialchars((string)$fa['phone']) : '' ?></span><br>
             <span class="muted" style="font-size:.76rem"><?= htmlspecialchars(substr((string)$fa['created_at'], 0, 16)) ?></span>
           </td>
-          <td><?= htmlspecialchars((string)($fa['disciplines'] ?: '—')) ?><?= $fa['experience_years'] !== null ? '<br><span class="muted">' . (int)$fa['experience_years'] . ' yrs</span>' : '' ?></td>
+          <td>
+            <?php $subs = $facSubs[(int)$fa['id']] ?? []; ?>
+            <?php if ($subs): ?>
+              <?php /* The structured matrix, when there is one. It resolves to real
+                       (course, level) rows, which is what an instructor_assignments
+                       row needs — so approving is a copy, not a retyping. */ ?>
+              <?php foreach ($subs as $s): ?>
+                <div><?= htmlspecialchars((string)$s['course_name']) ?><?php if ($s['level_name']): ?> <span class="muted">· <?= htmlspecialchars((string)$s['level_name']) ?></span><?php endif; ?><?php if ($s['years'] !== null): ?> <span class="muted"><?= (int)$s['years'] ?>y</span><?php endif; ?></div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <?= htmlspecialchars((string)($fa['disciplines'] ?: '—')) ?>
+            <?php endif; ?>
+            <?= $fa['experience_years'] !== null ? '<span class="muted">' . (int)$fa['experience_years'] . ' yrs total</span>' : '' ?>
+            <?php if (!empty($fa['qualifications'])): ?><div class="muted" style="font-size:.76rem;margin-top:4px"><?= htmlspecialchars(mb_substr((string)$fa['qualifications'], 0, 140)) ?></div><?php endif; ?>
+            <?php if (!empty($fa['weekly_hours']) || !empty($fa['location'])): ?>
+              <div class="muted" style="font-size:.76rem;margin-top:4px">
+                <?= $fa['location'] ? htmlspecialchars((string)$fa['location']) : '' ?><?= ($fa['location'] && $fa['weekly_hours']) ? ' · ' : '' ?><?= $fa['weekly_hours'] ? (int)$fa['weekly_hours'] . 'h/wk' : '' ?>
+              </div>
+            <?php endif; ?>
+          </td>
           <td style="white-space:nowrap">
             <?php if (!empty($fa['cv_url'])): ?><a class="tiny btn ghost" href="<?= htmlspecialchars((string)$fa['cv_url']) ?>" target="_blank" rel="noopener">CV</a><?php endif; ?>
             <?php if (!empty($fa['links'])): ?><span class="muted" style="font-size:.78rem;display:block;max-width:180px;overflow:hidden;text-overflow:ellipsis" title="<?= htmlspecialchars((string)$fa['links']) ?>"><?= htmlspecialchars((string)$fa['links']) ?></span><?php endif; ?>
+            <?php
+              /* Referees are CONTACTS to take up — the outcome of a check belongs
+                 in vetting_records, recorded by whoever performed it. Nothing
+                 here is evidence of a clearance, and there is no column in which
+                 it could be (see the v90 migration note). */
+              $refs = $facRefs[(int)$fa['id']] ?? [];
+            ?>
+            <?php if ($refs): ?>
+              <div style="margin-top:6px;white-space:normal;max-width:200px">
+                <span class="muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Referees to take up</span>
+                <?php foreach ($refs as $rf): ?>
+                  <div style="font-size:.78rem"><?= htmlspecialchars((string)$rf['name']) ?><?php if ($rf['email']): ?> <a href="mailto:<?= htmlspecialchars((string)$rf['email']) ?>"><?= htmlspecialchars((string)$rf['email']) ?></a><?php endif; ?><?php if ($rf['relationship']): ?><br><span class="muted"><?= htmlspecialchars((string)$rf['relationship']) ?></span><?php endif; ?></div>
+                <?php endforeach; ?>
+              </div>
+            <?php elseif (!empty($fa['submitted_at'])): ?>
+              <div class="muted" style="font-size:.76rem;margin-top:6px">No referees given</div>
+            <?php endif; ?>
+            <?php if (!empty($fa['safeguarding_ack']) && !empty($fa['policy_ack'])): ?>
+              <div style="font-size:.74rem;margin-top:6px;color:#1FBF8F">✓ Safeguarding &amp; policy accepted</div>
+            <?php endif; ?>
           </td>
           <td style="max-width:300px"><span class="muted" style="font-size:.82rem"><?= nl2br(htmlspecialchars(mb_substr((string)($fa['bio'] ?? ''), 0, 260))) ?><?= mb_strlen((string)($fa['bio'] ?? '')) > 260 ? '…' : '' ?></span></td>
           <td style="white-space:nowrap">
+            <?php
+              /* Advisory TRIAGE only — it routes the panel's attention and never
+                 decides anything. It is shown here and nowhere the candidate can
+                 see it: a band produced by counting fields is not a hiring
+                 judgement, and telling somebody their application "scores low"
+                 the moment they submit is neither useful nor kind. Same posture
+                 as intervention flags (staff-side only). */
+              $facSignal = (string)($fa['readiness_signal'] ?? '');
+              $facBadge = ['ready' => ['Ready to review', '#1FBF8F'],
+                           'developing' => ['Developing', '#E8961F'],
+                           'review' => ['Needs a look', '#FB7185']][$facSignal] ?? null;
+            ?>
+            <?php if ($facBadge): ?>
+              <div style="font-size:.72rem;font-weight:700;margin-bottom:5px;color:<?= $facBadge[1] ?>" title="Advisory triage only — derived from what was filled in, never a hiring judgement."><?= htmlspecialchars($facBadge[0]) ?></div>
+            <?php endif; ?>
             <form class="inline" method="post" style="display:flex;gap:4px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="faculty_app_status">

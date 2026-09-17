@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 89;
+const MAM_SCHEMA_TARGET = 90;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3487,6 +3487,80 @@ function mam_db_migrate(PDO $db): void {
          * nothing to do, and bumping the target is what makes MySQL re-run.
          */
         89 => "SELECT 1;",
+
+        /* v90 — the instructor application becomes an ASSESSMENT, not a note.
+         *
+         * v36 stored what a prospective instructor teaches in a single free-text
+         * column: `disciplines TEXT` holding things like "Piano, Music Theory,
+         * Voice". Nothing can join on that. The academy's teaching model is
+         * `instructor_assignments(instructor_id, course_id, level_id)`, so an
+         * admin approving an application had to re-key the candidate's subjects
+         * by hand, and no query could answer "who can teach Diploma piano" —
+         * which is the question a capacity-aware enrolment (gotcha #3) asks
+         * every time a cohort needs a teacher.
+         *
+         * `instructor_application_subjects` is that matrix, stated once against
+         * the same (course, level) tuple the assignment table uses, so approval
+         * is a copy rather than a retyping.
+         *
+         * ── Why the referees table stores contacts and NOT check content ──────
+         * `MAM_VETTING_REQUIRED` names `reference_1` and `reference_2`, and an
+         * application is the natural moment to collect them. But gotcha #10 is
+         * load-bearing: `vetting_records` deliberately holds no check CONTENT,
+         * because a certificate scan in a shared-hosting database is a liability
+         * rather than a control. So this table carries only who to ASK — name,
+         * relationship, where they work, how to reach them. A verifier takes the
+         * reference up and records the OUTCOME in `vetting_records`. An
+         * applicant's own claim is never a clearance, and there is deliberately
+         * nowhere here to type a certificate number or an offence.
+         *
+         * `safeguarding_ack` / `policy_ack` are the applicant's COMMITMENT (the
+         * `policy_commitment` limb), which is a statement they make rather than
+         * a check somebody performed — so it is legitimately self-reported, and
+         * it is kept separate from the verified record for exactly that reason.
+         *
+         * ── MySQL notes ──────────────────────────────────────────────────────
+         * Every added TEXT column is nullable with no DEFAULT: MySQL TEXT cannot
+         * carry one (the `student_type` convention), so NULL is read as the
+         * default in code. The INTEGER flags take DEFAULT 0, which is portable.
+         */
+        90 => "
+            ALTER TABLE instructor_applications ADD COLUMN programmes TEXT;
+            ALTER TABLE instructor_applications ADD COLUMN teaching_modes TEXT;
+            ALTER TABLE instructor_applications ADD COLUMN location TEXT;
+            ALTER TABLE instructor_applications ADD COLUMN qualifications TEXT;
+            ALTER TABLE instructor_applications ADD COLUMN teaching_philosophy TEXT;
+            ALTER TABLE instructor_applications ADD COLUMN availability TEXT;
+            ALTER TABLE instructor_applications ADD COLUMN weekly_hours INTEGER;
+            ALTER TABLE instructor_applications ADD COLUMN earliest_start TEXT;
+            ALTER TABLE instructor_applications ADD COLUMN safeguarding_ack INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE instructor_applications ADD COLUMN policy_ack INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE instructor_applications ADD COLUMN readiness_signal TEXT;
+            ALTER TABLE instructor_applications ADD COLUMN submitted_at TEXT;
+
+            CREATE TABLE instructor_application_subjects (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              application_id INTEGER NOT NULL REFERENCES instructor_applications(id) ON DELETE CASCADE,
+              course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+              level_id INTEGER REFERENCES levels(id) ON DELETE SET NULL,
+              years INTEGER,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_iasubj_app ON instructor_application_subjects(application_id);
+            CREATE INDEX idx_iasubj_course ON instructor_application_subjects(course_id, level_id);
+
+            CREATE TABLE instructor_application_referees (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              application_id INTEGER NOT NULL REFERENCES instructor_applications(id) ON DELETE CASCADE,
+              name TEXT NOT NULL,
+              relationship TEXT,
+              organisation TEXT,
+              email TEXT,
+              phone TEXT,
+              created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_iaref_app ON instructor_application_referees(application_id);
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {
