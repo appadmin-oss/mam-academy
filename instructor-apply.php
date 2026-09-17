@@ -38,7 +38,19 @@
       The wizard stays hidden until one of them resolves, so a candidate never
       fills a form that was never going to accept them.
     -->
-    <div class="fac-gate" id="facGate" role="status" aria-live="polite">
+    <?php /* MEASURED with scripting off: the page rendered a spinner reading
+             "Loading the application…" above a stepper that does nothing, and
+             sat there. The whole wizard is JS — the matrix is built from the
+             live catalogue — so the honest answer is to say so and give a way
+             through, not to imply something is still loading. */ ?>
+    <noscript>
+      <div class="fac-safenote">
+        <p><i class="fa-solid fa-circle-info" aria-hidden="true"></i><strong>This application needs JavaScript.</strong> It builds the list of courses and levels from what the Academy currently teaches, so it cannot be shown as a plain page.</p>
+        <p>Please turn JavaScript on and reload — or <a href="/contact?topic=Faculty">email the faculty team</a> and we will send you the questions directly. We would rather hear from you than lose you to a browser setting.</p>
+      </div>
+    </noscript>
+
+    <div class="fac-gate js-only" id="facGate" role="status" aria-live="polite">
       <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
       Loading the application…
     </div>
@@ -390,7 +402,7 @@
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260807a"></script>
-<script src="assets/js/headshot.js?v=20260917a" defer></script>
+<script src="assets/js/headshot.js?v=20260817a" defer></script>
 <script src="assets/js/main.js?v=20260820a"></script>
 <script src="assets/js/instructor-apply.js?v=20260917a" defer></script>
 </body>

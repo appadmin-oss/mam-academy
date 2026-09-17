@@ -181,3 +181,86 @@ mam_setting_set('faculty_open_applications', '0');
 t_ok(!mam_faculty_open_applications(), 'invite-only restores the v36 flow');
 mam_setting_set('faculty_open_applications', '1');
 t_ok(mam_faculty_open_applications(), 'open applications can be published');
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Which address an application is filed under, and accepting a matrix.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+t_group('faculty — the applicant address is the INVITE\'s, never the body\'s');
+
+// This is the most security-relevant line in the flow. An invite is a
+// single-use credential issued TO one address; if the body could override it,
+// the holder of one link could file as somebody else — and because
+// application_create() keys on the email, overwrite a real candidate's live
+// application.
+$FA_inv = ['id' => 999, 'email' => 'invited@example.com'];
+t_eq(mam_faculty_applicant_email($FA_inv, ['email' => 'attacker@evil.test']), 'invited@example.com',
+    'a body email CANNOT override the invited address');
+t_eq(mam_faculty_applicant_email(['id' => 1, 'email' => 'MiXeD@Example.COM'], []), 'mixed@example.com',
+    'the invited address is normalised');
+
+mam_setting_set('faculty_open_applications', '1');
+t_eq(mam_faculty_applicant_email(null, ['email' => ' Open.Applicant@Example.com ']), 'open.applicant@example.com',
+    'an open application uses its own normalised address');
+t_throws(fn() => mam_faculty_applicant_email(null, ['email' => 'not-an-email']), 'mam_fail:validation:422',
+    'an unparseable address is refused rather than stored');
+
+mam_setting_set('faculty_open_applications', '0');
+t_throws(fn() => mam_faculty_applicant_email(null, ['email' => 'someone@example.com']), 'mam_fail:invite_required:403',
+    'with open applications off, no invite means no application');
+t_eq(mam_faculty_applicant_email($FA_inv, []), 'invited@example.com',
+    '…but an invite still works when applications are closed');
+mam_setting_set('faculty_open_applications', '1');
+
+t_group('faculty — accepting a matrix into instructor_assignments');
+
+$FA_v = mam_faculty_validate_full([
+    'full_name' => 'Assign Me', 'bio' => str_repeat('Teaching piano and guitar for years. ', 3),
+    'subjects' => [['course' => 'piano', 'level' => 'diploma'], ['course' => 'guitar', 'level' => null]],
+    'referees' => [['name' => 'Ref One'], ['name' => 'Ref Two']],
+    'safeguarding_ack' => 1, 'policy_ack' => 1,
+]);
+t_eq($FA_v['errors'], [], 'the fixture application is valid');
+$FA_id = mam_faculty_application_save('assign.me@example.com', $FA_v, null);
+
+// Refusals first: none of these may quietly half-succeed.
+t_throws(fn() => mam_faculty_assign_subjects($FA_id), 'not_approved',
+    'an application that is not approved cannot be assigned');
+mam_db_update('instructor_applications', ['status' => 'approved'], ['id' => $FA_id]);
+t_throws(fn() => mam_faculty_assign_subjects($FA_id), 'no_account',
+    'without an account there is nobody to assign to');
+
+$FA_uid = mam_db_insert('users', ['name' => 'Assign Me', 'email' => 'assign.me@example.com',
+    'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+t_throws(fn() => mam_faculty_assign_subjects($FA_id), 'not_an_instructor',
+    'a non-instructor account is refused — assignment is not a way to grant a role');
+mam_db_update('users', ['role' => 'instructor'], ['id' => $FA_uid]);
+
+$FA_r1 = mam_faculty_assign_subjects($FA_id, null);
+t_eq($FA_r1['added'], 2, 'both claimed subjects assigned');
+t_eq($FA_r1['already'], 0, 'nothing was already there');
+t_eq((int) mam_db_row('SELECT COUNT(*) c FROM instructor_assignments WHERE instructor_id = ?', [$FA_uid])['c'], 2,
+    'the assignment rows exist');
+
+// Idempotent, INCLUDING the level-less row: SQLite treats NULLs as distinct so
+// the UNIQUE index cannot carry that case — it is checked in PHP.
+$FA_r2 = mam_faculty_assign_subjects($FA_id, null);
+t_eq($FA_r2['added'], 0, 'a second run adds nothing');
+t_eq($FA_r2['already'], 2, '…and reports both as already present');
+t_eq((int) mam_db_row('SELECT COUNT(*) c FROM instructor_assignments WHERE instructor_id = ? AND level_id IS NULL', [$FA_uid])['c'], 1,
+    'the level-less assignment was NOT duplicated');
+
+// The harness stubs mam_audit() to a no-op (run.php), so the row cannot be
+// observed here — assert the CALL instead, which is the thing that would be
+// lost in a refactor.
+t_ok(str_contains(file_get_contents(dirname(__DIR__) . '/lib/faculty.php'), "mam_audit('faculty_assign_subjects'"),
+    'the acceptance is audited');
+
+// mam_fail() is mam_json() — it EMITS AND EXITS. admin/index.php is an HTML
+// page, so a mam_fail() in this path would print JSON into the admin screen
+// and the caller's try/catch would never run. The harness stubs mam_fail() to
+// throw, which is exactly why that bug passed its tests once already.
+$FA_src = file_get_contents(dirname(__DIR__) . '/lib/faculty.php');
+$FA_fn = substr($FA_src, strpos($FA_src, 'function mam_faculty_assign_subjects'));
+$FA_fn = substr($FA_fn, 0, strpos($FA_fn, "\nfunction ") ?: strlen($FA_fn));
+t_ok(!str_contains($FA_fn, 'mam_fail('),
+    'mam_faculty_assign_subjects() never calls mam_fail() — its caller is an HTML page');

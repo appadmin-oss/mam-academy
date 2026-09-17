@@ -1165,12 +1165,55 @@ of the database. **Two full runs produced ONE application** with two subjects
 and two referees, proving resubmit REPLACES rather than appends in the real
 path and not just in a test.
 
+### Second pass — what a hostile re-read and a browser found (same day)
+
+Six defects in the first cut, all in code that passed its own tests:
+
+1. **`mam_fail()` in a lib called from an HTML page.** `mam_fail()` is
+   `mam_json()` — it EMITS AND EXITS. `mam_faculty_assign_subjects()`'s only
+   caller is `admin/index.php`, so a refusal would have printed a raw JSON body
+   into the admin screen and killed the request, and the surrounding try/catch
+   could never run. **It looked correct because the harness stubs `mam_fail()`
+   to throw.** The lib now throws; a test pins that it never calls `mam_fail()`.
+   ⚠️ The general rule: a lib reachable from both an API route and an HTML page
+   must not choose the HTTP response.
+2. **`display:flex` outranks `[hidden]`.** `.resume-banner` and `.apply-stepper`
+   both rendered while carrying the attribute, so a first-time visitor was told
+   "We saved your draft on this device" over an empty form. The trap `apply.css`
+   already documents at `.hs-status`/`.advisor` — these were just the first
+   places to put `hidden` on them.
+3. **A draft was written on bare page load** (`openForm` → `showStep(0)` →
+   `saveDraft`), so there was always something to "resume". `saveDraft()` now
+   writes nothing when there is nothing to resume.
+4. **A blocked `config.js` left the page on "Loading the application…" forever**
+   with `Cannot read properties of undefined (reading 'request')`. A bounded
+   poll then a real message with a retry, same shape as the repo's `whenChart`.
+5. **No `<noscript>`.** With scripting off the page showed a spinner implying
+   something was still loading. It now says what is wrong and offers email.
+6. **`mam_admin_actor_id()` and `mam_db_exec()` do not exist.** Two invented
+   helpers in one feature — the gotcha #4 family. Grep before calling.
+
+Also: `aria-invalid` on invalid controls (`main.js` already supplies
+`role="alert"` on `.field-error`, so the message was announced but not the
+field); server column names no longer leak into candidate-facing validation
+text; `.step-num` raised 0.74→0.75rem, the last thing under the 12px floor and
+shared with the student wizard; and the `headshot.js` cache-buster reverted,
+since that file was never changed.
+
 ### Still open here
 
-- **No payment/contract step and no offer workflow.** Approving still routes
-  through the existing admin status select + "create their instructor account".
-  Copying an approved matrix into `instructor_assignments` is the obvious next
-  move and is deliberately NOT automatic — placement is a decision.
+- **No payment/contract step and no offer workflow.** Approving routes through
+  the admin status select + "create their instructor account".
+- ~~Copying an approved matrix into `instructor_assignments`~~ — **done.**
+  `mam_faculty_assign_subjects()` + the `faculty_assign_subjects` admin action
+  ("Assign their subjects", shown only for an approved application with an
+  instructor account). Idempotent, including the level-less row, which the
+  UNIQUE index cannot carry on SQLite because NULLs compare distinct.
+  ⚠️ It records **capability** — "may teach Diploma piano" — NOT placement with
+  a student. The safeguarding gate still governs `mam_lms_approve()` /
+  `mam_enrol_complete()`, and nothing here bypasses it. Deliberately not
+  automatic on approval: a candidate who claimed five courses may be taken on
+  for two.
 - **`.step-num` renders at 11.84px**, below the 12px floor. It is the STUDENT
   wizard's shared component and predates this work, so it was reported rather
   than silently restyled on a live form. One-line fix in `apply.css` when

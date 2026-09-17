@@ -452,7 +452,8 @@ function mam_faculty_application_detail(int $id): ?array {
     $app = mam_db_row('SELECT * FROM instructor_applications WHERE id = ?', [$id]);
     if (!$app) return null;
     $app['subjects'] = mam_db_all(
-        "SELECT s.id, s.years, c.code AS course_code, c.name AS course_name,
+        "SELECT s.id, s.years, s.course_id, s.level_id,
+                c.code AS course_code, c.name AS course_name,
                 l.code AS level_code, l.name AS level_name
            FROM instructor_application_subjects s
            JOIN courses c ON c.id = s.course_id
@@ -463,4 +464,100 @@ function mam_faculty_application_detail(int $id): ?array {
         'SELECT id, name, relationship, organisation, email, phone
            FROM instructor_application_referees WHERE application_id = ? ORDER BY id', [$id]);
     return $app;
+}
+
+/**
+ * WHICH ADDRESS an application is filed under.
+ *
+ * This is one line of logic and it is the most security-relevant line in the
+ * flow, so it lives here where it can be tested rather than inline in a route
+ * where it can only be read.
+ *
+ * ⚠️ On the invite path the address comes from the INVITE and the request body
+ * is ignored entirely. An invite is a single-use credential issued TO one
+ * address; honouring a body field would turn it into a credential for any
+ * address — the holder of one link could file an application as somebody else,
+ * and `mam_faculty_application_create()` keys on the email, so they could
+ * overwrite a real candidate's live application.
+ *
+ * Off the invite path there is no proof of the address at all. That is
+ * acceptable and deliberate — the panel interviews every candidate, so the
+ * form is a way of being heard, not an identity claim — but it is exactly why
+ * the open path is a setting the academy can close.
+ */
+function mam_faculty_applicant_email(?array $invite, array $in): string {
+    if ($invite) return strtolower(trim((string) $invite['email']));
+    if (!mam_faculty_open_applications()) mam_fail('invite_required', 403);
+    $email = mam_email((string) ($in['email'] ?? ''));
+    if (!$email) mam_fail('validation', 422, ['fields' => ['email']]);
+    return $email;
+}
+
+/**
+ * Copy an APPROVED application's teaching matrix into `instructor_assignments`.
+ *
+ * This is the point of collecting a structured matrix rather than a sentence:
+ * the rows the candidate filled in are already in the shape the assignment
+ * table uses, so accepting them is a copy.
+ *
+ * ⚠️ WHAT THIS IS NOT. `instructor_assignments` records CAPABILITY — "this
+ * person may teach Diploma piano" — not a placement with actual children. The
+ * safeguarding gate deliberately hooks `mam_lms_approve()` and
+ * `mam_enrol_complete()`, which is where a real student meets a real teacher,
+ * and that gate still governs every such placement afterwards. Nothing here
+ * bypasses it, and nothing here should grow into placement.
+ *
+ * Deliberately NOT automatic on approval: which subjects the academy actually
+ * accepts is a decision, and a candidate who claimed five courses may be taken
+ * on for two. An admin presses this.
+ *
+ * Idempotent. The UNIQUE index on (instructor_id, course_id, level_id) cannot
+ * carry the level-less case on SQLite — NULLs compare distinct — so existence
+ * is checked here for both.
+ *
+ * ⚠️ THROWS rather than calling `mam_fail()`, unlike most refusals in this
+ * file. MEASURED: `mam_fail()` is `mam_json()`, which EMITS AND EXITS — and
+ * this function's only caller is `admin/index.php`, an HTML page. A refusal
+ * there would have printed a raw JSON body into the admin screen and killed
+ * the request, so the surrounding try/catch could never run; it looked correct
+ * only because the test harness stubs `mam_fail()` to throw. A lib reachable
+ * from both an API route and an HTML page must not choose the HTTP response —
+ * it states what went wrong and lets the caller answer.
+ */
+function mam_faculty_assign_subjects(int $applicationId, ?int $by = null): array {
+    $app = mam_faculty_application_detail($applicationId);
+    if (!$app) throw new RuntimeException('not_found');
+    if ((string) $app['status'] !== 'approved') throw new RuntimeException('not_approved');
+
+    $user = mam_db_row("SELECT id, role FROM users WHERE email = ?", [strtolower((string) $app['email'])]);
+    if (!$user) throw new RuntimeException('no_account');
+    if ((string) $user['role'] !== 'instructor') throw new RuntimeException('not_an_instructor');
+    $instructorId = (int) $user['id'];
+
+    $added = 0; $already = 0;
+    foreach ($app['subjects'] as $s) {
+        // The ids come straight off the detail read. Re-resolving them by CODE
+        // would be two extra queries per subject and a needless race: a course
+        // renamed between the read and the write would resolve differently, or
+        // not at all.
+        $courseId = (int) $s['course_id'];
+        $levelId  = $s['level_id'] !== null ? (int) $s['level_id'] : null;
+
+        $exists = $levelId === null
+            ? mam_db_row('SELECT id FROM instructor_assignments WHERE instructor_id = ? AND course_id = ? AND level_id IS NULL', [$instructorId, $courseId])
+            : mam_db_row('SELECT id FROM instructor_assignments WHERE instructor_id = ? AND course_id = ? AND level_id = ?', [$instructorId, $courseId, $levelId]);
+        if ($exists) { $already++; continue; }
+
+        mam_db_insert('instructor_assignments', [
+            'instructor_id' => $instructorId,
+            'course_id'     => $courseId,
+            'level_id'      => $levelId,
+        ]);
+        $added++;
+    }
+
+    mam_audit('faculty_assign_subjects', 'instructor_application', $applicationId, [
+        'instructor_id' => $instructorId, 'added' => $added, 'already' => $already, 'by' => $by,
+    ]);
+    return ['instructor_id' => $instructorId, 'added' => $added, 'already' => $already];
 }

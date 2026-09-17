@@ -55,7 +55,42 @@
         + '<i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Ask us for an invitation</a></div>' : '');
   }
 
+  /**
+   * MEASURED: with `config.js` blocked, this threw "Cannot read properties of
+   * undefined (reading 'request')" and the gate sat on "Loading the
+   * application…" forever — a candidate on a bad connection saw a spinner and
+   * no way forward, which is worse than an error.
+   *
+   * config.js is a synchronous script and this one is deferred, so if it
+   * loaded at all `MAM_API` is already here; the short poll covers the ordering
+   * changing under us rather than a slow network. Same shape as the repo's
+   * `whenChart` fallback: wait a bounded time, then say so plainly.
+   */
+  function whenApi(cb, tries) {
+    if (window.MAM_API && typeof window.MAM_API.request === 'function') return cb(true);
+    if ((tries || 0) >= 25) return cb(false);
+    setTimeout(function () { whenApi(cb, (tries || 0) + 1); }, 120);
+  }
+
   function boot() {
+    whenApi(function (ok) {
+      if (!ok) {
+        gate.innerHTML = '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>'
+          + 'We could not load the application form — part of the page did not download. '
+          + 'This is usually a connection problem rather than anything you did.'
+          + '<div class="fac-gate-actions">'
+          + '<button type="button" class="btn btn-primary" id="facRetry"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Try again</button>'
+          + '<a class="btn btn-secondary" href="/contact?topic=Faculty"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Email us instead</a>'
+          + '</div>';
+        var r = $('facRetry');
+        if (r) r.addEventListener('click', function () { location.reload(); });
+        return;
+      }
+      loadCatalogue();
+    });
+  }
+
+  function loadCatalogue() {
     var q = state.token ? ('faculty-apply?token=' + encodeURIComponent(state.token)) : 'faculty-apply';
     window.MAM_API.request(q, { method: 'GET' })
       .then(function (r) {
@@ -241,9 +276,27 @@
     saveDraft();
   }
 
+  /* Which control(s) an error message is ABOUT. `main.js` already gives every
+     .field-error a role="alert", so the message is announced; without
+     aria-invalid the control itself still reads as fine, so a screen-reader
+     user hears a complaint and cannot tell which field it names. */
+  var ERR_CONTROLS = {
+    'err-subjects': ['facMatrix'],
+    'err-referees': ['r1-name', 'r2-name'],
+    'err-safeack': ['f-safeack'],
+    'err-polack': ['f-polack']
+  };
+
   function setErr(id, on) {
     var e = $(id);
     if (e) e.classList.toggle('shown', !!on);
+    var targets = ERR_CONTROLS[id] || [id.replace(/^err-/, '')];
+    targets.forEach(function (t) {
+      var c = $(t);
+      if (!c) return;
+      if (on) c.setAttribute('aria-invalid', 'true');
+      else c.removeAttribute('aria-invalid');
+    });
   }
 
   function validateStep(i) {
@@ -355,21 +408,49 @@
     'r1-name', 'r1-rel', 'r1-org', 'r1-email', 'r1-phone',
     'r2-name', 'r2-rel', 'r2-org', 'r2-email', 'r2-phone'];
 
+  /**
+   * Has the candidate actually put anything in?
+   *
+   * MEASURED: `showStep()` saves, and `openForm()` calls `showStep(0)`, so
+   * merely OPENING the page wrote a draft — and the next visit greeted a
+   * first-time reader with "We saved your draft on this device" over an empty
+   * form. A save-and-resume affordance that fires when there is nothing to
+   * resume teaches people to ignore it.
+   *
+   * An invited address does not count as content: it was filled in FOR them.
+   */
+  function draftHasContent(d) {
+    if (!d) return false;
+    var f = d.f || {};
+    var typed = Object.keys(f).some(function (k) {
+      if (k === 'f-email' && state.emailLocked) return false;
+      return String(f[k] || '').trim() !== '';
+    });
+    return typed
+      || Object.keys(d.subjects || {}).length > 0
+      || Object.keys(d.programmes || {}).length > 0
+      || Object.keys(d.modes || {}).length > 0
+      || Object.keys(d.avail || {}).length > 0;
+  }
+
   function saveDraft() {
     try {
       var f = {};
       TEXT_FIELDS.forEach(function (id) { var el = $(id); if (el) f[id] = el.value; });
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      var d = {
         f: f, subjects: state.subjects, years: state.years, programmes: state.programmes,
         modes: state.modes, avail: state.avail, step: state.step, at: Date.now()
-      }));
+      };
+      // Nothing to resume → write nothing, and clear a draft emptied by hand.
+      if (!draftHasContent(d)) { localStorage.removeItem(DRAFT_KEY); return; }
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
     } catch (e) { /* private mode, quota — a draft is a convenience, never a dependency */ }
   }
 
   function loadDraft() {
     var d = null;
     try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { d = null; }
-    if (!d) return;
+    if (!d || !draftHasContent(d)) return;
 
     TEXT_FIELDS.forEach(function (id) {
       var el = $(id);
@@ -442,6 +523,20 @@
     form.addEventListener('submit', onSubmit);
   }
 
+  /* The server answers a 422 with COLUMN names. "teaching_philosophy" and
+     "headshot_url" are our vocabulary, not the candidate's, and a validation
+     message they cannot map back to a field on the page is not a message. */
+  var FIELD_LABELS = {
+    full_name: 'your name', email: 'your email address', phone: 'your phone number',
+    subjects: 'the courses and levels you teach', referees: 'your two referees',
+    bio: 'your biography', qualifications: 'your qualifications',
+    teaching_philosophy: 'how you teach', links: 'your links', cv_url: 'your CV link',
+    headshot_url: 'your photo link', location: 'where you are based',
+    earliest_start: 'your earliest start date', disciplines: 'the courses you teach',
+    safeguarding_ack: 'the safeguarding agreement', policy_ack: 'the policy agreement'
+  };
+  function fieldLabel(f) { return FIELD_LABELS[f] || String(f).replace(/_/g, ' '); }
+
   function onSubmit(e) {
     e.preventDefault();
     setErr('err-submit', false);
@@ -498,7 +593,7 @@
         if (code === 'invite_used') msg = 'This link was already used to submit. Ask us for a fresh one if you need to change anything.';
         else if (code === 'invite_expired' || code === 'invite_invalid') msg = 'Your invitation expired while you were filling this in. Ask us for a fresh link — your answers are saved on this device.';
         else if (code === 'invite_required') msg = 'We are not accepting open applications just now. Please ask us for an invitation.';
-        else if (code === 'validation') msg = 'Some answers need another look' + (fields.length ? ' (' + fields.join(', ') + ')' : '') + '.';
+        else if (code === 'validation') msg = 'Some answers need another look' + (fields.length ? ': ' + fields.map(fieldLabel).join(', ') : '') + '.';
         else if (code === 'rate_limited') msg = 'That is a few attempts in a short time. Please wait a minute and try again.';
         else msg = 'We could not submit this just now. Your answers are saved on this device — please try again in a moment.';
         $('err-submit-text').textContent = msg;

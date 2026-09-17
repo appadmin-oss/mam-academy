@@ -52,15 +52,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 $in = mam_json_input();
 $token = trim((string)($in['token'] ?? ''));
 
-$inv = null;
-if ($token !== '') {
-    $inv = $gate(mam_faculty_verify_token($token));
-    $email = (string)$inv['email'];                 // authoritative: never the body's
-} else {
-    if (!$open) mam_fail('invite_required', 403);
-    $email = mam_email((string)($in['email'] ?? ''));
-    if (!$email) mam_fail('validation', 422, ['fields' => ['email']]);
-}
+$inv = $token !== '' ? $gate(mam_faculty_verify_token($token)) : null;
+
+// One rule, stated once, in a place with tests on it: on the invite path the
+// address is the INVITE's and the body is ignored. See the function's note for
+// why honouring a body field here would be a real hole.
+$email = mam_faculty_applicant_email($inv, $in);
 
 // Honeypot: bots fill every field; humans never see this one. Answer as though
 // it worked — telling a bot it was caught only tells it what to change.

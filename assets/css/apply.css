@@ -71,7 +71,11 @@
 .step.active{display:block}
 @keyframes stepFade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 .step-head{margin-bottom:40px}
-.step-num{display:inline-block;font-size:0.74rem;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:12px}
+/* 0.75rem, not 0.74: at a 16px root 0.74rem computes to 11.84px, under the
+   12px floor for running text — and "Step 7 of 7 · Review" is wayfinding a
+   reader needs, not decoration. Shared with the student wizard, so both are
+   fixed by the 0.16px change. */
+.step-num{display:inline-block;font-size:0.75rem;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:12px}
 .step-title{font-family:var(--font-serif);font-size:1.95rem;font-weight:700;line-height:1.15;margin-bottom:10px}
 .step-desc{font-size:0.95rem;color:var(--text-muted);line-height:1.7}
 
@@ -677,3 +681,19 @@ body.mam-advisor-open #applyMobileBar{display:none!important}
 }
 .review-edit:hover { color: var(--gold-bright); border-color: var(--gold-bright); }
 .review-edit:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, .32); }
+
+/* Without scripting the wizard cannot exist (the matrix is built from the live
+   catalogue), so the spinner and the stepper are noise beside the <noscript>
+   explanation. `.js-only` is hidden by default and revealed by the `js` class
+   main.js puts on <html>; with scripting off it simply stays hidden. */
+.js-only { display: none; }
+html.js .js-only { display: revert; }
+
+/* `display:flex` on .resume-banner and .apply-stepper outranks the UA's
+   `[hidden]{display:none}` (author beats user-agent), so both rendered while
+   carrying the attribute — MEASURED: a first-time visitor was told "We saved
+   your draft on this device" over an empty form, and the stepper showed with
+   scripting off. The same trap this file already documents at .hs-status and
+   .advisor; these are the first two places to set `hidden` on them. */
+.resume-banner[hidden] { display: none; }
+.apply-stepper[hidden] { display: none; }

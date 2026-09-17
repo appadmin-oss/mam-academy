@@ -596,6 +596,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
         'wallet_credit' => 'users',
         'faculty_invite' => 'users', 'faculty_app_status' => 'users', 'faculty_request_review' => 'users',
+        'faculty_assign_subjects' => 'users',
         'module_proposal_review' => 'curriculum',
         'curriculum_clone' => 'curriculum',
         // Programming a recital is an academic judgement about what a
@@ -1745,6 +1746,32 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             mam_audit('faculty_app_status', 'instructor_application', $fid, ['status' => $st]);
         }
         header('Location: ?v=users&ok=1#faculty'); exit;
+    }
+    /* Accept an approved candidate's teaching matrix into
+       instructor_assignments. This is the payoff for collecting (course, level)
+       rows instead of a sentence: accepting them is a copy.
+
+       Records CAPABILITY only. The safeguarding gate governs actual placement
+       with students (mam_lms_approve / mam_enrol_complete) and is untouched by
+       this — see mam_faculty_assign_subjects(). */
+    if ($action === 'faculty_assign_subjects') {
+        $fid = (int)($_POST['app_id'] ?? 0);
+        try {
+            $actor = mam_admin_require_actor();
+            $res = mam_faculty_assign_subjects($fid, (int) $actor['id']);
+            $msg = $res['added'] . ' subject' . ($res['added'] === 1 ? '' : 's') . ' assigned'
+                 . ($res['already'] ? ', ' . $res['already'] . ' already there' : '') . '.';
+            header('Location: ?v=users&ok=' . urlencode($msg) . '#faculty'); exit;
+        } catch (Throwable $e) {
+            // mam_fail() has already answered in prod; this catches the codes
+            // it raises so the admin gets a sentence instead of a blank page.
+            $code = $e->getMessage();
+            $say = str_contains($code, 'no_account') ? 'Create their instructor account first, then assign.'
+                 : (str_contains($code, 'not_an_instructor') ? 'That account exists but is not an instructor.'
+                 : (str_contains($code, 'not_approved') ? 'Approve the application before assigning subjects.'
+                 : 'Could not assign these subjects.'));
+            header('Location: ?v=users&err=' . urlencode($say) . '#faculty'); exit;
+        }
     }
 
     // ─── Review a faculty curriculum proposal (approve → applied to modules) ──
@@ -7012,8 +7039,21 @@ V2_READ_TENANT=mam</pre>
               </select>
               <button class="tiny" type="submit">Save</button>
             </form>
-            <?php if ($fa['status'] === 'approved' && !mam_db_row('SELECT id FROM users WHERE email = ?', [(string)$fa['email']])): ?>
+            <?php $facUser = mam_db_row('SELECT id, role FROM users WHERE email = ?', [(string)$fa['email']]); ?>
+            <?php if ($fa['status'] === 'approved' && !$facUser): ?>
               <span class="muted" style="display:block;font-size:.74rem;margin-top:4px">→ create their instructor account above (welcome email sends automatically)</span>
+            <?php elseif ($fa['status'] === 'approved' && $facUser && ($facUser['role'] ?? '') === 'instructor' && !empty($facSubs[(int)$fa['id']])): ?>
+              <?php /* Accepting the matrix is a DECISION, not a side effect of
+                       approval — a candidate who claimed five courses may be
+                       taken on for two, and the admin edits the application
+                       before pressing this. Capability only; the safeguarding
+                       gate still governs placement with students. */ ?>
+              <form class="inline" method="post" style="margin-top:6px">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <input type="hidden" name="action" value="faculty_assign_subjects">
+                <input type="hidden" name="app_id" value="<?= (int)$fa['id'] ?>">
+                <button class="tiny" type="submit" title="Copy this candidate's course/level matrix into their teaching assignments. Records what they may teach; it does not place them with any student.">Assign their subjects</button>
+              </form>
             <?php endif; ?>
           </td>
         </tr>
