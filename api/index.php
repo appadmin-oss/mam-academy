@@ -208,8 +208,6 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->post('/repertoire',          $f('student/repertoire.php'),          [mw_csrf(), mw_role('student')]);
     $r->get ('/challenges',          $f('student/challenges.php'),          [mw_role('student')]);
     $r->post('/challenges',          $f('student/challenges.php'),          [mw_csrf(), mw_role('student')]);
-    $r->get ('/leaderboard',         $f('student/leaderboard.php'),         [mw_role('student')]);
-    $r->post('/leaderboard',         $f('student/leaderboard.php'),         [mw_csrf(), mw_role('student')]);
     $r->get ('/makeup',              $f('student/makeup.php'),              [mw_role('student')]);
     // Full programme curriculum for the Curriculum tab.
     $r->get ('/curriculum',          $f('student/curriculum.php'),          [mw_role('student'), mw_rate_limit('student_curriculum', 30, 60)]);

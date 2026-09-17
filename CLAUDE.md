@@ -1081,15 +1081,23 @@ work. Anything still unbuilt needs it back before the requirements can be
 trusted; do not infer them from a section number.
 
 Libs added: `achievements` `challenges` `consent` `repertoire` `referrals`
-`leaderboard` `makeup` `audit` `bi` `inline-edit`. Migrations v73–v79 (the
+`makeup` `audit` `bi` `inline-edit`. Migrations v73–v79 (the
 later batch — BI, celebrations, guardian KPIs, drag-scheduling, inline edit
 and takes — added **no** migration).
 
 Shipped: timestamped feedback · practice player + waveform · side-by-side
 reference · repertoire→recital · achievements / streak-freeze / guardian wins ·
-practice challenges · ~~opt-in effort leaderboards~~ (⛔ **to be REMOVED** — the
-2026-08 portal redesign refuses a cohort ranking outright; see docs/HANDOFF.md
-§4n's status table for the files) · **milestone celebrations
+practice challenges · ~~opt-in effort leaderboards~~ (⛔ **REMOVED 2026-09** —
+the 2026-08 portal redesign refuses a cohort ranking outright, refusal 5. The
+lib, both routes, the route file and the student-portal panel are gone, and
+`test_engagement2.php` now holds a GUARD asserting they stay gone rather than
+simply dropping the tests. Two things deliberately survive: the **studio**
+practice-tool board (`mam_studio_leaderboard`, `/api/studio/leaderboard`) is a
+different feature — attempts at a TOOL, not children ranked against
+classmates — and `users.leaderboard_opt_in`, because dropping a column from
+`users` means a SQLite table rebuild and `users` is the most foreign-keyed
+table in the schema; an unread column is cheaper than that risk) ·
+**milestone celebrations
 (§3.6)** · command palette · pins · bulk-accept · continue-where-left-off ·
 practice insights · instructor cohort analytics · **admin Business Intelligence
 (§5.4, `?v=bi`)** · **richer guardian KPIs (§5.2)** · referrals · certificate
@@ -1109,12 +1117,12 @@ arrival analytics · consent & safeguarding · per-person audit timeline ·
   hostile to shared hosting behind Cloudflare) and §4.6 WhatsApp/SMS (a
   provider account and keys). Don't ship dead buttons for these.
 
-⚠️ **The newest features are cohort-only, not dual-read.** `leaderboard.php` and
-`makeup.php` read `course_enrollments` / `session_attendance` exclusively, so a
-legacy-only student sees an empty board and no make-up suggestions. That is
-defensible (both are cohort-shaped concepts) but it is a *new* divergence in a
-codebase that spent real effort closing the old one — see gotcha #2. Decide
-deliberately before adding another.
+⚠️ **The newest features are cohort-only, not dual-read.** `makeup.php` reads
+`course_enrollments` / `session_attendance` exclusively, so a legacy-only
+student gets no make-up suggestions. That is defensible (it is a cohort-shaped
+concept) but it is a *new* divergence in a codebase that spent real effort
+closing the old one — see gotcha #2. Decide deliberately before adding another.
+(`leaderboard.php` had the same divergence and is now removed outright.)
 
 Two conventions these established:
 - **`MAM_PORTAL.celebrate(kind, label)`** marks a milestone once. Guard every

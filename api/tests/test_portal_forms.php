@@ -192,12 +192,15 @@ t_ok(strpos($stu, 'aria-label="Your referral link"') !== false,
 
 t_group('student portal — a blank panel is a statement, not a shrug');
 
-/* MEASURED: challenges, leaderboard and referrals each had an empty catch, so a
- * dropped fetch left the panel blank. Blank asserts something — "you have no
- * challenges", "nobody is on the board" — and that is a different claim from
- * "we could not fetch this". */
+/* MEASURED: challenges, the effort board and referrals each had an empty catch,
+ * so a dropped fetch left the panel blank. Blank asserts something — "you have
+ * no challenges" — and that is a different claim from "we could not fetch
+ * this".
+ *
+ * The board's own assertion is gone with the board (redesign refusal 5); the
+ * rule it was an instance of is unchanged and the remaining panels still carry
+ * it. test_engagement2.php holds the guard that keeps the board removed. */
 t_ok(strpos($stu, 'Could not load your challenges right now.') !== false, 'a failed challenges load says so');
-t_ok(strpos($stu, 'Could not load the board right now.') !== false, 'a failed leaderboard load says so');
 t_ok(strpos($stu, 'Could not load your referral link right now.') !== false, 'a failed referral load says so');
 // The submission-status paint is the one that matters most: those rows answer
 // "did my work arrive?", and failing silently leaves them asserting a state

@@ -1098,40 +1098,10 @@
       .catch(function () { if (window.MAM_DIALOG) window.MAM_DIALOG.toast('Could not update challenge.', 'error'); });
   }
 
-  // ── Opt-in effort leaderboard (§3.4) ─────────────────────────────────────
-  function loadLeaderboard() {
-    var area = document.getElementById('leaderboardArea'); if (!area) return;
-    API.request('student/leaderboard', { method: 'GET' })
-      .then(function (r) { renderLeaderboard(r); })
-      .catch(function () { area.innerHTML = P.empty('triangle-exclamation', 'Could not load the board right now. Reload the page to try again.'); });
-  }
-  function renderLeaderboard(r) {
-    var area = document.getElementById('leaderboardArea'); if (!area) return;
-    var optedIn = !!r.opted_in, consentOk = !!r.consent_ok, board = r.board || [];
-    var head = '<div class="panel-head"><h2><i class="fa-solid fa-ranking-star" style="color:var(--gold-bright);margin-right:8px"></i>Cohort effort board</h2>'
-      + '<button class="btn btn-ghost" id="lbToggle" style="padding:5px 12px;font-size:.8rem">' + (optedIn ? 'Leave board' : 'Join the board') + '</button></div>';
-    var body;
-    if (!optedIn) {
-      body = '<div class="panel-body"><p style="margin:0;color:var(--text-muted)">A friendly, effort-based board (this week\'s practice minutes) for your cohort. First name only, opt-in, and never about talent. Join to take part.</p></div>';
-    } else if (!consentOk) {
-      body = '<div class="panel-body"><p style="margin:0;color:var(--text-muted)">You\'re opted in — but appearing needs guardian <strong>data consent</strong>. Ask your guardian to enable it in the Consent centre, then you\'ll show on the board.</p></div>';
-    } else if (!board.length) {
-      body = '<div class="panel-body">' + empty('ranking-star', 'No one on the board yet this week. Log practice to get on it!') + '</div>';
-    } else {
-      body = '<div class="panel-body" style="display:grid;gap:6px">' + board.map(function (x) {
-        return '<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;' + (x.is_me ? 'background:linear-gradient(135deg,rgba(224,138,26,.14),rgba(251,191,36,.06))' : '') + '">'
-          + '<span style="width:26px;font-weight:700;color:var(--gold-bright)">' + x.rank + '</span>'
-          + '<span style="flex:1">' + P.escapeHtml(x.name) + (x.is_me ? ' <span style="color:var(--text-muted);font-size:.78rem">(you)</span>' : '') + '</span>'
-          + '<strong>' + x.minutes + ' min</strong></div>';
-      }).join('') + '</div>';
-    }
-    area.innerHTML = '<section class="panel" style="margin-top:16px">' + head + body + '</section>';
-    var t = document.getElementById('lbToggle');
-    if (t) t.addEventListener('click', function () {
-      t.disabled = true;
-      API.request('student/leaderboard', { method: 'POST', body: { opt_in: !optedIn } }).then(function (r2) { renderLeaderboard({ opted_in: r2.opted_in, consent_ok: r2.consent_ok, board: r2.board || [] }); loadLeaderboard(); }).catch(function () { t.disabled = false; });
-    });
-  }
+  // The cohort effort board (§3.4) was REMOVED — the 2026-08 portal redesign
+  // refuses a cohort ranking outright (refusal 5). Practice minutes are still
+  // logged and shown to the student as their OWN streak and totals; what is
+  // gone is comparing one child to another.
 
   function renderPractice() {
     var ps = data.practice_stats || { streak: 0, weekMin: 0, total: 0, sessions: 0 };
@@ -1172,7 +1142,6 @@
       + '</section>'
       + practiceInsights(logs)
       + '<section id="challengesArea"></section>'
-      + '<section id="leaderboardArea"></section>'
       + '<section class="panel" id="coachNote" hidden><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;color:var(--gold-bright)"></i>Your practice coach</h2></div><div class="panel-body" id="coachNoteBody"></div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Log a practice session</h2></div>'
       + '<form id="pracForm" class="profile-form" style="padding:18px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">'
@@ -1187,7 +1156,6 @@
       + (logs.length ? '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Minutes</th><th>Focus</th><th>Notes</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<div class="panel-body">' + empty('chart-line', 'No practice logged yet. Every session you record here counts towards your weekly goal.') + '</div>')
       + '</section>';
     loadChallenges();
-    loadLeaderboard();
     document.getElementById('pracForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var btn = e.target.querySelector('button[type=submit]'); var orig = btn.innerHTML; btn.disabled = true; btn.innerHTML = 'Saving…';

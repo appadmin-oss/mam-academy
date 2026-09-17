@@ -506,11 +506,19 @@ function mam_recital_public_card(array $r): array {
  *
  * A printed concert programme names its performers — that is the honour, and
  * withholding it would make the programme meaningless. But this academy
- * teaches children and already runs a consent register (§8.4), and the
- * leaderboard already settled the house style for a name in a public list:
- * first name plus last initial. So MEDIA consent is what earns a full name on
- * a page anyone can read; without it the student still appears, still gets
- * their piece printed, and is simply named the way the leaderboard names them.
+ * teaches children and already runs a consent register (§8.4). So MEDIA
+ * consent is what earns a full name on a page anyone can read; without it the
+ * student still appears, still gets their piece printed, and is named as
+ * first name plus last initial.
+ *
+ * ⚠️ This used to borrow `mam_leaderboard_display_name()` behind a
+ * `function_exists` guard, with this as the fallback. The cohort effort
+ * leaderboard has been REMOVED (the 2026-08 portal redesign refuses a cohort
+ * ranking outright), so the guard could never match again and the shorthand is
+ * now stated here, where the rule actually belongs. Note the fallback was NOT
+ * identical: `preg_split` on an empty string yields `['']`, so an empty name
+ * returned '' rather than 'A student' — an unnamed performer in a printed
+ * programme. Handled explicitly below.
  *
  * Never a silent omission: a child dropped from the programme because a form
  * was not signed would be the cruellest possible reading of a consent flag.
@@ -518,9 +526,10 @@ function mam_recital_public_card(array $r): array {
 function mam_recital_public_name(int $studentId, string $name): string {
     $full = function_exists('mam_consent_allows') ? mam_consent_allows($studentId, 'media') : true;
     if ($full) return $name;
-    if (function_exists('mam_leaderboard_display_name')) return mam_leaderboard_display_name($name);
-    $parts = preg_split('/\s+/', trim($name)) ?: [];
-    return ($parts[0] ?? 'A student') . (count($parts) > 1 ? ' ' . mb_strtoupper(mb_substr((string) end($parts), 0, 1)) . '.' : '');
+    $trimmed = trim($name);
+    if ($trimmed === '') return 'A student';
+    $parts = preg_split('/\s+/', $trimmed) ?: [];
+    return $parts[0] . (count($parts) > 1 ? ' ' . mb_strtoupper(mb_substr((string) end($parts), 0, 1)) . '.' : '');
 }
 
 /**

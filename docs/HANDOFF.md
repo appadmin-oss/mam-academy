@@ -45,7 +45,8 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | **The suite runs against MySQL** | ✅ **shipped** — found 7 defects that existed only there |
 | **Every route swept against MySQL, logs read** | ✅ clean — found 3 more (break-glass 401s) |
 | The console's phone subset (`#5b`) | not built — §6.2 |
-| Student + instructor portal redesigns | not started — still on the old palette |
+| Student + instructor portal redesigns | not started — still on the old palette; **awaiting the design handoff** |
+| **Instructor application platform (schema v90)** | ✅ **shipped 2026-09-17** — see §4p |
 | Scholarship funds/awards, instalments, dunning | not started |
 | TanStack Table v8 | decided, **not implemented** |
 | htmx + strict CSP | needs a funding decision (doc 4's own framing) |
@@ -961,7 +962,7 @@ percentage of the gross. The cap is on the AMOUNT, not the percentage.
 | `portal/parent/index.html` rebuilt, class-only, app in `assets/js/portal-guardian.js` | ✅ |
 | Old parent styles | ✅ the page loads portal-v2.css ONLY; portal.css is untouched and still serves the other two portals |
 | Driven in Chromium at 390 and 1440, all twelve destinations | ✅ 0 inline styles, 0 controls under target, 0 text under 12px |
-| **Remove the cohort leaderboard (refusal 5)** | ⬜ `api/lib/leaderboard.php`, its two routes in `api/index.php`, and the student-portal UI. CLAUDE.md still lists it under shipped features — fix both together |
+| **Remove the cohort leaderboard (refusal 5)** | ✅ **done 2026-09-17** — lib, both routes, the route file, the autoload entries and the student-portal panel. `test_engagement2.php` now holds a GUARD asserting it stays removed (deleting the tests with the feature would leave nothing stopping its return). CLAUDE.md updated in the same commit. The **studio** board is untouched — different feature. `users.leaderboard_opt_in` is deliberately retained: dropping a `users` column means a SQLite table rebuild on the most foreign-keyed table in the schema |
 | Student portal (Train loop, offline queue, teach-back, spaced retrieval) | ⬜ |
 | Instructor portal | ⬜ desktop is not designed yet; mobile only, in `Portals Mobile.dc.html` |
 | Payment gateway on the Fees screen | ⬜ deliberately not wired: the Pay button says the office will send a link rather than opening a half-built flow |
@@ -1081,6 +1082,136 @@ read the programme. All three take `mam_admin_require_actor()` now, and
 `test_console.php` asserts the class of bug rather than the three instances.
 
 ---
+
+## 4p. The instructor application platform (2026-09-17, schema v90)
+
+The v36 form asked for a name, a bio and a free-text list of disciplines
+("Piano, Music Theory, Voice"). **Nothing can join on that.** The teaching
+model is `instructor_assignments(instructor_id, course_id, level_id)`, so
+approving a candidate meant re-keying their subjects by hand, and "who can
+teach Diploma piano" — the question a capacity-aware enrolment asks every time
+a cohort needs a teacher — was unanswerable.
+
+### What it is now
+
+Seven steps (Teaching · About you · Training · Experience · Availability ·
+Safeguarding · Review), reusing the STUDENT wizard's components from
+`assets/css/apply.css` so the two forms cannot drift into two house styles.
+When the portal design handoff lands, restyling `.step` / `.field` / `.btn-step`
+reaches both. No payment step — nobody pays to apply to teach.
+
+| Piece | Where |
+|---|---|
+| Page | `instructor-apply.php` (markup only, 0 inline styles) |
+| Wizard | `assets/js/instructor-apply.js` |
+| Components | `assets/css/apply.css` (`.fac-*`) |
+| Lib | `api/lib/faculty.php` (extended — no new lib, so gotcha #1 does not apply) |
+| Route | `api/routes/faculty-apply.php` |
+| Schema | v90 — `instructor_application_subjects`, `instructor_application_referees`, + 12 columns |
+| Tests | `api/tests/test_faculty.php` (+44 assertions) |
+
+### The five decisions worth not re-litigating
+
+1. **The matrix is resolved against the LIVE catalogue and refuses to guess.**
+   An unknown course code is DROPPED, never invented — the same refusal
+   `mam_enrol_resolve()` makes for an instrument that is not a course.
+   Hardcoding the course list would mean a course added in admin is one nobody
+   can apply to teach.
+2. **`disciplines` is still written, DERIVED from the matrix.**
+   `admin/index.php` renders that column; dropping it would silently empty a
+   live screen. Derivation is what stops the two disagreeing.
+3. **Referees are CONTACTS, never check content.** `MAM_VETTING_REQUIRED` names
+   reference_1 and reference_2 and an application is the moment to collect
+   them — but `vetting_records` deliberately holds no check content, and an
+   applicant's claim about themselves is never a clearance. There is nowhere in
+   `instructor_application_referees` to type a certificate number or anything
+   about an offence, and a test asserts the schema keeps it that way. The two
+   *commitments* are legitimately self-reported: they are statements the
+   candidate makes, not checks somebody performed.
+4. **Open applications are a SETTING, not a removal of the gate.**
+   `faculty_open_applications` (default on) publishes the form; invite links
+   still work, still pre-verify the address, still consume once. Turning it off
+   restores v36 exactly. ⚠️ On the invite path the email comes from the
+   INVITE, never the body — otherwise a single-use link for one address becomes
+   an application for any address.
+5. **The triage band is advisory and staff-side only.** A band produced by
+   counting fields is not a hiring judgement, and telling somebody their
+   application scores low the moment they submit is neither useful nor kind.
+   Same posture as intervention flags. It never gates submission.
+
+### What running it found that no test would have
+
+The same lesson as the guardian portal: drive it, do not reason about it.
+
+1. **A student CTA bar sat over the form.** `lead.js` skips its "Next intake is
+   open — five-step application" nudge on `/apply` via a path test that
+   `/instructor-apply` does not match. A prospective TEACHER got the STUDENT
+   wizard's nudge, with the wrong step count, covering the matrix on a phone.
+   Fixed with `data-no-lead-cta` — the opt-out `lead.js` already provides.
+   ⚠️ Any new root page should check this; the regex reads `/apply`, not "an
+   application form".
+2. **Level chips rendered "Pre-CertificationGrade 1-2"** — the `<small>` became
+   a flex sibling of the name. `flex-direction: column`.
+3. **An inline style and an 11.52px control**, both below the floors the
+   stylesheet states about itself.
+4. **`mam_db_exec()` does not exist** — the house idiom is
+   `mam_db()->prepare(...)->execute(...)`. Same family as gotcha #4's
+   `mam_session_get()`; caught before it shipped only because the lib was
+   grepped rather than trusted.
+
+Driven in Chromium at 1280 and 390: seven steps, save-and-resume, the
+safeguarding gate refusing an empty submit, submit, and the row read back out
+of the database. **Two full runs produced ONE application** with two subjects
+and two referees, proving resubmit REPLACES rather than appends in the real
+path and not just in a test.
+
+### Still open here
+
+- **No payment/contract step and no offer workflow.** Approving still routes
+  through the existing admin status select + "create their instructor account".
+  Copying an approved matrix into `instructor_assignments` is the obvious next
+  move and is deliberately NOT automatic — placement is a decision.
+- **`.step-num` renders at 11.84px**, below the 12px floor. It is the STUDENT
+  wizard's shared component and predates this work, so it was reported rather
+  than silently restyled on a live form. One-line fix in `apply.css` when
+  somebody owns the student wizard's type scale.
+- The design handoff for this page has not arrived; it is built on the
+  student wizard's existing system so that it can be restyled in one place.
+
+---
+
+## 4q. Portal-layer audit (2026-09-17)
+
+Measured, not estimated. The numbers below are the reason the student and
+instructor portal redesigns matter beyond appearance.
+
+| | Guardian (redesigned) | Student | Instructor |
+|---|---|---|---|
+| Page | 160 lines | 3,200 | 2,282 |
+| Inline `style=` attributes | **0** | **706** | **358** |
+| Inline JS | 0 (external app) | ~3,082 lines | ~2,189 lines |
+| Stylesheets | 1 (`portal-v2.css`) | 3 | 3 |
+| Palette | v2, scoped | old | old |
+
+Findings, by severity:
+
+- **HIGH — `script-src 'unsafe-inline'` is load-bearing and cannot be dropped
+  while the two old portals exist.** ~5,271 lines of inline JS across them is
+  exactly what the CSP in `.htaccess` is widened for. The guardian portal is
+  already strict-CSP-ready. Extracting those two apps is the concrete security
+  dividend of the redesign, and it is the same work the redesign needs anyway.
+- **HIGH — `check-inline-js.cjs` walks only `.html`.** A `.php` page's inline
+  `<script>` is syntax-checked by NOTHING. `instructor-apply.php` had a 75-line
+  inline block in exactly that blind spot; its replacement is external. Worth
+  extending the walker to `.php`, or the next root page repeats it.
+- **MEDIUM — `.step-num` at 11.84px** in the shared wizard chrome (above).
+- **LOW / not a finding — the Chart.js CDN fallback is exemplary.** It paints
+  CSS bars immediately, upgrades if the CDN lands, catches and reverts. This is
+  §3.1's lesson already applied; do not "fix" it.
+
+Neither old portal carries `data-portal="v2"`, so `portal-v2.css` stays inert
+for them and the three coexist — the redesign can be done one portal at a time.
+
 
 ## 5. Where things live
 

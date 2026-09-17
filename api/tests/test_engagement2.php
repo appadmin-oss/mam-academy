@@ -1,42 +1,32 @@
 <?php
 declare(strict_types=1);
 
-t_group('opt-in effort leaderboard (§3.4)');
-$LB_course = mam_db_insert('courses', ['code' => 'lb_c', 'name' => 'LB', 'kind' => 'core']);
-$LB_coh = mam_db_insert('cohorts', ['course_id' => $LB_course, 'title' => 'LB Cohort', 'status' => 'active', 'capacity' => 10]);
-$LB1 = mam_db_insert('users', ['name' => 'Ada Grace Okafor', 'email' => 'lb1@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
-$LB2 = mam_db_insert('users', ['name' => 'Ben Musa', 'email' => 'lb2@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
-$LB3 = mam_db_insert('users', ['name' => 'Cee Bloggs', 'email' => 'lb3@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
-foreach ([$LB1, $LB2, $LB3] as $s) mam_db_insert('course_enrollments', ['student_id' => $s, 'course_id' => $LB_course, 'cohort_id' => $LB_coh, 'status' => 'active']);
-mam_db_insert('practice_logs', ['student_id' => $LB1, 'minutes' => 120, 'logged_on' => '2026-08-13']);
-mam_db_insert('practice_logs', ['student_id' => $LB2, 'minutes' => 200, 'logged_on' => '2026-08-13']);
-mam_leaderboard_optin_set($LB1, true); mam_consent_set($LB1, ['data' => true]);
-mam_leaderboard_optin_set($LB2, true); // opted in but NOT consented yet
-// LB3 not opted in.
-$board = mam_leaderboard_for_student($LB1, '2026-08-15');
-t_eq(count($board), 1, 'only opted-in + data-consented students appear');
-t_ok($board[0]['is_me'] === true, 'the viewer sees themselves');
-mam_consent_set($LB2, ['data' => true]);
-$board2 = mam_leaderboard_for_student($LB1, '2026-08-15');
-t_eq(count($board2), 2, 'both appear once consented');
-t_eq($board2[0]['minutes'], 200, 'ranked by effort (minutes) descending');
-t_eq(mam_leaderboard_display_name('Ada Grace Okafor'), 'Ada O.', 'display name is first + last initial');
-t_ok(!mam_leaderboard_optin_get($LB3), 'opt-in defaults off');
-
-// The viewer's OWN eligibility gates the read (audit F7). This check used to
-// live only in the route, so the lib would hand any caller a list of opted-in
-// peers for an arbitrary student id. Participation is the price of looking.
-t_eq(count(mam_leaderboard_for_student($LB3, '2026-08-15')), 0, 'a student who has not opted in reads an empty board');
-mam_leaderboard_optin_set($LB3, true);
-t_eq(count(mam_leaderboard_for_student($LB3, '2026-08-15')), 0, 'opting in without data consent still reads empty');
-mam_consent_set($LB3, ['data' => true]);
-t_ok(count(mam_leaderboard_for_student($LB3, '2026-08-15')) > 0, 'consenting opens the board to them');
-
-// A peer with no minutes this week stays ON the board at 0 rather than being
-// dropped — hiding everyone having a hard week is the opposite of the point.
-$LB_zero = array_values(array_filter(mam_leaderboard_for_student($LB1, '2026-08-15'), fn($r) => $r['minutes'] === 0));
-t_ok(count($LB_zero) >= 1, 'a peer with no practice this week still appears, at zero');
-t_eq(mam_leaderboard_for_student($LB1, '2026-08-15')[0]['minutes'], 200, 'ranking still puts the highest effort first');
+t_group('the cohort effort board stays REMOVED (redesign refusal 5)');
+/* This group used to exercise an opt-in effort leaderboard. The 2026-08 portal
+ * redesign refuses a cohort ranking outright, so the feature was removed — lib,
+ * routes, route file and the student-portal panel.
+ *
+ * Deleting the tests with it would leave nothing to stop somebody reintroducing
+ * it, which is how a refusal quietly stops being one. These assertions are the
+ * refusal, stated the way the v2 schema states its own ("there is NO leaderboard
+ * table here and there must not be one").
+ *
+ * The STUDIO board (mam_studio_leaderboard, /api/studio/leaderboard) is a
+ * DIFFERENT feature and is deliberately kept: it ranks attempts at a practice
+ * TOOL, opt-in and self-selected, not children against their classmates. Its
+ * own tests live in test_studio_leaderboard.php. */
+foreach (['mam_leaderboard_for_student', 'mam_leaderboard_optin_get', 'mam_leaderboard_optin_set',
+          'mam_leaderboard_display_name', 'mam_leaderboard_eligible'] as $gone) {
+    t_ok(!function_exists($gone), "$gone() is gone and must not come back");
+}
+t_ok(!file_exists(__DIR__ . '/../lib/leaderboard.php'), 'api/lib/leaderboard.php is deleted');
+t_ok(!file_exists(__DIR__ . '/../routes/student/leaderboard.php'), 'the student leaderboard route file is deleted');
+t_ok(strpos(file_get_contents(__DIR__ . '/../index.php'), "student/leaderboard.php") === false,
+    'no route registers the cohort board');
+t_ok(strpos(file_get_contents(__DIR__ . '/../../portal/student/index.html'), 'leaderboardArea') === false,
+    'the student portal renders no cohort board');
+// The studio board is NOT collateral damage.
+t_ok(function_exists('mam_studio_leaderboard'), 'the studio practice-tool board is untouched');
 
 t_group('arrival analytics (§8.3)');
 $AR_ins = mam_db_insert('users', ['name' => 'AR Ins', 'email' => 'ar_ins@test.local', 'role' => 'instructor', 'password_hash' => 'x', 'status' => 'active']);
