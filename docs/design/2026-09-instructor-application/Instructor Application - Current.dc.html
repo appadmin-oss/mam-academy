@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:wght@600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<style>
+  html, body { margin: 0; background: #14100B; }
+  a { color: #FCC647; }
+  a:hover { color: #FDE9A8; }
+</style>
+</helmet>
+
+<div style="font-family:'Inter',-apple-system,sans-serif;color:#FCF8F3;padding:40px;display:flex;flex-direction:column;gap:28px">
+
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:760px">
+    <div style="font-size:11px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#FCC647">Recreation · as shipped</div>
+    <h1 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:34px;font-weight:700;line-height:1.15;margin:0">/instructor-apply on a 390px phone</h1>
+    <p style="font-size:14px;line-height:1.65;color:rgba(252,248,243,0.74);margin:0">Every value here is lifted from <code style="color:#FCC647">instructor-apply.php</code>, <code style="color:#FCC647">assets/css/apply.css</code>, <code style="color:#FCC647">assets/css/main.css</code> and the live catalogue seed in <code style="color:#FCC647">api/lib/db.php</code>. All seven steps, in order, at the width most faculty applicants actually arrive on.</p>
+  </div>
+
+  <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
+
+    <!-- ══════════════ STEP 1 — Teaching ══════════════ -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(252,248,243,0.58)">Step 1 · Teaching</div>
+      <div data-screen-label="Current 01 Teaching" style="width:390px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative">
+
+        <div style="background:linear-gradient(90deg,#E8961F,#F7A823,#E8961F);color:#1A120B;font-size:13.1px;font-weight:600;padding:9px 16px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;letter-spacing:0.02em;text-align:center;line-height:1.35">
+          <span style="width:7px;height:7px;border-radius:50%;background:#1A120B;opacity:0.55"></span>
+          <span>September 2026 intake is now open — <strong>limited seats</strong> remaining</span>
+        </div>
+
+        <div style="height:80px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:rgba(42,33,25,0.78);border-bottom:1px solid rgba(232,201,160,0.20)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <img src="mam-academy-logo.svg" alt="" style="width:34px;height:34px;border-radius:10px;border:1px solid rgba(224,138,26,0.4);box-shadow:0 0 48px rgba(252,198,71,0.28);flex-shrink:0">
+            <div style="display:flex;flex-direction:column">
+              <span style="font-family:'Bebas Neue',Impact,sans-serif;font-size:23.2px;letter-spacing:0.06em;line-height:1;background:linear-gradient(135deg,#FCC647,#E8961F);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">MAM ACADEMY</span>
+              <span style="font-size:9.6px;text-transform:uppercase;letter-spacing:0.14em;color:rgba(252,248,243,0.74);margin-top:2px">academy.mamcentre.org</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;padding:12px 6px">
+            <span style="display:block;width:22px;height:2px;background:#FCC647;border-radius:2px"></span>
+            <span style="display:block;width:22px;height:2px;background:#FCC647;border-radius:2px"></span>
+            <span style="display:block;width:16px;height:2px;background:#FCC647;border-radius:2px"></span>
+          </div>
+        </div>
+
+        <div style="padding:22px 16px 96px">
+
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:4px;position:relative;margin-bottom:18px">
+            <div style="position:absolute;left:12%;right:12%;top:17px;height:2px;background:rgba(232,201,160,0.20);z-index:0"></div>
+            <sc-for list="{{ stepDots }}" as="d" hint-placeholder-count="7">
+              <div style="flex:1;min-width:44px;min-height:44px;padding:4px;display:flex;flex-direction:column;align-items:center;gap:8px;position:relative;z-index:1">
+                <div style="{{ d.dot }}">{{ d.n }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="background:#2A2119;border:1px solid rgba(232,201,160,0.20);border-radius:44px;padding:24px 16px;position:relative;overflow:hidden">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#E8961F,#F7A823,#F0436A)"></div>
+
+            <div style="margin-bottom:22px">
+              <div style="font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin-bottom:12px">STEP 1 OF 7 · TEACHING</div>
+              <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:23.2px;font-weight:700;line-height:1.22;margin:0 0 10px">What do you teach?</h2>
+              <p style="font-size:15.2px;color:rgba(252,248,243,0.74);line-height:1.6;margin:0">Choose every course you are qualified to teach, and the levels you can take a student to. This is the heart of your application — it is what we match you to a class with, so claim what you can genuinely teach rather than everything on the list.</p>
+            </div>
+
+            <div style="margin-bottom:18px">
+              <span style="display:block;font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.90);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">COURSES &amp; LEVELS <span style="color:#FCC647">*</span></span>
+              <div style="display:grid;gap:14px">
+                <sc-for list="{{ courses }}" as="c" hint-placeholder-count="4">
+                  <div style="border:1.5px solid rgba(232,201,160,0.36);border-radius:14px;background:#352A1F;padding:13px">
+                    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+                      <span style="font-weight:700;color:#FCF8F3;font-size:15.7px">{{ c.name }}</span>
+                      <sc-if value="{{ c.core }}" hint-placeholder-val="{{ true }}">
+                        <span style="font-size:11.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#FCC647;border:1px solid rgba(252,198,71,0.4);border-radius:999px;padding:2px 8px">Core</span>
+                      </sc-if>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px">
+                      <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4">
+                        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;border:1.5px solid rgba(232,201,160,0.36);border-radius:999px;background:#2A2119;color:rgba(252,248,243,0.90);font-size:13.4px;font-weight:600;line-height:1.25;text-align:center">
+                          <span>{{ l.name }}</span>
+                          <small style="font-size:11.5px;opacity:0.75;font-weight:500;letter-spacing:0.02em">{{ l.grades }}</small>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="font-size:13.4px;color:rgba(252,248,243,0.74);margin-top:10px">Nothing chosen yet.</div>
+            </div>
+
+            <div style="margin-bottom:18px">
+              <span style="display:block;font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.90);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">PROGRAMMES YOU COULD TEACH ON</span>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <sc-for list="{{ programmes }}" as="p" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;border:1.5px solid rgba(232,201,160,0.36);border-radius:999px;background:#2A2119;color:rgba(252,248,243,0.90);font-size:13.4px;font-weight:600">{{ p }}</div>
+                </sc-for>
+              </div>
+              <div style="font-size:12.5px;color:rgba(252,248,243,0.74);margin-top:5px;line-height:1.5">Optional. Leave it blank if you are happy to be considered for any.</div>
+            </div>
+
+            <div style="margin-bottom:18px">
+              <span style="display:block;font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.90);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">HOW CAN YOU TEACH?</span>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <div style="display:flex;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;border:1.5px solid rgba(232,201,160,0.36);border-radius:999px;background:#2A2119;color:rgba(252,248,243,0.90);font-size:13.4px;font-weight:600">Onsite</div>
+                <div style="display:flex;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;border:1.5px solid rgba(232,201,160,0.36);border-radius:999px;background:#2A2119;color:rgba(252,248,243,0.90);font-size:13.4px;font-weight:600">Online</div>
+              </div>
+              <div style="font-size:12.5px;color:rgba(252,248,243,0.74);margin-top:5px;line-height:1.5">Optional — onsite in Lagos, online, or both.</div>
+            </div>
+
+            <div style="display:flex;flex-direction:column-reverse;gap:10px;margin-top:32px;padding-top:28px;border-top:1px solid rgba(232,201,160,0.20)">
+              <div style="padding:14px 18px;min-height:50px;border-radius:12px;font-size:14.7px;font-weight:800;letter-spacing:0.04em;display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B;box-shadow:0 4px 16px rgba(224,138,26,0.35)">Continue <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ STEP 2 — About you ══════════════ -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(252,248,243,0.58)">Step 2 · About you</div>
+      <div data-screen-label="Current 02 About you" style="width:390px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;padding:22px 16px 40px">
+        <div style="background:#2A2119;border:1px solid rgba(232,201,160,0.20);border-radius:44px;padding:24px 16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#E8961F,#F7A823,#F0436A)"></div>
+          <div style="margin-bottom:22px">
+            <div style="font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin-bottom:12px">STEP 2 OF 7 · ABOUT YOU</div>
+            <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:23.2px;font-weight:700;line-height:1.22;margin:0 0 10px">Who are you?</h2>
+            <p style="font-size:15.2px;color:rgba(252,248,243,0.74);line-height:1.6;margin:0">How we reach you, and the photograph that becomes your faculty profile if you join us.</p>
+          </div>
+
+          <sc-for list="{{ aboutFields }}" as="f" hint-placeholder-count="4">
+            <div style="margin-bottom:18px">
+              <span style="display:block;font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.90);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">{{ f.label }}</span>
+              <div style="width:100%;box-sizing:border-box;padding:14px;background:#4A3B2B;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58);font-size:16px">{{ f.ph }}</div>
+              <sc-if value="{{ f.help }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:12.5px;color:rgba(252,248,243,0.74);margin-top:5px;line-height:1.5">{{ f.help }}</div>
+              </sc-if>
+            </div>
+          </sc-for>
+
+          <div style="margin-bottom:18px">
+            <span style="display:block;font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.90);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">PROFESSIONAL HEADSHOT</span>
+            <div style="display:flex;align-items:center;justify-content:center;min-height:220px;padding:24px;background:linear-gradient(180deg,rgba(224,138,26,0.05),#4A3B2B);border:1.5px dashed rgba(245,168,35,0.55);border-radius:20px;text-align:center">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;color:rgba(252,248,243,0.74)">
+                <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true" style="font-size:35px;color:#FCC647;margin-bottom:4px"></i>
+                <strong style="font-size:16px;color:#FCF8F3">Add a photo</strong>
+                <span style="font-size:12.8px;line-height:1.5;max-width:340px">Drag one in, or tap to choose. We check framing and sharpness before you submit.</span>
+              </div>
+            </div>
+            <div style="width:100%;box-sizing:border-box;padding:14px;background:#4A3B2B;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58);font-size:16px;margin-top:10px">…or paste an https image link</div>
+            <div style="font-size:12.5px;color:rgba(252,248,243,0.74);margin-top:5px;line-height:1.5">A clear, front-facing photo. Optional now — we will ask before you are published.</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column-reverse;gap:10px;margin-top:32px;padding-top:28px;border-top:1px solid rgba(232,201,160,0.20)">
+            <div style="padding:14px 18px;min-height:50px;border-radius:12px;font-size:14.7px;font-weight:800;letter-spacing:0.04em;display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B">Continue <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>
+            <div style="padding:14px 18px;min-height:50px;border-radius:12px;font-size:14.7px;font-weight:800;letter-spacing:0.04em;display:flex;align-items:center;justify-content:center;gap:10px;background:transparent;color:rgba(252,248,243,0.90);border:1.5px solid rgba(232,201,160,0.36)"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ STEP 5 — Availability ══════════════ -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(252,248,243,0.58)">Step 5 · Availability — the sideways-scrolling grid</div>
+      <div data-screen-label="Current 05 Availability" style="width:390px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;padding:22px 16px 40px">
+        <div style="background:#2A2119;border:1px solid rgba(232,201,160,0.20);border-radius:44px;padding:24px 16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#E8961F,#F7A823,#F0436A)"></div>
+          <div style="margin-bottom:22px">
+            <div style="font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin-bottom:12px">STEP 5 OF 7 · AVAILABILITY</div>
+            <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:23.2px;font-weight:700;line-height:1.22;margin:0 0 10px">When could you teach?</h2>
+            <p style="font-size:15.2px;color:rgba(252,248,243,0.74);line-height:1.6;margin:0">A rough shape is fine — we build timetables around what our instructors can actually sustain, and nothing here is a commitment.</p>
+          </div>
+
+          <div style="margin-bottom:18px">
+            <span style="display:block;font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.90);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">TYPICAL WEEK</span>
+            <div style="overflow-x:auto">
+              <div style="display:grid;grid-template-columns:84px repeat(7,minmax(52px,1fr));gap:6px;min-width:460px">
+                <span style="font-size:12.2px"></span>
+                <sc-for list="{{ days }}" as="d" hint-placeholder-count="7">
+                  <span style="font-size:12.2px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:rgba(252,248,243,0.74);text-align:center;padding-bottom:2px;align-self:end">{{ d }}</span>
+                </sc-for>
+                <sc-for list="{{ availRows }}" as="r" hint-placeholder-count="3">
+                  <span style="font-size:13.1px;font-weight:600;color:rgba(252,248,243,0.90);display:flex;align-items:center">{{ r.label }}</span>
+                  <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="7">
+                    <span style="display:block;min-height:44px;border-radius:10px;border:1.5px solid rgba(232,201,160,0.36);background:#2A2119"></span>
+                  </sc-for>
+                </sc-for>
+              </div>
+            </div>
+            <div style="font-size:12.5px;color:rgba(252,248,243,0.74);margin-top:5px;line-height:1.5">Tap the blocks you are usually free. Times are Lagos (WAT).</div>
+          </div>
+
+          <div style="margin-bottom:18px">
+            <span style="display:block;font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.90);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">HOURS A WEEK YOU COULD TAKE</span>
+            <div style="width:100%;box-sizing:border-box;padding:14px;background:#4A3B2B;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58);font-size:16px">e.g. 10</div>
+          </div>
+          <div style="margin-bottom:18px">
+            <span style="display:block;font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.90);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">EARLIEST YOU COULD START</span>
+            <div style="width:100%;box-sizing:border-box;padding:14px;background:#4A3B2B;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58);font-size:16px">dd / mm / yyyy</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column-reverse;gap:10px;margin-top:32px;padding-top:28px;border-top:1px solid rgba(232,201,160,0.20)">
+            <div style="padding:14px 18px;min-height:50px;border-radius:12px;font-size:14.7px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B">Continue <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>
+            <div style="padding:14px 18px;min-height:50px;border-radius:12px;font-size:14.7px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;background:transparent;color:rgba(252,248,243,0.90);border:1.5px solid rgba(232,201,160,0.36)"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ STEP 6 — Safeguarding ══════════════ -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(252,248,243,0.58)">Step 6 · Safeguarding — 12 fields, two referees</div>
+      <div data-screen-label="Current 06 Safeguarding" style="width:390px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;padding:22px 16px 40px">
+        <div style="background:#2A2119;border:1px solid rgba(232,201,160,0.20);border-radius:44px;padding:24px 16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#E8961F,#F7A823,#F0436A)"></div>
+          <div style="margin-bottom:22px">
+            <div style="font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin-bottom:12px">STEP 6 OF 7 · SAFEGUARDING</div>
+            <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:23.2px;font-weight:700;line-height:1.22;margin:0 0 10px">References and safeguarding</h2>
+            <p style="font-size:15.2px;color:rgba(252,248,243,0.74);line-height:1.6;margin:0">We teach children, often one to one. This part is not a formality, and we would rather be plain about it than bury it in a policy.</p>
+          </div>
+
+          <div style="border:1px solid rgba(252,198,71,0.38);background:rgba(252,198,71,0.07);border-radius:14px;padding:16px 18px;margin-bottom:20px;color:rgba(252,248,243,0.90);font-size:14.4px;line-height:1.65">
+            <p style="margin:0 0 10px"><i class="fa-solid fa-shield-heart" aria-hidden="true" style="color:#FCC647;margin-right:6px"></i><strong style="color:#FCF8F3">MAM Academy is committed to safeguarding children.</strong> Every instructor is checked before they teach: we take up both of your references, confirm your identity, and require current safeguarding clearances. An offer always follows those checks — never precedes them.</p>
+            <p style="margin:0">We ask for your referees' contact details here, and nothing else. <strong style="color:#FCF8F3">Please do not upload certificates or enter any document numbers</strong> — we collect that evidence in person, and record only that a check was completed and by whom.</p>
+          </div>
+
+          <sc-for list="{{ referees }}" as="ref" hint-placeholder-count="2">
+            <div style="border:1.5px solid rgba(232,201,160,0.36);border-radius:14px;background:#352A1F;padding:16px;margin-bottom:14px">
+              <div style="font-size:12.2px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#FCC647;margin-bottom:12px">{{ ref.title }}</div>
+              <sc-for list="{{ ref.fields }}" as="rf" hint-placeholder-count="5">
+                <div style="margin-bottom:18px">
+                  <span style="display:block;font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.90);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">{{ rf.label }}</span>
+                  <div style="width:100%;box-sizing:border-box;padding:14px;background:#4A3B2B;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58);font-size:16px;min-height:50px">{{ rf.ph }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+
+          <sc-for list="{{ consents }}" as="cn" hint-placeholder-count="2">
+            <div style="display:flex;gap:13px;align-items:flex-start;padding:16px;background:#4A3B2B;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;margin-bottom:20px">
+              <div style="width:20px;height:20px;flex-shrink:0;border:1.5px solid rgba(232,201,160,0.36);border-radius:4px;margin-top:1px"></div>
+              <span style="font-size:13.8px;color:rgba(252,248,243,0.90);line-height:1.6">{{ cn }} <span style="color:#FCC647">*</span></span>
+            </div>
+          </sc-for>
+
+          <div style="display:flex;flex-direction:column-reverse;gap:10px;margin-top:32px;padding-top:28px;border-top:1px solid rgba(232,201,160,0.20)">
+            <div style="padding:14px 18px;min-height:50px;border-radius:12px;font-size:14.7px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B">Review <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></div>
+            <div style="padding:14px 18px;min-height:50px;border-radius:12px;font-size:14.7px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;background:transparent;color:rgba(252,248,243,0.90);border:1.5px solid rgba(232,201,160,0.36)"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ STEPS 3, 4, 7 ══════════════ -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(252,248,243,0.58)">Steps 3, 4 &amp; 7</div>
+      <div data-screen-label="Current 03 04 07" style="width:390px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;padding:22px 16px 40px;display:flex;flex-direction:column;gap:18px">
+        <sc-for list="{{ restSteps }}" as="s" hint-placeholder-count="3">
+          <div style="background:#2A2119;border:1px solid rgba(232,201,160,0.20);border-radius:44px;padding:24px 16px;position:relative;overflow:hidden">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#E8961F,#F7A823,#F0436A)"></div>
+            <div style="font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin-bottom:12px">{{ s.num }}</div>
+            <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:23.2px;font-weight:700;line-height:1.22;margin:0 0 10px">{{ s.title }}</h2>
+            <p style="font-size:15.2px;color:rgba(252,248,243,0.74);line-height:1.6;margin:0 0 22px">{{ s.desc }}</p>
+            <sc-for list="{{ s.fields }}" as="sf" hint-placeholder-count="3">
+              <div style="margin-bottom:18px">
+                <span style="display:block;font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.90);letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">{{ sf.label }}</span>
+                <div style="width:100%;box-sizing:border-box;padding:14px;background:#4A3B2B;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58);font-size:16px;line-height:1.55;min-height:{{ sf.h }}">{{ sf.ph }}</div>
+              </div>
+            </sc-for>
+            <div style="display:flex;flex-direction:column-reverse;gap:10px;margin-top:32px;padding-top:28px;border-top:1px solid rgba(232,201,160,0.20)">
+              <div style="padding:14px 18px;min-height:50px;border-radius:12px;font-size:14.7px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B">{{ s.cta }}</div>
+              <div style="padding:14px 18px;min-height:50px;border-radius:12px;font-size:14.7px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;background:transparent;color:rgba(252,248,243,0.90);border:1.5px solid rgba(232,201,160,0.36)"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const dotBase = 'width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13.6px;';
+    return {
+      stepDots: [1, 2, 3, 4, 5, 6, 7].map((n) => ({
+        n,
+        dot: n === 1
+          ? dotBase + 'background:linear-gradient(135deg,#E8961F,#F7A823);border:2px solid transparent;color:#1A120B;box-shadow:0 4px 14px rgba(224,138,26,0.45);transform:scale(1.08)'
+          : dotBase + 'background:#352A1F;border:2px solid rgba(232,201,160,0.36);color:rgba(252,248,243,0.74)'
+      })),
+      courses: [
+        { name: 'Rhythm & Pitch Intelligence', core: true },
+        { name: 'Performance Etiquette', core: true },
+        { name: 'Meta Music', core: true },
+        { name: 'Theory of Music', core: true },
+        { name: 'Piano', core: false },
+        { name: 'Voice', core: false },
+        { name: 'Guitar', core: false },
+        { name: 'Drums', core: false },
+        { name: 'Saxophone', core: false },
+        { name: 'Music Production', core: false },
+        { name: 'Songwriting', core: false },
+        { name: 'Conducting', core: false }
+      ],
+      levels: [
+        { name: 'Pre-Certification', grades: 'Grade 1-2' },
+        { name: 'Certificate', grades: 'Grade 3-4' },
+        { name: 'Pre-Diploma', grades: 'Grade 5-6' },
+        { name: 'Diploma', grades: 'Grade 7-8' }
+      ],
+      programmes: ['Crash Program', 'Standard Program', 'Certified Program', 'Grand Certified Program'],
+      days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      availRows: [
+        { label: 'Morning', cells: [1, 2, 3, 4, 5, 6, 7] },
+        { label: 'Afternoon', cells: [1, 2, 3, 4, 5, 6, 7] },
+        { label: 'Evening', cells: [1, 2, 3, 4, 5, 6, 7] }
+      ],
+      aboutFields: [
+        { label: 'FULL NAME *', ph: 'e.g. Adaeze Obi', help: '' },
+        { label: 'EMAIL *', ph: 'you@example.com', help: 'We reply here, and it becomes your portal sign-in if you join.' },
+        { label: 'PHONE', ph: '+234 …', help: '' },
+        { label: 'WHERE ARE YOU BASED?', ph: 'e.g. Yaba, Lagos', help: 'City is enough. It tells us whether onsite teaching is realistic for you.' }
+      ],
+      referees: [1, 2].map((n) => ({
+        title: 'REFEREE ' + n + ' *',
+        fields: [
+          { label: 'NAME *', ph: '' },
+          { label: 'HOW DO THEY KNOW YOU?', ph: n === 1 ? 'e.g. Head of Music, my last school' : '' },
+          { label: 'ORGANISATION', ph: '' },
+          { label: 'EMAIL', ph: '' },
+          { label: 'PHONE', ph: '' }
+        ]
+      })),
+      consents: [
+        'I understand that MAM Academy will carry out safeguarding checks — including taking up both references — before I teach any student, and I consent to those checks.',
+        "I have read and agree to abide by the Academy's child-protection and code-of-conduct policies, and I will report any safeguarding concern to the Designated Safeguarding Officer."
+      ],
+      restSteps: [
+        {
+          num: 'STEP 3 OF 7 · TRAINING',
+          title: 'Your training and credentials',
+          desc: 'Formal qualifications help, and they are not the whole picture — many fine teachers are conservatoire-trained and many are not. Tell us what you have.',
+          cta: 'Continue →',
+          fields: [
+            { label: 'YEARS TEACHING', ph: 'e.g. 6', h: '50px' },
+            { label: 'CV / RÉSUMÉ LINK', ph: 'https://…', h: '50px' },
+            { label: 'QUALIFICATIONS, GRADES AND CERTIFICATIONS', ph: 'e.g. BMus (University of Lagos); Trinity ATCL Piano Recital; ABRSM Grade 8 Theory; 2 years Orff certification…', h: '110px' }
+          ]
+        },
+        {
+          num: 'STEP 4 OF 7 · EXPERIENCE',
+          title: 'Your teaching, in your words',
+          desc: 'The panel reads this properly. Write it the way you would talk about your work.',
+          cta: 'Continue →',
+          fields: [
+            { label: 'PROFESSIONAL BIOGRAPHY *', ph: 'Your training, where you have taught, the students you have taken through exams or performances, anything you have recorded or produced…', h: '150px' },
+            { label: 'HOW DO YOU TEACH?', ph: 'How you start with a nervous beginner, how you handle a student who has not practised, what you think a good lesson feels like…', h: '110px' },
+            { label: 'LINKS — PORTFOLIO, RECORDINGS, SOCIALS', ph: 'Separate several with spaces', h: '50px' }
+          ]
+        },
+        {
+          num: 'STEP 7 OF 7 · REVIEW',
+          title: 'Check it over',
+          desc: 'Every line is editable — use the step numbers above, or the links here, and nothing you have typed is lost.',
+          cta: 'Submit application',
+          fields: [
+            { label: 'COURSES & LEVELS', ph: '—', h: '50px' },
+            { label: 'PROGRAMMES', ph: '—', h: '50px' },
+            { label: 'TEACHING MODES', ph: '—', h: '50px' }
+          ]
+        }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

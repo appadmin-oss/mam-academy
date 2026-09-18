@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&amp;family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<style>
+  html, body { margin: 0; background: #14100B; }
+  a { color: #FCC647; }
+  a:hover { color: #FDE9A8; }
+</style>
+</helmet>
+
+<div style="font-family:'Inter',-apple-system,sans-serif;color:#FCF8F3;padding:40px;display:flex;flex-direction:column;gap:32px">
+
+  <div style="display:flex;flex-direction:column;gap:10px;max-width:880px">
+    <div style="font-size:11px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#FCC647">v2 · quiet</div>
+    <h1 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:34px;font-weight:700;line-height:1.15;margin:0">One question per screen. One surface. One heading.</h1>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:4px">
+      <sc-for list="{{ cuts }}" as="c" hint-placeholder-count="6">
+        <div style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.55;color:rgba(252,248,243,0.74)">
+          <i class="fa-solid fa-minus" aria-hidden="true" style="color:#F0436A;font-size:11px;margin-top:5px;flex-shrink:0"></i>
+          <span><strong style="color:#FCF8F3;font-weight:650">{{ c.k }}</strong> {{ c.v }}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
+
+    <!-- ════════ 1 · Courses ════════ -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(252,248,243,0.58)">1 · Courses — one list, hairlines, no boxes</div>
+      <div data-screen-label="Quiet 01 Courses" style="width:390px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 14px">
+          <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);letter-spacing:0.02em">1 of 4</span>
+          <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px">Save &amp; exit</span>
+        </div>
+        <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:25%;background:#FCC647"></span></div>
+
+        <div style="padding:26px 20px 100px;display:flex;flex-direction:column;gap:22px">
+          <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:29px;font-weight:700;line-height:1.12;margin:0">What do you teach?</h2>
+
+          <div style="display:flex;flex-direction:column">
+            <sc-for list="{{ rows }}" as="r" hint-placeholder-count="12">
+              <div style="{{ r.wrap }}">
+                <div style="display:flex;align-items:center;gap:14px;min-height:58px">
+                  <span style="{{ r.mark }}"><sc-if value="{{ r.on }}" hint-placeholder-val="{{ true }}"><i class="fa-solid fa-check" aria-hidden="true" style="font-size:11px"></i></sc-if></span>
+                  <span style="{{ r.name }}">{{ r.label }}</span>
+                  <sc-if value="{{ r.core }}" hint-placeholder-val="{{ true }}">
+                    <span style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(252,248,243,0.58);flex-shrink:0">Core</span>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ r.on }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;align-items:center;gap:8px;padding:0 0 16px 38px">
+                    <span style="font-size:12.5px;color:rgba(252,248,243,0.58);flex-shrink:0">up to grade</span>
+                    <sc-for list="{{ r.grades }}" as="g" hint-placeholder-count="4">
+                      <span style="{{ g.style }}">{{ g.label }}</span>
+                    </sc-for>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 20px 20px;background:#1A120B;border-top:1px solid rgba(232,201,160,0.16)">
+          <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.74);white-space:nowrap">2 chosen</span>
+          <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 26px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Next <i class="fa-solid fa-arrow-right" aria-hidden="true" style="font-size:12px"></i></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ 2 · You ════════ -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(252,248,243,0.58)">2 · You — four fields, one helper line</div>
+      <div data-screen-label="Quiet 02 You" style="width:390px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 14px">
+          <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px"><i class="fa-solid fa-arrow-left" aria-hidden="true" style="font-size:12px"></i> 2 of 4</span>
+          <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px">Save &amp; exit</span>
+        </div>
+        <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:50%;background:#FCC647"></span></div>
+
+        <div style="padding:26px 20px 100px;display:flex;flex-direction:column;gap:22px">
+          <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:29px;font-weight:700;line-height:1.12;margin:0">How do we reach you?</h2>
+
+          <div style="display:flex;flex-direction:column;gap:18px">
+            <sc-for list="{{ youFields }}" as="f" hint-placeholder-count="4">
+              <label style="display:flex;flex-direction:column;gap:8px">
+                <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.90)">{{ f.label }}</span>
+                <span style="box-sizing:border-box;padding:0 2px;border:0;border-bottom:1.5px solid rgba(232,201,160,0.36);color:rgba(252,248,243,0.58);font-size:16px;min-height:48px;display:flex;align-items:center">{{ f.ph }}</span>
+                <sc-if value="{{ f.help }}" hint-placeholder-val="{{ true }}">
+                  <span style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.45">{{ f.help }}</span>
+                </sc-if>
+              </label>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.90)">You can teach</span>
+            <div style="display:flex;gap:8px">
+              <span style="flex:1;min-height:48px;display:flex;align-items:center;justify-content:center;border:1.5px solid #FCC647;border-radius:10px;background:rgba(252,198,71,0.12);font-size:14.5px;font-weight:650">Onsite</span>
+              <span style="flex:1;min-height:48px;display:flex;align-items:center;justify-content:center;border:1.5px solid rgba(232,201,160,0.30);border-radius:10px;font-size:14.5px;font-weight:650;color:rgba(252,248,243,0.74)">Online</span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:14px;padding-top:18px;border-top:1px solid rgba(232,201,160,0.16)">
+            <span style="width:48px;height:48px;border-radius:50%;border:1.5px solid rgba(232,201,160,0.36);display:flex;align-items:center;justify-content:center;color:rgba(252,248,243,0.74);flex-shrink:0"><i class="fa-solid fa-camera" aria-hidden="true"></i></span>
+            <span style="font-size:14px;font-weight:650;color:rgba(252,248,243,0.90)">Add a headshot</span>
+            <span style="font-size:12.5px;color:rgba(252,248,243,0.58);margin-left:auto;flex-shrink:0">Optional</span>
+          </div>
+        </div>
+
+        <div style="position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:flex-end;padding:14px 20px 20px;background:#1A120B;border-top:1px solid rgba(232,201,160,0.16)">
+          <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 26px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Next <i class="fa-solid fa-arrow-right" aria-hidden="true" style="font-size:12px"></i></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ 3 · Track record ════════ -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(252,248,243,0.58)">3 · Track record — week reads as one block</div>
+      <div data-screen-label="Quiet 03 Track record" style="width:390px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 14px">
+          <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px"><i class="fa-solid fa-arrow-left" aria-hidden="true" style="font-size:12px"></i> 3 of 4</span>
+          <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px">Save &amp; exit</span>
+        </div>
+        <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:75%;background:#FCC647"></span></div>
+
+        <div style="padding:26px 20px 100px;display:flex;flex-direction:column;gap:22px">
+          <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:29px;font-weight:700;line-height:1.12;margin:0">Tell us about your teaching</h2>
+
+          <label style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.90)">Your biography</span>
+            <span style="box-sizing:border-box;padding:14px 0 0;border:0;border-bottom:1.5px solid rgba(232,201,160,0.36);color:rgba(252,248,243,0.58);font-size:16px;line-height:1.55;min-height:120px;display:block">Where you trained, where you have taught, students you have taken through exams…</span>
+            <span style="font-size:12.5px;color:rgba(252,248,243,0.58)">Becomes your faculty profile.</span>
+          </label>
+
+          <div style="display:flex;gap:20px">
+            <label style="flex:1;display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.90)">Years teaching</span>
+              <span style="border-bottom:1.5px solid rgba(232,201,160,0.36);color:#FCF8F3;font-size:16px;min-height:48px;display:flex;align-items:center">6</span>
+            </label>
+            <label style="flex:1;display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.90)">Hours a week</span>
+              <span style="border-bottom:1.5px solid rgba(232,201,160,0.36);color:#FCF8F3;font-size:16px;min-height:48px;display:flex;align-items:center">10</span>
+            </label>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+              <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.90)">When could you teach?</span>
+              <span style="font-size:12.5px;color:rgba(252,248,243,0.58)">Lagos time</span>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ weekRows }}" as="r" hint-placeholder-count="7">
+                <div style="display:grid;grid-template-columns:46px 1fr 1fr 1fr;gap:8px;align-items:center;min-height:52px;border-bottom:1px solid rgba(232,201,160,0.16)">
+                  <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.74)">{{ r.day }}</span>
+                  <sc-for list="{{ r.parts }}" as="pt" hint-placeholder-count="3">
+                    <span style="{{ pt.style }}">{{ pt.label }}</span>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:flex-end;padding:14px 20px 20px;background:#1A120B;border-top:1px solid rgba(232,201,160,0.16)">
+          <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 26px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Next <i class="fa-solid fa-arrow-right" aria-hidden="true" style="font-size:12px"></i></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ 4 · References ════════ -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(252,248,243,0.58)">4 · References — the gold panel is gone</div>
+      <div data-screen-label="Quiet 04 References" style="width:390px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 14px">
+          <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px"><i class="fa-solid fa-arrow-left" aria-hidden="true" style="font-size:12px"></i> 4 of 4</span>
+          <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px">Save &amp; exit</span>
+        </div>
+        <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:100%;background:#FCC647"></span></div>
+
+        <div style="padding:26px 20px 100px;display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:29px;font-weight:700;line-height:1.12;margin:0">Two people we can call</h2>
+            <p style="font-size:14.5px;color:rgba(252,248,243,0.74);line-height:1.55;margin:0">Both references are taken up before any offer. Contacts only — never certificates or document numbers. <span style="color:#FCC647;font-weight:650;white-space:nowrap">What we check</span></p>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:18px">
+            <sc-for list="{{ refFields }}" as="rf" hint-placeholder-count="3">
+              <label style="display:flex;flex-direction:column;gap:8px">
+                <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.90)">{{ rf.label }}</span>
+                <span style="box-sizing:border-box;padding:0 2px;border-bottom:1.5px solid rgba(232,201,160,0.36);color:rgba(252,248,243,0.58);font-size:16px;min-height:48px;display:flex;align-items:center">{{ rf.ph }}</span>
+              </label>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:14px;min-height:56px;border-top:1px solid rgba(232,201,160,0.16);border-bottom:1px solid rgba(232,201,160,0.16)">
+            <i class="fa-solid fa-plus" aria-hidden="true" style="color:#FCC647;font-size:13px;width:20px;text-align:center"></i>
+            <span style="font-size:14.5px;font-weight:650;color:#FCC647">Add second referee</span>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <sc-for list="{{ consents }}" as="cn" hint-placeholder-count="2">
+              <label style="display:flex;gap:14px;align-items:flex-start">
+                <span style="width:24px;height:24px;flex-shrink:0;border:1.5px solid rgba(232,201,160,0.36);border-radius:6px;margin-top:2px"></span>
+                <span style="font-size:14px;color:rgba(252,248,243,0.90);line-height:1.6">{{ cn }}</span>
+              </label>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:flex-end;padding:14px 20px 20px;background:#1A120B;border-top:1px solid rgba(232,201,160,0.16)">
+          <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 26px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Submit <i class="fa-solid fa-paper-plane" aria-hidden="true" style="font-size:12px"></i></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════════ Scaled up ════════ -->
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:11px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:rgba(252,248,243,0.58)">Scaled up · 1280px — the form stays one column; the extra width buys a running summary</div>
+    <div data-screen-label="Quiet desktop" style="width:1280px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:20px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 48px 18px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <img src="mam-academy-logo.svg" alt="" style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(224,138,26,0.4)">
+          <span style="font-size:13.5px;font-weight:700;color:rgba(252,248,243,0.74)">Faculty application · 1 of 4</span>
+        </div>
+        <span style="font-size:13.5px;font-weight:700;color:rgba(252,248,243,0.74)">Save &amp; exit</span>
+      </div>
+      <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:25%;background:#FCC647"></span></div>
+
+      <div style="padding:44px 48px 52px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:0 72px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:30px;min-width:0">
+        <h2 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:40px;font-weight:700;line-height:1.08;margin:0">What do you teach?</h2>
+
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="12">
+            <div style="{{ r.wrap }}">
+              <div style="display:flex;align-items:center;gap:14px;min-height:56px">
+                <span style="{{ r.mark }}"><sc-if value="{{ r.on }}" hint-placeholder-val="{{ true }}"><i class="fa-solid fa-check" aria-hidden="true" style="font-size:11px"></i></sc-if></span>
+                <span style="{{ r.name }}">{{ r.label }}</span>
+                <sc-if value="{{ r.core }}" hint-placeholder-val="{{ true }}">
+                  <span style="font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(252,248,243,0.58);flex-shrink:0">Core</span>
+                </sc-if>
+              </div>
+              <sc-if value="{{ r.on }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;align-items:center;gap:8px;padding:0 0 16px 38px">
+                  <span style="font-size:12.5px;color:rgba(252,248,243,0.58);flex-shrink:0">up to</span>
+                  <sc-for list="{{ r.grades }}" as="g" hint-placeholder-count="4">
+                    <span style="{{ g.style }}">{{ g.label }}</span>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:20px;padding-top:26px;border-top:1px solid rgba(232,201,160,0.16)">
+          <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 30px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Next <i class="fa-solid fa-arrow-right" aria-hidden="true" style="font-size:12px"></i></span>
+          <span style="font-size:13.5px;color:rgba(252,248,243,0.58)">2 chosen · draft saved</span>
+        </div>
+        </div>
+
+        <div style="align-self:stretch;display:flex;flex-direction:column;gap:28px;padding-left:40px;border-left:1px solid rgba(232,201,160,0.16)">
+          <div style="display:flex;flex-direction:column">
+            <sc-for list="{{ deskSteps }}" as="s" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:12px;min-height:40px">
+                <span style="{{ s.dot }}"></span>
+                <span style="{{ s.label }}">{{ s.name }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:14px;padding-top:24px;border-top:1px solid rgba(232,201,160,0.16)">
+            <span style="font-size:12.5px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(252,248,243,0.58)">So far</span>
+            <sc-for list="{{ chosenSummary }}" as="cs" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <span style="font-size:14.5px;font-weight:650;color:#FCF8F3;line-height:1.3">{{ cs.name }}</span>
+                <span style="font-size:13px;color:rgba(252,248,243,0.58)">{{ cs.detail }}</span>
+              </div>
+            </sc-for>
+            <p style="font-size:13px;color:rgba(252,248,243,0.58);line-height:1.55;margin:0">Highest level is enough — everything below it is assumed.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  grade(on) {
+    return 'flex:1;min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:12.5px;font-weight:650;'
+      + (on
+        ? 'border:1.5px solid #FCC647;background:rgba(252,198,71,0.16);color:#FCF8F3'
+        : 'border:1.5px solid rgba(232,201,160,0.24);color:rgba(252,248,243,0.58)');
+  }
+  slot(on) {
+    return 'min-height:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:12.5px;font-weight:650;'
+      + (on
+        ? 'background:rgba(252,198,71,0.22);border:1.5px solid #FCC647;color:#FCF8F3'
+        : 'border:1.5px solid rgba(232,201,160,0.20);color:rgba(252,248,243,0.58)');
+  }
+  renderVals() {
+    const grades = ['1-2', '3-4', '5-6', '7-8'];
+    const row = (label, core, on, upTo) => ({
+      label, core, on,
+      wrap: 'border-bottom:1px solid rgba(232,201,160,0.16)',
+      mark: 'width:24px;height:24px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;'
+        + (on ? 'background:#FCC647;color:#1A120B' : 'border:1.5px solid rgba(232,201,160,0.36)'),
+      name: 'flex:1;min-width:0;font-size:15.5px;line-height:1.3;'
+        + (on ? 'font-weight:700;color:#FCF8F3' : 'font-weight:500;color:rgba(252,248,243,0.90)'),
+      grades: grades.map((g, i) => ({ label: g, style: this.grade(on && i === upTo) }))
+    });
+    const week = [
+      ['Mon', [0, 0, 1]], ['Tue', [0, 1, 1]], ['Wed', [0, 0, 1]],
+      ['Thu', [0, 1, 1]], ['Fri', [0, 0, 1]], ['Sat', [1, 1, 0]], ['Sun', [0, 0, 0]]
+    ];
+    const partNames = ['Morning', 'Afternoon', 'Evening'];
+    return {
+      cuts: [
+        { k: 'Step position stated once,', v: 'in the bar — the eyebrow and the sticky-bar duplicate are gone.' },
+        { k: '12 bordered tiles become one list,', v: 'separated by hairlines. Twelve rectangles read as one object.' },
+        { k: 'Two section headings dropped —', v: '“Core” sits on the four rows that are core, where it belongs.' },
+        { k: 'The gold levels panel is gone.', v: 'Levels open inline under the course you picked: “up to 3-4”.' },
+        { k: 'Filled input boxes become baselines,', v: 'so a screen of fields is a page of text, not a stack of slabs.' },
+        { k: 'Every subtitle that repeated its title', v: 'and every optional helper line is cut. One surface, one accent.' }
+      ],
+      rows: [
+        row('Rhythm & Pitch Intelligence', true, true, 1),
+        row('Performance Etiquette', true, false, 0),
+        row('Meta Music', true, false, 0),
+        row('Theory of Music', true, false, 0),
+        row('Piano', false, true, 2),
+        row('Voice', false, false, 0),
+        row('Guitar', false, false, 0),
+        row('Drums', false, false, 0),
+        row('Saxophone', false, false, 0),
+        row('Music Production', false, false, 0),
+        row('Songwriting', false, false, 0),
+        row('Conducting', false, false, 0)
+      ],
+      youFields: [
+        { label: 'Full name', ph: 'Adaeze Obi', help: '' },
+        { label: 'Email', ph: 'you@example.com', help: 'Becomes your portal sign-in if you join.' },
+        { label: 'Phone', ph: '+234 …', help: '' },
+        { label: 'City', ph: 'Yaba, Lagos', help: '' }
+      ],
+      weekRows: week.map(([day, parts]) => ({
+        day,
+        parts: parts.map((on, i) => ({ label: partNames[i], style: this.slot(!!on) }))
+      })),
+      refFields: [
+        { label: 'Name', ph: 'Mr Tunde Bello' },
+        { label: 'How do they know you?', ph: 'Head of Music, my last school' },
+        { label: 'Email or phone', ph: 'tunde@school.ng' }
+      ],
+      deskSteps: ['Courses', 'You', 'Track record', 'References'].map((name, i) => ({
+        name,
+        dot: 'width:7px;height:7px;border-radius:50%;flex-shrink:0;'
+          + (i === 0 ? 'background:#FCC647' : 'background:rgba(232,201,160,0.36)'),
+        label: 'font-size:14px;'
+          + (i === 0 ? 'font-weight:700;color:#FCF8F3' : 'font-weight:500;color:rgba(252,248,243,0.58)')
+      })),
+      chosenSummary: [
+        { name: 'Rhythm & Pitch Intelligence', detail: 'up to Grade 3-4 · 6 years' },
+        { name: 'Piano', detail: 'up to Grade 5-6' }
+      ],
+      consents: [
+        'I consent to safeguarding checks, including both references being taken up, before I teach any student.',
+        "I agree to the Academy's child-protection and code-of-conduct policies, and will report any concern to the Designated Safeguarding Officer."
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

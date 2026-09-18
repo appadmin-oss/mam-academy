@@ -559,109 +559,426 @@ body.mam-advisor-open #applyMobileBar{display:none!important}
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
- * Instructor application — the teaching matrix, availability and referees.
+ * Instructor application v2 — the "Quiet" four-step rework.
+ *   docs/design/2026-09-instructor-application/ (handoff, 2026-09-18)
  *
- * These live beside the student wizard's own components on purpose: both forms
- * are the same wizard, so a restyle of `.step` / `.field` / `.btn-step` reaches
- * both and they cannot drift into two house styles.
+ * Seven steps became four, twelve bordered tiles became one hairline-separated
+ * list, and the filled input boxes became baselines. The point is not economy
+ * for its own sake: MEASURED on the old page, the announce bar (≈37px) + the
+ * 80px nav + a 44px card radius + a 3px gradient rule pushed the first question
+ * below the fold on a 390px phone, and the availability grid
+ * (`84px + 7 × minmax(52px,1fr)`, `min-width:460px`) scrolled sideways inside a
+ * 358px card on every phone the academy's faculty funnel actually sees.
  *
- * Two contractual floors carried over from the guardian redesign, where they
- * were measured rather than assumed: interactive targets are ≥44px on touch,
- * and NO running text is below 12px. Several of the frame's own values broke
- * its stated accessibility rule; these do not repeat that.
+ * These rules live beside the student wizard's on purpose — both forms are the
+ * same wizard, so anything general belongs in `.step` / `.field` / `.btn-step`
+ * and only instructor-specific geometry belongs in `.fac-*`. That is why this
+ * rework did not fork the file.
+ *
+ * TWO CONTRACTUAL FLOORS, carried from the guardian redesign and restated by
+ * this handoff, honoured throughout:
+ *   · interactive targets ≥44px on touch (desktop may drop to 38px behind
+ *     `(min-width:900px) and (pointer:fine)`, which is how this file already
+ *     did it);
+ *   · no running text below 12px. At a 16px root `0.74rem` computes to
+ *     11.84px, under the floor — hence px here rather than rem for the
+ *     handoff's measured 12px / 12.5px / 13px meta sizes.
+ *
+ * ⚠️ The app bar's two links carry their 44px as padding CANCELLED BY NEGATIVE
+ * MARGIN. The handoff specifies both the bar's `16px 20px 14px` and the 44px
+ * floor, and those two cannot both be true of a 13px line in normal flow — the
+ * bar would grow to 74px and put the first question back below the fold, which
+ * is the thing this redesign exists to fix. The target overflows into the bar's
+ * own padding instead; nothing else lives there.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-.fac-matrix { display: grid; gap: 14px; }
-
-.fac-subject {
-  border: 1.5px solid var(--border-strong);
-  border-radius: 14px;
-  background: var(--bg-raised);
-  padding: 14px 16px;
-  transition: border-color .18s ease, background .18s ease;
-}
-.fac-subject.is-chosen { border-color: var(--gold-bright); background: rgba(252, 198, 71, .06); }
-
-.fac-subject-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-.fac-subject-name { font-weight: 700; color: var(--text); font-size: 0.98rem; }
-.fac-subject-kind {
-  font-size: 0.72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--gold-bright); border: 1px solid rgba(252, 198, 71, .4);
-  border-radius: 999px; padding: 2px 8px;
+/* Design tokens. Everything traceable to main.css `:root` uses the variable;
+   the four values the handoff's own token table leaves unnamed ("—") are named
+   here, once, so no literal appears in a rule below. */
+body[data-fac-app] {
+  --fac-line: rgba(232, 201, 160, 0.16);    /* hairline: dividers, progress track, rules */
+  --fac-line-chip: rgba(232, 201, 160, 0.24);
+  --fac-line-slot: rgba(232, 201, 160, 0.20);
+  --fac-line-mode: rgba(232, 201, 160, 0.30);
+  --fac-ink: #1A120B;                       /* ink on gold; the sticky bar's ground */
+  --fac-on-mode: rgba(252, 198, 71, 0.12);
+  --fac-on-grade: rgba(252, 198, 71, 0.16);
+  --fac-on-slot: rgba(252, 198, 71, 0.22);
+  --fac-bar-h: 100px;                        /* the design's own bottom clearance for the fixed bar */
 }
 
-/* A level is a checkbox that looks like a chip. It stays a real <input> so the
-   keyboard, the screen reader and the form all behave without help. */
-.fac-levels { display: flex; flex-wrap: wrap; gap: 8px; }
-.fac-level { position: relative; }
-.fac-level input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
-.fac-level span {
-  /* Column, not row: the level name and its Trinity grade are two lines. As a
-     row the <small> lands beside the name ("Pre-CertificationGrade 1-2"). */
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 44px; padding: 8px 14px;
-  border: 1.5px solid var(--border-strong); border-radius: 999px;
-  background: var(--bg-surface); color: var(--text-soft);
-  font-size: 0.86rem; font-weight: 600; line-height: 1.25; text-align: center;
-  transition: border-color .15s ease, color .15s ease, background .15s ease;
+/* The form owns the viewport. The site nav and the announcement bar are the
+   two largest pieces of the chrome the handoff removes; the header partial
+   still renders because it also carries the sitewide JSON-LD entity, which is
+   not chrome and must not be dropped from a real page. */
+body[data-fac-app] .announce,
+body[data-fac-app] #navbar { display: none; }
+
+/* The fixed bar would otherwise sit over the last line of the footer. */
+body[data-fac-app] .apply-shell { max-width: none; margin: 0; padding: 0 0 calc(var(--fac-bar-h) + var(--fac-dock-h, 0px)); }
+body[data-fac-app] footer { padding-bottom: calc(var(--fac-bar-h) + var(--fac-dock-h, 0px) + env(safe-area-inset-bottom)); }
+
+/* ── App bar ─────────────────────────────────────────────────────────────── */
+
+.fac-appbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 20px 14px; max-width: 1180px; margin: 0 auto;
 }
-.fac-level input:checked + span { border-color: var(--gold-bright); color: var(--text); background: rgba(252, 198, 71, .14); }
-.fac-level input:focus-visible + span { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, .28); }
-.fac-level small { font-size: 0.72rem; opacity: .75; font-weight: 500; letter-spacing: .02em; }
+.fac-appbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fac-appbar-logo { display: none; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border-gold); box-shadow: var(--glow-gold); flex-shrink: 0; }
+.fac-appbar-title { display: none; font-size: 13.5px; font-weight: 700; color: var(--text-muted); }
+.fac-appbar-pos { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; color: var(--text-muted); }
 
-.fac-years { margin-top: 10px; max-width: 230px; }
-
-/* Availability: seven days × three parts. A grid of real checkboxes — the
-   header row is the only text allowed under 0.8rem, and it is a LABEL, not
-   running text. */
-.fac-avail { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.fac-avail-grid { display: grid; grid-template-columns: 84px repeat(7, minmax(52px, 1fr)); gap: 6px; min-width: 460px; }
-.fac-avail-head { font-size: 0.76rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); text-align: center; padding-bottom: 2px; align-self: end; }
-.fac-avail-row-label { font-size: 0.82rem; font-weight: 600; color: var(--text-soft); display: flex; align-items: center; }
-.fac-avail-cell { position: relative; }
-.fac-avail-cell input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
-.fac-avail-cell span {
-  display: block; min-height: 44px; border-radius: 10px;
-  border: 1.5px solid var(--border-strong); background: var(--bg-surface);
-  transition: background .15s ease, border-color .15s ease;
+.fac-back, .fac-exit {
+  font-size: 13px; font-weight: 700; color: var(--text-muted);
+  background: none; border: 0; font-family: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none;
+  /* 44px of target inside a 48px bar — see the note at the head of this block.
+     min-height is stated as well as the padding because MEASURED with Font
+     Awesome blocked the back control collapsed to 16×28: its only content is
+     an icon, and an icon that does not load has no box. A control may not
+     depend on an icon even for its SIZE. */
+  box-sizing: border-box; min-height: 44px;
+  padding: 13px 8px; margin: -13px -8px;
 }
-.fac-avail-cell input:checked + span { background: rgba(252, 198, 71, .22); border-color: var(--gold-bright); }
-.fac-avail-cell input:focus-visible + span { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, .28); }
+.fac-back { min-width: 44px; margin-right: -12px; }
+.fac-back i { font-size: 12px; }
+.fac-back:hover, .fac-exit:hover { color: var(--gold-bright); }
+.fac-back:focus-visible, .fac-exit:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, 0.32); border-radius: 8px; }
+.fac-back[hidden] { display: none; }
 
-.fac-referee { border: 1.5px solid var(--border-strong); border-radius: 14px; background: var(--bg-raised); padding: 16px; margin-bottom: 14px; }
-.fac-referee-head { font-size: 0.76rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-bright); margin-bottom: 12px; }
+/* The student-wizard Apply pill is removed by main.js on this slug. This is the
+   belt to that braces: a stale cached main.js must not leave a floating CTA for
+   the STUDENT form sitting on top of the faculty form's Submit button. */
+body[data-fac-app] #floatingEnroll { display: none; }
 
-/* The safeguarding statement. Deliberately prominent: safer-recruitment
-   guidance is explicit that the commitment and the fact of pre-employment
-   checks belong in the advert itself, not in a policy nobody opens. */
-.fac-safenote {
-  border: 1px solid rgba(252, 198, 71, .38); background: rgba(252, 198, 71, .07);
-  border-radius: 14px; padding: 16px 18px; margin-bottom: 20px;
-  color: var(--text-soft); font-size: 0.9rem; line-height: 1.65;
+/* ⚠️ `display:flex` here outranks the UA's `[hidden]{display:none}` (author
+   beats user-agent), so each of these would RENDER while carrying the
+   attribute. The same trap this file already documents at .resume-banner and
+   .apply-stepper, where a first-time visitor was told "We saved your draft on
+   this device" over an empty form. Every new `display:` element that is also
+   toggled with `hidden` needs its own line here. */
+.fac-appbar[hidden], .fac-prog[hidden], .fac-sofar[hidden] { display: none; }
+
+.fac-prog { height: 2px; background: var(--fac-line); display: flex; max-width: 1180px; margin: 0 auto; }
+.fac-prog-fill { background: var(--gold-bright); transition: width 0.3s var(--ease); }
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+
+.fac-layout { padding: 26px 20px 0; }
+.fac-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.fac-aside { display: none; }
+
+/* One heading per screen, no eyebrow, no subtitle. */
+.fac-h { font-family: var(--font-serif); font-size: 29px; font-weight: 700; line-height: 1.12; margin: 0; }
+.fac-h:focus { outline: none; }
+.fac-lede { display: none; font-size: 14.5px; line-height: 1.55; color: var(--text-muted); margin: 0; }
+.fac-note { font-size: 14.5px; line-height: 1.55; color: var(--text-muted); margin: 0; }
+
+.fac-block { display: flex; flex-direction: column; gap: 12px; }
+.fac-block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.fac-legend { font-size: 13px; font-weight: 650; color: var(--text-soft); }
+.fac-meta { font-size: 12.5px; color: var(--text-faint); }
+
+/* ── Step 1 · the course list ────────────────────────────────────────────── */
+
+.fac-list { display: flex; flex-direction: column; }
+.fac-row { border-bottom: 1px solid var(--fac-line); }
+
+/* The ROW is the target (58px); the 24px mark inside it is decoration. The
+   <label> wraps its own control, so it names it — a sibling <label> with
+   neither `for` nor a wrapped control is a caption that associates with
+   nothing, the idiom that accounted for 98 unnamed controls across this repo. */
+.fac-row-head { display: flex; align-items: center; gap: 14px; min-height: 58px; cursor: pointer; position: relative; }
+.fac-row-cb { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.fac-mark {
+  width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--border-strong); color: var(--fac-ink);
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.fac-safenote p { margin: 0 0 10px; }
-.fac-safenote p:last-child { margin-bottom: 0; }
-.fac-safenote strong { color: var(--text); }
-.fac-safenote i { color: var(--gold-bright); margin-right: 6px; }
+.fac-mark i { font-size: 11px; opacity: 0; }
+.fac-row-name { flex: 1; min-width: 0; font-size: 15.5px; line-height: 1.3; font-weight: 500; color: var(--text-soft); }
+.fac-row-core { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); flex-shrink: 0; }
 
-.fac-gate { padding: 40px 26px; text-align: center; color: var(--text-soft); line-height: 1.7; font-size: 0.95rem; }
+.fac-row-cb:checked ~ .fac-mark { background: var(--gold-bright); border-color: var(--gold-bright); }
+.fac-row-cb:checked ~ .fac-mark i { opacity: 1; }
+.fac-row-cb:checked ~ .fac-row-name { font-weight: 700; color: var(--text); }
+.fac-row-cb:focus-visible ~ .fac-mark { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, 0.28); }
+
+/* The level control exists only under a chosen course. The 38px indent aligns
+   it past the mark (24px + the 14px gap). */
+.fac-grades { display: flex; align-items: center; gap: 8px; padding: 0 0 16px 38px; }
+.fac-grades[hidden] { display: none; }
+.fac-grades-label { font-size: 12.5px; color: var(--text-faint); flex-shrink: 0; }
+.fac-grade { flex: 1; min-width: 0; position: relative; display: flex; }
+.fac-grade input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.fac-grade span {
+  flex: 1; min-width: 0; min-height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--fac-line-chip); border-radius: 8px;
+  color: var(--text-faint); font-size: 12.5px; font-weight: 650;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.fac-grade input:checked + span { border-color: var(--gold-bright); background: var(--fac-on-grade); color: var(--text); }
+.fac-grade input:focus-visible + span { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, 0.28); }
+
+/* ── Baseline fields ─────────────────────────────────────────────────────── */
+
+.fac-fields { display: flex; flex-direction: column; gap: 18px; }
+.fac-field { display: flex; flex-direction: column; gap: 8px; }
+.fac-field-label { font-size: 13px; font-weight: 650; color: var(--text-soft); }
+.fac-field-label .req { color: var(--gold-bright); }
+.fac-help { font-size: 12.5px; color: var(--text-faint); line-height: 1.45; }
+.fac-pair { display: flex; gap: 20px; }
+.fac-pair > * { flex: 1; min-width: 0; }
+
+/* A baseline, not a filled box: a screen of fields reads as a page of text.
+   16px is MANDATORY — iOS zooms the viewport on focus at anything below it. */
+.fac-input, .fac-textarea {
+  width: 100%; box-sizing: border-box; appearance: none; -webkit-appearance: none;
+  background: none; border: 0; border-bottom: 1.5px solid var(--border-strong);
+  border-radius: 0; padding: 0 2px; min-height: 48px;
+  color: var(--text); font-family: inherit; font-size: 16px;
+  transition: border-color 0.15s ease;
+}
+.fac-textarea { padding: 14px 0 0; min-height: 120px; line-height: 1.55; resize: vertical; display: block; }
+.fac-input::placeholder, .fac-textarea::placeholder { color: var(--text-faint); }
+.fac-input:focus, .fac-textarea:focus { outline: none; border-bottom-color: var(--gold-bright); }
+.fac-input[aria-invalid="true"], .fac-textarea[aria-invalid="true"] { border-bottom-color: var(--red); }
+.fac-input:read-only { color: var(--text-faint); }
+/* Safari renders a date input's own box unless the appearance is cleared here too. */
+.fac-input[type="date"] { color-scheme: dark; }
+
+/* ── Two-option toggles (teaching mode) ──────────────────────────────────── */
+
+.fac-opts { display: flex; gap: 8px; flex-wrap: wrap; }
+.fac-opt { flex: 1; min-width: 0; position: relative; display: flex; }
+.fac-opt input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.fac-opt span {
+  flex: 1; min-height: 48px; display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--fac-line-mode); border-radius: 10px;
+  color: var(--text-muted); font-size: 14.5px; font-weight: 650; text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.fac-opt input:checked + span { border-color: var(--gold-bright); background: var(--fac-on-mode); color: var(--text); }
+.fac-opt input:focus-visible + span { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, 0.28); }
+
+/* ── Headshot row ────────────────────────────────────────────────────────── */
+
+/* Replaces a 220px dashed dropzone — a third of a 390px viewport spent on an
+   optional field. The uploader itself is untouched: `MAM_HEADSHOT.mount()` is
+   still called once, on the same element, at the same point in the lifecycle;
+   only its container's visibility is deferred. That chain has four independent
+   failure points and all four have failed in production. */
+.fac-shot { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; border-top: 1px solid var(--fac-line); }
+.fac-shot-toggle {
+  display: flex; align-items: center; gap: 14px; width: 100%;
+  background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer; text-align: left;
+}
+.fac-shot-icon {
+  width: 48px; height: 48px; flex-shrink: 0; border-radius: 50%;
+  border: 1.5px solid var(--border-strong); color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  background-size: cover; background-position: center;
+}
+.fac-shot-label { font-size: 14px; font-weight: 650; color: var(--text-soft); }
+.fac-shot-state { font-size: 12.5px; color: var(--text-faint); margin-left: auto; flex-shrink: 0; }
+.fac-shot-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, 0.32); border-radius: 10px; }
+.fac-shot-panel { display: flex; flex-direction: column; gap: 14px; }
+.fac-shot-panel[hidden] { display: none; }
+
+/* ── The week ────────────────────────────────────────────────────────────── */
+
+/* One row per day. The old grid was `84px + 7 × minmax(52px,1fr)` at a
+   460px minimum inside a 358px card, so it scrolled sideways on every phone.
+   The state key is unchanged (`mon:morning`), so drafts and the API payload
+   from the old form still load. */
+.fac-week { display: flex; flex-direction: column; }
+.fac-day { display: grid; grid-template-columns: 46px 1fr 1fr 1fr; gap: 8px; align-items: center; min-height: 52px; border-bottom: 1px solid var(--fac-line); }
+.fac-day-name { font-size: 13px; font-weight: 650; color: var(--text-muted); }
+.fac-slot { position: relative; display: flex; }
+.fac-slot input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.fac-slot span {
+  flex: 1; min-height: 40px; display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--fac-line-slot); border-radius: 8px;
+  color: var(--text-faint); font-size: 12.5px; font-weight: 650;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.fac-slot input:checked + span { border-color: var(--gold-bright); background: var(--fac-on-slot); color: var(--text); }
+.fac-slot input:focus-visible + span { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, 0.28); }
+
+/* ── Disclosures ─────────────────────────────────────────────────────────── */
+
+.fac-disc { border-top: 1px solid var(--fac-line); padding-top: 18px; }
+.fac-disc > summary {
+  display: flex; align-items: center; gap: 10px; min-height: 44px;
+  list-style: none; cursor: pointer;
+  font-size: 14.5px; font-weight: 650; color: var(--gold-bright);
+}
+.fac-disc > summary::-webkit-details-marker { display: none; }
+.fac-disc > summary i { font-size: 13px; width: 20px; text-align: center; flex-shrink: 0; transition: transform 0.18s var(--ease); }
+.fac-disc[open] > summary i { transform: rotate(45deg); }
+.fac-disc > summary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, 0.32); border-radius: 8px; }
+.fac-disc-body { display: flex; flex-direction: column; gap: 18px; padding: 10px 0 4px; }
+
+/* "What we check" — an inline disclosure inside the running sentence. */
+.fac-inline-disc { display: inline; }
+.fac-inline-disc > summary { display: inline; list-style: none; cursor: pointer; color: var(--gold-bright); font-weight: 650; white-space: nowrap; }
+.fac-inline-disc > summary::-webkit-details-marker { display: none; }
+.fac-inline-disc > summary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, 0.32); border-radius: 6px; }
+.fac-inline-body { margin: 14px 0 0; font-size: 14px; line-height: 1.6; color: var(--text-muted); }
+.fac-inline-body p { margin: 0 0 10px; }
+.fac-inline-body p:last-child { margin-bottom: 0; }
+.fac-inline-body strong { color: var(--text-soft); }
+
+/* Referee 2 folds away until referee 1 is under way. Still REQUIRED — this is
+   progressive disclosure, not a relaxation of `err-referees`. */
+.fac-add { border-top: 1px solid var(--fac-line); border-bottom: 1px solid var(--fac-line); }
+.fac-add > summary { display: flex; align-items: center; gap: 14px; min-height: 56px; list-style: none; cursor: pointer; }
+.fac-add > summary::-webkit-details-marker { display: none; }
+.fac-add > summary i { color: var(--gold-bright); font-size: 13px; width: 20px; text-align: center; flex-shrink: 0; }
+.fac-add-label { font-size: 14.5px; font-weight: 650; color: var(--gold-bright); }
+.fac-add[open] > summary { border-bottom: 1px solid var(--fac-line); }
+.fac-add > summary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, 0.32); }
+.fac-add-body { display: flex; flex-direction: column; gap: 18px; padding: 18px 0 20px; }
+
+/* ── Consents ────────────────────────────────────────────────────────────── */
+
+.fac-consents { display: flex; flex-direction: column; gap: 16px; }
+.fac-consent { display: flex; gap: 14px; align-items: flex-start; cursor: pointer; position: relative; }
+.fac-consent input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.fac-consent-box {
+  width: 24px; height: 24px; flex-shrink: 0; margin-top: 2px;
+  border: 1.5px solid var(--border-strong); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; color: var(--fac-ink);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.fac-consent-box i { font-size: 12px; opacity: 0; }
+.fac-consent input:checked ~ .fac-consent-box { background: var(--gold-bright); border-color: var(--gold-bright); }
+.fac-consent input:checked ~ .fac-consent-box i { opacity: 1; }
+.fac-consent input:focus-visible ~ .fac-consent-box { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, 0.28); }
+.fac-consent input[aria-invalid="true"] ~ .fac-consent-box { border-color: var(--red); }
+.fac-consent-text { font-size: 14px; line-height: 1.6; color: var(--text-soft); }
+
+/* ── The action bar ──────────────────────────────────────────────────────── */
+
+/* `bottom` is the DOCK's height, not 0. The cookie banner lives in
+   `window.mamDock` — a fixed, column-reverse stack at z-index 950, deliberately
+   above this bar, because a consent notice must not be covered by a form
+   control. MEASURED: at 0 the banner's Accept button sat directly over Submit
+   and the form could not be sent on a first visit. `--fac-dock-h` is set by
+   instructor-apply.js from the dock's real height — the banner's depends on how
+   its sentence wraps, which depends on the text size the accessibility toolbar
+   is set to, so it cannot be a constant. */
+.fac-bar {
+  position: fixed; left: 0; right: 0; bottom: var(--fac-dock-h, 0px); z-index: 900;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 14px 20px max(20px, env(safe-area-inset-bottom));
+  background: var(--fac-ink); border-top: 1px solid var(--fac-line);
+}
+.fac-bar-draft { display: none; }
+.fac-bar-status { font-size: 13px; font-weight: 650; color: var(--text-muted); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fac-next {
+  flex-shrink: 0; min-height: 50px; display: inline-flex; align-items: center; gap: 10px;
+  padding: 0 26px; border: 0; border-radius: var(--radius-sm);
+  background: var(--gold-bright); color: var(--fac-ink);
+  font-family: inherit; font-size: 15px; font-weight: 800; cursor: pointer;
+  transition: background 0.15s ease;
+}
+.fac-next i { font-size: 12px; }
+.fac-next:hover:not(:disabled) { background: var(--gold-pale); }
+.fac-next:disabled { opacity: 0.7; cursor: default; }
+.fac-next:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, 0.32); }
+
+/* ── Errors ──────────────────────────────────────────────────────────────── */
+
+.fac-err { display: none; align-items: center; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--red-hot); }
+.fac-err.shown { display: flex; }
+.fac-err i { flex-shrink: 0; }
+
+/* ── The gate ────────────────────────────────────────────────────────────── */
+
+.fac-gate { padding: 56px 20px; text-align: center; color: var(--text-soft); line-height: 1.7; font-size: 0.95rem; max-width: 640px; margin: 0 auto; }
 .fac-gate i { font-size: 1.7rem; color: var(--gold-bright); display: block; margin-bottom: 12px; }
 .fac-gate-actions { margin-top: 18px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
-.fac-count { font-size: 0.84rem; color: var(--text-muted); margin-top: 10px; }
-.fac-count strong { color: var(--gold-bright); }
+/* ── Scale-up ────────────────────────────────────────────────────────────── */
 
-@media (max-width: 620px) {
-  .fac-subject { padding: 13px 13px; }
-  .fac-level span { padding: 8px 12px; font-size: 0.84rem; }
+/* Between the phone and the summary column the form is one centred measure.
+   The handoff is explicit that the extra width buys a RUNNING SUMMARY, not a
+   second column of questions: a two-column list of variable-height rows
+   produced misaligned hairlines and read as two unrelated lists. */
+@media (min-width: 640px) {
+  .fac-layout { max-width: 640px; margin: 0 auto; padding: 32px 24px 0; }
 }
 
-/* Desktop may use the design's tighter 34px control height; touch may not.
-   34px is explicitly a DESKTOP figure in the handoff's own accessibility
-   section, and applying it to a phone is what that section exists to prevent. */
 @media (min-width: 900px) and (pointer: fine) {
-  .fac-level span { min-height: 38px; }
-  .fac-avail-cell span { min-height: 38px; }
+  .fac-grade span { min-height: 38px; }
+  .fac-opt span { min-height: 38px; }
+}
+
+@media (min-width: 1024px) {
+  body[data-fac-app] .apply-shell { padding-bottom: 0; }
+  body[data-fac-app] footer { padding-bottom: 0; }
+
+  .fac-appbar { padding: 20px 48px 18px; }
+  .fac-appbar-logo, .fac-appbar-title { display: block; }
+  .fac-appbar-pos { font-size: 13.5px; }
+  .fac-back { display: none !important; }   /* desktop navigates by the step list */
+  .fac-exit { font-size: 13.5px; }
+
+  .fac-layout {
+    display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0 72px;
+    /* Load-bearing: with the default `stretch` a course row's border-bottom
+       paints at the bottom of the stretched track instead of under its own
+       content, and the list comes apart. */
+    align-items: start;
+    max-width: 1180px; padding: 44px 48px 52px;
+  }
+  .fac-col { gap: 30px; }
+  .fac-h { font-size: 40px; line-height: 1.08; }
+  .fac-lede { display: block; }
+  .fac-row-head { min-height: 56px; }
+
+  .fac-bar {
+    position: static; padding: 26px 0 0; background: none;
+    border-top: 1px solid var(--fac-line); border-bottom: 0;
+    justify-content: flex-start; gap: 20px; flex-direction: row-reverse;
+  }
+  .fac-bar-draft { display: inline; }
+  .fac-bar-status { font-size: 13.5px; font-weight: 400; color: var(--text-faint); margin-right: auto; }
+  .fac-next { padding: 0 30px; }
+
+  .fac-aside {
+    display: flex; flex-direction: column; gap: 28px;
+    align-self: stretch; padding-left: 40px; border-left: 1px solid var(--fac-line);
+    position: sticky; top: 24px;
+  }
+  .fac-steps { display: flex; flex-direction: column; }
+  .fac-step-row {
+    display: flex; align-items: center; gap: 12px; min-height: 40px;
+    background: none; border: 0; padding: 0; font-family: inherit; text-align: left;
+    color: inherit; cursor: pointer;
+  }
+  .fac-step-row:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, 0.32); border-radius: 8px; }
+  .fac-step-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--border-strong); }
+  .fac-step-label { font-size: 14px; font-weight: 500; color: var(--text-faint); }
+  .fac-step-row[aria-current="step"] .fac-step-dot { background: var(--gold-bright); }
+  .fac-step-row[aria-current="step"] .fac-step-label { font-weight: 700; color: var(--text); }
+
+  .fac-sofar { display: flex; flex-direction: column; gap: 14px; padding-top: 24px; border-top: 1px solid var(--fac-line); }
+  .fac-sofar-head { font-size: 12.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+  .fac-sofar-item { display: flex; flex-direction: column; gap: 3px; }
+  .fac-sofar-name { font-size: 14.5px; font-weight: 650; color: var(--text); line-height: 1.3; }
+  .fac-sofar-detail { font-size: 13px; color: var(--text-faint); }
+  .fac-sofar-foot { font-size: 13px; color: var(--text-faint); line-height: 1.55; margin: 0; }
+}
+
+/* Everything animated keeps the cue and drops the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .fac-prog-fill, .fac-disc > summary i { transition: none; }
+  .fac-grades { animation: none; }
 }
 
 /* Honeypot. A class rather than an inline style: the repo's other honeypots
@@ -670,24 +987,31 @@ body.mam-advisor-open #applyMobileBar{display:none!important}
    and it does not have to be revisited when that lands. */
 .hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
-/* The review step's per-row "Edit" jump. A real button, not a link: it moves
-   the wizard, it does not navigate, and a link that does not go anywhere is
-   the commonest way a keyboard user loses their place in a form. */
-.review-edit {
-  margin-left: 8px; padding: 2px 8px; min-height: 0;
-  background: transparent; border: 1px solid var(--border-strong); border-radius: 999px;
-  color: var(--text-muted); font-size: 0.75rem; font-weight: 700; font-family: inherit;
-  letter-spacing: .04em; cursor: pointer;
-}
-.review-edit:hover { color: var(--gold-bright); border-color: var(--gold-bright); }
-.review-edit:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, .32); }
-
 /* Without scripting the wizard cannot exist (the matrix is built from the live
    catalogue), so the spinner and the stepper are noise beside the <noscript>
    explanation. `.js-only` is hidden by default and revealed by the `js` class
    main.js puts on <html>; with scripting off it simply stays hidden. */
 .js-only { display: none; }
 html.js .js-only { display: revert; }
+
+/* ⚠️ MEASURED: the app bar rendered `display:block` — its two links stacked and
+   the bar grew from 48px to 76px, putting the first question back below the
+   fold, which is the thing this redesign exists to fix. `html.js .js-only
+   { display: revert }` at the foot of this file is specificity (0,2,1) and
+   beats a bare `.fac-appbar`, and `revert` means the UA's `block`, not the
+   author's `flex`. Anything both `.js-only` AND a flex container has to say so
+   again, past that rule. */
+html.js .fac-appbar { display: flex; }
+html.js .fac-prog { display: flex; }
+
+/* And `revert` outranks `[hidden]` for the same reason, on every `.js-only`
+   element rather than only the flex ones. MEASURED: "Loading the application…"
+   stayed on screen above the app bar for the whole session — `gate.hidden =
+   true` had run and the attribute was there, doing nothing. One rule at (0,3,1)
+   rather than a line per element, so the next `.js-only` that gets toggled
+   cannot reintroduce it. */
+html.js .js-only[hidden] { display: none; }
+
 
 /* `display:flex` on .resume-banner and .apply-stepper outranks the UA's
    `[hidden]{display:none}` (author beats user-agent), so both rendered while

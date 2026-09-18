@@ -47,6 +47,7 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | The console's phone subset (`#5b`) | not built — §6.2 |
 | Student + instructor portal redesigns | not started — still on the old palette; **awaiting the design handoff** |
 | **Instructor application platform (schema v90)** | ✅ **shipped 2026-09-17** — see §4p |
+| **Instructor application v2 (four-step rework)** | ✅ **shipped 2026-09-18** — `docs/design/2026-09-instructor-application/BUILD-NOTES.md`; one DSO sign-off outstanding |
 | Scholarship funds/awards, instalments, dunning | not started |
 | TanStack Table v8 | decided, **not implemented** |
 | htmx + strict CSP | needs a funding decision (doc 4's own framing) |

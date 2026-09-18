@@ -313,7 +313,13 @@
     (function () {
       if (!floatingEnroll) return;
       var slug = (location.pathname.split('/').pop() || '').replace(/\.(php|html)$/, '') || 'index';
-      var hideOn = ['apply', 'checkout', 'book', 'thank-you', 'status', 'contact'];
+      // 'instructor-apply' is NOT covered by 'apply' — the slug is matched
+      // whole, and this is the same blind spot `lead.js` has (it path-tests for
+      // `/apply`, which `/instructor-apply` does not match, which is why that
+      // page carries `data-no-lead-cta`). MEASURED: the pill advertised the
+      // STUDENT wizard to a prospective TEACHER and, once the faculty form grew
+      // a bottom action bar, physically covered its Submit button.
+      var hideOn = ['apply', 'instructor-apply', 'checkout', 'book', 'thank-you', 'status', 'contact'];
       var inApp = /\/(portal|admin)(\/|$)/.test(location.pathname);
       if (hideOn.indexOf(slug) >= 0 || inApp) { floatingEnroll.remove(); floatingEnroll = null; }
     })();

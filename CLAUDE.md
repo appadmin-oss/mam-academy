@@ -1220,6 +1220,64 @@ technical criteria are heard, not watched."*
   refusal; a test asserts the file contains no such path. It helps a human
   mark; it never marks.
 
+## The instructor application v2 (`/instructor-apply`) — the 2026-09 rework
+
+Seven steps → four, from `docs/design/2026-09-instructor-application/`
+(handoff + `BUILD-NOTES.md`, which records the four open questions as built and
+the six defects that only appeared in a browser). Courses first then levels,
+baseline inputs instead of filled boxes, a day-stacked week, referee 2 folded.
+`instructor-apply.php` + `assets/js/instructor-apply.js` + the `.fac-*` block of
+`assets/css/apply.css` (shared with the student wizard on purpose — anything
+general goes in `.step`/`.field`/`.btn-step`). Guarded by
+`test_instructor_apply.php`, one assertion per handoff invariant.
+
+Three things here are **repo-wide**, not page-specific:
+
+1. ⚠️ **`html.js .js-only { display: revert }` (apply.css) outranks `[hidden]`,
+   and ties with a bare class.** `[hidden]{display:none}` is a UA rule, so
+   `revert` beats it — the gate sat on "Loading the application…" for a whole
+   session with `hidden` set and doing nothing. And `html.js .js-only` is
+   specificity (0,2,1), the same as `html.js .fac-appbar`, so **source order**
+   decided it: the app bar rendered `display:block`, its two links stacked, and
+   the bar grew 48px → 76px. `html.js .js-only[hidden] { display: none }` fixes
+   the whole class at (0,3,1); anything both `.js-only` AND a flex container has
+   to restate its display **after** that rule. This is the fourth appearance of
+   the `[hidden]` trap in this one file (`.resume-banner`, `.apply-stepper`,
+   `.hs-status`, `.advisor` are the others) — **any** author `display:` on an
+   element you toggle with `hidden` needs its own guard.
+2. ⚠️ **`main.js`'s floating-CTA hide-list matches the WHOLE slug**, so `'apply'`
+   does not cover `'instructor-apply'` — a prospective *teacher* was shown the
+   *student* pill, and once this form grew a bottom action bar the pill sat on
+   top of Submit. Exactly the blind spot `lead.js` has (it path-tests `/apply`),
+   which is why the page carries `data-no-lead-cta data-no-lead-exit`. Both
+   lists need the slug named explicitly; a new transactional page needs adding
+   to both.
+3. **A fixed bottom bar must ride above `window.mamDock`, never at `bottom:0`.**
+   The dock is the column-reverse stack the cookie banner lives in at
+   `z-index:950` — above a form control **deliberately**, because a consent
+   notice must not be covered. The banner's Accept button landed directly over
+   Submit and the form could not be sent on a first visit. `trackDock()` keeps
+   `--fac-dock-h` equal to the dock's real height (it depends on how the
+   banner's sentence wraps, which depends on the accessibility toolbar's text
+   size, so it cannot be a constant) and measures an EMPTY dock as 0. Same
+   collision the redesign's floating Apply pill hit, and the reason that pill
+   had to join the dock rather than sit beside it.
+
+Contract points the rework deliberately did NOT move: **highest-level-only is
+presentation** — `collectSubjects()` expands the chosen index to the full 0..N
+set, so `subjects[{course,level,years}]` and the `UNIQUE(course, level)` index
+on `instructor_assignments` are untouched; the **one "Email or phone" field**
+routes back into the `email`/`phone` keys `mam_faculty_normalise_referees()`
+reads (an address to `email`, anything else to `phone` — the same split
+`FILTER_VALIDATE_EMAIL` would make); and the **availability key stays
+`'mon:morning'`**, so an old draft and the stored JSON both still load.
+`loadDraft()` MIGRATES a seven-step draft rather than discarding it.
+⚠️ The consent wording is the **approved** wording, not the handoff's trim —
+the handoff's own open question 4 asks the DSO to re-approve it, and the draft
+drops "I have read and" and widens "any safeguarding concern" to "any concern".
+The layout is the handoff's; only the two strings wait. A test pins both
+clauses so the swap is deliberate.
+
 ## The admin console (`admin/console.php`) — the 2026-08 redesign
 
 Thirty-one screens, built 2026-08-20 and **re-navigated 2026-09-17** when the

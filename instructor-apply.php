@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <meta name="robots" content="index, follow">
 <title>Teach at MAM — Instructor Application | MAM Academy</title>
@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="assets/css/main.css?v=20260820a">
-<link rel="stylesheet" href="assets/css/apply.css?v=20260917a">
+<link rel="stylesheet" href="assets/css/apply.css?v=20260918a">
 </head>
 <?php /* The site-wide lead surfaces are opted OUT here. `lead.js` skips its
          CTA bar on the student apply page via a path test that reads
@@ -21,8 +21,15 @@
          prospective TEACHER was shown a sticky "Next intake is open —
          five-step application" bar for the STUDENT wizard, overlapping
          this form's own controls. Wrong audience, wrong step count, and
-         it covers the matrix on a phone. */ ?>
-<body data-no-lead-cta data-no-lead-exit>
+         it covers the matrix on a phone.
+
+         `data-fac-app` is the v2 rework's own hook. It hides the announce
+         bar and the 80px site nav (apply.css), which together with the
+         44px card radius and the 3px gradient rule were MEASURED pushing
+         the first question below the fold at 390px. The header partial is
+         still included: it also carries the sitewide JSON-LD entity, which
+         is not chrome. */ ?>
+<body data-no-lead-cta data-no-lead-exit data-fac-app>
 <a href="#main" class="skip-link">Skip to main content</a>
 
 <?php include __DIR__ . '/partials/header.html'; ?>
@@ -44,8 +51,9 @@
              live catalogue — so the honest answer is to say so and give a way
              through, not to imply something is still loading. */ ?>
     <noscript>
-      <div class="fac-safenote">
-        <p><i class="fa-solid fa-circle-info" aria-hidden="true"></i><strong>This application needs JavaScript.</strong> It builds the list of courses and levels from what the Academy currently teaches, so it cannot be shown as a plain page.</p>
+      <div class="fac-gate">
+        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+        <p><strong>This application needs JavaScript.</strong> It builds the list of courses and levels from what the Academy currently teaches, so it cannot be shown as a plain page.</p>
         <p>Please turn JavaScript on and reload — or <a href="/contact?topic=Faculty">email the faculty team</a> and we will send you the questions directly. We would rather hear from you than lose you to a browser setting.</p>
       </div>
     </noscript>
@@ -55,24 +63,26 @@
       Loading the application…
     </div>
 
-    <!-- Progress. `aria-current="step"` is what a screen reader reads as
-         position; the visible dot is decoration. -->
-    <nav class="apply-stepper" id="facProgress" aria-label="Application progress" hidden>
-      <button type="button" class="apply-progress-step active" data-step="0" aria-current="step"><span class="step-dot"><span>1</span></span><span class="step-name">Teaching</span></button>
-      <button type="button" class="apply-progress-step" data-step="1"><span class="step-dot"><span>2</span></span><span class="step-name">About you</span></button>
-      <button type="button" class="apply-progress-step" data-step="2"><span class="step-dot"><span>3</span></span><span class="step-name">Training</span></button>
-      <button type="button" class="apply-progress-step" data-step="3"><span class="step-dot"><span>4</span></span><span class="step-name">Experience</span></button>
-      <button type="button" class="apply-progress-step" data-step="4"><span class="step-dot"><span>5</span></span><span class="step-name">Availability</span></button>
-      <button type="button" class="apply-progress-step" data-step="5"><span class="step-dot"><span>6</span></span><span class="step-name">Safeguarding</span></button>
-      <button type="button" class="apply-progress-step" data-step="6"><span class="step-dot"><span>7</span></span><span class="step-name">Review</span></button>
-    </nav>
-
-    <!-- Draft notice. A seven-step application is abandoned without one; the
-         student wizard has the same affordance and the same class. -->
-    <div class="resume-banner" id="facResume" hidden>
-      <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
-      <span>We saved your draft on this device. <button type="button" id="facDiscard">Start over</button></span>
+    <!-- App bar. One row: where you are, and the way out. The draft is already
+         saved on every keystroke, so "Save & exit" is an honest label for a
+         link home rather than a button that does something extra. -->
+    <div class="fac-appbar js-only" id="facAppbar" hidden>
+      <div class="fac-appbar-left">
+        <img class="fac-appbar-logo" src="mam-academy-logo.svg" alt="" width="30" height="30">
+        <span class="fac-appbar-title">Faculty application&nbsp;·</span>
+        <button type="button" class="fac-back" id="facBack" hidden>
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+          <span class="sr-only">Back to the previous step</span>
+        </button>
+        <span class="fac-appbar-pos" id="facPos">1 of 4</span>
+      </div>
+      <a class="fac-exit" href="/" id="facExit">Save &amp; exit</a>
     </div>
+
+    <!-- Progress. 2px, replacing the seven-dot stepper. `aria-current="step"`
+         on the desktop step list is what a screen reader reads as position;
+         this line is decoration, hence aria-hidden. -->
+    <div class="fac-prog js-only" id="facProgWrap" aria-hidden="true" hidden><span class="fac-prog-fill" id="facProgFill" style="width:25%"></span></div>
 
     <?php /* `novalidate` for the same reason the student wizard carries it:
              every step stays in the DOM while hidden, so a `required` control
@@ -81,301 +91,290 @@
              nor fix. validateStep() gates each step; the attributes remain as a
              machine-readable description and a screen-reader "required". */ ?>
     <form id="facForm" novalidate autocomplete="on" hidden>
-    <div class="apply-main">
+    <div class="fac-layout">
+      <div class="fac-col">
 
-      <!-- ─────────────────────────────── STEP 1 — Teaching ─────────────── -->
+      <!-- Draft notice. A multi-step application is abandoned without one; the
+           student wizard has the same affordance and the same class. -->
+      <div class="resume-banner" id="facResume" hidden>
+        <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+        <span>We saved your draft on this device. <button type="button" id="facDiscard">Start over</button></span>
+      </div>
+
+      <!-- ─────────────────────────────── STEP 1 — Courses ──────────────── -->
       <div class="step active" data-step="0">
-        <div class="step-head">
-          <div class="step-num">Step 1 of 7 · Teaching</div>
-          <h2 class="step-title">What do you teach?</h2>
-          <p class="step-desc">Choose every course you are qualified to teach, and the levels you can take a student to. This is the heart of your application — it is what we match you to a class with, so claim what you can genuinely teach rather than everything on the list.</p>
-        </div>
+        <div class="fac-col">
+          <h2 class="fac-h" id="facH0">What do you teach?</h2>
+          <?php /* The old page's four-line paragraph is gone. Its one
+                   load-bearing idea survives where there is room for it —
+                   desktop only, in the repo's own words. */ ?>
+          <p class="fac-lede">Claim what you can genuinely teach rather than everything on the list — it is what we match you to a class with.</p>
 
-        <div class="field">
-          <span class="field-label" id="facMatrixLabel">Courses &amp; levels <span class="req">*</span></span>
-          <div class="fac-matrix" id="facMatrix" role="group" aria-labelledby="facMatrixLabel"></div>
-          <div class="fac-count" id="facMatrixCount">Nothing chosen yet.</div>
-          <div class="field-error" id="err-subjects"><i class="fa-solid fa-circle-exclamation"></i><span>Choose at least one course you can teach</span></div>
-        </div>
-
-        <fieldset class="field">
-          <legend class="field-label">Programmes you could teach on</legend>
-          <div class="fac-levels" id="facProgrammes"></div>
-          <div class="field-help">Optional. Leave it blank if you are happy to be considered for any.</div>
-        </fieldset>
-
-        <fieldset class="field">
-          <legend class="field-label">How can you teach?</legend>
-          <div class="fac-levels" id="facModes"></div>
-          <div class="field-help">Optional — onsite in Lagos, online, or both.</div>
-        </fieldset>
-
-        <div class="step-actions">
-          <span></span>
-          <button type="button" class="btn-step btn-step-next" data-next>Continue <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+          <div class="fac-list" id="facMatrix" role="group" aria-labelledby="facH0"></div>
+          <div class="fac-err" id="err-subjects"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>Choose at least one course you can teach</span></div>
         </div>
       </div>
 
-      <!-- ─────────────────────────────── STEP 2 — About you ────────────── -->
+      <!-- ─────────────────────────────── STEP 2 — You ──────────────────── -->
       <div class="step" data-step="1">
-        <div class="step-head">
-          <div class="step-num">Step 2 of 7 · About you</div>
-          <h2 class="step-title">Who are you?</h2>
-          <p class="step-desc">How we reach you, and the photograph that becomes your faculty profile if you join us.</p>
-        </div>
+        <div class="fac-col">
+          <h2 class="fac-h" id="facH1">How do we reach you?</h2>
 
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="f-name">Full name <span class="req">*</span></label>
-            <input type="text" id="f-name" class="field-input" maxlength="160" autocomplete="name" placeholder="e.g. Adaeze Obi" required>
-            <div class="field-error" id="err-f-name"><i class="fa-solid fa-circle-exclamation"></i><span>Enter your full name</span></div>
-          </div>
-          <div class="field">
-            <label class="field-label" for="f-email">Email <span class="req">*</span></label>
-            <input type="email" id="f-email" class="field-input" maxlength="190" autocomplete="email" placeholder="you@example.com" required>
-            <div class="field-help" id="f-email-help">We reply here, and it becomes your portal sign-in if you join.</div>
-            <div class="field-error" id="err-f-email"><i class="fa-solid fa-circle-exclamation"></i><span>Enter a valid email address</span></div>
-          </div>
-        </div>
+          <div class="fac-fields">
+            <label class="fac-field" for="f-name">
+              <span class="fac-field-label">Full name <span class="req" aria-hidden="true">*</span></span>
+              <input type="text" id="f-name" class="fac-input" maxlength="160" autocomplete="name" placeholder="Adaeze Obi" required>
+              <span class="fac-err" id="err-f-name"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>Enter your full name</span></span>
+            </label>
 
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="f-phone">Phone</label>
-            <input type="tel" id="f-phone" class="field-input" maxlength="40" autocomplete="tel" placeholder="+234 …">
-          </div>
-          <div class="field">
-            <label class="field-label" for="f-location">Where are you based?</label>
-            <input type="text" id="f-location" class="field-input" maxlength="190" placeholder="e.g. Yaba, Lagos" autocomplete="address-level2">
-            <div class="field-help">City is enough. It tells us whether onsite teaching is realistic for you.</div>
-          </div>
-        </div>
+            <label class="fac-field" for="f-email">
+              <span class="fac-field-label">Email <span class="req" aria-hidden="true">*</span></span>
+              <input type="email" id="f-email" class="fac-input" maxlength="190" autocomplete="email" placeholder="you@example.com" required>
+              <span class="fac-help" id="f-email-help">Becomes your portal sign-in if you join.</span>
+              <span class="fac-err" id="err-f-email"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>Enter a valid email address</span></span>
+            </label>
 
-        <div class="field">
-          <span class="field-label">Professional headshot</span>
-          <div class="headshot-mount" id="facHeadshot"></div>
-          <label class="field-label sr-only" for="f-shot">Or paste an image link</label>
-          <input type="url" id="f-shot" class="field-input" maxlength="500" placeholder="…or paste an https image link">
-          <div class="field-help">A clear, front-facing photo. Optional now — we will ask before you are published.</div>
-        </div>
+            <label class="fac-field" for="f-phone">
+              <span class="fac-field-label">Phone</span>
+              <input type="tel" id="f-phone" class="fac-input" maxlength="40" autocomplete="tel" placeholder="+234 …">
+            </label>
 
-        <div class="step-actions">
-          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" data-next>Continue <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+            <label class="fac-field" for="f-location">
+              <span class="fac-field-label">City</span>
+              <input type="text" id="f-location" class="fac-input" maxlength="190" autocomplete="address-level2" placeholder="Yaba, Lagos">
+            </label>
+          </div>
+
+          <?php /* Moved here from the old step 1: it is a logistics question,
+                   not a teaching one. */ ?>
+          <fieldset class="fac-block">
+            <legend class="fac-legend">You can teach</legend>
+            <div class="fac-opts" id="facModes"></div>
+          </fieldset>
+
+          <!-- Replaces a 220px dashed dropzone. The uploader beneath is
+               untouched — same mount, same element, same `#hsStatus`
+               role="status" region. -->
+          <div class="fac-shot">
+            <button type="button" class="fac-shot-toggle" id="facShotToggle" aria-expanded="false" aria-controls="facShotPanel">
+              <span class="fac-shot-icon" id="facShotIcon"><i class="fa-solid fa-camera" aria-hidden="true"></i></span>
+              <span class="fac-shot-label">Add a headshot</span>
+              <span class="fac-shot-state" id="facShotState">Optional</span>
+            </button>
+            <div class="fac-shot-panel" id="facShotPanel" hidden>
+              <div class="headshot-mount" id="facHeadshot"></div>
+              <label class="fac-field" for="f-shot">
+                <span class="fac-field-label">Or paste an image link</span>
+                <input type="url" id="f-shot" class="fac-input" maxlength="500" placeholder="https://…">
+              </label>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- ─────────────────────────────── STEP 3 — Training ─────────────── -->
+      <!-- ─────────────────────────────── STEP 3 — Track record ─────────── -->
       <div class="step" data-step="2">
-        <div class="step-head">
-          <div class="step-num">Step 3 of 7 · Training</div>
-          <h2 class="step-title">Your training and credentials</h2>
-          <p class="step-desc">Formal qualifications help, and they are not the whole picture — many fine teachers are conservatoire-trained and many are not. Tell us what you have.</p>
-        </div>
+        <div class="fac-col">
+          <h2 class="fac-h" id="facH2">Tell us about your teaching</h2>
 
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="f-years">Years teaching</label>
-            <input type="number" id="f-years" class="field-input" min="0" max="60" inputmode="numeric" placeholder="e.g. 6">
+          <label class="fac-field" for="f-bio">
+            <span class="fac-field-label">Your biography <span class="req" aria-hidden="true">*</span></span>
+            <textarea id="f-bio" class="fac-textarea" maxlength="4000" rows="5" required placeholder="Where you trained, where you have taught, students you have taken through exams…"></textarea>
+            <span class="fac-help">Becomes your faculty profile.</span>
+            <span class="fac-err" id="err-f-bio"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>Please write a fuller biography (at least 40 characters)</span></span>
+          </label>
+
+          <div class="fac-pair">
+            <label class="fac-field" for="f-years">
+              <span class="fac-field-label">Years teaching</span>
+              <input type="number" id="f-years" class="fac-input" min="0" max="60" inputmode="numeric" placeholder="6">
+            </label>
+            <label class="fac-field" for="f-hours">
+              <span class="fac-field-label">Hours a week</span>
+              <input type="number" id="f-hours" class="fac-input" min="0" max="80" inputmode="numeric" placeholder="10">
+            </label>
           </div>
-          <div class="field">
-            <label class="field-label" for="f-cv">CV / résumé link</label>
-            <input type="url" id="f-cv" class="field-input" maxlength="500" placeholder="https://…">
-            <div class="field-help">Google Drive, Dropbox or your own site. https links only.</div>
-          </div>
-        </div>
 
-        <div class="field">
-          <label class="field-label" for="f-quals">Qualifications, grades and certifications</label>
-          <textarea id="f-quals" class="field-textarea" maxlength="2000" rows="5" placeholder="e.g. BMus (University of Lagos); Trinity ATCL Piano Recital; ABRSM Grade 8 Theory; 2 years Orff certification…"></textarea>
-          <div class="field-help">Degrees, diplomas, Trinity/ABRSM grades, teaching certificates — whatever applies.</div>
-        </div>
+          <fieldset class="fac-block">
+            <div class="fac-block-head">
+              <legend class="fac-legend">When could you teach?</legend>
+              <span class="fac-meta">Lagos time</span>
+            </div>
+            <div class="fac-week" id="facAvail"></div>
+          </fieldset>
 
-        <div class="step-actions">
-          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" data-next>Continue <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+          <?php /* The handoff cuts five questions from this step and is
+                   explicit that they must not be dropped from the PRODUCT:
+                   "move them to the post-submit interview booking, or restore
+                   them behind a 'Add more detail (optional)' disclosure on this
+                   step." This is that disclosure — the questions keep their
+                   ids, their validation and their place in the API payload,
+                   and they are simply off the critical path. The optional
+                   programmes chip group, which the four-step design has no slot
+                   for, lives here rather than being left half-wired. */ ?>
+          <details class="fac-disc" id="facMore">
+            <summary><i class="fa-solid fa-plus" aria-hidden="true"></i>Add more detail (optional)</summary>
+            <div class="fac-disc-body">
+              <label class="fac-field" for="f-quals">
+                <span class="fac-field-label">Qualifications, grades and certifications</span>
+                <textarea id="f-quals" class="fac-textarea" maxlength="2000" rows="4" placeholder="BMus (University of Lagos); Trinity ATCL Piano Recital; ABRSM Grade 8 Theory…"></textarea>
+              </label>
+
+              <label class="fac-field" for="f-philosophy">
+                <span class="fac-field-label">How do you teach?</span>
+                <textarea id="f-philosophy" class="fac-textarea" maxlength="4000" rows="4" placeholder="How you start with a nervous beginner, what you think a good lesson feels like…"></textarea>
+                <span class="fac-help">The thing we most enjoy reading.</span>
+              </label>
+
+              <label class="fac-field" for="f-cv">
+                <span class="fac-field-label">CV / résumé link</span>
+                <input type="url" id="f-cv" class="fac-input" maxlength="500" placeholder="https://…">
+              </label>
+
+              <label class="fac-field" for="f-links">
+                <span class="fac-field-label">Links — portfolio, recordings, socials</span>
+                <input type="text" id="f-links" class="fac-input" maxlength="1000" placeholder="Separate several with spaces">
+              </label>
+
+              <label class="fac-field" for="f-start">
+                <span class="fac-field-label">Earliest you could start</span>
+                <input type="date" id="f-start" class="fac-input">
+                <span class="fac-err" id="err-f-start"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>Use the date picker, or leave it blank</span></span>
+              </label>
+
+              <fieldset class="fac-block">
+                <legend class="fac-legend">Programmes you could teach on</legend>
+                <div class="fac-opts" id="facProgrammes"></div>
+                <span class="fac-help">Leave it blank if you are happy to be considered for any.</span>
+              </fieldset>
+            </div>
+          </details>
         </div>
       </div>
 
-      <!-- ─────────────────────────────── STEP 4 — Experience ───────────── -->
+      <!-- ─────────────────────────────── STEP 4 — References ───────────── -->
       <div class="step" data-step="3">
-        <div class="step-head">
-          <div class="step-num">Step 4 of 7 · Experience</div>
-          <h2 class="step-title">Your teaching, in your words</h2>
-          <p class="step-desc">The panel reads this properly. Write it the way you would talk about your work.</p>
-        </div>
+        <div class="fac-col">
+          <h2 class="fac-h" id="facH3">Two people we can call</h2>
 
-        <div class="field">
-          <label class="field-label" for="f-bio">Professional biography <span class="req">*</span></label>
-          <textarea id="f-bio" class="field-textarea" maxlength="4000" rows="7" required placeholder="Your training, where you have taught, the students you have taken through exams or performances, anything you have recorded or produced…"></textarea>
-          <div class="field-help">At least 40 characters — write it as the bio we would publish on your faculty profile.</div>
-          <div class="field-error" id="err-f-bio"><i class="fa-solid fa-circle-exclamation"></i><span>Please write a fuller biography (at least 40 characters)</span></div>
-        </div>
+          <?php /* The 164-word gold panel is now one sentence plus a
+                   disclosure. What stays on the visible surface is the
+                   commitment itself: safer-recruitment guidance is explicit
+                   that the commitment and the fact of pre-employment checks
+                   belong where the candidate actually reads them, not in a
+                   policy nobody opens.
 
-        <div class="field">
-          <label class="field-label" for="f-philosophy">How do you teach?</label>
-          <textarea id="f-philosophy" class="field-textarea" maxlength="4000" rows="5" placeholder="How you start with a nervous beginner, how you handle a student who has not practised, what you think a good lesson feels like…"></textarea>
-          <div class="field-help">Optional, and the thing we most enjoy reading.</div>
-        </div>
+                   Note what is NOT asked for anywhere on this form: a
+                   certificate number, a document scan, or anything about an
+                   offence. A verifier records the OUTCOME of a check against
+                   the instructor's record; the evidence is filed offline,
+                   deliberately (vetting_records stores no check content). */ ?>
+          <p class="fac-note">Both references are taken up before any offer. Contacts only — never certificates or document numbers.
+            <details class="fac-inline-disc">
+              <summary>What we check</summary>
+              <div class="fac-inline-body">
+                <p><strong>MAM Academy is committed to safeguarding children.</strong> Every instructor is checked before they teach: we take up both of your references, confirm your identity, and require current safeguarding clearances. An offer always follows those checks — never precedes them.</p>
+                <p>We ask for your referees' contact details here, and nothing else. <strong>Please do not upload certificates or enter any document numbers</strong> — we collect that evidence in person, and record only that a check was completed and by whom.</p>
+              </div>
+            </details>
+          </p>
 
-        <div class="field">
-          <label class="field-label" for="f-links">Links — portfolio, recordings, socials</label>
-          <input type="text" id="f-links" class="field-input" maxlength="1000" placeholder="Separate several with spaces">
-        </div>
+          <div class="fac-fields">
+            <label class="fac-field" for="r1-name">
+              <span class="fac-field-label">Name <span class="req" aria-hidden="true">*</span></span>
+              <input type="text" id="r1-name" class="fac-input" maxlength="160" required placeholder="Mr Tunde Bello">
+            </label>
+            <label class="fac-field" for="r1-rel">
+              <span class="fac-field-label">How do they know you?</span>
+              <input type="text" id="r1-rel" class="fac-input" maxlength="120" placeholder="Head of Music, my last school">
+            </label>
+            <label class="fac-field" for="r1-contact">
+              <span class="fac-field-label">Email or phone</span>
+              <input type="text" id="r1-contact" class="fac-input" maxlength="190" placeholder="tunde@school.ng">
+            </label>
+          </div>
 
-        <div class="step-actions">
-          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" data-next>Continue <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+          <?php /* Folded away until referee 1 is under way, and still REQUIRED
+                   before submit — `err-referees` is unchanged. This is
+                   progressive disclosure, not a relaxation. JS opens it as soon
+                   as referee 2 has content, so a restored draft never hides an
+                   answer the candidate already gave. */ ?>
+          <details class="fac-add" id="facRef2">
+            <summary>
+              <i class="fa-solid fa-plus" aria-hidden="true"></i>
+              <span class="fac-add-label">Add second referee</span>
+            </summary>
+            <div class="fac-add-body">
+              <label class="fac-field" for="r2-name">
+                <span class="fac-field-label">Name <span class="req" aria-hidden="true">*</span></span>
+                <input type="text" id="r2-name" class="fac-input" maxlength="160" required>
+              </label>
+              <label class="fac-field" for="r2-rel">
+                <span class="fac-field-label">How do they know you?</span>
+                <input type="text" id="r2-rel" class="fac-input" maxlength="120">
+              </label>
+              <label class="fac-field" for="r2-contact">
+                <span class="fac-field-label">Email or phone</span>
+                <input type="text" id="r2-contact" class="fac-input" maxlength="190">
+              </label>
+            </div>
+          </details>
+          <div class="fac-err" id="err-referees"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>Please give us two referees we can contact — at least their names</span></div>
+
+          <?php /* ⚠️ The consent WORDING is the currently-approved wording, not
+                   the handoff's trimmed draft. The handoff's own open question
+                   4 asks the Designated Safeguarding Officer to re-approve the
+                   trim, and its draft drops "I have read and" from the policy
+                   limb and narrows "any safeguarding concern" to "any concern"
+                   — both substantive. The LAYOUT is the handoff's: no card, no
+                   uppercase heading, 24px box, 14px/1.6 text. Swap the strings
+                   once the DSO has signed off; nothing else needs to change. */ ?>
+          <div class="fac-consents">
+            <label class="fac-consent" for="f-safeack">
+              <input type="checkbox" id="f-safeack" required>
+              <span class="fac-consent-box" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="fac-consent-text">I understand that MAM Academy will carry out safeguarding checks — including taking up both references — before I teach any student, and I consent to those checks.</span>
+            </label>
+            <label class="fac-consent" for="f-polack">
+              <input type="checkbox" id="f-polack" required>
+              <span class="fac-consent-box" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="fac-consent-text">I have read and agree to abide by the Academy's child-protection and code-of-conduct policies, and I will report any safeguarding concern to the Designated Safeguarding Officer.</span>
+            </label>
+          </div>
+          <div class="fac-err" id="err-safeack"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>We cannot accept an application without the safeguarding consent</span></div>
+          <div class="fac-err" id="err-polack"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>We cannot accept an application without the policy agreement</span></div>
+
+          <!-- Honeypot: humans never see this. A class rather than an inline
+               style — `style="position:absolute;left:-9999px"` is the one thing
+               a strict CSP cannot allow. -->
+          <div class="hp-field" aria-hidden="true"><label>Website<input type="text" id="f-web" tabindex="-1" autocomplete="off"></label></div>
+
+          <div class="fac-err" id="err-submit"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span id="err-submit-text">Something went wrong. Please try again.</span></div>
         </div>
       </div>
 
-      <!-- ─────────────────────────────── STEP 5 — Availability ─────────── -->
-      <div class="step" data-step="4">
-        <div class="step-head">
-          <div class="step-num">Step 5 of 7 · Availability</div>
-          <h2 class="step-title">When could you teach?</h2>
-          <p class="step-desc">A rough shape is fine — we build timetables around what our instructors can actually sustain, and nothing here is a commitment.</p>
-        </div>
-
-        <fieldset class="field">
-          <legend class="field-label">Typical week</legend>
-          <div class="fac-avail">
-            <div class="fac-avail-grid" id="facAvail"></div>
-          </div>
-          <div class="field-help">Tap the blocks you are usually free. Times are Lagos (WAT).</div>
-        </fieldset>
-
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="f-hours">Hours a week you could take</label>
-            <input type="number" id="f-hours" class="field-input" min="0" max="80" inputmode="numeric" placeholder="e.g. 10">
-          </div>
-          <div class="field">
-            <label class="field-label" for="f-start">Earliest you could start</label>
-            <input type="date" id="f-start" class="field-input">
-            <div class="field-error" id="err-f-start"><i class="fa-solid fa-circle-exclamation"></i><span>Use the date picker, or leave it blank</span></div>
-          </div>
-        </div>
-
-        <div class="step-actions">
-          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" data-next>Continue <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
-        </div>
+      <!-- The action bar. Fixed on touch, a static actions row above a rule on
+           desktop — the handoff's two states, not two components. -->
+      <div class="fac-bar">
+        <span class="fac-bar-status" id="facBarStatus"></span>
+        <button type="submit" class="fac-next" id="facNext">
+          <span id="facNextLabel">Next</span>
+          <i class="fa-solid fa-arrow-right" id="facNextIcon" aria-hidden="true"></i>
+        </button>
       </div>
 
-      <!-- ─────────────────────────────── STEP 6 — Safeguarding ─────────── -->
-      <div class="step" data-step="5">
-        <div class="step-head">
-          <div class="step-num">Step 6 of 7 · Safeguarding</div>
-          <h2 class="step-title">References and safeguarding</h2>
-          <p class="step-desc">We teach children, often one to one. This part is not a formality, and we would rather be plain about it than bury it in a policy.</p>
+      </div><!-- /.fac-col -->
+
+      <!-- Running summary. Desktop only: the extra width buys a summary, not a
+           second column of questions. -->
+      <aside class="fac-aside" aria-label="Your progress">
+        <div class="fac-steps" id="facSteps"></div>
+        <div class="fac-sofar" id="facSoFar" hidden>
+          <span class="fac-sofar-head">So far</span>
+          <div id="facSoFarList"></div>
+          <p class="fac-sofar-foot">Highest level is enough — everything below it is assumed.</p>
         </div>
-
-        <!-- Safer-recruitment guidance is explicit that the commitment and the
-             fact of pre-employment checks belong where the candidate actually
-             reads them. Note what is NOT asked for anywhere on this form: a
-             certificate number, a document scan, or anything about an offence.
-             A verifier records the OUTCOME of a check against your record; the
-             evidence itself is filed offline, deliberately. -->
-        <div class="fac-safenote">
-          <p><i class="fa-solid fa-shield-heart" aria-hidden="true"></i><strong>MAM Academy is committed to safeguarding children.</strong> Every instructor is checked before they teach: we take up both of your references, confirm your identity, and require current safeguarding clearances. An offer always follows those checks — never precedes them.</p>
-          <p>We ask for your referees' contact details here, and nothing else. <strong>Please do not upload certificates or enter any document numbers</strong> — we collect that evidence in person, and record only that a check was completed and by whom.</p>
-        </div>
-
-        <div class="fac-referee">
-          <div class="fac-referee-head">Referee 1 <span class="req">*</span></div>
-          <div class="field-row">
-            <div class="field">
-              <label class="field-label" for="r1-name">Name <span class="req">*</span></label>
-              <input type="text" id="r1-name" class="field-input" maxlength="160" required>
-            </div>
-            <div class="field">
-              <label class="field-label" for="r1-rel">How do they know you?</label>
-              <input type="text" id="r1-rel" class="field-input" maxlength="120" placeholder="e.g. Head of Music, my last school">
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label class="field-label" for="r1-org">Organisation</label>
-              <input type="text" id="r1-org" class="field-input" maxlength="190">
-            </div>
-            <div class="field">
-              <label class="field-label" for="r1-email">Email</label>
-              <input type="email" id="r1-email" class="field-input" maxlength="190">
-            </div>
-          </div>
-          <div class="field">
-            <label class="field-label" for="r1-phone">Phone</label>
-            <input type="tel" id="r1-phone" class="field-input" maxlength="40">
-          </div>
-        </div>
-
-        <div class="fac-referee">
-          <div class="fac-referee-head">Referee 2 <span class="req">*</span></div>
-          <div class="field-row">
-            <div class="field">
-              <label class="field-label" for="r2-name">Name <span class="req">*</span></label>
-              <input type="text" id="r2-name" class="field-input" maxlength="160" required>
-            </div>
-            <div class="field">
-              <label class="field-label" for="r2-rel">How do they know you?</label>
-              <input type="text" id="r2-rel" class="field-input" maxlength="120">
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label class="field-label" for="r2-org">Organisation</label>
-              <input type="text" id="r2-org" class="field-input" maxlength="190">
-            </div>
-            <div class="field">
-              <label class="field-label" for="r2-email">Email</label>
-              <input type="email" id="r2-email" class="field-input" maxlength="190">
-            </div>
-          </div>
-          <div class="field">
-            <label class="field-label" for="r2-phone">Phone</label>
-            <input type="tel" id="r2-phone" class="field-input" maxlength="40">
-          </div>
-        </div>
-        <div class="field-error" id="err-referees"><i class="fa-solid fa-circle-exclamation"></i><span>Please give us two referees we can contact — at least their names</span></div>
-
-        <label class="consent" for="f-safeack">
-          <input type="checkbox" id="f-safeack" required>
-          <span class="consent-text">I understand that MAM Academy will carry out safeguarding checks — including taking up both references — before I teach any student, and I consent to those checks. <span class="req">*</span></span>
-        </label>
-        <div class="field-error" id="err-safeack"><i class="fa-solid fa-circle-exclamation"></i><span>We cannot accept an application without this</span></div>
-
-        <label class="consent" for="f-polack">
-          <input type="checkbox" id="f-polack" required>
-          <span class="consent-text">I have read and agree to abide by the Academy's child-protection and code-of-conduct policies, and I will report any safeguarding concern to the Designated Safeguarding Officer. <span class="req">*</span></span>
-        </label>
-        <div class="field-error" id="err-polack"><i class="fa-solid fa-circle-exclamation"></i><span>We cannot accept an application without this</span></div>
-
-        <!-- Honeypot: humans never see this. -->
-        <div class="hp-field" aria-hidden="true"><label>Website<input type="text" id="f-web" tabindex="-1" autocomplete="off"></label></div>
-
-        <div class="step-actions">
-          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</button>
-          <button type="button" class="btn-step btn-step-next" data-next>Review <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
-        </div>
-      </div>
-
-      <!-- ─────────────────────────────── STEP 7 — Review ───────────────── -->
-      <div class="step" data-step="6">
-        <div class="step-head">
-          <div class="step-num">Step 7 of 7 · Review</div>
-          <h2 class="step-title">Check it over</h2>
-          <p class="step-desc">Every line is editable — use the step numbers above, or the links here, and nothing you have typed is lost.</p>
-        </div>
-
-        <div id="facReview" class="review-grid"></div>
-
-        <div class="field-error" id="err-submit"><i class="fa-solid fa-circle-exclamation"></i><span id="err-submit-text">Something went wrong. Please try again.</span></div>
-
-        <div class="step-actions">
-          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</button>
-          <button type="submit" class="btn-step btn-step-next" id="facSubmit">Submit application <i class="fa-solid fa-paper-plane" aria-hidden="true"></i></button>
-        </div>
-      </div>
+      </aside>
 
     </div>
     </form>
@@ -403,7 +402,7 @@
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260807a"></script>
 <script src="assets/js/headshot.js?v=20260817a" defer></script>
-<script src="assets/js/main.js?v=20260820a"></script>
-<script src="assets/js/instructor-apply.js?v=20260917a" defer></script>
+<script src="assets/js/main.js?v=20260918a"></script>
+<script src="assets/js/instructor-apply.js?v=20260918a" defer></script>
 </body>
 </html>

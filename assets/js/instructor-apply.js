@@ -1,13 +1,38 @@
 /**
- * MAM Academy — instructor application wizard.
+ * MAM Academy — instructor application wizard (v2, the "Quiet" four-step rework).
  *
- * Seven steps, mirroring the student wizard's shape and reusing its components
- * (`.step`, `.field`, `.btn-step`) so the two forms cannot drift into two house
- * styles. The differences are deliberate: no payment step (nobody pays to apply
- * to teach), a structured teaching matrix instead of a free-text discipline
- * list, and a safeguarding step that collects referee CONTACTS and two
- * commitments — never a certificate, a document number, or anything about an
- * offence.
+ * Four steps, mirroring the student wizard's shape and reusing its components
+ * (`.step`, the draft plumbing, the error tones) so the two forms cannot drift
+ * into two house styles. The differences are deliberate: no payment step
+ * (nobody pays to apply to teach), a structured teaching list instead of a
+ * free-text discipline field, and a references step that collects referee
+ * CONTACTS and two commitments — never a certificate, a document number, or
+ * anything about an offence.
+ *
+ * WHAT CHANGED FROM THE SEVEN-STEP VERSION, and why each is not a regression:
+ *
+ *  · Training + Experience + Availability collapsed into "Track record"; the
+ *    five questions the handoff cuts from that step are NOT cut from the
+ *    product — they live behind the "Add more detail (optional)" disclosure
+ *    with their ids, their validation and their place in the POST body intact.
+ *  · Courses come first, then levels. The old matrix rendered 12 courses × 4
+ *    levels — 48 checkboxes before the applicant had said anything.
+ *  · A course now carries its HIGHEST level, chosen with radio semantics.
+ *    `collectSubjects()` expands that to the full 0..N set at collect time, so
+ *    the API contract (`subjects: [{course, level, years}]`) is untouched and
+ *    `mam_faculty_normalise_subjects()` sees exactly what it always saw.
+ *  · A referee's email and phone became one "Email or phone" field.
+ *    `collectReferees()` routes it back into the `email`/`phone` keys the
+ *    endpoint normalises — an address goes to `email`, anything else to
+ *    `phone`, which is what `filter_var(..., FILTER_VALIDATE_EMAIL)` on the
+ *    server would have decided anyway.
+ *  · The review step is gone; its job (see it before you send it) is done by
+ *    the desktop running summary and by four screens short enough to check.
+ *
+ * The availability state key is UNCHANGED (`state.avail['mon:morning']`), and
+ * `loadDraft()` migrates a seven-step draft — including the old per-course
+ * `subjects` map and the split referee contacts — so somebody who started the
+ * old form finishes on the new one rather than losing their work.
  *
  * WHY THIS FILE IS NOT INLINE. `.github/scripts/check-inline-js.cjs` walks only
  * `.html`, so an inline block in a `.php` page is syntax-checked by nothing —
@@ -20,11 +45,14 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var DRAFT_KEY = 'mam.facapply.draft';
-  var STEPS = 7;
+  var STEPS = 4;
+  var STEP_NAMES = ['Courses', 'You', 'Track record', 'References'];
 
   var gate = $('facGate');
   var form = $('facForm');
-  var progress = $('facProgress');
+  var appbar = $('facAppbar');
+  var progWrap = $('facProgWrap');
+  var progFill = $('facProgFill');
   var announce = $('facAnnounce');
 
   var state = {
@@ -33,11 +61,12 @@
     emailLocked: false,        // an invited address is the invite's, not the body's
     catalogue: null,
     step: 0,
-    subjects: {},              // 'course|level' -> true
-    years: {},                 // course -> years
+    courses: {},               // course code -> true
+    levels: {},                // course code -> the HIGHEST level code claimed
+    years: {},                 // legacy per-course years, carried from an old draft only
     programmes: {},
     modes: {},
-    avail: {},
+    avail: {},                 // 'mon:morning' -> true  (key unchanged from v1)
     headshotUrl: ''
   };
 
@@ -46,8 +75,8 @@
    * `prefers-reduced-motion` is respected, and smooth scrolling is motion the
    * user did not ask for — for some vestibular conditions it is the motion
    * that actually causes symptoms. Read at CALL time, not captured once: the
-   * setting can change while the page is open, and a seven-step form is open
-   * for a while.
+   * setting can change while the page is open, and an application is open for
+   * a while.
    */
   function motionOk() {
     try { return !window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
@@ -59,6 +88,17 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
+  }
+
+  /* The chip reads "1-2", not "Grade 1-2" — the row already says "up to", and
+     at 12.5px in a quarter of 390px the word does not fit. The full level name
+     goes on the control's aria-label, so nothing is lost to a reader. */
+  function gradeChip(level) {
+    var g = String(level.trinity_grades || '').replace(/^\s*grades?\s+/i, '').trim();
+    return g || level.name;
+  }
+  function levelFullName(level) {
+    return level.trinity_grades ? level.name + ', ' + level.trinity_grades : level.name;
   }
 
   /* ── Gate ──────────────────────────────────────────────────────────────── */
@@ -124,12 +164,17 @@
 
   function openForm() {
     gate.hidden = true;
-    progress.hidden = false;
+    appbar.hidden = false;
+    progWrap.hidden = false;
     form.hidden = false;
 
     renderMatrix();
-    renderChips('facProgrammes', state.catalogue.programmes || [], 'programmes', function (p) { return p.name; }, function (p) { return p.code; });
-    renderChips('facModes', (state.catalogue.modes || []).map(function (m) { return { code: m, name: m.charAt(0).toUpperCase() + m.slice(1) }; }), 'modes', function (m) { return m.name; }, function (m) { return m.code; });
+    renderSteps();
+    renderOpts('facProgrammes', state.catalogue.programmes || [], 'programmes',
+      function (p) { return p.name; }, function (p) { return p.code; });
+    renderOpts('facModes', (state.catalogue.modes || []).map(function (m) {
+      return { code: m, name: m.charAt(0).toUpperCase() + m.slice(1) };
+    }), 'modes', function (m) { return m.name; }, function (m) { return m.code; });
     renderAvailability();
     mountHeadshot();
 
@@ -142,79 +187,82 @@
 
     loadDraft();
     bindAll();
-    showStep(0, true);
+    trackDock();
+    showStep(state.step, true);
   }
 
-  /* ── The teaching matrix ───────────────────────────────────────────────── */
+  /* ── Step 1 · the course list ──────────────────────────────────────────── */
 
+  /**
+   * One row per course, hairline-separated. The level control is rendered for
+   * every row but revealed only under a chosen course — building it up front
+   * keeps `loadDraft()` able to tick a restored level without re-rendering, and
+   * a `hidden` container is not in the tab order.
+   */
   function renderMatrix() {
     var wrap = $('facMatrix');
     var levels = state.catalogue.levels || [];
     wrap.innerHTML = (state.catalogue.courses || []).map(function (c) {
       var chips = levels.map(function (l) {
-        var id = 'sub-' + c.code + '-' + l.code;
-        return '<label class="fac-level" for="' + esc(id) + '">'
-          + '<input type="checkbox" id="' + esc(id) + '" data-course="' + esc(c.code) + '" data-level="' + esc(l.code) + '">'
-          + '<span>' + esc(l.name) + (l.trinity_grades ? '<small>' + esc(l.trinity_grades) + '</small>' : '') + '</span>'
-          + '</label>';
+        return '<label class="fac-grade">'
+          + '<input type="radio" name="lvl-' + esc(c.code) + '" id="lvl-' + esc(c.code) + '-' + esc(l.code) + '"'
+          + ' data-course="' + esc(c.code) + '" data-level="' + esc(l.code) + '"'
+          + ' aria-label="' + esc(c.name + ' — up to ' + levelFullName(l)) + '">'
+          + '<span>' + esc(gradeChip(l)) + '</span></label>';
       }).join('');
-      return '<div class="fac-subject" data-course-card="' + esc(c.code) + '">'
-        + '<div class="fac-subject-head">'
-        + '<span class="fac-subject-name">' + esc(c.name) + '</span>'
-        + (c.kind === 'core' ? '<span class="fac-subject-kind">Core</span>' : '')
-        + '</div>'
-        + '<div class="fac-levels">' + chips + '</div>'
-        + '<div class="field fac-years" hidden data-years-for="' + esc(c.code) + '">'
-        + '<label class="field-label" for="yrs-' + esc(c.code) + '">Years teaching ' + esc(c.name) + '</label>'
-        + '<input type="number" min="0" max="60" inputmode="numeric" class="field-input" id="yrs-' + esc(c.code) + '" data-years="' + esc(c.code) + '">'
+      return '<div class="fac-row" data-course-card="' + esc(c.code) + '">'
+        + '<label class="fac-row-head" for="course-' + esc(c.code) + '">'
+        + '<input type="checkbox" class="fac-row-cb" id="course-' + esc(c.code) + '" data-course-cb="' + esc(c.code) + '">'
+        + '<span class="fac-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>'
+        + '<span class="fac-row-name">' + esc(c.name) + '</span>'
+        // The four core courses carry the marker on the row itself. It replaces
+        // two section headings and their helper lines: "Core" belongs on the
+        // rows that are core, not above a group of them.
+        + (c.kind === 'core' ? '<span class="fac-row-core">Core</span>' : '')
+        + '</label>'
+        + '<div class="fac-grades" hidden role="group" aria-label="' + esc('Highest level you can teach ' + c.name) + '">'
+        + '<span class="fac-grades-label">up to</span>' + chips
         + '</div>'
         + '</div>';
     }).join('');
 
     wrap.addEventListener('change', function (e) {
-      var cb = e.target;
-      if (!cb || cb.type !== 'checkbox' || !cb.dataset.course) return;
-      var key = cb.dataset.course + '|' + cb.dataset.level;
-      if (cb.checked) state.subjects[key] = true; else delete state.subjects[key];
-      syncMatrixCard(cb.dataset.course);
-      updateMatrixCount();
-      saveDraft();
-    });
-    wrap.addEventListener('input', function (e) {
-      var n = e.target;
-      if (!n || !n.dataset || !n.dataset.years) return;
-      state.years[n.dataset.years] = n.value;
+      var el = e.target;
+      if (!el || !el.dataset) return;
+      if (el.dataset.courseCb) {
+        var code = el.dataset.courseCb;
+        if (el.checked) state.courses[code] = true;
+        else { delete state.courses[code]; delete state.levels[code]; }
+        syncMatrixCard(code);
+      } else if (el.dataset.level) {
+        state.levels[el.dataset.course] = el.dataset.level;
+      } else return;
+      updateSummary();
       saveDraft();
     });
   }
 
-  /* A course with no level chosen has nothing to say about years, so the
-     question only appears once it is relevant. */
+  /* A course with no level chosen has nothing to say about levels, so the
+     control only appears once it is relevant. */
   function syncMatrixCard(course) {
     var card = document.querySelector('[data-course-card="' + CSS.escape(course) + '"]');
     if (!card) return;
-    var any = Object.keys(state.subjects).some(function (k) { return k.split('|')[0] === course; });
-    card.classList.toggle('is-chosen', any);
-    var yrs = card.querySelector('[data-years-for]');
-    if (yrs) yrs.hidden = !any;
+    var on = !!state.courses[course];
+    var grades = card.querySelector('.fac-grades');
+    if (grades) grades.hidden = !on;
+    if (!on) {
+      Array.prototype.forEach.call(card.querySelectorAll('input[type="radio"]'), function (r) { r.checked = false; });
+    }
   }
 
-  function updateMatrixCount() {
-    var keys = Object.keys(state.subjects);
-    var courses = {};
-    keys.forEach(function (k) { courses[k.split('|')[0]] = true; });
-    var nc = Object.keys(courses).length;
-    $('facMatrixCount').innerHTML = keys.length
-      ? '<strong>' + nc + '</strong> course' + (nc === 1 ? '' : 's') + ', <strong>' + keys.length + '</strong> course–level combination' + (keys.length === 1 ? '' : 's') + ' chosen.'
-      : 'Nothing chosen yet.';
-  }
+  /* ── Chip groups (teaching modes, programmes) ──────────────────────────── */
 
-  function renderChips(mountId, items, bucket, label, code) {
+  function renderOpts(mountId, items, bucket, label, code) {
     var el = $(mountId);
     if (!el) return;
     el.innerHTML = items.map(function (it) {
       var id = bucket + '-' + code(it);
-      return '<label class="fac-level" for="' + esc(id) + '">'
+      return '<label class="fac-opt" for="' + esc(id) + '">'
         + '<input type="checkbox" id="' + esc(id) + '" data-bucket="' + esc(bucket) + '" value="' + esc(code(it)) + '">'
         + '<span>' + esc(label(it)) + '</span></label>';
     }).join('');
@@ -226,23 +274,31 @@
     });
   }
 
+  /* ── Step 3 · the week ─────────────────────────────────────────────────── */
+
+  /**
+   * One row per day, three part toggles. The old grid was
+   * `84px + 7 × minmax(52px,1fr)` at a 460px minimum inside a 358px card, so it
+   * scrolled sideways on every phone the faculty funnel actually sees.
+   *
+   * Each cell keeps its OWN aria-label: "Mon" and "Morning" are adjacent only
+   * visually, and a checkbox named by neither is a checkbox named by nothing.
+   */
   function renderAvailability() {
     var days = [['mon', 'Mon'], ['tue', 'Tue'], ['wed', 'Wed'], ['thu', 'Thu'], ['fri', 'Fri'], ['sat', 'Sat'], ['sun', 'Sun']];
     var parts = [['morning', 'Morning'], ['afternoon', 'Afternoon'], ['evening', 'Evening']];
-    var html = '<span class="fac-avail-head" aria-hidden="true"></span>'
-      + days.map(function (d) { return '<span class="fac-avail-head">' + d[1] + '</span>'; }).join('');
-    parts.forEach(function (p) {
-      html += '<span class="fac-avail-row-label">' + p[1] + '</span>';
-      days.forEach(function (d) {
-        var slot = d[0] + ':' + p[0];
-        // The visible grid is a matrix, so each cell needs its own accessible
-        // name — "Mon" and "Morning" are only adjacent visually.
-        html += '<label class="fac-avail-cell"><input type="checkbox" data-slot="' + slot + '" '
-          + 'aria-label="' + d[1] + ' ' + p[1] + '"><span></span></label>';
-      });
-    });
     var el = $('facAvail');
-    el.innerHTML = html;
+    el.innerHTML = days.map(function (d) {
+      return '<div class="fac-day">'
+        + '<span class="fac-day-name" aria-hidden="true">' + d[1] + '</span>'
+        + parts.map(function (p) {
+          var slot = d[0] + ':' + p[0];
+          return '<label class="fac-slot">'
+            + '<input type="checkbox" data-slot="' + slot + '" aria-label="' + d[1] + ' ' + p[1] + '">'
+            + '<span>' + p[1] + '</span></label>';
+        }).join('')
+        + '</div>';
+    }).join('');
     el.addEventListener('change', function (e) {
       var cb = e.target;
       if (!cb || !cb.dataset || !cb.dataset.slot) return;
@@ -251,33 +307,122 @@
     });
   }
 
+  /* ── Headshot ──────────────────────────────────────────────────────────── */
+
+  /**
+   * The 220px dashed dropzone became a 48px row — on a 390px screen the old one
+   * was a third of the viewport for an optional field.
+   *
+   * ⚠️ The UPLOADER is untouched. `MAM_HEADSHOT.mount()` is still called once,
+   * on the same element, at the same point in the lifecycle; only the
+   * container's visibility is deferred. That chain has four independent
+   * failure points and all four have failed in production, so the change here
+   * is deliberately confined to a `hidden` attribute.
+   */
   function mountHeadshot() {
     if (!window.MAM_HEADSHOT || !$('facHeadshot')) return;
     window.MAM_HEADSHOT.mount($('facHeadshot'), {
       onChange: function (s) {
         state.headshotUrl = (s && s.uploaded && s.uploaded.url) || '';
-        if (state.headshotUrl) { $('f-shot').value = state.headshotUrl; saveDraft(); }
+        if (state.headshotUrl) {
+          $('f-shot').value = state.headshotUrl;
+          markHeadshot(state.headshotUrl);
+          saveDraft();
+        }
       }
     });
   }
 
+  function markHeadshot(url) {
+    var icon = $('facShotIcon'), st = $('facShotState');
+    if (!icon || !st) return;
+    if (url) {
+      // The row reports a STORED url and nothing else. No branch here may say
+      // "accepted" without one — a green tick over an empty column is exactly
+      // how this shipped a faceless printed card once already.
+      icon.style.backgroundImage = 'url("' + url.replace(/"/g, '%22') + '")';
+      icon.innerHTML = '';
+      st.textContent = 'Added';
+    } else {
+      icon.style.backgroundImage = '';
+      icon.innerHTML = '<i class="fa-solid fa-camera" aria-hidden="true"></i>';
+      st.textContent = 'Optional';
+    }
+  }
+
+  /* ── The dock ──────────────────────────────────────────────────────────── */
+
+  /**
+   * Keep `--fac-dock-h` equal to whatever `window.mamDock` is currently
+   * holding, so the action bar rides above it instead of under it.
+   *
+   * The dock is the column-reverse stack the cookie banner lives in, at
+   * z-index 950 — above this bar ON PURPOSE, because a consent notice must not
+   * be covered by a form control. MEASURED at `bottom:0`: the banner's Accept
+   * button sat directly over Submit and the form could not be sent on a first
+   * visit. This is the same collision the redesign's floating Apply pill hit,
+   * and the reason that pill had to join the dock rather than sit beside it.
+   *
+   * Measured rather than assumed: the banner's height depends on how its
+   * sentence wraps, which depends on the text size the accessibility toolbar is
+   * set to. An EMPTY dock measures 0 here, not its own padding — otherwise
+   * dismissing the banner would leave the bar permanently floating.
+   */
+  function trackDock() {
+    var set = function (px) { document.body.style.setProperty('--fac-dock-h', px + 'px'); };
+    var watch = function (dock) {
+      var apply = function () {
+        var shown = Array.prototype.filter.call(dock.children, function (c) { return c.offsetParent !== null; });
+        set(shown.length ? dock.offsetHeight : 0);
+      };
+      apply();
+      try { new ResizeObserver(apply).observe(dock); }
+      catch (e) { window.addEventListener('resize', apply); }
+      try { new MutationObserver(apply).observe(dock, { childList: true, attributes: true, subtree: true }); } catch (e) {}
+    };
+    var dock = document.getElementById('mamDock');
+    if (dock) return watch(dock);
+    // main.js creates it on demand, so it may not exist yet.
+    try {
+      var mo = new MutationObserver(function () {
+        var d = document.getElementById('mamDock');
+        if (d) { mo.disconnect(); watch(d); }
+      });
+      mo.observe(document.body, { childList: true });
+    } catch (e) {}
+  }
+
   /* ── Steps ─────────────────────────────────────────────────────────────── */
+
+  function renderSteps() {
+    $('facSteps').innerHTML = STEP_NAMES.map(function (n, i) {
+      return '<button type="button" class="fac-step-row" data-step-to="' + i + '">'
+        + '<span class="fac-step-dot" aria-hidden="true"></span>'
+        + '<span class="fac-step-label">' + esc(n) + '</span></button>';
+    }).join('');
+  }
 
   function showStep(i, silent) {
     state.step = Math.max(0, Math.min(STEPS - 1, i));
+    var last = state.step === STEPS - 1;
+
     Array.prototype.forEach.call(document.querySelectorAll('#facForm .step'), function (s) {
       s.classList.toggle('active', Number(s.dataset.step) === state.step);
     });
-    Array.prototype.forEach.call(progress.querySelectorAll('.apply-progress-step'), function (b) {
-      var n = Number(b.dataset.step);
-      b.classList.toggle('active', n === state.step);
-      b.classList.toggle('done', n < state.step);
-      if (n === state.step) b.setAttribute('aria-current', 'step');
+    Array.prototype.forEach.call($('facSteps').querySelectorAll('.fac-step-row'), function (b) {
+      if (Number(b.dataset.stepTo) === state.step) b.setAttribute('aria-current', 'step');
       else b.removeAttribute('aria-current');
     });
-    if (state.step === STEPS - 1) renderReview();
 
-    var head = document.querySelector('#facForm .step.active .step-title');
+    $('facPos').textContent = (state.step + 1) + ' of ' + STEPS;
+    $('facBack').hidden = state.step === 0;
+    progFill.style.width = ((state.step + 1) / STEPS * 100) + '%';
+    $('facNextLabel').textContent = last ? 'Submit' : 'Next';
+    $('facNextIcon').className = last ? 'fa-solid fa-paper-plane' : 'fa-solid fa-arrow-right';
+
+    updateSummary();
+
+    var head = document.querySelector('#facForm .step.active .fac-h');
     if (head && !silent) {
       // Announce rather than only move focus: a reader following focus into a
       // heading does not say WHICH step of how many, which is the stepper's
@@ -290,10 +435,56 @@
     saveDraft();
   }
 
+  /* ── The running summary (bar status + desktop "So far") ───────────────── */
+
+  function courseName(code) {
+    var c = (state.catalogue.courses || []).filter(function (x) { return x.code === code; })[0];
+    return c ? c.name : code;
+  }
+  function levelByCode(code) {
+    return (state.catalogue.levels || []).filter(function (x) { return x.code === code; })[0] || null;
+  }
+
+  function chosenCourses() {
+    return Object.keys(state.courses).filter(function (c) { return state.courses[c]; });
+  }
+
+  function updateSummary() {
+    var n = chosenCourses().length;
+    var bar = $('facBarStatus');
+    bar.textContent = '';
+    if (state.step === 0 && n) {
+      bar.appendChild(document.createTextNode(n + ' chosen'));
+      if (hasDraft()) {
+        var d = document.createElement('span');
+        d.className = 'fac-bar-draft';
+        d.textContent = ' · draft saved';
+        bar.appendChild(d);
+      }
+    }
+
+    var list = $('facSoFarList'), panel = $('facSoFar');
+    if (!list || !panel) return;
+    var years = ($('f-years').value || '').trim();
+    var rows = chosenCourses().map(function (c) {
+      var lv = levelByCode(state.levels[c]);
+      var bits = [];
+      if (lv) bits.push('up to ' + levelFullName(lv));
+      if (years) bits.push(years + (years === '1' ? ' year' : ' years'));
+      return '<div class="fac-sofar-item"><span class="fac-sofar-name">' + esc(courseName(c)) + '</span>'
+        + (bits.length ? '<span class="fac-sofar-detail">' + esc(bits.join(' · ')) + '</span>' : '')
+        + '</div>';
+    });
+    list.innerHTML = rows.join('');
+    panel.hidden = rows.length === 0;
+  }
+
+  /* ── Validation ────────────────────────────────────────────────────────── */
+
   /* Which control(s) an error message is ABOUT. `main.js` already gives every
-     .field-error a role="alert", so the message is announced; without
-     aria-invalid the control itself still reads as fine, so a screen-reader
-     user hears a complaint and cannot tell which field it names. */
+     error a role="alert", so the message is announced; without aria-invalid the
+     control itself still reads as fine, so a screen-reader user hears a
+     complaint and cannot tell which field it names. */
   var ERR_CONTROLS = {
     'err-subjects': ['facMatrix'],
     'err-referees': ['r1-name', 'r2-name'],
@@ -313,10 +504,17 @@
     });
   }
 
-  function validateStep(i) {
+  /**
+   * The rules are the seven-step form's, remapped to four. Nothing was relaxed:
+   * step 4 still demands two referees and both commitments, and the optional
+   * date still has to parse if it was filled in — it now lives inside the
+   * "Add more detail" disclosure, which is opened before the error is shown so
+   * the candidate can see the field the message is about.
+   */
+  function validateStep(i, quiet) {
     var ok = true;
     if (i === 0) {
-      var any = Object.keys(state.subjects).length > 0;
+      var any = chosenCourses().length > 0;
       setErr('err-subjects', !any); if (!any) ok = false;
     }
     if (i === 1) {
@@ -326,101 +524,109 @@
       var emOk = state.emailLocked || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
       setErr('err-f-email', !emOk); if (!emOk) ok = false;
     }
-    if (i === 3) {
+    if (i === 2) {
       var bio = $('f-bio').value.trim();
       setErr('err-f-bio', bio.length < 40); if (bio.length < 40) ok = false;
-    }
-    if (i === 4) {
       var d = $('f-start').value.trim();
       var dOk = d === '' || /^\d{4}-\d{2}-\d{2}$/.test(d);
-      setErr('err-f-start', !dOk); if (!dOk) ok = false;
+      setErr('err-f-start', !dOk);
+      if (!dOk) { ok = false; $('facMore').open = true; }
     }
-    if (i === 5) {
+    if (i === 3) {
       var refs = collectReferees();
-      setErr('err-referees', refs.length < 2); if (refs.length < 2) ok = false;
+      var refsOk = refs.length >= 2;
+      setErr('err-referees', !refsOk);
+      // A folded referee 2 cannot answer a complaint about referee 2.
+      if (!refsOk) { ok = false; $('facRef2').open = true; }
       var s1 = $('f-safeack').checked, s2 = $('f-polack').checked;
       setErr('err-safeack', !s1); if (!s1) ok = false;
       setErr('err-polack', !s2); if (!s2) ok = false;
     }
-    if (!ok) {
-      var firstErr = document.querySelector('#facForm .step.active .field-error.shown');
+    if (!ok && !quiet) {
+      var firstErr = document.querySelector('#facForm .step.active .fac-err.shown');
       if (firstErr) firstErr.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
     }
     return ok;
   }
 
+  /**
+   * Once a step has complained, it re-checks itself as the candidate answers.
+   *
+   * MEASURED: both consent boxes were ticked and both refusals were still on
+   * screen underneath them, because the errors were only ever recomputed on the
+   * next press of the button. A refusal sitting under the very control that
+   * satisfies it reads as a broken form, and the candidate's next move is to
+   * press Submit again to find out.
+   *
+   * Deliberately does nothing until something is already shown: live validation
+   * before the first attempt complains about fields the candidate has not
+   * reached yet. It is also `quiet` — re-running the check must not drag the
+   * viewport around while somebody is typing.
+   */
+  function revalidate() {
+    if (!document.querySelector('#facForm .step.active .fac-err.shown')) return;
+    validateStep(state.step, true);
+  }
+
+  /**
+   * "Email or phone" is one field on the page and two keys in the payload.
+   * An address goes to `email`, anything else to `phone` — which is the same
+   * decision `mam_faculty_normalise_referees()` makes on the server with
+   * `filter_var(..., FILTER_VALIDATE_EMAIL)`, so a value that reaches one key
+   * here would have been rejected out of the other there.
+   *
+   * `organisation` is deliberately no longer asked: the handoff cuts referee
+   * fields from five to three, and "How do they know you?" carries the
+   * organisation ("Head of Music, my last school"). The key is still sent so
+   * the panel's notification email template needs no change.
+   */
   function collectReferees() {
     return [1, 2].map(function (n) {
+      var contact = $('r' + n + '-contact').value.trim();
+      var isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact);
       return {
         name: $('r' + n + '-name').value.trim(),
         relationship: $('r' + n + '-rel').value.trim(),
-        organisation: $('r' + n + '-org').value.trim(),
-        email: $('r' + n + '-email').value.trim(),
-        phone: $('r' + n + '-phone').value.trim()
+        organisation: '',
+        email: isEmail ? contact : '',
+        phone: isEmail ? '' : contact
       };
     }).filter(function (r) { return r.name !== ''; });
   }
 
+  /**
+   * HIGHEST LEVEL ONLY on the page; the full set in the payload.
+   *
+   * The row asks for the furthest a candidate can take a student, and
+   * everything below it is assumed. The API has always received one row per
+   * (course, level), and `instructor_assignments` has a UNIQUE index of that
+   * shape, so the chosen index is expanded to 0..N here rather than changing a
+   * contract three tables deep.
+   *
+   * A chosen course with NO level is still sent — as a level-less row, which is
+   * what the old form produced for a course whose boxes were all clear, and
+   * which `mam_faculty_normalise_subjects()` already stores with a NULL level.
+   */
   function collectSubjects() {
-    return Object.keys(state.subjects).map(function (k) {
-      var p = k.split('|');
-      return { course: p[0], level: p[1], years: state.years[p[0]] || '' };
+    var levels = state.catalogue.levels || [];
+    var out = [];
+    chosenCourses().forEach(function (code) {
+      var years = state.years[code] || '';
+      var top = state.levels[code] || '';
+      var idx = -1;
+      for (var i = 0; i < levels.length; i++) { if (levels[i].code === top) { idx = i; break; } }
+      if (idx < 0) { out.push({ course: code, level: '', years: years }); return; }
+      for (var j = 0; j <= idx; j++) out.push({ course: code, level: levels[j].code, years: years });
     });
-  }
-
-  /* ── Review ────────────────────────────────────────────────────────────── */
-
-  function courseName(code) {
-    var c = (state.catalogue.courses || []).filter(function (x) { return x.code === code; })[0];
-    return c ? c.name : code;
-  }
-  function levelName(code) {
-    var l = (state.catalogue.levels || []).filter(function (x) { return x.code === code; })[0];
-    return l ? l.name : code;
-  }
-
-  function reviewItem(label, value, step) {
-    return '<div class="review-item">'
-      + '<div class="review-label">' + esc(label)
-      + ' <button type="button" class="review-edit" data-goto="' + step + '">Edit</button></div>'
-      + '<div class="review-value">' + (value || '<em>Not given</em>') + '</div></div>';
-  }
-
-  function renderReview() {
-    var subs = collectSubjects().map(function (s) {
-      return esc(courseName(s.course)) + ' — ' + esc(levelName(s.level)) + (s.years ? ' (' + esc(s.years) + ' yrs)' : '');
-    });
-    var refs = collectReferees().map(function (r) {
-      return esc(r.name) + (r.relationship ? ' — ' + esc(r.relationship) : '') + (r.organisation ? ', ' + esc(r.organisation) : '');
-    });
-    var avail = Object.keys(state.avail);
-
-    $('facReview').innerHTML =
-        reviewItem('Courses & levels', subs.length ? subs.join('<br>') : '', 0)
-      + reviewItem('Programmes', Object.keys(state.programmes).map(esc).join(', '), 0)
-      + reviewItem('Teaching modes', Object.keys(state.modes).map(esc).join(', '), 0)
-      + reviewItem('Name', esc($('f-name').value.trim()), 1)
-      + reviewItem('Email', esc(state.emailLocked ? state.email : $('f-email').value.trim()), 1)
-      + reviewItem('Phone', esc($('f-phone').value.trim()), 1)
-      + reviewItem('Based in', esc($('f-location').value.trim()), 1)
-      + reviewItem('Years teaching', esc($('f-years').value.trim()), 2)
-      + reviewItem('Qualifications', esc($('f-quals').value.trim()).replace(/\n/g, '<br>'), 2)
-      + reviewItem('CV', esc($('f-cv').value.trim()), 2)
-      + reviewItem('Biography', esc($('f-bio').value.trim()).replace(/\n/g, '<br>'), 3)
-      + reviewItem('How you teach', esc($('f-philosophy').value.trim()).replace(/\n/g, '<br>'), 3)
-      + reviewItem('Links', esc($('f-links').value.trim()), 3)
-      + reviewItem('Availability', avail.length ? (avail.length + ' block' + (avail.length === 1 ? '' : 's') + ' a week') : '', 4)
-      + reviewItem('Hours a week', esc($('f-hours').value.trim()), 4)
-      + reviewItem('Earliest start', esc($('f-start').value.trim()), 4)
-      + reviewItem('Referees', refs.length ? refs.join('<br>') : '', 5);
+    return out;
   }
 
   /* ── Draft: save & resume ──────────────────────────────────────────────── */
 
   var TEXT_FIELDS = ['f-name', 'f-email', 'f-phone', 'f-location', 'f-shot', 'f-years', 'f-cv',
     'f-quals', 'f-bio', 'f-philosophy', 'f-links', 'f-hours', 'f-start',
-    'r1-name', 'r1-rel', 'r1-org', 'r1-email', 'r1-phone',
-    'r2-name', 'r2-rel', 'r2-org', 'r2-email', 'r2-phone'];
+    'r1-name', 'r1-rel', 'r1-contact',
+    'r2-name', 'r2-rel', 'r2-contact'];
 
   /**
    * Has the candidate actually put anything in?
@@ -441,10 +647,15 @@
       return String(f[k] || '').trim() !== '';
     });
     return typed
-      || Object.keys(d.subjects || {}).length > 0
+      || Object.keys(d.courses || {}).length > 0
+      || Object.keys(d.subjects || {}).length > 0       // a seven-step draft
       || Object.keys(d.programmes || {}).length > 0
       || Object.keys(d.modes || {}).length > 0
       || Object.keys(d.avail || {}).length > 0;
+  }
+
+  function hasDraft() {
+    try { return !!localStorage.getItem(DRAFT_KEY); } catch (e) { return false; }
   }
 
   function saveDraft() {
@@ -452,8 +663,9 @@
       var f = {};
       TEXT_FIELDS.forEach(function (id) { var el = $(id); if (el) f[id] = el.value; });
       var d = {
-        f: f, subjects: state.subjects, years: state.years, programmes: state.programmes,
-        modes: state.modes, avail: state.avail, step: state.step, at: Date.now()
+        f: f, courses: state.courses, levels: state.levels, years: state.years,
+        programmes: state.programmes, modes: state.modes, avail: state.avail,
+        step: state.step, at: Date.now()
       };
       // Nothing to resume → write nothing, and clear a draft emptied by hand.
       if (!draftHasContent(d)) { localStorage.removeItem(DRAFT_KEY); return; }
@@ -461,10 +673,40 @@
     } catch (e) { /* private mode, quota — a draft is a convenience, never a dependency */ }
   }
 
+  /**
+   * A seven-step draft is MIGRATED, not discarded. Somebody who opened the old
+   * form yesterday finishes on the new one: `subjects['piano|cert']` becomes
+   * `courses.piano` + `levels.piano = the highest level claimed`, and the split
+   * referee email/phone fold into the single contact field. `step` is clamped,
+   * because step 6 does not exist any more.
+   */
+  function migrateDraft(d) {
+    if (!d) return d;
+    if (!d.courses && d.subjects) {
+      var levels = state.catalogue.levels || [];
+      var rank = {}; levels.forEach(function (l, i) { rank[l.code] = i; });
+      d.courses = {}; d.levels = {};
+      Object.keys(d.subjects).forEach(function (k) {
+        var p = k.split('|'), c = p[0], l = p[1];
+        d.courses[c] = true;
+        if (l && rank[l] !== undefined && (d.levels[c] === undefined || rank[l] > rank[d.levels[c]])) d.levels[c] = l;
+      });
+    }
+    var f = d.f || {};
+    [1, 2].forEach(function (n) {
+      if (f['r' + n + '-contact']) return;
+      var v = String(f['r' + n + '-email'] || '').trim() || String(f['r' + n + '-phone'] || '').trim();
+      if (v) f['r' + n + '-contact'] = v;
+    });
+    d.f = f;
+    return d;
+  }
+
   function loadDraft() {
     var d = null;
     try { d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { d = null; }
     if (!d || !draftHasContent(d)) return;
+    d = migrateDraft(d);
 
     TEXT_FIELDS.forEach(function (id) {
       var el = $(id);
@@ -472,17 +714,20 @@
       if (id === 'f-email' && state.emailLocked) return;
       if (el && typeof d.f[id] === 'string') el.value = d.f[id];
     });
-    state.subjects = d.subjects || {};
+    state.courses = d.courses || {};
+    state.levels = d.levels || {};
     state.years = d.years || {};
     state.programmes = d.programmes || {};
     state.modes = d.modes || {};
     state.avail = d.avail || {};
+    state.step = Math.max(0, Math.min(STEPS - 1, Number(d.step) || 0));
 
-    Object.keys(state.subjects).forEach(function (k) {
-      var p = k.split('|');
-      var cb = $('sub-' + p[0] + '-' + p[1]);
+    Object.keys(state.courses).forEach(function (c) {
+      var cb = $('course-' + c);
       if (cb) cb.checked = true;
-      syncMatrixCard(p[0]);
+      var lv = state.levels[c];
+      if (lv) { var r = $('lvl-' + c + '-' + lv); if (r) r.checked = true; }
+      syncMatrixCard(c);
     });
     ['programmes', 'modes'].forEach(function (bucket) {
       Object.keys(state[bucket]).forEach(function (v) {
@@ -493,10 +738,16 @@
       var cb = document.querySelector('[data-slot="' + CSS.escape(slot) + '"]');
       if (cb) cb.checked = true;
     });
-    Object.keys(state.years).forEach(function (c) {
-      var el = $('yrs-' + c); if (el) el.value = state.years[c];
-    });
-    updateMatrixCount();
+
+    // A restored answer must never sit behind a closed disclosure.
+    if (['f-quals', 'f-philosophy', 'f-cv', 'f-links', 'f-start'].some(function (id) { return ($(id).value || '').trim() !== ''; })
+      || Object.keys(state.programmes).length) $('facMore').open = true;
+    if (($('r2-name').value || '').trim() || ($('r2-rel').value || '').trim() || ($('r2-contact').value || '').trim()) $('facRef2').open = true;
+
+    var shot = ($('f-shot').value || '').trim();
+    if (shot) { state.headshotUrl = shot; markHeadshot(shot); $('facShotPanel').hidden = false; $('facShotToggle').setAttribute('aria-expanded', 'true'); }
+
+    updateSummary();
     $('facResume').hidden = false;
   }
 
@@ -505,28 +756,40 @@
   /* ── Binding ───────────────────────────────────────────────────────────── */
 
   function bindAll() {
-    form.addEventListener('click', function (e) {
-      var next = e.target.closest('[data-next]');
-      if (next) { if (validateStep(state.step)) showStep(state.step + 1); return; }
-      var back = e.target.closest('[data-back]');
-      if (back) { showStep(state.step - 1); return; }
-      var goto = e.target.closest('[data-goto]');
-      if (goto) { showStep(Number(goto.dataset.goto)); }
-    });
+    $('facBack').addEventListener('click', function () { showStep(state.step - 1); });
+
+    // The draft is already written on every keystroke, so "Save & exit" only
+    // has to be honest about it — one more save covers the keystroke that has
+    // not fired its `input` yet.
+    $('facExit').addEventListener('click', saveDraft);
 
     form.addEventListener('input', function (e) {
-      if (e.target && e.target.id && TEXT_FIELDS.indexOf(e.target.id) !== -1) saveDraft();
+      revalidate();
+      if (!e.target || !e.target.id) return;
+      if (TEXT_FIELDS.indexOf(e.target.id) === -1) return;
+      if (e.target.id === 'f-years') updateSummary();
+      saveDraft();
     });
+    // A checkbox or radio fires `change`, not `input`, in older WebKit.
+    form.addEventListener('change', revalidate);
 
-    // The stepper only walks BACK freely. Jumping forward past an unfilled step
-    // lands on a review with holes in it, which reads as the form losing work.
-    progress.addEventListener('click', function (e) {
-      var b = e.target.closest('.apply-progress-step');
+    // The desktop step list walks BACK freely. Jumping forward past an unfilled
+    // step lands on a later screen with holes behind it, which reads as the
+    // form losing work.
+    $('facSteps').addEventListener('click', function (e) {
+      var b = e.target.closest('.fac-step-row');
       if (!b) return;
-      var n = Number(b.dataset.step);
+      var n = Number(b.dataset.stepTo);
       if (n <= state.step) { showStep(n); return; }
       for (var i = state.step; i < n; i++) { if (!validateStep(i)) { showStep(i); return; } }
       showStep(n);
+    });
+
+    var shotToggle = $('facShotToggle');
+    shotToggle.addEventListener('click', function () {
+      var panel = $('facShotPanel');
+      panel.hidden = !panel.hidden;
+      shotToggle.setAttribute('aria-expanded', panel.hidden ? 'false' : 'true');
     });
 
     $('facDiscard').addEventListener('click', function () {
@@ -551,14 +814,27 @@
   };
   function fieldLabel(f) { return FIELD_LABELS[f] || String(f).replace(/_/g, ' '); }
 
+  /**
+   * ONE submit listener drives the whole wizard — the bar's button is the only
+   * primary control on any step, and it is a real `type="submit"`. On steps
+   * 1–3 it validates and advances; on step 4 it sends. That keeps the audit's
+   * headline finding closed (the fields are in a `<form>` with a `submit`
+   * listener, not behind click handlers) and makes Enter in any text field do
+   * what a candidate expects on every screen instead of only the last.
+   */
   function onSubmit(e) {
     e.preventDefault();
+    if (state.step < STEPS - 1) {
+      if (validateStep(state.step)) showStep(state.step + 1);
+      return;
+    }
+
     setErr('err-submit', false);
-    for (var i = 0; i < STEPS - 1; i++) {
+    for (var i = 0; i < STEPS; i++) {
       if (!validateStep(i)) { showStep(i); return; }
     }
 
-    var btn = $('facSubmit'), orig = btn.innerHTML;
+    var btn = $('facNext'), orig = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Submitting…';
 
@@ -593,7 +869,8 @@
         if (r && r.book_url) $('facBookBtn').href = r.book_url;
         if (r && r.reference) $('facRef').textContent = 'Your reference: ' + r.reference;
         form.hidden = true;
-        progress.hidden = true;
+        appbar.hidden = true;
+        progWrap.hidden = true;
         $('facResume').hidden = true;
         $('facDone').hidden = false;
         announce.textContent = 'Application submitted. Please book your interview.';
