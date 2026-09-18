@@ -256,7 +256,7 @@
 .choice-card-price{font-family:var(--font-display);font-size:1.35rem;color:var(--gold-bright);line-height:1;flex-shrink:0;letter-spacing:0.02em}
 /* Non-price descriptor pill shown where a price used to be — tuition is never
    displayed in the form (it's discussed after the Auditer and is negotiable). */
-.choice-card-tag{flex-shrink:0;font-size:0.72rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--gold-bright);background:rgba(224,138,26,0.12);border:1px solid var(--border-gold);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.choice-card-tag{flex-shrink:0;font-size:0.75rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--gold-bright);background:rgba(224,138,26,0.12);border:1px solid var(--border-gold);border-radius:999px;padding:4px 10px;white-space:nowrap}
 .choice-card-desc{font-size:0.84rem;color:var(--text-muted);line-height:1.55}
 .choice-card-icon{display:none}
 .choice-card:hover .choice-card-icon{opacity:1;border-color:var(--border-gold)}
@@ -433,10 +433,10 @@ body.mam-advisor-open #applyMobileBar{display:none!important}
 .adv-invite-title i{color:var(--gold-bright)}
 .adv-invite-sub{font-size:0.88rem;color:var(--text-soft);line-height:1.5}
 .adv-invite-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.adv-invite-go{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:11px;font-weight:800;font-size:0.92rem;cursor:pointer;border:1.5px solid transparent;background:linear-gradient(135deg,var(--gold),var(--gold-light,var(--gold-bright)));color:#1A120B}
+.adv-invite-go{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:11px 20px;border-radius:11px;font-weight:800;font-size:0.92rem;cursor:pointer;border:1.5px solid transparent;background:linear-gradient(135deg,var(--gold),var(--gold-light,var(--gold-bright)));color:#1A120B}
 .adv-invite-go:hover{filter:brightness(1.05)}
 .adv-invite-go:focus-visible,.adv-invite-dismiss:focus-visible{outline:2px solid var(--gold-bright);outline-offset:2px}
-.adv-invite-dismiss{background:none;border:0;color:var(--text-muted);font-size:0.86rem;font-weight:600;cursor:pointer;padding:10px 12px;border-radius:8px}
+.adv-invite-dismiss{background:none;border:0;color:var(--text-muted);font-size:0.86rem;font-weight:600;cursor:pointer;min-height:44px;padding:10px 14px;border-radius:8px}
 .adv-invite-dismiss:hover{color:var(--text-soft)}
 @media (max-width:560px){
   .adv-invite{align-items:stretch}
@@ -697,3 +697,23 @@ html.js .js-only { display: revert; }
    .advisor; these are the first two places to set `hidden` on them. */
 .resume-banner[hidden] { display: none; }
 .apply-stepper[hidden] { display: none; }
+
+
+/* ── Measured fixes, student application (2026-09-18) ────────────────────────
+   Driven at 390 rather than reasoned about. Three notes on what was NOT
+   changed, so the next audit does not "fix" them again:
+
+   · 21 of the 25 controls that measured under 44px are inputs wrapped in a
+     styled <label>. The LABEL is the target and every one of those clears 44px
+     — measuring the input alone is measuring the wrong box.
+   · "MAM Auditer" (17px) and "Need help?" (33px) are links inside a sentence.
+     WCAG 2.5.8 exempts a target whose size is constrained by the line-height
+     of the non-target text around it, and inflating an inline link to 44px
+     breaks the paragraph it lives in.
+   · The contrast failures an earlier sweep reported at 1.08:1 and 1.70:1 were
+     ARTEFACTS of the measuring script: it read `backgroundColor` without
+     compositing alpha and could not see a gradient at all. The active step dot
+     is dark text on a gold gradient and the card tags are gold on a 12%-alpha
+     wash over a dark card. Both are fine. A contrast tool that cannot see a
+     gradient will report every gradient as a failure.
+   ─────────────────────────────────────────────────────────────────────────── */
