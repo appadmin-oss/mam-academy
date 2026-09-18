@@ -188,3 +188,56 @@ preg_match_all('/\sstyle="[^"]*"/', $page, $sm);
 // for --ac-fill on a meter.
 $inline = array_values(array_filter($sm[0], function ($s) { return strpos($s, 'width:25%') === false; }));
 t_eq($inline, [], 'no inline style survives except the progress fill width');
+
+/* ── The styling defects found by looking at every state (2026-09-18) ────── */
+
+// A <fieldset> carries `border: 2px groove` AND `min-width: min-content` from
+// the UA stylesheet, and setting `display` clears neither. Every grouped control
+// rendered inside a grooved box with the legend notched into it, and the second
+// half is why five programme chips could not shrink to fit a phone.
+t_ok((bool)preg_match('/\.fac-block \{[^}]*border: 0;[^}]*min-width: 0;/', $css),
+    'the fieldset reset clears BOTH the UA border and min-content');
+t_ok(!preg_match('/\.fac-legend \{[^}]*width: 100%/', $css),
+    'the bare legend does not claim the full row — that squeezed "Lagos time" onto two lines');
+
+// A <legend> that is not the fieldset's FIRST child is not its caption: browsers
+// render it, the group loses its accessible name, and it is invalid besides.
+preg_match_all('/<fieldset\b[^>]*>\s*(?:<\?php.*?\?>\s*)?(<[a-z]+)/s', $page, $fs);
+$notLegend = array_values(array_filter($fs[1], function ($t) { return strtolower($t) !== '<legend'; }));
+t_eq($notLegend, [], 'every <fieldset> opens with its <legend>');
+
+// `<details>` is FLOW content, not phrasing content, so an open <p> is CLOSED by
+// the parser when it reaches one — the inline "What we check" disclosure left
+// its sentence and rendered as a block 144px down, whatever `display:inline`
+// said. It has to live in an element that may legally contain it.
+// Checked against the MARKUP only: the PHP comment beside this very fix quotes
+// both tags to explain itself, and a check that reads its own explanation is a
+// check of nothing.
+$markup = preg_replace('/<\\?php.*?\\?>/s', '', $page);
+t_ok(!preg_match('/<p\\b[^>]*>(?:(?!<\\/p>).)*<details/s', $markup),
+    'no <details> sits inside a <p> — the parser would close the paragraph before it');
+
+// A refusal belongs under the control that satisfies it, not stacked below both.
+t_ok((bool)preg_match('/<div class="fac-consents">.*?id="err-safeack".*?id="f-polack".*?id="err-polack".*?<\/div>/s', $page),
+    'each consent error sits inside .fac-consents, under its own checkbox');
+
+// The site nav is hidden on this page, so the app bar is the only branding and
+// the only way home. A candidate refused at the gate was left on a bare wall of
+// text with neither.
+t_ok(!preg_match('/<div class="fac-appbar[^"]*" id="facAppbar" hidden>/', $page),
+    'the app bar is present in every state, not only while the form is open');
+t_ok((bool)preg_match('/<a class="fac-appbar-home" href="\/">/', $page),
+    'the logo and title are a link home');
+t_ok((bool)preg_match('/data-fac-state="loading"/', $page) && (bool)preg_match('/function setState\(st\)/', $js),
+    'one body state drives the bar contents, the bar clearance and the branding');
+// Reserving room for the fixed action bar on a screen that has no bar left 100px
+// of dead ground above the footer.
+t_ok((bool)preg_match('/body\[data-fac-state="form"\] \.apply-shell \{ padding-bottom:/', $css),
+    'the fixed-bar clearance applies only while the form is open');
+
+// Green is in no part of this palette — the token table has one accent and red
+// for errors. Scoped, because these classes are the student wizard's too.
+foreach (['\.success-emoji', '\.resume-banner', '\.mam-hs'] as $sel) {
+    t_ok((bool)preg_match('/body\[data-fac-app\] ' . $sel . '\b/', $css),
+        'the shared ' . str_replace('\\', '', $sel) . ' is re-skinned SCOPED to this page, not globally');
+}

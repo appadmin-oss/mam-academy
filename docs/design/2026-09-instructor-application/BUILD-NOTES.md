@@ -107,3 +107,58 @@ overflow at any of them; no page errors at any of them.
 ⚠️ The suite's guards are **static**. They do not measure a box, and on this
 page a stylesheet rule that read correctly lost a specificity tie — twice.
 Drive it.
+
+## A second pass, by looking at every state (2026-09-18)
+
+The first pass drove the four form steps. These came from rendering the states a
+happy-path walkthrough never reaches — a group with a legend, an open
+disclosure, an error, the gate, the success screen — and they are all things the
+source read correctly.
+
+1. **Every grouped control sat in a grooved box.** A `<fieldset>` carries
+   `border: 2px groove` AND `min-width: min-content` from the UA stylesheet, and
+   setting `display` clears neither. Teaching mode, the week and the programmes
+   all rendered inside a border with the legend notched into its top edge — the
+   one piece of chrome this redesign removes everywhere else. `min-width` was the
+   invisible half: it is why five programme chips could not shrink to a phone.
+2. **A `<legend>` nested in a wrapper div is not a caption.** The week's legend
+   sat inside a flex row so the timezone could align right; browsers render that,
+   but the group loses its accessible name and the markup is invalid. The legend
+   is now the fieldset's first child with the timezone inside it.
+   ⚠️ And the reset must NOT say `width: 100%` — as a flex item the legend
+   already stretches, and stating it squeezed "Lagos time" onto two lines.
+3. **The programmes group is not the teaching-mode group.** Two or three short
+   words divide a row between them; five names up to "Grand Certified Program"
+   at `flex: 1` came out ~60px wide with the text broken mid-word. They size to
+   their content and wrap.
+4. **"What we check" left its sentence.** `<details>` is FLOW content, not
+   phrasing content, so the parser CLOSES an open `<p>` when it reaches one — the
+   inline disclosure became a block 144px down whatever `display: inline` said.
+   The paragraph is a `<div>` now. A test pins it, reading the markup with the
+   PHP comments stripped, because the comment explaining the fix quotes both tags.
+5. **Both consent refusals stacked below both checkboxes.** Each now sits under
+   the control that satisfies it.
+6. **The gate and the success screen had no branding and no way home.** The site
+   nav is hidden on this page, so a candidate refused at the invite gate was left
+   on a bare wall of text. The app bar is now present in every state: the logo and
+   title are a link home, shown at every width OUTSIDE the form, and the step
+   position and "Save & exit" appear only with the form. One `data-fac-state` on
+   `<body>` drives it. ⚠️ The bar also has to come FIRST in the markup — it was
+   after `#facGate`, so it rendered underneath the refusal it was meant to head.
+7. **100px of dead ground above the footer** on those two screens: the page
+   reserved room for a fixed action bar that only exists while the form is open.
+8. **Three shared components were still on the student wizard's palette** — the
+   emerald success ring, the emerald resume banner, and the uploader's 2px dashed
+   orange dropzone with an orange wash, in a design whose own token table says
+   "Elevation: none — hairlines and the single accent do the separating". All
+   three are re-skinned **scoped to `body[data-fac-app]`**, so the student wizard
+   is untouched. The uploader override is purely visual and touches no class,
+   markup or logic of `headshot.js` (invariant 9); it wins on specificity because
+   that file injects its stylesheet into `<head>` at mount time.
+
+Re-verified at 320/390/430/900/1000/1280: no horizontal overflow, no fieldset
+borders, "Lagos time" on one line, programme chips unclipped and at or above the
+44px touch floor, the disclosure inline, no page errors, and the full journey
+still submits. ⚠️ Repeated real submissions from one address exhaust
+`mw_rate_limit('faculty_apply', 6, 600)` — a local run that suddenly "fails to
+submit" is usually that, and the bucket lives in `rate_limits`.

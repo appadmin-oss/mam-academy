@@ -29,13 +29,44 @@
          the first question below the fold at 390px. The header partial is
          still included: it also carries the sitewide JSON-LD entity, which
          is not chrome. */ ?>
-<body data-no-lead-cta data-no-lead-exit data-fac-app>
+<body data-no-lead-cta data-no-lead-exit data-fac-app data-fac-state="loading">
 <a href="#main" class="skip-link">Skip to main content</a>
 
 <?php include __DIR__ . '/partials/header.html'; ?>
 
 <main id="main">
   <section class="apply-shell" aria-label="Instructor application">
+
+    <!-- App bar. One row: where you are, and the way out. The draft is already
+         saved on every keystroke, so "Save & exit" is an honest label for a
+         link home rather than a button that does something extra. -->
+    <div class="fac-appbar js-only" id="facAppbar">
+      <div class="fac-appbar-left">
+        <?php /* The site nav is hidden on this page, so this is the ONLY way
+                 home and the only branding. It has to be here in every state:
+                 a candidate refused at the gate was otherwise left on a bare
+                 wall of text with no logo and nowhere to go. Below 1024px the
+                 logo and title show only OUTSIDE the form — inside it the
+                 design is explicit that the wordmark is gone from the form
+                 chrome, and the bar carries the step position instead. */ ?>
+        <a class="fac-appbar-home" href="/">
+          <img class="fac-appbar-logo" src="mam-academy-logo.svg" alt="" width="30" height="30">
+          <span class="fac-appbar-title">Faculty application</span>
+        </a>
+        <span class="fac-appbar-sep" aria-hidden="true">·</span>
+        <button type="button" class="fac-back" id="facBack" hidden>
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+          <span class="sr-only">Back to the previous step</span>
+        </button>
+        <span class="fac-appbar-pos" id="facPos" hidden>1 of 4</span>
+      </div>
+      <a class="fac-exit" href="/" id="facExit" hidden>Save &amp; exit</a>
+    </div>
+
+    <!-- Progress. 2px, replacing the seven-dot stepper. `aria-current="step"`
+         on the desktop step list is what a screen reader reads as position;
+         this line is decoration, hence aria-hidden. -->
+    <div class="fac-prog js-only" id="facProgWrap" aria-hidden="true" hidden><span class="fac-prog-fill" id="facProgFill" style="width:25%"></span></div>
 
     <!--
       Gate. Three states, resolved by JS against GET /api/faculty-apply:
@@ -62,27 +93,6 @@
       <i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
       Loading the application…
     </div>
-
-    <!-- App bar. One row: where you are, and the way out. The draft is already
-         saved on every keystroke, so "Save & exit" is an honest label for a
-         link home rather than a button that does something extra. -->
-    <div class="fac-appbar js-only" id="facAppbar" hidden>
-      <div class="fac-appbar-left">
-        <img class="fac-appbar-logo" src="mam-academy-logo.svg" alt="" width="30" height="30">
-        <span class="fac-appbar-title">Faculty application&nbsp;·</span>
-        <button type="button" class="fac-back" id="facBack" hidden>
-          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
-          <span class="sr-only">Back to the previous step</span>
-        </button>
-        <span class="fac-appbar-pos" id="facPos">1 of 4</span>
-      </div>
-      <a class="fac-exit" href="/" id="facExit">Save &amp; exit</a>
-    </div>
-
-    <!-- Progress. 2px, replacing the seven-dot stepper. `aria-current="step"`
-         on the desktop step list is what a screen reader reads as position;
-         this line is decoration, hence aria-hidden. -->
-    <div class="fac-prog js-only" id="facProgWrap" aria-hidden="true" hidden><span class="fac-prog-fill" id="facProgFill" style="width:25%"></span></div>
 
     <?php /* `novalidate` for the same reason the student wizard carries it:
              every step stays in the DOM while hidden, so a `required` control
@@ -195,11 +205,15 @@
             </label>
           </div>
 
+          <?php /* The legend is the fieldset's FIRST child, with the timezone
+                   inside it. Nested in a wrapper div it is not the fieldset's
+                   caption at all — browsers render it, but the group loses its
+                   accessible name, and it is invalid besides. */ ?>
           <fieldset class="fac-block">
-            <div class="fac-block-head">
-              <legend class="fac-legend">When could you teach?</legend>
+            <legend class="fac-legend fac-legend-row">
+              <span>When could you teach?</span>
               <span class="fac-meta">Lagos time</span>
-            </div>
+            </legend>
             <div class="fac-week" id="facAvail"></div>
           </fieldset>
 
@@ -244,7 +258,7 @@
 
               <fieldset class="fac-block">
                 <legend class="fac-legend">Programmes you could teach on</legend>
-                <div class="fac-opts" id="facProgrammes"></div>
+                <div class="fac-opts fac-opts-flow" id="facProgrammes"></div>
                 <span class="fac-help">Leave it blank if you are happy to be considered for any.</span>
               </fieldset>
             </div>
@@ -269,7 +283,13 @@
                    offence. A verifier records the OUTCOME of a check against
                    the instructor's record; the evidence is filed offline,
                    deliberately (vetting_records stores no check content). */ ?>
-          <p class="fac-note">Both references are taken up before any offer. Contacts only — never certificates or document numbers.
+          <?php /* A DIV, not a <p>. `<details>` is flow content, not phrasing
+                   content, so the parser CLOSES an open <p> when it reaches it —
+                   MEASURED: "What we check" left the sentence and rendered as a
+                   block on its own line, 144px down, whatever `display:inline`
+                   said. The disclosure has to sit in an element that may legally
+                   contain it. */ ?>
+          <div class="fac-note">Both references are taken up before any offer. Contacts only — never certificates or document numbers.
             <details class="fac-inline-disc">
               <summary>What we check</summary>
               <div class="fac-inline-body">
@@ -277,7 +297,7 @@
                 <p>We ask for your referees' contact details here, and nothing else. <strong>Please do not upload certificates or enter any document numbers</strong> — we collect that evidence in person, and record only that a check was completed and by whom.</p>
               </div>
             </details>
-          </p>
+          </div>
 
           <div class="fac-fields">
             <label class="fac-field" for="r1-name">
@@ -335,14 +355,14 @@
               <span class="fac-consent-box" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
               <span class="fac-consent-text">I understand that MAM Academy will carry out safeguarding checks — including taking up both references — before I teach any student, and I consent to those checks.</span>
             </label>
+            <div class="fac-err" id="err-safeack"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>We cannot accept an application without the safeguarding consent</span></div>
             <label class="fac-consent" for="f-polack">
               <input type="checkbox" id="f-polack" required>
               <span class="fac-consent-box" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
               <span class="fac-consent-text">I have read and agree to abide by the Academy's child-protection and code-of-conduct policies, and I will report any safeguarding concern to the Designated Safeguarding Officer.</span>
             </label>
+            <div class="fac-err" id="err-polack"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>We cannot accept an application without the policy agreement</span></div>
           </div>
-          <div class="fac-err" id="err-safeack"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>We cannot accept an application without the safeguarding consent</span></div>
-          <div class="fac-err" id="err-polack"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><span>We cannot accept an application without the policy agreement</span></div>
 
           <!-- Honeypot: humans never see this. A class rather than an inline
                style — `style="position:absolute;left:-9999px"` is the one thing

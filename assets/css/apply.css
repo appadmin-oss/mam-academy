@@ -614,9 +614,23 @@ body[data-fac-app] {
 body[data-fac-app] .announce,
 body[data-fac-app] #navbar { display: none; }
 
-/* The fixed bar would otherwise sit over the last line of the footer. */
-body[data-fac-app] .apply-shell { max-width: none; margin: 0; padding: 0 0 calc(var(--fac-bar-h) + var(--fac-dock-h, 0px)); }
-body[data-fac-app] footer { padding-bottom: calc(var(--fac-bar-h) + var(--fac-dock-h, 0px) + env(safe-area-inset-bottom)); }
+body[data-fac-app] .apply-shell { max-width: none; margin: 0; padding: 0; }
+
+/* The fixed bar would otherwise sit over the last line of the footer — but it
+   only EXISTS while the form is open. Clearing space for it on the gate and the
+   success screen left 100px of dead ground above the footer on a page that has
+   no bar to clear. */
+body[data-fac-state="form"] .apply-shell { padding-bottom: calc(var(--fac-bar-h) + var(--fac-dock-h, 0px)); }
+body[data-fac-state="form"] footer { padding-bottom: calc(var(--fac-bar-h) + var(--fac-dock-h, 0px) + env(safe-area-inset-bottom)); }
+
+/* The gate and the success screen are the whole page in their state, and the
+   site nav is hidden, so they carry their own measure and gutters. */
+body[data-fac-app] .apply-success { max-width: 640px; margin: 0 auto; padding: 40px 20px 56px; }
+/* Green belongs to no part of this palette — the token table has one accent and
+   red for errors. Scoped, because `.apply-success` is the student wizard's too. */
+body[data-fac-app] .success-emoji {
+  background: rgba(252, 198, 71, 0.12); border-color: rgba(252, 198, 71, 0.45);
+}
 
 /* ── App bar ─────────────────────────────────────────────────────────────── */
 
@@ -625,9 +639,20 @@ body[data-fac-app] footer { padding-bottom: calc(var(--fac-bar-h) + var(--fac-do
   padding: 16px 20px 14px; max-width: 1180px; margin: 0 auto;
 }
 .fac-appbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.fac-appbar-logo { display: none; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border-gold); box-shadow: var(--glow-gold); flex-shrink: 0; }
-.fac-appbar-title { display: none; font-size: 13.5px; font-weight: 700; color: var(--text-muted); }
+.fac-appbar-home { display: none; align-items: center; gap: 10px; min-width: 0; text-decoration: none; }
+.fac-appbar-logo { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border-gold); box-shadow: var(--glow-gold); flex-shrink: 0; }
+.fac-appbar-title { font-size: 13.5px; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.fac-appbar-home:hover .fac-appbar-title { color: var(--gold-bright); }
+.fac-appbar-home:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, 0.32); border-radius: 8px; }
+.fac-appbar-sep { display: none; color: var(--text-faint); }
 .fac-appbar-pos { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; color: var(--text-muted); }
+.fac-appbar-pos[hidden], .fac-exit[hidden] { display: none; }
+
+/* Outside the form — loading, the invite gate, the success screen — the bar is
+   the page's only branding and its only way home, at every width. Inside it,
+   below 1024px, the design is explicit that the wordmark leaves the form chrome
+   and the bar carries the step position instead. */
+body:not([data-fac-state="form"]) .fac-appbar-home { display: flex; }
 
 .fac-back, .fac-exit {
   font-size: 13px; font-weight: 700; color: var(--text-muted);
@@ -675,9 +700,23 @@ body[data-fac-app] #floatingEnroll { display: none; }
 .fac-lede { display: none; font-size: 14.5px; line-height: 1.55; color: var(--text-muted); margin: 0; }
 .fac-note { font-size: 14.5px; line-height: 1.55; color: var(--text-muted); margin: 0; }
 
-.fac-block { display: flex; flex-direction: column; gap: 12px; }
-.fac-block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-.fac-legend { font-size: 13px; font-weight: 650; color: var(--text-soft); }
+/* ⚠️ A <fieldset> carries `border: 2px groove` and `min-width: min-content` from
+   the UA stylesheet, and NEITHER is inherited away by setting `display`.
+   MEASURED: every grouped control on this page — teaching mode, the week, the
+   programmes — rendered inside a grooved box with the legend notched into its
+   top edge, which is the one piece of chrome this redesign removes everywhere
+   else. `min-width: min-content` is the second half: it is why the five
+   programme chips could not shrink to fit a phone and spilled instead. */
+.fac-block { display: flex; flex-direction: column; gap: 12px; border: 0; margin: 0; padding: 0; min-width: 0; }
+/* A <legend> is not an ordinary box — it is rendered into the fieldset's border
+   by default. With the border gone it still needs a stated display, or it sits
+   outside the flex flow and the gap above the group collapses.
+   ⚠️ NOT `width: 100%`: as a flex item it already stretches, and stating it
+   squeezed the timezone beside it to nothing — "Lagos time" broke over two
+   lines. The row variant is the one that wants the full width. */
+.fac-legend { display: block; padding: 0; float: none; font-size: 13px; font-weight: 650; color: var(--text-soft); }
+.fac-legend-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%; }
+.fac-legend-row .fac-meta { font-weight: 400; }
 .fac-meta { font-size: 12.5px; color: var(--text-faint); }
 
 /* ── Step 1 · the course list ────────────────────────────────────────────── */
@@ -764,6 +803,15 @@ body[data-fac-app] #floatingEnroll { display: none; }
 .fac-opt input:checked + span { border-color: var(--gold-bright); background: var(--fac-on-mode); color: var(--text); }
 .fac-opt input:focus-visible + span { outline: none; box-shadow: 0 0 0 4px rgba(252, 198, 71, 0.28); }
 
+/* The mode group is two or three short words and divides the row between them.
+   The programmes group is five names up to "Grand Certified Program", and
+   `flex: 1` on those forced five equal columns onto a 350px phone — measured,
+   they came out 60px wide with the text broken mid-word. These size to their
+   content and wrap. */
+.fac-opts-flow { flex-wrap: wrap; gap: 8px; }
+.fac-opts-flow .fac-opt { flex: 0 1 auto; }
+.fac-opts-flow .fac-opt span { padding: 0 14px; font-size: 13px; line-height: 1.3; }
+
 /* ── Headshot row ────────────────────────────────────────────────────────── */
 
 /* Replaces a 220px dashed dropzone — a third of a 390px viewport spent on an
@@ -787,6 +835,41 @@ body[data-fac-app] #floatingEnroll { display: none; }
 .fac-shot-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, 0.32); border-radius: 10px; }
 .fac-shot-panel { display: flex; flex-direction: column; gap: 14px; }
 .fac-shot-panel[hidden] { display: none; }
+
+/* The uploader's own look, brought onto this page's palette. PURELY VISUAL and
+   scoped — `headshot.js` injects its stylesheet into <head> at mount time, so it
+   would otherwise win on source order; `body[data-fac-app]` wins on specificity
+   instead, and not one line here touches the widget's markup, classes or logic
+   (invariant 9: that chain has four failure points and all four have failed).
+   What it corrects: a 2px dashed orange box with an orange wash, inside a design
+   whose own token table says "Elevation: none — hairlines and the single accent
+   do the separating", and status text in two greens and a red that appear
+   nowhere else here. The hover and drag-over cues stay, in the accent. */
+body[data-fac-app] .mam-hs {
+  border: 1.5px solid var(--border-strong); border-radius: 10px;
+  background: none; min-height: 112px;
+}
+body[data-fac-app] .mam-hs:hover,
+body[data-fac-app] .mam-hs.drag-over { border-color: var(--gold-bright); background: var(--fac-on-mode); }
+body[data-fac-app] .mam-hs-label { font-size: 13px; color: var(--text-faint); }
+body[data-fac-app] .mam-hs-label b { color: var(--gold-bright); }
+body[data-fac-app] .mam-hs-accept { font-size: 12px; color: var(--text-faint); }
+body[data-fac-app] .mam-hs-thumb { border-color: var(--gold-bright); }
+body[data-fac-app] .mam-hs-sl.ok { color: var(--gold-bright); }
+body[data-fac-app] .mam-hs-sl.err { color: var(--red); }
+body[data-fac-app] .mam-hs-fname { font-size: 12px; color: var(--text-faint); }
+
+/* Same reason: the resume banner is the student wizard's emerald, and green is
+   not in this page's palette. The message is neutral news, not a success. */
+body[data-fac-app] .resume-banner {
+  background: none; border: 1px solid var(--fac-line); border-radius: 10px;
+  color: var(--text-muted); font-size: 13px;
+}
+body[data-fac-app] .resume-banner i { color: var(--gold-bright); }
+body[data-fac-app] .resume-banner button {
+  border-color: var(--border-strong); color: var(--text-soft); min-height: 44px; padding: 0 16px;
+}
+body[data-fac-app] .resume-banner button:hover { border-color: var(--gold-bright); color: var(--gold-bright); background: none; }
 
 /* ── The week ────────────────────────────────────────────────────────────── */
 
@@ -923,7 +1006,8 @@ body[data-fac-app] #floatingEnroll { display: none; }
   body[data-fac-app] footer { padding-bottom: 0; }
 
   .fac-appbar { padding: 20px 48px 18px; }
-  .fac-appbar-logo, .fac-appbar-title { display: block; }
+  .fac-appbar-home { display: flex; }
+  body[data-fac-state="form"] .fac-appbar-sep { display: inline; }
   .fac-appbar-pos { font-size: 13.5px; }
   .fac-back { display: none !important; }   /* desktop navigates by the step list */
   .fac-exit { font-size: 13.5px; }

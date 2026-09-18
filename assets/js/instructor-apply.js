@@ -50,7 +50,6 @@
 
   var gate = $('facGate');
   var form = $('facForm');
-  var appbar = $('facAppbar');
   var progWrap = $('facProgWrap');
   var progFill = $('facProgFill');
   var announce = $('facAnnounce');
@@ -105,7 +104,13 @@
 
   /* ── Gate ──────────────────────────────────────────────────────────────── */
 
+  /* One attribute drives what the app bar carries, whether the page reserves
+     room for the fixed action bar, and whether the logo shows below 1024px.
+     'loading' is set in the markup so the bar is branded before JS runs. */
+  function setState(st) { document.body.setAttribute('data-fac-state', st); }
+
   function gateFail(msg, showAsk) {
+    setState('gate');
     gate.innerHTML = '<i class="fa-solid fa-envelope-circle-check" aria-hidden="true"></i>' + msg
       + (showAsk ? '<div class="fac-gate-actions"><a class="btn btn-secondary" href="/contact?topic=Faculty">'
         + '<i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Ask us for an invitation</a></div>' : '');
@@ -131,6 +136,7 @@
   function boot() {
     whenApi(function (ok) {
       if (!ok) {
+        setState('gate');
         gate.innerHTML = '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>'
           + 'We could not load the application form — part of the page did not download. '
           + 'This is usually a connection problem rather than anything you did.'
@@ -165,9 +171,11 @@
   }
 
   function openForm() {
+    setState('form');
     gate.hidden = true;
-    appbar.hidden = false;
     progWrap.hidden = false;
+    $('facPos').hidden = false;
+    $('facExit').hidden = false;
     form.hidden = false;
 
     renderMatrix();
@@ -870,9 +878,12 @@
         clearDraft();
         if (r && r.book_url) $('facBookBtn').href = r.book_url;
         if (r && r.reference) $('facRef').textContent = 'Your reference: ' + r.reference;
+        setState('done');
         form.hidden = true;
-        appbar.hidden = true;
         progWrap.hidden = true;
+        $('facPos').hidden = true;
+        $('facBack').hidden = true;
+        $('facExit').hidden = true;
         $('facResume').hidden = true;
         $('facDone').hidden = false;
         announce.textContent = 'Application submitted. Please book your interview.';
