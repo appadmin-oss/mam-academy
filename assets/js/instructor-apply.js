@@ -90,9 +90,11 @@
     });
   }
 
-  /* The chip reads "1-2", not "Grade 1-2" — the row already says "up to", and
-     at 12.5px in a quarter of 390px the word does not fit. The full level name
-     goes on the control's aria-label, so nothing is lost to a reader. */
+  /* The chip reads "1-2", not "Grade 1-2" — the row already says "up to grade",
+     and at 12.5px in a quarter of 390px the word does not fit twice. The full
+     level name goes on the control's aria-label, so nothing is lost to a
+     reader. (The handoff's prose and its desktop frame both say "up to"; its
+     MOBILE frame says "up to grade", which is what the academy chose.) */
   function gradeChip(level) {
     var g = String(level.trinity_grades || '').replace(/^\s*grades?\s+/i, '').trim();
     return g || level.name;
@@ -221,7 +223,7 @@
         + (c.kind === 'core' ? '<span class="fac-row-core">Core</span>' : '')
         + '</label>'
         + '<div class="fac-grades" hidden role="group" aria-label="' + esc('Highest level you can teach ' + c.name) + '">'
-        + '<span class="fac-grades-label">up to</span>' + chips
+        + '<span class="fac-grades-label">up to grade</span>' + chips
         + '</div>'
         + '</div>';
     }).join('');
