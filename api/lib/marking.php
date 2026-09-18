@@ -74,6 +74,14 @@ const MAM_MARKING_BANDS = [
 /** How often a mark is independently second-marked. 1 in 8, per the design. */
 const MAM_MARKING_SECOND_MARK_EVERY = 8;
 
+/* The two sentences the Grade entry screen must print. Constants, not strings
+   fetched with a row: a caller wanting the notice should not have to load a
+   submission to get it, and a screen that renders an empty string because the
+   lookup missed has silently dropped the explanation for why the video is
+   gone — which is the only thing that makes the control legible. */
+const MAM_MARKING_AUDIO_NOTICE = 'Video is hidden while you mark pitch, time and tone. Seeing a performance measurably lifts the marks given for it, so the technical criteria are heard, not watched.';
+const MAM_MARKING_PUBLISH_NOTICE = 'Marks stay unpublished until the Examinations panel ratifies them. Any change after that is logged against your name.';
+
 /**
  * May this criterion be marked while watching?
  *
@@ -227,7 +235,7 @@ function mam_marking_sheet(int $submissionId, array $criteria = []): array {
         // Stated as data so the screen cannot forget to say it. Marks are not a
         // family's to see until the panel has ratified them — the same rule
         // `mam_report_ratify()` enforces on the report itself.
-        'publication_notice' => 'Marks stay unpublished until the Examinations panel ratifies them. Any change after that is logged against your name.',
-        'audio_only_notice'  => 'Video is hidden while you mark pitch, time and tone. Seeing a performance measurably lifts the marks given for it, so the technical criteria are heard, not watched.',
+        'publication_notice' => MAM_MARKING_PUBLISH_NOTICE,
+        'audio_only_notice'  => MAM_MARKING_AUDIO_NOTICE,
     ];
 }

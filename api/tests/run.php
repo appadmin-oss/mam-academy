@@ -125,6 +125,7 @@ require $ROOT . '/lib/academic-record.php';   // unified student academic record
 require $ROOT . '/lib/upper-admin.php';       // upper-admin strategic intelligence (PDF §34-35)
 require $ROOT . '/lib/reports.php';           // ratified termly reports + moderation + appeals (v85)
 require $ROOT . '/lib/marking.php';           // audio-only performance marking + second-marking (design)
+require $ROOT . '/lib/instructor-portal.php';  // instructor portal v2 read providers (design)
 require $ROOT . '/lib/fees.php';              // fee invoices, four kinds of aid, payment plans (v87)
 require $ROOT . '/lib/guardian-comms.php';    // guardian threads, channels, make-up credits (v88)
 require $ROOT . '/lib/console.php';           // admin console read model (one provider per screen)

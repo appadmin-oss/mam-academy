@@ -292,6 +292,8 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     // The Grade entry sheet. The SERVER decides whether video travels with a
     // criterion — see the route file and api/lib/marking.php.
     $r->get ('/marking-sheet',    $f('instructor/marking-sheet.php'),   [mw_role('instructor', 'admin')]);
+    // The instructor portal v2 — one payload per screen (api/lib/instructor-portal.php).
+    $r->get ('/portal',           $f('instructor/portal.php'),          [mw_role('instructor', 'admin')]);
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/resource',         $f('instructor/resource.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
