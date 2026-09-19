@@ -200,7 +200,7 @@ t_group('dashboards — every page requests the same portal assets');
  * stylesheet against new markup, which is the actual failure.
  */
 $dnPages = ['portal/student/index.html', 'portal/parent/index.html',
-            'portal/instructor/index.html', 'portal/login.html',
+            'portal/instructor/classic.html', 'portal/instructor/index.html', 'portal/login.html',
             'portal/signup.html', 'portal/reset.html', 'portal/choose.html'];
 foreach (['css/portal.css' => 'stylesheet', 'js/portal.js' => 'portal kit'] as $asset => $label) {
     $seen = [];

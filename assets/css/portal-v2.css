@@ -500,6 +500,23 @@
 }
 [data-portal="v2"] button.p-icon .p-badge { top: 9px; right: 10px; }
 
+/* A COUNT, which is a different thing from the attention dot above: the bar
+   says "something is waiting" in 8px, the More sheet says how many. The design
+   uses both and they are not interchangeable — a dot cannot be read aloud, so
+   the count carries the number and the dot's meaning lives in its aria-label. */
+[data-portal="v2"] .p-count {
+  min-width: 22px; height: 22px; padding: 0 7px; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--inset); border: 1px solid var(--border-btn);
+  color: var(--text-2); font: 800 12px var(--font-ui); font-variant-numeric: tabular-nums;
+}
+/* The rail's own count, where the design fills it when it is overdue work. */
+[data-portal="v2"] .p-count.is-bad { background: var(--bad-line); border-color: transparent; color: #fff; }
+
+/* A group heading inside the More sheet ("Teach", "Assess", "Account"). */
+[data-portal="v2"] .p-sheet-head { padding: 14px 20px 6px; }
+
 /* ── Bottom sheet ─────────────────────────────────────────────────────────── */
 [data-portal="v2"] .p-sheet { position: fixed; inset: 0; z-index: 20; }
 [data-portal="v2"] .p-sheet-scrim {
@@ -677,6 +694,202 @@
 [data-portal="v2"][data-theme="dark"] button.p-action { background: var(--accent); color: var(--accent-ink); }
 [data-portal="v2"][data-theme="dark"] .p-toast { background: var(--sunken); color: var(--text); }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   INSTRUCTOR PORTAL — the components the guardian surface does not have
+
+   Measured off the design's instructor frames:
+     `portals-mobile.dc.html`  `data-phone="instructorv2"`   (7 screens, 390)
+     `portals-desktop.dc.html` `data-portal="instructor"`    (rail + main, 1440)
+
+   Everything the two portals SHARE is above and is reused as-is — `.p-card`,
+   `.p-row`, `.p-avatar`, `.p-switch`, `.p-seg`, `.p-nav`, `.p-sheet`,
+   `.p-field`, `.p-notice`, `.p-toast`. Only what is genuinely new to teaching
+   is named here, and it is prefixed `.i-` so the split stays legible.
+
+   The seven refusals in `README-portals.md` apply here too. Two are visible in
+   this file: there is no rule that renders a risk score (the Students screen
+   has bands and sentences), and no state that reports a write as done before
+   the server has said so (§ refusal 6 — `.p-toast` is the whole mechanism).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-portal="v2"] {
+  /* ✱MOCK the eyebrow on the dark session card. The accent at full strength is
+     3.44:1 on --ink and this is the tint the frame uses instead: 8.6:1 there.
+     --accent-text is for accent words on LIGHT ground; this is its opposite
+     number, and the two are not interchangeable. */
+  --accent-on-ink: #F7C08A;
+}
+
+/* ── The next session. One dark card, and the only one on the screen. ─────── */
+[data-portal="v2"] .i-next {
+  background: var(--ink); border-radius: var(--radius-card-lg);
+  padding: 18px 20px; color: #fff;
+}
+[data-portal="v2"] .i-next .p-label { color: var(--accent-on-ink); }
+[data-portal="v2"] .i-next-title {
+  font: 700 23px/1.2 var(--font-serif); margin: 10px 0 4px;
+}
+[data-portal="v2"] .i-next-meta { font: 400 13.5px/1.5 var(--font-ui); color: rgba(255,255,255,0.72); }
+[data-portal="v2"] .i-next-acts { display: flex; gap: 10px; margin-top: 16px; }
+/* 52px, not 44: the frame runs 52px for a card's own action and this is the one
+   control an instructor hits while walking into a room. */
+[data-portal="v2"] .i-next-acts button {
+  min-height: 52px; border: 0; border-radius: var(--radius-control-lg);
+  background: #fff; color: var(--ink);
+  font: 700 15.5px var(--font-ui); font-family: var(--font-ui); cursor: pointer;
+}
+[data-portal="v2"] .i-next-acts button.is-wide { flex: 1; }
+[data-portal="v2"] .i-next-acts button.is-icon {
+  flex: 0 0 auto; padding: 0 16px; min-width: 52px;
+  background: none; color: #fff; border: 1px solid rgba(255,255,255,0.3);
+}
+
+/* A row of two full-width actions. Deliberately NOT `.i-next-acts`: that one
+   belongs to the dark session card and fills its buttons white, so reusing it
+   on a light surface silently overrode `.p-primary` and produced two identical
+   outline buttons where the design has an outline and a primary. */
+[data-portal="v2"] .p-actions { display: flex; gap: 8px; }
+[data-portal="v2"] .p-actions > * { flex: 1; min-width: 0; min-height: 48px; border-radius: var(--radius-card); }
+
+/* ── "Rest of today" — the time is a figure, in its own column ────────────── */
+[data-portal="v2"] .i-when {
+  font-family: var(--font-fig); font-size: 19px; line-height: 1;
+  font-variant-numeric: tabular-nums; flex: 0 0 58px; color: var(--text);
+}
+
+/* ── The register's three-way mark ────────────────────────────────────────── */
+/* Each option is its own 44px target and they do not share one. A segmented
+   control would be wrong here: `.p-seg` is a FILTER (one of these views), and
+   this is a decision recorded about a child, where the selected state must read
+   as a statement rather than as which tab is open. Hence the semantic fills. */
+[data-portal="v2"] .i-marks { display: flex; gap: 6px; }
+[data-portal="v2"] .i-marks button {
+  flex: 1; min-width: 0; min-height: 44px;
+  display: grid; place-items: center;
+  border: 1px solid var(--border-btn); border-radius: var(--radius-control-sm);
+  background: var(--quiet); color: var(--text-on-chip);
+  font: 700 12.5px var(--font-ui); font-family: var(--font-ui); cursor: pointer;
+}
+/* Colour is never the only carrier: the chosen option is also the only one at
+   weight 800 on a filled ground, and the row above it states the mark in words. */
+[data-portal="v2"] .i-marks button[aria-pressed="true"] { color: #fff; font-weight: 800; border-color: transparent; }
+[data-portal="v2"] .i-marks button[aria-pressed="true"][data-mark="present"] { background: var(--good); }
+[data-portal="v2"] .i-marks button[aria-pressed="true"][data-mark="late"]    { background: var(--warn); }
+[data-portal="v2"] .i-marks button[aria-pressed="true"][data-mark="absent"]  { background: var(--bad-line); }
+[data-portal="v2"] .i-marks button:disabled { opacity: .55; cursor: default; }
+
+/* The authorised/unauthorised pair appears only under an absence — the design
+   asks the second question only once the first has been answered. */
+[data-portal="v2"] .i-auth { display: flex; gap: 6px; margin-top: 8px; }
+[data-portal="v2"] .i-auth button {
+  flex: 1; min-width: 0; min-height: 40px;
+  display: grid; place-items: center;
+  border: 1px solid var(--border-btn); border-radius: var(--radius-control);
+  background: var(--quiet); color: var(--text-on-chip);
+  font: 700 12px var(--font-ui); font-family: var(--font-ui); cursor: pointer;
+}
+[data-portal="v2"] .i-auth button[aria-pressed="true"] { background: var(--inset); color: var(--text); font-weight: 800; }
+[data-portal="v2"] .i-roster-row { padding: 14px 18px; border-top: 1px solid var(--rule); }
+[data-portal="v2"] .i-roster-row:first-child { border-top: 0; }
+[data-portal="v2"] .i-roster-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+
+/* ── Grade entry ──────────────────────────────────────────────────────────── */
+/* The player. The waveform is a placeholder band, NOT a rendered waveform: the
+   design shows the shape of a control, and drawing a real one from an audio
+   buffer that the audio-only rule may have withheld would be a second source of
+   truth about what is being marked. */
+[data-portal="v2"] .i-player { display: flex; align-items: center; gap: 14px; }
+[data-portal="v2"] .i-play {
+  width: 52px; height: 52px; flex: 0 0 auto; border: 0; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink);
+  font-size: 17px; display: grid; place-items: center; cursor: pointer;
+}
+[data-portal="v2"] .i-wave {
+  height: 40px; border-radius: var(--radius-control);
+  background: repeating-linear-gradient(90deg, var(--inset) 0 3px, transparent 3px 7px);
+  border: 1px solid var(--rule);
+}
+
+/* The four band buttons. Two lines each — the descriptor name and the mark
+   range it covers — because a marker choosing "Merit" is choosing 24–26 and the
+   range is the part that stops the choice drifting between markers. */
+[data-portal="v2"] .i-bands { display: flex; gap: 6px; margin-bottom: 10px; }
+[data-portal="v2"] .i-bands button {
+  flex: 1; min-width: 0; min-height: 56px;
+  border: 1.5px solid var(--border-btn); border-radius: var(--radius-card);
+  background: var(--raised); color: var(--text-2);
+  font: 700 12.5px/1.3 var(--font-ui); font-family: var(--font-ui); cursor: pointer;
+}
+[data-portal="v2"] .i-bands button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+/* "Not assessed" is dashed and narrower: it is not a fourth grade, it is the
+   absence of one. `null` is not zero — the same line mastery.php and the termly
+   report hold. */
+[data-portal="v2"] .i-bands button.is-none {
+  flex: 0 0 62px; border-style: dashed; background: var(--quiet); color: var(--text-3);
+  font-size: 11.5px;
+}
+[data-portal="v2"] .i-bands button.is-none[aria-pressed="true"] {
+  background: var(--inset); border-style: dashed; border-color: var(--border-btn); color: var(--text);
+}
+[data-portal="v2"] .i-desc {
+  padding: 12px 14px; background: var(--quiet); border-radius: var(--radius-card);
+  font: 400 12.5px/1.6 var(--font-ui); color: var(--text-2);
+}
+[data-portal="v2"] .i-step { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+[data-portal="v2"] .i-step button {
+  width: 44px; height: 44px; flex: 0 0 auto;
+  border: 1px solid var(--border-btn); border-radius: var(--radius-control-sm);
+  background: var(--raised); color: var(--text);
+  font: 800 15px var(--font-ui); font-family: var(--font-ui); cursor: pointer;
+}
+[data-portal="v2"] .i-step button:disabled { opacity: .4; cursor: default; }
+[data-portal="v2"] .i-step-val {
+  font-family: var(--font-fig); font-size: 24px; min-width: 44px;
+  text-align: center; font-variant-numeric: tabular-nums;
+}
+
+/* ── Students search ──────────────────────────────────────────────────────── */
+[data-portal="v2"] .i-search {
+  display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  background: var(--raised); border: 1px solid var(--border-btn);
+  border-radius: var(--radius-control-lg); min-height: 52px;
+}
+[data-portal="v2"] .i-search i { color: var(--text-3); font-size: 14px; }
+/* 16px is mandatory: iOS zooms the viewport on focus at anything below it. */
+[data-portal="v2"] .i-search input {
+  flex: 1; min-width: 0; border: 0; background: none;
+  font: 400 16px var(--font-ui); font-family: var(--font-ui);
+  color: var(--text); outline: none;
+}
+
+/* ── Five small variants the instructor screens need ──────────────────────── */
+/* Accent WORDS on light ground. --accent is 3.44:1 as text and must never carry
+   any; --accent-text is the 5.50:1 token that may. The Students screen's
+   "call his guardian" is the only place this is used, and it is the one line on
+   that screen a person is meant to act on. */
+[data-portal="v2"] .p-accent { color: var(--accent-text); font-weight: 700; }
+/* The row that IS the work: the teach-back being reviewed, against the ones
+   queued behind it. A dark edge, not a fill — the fill is the dark session card
+   and there is one of those per screen. */
+[data-portal="v2"] .p-card.is-focus { border: 1.5px solid var(--ink); }
+/* An overdue action row. The tint is --bad-fill, and it is never alone: the row
+   also carries the exclamation icon and the words "Nd late". */
+[data-portal="v2"] .p-row.is-bad-bg { background: var(--bad-fill); }
+/* The queued-behind avatar, smaller than the one on the row being worked. */
+[data-portal="v2"] .p-avatar.is-sm { width: 34px; height: 34px; font-size: 14px; }
+
+/* Rail furniture. Absent below 900px — the bottom bar carries five
+   destinations and nothing else. */
+[data-portal="v2"] .p-rail-brand, [data-portal="v2"] .p-rail-foot { display: none; }
+
+/* ── The termly report's "Filled in for you" panel ────────────────────────── */
+[data-portal="v2"] .i-known { display: flex; flex-direction: column; gap: 9px; }
+[data-portal="v2"] .i-known div { display: flex; gap: 10px; font: 400 13.5px/1.5 var(--font-ui); }
+[data-portal="v2"] .i-known dt { flex: 0 0 116px; color: var(--text-3); }
+[data-portal="v2"] .i-known dd { flex: 1; margin: 0; font-weight: 600; color: var(--text); }
+/* A fact the system does not hold reads as words, not as a blank or a zero. */
+[data-portal="v2"] .i-known dd.is-none { font-weight: 400; color: var(--text-3); }
+
 /* ── Desktop: the same information given room, not a different product ────── */
 @media (min-width: 900px) {
   [data-portal="v2"] .p-app { flex-direction: row; }
@@ -712,6 +925,41 @@
      against the rail while the content is inset and the bell flies off to the
      window edge past the 1180px measure. Measured at 1440: the bell was at
      x=1424 while the widest card ended at x=1396. */
+  /* The rail's own header and footer, in the design's order: brand at the top,
+     who-you-are and your clearance pinned to the bottom. `order` rather than
+     source position, so the DOM keeps the five destinations together for a
+     screen reader walking the nav. */
+  [data-portal="v2"] .p-rail-brand {
+    display: flex; align-items: center; gap: 11px; order: -2;
+    margin: 0 0 14px; padding: 0 6px 14px; border-bottom: 1px solid var(--hairline);
+    text-decoration: none; color: var(--text);
+  }
+  [data-portal="v2"] .p-rail-brand img { border-radius: 7px; flex: 0 0 auto; }
+  [data-portal="v2"] .p-rail-word { display: block; font: 400 15px/1 var(--font-fig); letter-spacing: 0.06em; }
+  [data-portal="v2"] .p-rail-sub {
+    display: block; margin-top: 3px; font: 400 12px/1 var(--font-ui);
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-3);
+  }
+  [data-portal="v2"] .p-rail-foot {
+    display: block; order: 99; margin-top: auto;
+    padding: 14px 6px 4px; border-top: 1px solid var(--hairline);
+  }
+  [data-portal="v2"] .p-rail-clear {
+    display: flex; align-items: center; gap: 9px; margin-top: 12px;
+    padding: 9px 11px; border-radius: var(--radius-control);
+    background: var(--bg); font: 400 12px var(--font-ui); color: var(--text-2);
+  }
+  [data-portal="v2"] .p-rail-clear i { color: var(--good); font-size: 11px; }
+  [data-portal="v2"] .p-rail-clear.is-warn i { color: var(--warn); }
+  [data-portal="v2"] .p-rail-clear.is-warn { color: var(--warn); font-weight: 600; }
+
+  /* Capped, for the reason this file already gives for .p-methods and .p-kpis:
+     a control stretched across a 1100px column is a target, not a button. Three
+     attendance marks at 350px each read as three banners. */
+  [data-portal="v2"] .i-marks, [data-portal="v2"] .i-auth,
+  [data-portal="v2"] .p-actions, [data-portal="v2"] .i-bands { max-width: 560px; }
+  [data-portal="v2"] .i-next { max-width: 620px; }
+
   [data-portal="v2"] .p-scroll { padding: 8px 32px 48px; max-width: 1180px; }
   [data-portal="v2"] .p-top {
     position: static; background: transparent; border: 0;

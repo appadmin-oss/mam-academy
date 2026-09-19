@@ -12,7 +12,14 @@
  */
 declare(strict_types=1);
 
-$inst   = (string) file_get_contents(dirname(__DIR__, 2) . '/portal/instructor/index.html');
+/* ⚠️ The instructor portal was REDESIGNED (2026-09-19). `index.html` is now the
+   v2 surface — class-only markup with its app in `assets/js/portal-instructor.js`
+   — and the legacy 13-tab dashboard this file's guards were written against
+   lives on at `portal/instructor/classic.html`, still reachable and still
+   linked from the v2 More sheet. Same arrangement as `admin/index.php` beside
+   `admin/console.php`: the redesign does not retire what it has not replaced.
+   These assertions are about THAT file and follow it. */
+$inst   = (string) file_get_contents(dirname(__DIR__, 2) . '/portal/instructor/classic.html');
 $parent = (string) file_get_contents(dirname(__DIR__, 2) . '/portal/parent/index.html');
 $libs   = (string) file_get_contents(dirname(__DIR__, 2) . '/assets/js/libs.js');
 $pjs    = (string) file_get_contents(dirname(__DIR__, 2) . '/assets/js/portal.js');

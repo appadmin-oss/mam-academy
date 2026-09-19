@@ -1220,6 +1220,62 @@ technical criteria are heard, not watched."*
   refusal; a test asserts the file contains no such path. It helps a human
   mark; it never marks.
 
+## The instructor portal v2 (`portal/instructor/`) — the 2026-09 redesign
+
+Seven screens from the repo's own frame (`docs/design/2026-08-portal-redesign/`,
+`portals-mobile.dc.html` `data-phone="instructorv2"` + the 1440 rail in
+`portals-desktop.dc.html`): home · register · marking · teachbacks · report ·
+students · earnings, plus Display & access. Class-only markup in
+`portal/instructor/index.html`, the app in `assets/js/portal-instructor.js`,
+styled by `assets/css/portal-v2.css` — the SAME design system the guardian
+portal uses, extended with an `.i-*` block. **Load exactly one palette per
+page.** Build notes + the open questions:
+`docs/design/2026-08-portal-redesign/BUILD-NOTES-instructor.md`.
+
+⚠️ **The legacy dashboard is NOT retired.** `portal/instructor/classic.html` is
+the old 13-tab surface and still serves the six destinations the redesign has
+not rebuilt (classes, sessions, assignments, gradebook, analytics, announce,
+handbook, account). It is linked from the v2 More sheet as "Everything else"
+and links back. Same arrangement as `admin/index.php` beside
+`admin/console.php`, for the same reason. `test_portal_forms.php`,
+`test_instructor_worklist.php` and `test_dashboard_nulls.php` assert against
+THAT file and follow it.
+
+Four things worth keeping:
+
+1. ⚠️ **A screen name that validates and does not dispatch renders the wrong
+   payload silently.** `report` was in `MAM_IPORTAL_SCREENS` from the start, so
+   it passed the unknown-screen check in `api/routes/instructor/portal.php` and
+   then fell through to `default` — the Termly report screen received the HOME
+   payload. Adding a screen means adding a `case`, not just a constant.
+2. **`mam_iportal_report()` READS; the POST builds.** `mam_report_build()`
+   INSERTs, and a GET that creates an academic record every time a screen is
+   opened fills `termly_reports` with drafts nobody asked for and burns the
+   one-report-per-slot rule (`mam_report_slot_taken()`, which is PHP's on both
+   engines because no UNIQUE index can state it) on a glance.
+   `POST /api/instructor/report` reuses an open draft rather than building a
+   second one — a blind build throws on the second press of a save button. It
+   writes a DRAFT: only `mam_report_ratify()` releases anything to a family.
+3. ⚠️ **`mam_marking_bands()` returns DESCENDING** — Distinction first —
+   because `mam_marking_band_of()` walks it to find the first band a score
+   reaches. The UI reads Pass · Merit · Distinction, so a client sorts a COPY;
+   do not reorder the lib under its own lookup. And the grade screen's
+   "Listen without the video" heading must follow the criterion the server
+   sorted FIRST, not "does any criterion allow video" — that read "Audio and
+   video" directly above the notice explaining the video was hidden, and a bias
+   control that appears beside visible video reads as a malfunction.
+4. **`.i-next-acts` belongs to the dark session card and fills its buttons
+   white.** Reusing it as a generic button row silently overrode `.p-primary`.
+   `.p-actions` is the generic two-button row.
+
+The design's refusals are the SERVER's here and the client does not re-derive
+them: the Students screen renders a band and a sentence and has no branch that
+could compute a risk score; `show_video` and the artifact URL come from
+`GET /api/instructor/marking-sheet` (a technical-only sheet is sent with no URL
+at all); and every write goes through one helper that reports what actually
+happened — never an optimistic tick, which on a register is the one thing that
+cannot afford one.
+
 ## The instructor application v2 (`/instructor-apply`) — the 2026-09 rework
 
 Seven steps → four, from `docs/design/2026-09-instructor-application/`

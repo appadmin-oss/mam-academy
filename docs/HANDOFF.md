@@ -45,7 +45,8 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | **The suite runs against MySQL** | ✅ **shipped** — found 7 defects that existed only there |
 | **Every route swept against MySQL, logs read** | ✅ clean — found 3 more (break-glass 401s) |
 | The console's phone subset (`#5b`) | not built — §6.2 |
-| Student + instructor portal redesigns | not started — still on the old palette; **awaiting the design handoff** |
+| **Instructor portal redesign** | ✅ **shipped 2026-09-19** — seven screens on portal-v2; the legacy 13-tab dashboard stays at `classic.html`. `docs/design/2026-08-portal-redesign/BUILD-NOTES-instructor.md` |
+| Student portal redesign | not started — still on the old palette |
 | **Instructor application platform (schema v90)** | ✅ **shipped 2026-09-17** — see §4p |
 | **Instructor application v2 (four-step rework)** | ✅ **shipped 2026-09-18** — `docs/design/2026-09-instructor-application/BUILD-NOTES.md`; one DSO sign-off outstanding |
 | Scholarship funds/awards, instalments, dunning | not started |

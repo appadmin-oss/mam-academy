@@ -1,6 +1,6 @@
 <?php
 /**
- * GET /api/instructor/portal?screen=home|register|marking|teachbacks|students|earnings
+ * GET /api/instructor/portal?screen=home|register|marking|teachbacks|report|students|earnings|more
  *   → the payload for ONE screen of the instructor portal v2.
  *
  * One request per screen rather than one per panel: the design is mobile-first
@@ -8,7 +8,8 @@
  * a dashboard is the difference between a screen that appears and one that
  * unfolds.
  *
- * `?session=N` selects which register. Omitted, it resolves to the next
+ * `?session=N` selects which register, `?student=N` which termly report.
+ * Omitted, the register resolves to the next
  * session the caller teaches today, which is what the Home screen's "Take the
  * register" hands over.
  */
@@ -32,6 +33,27 @@ switch ($screen) {
         $data = mam_iportal_register($me, $sid);
         if (!$data) mam_fail('forbidden', 403);
         mam_ok(['screen' => 'register'] + $data);
+
+    case 'report':
+        /* ⚠️ 'report' was in MAM_IPORTAL_SCREENS from the start, so it passed
+           the unknown-screen check and then fell through to `default` — the
+           Termly report screen silently received the HOME payload. A screen
+           name that validates and does not dispatch is worse than one that
+           404s, because the client renders something. */
+        $sid = (int) ($_GET['student'] ?? 0);
+        $data = mam_iportal_report($me, $sid);
+        if (!$data) mam_fail('forbidden', 403);
+        mam_ok(['screen' => 'report'] + $data);
+
+    case 'more':
+        /* The More sheet's badges come from the queues themselves rather than a
+           count endpoint of their own, so the sheet cannot disagree with the
+           screens it links to. */
+        mam_ok([
+            'screen'     => 'more',
+            'marking'    => count(mam_iportal_marking($me)['queue']),
+            'teachbacks' => count(mam_iportal_teachbacks($me)['queue']),
+        ]);
 
     case 'marking':    mam_ok(['screen' => 'marking']    + mam_iportal_marking($me));
     case 'teachbacks': mam_ok(['screen' => 'teachbacks'] + mam_iportal_teachbacks($me));

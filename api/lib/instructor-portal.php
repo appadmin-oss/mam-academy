@@ -82,7 +82,23 @@ function mam_iportal_home(int $instructorId): array {
             'SELECT COUNT(*) c FROM session_attendance WHERE session_id = ?', [(int) $next['id']])['c'] ?? 0) > 0;
     }
 
+    /* The header's two lines. They are on the HOME payload rather than a
+       whoami call of their own because the portal already makes exactly one
+       request per screen, and a second round trip to print a name is the
+       round trip this design is built to avoid. */
+    $me = mam_db_row('SELECT id, name, avatar_url FROM users WHERE id = ?', [$instructorId]);
+    $term = mam_iportal_try(fn() => mam_calendar_current_term(), null);
+
     return [
+        'me'         => [
+            'id'         => $instructorId,
+            'name'       => (string) ($me['name'] ?? 'Instructor'),
+            'avatar_url' => $me['avatar_url'] ?? null,
+        ],
+        /* Whichever the calendar gave — an authored term or the computed
+           window. `mam_calendar_current_term()` tags which, and an install with
+           an empty calendar still gets a printable label. */
+        'term_label' => is_array($term) ? (string) ($term['term']['label'] ?? $term['label'] ?? '') : '',
         'next'       => $next,
         'later'      => array_slice($sessions, 1),
         'actions'    => mam_iportal_actions($instructorId),
@@ -271,6 +287,32 @@ function mam_iportal_students(int $instructorId): array {
             $pub = mam_iportal_try(fn() => mam_mastery_publishable($m), $m);
             $band = $pub['band'] ?? null;
         }
+        /* The design's caption line — "Level 2 · 92% attended". These are
+           STANDING FACTS about the teaching, not a judgement about the child:
+           the level they are working at and how much of it they have been
+           present for. Neither is derived from the mastery score, and neither
+           is ordered or coloured anywhere. */
+        $ctx = mam_db_row(
+            "SELECT l.name AS level_name
+               FROM course_enrollments ce
+               LEFT JOIN cohorts co ON co.id = ce.cohort_id
+               LEFT JOIN levels l ON l.id = COALESCE(ce.level_id, co.level_id)
+              WHERE ce.student_id = ? AND (co.instructor_id = ? OR ce.instructor_id = ?)
+                AND ce.status IN ('active','completed')
+              ORDER BY ce.id DESC LIMIT 1", [$sid, $instructorId, $instructorId]);
+        $att = mam_db_row(
+            "SELECT COUNT(*) total,
+                    SUM(CASE WHEN sa.status IN ('present','late','excused','left_early') THEN 1 ELSE 0 END) attended
+               FROM session_attendance sa
+               JOIN class_sessions cs ON cs.id = sa.session_id
+               JOIN cohorts co ON co.id = cs.cohort_id
+              WHERE sa.student_id = ? AND co.instructor_id = ?", [$sid, $instructorId]);
+        $bits = [];
+        if (!empty($ctx['level_name'])) $bits[] = (string) $ctx['level_name'];
+        if ((int) ($att['total'] ?? 0) > 0) {
+            $bits[] = (int) round(((int) $att['attended'] / (int) $att['total']) * 100) . '% attended';
+        }
+
         $out[] = [
             'id'         => $sid,
             'name'       => (string) $r['name'],
@@ -278,6 +320,7 @@ function mam_iportal_students(int $instructorId): array {
             // A band or nothing. Never a number, never a rating.
             'band'       => $band,
             'band_label' => $band ? ($band[0] . '–' . $band[1]) : 'Not enough yet',
+            'summary'    => implode(' · ', $bits),
             'attention'  => mam_iportal_attention($sid, $instructorId),
         ];
     }
@@ -388,5 +431,133 @@ function mam_iportal_teachbacks(int $instructorId): array {
     return [
         'queue'  => mam_iportal_try(fn() => mam_preclass_instructor_queue($instructorId, 'submitted'), []),
         'notice' => 'Formative only. This does not enter the assessment band and never triggers a charge.',
+    ];
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Termly report — the facts already known, and the two things only a person
+   can write
+   ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The Termly report screen.
+ *
+ * ⚠️ THIS READS; IT DOES NOT BUILD. `mam_report_build()` WRITES a
+ * `termly_reports` row, and a GET that creates an academic record every time an
+ * instructor opens a screen would fill the table with drafts nobody asked for
+ * and burn the one-report-per-slot rule (`mam_report_slot_taken()`) on a glance.
+ * So: an existing draft is returned if there is one, and otherwise the panel is
+ * assembled from the same sources the builder would read. The row is created by
+ * the POST, when a person has actually written something.
+ *
+ * The design's "Filled in for you" panel is the whole point of the screen — an
+ * instructor writing 24 reports should be typing the two paragraphs only they
+ * can write, not copying an attendance percentage off another screen.
+ *
+ * `progress` is "5 of 24 written", counted over the students this instructor
+ * actually teaches, because that is the number the Home screen's queue prints.
+ */
+function mam_iportal_report(int $instructorId, int $studentId = 0): array {
+    $students = mam_iportal_students($instructorId);
+    $total = count($students);
+
+    $ids = array_map(fn($s) => (int) $s['id'], $students);
+    $written = 0;
+    if ($ids) {
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $written = (int) (mam_db_row(
+            "SELECT COUNT(DISTINCT student_id) c FROM termly_reports
+              WHERE student_id IN ($in) AND status <> 'withdrawn'", $ids)['c'] ?? 0);
+    }
+
+    $progress = ['written' => $written, 'total' => $total];
+
+    // No student chosen → the screen is a picker, which is what an instructor
+    // with 24 reports to write opens it as.
+    if ($studentId <= 0) return ['progress' => $progress, 'students' => $students, 'student' => null];
+
+    // Ownership: this must be one of MY students, checked against the same
+    // dual-read list the Students screen is built from rather than a fresh
+    // query that could disagree with it.
+    if (!in_array($studentId, $ids, true) && !mam_iportal_is_admin()) return [];
+
+    $stu = mam_db_row('SELECT id, name FROM users WHERE id = ?', [$studentId]);
+    if (!$stu) return [];
+
+    /* The cohort this instructor teaches them in — it names the course and the
+       level the report is ABOUT, and a student taught by two instructors must
+       get the cohort belonging to the caller, not whichever row sorts first. */
+    $cohort = mam_db_row(
+        "SELECT co.id, co.title, co.term, c.name AS course_name, l.name AS level_name, l.trinity_grades
+           FROM course_enrollments ce
+           JOIN cohorts co ON co.id = ce.cohort_id
+           LEFT JOIN courses c ON c.id = co.course_id
+           LEFT JOIN levels  l ON l.id = co.level_id
+          WHERE ce.student_id = ? AND co.instructor_id = ?
+            AND ce.status IN ('active','completed')
+          ORDER BY co.id DESC LIMIT 1", [$studentId, $instructorId]);
+
+    $draft = mam_db_row(
+        "SELECT id, status, instructor_comment, band_low, band_high, term_label
+           FROM termly_reports
+          WHERE student_id = ? AND status <> 'withdrawn'
+          ORDER BY id DESC LIMIT 1", [$studentId]);
+
+    $m = mam_iportal_try(fn() => mam_mastery_score($studentId), null);
+    $pub = is_array($m) ? mam_iportal_try(fn() => mam_mastery_publishable($m), $m) : null;
+    $band = $pub['band'] ?? null;
+
+    $att = mam_db_row(
+        "SELECT COUNT(*) total,
+                SUM(CASE WHEN sa.status IN ('present','late','excused','left_early') THEN 1 ELSE 0 END) attended,
+                SUM(CASE WHEN sa.status = 'late' THEN 1 ELSE 0 END) lates
+           FROM session_attendance sa
+           JOIN class_sessions cs ON cs.id = sa.session_id
+           JOIN cohorts co ON co.id = cs.cohort_id
+          WHERE sa.student_id = ? AND co.instructor_id = ?", [$studentId, $instructorId]);
+    $attTotal = (int) ($att['total'] ?? 0);
+    $attPct = $attTotal > 0 ? (int) round(((int) $att['attended'] / $attTotal) * 100) : null;
+
+    $rep = mam_iportal_try(fn() => mam_repertoire_list($studentId), []);
+    $repTitles = [];
+    foreach (array_slice(is_array($rep) ? $rep : [], 0, 3) as $r) {
+        if (!empty($r['title'])) $repTitles[] = (string) $r['title'];
+    }
+
+    return [
+        'progress' => $progress,
+        'students' => $students,
+        'student'  => [
+            'id'   => $studentId,
+            'name' => (string) $stu['name'],
+            'term_label' => (string) ($draft['term_label'] ?? ($cohort['term'] ?? '')),
+            /* The panel, in the design's own order. Every value is a FACT the
+               system already holds; null reads as "not recorded yet" on the
+               screen rather than as a zero. */
+            'known' => [
+                'instrument'    => $cohort['course_name'] ?? null,
+                'working_level' => $cohort['level_name']
+                    ? $cohort['level_name'] . ($cohort['trinity_grades'] ? ' (≈ ' . $cohort['trinity_grades'] . ')' : '')
+                    : null,
+                'attendance'    => $attPct === null ? null
+                    : $attPct . '% · ' . (int) $att['attended'] . ' present, ' . (int) $att['lates'] . ' late',
+                'repertoire'    => $repTitles ? implode(' · ', $repTitles) : null,
+                /* The BAND and the coverage, never the score. `raw_score` is the
+                   number the coverage floor exists to withhold; it is not in
+                   this payload and must not be added to it. */
+                'assessment'    => $band
+                    ? 'Band ' . $band[0] . '–' . $band[1]
+                      . (isset($pub['coverage_pct']) ? ' · ' . (int) round((float) $pub['coverage_pct']) . '% of the assessment covered' : '')
+                    : 'Not enough evidence yet',
+            ],
+            'comment'   => $draft['instructor_comment'] ?? '',
+            'report_id' => isset($draft['id']) ? (int) $draft['id'] : null,
+            'status'    => $draft['status'] ?? null,
+            'cohort_id' => isset($cohort['id']) ? (int) $cohort['id'] : null,
+        ],
+        /* Carried with the payload, not written into the template: the screen
+           may not promise a family anything before the panel has ratified. */
+        'notice' => 'The panel ratifies marks and releases the report to the student and their guardian together. Nothing reaches a family before then.',
+        'prompts' => 'Name one thing they can now do that they could not in September, and one thing to work on next term. Avoid comparisons with other students.',
     ];
 }

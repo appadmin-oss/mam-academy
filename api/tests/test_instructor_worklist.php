@@ -144,7 +144,14 @@ t_ok(strpos($iwRoute, 'course_enrollments ce JOIN cohorts co') !== false,
 t_ok(strpos($iwRoute, 'UNION') !== false,
     'and count students DISTINCT across both, so a backfilled roster is not double-counted');
 
-$iwHtml = file_get_contents(__DIR__ . '/../../portal/instructor/index.html');
+/* ⚠️ The instructor portal was REDESIGNED (2026-09-19). `index.html` is now the
+   v2 surface — class-only markup with its app in `assets/js/portal-instructor.js`
+   — and the legacy 13-tab dashboard this file's guards were written against
+   lives on at `portal/instructor/classic.html`, still reachable and still
+   linked from the v2 More sheet. Same arrangement as `admin/index.php` beside
+   `admin/console.php`: the redesign does not retire what it has not replaced.
+   These assertions are about THAT file and follow it. */
+$iwHtml = file_get_contents(__DIR__ . '/../../portal/instructor/classic.html');
 t_ok(strpos($iwHtml, 'function worklistPanel(w)') !== false, 'the panel exists');
 t_ok(strpos($iwHtml, "worklistPanel(data.worklist)") !== false, 'and renders on the overview');
 t_ok(strpos($iwHtml, 'byCohort') !== false,

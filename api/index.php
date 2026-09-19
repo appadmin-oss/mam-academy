@@ -294,6 +294,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->get ('/marking-sheet',    $f('instructor/marking-sheet.php'),   [mw_role('instructor', 'admin')]);
     // The instructor portal v2 — one payload per screen (api/lib/instructor-portal.php).
     $r->get ('/portal',           $f('instructor/portal.php'),          [mw_role('instructor', 'admin')]);
+    // The instructor's half of the termly report. It writes a DRAFT; the
+    // Examinations panel is the only thing that releases one to a family.
+    $r->post('/report',           $f('instructor/report.php'),          [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('iportal_report', 120, 600)]);
     $r->post('/update-profile',   $f('instructor/update-profile.php'),  [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/announce',         $f('instructor/announce.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
     $r->post('/resource',         $f('instructor/resource.php'),        [mw_csrf(), mw_role('instructor', 'admin')]);
