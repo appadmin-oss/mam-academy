@@ -14,6 +14,23 @@ if ($ref === '') {
     mam_raw_response('<h1>Policy not found</h1><p>Missing reference.</p>', 400);
 }
 
+/* An instructor reference (FAC-<id>) resolves against the faculty applications
+   instead. One route and one URL shape for both policies: a second endpoint
+   would mean a second place to get the lookup, the 404 copy and the rate limit
+   right, and the class policy already proved that shape works. */
+if (stripos($ref, 'FAC-') === 0) {
+    $fid = (int) substr($ref, 4);
+    $fa = $fid > 0 ? mam_db_row('SELECT id, full_name, created_at FROM instructor_applications WHERE id = ?', [$fid]) : null;
+    if (!$fa) {
+        mam_raw_response('<h1>Policy not found</h1><p>No instructor application on file for this reference.</p>', 404);
+    }
+    mam_raw_response(mam_policy_instructor_print_html(
+        (string) ($fa['full_name'] ?? ''),
+        'FAC-' . (int) $fa['id'],
+        !empty($fa['created_at']) ? date('F j, Y', strtotime((string) $fa['created_at'])) : null
+    ));
+}
+
 $app = mam_db_row('SELECT * FROM applications WHERE reference = ?', [$ref]);
 if (!$app || empty($app['policy_mode'])) {
     mam_raw_response('<h1>Policy not found</h1><p>No signed policy on file for this application.</p>', 404);

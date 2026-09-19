@@ -108,12 +108,27 @@ mam_after_response(function () use ($email, $v, $id, $bookUrl) {
             'faculty_application', true, ['reply_to' => $email]);
     }
 
+    /* THE POLICY THEY JUST AGREED TO.
+       The form asks every candidate to tick "I have read and agree to abide by
+       the Academy's child-protection and code-of-conduct policies"; until now
+       the academy never sent them one, so the tick was a consent to a document
+       the person had not been given. It goes out stamped with the name they
+       typed and the date, and stays readable at /api/policy/<reference>.
+       Sent BEFORE the interview mail so the two arrive in the order they are
+       referred to, and best-effort like every other message in this block — a
+       policy that failed to send must never lose the application. */
+    mam_send($email, MAM_POLICY_INSTRUCTOR_TITLE,
+        mam_email_policy_instructor($name, 'FAC-' . $id,
+            rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/api/policy/FAC-' . $id),
+        'faculty_policy', true);
+
     mam_send($email, 'Next step: book your MAM Academy interview',
         mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'Your application is in — book your interview appointment.',
             'reason' => 'You received this because you submitted an instructor application to MAM Academy.',
             'body' => "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:20px'>Thank you, " . htmlspecialchars($name) . "</h2>"
                 . "<p style='margin:0 0 10px'>Your instructor application is with our faculty panel. The next step is yours: <strong>book your interview appointment</strong> so we can meet you.</p>"
                 . "<p style='margin:0 0 10px;font-size:14px;color:#6B5B49'>Because you would be teaching children, an offer follows safer-recruitment checks: we take up both references and confirm your clearances before any teaching begins.</p>"
+                . "<p style='margin:0 0 10px;font-size:14px;color:#6B5B49'>We have also sent you the <strong>" . htmlspecialchars(MAM_POLICY_INSTRUCTOR_TITLE) . "</strong> in a separate email — the policy you agreed to when you applied. Please keep it.</p>"
                 . mam_email_button($bookUrl, 'Book your appointment')]),
         'faculty_application_ack', true);
 });

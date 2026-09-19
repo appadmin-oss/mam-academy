@@ -2082,7 +2082,7 @@ function mam_email_policy(string $mode, string $signedName, string $reference): 
       <table role='presentation' cellpadding='0' cellspacing='0' style='width:100%'>{$rows}</table>
       <div style='margin-top:22px;padding:16px 18px;background:#FBF4E8;border:1px dashed #B8721B;border-radius:10px'>
         <div style='color:#7A5C3D;font-size:12px;text-transform:uppercase;letter-spacing:.08em'>Agreed &amp; electronically signed</div>
-        <div style='color:#fff;font-size:16px;margin-top:4px'><strong>{$sig}</strong></div>
+        <div style='color:#1A120B;font-size:16px;margin-top:4px'><strong>{$sig}</strong></div>
         <div style='color:#7A5C3D;font-size:13px;margin-top:2px'>{$date} · Application {$ref}</div>
       </div>
       <p style='margin:24px 0 0;color:#7A5C3D;font-size:13px'>ACADEMIC DIRECTOR · MAM Centre</p>";
@@ -2091,6 +2091,144 @@ function mam_email_policy(string $mode, string $signedName, string $reference): 
         'preheader' => 'Your MAM Academy class policy agreement — please keep for your records.',
         'reason' => 'You received this because you agreed to the class policy when applying to MAM Academy.',
         'body' => $inner,
+    ]);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE INSTRUCTOR POLICY
+
+   The academy's "MAM Academy Policy for Instructors" — twelve clauses and an
+   acceptance block, supplied as a signed PDF. Held here as a CODE registry for
+   exactly the reason `mam_policy_points()` gives for the class policy: the
+   email, the printable copy and the web view must all read from one place or
+   they drift, and a policy that disagrees with itself is worse than none.
+
+   ⚠️ WHY THIS EXISTS AT ALL. `/instructor-apply` asks every candidate to tick
+   "I have read and agree to abide by the Academy's child-protection and
+   code-of-conduct policies" — and the academy never sent them one. A consent to
+   a document the person has not been given is not a consent. The candidate now
+   receives the policy with their acknowledgement, stamped with the name they
+   typed and the date they agreed, and it stays readable at /api/policy/FAC-<id>.
+
+   ⚠️ CLAUSE 1 SAYS LATENESS "WILL ATTRACT DEDUCTIONS", AND THE SOFTWARE DOES
+   NOT MAKE THEM. `late_charge_instructor_enabled` ships OFF, and CLAUDE.md
+   gotcha #11 gives the reason: Labour Act s.5(1) bars deductions from wages for
+   fines absent an authorised labour officer's written consent — which is why
+   the student and instructor charge gates are separate settings and why a
+   recorded lateness is stated at zero on the Earnings screen. The clause is
+   reproduced VERBATIM regardless: this is the academy's document, not ours, and
+   silently softening a policy somebody signs is the worse fault. Raised for the
+   academy to reconcile; do not edit the text to match the code.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * The twelve clauses, verbatim from the academy's signed PDF.
+ *
+ * Transcribed rather than parsed: the source is a font-subsetted PDF whose text
+ * extracts as a substitution cipher with the line breaks welded into the words
+ * ("Latenessis not permitted"). Anything reading it at runtime would be one
+ * font change away from emailing gibberish to a candidate.
+ */
+function mam_policy_instructor_points(): array {
+    return [
+        'Instructors are expected to resume classes promptly at the 30 mins before the scheduled time for every session, as punctuality is essential for maintaining a consistent, disciplined, and productive learning environment. Lateness is not permitted as it will attract deductions.',
+        'Instructors must dress formally and present themselves neatly and professionally at all times, wearing appropriate shoes and avoiding sandals, slippers, or any form of casual footwear.',
+        'Instructors are responsible for maintaining discipline, order, and structure in the classroom, enforcing all rules and regulations, addressing behavioral issues promptly, and ensuring a safe and conducive learning environment.',
+        'Instructors are expected to provide support to colleagues when necessary, including assistance with lesson planning, curriculum implementation, and resolving instructional challenges.',
+        'Instructors must foster a collaborative and supportive team environment by sharing best practices, offering guidance and mentorship, and actively participating in professional development initiatives.',
+        'Instructors shall act as effective liaisons between their unit and other relevant units, facilitating clear communication, collaboration, and coordination with all stakeholders.',
+        'Instructors must comply fully with reporting requirements set by the Program Project Manager, including providing regular updates, seeking guidance when needed, and participating in feedback and review sessions.',
+        'Instructors are responsible for accurately monitoring and recording student attendance and performance and working closely with administrative staff to ensure timely and proper documentation.',
+        "Instructors must adhere strictly to all curriculum requirements, program policies, guidelines, and objectives, and actively contribute to the achievement of the program's overall goals.",
+        'Instructors are encouraged to seek opportunities for continuous improvement by providing constructive feedback, suggestions, and recommendations that enhance program quality and effectiveness.',
+        "Instructors must maintain a high standard of professionalism in all interactions with students, colleagues, and stakeholders, serving as positive role models and upholding the organization's values and principles at all times.",
+        'Instructors must maintain strictly professional and official relationships with students at all times, and any personal, emotional, social, romantic, or financial relationship with students beyond official instructional or program-related responsibilities is strictly prohibited.',
+    ];
+}
+
+const MAM_POLICY_INSTRUCTOR_TITLE  = 'MAM Academy Policy for Instructors';
+/** The acceptance sentence from the PDF's own signature block. */
+const MAM_POLICY_INSTRUCTOR_ACCEPT = 'I hereby accept and agree to abide by the MAM Academy Policy for Instructors.';
+
+/**
+ * Print-optimised standalone HTML of the instructor policy.
+ *
+ * Light, ink-friendly and self-contained: it opens in any browser and prints or
+ * "Save as PDF" with no server-side PDF dependency — the same choice the class
+ * policy makes, and the reason neither is sent as an .html attachment (most
+ * mail clients render those as source code).
+ */
+function mam_policy_instructor_print_html(string $signedName, string $reference, ?string $signedOn = null): string {
+    $rows = '';
+    foreach (mam_policy_instructor_points() as $p) $rows .= '<li>' . htmlspecialchars($p) . '</li>';
+    $sig   = htmlspecialchars($signedName !== '' ? $signedName : '—', ENT_QUOTES);
+    $ref   = htmlspecialchars($reference, ENT_QUOTES);
+    $date  = htmlspecialchars($signedOn ?: date('F j, Y'), ENT_QUOTES);
+    $title = htmlspecialchars(MAM_POLICY_INSTRUCTOR_TITLE, ENT_QUOTES);
+    $acc   = htmlspecialchars(MAM_POLICY_INSTRUCTOR_ACCEPT, ENT_QUOTES);
+
+    return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+      . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+      . "<title>{$title}</title><style>"
+      . "body{font:15px/1.65 Georgia,'Times New Roman',serif;color:#1A120B;background:#fff;margin:0;padding:40px 28px;max-width:760px}"
+      . 'h1{font-size:21px;margin:0 0 4px;letter-spacing:.02em;text-transform:uppercase}'
+      . '.sub{color:#7A5C3D;font-size:13px;margin:0 0 26px}'
+      . 'ol{padding-left:22px;margin:0}li{margin:0 0 14px}'
+      . '.sign{margin-top:32px;padding:18px 20px;border:1px dashed #B8721B;border-radius:10px;background:#FBF4E8}'
+      . '.sign .k{color:#7A5C3D;font-size:11.5px;text-transform:uppercase;letter-spacing:.08em}'
+      . '.sign .v{font-size:17px;font-weight:700;margin-top:4px}'
+      . '.sign .m{color:#7A5C3D;font-size:13px;margin-top:3px}'
+      . '.foot{margin-top:28px;color:#7A5C3D;font-size:12.5px;line-height:1.7;border-top:1px solid #ECDFC4;padding-top:16px}'
+      . '@media print{body{padding:0}}'
+      . '</style></head><body>'
+      . "<h1>{$title}</h1>"
+      . '<p class="sub">MAM Centre &middot; Crafting the Timeless in Time</p>'
+      . "<ol>{$rows}</ol>"
+      . "<div class=\"sign\"><div class=\"k\">{$acc}</div>"
+      . "<div class=\"v\">{$sig}</div>"
+      . "<div class=\"m\">{$date} &middot; Application {$ref}</div></div>"
+      . '<p class="foot">ACADEMIC DIRECTOR &middot; MAM Academy<br>'
+      . '2 Oremeji Street, Egbeda, Lagos &middot; +234-704-444-6517 &middot; mailmamcentre@gmail.com</p>'
+      . '</body></html>';
+}
+
+/**
+ * The instructor policy as an email, stamped with the name the candidate typed
+ * and the date they agreed.
+ */
+function mam_email_policy_instructor(string $signedName, string $reference, string $viewUrl = ''): string {
+    $rows = '';
+    foreach (mam_policy_instructor_points() as $i => $p) {
+        $n = $i + 1;
+        $rows .= "<tr><td style='padding:10px 0;border-bottom:1px solid #ECDFC4;vertical-align:top'>"
+            . "<strong style='color:#B8721B'>{$n}.</strong> "
+            . "<span style='color:#4A3624;font-size:14px'>" . htmlspecialchars($p) . '</span></td></tr>';
+    }
+    $sig   = htmlspecialchars($signedName !== '' ? $signedName : '—', ENT_QUOTES);
+    $ref   = htmlspecialchars($reference, ENT_QUOTES);
+    $date  = date('F j, Y');
+    $title = htmlspecialchars(MAM_POLICY_INSTRUCTOR_TITLE, ENT_QUOTES);
+    $acc   = htmlspecialchars(MAM_POLICY_INSTRUCTOR_ACCEPT, ENT_QUOTES);
+    $view  = $viewUrl !== ''
+        ? "<p style='margin:18px 0 0'><a href='" . htmlspecialchars($viewUrl, ENT_QUOTES) . "' style='color:#B8721B;font-weight:700'>Open a printable copy</a></p>"
+        : '';
+
+    $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 6px;font-size:20px;color:#1A120B'>{$title}</h2>
+      <p style='color:#7A5C3D;font-size:13px;margin:0 0 18px'>You agreed to abide by this when you applied to teach at MAM Academy. Here it is in full &mdash; please keep it for your records.</p>
+      <table role='presentation' cellpadding='0' cellspacing='0' style='width:100%'>{$rows}</table>
+      <div style='margin-top:22px;padding:16px 18px;background:#FBF4E8;border:1px dashed #B8721B;border-radius:10px'>
+        <div style='color:#7A5C3D;font-size:12px;text-transform:uppercase;letter-spacing:.08em'>{$acc}</div>
+        <div style='color:#1A120B;font-size:16px;margin-top:4px'><strong>{$sig}</strong></div>
+        <div style='color:#7A5C3D;font-size:13px;margin-top:2px'>{$date} &middot; Application {$ref}</div>
+      </div>
+      {$view}
+      <p style='margin:24px 0 0;color:#7A5C3D;font-size:13px'>ACADEMIC DIRECTOR &middot; MAM Academy</p>";
+
+    return mam_email_layout([
+        'header'    => 'MAM ACADEMY',
+        'preheader' => 'The MAM Academy Policy for Instructors — please keep for your records.',
+        'reason'    => 'You received this because you agreed to the Academy policies when applying to teach at MAM Academy.',
+        'body'      => $inner,
     ]);
 }
 
