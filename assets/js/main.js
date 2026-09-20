@@ -1560,7 +1560,12 @@
     // gutter is left to the floating "Apply Now" button.
     function cornerBlocked() {
       var vh = window.innerHeight || 800, blocked = false;
-      ['.cookie-banner.shown', '.mam-cta-bar.is-in'].forEach(function (sel) {
+      /* `.a-bar` (the apply wizard) and `.fac-bar` (the faculty form) are
+         fixed full-width action bars, so they occupy the corner across its
+         whole width. A FAB painted over a form's primary action is the same
+         defect the dock exists to prevent — it just arrived from a different
+         direction. */
+      ['.cookie-banner.shown', '.mam-cta-bar.is-in', '.a-bar', '.fac-bar'].forEach(function (sel) {
         var el = document.querySelector(sel); if (!el) return;
         var r = el.getBoundingClientRect();
         if (r.height && r.bottom > vh - 40 && r.left < 110) blocked = true;

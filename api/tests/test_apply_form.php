@@ -43,11 +43,21 @@ t_group('apply wizard — Enter works');
 // Implicit submission needs a submit button present. With every button
 // type=button, pressing Enter in a form with more than one field does nothing
 // at all — which is exactly what applicants experienced.
-t_eq(substr_count($apply, 'class="btn-step btn-step-next" id="btnNext'), 4, 'there are four Continue buttons');
-t_ok(!preg_match('/<button type="button" class="btn-step btn-step-next"/', $apply),
-    'none of them is type=button any more');
-t_eq(substr_count($apply, '<button type="submit" class="btn-step btn-step-next"'), 4,
-    'all four are type=submit, so Enter has something to submit');
+/* The four Continue buttons became ONE sticky action bar in the 2026-09
+   rework (docs/design/2026-09-site-chrome, Part 2) — four rows of actions were
+   four places for the same control to be styled differently. What this group
+   is actually about survives unchanged: a form with more than one field and no
+   submit button does nothing at all when somebody presses Enter, which is what
+   applicants experienced. */
+t_eq(substr_count($apply, 'id="aNext"'), 1, 'there is exactly one action button');
+t_ok(!preg_match('/<button type="button" class="a-next"/', $apply),
+    'it is not type=button');
+t_eq(substr_count($apply, '<button type="submit" class="a-next"'), 1,
+    'it is type=submit, so Enter has something to submit');
+// The payment step keeps its own button, because that one opens a checkout
+// rather than advancing a screen — it must NOT submit the form.
+t_ok((bool) preg_match('/<button type="button" class="btn-pay" id="btnPay"/', $apply),
+    'the payment button stays type=button — it opens a checkout, it does not advance a step');
 
 t_group('apply wizard — one listener, not four');
 

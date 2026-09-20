@@ -198,7 +198,7 @@
       });
     } catch (e) {}
 
-    function showStep(i) {
+    function showStep(i, opts) {
       current = Math.max(0, Math.min(totalSteps - 1, i));
       stepsEls.forEach(function (s, idx) { s.classList.toggle('active', idx === current); });
       progressSteps.forEach(function (p, idx) {
@@ -210,19 +210,166 @@
         p.setAttribute('aria-disabled', isFuture ? 'true' : 'false');
         if (isFuture) p.setAttribute('tabindex', '-1'); else p.removeAttribute('tabindex');
       });
-      var main = $('.apply-main');
-      if (main) window.scrollTo({ top: main.offsetTop - 100, behavior: 'smooth' });
+      /* updateSummary() runs the skip predicates, so it has to settle BEFORE
+         the sub-screen index is resolved — otherwise "the last live screen of
+         this step" is computed against a stale set and a crash applicant lands
+         on the level question they should never see. */
       updateSummary();
       updateTrackUI();
       if (current === 3) renderPolicy();
       progressSteps.forEach(function (p, idx) { p.setAttribute('aria-current', idx === current ? 'step' : 'false'); });
-      var ambStep = $('#ambStep'); if (ambStep) ambStep.textContent = 'Step ' + (current + 1) + ' of ' + totalSteps;
-      var bar = $('#applyMobileBar'); if (bar) bar.style.display = current === totalSteps - 1 ? 'none' : '';
+      var liveN = liveSubs(current).length;
+      showSub(opts && opts.atEnd ? liveN - 1 : (opts && opts.atSub != null ? opts.atSub : 0),
+              opts && opts.quiet ? { quiet: true } : null);
       // Remember where the applicant is so a return visit resumes here.
       data.currentStep = current; saveDraft();
       // Funnel: this step is now on screen (distinct-sid de-duped server-side).
       mamTrack('apply_step_view', { step: current, pathway: data.pathway || '' });
     }
+    /* ══════════════════════════════════════════════════════════════════════
+       Sub-screens — one question per screen
+       ══════════════════════════════════════════════════════════════════════
+       Step 1 asked seven questions on one ~4,600px scroll, and level and
+       expression appeared and disappeared with the programme, so the scroll
+       length changed under the applicant mid-answer. Each question is its own
+       screen now.
+
+       A screen that does not apply is `hidden`, NOT merely inactive, and the
+       distinction is load-bearing: skipping has to work in REVERSE too. Going
+       back from the major screen with `crash` chosen must land on programme,
+       not on an empty level screen — which is what a "hide it while I am on
+       it" scheme gives you.
+
+       On a desktop every screen of the step is shown at once (the handoff's
+       fold-back), so there is nothing to navigate and `attemptNext()`
+       validates the whole step. A hidden screen stays hidden there too. */
+    var sub = 0;
+    var STEP_NAMES = ['Programme', 'Profile', 'Background', 'Review', 'Payment'];
+    /* The bar's bands. Step 1 owns 0–40% because it is six or seven screens;
+       the rest own 20% each. The 0.9 keeps the last question of a step just
+       short of the next step's figure, which is what makes leaving the step
+       read as progress rather than as nothing happening. */
+    var BANDS = [[0, 40], [40, 60], [60, 80], [80, 100], [100, 100]];
+
+    function subsOf(step) { var el = stepsEls[step]; return el ? $$('.a-sub', el) : []; }
+    function liveSubs(step) { return subsOf(step).filter(function (e) { return !e.hidden; }); }
+    function skipSub(step, q, skip) {
+      var el = (stepsEls[step] || document).querySelector('.a-sub[data-q="' + q + '"]');
+      if (el) el.hidden = !!skip;
+    }
+    /* The one predicate for "the questions are folded back onto one page".
+       It must agree with apply.css's `@media (min-width:1024px)` — a JS
+       breakpoint that disagrees with its stylesheet gives you a Next button
+       that advances a screen nobody can see. */
+    function foldedBack() {
+      return !!(window.matchMedia && window.matchMedia('(min-width:1024px)').matches);
+    }
+
+    function showSub(k, opts) {
+      var live = liveSubs(current);
+      var all  = subsOf(current);
+      if (!live.length) { sub = 0; syncShell(); return; }
+      sub = Math.max(0, Math.min(live.length - 1, k));
+      all.forEach(function (el) { el.classList.remove('active'); });
+      live[sub].classList.add('active');
+      data.subStep = sub; saveDraft();
+      syncShell();
+      if (!(opts && opts.quiet)) { scrollToScreen(); announceScreen(); focusScreen(); }
+    }
+    /* A screen change has to move the viewport as well as the DOM. Without
+       this, advancing from the fourteen-row major list to the eleven-row focus
+       list left the applicant scrolled two thirds of the way down a list they
+       had never seen — the new screen's heading was off the top. The app bar
+       is the anchor because it is what states which question this is. */
+    function scrollToScreen() {
+      if (foldedBack()) return;
+      var anchor = $('.a-appbar') || $('.apply-main');
+      if (!anchor) return;
+      var y = window.pageYOffset + anchor.getBoundingClientRect().top - 12;
+      try { window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); }
+      catch (e) { window.scrollTo(0, Math.max(0, y)); }
+    }
+
+    /* How many questions this step holds. Until a programme is chosen the
+       answer is genuinely unknown — level, tradition and the extra courses all
+       depend on it — so the bar assumes the LONGEST path and the counter says
+       nothing it might have to take back.
+       MEASURED: computing it from the live set alone made the bar run 9% → 18%
+       → 15% the moment "Certified Musician" added three screens, and a
+       progress bar that goes backwards is the plainest way a form can tell
+       somebody it is lying to them. */
+    function subTotal() {
+      var live = liveSubs(current).length;
+      if (current === 0 && !data.pathway) return subsOf(0).length || live;
+      return live || 1;
+    }
+    function subTotalKnown() { return !(current === 0 && !data.pathway); }
+
+    function syncShell() {
+      var live = liveSubs(current), n = subTotal();
+      var band = BANDS[current] || [0, 0];
+      var pct  = Math.round(band[0] + (band[1] - band[0]) * ((sub + 1) / n) * 0.9);
+      var fill = $('#aProgFill'); if (fill) fill.style.width = pct + '%';
+      var prog = $('#aProg'); if (prog) prog.setAttribute('aria-valuenow', String(pct));
+
+      var crumb = $('#aCrumb');
+      if (crumb) crumb.textContent = (current + 1) + ' of ' + totalSteps + ' · ' + (STEP_NAMES[current] || '');
+
+      var meta = $('#aBarMeta');
+      if (meta) meta.innerHTML = live.length > 1 && !foldedBack()
+        ? 'Question ' + (sub + 1) + (subTotalKnown() ? ' of ' + live.length : '')
+        : (current === 3
+            ? '<i class="fa-solid fa-lock" aria-hidden="true"></i> Secure'
+            : 'Step ' + (current + 1) + ' of ' + totalSteps);
+
+      var lbl = $('#aNextLabel');
+      if (lbl) lbl.textContent = current === 3 ? 'Continue to payment' : 'Next';
+
+      /* No back control on the very first screen. There is nowhere to go, and
+         a dead control is worse than no control — the browser's own Back
+         leaves the wizard, which is what the handoff asks for. */
+      var back = $('#aBack');
+      if (back) back.hidden = (current === 0 && (sub === 0 || foldedBack()));
+
+      // The bar belongs to steps 1–4; the payment step has its own button,
+      // because that one opens a checkout rather than advancing a screen.
+      var bar = $('#aBar'); if (bar) bar.hidden = current === totalSteps - 1;
+
+      $$('.a-stepline').forEach(function (li, i) {
+        li.classList.toggle('is-now', i === current);
+        li.classList.toggle('is-done', i < current);
+      });
+    }
+
+    /* Moving focus alone never says WHICH question of how many, so every
+       screen change is spoken as well. */
+    function announceScreen() {
+      var live = liveSubs(current), el = live[sub];
+      var live_n = live.length;
+      var title = el ? (el.querySelector('.a-title') || {}).textContent : '';
+      var where = foldedBack() || live_n < 2
+        ? 'Step ' + (current + 1) + ' of ' + totalSteps + ', ' + (STEP_NAMES[current] || '')
+        : 'Question ' + (sub + 1) + (subTotalKnown() ? ' of ' + live_n : '');
+      var say = $('#applyAnnounce');
+      if (say) say.textContent = (title ? String(title).trim() + '. ' : '') + where + '.';
+    }
+    function focusScreen() {
+      if (foldedBack()) return;
+      var el = liveSubs(current)[sub]; if (!el) return;
+      var h = el.querySelector('.a-title'); if (!h) return;
+      h.setAttribute('tabindex', '-1');
+      try { h.focus({ preventScroll: true }); } catch (e) { try { h.focus(); } catch (e2) {} }
+    }
+
+    /* Back walks screens, then steps — landing on the LAST live screen of the
+       previous step, not its first, or every step boundary replays questions
+       already answered. */
+    function goBack() {
+      if (!foldedBack() && sub > 0) { showSub(sub - 1); return; }
+      if (current === 0) return;
+      showStep(current - 1, { atEnd: true });
+    }
+
     function saveDraft() {
       try { localStorage.setItem('mam.apply.draft', JSON.stringify(data)); } catch (e) {}
       // Mirror to the server (debounced, best-effort) so the application is
@@ -299,29 +446,45 @@
       var err = document.getElementById('err-' + id); if (err) err.classList.remove('shown');
     }
 
-    function validateStep(idx) {
-      var ok = true; var first = null;
-      function check(id, condition) {
-        var el = document.getElementById(id); if (!el) return;
-        if (!condition) { setError(id); ok = false; if (!first) first = el; } else clearError(id);
+    /* ── Validation, one rule per QUESTION ─────────────────────────────────
+       The rules are unchanged; splitting step 1 into seven screens and step 2
+       into three means they now have to be addressable ONE AT A TIME, because
+       a screen with an unanswered required question cannot advance while the
+       questions after it have not been asked yet. `validateStep()` runs every
+       rule for the step's LIVE screens, which is what a desktop (folded back
+       onto one page) and a server-side rejection both need; `validateSub()`
+       runs exactly one.
+
+       The context is shared so `first` still means "the first invalid control
+       on this screen", and the scroll-and-focus at the end still happens once
+       rather than per rule. */
+    function vctx() { return { ok: true, first: null }; }
+    function vend(c) {
+      if (c.first) {
+        c.first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Move screen-reader/keyboard focus to the first invalid field, not just
+        // the viewport. preventScroll so it doesn't fight the smooth scroll above.
+        if (typeof c.first.focus === 'function') {
+          try { c.first.focus({ preventScroll: true }); } catch (e) { c.first.focus(); }
+        }
       }
-      if (idx === 0) {
-        function need(cond, errId) { if (!cond) { var e = $('#' + errId); if (e) e.classList.add('shown'); ok = false; } else { var e2 = $('#' + errId); if (e2) e2.classList.remove('shown'); } }
-        var prog = data.pathway;
-        need(!!prog, 'err-pathway');
-        need(!!data.mode, 'err-mode');
-        // Level required for the level-priced programmes only.
-        var levelled = prog === 'standard' || prog === 'certified-musician' || prog === 'grand-musician';
-        if (levelled) need(!!data.level, 'err-level');
-        // Expression required for crash/standard/certified (Grand is all three;
-        // MetaMusic Order has none).
-        var needsExpr = prog === 'crash' || prog === 'standard' || prog === 'certified-musician';
-        if (needsExpr) need(!!data.expression, 'err-expression');
-        check('program',  !!data.program);
-        need(!!data.discipline, 'err-discipline');
-        // Session is resolved silently — never validated.
-      }
-      if (idx === 1) {
+      return c.ok;
+    }
+    var QRULES = {
+      mode:       function (c, check, need) { need(!!data.mode, 'err-mode'); },
+      pathway:    function (c, check, need) { need(!!data.pathway, 'err-pathway'); },
+      // Level, expression and the extra courses are SKIPPED rather than
+      // optional where they do not apply, so a rule only ever runs on a screen
+      // the applicant was actually shown — see skipSub().
+      level:      function (c, check, need) { need(!!data.level, 'err-level'); },
+      expression: function (c, check, need) { need(!!data.expression, 'err-expression'); },
+      discipline: function (c, check, need) { need(!!data.discipline, 'err-discipline'); },
+      program:    function (c, check, need) { need(!!data.program, 'err-program'); },
+      minors:     function () { /* optional by design */ },
+      background: function () { /* every field here is optional */ },
+      // Session is resolved silently from the academic calendar — never validated.
+      who: function (c, check, need) {
+        var ok = true, first = null;
         var SV = window.MAM_VALIDATE;
         // Smart name validation: gibberish/placeholder detection beats a
         // bare length check ("asdf" was passing the old `length > 1` rule).
@@ -351,21 +514,7 @@
         }
         check('phone', phoneOk);
         if (!data.sex) { var sxe = $('#err-sex'); if (sxe) sxe.classList.add('shown'); ok = false; }
-        check('address',   (data.address || '').trim().length > 2);
-        check('lga',       (data.lga     || '').trim().length > 1);
-        check('state',     (data.state   || '').trim().length > 1);
-        check('country',   (data.country || '').trim().length > 1);
         check('dob',       ageFromDob(data.dob) !== null);
-        // Under-16 (KTAMS) applicants must provide a parent/guardian; if the
-        // intl-tel-input is wired on parentPhone, also validate it.
-        if (deriveTrack(data.dob) === 'KTAMS') {
-          check('parentName', (data.parentName || '').trim().length > 1);
-          if (parentPhoneIti) {
-            var ppOk = false;
-            try { ppOk = parentPhoneIti.isValidNumber(); } catch (e) {}
-            if (ppOk) data.parentPhone = parentPhoneIti.getNumber();
-          }
-        }
         // Headshot is mandatory — every student gets a class roster photo
         // and the AI check stops us collecting blurry/multi-face/no-face
         // shots that we'd otherwise have to chase manually.
@@ -398,10 +547,40 @@
             if (!stored) {
               setHsStatus('error', '<i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> <span>' + why + '</span>');
             }
+            /* The uploader now lives behind a disclosure row. An error written
+               into a collapsed <details> is an error nobody reads, and the
+               control it names cannot be reached without opening it — so the
+               rule opens it rather than reporting into the dark. */
+            var hsDisc = document.getElementById('headshotDisc');
+            if (hsDisc) hsDisc.open = true;
           }
         }
-      }
-      if (idx === 3) {
+        if (!ok) c.ok = false;
+        if (first && !c.first) c.first = first;
+      },
+      address: function (c, check, need) {
+        check('address',   (data.address || '').trim().length > 2);
+        check('lga',       (data.lga     || '').trim().length > 1);
+        check('state',     (data.state   || '').trim().length > 1);
+        check('country',   (data.country || '').trim().length > 1);
+      },
+      guardian: function (c, check, need) {
+        var ok = true, first = null;
+        // Under-16 (KTAMS) applicants must provide a parent/guardian; if the
+        // intl-tel-input is wired on parentPhone, also validate it.
+        if (deriveTrack(data.dob) === 'KTAMS') {
+          check('parentName', (data.parentName || '').trim().length > 1);
+          if (parentPhoneIti) {
+            var ppOk = false;
+            try { ppOk = parentPhoneIti.isValidNumber(); } catch (e) {}
+            if (ppOk) data.parentPhone = parentPhoneIti.getNumber();
+          }
+        }
+        if (!ok) c.ok = false;
+        if (first && !c.first) c.first = first;
+      },
+      review: function (c, check, need) {
+        var ok = true, first = null;
         var pa = $('#policyAgree');
         if (!pa || !pa.checked) { var pe = $('#err-policyAgree'); if (pe) pe.classList.add('shown'); ok = false; if (!first) first = pa; }
         check('policySignName', (data.policySignName || '').trim().length > 1);
@@ -412,19 +591,36 @@
         }
         var consentEl = $('#consent');
         if (!consentEl || !consentEl.checked) { var c = $('#err-consent'); if (c) c.classList.add('shown'); ok = false; }
+        if (!ok) c.ok = false;
+        if (first && !c.first) c.first = first;
       }
+    };
+    function runRule(q, c) {
+      var rule = QRULES[q]; if (!rule) return;
+      function check(id, condition) {
+        var el = document.getElementById(id); if (!el) return;
+        if (!condition) { setError(id); c.ok = false; if (!c.first) c.first = el; } else clearError(id);
+      }
+      function need(cond, errId) {
+        var e = $('#' + errId);
+        if (!cond) { if (e) e.classList.add('shown'); c.ok = false; }
+        else if (e) e.classList.remove('shown');
+      }
+      rule(c, check, need);
+    }
+    function validateSub(el) {
+      if (!el) return true;
+      var c = vctx();
+      runRule(el.getAttribute('data-q'), c);
+      return vend(c);
+    }
+    function validateStep(idx) {
+      var c = vctx();
+      liveSubs(idx).forEach(function (el) { runRule(el.getAttribute('data-q'), c); });
       if (idx === 4) {
-        if (!data.payment) { var pm = $('#err-payment'); if (pm) pm.classList.add('shown'); ok = false; }
+        if (!data.payment) { var pm = $('#err-payment'); if (pm) pm.classList.add('shown'); c.ok = false; }
       }
-      if (first) {
-        first.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // Move screen-reader/keyboard focus to the first invalid field, not just
-        // the viewport. preventScroll so it doesn't fight the smooth scroll above.
-        if (typeof first.focus === 'function') {
-          try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); }
-        }
-      }
-      return ok;
+      return vend(c);
     }
 
     // ---------- Pricing & summary (display only; server enforces) ----------
@@ -522,9 +718,9 @@
       // Additional courses (+50%·base each) are allowed on Standard, Certified
       // and Grand — only Crash & the MetaMusic Order have none.
       var hasMinors = prog === 'standard' || prog === 'certified-musician' || prog === 'grand-musician';
-      toggleHidden('#substepLevel', !levelled);
-      toggleHidden('#substepExpression', !needsExpr);
-      toggleHidden('#substepMinors', !hasMinors);
+      skipSub(0, 'level',      !levelled);
+      skipSub(0, 'expression',  !needsExpr);
+      skipSub(0, 'minors',      !hasMinors);
       // Clear now-irrelevant selections so a stale value never prices or submits.
       if (!levelled && data.level) { data.level = ''; uncheck('level'); }
       if (prog === 'grand-musician') { data.expression = 'all'; }
@@ -535,18 +731,6 @@
       if (compNote) compNote.hidden = !(prog === 'certified-musician' || prog === 'grand-musician');
       if (hasMinors) renderMinors();
       var sn = $('#sessionNote'); if (sn) sn.hidden = !data.session;
-      // Renumber only the *visible* substeps so hiding Level/Expression/Minors
-      // never leaves a confusing gap (e.g. "1, 2, 5, 6").
-      var step0 = $('.step[data-step="0"]');
-      if (step0) {
-        var n = 0;
-        $$('.substep-head', step0).forEach(function (h) {
-          var wrap = h.closest ? h.closest('.substep') : null;
-          if (wrap && wrap.hidden) return;
-          n++;
-          var num = h.querySelector('.substep-num'); if (num) num.textContent = n;
-        });
-      }
     }
 
     // Additional ("minor") courses — instruments/courses beyond the major, each
@@ -567,9 +751,10 @@
       data.minors = (data.minors || []).filter(function (m) { return m !== data.discipline; });
       grid.innerHTML = MINOR_CATALOG.filter(function (c) { return c[0] !== data.discipline; }).map(function (c) {
         var on = data.minors.indexOf(c[0]) >= 0 ? ' checked' : '';
-        return '<label class="choice-card"><input type="checkbox" name="minor" value="' + c[0] + '"' + on + '>'
-          + '<div class="choice-card-head"><span class="choice-card-title">' + escapeHtml(c[1]) + '</span></div>'
-          + '<span class="choice-card-icon"></span></label>';
+        return '<label class="a-row"><input type="checkbox" name="minor" value="' + c[0] + '"' + on + '>'
+          + '<span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>'
+          + '<span class="a-row-main"><span class="a-row-name">' + escapeHtml(c[1]) + '</span></span>'
+          + '</label>';
       }).join('');
       $$('#minorsGrid input[name="minor"]').forEach(function (inp) {
         on(inp, 'change', function () {
@@ -600,8 +785,11 @@
       // Guardian section is only shown for KTAMS (under-16) — no need to
       // collect parent details for an adult applicant.
       var isKid = data.programTrack === 'KTAMS';
-      var gf = $('#guardianField'); if (gf) gf.hidden = !isKid;
-      if (!isKid) clearError('parentName');
+      /* The guardian questions are their own screen now, so "not applicable"
+         is a SKIPPED screen rather than a hidden block inside a longer one.
+         An adult applicant never sees it in either direction. */
+      skipSub(1, 'guardian', !isKid);
+      if (!isKid) { clearError('parentName'); clearError('parentPhone'); }
       // Update signature prompt so it reflects who must sign
       var sigEl = $('#policySignName');
       if (sigEl) sigEl.placeholder = isKid ? "Guardian's full legal name" : 'Your full legal name';
@@ -645,47 +833,52 @@
       if (nameEl) nameEl.textContent = pol.title;
     }
 
+    /* Six rows, each with its OWN Edit. The old block was a read-only dump
+       with one "Edit" per section, so correcting a misread programme meant
+       re-walking the whole step. `data-sub` names the QUESTION, so Edit beside
+       Level opens the level screen. */
     function renderReview() {
       var price = cfg.pricing[data.pathway];
-      function item(l, v) { return '<div class="review-item"><span class="review-label">' + l + '</span><span class="review-value">' + escapeHtml(v || '—') + '</span></div>'; }
-      var html = '';
-      html += '<div class="review-section"><div class="review-section-head"><h4>Programme</h4><button type="button" data-jump="0">Edit</button></div><div class="review-grid">';
-      var trk = deriveTrack(data.dob);
-      html += item('Track', trk && cfg.tracks[trk] ? cfg.tracks[trk].name : '—');
-      html += item('Programme', price ? price.name : '—');
-      html += item('Mode',    data.mode === 'online' ? 'Online' : (data.mode === 'onsite' ? 'Onsite Lagos' : '—'));
-      if (data.level && cfg.levels && cfg.levels[data.level]) html += item('Level', cfg.levels[data.level]);
-      if (data.expression) html += item('Expression', data.pathway === 'grand-musician' ? 'All three' : titleCase(data.expression));
-      html += item('Focus', titleCase(data.program));
-      html += item('Primary course', titleCase(data.discipline));
-      if (data.pathway === 'certified-musician' || data.pathway === 'grand-musician') {
-        html += item('Compulsory courses', 'Rhythm & Pitch · Theory of Music · Performance · Meta Music');
+      var rows = [];
+      /* Read the label off the row the applicant actually chose, rather than
+         title-casing the stored token: `drums` is "Drums & Percussion" on the
+         screen, and a review that renames somebody's answer invites them to
+         correct something that is already right. */
+      function chosen(name, fallback) {
+        var input = document.querySelector('input[name="' + name + '"]:checked');
+        var lbl = input && input.closest ? input.closest('.a-row, .a-card') : null;
+        var nm = lbl && (lbl.querySelector('.a-row-name') || lbl.querySelector('.a-card-title'));
+        return nm ? nm.textContent.trim() : (fallback || '');
       }
-      if ((data.minors || []).length) html += item('Additional courses', data.minors.map(titleCase).join(', '));
-      if (data.session) html += item('Session', data.sessionLabel || titleCase(data.session));
-      html += item('MAM Auditer', data.auditer ? 'Yes — book session' : 'No');
-      html += '</div></div>';
+      function push(key, val, step, q) {
+        rows.push('<div class="a-rev-row"><span class="a-rev-key">' + escapeHtml(key) + '</span>'
+          + '<span class="a-rev-val">' + escapeHtml(val || '\u2014') + '</span>'
+          + '<button type="button" class="a-rev-edit" data-jump="' + step + '"'
+          + (q ? ' data-sub="' + q + '"' : '')
+          + ' aria-label="Edit ' + escapeHtml(key.toLowerCase()) + '">Edit</button></div>');
+      }
+      push('Programme', (price ? price.name : '') + (data.mode ? ' \u00b7 ' + (data.mode === 'online' ? 'Online' : 'Onsite, Lagos') : ''), 0, 'pathway');
+      push('Major', chosen('discipline', titleCase(data.discipline)), 0, 'discipline');
+      if (data.level)      push('Level', (cfg.levels && cfg.levels[data.level]) || chosen('level', titleCase(data.level)), 0, 'level');
+      if (data.expression) push('Tradition', data.pathway === 'grand-musician' ? 'All three' : titleCase(data.expression), 0, 'expression');
+      push('Focus', chosen('program', titleCase(data.program)), 0, 'program');
+      if ((data.minors || []).length) push('Also studying', data.minors.map(titleCase).join(', '), 0, 'minors');
       var ageDisp = ageFromDob(data.dob);
-      var dobDisp = data.dob ? new Date(data.dob).toLocaleDateString(undefined, { year:'numeric', month:'long', day:'numeric' }) : '';
-      var ageLine = (ageDisp !== null ? (ageDisp + ' yrs') : '') + (dobDisp ? ' · ' + dobDisp : '');
-      var locLine = [data.address, data.lga, data.state, data.country].filter(function (v) { return v && v.trim(); }).join(', ');
-      html += '<div class="review-section"><div class="review-section-head"><h4>Student Profile</h4><button type="button" data-jump="1">Edit</button></div><div class="review-grid">';
-      html += item('Name',    (data.firstName + ' ' + data.lastName).trim());
-      html += item('Sex',     titleCase(data.sex));
-      html += item('Email',   data.email);
-      html += item('Phone',   data.phone);
-      html += item('Age',     ageLine || '—');
-      html += '</div>';
-      if (locLine) html += '<div class="review-item" style="margin-top:14px"><span class="review-label">Address</span><span class="review-value">' + escapeHtml(locLine) + '</span></div>';
-      if (data.headshotUrl) html += '<div class="review-item" style="margin-top:14px"><span class="review-label">Headshot</span><span class="review-value"><img src="' + escapeHtml(data.headshotUrl) + '" alt="Headshot" style="width:56px;height:56px;object-fit:cover;border-radius:50%;border:2px solid var(--border-gold);vertical-align:middle"></span></div>';
-      html += '</div>';
-      if (data.experience || data.goals || data.referrer) {
-        html += '<div class="review-section"><div class="review-section-head"><h4>Background</h4><button type="button" data-jump="2">Edit</button></div><div class="review-grid">';
-        html += item('Experience', titleCase(data.experience));
-        html += item('Heard from us via', titleCase(data.referrer));
-        html += '</div>';
-        if (data.goals) html += '<div class="review-item" style="margin-top:14px"><span class="review-label">Goals</span><span class="review-value">' + escapeHtml(data.goals) + '</span></div>';
-        html += '</div>';
+      var who = (data.firstName + ' ' + data.lastName).trim()
+        + (ageDisp !== null ? ' \u00b7 ' + ageDisp + ' yrs' : '')
+        + (data.email ? ' \u00b7 ' + data.email : '');
+      push('Student', who, 1, 'who');
+      var loc = [data.address, data.lga, data.city, data.state, data.country]
+        .filter(function (v) { return v && v.trim(); }).join(', ');
+      if (loc) push('Address', loc, 1, 'address');
+      if (data.parentName) push('Guardian', data.parentName + (data.parentPhone ? ' \u00b7 ' + data.parentPhone : ''), 1, 'guardian');
+      push('Intake', data.sessionLabel || titleCase(data.session) || 'Set from the academic calendar', 0, 'pathway');
+      push('MAM Auditer', data.auditer ? 'Yes \u2014 book a session' : 'No', 2, 'background');
+      var html = '<div class="a-rev">' + rows.join('') + '</div>';
+      if (data.headshotUrl) {
+        html += '<div class="a-rev-photo"><img src="' + escapeHtml(data.headshotUrl)
+          + '" alt="The photo on your application">'
+          + '<button type="button" class="a-rev-edit" data-jump="1" data-sub="who">Change photo</button></div>';
       }
       return html;
     }
@@ -693,6 +886,17 @@
 
     // ---------- Step nav ----------
     function attemptNext() {
+      /* A screen with an unanswered required question cannot advance — the
+         same rules as before, just distributed one question per screen. On a
+         desktop the questions are folded back onto one page, so the step is
+         validated whole and there is nothing to advance through. */
+      var live = liveSubs(current);
+      if (!foldedBack() && live.length > 1 && sub < live.length - 1) {
+        if (!validateSub(live[sub])) return;
+        pushScreen();
+        showSub(sub + 1);
+        return;
+      }
       if (!validateStep(current)) return;
       // Funnel: the applicant cleared validation for this step.
       mamTrack('apply_step_complete', { step: current, pathway: data.pathway || '' });
@@ -701,6 +905,7 @@
         submitApplicationToServer();
         return;
       }
+      pushScreen();
       showStep(current + 1);
     }
     // ONE submit listener instead of four click listeners. The Continue buttons
@@ -715,7 +920,12 @@
         e.preventDefault();   // the wizard owns navigation; the browser must not post
         attemptNext();
     });
-    $$('[data-back]').forEach(function (b) { on(b, 'click', function () { showStep(current - 1); }); });
+    $$('[data-back]').forEach(function (b) { on(b, 'click', goBack); });
+    on($('#aBack'), 'click', goBack);
+    /* "Save & exit" states what autosave already does rather than adding a
+       second mechanism: the draft is written on every keystroke, so leaving
+       IS saving. It goes home rather than nowhere. */
+    on($('#aExit'), 'click', function () { saveDraft(); location.href = '/'; });
     // Review "Edit" buttons live inside #reviewBody, which is re-rendered via
     // innerHTML — so we delegate instead of binding once (the old bug).
     on(document, 'click', function (e) {
@@ -726,7 +936,19 @@
       // user will re-submit when they return to the review step.
       data.reference = null; data.applicationId = null; data.serverTotalUsd = null;
       saveDraft(); updateSummary();
-      showStep(parseInt(b.getAttribute('data-jump'), 10));
+      /* `data-sub` carries the QUESTION, so "Edit" beside Level opens the level
+         screen rather than the top of step 1. The index is resolved against
+         the LIVE screens at click time, because which ones exist depends on
+         the programme the applicant has since chosen. */
+      var jStep = parseInt(b.getAttribute('data-jump'), 10);
+      var jQ    = b.getAttribute('data-sub');
+      var atSub = 0;
+      if (jQ) {
+        var live = liveSubs(jStep);
+        for (var i = 0; i < live.length; i++) { if (live[i].getAttribute('data-q') === jQ) { atSub = i; break; } }
+      }
+      pushScreen();
+      showStep(jStep, { atSub: atSub });
     });
     progressSteps.forEach(function (p, idx) { on(p, 'click', function () { if (idx < current) showStep(idx); }); });
 
@@ -736,10 +958,56 @@
     bindRadioGroup('level', 'level');
     bindRadioGroup('expression', 'expression');
     bindRadioGroup('discipline', 'discipline');
+    // The focus area was an 11-option <select>; it is a radio group of rows
+    // now, so it binds like every other choice on the step.
+    bindRadioGroup('program', 'program');
     bindRadioGroup('sex', 'sex');
     // phone + parentPhone are owned by intl-tel-input below; binding them here
     // would race with the country picker's setNumber().
-    ['firstName','lastName','email','address','lga','state','country','city','dob','program','experience','goals','referrer','parentName'].forEach(function (id) { bindField(id, id); });
+    ['firstName','lastName','email','address','lga','state','country','city','dob','experience','goals','referrer','parentName'].forEach(function (id) { bindField(id, id); });
+
+    /* ── Searching a list of rows ───────────────────────────────────────────
+       Fourteen instruments and eleven focus areas are more than a thumb wants
+       to scroll past. The filter matches the row's own text — name AND
+       description, so "gospel" finds Piano — and hides the group heads when a
+       search is active, since a head over nothing reads as a broken list.
+       A row the applicant has ALREADY chosen is never hidden: watching your
+       own answer disappear as you type is how a form loses an answer. */
+    $$('[data-filter]').forEach(function (input) {
+      var list = document.getElementById(input.getAttribute('data-filter'));
+      if (!list) return;
+      var empty = document.querySelector('.a-empty[data-empty-for="' + input.getAttribute('data-filter') + '"]');
+      on(input, 'input', function () {
+        var q = input.value.trim().toLowerCase();
+        var shown = 0;
+        $$('.a-row', list).forEach(function (r) {
+          var picked = !!r.querySelector('input:checked');
+          var hit = !q || picked || r.textContent.toLowerCase().indexOf(q) >= 0;
+          r.hidden = !hit;
+          if (hit) shown++;
+        });
+        $$('.a-group', list).forEach(function (g) { g.hidden = !!q; });
+        if (empty) empty.hidden = shown > 0;
+      });
+    });
+
+    /* ── Browser Back ──────────────────────────────────────────────────────
+       "Back from question 1 leaves the wizard; back from 2–6 goes to the
+       previous question. Browser Back must map to the same thing." One entry
+       is pushed per forward move, so the browser's own gesture unwinds the
+       same screens the in-page control does. The entry carries no state of its
+       own — `goBack()` is the single implementation, and re-deriving the
+       screen from the URL would be a second one that could disagree. */
+    var pushedScreens = 0;
+    function pushScreen() {
+      if (!window.history || !history.pushState) return;
+      try { history.pushState({ mamApply: ++pushedScreens }, ''); } catch (e) {}
+    }
+    on(window, 'popstate', function () {
+      if (pushedScreens <= 0) return;      // back past the wizard: let it leave
+      pushedScreens--;
+      goBack();
+    });
 
     // ---------- Learning Readiness (#1): a warm, friction-free reflection ----------
     // Mirrors the server's advisory signal (mam_application_readiness) but ONLY
@@ -1116,11 +1384,10 @@
 
     on($('#applyCurrency'), 'change', function () { data.currency = $('#applyCurrency').value; try { localStorage.setItem('mam.currency', data.currency); } catch (e) {} saveDraft(); updateSummary(); tunePaymentMethods(); });
     if (data.currency) { var cs = $('#applyCurrency'); if (cs) cs.value = data.currency; }
-    on($('#ambView'), 'click', function () {
-      var panel = $('#summaryPanel'); if (panel) panel.open = true;
-      var s = panel || $('#applySummary');
-      if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    /* The collapsed `<details class="summary-panel">` and the mobile bar that
+       opened it are gone: the running total is now a column on a desktop and
+       is restated on the review screen on a phone, rather than hidden behind a
+       tap at every screen size. */
 
     // ---------- Submit application ----------
     var submitting = false;
@@ -1129,7 +1396,7 @@
       // fire two submits and create duplicate applications for one applicant.
       if (submitting) return;
       submitting = true;
-      setBusy('btnNext4', true, 'Submitting…');
+      setBusy('aNext', true, 'Submitting…');
       api.submitApplication(buildPayload(), data.idempotencyKey)
         .then(function (resp) {
           data.reference = resp.reference;
@@ -1144,12 +1411,12 @@
           // The server has just emailed the confirmation + invoice. Now advance
           // to Step 5 (Payment) where the applicant pays the regional booking
           // fee. They can also bail and pay later via the link in the email.
-          setBusy('btnNext4', false);
+          setBusy('aNext', false);
           submitting = false;
           showStep(current + 1);
         })
         .catch(function (err) {
-          setBusy('btnNext4', false);
+          setBusy('aNext', false);
           submitting = false;
           // Always log the raw error to the console so the operator can see
           // exactly what the server returned (status, body, message). The
@@ -1219,27 +1486,31 @@
     // Server field name -> (input id used by setError, owning step index).
     // Used both to surface inline errors and to send the user to the lowest
     // step that contains a failing field instead of always jumping to Profile.
+    /* `sub` names the QUESTION the field lives on. Without it a rejected
+       postcode carried the applicant to the first screen of step 2 and left
+       them to find it — which, now that step 2 is three screens, is a worse
+       answer than it was when it was one. */
     var SERVER_FIELDS = {
-      pathway:          { id: null,              step: 0 },
-      mode:             { id: null,              step: 0 },
-      level:            { id: null,              step: 0 },
-      expression:       { id: null,              step: 0 },
-      program:          { id: 'program',         step: 0 },
-      discipline:       { id: null,              step: 0 },
-      session:          { id: null,              step: 0 },
-      firstName:        { id: 'firstName',       step: 1 },
-      lastName:         { id: 'lastName',        step: 1 },
-      email:            { id: 'email',           step: 1 },
-      phone:            { id: 'phone',           step: 1 },
-      sex:              { id: null,              step: 1 },
-      address:          { id: 'address',         step: 1 },
-      lga:              { id: 'lga',             step: 1 },
-      state:            { id: 'state',           step: 1 },
-      country:          { id: 'country',         step: 1 },
-      dob:              { id: 'dob',             step: 1 },
-      parentName:       { id: 'parentName',      step: 1 },
-      policyAgreed:     { id: 'policyAgree',     step: 3 },
-      policySignedName: { id: 'policySignName',  step: 3 }
+      pathway:          { id: null,              step: 0, sub: 'pathway' },
+      mode:             { id: null,              step: 0, sub: 'mode' },
+      level:            { id: null,              step: 0, sub: 'level' },
+      expression:       { id: null,              step: 0, sub: 'expression' },
+      program:          { id: null,              step: 0, sub: 'program' },
+      discipline:       { id: null,              step: 0, sub: 'discipline' },
+      session:          { id: null,              step: 0, sub: 'pathway' },
+      firstName:        { id: 'firstName',       step: 1, sub: 'who' },
+      lastName:         { id: 'lastName',        step: 1, sub: 'who' },
+      email:            { id: 'email',           step: 1, sub: 'who' },
+      phone:            { id: 'phone',           step: 1, sub: 'who' },
+      sex:              { id: null,              step: 1, sub: 'who' },
+      address:          { id: 'address',         step: 1, sub: 'address' },
+      lga:              { id: 'lga',             step: 1, sub: 'address' },
+      state:            { id: 'state',           step: 1, sub: 'address' },
+      country:          { id: 'country',         step: 1, sub: 'address' },
+      dob:              { id: 'dob',             step: 1, sub: 'who' },
+      parentName:       { id: 'parentName',      step: 1, sub: 'guardian' },
+      policyAgreed:     { id: 'policyAgree',     step: 3, sub: 'review' },
+      policySignedName: { id: 'policySignName',  step: 3, sub: 'review' }
     };
     var FIELD_LABELS = {
       pathway: 'programme', mode: 'learning mode', level: 'level', expression: 'expression', program: 'focus area', discipline: 'primary course', session: 'session',
@@ -1252,7 +1523,7 @@
       policySignedName: 'policy signature'
     };
     function showServerErrors(fields) {
-      var target = null;
+      var target = null, targetSub = null;
       var labels = [];
       var firstEl = null;
       fields.forEach(function (f) {
@@ -1266,10 +1537,17 @@
           var ge = document.getElementById('err-' + f);
           if (ge) ge.classList.add('shown');
         }
-        if (target === null || spec.step < target) target = spec.step;
+        if (target === null || spec.step < target) { target = spec.step; targetSub = spec.sub || null; }
         if (FIELD_LABELS[f]) labels.push(FIELD_LABELS[f]);
       });
-      if (target !== null) showStep(target);
+      if (target !== null) {
+        var atSub = 0;
+        if (targetSub) {
+          var live = liveSubs(target);
+          for (var li = 0; li < live.length; li++) { if (live[li].getAttribute('data-q') === targetSub) { atSub = li; break; } }
+        }
+        showStep(target, { atSub: atSub });
+      }
       if (labels.length) {
         setNotice('Please fix the highlighted ' + (labels.length === 1 ? 'field' : 'fields')
           + ': <strong>' + labels.join(', ') + '</strong>.', 'error', false);
@@ -1856,12 +2134,73 @@
     renderAddonContext();
     applyKtamsCopy();
 
-    var restoreTo = 0;
+    /* window.mamDock is a FIXED stack at z-index:950 — above a form control on
+       purpose, because a consent notice must not be covered. The sticky action
+       bar therefore has to sit above it rather than at bottom:0, and the dock's
+       height is not a constant: it depends on how the banner's sentence wraps,
+       which depends on the accessibility toolbar's text size. Measure it. */
+    (function trackDock() {
+      var root = document.documentElement;
+      function measure() {
+        var d = document.getElementById('mamDock');
+        var h = 0;
+        if (d) {
+          // An EMPTY dock is 0, not its padding — otherwise the bar floats
+          // above nothing for every visitor who has already accepted.
+          var kids = d.children.length;
+          h = kids ? Math.round(d.getBoundingClientRect().height) : 0;
+        }
+        root.style.setProperty('--a-dock-h', h + 'px');
+        // The bar's own height depends on whether "Question 7 of 7" wraps,
+        // which depends on the accessibility toolbar's text size — so it is
+        // measured too rather than written down as a constant.
+        var bar = document.getElementById('aBar');
+        if (bar && !bar.hidden) root.style.setProperty('--a-bar-h', Math.round(bar.getBoundingClientRect().height) + 'px');
+      }
+      measure();
+      if (window.ResizeObserver) {
+        var ro = new ResizeObserver(measure);
+        var host = document.getElementById('mamDock');
+        if (host) ro.observe(host);
+        // The dock is created lazily by main.js, so watch for it arriving too.
+        if (window.MutationObserver) {
+          new MutationObserver(function () {
+            var d = document.getElementById('mamDock');
+            if (d && !d.__aObserved) { d.__aObserved = true; ro.observe(d); }
+            measure();
+          }).observe(document.body, { childList: true, subtree: false });
+        }
+      }
+      on(window, 'resize', measure);
+      // The banner animates in ~1.2s after load and is removed on dismissal.
+      setTimeout(measure, 1600); setTimeout(measure, 3000);
+      on(document, 'click', function () { setTimeout(measure, 450); }, true);
+    })();
+
+    /* The horizontal stepper is the no-JS fallback. With JS running the app
+       bar and the 2px line say the same thing in 48px less, and on a desktop
+       the rail in the summary column says it with room for the names. */
+    var stepperEl = $('#applyProgress'); if (stepperEl) stepperEl.hidden = true;
+    /* Every screen change is spoken, so re-run the filters and the layout
+       predicate when the viewport crosses the fold-back breakpoint — a
+       rotation must not leave a phone showing one screen of a step whose
+       Next button now validates all seven. */
+    if (window.matchMedia) {
+      var mqFold = window.matchMedia('(min-width:1024px)');
+      var onFold = function () { showSub(foldedBack() ? 0 : sub, { quiet: true }); };
+      if (mqFold.addEventListener) mqFold.addEventListener('change', onFold);
+      else if (mqFold.addListener) mqFold.addListener(onFold);
+    }
+
+    var restoreTo = 0, restoreSub = 0;
     if (resuming && typeof data.currentStep === 'number') {
       // Cap at Review (3); the payment step always needs a fresh submit.
       restoreTo = Math.max(0, Math.min(3, data.currentStep));
+      // A draft written before the split has no subStep; 0 is the right answer
+      // for it, and for a fresh application.
+      if (restoreTo === data.currentStep && typeof data.subStep === 'number') restoreSub = data.subStep;
     }
-    showStep(restoreTo);
+    showStep(restoreTo, { atSub: restoreSub, quiet: true });
     if (resuming && restoreTo > 0) showResumeBanner();
   }
 })();

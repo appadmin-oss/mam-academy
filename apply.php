@@ -53,7 +53,7 @@ if ($showChooser) {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.12/build/css/intlTelInput.min.css">
 <link rel="stylesheet" href="assets/css/main.css?v=20260920">
-<link rel="stylesheet" href="assets/css/apply.css?v=20260817a">
+<link rel="stylesheet" href="assets/css/apply.css?v=20260920">
 <style>
 /* ── Programme Chooser ───────────────────────────── */
 .prog-chooser{padding:clamp(40px,7vw,72px) 20px;background:linear-gradient(180deg,#0C0703 0%,#120B05 100%)}
@@ -153,7 +153,40 @@ if ($showChooser) {
          opens it for an undecided applicant. Hand-off is the wizard's own
          allow-listed ?pathway/&mode/&level/&discipline/&expression prefill. -->
     <section class="advisor" id="mamAdvisor" aria-label="Find your path" hidden></section>
-    <!-- Horizontal progress stepper -->
+    <?php /* Without JS the wizard shows one question per step and nothing can
+             advance it — true before this rework (the five .step panels worked
+             the same way) and truer now that step 1 is seven screens. A form
+             that silently does nothing is worse than one that says why, and
+             the academy would rather take the application by email than lose
+             it to a browser setting. */ ?>
+    <noscript>
+      <div class="a-noscript">
+        <p><strong>This application needs JavaScript.</strong> It asks one question at a time and adapts to the programme you choose, so it cannot be shown as a plain page.</p>
+        <p>Please turn JavaScript on and reload &mdash; or <a href="/contact?topic=Admissions">email the admissions team</a> and we will send you the questions directly.</p>
+      </div>
+    </noscript>
+
+    <!-- The app bar. `1 of 5 · Programme` on the left, with a back arrow from
+         the second question onward (there is nowhere to go back to from the
+         first, and a dead control is worse than no control). `Save & exit` on
+         the right states what autosave already does. -->
+    <div class="a-appbar js-only">
+      <button type="button" class="a-back" id="aBack" aria-label="Back to the previous question" hidden><i class="fa-solid fa-arrow-left" aria-hidden="true"></i></button>
+      <span class="a-crumb" id="aCrumb">1 of 5 &middot; Programme</span>
+      <button type="button" class="a-exit" id="aExit">Save &amp; exit</button>
+    </div>
+    <!-- 2px. The fill advances WITHIN a step, not only between them: a bar that
+         sits still for six screens teaches people the form is not progressing. -->
+    <div class="a-prog js-only" role="progressbar" aria-label="Application progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="aProg">
+      <span class="a-prog-fill" id="aProgFill"></span>
+    </div>
+    <!-- Every screen change is announced. Moving focus alone never says which
+         question of how many. -->
+    <p class="sr-only" id="applyAnnounce" role="status" aria-live="polite"></p>
+
+    <!-- The horizontal stepper survives as the no-JS fallback and as the
+         desktop rail's source of truth for step names. JS hides it in favour of
+         the app bar + progress line. -->
     <nav class="apply-stepper" id="applyProgress" aria-label="Application progress">
       <button type="button" class="apply-progress-step active" data-step="0"><span class="step-dot"><span>1</span></span><span class="step-name">Programme</span></button>
       <button type="button" class="apply-progress-step" data-step="1"><span class="step-dot"><span>2</span></span><span class="step-name">Profile</span></button>
@@ -161,30 +194,6 @@ if ($showChooser) {
       <button type="button" class="apply-progress-step" data-step="3"><span class="step-dot"><span>4</span></span><span class="step-name">Review</span></button>
       <button type="button" class="apply-progress-step" data-step="4"><span class="step-dot"><span>5</span></span><span class="step-name">Payment</span></button>
     </nav>
-
-    <!-- Collapsible order summary — always one tap away -->
-    <details class="summary-panel" id="summaryPanel">
-      <summary class="summary-panel-head">
-        <span class="sp-title"><i class="fa-solid fa-receipt"></i> Your selection</span>
-        <span class="sp-right"><span class="sp-total" id="spTotal">$0</span><i class="fa-solid fa-chevron-down sp-chev" aria-hidden="true"></i></span>
-      </summary>
-      <div class="summary-panel-body">
-        <div id="applySummary">
-          <div class="summary-row"><span>Programme</span><span>—</span></div>
-          <div class="summary-note"><i class="fa-solid fa-circle-info"></i> Make your selections to build your application. Tuition is discussed after your MAM Auditer assessment.</div>
-        </div>
-        <div class="summary-currency">
-          <label class="field-label" for="applyCurrency">Display currency</label>
-          <select id="applyCurrency" class="field-select">
-            <option value="USD">USD ($)</option>
-            <option value="NGN">NGN (₦)</option>
-            <option value="GBP">GBP (£)</option>
-            <option value="EUR">EUR (€)</option>
-          </select>
-        </div>
-        <p class="summary-trust"><i class="fa-solid fa-lock"></i> Secure checkout &middot; <i class="fa-solid fa-floppy-disk"></i> Auto-saved on this device &middot; <a href="mailto:academy@mamcentre.org">Need help?</a></p>
-      </div>
-    </details>
 
     <?php /* The wizard is a real <form>. It was 51 inputs and 4 selects sitting
              outside any form at all, which cost the browser's whole contribution:
@@ -210,441 +219,564 @@ if ($showChooser) {
              reader announcing "required", a machine-readable description of the
              form, and a real backstop the day novalidate is reconsidered. */ ?>
     <form id="applyForm" novalidate autocomplete="on">
+    <div class="apply-layout">
     <div class="apply-main">
-      <!-- STEP 1: Programme — split into 3 sub-sections for clarity -->
+      <!-- STEP 1: Programme — one question per screen -->
       <div class="step active" data-step="0">
-        <div class="step-head">
-          <div class="step-num">Step 1 of 5 · Programme</div>
-          <h2 class="step-title">Choose Your Programme</h2>
-          <p class="step-desc">A few quick choices — the form adapts as you go. Don't overthink it: you can change anything before payment, and <a href="auditer" style="color:var(--gold-bright)">MAM Auditer</a> will fine-tune your placement.</p>
-        </div>
+        <h2 class="a-pagetitle">Choose your programme</h2>
 
-        <!-- 1 · Mode -->
-        <div class="substep-head">
-          <span class="substep-num">1</span>
-          <span class="substep-title">How will you learn?</span>
-          <span class="substep-meta">Online from anywhere · onsite in Lagos</span>
-        </div>
-        <div class="field">
-          <label class="field-label sr-only">Learning Mode <span class="req">*</span></label>
-          <div class="choice-grid">
-            <label class="choice-card"><input type="radio" name="mode" value="online">
-              <div class="choice-card-head"><span class="choice-card-title"><i class="fa-solid fa-globe" style="color:var(--gold-bright);margin-right:6px"></i>Online</span></div>
-              <span class="choice-card-desc">Live video classes, digital assignments, virtual rehearsals — from anywhere.</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="mode" value="onsite">
-              <div class="choice-card-head"><span class="choice-card-title"><i class="fa-solid fa-location-dot" style="color:var(--gold-bright);margin-right:6px"></i>Onsite Lagos</span></div>
-              <span class="choice-card-desc">Physical lessons, ensemble training, live stagecraft at MAM Centre.</span>
-              <span class="choice-card-icon"></span></label>
+        <!-- 1a · Mode ------------------------------------------------------ -->
+        <section class="a-sub active" data-sub="0" data-q="mode" aria-label="How will you learn?">
+          <h2 class="a-title">How will you learn?</h2>
+          <div class="a-cards">
+            <label class="a-card"><input type="radio" name="mode" value="online">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-card-body">
+                <span class="a-card-title">Online</span>
+                <span class="a-card-desc">Live video classes from anywhere.</span>
+              </span>
+            </label>
+            <label class="a-card"><input type="radio" name="mode" value="onsite">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-card-body">
+                <span class="a-card-title">Onsite, Lagos</span>
+                <span class="a-card-desc">Lessons and ensembles at MAM Centre.</span>
+              </span>
+            </label>
           </div>
           <div class="field-error" id="err-mode"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a learning mode</span></div>
-        </div>
+          <p class="a-close">Everything here can change before you pay.</p>
+        </section>
 
-        <!-- 2 · Programme -->
-        <div class="substep-head">
-          <span class="substep-num">2</span>
-          <span class="substep-title">Pick a programme</span>
-          <span class="substep-meta">From a single crash course to the full Grand Musician path</span>
-        </div>
-        <div class="field">
-          <label class="field-label sr-only">Programme <span class="req">*</span></label>
-          <div class="choice-grid" id="programmeGrid">
-            <label class="choice-card"><input type="radio" name="pathway" value="crash">
-              <div class="choice-card-head"><span class="choice-card-title">Crash Programme</span><span class="choice-card-tag">6 weeks</span></div>
-              <span class="choice-card-desc">6-week accelerated intensive — one course, flat fee, no levels.</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="pathway" value="standard">
-              <div class="choice-card-head"><span class="choice-card-title">Standard</span><span class="choice-card-tag">1 course</span></div>
-              <span class="choice-card-desc">One course at your chosen level — the core single-discipline path.</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="pathway" value="certified-musician">
-              <div class="choice-card-head"><span class="choice-card-title">Certified Musician</span><span class="choice-card-tag">up to 5 courses</span></div>
-              <span class="choice-card-desc">A major course + the four compulsory MAM courses · add more at half price.</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="pathway" value="grand-musician">
-              <div class="choice-card-head"><span class="choice-card-title">Grand Musician</span><span class="choice-card-tag">all 3 expressions</span></div>
-              <span class="choice-card-desc">All three expressions — African, Classical &amp; Contemporary — plus compulsory courses. Flagship path.</span>
-              <span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="pathway" value="meta-order">
-              <div class="choice-card-head"><span class="choice-card-title" style="display:inline-flex;align-items:center;gap:6px"><iconify-icon icon="fluent-emoji:fire" width="20" aria-hidden="true"></iconify-icon>MetaMusic Order</span><span class="choice-card-tag">12 weeks</span></div>
-              <span class="choice-card-desc">12-week civilization-engineering intensive — standalone.</span>
-              <span class="choice-card-icon"></span></label>
+        <!-- 1b · Programme -------------------------------------------------- -->
+        <section class="a-sub" data-sub="1" data-q="pathway" aria-label="Which programme?">
+          <h2 class="a-title">Which programme?</h2>
+          <div class="a-rows" id="programmeGrid">
+            <label class="a-row a-row-lg"><input type="radio" name="pathway" value="crash">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Crash Programme</span>
+              <span class="a-row-desc">One course, flat fee, no levels.</span></span>
+              <span class="a-row-tag">6 weeks</span>
+            </label>
+            <label class="a-row a-row-lg"><input type="radio" name="pathway" value="standard">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Standard</span>
+              <span class="a-row-desc">One course at your chosen level.</span></span>
+              <span class="a-row-tag">1 course</span>
+            </label>
+            <label class="a-row a-row-lg"><input type="radio" name="pathway" value="certified-musician">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Certified Musician</span>
+              <span class="a-row-desc">Your major plus the four compulsory MAM courses.</span></span>
+              <span class="a-row-tag">up to 5</span>
+            </label>
+            <label class="a-row a-row-lg"><input type="radio" name="pathway" value="grand-musician">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Grand Musician</span>
+              <span class="a-row-desc">African, Classical and Contemporary together. The flagship path.</span></span>
+              <span class="a-row-tag">all 3</span>
+            </label>
+            <label class="a-row a-row-lg"><input type="radio" name="pathway" value="meta-order">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">MetaMusic Order</span>
+              <span class="a-row-desc">Civilization-engineering intensive. Standalone.</span></span>
+              <span class="a-row-tag">12 weeks</span>
+            </label>
           </div>
           <div class="field-error" id="err-pathway"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a programme</span></div>
-        </div>
+          <p class="a-close">You pay $5 today. Tuition is set after your MAM Auditer assessment, not here.</p>
+        </section>
 
-        <!-- 3 · Level (hidden for crash & meta-order) -->
-        <div class="substep" id="substepLevel" hidden>
-          <div class="substep-head">
-            <span class="substep-num">3</span>
-            <span class="substep-title">Choose your level</span>
-            <span class="substep-meta">Your academic tier — it sets the base price</span>
+        <!-- 1c · Level (skipped for crash and meta-order) -------------------- -->
+        <section class="a-sub" data-sub="2" data-q="level" aria-label="What level are you starting at?">
+          <h2 class="a-title">What level are you starting at?</h2>
+          <div class="a-rows">
+            <label class="a-row"><input type="radio" name="level" value="precert">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Pre-Certificate</span>
+              <span class="a-row-desc">Foundations, for new and returning students.</span></span>
+              <span class="a-row-tag">Grade 1&ndash;2</span>
+            </label>
+            <label class="a-row"><input type="radio" name="level" value="cert">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Certificate</span>
+              <span class="a-row-desc">Working-musician competencies.</span></span>
+              <span class="a-row-tag">Grade 3&ndash;4</span>
+            </label>
+            <label class="a-row"><input type="radio" name="level" value="prediploma">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Pre-Diploma</span>
+              <span class="a-row-desc">Advanced performance and theory.</span></span>
+              <span class="a-row-tag">Grade 5&ndash;6</span>
+            </label>
+            <label class="a-row"><input type="radio" name="level" value="diploma">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Diploma</span>
+              <span class="a-row-desc">Professional mastery and capstone.</span></span>
+              <span class="a-row-tag">Grade 7&ndash;8</span>
+            </label>
           </div>
-          <div class="field">
-            <label class="field-label sr-only">Level <span class="req">*</span></label>
-            <div class="choice-grid">
-              <label class="choice-card"><input type="radio" name="level" value="precert">
-                <div class="choice-card-head"><span class="choice-card-title">Pre-Certificate</span><span class="choice-card-tag">Grade 1–2</span></div>
-                <span class="choice-card-desc">Foundations — for new &amp; returning students.</span><span class="choice-card-icon"></span></label>
-              <label class="choice-card"><input type="radio" name="level" value="cert">
-                <div class="choice-card-head"><span class="choice-card-title">Certificate</span><span class="choice-card-tag">Grade 3–4</span></div>
-                <span class="choice-card-desc">Working-musician competencies.</span><span class="choice-card-icon"></span></label>
-              <label class="choice-card"><input type="radio" name="level" value="prediploma">
-                <div class="choice-card-head"><span class="choice-card-title">Pre-Diploma</span><span class="choice-card-tag">Grade 5–6</span></div>
-                <span class="choice-card-desc">Advanced performance &amp; theory.</span><span class="choice-card-icon"></span></label>
-              <label class="choice-card"><input type="radio" name="level" value="diploma">
-                <div class="choice-card-head"><span class="choice-card-title">Diploma</span><span class="choice-card-tag">Grade 7–8</span></div>
-                <span class="choice-card-desc">Professional mastery &amp; capstone.</span><span class="choice-card-icon"></span></label>
-            </div>
-            <div class="field-error" id="err-level"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose your level</span></div>
-          </div>
-        </div>
+          <div class="field-error" id="err-level"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose your level</span></div>
+          <p class="a-close">Not sure? Pick the nearest &mdash; the Auditer places you properly before teaching starts.</p>
+        </section>
 
-        <!-- 4 · Expression (hidden for grand &amp; meta-order) -->
-        <div class="substep" id="substepExpression" hidden>
-          <div class="substep-head">
-            <span class="substep-num">4</span>
-            <span class="substep-title">Choose your expression</span>
-            <span class="substep-meta">The tradition you'll specialise in</span>
+        <!-- 1d · Expression (skipped for grand-musician and meta-order) ------ -->
+        <section class="a-sub" data-sub="3" data-q="expression" aria-label="Which tradition?">
+          <h2 class="a-title">Which tradition?</h2>
+          <div class="a-rows">
+            <label class="a-row"><input type="radio" name="expression" value="classical">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Classical</span>
+              <span class="a-row-desc">The Western art-music tradition.</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="expression" value="contemporary">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Contemporary</span>
+              <span class="a-row-desc">Pop, gospel, jazz and modern styles.</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="expression" value="african">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">African</span>
+              <span class="a-row-desc">Indigenous and afro traditions.</span></span>
+            </label>
           </div>
-          <div class="field">
-            <label class="field-label sr-only">Expression <span class="req">*</span></label>
-            <div class="choice-grid">
-              <label class="choice-card"><input type="radio" name="expression" value="classical">
-                <div class="choice-card-head"><span class="choice-card-title">Classical</span></div><span class="choice-card-desc">Western art-music tradition.</span><span class="choice-card-icon"></span></label>
-              <label class="choice-card"><input type="radio" name="expression" value="contemporary">
-                <div class="choice-card-head"><span class="choice-card-title">Contemporary</span></div><span class="choice-card-desc">Pop, gospel, jazz &amp; modern styles.</span><span class="choice-card-icon"></span></label>
-              <label class="choice-card"><input type="radio" name="expression" value="african">
-                <div class="choice-card-head"><span class="choice-card-title">African</span></div><span class="choice-card-desc">Indigenous &amp; afro traditions.</span><span class="choice-card-icon"></span></label>
-            </div>
-            <div class="field-error" id="err-expression"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose an expression</span></div>
-          </div>
-        </div>
+          <div class="field-error" id="err-expression"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a tradition</span></div>
+          <p class="a-close">This is what you specialise in. Everything else is still taught.</p>
+        </section>
 
-        <!-- 5 · Focus area -->
-        <div class="substep-head">
-          <span class="substep-num">5</span>
-          <span class="substep-title">Choose your focus area</span>
-          <span class="substep-meta">The discipline that frames your studies</span>
-        </div>
-        <div class="field">
-          <label class="field-label" for="program">Focus area <span class="req">*</span></label>
-          <div class="field-select-wrap">
-            <select id="program" class="field-select" data-enhance="select">
-              <option value="">Select a focus area</option>
-              <optgroup label="Creation & Production">
-                <option value="songwriting">Songwriting / Composition (SCP)</option>
-                <option value="audio-engineering">Audio Engineering</option>
-                <option value="music-production">Music Production</option>
-                <option value="orchestration">Orchestration</option>
-                <option value="arranging">Music Arranging</option>
-                <option value="film-scoring">Film Scoring</option>
-              </optgroup>
-              <optgroup label="Leadership">
-                <option value="music-education">Music Education</option>
-                <option value="music-direction">Music Direction</option>
-                <option value="artistic-direction">Artistic Direction</option>
-                <option value="conducting">Conducting &amp; Arranging</option>
-                <option value="music-business">Music Business</option>
-              </optgroup>
-            </select>
-            <i class="fa-solid fa-chevron-down field-select-arrow"></i>
+        <!-- 1e · Major ------------------------------------------------------ -->
+        <section class="a-sub" data-sub="4" data-q="discipline" aria-label="What will you major in?">
+          <h2 class="a-title">What will you major in?</h2>
+          <div class="a-search">
+            <label class="sr-only" for="majorSearch">Search the courses</label>
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input type="search" id="majorSearch" data-filter="majorRows" placeholder="Search courses" autocomplete="off">
           </div>
-          <div class="field-error" id="err-program"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a focus area</span></div>
-        </div>
-
-        <!-- 6 · Primary course -->
-        <div class="substep-head">
-          <span class="substep-num">6</span>
-          <span class="substep-title">Pick your primary course</span>
-          <span class="substep-meta">Your major — the main discipline you'll study</span>
-        </div>
-        <div class="field">
-          <label class="field-label sr-only">Primary Course <span class="req">*</span></label>
-          <div class="choice-grid">
-            <label class="choice-card"><input type="radio" name="discipline" value="piano"><div class="choice-card-head"><span class="choice-card-title">Piano &amp; Keyboard</span></div><span class="choice-card-desc">Classical, gospel &amp; contemporary</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="voice"><div class="choice-card-head"><span class="choice-card-title">Voice &amp; Choir</span></div><span class="choice-card-desc">Breath, tone &amp; performance</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="guitar"><div class="choice-card-head"><span class="choice-card-title">Guitar</span></div><span class="choice-card-desc">Classical &amp; contemporary</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="bass"><div class="choice-card-head"><span class="choice-card-title">Bass</span></div><span class="choice-card-desc">Electric &amp; double bass</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="violin"><div class="choice-card-head"><span class="choice-card-title">Violin / Strings</span></div><span class="choice-card-desc">Bow technique &amp; ensemble</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="saxophone"><div class="choice-card-head"><span class="choice-card-title">Saxophone</span></div><span class="choice-card-desc">Jazz, classical &amp; afro</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="trumpet"><div class="choice-card-head"><span class="choice-card-title">Trumpet</span></div><span class="choice-card-desc">Brass technique &amp; ensemble</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="flute"><div class="choice-card-head"><span class="choice-card-title">Flute</span></div><span class="choice-card-desc">Tone, breath &amp; repertoire</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="clarinet"><div class="choice-card-head"><span class="choice-card-title">Clarinet</span></div><span class="choice-card-desc">Reed mastery &amp; ensemble</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="drums"><div class="choice-card-head"><span class="choice-card-title">Drums &amp; Percussion</span></div><span class="choice-card-desc">Kit, djembe, afro-rhythms</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="theory"><div class="choice-card-head"><span class="choice-card-title">Music Theory &amp; Ear</span></div><span class="choice-card-desc">Notation &amp; aural skills</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="performance"><div class="choice-card-head"><span class="choice-card-title">Performance Intelligence</span></div><span class="choice-card-desc">Stagecraft &amp; psychology</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="rhythm"><div class="choice-card-head"><span class="choice-card-title">Rhythm Intelligence</span></div><span class="choice-card-desc">MAM Rapid System</span><span class="choice-card-icon"></span></label>
-            <label class="choice-card"><input type="radio" name="discipline" value="metamusic"><div class="choice-card-head"><span class="choice-card-title">MetaMusic &amp; Consciousness</span></div><span class="choice-card-desc">Philosophy of sound</span><span class="choice-card-icon"></span></label>
+          <div class="a-rows" id="majorRows">
+            <label class="a-row"><input type="radio" name="discipline" value="piano">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Piano &amp; Keyboard</span>
+              <span class="a-row-desc">Classical, gospel and contemporary</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="voice">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Voice &amp; Choir</span>
+              <span class="a-row-desc">Breath, tone and performance</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="guitar">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Guitar</span>
+              <span class="a-row-desc">Classical and contemporary</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="bass">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Bass</span>
+              <span class="a-row-desc">Electric and double bass</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="violin">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Violin &amp; Strings</span>
+              <span class="a-row-desc">Bow technique and ensemble</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="saxophone">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Saxophone</span>
+              <span class="a-row-desc">Jazz, classical and afro</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="trumpet">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Trumpet</span>
+              <span class="a-row-desc">Brass technique and ensemble</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="flute">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Flute</span>
+              <span class="a-row-desc">Tone, breath and repertoire</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="clarinet">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Clarinet</span>
+              <span class="a-row-desc">Reed mastery and ensemble</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="drums">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Drums &amp; Percussion</span>
+              <span class="a-row-desc">Kit, djembe, afro-rhythms</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="theory">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Music Theory &amp; Ear</span>
+              <span class="a-row-desc">Notation and aural skills</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="performance">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Performance Intelligence</span>
+              <span class="a-row-desc">Stagecraft and psychology</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="rhythm">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Rhythm Intelligence</span>
+              <span class="a-row-desc">The MAM Rapid System</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="discipline" value="metamusic">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">MetaMusic &amp; Consciousness</span>
+              <span class="a-row-desc">The philosophy of sound</span></span>
+            </label>
           </div>
+          <p class="a-empty" data-empty-for="majorRows" hidden>No course matches that. Clear the search to see all fourteen.</p>
           <div class="field-error" id="err-discipline"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a course</span></div>
-        </div>
+        </section>
 
-        <!-- 7 · Additional courses (minors) — shown for Certified &amp; Grand only -->
-        <div class="substep" id="substepMinors" hidden>
-          <div class="substep-head">
-            <span class="substep-num">7</span>
-            <span class="substep-title">Add more courses</span>
-            <span class="substep-meta">Optional — pick any extra courses you'd like to study</span>
+        <!-- 1f · Focus area -------------------------------------------------
+             ⚠️ NOT merged into 1e. The handoff asks for "one searchable list of
+             14 rows" replacing both this and the major, on the reading that the
+             two ask "two versions of what will you study". They do not: the
+             major is an INSTRUMENT (piano, clarinet) and this is a career
+             focus (film scoring, music business). There is no mapping from the
+             eleven onto the fourteen, `applications.program` is a stored column
+             the server validates against its own allowlist, and the handoff's
+             own open question 5 asks whether this taxonomy needs to survive.
+             It does — as its own screen, in the same row treatment. -->
+        <section class="a-sub" data-sub="5" data-q="program" aria-label="Where are you heading?">
+          <h2 class="a-title">Where are you heading?</h2>
+          <div class="a-search">
+            <label class="sr-only" for="focusSearch">Search the focus areas</label>
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input type="search" id="focusSearch" data-filter="focusRows" placeholder="Search focus areas" autocomplete="off">
           </div>
-          <div class="compulsory-note" id="compulsoryNote">
-            <i class="fa-solid fa-circle-check"></i>
-            <div><strong>Already included in your programme:</strong> Rhythm &amp; Pitch, Theory of Music, Performance &amp; Meta Music are built in.</div>
+          <div class="a-rows" id="focusRows">
+            <p class="a-group">Creation &amp; production</p>
+            <label class="a-row"><input type="radio" name="program" value="songwriting">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Songwriting &amp; Composition</span>
+              <span class="a-row-desc">Writing the material itself</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="program" value="audio-engineering">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Audio Engineering</span>
+              <span class="a-row-desc">Capture, mixing and the room</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="program" value="music-production">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Music Production</span>
+              <span class="a-row-desc">Taking a record from idea to master</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="program" value="orchestration">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Orchestration</span>
+              <span class="a-row-desc">Writing for the ensemble</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="program" value="arranging">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Music Arranging</span>
+              <span class="a-row-desc">Re-shaping a piece for its players</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="program" value="film-scoring">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Film Scoring</span>
+              <span class="a-row-desc">Music written to picture</span></span>
+            </label>
+            <p class="a-group">Leadership</p>
+            <label class="a-row"><input type="radio" name="program" value="music-education">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Music Education</span>
+              <span class="a-row-desc">Teaching it to the next people</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="program" value="music-direction">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Music Direction</span>
+              <span class="a-row-desc">Running the band or the service</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="program" value="artistic-direction">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Artistic Direction</span>
+              <span class="a-row-desc">Shaping what a company performs</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="program" value="conducting">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Conducting</span>
+              <span class="a-row-desc">Leading from the podium</span></span>
+            </label>
+            <label class="a-row"><input type="radio" name="program" value="music-business">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-row-main"><span class="a-row-name">Music Business</span>
+              <span class="a-row-desc">Rights, releases and the money</span></span>
+            </label>
           </div>
-          <div class="field">
-            <div class="choice-grid" id="minorsGrid"><!-- rendered by JS; excludes your chosen major --></div>
-          </div>
-        </div>
+          <p class="a-empty" data-empty-for="focusRows" hidden>No focus area matches that. Clear the search to see all eleven.</p>
+          <div class="field-error" id="err-program"><i class="fa-solid fa-circle-exclamation"></i><span>Please choose a focus area</span></div>
+          <p class="a-close">This frames your studies. It does not change what you pay today.</p>
+        </section>
 
-        <!-- Session is resolved silently from the academic calendar (no step). -->
+        <!-- 1g · Add more courses (certified-musician and grand-musician only) -->
+        <section class="a-sub" data-sub="6" data-q="minors" aria-label="Add more courses">
+          <h2 class="a-title">Add more courses?</h2>
+          <p class="a-lede" id="compulsoryNote">Rhythm &amp; Pitch, Theory of Music, Performance and MetaMusic are already built into your programme.</p>
+          <div class="a-rows" id="minorsGrid"><!-- rendered by JS; excludes your chosen major --></div>
+          <p class="a-close">Optional. You can add courses later, at the same half price.</p>
+        </section>
+
+        <!-- Session is resolved silently from the academic calendar (no screen). -->
         <div class="session-note" id="sessionNote" hidden>
           <i class="fa-solid fa-calendar-day"></i>
-          <div>Your intake: <strong id="sessionNoteLabel">—</strong><span id="sessionNoteSub"></span></div>
-        </div>
-
-        <div class="step-actions">
-          <span></span>
-          <button type="submit" class="btn-step btn-step-next" id="btnNext">Continue <i class="fa-solid fa-arrow-right"></i></button>
+          <div>Your intake: <strong id="sessionNoteLabel">&mdash;</strong><span id="sessionNoteSub"></span></div>
         </div>
       </div>
 
       <!-- STEP 2: Student Profile -->
       <div class="step" data-step="1">
-        <div class="step-head">
-          <div class="step-num">Step 2 of 5</div>
-          <h2 class="step-title">Student Profile</h2>
-          <p class="step-desc">Tell us about the student. We use this only to onboard and contact you about your enrollment.</p>
+        <h2 class="a-pagetitle">Your profile</h2>
+
+        <!-- 2a · Who is studying? ------------------------------------------- -->
+        <section class="a-sub active" data-sub="0" data-q="who" aria-label="Who is studying?">
+          <h2 class="a-title">Who is studying?</h2>
           <div class="track-badge" id="trackBadge" hidden>
             <i class="fa-solid fa-graduation-cap"></i>
             <div><strong id="trackBadgeName">MAM Academy</strong><span id="trackBadgeNote"></span></div>
           </div>
-        </div>
 
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="firstName">First Name <span class="req">*</span></label>
-            <input type="text" id="firstName" class="field-input" placeholder="e.g. Tunde" autocomplete="given-name" maxlength="60" required>
-            <div class="field-error" id="err-firstName"><i class="fa-solid fa-circle-exclamation"></i><span>Enter first name</span></div>
-          </div>
-          <div class="field">
-            <label class="field-label" for="lastName">Last Name <span class="req">*</span></label>
-            <input type="text" id="lastName" class="field-input" placeholder="e.g. Adeyemi" autocomplete="family-name" maxlength="60" required>
-            <div class="field-error" id="err-lastName"><i class="fa-solid fa-circle-exclamation"></i><span>Enter last name</span></div>
-          </div>
-        </div>
-
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="email">Email <span class="req">*</span></label>
-            <input type="email" id="email" class="field-input" placeholder="you@example.com" autocomplete="email" required>
-            <div class="field-error" id="err-email"><i class="fa-solid fa-circle-exclamation"></i><span>Valid email required</span></div>
-          </div>
-          <div class="field">
-            <label class="field-label" for="phone">Mobile Number <span class="req">*</span></label>
-            <input type="tel" id="phone" class="field-input" placeholder="+234 800 000 0000" autocomplete="tel" required>
-            <div class="field-error" id="err-phone"><i class="fa-solid fa-circle-exclamation"></i><span>Valid phone required</span></div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="field-label">Sex <span class="req">*</span></label>
-          <div class="sex-row">
-            <label class="sex-pill"><input type="radio" name="sex" value="female"><i class="fa-solid fa-venus"></i>Female</label>
-            <label class="sex-pill"><input type="radio" name="sex" value="male"><i class="fa-solid fa-mars"></i>Male</label>
-            <label class="sex-pill"><input type="radio" name="sex" value="prefer-not-to-say">Prefer not to say</label>
-          </div>
-          <div class="field-error" id="err-sex"><i class="fa-solid fa-circle-exclamation"></i><span>Please select</span></div>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="address">Address <span class="req">*</span></label>
-          <input type="text" id="address" class="field-input" placeholder="Street address" autocomplete="street-address" maxlength="200" required>
-          <div class="field-error" id="err-address"><i class="fa-solid fa-circle-exclamation"></i><span>Enter your address</span></div>
-        </div>
-
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="lga">Local Government (County) <span class="req">*</span></label>
-            <input type="text" id="lga" class="field-input" placeholder="e.g. Alimosho" autocomplete="address-level3" maxlength="80" required>
-            <div class="field-error" id="err-lga"><i class="fa-solid fa-circle-exclamation"></i><span>Enter LGA / county</span></div>
-          </div>
-          <div class="field">
-            <label class="field-label" for="city">City</label>
-            <input type="text" id="city" class="field-input" placeholder="Lagos" autocomplete="address-level2">
-          </div>
-        </div>
-
-        <div class="field-row">
-          <div class="field">
-            <label class="field-label" for="state">State (Province) <span class="req">*</span></label>
-            <input type="text" id="state" class="field-input" placeholder="e.g. Lagos State" autocomplete="address-level1" maxlength="80" required>
-            <div class="field-error" id="err-state"><i class="fa-solid fa-circle-exclamation"></i><span>Enter state / province</span></div>
-          </div>
-          <div class="field">
-            <label class="field-label" for="country">Country <span class="req">*</span></label>
-            <input type="text" id="country" class="field-input" placeholder="Nigeria" autocomplete="country-name" required>
-            <div class="field-error" id="err-country"><i class="fa-solid fa-circle-exclamation"></i><span>Enter country</span></div>
-          </div>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="dob">Date of Birth <span class="req">*</span></label>
-          <div class="dob-row">
-            <input type="date" id="dob" class="field-input" required autocomplete="bday">
-            <div class="dob-readout" id="dobReadout" hidden>
-              <i class="fa-solid fa-cake-candles"></i>
-              <div>
-                <strong id="dobAge">—</strong>
-                <span id="dobBand"></span>
+          <div class="a-fields">
+            <div class="field">
+              <label class="field-label" for="firstName">First name</label>
+              <input type="text" id="firstName" class="field-input" autocomplete="given-name" maxlength="60" required>
+              <div class="field-error" id="err-firstName"><i class="fa-solid fa-circle-exclamation"></i><span>Enter first name</span></div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="lastName">Last name</label>
+              <input type="text" id="lastName" class="field-input" autocomplete="family-name" maxlength="60" required>
+              <div class="field-error" id="err-lastName"><i class="fa-solid fa-circle-exclamation"></i><span>Enter last name</span></div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="email">Email</label>
+              <input type="email" id="email" class="field-input" autocomplete="email" required>
+              <div class="field-help">Your application copy and invoice go here.</div>
+              <div class="field-error" id="err-email"><i class="fa-solid fa-circle-exclamation"></i><span>Valid email required</span></div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="phone">Mobile number</label>
+              <input type="tel" id="phone" class="field-input" autocomplete="tel" required>
+              <div class="field-error" id="err-phone"><i class="fa-solid fa-circle-exclamation"></i><span>Valid phone required</span></div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="dob">Date of birth</label>
+              <div class="dob-row">
+                <input type="date" id="dob" class="field-input" required autocomplete="bday">
+                <div class="dob-readout" id="dobReadout" hidden>
+                  <i class="fa-solid fa-cake-candles"></i>
+                  <div><strong id="dobAge">&mdash;</strong><span id="dobBand"></span></div>
+                </div>
               </div>
+              <div class="field-help">Sets your age band &mdash; under 16 adds a guardian contact.</div>
+              <div class="field-error" id="err-dob"><i class="fa-solid fa-circle-exclamation"></i><span>A valid date of birth is required</span></div>
+            </div>
+            <div class="field">
+              <label class="field-label" id="sexLabel">Sex</label>
+              <div class="sex-row" role="radiogroup" aria-labelledby="sexLabel">
+                <label class="sex-pill"><input type="radio" name="sex" value="female">Female</label>
+                <label class="sex-pill"><input type="radio" name="sex" value="male">Male</label>
+                <label class="sex-pill"><input type="radio" name="sex" value="prefer-not-to-say">Prefer not to say</label>
+              </div>
+              <div class="field-error" id="err-sex"><i class="fa-solid fa-circle-exclamation"></i><span>Please select</span></div>
             </div>
           </div>
-          <div class="field-help">We use your date of birth to place you on the right track. The age band is calculated automatically.</div>
-          <div class="field-error" id="err-dob"><i class="fa-solid fa-circle-exclamation"></i><span>A valid date of birth is required</span></div>
-        </div>
 
-        <div class="field" id="guardianField" hidden>
-          <label class="field-label" for="parentName">Parent / Guardian <span class="req">*</span></label>
-          <div class="field-row">
-            <input type="text" id="parentName" class="field-input" placeholder="Guardian name" autocomplete="name">
-            <input type="tel" id="parentPhone" class="field-input" placeholder="Guardian phone" autocomplete="tel">
+          <!-- The headshot widget is unchanged (four independent failure points,
+               all four of which have failed in production — see CLAUDE.md). Only
+               its container moved behind a disclosure row, and #hsStatus stays in
+               the DOM: validateStep()'s "a photo is required" branch used to
+               write into an element that was never on the page. -->
+          <details class="a-disc" id="headshotDisc">
+            <summary class="a-disc-head">
+              <span class="a-avatar" id="hsAvatar" aria-hidden="true"><i class="fa-solid fa-camera"></i></span>
+              <span class="a-disc-main"><span class="a-disc-name">Your photo</span>
+              <span class="a-disc-desc" id="hsSummary">Required &mdash; for your student tag and class roster</span></span>
+              <i class="fa-solid fa-chevron-right a-disc-go" aria-hidden="true"></i>
+            </summary>
+            <div class="a-disc-body">
+              <div id="headshotMount"></div>
+              <div class="hs-status" id="hsStatus" role="status" hidden></div>
+              <div class="field-help">Front-facing, clear, and just you. Nothing is sent anywhere before you confirm it.</div>
+            </div>
+          </details>
+
+          <p class="a-close">Address comes next, on its own screen &mdash; your phone can autofill it in one tap.</p>
+        </section>
+
+        <!-- 2b · Address ---------------------------------------------------- -->
+        <section class="a-sub" data-sub="1" data-q="address" aria-label="Where do you live?">
+          <h2 class="a-title">Where do you live?</h2>
+          <div class="a-fields">
+            <div class="field">
+              <label class="field-label" for="address">Street address</label>
+              <input type="text" id="address" class="field-input" autocomplete="street-address" maxlength="200" required>
+              <div class="field-error" id="err-address"><i class="fa-solid fa-circle-exclamation"></i><span>Enter your address</span></div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="lga">Local government / county</label>
+              <input type="text" id="lga" class="field-input" autocomplete="address-level3" maxlength="80" required>
+              <div class="field-error" id="err-lga"><i class="fa-solid fa-circle-exclamation"></i><span>Enter LGA / county</span></div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="city">City</label>
+              <input type="text" id="city" class="field-input" autocomplete="address-level2">
+            </div>
+            <div class="field">
+              <label class="field-label" for="state">State / province</label>
+              <input type="text" id="state" class="field-input" autocomplete="address-level1" maxlength="80" required>
+              <div class="field-error" id="err-state"><i class="fa-solid fa-circle-exclamation"></i><span>Enter state / province</span></div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="country">Country</label>
+              <input type="text" id="country" class="field-input" autocomplete="country-name" required>
+              <div class="field-error" id="err-country"><i class="fa-solid fa-circle-exclamation"></i><span>Enter country</span></div>
+            </div>
           </div>
-          <div class="field-help">Required for under-16 (KTAMS) students — this is the contact we use for scheduling and updates.</div>
-          <div class="field-error" id="err-parentName"><i class="fa-solid fa-circle-exclamation"></i><span>A parent/guardian is required for under-16 students</span></div>
-        </div>
+          <p class="a-close">We use this for your student file and, if you study onsite, your travel time.</p>
+        </section>
 
-        <div class="field">
-          <label class="field-label">Headshot <span class="req">*</span></label>
-          <div id="headshotMount"></div>
-          <!-- apply.js's validateStep() writes the "a photo is required" message
-               here when someone presses Continue without one. The element was
-               never on the page, so that branch wrote into nothing: the only
-               feedback was a border-colour pulse on the dropzone, which says
-               nothing at all to a screen reader and very little to anyone else. -->
-          <div class="hs-status" id="hsStatus" role="status" hidden></div>
-          <div class="field-help">We use this for your student tag and class roster. Our AI checks that the photo is clear, front-facing and shows only you — nothing is sent to a server before you confirm.</div>
-        </div>
-
-        <div class="step-actions">
-          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
-          <button type="submit" class="btn-step btn-step-next" id="btnNext2">Continue <i class="fa-solid fa-arrow-right"></i></button>
-        </div>
+        <!-- 2c · Guardian (skipped unless the student is under 16) ----------- -->
+        <section class="a-sub" data-sub="2" data-q="guardian" aria-label="Guardian contact">
+          <h2 class="a-title">Who do we contact?</h2>
+          <p class="a-lede">The student is under 16, so a parent or guardian is the contact we use for scheduling and updates.</p>
+          <div class="a-fields" id="guardianField">
+            <div class="field">
+              <label class="field-label" for="parentName">Parent or guardian name</label>
+              <input type="text" id="parentName" class="field-input" autocomplete="name">
+              <div class="field-error" id="err-parentName"><i class="fa-solid fa-circle-exclamation"></i><span>A parent/guardian is required for under-16 students</span></div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="parentPhone">Their mobile number</label>
+              <input type="tel" id="parentPhone" class="field-input" autocomplete="tel">
+              <div class="field-error" id="err-parentPhone"><i class="fa-solid fa-circle-exclamation"></i><span>A guardian phone number is required</span></div>
+            </div>
+          </div>
+          <p class="a-close">They get their own portal account once you are enrolled.</p>
+        </section>
       </div>
 
       <!-- STEP 3: Background -->
       <div class="step" data-step="2">
-        <div class="step-head">
-          <div class="step-num">Step 3 of 5</div>
-          <h2 class="step-title">Background &amp; Goals</h2>
-          <p class="step-desc">Helps us prepare your MAM Auditer placement and recommend the right instructor.</p>
-        </div>
+        <h2 class="a-pagetitle">Background and goals</h2>
+        <section class="a-sub active" data-sub="0" data-q="background" aria-label="Where are you now?">
+          <h2 class="a-title">Where are you now?</h2>
+          <div class="a-fields">
+            <div class="field">
+              <label class="field-label" for="experience">Current musical level</label>
+              <div class="field-select-wrap">
+                <select id="experience" class="field-select">
+                  <option value="">Select level</option>
+                  <option value="none">Complete beginner</option>
+                  <option value="some">Some basic knowledge</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced musician</option>
+                </select>
+                <i class="fa-solid fa-chevron-down field-select-arrow"></i>
+              </div>
+            </div>
 
-        <div class="field">
-          <label class="field-label" for="experience">Current musical level</label>
-          <div class="field-select-wrap">
-            <select id="experience" class="field-select">
-              <option value="">Select level</option>
-              <option value="none">Complete beginner</option>
-              <option value="some">Some basic knowledge</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced musician</option>
-            </select>
-            <i class="fa-solid fa-chevron-down field-select-arrow"></i>
+            <!-- Learning-Readiness note (#1): a warm, encouraging reflection derived
+                 from the level + date of birth already entered. Reassurance, never a
+                 gate — the server derives the authoritative signal, and the MAM
+                 Auditer confirms placement. Announced to assistive tech. -->
+            <div class="readiness-note" id="readinessNote" role="status" aria-live="polite" hidden></div>
+
+            <div class="field">
+              <label class="field-label" for="goals">What do you want to achieve at MAM?</label>
+              <textarea id="goals" class="field-textarea" placeholder="e.g. lead my church worship team, perform on stage, pass Grade 5 ABRSM, write my own songs…" maxlength="1000"></textarea>
+            </div>
+
+            <div class="field">
+              <label class="field-label" for="referrer">How did you hear about MAM Academy?</label>
+              <div class="field-select-wrap">
+                <select id="referrer" class="field-select">
+                  <option value="">Select source</option>
+                  <option value="search">Google / Search</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="twitter">Twitter / X</option>
+                  <option value="facebook">Facebook</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="friend">Referred by a friend</option>
+                  <option value="church">My church</option>
+                  <option value="power-play">Power Play series</option>
+                  <option value="other">Other</option>
+                </select>
+                <i class="fa-solid fa-chevron-down field-select-arrow"></i>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <!-- Learning-Readiness note (#1): a warm, encouraging reflection derived
-             from the level + date of birth already entered. Reassurance, never a
-             gate — the server derives the authoritative signal, and the MAM
-             Auditer confirms placement. Announced to assistive tech. -->
-        <div class="readiness-note" id="readinessNote" role="status" aria-live="polite" hidden></div>
-
-        <div class="field">
-          <label class="field-label" for="goals">What do you want to achieve at MAM?</label>
-          <textarea id="goals" class="field-textarea" placeholder="e.g. lead my church worship team, perform on stage, pass Grade 5 ABRSM, write my own songs…" maxlength="1000"></textarea>
-          <div class="field-help">Your goals help us shape your learning roadmap.</div>
-        </div>
-
-        <div class="field">
-          <label class="field-label" for="referrer">How did you hear about MAM Academy?</label>
-          <div class="field-select-wrap">
-            <select id="referrer" class="field-select">
-              <option value="">Select source</option>
-              <option value="search">Google / Search</option>
-              <option value="instagram">Instagram</option>
-              <option value="twitter">Twitter / X</option>
-              <option value="facebook">Facebook</option>
-              <option value="youtube">YouTube</option>
-              <option value="friend">Referred by a friend</option>
-              <option value="church">My church</option>
-              <option value="power-play">Power Play series</option>
-              <option value="other">Other</option>
-            </select>
-            <i class="fa-solid fa-chevron-down field-select-arrow"></i>
-          </div>
-        </div>
-
-        <label class="consent">
-          <input type="checkbox" id="auditerOptIn" checked>
-          <span class="consent-text">Yes — I want to book a <strong>MAM Auditer entry assessment</strong> with my enrollment (recommended).</span>
-        </label>
-
-        <div class="step-actions">
-          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
-          <button type="submit" class="btn-step btn-step-next" id="btnNext3">Continue <i class="fa-solid fa-arrow-right"></i></button>
-        </div>
+          <label class="consent">
+            <input type="checkbox" id="auditerOptIn" checked>
+            <span class="consent-text">Yes &mdash; book a <strong>MAM Auditer entry assessment</strong> with my enrolment (recommended).</span>
+          </label>
+        </section>
       </div>
 
       <!-- STEP 4: Review -->
       <div class="step" data-step="3">
-        <div class="step-head">
-          <div class="step-num">Step 4 of 5 · Review</div>
-          <h2 class="step-title">Review &amp; Confirm</h2>
-          <p class="step-desc">Take a final look. When you submit, we'll email you a copy of your application and your invoice — then you'll confirm your seat with a one-time <strong id="reviewFeeLabel">$5</strong> payment.</p>
-        </div>
+        <h2 class="a-pagetitle">Review and confirm</h2>
+        <section class="a-sub active" data-sub="0" data-q="review" aria-label="Check it over">
+          <h2 class="a-title">Check it over</h2>
 
-        <div id="reviewBody"></div>
+          <!-- Six hairline rows, each with its own Edit. The old block was a
+               read-only dump with one "Edit" per SECTION, so correcting a
+               misread programme meant re-walking the whole step. -->
+          <div id="reviewBody"></div>
 
-        <div class="field" style="margin-top:24px">
-          <label class="field-label">Registration</label>
-          <label class="choice-card">
+          <!-- The price is stated BEFORE the consents, not after them: a fee
+               disclosed below the box you have already ticked is disclosed too
+               late to inform the tick. -->
+          <div class="a-due">
+            <span class="a-due-label">Due today</span>
+            <span class="a-due-amount" id="reviewFeeLabel">$5</span>
+          </div>
+          <p class="a-due-note">Covers registration, your MAM Academy student ID card, your student file and a 30-minute MAM Auditer assessment. Tuition is <strong>not</strong> charged here &mdash; it is discussed only after the Auditer Judges have placed you.</p>
+          <label class="a-reg">
             <input type="checkbox" id="includeRegistration" checked>
-            <div class="choice-card-head"><span class="choice-card-title">Registration &amp; Student File</span><span class="choice-card-price">+<span data-amt-usd="5">$5</span></span></div>
-            <span class="choice-card-desc">One-time onboarding, hard-copy student file &amp; academy documentation. Certification is included in your programme fee.</span>
-            <span class="choice-card-icon"></span>
+            <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+            <span>Include registration and student file (<span data-amt-usd="5">$5</span>)</span>
           </label>
-        </div>
 
-        <div class="policy-block" id="policyBlock" style="margin-top:24px">
-          <div class="policy-block-head"><i class="fa-solid fa-file-contract"></i><h4 id="policyTitle">Class Policy</h4></div>
-          <p class="policy-intro" id="policyIntro"></p>
-          <ul class="policy-points" id="policyPoints"></ul>
-          <p class="policy-note">The complete, full-length policy is emailed to you the moment you submit — keep it for your records.</p>
-        </div>
+          <!-- The full policy is emailed on submit and is web-viewable at
+               /api/policy/<ref>. A scrollable excerpt inside a phone form is
+               read by nobody, so it collapses behind the consent it belongs to.
+               The typed signature stays: it is a legal artefact, not chrome. -->
+          <div class="a-consents">
+            <label class="a-consent">
+              <input type="checkbox" id="policyAgree">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-consent-text">I have read and agree to abide by the <strong id="policyConsentName">MAM Academy class policy</strong>.</span>
+            </label>
+            <div class="field-error" id="err-policyAgree"><i class="fa-solid fa-circle-exclamation"></i><span>Please agree to the class policy to continue</span></div>
 
-        <label class="consent">
-          <input type="checkbox" id="policyAgree">
-          <span class="consent-text">I have read and agree to abide by the <strong id="policyConsentName">MAM Academy class policy</strong>.</span>
-        </label>
-        <div class="field-error" id="err-policyAgree"><i class="fa-solid fa-circle-exclamation"></i><span>Please agree to the class policy to continue</span></div>
+            <details class="a-disc a-disc-quiet" id="policyBlock">
+              <summary class="a-disc-head">
+                <span class="a-disc-main"><span class="a-disc-name" id="policyTitle">Read the class policy</span>
+                <span class="a-disc-desc">The full version is emailed to you on submit.</span></span>
+                <i class="fa-solid fa-chevron-right a-disc-go" aria-hidden="true"></i>
+              </summary>
+              <div class="a-disc-body">
+                <p class="policy-intro" id="policyIntro"></p>
+                <ul class="policy-points" id="policyPoints"></ul>
+              </div>
+            </details>
 
-        <div class="field" id="policySignField" style="margin-top:14px">
-          <label class="field-label" for="policySignName">Type your full name to sign <span class="req">*</span></label>
-          <input type="text" id="policySignName" class="field-input" placeholder="Your full legal name" autocomplete="name" maxlength="120">
-          <div class="field-help">Signed on <span id="policySignDate">—</span>. This acts as your electronic signature on the policy.</div>
-          <div class="field-error" id="err-policySignName"><i class="fa-solid fa-circle-exclamation"></i><span>Type your full name to sign the policy</span></div>
-        </div>
+            <div class="field" id="policySignField">
+              <label class="field-label" for="policySignName">Type your full name to sign</label>
+              <input type="text" id="policySignName" class="field-input" autocomplete="name" maxlength="120">
+              <div class="field-help">Signed on <span id="policySignDate">&mdash;</span>. This is your electronic signature on the policy.</div>
+              <div class="field-error" id="err-policySignName"><i class="fa-solid fa-circle-exclamation"></i><span>Type your full name to sign the policy</span></div>
+            </div>
 
-        <label class="consent" style="margin-top:14px">
-          <input type="checkbox" id="consent">
-          <span class="consent-text">I confirm the information above is accurate and I agree to MAM Academy's <a href="terms" target="_blank" rel="noopener">Terms of Service</a> and <a href="privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
-        </label>
-        <div class="field-error" id="err-consent"><i class="fa-solid fa-circle-exclamation"></i><span>Please confirm to continue</span></div>
-
-        <div class="step-actions">
-          <button type="button" class="btn-step btn-step-back" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
-          <button type="submit" class="btn-step btn-step-next" id="btnNext4">Submit &amp; Continue to Payment <i class="fa-solid fa-arrow-right"></i></button>
-        </div>
+            <label class="a-consent">
+              <input type="checkbox" id="consent">
+              <span class="a-mark" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+              <span class="a-consent-text">I confirm the information above is accurate and I agree to MAM Academy's <a href="terms" target="_blank" rel="noopener">Terms of Service</a> and <a href="privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+            </label>
+            <div class="field-error" id="err-consent"><i class="fa-solid fa-circle-exclamation"></i><span>Please confirm to continue</span></div>
+          </div>
+        </section>
       </div>
 
       <!-- STEP 5: Payment — booking fee only. The price is regional and the
@@ -712,6 +844,49 @@ if ($showChooser) {
         </div>
       </div>
 
+    </div><!-- /.apply-main -->
+
+    <!-- The desktop summary column. This REPLACES the collapsed
+         <details class="summary-panel">, which hid the running total behind a
+         tap at every screen size. It appears from 1024px, where there is a
+         column to put it in. -->
+    <aside class="a-side" id="aSide" aria-label="Your application so far">
+      <ol class="a-steps" id="aSteps">
+        <li class="a-stepline is-now" data-step="0"><span class="a-dot" aria-hidden="true"></span>Programme</li>
+        <li class="a-stepline" data-step="1"><span class="a-dot" aria-hidden="true"></span>Profile</li>
+        <li class="a-stepline" data-step="2"><span class="a-dot" aria-hidden="true"></span>Background</li>
+        <li class="a-stepline" data-step="3"><span class="a-dot" aria-hidden="true"></span>Review</li>
+        <li class="a-stepline" data-step="4"><span class="a-dot" aria-hidden="true"></span>Payment</li>
+      </ol>
+      <div class="a-sidecard">
+        <p class="a-sidehead">Your selection</p>
+        <div id="applySummary">
+          <div class="summary-row"><span>Programme</span><span>&mdash;</span></div>
+        </div>
+        <div class="a-sidetotal"><span>Due today</span><span id="spTotal">$5</span></div>
+        <div class="field">
+          <label class="field-label" for="applyCurrency">Display currency</label>
+          <div class="field-select-wrap">
+            <select id="applyCurrency" class="field-select">
+              <option value="USD">USD ($)</option>
+              <option value="NGN">NGN (&#8358;)</option>
+              <option value="GBP">GBP (&pound;)</option>
+              <option value="EUR">EUR (&euro;)</option>
+            </select>
+            <i class="fa-solid fa-chevron-down field-select-arrow"></i>
+          </div>
+        </div>
+        <p class="a-sidenote"><i class="fa-solid fa-lock" aria-hidden="true"></i> Secure &middot; auto-saved on this device &middot; <a href="mailto:academy@mamcentre.org">need help?</a></p>
+      </div>
+    </aside>
+    </div><!-- /.apply-layout -->
+
+    <!-- One sticky action bar for the whole wizard. It replaces four separate
+         .step-actions rows; the payment step keeps its own #btnPay block
+         because that button opens a checkout rather than advancing a step. -->
+    <div class="a-bar js-only" id="aBar">
+      <span class="a-bar-meta" id="aBarMeta">Question 1 of 7</span>
+      <button type="submit" class="a-next" id="aNext"><span id="aNextLabel">Next</span> <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
     </div>
     </form>
 
@@ -744,14 +919,6 @@ if ($showChooser) {
     .pay-card-disclose i{color:var(--gold-bright);margin-right:4px}
   </style>
 
-  <div class="apply-mobilebar" id="applyMobileBar">
-    <div class="amb-meta">
-      <span class="amb-label">Booking fee</span>
-      <span class="amb-total" id="ambTotal">$5</span>
-      <span class="amb-step" id="ambStep">Step 1 of 5</span>
-    </div>
-    <button type="button" class="amb-view" id="ambView">View summary</button>
-  </div>
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
@@ -761,7 +928,7 @@ if ($showChooser) {
 <script src="assets/js/main.js?v=20260920"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
 <script src="assets/js/headshot.js?v=20260817a"></script>
-<script src="assets/js/apply.js?v=20260817a"></script>
+<script src="assets/js/apply.js?v=20260920"></script>
 <script src="assets/js/apply-discovery.js?v=20260703a"></script>
 <?php if ($showChooser): ?>
 <script>

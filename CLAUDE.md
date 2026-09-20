@@ -1409,9 +1409,73 @@ the traps below are repo-wide:
   consent notice offers a decline control is a legal decision, not a layout
   one. The handoff's "Decline stays available inside Details" was not taken.
 
-⚠️ **Part 2 of that handoff — the student application (`apply.php`) — is NOT
-built.** Six single-question screens inside step 1, a profile split, an
-address screen and an editable review. The README in that folder is the spec.
+## The student application v2 (`/apply`) — the 2026-09 rework
+
+Part 2 of the same handoff (`BUILD-NOTES-apply.md`). Step 1 asked seven
+questions and showed 38 choice cards on one ~4,600px scroll, with level and
+expression appearing and disappearing mid-answer so the scroll length changed
+under the applicant. Each question is its own screen now — **twelve `.a-sub`
+screens across the five steps** — and on a desktop they fold back onto one page
+beside a 320px summary column. `apply.php` + `assets/js/apply.js` + the `.a-*`
+block of `assets/css/apply.css` (shared with the instructor form on purpose).
+Guarded by `test_apply_wizard.php`; `test_apply_form.php` keeps the invariants
+about the `<form>` element itself.
+
+- ⚠️ **The focus area was NOT merged into the major, deliberately.** The
+  handoff asks for "one searchable list of 14 rows" replacing both, on the
+  reading that they ask "two versions of what will you study". They do not:
+  `discipline` is an INSTRUMENT (gotcha #3 records `mam_enrol_resolve()`
+  refusing `violin`/`clarinet` for exactly that reason) and `program` is a
+  CAREER FOCUS. There is no mapping from the eleven onto the fourteen, and
+  `applications.program` is a stored column `mam_validate_application()`
+  rejects a submission without. Both survive as screens, in the same searchable
+  row treatment; the handoff's own open question 5 asks the same thing. Step 1
+  is therefore SEVEN screens, not six.
+- **A screen that does not apply is `hidden`, not merely inactive**, and
+  navigation walks `liveSubs()`. Skipping has to work in REVERSE: back from the
+  major screen with `crash` chosen must land on programme, not on an empty
+  level screen. `skipSub()` is driven by the same predicates that drove
+  `substepLevel[hidden]` before, plus the guardian screen for an adult.
+  `.a-sub[hidden]{display:none!important}` because a desktop shows the whole
+  step at once.
+- ⚠️ **`.a-sub{padding:0}` is load-bearing.** Each screen is a `<section>`, and
+  `main.css` gives EVERY `<section>` on the site
+  `padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px)` — MEASURED at 1280, that
+  put 96px of dead space above every question and inset it 24px from its own
+  column. Any block reusing a sectioning element inherits that rule.
+- ⚠️ **The `.js-only` specificity trap, twice more** (numbers six and seven in
+  `apply.css`). `html.js .js-only{display:revert}` is (0,2,1) and beat a bare
+  `.a-prog{display:none}` inside a media query, so the progress line stayed on
+  at 1280; and a bare `.a-appbar{display:flex}` is (0,1,0) — the same as
+  `.js-only{display:none}` — so SOURCE ORDER un-hid the whole wizard chrome for
+  a visitor with no JS. Rules that fight `.js-only` must carry `html.js`, and a
+  `.js-only` element's `display` belongs only on the `html.js` rule.
+- ⚠️ **The action bar is FIXED, not sticky.** `position:sticky;bottom:0` holds
+  an element up only while there is content after it inside its containing
+  block, and the bar is the form's last child — MEASURED at 390 its top was at
+  y=1444 in an 844px viewport. It rides above `--a-dock-h` (`window.mamDock`
+  is z-index:950 on purpose), measured the same way `--fac-dock-h` is.
+- **The progress bar never runs backwards.** `BANDS` gives step 1 the 0–40%
+  band and 20% to each of the rest; until a programme is chosen `subTotal()`
+  assumes the LONGEST path and the counter says "Question 2", not "Question 2
+  of 4". Computing the denominator from the live set made the bar run
+  9% → 18% → **15%** the moment Certified Musician added three screens.
+- **Validation is one rule per QUESTION** (`QRULES`), and `validateStep()` runs
+  every rule for the step's live screens — which a desktop fold-back and a
+  server-side rejection both need. `SERVER_FIELDS` carries a `sub` so a
+  rejected field opens the screen it lives on.
+- **The review states the price BEFORE the consents**, each row carries its own
+  Edit naming the question, and values are read off the row the applicant
+  clicked (`drums` is "Drums & Percussion" on screen). The typed signature and
+  its date stay — a legal artefact, not chrome. The policy excerpt collapses
+  behind the consent it belongs to; the full version is emailed on submit.
+- **The headshot chain is untouched** (four failure points, all four of which
+  have failed in production). The one change: a failed check now OPENS the
+  disclosure the widget sits behind, because an error written into a collapsed
+  `<details>` is an error nobody reads.
+- The action button on the review reads **"Continue to payment"**, not the
+  design's "Pay $5": it submits the application and opens the payment step, it
+  does not take a payment.
 
 ## The admin console (`admin/console.php`) — the 2026-08 redesign
 

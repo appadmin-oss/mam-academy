@@ -51,7 +51,7 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | **Instructor application v2 (four-step rework)** | ✅ **shipped 2026-09-18** — `docs/design/2026-09-instructor-application/BUILD-NOTES.md`; one DSO sign-off outstanding |
 | **Instructor policy issued on faculty apply** | ✅ **shipped 2026-09-19** — the 12-clause policy is emailed and web-viewable at `/api/policy/FAC-<id>` |
 | **Site chrome rework (header · menu · footer)** | ✅ **shipped 2026-09-20** — `docs/design/2026-09-site-chrome/BUILD-NOTES-chrome.md`; chrome 145px → 101px, measured at nine widths |
-| **Student application rework (same handoff, Part 2)** | ❌ **not built** — six single-question screens inside step 1, profile split, editable review. Spec: `docs/design/2026-09-site-chrome/README.md` Part 2 |
+| **Student application rework (same handoff, Part 2)** | ✅ **shipped 2026-09-20** — 12 screens, one question each; `docs/design/2026-09-site-chrome/BUILD-NOTES-apply.md`. One instruction refused (the focus-area merge) — the academy may want to decide it |
 | Scholarship funds/awards, instalments, dunning | not started |
 | TanStack Table v8 | decided, **not implemented** |
 | htmx + strict CSP | needs a funding decision (doc 4's own framing) |
