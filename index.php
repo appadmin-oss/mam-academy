@@ -38,7 +38,7 @@
 <link rel="preload" as="image" fetchpriority="high" href="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1920&amp;q=80">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260820a">
+<link rel="stylesheet" href="assets/css/main.css?v=20260920">
 
 <!-- The canonical #organization + #website entity now lives sitewide in
      partials/header.html (on every page). The page-specific Course/ItemList/
@@ -604,6 +604,6 @@
 <?php include __DIR__ . '/partials/footer.html'; ?>
 
 <script src="assets/js/config.js?v=20260807a"></script>
-<script src="assets/js/main.js?v=20260820a"></script>
+<script src="assets/js/main.js?v=20260920"></script>
 </body>
 </html>

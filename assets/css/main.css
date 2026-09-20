@@ -16,6 +16,9 @@
   --text-faint:rgba(252,248,243,0.58);
 
   --border:rgba(232,201,160,0.20);
+  /* The chrome's own divider. Deliberately lighter than --border: the header,
+     menu and footer groups are hairlines between rows, not card edges. */
+  --hairline:rgba(232,201,160,0.16);
   --border-strong:rgba(232,201,160,0.36);
   --border-gold:rgba(245,168,35,0.55);
 
@@ -33,7 +36,7 @@
   --font-serif:'Cormorant Garamond',Georgia,'Times New Roman',serif;
   --font-body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 
-  --nav-h:80px;
+  --nav-h:56px;
   --radius-sm:12px;--radius-md:20px;--radius-lg:30px;--radius-xl:44px;
 
   --ease:cubic-bezier(0.4,0,0.2,1);
@@ -47,6 +50,7 @@
   --text-muted:rgba(255,255,255,0.88);
   --text-faint:rgba(255,255,255,0.78);
   --border:rgba(255,255,255,0.4);
+  --hairline:rgba(255,255,255,0.34);
   --border-gold:#FBBF24;
   --gold:#FBBF24;
 }
@@ -167,14 +171,31 @@ input[type="radio"]:not(.native):disabled{opacity:.5;cursor:not-allowed}
 .waves span:nth-child(7){height:28px;animation-delay:.6s}
 @keyframes wave{0%,100%{transform:scaleY(.4);opacity:.65}50%{transform:scaleY(1);opacity:1}}
 
-/* ===== Announcement bar ===== */
-.announce{position:relative;z-index:1001;background:linear-gradient(90deg,var(--gold),var(--gold-light),var(--gold));color:#1A120B;font-size:0.82rem;font-weight:600;padding:9px 24px;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;letter-spacing:0.02em}
-.announce a{font-weight:800;text-decoration:underline;text-underline-offset:2px}
-.announce a:hover{color:#000}
-.announce-dot{width:7px;height:7px;border-radius:50%;background:#1A120B;animation:pulseDot 1.4s ease-in-out infinite}
+/* ===== Announcement strip — one line, dismissible, under the bar =====
+   Not the full-saturation gold gradient band: a solid gold bar above the fold
+   competes with the page's own primary action, and at 390px the old one
+   WRAPPED to two lines and then scrolled away for good with nothing keeping
+   the intake message. This is one ellipsised line with a real close button,
+   and it sits BELOW the (sticky) bar so dismissing it never moves the bar. */
+.announce{position:relative;z-index:990;display:flex;align-items:center;gap:10px;min-height:44px;padding:0 6px 0 max(16px,env(safe-area-inset-left));background:rgba(252,198,71,0.10);border-bottom:1px solid var(--hairline);color:var(--text-soft);letter-spacing:0}
+/* `display:flex` on a class beats the UA's `[hidden]{display:none}`, which is
+   the trap this repo has now hit five times (see apply.css `.js-only`). */
+.announce[hidden]{display:none}
+.announce-dot{width:6px;height:6px;border-radius:50%;background:var(--gold-bright);flex-shrink:0;animation:pulseDot 1.4s ease-in-out infinite}
+.announce-msg{flex:1;min-width:0;font-size:12.5px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.announce-msg a{color:var(--gold-bright);font-weight:700}
+.announce-msg a:hover{color:var(--gold-pale)}
+/* Desktop only: the strip has room for a named action beside the message. */
+.announce-cta{display:none}
+.announce-x{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:none;border:0;border-radius:10px;color:var(--text-faint);font-size:14px;cursor:pointer;transition:color 0.2s var(--ease)}
+.announce-x:hover,.announce-x:focus-visible{color:var(--text)}
 @keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
 
-/* ===== Navigation v2 — floating pill mega menu ===== */
+/* ===== Navigation — one flush bar =====
+   The floating pill (top:10px + margin-top:10px + 24px radius + a 28px
+   horizontal inset + a 40px shadow + backdrop-filter) cost 124px of viewport
+   before a word of content and paid for a blur that is invisible behind the
+   page heroes anyway. Flush, opaque, single row. */
 
 /* A mega-menu trigger that is not a link is a <button>, and a button carrying
    only a 9px chevron cannot reach the WCAG 2.5.8 target floor on padding
@@ -182,14 +203,17 @@ input[type="radio"]:not(.native):disabled{opacity:.5;cursor:not-allowed}
    nothing changes visually. (Design patch 8.) */
 .nav-link-disclosure{font:inherit;color:inherit;background:none;border:none;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;gap:6px}
 
-#navbar{position:sticky;top:10px;z-index:1000;height:var(--nav-h);width:min(calc(100% - 28px),calc(var(--content-w) + 24px));margin:10px auto 0;border-radius:24px;background:rgba(18,13,8,0.72);backdrop-filter:blur(26px) saturate(180%);-webkit-backdrop-filter:blur(26px) saturate(180%);border:1px solid var(--border);box-shadow:0 12px 40px rgba(0,0,0,0.34),inset 0 1px 0 rgba(255,255,255,0.05);transition:box-shadow 0.3s var(--ease),background 0.3s var(--ease),top 0.3s var(--ease)}
-#navbar.scrolled{top:6px;background:rgba(18,13,8,0.9);box-shadow:0 16px 48px rgba(0,0,0,0.5),0 0 0 1px var(--border-gold),inset 0 1px 0 rgba(255,255,255,0.06)}
-.nav-inner{max-width:var(--content-w);margin:0 auto;height:100%;padding:0 26px;display:flex;align-items:center;justify-content:space-between;gap:20px}
-.nav-brand{display:flex;align-items:center;gap:12px;flex-shrink:0}
-.nav-brand img{width:44px;height:44px;border-radius:10px;border:1px solid rgba(224,138,26,0.4);box-shadow:var(--glow-gold)}
-.nav-brand-text{display:flex;flex-direction:column}
-.nav-brand-name{font-family:var(--font-display);font-size:1.45rem;letter-spacing:0.06em;line-height:1;background:linear-gradient(135deg,var(--gold-bright),var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.nav-brand-sub{font-size:0.6rem;text-transform:uppercase;letter-spacing:0.14em;color:var(--text-muted);margin-top:2px}
+#navbar{position:sticky;top:0;z-index:1000;height:var(--nav-h);width:100%;margin:0;border:0;border-bottom:1px solid var(--hairline);border-radius:0;background:rgba(26,18,11,0.92);box-shadow:none;transition:background 0.3s var(--ease),box-shadow 0.3s var(--ease)}
+#navbar.scrolled{top:0;background:rgba(26,18,11,0.97);box-shadow:0 2px 18px rgba(0,0,0,0.32)}
+.nav-inner{max-width:var(--content-w);margin:0 auto;height:100%;padding:0 max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left));display:flex;align-items:center;justify-content:space-between;gap:12px}
+.nav-brand{display:flex;align-items:center;gap:10px;min-width:0}
+.nav-brand img{width:30px;height:30px;border-radius:8px;border:0;box-shadow:none;flex-shrink:0}
+.nav-brand-text{display:flex;flex-direction:column;min-width:0}
+/* Flat, not gradient-clipped. At 19px the clip costs a paint layer and fails
+   to a TRANSPARENT word on any engine that accepts background-clip:text
+   without painting it. */
+.nav-brand-name{font-family:var(--font-display);font-size:19px;letter-spacing:0.07em;line-height:1;color:var(--gold-bright);white-space:nowrap;background:none;-webkit-text-fill-color:currentColor}
+.nav-brand-sub{display:none}
 
 .nav-links{display:flex;align-items:center;gap:2px;flex:1;justify-content:center}
 .nav-item{position:relative}
@@ -226,8 +250,12 @@ input[type="radio"]:not(.native):disabled{opacity:.5;cursor:not-allowed}
 .nav-item.js-hover > .nav-dropdown{transform:translateX(-50%) translateY(0)}
 
 /* ===== Mega menu — promotional, multi-column with image spotlight ===== */
-.mega-menu{min-width:980px;padding:0;display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:0;overflow:hidden}
-.mega-menu.mega-4col{grid-template-columns:1fr 1fr 1fr 1.15fr;min-width:1080px}
+/* Column counts are stated per variant rather than inherited from a
+   3-track default with a 4th child wrapping under it — which is what
+   Disciplines did before the spotlight was dropped. */
+.mega-menu{min-width:820px;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;overflow:hidden}
+.mega-menu.mega-2col{grid-template-columns:repeat(2,minmax(0,1fr));min-width:600px}
+.mega-menu.mega-3col,.mega-menu.mega-4col{grid-template-columns:repeat(3,minmax(0,1fr));min-width:880px}
 .mega-banner{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 22px;background:linear-gradient(90deg,rgba(224,138,26,0.18),rgba(225,29,72,0.12));border-bottom:1px solid var(--border);font-size:0.82rem;color:var(--text-soft)}
 .mega-banner-pulse{display:inline-flex;align-items:center;gap:8px;font-weight:700;color:var(--text)}
 .mega-banner-pulse::before{content:'';width:7px;height:7px;border-radius:50%;background:#FB7185;box-shadow:0 0 0 3px rgba(244,63,94,0.25);animation:pulseDot 1.4s ease-in-out infinite}
@@ -278,44 +306,126 @@ input[type="radio"]:not(.native):disabled{opacity:.5;cursor:not-allowed}
 .dropdown-arrow{color:var(--gold-bright);font-size:0.7rem;opacity:0;transform:translateX(-4px);transition:all 0.2s var(--ease);margin-left:6px;flex-shrink:0}
 
 .nav-ico{display:inline-block;vertical-align:-3px;margin-right:5px}
-.nav-cta-group{display:flex;align-items:center;gap:10px;flex-shrink:0}
-.btn-nav-ghost{padding:9px 16px;font-size:0.85rem;font-weight:600;color:var(--text-soft);border:1px solid var(--border-strong);border-radius:var(--radius-sm);transition:all 0.2s var(--ease)}
-.btn-nav-ghost:hover{color:var(--gold-bright);border-color:var(--border-gold);background:rgba(224,138,26,0.08)}
+.nav-cta-group{display:flex;align-items:center;gap:6px;flex-shrink:0}
+/* The two icon controls the bar keeps. Everything else moves into the menu,
+   where a label fits — the old bar degraded "Sign in" to `font-size:0` at
+   380px purely to stop the brand overflowing. */
+.nav-icon-btn{min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;background:none;border:0;border-radius:10px;color:var(--text-soft);font-size:15px;cursor:pointer;transition:color 0.2s var(--ease),background 0.2s var(--ease)}
+.nav-icon-btn:hover,.nav-icon-btn:focus-visible{color:var(--gold-bright);background:var(--glass-light)}
+/* Sign in lives in the menu on touch; the bar shows it from the desktop
+   breakpoint up, where there is room for the label. */
+.btn-nav-ghost{display:none}
+/* Apply stays in the bar. The design removes the floating pill and the
+   back-to-top FAB on touch and justifies it with "the bar already carries
+   Apply" — which its own frame does not. This is what makes that true. */
+.btn-nav-apply{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border-radius:10px;background:var(--gold-bright);color:#1A120B;font-size:13px;font-weight:800;letter-spacing:0.02em;white-space:nowrap;transition:filter 0.2s var(--ease)}
+.btn-nav-apply:hover{filter:brightness(1.06)}
 .btn-nav-cta{padding:11px 22px;font-size:0.85rem;font-weight:800;letter-spacing:0.04em;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:var(--radius-sm);box-shadow:0 4px 16px rgba(224,138,26,0.4);transition:all 0.2s var(--ease);white-space:nowrap;display:inline-flex;align-items:center;gap:8px}
 .btn-nav-cta:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(224,138,26,0.55)}
 .btn-nav-cta:active{transform:translateY(0)}
 
-.nav-hamburger{display:none;flex-direction:column;gap:5px;width:42px;height:42px;border-radius:var(--radius-sm);background:var(--glass-light);border:1px solid var(--border);align-items:center;justify-content:center}
-.nav-hamburger:hover{background:rgba(224,138,26,0.12)}
-.hamburger-line{width:20px;height:2px;background:var(--text);border-radius:1px;transition:all 0.3s var(--ease);transform-origin:center}
-.nav-hamburger.open .hamburger-line:nth-child(1){transform:rotate(45deg) translate(5px,5px)}
-.nav-hamburger.open .hamburger-line:nth-child(2){opacity:0;transform:scaleX(0)}
-.nav-hamburger.open .hamburger-line:nth-child(3){transform:rotate(-45deg) translate(5px,-5px)}
+/* Two bars, not three: with no "Menu" label beside it, two read as a control
+   and three read as decoration at this weight. */
+.nav-hamburger{display:flex;flex-direction:column;gap:5px;min-width:44px;min-height:44px;border-radius:10px;background:none;border:0;align-items:center;justify-content:center;cursor:pointer;transition:background 0.2s var(--ease)}
+.nav-hamburger:hover,.nav-hamburger:focus-visible{background:var(--glass-light)}
+.hamburger-line{width:20px;height:2px;background:var(--text);border-radius:1px;transition:transform 0.3s var(--ease);transform-origin:center}
+.nav-hamburger.open .hamburger-line:nth-child(1){transform:translateY(3.5px) rotate(45deg)}
+.nav-hamburger.open .hamburger-line:nth-child(2){transform:translateY(-3.5px) rotate(-45deg)}
 
-.mobile-menu{position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;background:rgba(18,13,8,0.98);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);z-index:999;padding:22px max(20px,env(safe-area-inset-left)) calc(96px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-right));overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;transform:translateY(-12px);opacity:0;visibility:hidden;transition:opacity 0.3s var(--ease),transform 0.3s var(--ease),visibility 0.3s}
+/* ===== The menu =====
+   Full-viewport, with its OWN 56px head — the bar's hamburger and this head's
+   ✕ are two halves of one toggle, so stacking the bar above the panel would
+   show two heads. 40 links became 7 rows and 5 minor links. */
+.mobile-menu{position:fixed;inset:0;z-index:1010;display:flex;flex-direction:column;background:#1A120B;padding:0;overflow:hidden;transform:translateY(-8px);opacity:0;visibility:hidden;transition:opacity 0.28s var(--ease),transform 0.28s var(--ease),visibility 0.28s}
 .mobile-menu.open{transform:translateY(0);opacity:1;visibility:visible}
+.menu-head{height:56px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 max(16px,env(safe-area-inset-right)) 0 max(16px,env(safe-area-inset-left));border-bottom:1px solid var(--hairline)}
+.menu-head-title{font-size:13px;font-weight:700;color:var(--text-muted)}
+.menu-head .nav-icon-btn{color:var(--text);font-size:17px}
+.menu-body{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:22px;padding:18px max(20px,env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
 
-/* Mobile quick actions — fast access to the highest-intent destinations */
-.mobile-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px}
-.mobile-quick-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:14px 4px;min-height:74px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--glass-light);color:var(--text-soft);font-size:0.72rem;font-weight:700;letter-spacing:0.01em;text-align:center;line-height:1.1;transition:transform 0.15s var(--ease),border-color 0.2s var(--ease),background 0.2s var(--ease),color 0.2s var(--ease)}
-.mobile-quick-tile i,.mobile-quick-tile iconify-icon{font-size:1.2rem;color:var(--gold-bright)}
-.mobile-quick-tile:hover,.mobile-quick-tile:focus-visible{border-color:var(--border-gold);background:rgba(224,138,26,0.12);color:var(--gold-bright)}
-.mobile-quick-tile:active{transform:scale(0.96)}
-.mobile-quick-tile.primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent;box-shadow:0 6px 18px rgba(224,138,26,0.35)}
-.mobile-quick-tile.primary i,.mobile-quick-tile.primary iconify-icon{color:#1A120B}
-.mobile-nav-section{margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:8px}
-.mobile-nav-section:last-of-type{border-bottom:none}
-.mobile-nav-head{width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;font-size:1rem;font-weight:700;color:var(--text);border-radius:var(--radius-sm);border:1px solid transparent;transition:all 0.2s var(--ease)}
-.mobile-nav-head:hover{background:var(--glass-light);border-color:var(--border)}
-.mobile-nav-head .chev{transition:transform 0.25s var(--ease);color:var(--gold)}
-.mobile-nav-head.open .chev{transform:rotate(180deg)}
+/* Search first. A forty-link site needs search more than a four-tile quick
+   grid in which Studio and Store carried the same weight as Apply. */
+.menu-search{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 16px;border:1.5px solid var(--border-strong);border-radius:12px;color:var(--text-faint);transition:border-color 0.2s var(--ease)}
+.menu-search:focus-within{border-color:var(--gold-bright)}
+.menu-search i{font-size:14px;flex-shrink:0}
+.menu-search input{flex:1;min-width:0;min-height:46px;background:none;border:0;outline:none;color:var(--text);font-family:inherit;font-size:16px}
+.menu-search input::placeholder{color:var(--text-faint)}
+
+.menu-actions{display:flex;gap:10px}
+.menu-act{flex:1;min-height:50px;display:flex;align-items:center;justify-content:center;gap:9px;border-radius:12px;border:1.5px solid var(--border-strong);color:var(--text);font-size:15px;font-weight:700;transition:border-color 0.2s var(--ease),color 0.2s var(--ease)}
+.menu-act:hover,.menu-act:focus-visible{border-color:var(--gold-bright);color:var(--gold-bright)}
+.menu-act.is-primary{background:var(--gold-bright);border-color:var(--gold-bright);color:#1A120B;font-weight:800}
+.menu-act.is-primary:hover,.menu-act.is-primary:focus-visible{color:#1A120B;filter:brightness(1.06)}
+
+.menu-rows{display:flex;flex-direction:column}
+.menu-row{display:flex;align-items:center;gap:14px;width:100%;min-height:56px;padding:8px 0;text-align:left;background:none;border:0;border-bottom:1px solid var(--hairline);color:inherit;font-family:inherit;cursor:pointer}
+.menu-row-ico{width:20px;text-align:center;font-size:14px;color:var(--text-faint);flex-shrink:0}
+.menu-row-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.menu-row-name{font-size:15.5px;font-weight:650;color:var(--text);line-height:1.3}
+.menu-row-desc{font-size:12.5px;color:var(--text-faint);line-height:1.35}
+/* The trailing glyph is load-bearing: a chevron opens a sub-panel, an arrow
+   navigates away. Keeping the two distinct is what stops a menu becoming a
+   lucky dip — so only the chevron rotates. */
+.menu-row-go{font-size:12px;color:var(--text-faint);flex-shrink:0;transition:transform 0.25s var(--ease)}
+.menu-row[aria-expanded="true"] .menu-row-go.chev{transform:rotate(90deg)}
+.menu-row:hover .menu-row-name,.menu-row:focus-visible .menu-row-name{color:var(--gold-bright)}
+.menu-row:hover .menu-row-ico,.menu-row:focus-visible .menu-row-ico{color:var(--gold)}
+
 .mobile-nav-sub{max-height:0;overflow:hidden;transition:max-height 0.35s var(--ease)}
 .mobile-nav-sub.open{max-height:800px}
-.mobile-nav-sub-inner{padding:6px 12px 14px;display:flex;flex-direction:column;gap:4px}
-.mobile-nav-link,.mobile-nav-sub-link{display:block;padding:12px 18px;font-size:0.95rem;font-weight:500;color:var(--text-soft);border-radius:var(--radius-sm);transition:all 0.2s var(--ease)}
-.mobile-nav-sub-link{font-size:0.9rem;padding:10px 18px;color:var(--text-muted)}
-.mobile-nav-link:hover,.mobile-nav-sub-link:hover{background:var(--glass-light);color:var(--gold-bright)}
-.mobile-nav-cta{display:block;margin:20px 0 8px;padding:16px;text-align:center;font-weight:800;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:var(--radius-md);letter-spacing:0.04em}
+.mobile-nav-sub-inner{padding:4px 0 12px 34px;display:flex;flex-direction:column;gap:2px}
+.mobile-nav-sub-link{display:flex;align-items:center;min-height:44px;font-size:14px;font-weight:500;color:var(--text-muted);transition:color 0.2s var(--ease)}
+.mobile-nav-sub-link:hover,.mobile-nav-sub-link:focus-visible{color:var(--gold-bright)}
+
+.menu-minor{display:flex;flex-wrap:wrap;gap:0 20px}
+.menu-minor a{min-height:40px;display:flex;align-items:center;font-size:13.5px;color:var(--text-muted);transition:color 0.2s var(--ease)}
+.menu-minor a:hover,.menu-minor a:focus-visible{color:var(--gold-bright)}
+
+/* ===== Chrome, smallest phones =====
+   The brand no longer shrinks through four breakpoints to make room. Below
+   360px the bar drops Apply instead — the announce strip carries it as an
+   inline link and the menu carries it as a 50px button, so there is no width
+   at which the chrome loses its primary action. */
+@media (max-width:359px){
+  .btn-nav-apply{display:none}
+  .nav-inner{padding:0 12px;gap:8px}
+  .nav-brand-name{font-size:17px}
+}
+
+/* ===== Chrome, desktop =====
+   64px bar, 40px inset, brand → nav → (auto) → search · Sign in · Apply. */
+@media (min-width:1025px){
+  :root{--nav-h:64px}
+  .nav-inner{padding:0 40px;gap:32px;justify-content:flex-start}
+  .nav-brand{gap:10px}
+  .nav-brand img{width:32px;height:32px}
+  .nav-brand-name{font-size:21px}
+  .nav-links{flex:0 1 auto;justify-content:flex-start;gap:4px;min-width:0}
+  .nav-link{min-height:40px;padding:0 14px;border-radius:10px;font-size:13.5px;font-weight:500;color:var(--text-soft)}
+  .nav-link .chev{font-size:9px;opacity:0.7;margin-left:6px}
+  .nav-link:hover,.nav-link:focus-visible,.nav-item.open>.nav-link,.nav-item.js-hover>.nav-link{color:var(--gold-bright);background:var(--glass-light)}
+  /* The current page is stated by colour + fill, like an open menu — the
+     2px underline under a 40px pill read as a second, competing mark. */
+  .nav-link.active{color:var(--gold-bright);background:var(--glass-light)}
+  .nav-link.active::after{display:none}
+  .nav-cta-group{margin-left:auto;gap:10px}
+  .nav-icon-btn{min-width:40px;min-height:40px;font-size:14px;color:var(--text-muted)}
+  .btn-nav-ghost{display:inline-flex;align-items:center;min-height:40px;padding:0 16px;border:1px solid var(--border-strong);border-radius:10px;font-size:13.5px;font-weight:650;color:var(--text-soft);transition:color 0.2s var(--ease),border-color 0.2s var(--ease)}
+  .btn-nav-ghost:hover,.btn-nav-ghost:focus-visible{color:var(--gold-bright);border-color:var(--border-gold);background:none}
+  .btn-nav-apply{min-height:40px;padding:0 20px;font-size:13.5px}
+  .nav-hamburger{display:none}
+  .announce{min-height:0;padding:9px 40px;gap:10px}
+  .announce-msg{font-size:13px;flex:0 1 auto}
+  /* `Reserve your seat` is pushed right by the message giving up its flex
+     basis; the close button follows it. */
+  .announce-cta{display:inline-flex;align-items:center;min-height:32px;margin-left:auto;font-size:13px;font-weight:700;color:var(--gold-bright);white-space:nowrap}
+  .announce-cta:hover,.announce-cta:focus-visible{color:var(--gold-pale)}
+  .announce-x{min-width:32px;min-height:32px;font-size:13px;margin-left:16px}
+}
+/* The mega menus keep their columns and lose the photographic spotlight — it
+   was the widest element in the chrome and the slowest thing on the page to
+   paint, for a decorative image behind a menu. */
+.mega-spotlight{display:none}
 
 /* ===== UI polish: depth, tactility & warmth on cards/buttons =====
    Resting soft shadow + a 1px top highlight gives surfaces real lift on
@@ -383,7 +493,6 @@ section,.section{padding:clamp(56px,8vw,96px) clamp(16px,4vw,24px);position:rela
    overrides and lets the gradient rules below paint. */
 html:not(.textclip) [style*="-webkit-text-fill-color:transparent"],
 html:not(.textclip) .highlight-gold, html:not(.textclip) .preloader-name,
-html:not(.textclip) .nav-brand-name, html:not(.textclip) .footer-logo-name,
 html:not(.textclip) .stat-number, html:not(.textclip) .countdown-num,
 html:not(.textclip) .mam-exit-glow, html:not(.textclip) .portal-brand-name,
 html:not(.textclip) .kpi-value.gold, html:not(.textclip) .pp-title .accent,
@@ -400,8 +509,8 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
    each other — @supports here for "no support", the .textclip probe above for
    "accepts but doesn't paint". One of them always catches it. */
 @supports not ((-webkit-background-clip:text) or (background-clip:text)){
-  .highlight-gold,.highlight-red,.highlight-purple,.preloader-name,.nav-brand-name,
-  .footer-logo-name,.stat-number,.countdown-num,.mam-exit-glow,.portal-brand-name,
+  .highlight-gold,.highlight-red,.highlight-purple,.preloader-name,
+  .stat-number,.countdown-num,.mam-exit-glow,.portal-brand-name,
   .kpi-value.gold,.pp-title .accent,.match-result-name,.col-price{
     -webkit-text-fill-color:currentColor!important;color:var(--gold-bright,#FCC647)!important;background:none!important;
   }
@@ -973,79 +1082,127 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
    Deep near-black slab that the warm page body curves into (large rounded
    top corners), a clean multi-column link grid, a socials + legal meta row,
    and a full-bleed "MAM CENTRE" parent-brand wordmark anchoring the base. */
-:root{--footer-bg:#0C0805;--footer-line:rgba(232,201,160,0.13)}
+:root{--footer-bg:#1A120B;--footer-line:rgba(232,201,160,0.16)}
 footer{
   position:relative;
   background:var(--footer-bg);
   color:var(--text);
   margin-top:clamp(48px,7vw,96px);                 /* page bg shows so the curve reads */
-  padding:clamp(52px,6vw,88px) 0 0;
-  border-radius:clamp(30px,5vw,68px) clamp(30px,5vw,68px) 0 0;  /* the curve */
+  padding:32px 0 24px;
+  border-radius:clamp(24px,5vw,44px) clamp(24px,5vw,44px) 0 0;  /* the curve */
   box-shadow:0 -34px 80px rgba(0,0,0,0.42);
   overflow:hidden;
 }
 /* gold seam tracing the curved top edge */
 footer::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--border-gold),transparent);opacity:0.6}
-.footer-inner{max-width:var(--content-w);margin:0 auto;padding:0 24px}
-.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.2fr;gap:40px 36px;margin-bottom:8px}
-.footer-brand{max-width:320px}
-.footer-logo{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-.footer-logo img{width:44px;height:44px;border-radius:12px}
-.footer-logo-name{font-family:var(--font-display);font-size:1.5rem;letter-spacing:0.06em;background:linear-gradient(135deg,var(--gold-bright),var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.footer-tagline{font-family:var(--font-serif);font-size:0.92rem;font-style:italic;color:var(--text-soft);margin-bottom:14px}
-.footer-about{font-size:0.88rem;color:var(--text-muted);line-height:1.7;margin-bottom:18px}
-.footer-contact{list-style:none;display:flex;flex-direction:column;gap:9px;margin:0;padding:0}
-.footer-contact li{display:flex;align-items:center;gap:10px;font-size:0.86rem;color:var(--text-muted)}
-.footer-contact i{width:16px;text-align:center;color:var(--gold)}
-.footer-col-title{font-size:0.72rem;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-faint);margin-bottom:18px}
-.footer-col-title-sm{font-size:0.68rem;margin-bottom:12px}
-.footer-link-list{display:flex;flex-direction:column;gap:11px}
-.footer-link-list-tight{gap:9px}
-.footer-link{font-size:0.9rem;color:var(--text-soft);transition:color 0.2s,transform 0.2s var(--ease)}
-.footer-link:hover{color:var(--gold-bright)}
-.footer-link-icon{display:inline-flex;align-items:center;gap:7px}
-.footer-link-icon i{color:var(--gold);width:16px;text-align:center}
-.footer-portals{margin-top:22px;padding-top:18px;border-top:1px solid var(--footer-line)}
-.footer-newsletter{display:flex;flex-direction:column;gap:12px}
-.footer-newsletter p{font-size:0.85rem;color:var(--text-muted);line-height:1.55}
-.footer-newsletter-form{display:flex;gap:8px}
-.footer-newsletter-input{flex:1;padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border-strong);border-radius:100px;color:var(--text);font-size:0.88rem;outline:none}
-.footer-newsletter-input:focus{border-color:var(--gold-bright);background:rgba(255,255,255,0.08)}
-.footer-newsletter-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;flex:0 0 auto;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:50%;font-weight:800;font-size:0.92rem;transition:transform 0.2s var(--ease-bounce),filter 0.2s}
-.footer-newsletter-btn:hover{transform:translateY(-2px) scale(1.04);filter:brightness(1.06)}
-.footer-newsletter-msg{font-size:0.78rem;color:var(--emerald);margin-top:4px;display:none}
+.footer-inner{max-width:var(--content-w);margin:0 auto;padding:0 max(20px,env(safe-area-inset-right)) 0 max(20px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:26px}
+.footer-grid{display:flex;flex-direction:column;gap:26px}
+
+.footer-brand{display:flex;flex-direction:column;gap:10px}
+.footer-logo{display:flex;align-items:center;flex-wrap:nowrap;gap:10px}
+.footer-logo img{width:30px;height:30px;border-radius:8px}
+/* Flat, like the header wordmark — no gradient clip at this size. */
+/* `nowrap`, like the header's: at 21px in a 196px column the Bebas fallback
+   (Impact/sans) is wide enough to break MAM / ACADEMY onto two lines. */
+.footer-logo-name{font-family:var(--font-display);font-size:20px;letter-spacing:0.07em;line-height:1;color:var(--gold-bright);white-space:nowrap;background:none;-webkit-text-fill-color:currentColor}
+.footer-tagline{font-family:var(--font-serif);font-size:15.5px;font-style:italic;color:var(--text-muted);margin:0}
+.footer-about{display:none}
+.footer-contact{display:none}
+
+.footer-actions{display:flex;flex-direction:column;gap:12px}
+.footer-apply{min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:var(--gold-bright);color:#1A120B;font-size:15px;font-weight:800;transition:filter 0.2s var(--ease)}
+.footer-apply:hover{filter:brightness(1.06);color:#1A120B}
+.footer-contact-row{display:flex;gap:10px}
+.footer-contact-btn{flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;gap:8px;border:1.5px solid rgba(232,201,160,0.30);border-radius:12px;font-size:13.5px;font-weight:650;color:var(--text-soft);transition:border-color 0.2s var(--ease),color 0.2s var(--ease)}
+.footer-contact-btn i{font-size:13px;color:var(--gold-bright)}
+.footer-contact-btn:hover,.footer-contact-btn:focus-visible{border-color:var(--border-gold);color:var(--gold-bright)}
+
+/* Four collapsed groups. <details> so they work with JS off; main.js only
+   forces them open at the desktop breakpoint, where they become columns. */
+.footer-groups{display:flex;flex-direction:column}
+.footer-group{border-bottom:1px solid var(--footer-line)}
+.footer-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:54px;cursor:pointer;list-style:none}
+.footer-group-head::-webkit-details-marker{display:none}
+.footer-group-title{font-size:15px;font-weight:650;color:var(--text)}
+.footer-group-meta{display:flex;align-items:center;gap:12px;flex-shrink:0;font-size:12.5px;color:var(--text-faint)}
+.footer-group-meta i{font-size:11px;transition:transform 0.25s var(--ease)}
+.footer-group[open] .footer-group-meta i{transform:rotate(180deg)}
+.footer-group-head:hover .footer-group-title,.footer-group-head:focus-visible .footer-group-title{color:var(--gold-bright)}
+.footer-col-title{font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-faint)}
+.footer-link-list{list-style:none;display:flex;flex-direction:column;gap:2px;margin:0;padding:0 0 12px}
+.footer-link{display:flex;align-items:center;min-height:40px;font-size:13.5px;color:var(--text-soft);line-height:1.4;transition:color 0.2s}
+.footer-link:hover,.footer-link:focus-visible{color:var(--gold-bright)}
+
+/* Baseline input + a labelled button. */
+.footer-newsletter{display:flex;flex-direction:column;gap:10px}
+.footer-newsletter p{font-size:13px;font-weight:650;color:var(--text-soft);line-height:1.5;margin:0}
+.footer-newsletter-form{display:flex;gap:10px;align-items:center}
+.footer-newsletter-input{flex:1;min-width:0;min-height:48px;padding:0 2px;background:none;border:0;border-bottom:1.5px solid var(--border-strong);border-radius:0;color:var(--text);font-family:inherit;font-size:16px;outline:none;transition:border-color 0.2s var(--ease)}
+.footer-newsletter-input::placeholder{color:var(--text-faint)}
+.footer-newsletter-input:focus{border-bottom-color:var(--gold-bright)}
+.footer-newsletter-btn{flex:0 0 auto;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0 18px;background:none;border:1.5px solid var(--gold-bright);border-radius:12px;color:var(--gold-bright);font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;transition:background 0.2s var(--ease),color 0.2s var(--ease)}
+.footer-newsletter-btn:hover{background:var(--gold-bright);color:#1A120B}
+.footer-newsletter-msg{font-size:12.5px;color:var(--emerald);display:none}
 .footer-newsletter-msg.shown{display:block}
-/* Meta row — socials (left) + legal links (right) */
-.footer-meta{margin-top:36px;padding:24px 0;border-top:1px solid var(--footer-line);display:flex;align-items:center;justify-content:space-between;gap:16px 28px;flex-wrap:wrap}
-.footer-socials{display:flex;gap:10px}
-.footer-social{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,0.04);border:1px solid var(--footer-line);display:flex;align-items:center;justify-content:center;color:var(--text-soft);font-size:0.98rem;transition:all 0.2s var(--ease)}
-.footer-social:hover{background:linear-gradient(135deg,var(--gold),var(--gold-light));border-color:transparent;color:#1A120B;transform:translateY(-2px)}
-.footer-legal{display:flex;align-items:center;gap:10px 22px;flex-wrap:wrap}
-.footer-legal-link{position:relative;font-size:0.82rem;color:var(--text-muted);font-weight:500;transition:color 0.2s;padding:4px 0}
+
+/* Meta row — socials + copyright, then the legal links beneath. */
+.footer-meta{display:flex;flex-wrap:wrap;align-items:center;gap:0 24px;padding-top:20px;border-top:1px solid var(--footer-line)}
+.footer-socials{display:flex;gap:16px}
+.footer-social{min-width:40px;min-height:40px;display:flex;align-items:center;justify-content:center;border:0;background:none;border-radius:10px;color:var(--text-muted);font-size:15px;transition:color 0.2s var(--ease)}
+.footer-social:hover,.footer-social:focus-visible{color:var(--gold-bright)}
+.footer-legal{order:3;flex:1 0 100%;display:flex;align-items:center;flex-wrap:wrap;gap:0 18px}
+.footer-legal-link{min-height:40px;display:flex;align-items:center;font-size:12.5px;color:var(--text-faint);font-weight:500;transition:color 0.2s}
 .footer-legal-link:hover,.footer-legal-link:focus-visible{color:var(--gold-bright)}
-.footer-legal-link:not(:last-child)::after{content:'';position:absolute;right:-11px;top:50%;width:3px;height:3px;border-radius:50%;background:var(--border-strong);transform:translateY(-50%)}
-.footer-copy{font-size:0.82rem;color:var(--text-faint);padding:4px 0 8px}
-/* Full-bleed parent-brand wordmark — Cinzel, parallax-revealed on scroll.
-   Visible by default (opacity:.96) so it can NEVER be stuck invisible if JS
-   fails; the parallax JS sets the hidden start state itself, then drives
-   opacity + translateY from scroll position for a smooth reveal. */
-.footer-wordmark{display:block;line-height:0;padding:clamp(10px,1.8vw,26px) clamp(14px,3vw,44px) 0;opacity:1;transition:filter 0.3s var(--ease);will-change:clip-path,transform;clip-path:inset(0 0 0 0)}
-.footer-wordmark svg{display:block;width:100%;height:auto;overflow:visible}
-.footer-wordmark text{font-family:var(--font-roman);font-weight:700;font-size:190px;letter-spacing:0.03em;fill:url(#mamWordmarkFill)}
-.footer-wordmark:hover{filter:brightness(1.08)}
-@media (prefers-reduced-motion:reduce){.footer-wordmark{clip-path:none!important;transform:none!important;opacity:0.96!important}}
-@media (max-width:640px){
-  .footer-meta{flex-direction:column;align-items:center;gap:18px;text-align:center}
-  .footer-socials{justify-content:center}
-  .footer-legal{justify-content:center}
-  .footer-copy{text-align:center}
-  /* Centre the brand block and tighten the curve so the footer feels composed
-     rather than left-stranded on a phone. */
-  .footer-brand{max-width:none;text-align:center}
-  .footer-logo,.footer-contact li{justify-content:center}
-  .footer-contact{align-items:center}
-  footer{margin-top:40px;padding-top:46px;border-radius:24px 24px 0 0}
+.footer-copy{margin-left:auto;font-size:12.5px;color:var(--text-faint)}
+
+/* Parent-brand wordmark — plain text at its natural size. The SVG version
+   stretched it to textLength:1184, which drew 66px letters 1.18x wide on a
+   390px screen. No clip-path, no will-change and no scroll listener: the
+   parallax that drove them keyed its progress off the mark's own height, so
+   at 34px it was a snap rather than a reveal (and left it fully clipped). */
+.footer-wordmark{display:block;margin-top:26px;padding:0 20px;text-align:center;transition:filter 0.3s var(--ease)}
+.footer-wordmark span{display:block;font-family:var(--font-display);font-size:34px;line-height:1;letter-spacing:0.14em;color:rgba(232,201,160,0.24)}
+.footer-wordmark:hover{filter:brightness(1.25)}
+
+/* ===== Footer, desktop ===== */
+@media (min-width:1025px){
+  footer{padding:48px 0 28px}
+  .footer-inner{padding:0 40px;gap:36px}
+  .footer-grid{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(4,minmax(0,1fr)) minmax(0,1.1fr);gap:48px;align-items:start}
+  .footer-brand{gap:12px}
+  .footer-logo img{width:32px;height:32px}
+  .footer-logo-name{font-size:21px}
+  .footer-tagline{font-size:16px}
+  .footer-about{display:block;font-size:13.5px;color:var(--text-faint);line-height:1.6;margin:0}
+  .footer-contact{display:flex;flex-direction:column;gap:8px;margin:4px 0 0;padding:0;list-style:none}
+  .footer-contact li{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--text-muted)}
+  .footer-contact i{width:15px;text-align:center;color:var(--gold-bright);font-size:12px}
+  .footer-contact .footer-link{min-height:0;font-size:13.5px;color:var(--text-muted)}
+  /* Apply + Email/Call are the phone's three actions; here the brand column
+     states the contact details and the bar carries Apply. */
+  .footer-actions{display:none}
+  /* `display:contents` lets the four groups sit directly in the grid as
+     columns without a wrapper track. */
+  .footer-groups{display:contents}
+  .footer-group{border-bottom:0}
+  .footer-group-head{min-height:0;margin-bottom:12px;cursor:default;pointer-events:none}
+  .footer-group-title{font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-faint)}
+  .footer-group-meta{display:none}
+  .footer-link-list{gap:9px;padding:0}
+  .footer-link{min-height:0;font-size:13.5px;color:rgba(252,248,243,0.90)}
+  .footer-newsletter{gap:12px}
+  .footer-newsletter-form{flex-direction:column;align-items:stretch;gap:12px}
+  .footer-newsletter-input{min-height:44px;font-size:15px}
+  .footer-newsletter-btn{min-height:44px;border-radius:10px}
+  .footer-meta{gap:24px;padding-top:24px}
+  .footer-social{min-width:36px;min-height:36px;font-size:14px}
+  .footer-legal{order:0;flex:0 1 auto;margin-left:auto;gap:22px}
+  .footer-legal-link{min-height:0;font-size:13px}
+  .footer-copy{order:1;margin-left:0;font-size:13px}
+  .footer-wordmark{margin-top:36px;padding:0 40px}
+  .footer-wordmark span{font-size:clamp(46px,5.9vw,76px);letter-spacing:0.3em}
 }
+
 /* When the cookie consent banner is up, lift any page-level CTA bar above it
    so the two never stack on top of each other (the bug on small screens). */
 /* ===== Bottom dock: one home for the transient bottom sheets =====
@@ -1065,13 +1222,16 @@ footer::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;back
 .floating-enroll-btn{display:flex;align-items:center;gap:10px;padding:14px 24px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-radius:100px;font-size:0.88rem;font-weight:800;letter-spacing:0.05em;box-shadow:0 8px 32px rgba(224,138,26,0.5);transition:all 0.25s var(--ease)}
 .floating-enroll-btn:hover{transform:translateY(-3px);box-shadow:0 16px 48px rgba(224,138,26,0.65)}
 
-.cookie-banner{padding:12px 16px;background:rgba(26,18,11,0.97);backdrop-filter:blur(20px);border:1px solid var(--border-gold);border-radius:14px;box-shadow:var(--shadow-lg);display:flex;gap:14px;align-items:center;flex-wrap:wrap;transform:translateY(14px);opacity:0;transition:transform 0.35s var(--ease),opacity 0.35s var(--ease)}
+/* One row, not a stacked block: the consent notice is the surface most
+   likely to be on screen at the same time as a page's own bottom action, so
+   every millimetre of it is paid for twice. */
+.cookie-banner{padding:12px 16px calc(18px + env(safe-area-inset-bottom));background:rgba(26,18,11,0.97);border:1px solid var(--hairline);border-top-color:var(--border-gold);border-radius:14px;box-shadow:var(--shadow-lg);display:flex;gap:12px;align-items:center;transform:translateY(14px);opacity:0;transition:transform 0.35s var(--ease),opacity 0.35s var(--ease)}
 .cookie-banner.shown{transform:none;opacity:1}
-.cookie-text{font-size:0.82rem;color:var(--text-soft);line-height:1.5;flex:1 1 260px}
+.cookie-text{flex:1;min-width:0;font-size:12.5px;color:var(--text-muted);line-height:1.45}
 .cookie-text a{color:var(--gold-bright);text-decoration:underline;text-underline-offset:2px}
-.cookie-actions{display:flex;gap:8px}
-.cookie-btn{padding:8px 14px;border-radius:var(--radius-sm);font-size:0.84rem;font-weight:700;transition:all 0.2s var(--ease)}
-.cookie-btn-accept{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
+.cookie-actions{display:flex;gap:8px;flex-shrink:0}
+.cookie-btn{min-height:44px;display:inline-flex;align-items:center;padding:0 16px;border-radius:12px;font-size:13.5px;font-weight:700;transition:all 0.2s var(--ease)}
+.cookie-btn-accept{background:var(--gold-bright);color:#1A120B;font-weight:800;padding:0 20px}
 .cookie-btn-decline{color:var(--text-soft);border:1px solid var(--border-strong)}
 
 .toolbar{position:fixed;top:50%;right:0;transform:translateY(-50%);z-index:700;display:flex;flex-direction:column;gap:4px;background:var(--bg-surface);border:1px solid var(--border);border-right:none;border-radius:var(--radius-sm) 0 0 var(--radius-sm);padding:6px 4px}
@@ -1113,21 +1273,17 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 /* ===== Responsive ===== */
 @media (max-width:1280px){
   .nav-links{gap:0}
-  .nav-link{padding:10px 9px;font-size:0.82rem}
-  .mega-menu{min-width:760px;grid-template-columns:1fr 1fr}
-  .mega-menu.mega-4col{min-width:820px;grid-template-columns:1fr 1fr}
-  .mega-spotlight{grid-column:1 / -1;min-height:160px;flex-direction:row;align-items:center;border-left:none;border-top:1px solid var(--border)}
-  .mega-spotlight-body{flex:1;justify-content:center}
-  .mega-spotlight-foot{flex-direction:column;align-items:flex-end;justify-content:center;gap:8px}
-  .footer-grid{grid-template-columns:2fr 1fr 1fr}
-  .footer-brand{grid-column:1 / -1;max-width:560px}
-  .footer-newsletter{grid-column:1 / -1;max-width:560px}
+  .nav-link{padding:0 10px}
+  /* The 2-column collapse is gone with the spotlight: it existed because a
+     3-column mega plus a 1.15fr photographic panel needed 1080px. Three
+     columns at 880px fit from the desktop breakpoint (1025px) up, so there is
+     no width at which a column has to wrap under its neighbours. */
 }
 @media (max-width:1150px){
-  /* Squeeze zone just above the hamburger breakpoint: tighten the link row so
-     five dropdowns + the CTA group never collide with the brand. */
-  .nav-link{padding:10px 6px;font-size:0.79rem}
-  .nav-link .chev{display:none}
+  /* Squeeze zone just above the hamburger breakpoint. The bar itself no
+     longer shrinks the brand or the controls to fit — only the link row
+     tightens, and the chevrons stay (they are 9px and say "this opens"). */
+  .nav-link{padding:0 9px}
 }
 @media (max-width:1024px){
   /* Horizontal nav needs >1024px; below that use the hamburger menu */
@@ -1141,14 +1297,7 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .about-badge{left:-8px}.about-img-accent{right:-8px}
 }
 @media (max-width:768px){
-  :root{--nav-h:64px}
   section,.section{padding:64px 20px}
-  .nav-cta-group{gap:8px}
-  .btn-nav-ghost{padding:9px 14px;font-size:0.78rem}
-  .nav-brand-sub{display:none}
-  .nav-inner{gap:10px}
-  .nav-brand{min-width:0}
-  .nav-cta-group{flex-shrink:0}
   .hero-inner{padding:40px 20px 100px}
   .hero-title{font-size:clamp(2.2rem,9vw,3.2rem)}
   .hero-arrow{display:none}
@@ -1158,14 +1307,6 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .countdown-wrap{gap:8px}
   .countdown-box{min-width:64px;padding:14px 12px}
   .countdown-num{font-size:2rem}
-  .footer-grid{grid-template-columns:1fr;gap:30px}
-  /* The sticky nav already carries "Apply" — drop the floating pill on phones
-     so it never stacks over the cookie banner or a page CTA bar (declutter). */
-  /* Was display:none. The design asks for it kept and compact rather than
-     deleted on the device where the hero CTA scrolls away soonest — the
-     collision it was hidden for is already handled by the docking logic in
-     main.js (mamDock), which lifts it above the cookie banner. */
-  .floating-enroll{bottom:16px;right:16px}
   .floating-enroll-btn{padding:12px 18px;font-size:0.86rem;min-height:44px}
   .toolbar{display:none}
   .page-hero{padding:88px 20px 56px}
@@ -1189,20 +1330,10 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
    Covers the tightest devices (320px, 360px) up to ultra-wide
    (2200px+). Typography clamps + grid fallbacks + touch targets. */
 @media (max-width:480px){
-  .announce{font-size:0.74rem;padding:7px 14px;gap:8px}
   .nav-cta-group .nav-account-text{display:none}
   .pathway-card{padding:26px 22px}
   .school-card{padding:28px 22px}
   .unique-card{padding:28px 22px}
-  /* Keep brand + CTA + hamburger on one line without overflow, and clear
-     the notch / rounded corners on landscape phones via safe-area insets */
-  .nav-inner{padding:0 max(14px,env(safe-area-inset-right)) 0 max(14px,env(safe-area-inset-left));gap:8px}
-  .mobile-quick-tile{font-size:0.68rem;min-height:68px;padding:12px 3px}
-  .mobile-quick-tile i,.mobile-quick-tile iconify-icon{font-size:1.05rem}
-  .nav-brand{gap:8px}
-  .nav-brand img{width:38px;height:38px}
-  .nav-brand-name{font-size:1.18rem}
-  .btn-nav-ghost{padding:9px 12px;font-size:0.72rem}
 }
 @media (max-width:380px){
   .hero-hl{font-size:clamp(1.9rem,9vw,2.35rem)}
@@ -1217,17 +1348,8 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .countdown-box{min-width:56px;padding:12px 8px}
   .countdown-num{font-size:1.7rem}
   .countdown-label{font-size:0.62rem}
-  /* CTA becomes icon-only so the navbar always fits the smallest phones */
-  .nav-brand-name{font-size:1.05rem}
-  .btn-nav-ghost{font-size:0;gap:0;padding:10px 11px}
-  .btn-nav-ghost .nav-ico{width:16px;height:16px}
 }
 @media (max-width:340px){
-  .nav-inner{padding:0 10px;gap:8px}
-  .nav-brand-name{font-size:1rem}
-  .nav-brand img{width:34px;height:34px}
-  .btn-nav-ghost{padding:8px 10px;font-size:0;gap:0}
-  .btn-nav-ghost .nav-ico{width:15px;height:15px}
   .hero-ctas{gap:8px}
 }
 
@@ -1242,7 +1364,7 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 
 /* ─────────────  Touch-target a11y (44×44 WCAG)  ───────────── */
 @media (pointer:coarse){
-  .nav-link,.mobile-nav-link,.mobile-nav-sub-link,
+  .nav-link,.mobile-nav-sub-link,
   .btn-nav-cta,.btn-nav-ghost,
   .filter-tab,.currency-btn,
   .faq-question,.program-expand,
@@ -1257,7 +1379,6 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   input:not([type=checkbox]):not([type=radio]),select,textarea,
   .field-input,.field-select{min-height:44px}
   input[type=checkbox],input[type=radio]{min-width:20px;min-height:20px}
-  .footer-link,.footer-legal-link{display:inline-block;padding-block:6px}
   .path-cta,.link-inline,.school-link,.how-step-link{min-height:32px;display:inline-flex;align-items:center}
 }
 
@@ -1285,17 +1406,12 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .stats-inner{grid-template-columns:repeat(2,1fr)}
   .pathway-progression-side{grid-template-columns:1fr}
   .mode-features,.about-pillars{grid-template-columns:1fr}
-  .footer-newsletter-form{flex-wrap:nowrap}
-  .footer-newsletter-input{flex:1 1 auto;min-width:0}
-  .footer-newsletter-btn{flex:0 0 46px}
   .page-hero-actions{flex-direction:column;align-items:stretch}
   .page-hero-actions .btn{width:100%}
-  .cookie-banner{flex-direction:column;align-items:stretch;gap:10px}
-  /* In column direction the desktop flex-basis (260px) becomes a HEIGHT basis
-     and inflated the banner into a huge empty box — reset it. */
-  .cookie-text{flex:0 0 auto}
-  .cookie-actions{justify-content:stretch}
-  .cookie-btn{flex:1}
+  /* Still one row at 390: only the Decline label gives way, and the text is
+     what shrinks. A consent control that disappears is worse than a tight one,
+     so Decline keeps its box and loses its width. */
+  .cookie-btn-decline{padding:0 12px}
 }
 
 /* ---- Compact phones (≤420px): drop to single columns everywhere ---- */

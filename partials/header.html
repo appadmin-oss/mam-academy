@@ -28,20 +28,12 @@
 ]}
 </script>
 
-<div class="announce" role="region" aria-label="Site announcement">
-  <span class="announce-dot" aria-hidden="true"></span>
-  <span><span data-intake-label>September 2026</span> intake is now open — <strong>limited seats</strong> remaining</span>
-  <a href="apply">Reserve your seat →</a>
-</div>
 
 <nav id="navbar" aria-label="Main navigation">
   <div class="nav-inner">
     <a href="/" class="nav-brand" aria-label="MAM Academy — home">
       <img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
-      <span class="nav-brand-text">
-        <span class="nav-brand-name">MAM ACADEMY</span>
-        <span class="nav-brand-sub">academy.mamcentre.org</span>
-      </span>
+      <span class="nav-brand-name">MAM ACADEMY</span>
     </a>
 
     <ul class="nav-links">
@@ -49,7 +41,7 @@
       <!-- ========== ABOUT ========== -->
       <li class="nav-item">
         <a href="about" class="nav-link">About <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></a>
-        <div class="nav-dropdown mega-menu">
+        <div class="nav-dropdown mega-menu mega-2col">
           <div class="mega-banner" role="presentation">
             <span class="mega-banner-pulse">A Creative Intelligence &amp; Performance Academy</span>
             <a href="about" class="mega-banner-cta">Read the vision <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
@@ -110,7 +102,7 @@
       <!-- ========== PATHWAYS ========== -->
       <li class="nav-item">
         <a href="pathways" class="nav-link">Pathways <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></a>
-        <div class="nav-dropdown mega-menu mega-4col">
+        <div class="nav-dropdown mega-menu mega-3col">
           <div class="mega-banner" role="presentation">
             <span class="mega-banner-pulse">Trinity-equivalent · Grade 1–8 · Online or onsite</span>
             <a href="compare" class="mega-banner-cta">Side-by-side compare <i class="fa-solid fa-arrow-right"></i></a>
@@ -193,7 +185,7 @@
       <!-- ========== DISCIPLINES ========== -->
       <li class="nav-item">
         <a href="schools" class="nav-link">Disciplines <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></a>
-        <div class="nav-dropdown mega-menu">
+        <div class="nav-dropdown mega-menu mega-3col">
           <div class="mega-banner" role="presentation">
             <span class="mega-banner-pulse">Pick your instrument or stream</span>
             <a href="apply" class="mega-banner-cta">Apply for any <i class="fa-solid fa-arrow-right"></i></a>
@@ -302,7 +294,7 @@
 
       <li class="nav-item">
         <button type="button" class="nav-link nav-link-disclosure" aria-expanded="false">Experiences <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></button>
-        <div class="nav-dropdown mega-menu">
+        <div class="nav-dropdown mega-menu mega-2col">
           <div class="mega-banner" role="presentation">
             <span class="mega-banner-pulse">Beyond classes — gatherings &amp; movements</span>
             <a href="power-play" class="mega-banner-cta">Free monthly series <i class="fa-solid fa-arrow-right"></i></a>
@@ -361,69 +353,157 @@
       <!-- Signed-out (default / no-JS fallback). main.js swaps this for an
            account chip once MAM_AUTH confirms a session, so the nav reflects
            the real signed-in state on every page. -->
+      <!-- Search is the only control the bar gains. On touch it and the menu
+           are the WHOLE bar: "Sign in" leaves for the menu, where it has room
+           for a label instead of degrading to `font-size:0` at 380px. -->
+      <button type="button" class="nav-icon-btn" id="navSearchBtn" aria-label="Search the site">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+      </button>
       <a href="portal/login" class="btn-nav-ghost" title="Student &amp; Instructor sign in"><svg class="nav-ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg> Sign in</a>
-      <button class="nav-hamburger" id="hamburgerBtn" aria-label="Toggle menu" aria-expanded="false" aria-controls="mobileMenu">
-        <span class="hamburger-line"></span><span class="hamburger-line"></span><span class="hamburger-line"></span>
+      <a href="apply" class="btn-nav-apply">Apply</a>
+      <!-- Two bars, not three. With no "Menu" label beside it, two read as a
+           control and three read as decoration at this weight; the design says
+           pick one and keep it. -->
+      <button class="nav-hamburger" id="hamburgerBtn" aria-label="Open the menu" aria-expanded="false" aria-controls="mobileMenu">
+        <span class="hamburger-line"></span><span class="hamburger-line"></span>
       </button>
     </div>
   </div>
 </nav>
 
-<aside class="mobile-menu" id="mobileMenu" aria-label="Mobile navigation">
-  <div class="mobile-quick" role="group" aria-label="Quick actions" id="mobileQuick">
-    <a class="mobile-quick-tile primary" href="apply"><iconify-icon icon="fluent-emoji:musical-note" width="24" aria-hidden="true"></iconify-icon><span>Apply</span></a>
-    <a class="mobile-quick-tile" href="portal/login" data-auth-tile><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i><span>Sign in</span></a>
-    <a class="mobile-quick-tile" href="studio"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i><span>Studio</span></a>
-    <a class="mobile-quick-tile" href="store"><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i><span>Store</span></a>
+<!-- The announce strip. One line, always: `text-overflow:ellipsis` on a
+     `nowrap` message rather than a band that wraps to two lines at 390px and
+     then scrolls away for good. It sits BELOW the bar so dismissing it never
+     moves the bar, and the dismissal is keyed to the message so a new campaign
+     reappears (main.js). Not the full-saturation gold gradient: a solid gold
+     band above the fold competes with the page's own primary action. -->
+<div class="announce" id="announceStrip" role="region" aria-label="Site announcement" hidden>
+  <span class="announce-dot" aria-hidden="true"></span>
+  <span class="announce-msg" id="announceMsg"><span data-intake-label>September</span> intake open &middot; <a href="apply">Apply</a></span>
+  <a href="apply" class="announce-cta">Reserve your seat</a>
+  <button type="button" class="announce-x" id="announceClose" aria-label="Dismiss this announcement">
+    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+  </button>
+</div>
+
+<aside class="mobile-menu" id="mobileMenu" aria-label="Menu">
+  <!-- Head. The close control is a 44px target with a real accessible name;
+       the hamburger in the bar is the other half of the same toggle. -->
+  <div class="menu-head">
+    <span class="menu-head-title">Menu</span>
+    <button type="button" class="nav-icon-btn" id="menuCloseBtn" aria-label="Close the menu">
+      <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+    </button>
   </div>
-  <section class="mobile-nav-section">
-    <button class="mobile-nav-head" data-mobile-toggle="about" aria-expanded="false" aria-controls="m-about">About <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></button>
-    <div class="mobile-nav-sub" id="m-about"><div class="mobile-nav-sub-inner">
-      <a class="mobile-nav-sub-link" href="about">Mission &amp; Vision</a>
-      <a class="mobile-nav-sub-link" href="about#method">The MAM Method</a>
-      <a class="mobile-nav-sub-link" href="faculty">Faculty</a>
-      <a class="mobile-nav-sub-link" href="https://mamcentre.org" target="_blank" rel="noopener">MAM Centre ↗</a>
-    </div></div>
-  </section>
-  <section class="mobile-nav-section">
-    <button class="mobile-nav-head" data-mobile-toggle="pathways" aria-expanded="false" aria-controls="m-pathways">Pathways <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></button>
-    <div class="mobile-nav-sub" id="m-pathways"><div class="mobile-nav-sub-inner">
-      <a class="mobile-nav-sub-link" href="pathways#certified-musician">Certified Musician</a>
-      <a class="mobile-nav-sub-link" href="pathways#grand-musician">Grand Musician</a>
-      <a class="mobile-nav-sub-link" href="crash">Crash Courses</a>
-      <a class="mobile-nav-sub-link" href="compare" style="display:flex;align-items:center;gap:8px"><iconify-icon icon="fluent-emoji:bar-chart" width="18" aria-hidden="true"></iconify-icon><strong>Compare side-by-side</strong></a>
-    </div></div>
-  </section>
-  <section class="mobile-nav-section">
-    <button class="mobile-nav-head" data-mobile-toggle="disciplines" aria-expanded="false" aria-controls="m-disciplines">Disciplines <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></button>
-    <div class="mobile-nav-sub" id="m-disciplines"><div class="mobile-nav-sub-inner">
-      <a class="mobile-nav-sub-link" href="apply?discipline=piano">Piano &amp; Keyboard</a>
-      <a class="mobile-nav-sub-link" href="apply?discipline=violin">Violin &amp; Strings</a>
-      <a class="mobile-nav-sub-link" href="apply?discipline=guitar">Guitar</a>
-      <a class="mobile-nav-sub-link" href="apply?discipline=drums">Drums &amp; Percussion</a>
-      <a class="mobile-nav-sub-link" href="apply?discipline=wind">Wind &amp; Brass</a>
-      <a class="mobile-nav-sub-link" href="apply?discipline=voice">Voice &amp; Choir</a>
-      <a class="mobile-nav-sub-link" href="apply?discipline=theory">Music Theory &amp; Ear</a>
-      <span class="mobile-nav-sub-head">The four schools</span>
-      <a class="mobile-nav-sub-link" href="schools#instrumental">Instrumental Intelligence</a>
-      <a class="mobile-nav-sub-link" href="schools#performance">Performance Intelligence</a>
-      <a class="mobile-nav-sub-link" href="schools#rhythm">Rhythm Intelligence</a>
-      <a class="mobile-nav-sub-link" href="schools#metamusic">MetaMusic &amp; Consciousness</a>
-      <a class="mobile-nav-sub-link" href="schools">All four schools</a>
-    </div></div>
-  </section>
-  <section class="mobile-nav-section">
-    <button class="mobile-nav-head" data-mobile-toggle="experiences" aria-expanded="false" aria-controls="m-experiences">Experiences <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></button>
-    <div class="mobile-nav-sub" id="m-experiences"><div class="mobile-nav-sub-inner">
-      <a class="mobile-nav-sub-link" href="metamusic-order" style="display:flex;align-items:center;gap:8px"><iconify-icon icon="fluent-emoji:fire" width="18" aria-hidden="true"></iconify-icon>The MetaMusic Order</a>
-      <a class="mobile-nav-sub-link" href="power-play" style="display:flex;align-items:center;gap:8px"><iconify-icon icon="fluent-emoji:high-voltage" width="18" aria-hidden="true"></iconify-icon>Power Play (Free)</a>
-      <a class="mobile-nav-sub-link" href="auditer">MAM Auditer</a>
-      <a class="mobile-nav-sub-link" href="faq">FAQ</a>
-      <a class="mobile-nav-sub-link" href="contact">Contact</a>
-    </div></div>
-  </section>
-  <a class="mobile-nav-link" href="https://mamcentre.org/blog" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between"><span>Blog</span><i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.75em;opacity:0.7" aria-hidden="true"></i></a>
-  <a class="mobile-nav-cta" href="apply" style="display:flex;align-items:center;justify-content:center;gap:10px"><iconify-icon icon="fluent-emoji:musical-note" width="22" aria-hidden="true"></iconify-icon>Apply Now</a>
+
+  <div class="menu-body">
+    <!-- Search FIRST. A forty-link site needs search more than it needs a
+         four-tile quick grid in which Studio and Store were given the same
+         visual weight as Apply. -->
+    <form class="menu-search" role="search" action="/" method="get">
+      <label class="sr-only" for="menuSearch">Search courses, pages and tools</label>
+      <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+      <input type="search" id="menuSearch" name="q" placeholder="Search courses, pages, tools" autocomplete="off">
+    </form>
+
+    <div class="menu-actions">
+      <a class="menu-act is-primary" href="apply">Apply</a>
+      <a class="menu-act" href="portal/login" data-auth-tile>Sign in</a>
+    </div>
+
+    <!-- Seven rows. The trailing glyph is load-bearing: a chevron opens a
+         sub-panel here, an arrow navigates away. Keeping the two distinct is
+         what stops a menu becoming a lucky dip. -->
+    <div class="menu-rows">
+      <button type="button" class="menu-row" data-mobile-toggle="pathways" aria-expanded="false" aria-controls="m-pathways">
+        <i class="fa-solid fa-graduation-cap menu-row-ico" aria-hidden="true"></i>
+        <span class="menu-row-main"><span class="menu-row-name">Apply to a pathway</span>
+        <span class="menu-row-desc">Certified &middot; Grand &middot; Crash &mdash; compare and start</span></span>
+        <i class="fa-solid fa-chevron-right menu-row-go chev" aria-hidden="true"></i>
+      </button>
+      <div class="mobile-nav-sub" id="m-pathways"><div class="mobile-nav-sub-inner">
+        <a class="mobile-nav-sub-link" href="pathways#certified-musician">Certified Musician</a>
+        <a class="mobile-nav-sub-link" href="pathways#grand-musician">Grand Musician</a>
+        <a class="mobile-nav-sub-link" href="crash">Crash Courses</a>
+        <a class="mobile-nav-sub-link" href="metamusic-order">The MetaMusic Order</a>
+        <a class="mobile-nav-sub-link" href="compare">Compare side-by-side</a>
+      </div></div>
+
+      <button type="button" class="menu-row" data-mobile-toggle="disciplines" aria-expanded="false" aria-controls="m-disciplines">
+        <i class="fa-solid fa-music menu-row-ico" aria-hidden="true"></i>
+        <span class="menu-row-main"><span class="menu-row-name">What you can study</span>
+        <span class="menu-row-desc">Seven disciplines across four schools</span></span>
+        <i class="fa-solid fa-chevron-right menu-row-go chev" aria-hidden="true"></i>
+      </button>
+      <!-- ⚠️ The seven `apply?discipline=` deep links are GONE. They
+           pre-answered a question the wizard asks on its own third screen, and
+           a mismatch between the two was a live bug class. These name the
+           schools; the wizard takes the discipline. -->
+      <div class="mobile-nav-sub" id="m-disciplines"><div class="mobile-nav-sub-inner">
+        <a class="mobile-nav-sub-link" href="schools#instrumental">Instrumental Intelligence</a>
+        <a class="mobile-nav-sub-link" href="schools#performance">Performance Intelligence</a>
+        <a class="mobile-nav-sub-link" href="schools#rhythm">Rhythm Intelligence</a>
+        <a class="mobile-nav-sub-link" href="schools#metamusic">MetaMusic &amp; Consciousness</a>
+        <a class="mobile-nav-sub-link" href="schools">All four schools</a>
+      </div></div>
+
+      <button type="button" class="menu-row" data-mobile-toggle="about" aria-expanded="false" aria-controls="m-about">
+        <i class="fa-solid fa-compass menu-row-ico" aria-hidden="true"></i>
+        <span class="menu-row-main"><span class="menu-row-name">The MAM Method</span>
+        <span class="menu-row-desc">How the training works, and why</span></span>
+        <i class="fa-solid fa-chevron-right menu-row-go chev" aria-hidden="true"></i>
+      </button>
+      <div class="mobile-nav-sub" id="m-about"><div class="mobile-nav-sub-inner">
+        <a class="mobile-nav-sub-link" href="about">Mission &amp; Vision</a>
+        <a class="mobile-nav-sub-link" href="about#method">The MAM Method</a>
+        <a class="mobile-nav-sub-link" href="how-it-works">How it works</a>
+        <a class="mobile-nav-sub-link" href="faculty">Faculty</a>
+        <a class="mobile-nav-sub-link" href="notation">Notation Showcase</a>
+      </div></div>
+
+      <a class="menu-row" href="studio">
+        <i class="fa-solid fa-wand-magic-sparkles menu-row-ico" aria-hidden="true"></i>
+        <span class="menu-row-main"><span class="menu-row-name">Practice Studio</span>
+        <span class="menu-row-desc">Free tools &mdash; tuner, metronome, notation</span></span>
+        <i class="fa-solid fa-arrow-right menu-row-go" aria-hidden="true"></i>
+      </a>
+
+      <a class="menu-row" href="store">
+        <i class="fa-solid fa-bag-shopping menu-row-ico" aria-hidden="true"></i>
+        <span class="menu-row-main"><span class="menu-row-name">Store</span>
+        <span class="menu-row-desc">Books, scores and merchandise</span></span>
+        <i class="fa-solid fa-arrow-right menu-row-go" aria-hidden="true"></i>
+      </a>
+
+      <button type="button" class="menu-row" data-mobile-toggle="experiences" aria-expanded="false" aria-controls="m-experiences">
+        <i class="fa-solid fa-fire menu-row-ico" aria-hidden="true"></i>
+        <span class="menu-row-main"><span class="menu-row-name">Experiences</span>
+        <span class="menu-row-desc">MetaMusic Order &middot; Power Play &middot; Auditer</span></span>
+        <i class="fa-solid fa-chevron-right menu-row-go chev" aria-hidden="true"></i>
+      </button>
+      <div class="mobile-nav-sub" id="m-experiences"><div class="mobile-nav-sub-inner">
+        <a class="mobile-nav-sub-link" href="metamusic-order">The MetaMusic Order</a>
+        <a class="mobile-nav-sub-link" href="power-play">Power Play (Free)</a>
+        <a class="mobile-nav-sub-link" href="auditer">MAM Auditer</a>
+        <a class="mobile-nav-sub-link" href="book">Book a session</a>
+      </div></div>
+
+      <a class="menu-row" href="instructor-apply">
+        <i class="fa-solid fa-chalkboard-user menu-row-ico" aria-hidden="true"></i>
+        <span class="menu-row-main"><span class="menu-row-name">Teach at MAM</span>
+        <span class="menu-row-desc">Faculty application</span></span>
+        <i class="fa-solid fa-arrow-right menu-row-go" aria-hidden="true"></i>
+      </a>
+    </div>
+
+    <div class="menu-minor">
+      <a href="faq">FAQ</a>
+      <a href="contact">Contact</a>
+      <a href="https://mamcentre.org/blog" target="_blank" rel="noopener">Blog &#8599;</a>
+      <a href="privacy">Privacy</a>
+      <a href="scholarship">Scholarships</a>
+    </div>
+  </div>
 </aside>
 
 <aside class="toolbar-region" aria-label="Accessibility tools">

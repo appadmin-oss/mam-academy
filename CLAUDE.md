@@ -1334,6 +1334,85 @@ drops "I have read and" and widens "any safeguarding concern" to "any concern".
 The layout is the handoff's; only the two strings wait. A test pins both
 clauses so the swap is deliberate.
 
+## The site chrome — the 2026-09 rework
+
+Header, menu and footer, from `docs/design/2026-09-site-chrome/` (handoff +
+`BUILD-NOTES-chrome.md`, which records the measured numbers, the four places
+the handoff contradicts itself, and the three defects that only appeared in a
+browser). `partials/header.html` + `partials/footer.html` + the nav/footer/
+cookie blocks of `assets/css/main.css` + `initNav`/`initAnnounce`/
+`initFooterGroups` in `assets/js/main.js`. Guarded by
+`api/tests/test_site_chrome.php`. **Every page on the site wears this**, so
+the traps below are repo-wide:
+
+- ⚠️ **`--nav-h` is the ONE lever** — 56px, 64px from `min-width:1025px`.
+  `#hero`'s `min-height`, `html{scroll-padding-top}` and
+  `[id]{scroll-margin-top}` all derive from it. The old
+  `@media (max-width:768px){--nav-h:64px}` override is gone; don't re-add a
+  second source.
+- ⚠️ **`.announce[hidden]{display:none}` is load-bearing** — the FIFTH
+  appearance of this trap here. A class-level `display:flex` outranks the UA's
+  `[hidden]{display:none}`, so **any** element you toggle with `hidden` that
+  also carries an author `display:` needs its own guard. (`apply.css`
+  documents the other four: `.js-only`, `.resume-banner`, `.apply-stepper`,
+  `.hs-status`/`.advisor`.)
+- **`--hairline` (0.16) is NOT `--border` (0.20).** The chrome's dividers are
+  hairlines between rows, not card edges. Both lift under
+  `[data-contrast="high"]`.
+- **The announce dismissal is keyed to the MESSAGE**, as a djb2 digest of the
+  rendered text, so a new campaign reappears for somebody who closed the last
+  one. `MAM_CONFIG.intake` can arrive late from `/api/config/public`, so
+  `initAnnounce` re-stamps `[data-intake-label]` on `mam:config` and
+  re-evaluates — otherwise the key is a digest of JS's default label.
+- **The strip sits BELOW the bar** (a sibling after `</nav>`) so dismissing it
+  never moves the bar, and it is ONE line with `text-overflow:ellipsis` — it
+  used to wrap to two at 390px and then scroll away for good.
+- **The menu is `inset:0` and carries its OWN 56px head.** `positionMenu()`
+  is deleted: it offset the panel to the navbar's measured bottom, which moved
+  with the announce strip, and stacking the bar above a panel that has its own
+  head shows two heads. The bar's hamburger and the head's ✕ are two halves of
+  one toggle.
+- **A chevron opens a sub-panel; an arrow navigates away.** Four rows and
+  three rows respectively. The distinction is what stops a menu becoming a
+  lucky dip, so only the chevron rotates.
+- ⚠️ **On touch the back-to-top FAB and the floating Apply pill do not
+  exist.** MEASURED on first visit at 390×700: pill + `lead.js`'s CTA bar +
+  cookie banner was 304px of a 700px screen, and back-to-top was never
+  enrolled in `window.mamDock` at all (fixed, z-index 901 against the dock's
+  950), so it overlapped the stack and was painted over. Both return at
+  `min-width:1025px`. **`.btn-nav-apply` in the bar is what makes that
+  honest** — the design's own justification ("the bar already carries Apply")
+  is false of its own frame, and without it touch loses every persistent Apply
+  path once the strip and the CTA bar are dismissed (the bar remembers for 30
+  days). Don't delete it to get back to "exactly two icon buttons".
+- **The mega menus lost the photographic spotlight** (`.mega-spotlight
+  {display:none}`) — the widest element in the chrome and the slowest thing on
+  the page to paint, for a decorative image behind a menu. With it gone the
+  2-column collapse below 1280px is deleted too: it existed only because three
+  columns PLUS a 1.15fr photo panel needed 1080px. Column counts are now
+  stated per variant (`mega-2col` / `mega-3col`), not inherited from a 3-track
+  default with a fourth child wrapping underneath.
+- **The footer's four groups are `<details>`** — they collapse and expand with
+  no JS at any width. `initFooterGroups` only forces them open where they are
+  *columns* (≥1025px) and closes them on the way back down, and
+  `display:contents` drops the four straight into the desktop grid. The count
+  beside each title is a promise: a test asserts it against the links actually
+  inside it.
+- **The footer wordmark is plain text with NO parallax.** The clip-path reveal
+  keyed progress off the mark's own height — right for a full-bleed 190px SVG
+  `<text>`, a snap for a 34px span, and MEASURED it left the mark fully
+  clipped at every scroll position short of the page's exact bottom. Deleting
+  it also drops a scroll listener and a `will-change:clip-path` layer from
+  every page. `white-space:nowrap` on `.footer-logo-name`, because at 21px in
+  a 196px column the Bebas *fallback* breaks MAM / ACADEMY onto two lines.
+- The **cookie banner is one row** and `#cookieDecline` **survives**: whether a
+  consent notice offers a decline control is a legal decision, not a layout
+  one. The handoff's "Decline stays available inside Details" was not taken.
+
+⚠️ **Part 2 of that handoff — the student application (`apply.php`) — is NOT
+built.** Six single-question screens inside step 1, a profile split, an
+address screen and an editable review. The README in that folder is the spec.
+
 ## The admin console (`admin/console.php`) — the 2026-08 redesign
 
 Thirty-one screens, built 2026-08-20 and **re-navigated 2026-09-17** when the

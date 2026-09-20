@@ -39,8 +39,15 @@ foreach ([$IP_s1, $IP_s2] as $IP_st) {
     mam_db_insert('course_enrollments', ['student_id' => $IP_st, 'course_id' => $IP_course,
         'cohort_id' => $IP_cohort, 'status' => 'active']);
 }
+/* ⚠️ `mam_iportal_home()`'s window ends at TODAY's 23:59:59 (UTC) — "Today"
+   is the screen's whole promise. A fixture at a flat `time() + 480` therefore
+   fell OUT of the window for the last eight minutes of every UTC day and took
+   five assertions with it. Clamp it inside the day, and derive the expected
+   countdown from the time actually stored rather than hardcoding 6..9. */
+$IP_at   = min(time() + 480, (int) strtotime(gmdate('Y-m-d 23:58:00') . ' UTC'));
+$IP_in   = (int) round(($IP_at - time()) / 60);
 $IP_sess = mam_db_insert('class_sessions', ['cohort_id' => $IP_cohort, 'title' => 'Scales & sight-reading',
-    'scheduled_at' => gmdate('Y-m-d H:i:s', time() + 480), 'status' => 'scheduled',
+    'scheduled_at' => gmdate('Y-m-d H:i:s', $IP_at), 'status' => 'scheduled',
     'duration_min' => 60, 'kind' => 'class']);
 
 t_group('instructor portal — Home');
@@ -49,11 +56,16 @@ $IP_home = mam_iportal_home($IP_ins);
 t_ok($IP_home['next'] !== null, 'the next session today is found');
 t_eq((string) $IP_home['next']['title'], 'Scales & sight-reading', '…and it is the right one');
 t_eq((int) $IP_home['next']['roster'], 2, 'the roster count is the cohort, counted DISTINCT');
-t_ok($IP_home['next']['starts_in_min'] >= 6 && $IP_home['next']['starts_in_min'] <= 9,
-    'starts_in_min is minutes, not a formatted string (got ' . $IP_home['next']['starts_in_min'] . ')');
+t_ok(abs((int) $IP_home['next']['starts_in_min'] - $IP_in) <= 1,
+    'starts_in_min is minutes, not a formatted string (got ' . $IP_home['next']['starts_in_min']
+    . ', want ~' . $IP_in . ')');
 t_ok($IP_home['next']['register_taken'] === false, 'an unmarked session says so');
 
-// A session already running reports a NEGATIVE countdown rather than hiding.
+/* A session already running reports a NEGATIVE countdown rather than hiding.
+   No clamp needed here, and one would be WRONG: the window opens two hours
+   BEHIND now, so ten minutes ago is inside it even when that lands on
+   yesterday — whereas clamping it into today would put it in the FUTURE for
+   the first ten minutes of a day and invert the assertion. */
 $IP_running = mam_db_insert('class_sessions', ['cohort_id' => $IP_cohort, 'title' => 'Running now',
     'scheduled_at' => gmdate('Y-m-d H:i:s', time() - 600), 'status' => 'scheduled',
     'duration_min' => 60, 'kind' => 'class']);

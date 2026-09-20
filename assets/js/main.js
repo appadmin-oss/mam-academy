@@ -321,7 +321,15 @@
       // a bottom action bar, physically covered its Submit button.
       var hideOn = ['apply', 'instructor-apply', 'checkout', 'book', 'thank-you', 'status', 'contact'];
       var inApp = /\/(portal|admin)(\/|$)/.test(location.pathname);
-      if (hideOn.indexOf(slug) >= 0 || inApp) { floatingEnroll.remove(); floatingEnroll = null; }
+      // On touch the pill goes entirely. MEASURED on first visit at 390x700:
+      // the pill, lead.js's CTA bar and the cookie banner were 304px of a
+      // 700px screen — over half the content area — and back-to-top was never
+      // enrolled in the dock at all, so it overlapped the stack. The bar now
+      // carries Apply at every width and the menu is one tap away, which is
+      // what makes deleting this safe rather than merely tidier.
+      var coarse = window.matchMedia
+        && window.matchMedia('(max-width: 1024px), (pointer: coarse)').matches;
+      if (hideOn.indexOf(slug) >= 0 || inApp || coarse) { floatingEnroll.remove(); floatingEnroll = null; }
     })();
     var footerEl = null;
 
@@ -372,14 +380,10 @@
 
     var menuOpen = false;
     var menuOpenerEl = null;
-    // Align the menu's top edge to the navbar's REAL bottom. The announce bar
-    // sits above the (sticky) navbar in normal flow, so near the top of the
-    // page the navbar isn't at viewport y=0 — without this the menu would
-    // overlap the navbar. Body scroll is locked while open, so this stays put.
-    function positionMenu() {
-      if (!mobileMenu || !navbar) return;
-      mobileMenu.style.top = Math.max(0, Math.round(navbar.getBoundingClientRect().bottom)) + 'px';
-    }
+    // The menu covers the whole viewport and carries its OWN 56px head, so
+    // there is nothing to align it to — the bar's hamburger and the head's
+    // close button are two halves of one toggle. (It used to be offset to the
+    // navbar's measured bottom, which moved with the announce bar.)
     function setMenu(open) {
       menuOpen = open;
       if (hamburger) {
@@ -387,7 +391,6 @@
         hamburger.setAttribute('aria-expanded', String(open));
       }
       if (mobileMenu) {
-        if (open) positionMenu();
         mobileMenu.classList.toggle('open', open);
         mobileMenu.setAttribute('aria-hidden', String(!open));
         if (open) {
@@ -411,6 +414,16 @@
     // Initial aria-hidden state
     if (mobileMenu) mobileMenu.setAttribute('aria-hidden', 'true');
     on(hamburger, 'click', function () { setMenu(!menuOpen); });
+    on($('#menuCloseBtn'), 'click', function () { setMenu(false); });
+    // Search is the bar's other control. There is no separate search overlay:
+    // the menu already holds the field, so the button opens the menu and puts
+    // the caret in it rather than shipping a second surface that does one
+    // thing. (`focus()` must wait for the panel's visibility transition, or
+    // the field is still `visibility:hidden` and the focus is dropped.)
+    on($('#navSearchBtn'), 'click', function () {
+      setMenu(true);
+      setTimeout(function () { var f = $('#menuSearch'); if (f) f.focus(); }, 320);
+    });
     $$('#mobileMenu a').forEach(function (a) { on(a, 'click', function () { setMenu(false); }); });
     on(document, 'keydown', function (e) { if (e.key === 'Escape' && menuOpen) setMenu(false); });
 
@@ -419,7 +432,6 @@
     on(window, 'resize', function () {
       if (!menuOpen) return;
       if (window.innerWidth > 1024) setMenu(false);
-      else positionMenu();
     });
 
     // Focus trap inside open mobile menu — Tab cycles within
@@ -528,7 +540,7 @@
       return p === '' || p === 'index' ? 'home' : p;
     };
     var path = norm(location.pathname);
-    $$('.nav-link, .mobile-nav-link, .mobile-nav-sub-link').forEach(function (a) {
+    $$('.nav-link, .mobile-nav-sub-link, a.menu-row, .menu-minor a').forEach(function (a) {
       var href = a.getAttribute('href');
       if (!href) return;
       if (norm(href) === path) a.classList.add('active');
@@ -1025,6 +1037,74 @@
   }
 
   // ============================================================
+  // Announcement strip
+  // ============================================================
+  // The old bar had no dismissal at all: it simply scrolled away, so the
+  // intake message was gone for good after the first screenful and nothing
+  // retained it. It is persistent now, which only works if it can be closed —
+  // and the dismissal is keyed to the MESSAGE, not to the element, so a new
+  // campaign reappears for somebody who closed the last one.
+  function initAnnounce() {
+    var strip = $('#announceStrip');
+    if (!strip) return;
+    var msgEl = $('#announceMsg');
+    // Read the copy AFTER initCountdown has stamped [data-intake-label], or
+    // every intake would hash as "September" and only the first would ever be
+    // dismissible. boot() orders this after it for exactly that reason.
+    function key() {
+      var t = (msgEl ? msgEl.textContent : '').replace(/\s+/g, ' ').trim();
+      // A short, stable digest rather than the sentence itself — localStorage
+      // keys are not a place to put a marketing paragraph.
+      var h = 5381, i = 0;
+      for (; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+      return 'mam.announce.' + h.toString(36);
+    }
+    var k = key();
+    on($('#announceClose'), 'click', function () {
+      Storage.setItem(k, '1');
+      strip.setAttribute('hidden', '');
+    });
+    function evaluate() {
+      k = key();
+      if (Storage.getItem(k)) strip.setAttribute('hidden', '');
+      else strip.removeAttribute('hidden');
+    }
+    evaluate();
+    // MAM_CONFIG.intake can arrive late, from /api/config/public. Re-reading
+    // the copy then is the difference between "the new intake reappears for
+    // everyone" and "it reappears for whoever had JS's default label".
+    document.addEventListener('mam:config', function () {
+      var intake = (window.MAM_CONFIG && window.MAM_CONFIG.intake) || {};
+      if (intake.label) $$('[data-intake-label]').forEach(function (el) { el.textContent = intake.label; });
+      evaluate();
+    });
+  }
+
+  // ============================================================
+  // Footer groups
+  // ============================================================
+  // Four <details> so the footer collapses to four 54px rows on a phone
+  // instead of 35 links in one vertical run. They work with JS off at every
+  // width; this only opens them where they are COLUMNS rather than
+  // accordions, and closes them again on the way back down so a rotate does
+  // not strand a 12-link column expanded on a phone.
+  function initFooterGroups() {
+    var groups = $$('.footer-group');
+    if (!groups.length) return;
+    var mq = window.matchMedia && window.matchMedia('(min-width: 1025px)');
+    if (!mq) return;
+    function sync() {
+      groups.forEach(function (g) {
+        if (mq.matches) g.setAttribute('open', '');
+        else g.removeAttribute('open');
+      });
+    }
+    sync();
+    if (mq.addEventListener) mq.addEventListener('change', sync);
+    else if (mq.addListener) mq.addListener(sync);
+  }
+
+  // ============================================================
   // Accessibility toolbar
   // ============================================================
   function initToolbar() {
@@ -1308,43 +1388,14 @@
     var st = document.createElement('style'); st.id = 'scholar-css'; st.textContent = css; document.head.appendChild(st);
   }
 
-  // ============================================================
-  // Footer wordmark — smooth scroll-linked parallax reveal
-  // The "MAM CENTRE" mark eases up and fades in as the footer enters view.
-  // JS owns the hidden start state, so without JS (or reduced-motion) the
-  // CSS default (opacity:.96) keeps it fully visible — never invisible.
-  // ============================================================
-  function initFooterWordmark() {
-    var wm = document.querySelector('.footer-wordmark');
-    if (!wm) return;
-    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce || !('requestAnimationFrame' in window)) { wm.style.opacity = '0.96'; wm.style.transform = 'none'; return; }
-    var raf = null;
-    function update() {
-      raf = null;
-      var r = wm.getBoundingClientRect();
-      var vh = window.innerHeight || document.documentElement.clientHeight;
-      var h = r.height || 1;
-      // Key progress off the WORDMARK itself: 0 the moment its top edge reaches
-      // the viewport bottom (just rising into view), 1 once it has climbed by
-      // its own height — i.e. fully on screen as you land at the page bottom.
-      // (The old footer-rect version finished the reveal while the footer was
-      // only ~45% up, which is BEFORE the wordmark — at the footer's base —
-      // scrolls into view, so the animation was never actually seen.)
-      var p = (vh - r.top) / h;
-      p = p < 0 ? 0 : (p > 1 ? 1 : p);
-      var ease = 1 - Math.pow(1 - p, 3);            // easeOutCubic
-      // Overlap reveal: a top-inset clip wipes the letters open from the
-      // baseline up, so the word looks like it rises out from behind the
-      // copyright row above it; a lift adds the layered overlap feel.
-      wm.style.clipPath = 'inset(' + ((1 - ease) * 100).toFixed(1) + '% 0 0 0)';
-      wm.style.transform = 'translate3d(0,' + ((1 - ease) * 52).toFixed(1) + 'px,0)';
-    }
-    function onScroll() { if (!raf) raf = requestAnimationFrame(update); }
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll, { passive: true });
-    update();
-  }
+  /* The footer wordmark's scroll-linked parallax is GONE with the SVG it was
+     written for. It keyed progress off the wordmark's OWN height — fine for a
+     full-bleed 190px <text>, a snap for the 34px plain-text span that replaced
+     it, and MEASURED at 390 it left the mark on `clip-path: inset(100%)` (i.e.
+     entirely invisible) for every scroll position short of the very bottom.
+     A reveal that spans 34px is a glitch, not a reveal; the mark is simply
+     there now, which also drops a scroll listener and a `will-change:clip-path`
+     layer from every page on the site. */
 
   // ============================================================
   // Nav pricing — hydrate the menu "from $X" chips from MAM_CONFIG.pricing so
@@ -1490,6 +1541,11 @@
   // doesn't exist when JS is off, where it'd be inert anyway.
   function initBackToTop() {
     if (document.querySelector('.to-top')) return;
+    // Touch keeps one bottom-docked surface at a time (see initNav). This FAB
+    // was never in the dock — fixed at z-index 901 against the dock's 950 — so
+    // it overlapped whatever was there and was painted over. It returns on a
+    // pointer-fine desktop, where there is room in the corner for one.
+    if (window.matchMedia && window.matchMedia('(max-width: 1024px), (pointer: coarse)').matches) return;
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'to-top';
@@ -1647,9 +1703,9 @@
     // others from running — otherwise a single failure could, for example,
     // leave the scroll-reveal section headers stuck at opacity:0.
     [initPreloader, initNav, initAuthNav, initActiveNav, initHero, initSmoothScroll, initFaq, initAnimations,
-     initCountdown, initTestimonials, initCookie, initToolbar, initCurrency, initPromoBanner,
+     initCountdown, initTestimonials, initAnnounce, initCookie, initToolbar, initCurrency, initPromoBanner,
      initNewsletter, initFilters, initImageFallback, initYear, initScholarship,
-     initFooterWordmark, initNavPricing, initGraphics, initBackToTop].forEach(function (fn) {
+     initFooterGroups, initNavPricing, initGraphics, initBackToTop].forEach(function (fn) {
       try { fn(); } catch (e) { if (window.console) console.error('[MAM] init failed:', fn.name, e); }
     });
 

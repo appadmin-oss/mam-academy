@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:wght@600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<style>
+  html, body { margin: 0; background: #14100B; }
+  a { color: #FCC647; }
+  a:hover { color: #FDE9A8; }
+</style>
+</helmet>
+
+<div style="font-family:'Inter',-apple-system,sans-serif;color:#FCF8F3;padding:40px;display:flex;flex-direction:column;gap:40px">
+
+  <div style="display:flex;flex-direction:column;gap:10px;max-width:900px">
+    <div style="font-size:11px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#FCC647">Site chrome · header, menu, footer</div>
+    <h1 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:34px;font-weight:700;line-height:1.15;margin:0">145px of header, four bottom-docked surfaces, forty links behind one hamburger.</h1>
+    <p style="font-size:14.5px;line-height:1.65;color:rgba(252,248,243,0.74);margin:0">Measured from <code style="color:#FCC647">partials/header.html</code>, <code style="color:#FCC647">partials/footer.html</code> and <code style="color:#FCC647">assets/css/main.css</code>. Left column is what ships today at 390px; right is the proposal.</p>
+  </div>
+
+  <!-- ══════════════════ HEADER ══════════════════ -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:13px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin:0">1 · The header</h2>
+    <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:rgba(252,248,243,0.58)">Today — chrome ends at 145px; first word of content at 171px</div>
+        <div data-screen-label="Chrome current header" style="width:390px;height:700px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative">
+
+          <div style="background:linear-gradient(90deg,#E8961F,#F7A823,#E8961F);color:#1A120B;font-size:11.84px;font-weight:600;padding:7px 14px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;text-align:center;line-height:1.35">
+            <span style="width:6px;height:6px;border-radius:50%;background:#1A120B;opacity:0.55"></span>
+            <span>September 2026 intake is now open — <strong>limited seats</strong> remaining</span>
+            <a href="#1" style="color:#1A120B;font-weight:800;text-decoration:underline">Reserve your seat →</a>
+          </div>
+
+          <div style="padding:10px 14px 0">
+            <div style="height:64px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 14px;background:rgba(18,13,8,0.72);border:1px solid rgba(232,201,160,0.20);border-radius:24px;box-shadow:0 12px 40px rgba(0,0,0,0.34)">
+              <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                <img src="mam-academy-logo.svg" alt="" style="width:38px;height:38px;border-radius:10px;border:1px solid rgba(224,138,26,0.4);box-shadow:0 0 48px rgba(252,198,71,0.28);flex-shrink:0">
+                <span style="font-family:'Bebas Neue',Impact,sans-serif;font-size:18.88px;letter-spacing:0.06em;line-height:1;background:linear-gradient(135deg,#FCC647,#E8961F);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap">MAM ACADEMY</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                <span style="padding:9px 12px;font-size:11.52px;font-weight:600;color:rgba(252,248,243,0.90);border:1px solid rgba(232,201,160,0.36);border-radius:12px;white-space:nowrap">Sign in</span>
+                <span style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,0.07);border:1px solid rgba(232,201,160,0.20);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;flex-shrink:0">
+                  <span style="width:20px;height:2px;background:#FCF8F3;border-radius:1px"></span>
+                  <span style="width:20px;height:2px;background:#FCF8F3;border-radius:1px"></span>
+                  <span style="width:20px;height:2px;background:#FCF8F3;border-radius:1px"></span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:26px 20px 0;display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647">The academy</div>
+            <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:28px;line-height:1.12;color:#FCF8F3">Page content starts here</div>
+            <div data-probe="cur-content" style="font-size:14px;line-height:1.6;color:rgba(252,248,243,0.58)">Chrome ends at 145px, this line at 171px. The dock below is 304px of a 700px screen.</div>
+          </div>
+
+          <span data-probe="totop" style="position:absolute;left:18px;bottom:20px;z-index:901;width:48px;height:48px;border-radius:50%;border:1px solid rgba(224,138,26,0.45);background:rgba(18,13,8,0.74);display:grid;place-items:center;color:#FCC647;box-shadow:0 10px 30px rgba(0,0,0,0.4)"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></span>
+
+          <div data-probe="dock" style="position:absolute;left:0;right:0;bottom:0;z-index:950;display:flex;flex-direction:column-reverse;align-items:center;gap:10px;padding:0 12px 12px">
+            <span data-probe="pill" style="align-self:flex-end;min-height:44px;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:100px;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B;font-size:13.76px;font-weight:800;letter-spacing:0.05em;box-shadow:0 8px 32px rgba(224,138,26,0.5)"><i class="fa-solid fa-music" aria-hidden="true"></i>Apply Now</span>
+
+            <div data-probe="lead" style="width:100%;box-sizing:border-box;background:linear-gradient(135deg,#1A120B,#251A10);border:1px solid rgba(245,168,35,0.55);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,0.5);display:flex;align-items:center;gap:14px;padding:12px 16px">
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.35"><strong style="font-size:15.2px;color:#fff;font-weight:800">Next intake is open</strong></span>
+              <span style="flex-shrink:0;display:inline-flex;align-items:center;gap:8px;padding:11px 14px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;font-weight:800;font-size:12.8px;letter-spacing:0.04em;text-transform:uppercase;border-radius:100px">Apply</span>
+              <span style="flex-shrink:0;color:rgba(252,248,243,0.74);font-size:25.6px;line-height:1;padding:4px 8px">×</span>
+            </div>
+
+            <div data-probe="cookie" style="width:100%;box-sizing:border-box;padding:12px 16px;background:rgba(26,18,11,0.97);border:1px solid rgba(245,168,35,0.55);border-radius:14px;box-shadow:0 24px 64px rgba(20,12,4,0.46);display:flex;flex-direction:column;align-items:stretch;gap:10px">
+              <div style="font-size:13.12px;line-height:1.5;color:rgba(252,248,243,0.90)">We use only essential cookies and local storage to remember your application draft and preferences. <span style="color:#FCC647;text-decoration:underline">Learn more</span>.</div>
+              <div style="display:flex;gap:8px">
+                <span style="flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid rgba(232,201,160,0.36);font-size:13.44px;font-weight:700;color:rgba(252,248,243,0.90)">Decline</span>
+                <span style="flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B;font-size:13.44px;font-weight:800">Accept</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="width:390px;display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ headerFaults }}" as="f" hint-placeholder-count="4">
+            <div style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.5;color:rgba(252,248,243,0.74)">
+              <i class="fa-solid fa-circle-exclamation" aria-hidden="true" style="color:#F0436A;font-size:11px;margin-top:4px;flex-shrink:0"></i>
+              <span>{{ f }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:#FCC647">Proposed — chrome ends at 102px; first word at 129px</div>
+        <div data-screen-label="Chrome new header" style="width:390px;height:700px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative">
+
+          <div style="height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;background:rgba(26,18,11,0.92);border-bottom:1px solid rgba(232,201,160,0.16)">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <img src="mam-academy-logo.svg" alt="" style="width:30px;height:30px;border-radius:8px;flex-shrink:0">
+              <span style="font-family:'Bebas Neue',Impact,sans-serif;font-size:19px;letter-spacing:0.07em;line-height:1;color:#FCC647;white-space:nowrap">MAM ACADEMY</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+              <span style="min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;color:rgba(252,248,243,0.90)"><i class="fa-solid fa-magnifying-glass" aria-hidden="true" style="font-size:15px"></i></span>
+              <span style="min-width:44px;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px">
+                <span style="width:20px;height:2px;background:#FCF8F3;border-radius:1px"></span>
+                <span style="width:20px;height:2px;background:#FCF8F3;border-radius:1px"></span>
+              </span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;min-height:44px;padding:0 6px 0 16px;background:rgba(252,198,71,0.10);border-bottom:1px solid rgba(232,201,160,0.16)">
+            <span style="width:6px;height:6px;border-radius:50%;background:#FCC647;flex-shrink:0"></span>
+            <span style="flex:1;min-width:0;font-size:12.5px;line-height:1.4;color:rgba(252,248,243,0.90);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">September intake open · <span style="color:#FCC647;font-weight:700">Apply</span></span>
+            <span style="min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;color:rgba(252,248,243,0.58);flex-shrink:0"><i class="fa-solid fa-xmark" aria-hidden="true" style="font-size:14px"></i></span>
+          </div>
+
+          <div style="padding:26px 20px 0;display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647">The academy</div>
+            <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:28px;line-height:1.12;color:#FCF8F3">Page content starts here</div>
+            <div data-probe="new-content" style="font-size:14px;line-height:1.6;color:rgba(252,248,243,0.58)">43px of chrome back, 42px to the first word — and the strip closes for good once dismissed.</div>
+          </div>
+
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:12px 16px 18px;background:rgba(26,18,11,0.96);border-top:1px solid rgba(232,201,160,0.16);display:flex;align-items:center;gap:12px">
+            <span style="flex:1;min-width:0;font-size:12.5px;line-height:1.45;color:rgba(252,248,243,0.74)">Essential cookies only. <span style="color:#FCC647">Details</span></span>
+            <span style="min-height:44px;display:flex;align-items:center;padding:0 20px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:13.5px;font-weight:800;flex-shrink:0">OK</span>
+          </div>
+        </div>
+        <div style="width:390px;display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ headerFixes }}" as="f" hint-placeholder-count="4">
+            <div style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.5;color:rgba(252,248,243,0.74)">
+              <i class="fa-solid fa-check" aria-hidden="true" style="color:#FCC647;font-size:11px;margin-top:4px;flex-shrink:0"></i>
+              <span>{{ f }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════ MENU ══════════════════ -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:13px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin:0">2 · The menu</h2>
+    <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:rgba(252,248,243,0.58)">Today — 4 tiles, 5 accordions, 40 links, Disciplines opened</div>
+        <div data-screen-label="Chrome current menu" style="box-sizing:border-box;width:390px;background:rgba(18,13,8,0.98);border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;padding:22px 20px 40px;display:flex;flex-direction:column;gap:0">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px">
+            <sc-for list="{{ quickTiles }}" as="q" hint-placeholder-count="4">
+              <div style="{{ q.style }}">
+                <i class="{{ q.icon }}" aria-hidden="true" style="font-size:16.8px"></i>
+                <span style="font-size:12px;font-weight:700;line-height:1.1;text-align:center">{{ q.label }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <sc-for list="{{ currentMenu }}" as="s" hint-placeholder-count="5">
+            <div style="display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:52px;font-size:15px;font-weight:650;color:rgba(252,248,243,0.90)">
+                <span>{{ s.name }}</span>
+                <i class="{{ s.chev }}" aria-hidden="true" style="font-size:12px;color:#E8961F"></i>
+              </div>
+              <sc-if value="{{ s.open }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-direction:column;padding-bottom:8px">
+                  <sc-for list="{{ s.items }}" as="it" hint-placeholder-count="13">
+                    <span style="font-size:14.4px;padding:10px 18px;color:rgba(252,248,243,0.74);line-height:1.4">{{ it }}</span>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div style="min-height:52px;display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:650;color:rgba(252,248,243,0.90)"><span>Blog</span><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" style="font-size:11px;opacity:0.7"></i></div>
+          <div style="margin:20px 0 8px;padding:16px;text-align:center;font-weight:800;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B;border-radius:20px;letter-spacing:0.04em;font-size:15px">Apply Now</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:#FCC647">Proposed — search first, 2 actions, 5 rows, nothing nested twice</div>
+        <div data-screen-label="Chrome new menu" style="width:390px;background:rgba(26,18,11,0.98);border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;display:flex;flex-direction:column">
+
+          <div style="height:56px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;border-bottom:1px solid rgba(232,201,160,0.16)">
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74)">Menu</span>
+            <span style="min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center;color:#FCF8F3"><i class="fa-solid fa-xmark" aria-hidden="true" style="font-size:17px"></i></span>
+          </div>
+
+          <div style="padding:18px 20px 28px;display:flex;flex-direction:column;gap:22px">
+
+            <div style="display:flex;align-items:center;gap:12px;min-height:48px;padding:0 16px;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58)">
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true" style="font-size:14px"></i>
+              <span style="font-size:16px">Search courses, pages, tools</span>
+            </div>
+
+            <div style="display:flex;gap:10px">
+              <span style="flex:1;min-height:50px;display:flex;align-items:center;justify-content:center;gap:9px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Apply</span>
+              <span style="flex:1;min-height:50px;display:flex;align-items:center;justify-content:center;gap:9px;border-radius:12px;border:1.5px solid rgba(232,201,160,0.36);color:#FCF8F3;font-size:15px;font-weight:700">Sign in</span>
+            </div>
+
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ newMenu }}" as="m" hint-placeholder-count="7">
+                <div style="display:flex;align-items:center;gap:14px;min-height:56px;border-bottom:1px solid rgba(232,201,160,0.16)">
+                  <i class="{{ m.icon }}" aria-hidden="true" style="width:20px;text-align:center;font-size:14px;color:rgba(252,248,243,0.58);flex-shrink:0"></i>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                    <span style="font-size:15.5px;font-weight:650;color:#FCF8F3;line-height:1.3">{{ m.name }}</span>
+                    <span style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.35">{{ m.desc }}</span>
+                  </span>
+                  <i class="{{ m.chev }}" aria-hidden="true" style="font-size:12px;color:rgba(252,248,243,0.58);flex-shrink:0"></i>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:0 20px">
+              <sc-for list="{{ newMenuMinor }}" as="mm" hint-placeholder-count="5">
+                <span style="min-height:40px;display:flex;align-items:center;font-size:13.5px;color:rgba(252,248,243,0.74)">{{ mm }}</span>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════ FOOTER ══════════════════ -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:13px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin:0">3 · The footer</h2>
+    <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:rgba(252,248,243,0.58)">Today — 35 links in one vertical run, then a stretched wordmark</div>
+        <div data-screen-label="Chrome current footer" style="box-sizing:border-box;width:390px;background:#1A120B;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;padding:36px 20px 0;display:flex;flex-direction:column;gap:30px">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <img src="mam-academy-logo.svg" alt="" style="width:40px;height:40px;border-radius:10px">
+              <span style="font-family:'Bebas Neue',Impact,sans-serif;font-size:24px;letter-spacing:0.06em;background:linear-gradient(135deg,#FCC647,#E8961F);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">MAM ACADEMY</span>
+            </div>
+            <div style="font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:16px;color:rgba(252,248,243,0.90)">Crafting the Timeless in Time</div>
+            <p style="font-size:14.08px;color:rgba(252,248,243,0.74);line-height:1.7;margin:0">A Creative Intelligence and Performance Academy — part of the MAM Centre ecosystem. Forming complete musicians, online and onsite.</p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ footerContact }}" as="fc" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:10px;font-size:13.76px;color:rgba(252,248,243,0.74)"><i class="{{ fc.icon }}" aria-hidden="true" style="width:16px;text-align:center;color:#E8961F"></i><span>{{ fc.text }}</span></div>
+              </sc-for>
+            </div>
+          </div>
+          <sc-for list="{{ footerCols }}" as="fcol" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="font-size:13px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#FCF8F3">{{ fcol.title }}</div>
+              <div style="display:flex;flex-direction:column;gap:9px">
+                <sc-for list="{{ fcol.items }}" as="fi" hint-placeholder-count="12">
+                  <span style="font-size:13.76px;color:rgba(252,248,243,0.74);line-height:1.4">{{ fi }}</span>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="font-size:13px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:#FCF8F3">Stay in the Music</div>
+            <p style="font-size:13.6px;color:rgba(252,248,243,0.74);line-height:1.55;margin:0">Monthly updates on intakes, workshops and student showcases.</p>
+            <div style="display:flex;gap:10px;align-items:center">
+              <span style="flex:1;min-width:0;box-sizing:border-box;padding:13px 14px;background:rgba(255,255,255,0.05);border:1px solid rgba(232,201,160,0.20);border-radius:12px;color:rgba(252,248,243,0.58);font-size:15px">you@example.com</span>
+              <span style="width:46px;height:46px;flex-shrink:0;border-radius:50%;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B;display:flex;align-items:center;justify-content:center"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></span>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <sc-for list="{{ socials }}" as="so" hint-placeholder-count="4">
+              <span style="width:40px;height:40px;border-radius:50%;border:1px solid rgba(232,201,160,0.20);background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;color:rgba(252,248,243,0.90)"><i class="{{ so }}" aria-hidden="true"></i></span>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px 18px">
+            <sc-for list="{{ legal }}" as="lg" hint-placeholder-count="4">
+              <span style="font-size:13.12px;color:rgba(252,248,243,0.74)">{{ lg }}</span>
+            </sc-for>
+          </div>
+          <p style="font-size:12.5px;color:rgba(252,248,243,0.58);margin:0">© 2026 MAM Academy — a MAM Centre company. All rights reserved.</p>
+          <div style="font-family:'Bebas Neue',Impact,sans-serif;font-size:66px;line-height:0.8;letter-spacing:-0.01em;text-align:center;background:linear-gradient(180deg,#FDE9A8,#FCC647 50%,#E8961F);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;transform:scaleX(1.18);transform-origin:center bottom">MAM CENTRE</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:#FCC647">Proposed — four collapsed groups, contact kept open, wordmark to scale</div>
+        <div data-screen-label="Chrome new footer" style="box-sizing:border-box;width:390px;background:#1A120B;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;padding:32px 20px 24px;display:flex;flex-direction:column;gap:26px">
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <img src="mam-academy-logo.svg" alt="" style="width:30px;height:30px;border-radius:8px">
+              <span style="font-family:'Bebas Neue',Impact,sans-serif;font-size:20px;letter-spacing:0.07em;color:#FCC647">MAM ACADEMY</span>
+            </div>
+            <div style="font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:15.5px;color:rgba(252,248,243,0.74)">Crafting the Timeless in Time</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <span style="min-height:48px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Apply to the Academy</span>
+            <div style="display:flex;gap:10px">
+              <sc-for list="{{ footerContactNew }}" as="fc" hint-placeholder-count="2">
+                <span style="flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;gap:8px;border:1.5px solid rgba(232,201,160,0.30);border-radius:12px;font-size:13.5px;font-weight:650;color:rgba(252,248,243,0.90)"><i class="{{ fc.icon }}" aria-hidden="true" style="font-size:13px;color:#FCC647"></i>{{ fc.label }}</span>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column">
+            <sc-for list="{{ footerGroups }}" as="g" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:54px;border-bottom:1px solid rgba(232,201,160,0.16)">
+                <span style="font-size:15px;font-weight:650;color:#FCF8F3">{{ g.title }}</span>
+                <span style="display:flex;align-items:center;gap:12px;flex-shrink:0">
+                  <span style="font-size:12.5px;color:rgba(252,248,243,0.58)">{{ g.count }}</span>
+                  <i class="fa-solid fa-chevron-down" aria-hidden="true" style="font-size:11px;color:rgba(252,248,243,0.58)"></i>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.90)">Monthly notes on intakes and showcases</span>
+            <div style="display:flex;gap:10px;align-items:center">
+              <span style="flex:1;min-width:0;box-sizing:border-box;padding:0 2px;border-bottom:1.5px solid rgba(232,201,160,0.36);color:rgba(252,248,243,0.58);font-size:16px;min-height:48px;display:flex;align-items:center">you@example.com</span>
+              <span style="min-height:44px;display:flex;align-items:center;padding:0 18px;border-radius:12px;border:1.5px solid #FCC647;color:#FCC647;font-size:13.5px;font-weight:700;flex-shrink:0">Sign up</span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:20px;border-top:1px solid rgba(232,201,160,0.16)">
+            <div style="display:flex;gap:16px">
+              <sc-for list="{{ socials }}" as="so" hint-placeholder-count="4">
+                <span style="min-width:40px;min-height:40px;display:flex;align-items:center;justify-content:center;color:rgba(252,248,243,0.74)"><i class="{{ so }}" aria-hidden="true" style="font-size:15px"></i></span>
+              </sc-for>
+            </div>
+            <span style="font-size:12.5px;color:rgba(252,248,243,0.58)">© 2026</span>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:0 18px">
+            <sc-for list="{{ legal }}" as="lg" hint-placeholder-count="4">
+              <span style="min-height:40px;display:flex;align-items:center;font-size:12.5px;color:rgba(252,248,243,0.58)">{{ lg }}</span>
+            </sc-for>
+          </div>
+
+          <div style="font-family:'Bebas Neue',Impact,sans-serif;font-size:34px;line-height:1;letter-spacing:0.14em;text-align:center;color:rgba(232,201,160,0.24)">MAM CENTRE</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════ DESKTOP ══════════════════ -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:13px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin:0">4 · Scaled up · 1280px</h2>
+
+    <div data-screen-label="Chrome new desktop header" style="width:1280px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:20px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 40px;background:rgba(252,198,71,0.10);border-bottom:1px solid rgba(232,201,160,0.16)">
+        <span style="width:6px;height:6px;border-radius:50%;background:#FCC647"></span>
+        <span style="font-size:13px;color:rgba(252,248,243,0.90)">September 2026 intake is open — <span style="color:#FCC647;font-weight:700">limited seats</span></span>
+        <span style="margin-left:auto;font-size:13px;font-weight:700;color:#FCC647">Reserve your seat</span>
+        <span style="min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center;color:rgba(252,248,243,0.58);margin-left:16px"><i class="fa-solid fa-xmark" aria-hidden="true" style="font-size:13px"></i></span>
+      </div>
+      <div style="height:64px;display:flex;align-items:center;gap:32px;padding:0 40px;border-bottom:1px solid rgba(232,201,160,0.16)">
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+          <img src="mam-academy-logo.svg" alt="" style="width:32px;height:32px;border-radius:8px">
+          <span style="font-family:'Bebas Neue',Impact,sans-serif;font-size:21px;letter-spacing:0.07em;color:#FCC647">MAM ACADEMY</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <sc-for list="{{ deskNav }}" as="n" hint-placeholder-count="6">
+            <span style="{{ n.style }}">{{ n.label }}<sc-if value="{{ n.chev }}" hint-placeholder-val="{{ true }}"><i class="fa-solid fa-chevron-down" aria-hidden="true" style="font-size:9px;opacity:0.7;margin-left:6px"></i></sc-if></span>
+          </sc-for>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-shrink:0">
+          <span style="min-width:40px;min-height:40px;display:flex;align-items:center;justify-content:center;color:rgba(252,248,243,0.74)"><i class="fa-solid fa-magnifying-glass" aria-hidden="true" style="font-size:14px"></i></span>
+          <span style="min-height:40px;display:flex;align-items:center;padding:0 16px;border:1px solid rgba(232,201,160,0.36);border-radius:10px;font-size:13.5px;font-weight:650;color:rgba(252,248,243,0.90)">Sign in</span>
+          <span style="min-height:40px;display:flex;align-items:center;padding:0 20px;border-radius:10px;background:#FCC647;color:#1A120B;font-size:13.5px;font-weight:800">Apply</span>
+        </div>
+      </div>
+      <div style="padding:40px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647">The academy</div>
+        <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:40px;line-height:1.08;color:#FCF8F3">One bar, flush to the edge</div>
+        <p style="font-size:15px;line-height:1.65;color:rgba(252,248,243,0.74);margin:0;max-width:62ch">The floating pill, the 24px radius and the 12px offset go. Nav links return at ≥1024px; the mega menus keep their columns but lose the photographic spotlight — it was the widest thing in the chrome and the slowest to paint.</p>
+      </div>
+    </div>
+
+    <div data-screen-label="Chrome new desktop footer" style="box-sizing:border-box;width:1280px;background:#1A120B;border:1px solid rgba(232,201,160,0.20);border-radius:20px;overflow:hidden;padding:48px 40px 28px;display:flex;flex-direction:column;gap:36px">
+      <div style="display:grid;grid-template-columns:1.4fr repeat(3,1fr) 1.1fr;gap:48px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <img src="mam-academy-logo.svg" alt="" style="width:32px;height:32px;border-radius:8px">
+            <span style="font-family:'Bebas Neue',Impact,sans-serif;font-size:21px;letter-spacing:0.07em;color:#FCC647">MAM ACADEMY</span>
+          </div>
+          <div style="font-family:'Cormorant Garamond',Georgia,serif;font-style:italic;font-size:16px;color:rgba(252,248,243,0.74)">Crafting the Timeless in Time</div>
+          <p style="font-size:13.5px;color:rgba(252,248,243,0.58);line-height:1.6;margin:0">A Creative Intelligence and Performance Academy — part of the MAM Centre ecosystem.</p>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+            <sc-for list="{{ footerContact }}" as="fc" hint-placeholder-count="3">
+              <span style="display:flex;align-items:center;gap:10px;font-size:13.5px;color:rgba(252,248,243,0.74)"><i class="{{ fc.icon }}" aria-hidden="true" style="width:15px;text-align:center;color:#FCC647;font-size:12px"></i>{{ fc.text }}</span>
+            </sc-for>
+          </div>
+        </div>
+        <sc-for list="{{ footerCols }}" as="fcol" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+            <div style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:rgba(252,248,243,0.58)">{{ fcol.title }}</div>
+            <div style="display:flex;flex-direction:column;gap:9px">
+              <sc-for list="{{ fcol.items }}" as="fi" hint-placeholder-count="6">
+                <span style="font-size:13.5px;color:rgba(252,248,243,0.90);line-height:1.4">{{ fi }}</span>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:rgba(252,248,243,0.58)">Stay in the music</div>
+          <p style="font-size:13.5px;color:rgba(252,248,243,0.58);line-height:1.55;margin:0">Monthly notes on intakes and showcases.</p>
+          <span style="box-sizing:border-box;padding:0 2px;border-bottom:1.5px solid rgba(232,201,160,0.36);color:rgba(252,248,243,0.58);font-size:15px;min-height:44px;display:flex;align-items:center">you@example.com</span>
+          <span style="min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1.5px solid #FCC647;color:#FCC647;font-size:13.5px;font-weight:700">Sign up</span>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:24px;padding-top:24px;border-top:1px solid rgba(232,201,160,0.16)">
+        <div style="display:flex;gap:16px">
+          <sc-for list="{{ socials }}" as="so" hint-placeholder-count="4">
+            <span style="min-width:36px;min-height:36px;display:flex;align-items:center;justify-content:center;color:rgba(252,248,243,0.74)"><i class="{{ so }}" aria-hidden="true" style="font-size:14px"></i></span>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:22px;margin-left:auto">
+          <sc-for list="{{ legal }}" as="lg" hint-placeholder-count="4">
+            <span style="font-size:13px;color:rgba(252,248,243,0.58)">{{ lg }}</span>
+          </sc-for>
+        </div>
+        <span style="font-size:13px;color:rgba(252,248,243,0.58)">© 2026 MAM Academy</span>
+      </div>
+
+      <div style="font-family:'Bebas Neue',Impact,sans-serif;font-size:76px;line-height:1;letter-spacing:0.3em;text-align:center;color:rgba(232,201,160,0.20)">MAM CENTRE</div>
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      headerFaults: [
+        'Announce bar wraps to two lines at 390px, then scrolls away for good — nothing keeps the intake message.',
+        'The navbar is a floating pill: top:10px, margin-top:10px, 24px radius, a 28px horizontal inset and a 40px shadow. 124px of viewport before content.',
+        'Four breakpoints exist only to stop the brand overflowing — the wordmark shrinks 1.45rem → 1.18 → 1.05 → 1rem and Sign in becomes font-size:0.',
+        '#mamDock correctly stacks the Apply pill, lead.js\u2019s CTA bar and the cookie banner — but on first visit that stack is 304px of a 700px screen, over half the content area. And back-to-top was never enrolled in it: fixed, z-index 901 against the dock\u2019s 950, it overlaps the stack by 50\u00d750px and is painted over.'
+      ],
+      headerFixes: [
+        'One 56px bar, flush to the top edge, opaque. No radius, no inset, no offset, no shadow — 94px to content, and it never reflows.',
+        'The strip is one line with an ellipsis and a real close button; dismissal persists. It sits under the bar so the bar never moves.',
+        'Only two controls in the bar: search and menu. Sign in moves into the menu, where it has room for a label.',
+        'The dock carries one surface at a time on touch. Back-to-top and the Apply pill go \u2014 the bar carries Apply and the menu is one tap away \u2014 so the routine that stacks them has nothing left to stack.'
+      ],
+      quickTiles: [
+        { label: 'Apply', icon: 'fa-solid fa-music', style: 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:12px 3px;min-height:68px;border-radius:12px;background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B;border:1px solid transparent' },
+        { label: 'Sign in', icon: 'fa-solid fa-right-to-bracket', style: 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:12px 3px;min-height:68px;border-radius:12px;background:rgba(255,255,255,0.07);border:1px solid rgba(232,201,160,0.20);color:rgba(252,248,243,0.90)' },
+        { label: 'Studio', icon: 'fa-solid fa-wand-magic-sparkles', style: 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:12px 3px;min-height:68px;border-radius:12px;background:rgba(255,255,255,0.07);border:1px solid rgba(232,201,160,0.20);color:rgba(252,248,243,0.90)' },
+        { label: 'Store', icon: 'fa-solid fa-bag-shopping', style: 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:12px 3px;min-height:68px;border-radius:12px;background:rgba(255,255,255,0.07);border:1px solid rgba(232,201,160,0.20);color:rgba(252,248,243,0.90)' }
+      ],
+      currentMenu: [
+        { name: 'About', open: false, chev: 'fa-solid fa-chevron-down', items: [] },
+        { name: 'Pathways', open: false, chev: 'fa-solid fa-chevron-down', items: [] },
+        {
+          name: 'Disciplines', open: true, chev: 'fa-solid fa-chevron-up',
+          items: [
+            'Piano & Keyboard', 'Violin & Strings', 'Guitar', 'Drums & Percussion',
+            'Wind & Brass', 'Voice & Choir', 'Music Theory & Ear',
+            'THE FOUR SCHOOLS', 'Instrumental Intelligence', 'Performance Intelligence',
+            'Rhythm Intelligence', 'MetaMusic & Consciousness', 'All four schools'
+          ]
+        },
+        { name: 'Experiences', open: false, chev: 'fa-solid fa-chevron-down', items: [] }
+      ],
+      newMenu: [
+        { name: 'Apply to a pathway', desc: 'Certified · Grand · Crash — compare and start', icon: 'fa-solid fa-graduation-cap', chev: 'fa-solid fa-chevron-right' },
+        { name: 'What you can study', desc: 'Seven disciplines across four schools', icon: 'fa-solid fa-music', chev: 'fa-solid fa-chevron-right' },
+        { name: 'The MAM Method', desc: 'How the training works, and why', icon: 'fa-solid fa-compass', chev: 'fa-solid fa-chevron-right' },
+        { name: 'Practice Studio', desc: 'Free tools — tuner, metronome, notation', icon: 'fa-solid fa-wand-magic-sparkles', chev: 'fa-solid fa-arrow-right' },
+        { name: 'Store', desc: 'Books, scores and merchandise', icon: 'fa-solid fa-bag-shopping', chev: 'fa-solid fa-arrow-right' },
+        { name: 'Experiences', desc: 'MetaMusic Order · Power Play · Auditer', icon: 'fa-solid fa-fire', chev: 'fa-solid fa-chevron-right' },
+        { name: 'Teach at MAM', desc: 'Faculty application', icon: 'fa-solid fa-chalkboard-user', chev: 'fa-solid fa-arrow-right' }
+      ],
+      newMenuMinor: ['FAQ', 'Contact', 'Blog ↗', 'Privacy', 'Scholarships'],
+      footerContact: [
+        { icon: 'fa-solid fa-envelope', text: 'academy@mamcentre.org' },
+        { icon: 'fa-solid fa-phone', text: '+234 704 444 6517' },
+        { icon: 'fa-solid fa-location-dot', text: 'MAM Centre · Lagos, Nigeria' }
+      ],
+      footerContactNew: [
+        { icon: 'fa-solid fa-envelope', label: 'Email us' },
+        { icon: 'fa-solid fa-phone', label: 'Call us' }
+      ],
+      footerCols: [
+        {
+          title: 'Schools',
+          items: ['Instrumental Intelligence', 'Performance Intelligence', 'Rhythm Intelligence', 'MetaMusic & Consciousness', 'The MetaMusic Order']
+        },
+        {
+          title: 'Pathways',
+          items: ['Certified Musician', 'Grand Musician', 'Crash Courses', 'MetaMusic Order', 'Compare Pathways', 'Book a Session']
+        },
+        {
+          title: 'Academy',
+          items: ['About', 'How It Works', 'Faculty', 'MAM Auditer', 'Apply for a Scholarship', 'MAM Scholars Initiative', 'Practice Studio', 'Notation Showcase', 'Store', 'Power Play', 'FAQ', 'Contact', 'Portals — Student · Instructor · Admin']
+        }
+      ],
+      footerGroups: [
+        { title: 'Schools', count: '5' },
+        { title: 'Pathways', count: '6' },
+        { title: 'Academy', count: '12' },
+        { title: 'Portals', count: '3' }
+      ],
+      socials: ['fa-brands fa-instagram', 'fa-brands fa-x-twitter', 'fa-brands fa-facebook-f', 'fa-brands fa-youtube'],
+      legal: ['Privacy', 'Terms of Service', 'Class Policies', 'Sitemap'],
+      deskNav: ['About', 'Pathways', 'Disciplines', 'Studio', 'Store', 'Experiences'].map((label, i) => ({
+        label,
+        chev: i === 0 || i === 1 || i === 2 || i === 5,
+        style: 'display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:10px;font-size:13.5px;font-weight:500;white-space:nowrap;'
+          + (i === 1 ? 'color:#FCC647;background:rgba(255,255,255,0.07)' : 'color:rgba(252,248,243,0.90)')
+      }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>

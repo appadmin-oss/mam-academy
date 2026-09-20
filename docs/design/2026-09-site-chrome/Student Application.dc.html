@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cormorant+Garamond:wght@600;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<style>
+  html, body { margin: 0; background: #14100B; }
+  a { color: #FCC647; }
+  a:hover { color: #FDE9A8; }
+</style>
+</helmet>
+
+<div style="font-family:'Inter',-apple-system,sans-serif;color:#FCF8F3;padding:40px;display:flex;flex-direction:column;gap:36px">
+
+  <div style="display:flex;flex-direction:column;gap:10px;max-width:900px">
+    <div style="font-size:11px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#FCC647">Student application · /apply</div>
+    <h1 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:34px;font-weight:700;line-height:1.15;margin:0">"Step 1 of 5" is seven questions and 38 choices on one scroll.</h1>
+    <p style="font-size:14.5px;line-height:1.65;color:rgba(252,248,243,0.74);margin:0">From <code style="color:#FCC647">apply.php</code>. The progress bar promises five steps; step 1 asks mode, programme, level, expression, focus area, primary course and minors before the Continue button. Same treatment as the instructor form — one question per screen, hairlines instead of boxes, one accent.</p>
+  </div>
+
+  <!-- ══════ STEP 1 ══════ -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:13px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin:0">1 · The programme step</h2>
+    <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:rgba(252,248,243,0.58)">Today — one screen, ~4,600px of scroll</div>
+        <div data-screen-label="Apply current step 1" style="box-sizing:border-box;width:390px;height:1180px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative">
+          <div style="box-sizing:border-box;height:100%;overflow:hidden;padding:20px 16px;display:flex;flex-direction:column;gap:16px">
+
+            <div style="display:flex;gap:4px;align-items:flex-start">
+              <sc-for list="{{ oldStepper }}" as="s" hint-placeholder-count="5">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0">
+                  <span style="{{ s.dot }}">{{ s.n }}</span>
+                  <span style="font-size:11.52px;color:rgba(252,248,243,0.58);text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%">{{ s.name }}</span>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;background:#2A2119;border:1px solid rgba(232,201,160,0.20);border-radius:16px">
+              <span style="font-size:13.5px;font-weight:650;color:rgba(252,248,243,0.90)"><i class="fa-solid fa-receipt" aria-hidden="true" style="color:#FCC647;margin-right:8px"></i>Your selection</span>
+              <span style="display:flex;align-items:center;gap:10px"><span style="font-size:15px;font-weight:800;color:#FCC647">$0</span><i class="fa-solid fa-chevron-down" aria-hidden="true" style="font-size:11px;color:rgba(252,248,243,0.58)"></i></span>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="font-size:11.84px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647">Step 1 of 5 · Programme</div>
+              <h3 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:23.2px;font-weight:700;line-height:1.2;margin:0">Choose Your Programme</h3>
+              <p style="font-size:14.5px;color:rgba(252,248,243,0.74);line-height:1.6;margin:0">A few quick choices — the form adapts as you go. Don't overthink it: you can change anything before payment, and <span style="color:#FCC647">MAM Auditer</span> will fine-tune your placement.</p>
+            </div>
+
+            <sc-for list="{{ oldSubsteps }}" as="ss" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="width:24px;height:24px;flex-shrink:0;border-radius:50%;background:rgba(224,138,26,0.18);border:1px solid rgba(251,191,36,0.35);color:#FCC647;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center">{{ ss.n }}</span>
+                  <span style="font-size:14.5px;font-weight:700;color:#FCF8F3">{{ ss.title }}</span>
+                </div>
+                <div style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.45">{{ ss.meta }}</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <sc-for list="{{ ss.cards }}" as="cd" hint-placeholder-count="4">
+                    <div style="display:flex;flex-direction:column;gap:6px;padding:14px;background:#2A2119;border:1.5px solid rgba(232,201,160,0.36);border-radius:14px;min-height:96px">
+                      <span style="font-size:14px;font-weight:700;color:#FCF8F3;line-height:1.25">{{ cd.t }}</span>
+                      <span style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.45">{{ cd.d }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+
+            <div style="font-size:13px;color:rgba(252,248,243,0.58);text-align:center;padding:8px 0">Then: level, expression, a focus-area select with 11 options, 14 more course cards, and the minors grid.</div>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(180deg,rgba(33,26,19,0),#211A13 70%);display:flex;align-items:flex-end;justify-content:center;padding-bottom:16px">
+            <span style="font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.58)"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i> 3,400px more before Continue</span>
+          </div>
+        </div>
+        <div style="width:390px;display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ applyFaults }}" as="f" hint-placeholder-count="4">
+            <div style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.5;color:rgba(252,248,243,0.74)">
+              <i class="fa-solid fa-circle-exclamation" aria-hidden="true" style="color:#F0436A;font-size:11px;margin-top:4px;flex-shrink:0"></i>
+              <span>{{ f }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:#FCC647">Proposed — 1a · one question, two answers</div>
+        <div data-screen-label="Apply new 1a mode" style="box-sizing:border-box;width:390px;height:1180px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 14px">
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74)">1 of 5 · Programme</span>
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px">Save &amp; exit</span>
+          </div>
+          <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:6%;background:#FCC647"></span></div>
+
+          <div style="padding:26px 20px;display:flex;flex-direction:column;gap:22px">
+            <h3 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:29px;font-weight:700;line-height:1.12;margin:0">How will you learn?</h3>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ modeRows }}" as="m" hint-placeholder-count="2">
+                <div style="{{ m.wrap }}">
+                  <span style="{{ m.mark }}"><sc-if value="{{ m.on }}" hint-placeholder-val="{{ true }}"><i class="fa-solid fa-check" aria-hidden="true" style="font-size:11px"></i></sc-if></span>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                    <span style="font-size:16px;font-weight:700;color:#FCF8F3;line-height:1.3">{{ m.title }}</span>
+                    <span style="font-size:13px;color:rgba(252,248,243,0.58);line-height:1.45">{{ m.desc }}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+            <p style="font-size:13px;color:rgba(252,248,243,0.58);line-height:1.55;margin:0">Everything here can change before you pay.</p>
+          </div>
+
+          <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 20px 20px;background:#1A120B;border-top:1px solid rgba(232,201,160,0.16)">
+            <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.74)">Question 1 of 6</span>
+            <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 26px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Next <i class="fa-solid fa-arrow-right" aria-hidden="true" style="font-size:12px"></i></span>
+          </div>
+        </div>
+        <div style="width:390px;display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ applyFixes }}" as="f" hint-placeholder-count="4">
+            <div style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.5;color:rgba(252,248,243,0.74)">
+              <i class="fa-solid fa-check" aria-hidden="true" style="color:#FCC647;font-size:11px;margin-top:4px;flex-shrink:0"></i>
+              <span>{{ f }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:#FCC647">1b · programme — price visible at the point of choice</div>
+        <div data-screen-label="Apply new 1b programme" style="box-sizing:border-box;width:390px;height:1180px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 14px">
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74)"><i class="fa-solid fa-arrow-left" aria-hidden="true" style="font-size:12px"></i> 1 of 5 · Programme</span>
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px">Save &amp; exit</span>
+          </div>
+          <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:12%;background:#FCC647"></span></div>
+
+          <div style="padding:26px 20px;display:flex;flex-direction:column;gap:22px">
+            <h3 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:29px;font-weight:700;line-height:1.12;margin:0">Which programme?</h3>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ pathwayRows }}" as="p" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:14px;min-height:72px;border-bottom:1px solid rgba(232,201,160,0.16)">
+                  <span style="{{ p.mark }}"><sc-if value="{{ p.on }}" hint-placeholder-val="{{ true }}"><i class="fa-solid fa-check" aria-hidden="true" style="font-size:11px"></i></sc-if></span>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                    <span style="{{ p.name }}">{{ p.title }}</span>
+                    <span style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.4">{{ p.desc }}</span>
+                  </span>
+                  <span style="font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.74);flex-shrink:0;text-align:right;line-height:1.3">{{ p.tag }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <p style="font-size:13px;color:rgba(252,248,243,0.58);line-height:1.55;margin:0">Tuition is discussed after your Auditer assessment — nothing beyond the $5 seat fee is charged today.</p>
+          </div>
+
+          <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 20px 20px;background:#1A120B;border-top:1px solid rgba(232,201,160,0.16)">
+            <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.74)">Question 2 of 6</span>
+            <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 26px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Next <i class="fa-solid fa-arrow-right" aria-hidden="true" style="font-size:12px"></i></span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:#FCC647">1c · course — 14 cards become a searchable list</div>
+        <div data-screen-label="Apply new 1c course" style="box-sizing:border-box;width:390px;height:1180px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 14px">
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74)"><i class="fa-solid fa-arrow-left" aria-hidden="true" style="font-size:12px"></i> 1 of 5 · Programme</span>
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px">Save &amp; exit</span>
+          </div>
+          <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:18%;background:#FCC647"></span></div>
+
+          <div style="padding:26px 20px 0;display:flex;flex-direction:column;gap:18px;min-height:0">
+            <h3 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:29px;font-weight:700;line-height:1.12;margin:0">What will you major in?</h3>
+
+            <div style="display:flex;align-items:center;gap:12px;min-height:48px;padding:0 16px;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58)">
+              <i class="fa-solid fa-magnifying-glass" aria-hidden="true" style="font-size:14px"></i>
+              <span style="font-size:16px">Search 14 courses</span>
+            </div>
+
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ courseRows }}" as="c" hint-placeholder-count="9">
+                <div style="display:flex;align-items:center;gap:14px;min-height:58px;border-bottom:1px solid rgba(232,201,160,0.16)">
+                  <span style="{{ c.mark }}"><sc-if value="{{ c.on }}" hint-placeholder-val="{{ true }}"><i class="fa-solid fa-check" aria-hidden="true" style="font-size:11px"></i></sc-if></span>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                    <span style="{{ c.name }}">{{ c.title }}</span>
+                    <span style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.35">{{ c.desc }}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 20px 20px;background:#1A120B;border-top:1px solid rgba(232,201,160,0.16)">
+            <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.74)">Question 3 of 6</span>
+            <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 26px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Next <i class="fa-solid fa-arrow-right" aria-hidden="true" style="font-size:12px"></i></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════ STEPS 2-5 ══════ -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <h2 style="font-size:13px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin:0">2 · Profile, background, review, payment</h2>
+    <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start">
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:rgba(252,248,243,0.58)">Today — step 2 is 15 fields, six of them address</div>
+        <div data-screen-label="Apply current step 2" style="box-sizing:border-box;width:390px;height:1000px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative;padding:22px 16px">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="font-size:11.84px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647">Step 2 of 5</div>
+            <h3 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:23.2px;font-weight:700;margin:0">Student Profile</h3>
+            <sc-for list="{{ oldProfileRows }}" as="row" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:{{ row.cols }};gap:12px">
+                <sc-for list="{{ row.fields }}" as="fd" hint-placeholder-count="2">
+                  <div style="display:flex;flex-direction:column;gap:7px;min-width:0">
+                    <span style="font-size:11.84px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(252,248,243,0.90);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ fd.l }}</span>
+                    <span style="box-sizing:border-box;padding:13px 14px;background:#4A3B2B;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58);font-size:15px;min-height:48px;display:flex;align-items:center;overflow:hidden;white-space:nowrap">{{ fd.p }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <span style="font-size:11.84px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(252,248,243,0.90)">Sex *</span>
+              <div style="display:flex;gap:8px">
+                <sc-for list="{{ oldSexPills }}" as="sx" hint-placeholder-count="3">
+                  <span style="flex:1;min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 8px;background:#2A2119;border:1.5px solid rgba(232,201,160,0.36);border-radius:999px;font-size:12.5px;font-weight:600;color:rgba(252,248,243,0.90);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sx }}</span>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <span style="font-size:11.84px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(252,248,243,0.90)">Parent / Guardian *</span>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <span style="box-sizing:border-box;padding:13px 14px;background:#4A3B2B;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58);font-size:15px;min-height:48px;display:flex;align-items:center;overflow:hidden;white-space:nowrap">Guardian name</span>
+                <span style="box-sizing:border-box;padding:13px 14px;background:#4A3B2B;border:1.5px solid rgba(232,201,160,0.36);border-radius:12px;color:rgba(252,248,243,0.58);font-size:15px;min-height:48px;display:flex;align-items:center;overflow:hidden;white-space:nowrap">Guardian phone</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <span style="font-size:11.84px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:rgba(252,248,243,0.90)">Headshot *</span>
+              <div style="box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:220px;padding:24px;background:linear-gradient(180deg,rgba(224,138,26,0.05),#4A3B2B);border:1.5px dashed rgba(245,168,35,0.55);border-radius:20px;text-align:center">
+                <i class="fa-solid fa-arrow-up" aria-hidden="true" style="font-size:28px;color:#FCC647"></i>
+                <strong style="font-size:15px;color:#FCF8F3">Add a photo</strong>
+                <span style="font-size:12.5px;color:rgba(252,248,243,0.74);line-height:1.5">Drag one in, or tap to choose.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:#FCC647">Proposed — who · where · when, in three passes</div>
+        <div data-screen-label="Apply new 2 profile" style="box-sizing:border-box;width:390px;height:1000px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 14px">
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74)"><i class="fa-solid fa-arrow-left" aria-hidden="true" style="font-size:12px"></i> 2 of 5 · Profile</span>
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px">Save &amp; exit</span>
+          </div>
+          <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:40%;background:#FCC647"></span></div>
+
+          <div style="padding:26px 20px;display:flex;flex-direction:column;gap:20px">
+            <h3 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:29px;font-weight:700;line-height:1.12;margin:0">Who is studying?</h3>
+
+            <div style="display:flex;flex-direction:column;gap:18px">
+              <sc-for list="{{ newProfile }}" as="f" hint-placeholder-count="5">
+                <label style="display:flex;flex-direction:column;gap:8px">
+                  <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.90)">{{ f.label }}</span>
+                  <span style="box-sizing:border-box;padding:0 2px;border-bottom:1.5px solid rgba(232,201,160,0.36);color:rgba(252,248,243,0.58);font-size:16px;min-height:48px;display:flex;align-items:center">{{ f.ph }}</span>
+                  <sc-if value="{{ f.help }}" hint-placeholder-val="{{ true }}">
+                    <span style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.45">{{ f.help }}</span>
+                  </sc-if>
+                </label>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:14px;padding-top:16px;border-top:1px solid rgba(232,201,160,0.16)">
+              <span style="width:48px;height:48px;border-radius:50%;border:1.5px solid rgba(232,201,160,0.36);display:flex;align-items:center;justify-content:center;color:rgba(252,248,243,0.74);flex-shrink:0"><i class="fa-solid fa-camera" aria-hidden="true"></i></span>
+              <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                <span style="font-size:14px;font-weight:650;color:rgba(252,248,243,0.90)">Add your headshot</span>
+                <span style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.4">For your student tag and roster</span>
+              </span>
+              <i class="fa-solid fa-chevron-right" aria-hidden="true" style="font-size:12px;color:rgba(252,248,243,0.58)"></i>
+            </div>
+
+            <p style="font-size:13px;color:rgba(252,248,243,0.58);line-height:1.55;margin:0">Address comes next, on its own screen — your phone can autofill it in one tap.</p>
+          </div>
+
+          <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 20px 20px;background:#1A120B;border-top:1px solid rgba(232,201,160,0.16)">
+            <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.74)">Draft saved</span>
+            <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 26px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Next <i class="fa-solid fa-arrow-right" aria-hidden="true" style="font-size:12px"></i></span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-size:12px;font-weight:700;color:#FCC647">4 · review — every line editable in place</div>
+        <div data-screen-label="Apply new 4 review" style="box-sizing:border-box;width:390px;height:1000px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:26px;overflow:hidden;position:relative;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px 14px">
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74)"><i class="fa-solid fa-arrow-left" aria-hidden="true" style="font-size:12px"></i> 4 of 5 · Review</span>
+            <span style="font-size:13px;font-weight:700;color:rgba(252,248,243,0.74);padding:6px 2px">Save &amp; exit</span>
+          </div>
+          <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:80%;background:#FCC647"></span></div>
+
+          <div style="padding:26px 20px;display:flex;flex-direction:column;gap:20px">
+            <h3 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:29px;font-weight:700;line-height:1.12;margin:0">Check it over</h3>
+
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ reviewRows }}" as="r" hint-placeholder-count="6">
+                <div style="display:flex;align-items:center;gap:14px;min-height:54px;border-bottom:1px solid rgba(232,201,160,0.16)">
+                  <span style="width:96px;flex-shrink:0;font-size:12.5px;color:rgba(252,248,243,0.58)">{{ r.k }}</span>
+                  <span style="flex:1;min-width:0;font-size:14px;font-weight:650;color:#FCF8F3;line-height:1.35">{{ r.v }}</span>
+                  <span style="font-size:13px;font-weight:700;color:#FCC647;flex-shrink:0">Edit</span>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-top:4px">
+              <span style="font-size:14px;font-weight:650;color:rgba(252,248,243,0.90)">Due today</span>
+              <span style="font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;font-weight:700;color:#FCC647;line-height:1">$5</span>
+            </div>
+            <p style="font-size:13px;color:rgba(252,248,243,0.58);line-height:1.55;margin:0">Registration, student ID, student file and a 30-minute Auditer assessment. Tuition is not charged here.</p>
+
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <sc-for list="{{ applyConsents }}" as="cn" hint-placeholder-count="2">
+                <label style="display:flex;gap:14px;align-items:flex-start">
+                  <span style="width:24px;height:24px;flex-shrink:0;border:1.5px solid rgba(232,201,160,0.36);border-radius:6px;margin-top:2px"></span>
+                  <span style="font-size:13.8px;color:rgba(252,248,243,0.90);line-height:1.6">{{ cn }}</span>
+                </label>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 20px 20px;background:#1A120B;border-top:1px solid rgba(232,201,160,0.16)">
+            <span style="font-size:13px;font-weight:650;color:rgba(252,248,243,0.74)"><i class="fa-solid fa-lock" aria-hidden="true" style="font-size:11px;margin-right:6px"></i>Secure</span>
+            <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 24px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Pay $5</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════ DESKTOP ══════ -->
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <h2 style="font-size:13px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:#FCC647;margin:0">3 · Scaled up · 1280px — the six questions become one page, summary alongside</h2>
+    <div data-screen-label="Apply new desktop" style="box-sizing:border-box;width:1280px;background:#211A13;border:1px solid rgba(232,201,160,0.20);border-radius:20px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 48px 18px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <img src="mam-academy-logo.svg" alt="" style="width:30px;height:30px;border-radius:8px">
+          <span style="font-size:13.5px;font-weight:700;color:rgba(252,248,243,0.74)">Application · Step 1 of 5 · Programme</span>
+        </div>
+        <span style="font-size:13.5px;font-weight:700;color:rgba(252,248,243,0.74)">Save &amp; exit</span>
+      </div>
+      <div style="height:2px;background:rgba(232,201,160,0.16);display:flex"><span style="width:20%;background:#FCC647"></span></div>
+
+      <div style="padding:44px 48px 52px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:0 72px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:34px;min-width:0">
+          <h3 style="font-family:'Cormorant Garamond',Georgia,serif;font-size:40px;font-weight:700;line-height:1.08;margin:0">Choose your programme</h3>
+
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <span style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:rgba(252,248,243,0.58)">How will you learn?</span>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <sc-for list="{{ modeRows }}" as="m" hint-placeholder-count="2">
+                <div style="{{ m.wrap }}">
+                  <span style="{{ m.mark }}"><sc-if value="{{ m.on }}" hint-placeholder-val="{{ true }}"><i class="fa-solid fa-check" aria-hidden="true" style="font-size:11px"></i></sc-if></span>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+                    <span style="font-size:15.5px;font-weight:700;color:#FCF8F3;line-height:1.3">{{ m.title }}</span>
+                    <span style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.45">{{ m.desc }}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <span style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:rgba(252,248,243,0.58)">Which programme?</span>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ pathwayRows }}" as="p" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:14px;min-height:64px;border-bottom:1px solid rgba(232,201,160,0.16)">
+                  <span style="{{ p.mark }}"><sc-if value="{{ p.on }}" hint-placeholder-val="{{ true }}"><i class="fa-solid fa-check" aria-hidden="true" style="font-size:11px"></i></sc-if></span>
+                  <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                    <span style="{{ p.name }}">{{ p.title }}</span>
+                    <span style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.4">{{ p.desc }}</span>
+                  </span>
+                  <span style="font-size:12.5px;font-weight:700;color:rgba(252,248,243,0.74);flex-shrink:0">{{ p.tag }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <span style="font-size:12px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:rgba(252,248,243,0.58)">What will you major in?</span>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 48px">
+              <sc-for list="{{ courseRows }}" as="c" hint-placeholder-count="9">
+                <div style="display:flex;align-items:center;gap:14px;min-height:54px;border-bottom:1px solid rgba(232,201,160,0.16)">
+                  <span style="{{ c.mark }}"><sc-if value="{{ c.on }}" hint-placeholder-val="{{ true }}"><i class="fa-solid fa-check" aria-hidden="true" style="font-size:11px"></i></sc-if></span>
+                  <span style="{{ c.name }}">{{ c.title }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:20px;padding-top:26px;border-top:1px solid rgba(232,201,160,0.16)">
+            <span style="min-height:50px;display:flex;align-items:center;gap:10px;padding:0 30px;border-radius:12px;background:#FCC647;color:#1A120B;font-size:15px;font-weight:800">Continue <i class="fa-solid fa-arrow-right" aria-hidden="true" style="font-size:12px"></i></span>
+            <span style="font-size:13.5px;color:rgba(252,248,243,0.58)">Draft saved on this device</span>
+          </div>
+        </div>
+
+        <div style="align-self:stretch;display:flex;flex-direction:column;gap:26px;padding-left:40px;border-left:1px solid rgba(232,201,160,0.16)">
+          <div style="display:flex;flex-direction:column">
+            <sc-for list="{{ deskSteps }}" as="s" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:12px;min-height:40px">
+                <span style="{{ s.dot }}"></span>
+                <span style="{{ s.label }}">{{ s.name }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:14px;padding-top:24px;border-top:1px solid rgba(232,201,160,0.16)">
+            <span style="font-size:12.5px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(252,248,243,0.58)">Your selection</span>
+            <sc-for list="{{ deskSummary }}" as="d" hint-placeholder-count="3">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+                <span style="font-size:13px;color:rgba(252,248,243,0.58)">{{ d.k }}</span>
+                <span style="font-size:13.5px;font-weight:650;color:#FCF8F3;text-align:right">{{ d.v }}</span>
+              </div>
+            </sc-for>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-top:14px;border-top:1px solid rgba(232,201,160,0.16)">
+              <span style="font-size:13.5px;font-weight:650;color:rgba(252,248,243,0.90)">Due today</span>
+              <span style="font-family:'Cormorant Garamond',Georgia,serif;font-size:26px;font-weight:700;color:#FCC647;line-height:1">$5</span>
+            </div>
+            <p style="font-size:12.5px;color:rgba(252,248,243,0.58);line-height:1.55;margin:0">Tuition is discussed only after the Auditer Judges have placed you.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  mark(on) {
+    return 'width:24px;height:24px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;'
+      + (on ? 'background:#FCC647;color:#1A120B' : 'border:1.5px solid rgba(232,201,160,0.36)');
+  }
+  name(on, size) {
+    return 'flex:1;min-width:0;font-size:' + size + 'px;line-height:1.3;'
+      + (on ? 'font-weight:700;color:#FCF8F3' : 'font-weight:500;color:rgba(252,248,243,0.90)');
+  }
+  renderVals() {
+    const card = (on) => 'display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;'
+      + (on
+        ? 'border:1.5px solid #FCC647;background:rgba(252,198,71,0.12)'
+        : 'border:1.5px solid rgba(232,201,160,0.30)');
+    return {
+      applyFaults: [
+        'The stepper says "Step 1 of 5" over seven questions and 38 choice cards — the promise and the work do not match, and the audit puts abandonment on this step at 46%.',
+        'Two of the seven questions (level, expression) appear and disappear depending on the programme, so the scroll length changes under the applicant mid-answer.',
+        'Focus area is an 11-option native select inside the same screen as 14 course cards — two different pickers for two versions of the same question.',
+        'Step 2 asks 15 fields, six of them address, in paired .field-row columns that stay two-up at 390px.'
+      ],
+      applyFixes: [
+        'One question per screen, six screens, all inside "Step 1 of 5" — the stepper keeps its promise and the sub-counter carries the detail.',
+        'Level and expression are screens in the sequence, skipped silently when the programme does not use them. Nothing reflows under the applicant.',
+        'Focus area and primary course merge into one searchable list — 14 rows, search over a select.',
+        'Profile splits who / where / when; address gets its own screen so the phone can autofill it in one tap.'
+      ],
+      oldStepper: ['Programme', 'Profile', 'Background', 'Review', 'Payment'].map((name, i) => ({
+        name, n: i + 1,
+        dot: 'width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:800;'
+          + (i === 0
+            ? 'background:linear-gradient(135deg,#E8961F,#F7A823);color:#1A120B'
+            : 'background:#352A1F;border:1.5px solid rgba(232,201,160,0.36);color:rgba(252,248,243,0.58)')
+      })),
+      oldSubsteps: [
+        {
+          n: 1, title: 'How will you learn?', meta: 'Online from anywhere · onsite in Lagos',
+          cards: [
+            { t: 'Online', d: 'Live video classes, digital assignments, virtual rehearsals — from anywhere.' },
+            { t: 'Onsite Lagos', d: 'Physical lessons, ensemble training, live stagecraft at MAM Centre.' }
+          ]
+        },
+        {
+          n: 2, title: 'Pick a programme', meta: 'From a single crash course to the full Grand Musician path',
+          cards: [
+            { t: 'Crash Programme', d: '6-week accelerated intensive — one course, flat fee, no levels.' },
+            { t: 'Standard', d: 'One course at your chosen level — the core single-discipline path.' },
+            { t: 'Certified Musician', d: 'A major course + the four compulsory MAM courses.' },
+            { t: 'Grand Musician', d: 'All three expressions — African, Classical & Contemporary.' }
+          ]
+        },
+      ],
+      oldSexPills: ['Female', 'Male', 'Prefer not to say'],
+      modeRows: [
+        { title: 'Online', desc: 'Live video classes from anywhere', on: true, wrap: card(true), mark: this.mark(true) },
+        { title: 'Onsite, Lagos', desc: 'Lessons and ensembles at MAM Centre', on: false, wrap: card(false), mark: this.mark(false) }
+      ],
+      pathwayRows: [
+        { title: 'Crash', desc: 'One course, flat fee, no levels', tag: '6 weeks', on: false },
+        { title: 'Standard', desc: 'One course at your level', tag: '1 course', on: false },
+        { title: 'Certified Musician', desc: 'A major plus the four compulsory courses', tag: 'up to 5', on: true },
+        { title: 'Grand Musician', desc: 'All three expressions — the flagship path', tag: 'all 3', on: false },
+        { title: 'MetaMusic Order', desc: 'Civilization-engineering intensive', tag: '12 weeks', on: false }
+      ].map((p) => ({ ...p, mark: this.mark(p.on), name: this.name(p.on, 15.5) })),
+      courseRows: [
+        { title: 'Piano & Keyboard', desc: 'Classical, gospel & contemporary', on: true },
+        { title: 'Voice & Choir', desc: 'Breath, tone & performance', on: false },
+        { title: 'Guitar', desc: 'Classical & contemporary', on: false },
+        { title: 'Bass', desc: 'Electric & double bass', on: false },
+        { title: 'Violin / Strings', desc: 'Bow technique & ensemble', on: false },
+        { title: 'Saxophone', desc: 'Jazz, classical & afro', on: false },
+        { title: 'Drums & Percussion', desc: 'Kit, djembe, afro-rhythms', on: false },
+        { title: 'Music Theory & Ear', desc: 'Notation & aural skills', on: false },
+        { title: 'Performance Intelligence', desc: 'Stagecraft & psychology', on: false }
+      ].map((c) => ({ ...c, mark: this.mark(c.on), name: this.name(c.on, 15.5) })),
+      oldProfileRows: [
+        { cols: '1fr 1fr', fields: [{ l: 'First Name *', p: 'e.g. Tunde' }, { l: 'Last Name *', p: 'e.g. Adeyemi' }] },
+        { cols: '1fr 1fr', fields: [{ l: 'Email *', p: 'you@example.com' }, { l: 'Mobile Number *', p: '+234 800 000 0000' }] },
+        { cols: '1fr', fields: [{ l: 'Address *', p: 'Street address' }] },
+        { cols: '1fr 1fr', fields: [{ l: 'Local Government *', p: 'e.g. Alimosho' }, { l: 'City', p: 'Lagos' }] },
+        { cols: '1fr 1fr', fields: [{ l: 'State (Province) *', p: 'e.g. Lagos State' }, { l: 'Country *', p: 'Nigeria' }] },
+        { cols: '1fr', fields: [{ l: 'Date of Birth *', p: 'dd / mm / yyyy' }] }
+      ],
+      newProfile: [
+        { label: 'First name', ph: 'Tunde', help: '' },
+        { label: 'Last name', ph: 'Adeyemi', help: '' },
+        { label: 'Email', ph: 'you@example.com', help: 'Your application copy and invoice go here.' },
+        { label: 'Mobile number', ph: '+234 800 000 0000', help: '' },
+        { label: 'Date of birth', ph: 'dd / mm / yyyy', help: 'Sets your age band — under 16 adds a guardian contact.' },
+        { label: 'Sex', ph: 'Female · Male · Prefer not to say', help: '' }
+      ],
+      reviewRows: [
+        { k: 'Programme', v: 'Certified Musician · Online' },
+        { k: 'Major', v: 'Piano & Keyboard' },
+        { k: 'Level', v: 'Certificate · Grade 3-4' },
+        { k: 'Expression', v: 'Contemporary' },
+        { k: 'Student', v: 'Tunde Adeyemi · 19' },
+        { k: 'Intake', v: 'September 2026' }
+      ],
+      applyConsents: [
+        'I have read and agree to abide by the MAM Academy class policy.',
+        "I confirm the information above is accurate and agree to the Terms of Service and Privacy Policy."
+      ],
+      deskSteps: ['Programme', 'Profile', 'Background', 'Review', 'Payment'].map((name, i) => ({
+        name,
+        dot: 'width:7px;height:7px;border-radius:50%;flex-shrink:0;'
+          + (i === 0 ? 'background:#FCC647' : 'background:rgba(232,201,160,0.36)'),
+        label: 'font-size:14px;'
+          + (i === 0 ? 'font-weight:700;color:#FCF8F3' : 'font-weight:500;color:rgba(252,248,243,0.58)')
+      })),
+      deskSummary: [
+        { k: 'Mode', v: 'Online' },
+        { k: 'Programme', v: 'Certified Musician' },
+        { k: 'Major', v: 'Piano & Keyboard' }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

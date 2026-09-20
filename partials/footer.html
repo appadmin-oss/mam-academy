@@ -1,120 +1,149 @@
 <footer role="contentinfo">
   <div class="footer-inner">
     <div class="footer-grid">
+
       <div class="footer-brand">
         <div class="footer-logo">
           <img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
-          <div class="footer-logo-name">MAM ACADEMY</div>
+          <span class="footer-logo-name">MAM ACADEMY</span>
         </div>
-        <div class="footer-tagline">Crafting the Timeless in Time</div>
-        <p class="footer-about">A Creative Intelligence and Performance Academy — part of the MAM Centre ecosystem. Forming complete musicians, online and onsite.</p>
+        <p class="footer-tagline">Crafting the Timeless in Time</p>
+        <!-- The 58-word "about" paragraph is cut on phones: it is the third
+             time the same sentence appears on most pages. It stays on desktop,
+             where the brand column has the room. -->
+        <p class="footer-about">A Creative Intelligence and Performance Academy — part of the MAM Centre ecosystem.</p>
         <ul class="footer-contact">
           <li><i class="fa-solid fa-envelope" aria-hidden="true"></i><a href="mailto:academy@mamcentre.org" class="footer-link">academy@mamcentre.org</a></li>
           <li><i class="fa-solid fa-phone" aria-hidden="true"></i><a href="tel:+2347044446517" class="footer-link">+234 704 444 6517</a></li>
-          <li><i class="fa-solid fa-location-dot" aria-hidden="true"></i><span>MAM Centre · Lagos, Nigeria</span></li>
+          <li><i class="fa-solid fa-location-dot" aria-hidden="true"></i><span>MAM Centre &middot; Lagos, Nigeria</span></li>
         </ul>
       </div>
 
-      <div class="footer-col">
-        <h2 class="footer-col-title">Schools</h2>
-        <ul class="footer-link-list">
-          <li><a href="schools#instrumental" class="footer-link">Instrumental Intelligence</a></li>
-          <li><a href="schools#performance" class="footer-link">Performance Intelligence</a></li>
-          <li><a href="schools#rhythm" class="footer-link">Rhythm Intelligence</a></li>
-          <li><a href="schools#metamusic" class="footer-link">MetaMusic &amp; Consciousness</a></li>
-          <li><a href="metamusic-order" class="footer-link footer-link-icon"><iconify-icon icon="fluent-emoji:fire" width="16" aria-hidden="true"></iconify-icon>The MetaMusic Order</a></li>
-        </ul>
-      </div>
-
-      <div class="footer-col">
-        <h2 class="footer-col-title">Pathways</h2>
-        <ul class="footer-link-list">
-          <li><a href="pathways#certified-musician" class="footer-link">Certified Musician</a></li>
-          <li><a href="pathways#grand-musician" class="footer-link">Grand Musician</a></li>
-          <li><a href="crash" class="footer-link">Crash Courses</a></li>
-          <li><a href="metamusic-order" class="footer-link">MetaMusic Order</a></li>
-          <li><a href="compare" class="footer-link">Compare Pathways</a></li>
-          <li><a href="book" class="footer-link">Book a Session</a></li>
-        </ul>
-      </div>
-
-      <div class="footer-col">
-        <h2 class="footer-col-title">Academy</h2>
-        <ul class="footer-link-list">
-          <li><a href="about" class="footer-link">About</a></li>
-          <li><a href="how-it-works" class="footer-link">How It Works</a></li>
-          <li><a href="faculty" class="footer-link">Faculty</a></li>
-          <li><a href="auditer" class="footer-link">MAM Auditer</a></li>
-          <li data-scholarship-host><a href="https://mamcentre.org/scholarships/ngv" class="footer-link footer-link-icon" data-scholarship-link="url" target="_blank" rel="noopener"><i class="fa-solid fa-hand-holding-heart" aria-hidden="true"></i>Apply for a Scholarship</a></li>
-          <li><a href="scholarship" class="footer-link">MAM Scholars Initiative</a></li>
-          <li><a href="studio" class="footer-link">Practice Studio</a></li>
-          <li><a href="notation" class="footer-link">Notation Showcase</a></li>
-          <li><a href="store" class="footer-link">Store</a></li>
-          <li><a href="power-play" class="footer-link footer-link-icon"><iconify-icon icon="fluent-emoji:high-voltage" width="16" aria-hidden="true"></iconify-icon>Power Play</a></li>
-          <li><a href="faq" class="footer-link">FAQ</a></li>
-          <li><a href="contact" class="footer-link">Contact</a></li>
-        </ul>
-        <div class="footer-portals">
-          <h2 class="footer-col-title footer-col-title-sm">Portals</h2>
-          <ul class="footer-link-list footer-link-list-tight">
-            <li><a href="portal/login" class="footer-link footer-link-icon"><i class="fa-solid fa-graduation-cap" aria-hidden="true"></i>Student</a></li>
-            <li><a href="portal/login" class="footer-link footer-link-icon"><i class="fa-solid fa-chalkboard-user" aria-hidden="true"></i>Instructor</a></li>
-            <li><a href="admin/" class="footer-link footer-link-icon"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i>Admin</a></li>
-          </ul>
+      <!-- Contact details are the most-used thing in a footer and used to be
+           plain text among 35 links. On a phone they are two of the three
+           actions; on desktop the brand column states them and this block
+           stands down. -->
+      <div class="footer-actions">
+        <a href="apply" class="footer-apply">Apply to the Academy</a>
+        <div class="footer-contact-row">
+          <a href="mailto:academy@mamcentre.org" class="footer-contact-btn"><i class="fa-solid fa-envelope" aria-hidden="true"></i>Email us</a>
+          <a href="tel:+2347044446517" class="footer-contact-btn"><i class="fa-solid fa-phone" aria-hidden="true"></i>Call us</a>
         </div>
       </div>
 
+      <!-- Four groups instead of 35 links in one vertical run. <details>, so
+           they collapse and expand with no JS at all; main.js only forces them
+           open at the desktop breakpoint, where they are columns. -->
+      <div class="footer-groups">
+
+        <details class="footer-group">
+          <summary class="footer-group-head">
+            <span class="footer-group-title">Schools</span>
+            <span class="footer-group-meta"><span class="footer-group-count">5</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>
+          </summary>
+          <ul class="footer-link-list">
+            <li><a href="schools#instrumental" class="footer-link">Instrumental Intelligence</a></li>
+            <li><a href="schools#performance" class="footer-link">Performance Intelligence</a></li>
+            <li><a href="schools#rhythm" class="footer-link">Rhythm Intelligence</a></li>
+            <li><a href="schools#metamusic" class="footer-link">MetaMusic &amp; Consciousness</a></li>
+            <li><a href="metamusic-order" class="footer-link">The MetaMusic Order</a></li>
+          </ul>
+        </details>
+
+        <details class="footer-group">
+          <summary class="footer-group-head">
+            <span class="footer-group-title">Pathways</span>
+            <span class="footer-group-meta"><span class="footer-group-count">6</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>
+          </summary>
+          <ul class="footer-link-list">
+            <li><a href="pathways#certified-musician" class="footer-link">Certified Musician</a></li>
+            <li><a href="pathways#grand-musician" class="footer-link">Grand Musician</a></li>
+            <li><a href="crash" class="footer-link">Crash Courses</a></li>
+            <li><a href="metamusic-order" class="footer-link">MetaMusic Order</a></li>
+            <li><a href="compare" class="footer-link">Compare Pathways</a></li>
+            <li><a href="book" class="footer-link">Book a Session</a></li>
+          </ul>
+        </details>
+
+        <details class="footer-group">
+          <summary class="footer-group-head">
+            <span class="footer-group-title">Academy</span>
+            <span class="footer-group-meta"><span class="footer-group-count">12</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>
+          </summary>
+          <ul class="footer-link-list">
+            <li><a href="about" class="footer-link">About</a></li>
+            <li><a href="how-it-works" class="footer-link">How It Works</a></li>
+            <li><a href="faculty" class="footer-link">Faculty</a></li>
+            <li><a href="auditer" class="footer-link">MAM Auditer</a></li>
+            <li data-scholarship-host><a href="https://mamcentre.org/scholarships/ngv" class="footer-link" data-scholarship-link="url" target="_blank" rel="noopener">Apply for a Scholarship</a></li>
+            <li><a href="scholarship" class="footer-link">MAM Scholars Initiative</a></li>
+            <li><a href="studio" class="footer-link">Practice Studio</a></li>
+            <li><a href="notation" class="footer-link">Notation Showcase</a></li>
+            <li><a href="store" class="footer-link">Store</a></li>
+            <li><a href="power-play" class="footer-link">Power Play</a></li>
+            <li><a href="faq" class="footer-link">FAQ</a></li>
+            <li><a href="contact" class="footer-link">Contact</a></li>
+          </ul>
+        </details>
+
+        <details class="footer-group">
+          <summary class="footer-group-head">
+            <span class="footer-group-title">Portals</span>
+            <span class="footer-group-meta"><span class="footer-group-count">3</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>
+          </summary>
+          <ul class="footer-link-list">
+            <li><a href="portal/login" class="footer-link">Student</a></li>
+            <li><a href="portal/login" class="footer-link">Instructor</a></li>
+            <li><a href="admin/" class="footer-link">Admin</a></li>
+          </ul>
+        </details>
+
+      </div>
+
+      <!-- Baseline input + a LABELLED button. The 46px gradient circle with a
+           bare paper-plane glyph was an unlabelled icon button as the only way
+           to submit. -->
       <div class="footer-newsletter">
         <h2 class="footer-col-title">Stay in the Music</h2>
-        <p>Monthly updates on intakes, workshops and student showcases.</p>
+        <p>Monthly notes on intakes and showcases.</p>
         <form class="footer-newsletter-form" id="newsletterForm" novalidate>
-          <input type="email" class="footer-newsletter-input" id="newsletterEmail" placeholder="you@example.com" aria-label="Email" required>
-          <button type="submit" class="footer-newsletter-btn" aria-label="Subscribe"><i class="fa-solid fa-paper-plane"></i></button>
+          <label class="sr-only" for="newsletterEmail">Your email address</label>
+          <input type="email" class="footer-newsletter-input" id="newsletterEmail" placeholder="you@example.com" autocomplete="email" required>
+          <button type="submit" class="footer-newsletter-btn">Sign up</button>
         </form>
         <div class="footer-newsletter-msg" id="newsletterMsg">Thanks — check your inbox.</div>
       </div>
+
     </div>
 
     <div class="footer-meta">
       <div class="footer-socials">
-        <a href="https://instagram.com/mamacademy1" class="footer-social" target="_blank" rel="noopener" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a>
-        <a href="https://twitter.com/mamacademy1" class="footer-social" target="_blank" rel="noopener" aria-label="Twitter / X"><i class="fa-brands fa-x-twitter"></i></a>
-        <a href="https://facebook.com/mamacademy1" class="footer-social" target="_blank" rel="noopener" aria-label="Facebook"><i class="fa-brands fa-facebook-f"></i></a>
-        <a href="https://youtube.com/mamacademy1" class="footer-social" target="_blank" rel="noopener" aria-label="YouTube"><i class="fa-brands fa-youtube"></i></a>
+        <a href="https://instagram.com/mamacademy1" class="footer-social" target="_blank" rel="noopener" aria-label="Instagram"><i class="fa-brands fa-instagram" aria-hidden="true"></i></a>
+        <a href="https://twitter.com/mamacademy1" class="footer-social" target="_blank" rel="noopener" aria-label="Twitter / X"><i class="fa-brands fa-x-twitter" aria-hidden="true"></i></a>
+        <a href="https://facebook.com/mamacademy1" class="footer-social" target="_blank" rel="noopener" aria-label="Facebook"><i class="fa-brands fa-facebook-f" aria-hidden="true"></i></a>
+        <a href="https://youtube.com/mamacademy1" class="footer-social" target="_blank" rel="noopener" aria-label="YouTube"><i class="fa-brands fa-youtube" aria-hidden="true"></i></a>
       </div>
-      <nav class="footer-legal" aria-label="Legal & policies">
+      <nav class="footer-legal" aria-label="Legal &amp; policies">
         <a href="privacy" class="footer-legal-link">Privacy</a>
         <a href="terms" class="footer-legal-link">Terms of Service</a>
         <a href="policies" class="footer-legal-link">Class Policies</a>
         <a href="sitemap.xml" class="footer-legal-link">Sitemap</a>
       </nav>
+      <p class="footer-copy">&copy; <span id="year">2026</span> MAM Academy</p>
     </div>
-
-    <p class="footer-copy">© <span id="year">2026</span> MAM Academy — a MAM Centre company. All rights reserved.</p>
   </div>
 
-  <!-- Parent-brand signature wordmark. Decorative full-bleed mark; links to the
-       MAM Centre ecosystem. The SVG stretches "MAM CENTRE" edge-to-edge via
-       textLength so it always spans the viewport like the reference layout. -->
-  <a class="footer-wordmark" href="https://mamcentre.org" target="_blank" rel="noopener" aria-label="MAM Centre — the parent ecosystem">
-    <svg viewBox="0 0 1200 210" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
-      <defs>
-        <linearGradient id="mamWordmarkFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#FDE9A8"/>
-          <stop offset="0.5" stop-color="#FCC647"/>
-          <stop offset="1" stop-color="#E8961F"/>
-        </linearGradient>
-      </defs>
-      <text x="600" y="176" text-anchor="middle" textLength="1184" lengthAdjust="spacingAndGlyphs">MAM CENTRE</text>
-    </svg>
-  </a>
+  <!-- Parent-brand signature wordmark. Plain text at its natural size: the SVG
+       stretched "MAM CENTRE" to textLength:1184, which on a 390px screen drew
+       it at 66px and 1.18x wide. -->
+  <a class="footer-wordmark" href="https://mamcentre.org" target="_blank" rel="noopener" aria-label="MAM Centre — the parent ecosystem"><span aria-hidden="true">MAM CENTRE</span></a>
 </footer>
 
 <aside class="cookie-banner" id="cookieBanner" aria-label="Cookie notice">
-  <div class="cookie-text">We use only essential cookies and local storage to remember your application draft and preferences. <a href="privacy">Learn more</a>.</div>
+  <div class="cookie-text">Essential cookies only — they remember your application draft and preferences. <a href="privacy">Details</a>.</div>
   <div class="cookie-actions">
     <button class="cookie-btn cookie-btn-decline" id="cookieDecline">Decline</button>
-    <button class="cookie-btn cookie-btn-accept" id="cookieAccept">Accept</button>
+    <button class="cookie-btn cookie-btn-accept" id="cookieAccept">OK</button>
   </div>
 </aside>
 
