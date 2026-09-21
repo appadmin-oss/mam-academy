@@ -197,3 +197,105 @@ foreach (['student', 'instructor'] as $who) {
     t_ok(!preg_match('/<p style="[^"]*"><a href="\/portal\//', $classic),
         "…and the style-attribute version of it is gone");
 }
+
+/* ── The accessibility findings from the 2026-09-21 UX audit ─────────────── */
+
+/* Each of these was MEASURED in a browser and each is invisible to a static
+   read of the markup, so what is pinned here is the mechanism that fixes it —
+   the cheapest thing to delete by accident. The measurements are in
+   docs/HANDOFF.md §4s. */
+t_group('the v2 portals — audited accessibility invariants');
+
+$APPS = [
+    'student'    => $ROOT . '/assets/js/portal-student.js',
+    'instructor' => $ROOT . '/assets/js/portal-instructor.js',
+    'guardian'   => $ROOT . '/assets/js/portal-guardian.js',
+];
+$MARKUP = [
+    'student'    => $ROOT . '/portal/student/index.html',
+    'instructor' => $ROOT . '/portal/instructor/index.html',
+    'guardian'   => $ROOT . '/portal/parent/index.html',
+];
+
+foreach ($APPS as $who => $file) {
+    $j = preg_replace(['~/\*.*?\*/~s', '~^\s*//.*$~m'], '', (string) @file_get_contents($file));
+
+    /* The More sheet declares `role="dialog" aria-modal="true"`, which tells a
+       screen reader the rest of the page is inert. Setting `hidden = false`
+       and nothing else makes that a lie: focus stays behind the sheet, Tab
+       walks out of it, and Escape does nothing — on a sheet whose rows
+       include Sign out. Same family as the `role="menu"` the site chrome
+       removed for promising a keyboard contract it never implemented. */
+    t_ok((bool) preg_match('/function openSheet\(/', $j), "$who: opening the sheet goes through one function");
+    t_ok((bool) preg_match("/key === 'Escape'/", $j), "$who: Escape closes the sheet");
+    t_ok((bool) preg_match("/key !== 'Tab'/", $j), "$who: Tab is trapped inside the sheet");
+    t_ok((bool) preg_match('/sheetReturn/', $j), "$who: focus returns to the control that opened it");
+    t_ok((bool) preg_match('/first\.focus\(\)/', $j), "$who: focus moves INTO the sheet on open");
+
+    /* An ERROR is not a polite status. `role="status"` is queued until the
+       screen reader is idle, and a message that auto-hides after five seconds
+       is often the only record that the thing the reader pressed did not
+       happen. */
+    t_ok((bool) preg_match("/'alert' : 'status'/", $j), "$who: a failure is announced as an alert, not a status");
+    t_ok((bool) preg_match("/'assertive' : 'polite'/", $j), "$who: …assertively");
+    t_ok((bool) preg_match('/if \(!bad\) (toastTimer|.*setTimeout)/', $j),
+        "$who: only a SUCCESS times out — an error waits to be dismissed");
+    t_ok((bool) preg_match("/closest\('#toastClose'\)/", $j), "$who: and the dismiss control is wired");
+}
+foreach ($MARKUP as $who => $file) {
+    $m = (string) @file_get_contents($file);
+    t_ok(strpos($m, 'id="toastClose"') !== false, "$who: the toast carries a dismiss control");
+    t_ok((bool) preg_match('/id="toastClose"[^>]*aria-label=/', $m), "…with an accessible name");
+}
+
+/* ⚠️ Focus moves on the PAINT, not on the navigation. Every screen fetches, so
+   `go()` returns while #main still holds the previous screen — focusing there
+   finds the OLD heading and the repaint destroys it, dropping focus to <body>
+   so the next Tab restarts at the skip link. One-shot, because paint() also
+   runs after a write and pulling focus would throw the reader out of the card
+   they are working in. */
+foreach (['student', 'instructor'] as $who) {
+    $j = preg_replace('~/\*.*?\*/~s', '', (string) @file_get_contents($APPS[$who]));
+    t_ok((bool) preg_match('/pendingFocus = true;\s*\n\s*SCREENS\[screen\]/', $j),
+        "$who: the focus move is ARMED by go() …");
+    t_ok((bool) preg_match('/if \(pendingFocus\) \{\s*pendingFocus = false;/', $j),
+        "$who: … and consumed by paint(), once");
+}
+
+/* ⚠️ 16px is a FLOOR: Safari on iOS auto-zooms on focus below it and does not
+   zoom back out, which on a phone-first portal is the highest-frequency
+   mobile defect available. */
+t_ok((bool) preg_match('/\.p-field select,\s*\n\[data-portal="v2"\] \.p-field textarea \{[^}]*font: 400 16px/s', $css),
+    'every form control is at least 16px, or iOS zooms the page on focus');
+t_ok((bool) preg_match('/\.p-field select/', $css), '…including <select>');
+
+/* WCAG 2.3.3 asks for non-essential motion to be disableable; a PROGRESS
+   INDICATOR is the named exemption. The blanket `* { animation: none }` under
+   reduced motion froze the loading spinner into an icon that says the page
+   has hung. */
+t_ok((bool) preg_match('/prefers-reduced-motion[^}]*\}\s*\n\s*\/\*.*?\*\/\s*\n\s*\[data-portal="v2"\] \.p-spin \{ animation:/s', $css),
+    'reduced motion slows the loading spinner rather than stopping it');
+
+/* A loading state that appears and vanishes inside 300ms reads as a glitch.
+   MEASURED: a screen repaints in 15–42ms locally, and seconds on the mobile
+   data these screens are built for — so the indicator is DELAYED, not
+   dropped. */
+$sj = preg_replace('~/\*.*?\*/~s', '', (string) @file_get_contents($APPS['student']));
+t_ok((bool) preg_match('/function deferLoading\(/', $sj), 'the loading state is deferred, not painted immediately');
+t_ok((bool) preg_match('/setTimeout\(function \(\) \{ main\.innerHTML = loading\(what\); \}, 300\)/', $sj),
+    '…by 300ms, the floor below which an indicator is a flicker');
+t_ok(!preg_match('/paint\(loading\(/', $sj), 'and no screen paints a loading state synchronously');
+
+/* The waiver request is a FORM. `window.prompt` ignores the design system and
+   the reader's text-size setting, has no persistent label, and can only
+   return one string — so every request was filed under `other` while the
+   server offers seven codes and the payload ships them. A queue where every
+   row reads "Other approved reason" cannot be triaged. */
+t_ok(!preg_match('/window\.prompt/', $sj), 'no window.prompt anywhere in the student app');
+t_ok((bool) preg_match('/S\.money && S\.money\.exception_reasons/', $sj),
+    'the reason codes are the SERVER\'s, read from the payload');
+t_ok(!preg_match("/reason_code: 'other'/", $sj), 'and none is hardcoded');
+t_ok((bool) preg_match('/aria-describedby="waiveErr-/', $sj),
+    'the validation error is associated with the control that failed');
+t_ok((bool) preg_match("/setAttribute\('aria-invalid', 'true'\)/", $sj),
+    '…and the control is marked invalid, not only coloured');

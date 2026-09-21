@@ -62,15 +62,25 @@
   /* Feedback. `tone` is 'info' | 'good' | 'bad'; the icon and the words carry the
      meaning as well as the colour, because colour alone is not a signal (§4). */
   var toastTimer = null;
+  /* ⚠️ An ERROR is not a polite status, and it does not time out. The element
+     is declared `role="status" aria-live="polite"`, which a screen reader
+     queues until it is idle — right for "Saved", wrong for "that did not
+     save". A failure is swapped to `alert`/assertive and stays until it is
+     dismissed, because it is often the only record that the thing the reader
+     pressed did not happen. Successes still clear themselves. */
   function toast(msg, tone) {
-    var el = $('#toast'), txt = $('#toastText'), ico = el.querySelector('i');
+    var el = $('#toast'), txt = $('#toastText'), ico = el.querySelector('i'), bad = tone === 'bad';
     txt.textContent = msg;
-    el.className = 'p-toast' + (tone === 'bad' ? ' is-bad' : tone === 'good' ? ' is-good' : '');
-    ico.className = 'fa-solid ' + (tone === 'bad' ? 'fa-triangle-exclamation'
+    el.className = 'p-toast' + (bad ? ' is-bad' : tone === 'good' ? ' is-good' : '');
+    ico.className = 'fa-solid ' + (bad ? 'fa-triangle-exclamation'
                      : tone === 'good' ? 'fa-circle-check' : 'fa-circle-info');
+    el.setAttribute('role', bad ? 'alert' : 'status');
+    el.setAttribute('aria-live', bad ? 'assertive' : 'polite');
+    var close = $('#toastClose');
+    if (close) close.hidden = !bad;
     el.hidden = false;
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.hidden = true; }, tone === 'bad' ? 8000 : 5000);
+    if (!bad) toastTimer = setTimeout(function () { el.hidden = true; }, 5000);
   }
 
   /**
@@ -973,13 +983,23 @@
     window.scrollTo(0, 0);
   }
 
-  function openSheet() {
+  var sheetReturn = null;
+  function openSheet(trigger) {
     var sh = $('#sheet');
+    sheetReturn = trigger || document.activeElement;
     sh.hidden = false;
     var first = sh.querySelector('.p-row');
     if (first) first.focus();
   }
-  function closeSheet() { $('#sheet').hidden = true; }
+  function closeSheet() {
+    var sh = $('#sheet');
+    if (sh.hidden) { sheetReturn = null; return; }
+    sh.hidden = true;
+    /* Focus returns to the control that opened it. Without this it falls to
+       <body> and the reader is put back at the top of the document. */
+    if (sheetReturn && document.contains(sheetReturn)) sheetReturn.focus();
+    sheetReturn = null;
+  }
 
   /* ── Events. One delegated listener, so a re-render never loses a binding. ── */
 
@@ -996,8 +1016,9 @@
       else API.request('auth/logout', { method: 'POST' }).then(function () { location.href = '/portal/login'; });
       return;
     }
-    if (t.hasAttribute('data-sheet-open'))  { e.preventDefault(); openSheet(); return; }
+    if (t.hasAttribute('data-sheet-open'))  { e.preventDefault(); openSheet(t); return; }
     if (t.hasAttribute('data-sheet-close')) { e.preventDefault(); closeSheet(); return; }
+    if (t.closest('#toastClose')) { e.preventDefault(); $('#toast').hidden = true; return; }
     if (t.hasAttribute('data-print'))       { e.preventDefault(); window.print(); return; }
 
     if (t.hasAttribute('data-screen')) {

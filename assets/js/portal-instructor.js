@@ -96,13 +96,23 @@
   }
 
   var toastTimer = null;
+  /* ⚠️ An ERROR is not a polite status, and it does not time out. The element
+     is declared `role="status" aria-live="polite"`, which a screen reader
+     queues until it is idle — right for "Saved", wrong for "that did not
+     save". A failure is swapped to `alert`/assertive and stays until it is
+     dismissed, because it is often the only record that the thing the reader
+     pressed did not happen. Successes still clear themselves. */
   function toast(msg, tone) {
-    var t = $('#toast');
+    var t = $('#toast'), bad = tone === 'bad';
     $('#toastText').textContent = msg;
     t.className = 'p-toast' + (tone ? ' is-' + tone : '');
+    t.setAttribute('role', bad ? 'alert' : 'status');
+    t.setAttribute('aria-live', bad ? 'assertive' : 'polite');
+    var close = $('#toastClose');
+    if (close) close.hidden = !bad;
     t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.hidden = true; }, 5200);
+    if (!bad) toastTimer = setTimeout(function () { t.hidden = true; }, 5200);
   }
 
   /**
@@ -131,7 +141,21 @@
     });
   }
 
-  function paint(html) { main.innerHTML = html; main.scrollTop = 0; }
+  /* ⚠️ Focus moves on the PAINT, not on the navigation — every screen here
+     fetches, so `go()` returns while `#main` still holds the previous screen.
+     One-shot, because `paint()` also runs after a write (each register mark
+     re-renders the roster) and pulling focus to the heading there would throw
+     an instructor out of the row they are marking. */
+  var pendingFocus = false;
+  function paint(html) {
+    main.innerHTML = html;
+    main.scrollTop = 0;
+    if (pendingFocus) {
+      pendingFocus = false;
+      var head = main.querySelector('.p-back, .p-ghost, .p-h1, .i-next-title');
+      if (head) { head.setAttribute('tabindex', '-1'); head.focus({ preventScroll: true }); }
+    }
+  }
   function loading(what) {
     return '<div class="p-empty"><i class="fa-solid fa-circle-notch p-spin" aria-hidden="true"></i><p>' + esc(what) + '</p></div>';
   }
@@ -663,10 +687,42 @@
       if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     location.hash = screen + (arg ? '/' + arg : '');
+    pendingFocus = true;
     SCREENS[screen](arg);
   }
 
-  function closeSheet() { var s = $('#sheet'); if (s) s.hidden = true; }
+  /* The sheet claims `aria-modal="true"`, so it has to behave like one: focus
+     moves in, Tab is trapped, Escape closes, and focus returns to the control
+     that opened it. Declaring the role without the behaviour tells a screen
+     reader the rest of the page is inert when it is not. */
+  var sheetReturn = null;
+  function openSheet(trigger) {
+    var sh = $('#sheet');
+    if (!sh) return;
+    sheetReturn = trigger || document.activeElement;
+    sh.hidden = false;
+    var first = sh.querySelector('.p-row');
+    if (first) first.focus();
+  }
+  function closeSheet() {
+    var s = $('#sheet');
+    if (!s || s.hidden) { sheetReturn = null; return; }
+    s.hidden = true;
+    if (sheetReturn && document.contains(sheetReturn)) sheetReturn.focus();
+    sheetReturn = null;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    var sh = $('#sheet');
+    if (!sh || sh.hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeSheet(); return; }
+    if (e.key !== 'Tab') return;
+    var items = $$('button, [href], textarea, select, input', sh).filter(function (el) { return !el.disabled; });
+    if (!items.length) return;
+    var first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
 
   /* ── Events. One delegated listener; every control is a real <button>. ───── */
 
@@ -674,8 +730,9 @@
     var t = e.target;
 
     var sheetOpen = t.closest && t.closest('[data-sheet-open]');
-    if (sheetOpen) { $('#sheet').hidden = false; return; }
+    if (sheetOpen) { openSheet(sheetOpen); return; }
     if (t.closest && t.closest('[data-sheet-close]')) { closeSheet(); return; }
+    if (t.closest && t.closest('#toastClose')) { $('#toast').hidden = true; return; }
 
     var nav = t.closest && t.closest('[data-screen]');
     if (nav) { go(nav.dataset.screen, nav.dataset.session || nav.dataset.student || null); return; }

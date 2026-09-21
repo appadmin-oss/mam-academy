@@ -175,6 +175,14 @@
      reaches a screen reader without interrupting. -->
 <div class="p-toast" id="toast" role="status" aria-live="polite" hidden>
   <i class="fa-solid fa-circle-info" aria-hidden="true"></i><span id="toastText"></span>
+  <!-- Shown only for a FAILURE, which is also the only kind that does not
+       time out. A success may vanish on its own; an error is often the only
+       record that the thing the reader pressed did not happen, and five
+       seconds is not long enough to read it, look at the control it refers
+       to, and act. -->
+  <button type="button" class="p-toast-x" id="toastClose" aria-label="Dismiss this message" hidden>
+    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+  </button>
 </div>
 
 <script src="/assets/js/config.js?v=20260807a"></script>

@@ -94,14 +94,30 @@
     return 'Earlier today';
   }
 
+  /**
+   * ⚠️ An ERROR is not a polite status, and it does not time out.
+   *
+   * Two defects this replaces. The element is `role="status" aria-live="polite"`,
+   * which a screen reader queues until it is idle — right for "Logged", wrong
+   * for "that did not save", so the role is swapped to `alert` for a failure
+   * and back afterwards. And every message auto-hid after 5.6 seconds with no
+   * way to dismiss or recall it: a success may vanish, but an error is often
+   * the ONLY record that the thing the student pressed did not happen, and
+   * five seconds is not long enough to read a sentence, look at the control it
+   * refers to, and act. Failures now stay until dismissed.
+   */
   var toastTimer = null;
   function toast(msg, tone) {
-    var t = $('#toast');
+    var t = $('#toast'), bad = tone === 'bad';
     $('#toastText').textContent = msg;
     t.className = 'p-toast' + (tone ? ' is-' + tone : '');
+    t.setAttribute('role', bad ? 'alert' : 'status');
+    t.setAttribute('aria-live', bad ? 'assertive' : 'polite');
+    var close = $('#toastClose');
+    if (close) close.hidden = !bad;
     t.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.hidden = true; }, 5600);
+    if (!bad) toastTimer = setTimeout(function () { t.hidden = true; }, 5600);
   }
 
   /**
@@ -138,7 +154,42 @@
      `style` attribute is banned in this repo, and this is the one place on the
      surface that would ever have wanted one. */
   function pct(v) { return Math.max(0, Math.min(100, Math.round(Number(v) || 0))); }
-  function paint(html) { main.innerHTML = html; main.scrollTop = 0; }
+  /**
+   * ⚠️ Focus moves on the paint, NOT on the navigation.
+   *
+   * Every screen here fetches, so `go()` returns while `#main` still holds the
+   * previous screen — focusing a heading there finds the OLD one and the
+   * repaint then destroys it, which is the same drop to <body> the move was
+   * meant to prevent. MEASURED: it did exactly that. `pendingFocus` is armed
+   * by `go()` and consumed by the first paint that follows, so the reader
+   * lands on the heading of the screen that actually arrived.
+   *
+   * It is a one-shot flag on purpose. `paint()` also runs after every write
+   * (logging practice re-renders Train), and yanking focus to the heading
+   * there would throw a student out of the card they are still working in.
+   */
+  var pendingFocus = false;
+  function paint(html) {
+    main.innerHTML = html;
+    main.scrollTop = 0;
+    clearTimeout(loadTimer);
+    if (pendingFocus) { pendingFocus = false; focusHead(); }
+  }
+
+  /**
+   * A loading state that appears and vanishes inside 300ms reads as a glitch,
+   * not as progress. MEASURED on this machine: a screen repaints in 15–42ms,
+   * so every navigation flashed a spinner for about two frames. The reserve
+   * is not wasted — on the Nigerian mobile data these screens are built for,
+   * the same request is seconds — so the answer is to DELAY the indicator
+   * rather than drop it: nothing for 300ms, then the spinner if the payload
+   * still has not arrived.
+   */
+  var loadTimer = null;
+  function deferLoading(what) {
+    clearTimeout(loadTimer);
+    loadTimer = setTimeout(function () { main.innerHTML = loading(what); }, 300);
+  }
   function loading(what) {
     return '<div class="p-empty"><i class="fa-solid fa-circle-notch p-spin" aria-hidden="true"></i><p>' + esc(what) + '</p></div>';
   }
@@ -150,6 +201,16 @@
       + (sub ? '<p class="p-body p-lead">' + esc(sub) + '</p>' : '');
   }
   function errOf(err, fallback) { return esc(P.errText ? P.errText(err, fallback) : fallback); }
+  /* Fees and Repertoire are reached from the More sheet, and the bar lights
+     NOTHING while they are open — deliberately, because claiming "Home" while
+     the reader is looking at an invoice is worse than claiming nothing. That
+     leaves them the only screens here with no indication of where they sit,
+     so they carry a back control instead. Both other portals already do this
+     (`.p-back` / `backTo()`); this one had neither. */
+  function backTo(screen, label) {
+    return '<button type="button" class="p-back" data-screen="' + esc(screen) + '">'
+      + '<i class="fa-solid fa-chevron-left" aria-hidden="true"></i>' + esc(label) + '</button>';
+  }
   function notice(text, tone, icon) {
     return '<div class="p-notice' + (tone ? ' is-' + tone : '') + '">'
       + '<i class="fa-solid fa-' + (icon || 'circle-info') + '" aria-hidden="true"></i><span>' + esc(text) + '</span></div>';
@@ -167,7 +228,7 @@
   }
 
   function renderHome() {
-    paint(loading('Loading today…'));
+    deferLoading('Loading today…');
     screenReq('home').then(function (d) {
       S.home = d;
       applyIdentity(d);
@@ -327,7 +388,7 @@
   /* ── 2 · Train ──────────────────────────────────────────────────────────── */
 
   function renderTrain() {
-    paint(loading('Loading the practice room…'));
+    deferLoading('Loading the practice room…');
     screenReq('train').then(function (d) {
       S.train = d;
       var html = h1('Train', 'Practise, teach it back, keep it warm.') + '<div class="p-stack">';
@@ -429,7 +490,7 @@
   /* ── 3 · Learn ──────────────────────────────────────────────────────────── */
 
   function renderLearn() {
-    paint(loading('Loading where you stand…'));
+    deferLoading('Loading where you stand…');
     screenReq('learn').then(function (d) {
       var m = d.mastery;
       var html = h1('Where I stand') + '<div class="p-stack">';
@@ -543,7 +604,7 @@
   /* ── 4 · Attend ─────────────────────────────────────────────────────────── */
 
   function renderAttend() {
-    paint(loading('Loading your classes…'));
+    deferLoading('Loading your classes…');
     screenReq('attend').then(function (d) {
       S.attend = d;
       var html = h1('Attend') + '<div class="p-stack">';
@@ -564,7 +625,12 @@
       }
 
       if (d.next) html += nextClassCard(d.next, true);
-      else if (!t) html += '<section class="p-card">' + empty('calendar-xmark', 'No classes scheduled just now.') + '</section>';
+      /* "No classes scheduled" states what and why but offers nothing to do,
+         which is the one thing an empty state must not do. The record below
+         is the honest next place to look. */
+      else if (!t) html += '<section class="p-card">'
+        + empty('calendar-xmark', 'No classes scheduled just now. When your instructor books the next one it '
+          + 'appears here, and your attendance so far is below.') + '</section>';
 
       if (d.config && d.config.self_enabled === false) {
         html += notice('Your academy takes the register in class, so there is nothing for you to check in to here.', null, 'clipboard-check');
@@ -616,12 +682,12 @@
   /* ── 5 · Fees & charges ─────────────────────────────────────────────────── */
 
   function renderMoney() {
-    paint(loading('Loading your fees…'));
+    deferLoading('Loading your fees…');
     screenReq('money').then(function (d) {
       S.money = d;
       var owed = d.owed || {};
       var led = d.ledger || {};
-      var html = h1('Fees & charges') + '<div class="p-stack">'
+      var html = backTo('home', 'Home') + h1('Fees & charges') + '<div class="p-stack">'
         + '<section class="p-card"><div class="p-label">Outstanding</div>'
         + '<div class="p-fig p-money">' + esc(money(owed.cents)) + '</div>'
         + (owed.due_on ? '<p class="p-caption">' + esc('Due ' + fmtDate(owed.due_on)) + '</p>' : '')
@@ -656,9 +722,13 @@
               + '<span class="p-caption">' + esc([fmtDate(c.scheduled_at || c.created_at), c.status,
                   exc ? 'waiver ' + (exc.status || 'requested') : null].filter(Boolean).join(' · ')) + '</span></span>'
               + '<span class="p-num p-strong">' + esc(money(c.amount_usd_cents)) + '</span>'
+              /* "Ask" alone does not read out of context, and a button label
+                 has to say what happens before it is pressed. */
               + (!exc && ['outstanding', 'disputed'].indexOf(String(c.status)) >= 0
-                  ? '<button type="button" class="p-ghost" data-waive="' + esc(c.id) + '">Ask</button>' : '')
-              + '</div>';
+                  ? '<button type="button" class="p-ghost" data-waive="' + esc(c.id) + '">Ask for a review</button>' : '')
+              + '</div>'
+              + (!exc && ['outstanding', 'disputed'].indexOf(String(c.status)) >= 0
+                  ? waiveForm(c) : '');
           }).join('') + '</div>'
           + '<div class="p-card-foot"><p class="p-caption">If a charge is wrong, ask for it to be looked at. Nothing is decided until somebody has.</p></div>'
           + '</section>';
@@ -669,7 +739,49 @@
       }
 
       paint(html + '</div>');
-    }).catch(function (err) { paint(h1('Fees & charges') + empty('triangle-exclamation', errOf(err, 'Could not load your fees.'))); });
+    }).catch(function (err) { paint(backTo('home', 'Home') + h1('Fees & charges') + empty('triangle-exclamation', errOf(err, 'Could not load your fees.'))); });
+  }
+
+  /**
+   * The waiver request, as a form beside the charge it disputes.
+   *
+   * The reason codes are the SERVER's (`MAM_ACCT_EXCEPTION_REASONS`) and
+   * arrive in the payload — the client offers exactly those seven and can
+   * never invent an eighth. §15 says an instructor OR an admin may raise an
+   * exception and a student may raise one against their own charge; the
+   * ownership check is at the edge, so all this has to do is ask honestly.
+   */
+  function waiveForm(c) {
+    var reasons = (S.money && S.money.exception_reasons) || {};
+    var opts = Object.keys(reasons).map(function (k) {
+      return '<option value="' + esc(k) + '">' + esc(reasons[k]) + '</option>';
+    }).join('');
+    return '<div class="s-waive" id="waive-' + esc(c.id) + '" hidden>'
+      + '<label class="p-field"><span>What happened?</span>'
+      + '<select id="waiveWhy-' + esc(c.id) + '" aria-describedby="waiveErr-' + esc(c.id) + '">'
+      + '<option value="">Choose one…</option>' + opts + '</select></label>'
+      + '<p class="p-err" id="waiveErr-' + esc(c.id) + '" hidden></p>'
+      + '<label class="p-field"><span>Anything else we should know? (optional)</span>'
+      + '<textarea id="waiveNote-' + esc(c.id) + '" maxlength="500" '
+      + 'placeholder="The class was moved and nobody told me."></textarea></label>'
+      + '<div class="p-actions">'
+      + '<button type="button" class="p-outline" data-waive-cancel="' + esc(c.id) + '">Cancel</button>'
+      + '<button type="button" class="p-primary" data-waive-send="' + esc(c.id) + '">Send the request</button>'
+      + '</div></div>';
+  }
+
+  /* An error belongs BESIDE the control that failed, announced, not only in a
+     toast at the foot of the screen. `aria-describedby` is already on the
+     select, so filling this element is what a screen reader reads out. */
+  function fieldError(id, msg) {
+    var el = $('#waiveErr-' + id), sel = $('#waiveWhy-' + id);
+    if (!el) return;
+    el.textContent = msg;
+    el.hidden = !msg;
+    if (sel) {
+      if (msg) sel.setAttribute('aria-invalid', 'true'); else sel.removeAttribute('aria-invalid');
+      if (msg) sel.focus();
+    }
   }
 
   /* ── 6 · Repertoire ─────────────────────────────────────────────────────── */
@@ -677,11 +789,11 @@
   var REP_STATUS = [['learning', 'Learning'], ['polished', 'Polished'], ['performed', 'Performed']];
 
   function renderRepertoire() {
-    paint(loading('Loading your repertoire…'));
+    deferLoading('Loading your repertoire…');
     screenReq('repertoire').then(function (d) {
       S.rep = d;
       var list = d.repertoire || [];
-      var html = h1('Repertoire', 'Everything you are working on, and everything you have played.')
+      var html = backTo('home', 'Home') + h1('Repertoire', 'Everything you are working on, and everything you have played.')
         + '<div class="p-stack">'
         + '<section class="p-card"><div class="p-label">Add a piece</div>'
         + '<label class="p-field p-gap-t"><span>Title</span><input type="text" id="repTitle" maxlength="160" placeholder="Minuet in G"></label>'
@@ -706,7 +818,7 @@
       }
 
       paint(html + '</div>');
-    }).catch(function (err) { paint(h1('Repertoire') + empty('triangle-exclamation', errOf(err, 'Could not load your repertoire.'))); });
+    }).catch(function (err) { paint(backTo('home', 'Home') + h1('Repertoire') + empty('triangle-exclamation', errOf(err, 'Could not load your repertoire.'))); });
   }
 
   /* ── Display & access ───────────────────────────────────────────────────── */
@@ -771,10 +883,66 @@
       if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
     location.hash = screen + (arg ? '/' + arg : '');
+    /* Armed BEFORE the render, consumed by the paint it produces. Activating
+       an in-content control that navigates (the Home hero's button, "See the
+       detail", a sheet row) destroys that control on repaint and the browser
+       drops focus to <body> — so the next Tab restarts at the skip link and a
+       keyboard user walks the whole nav again to reach the screen they just
+       opened. Landing on the new heading is also the only thing that
+       announces the screen change to a screen reader. */
+    pendingFocus = true;
     SCREENS[screen](arg);
   }
 
-  function closeSheet() { var s = $('#sheet'); if (s) s.hidden = true; }
+  function focusHead() {
+    var head = main.querySelector('.p-back, .p-h1');
+    if (head) { head.setAttribute('tabindex', '-1'); head.focus({ preventScroll: true }); }
+  }
+
+  /**
+   * The More sheet is a real modal or it does not claim to be one.
+   *
+   * ⚠️ The markup carries `role="dialog" aria-modal="true"`, which TELLS a
+   * screen reader that everything outside the sheet is inert. Setting
+   * `hidden = false` and nothing else made that a lie: focus stayed behind the
+   * sheet, Tab walked straight out of it, and Escape did nothing — on a sheet
+   * whose rows include Sign out. This is the same mistake the site chrome
+   * already removed once (`role="menu"` promising an arrow-key contract the
+   * code never implemented); the fix there was to drop the role, and the fix
+   * here is to honour it, because a bottom sheet genuinely is modal.
+   */
+  var sheetReturn = null;
+  function openSheet(trigger) {
+    var sh = $('#sheet');
+    if (!sh) return;
+    sheetReturn = trigger || document.activeElement;
+    sh.hidden = false;
+    var first = sh.querySelector('.p-row');
+    if (first) first.focus();
+  }
+  function closeSheet() {
+    var s = $('#sheet');
+    if (!s || s.hidden) { sheetReturn = null; return; }
+    s.hidden = true;
+    /* Focus goes back where it came from. Without this it falls to <body> and
+       the user is returned to the top of the document, which is the same
+       defect as the one above with an extra step. */
+    if (sheetReturn && document.contains(sheetReturn)) sheetReturn.focus();
+    sheetReturn = null;
+  }
+
+  /* Escape closes the sheet; the sheet traps Tab while it is open. */
+  document.addEventListener('keydown', function (e) {
+    var sh = $('#sheet');
+    if (!sh || sh.hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); closeSheet(); return; }
+    if (e.key !== 'Tab') return;
+    var items = $$('button, [href], textarea, select, input', sh).filter(function (el) { return !el.disabled; });
+    if (!items.length) return;
+    var first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
 
   /* ── Events. One delegated listener; every control is a real <button>. ───── */
 
@@ -782,8 +950,10 @@
     var t = e.target;
     if (!t || !t.closest) return;
 
-    if (t.closest('[data-sheet-open]')) { $('#sheet').hidden = false; return; }
+    var opener = t.closest('[data-sheet-open]');
+    if (opener) { openSheet(opener); return; }
     if (t.closest('[data-sheet-close]')) { closeSheet(); return; }
+    if (t.closest('#toastClose')) { $('#toast').hidden = true; return; }
 
     var nav = t.closest('[data-screen]');
     if (nav) { go(nav.dataset.screen, null); return; }
@@ -867,14 +1037,42 @@
       return;
     }
 
+    /* Opening the request reveals the form BELOW the charge it belongs to,
+       rather than a `window.prompt`. Three things were wrong with the prompt:
+       it ignores the design system and the reader's text-size setting
+       entirely, it has no persistent label, and it can only return one string
+       — so every request was filed under `other` while the server offers
+       seven reason codes and the payload ships them. A waiver queue where
+       every row reads "Other approved reason" cannot be triaged. */
     var waive = t.closest('[data-waive]');
     if (waive) {
-      var why = window.prompt('Why should this charge be looked at again?');
-      if (why == null) return;
-      write(waive, API.request('student/accountability', {
+      var form = $('#waive-' + waive.dataset.waive);
+      if (!form) return;
+      form.hidden = false;
+      waive.setAttribute('aria-expanded', 'true');
+      var sel = form.querySelector('select');
+      if (sel) sel.focus();
+      return;
+    }
+    var waiveCancel = t.closest('[data-waive-cancel]');
+    if (waiveCancel) {
+      var wf = $('#waive-' + waiveCancel.dataset.waiveCancel);
+      if (wf) wf.hidden = true;
+      var opener = document.querySelector('[data-waive="' + waiveCancel.dataset.waiveCancel + '"]');
+      if (opener) { opener.setAttribute('aria-expanded', 'false'); opener.focus(); }
+      return;
+    }
+    var waiveSend = t.closest('[data-waive-send]');
+    if (waiveSend) {
+      var id = waiveSend.dataset.waiveSend;
+      var reason = ($('#waiveWhy-' + id) || {}).value || '';
+      var detail = ($('#waiveNote-' + id) || {}).value || '';
+      if (!reason) { fieldError(id, 'Choose the reason that fits best.'); return; }
+      fieldError(id, '');
+      write(waiveSend, API.request('student/accountability', {
         method: 'POST',
-        body: { action: 'request_exception', charge_id: Number(waive.dataset.waive), reason_code: 'other', detail: why }
-      }), function () { renderMoney(); }, 'Asked. Somebody will look at it.');
+        body: { action: 'request_exception', charge_id: Number(id), reason_code: reason, detail: detail || null }
+      }), function () { renderMoney(); }, 'Asked. Somebody will look at it and tell you what they decide.');
       return;
     }
 
