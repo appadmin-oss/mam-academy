@@ -118,8 +118,21 @@ t_ok((bool)preg_match('/function initBackToTop\(\)\s*\{.*?pointer: coarse.*?retu
     . 'the dock\'s 950), so it overlapped whatever was there and was painted over');
 t_ok((bool)preg_match('/var coarse = window\.matchMedia/', $js),
     'and the floating Apply pill is removed on touch too');
-t_ok((bool)preg_match('/\.cookie-banner\{(?!.*flex-wrap:wrap)[^}]*display:flex/', $css),
-    'the cookie banner is one row, not a stacked block');
+/* "One row, not a stacked block" — but a row only where a row FITS. MEASURED
+   at 320 with the actions `flex-shrink:0` and no wrap: the two buttons took
+   142px of a 296px banner and squeezed the sentence into a 108px column six
+   lines deep. It wraps on the TEXT'S MEASURE now, so the copy decides where
+   the row stops being a row; what it must never do is go back to being a
+   column of full-width stacked blocks. */
+t_ok((bool)preg_match('/\.cookie-banner\{[^}]*display:flex/', $css)
+  && !(bool)preg_match('/\.cookie-banner\{[^}]*flex-direction:column/', $css),
+    'the cookie banner is a row, not a stacked block');
+t_ok((bool)preg_match('/\.cookie-text\{flex:1 1 \d+px/', $css),
+    '…and it wraps on the text\'s own minimum measure rather than a breakpoint, so a '
+    . 'longer sentence or a translation moves the wrap point with it');
+t_ok((bool)preg_match('/\.cookie-actions\{[^}]*margin-left:auto/', $css),
+    '…with the buttons hard right on both layouts — left-aligned on their own wrapped '
+    . 'line they read as orphaned');
 t_ok(str_contains($footer, 'id="cookieDecline"'),
     'Decline SURVIVES the compaction: a consent control that disappears is worse than a tight one');
 

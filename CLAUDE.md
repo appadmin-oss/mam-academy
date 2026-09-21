@@ -1405,9 +1405,21 @@ the traps below are repo-wide:
   it also drops a scroll listener and a `will-change:clip-path` layer from
   every page. `white-space:nowrap` on `.footer-logo-name`, because at 21px in
   a 196px column the Bebas *fallback* breaks MAM / ACADEMY onto two lines.
-- The **cookie banner is one row** and `#cookieDecline` **survives**: whether a
-  consent notice offers a decline control is a legal decision, not a layout
-  one. The handoff's "Decline stays available inside Details" was not taken.
+- The **cookie banner is a row that WRAPS on the text's measure**, not on a
+  breakpoint (`flex-wrap:wrap` + `.cookie-text{flex:1 1 280px}`). MEASURED at
+  320 with the actions `flex-shrink:0` and no wrap: the two buttons took 142px
+  of a 296px banner and squeezed the sentence into a 108px column SIX lines
+  deep — 141px of banner, 22% of a 700px screen. A smaller basis (180px) kept
+  the row alive down to ~390 and made it non-monotonic: **430 rendered shorter
+  than 390**, because it was still a row with a cramped three-line column. The
+  copy is what decides the wrap point, so a longer sentence or a translation
+  moves it; a hardcoded breakpoint would not. It does NOT track the
+  accessibility toolbar — this text is 12.5px, not rem, like the rest of the
+  design system.
+  `#cookieDecline` **survives**: whether a consent notice offers a decline
+  control is a legal decision, not a layout one, so it is never the thing that
+  gives way. The handoff's "Decline stays available inside Details" was not
+  taken.
 
 ## The student application v2 (`/apply`) — the 2026-09 rework
 

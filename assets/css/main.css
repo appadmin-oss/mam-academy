@@ -1225,11 +1225,31 @@ footer::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;back
 /* One row, not a stacked block: the consent notice is the surface most
    likely to be on screen at the same time as a page's own bottom action, so
    every millimetre of it is paid for twice. */
-.cookie-banner{padding:12px 16px calc(18px + env(safe-area-inset-bottom));background:rgba(26,18,11,0.97);border:1px solid var(--hairline);border-top-color:var(--border-gold);border-radius:14px;box-shadow:var(--shadow-lg);display:flex;gap:12px;align-items:center;transform:translateY(14px);opacity:0;transition:transform 0.35s var(--ease),opacity 0.35s var(--ease)}
+/* One row WHERE A ROW FITS, and it wraps where it does not — the wrap is
+   driven by the text's own minimum measure, not by a breakpoint.
+   MEASURED at 320: with the actions `flex-shrink:0` and no wrap, the two
+   buttons took 142px of a 296px banner and squeezed the sentence into a 108px
+   column SIX lines deep — 141px of banner, 22% of a 700px screen, for one
+   sentence nobody could read.
+   The rule is the text's measure rather than a width breakpoint because the
+   copy is what decides it: a longer sentence, or a translation, moves the
+   point at which a row stops being a row, and a hardcoded breakpoint does
+   not move with it. (It does NOT track the accessibility toolbar — this text
+   is 12.5px, not rem, like the rest of the design system.) */
+.cookie-banner{padding:12px 16px calc(18px + env(safe-area-inset-bottom));background:rgba(26,18,11,0.97);border:1px solid var(--hairline);border-top-color:var(--border-gold);border-radius:14px;box-shadow:var(--shadow-lg);display:flex;flex-wrap:wrap;gap:10px 12px;align-items:center;transform:translateY(14px);opacity:0;transition:transform 0.35s var(--ease),opacity 0.35s var(--ease)}
 .cookie-banner.shown{transform:none;opacity:1}
-.cookie-text{flex:1;min-width:0;font-size:12.5px;color:var(--text-muted);line-height:1.45}
+/* 280px is the width the sentence sets in TWO lines at 12.5px. Below it the
+   actions wrap to their own line and the text takes the full width instead.
+   A smaller basis (180px) kept the row alive down to ~390 and made the layout
+   non-monotonic: 430 rendered SHORTER than 390 because it was still a row,
+   with the sentence in a cramped three-line column — the banner got taller as
+   the screen got wider. The floor is the measure, not a breakpoint. */
+.cookie-text{flex:1 1 280px;min-width:0;font-size:12.5px;color:var(--text-muted);line-height:1.45}
 .cookie-text a{color:var(--gold-bright);text-decoration:underline;text-underline-offset:2px}
-.cookie-actions{display:flex;gap:8px;flex-shrink:0}
+/* `margin-left:auto` keeps the buttons hard right on BOTH layouts: beside the
+   text on one row, and at the end of their own line once it wraps — where
+   left-aligned they read as orphaned. */
+.cookie-actions{display:flex;gap:8px;flex-shrink:0;margin-left:auto}
 .cookie-btn{min-height:44px;display:inline-flex;align-items:center;padding:0 16px;border-radius:12px;font-size:13.5px;font-weight:700;transition:all 0.2s var(--ease)}
 .cookie-btn-accept{background:var(--gold-bright);color:#1A120B;font-weight:800;padding:0 20px}
 .cookie-btn-decline{color:var(--text-soft);border:1px solid var(--border-strong)}
@@ -1408,9 +1428,10 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
   .mode-features,.about-pillars{grid-template-columns:1fr}
   .page-hero-actions{flex-direction:column;align-items:stretch}
   .page-hero-actions .btn{width:100%}
-  /* Still one row at 390: only the Decline label gives way, and the text is
-     what shrinks. A consent control that disappears is worse than a tight one,
-     so Decline keeps its box and loses its width. */
+  /* Decline keeps its 44px box and loses its width — a consent control that
+     disappears is worse than a tight one, so it is never the thing that gives
+     way. (It is the reason the banner wraps instead: there is no width at
+     which dropping Decline would have been the cheaper answer.) */
   .cookie-btn-decline{padding:0 12px}
 }
 

@@ -52,8 +52,18 @@ render 2/3/3 columns with no wrap and no overflow at 1280.
 
 3. **"Decline stays available inside Details."** Not done. Whether a consent
    notice offers a decline control is a legal decision, not a layout one, so
-   `#cookieDecline` keeps its box and loses its padding. The banner is one
-   row as asked.
+   `#cookieDecline` keeps its box and loses its padding.
+   The banner is one row as asked — but a row only **where a row fits**. The
+   first pass took "one row" literally and MEASURED badly at 320: the two
+   buttons are 142px of a 296px banner, which squeezed the sentence into a
+   108px column six lines deep, 141px of banner and 22% of a 700px screen for
+   one sentence. It wraps on the text's own measure now
+   (`flex-wrap:wrap` + `.cookie-text{flex:1 1 280px}`), so the copy decides
+   where the row stops being a row — 122px and two full-width lines to 430px,
+   76px and one row from 540px up, monotonic in between. An intermediate
+   180px basis was non-monotonic: 430 rendered *shorter* than 390 because it
+   was still a row, with a three-line column. The copy also lost a word
+   ("application draft" → "draft").
 
 4. **The seven `apply?discipline=` deep links.** Removed from the menu, as
    asked. **Kept in the desktop mega menu**: Part 2 of the same handoff says
