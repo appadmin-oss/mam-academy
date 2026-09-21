@@ -1437,6 +1437,14 @@ than the symptom:
 - **`--gold-bright`, `--good`, `--accent` and friends are FILLS.** Each has a
   text-safe sibling (`--gold-text`, `--good-text`, `--accent-text`); using a
   fill for words is how `.s-dot` reached 4.31:1 and the back-strip 2.94:1.
+  ⚠️ And the reverse: a SOLID state that carries a word needs
+  **`--fill-good` / `--fill-warn` / `--fill-bad` with `--on-fill`**, not a
+  text or bar token borrowed for the job. MEASURED with white on them,
+  `--good` is 4.36:1 and `--warn-bar` 3.92:1 — so the register's Present and
+  Late marks both failed while Absent passed, from one ad-hoc pick each. The
+  trio is chosen against its foreground (6.27 / 5.10 / 4.82 light,
+  6.01 / 6.44 / 5.66 dark) and the pair INVERTS in dark mode, where the fills
+  are light and the ink is dark.
 - **`prefers-reduced-motion` must not stop a progress indicator** — 2.3.3
   exempts it, and a frozen spinner over "Loading" says the page has hung.
 - **`.p-none` / `.p-none-list` is SHARED, not the student's.** The student's

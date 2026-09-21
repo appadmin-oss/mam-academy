@@ -336,3 +336,66 @@ foreach (['financeBadge', 'msgBadge', 'consentBadge'] as $b) {
     t_ok((bool) preg_match('/' . $b . "[\s\S]{0,240}setAttribute\('aria-label'/", $gj),
         "#$b carries an accessible name — a dot cannot be read aloud");
 }
+
+/* ── The styling pass (2026-09-21) — docs/HANDOFF.md §4s-2 ──────────────── */
+
+t_group('the v2 portals — styling invariants');
+
+/* ⚠️ A SOLID semantic state that carries a word needs the fill trio, not a
+   text or bar token borrowed for the job. MEASURED with white on them,
+   `--good` is 4.36:1 and `--warn-bar` 3.92:1 — two of the three register
+   marks failed, from one ad-hoc pick each. The pair INVERTS in dark mode:
+   there the fills are light and the ink is dark. */
+foreach (['--fill-good', '--fill-warn', '--fill-bad', '--on-fill'] as $tok) {
+    t_ok(substr_count($css, $tok . ':') >= 2,
+        "$tok is defined for BOTH themes — the pair inverts in dark mode");
+}
+t_ok(!preg_match('/\.i-marks button\[aria-pressed="true"\][^{]*\{ background: var\(--(good|warn|warn-bar|bad-line)\)/', $css),
+    'no register mark is filled with a text or bar token');
+t_ok((bool) preg_match('/\.i-marks button\[aria-pressed="true"\] \{ color: var\(--on-fill\)/', $css),
+    'and the word on them is the fill trio\'s own foreground');
+
+/* A foot is prose, not a row, so it takes the card's gutter back — inside a
+   flush card it had none and sat 1px from the wall with the rounded corner
+   drawn through it. */
+t_ok((bool) preg_match('/\.p-card\.is-flush > \.p-card-foot \{ padding:/', $css),
+    'a card foot is inset even inside a flush card');
+
+/* ⚠️ `flex: 1 1 0` so the main column never FORCES a wrap. A 55% basis fixed
+   the 320px crush and regressed 390, because flexbox wraps on the sum of the
+   bases rather than the final sizes. The wrap is asked for explicitly, and
+   only at the width that needs it. */
+t_ok((bool) preg_match('/\.p-row-main \{ flex: 1 1 0;/', $css),
+    'the row main column never forces a wrap');
+t_ok((bool) preg_match('/@media \\(max-width: 359\\.98px\\) \\{\\s*\\[data-portal="v2"\\] \\.p-row > \\.p-chip \\{ flex-basis: 100%/', $css),
+    '…and the chip takes its own line only below 360');
+
+/* The payment methods are spans that say what the Pay button accepts. At 44px
+   with a border and the button radius they were indistinguishable from the
+   real buttons above them. */
+t_ok(!preg_match('/\.p-methods span \{[^}]*min-height: 44px/s', $css),
+    'the payment methods do not look like buttons');
+
+/* The two ledgers are not merged into one figure. */
+$slib = preg_replace('~/\*.*?\*/~s', '', (string) @file_get_contents(MAM_API_ROOT . '/lib/student-portal.php'));
+foreach (['charges_cents', 'fees_cents'] as $k) {
+    t_ok(strpos($slib, "'" . $k . "'") !== false,
+        "mam_sportal_owed() reports $k separately — a \$0.00 headline over an overdue invoice is one figure answering two questions");
+}
+
+/* ⚠️ Focus lands on the HEADING. `querySelector('.p-back, .p-h1')` returns the
+   earlier match in DOCUMENT order regardless of the selector's order, and the
+   back control renders above the heading — so the focus move landed on a real
+   <button> and painted a ring on every screen change, in all three portals. */
+foreach ($APPS as $who => $file) {
+    $j = preg_replace('~/\*.*?\*/~s', '', (string) @file_get_contents($file));
+    if (strpos($j, 'p-back') === false) continue;
+    t_ok(!preg_match("/querySelector\('\.p-back, \.p-h1'\)/", $j)
+         && !preg_match("/querySelector\('\.p-back,/", $j),
+        "$who: the focus target is not chosen by document order");
+}
+
+/* The three teach-back self-checks are a PROMPT, never appended to the body —
+   the textarea is prefilled with the last submission, so appending compounded
+   on every resubmit. */
+t_ok(!preg_match("/body: body \+ \(ticked/", $sj), 'the self-checks are not appended to the teach-back');

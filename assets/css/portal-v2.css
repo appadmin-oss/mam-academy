@@ -66,6 +66,19 @@
   --on-ink-2:      rgba(255,255,255,0.74);   /* meta text on an ink panel */
   --on-ink-line:   rgba(255,255,255,0.30);   /* an outlined control on one */
 
+  /* ✱OURS — a SOLID semantic state that carries a word, and the one
+     foreground for all three. ⚠️ Neither the text tokens nor the bar tokens
+     work here and both were tried: MEASURED with white on them, `--good`
+     gives 4.36:1 and `--warn-bar` 3.92:1, both under 1.4.3's 4.5:1 — so the
+     register's Present and Late marks failed while Absent passed, from one
+     ad-hoc pick each. These three are chosen against the foreground rather
+     than borrowed: 6.27 / 5.10 / 4.82 with --on-fill. The dark block flips
+     the pair — there the fills are light and the ink is dark. */
+  --fill-good:     #0B6E4C;
+  --fill-warn:     #9A6200;
+  --fill-bad:      #C6435C;
+  --on-fill:       #FFFFFF;
+
   /* ── Semantic. §1 splits these because the colour that passes as TEXT is not
         the one that reads as a BORDER. --good was the one place the split was
         asserted and not made. ───────────────────────────────────────────── */
@@ -213,6 +226,12 @@
 [data-portal="v2"] .p-card-foot {
   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule);
 }
+/* ⚠️ …but `.p-card.is-flush` sets `padding: 0` so its rows can run edge to
+   edge, and the foot inherited that. MEASURED on the student Fees screen:
+   the footnote sat 1px from the card wall with the rounded corner drawn
+   through it. A foot is prose, not a row, so it takes the card's own gutter
+   back. */
+[data-portal="v2"] .p-card.is-flush > .p-card-foot { padding: 14px 18px 16px; margin-top: 0; }
 
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 /* Element-qualified (`button.p-ghost`, not `.p-ghost`) for one reason: main.css
@@ -313,13 +332,26 @@
 [data-portal="v2"] .p-rows > .p-row:first-child { border-top: 0; }
 /* The dashboard's "this week" rows are taller — 64px in the frame. */
 [data-portal="v2"] .p-row.is-tall { min-height: 64px; }
+/* Below ~360 a 100px chip beside a 52px avatar leaves the name 56px and the
+   caption spills out of it, so the chip takes the next line to itself —
+   indented past the avatar so it still reads as belonging to the row above.
+   Above 360 nothing moves. */
+@media (max-width: 359.98px) {
+  [data-portal="v2"] .p-row > .p-chip { flex-basis: 100%; margin-left: 66px; }
+}
 /* ⚠️ MEASURED at 320 on the instructor marking queue: a 100px "2nd marker"
    chip beside a 52px avatar left the name column 56px wide and the caption
    ("Week 4 performance · 6d waiting") spilled straight out of it — an
    annotation crushing the thing it annotates. The row WRAPS, so the chip drops
    to its own line at the width where it would otherwise win, and the main
    column keeps a majority basis. Nothing moves above ~360px. */
-[data-portal="v2"] .p-row-main { flex: 1 1 55%; min-width: 0; }
+/* ⚠️ `flex: 1` (basis 0), so the main column NEVER forces the row to wrap.
+   A 55% basis fixed the 320px crush but regressed 390: MEASURED, the
+   marking queue's "2nd marker" chip dropped to its own line at a width where
+   it had always fitted inline, because flexbox decides to wrap on the sum of
+   the BASES, not on the final sizes. The wrap is now asked for explicitly,
+   and only at the width that needs it — see the chip rule below. */
+[data-portal="v2"] .p-row-main { flex: 1 1 0; min-width: 0; }
 [data-portal="v2"] .p-row-main .p-title { display: block; }
 [data-portal="v2"] .p-row-main .p-meta,
 [data-portal="v2"] .p-row-main .p-caption { display: block; margin-top: 2px; }
@@ -593,11 +625,21 @@
 [data-portal="v2"] .p-switch[aria-checked="true"] .p-track::after { transform: translateX(20px); }
 
 /* ── Payment-method pills (informational, not controls) ───────────────────── */
-[data-portal="v2"] .p-methods { display: flex; gap: 8px; margin-top: 10px; }
+/* ⚠️ These are `<span>`s that say what the Pay button accepts — they are not
+   controls. At 44px tall with a 1px border and the button radius they were
+   indistinguishable from the three real buttons stacked above them, which is
+   the "looks tappable, does nothing" problem in its purest form. Now they
+   read as what they are: a quiet caption strip on the card's own ground, no
+   border, no button height. */
+[data-portal="v2"] .p-methods {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; align-items: center;
+}
 [data-portal="v2"] .p-methods span {
-  flex: 1; min-height: 44px; display: grid; place-items: center;
-  border: 1px solid var(--border-btn); border-radius: var(--radius-control-sm);
-  font: 700 12.5px var(--font-ui); color: var(--text-2);
+  padding: 5px 10px; border-radius: var(--radius-pill); background: var(--sunken);
+  font: 600 11.5px var(--font-ui); letter-spacing: 0.02em; color: var(--text-on-chip);
+}
+[data-portal="v2"] .p-methods::before {
+  content: 'Accepted:'; font: 600 11.5px var(--font-ui); color: var(--text-3);
 }
 
 /* ── Shell ────────────────────────────────────────────────────────────────── */
@@ -870,6 +912,9 @@
      the body 15.02:1, --on-ink-2 6.95:1 (against 9.14:1 for its light-mode
      opposite number, so both sides clear 4.5:1 with room). */
   --on-ink: #14181E; --on-ink-2: rgba(20,24,30,0.74); --on-ink-line: rgba(20,24,30,0.28);
+  /* The semantic fills are LIGHT here, so the word on them is dark:
+     MEASURED 6.01 / 6.44 / 5.66 against --on-fill. */
+  --fill-good: #2FA97C; --fill-warn: #C9913A; --fill-bad: #E8677F; --on-fill: #14181E;
   /* ⚠️ --accent-on-ink inverts with it. MEASURED, the light-mode tint #F7C08A
      is 1.38:1 on the reversed panel — the session card's eyebrow was very
      nearly invisible in dark mode. This is 5.14:1 there. */
@@ -936,6 +981,15 @@
 [data-portal="v2"] .p-actions { display: flex; gap: 8px; }
 [data-portal="v2"] .p-actions > * { flex: 1; min-width: 0; min-height: 48px; border-radius: var(--radius-card); }
 
+/* ── The register's action + progress row ────────────────────────────────── */
+/* One real control and one readout, which is why this is not `.p-actions`:
+   that row makes both children `flex: 1` and equal-height, and the readout
+   is neither a button nor the same weight as one. */
+[data-portal="v2"] .i-regbar { display: flex; align-items: center; gap: 14px; }
+[data-portal="v2"] .i-regbar > button { flex: 0 0 auto; min-height: 48px; border-radius: var(--radius-card); }
+[data-portal="v2"] .i-saved { flex: 1; min-width: 0; display: grid; gap: 6px; }
+[data-portal="v2"] .i-saved .p-bar { height: 6px; }
+
 /* ── "Rest of today" — the time is a figure, in its own column ────────────── */
 [data-portal="v2"] .i-when {
   font-family: var(--font-fig); font-size: 19px; line-height: 1;
@@ -957,10 +1011,10 @@
 }
 /* Colour is never the only carrier: the chosen option is also the only one at
    weight 800 on a filled ground, and the row above it states the mark in words. */
-[data-portal="v2"] .i-marks button[aria-pressed="true"] { color: #fff; font-weight: 800; border-color: transparent; }
-[data-portal="v2"] .i-marks button[aria-pressed="true"][data-mark="present"] { background: var(--good); }
-[data-portal="v2"] .i-marks button[aria-pressed="true"][data-mark="late"]    { background: var(--warn); }
-[data-portal="v2"] .i-marks button[aria-pressed="true"][data-mark="absent"]  { background: var(--bad-line); }
+[data-portal="v2"] .i-marks button[aria-pressed="true"] { color: var(--on-fill); font-weight: 800; border-color: transparent; }
+[data-portal="v2"] .i-marks button[aria-pressed="true"][data-mark="present"] { background: var(--fill-good); }
+[data-portal="v2"] .i-marks button[aria-pressed="true"][data-mark="late"]    { background: var(--fill-warn); }
+[data-portal="v2"] .i-marks button[aria-pressed="true"][data-mark="absent"]  { background: var(--fill-bad); }
 [data-portal="v2"] .i-marks button:disabled { opacity: .55; cursor: default; }
 
 /* The authorised/unauthorised pair appears only under an absence — the design
@@ -1200,6 +1254,13 @@
   background: var(--ink); border-color: var(--ink); color: var(--on-ink);
 }
 
+/* The question the minute row answers, separated from the week strip above it
+   by a rule — they are a display and an input, not one control. */
+[data-portal="v2"] .s-ask {
+  margin: 16px 0 10px; padding-top: 14px; border-top: 1px solid var(--rule);
+  font: 700 14px var(--font-ui); color: var(--text);
+}
+
 /* ── The three teach-back self-checks ────────────────────────────────────── */
 [data-portal="v2"] .s-checks { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
 [data-portal="v2"] .s-check {
@@ -1229,7 +1290,17 @@
 
 /* ── A recording. Title, date, audio — and nowhere to put a mark. ────────── */
 [data-portal="v2"] .s-take { align-items: flex-start; }
-[data-portal="v2"] .s-audio { display: block; width: 100%; margin-top: 8px; height: 38px; }
+/* The browser's own player is a shadow-DOM widget we cannot restyle, so it is
+   FRAMED rather than fought: sat on the card's sunken ground at the system's
+   own radius, it stops reading as a foreign grey pill dropped into the card.
+   `color-scheme` is what makes Chrome draw its controls dark in dark mode —
+   without it the player stays light on a dark card. */
+[data-portal="v2"] .s-audio {
+  display: block; width: 100%; margin-top: 10px; height: 40px;
+  background: var(--sunken); border-radius: var(--radius-control);
+  color-scheme: light;
+}
+[data-portal="v2"][data-theme="dark"] .s-audio { color-scheme: dark; }
 
 /* ── The band, and the week number in the curriculum list ────────────────── */
 [data-portal="v2"] .s-band { font-size: 44px; line-height: 1; }

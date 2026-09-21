@@ -123,18 +123,38 @@ function mam_sportal_enrolments(int $studentId): array {
  * would tell a student they owe nothing right up to the day it is enforced.
  */
 function mam_sportal_owed(int $studentId): array {
-    $cents = 0;
-    try { $cents = mam_accountability_outstanding_cents('student', $studentId); } catch (Throwable $e) { /* no ledger yet */ }
-    $due = null;
+    /* ⚠️ TWO ledgers, and they must not be mixed into one figure. This used to
+       return the punctuality total as `cents` while taking `due_on` from
+       `fee_invoices` — so the money screen printed a $0.00 headline with an
+       invoice's due date under it, directly above a row chipped "Overdue" for
+       $485. The biggest number on the screen was answering a different
+       question from the date beside it.
+       `cents` is now everything genuinely outstanding; the two halves travel
+       separately so the screen can name each. */
+    $charges = 0;
+    try { $charges = mam_accountability_outstanding_cents('student', $studentId); } catch (Throwable $e) { /* no ledger yet */ }
+
+    $fees = 0; $due = null;
     try {
         $row = mam_db_row(
-            'SELECT MIN(due_on) AS d FROM fee_invoices WHERE student_id = ? AND status IN (\'issued\',\'part_paid\')',
+            "SELECT MIN(due_on) AS d,
+                    COALESCE(SUM(MAX(total_minor - paid_minor, 0)), 0) AS owed
+               FROM fee_invoices
+              WHERE student_id = ? AND status IN ('issued','part_paid') AND currency = 'USD'",
             [$studentId]
         );
-        $due = $row && $row['d'] ? (string) $row['d'] : null;
+        $due  = $row && $row['d'] ? (string) $row['d'] : null;
+        /* `total_minor` is in the invoice's own currency; only a USD invoice
+           can be added to a USD-cent ledger. A naira invoice is shown on its
+           own row rather than summed into this figure — the v61 column exists
+           because summing NGN into a USD total is exactly the bug. */
+        $fees = (int) ($row['owed'] ?? 0);
     } catch (Throwable $e) { /* fees layer not in use on this install */ }
+
     return [
-        'cents'    => $cents,
+        'cents'         => $charges + $fees,
+        'charges_cents' => $charges,
+        'fees_cents'    => $fees,
         'due_on'   => $due,
         /* ⛔ by design (handoff §3.4): nothing is withheld from a child over
            money, and the screen says so where the figure appears rather than

@@ -152,7 +152,7 @@
     main.scrollTop = 0;
     if (pendingFocus) {
       pendingFocus = false;
-      var head = main.querySelector('.p-back, .p-ghost, .p-h1, .i-next-title');
+      var head = main.querySelector('.p-h1') || main.querySelector('.p-back');
       if (head) { head.setAttribute('tabindex', '-1'); head.focus({ preventScroll: true }); }
     }
   }
@@ -268,10 +268,21 @@
         S.sessionId = Number(d.session.id);
         var sub = [d.session.cohort_title, fmtTime(d.session.scheduled_at),
                    (d.total + ' ' + plural(d.total, 'student', 'students'))].filter(Boolean).join(' · ');
+        /* ⚠️ "Saved N of M" was a `<button class="p-primary">` with NO handler
+           anywhere — a dead control, and the most prominent thing on the
+           screen. It is a READOUT: each mark saves on its own, so there is
+           nothing to press, and dressing the progress figure as the primary
+           action made the one real action ("All present") look secondary to
+           it. Now a status with a bar, beside the action. */
+        var pct = d.total > 0 ? Math.round(d.marked / d.total * 100) : 0;
         paint(h1('Register', sub)
-          + '<div class="p-actions p-lead">'
+          + '<div class="i-regbar p-lead">'
           + '<button type="button" class="p-outline" id="allPresent">All present</button>'
-          + '<button type="button" class="p-primary" id="regDone">Saved ' + d.marked + ' of ' + d.total + '</button>'
+          + '<div class="i-saved" role="status">'
+          +   '<span class="p-caption"><b class="p-num">' + d.marked + ' of ' + d.total + '</b> marked</span>'
+          +   '<span class="p-bar"><span class="' + (d.marked === d.total ? 'is-strong' : 'is-secure')
+          +     '" data-pct="' + pct + '"></span></span>'
+          + '</div>'
           + '</div>'
           + '<section class="p-card is-flush">' + (d.roster || []).map(rosterRow).join('') + '</section>'
           + '<div class="p-notice p-gap-t"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>'

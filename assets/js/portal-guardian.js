@@ -143,7 +143,7 @@
    */
   function paint(html) {
     main.innerHTML = html;
-    var head = main.querySelector('.p-h1, .p-back');
+    var head = main.querySelector('.p-h1') || main.querySelector('.p-back');
     if (head) head.setAttribute('tabindex', '-1');
   }
 
@@ -555,7 +555,13 @@
             + '<span>You will be charged <strong>' + esc(inv.charge.amount) + '</strong>. The '
             + esc(inv.due) + ' is the amount owed; this figure uses today’s rate of '
             + esc(inv.charge.rate_label) + ' and is an estimate until the payment clears.'
-            + (inv.frozen_rate_label ? ' This invoice was issued at ' + esc(inv.frozen_rate_label) + '.' : '')
+            /* ⚠️ Only when the two rates DIFFER. The frozen rate is what the
+               invoice was issued at and today's is what the estimate uses;
+               when they are the same the sentence printed "₦1,500 to $1"
+               twice in four lines, which reads as a fault rather than as
+               reassurance. */
+            + (inv.frozen_rate_label && inv.frozen_rate_label !== inv.charge.rate_label
+                ? ' This invoice was issued at ' + esc(inv.frozen_rate_label) + '.' : '')
             + '</span></div>'
           : '')
 
@@ -987,7 +993,7 @@
     renderSwitcher();
     // Focus the heading so a keyboard or screen-reader user lands on the new
     // screen rather than back at the top of the nav.
-    var head = main.querySelector('.p-h1, .p-back');
+    var head = main.querySelector('.p-h1') || main.querySelector('.p-back');
     if (head) { head.setAttribute('tabindex', '-1'); head.focus({ preventScroll: true }); }
     main.scrollTop = 0;
     window.scrollTo(0, 0);

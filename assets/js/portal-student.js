@@ -411,10 +411,16 @@
       /* The practice log. A number and a focus, nothing else: every extra field
          is a reason not to log at all, and an unlogged day is the failure. */
       var pr = d.practice || {};
-      html += '<section class="p-card"><div class="p-line"><span class="p-label">Log today\'s practice</span>'
+      /* ⚠️ The week strip is a DISPLAY and the minute row is an INPUT, and at
+         390 they sat 12px apart as two rows of same-sized pills under one
+         heading — reading as a single twelve-button control. The strip keeps
+         its own label and a rule under it, so the question below is plainly a
+         different thing being asked. */
+      html += '<section class="p-card"><div class="p-line"><span class="p-label">This week</span>'
         + '<b class="p-num">' + esc(mins(pr.weekMin)) + ' in 7 days</b></div>'
         + weekDots(pr.weekDays)
-        + '<div class="s-mins p-gap-t" role="group" aria-label="How long did you practise?">'
+        + '<div class="s-ask">How long did you practise today?</div>'
+        + '<div class="s-mins" role="group" aria-label="How long did you practise today?">'
         + [10, 20, 30, 45, 60].map(function (m) {
             return '<button type="button" data-min="' + m + '" aria-pressed="false">' + m + '</button>';
           }).join('')
@@ -450,8 +456,11 @@
                 + '<span>' + esc(c.label) + '</span></button>';
             }).join('') + '</div>'
           + '<label class="p-field p-gap-t"><span>In your own words</span>'
+          /* An older submission may still carry the appended checklist that
+             this screen used to add; strip it on the way in rather than
+             handing it back for the student to delete by hand. */
           + '<textarea id="tbBody" maxlength="4000" placeholder="It works because…">'
-          + esc(tb && tb.body ? tb.body : '') + '</textarea></label>'
+          + esc(tb && tb.body ? String(tb.body).replace(/\n+—[\s\S]*$/, '').trim() : '') + '</textarea></label>'
           + '<button type="button" class="p-action" id="tbSend" data-lesson="' + esc(t.lesson_id) + '">'
           + (tb ? 'Send it again' : 'Send it') + '</button>'
           + '<p class="p-caption s-soft">' + esc(d.teachback_notice) + '</p>'
@@ -687,10 +696,25 @@
       S.money = d;
       var owed = d.owed || {};
       var led = d.ledger || {};
+      /* ⚠️ ONE figure, and it is the whole of what is outstanding. This read
+         `$0.00` — the punctuality ledger alone — with an INVOICE's due date
+         under it and a row chipped "Overdue" for $485 directly below, so the
+         biggest number on the screen answered a different question from the
+         date beside it. The two ledgers are named under the total rather than
+         silently merged: tuition is the guardian's to settle and a
+         punctuality charge is the student's, and a reader who can act on only
+         one of them needs to see which is which. */
+      var parts = [];
+      if (Number(owed.fees_cents) > 0)    parts.push(money(owed.fees_cents) + ' tuition');
+      if (Number(owed.charges_cents) > 0) parts.push(money(owed.charges_cents) + ' punctuality');
+      var oweing = Number(owed.cents) > 0;
       var html = backTo('home', 'Home') + h1('Fees & charges') + '<div class="p-stack">'
-        + '<section class="p-card"><div class="p-label">Outstanding</div>'
+        + '<section class="p-card' + (oweing ? ' is-urgent' : '') + '">'
+        + '<div class="p-label' + (oweing ? ' is-bad' : '') + '">Outstanding</div>'
         + '<div class="p-fig p-money">' + esc(money(owed.cents)) + '</div>'
-        + (owed.due_on ? '<p class="p-caption">' + esc('Due ' + fmtDate(owed.due_on)) + '</p>' : '')
+        + (parts.length > 1 ? '<p class="p-caption">' + esc(parts.join('  ·  ')) + '</p>' : '')
+        + (owed.due_on && Number(owed.fees_cents) > 0
+            ? '<p class="p-caption">' + esc('Tuition due ' + fmtDate(owed.due_on)) + '</p>' : '')
         + '<p class="p-body s-soft">' + esc(owed.notice) + '</p></section>';
 
       var inv = d.invoices || [];
@@ -894,8 +918,21 @@
     SCREENS[screen](arg);
   }
 
+  /**
+   * ⚠️ The heading, explicitly — NOT whichever of the two comes first.
+   *
+   * `querySelector('.p-back, .p-h1')` returns the earlier match in DOCUMENT
+   * order regardless of how the selector is written, and the back control is
+   * rendered above the heading. So every screen change landed focus on a real
+   * `<button>`, which paints a ring: MEASURED, `:focus-visible` matched after
+   * a navigation with no keyboard interaction at all, so a mouse user got an
+   * orange 2px outline on the back control on every screen. A heading with
+   * `tabindex="-1"` is the conventional target precisely because it is not an
+   * interactive control, and `.p-h1[tabindex]:focus { outline: none }` is
+   * already in the stylesheet for exactly this.
+   */
   function focusHead() {
-    var head = main.querySelector('.p-back, .p-h1');
+    var head = main.querySelector('.p-h1') || main.querySelector('.p-back');
     if (head) { head.setAttribute('tabindex', '-1'); head.focus({ preventScroll: true }); }
   }
 
@@ -1008,16 +1045,18 @@
       var tbBtn = t.closest('#tbSend');
       var body = ($('#tbBody') || {}).value || '';
       if (!body.trim()) { toast('Write your explanation first — a sentence or two is plenty.', 'bad'); return; }
-      /* The three self-checks are FORMATIVE and travel with the explanation as
-         the student's own words, not as a score: `teachbacks` has no field for
-         them and inventing one would make this the graded task §2.1 refuses. */
-      var ticked = $$('.s-check[aria-checked="true"]').map(function (c) { return c.textContent.trim(); });
+      /* ⚠️ The three self-checks are NOT appended to the explanation.
+         They used to be, and it compounded: the textarea is prefilled with
+         the last submission, so "Send it again" posted the previous body
+         WITH its appended checklist and then appended the checklist a second
+         time. MEASURED on screen after one resubmit. They are a prompt the
+         student reads before writing — §2.1 is explicit that this is never
+         marked and `teachbacks` has no field for them, so inventing one
+         would make it the graded task the design refuses. What they do is
+         shape the sentence the student writes, which is the whole point. */
       write(tbBtn, API.request('student/preclass', {
         method: 'POST',
-        body: {
-          action: 'teachback', lesson_id: Number(tbBtn.dataset.lesson), kind: 'written',
-          body: body + (ticked.length ? '\n\n— ' + ticked.join('\n— ') : '')
-        }
+        body: { action: 'teachback', lesson_id: Number(tbBtn.dataset.lesson), kind: 'written', body: body }
       }), function () { renderTrain(); }, 'Sent. It is never marked and never counts towards your band.');
       return;
     }

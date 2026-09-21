@@ -1397,6 +1397,38 @@ sentence. That guard now asserts the phrase carrying the promise plus the
 structure — a test on exact copy blocks the next improvement, not the next
 regression.
 
+### 4s-2. The styling pass (same day)
+
+Visual defects, found by reading every screen at 390 with real data rather
+than by measuring:
+
+| Defect | Detail |
+|---|---|
+| Student Fees led with **$0.00** above an invoice chipped "Overdue" for $485 | `mam_sportal_owed()` returned the punctuality total as `cents` while taking `due_on` from `fee_invoices` — the biggest number on the screen answered a different question from the date beside it. It now returns `charges_cents` and `fees_cents` separately and the headline is their total, named underneath. |
+| **Two of the three register marks failed contrast** | White on `--good` is 4.36:1 and on `--warn-bar` 3.92:1. Fixing the muddy Late fill by swapping `--warn` → `--warn-bar` *introduced* the second failure, which is how the whole set got checked. New `--fill-good/warn/bad` + `--on-fill`, inverting in dark mode. |
+| "Saved 2 of 6" was a **dead `p-primary` button** | No handler anywhere, and the most prominent control on the register — a progress readout dressed as the primary action. Now a status with a bar beside the one real action. |
+| `.p-card-foot` had no side padding inside `.p-card.is-flush` | Footnote text sat 1px from the card wall with the rounded corner drawn through it. |
+| The payment methods looked like buttons | Three `<span>`s at 44px with a border and the button radius, directly under three real buttons. Now a caption strip. |
+| Every screen change painted a **focus ring** | `querySelector('.p-back, .p-h1')` returns the earlier match in DOCUMENT order, and the back control renders above the heading — so the focus move landed on a real `<button>`. MEASURED: `:focus-visible` matched after a navigation with no keyboard interaction. All three portals had it. |
+| The teach-back **compounded on resubmit** | The three self-checks were appended to the body, and the textarea is prefilled with the last submission — so "Send it again" posted the previous body with its checklist and appended it again. |
+| The week strip read as part of the minute chooser | Two rows of same-sized pills 12px apart under one heading. |
+| The guardian FX note printed the same rate twice | The "issued at" sentence was unconditional rather than shown only when the frozen and current rates differ. |
+| `<audio controls>` sat in the card as a raw browser widget | Framed on `--sunken` with `color-scheme` so Chrome draws it dark in dark mode. |
+
+⚠️ **My own 320px fix had regressed 390.** Giving `.p-row-main` a 55% basis
+stopped the chip crushing the name at 320, but flexbox decides to wrap on the
+sum of the BASES, so the marking queue's "2nd marker" chip dropped to its own
+line at 390 where it had always fitted. Back to `flex: 1 1 0` with the wrap
+asked for explicitly below 360. MEASURED after: 320 wraps (main 56px → 184px,
+no clipping), 360/390/430 inline and un-clipped.
+
+⚠️ **Two more harness errors, same lesson as below.** A wrap detector compared
+the chip's top against the main column's — useless under `align-items: center`,
+where a short chip always sits below a tall column's top on the same line;
+compare the chip's LEFT against the column's RIGHT. And a `pkill -f sweep.cjs`
+matched its own shell, whose command line contained the string, killing the
+command before its heredoc had written the file.
+
 ⚠️ **Two of the harness's own first results were wrong**, which is the general
 lesson: a "focus obscured by fixed chrome" detector flagged the nav's own
 buttons overlapping themselves, and a contrast checker flagged the fixed badge
