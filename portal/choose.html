@@ -47,30 +47,37 @@
 <script src="/assets/js/config.js?v=20260807a"></script>
 <script>
 (function () {
+  /* PRESENTATION only — the icon and the sentence. Which portals exist, what
+     they are called and where they live all come from the server
+     (`mam_portal_targets()` via /api/auth/me). This used to be the whole
+     decision, and it had no 'parent' entry: a guardian fell through to
+     `META.student` and was shown somebody else's portal. A role with no entry
+     here still renders, with a neutral icon and no sentence. */
   var META = {
-    admin:      { icon: 'shield-halved',   title: 'Admin dashboard',   desc: 'Manage applications, users, curriculum, payments and settings.', url: '/admin/' },
-    instructor: { icon: 'chalkboard-user', title: 'Instructor portal',  desc: 'Your cohorts, sessions, gradebook, feedback and earnings.',     url: '/portal/instructor/' },
-    student:    { icon: 'graduation-cap',  title: 'Student portal',     desc: 'Your learning, classes, results, assignments and payments.',    url: '/portal/student/' }
+    admin:      { icon: 'shield-halved',   desc: 'Manage applications, users, curriculum, payments and settings.' },
+    instructor: { icon: 'chalkboard-user', desc: 'Your cohorts, sessions, gradebook, feedback and earnings.' },
+    student:    { icon: 'graduation-cap',  desc: 'Your learning, classes, results, assignments and payments.' },
+    parent:     { icon: 'user-shield',     desc: "Your children's progress, attendance, reports, fees and consents." }
   };
-  var ORDER = ['student', 'instructor', 'admin'];
   var box = document.getElementById('choose-paths');
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
   window.MAM_API.request('auth/me', { method: 'GET' }).then(function (r) {
     if (!r || !r.authenticated || !r.user) { window.location.href = '/portal/login'; return; }
-    var roles = (r.user.roles && r.user.roles.length) ? r.user.roles : [r.user.role];
-    var portals = ORDER.filter(function (role) { return META[role] && roles.indexOf(role) >= 0; });
-    // Nothing to choose — go straight to the one (or only) portal.
-    if (portals.length <= 1) { window.location.href = (META[portals[0]] || META.student).url; return; }
+    var portals = r.portals || [];
+    // Nothing to choose — go straight to the one. No portal at all is the
+    // homepage, not a guess at somebody else's.
+    if (portals.length === 0) { window.location.href = '/'; return; }
+    if (portals.length === 1) { window.location.href = portals[0].url; return; }
     var first = (r.user.name || '').split(' ')[0];
     if (first) document.getElementById('choose-hi').textContent = 'Where to, ' + first + '?';
-    box.innerHTML = portals.map(function (role) {
-      var m = META[role];
-      return '<a class="choose-item" href="' + m.url + '">'
-        + '<div class="choose-icon"><i class="fa-solid fa-' + m.icon + '"></i></div>'
-        + '<div class="choose-title">' + esc(m.title) + '</div>'
-        + '<p class="choose-desc">' + esc(m.desc) + '</p>'
+    box.innerHTML = portals.map(function (t) {
+      var m = META[t.role] || {};
+      return '<a class="choose-item" href="' + esc(t.url) + '">'
+        + '<div class="choose-icon"><i class="fa-solid fa-' + esc(m.icon || 'circle-user') + '"></i></div>'
+        + '<div class="choose-title">' + esc(t.label) + '</div>'
+        + (m.desc ? '<p class="choose-desc">' + esc(m.desc) + '</p>' : '')
         + '<span class="choose-go">Enter <i class="fa-solid fa-arrow-right"></i></span></a>';
     }).join('');
   }).catch(function () { window.location.href = '/portal/login'; });

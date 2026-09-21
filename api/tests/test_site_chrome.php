@@ -190,3 +190,40 @@ t_eq(substr_count($header, 'mega-3col'), 2, 'and two declare three');
 t_ok(!(bool)preg_match('/@media \(max-width:1280px\)\{[^@]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/s', $css),
     'no column wraps under its neighbours below 1280 any more: the 2-column collapse existed only '
     . 'because three columns PLUS a 1.15fr photo panel needed 1080px');
+
+/* ── Portal routing: one authority, not four copies ──────────────────────── */
+t_group('portal routing — the guardian portal is reachable');
+
+$authMe = (string)@file_get_contents($ROOT . '/api/routes/auth/me.php');
+$cfgJs  = (string)@file_get_contents($ROOT . '/assets/js/config.js');
+$loginH = (string)@file_get_contents($ROOT . '/portal/login.html');
+$chooseH= (string)@file_get_contents($ROOT . '/portal/choose.html');
+$authL  = (string)@file_get_contents($ROOT . '/api/lib/auth.php');
+
+/* `mam_portal_targets()` has always known about 'parent'. Three CLIENTS kept
+   their own copy of that map and none of them did, so a guardian was bounced
+   to the homepage by login.html, handed the STUDENT portal by choose.html,
+   and given a student-portal link by MAM_AUTH.portalFor(). */
+t_ok((bool)preg_match("/'parent'\\s*=> \\['role' => 'parent',[^\\]]*'\\/portal\\/parent\\/'\\]/", $authL),
+    'the server map is the authority and names the parent portal');
+// Single-quoted: in a double-quoted PHP string `$roles` interpolates to the
+// empty string and the assertion silently tests for `mam_portal_targets()`.
+t_ok(str_contains($authMe, '\'portals\' => mam_portal_targets($roles)'),
+    '…and /api/auth/me carries that list to the client');
+t_ok(str_contains($authMe, "'portals' => []"),
+    '…including for a signed-out caller, so the client never reads undefined');
+
+t_ok(str_contains($cfgJs, 'r.portals && r.portals.length'),
+    'MAM_AUTH prefers the server list over its own map');
+t_ok(str_contains($cfgJs, "parent: '/portal/parent/'"),
+    '…and its fallback map, used only before the fetch lands, names parent too');
+t_ok(!(bool)preg_match("/var map = \\{ admin: '\\/admin\\/', instructor:/", $loginH),
+    'login.html no longer keeps a copy of the map');
+t_ok(str_contains($loginH, 'var portals = r.portals || [];'), '…it reads the server list');
+t_ok(str_contains($chooseH, 'var portals = r.portals || [];'), 'and so does the chooser');
+/* A role the chooser has no icon for still renders. A missing entry used to
+   mean `META[undefined] || META.student` — somebody else's portal. */
+t_ok(str_contains($chooseH, "esc(m.icon || 'circle-user')"),
+    'a portal with no presentation entry still renders, with a neutral icon');
+t_ok(!str_contains($chooseH, 'META.student).url'),
+    '…and no path falls back to the student portal for an unknown role');

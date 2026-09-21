@@ -389,15 +389,28 @@ window.MAM_API = (function () {
    (5-min TTL) so navigating between pages doesn't refetch, while a single async
    revalidation keeps it fresh. Never throws — a down API resolves to signed-out. */
 window.MAM_AUTH = (function () {
-  var PORTAL = { admin: '/admin/', instructor: '/portal/instructor/', student: '/portal/student/' };
+  /* The FALLBACK only. `/api/auth/me` now carries the real list from
+     `mam_portal_targets()`, and `shape()` prefers it — this map is what the
+     synchronous `cached()` best-guess paints with before the fetch lands, and
+     what a down API falls back to. It went stale once already (no 'parent',
+     so every guardian was handed a student-portal link), which is why the
+     server's answer wins wherever there is one. */
+  var PORTAL = { admin: '/admin/', instructor: '/portal/instructor/', student: '/portal/student/', parent: '/portal/parent/' };
   var KEY = 'mam.auth.v1', TTL = 5 * 60 * 1000;
   var mem = null, inflight = null;
 
   function portalFor(role) { return PORTAL[role] || '/portal/student/'; }
   function shape(r) {
-    return (r && r.authenticated && r.user)
-      ? { authenticated: true, user: r.user, role: r.user.role, portal: portalFor(r.user.role) }
-      : { authenticated: false, user: null, role: null, portal: '/portal/login' };
+    if (!(r && r.authenticated && r.user)) {
+      return { authenticated: false, user: null, role: null, portal: '/portal/login', portals: [] };
+    }
+    var list = (r.portals && r.portals.length) ? r.portals : null;
+    return {
+      authenticated: true, user: r.user, role: r.user.role,
+      // The server's first target when it sent one; the local map otherwise.
+      portal: list ? list[0].url : portalFor(r.user.role),
+      portals: list || []
+    };
   }
   /** Synchronous best-guess from sessionStorage — lets the nav paint the right
       state on first frame (no flash), then state() revalidates in the background. */

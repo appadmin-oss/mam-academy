@@ -219,7 +219,11 @@
         // Avoid open redirects: only honor site-relative paths — a single
         // leading slash. "//evil.com" is protocol-relative and must not pass.
         if (next && !/^\/(?!\/)/.test(next)) next = null;
-        window.location.href = next || r.redirect || '/portal/student/';
+        /* `/` rather than a student-portal guess: the server always sends
+           `redirect`, and if it somehow did not, the homepage shows the
+           account chip pointing at the right portal. Guessing sends a
+           guardian to somebody else's. */
+        window.location.href = next || r.redirect || '/';
       })
       .catch(function (e) {
         setLoading(false);
@@ -323,11 +327,17 @@
   window.MAM_API.request('auth/me', { method: 'GET' })
     .then(function (r) {
       if (r && r.authenticated && r.user) {
-        var map = { admin: '/admin/', instructor: '/portal/instructor/', student: '/portal/student/' };
-        var roles = (r.user.roles && r.user.roles.length) ? r.user.roles : [r.user.role];
-        var portals = roles.filter(function (role) { return map[role]; });
+        /* The list comes from the server (`mam_portal_targets()`), not from a
+           copy of the map kept here. The copy was missing 'parent', so a
+           guardian who was already signed in and opened this page filtered to
+           an EMPTY list and got sent to the homepage — the one role whose
+           portal the site had just been redesigned around. */
+        var portals = r.portals || [];
         if (portals.length > 1) { window.location.href = '/portal/choose'; return; }  // let dual-role users choose
-        window.location.href = map[portals[0]] || '/';
+        if (portals.length === 1) { window.location.href = portals[0].url; return; }
+        // A signed-in account with no portal at all (a bare customer record):
+        // the homepage is the honest destination, not somebody else's portal.
+        window.location.href = '/';
       }
     })
     .catch(function () {});
