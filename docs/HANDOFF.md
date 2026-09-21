@@ -46,7 +46,8 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | **Every route swept against MySQL, logs read** | ✅ clean — found 3 more (break-glass 401s) |
 | The console's phone subset (`#5b`) | not built — §6.2 |
 | **Instructor portal redesign** | ✅ **shipped 2026-09-19** — seven screens on portal-v2; the legacy 13-tab dashboard stays at `classic.html`. `docs/design/2026-08-portal-redesign/BUILD-NOTES-instructor.md` |
-| Student portal redesign | not started — still on the old palette |
+| **Student portal redesign** | ✅ **shipped 2026-09-21** — five destinations on portal-v2; the legacy dashboard stays at `classic.html`. All three portals now share one palette and one a11y key; §4r |
+| **Guardian portal reachable from sign-in** | ✅ **shipped 2026-09-21** — `/api/auth/me` returns the portal map; three client copies of it are gone; §4r |
 | **Instructor application platform (schema v90)** | ✅ **shipped 2026-09-17** — see §4p |
 | **Instructor application v2 (four-step rework)** | ✅ **shipped 2026-09-18** — `docs/design/2026-09-instructor-application/BUILD-NOTES.md`; one DSO sign-off outstanding |
 | **Instructor policy issued on faculty apply** | ✅ **shipped 2026-09-19** — the 12-clause policy is emailed and web-viewable at `/api/policy/FAC-<id>` |
@@ -1260,6 +1261,69 @@ Findings, by severity:
 Neither old portal carries `data-portal="v2"`, so `portal-v2.css` stays inert
 for them and the three coexist — the redesign can be done one portal at a time.
 
+**All three are now done** (§4r). The HIGH finding above is the one to read
+next: `script-src 'unsafe-inline'` is still load-bearing, because the two
+`classic.html` dashboards still carry the ~5,271 lines of inline JS and are
+still served. Dropping it is now a *retirement* decision, not a rewrite.
+
+
+## 4r. The student portal, and the portal map (2026-09-21)
+
+Two things shipped together, because the second was found while testing the
+first.
+
+**The guardian portal was orphaned.** Sign-in, the chooser and `config.js`
+each carried their own copy of the role → portal mapping, and none of the
+three listed `parent`. A guardian who signed in was sent to the student
+portal, which refused them. The fix is one server-owned list —
+`mam_portal_targets($roles)` on `GET /api/auth/me` — with the three client
+copies reduced to a last-resort fallback, so the next portal cannot be added
+in one place and missed in three. `test_site_chrome.php` guards it. Verified
+end to end for all four cases: student, instructor, guardian, and the
+dual-role account that lands on the chooser.
+
+**The student portal v2** is the last of the three. Five destinations
+(Home · Train · Learn · Attend · More) plus Fees and Repertoire behind the
+sheet; class-only markup, one provider per screen, one request per screen.
+Full notes, including the four refusals the provider enforces and the shared
+`--on-ink` trap, are in CLAUDE.md under "The student portal v2".
+
+### What only a browser found
+
+Every one of these passed the suite and the linters:
+
+| Defect | Why it mattered |
+|---|---|
+| "1h 10m **this week**" above seven empty Mon–Sun dots | `mam_practice_stats()` measures a ROLLING week for the figure and a CALENDAR week for the strip. The label now says what the figure measures. |
+| "NEXT · Practise today" above a class starting in 8 minutes | The provider's step was *correct*; the page was lying about which came first. An imminent class now leads, and the hero is suppressed when the step IS the check-in. |
+| One session shown twice under two names | The card used the module title ("Circle of fifths"), the record used the session title ("Scales & sight-reading"). Reads as two classes. |
+| Clock-out lost with the duplicate row | A student could check in and never record leaving, so no duration was written. It lives on the card now. |
+| Eight identical "not counted against you" sentences | 1,180px of card at 390 where eight *names* were the information. |
+| Competency bars at 1,110px | 100% and 96% are the same picture with no reference length. |
+| **Dark mode: white text on a light button** | `--ink` inverts (#1B2430 → #E8ECF2) and `#fff` does not. The instructor session card had the same latent pairing and its accent eyebrow measured **1.38:1**. Fixed with `--on-ink` tokens across the shared layer — now 5.14:1. |
+| **320px: a chip crushing the name it annotates** | A 100px "2nd marker" chip left the instructor marking queue's name column 56px wide. `.p-row` wraps now. |
+
+Verified at 320/390/1440, in dark, at the largest text size, with
+easier-to-read and low-data on. Every write driven for real: check in, clock
+out, mark prepared, log practice, send a teach-back, ask for a charge to be
+reviewed, add/restatus/remove a repertoire piece.
+
+### What is deliberately NOT done
+
+- **The legacy dashboards are not retired**, and that is the decision to make
+  next. `portal/student/classic.html` still serves courses, curriculum,
+  assignments, grades, payments, orders, recitals and support; the redesign
+  covers five destinations. Retiring it is what finally lets
+  `script-src 'unsafe-inline'` go.
+- **"Keep it warm" stores nothing server-side.** The interval is a
+  device-local reminder. There is no endpoint because there is nothing the
+  academy should be told — the moment it is recorded and reported it stops
+  being retrieval practice, which is §2.1's own refusal.
+- **The handoff's `/api/practice/*` surface was not built.** The repo's
+  equivalents (`student/practice-log`, `student/take`, `student/preclass`) are
+  already rate-limited, CSRF-gated and tested; a parallel surface would give
+  the academy two ways to record one take.
+
 
 ## 5. Where things live
 
@@ -1282,6 +1346,10 @@ for them and the three coexist — the redesign can be done one portal at a time
 | Student one-tap check-in | `checkin.php` |
 | Account invitations (a link, never a password) | `mam_auth_invite()` in `api/lib/auth.php` |
 | Shared portal error translator (`P.errText` / `P.fail`) | `assets/js/portal.js` |
+| The three redesigned portals | `portal/{student,instructor,parent}/index.html` + `assets/js/portal-{student,instructor,guardian}.js` + `assets/css/portal-v2.css` |
+| Their read providers (one function per screen) | `api/lib/{student,instructor}-portal.php`, `api/lib/parents.php` |
+| The legacy dashboards, still served | `portal/{student,instructor}/classic.html` |
+| Which portal a sign-in goes to | `mam_portal_targets()` → `GET /api/auth/me` (the clients only fall back) |
 | Self-hosted toast (the CDN-proof one) | `assets/js/libs.js` |
 | The academic calendar + refund authority | `api/lib/calendar.php`, admin `?v=calendar` |
 | The NDPA layer — requests, breaches, ROPA, retention, processors, DPIAs | `api/lib/dataprotection.php`, admin `?v=dataprotection` |
@@ -1385,7 +1453,7 @@ Gotchas that cost time and will again:
 ## 8. Test and CI expectations
 
 ```bash
-php api/tests/run.php                      # 3,275 assertions, must stay at 0 failed
+php api/tests/run.php                      # 6,223 assertions, must stay at 0 failed
 node .github/scripts/check-inline-js.cjs   # inline <script> in every HTML page
 node assets/js/notation.selftest.cjs
 node assets/js/card-export.selftest.cjs
@@ -1397,7 +1465,17 @@ for months because CI only parsed it. If you add one, add it to
 `.github/workflows/ci.yml` in the same commit.
 
 New test files added in this stream: `test_apply_form.php`,
-`test_admin_tables.php` (extended), `test_portal_forms.php`.
+`test_admin_tables.php` (extended), `test_portal_forms.php`,
+`test_apply_wizard.php`, `test_site_chrome.php`, `test_student_portal.php`,
+`test_student_portal_ui.php`.
+
+⚠️ **The portal tests are static and say so in their own headers.** Every
+defect §4r lists was found by driving a real browser, and not one of them
+would have failed an assertion here: a label that contradicts the dots beside
+it, a card ordered above the thing it is subordinate to, a token that inverts
+while the colour paired with it does not. Run the sweep before claiming a
+portal change is done — 320/390/1440, dark, largest text, and every write
+actually clicked.
 
 ---
 

@@ -21,9 +21,13 @@ hosting behind Cloudflare.
 - `admin/index.php` — large (~8.6K lines) server-rendered + JS admin dashboard
   with **37 views**, and still the owner of **every admin POST handler**,
   including the console's. Edit carefully.
-- `portal/{student,instructor,parent}/index.html` — SPA-style portals (note the
-  **parent/guardian portal**); `portal/{login,signup,reset,choose}.html`.
-  The three dashboards carry ~4,800 lines of **inline** `<script>`.
+- `portal/{student,instructor,parent}/index.html` — the three redesigned
+  portals (note the **parent/guardian portal**), all on `portal-v2.css` with
+  their apps in `assets/js/portal-{student,instructor,guardian}.js`;
+  `portal/{login,signup,reset,choose}.html`. The **legacy** dashboards survive
+  beside two of them as `portal/{student,instructor}/classic.html` — that is
+  where the ~4,800 lines of inline `<script>` live, and they are not retired
+  because they still serve the tabs the redesigns have not rebuilt.
 - `assets/js/` — `config.js` (the `MAM_API` client + `MAM_CONFIG`), `portal.js`
   (shared portal kit `P.*`), `main.js`, `tools.js` (studio), etc.
 - `api/` — front controller `api/index.php` → `lib/router.php`; the libs in
@@ -923,11 +927,13 @@ Built after the portal brief and **not covered anywhere else in this file**, whi
 is why it kept getting rediscovered. Roughly a third of the system.
 
 - **Parent / guardian portal** — **REDESIGNED (2026-08-19)** from the academy's
-  design package, and the only portal on the new palette. `portal/parent/index.html`
-  is class-only markup with its app in `assets/js/portal-guardian.js`, styled by
-  `assets/css/portal-v2.css` — which is **scoped under `[data-portal="v2"]`** so it
-  can coexist with `main.css`/`portal.css`, still used by the student and instructor
-  portals. **Load exactly one palette per page.** Routes:
+  design package; the FIRST portal on the new palette, and since 2026-09 all
+  three are (see "The student portal v2" for how they fit together).
+  `portal/parent/index.html` is class-only markup with its app in
+  `assets/js/portal-guardian.js`, styled by `assets/css/portal-v2.css` — which is
+  **scoped under `[data-portal="v2"]`** so it can coexist with
+  `main.css`/`portal.css`, still loaded by the three `classic.html` dashboards.
+  **Load exactly one palette per page.** Routes:
   `/parent/{dashboard,children,child,consent,reports,appeal,fees,plan,bursary,makeup,threads,thread-post,channels}`.
   Guardians link via `parent_links` (admin `?v=guardians`) and now carry an **access
   scope** (v86: billing / standard / full) enforced server-side by
@@ -1275,6 +1281,103 @@ could compute a risk score; `show_video` and the artifact URL come from
 at all); and every write goes through one helper that reports what actually
 happened — never an optimistic tick, which on a register is the one thing that
 cannot afford one.
+
+## The student portal v2 (`portal/student/`) — the 2026-09 redesign
+
+The third and last portal onto the redesign, and **the one place to read for
+"how the three portals fit together"**. Five destinations from
+`docs/design/2026-08-portal-redesign/HANDOFF-student-guardian.md` §2 —
+**Home · Train · Learn · Attend · More** — plus Fees and Repertoire behind the
+More sheet. Class-only markup in `portal/student/index.html`, the app in
+`assets/js/portal-student.js`, one read provider per screen in
+`api/lib/student-portal.php` (`GET /api/student/portal?screen=…`), styled by
+the `.s-*` block of `assets/css/portal-v2.css`.
+
+⚠️ **All three portals now share `portal-v2.css` and one a11y key.** Load
+exactly one palette per page: `main.css`/`portal.css` are the warm dark set and
+the three `classic.html` dashboards load them. The `mam-guardian-a11y` key is
+deliberately shared — it is one person's preference about their own eyes, not a
+per-portal setting, and a student who is also a guardian would otherwise set
+larger text twice and wonder which one took.
+
+⚠️ **The legacy dashboard is NOT retired.** `portal/student/classic.html` is
+the old ~3,100-line surface and still serves every tab the redesign has not
+rebuilt (courses, curriculum, assignments, grades, payments, orders, recitals,
+support). Same arrangement as `portal/instructor/classic.html` and
+`admin/index.php` beside `admin/console.php`, for the same reason; both link to
+each other. `test_checkin_page.php`, `test_dashboard_nulls.php`,
+`test_engagement2.php` and `test_portal_forms.php` assert against THAT file.
+
+**Four refusals are enforced in the PROVIDER, not the template**, because a
+refusal a template can forget is not a refusal (`test_student_portal.php`
+asserts each one at the layer the markup reads from):
+no cohort effort board — the personal streak stays and `streak_private` carries
+the sentence saying nobody else sees it, so a screen cannot show one without
+the other; no automatic scoring of a child's playing — a take has no score
+field; no intervention flag a student could be shown; and the mastery **band**
+via `mam_mastery_publishable()`, never `raw_score`.
+
+Non-obvious, and each measured in a browser rather than reasoned about:
+
+- ⚠️ **`mam_preclass_next()` returns `{session, module, prep, teachback}`, not
+  a flat row.** Reading `$pre['title']` off the top level is silently empty
+  rather than an error — a card titled "Prepare for " with nothing after it.
+  Same family: **`mam_accountability_list()` takes a STATUS, not a subject**
+  (`_ledger()` is the per-subject reader), and **`mam_checkin_next_class()`
+  returns `session_id`, not `id`.**
+- ⚠️ **`mam_checkin_window()` reports a five-way `state`, not a boolean.**
+  `open` is only the FIRST of the three states in which the door is open
+  (`open` → `readiness_passed` → `in_progress`); testing a truthy `$w['open']`
+  both misses the key and skips the two states a LATE student is most likely
+  to be in. And no boundary is ever computed in the browser — the old
+  dashboard hardcoded `READY = 15`, so an academy that changed the setting got
+  a page that disagreed with the gate it described.
+- **An imminent class outranks the next step, always.** The provider picks ONE
+  next step in priority order, but a step rendered above the class it is
+  subordinate to reads as a lie: "NEXT · Practise today" sat over a card saying
+  the class began in eight minutes. When the step IS the check-in the hero is
+  suppressed rather than shown twice.
+- **The session title leads; the module is a meta line.** They are different
+  strings — one session showed as "Circle of fifths" (the lesson) on the card
+  and "Scales & sight-reading" (the session) in the record, which reads as two
+  classes. Attend also no longer lists today's class as both a record row and a
+  card, and **clocking out lives on the card** as a result: without it a
+  student can check in and never record leaving, and no duration is written.
+- **`mam_practice_stats()` measures two different weeks.** `weekMin` is a
+  ROLLING seven days, `weekDays` is the calendar Monday–Sunday. Labelling the
+  figure "this week" above the strip printed "1h 10m this week" over seven
+  empty squares on a Monday. Don't relabel one to match the other — say what
+  each measures.
+- **The unevidenced competencies are named rows with ONE explanation.** §2.2
+  requires them visible; repeating the sentence under each of eight made the
+  card 1,180px tall at 390 and turned the names — the actual information — into
+  captions on a wall of identical prose.
+
+### The shared layer, and three traps in it
+
+These are in the `.p-*` block and bite **all three** portals:
+
+- ⚠️ **`--ink` INVERTS in dark mode** (#1B2430 → #E8ECF2, so a "dark panel"
+  becomes a light one) and a hardcoded `#fff` on it does not. Use the
+  **`--on-ink` / `--on-ink-2` / `--on-ink-line`** pair, and note
+  **`--accent-on-ink` inverts too** — the light-mode tint `#F7C08A` measures
+  **1.38:1** on the reversed panel, which is what made the instructor session
+  card's eyebrow very nearly invisible. The pairing is why none of these rules
+  needs a per-rule dark override.
+- **`.p-row` wraps, and `.p-row-main` keeps a 55% basis.** MEASURED at 320 on
+  the instructor marking queue: a 100px "2nd marker" chip beside a 52px avatar
+  left the name column 56px wide and the caption spilled out of it — an
+  annotation crushing the thing it annotates. Above ~360 nothing moves.
+- **`.p-crit` is capped at 560px on a desktop** and `.p-who-main` stacks name
+  over caption. A bar run to 1,110px makes 100% and 96% the same picture, and
+  in the 248px rail the name and course ran together so "TONI-26A" broke after
+  "TONI-".
+- **A bar's width is DATA**: it is applied from `data-pct` after paint, never
+  written into a `style=` attribute. Both portals do this and both tests
+  enforce it.
+
+⚠️ **Bump `portal-v2.css?v=` on ALL THREE pages when you touch it**, or
+browsers keep running the copy with the bug in it.
 
 ## The instructor application v2 (`/instructor-apply`) — the 2026-09 rework
 
