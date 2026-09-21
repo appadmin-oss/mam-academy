@@ -390,7 +390,7 @@
           } else if (err && (err.apiDown || err.message === 'api_unavailable' || err.message === 'Failed to fetch')) {
             apiUnavailableFallback();
           } else {
-            apiError(err && err.message ? err.message : 'Submission failed. Please try again.');
+            apiError(errorText(err, 'We could not submit your application. Please try again.'));
           }
         });
     }
@@ -463,8 +463,27 @@
     }
     function apiError(msg) {
       var notice = ensureNotice();
-      notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + msg + ' &middot; If this keeps happening, email <a href="mailto:' + cfg.site.contactEmail + '" style="color:var(--gold-bright)">' + cfg.site.contactEmail + '</a>';
+      // msg is written as text, never as markup: some of it arrives from the
+      // server, and an error banner is no place to start parsing HTML.
+      var esc = String(msg).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      notice.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + esc + ' &middot; If this keeps happening, email <a href="mailto:' + cfg.site.contactEmail + '" style="color:var(--gold-bright)">' + cfg.site.contactEmail + '</a>';
       notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    /*
+     * What to put in front of the applicant when a call fails.
+     *
+     * err.message is the API's machine code — 'init_failed', 'validation',
+     * 'payment_not_found' — because that is what request() throws. Printing
+     * it showed people the literal words "init_failed" in the error banner.
+     * The server sends a written sentence alongside it in body.message; use
+     * that when it is there, and a plain fallback when it is not. Never the
+     * code.
+     */
+    function errorText(err, fallback) {
+      var m = err && err.body && err.body.message;
+      if (typeof m === 'string' && m.trim() !== '') return m;
+      return fallback;
     }
 
     // ---------- Pay ----------
@@ -484,7 +503,7 @@
         })
         .catch(function (err) {
           setBusy('btnPay', false);
-          apiError(err && err.message ? err.message : 'Could not start payment. Please try another method.');
+          apiError(errorText(err, 'We could not start that payment. Please try another method.'));
         });
     });
 

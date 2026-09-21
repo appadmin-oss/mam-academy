@@ -1,7 +1,8 @@
 <?php
 /**
  * POST /api/payment/verify
- * Body: { reference: "MAM-…", provider: "paystack" | "flutterwave", transaction_id?: int }
+ * Body: { reference: "MAM-…", provider: "paystack" | "flutterwave" | "stripe",
+ *         transaction_id?: int, session_id?: string }
  * Verifies the payment server-side and marks the application paid.
  * Idempotent: re-verification of an already-paid payment returns success.
  */
@@ -34,6 +35,40 @@ try {
         $status = $data['status'] ?? null;
         $ok = ($status === 'successful' && (float)($data['amount'] ?? 0) >= (float)$payment['amount']);
         $providerRef = $data['tx_ref'] ?? ($data['flw_ref'] ?? $ref);
+    } elseif ($provider === 'stripe') {
+        /*
+         * Retrieved from Stripe, never taken from the browser.
+         *
+         * The session id came back on the redirect as a query parameter,
+         * which the payer can edit — so it is only used to look the session
+         * up when we have nothing stored, and the row's own
+         * provider_reference is preferred. Whether it was paid is read from
+         * Stripe's answer either way.
+         */
+        $sessionId = (string)($payment['provider_reference'] ?: ($in['session_id'] ?? ''));
+        if ($sessionId === '') mam_fail('missing_session', 400);
+
+        $resp = mam_stripe_retrieve_session($sessionId);
+        $data = $resp['data'] ?? [];
+        if (($resp['code'] ?? 0) >= 400) mam_fail('verification_failed', 402, ['provider' => $data['error'] ?? null]);
+
+        // The session has to belong to THIS application. Without the check,
+        // somebody could pass the id of any paid session and settle a row
+        // that was never paid for.
+        if ((string)($data['client_reference_id'] ?? '') !== $ref) {
+            mam_log('warn', 'stripe_session_mismatch', ['ref' => $ref, 'session' => $sessionId]);
+            mam_fail('verification_failed', 402);
+        }
+
+        $status = ($data['payment_status'] ?? '') === 'paid' ? 'success' : 'failed';
+        $paidCents = (int)($data['amount_total'] ?? 0);
+        $expectedCents = (int)round((float)$payment['amount'] * 100);
+        if ($status === 'success' && $expectedCents > 0 && $paidCents < $expectedCents) {
+            // Short payment is not payment. Recorded rather than accepted.
+            mam_log('warn', 'stripe_amount_short', ['ref' => $ref, 'paid' => $paidCents, 'want' => $expectedCents]);
+            $status = 'failed';
+        }
+        $providerRef = (string)($data['payment_intent'] ?? $sessionId);
     } else {
         mam_fail('unsupported_provider', 400);
     }

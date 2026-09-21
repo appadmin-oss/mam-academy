@@ -48,6 +48,55 @@ document.addEventListener('mam:ready', function () {
       if (last && last.reference) ref = last.reference;
     }
     if (ref) document.getElementById('refDisplay').textContent = 'Reference: ' + ref;
+
+    /*
+     * Stripe comes back here rather than staying on the form.
+     *
+     * The inline providers verify before they ever reach this page, so by the
+     * time somebody sees it the payment is settled. Stripe redirects away to
+     * its own hosted checkout and returns with ?session_id=, and nothing was
+     * asking the server whether that session was actually paid — so the page
+     * said "Thank you" whatever had happened, including a card that declined.
+     *
+     * The webhook settles it too, and is the source of truth. This is the
+     * belt: it makes the page honest immediately instead of depending on a
+     * webhook that may be delayed, retried, or not yet configured.
+     */
+    var sessionId = qs.get('session_id');
+    if (!ref || !sessionId) return;
+
+    var base = (window.MAM_CONFIG && MAM_CONFIG.api && MAM_CONFIG.api.base) || 'api';
+    var note = document.getElementById('refDisplay');
+
+    fetch(base + '/csrf', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (c) {
+        return fetch(base + '/payment/verify', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': c.token },
+          body: JSON.stringify({ reference: ref, provider: 'stripe', session_id: sessionId })
+        });
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.ok && res.status === 'succeeded') {
+          note.textContent = 'Reference: ' + ref + ' — payment confirmed';
+          return;
+        }
+        // Not confirmed. Say so rather than letting the heading imply it,
+        // and tell them what we will do about it.
+        note.textContent = 'Reference: ' + ref + ' — payment not confirmed yet';
+        note.insertAdjacentHTML('afterend',
+          '<p class="success-p" style="color:var(--gold-bright)">' +
+          'Your card may still be clearing. We check again automatically, and ' +
+          'we will email you either way — you do not need to pay again. Quote ' +
+          'this reference if you get in touch.</p>');
+      })
+      .catch(function () {
+        // Offline, or the API is unreachable. The webhook still settles it,
+        // so this says nothing rather than inventing a failure.
+      });
   } catch (e) {}
 });
 </script>

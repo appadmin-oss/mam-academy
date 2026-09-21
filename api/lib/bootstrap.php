@@ -70,7 +70,7 @@ function mam_env(string $key, $default = null) {
 }
 
 // ---------- Library autoload (manual; no Composer needed) ----------
-$mam_libs = ['log', 'response', 'validation', 'db', 'session', 'auth', 'mailer', 'csrf', 'rate-limit', 'paystack', 'flutterwave'];
+$mam_libs = ['log', 'response', 'validation', 'db', 'session', 'auth', 'mailer', 'csrf', 'rate-limit', 'paystack', 'flutterwave', 'stripe'];
 foreach ($mam_libs as $lib) {
     require_once __DIR__ . '/' . $lib . '.php';
 }

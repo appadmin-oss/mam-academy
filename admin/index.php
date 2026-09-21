@@ -29,6 +29,51 @@ $view  = $_GET['v'] ?? 'overview';
 $flash = null;
 
 /** Compose a name out of customer first/last (portable across SQLite + MySQL). */
+/**
+ * An application has been paid for. Give them their portal.
+ *
+ * Extracted because two paths now reach it: an admin setting the status on
+ * the Applications page, and an admin recording a bank transfer on the
+ * Payments page. Two copies of a credentials email is how one of them ends
+ * up sending the wrong link a year from now.
+ *
+ * Failure is logged, never fatal: the payment is recorded either way, and a
+ * mail server having a bad afternoon must not undo the money.
+ */
+function mam_admin_provision_student(int $applicationId): void
+{
+    $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$applicationId]);
+    if (!$app || !$app['customer_id']) return;
+
+    try {
+        $prov = mam_ensure_student_user((int)$app['customer_id']);
+        // No password back means the account already existed and already has
+        // one. Re-sending credentials they did not ask for would be worse
+        // than silence.
+        if (!$prov['password']) return;
+
+        $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
+        $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login.html';
+        $name = htmlspecialchars(trim($customer['first_name'] . ' ' . $customer['last_name']), ENT_QUOTES);
+        $body = "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>"
+              . "<table style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>"
+              . "<tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:24px;text-align:center'>"
+              . "<div style='font-family:Impact,sans-serif;font-size:24px;color:#1A120B;font-weight:900;letter-spacing:.08em'>MAM ACADEMY</div></td></tr>"
+              . "<tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>"
+              . "<h2 style='font-family:Georgia,serif;margin:0 0 12px;color:#fff'>Welcome, $name</h2>"
+              . "<p>Your application has been confirmed. Sign in to your portal to track your classes and MAM Auditer placement.</p>"
+              . "<div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:14px;color:#FBBF24;margin:16px 0'>"
+              . "<div>Email: <strong>" . htmlspecialchars($customer['email']) . "</strong></div>"
+              . "<div>Temporary password: <strong>" . htmlspecialchars($prov['password']) . "</strong></div></div>"
+              . "<p>Please change this password on first sign-in.</p>"
+              . "<p><a href='$loginUrl' style='display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none'>Open student portal &rarr;</a></p>"
+              . "</td></tr></table></body></html>";
+        @mam_send_mail($customer['email'], 'Your MAM Academy student portal is ready', $body, true);
+    } catch (Throwable $e) {
+        mam_log('warn', 'admin_provision_failed', ['app_id' => $applicationId, 'err' => $e->getMessage()]);
+    }
+}
+
 function mam_name(?string $first, ?string $last): string {
     $n = trim((string)$first . ' ' . (string)$last);
     return $n === '' ? '—' : $n;
@@ -90,37 +135,67 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             // from the dashboard, mirror the verify-payment flow: provision a
             // student account and email them their credentials.
             if (in_array($status, ['paid', 'enrolled'], true)) {
-                $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$id]);
-                if ($app && $app['customer_id']) {
-                    try {
-                        $prov = mam_ensure_student_user((int)$app['customer_id']);
-                        if ($prov['password']) {
-                            $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
-                            $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login.html';
-                            $name = htmlspecialchars(trim($customer['first_name'] . ' ' . $customer['last_name']), ENT_QUOTES);
-                            $body = "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>"
-                                  . "<table style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>"
-                                  . "<tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:24px;text-align:center'>"
-                                  . "<div style='font-family:Impact,sans-serif;font-size:24px;color:#1A120B;font-weight:900;letter-spacing:.08em'>MAM ACADEMY</div></td></tr>"
-                                  . "<tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>"
-                                  . "<h2 style='font-family:Georgia,serif;margin:0 0 12px;color:#fff'>Welcome, $name</h2>"
-                                  . "<p>Your application has been confirmed. Sign in to your portal to track your classes and MAM Auditer placement.</p>"
-                                  . "<div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:14px;color:#FBBF24;margin:16px 0'>"
-                                  . "<div>Email: <strong>" . htmlspecialchars($customer['email']) . "</strong></div>"
-                                  . "<div>Temporary password: <strong>" . htmlspecialchars($prov['password']) . "</strong></div></div>"
-                                  . "<p>Please change this password on first sign-in.</p>"
-                                  . "<p><a href='$loginUrl' style='display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none'>Open student portal →</a></p>"
-                                  . "</td></tr></table></body></html>";
-                            @mam_send_mail($customer['email'], 'Your MAM Academy student portal is ready', $body, true);
-                        }
-                    } catch (Throwable $e) {
-                        mam_log('warn', 'admin_provision_failed', ['app_id' => $id, 'err' => $e->getMessage()]);
-                    }
-                }
+                mam_admin_provision_student($id);
             }
             $flash = ['ok', 'Application updated.'];
         }
         header('Location: ?v=applications&ok=1');
+        exit;
+    }
+
+    /*
+     * Record a bank transfer that has landed.
+     *
+     * payment-init sets a bank payment to `pending_bank_transfer` and, until
+     * now, nothing in the codebase ever read that status again. An admin
+     * could mark the APPLICATION paid from the Applications page, which
+     * provisioned the student — but the payments row stayed pending forever,
+     * so the Payments page and the CSV export both under-reported takings and
+     * the bank's own transfer reference had nowhere to go.
+     *
+     * This settles the money and the application together, and keeps the
+     * reference you would reconcile a statement against.
+     */
+    if ($action === 'payment_settle') {
+        $pid = (int)($_POST['payment_id'] ?? 0);
+        $bankRef = trim((string)($_POST['bank_reference'] ?? ''));
+        $payment = $pid ? mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid]) : null;
+
+        if (!$payment) {
+            $flash = ['err', 'That payment is not here.'];
+        } elseif ($payment['status'] === 'succeeded') {
+            // Settling twice would re-send credentials and double the figure
+            // an admin reads off the page.
+            $flash = ['err', 'That payment is already settled.'];
+        } elseif ($payment['provider'] !== 'bank') {
+            // Card payments are settled by the provider and its webhook.
+            // Marking one by hand would put a number in the ledger that no
+            // statement will ever match.
+            $flash = ['err', 'Only a bank transfer is settled by hand — ' . htmlspecialchars($payment['provider']) . ' settles through its own webhook.'];
+        } elseif ($bankRef === '') {
+            $flash = ['err', 'Put in the bank\'s transfer reference. A settled payment with nothing to reconcile against is not a record.'];
+        } else {
+            mam_db_update('payments', [
+                'status'             => 'succeeded',
+                'provider_reference' => substr($bankRef, 0, 190),
+                'verified_at'        => date('Y-m-d H:i:s'),
+                'updated_at'         => date('Y-m-d H:i:s'),
+            ], ['id' => $pid]);
+            mam_db_update('applications',
+                ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')],
+                ['id' => (int)$payment['application_id']]);
+            // Who said the money arrived, and when. The audit row is the
+            // only place that survives somebody changing their mind later.
+            mam_audit('settle_bank', 'payment', $pid, [
+                'ref' => $payment['reference'],
+                'bank_reference' => $bankRef,
+                'amount' => $payment['amount'],
+                'currency' => $payment['currency'],
+            ]);
+            mam_admin_provision_student((int)$payment['application_id']);
+            $flash = ['ok', 'Bank transfer recorded. The student has their portal.'];
+        }
+        header('Location: ?v=payments&ok=1');
         exit;
     }
 
@@ -516,10 +591,10 @@ button.tiny:hover{border-color:var(--gold)}
   </header>
   <div class="card">
     <table>
-      <thead><tr><th>Reference</th><th>Provider</th><th>Amount</th><th>Status</th><th>Provider Ref</th><th>Verified</th><th>Created</th></tr></thead>
+      <thead><tr><th>Reference</th><th>Provider</th><th>Amount</th><th>Status</th><th>Provider Ref</th><th>Verified</th><th>Created</th><th>Action</th></tr></thead>
       <tbody>
       <?php $rows = mam_db_all('SELECT * FROM payments ORDER BY created_at DESC LIMIT 200');
-      if (!$rows): ?><tr><td colspan="7" class="empty">No payments yet</td></tr><?php endif;
+      if (!$rows): ?><tr><td colspan="8" class="empty">No payments yet</td></tr><?php endif;
       foreach ($rows as $r): ?>
         <tr>
           <td class="mono"><?= htmlspecialchars($r['reference']) ?></td>
@@ -529,6 +604,29 @@ button.tiny:hover{border-color:var(--gold)}
           <td class="mono muted"><?= htmlspecialchars((string)$r['provider_reference']) ?></td>
           <td class="muted"><?= htmlspecialchars(substr((string)$r['verified_at'], 0, 16)) ?></td>
           <td class="muted"><?= htmlspecialchars(substr($r['created_at'], 0, 16)) ?></td>
+          <td>
+            <?php
+            /*
+             * The action only exists for an unsettled bank transfer. A card
+             * payment is settled by its provider's webhook, and offering a
+             * button to mark one paid by hand is offering a way to put a
+             * number in the ledger that no statement will match.
+             */
+            if ($r['provider'] === 'bank' && $r['status'] !== 'succeeded'): ?>
+              <form class="inline" method="post">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                <input type="hidden" name="action" value="payment_settle">
+                <input type="hidden" name="payment_id" value="<?= (int)$r['id'] ?>">
+                <input type="text" name="bank_reference" class="tiny" required maxlength="190"
+                       placeholder="bank transfer ref" aria-label="Bank transfer reference for <?= htmlspecialchars($r['reference']) ?>">
+                <button class="btn ghost" type="submit">Mark received</button>
+              </form>
+            <?php elseif ($r['status'] === 'succeeded'): ?>
+              <span class="muted">&mdash;</span>
+            <?php else: ?>
+              <span class="muted">awaiting <?= htmlspecialchars($r['provider']) ?></span>
+            <?php endif; ?>
+          </td>
         </tr>
       <?php endforeach; ?>
       </tbody>

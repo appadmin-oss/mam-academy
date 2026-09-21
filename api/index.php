@@ -37,6 +37,7 @@ $r->group('/payment', function (MamRouter $r) use ($f) {
     // Webhooks rely on HMAC signatures, not CSRF cookies.
     $r->post('/webhook/paystack',    $f('webhook-paystack.php'));
     $r->post('/webhook/flutterwave', $f('webhook-flutterwave.php'));
+    $r->post('/webhook/stripe',      $f('webhook-stripe.php'));
 });
 
 /* ─── Auth ─── */
