@@ -1372,9 +1372,27 @@ These are in the `.p-*` block and bite **all three** portals:
   over caption. A bar run to 1,110px makes 100% and 96% the same picture, and
   in the 248px rail the name and course ran together so "TONI-26A" broke after
   "TONI-".
-- **A bar's width is DATA**: it is applied from `data-pct` after paint, never
-  written into a `style=` attribute. Both portals do this and both tests
-  enforce it.
+- ⚠️ **No inline styling, anywhere — and that includes from JavaScript.** A
+  `style=` attribute in markup is the obvious half; a script assigning
+  `el.style.width` (or `setProperty`) after render is the same attribute
+  arriving later, and it was how both the student and guardian portals drew a
+  competency bar. Bar widths are a **`[data-pct="N"]` table in portal-v2.css**,
+  one rule per whole percent, with `.p-bar > span { width: 0 }` as the base so
+  an unmatched bar draws EMPTY rather than full. Round to an integer before
+  putting the value in the attribute — a fractional `data-pct` matches no rule.
+  One integer step is finer than a bar renders (1% is 5.6px at the 560px
+  desktop cap), so the table costs nothing. `test_student_portal_ui.php` sweeps
+  all three portals for both routes in one group; the two `classic.html`
+  dashboards are exempt as a matter of SCOPE (hundreds of pre-redesign
+  attributes each, retired rather than rewritten), and a test pins the one
+  thing added to them — the back-strip — as a class.
+- ⚠️ **`--gold-bright` is a FILL, not a text colour.** `portal.css` says so in
+  its own light-theme block and gives the exact figure: 2.94:1 on
+  `--bg-surface`, against WCAG 1.4.3's 4.5:1. The back-strip's link landed on
+  precisely that the moment it became theme-aware, because the hardcoded
+  version it replaced had pinned both colours and got 10:1 by accident.
+  **`--gold-text`** (5.37:1 light, 8.53:1 dark) is the one for words. The same
+  fill/text split exists for `--emerald`, `--red` and `--warn`.
 
 ⚠️ **Bump `portal-v2.css?v=` on ALL THREE pages when you touch it**, or
 browsers keep running the copy with the bug in it.

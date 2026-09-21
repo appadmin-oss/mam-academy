@@ -115,18 +115,24 @@
   }
 
   /**
-   * Set the screen's content, then paint anything whose geometry is DATA.
+   * Set the screen's content, and move the focus target onto its heading.
    *
-   * The reason this exists rather than assigning `main.innerHTML` directly: most
-   * of these renders are asynchronous, so `paintBars()` called at the end of the
-   * router ran against the LOADING state and never against the real content —
-   * measured in Chromium, every competency bar drew full width regardless of the
-   * mark, which is the single most misleading thing this screen could do. One
-   * function to set content means there is one place that cannot be forgotten.
+   * It used to do a second job — a `paintBars()` pass that wrote each
+   * competency bar's width into a `style` attribute after render. That is gone:
+   * the widths are a `[data-pct="N"]` table in portal-v2.css, so a bar is the
+   * right length the moment the markup exists.
+   *
+   * Worth keeping the reason it was fragile. Most of these renders are
+   * asynchronous, so `paintBars()` called at the end of the router ran against
+   * the LOADING state and never against the real content — measured in
+   * Chromium, every competency bar drew full width regardless of the mark,
+   * which is the single most misleading thing this screen could do. Routing it
+   * through one function fixed that; stating the length in CSS means there is
+   * no second pass left to forget, and an unmatched bar is `width: 0` rather
+   * than full.
    */
   function paint(html) {
     main.innerHTML = html;
-    paintBars();
     var head = main.querySelector('.p-h1, .p-back');
     if (head) head.setAttribute('tabindex', '-1');
   }
@@ -335,7 +341,13 @@
           + '<span class="p-crit-grade">Not assessed</span></div>'
           + '<p class="p-caption">First assessed next term. Not counted as a zero.</p></div>';
       }
-      var pct = c.pct == null ? 0 : c.pct;
+      /* Clamped and ROUNDED to the integer the `[data-pct="N"]` table in
+         portal-v2.css matches on. This used to be applied as
+         `el.style.width` after paint; a `style` attribute is banned in this
+         repo, and a length belongs in the stylesheet even when the number
+         reaching it is data. A fractional value matches no rule and draws an
+         empty track, which is why the rounding is here. */
+      var pct = Math.max(0, Math.min(100, Math.round(Number(c.pct) || 0)));
       return '<div class="p-crit">'
         + '<div class="p-crit-head"><span class="p-crit-name">' + esc(c.label) + '</span>'
         + '<span class="p-crit-grade">' + esc(c.grade_label || '') + '</span></div>'
@@ -917,19 +929,6 @@
     return (grants[scope] || grants.standard).indexOf(what) !== -1;
   }
 
-  /* ── Bars, drawn without inline styles ──────────────────────────────────── */
-
-  /* A competency bar's width is DATA, not styling — it comes from the mark. It is
-     applied here from `data-pct` rather than written into a `style` attribute in
-     the template, so the markup stays declarative and the stylesheet keeps every
-     visual decision. */
-  function paintBars() {
-    $$('.p-bar > span[data-pct]').forEach(function (el) {
-      var pct = Math.max(0, Math.min(100, Number(el.getAttribute('data-pct')) || 0));
-      el.style.width = pct + '%';
-    });
-  }
-
   /* ── Router ─────────────────────────────────────────────────────────────── */
 
   var SCREENS = {
@@ -966,7 +965,6 @@
     if (location.hash !== hash) history.replaceState(null, '', hash);
     SCREENS[screen]();
     renderSwitcher();
-    paintBars();
     // Focus the heading so a keyboard or screen-reader user lands on the new
     // screen rather than back at the top of the nav.
     var head = main.querySelector('.p-h1, .p-back');

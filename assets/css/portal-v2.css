@@ -428,6 +428,120 @@
   background: var(--inset); overflow: hidden;
 }
 [data-portal="v2"] .p-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+/* ── A bar's LENGTH, stated in the stylesheet ────────────────────────────── */
+/* A competency bar's width comes from a mark, so it is DATA — but a value that
+   arrives as data is still a length, and a length belongs here. The percentage
+   travels on `data-pct` (an integer, rounded by the caller) and the width is
+   matched out of the table below.
+   ⚠️ Do NOT "simplify" this back to `el.style.width = pct + '%'`. That writes a
+   `style` attribute, which is banned outright in this repo: it puts a visual
+   decision where nobody looks when they change one, and it is why the legacy
+   dashboards accumulated 706 and 358 of them. One integer step is finer than a
+   bar can render — at the 560px desktop cap, 1% is 5.6px — so the table costs
+   nothing in fidelity. `p-bar > span` with no `data-pct` stays at width 0, so a
+   missing mark draws an empty track rather than a full one. */
+[data-portal="v2"] .p-bar > span { width: 0; }
+[data-portal="v2"] .p-bar > span[data-pct="0"] { width: 0%; }
+[data-portal="v2"] .p-bar > span[data-pct="1"] { width: 1%; }
+[data-portal="v2"] .p-bar > span[data-pct="2"] { width: 2%; }
+[data-portal="v2"] .p-bar > span[data-pct="3"] { width: 3%; }
+[data-portal="v2"] .p-bar > span[data-pct="4"] { width: 4%; }
+[data-portal="v2"] .p-bar > span[data-pct="5"] { width: 5%; }
+[data-portal="v2"] .p-bar > span[data-pct="6"] { width: 6%; }
+[data-portal="v2"] .p-bar > span[data-pct="7"] { width: 7%; }
+[data-portal="v2"] .p-bar > span[data-pct="8"] { width: 8%; }
+[data-portal="v2"] .p-bar > span[data-pct="9"] { width: 9%; }
+[data-portal="v2"] .p-bar > span[data-pct="10"] { width: 10%; }
+[data-portal="v2"] .p-bar > span[data-pct="11"] { width: 11%; }
+[data-portal="v2"] .p-bar > span[data-pct="12"] { width: 12%; }
+[data-portal="v2"] .p-bar > span[data-pct="13"] { width: 13%; }
+[data-portal="v2"] .p-bar > span[data-pct="14"] { width: 14%; }
+[data-portal="v2"] .p-bar > span[data-pct="15"] { width: 15%; }
+[data-portal="v2"] .p-bar > span[data-pct="16"] { width: 16%; }
+[data-portal="v2"] .p-bar > span[data-pct="17"] { width: 17%; }
+[data-portal="v2"] .p-bar > span[data-pct="18"] { width: 18%; }
+[data-portal="v2"] .p-bar > span[data-pct="19"] { width: 19%; }
+[data-portal="v2"] .p-bar > span[data-pct="20"] { width: 20%; }
+[data-portal="v2"] .p-bar > span[data-pct="21"] { width: 21%; }
+[data-portal="v2"] .p-bar > span[data-pct="22"] { width: 22%; }
+[data-portal="v2"] .p-bar > span[data-pct="23"] { width: 23%; }
+[data-portal="v2"] .p-bar > span[data-pct="24"] { width: 24%; }
+[data-portal="v2"] .p-bar > span[data-pct="25"] { width: 25%; }
+[data-portal="v2"] .p-bar > span[data-pct="26"] { width: 26%; }
+[data-portal="v2"] .p-bar > span[data-pct="27"] { width: 27%; }
+[data-portal="v2"] .p-bar > span[data-pct="28"] { width: 28%; }
+[data-portal="v2"] .p-bar > span[data-pct="29"] { width: 29%; }
+[data-portal="v2"] .p-bar > span[data-pct="30"] { width: 30%; }
+[data-portal="v2"] .p-bar > span[data-pct="31"] { width: 31%; }
+[data-portal="v2"] .p-bar > span[data-pct="32"] { width: 32%; }
+[data-portal="v2"] .p-bar > span[data-pct="33"] { width: 33%; }
+[data-portal="v2"] .p-bar > span[data-pct="34"] { width: 34%; }
+[data-portal="v2"] .p-bar > span[data-pct="35"] { width: 35%; }
+[data-portal="v2"] .p-bar > span[data-pct="36"] { width: 36%; }
+[data-portal="v2"] .p-bar > span[data-pct="37"] { width: 37%; }
+[data-portal="v2"] .p-bar > span[data-pct="38"] { width: 38%; }
+[data-portal="v2"] .p-bar > span[data-pct="39"] { width: 39%; }
+[data-portal="v2"] .p-bar > span[data-pct="40"] { width: 40%; }
+[data-portal="v2"] .p-bar > span[data-pct="41"] { width: 41%; }
+[data-portal="v2"] .p-bar > span[data-pct="42"] { width: 42%; }
+[data-portal="v2"] .p-bar > span[data-pct="43"] { width: 43%; }
+[data-portal="v2"] .p-bar > span[data-pct="44"] { width: 44%; }
+[data-portal="v2"] .p-bar > span[data-pct="45"] { width: 45%; }
+[data-portal="v2"] .p-bar > span[data-pct="46"] { width: 46%; }
+[data-portal="v2"] .p-bar > span[data-pct="47"] { width: 47%; }
+[data-portal="v2"] .p-bar > span[data-pct="48"] { width: 48%; }
+[data-portal="v2"] .p-bar > span[data-pct="49"] { width: 49%; }
+[data-portal="v2"] .p-bar > span[data-pct="50"] { width: 50%; }
+[data-portal="v2"] .p-bar > span[data-pct="51"] { width: 51%; }
+[data-portal="v2"] .p-bar > span[data-pct="52"] { width: 52%; }
+[data-portal="v2"] .p-bar > span[data-pct="53"] { width: 53%; }
+[data-portal="v2"] .p-bar > span[data-pct="54"] { width: 54%; }
+[data-portal="v2"] .p-bar > span[data-pct="55"] { width: 55%; }
+[data-portal="v2"] .p-bar > span[data-pct="56"] { width: 56%; }
+[data-portal="v2"] .p-bar > span[data-pct="57"] { width: 57%; }
+[data-portal="v2"] .p-bar > span[data-pct="58"] { width: 58%; }
+[data-portal="v2"] .p-bar > span[data-pct="59"] { width: 59%; }
+[data-portal="v2"] .p-bar > span[data-pct="60"] { width: 60%; }
+[data-portal="v2"] .p-bar > span[data-pct="61"] { width: 61%; }
+[data-portal="v2"] .p-bar > span[data-pct="62"] { width: 62%; }
+[data-portal="v2"] .p-bar > span[data-pct="63"] { width: 63%; }
+[data-portal="v2"] .p-bar > span[data-pct="64"] { width: 64%; }
+[data-portal="v2"] .p-bar > span[data-pct="65"] { width: 65%; }
+[data-portal="v2"] .p-bar > span[data-pct="66"] { width: 66%; }
+[data-portal="v2"] .p-bar > span[data-pct="67"] { width: 67%; }
+[data-portal="v2"] .p-bar > span[data-pct="68"] { width: 68%; }
+[data-portal="v2"] .p-bar > span[data-pct="69"] { width: 69%; }
+[data-portal="v2"] .p-bar > span[data-pct="70"] { width: 70%; }
+[data-portal="v2"] .p-bar > span[data-pct="71"] { width: 71%; }
+[data-portal="v2"] .p-bar > span[data-pct="72"] { width: 72%; }
+[data-portal="v2"] .p-bar > span[data-pct="73"] { width: 73%; }
+[data-portal="v2"] .p-bar > span[data-pct="74"] { width: 74%; }
+[data-portal="v2"] .p-bar > span[data-pct="75"] { width: 75%; }
+[data-portal="v2"] .p-bar > span[data-pct="76"] { width: 76%; }
+[data-portal="v2"] .p-bar > span[data-pct="77"] { width: 77%; }
+[data-portal="v2"] .p-bar > span[data-pct="78"] { width: 78%; }
+[data-portal="v2"] .p-bar > span[data-pct="79"] { width: 79%; }
+[data-portal="v2"] .p-bar > span[data-pct="80"] { width: 80%; }
+[data-portal="v2"] .p-bar > span[data-pct="81"] { width: 81%; }
+[data-portal="v2"] .p-bar > span[data-pct="82"] { width: 82%; }
+[data-portal="v2"] .p-bar > span[data-pct="83"] { width: 83%; }
+[data-portal="v2"] .p-bar > span[data-pct="84"] { width: 84%; }
+[data-portal="v2"] .p-bar > span[data-pct="85"] { width: 85%; }
+[data-portal="v2"] .p-bar > span[data-pct="86"] { width: 86%; }
+[data-portal="v2"] .p-bar > span[data-pct="87"] { width: 87%; }
+[data-portal="v2"] .p-bar > span[data-pct="88"] { width: 88%; }
+[data-portal="v2"] .p-bar > span[data-pct="89"] { width: 89%; }
+[data-portal="v2"] .p-bar > span[data-pct="90"] { width: 90%; }
+[data-portal="v2"] .p-bar > span[data-pct="91"] { width: 91%; }
+[data-portal="v2"] .p-bar > span[data-pct="92"] { width: 92%; }
+[data-portal="v2"] .p-bar > span[data-pct="93"] { width: 93%; }
+[data-portal="v2"] .p-bar > span[data-pct="94"] { width: 94%; }
+[data-portal="v2"] .p-bar > span[data-pct="95"] { width: 95%; }
+[data-portal="v2"] .p-bar > span[data-pct="96"] { width: 96%; }
+[data-portal="v2"] .p-bar > span[data-pct="97"] { width: 97%; }
+[data-portal="v2"] .p-bar > span[data-pct="98"] { width: 98%; }
+[data-portal="v2"] .p-bar > span[data-pct="99"] { width: 99%; }
+[data-portal="v2"] .p-bar > span[data-pct="100"] { width: 100%; }
 [data-portal="v2"] .p-bar > span.is-strong  { background: var(--good); }
 [data-portal="v2"] .p-bar > span.is-secure  { background: var(--accent); }
 [data-portal="v2"] .p-bar > span.is-working { background: var(--warn-bar); }

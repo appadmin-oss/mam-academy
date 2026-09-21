@@ -47,10 +47,6 @@ t_eq($sm[0], [], 'the markup carries no style attribute');
 $jsCode = preg_replace(['~/\*.*?\*/~s', '~^\s*//.*$~m'], '', $js);
 preg_match_all('/\sstyle="[^"]*"/', $jsCode, $js_sm);
 t_eq($js_sm[0], [], 'no template in the app writes a style attribute either');
-// A bar's width is DATA and comes from the mark, so it is applied from
-// `data-pct` after paint — the same mechanism the guardian portal uses.
-t_ok((bool) preg_match('/function paintBars\(\)/', $js),
-    'bar widths are applied from data-pct, not written into a style attribute');
 
 /* ── Every destination resolves ──────────────────────────────────────────── */
 
@@ -145,3 +141,59 @@ $sBlock = strstr($css, 'THE STUDENT PORTAL — the `.s-` block');
 t_ok($sBlock !== false, 'the student block is present and labelled');
 preg_match_all('/^\.[a-z][a-z0-9-]*\s*[,{]/m', (string) $sBlock, $unscoped);
 t_eq($unscoped[0], [], 'every student rule is scoped under [data-portal="v2"]');
+
+/* ── No inline styling, anywhere, on any v2 surface ──────────────────────── */
+
+/* The repo-wide rule, asserted in ONE place for all three portals rather than
+   once per portal — a rule stated three times drifts, and the guardian portal
+   has no surface test of its own.
+ *
+ * Two routes in, and both are closed here. A `style=` attribute in the markup
+ * is the obvious one. The other is a script assigning `.style.foo` (or
+ * `setProperty`) after render, which is the same attribute arriving later: it
+ * puts a visual decision where nobody looks when they change one, and it is
+ * how the legacy dashboards reached 706 and 358 of them.
+ *
+ * The one thing that ever genuinely wanted it was a competency bar's width —
+ * a length whose NUMBER is data. That is a `[data-pct="N"]` table in
+ * portal-v2.css now, so there is no case left to make. */
+t_group('the v2 portals carry no inline styling');
+
+$V2 = [
+    'student'    => [$ROOT . '/portal/student/index.html',    $ROOT . '/assets/js/portal-student.js'],
+    'instructor' => [$ROOT . '/portal/instructor/index.html', $ROOT . '/assets/js/portal-instructor.js'],
+    'guardian'   => [$ROOT . '/portal/parent/index.html',     $ROOT . '/assets/js/portal-guardian.js'],
+];
+foreach ($V2 as $who => $pair) {
+    $m = preg_replace('/<!--.*?-->/s', '', (string) @file_get_contents($pair[0]));
+    $j = preg_replace(['~/\*.*?\*/~s', '~^\s*//.*$~m'], '', (string) @file_get_contents($pair[1]));
+    t_ok($m !== '' && $j !== '', "the $who surface is readable");
+    preg_match_all('/\sstyle="[^"]*"/', $m, $mm);
+    t_eq($mm[0], [], "the $who markup carries no style attribute");
+    preg_match_all('/\sstyle="[^"]*"/', $j, $jj);
+    t_eq($jj[0], [], "no $who template writes a style attribute");
+    t_ok(!preg_match('/\.style\s*\.\s*\w+\s*=/', $j),
+        "the $who app assigns no element style property");
+    t_ok(!preg_match('/\.setProperty\s*\(/', $j),
+        "…and sets no custom property on an element either — still a style attribute");
+}
+
+/* The replacement, so nobody restores the JS by finding the CSS missing. */
+t_ok((bool) preg_match('/\[data-pct="100"\] \{ width: 100%; \}/', $css),
+    'bar widths are a table in the stylesheet, one rule per whole percent');
+t_ok((bool) preg_match('/\.p-bar > span \{ width: 0; \}/', $css),
+    'and an unmatched bar is width 0 — a missing mark must never draw a full bar');
+
+/* The legacy dashboards are exempt and that is a SCOPE statement, not an
+   exception to the rule: they are ~3,100 and ~2,300 lines of pre-redesign
+   markup carrying hundreds of them, and they are retired rather than
+   rewritten. What must not happen is a NEW one, so the strip each of them
+   wears back to its redesigned portal — the one thing this stream added to
+   either file — is a class. */
+foreach (['student', 'instructor'] as $who) {
+    $classic = (string) @file_get_contents($ROOT . "/portal/$who/classic.html");
+    t_ok(strpos($classic, 'class="portal-classic-back"') !== false,
+        "the $who back-strip is a class, not a style attribute");
+    t_ok(!preg_match('/<p style="[^"]*"><a href="\/portal\//', $classic),
+        "…and the style-attribute version of it is gone");
+}

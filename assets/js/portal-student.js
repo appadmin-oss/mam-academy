@@ -129,17 +129,16 @@
     });
   }
 
-  /* A competency bar's width is DATA, not styling — it comes from the mark, so
-     it is applied from `data-pct` after paint rather than written into a
-     `style=` attribute in a template. Same convention as the guardian portal:
-     the markup stays declarative and the stylesheet keeps every visual
-     decision, which is the only reason a card has one definition here. */
-  function paintBars() {
-    $$('.p-bar > span[data-pct]').forEach(function (el) {
-      el.style.width = Math.max(0, Math.min(100, Number(el.getAttribute('data-pct')) || 0)) + '%';
-    });
-  }
-  function paint(html) { main.innerHTML = html; main.scrollTop = 0; paintBars(); }
+  /* A competency bar's width is DATA — it comes from the mark — but a length is
+     still a length, so it lives in the stylesheet. `pct()` clamps and ROUNDS to
+     the integer the `[data-pct="N"]` table in portal-v2.css matches on; a value
+     outside 0..100, or a fractional one, matches nothing and draws an empty
+     track, which is why the rounding happens here rather than being assumed.
+     ⚠️ There is no `el.style.width` anywhere in this file, deliberately: a
+     `style` attribute is banned in this repo, and this is the one place on the
+     surface that would ever have wanted one. */
+  function pct(v) { return Math.max(0, Math.min(100, Math.round(Number(v) || 0))); }
+  function paint(html) { main.innerHTML = html; main.scrollTop = 0; }
   function loading(what) {
     return '<div class="p-empty"><i class="fa-solid fa-circle-notch p-spin" aria-hidden="true"></i><p>' + esc(what) + '</p></div>';
   }
@@ -465,13 +464,13 @@
       if (comps.length) {
         html += '<section class="p-card"><div class="p-label">What is marked</div><div class="p-gap-t">'
           + comps.map(function (c) {
-            var pct = Math.max(0, Math.min(100, Number(c.pct) || 0));
-            var tone = pct >= 80 ? 'is-strong' : (pct >= 60 ? 'is-secure' : 'is-working');
+            var p = pct(c.pct);
+            var tone = p >= 80 ? 'is-strong' : (p >= 60 ? 'is-secure' : 'is-working');
             return '<div class="p-crit"><div class="p-crit-head">'
               + '<span class="p-crit-name">' + esc(c.label) + '</span>'
-              + '<span class="p-crit-grade p-num">' + esc(Math.round(pct) + '%') + '</span></div>'
-              + '<div class="p-bar" role="img" aria-label="' + esc(c.label + ': ' + Math.round(pct) + ' per cent') + '">'
-              + '<span class="' + tone + '" data-pct="' + pct + '"></span></div></div>';
+              + '<span class="p-crit-grade p-num">' + esc(p + '%') + '</span></div>'
+              + '<div class="p-bar" role="img" aria-label="' + esc(c.label + ': ' + p + ' per cent') + '">'
+              + '<span class="' + tone + '" data-pct="' + p + '"></span></div></div>';
           }).join('') + '</div></section>';
       }
 

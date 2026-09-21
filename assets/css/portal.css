@@ -752,3 +752,21 @@ html.a11y-lowbw .cmdk-fab{box-shadow:none}
   background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;
   color:var(--text-muted);font-size:0.84rem;line-height:1.5}
 .practice-private i{color:var(--gold-bright);flex-shrink:0}
+
+/* ── The strip back to the redesigned portal ──────────────────────────────
+   Both legacy dashboards (portal/{student,instructor}/classic.html) wear this.
+   It was written twice as a `style` attribute, which is banned in this repo —
+   the two copies had already drifted apart in nothing but the sentence, and a
+   colour set in markup is one nobody finds when the palette moves. */
+/* ⚠️ `--gold-text`, NOT `--gold-bright`. The light-theme block above says so
+   about itself — the bright gold is a FILL and measures 2.94:1 as text on
+   --bg-surface, against WCAG 1.4.3's 4.5:1. MEASURED here after the strip
+   became theme-aware: the link came out at exactly that 2.94:1 on the light
+   dashboard, where the hardcoded version it replaced had pinned both colours
+   and got 10:1 by accident. --gold-text is 5.37:1 light and defined in the
+   dark block too, so the strip follows the reader's theme and passes in both. */
+.portal-classic-back{margin:0;padding:10px 16px;text-align:center;
+  background:var(--bg-surface,#2A2119);border-bottom:1px solid var(--border,rgba(232,201,160,0.2));
+  font:600 0.85rem/1.4 Inter,system-ui,sans-serif}
+.portal-classic-back a{color:var(--gold-text,#E0B45A);text-decoration:none}
+.portal-classic-back a:hover,.portal-classic-back a:focus-visible{text-decoration:underline}
