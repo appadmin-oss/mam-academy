@@ -545,6 +545,23 @@
 [data-portal="v2"] .p-bar > span.is-strong  { background: var(--good); }
 [data-portal="v2"] .p-bar > span.is-secure  { background: var(--accent); }
 [data-portal="v2"] .p-bar > span.is-working { background: var(--warn-bar); }
+/* ── The unmarked competencies, as a named SET ───────────────────────────── */
+/* Shared, because the student's "Where I stand" and the guardian's termly
+   report show the same competencies to the same family and must not disagree
+   about how they are put.
+   ⚠️ MEASURED at 390 on the guardian report: eight rows each repeating "First
+   assessed next term. Not counted as a zero." came to 563px of a 1,788px
+   screen — 31% of a ratified academic report spent on one sentence, with the
+   eight NAMES, which are the information, reduced to captions on a wall of
+   identical prose. §2.2 requires the unevidenced competencies to be visible
+   and named; it does not require the caveat eight times. */
+[data-portal="v2"] .p-none-list { display: flex; flex-wrap: wrap; gap: 6px; }
+[data-portal="v2"] .p-none {
+  padding: 7px 11px; border-radius: var(--radius-pill);
+  background: var(--raised); border: 1px dashed var(--border-btn);
+  font: 600 12.5px var(--font-ui); color: var(--text-on-chip);
+}
+
 /* "Not enough evidence yet" is a VISIBLE row with a dashed border — never a
    silent zero, never renormalised away (§2.2 rule 3). */
 [data-portal="v2"] .p-insufficient {
@@ -633,6 +650,14 @@
 [data-portal="v2"] .p-badge {
   position: absolute; top: 8px; right: 22%; width: 8px; height: 8px;
   border-radius: 50%; background: var(--bad-line); border: 2px solid var(--raised);
+  /* ⚠️ On mobile this is a DOT, and a count written into it must not paint.
+     MEASURED on the guardian bar once its screens had data: the digit came
+     out at 1.04:1 — an 8px circle with no `color` of its own, rendering the
+     number in whatever it inherited. The comment under `.p-count` already
+     says a dot cannot be read aloud and the number belongs in the aria-label;
+     this makes that true of the pixels as well. At ≥900px the desktop rule
+     turns the same element into a real pill and restores the text. */
+  font-size: 0; line-height: 0; overflow: hidden; color: transparent;
 }
 [data-portal="v2"] button.p-icon .p-badge { top: 9px; right: 10px; }
 
@@ -1219,15 +1244,6 @@
   font: 700 13px var(--font-ui); font-variant-numeric: tabular-nums; color: var(--text-2);
 }
 
-/* ── The unmarked competencies ───────────────────────────────────────────── */
-/* Named, visible and uncounted — but as a set of names with ONE explanation
-   above them, not eight rows each carrying the same sentence. */
-[data-portal="v2"] .s-none-list { display: flex; flex-wrap: wrap; gap: 6px; }
-[data-portal="v2"] .s-none {
-  padding: 7px 11px; border-radius: var(--radius-pill);
-  background: var(--raised); border: 1px dashed var(--border-btn);
-  font: 600 12.5px var(--font-ui); color: var(--text-on-chip);
-}
 
 /* ── Asking for a charge to be reviewed ──────────────────────────────────── */
 /* The form opens UNDER the charge it disputes, inside the same card, so the

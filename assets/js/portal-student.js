@@ -548,8 +548,8 @@
         html += '<section class="p-card is-quiet"><div class="p-label">Not enough evidence yet</div>'
           + '<p class="p-body p-gap-t">These parts of your work have not been marked. They are not counted '
           + 'for you or against you — they are simply not in the score yet.</p>'
-          + '<div class="s-none-list p-gap-t">' + un.map(function (c) {
-            return '<span class="s-none">' + esc(c.name) + '</span>';
+          + '<div class="p-none-list p-gap-t">' + un.map(function (c) {
+            return '<span class="p-none">' + esc(c.name) + '</span>';
           }).join('') + '</div></section>';
       }
 

@@ -2,7 +2,14 @@
 <html lang="en" data-portal="v2">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- ⚠️ `viewport-fit=cover` is load-bearing, not decoration. portal-v2.css
+     reads `env(safe-area-inset-bottom)` in four places — the bottom bar's
+     height and padding, the sheet's foot, and the toast's offset — and
+     those insets are 0 unless the viewport covers the display. Without it
+     iOS letterboxes the whole page into the safe area, so this portal's
+     bar rendered differently from its two siblings on any notched device.
+     The three must agree; they share the stylesheet. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Guardian portal · MAM Academy</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="description" content="Attendance, ratified reports, fees and consents for your children at MAM Academy.">

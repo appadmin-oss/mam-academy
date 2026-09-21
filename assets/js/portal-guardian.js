@@ -341,16 +341,16 @@
   }
 
   function reportCard(rep) {
-    var crit = (rep.criteria || []).map(function (c) {
-      /* An unevidenced competency is a VISIBLE ROW with a dashed border, never a
-         silent zero and never dropped — dropping it would let a reader assume the
-         report covers everything. */
-      if (c.level === 'insufficient') {
-        return '<div class="p-crit p-insufficient">'
-          + '<div class="p-crit-head"><span class="p-crit-name">' + esc(c.label) + '</span>'
-          + '<span class="p-crit-grade">Not assessed</span></div>'
-          + '<p class="p-caption">First assessed next term. Not counted as a zero.</p></div>';
-      }
+    /* An unevidenced competency is VISIBLE and NAMED, never a silent zero and
+       never dropped — dropping it would let a reader assume the report covers
+       everything. It is not eight separate rows, though: ⚠️ MEASURED at 390,
+       repeating "First assessed next term" under each of them filled 563px of
+       a 1,788px report — 31% of the page — and buried the eight names it
+       exists to show. The caveat is stated ONCE, under the set. The student's
+       "Where I stand" shows the same competencies the same way, which is why
+       `.p-none` is a shared primitive rather than either portal's own. */
+    var unmarked = (rep.criteria || []).filter(function (c) { return c.level === 'insufficient'; });
+    var crit = (rep.criteria || []).filter(function (c) { return c.level !== 'insufficient'; }).map(function (c) {
       /* Clamped and ROUNDED to the integer the `[data-pct="N"]` table in
          portal-v2.css matches on. This used to be applied as
          `el.style.width` after paint; a `style` attribute is banned in this
@@ -365,6 +365,16 @@
         + ', ' + pct + ' per cent"><span class="is-' + esc(c.level) + '" data-pct="' + pct + '"></span></div>'
         + '</div>';
     }).join('');
+
+    if (unmarked.length) {
+      crit += '<div class="p-crit p-insufficient">'
+        + '<div class="p-crit-head"><span class="p-crit-name">Not assessed yet</span>'
+        + '<span class="p-crit-grade">' + unmarked.length + '</span></div>'
+        + '<p class="p-caption">First assessed next term. None of these is counted as a zero.</p>'
+        + '<div class="p-none-list p-gap-t">' + unmarked.map(function (c) {
+            return '<span class="p-none">' + esc(c.label) + '</span>';
+          }).join('') + '</div></div>';
+    }
 
     var cov = rep.coverage || {};
     var legend = rep.legend || {};
@@ -1215,12 +1225,18 @@
       if (owed) { fb.hidden = false; fb.textContent = String(owed); fb.setAttribute('aria-label', owed + ' unpaid ' + plural(owed, 'invoice', 'invoices')); }
       var unread = d.unread_messages || 0;
       var mb = $('#msgBadge');
-      if (unread) { mb.hidden = false; mb.textContent = String(unread); }
+      /* Every badge carries its own accessible name. On mobile it paints as a
+         bare dot, so without one a screen reader announces nothing at all —
+         and `#bell`'s label below describes the BUTTON, not this. */
+      if (unread) { mb.hidden = false; mb.textContent = String(unread);
+        mb.setAttribute('aria-label', unread + ' unread ' + plural(unread, 'message', 'messages')); }
       $('#bell').setAttribute('aria-label', unread
         ? unread + ' unread ' + plural(unread, 'message', 'messages')
         : 'Messages from the academy');
       var pendingConsent = S.children.reduce(function (n, c) { return n + (c.consents_pending || 0); }, 0);
-      if (pendingConsent) { var cb = $('#consentBadge'); cb.hidden = false; cb.textContent = String(pendingConsent); }
+      if (pendingConsent) { var cb = $('#consentBadge'); cb.hidden = false;
+        cb.textContent = String(pendingConsent);
+        cb.setAttribute('aria-label', pendingConsent + ' ' + plural(pendingConsent, 'consent', 'consents') + ' to give'); }
       var mk = S.children[0];
       if (mk && mk.credits_available != null) {
         $('#makeupCount').textContent = mk.credits_available + ' · ' + (mk.credits_allowance_left != null ? mk.credits_allowance_left : '');

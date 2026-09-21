@@ -1397,6 +1397,61 @@ These are in the `.p-*` block and bite **all three** portals:
 ⚠️ **Bump `portal-v2.css?v=` on ALL THREE pages when you touch it**, or
 browsers keep running the copy with the bug in it.
 
+### The accessibility contract (audited 2026-09-21 — `docs/HANDOFF.md` §4s)
+
+Every one of these was MEASURED in a browser and none would fail a static
+read, which is why `test_student_portal_ui.php` pins the mechanism rather
+than the symptom:
+
+- ⚠️ **`role="dialog" aria-modal="true"` is a promise.** It tells a screen
+  reader the rest of the page is inert, so the sheet has to move focus in,
+  trap Tab, close on Escape and return focus to its trigger. Two portals
+  declared it and did none of it while the guardian's complete
+  implementation sat 170 lines away. Same family as the `role="menu"` the
+  site chrome removed for promising an arrow-key contract it never had:
+  drop the role or honour it, never leave it half.
+- ⚠️ **Focus moves on the PAINT, not on the navigation.** Every screen
+  fetches, so `go()` returns while `#main` still holds the previous screen —
+  focusing there finds the old heading and the repaint destroys it, dropping
+  focus to `<body>` so the next Tab restarts at the skip link. `go()` arms
+  `pendingFocus`; the next `paint()` consumes it, **once**, because `paint()`
+  also runs after a write and pulling focus would throw the reader out of
+  the card they are filling in.
+- **16px is a FLOOR on every form control, `select` included.** Safari on
+  iOS auto-zooms below it and does not zoom back out. Never "fix" that with
+  `user-scalable=no` — blocking pinch zoom is a 1.4.4 failure.
+- ⚠️ **`viewport-fit=cover` is load-bearing.** `env(safe-area-inset-bottom)`
+  is 0 without it, and the stylesheet reads it in four places (bar height and
+  padding, sheet foot, toast offset). All three pages must carry it or one
+  portal letterboxes where its siblings go edge to edge.
+- **An ERROR is not a polite status.** `role="status"` is queued until the
+  screen reader is idle; a failure is `alert`/assertive and **does not time
+  out**, because it is often the only record that the thing the reader
+  pressed did not happen. Successes still clear themselves.
+- **`.p-badge` is a DOT on mobile and a pill on desktop.** Writing a count
+  into the 8px dot rendered it at **1.04:1** — it sets no `color` of its own.
+  The number goes in the `aria-label`; the mobile rule paints no text at all.
+- **A loading state is DEFERRED by 300ms, never dropped.** MEASURED: screens
+  repaint in 8–48ms locally (a two-frame flicker) and in 480–541ms on Slow
+  3G, where the indicator appears at ~315ms and is genuinely needed.
+- **`--gold-bright`, `--good`, `--accent` and friends are FILLS.** Each has a
+  text-safe sibling (`--gold-text`, `--good-text`, `--accent-text`); using a
+  fill for words is how `.s-dot` reached 4.31:1 and the back-strip 2.94:1.
+- **`prefers-reduced-motion` must not stop a progress indicator** — 2.3.3
+  exempts it, and a frozen spinner over "Loading" says the page has hung.
+- **`.p-none` / `.p-none-list` is SHARED, not the student's.** The student's
+  "Where I stand" and the guardian's termly report show the same competencies
+  to the same family, so the unevidenced ones are one named set with the
+  caveat stated ONCE. ⚠️ MEASURED on the guardian report: eight rows each
+  repeating "First assessed next term. Not counted as a zero." filled 563px
+  of a 1,788px page. §2.2 requires those competencies visible and named; it
+  does not require the caveat eight times.
+- ⚠️ **Guard the meaning, not the copy.** `test_dashboard_nulls.php` pinned
+  the literal sentence "Not counted as a zero." and failed the moment the
+  wording improved. Assert the phrase that carries the promise
+  (`counted as a zero`) plus the structure (`p-none-list`), or the test
+  blocks the next improvement instead of the next regression.
+
 ## The instructor application v2 (`/instructor-apply`) — the 2026-09 rework
 
 Seven steps → four, from `docs/design/2026-09-instructor-application/`

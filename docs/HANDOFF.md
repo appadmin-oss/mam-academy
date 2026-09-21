@@ -46,6 +46,7 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | **Every route swept against MySQL, logs read** | ✅ clean — found 3 more (break-glass 401s) |
 | The console's phone subset (`#5b`) | not built — §6.2 |
 | **Instructor portal redesign** | ✅ **shipped 2026-09-19** — seven screens on portal-v2; the legacy 13-tab dashboard stays at `classic.html`. `docs/design/2026-08-portal-redesign/BUILD-NOTES-instructor.md` |
+| **Portal UX audit (WCAG 2.2 AA + conventions)** | ✅ **shipped 2026-09-21** — 4 major and 9 minor findings, all fixed and pinned; §4s |
 | **Student portal redesign** | ✅ **shipped 2026-09-21** — five destinations on portal-v2; the legacy dashboard stays at `classic.html`. All three portals now share one palette and one a11y key; §4r |
 | **Guardian portal reachable from sign-in** | ✅ **shipped 2026-09-21** — `/api/auth/me` returns the portal map; three client copies of it are gone; §4r |
 | **Instructor application platform (schema v90)** | ✅ **shipped 2026-09-17** — see §4p |
@@ -1323,6 +1324,84 @@ reviewed, add/restatus/remove a repertoire piece.
   equivalents (`student/practice-log`, `student/take`, `student/preclass`) are
   already rate-limited, CSRF-gated and tested; a parallel surface would give
   the academy two ways to record one take.
+
+
+## 4s. The portal UX audit (2026-09-21)
+
+An evidence-graded pass over all three portals, driven in a browser. The
+thresholds are WCAG 2.2 AA plus the convention set; every number below was
+measured, not estimated.
+
+### What it found, by severity
+
+**Major (3)**
+
+| Finding | Why |
+|---|---|
+| The More sheet declared `role="dialog" aria-modal="true"` and implemented none of it (student + instructor) | `aria-modal` tells a screen reader the rest of the page is inert. Focus never entered the sheet, Tab walked out, Escape did nothing — on a sheet whose rows include Sign out. The **guardian portal had the complete implementation 170 lines away**; both others copied its markup without its behaviour. Same mistake the site chrome removed once (`role="menu"`). |
+| Focus dropped to `<body>` on every in-content navigation (student + instructor) | Activating a control that navigates destroys it on repaint, so focus resets to the document and the next Tab restarts at the skip link. ⚠️ The fix must run on the **paint**, not the navigation — every screen fetches, so `go()` returns while `#main` still holds the old screen. A first attempt in `go()` measured as *still* landing on `<body>`. |
+| The waiver request was a `window.prompt` filing everything as `other` | The server defines seven reason codes and the provider ships them; the client discarded them. Every row in the admin's waiver queue read "Other approved reason" — the field that makes it triageable. |
+| Form controls at 14px | Safari on iOS auto-zooms below 16px and does not zoom back out. Four fields across two portals, on phone-first surfaces. |
+
+**Minor (2)** — `.s-dot` at 4.31:1 (the *unpractised* day, the state that matters most) · `prefers-reduced-motion` freezing the loading spinner, which 2.3.3 exempts · errors announced through polite `role="status"` and auto-hidden with no recall · a loading state visible for ~2 frames · no back control on the two sheet-reached screens · the guardian sheet not restoring focus · "Ask" not reading alone · an empty state with no path forward.
+
+**Found only after seeding guardian data** — `.p-badge` measured **1.04:1**: the guardian writes a *count* into an element the stylesheet documents as an 8px *dot*, with no `color` of its own. The instructor portal already did it right (aria-label only). And the guardian was **missing `viewport-fit=cover`**, which the shared stylesheet needs in four places for `env(safe-area-inset-bottom)` to be anything but 0.
+
+### What measurement cleared
+
+Zero target-size failures (2.5.8). 2.4.11 clean — the 120px `--bar-reserve`
+genuinely keeps focused controls off the fixed bar. 200% text zoom: no
+overflow, nothing clipped. Every input already had a programmatically
+associated persistent label; none used a placeholder as one. A visible focus
+ring on all 38 tab stops sampled. No viewport blocks pinch zoom.
+
+### How to reproduce it
+
+The harnesses are in the session scratchpad, but the three that matter are
+worth rebuilding rather than trusting:
+
+- **Real Safari engine.** WebKit is not in `/opt/pw-browsers` by default;
+  `npx playwright@latest install webkit` plus `install-deps webkit` gets
+  WebKit 26.6 running. Drive it with the `iPhone 13` device descriptor.
+  ⚠️ It verifies the *precondition* (16px controls, a viewport that permits
+  zoom) — desktop WebKit on Linux does not implement iOS Safari's form
+  auto-zoom, so it cannot prove the zoom is gone, only that nothing invites it.
+- **Throttled mobile data.** `Network.emulateNetworkConditions` over CDP.
+  MEASURED on Slow 3G (400 Kbps, 400ms RTT): a screen lands in 480–541ms and
+  the deferred indicator appears at ~315ms, so it is up for ~200ms. On
+  Regular 4G (116–119ms) it is never shown. That is the 300ms deferral doing
+  exactly its job, and every screen is inside Nielsen's 1s limit even on the
+  slowest profile.
+  ⚠️ A naive timing harness reads ~5ms here: the previous screen's markup is
+  still in `#main` when the hash changes, so "is there a section?" is true on
+  the first poll. Wait for the heading to become the new screen's.
+- **Guardian data.** Its screens were empty and therefore under-audited.
+  Seeding needs a ratified report (build → moderate ≥2 criteria → ratify with
+  a real admin id), two issued invoices, make-up credits and a thread.
+  ⚠️ `mam_report_build()` on an existing draft REUSES it rather than
+  rebuilding, so a draft built before the evidence existed stays
+  all-`insufficient` and `mam_report_ratify()` correctly refuses with
+  `no_evidence`. Rebuild, don't reuse. And `mam_makeup_grant()`'s reason is
+  `teacher_cancellation`, not `teacher_cancelled`, while `guardian_notice`
+  requires `notice_hours`.
+
+**One more the populated screens exposed:** the guardian's termly report gave
+each of its eight unevidenced competencies its own row repeating "First
+assessed next term. Not counted as a zero." — MEASURED at 563px of a 1,788px
+page, 31% of a ratified academic report spent on one sentence, with the eight
+NAMES reduced to captions. Now one named set, caveat once, 281px, every name
+still on the page. `.p-none` was promoted from the student block to the shared
+one, because both surfaces show the same competencies to the same family.
+⚠️ Fixing it failed `test_dashboard_nulls.php`, which pinned the exact
+sentence. That guard now asserts the phrase carrying the promise plus the
+structure — a test on exact copy blocks the next improvement, not the next
+regression.
+
+⚠️ **Two of the harness's own first results were wrong**, which is the general
+lesson: a "focus obscured by fixed chrome" detector flagged the nav's own
+buttons overlapping themselves, and a contrast checker flagged the fixed badge
+at 1:1 because it now paints nothing. Check what a failing measurement is
+actually measuring before reporting it.
 
 
 ## 5. Where things live

@@ -299,3 +299,40 @@ t_ok((bool) preg_match('/aria-describedby="waiveErr-/', $sj),
     'the validation error is associated with the control that failed');
 t_ok((bool) preg_match("/setAttribute\('aria-invalid', 'true'\)/", $sj),
     '…and the control is marked invalid, not only coloured');
+
+/* ── Two more the audit only found once the guardian screens had data ───── */
+
+/* ⚠️ `viewport-fit=cover` is load-bearing, not decoration. portal-v2.css reads
+   `env(safe-area-inset-bottom)` in four places — the bottom bar's height and
+   padding, the sheet's foot, the toast's offset — and those insets resolve to
+   0 unless the viewport covers the display, so iOS letterboxes the page into
+   the safe area instead. The guardian portal was missing it and rendered its
+   bar differently from its two siblings on any notched device. They share one
+   stylesheet; they have to share the precondition it assumes. */
+t_group('the v2 portals — viewport and badge');
+foreach ($MARKUP as $who => $file) {
+    $m = (string) @file_get_contents($file);
+    preg_match('/<meta name="viewport" content="([^"]*)"/', $m, $vp);
+    t_ok(isset($vp[1]) && strpos($vp[1], 'viewport-fit=cover') !== false,
+        "$who: the viewport covers the display, so env(safe-area-inset-*) is not 0");
+    /* A viewport that blocks pinch zoom is a 1.4.4 failure, and it is the
+       usual wrong "fix" for the iOS form auto-zoom that 16px solves properly. */
+    t_ok(isset($vp[1]) && strpos($vp[1], 'user-scalable=no') === false
+         && strpos($vp[1], 'maximum-scale') === false,
+        "$who: …and does not block pinch zoom");
+}
+
+/* On mobile `.p-badge` is a DOT: an 8px circle with a digit in it renders as a
+   smudge, and MEASURED on the guardian bar the digit came out at 1.04:1
+   because the rule sets no colour of its own. The number travels in the
+   aria-label (the instructor portal already did this) and the desktop rule
+   turns the same element into a real pill where the text is wanted. */
+t_ok((bool) preg_match('/\.p-badge \{[^}]*font-size: 0;[^}]*color: transparent;/s', $css),
+    'the mobile badge paints no text — it is a dot, not a counter');
+t_ok((bool) preg_match('/\[data-portal="v2"\] \.p-badge \{ position: static;[^}]*font: 800 12px\/22px/s', $css),
+    '…and the desktop rule restores it as a pill that does');
+$gj = preg_replace('~/\*.*?\*/~s', '', (string) @file_get_contents($APPS['guardian']));
+foreach (['financeBadge', 'msgBadge', 'consentBadge'] as $b) {
+    t_ok((bool) preg_match('/' . $b . "[\s\S]{0,240}setAttribute\('aria-label'/", $gj),
+        "#$b carries an accessible name — a dot cannot be read aloud");
+}

@@ -104,9 +104,16 @@ t_ok(strpos($dnCss, 'tabular-nums') !== false,
 t_ok(strpos($dnJs, 'role="img" aria-label="') !== false, 'a competency bar names itself to assistive technology');
 t_ok(strpos($dnJs, 'p-crit-grade') !== false, 'and prints the grade in words beside it');
 
-/* The unevidenced competency is a VISIBLE row with a dashed border. */
-t_ok(strpos($dnJs, 'p-insufficient') !== false, 'an unassessed competency is a visible row');
-t_ok(strpos($dnJs, 'Not counted as a zero.') !== false, 'and says so in as many words');
+/* The unevidenced competencies are VISIBLE, NAMED and inside a dashed panel.
+ * ⚠️ Assert the meaning, not one sentence. This pinned the literal string
+ * "Not counted as a zero." and failed when the eight rows became one named
+ * set with the caveat stated once — a change that made the guarantee MORE
+ * visible, not less (MEASURED: 563px of repetition down to 281px, all eight
+ * names still on the page). A guard on exact copy fails the day the copy
+ * improves; the phrase below is the part that carries the promise. */
+t_ok(strpos($dnJs, 'p-insufficient') !== false, 'an unassessed competency sits in a visible panel');
+t_ok(strpos($dnJs, 'counted as a zero') !== false, 'and says in words that it is not a zero');
+t_ok(strpos($dnJs, 'p-none-list') !== false, '…with every unassessed competency NAMED, not just counted');
 t_ok(strpos($dnCss, 'border: 1px dashed') !== false, 'drawn dashed rather than as a low score');
 
 t_group('dashboards — the weekly email does not claim a rate that does not exist');
