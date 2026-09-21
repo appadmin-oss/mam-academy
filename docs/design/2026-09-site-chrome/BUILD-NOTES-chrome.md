@@ -64,6 +64,17 @@ render 2/3/3 columns with no wrap and no overflow at 1280.
    180px basis was non-monotonic: 430 rendered *shorter* than 390 because it
    was still a row, with a three-line column. The copy also lost a word
    ("application draft" → "draft").
+   The notice is then the one part of the design system in **`rem`** rather
+   than `px`: the accessibility toolbar scales the root font, and a consent
+   notice that refuses to grow for somebody who asked for bigger text is the
+   wrong thing to pin. Its wrap basis is `rem` for the same reason — left in
+   `px` it would promise two lines at a width where the larger type needs
+   three. The button labels scale with it (MEASURED at 1.3×: a pinned 13.5px
+   button beside 16.25px body copy reads as broken), but `min-height:44px`
+   stays `px`, because a touch target is a property of the finger and a rem
+   floor computes to 37px at 0.85×. Verified at 0.85/1.0/1.15/1.3 across
+   320/390/430/768/1280, and both dependent action bars still clear the taller
+   banner because the dock's height is measured at runtime.
 
 4. **The seven `apply?discipline=` deep links.** Removed from the menu, as
    asked. **Kept in the desktop mega menu**: Part 2 of the same handoff says

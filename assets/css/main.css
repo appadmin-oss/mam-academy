@@ -1234,23 +1234,43 @@ footer::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;back
    The rule is the text's measure rather than a width breakpoint because the
    copy is what decides it: a longer sentence, or a translation, moves the
    point at which a row stops being a row, and a hardcoded breakpoint does
-   not move with it. (It does NOT track the accessibility toolbar — this text
-   is 12.5px, not rem, like the rest of the design system.) */
+   not move with it. The text is in `rem`, so the accessibility toolbar moves
+   the wrap point too — see below. */
 .cookie-banner{padding:12px 16px calc(18px + env(safe-area-inset-bottom));background:rgba(26,18,11,0.97);border:1px solid var(--hairline);border-top-color:var(--border-gold);border-radius:14px;box-shadow:var(--shadow-lg);display:flex;flex-wrap:wrap;gap:10px 12px;align-items:center;transform:translateY(14px);opacity:0;transition:transform 0.35s var(--ease),opacity 0.35s var(--ease)}
 .cookie-banner.shown{transform:none;opacity:1}
-/* 280px is the width the sentence sets in TWO lines at 12.5px. Below it the
-   actions wrap to their own line and the text takes the full width instead.
-   A smaller basis (180px) kept the row alive down to ~390 and made the layout
-   non-monotonic: 430 rendered SHORTER than 390 because it was still a row,
-   with the sentence in a cramped three-line column — the banner got taller as
-   the screen got wider. The floor is the measure, not a breakpoint. */
-.cookie-text{flex:1 1 280px;min-width:0;font-size:12.5px;color:var(--text-muted);line-height:1.45}
+/* 17.5rem is the width the sentence sets in TWO lines. Below it the actions
+   wrap to their own line and the text takes the full width instead.
+   A smaller basis (11.25rem/180px) kept the row alive down to ~390 and made
+   the layout non-monotonic: 430 rendered SHORTER than 390 because it was
+   still a row, with the sentence in a cramped three-line column — the banner
+   got taller as the screen got wider. The floor is the measure, not a
+   breakpoint.
+   ⚠️ Both values are `rem` and BOTH must be. The accessibility toolbar scales
+   the root font (`main.js` sets `documentElement.style.fontSize`), so a `px`
+   notice simply refuses to grow for somebody who asked for bigger text — and
+   a `px` BASIS beside `rem` text is worse than either: it would go on
+   promising two lines at a width where the larger type needs three, which is
+   the cramped-column bug this basis exists to prevent.
+   0.78125rem = 12.5px and 17.5rem = 280px at the default 16px root. */
+.cookie-text{flex:1 1 17.5rem;min-width:0;font-size:0.78125rem;color:var(--text-muted);line-height:1.45}
 .cookie-text a{color:var(--gold-bright);text-decoration:underline;text-underline-offset:2px}
 /* `margin-left:auto` keeps the buttons hard right on BOTH layouts: beside the
    text on one row, and at the end of their own line once it wraps — where
    left-aligned they read as orphaned. */
 .cookie-actions{display:flex;gap:8px;flex-shrink:0;margin-left:auto}
-.cookie-btn{min-height:44px;display:inline-flex;align-items:center;padding:0 16px;border-radius:12px;font-size:13.5px;font-weight:700;transition:all 0.2s var(--ease)}
+/* The LABELS scale with the notice; the 44px target floor and the padding do
+   NOT. Three different things happen to be measured in the same units here
+   and only one of them is type:
+     · font-size is `rem` because it is text, and MEASURED at 1.3× a pinned
+       13.5px button sat beside 16.25px body copy — the sentence outgrew the
+       buttons that answer it, which reads as a broken component;
+     · min-height stays `px` because a touch target is a property of the
+       FINGER, not of the type — at 0.85× a rem floor would shrink it to 37px
+       and break the 44px contract for somebody who asked for smaller text;
+     · padding stays `px` so a larger label widens the button by the label
+       alone, rather than compounding, which is what keeps the row a row.
+   0.84375rem = 13.5px at the default 16px root. */
+.cookie-btn{min-height:44px;display:inline-flex;align-items:center;padding:0 16px;border-radius:12px;font-size:0.84375rem;font-weight:700;transition:all 0.2s var(--ease)}
 .cookie-btn-accept{background:var(--gold-bright);color:#1A120B;font-weight:800;padding:0 20px}
 .cookie-btn-decline{color:var(--text-soft);border:1px solid var(--border-strong)}
 

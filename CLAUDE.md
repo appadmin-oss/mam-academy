@@ -1413,9 +1413,18 @@ the traps below are repo-wide:
   the row alive down to ~390 and made it non-monotonic: **430 rendered shorter
   than 390**, because it was still a row with a cramped three-line column. The
   copy is what decides the wrap point, so a longer sentence or a translation
-  moves it; a hardcoded breakpoint would not. It does NOT track the
-  accessibility toolbar — this text is 12.5px, not rem, like the rest of the
-  design system.
+  moves it; a hardcoded breakpoint would not.
+  ⚠️ **The notice is in `rem` and its basis must be too.** The accessibility
+  toolbar scales the ROOT font (`main.js` sets
+  `documentElement.style.fontSize`), so a `px` consent notice refuses to grow
+  for somebody who asked for bigger text — and a `px` basis beside `rem` text
+  is worse than either: it goes on promising two lines at a width where the
+  larger type needs three, which is the cramped-column bug the basis exists to
+  prevent. The button LABELS scale too (a pinned 13.5px button beside 16.25px
+  body copy at 1.3× reads as broken), but `min-height:44px` stays **px** — a
+  touch target is a property of the finger, not of the type, and a rem floor
+  computes to 37px at 0.85×. This banner is the one place in the design system
+  that is not px; the rest is, deliberately.
   `#cookieDecline` **survives**: whether a consent notice offers a decline
   control is a legal decision, not a layout one, so it is never the thing that
   gives way. The handoff's "Decline stays available inside Details" was not

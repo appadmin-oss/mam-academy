@@ -127,9 +127,22 @@ t_ok((bool)preg_match('/var coarse = window\.matchMedia/', $js),
 t_ok((bool)preg_match('/\.cookie-banner\{[^}]*display:flex/', $css)
   && !(bool)preg_match('/\.cookie-banner\{[^}]*flex-direction:column/', $css),
     'the cookie banner is a row, not a stacked block');
-t_ok((bool)preg_match('/\.cookie-text\{flex:1 1 \d+px/', $css),
+t_ok((bool)preg_match('/\.cookie-text\{flex:1 1 [\d.]+rem/', $css),
     '…and it wraps on the text\'s own minimum measure rather than a breakpoint, so a '
     . 'longer sentence or a translation moves the wrap point with it');
+/* The notice is TYPE, and the accessibility toolbar scales the root font
+   (`main.js` sets `documentElement.style.fontSize`). A `px` notice simply
+   refuses to grow for somebody who asked for bigger text, and a `px` BASIS
+   beside `rem` text is worse than either — it goes on promising two lines at
+   a width where the larger type needs three. */
+t_ok((bool)preg_match('/\.cookie-text\{[^}]*font-size:[\d.]+rem/', $css)
+  && (bool)preg_match('/\.cookie-btn\{[^}]*font-size:[\d.]+rem/', $css),
+    'the notice AND its button labels are in rem, so the accessibility toolbar scales them');
+/* …but the target floor is a property of the FINGER, not of the type. At
+   0.85x a rem floor computes to 37px and breaks the 44px contract for
+   somebody who asked for SMALLER text. */
+t_ok((bool)preg_match('/\.cookie-btn\{min-height:44px/', $css),
+    '…while the 44px touch floor stays in px — it must not shrink with the text scale');
 t_ok((bool)preg_match('/\.cookie-actions\{[^}]*margin-left:auto/', $css),
     '…with the buttons hard right on both layouts — left-aligned on their own wrapped '
     . 'line they read as orphaned');
