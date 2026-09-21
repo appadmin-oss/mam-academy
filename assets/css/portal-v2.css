@@ -55,6 +55,16 @@
   --accent:        #E2650F;   /* ✱DESIGN fills, rules, active bars. 3.44:1 as text — never text */
   --accent-text:   #B34708;   /* ✱DESIGN accent TEXT on light surfaces: 5.50:1 on white */
   --accent-ink:    #211A13;   /* ✱MOCK §1 names this colour in prose, not as a token. 4.99:1 on --accent */
+  /* ✱OURS — the foreground for anything painted ON --ink. ⚠️ `--ink` INVERTS
+     in dark mode (#1B2430 → #E8ECF2, so a "dark panel" becomes a light one),
+     and a hardcoded `#fff` on it does not. MEASURED on the student Home in
+     dark: the calm hero's "Where I stand" button was white text on a light
+     grey fill, and the same latent pairing sat on `.i-next` (the instructor's
+     session card), `.i-bands`, `.p-skip` and `.p-toast`. Pairing the two
+     tokens is why there is no per-rule dark override for any of them. */
+  --on-ink:        #FFFFFF;
+  --on-ink-2:      rgba(255,255,255,0.74);   /* meta text on an ink panel */
+  --on-ink-line:   rgba(255,255,255,0.30);   /* an outlined control on one */
 
   /* ── Semantic. §1 splits these because the colour that passes as TEXT is not
         the one that reads as a BORDER. --good was the one place the split was
@@ -227,7 +237,7 @@
 [data-portal="v2"] button.p-ghost i, [data-portal="v2"] a.p-ghost i { font-size: 12px; color: var(--text-3); }
 /* Primary. ONE per view — §1 is explicit. */
 [data-portal="v2"] button.p-primary, [data-portal="v2"] a.p-primary {
-  background: var(--ink); color: #fff; font-weight: 700;
+  background: var(--ink); color: var(--on-ink); font-weight: 700;
 }
 /* Outlined: a bordered white button, never a second dark fill. */
 [data-portal="v2"] button.p-outline, [data-portal="v2"] a.p-outline {
@@ -240,7 +250,7 @@
   display: flex; align-items: center; justify-content: center; gap: 10px;
   width: 100%; min-height: 52px; border: 0;
   border-radius: var(--radius-control-lg);
-  background: var(--ink); color: #fff;
+  background: var(--ink); color: var(--on-ink);
   font: 700 15.5px var(--font-ui); font-family: var(--font-ui);
   cursor: pointer; text-decoration: none;
 }
@@ -297,12 +307,19 @@
   border: 0; border-top: 1px solid var(--rule);
   background: none; color: var(--text); font-family: var(--font-ui);
   text-align: left; text-decoration: none;
+  flex-wrap: wrap;
 }
 [data-portal="v2"] button.p-row, [data-portal="v2"] a.p-row { cursor: pointer; }
 [data-portal="v2"] .p-rows > .p-row:first-child { border-top: 0; }
 /* The dashboard's "this week" rows are taller — 64px in the frame. */
 [data-portal="v2"] .p-row.is-tall { min-height: 64px; }
-[data-portal="v2"] .p-row-main { flex: 1; min-width: 0; }
+/* ⚠️ MEASURED at 320 on the instructor marking queue: a 100px "2nd marker"
+   chip beside a 52px avatar left the name column 56px wide and the caption
+   ("Week 4 performance · 6d waiting") spilled straight out of it — an
+   annotation crushing the thing it annotates. The row WRAPS, so the chip drops
+   to its own line at the width where it would otherwise win, and the main
+   column keeps a majority basis. Nothing moves above ~360px. */
+[data-portal="v2"] .p-row-main { flex: 1 1 55%; min-width: 0; }
 [data-portal="v2"] .p-row-main .p-title { display: block; }
 [data-portal="v2"] .p-row-main .p-meta,
 [data-portal="v2"] .p-row-main .p-caption { display: block; margin-top: 2px; }
@@ -390,6 +407,11 @@
 [data-portal="v2"] img.p-avatar { object-fit: cover; }
 [data-portal="v2"] .p-who { display: flex; align-items: center; gap: 14px; }
 [data-portal="v2"] .p-who-main { flex: 1; min-width: 0; }
+/* Name over course, not name-then-course on one line: MEASURED in the
+   248px rail the two ran together and "TONI-26A" broke after "TONI-". */
+[data-portal="v2"] .p-who-main > .p-title,
+[data-portal="v2"] .p-who-main > .p-caption { display: block; }
+[data-portal="v2"] .p-who-main > .p-caption { margin-top: 2px; }
 
 /* ── Competency rows. Horizontal bars per §2.2: no radar chart — it scores
       worst for accuracy and misleads through area. ────────────────────────── */
@@ -460,7 +482,7 @@
 [data-portal="v2"] .p-skip {
   position: absolute; left: 16px; top: -80px; z-index: 30;
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px;
-  background: var(--ink); color: #fff;
+  background: var(--ink); color: var(--on-ink);
   border-radius: var(--radius-control); font: 700 13px var(--font-ui); text-decoration: none;
 }
 [data-portal="v2"] .p-skip:focus { top: 10px; }
@@ -600,7 +622,7 @@
   max-width: min(92vw, 440px);
   display: flex; align-items: flex-start; gap: 10px;
   padding: 12px 15px; border-radius: var(--radius-card);
-  background: var(--ink); color: #fff;
+  background: var(--ink); color: var(--on-ink);
   font: 600 13px/1.5 var(--font-ui);
   box-shadow: 0 12px 32px rgba(24,32,44,0.28);
 }
@@ -689,6 +711,15 @@
   --hairline: rgba(255,255,255,0.07); --rule: rgba(255,255,255,0.10);
   --border: rgba(255,255,255,0.12); --border-strong: rgba(255,255,255,0.16);
   --border-btn: rgba(255,255,255,0.18);
+  /* --ink is now the LIGHTEST surface here, so everything painted on it reads
+     in the page's own darkest ink rather than in white. MEASURED on #E8ECF2:
+     the body 15.02:1, --on-ink-2 6.95:1 (against 9.14:1 for its light-mode
+     opposite number, so both sides clear 4.5:1 with room). */
+  --on-ink: #14181E; --on-ink-2: rgba(20,24,30,0.74); --on-ink-line: rgba(20,24,30,0.28);
+  /* ⚠️ --accent-on-ink inverts with it. MEASURED, the light-mode tint #F7C08A
+     is 1.38:1 on the reversed panel — the session card's eyebrow was very
+     nearly invisible in dark mode. This is 5.14:1 there. */
+  --accent-on-ink: #A8420A;
 }
 [data-portal="v2"][data-theme="dark"] button.p-primary,
 [data-portal="v2"][data-theme="dark"] button.p-action { background: var(--accent); color: var(--accent-ink); }
@@ -723,25 +754,25 @@
 /* ── The next session. One dark card, and the only one on the screen. ─────── */
 [data-portal="v2"] .i-next {
   background: var(--ink); border-radius: var(--radius-card-lg);
-  padding: 18px 20px; color: #fff;
+  padding: 18px 20px; color: var(--on-ink);
 }
 [data-portal="v2"] .i-next .p-label { color: var(--accent-on-ink); }
 [data-portal="v2"] .i-next-title {
   font: 700 23px/1.2 var(--font-serif); margin: 10px 0 4px;
 }
-[data-portal="v2"] .i-next-meta { font: 400 13.5px/1.5 var(--font-ui); color: rgba(255,255,255,0.72); }
+[data-portal="v2"] .i-next-meta { font: 400 13.5px/1.5 var(--font-ui); color: var(--on-ink-2); }
 [data-portal="v2"] .i-next-acts { display: flex; gap: 10px; margin-top: 16px; }
 /* 52px, not 44: the frame runs 52px for a card's own action and this is the one
    control an instructor hits while walking into a room. */
 [data-portal="v2"] .i-next-acts button {
   min-height: 52px; border: 0; border-radius: var(--radius-control-lg);
-  background: #fff; color: var(--ink);
+  background: var(--on-ink); color: var(--ink);
   font: 700 15.5px var(--font-ui); font-family: var(--font-ui); cursor: pointer;
 }
 [data-portal="v2"] .i-next-acts button.is-wide { flex: 1; }
 [data-portal="v2"] .i-next-acts button.is-icon {
   flex: 0 0 auto; padding: 0 16px; min-width: 52px;
-  background: none; color: #fff; border: 1px solid rgba(255,255,255,0.3);
+  background: none; color: var(--on-ink); border: 1px solid var(--on-ink-line);
 }
 
 /* A row of two full-width actions. Deliberately NOT `.i-next-acts`: that one
@@ -820,7 +851,7 @@
   background: var(--raised); color: var(--text-2);
   font: 700 12.5px/1.3 var(--font-ui); font-family: var(--font-ui); cursor: pointer;
 }
-[data-portal="v2"] .i-bands button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+[data-portal="v2"] .i-bands button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
 /* "Not assessed" is dashed and narrower: it is not a fourth grade, it is the
    absence of one. `null` is not zero — the same line mastery.php and the termly
    report hold. */
@@ -889,6 +920,186 @@
 [data-portal="v2"] .i-known dd { flex: 1; margin: 0; font-weight: 600; color: var(--text); }
 /* A fact the system does not hold reads as words, not as a blank or a zero. */
 [data-portal="v2"] .i-known dd.is-none { font-weight: 400; color: var(--text-3); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE STUDENT PORTAL — the `.s-` block
+   ═══════════════════════════════════════════════════════════════════════════
+   Measured off the design's student frame (`portals-mobile.dc.html`
+   `data-phone="studentv2"`) and HANDOFF-student-guardian.md §2.
+
+   Everything the three portals SHARE is above and reused as-is. Only what is
+   genuinely new to a learner's screens is named here.
+
+   ⚠️ `.s-next` is NOT `.i-next`, and the duplication is deliberate. The
+   instructor's dark card fills its buttons WHITE because it is the one dark
+   surface on that screen; the student's card sits above a practice card and
+   an outstanding-balance card, so its actions have to read as the primary of
+   three rather than as the only one. Merging them means one of the two loses
+   its hierarchy silently — the same trap `.i-next-acts` already documents.
+
+   Two refusals are visible in this file: there is no rule that renders a rank,
+   a position or a cohort comparison (§2.3 — the leaderboard was removed from
+   this codebase and stays removed), and none that scores a recording (§2.1 —
+   `.s-take` has a title, a date and an audio element, and no room for a mark).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── The one next step. Warm, not dark: it is an invitation, not a duty. ──── */
+[data-portal="v2"] .s-hero {
+  background: var(--ink); border-radius: var(--radius-card-lg);
+  padding: 18px 20px; color: var(--on-ink);
+}
+[data-portal="v2"] .s-hero .p-label { color: var(--accent-on-ink); }
+[data-portal="v2"] .s-hero-title { font: 700 23px/1.2 var(--font-serif); margin: 10px 0 4px; }
+[data-portal="v2"] .s-hero-body { font: 400 13.5px/1.5 var(--font-ui); color: var(--on-ink-2); }
+[data-portal="v2"] .s-hero-acts { display: flex; gap: 10px; margin-top: 16px; }
+/* 52px for a card's own action — the frame's figure, and this is the control a
+   child hits first every day. */
+[data-portal="v2"] .s-hero-acts button {
+  min-height: 52px; flex: 1; border: 0; border-radius: var(--radius-control-lg);
+  background: var(--on-ink); color: var(--ink);
+  font: 700 15.5px var(--font-ui); cursor: pointer;
+}
+/* "You are up to date" is not an alert. The calm variant keeps the shape and
+   drops the urgency — a portal that shouts when nothing is wrong teaches a
+   child to stop reading it. */
+[data-portal="v2"] .s-hero.is-calm { background: var(--quiet); color: var(--text); border: 1px solid var(--border); }
+[data-portal="v2"] .s-hero.is-calm .p-label { color: var(--good-text); }
+[data-portal="v2"] .s-hero.is-calm .s-hero-body { color: var(--text-2); }
+[data-portal="v2"] .s-hero.is-calm .s-hero-acts button {
+  background: var(--ink); color: var(--on-ink);
+}
+
+/* ── The next class ──────────────────────────────────────────────────────── */
+[data-portal="v2"] .s-next {
+  background: var(--raised); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-card-lg); padding: 16px 18px;
+}
+[data-portal="v2"] .s-next-title { font: 700 20px/1.25 var(--font-serif); margin: 8px 0 4px; }
+[data-portal="v2"] .s-next-meta { font: 400 13px/1.5 var(--font-ui); color: var(--text-3); }
+[data-portal="v2"] .s-next-acts { display: flex; margin-top: 14px; }
+[data-portal="v2"] .s-next-acts button {
+  flex: 1; min-height: 52px; border: 0; border-radius: var(--radius-control-lg);
+  background: var(--ink); color: var(--on-ink); font: 700 15.5px var(--font-ui); cursor: pointer;
+}
+/* Clocking out is not the primary action on a card a student has already
+   acted on — it is the quiet second half of the clock, and drawing it as
+   solidly as "Check in" invites a tap that ends the session early. */
+[data-portal="v2"] .s-next-acts button.is-quiet {
+  background: none; color: var(--text); border: 1px solid var(--border-btn);
+  font-weight: 600; font-size: 14.5px; min-height: 48px;
+}
+/* The state line replaces the button, never sits beside it: "checked in" and
+   "check in" on one card is the ambiguity the clock cannot afford. */
+[data-portal="v2"] .s-next-state {
+  display: flex; align-items: center; gap: 8px; margin-top: 12px;
+  font: 600 13.5px/1.4 var(--font-ui); color: var(--good-text);
+}
+[data-portal="v2"] .s-next-note { margin-top: 10px; font: 400 12px/1.5 var(--font-ui); color: var(--text-3); }
+
+/* ── The week strip. Seven letters, not seven colours. ───────────────────── */
+/* MEASURED: 7 × 34px + 6 × 6px gaps = 274px, which fits the 358px content box
+   at 390 with room for the 16px gutters. The day letter stays VISIBLE in every
+   state — a filled dot with no letter is a week nobody can read back, and
+   colour alone would carry the whole meaning. */
+[data-portal="v2"] .s-week { display: flex; gap: 6px; margin-top: 12px; }
+[data-portal="v2"] .s-dot {
+  flex: 1; min-width: 0; height: 34px; display: grid; place-items: center;
+  border-radius: var(--radius-control-sm); background: var(--inset);
+  font: 700 12px var(--font-ui); color: var(--text-3);
+}
+[data-portal="v2"] .s-dot.is-on { background: var(--accent); color: var(--accent-ink); }
+[data-portal="v2"] .s-dot.is-today { box-shadow: inset 0 0 0 2px var(--ink); color: var(--text); }
+[data-portal="v2"] .s-dot.is-on.is-today { color: var(--accent-ink); }
+
+[data-portal="v2"] .s-streak-line {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px;
+}
+[data-portal="v2"] .s-flame {
+  display: inline-flex; align-items: center; gap: 7px;
+  font: 700 15px var(--font-ui); color: var(--text);
+}
+[data-portal="v2"] .s-flame i { color: var(--accent-text); font-size: 14px; }
+/* ⛔ §2.3. The sentence is not a footnote — it is what keeps the streak a
+   commitment device rather than the first step back towards a cohort board.
+   It is styled to be READ, so no smaller than the rest of the captions. */
+[data-portal="v2"] .s-private { display: flex; gap: 7px; align-items: baseline; margin-top: 10px; }
+[data-portal="v2"] .s-private i { color: var(--text-3); font-size: 11px; }
+[data-portal="v2"] .s-soft { margin-top: 10px; color: var(--text-2); }
+[data-portal="v2"] .s-ann-body { display: block; margin-top: 6px; }
+
+/* ── Logging practice. Five lengths, one tap. ────────────────────────────── */
+/* Anything more than a tap is a reason not to log at all, and an unlogged day
+   is the failure this whole screen exists to prevent. */
+[data-portal="v2"] .s-mins { display: flex; gap: 6px; }
+[data-portal="v2"] .s-mins button {
+  flex: 1; min-width: 0; min-height: 48px; border: 1px solid var(--border-btn);
+  border-radius: var(--radius-control); background: var(--raised);
+  font: 700 15px var(--font-ui); font-variant-numeric: tabular-nums;
+  color: var(--text); cursor: pointer;
+}
+[data-portal="v2"] .s-mins button[aria-pressed="true"] {
+  background: var(--ink); border-color: var(--ink); color: var(--on-ink);
+}
+
+/* ── The three teach-back self-checks ────────────────────────────────────── */
+[data-portal="v2"] .s-checks { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
+[data-portal="v2"] .s-check {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  min-height: 48px; padding: 8px 0; border: 0; background: none; text-align: left;
+  font: 400 13.5px/1.45 var(--font-ui); color: var(--text); cursor: pointer;
+}
+[data-portal="v2"] .s-check-box {
+  flex: 0 0 auto; width: 24px; height: 24px; display: grid; place-items: center;
+  border: 1.5px solid var(--border-btn); border-radius: 7px; background: var(--raised);
+}
+[data-portal="v2"] .s-check-box i { font-size: 11px; color: transparent; }
+[data-portal="v2"] .s-check[aria-checked="true"] .s-check-box { background: var(--ink); border-color: var(--ink); }
+[data-portal="v2"] .s-check[aria-checked="true"] .s-check-box i { color: var(--on-ink); }
+
+/* ── Keep it warm. Three honest answers about recall. ────────────────────── */
+[data-portal="v2"] .s-warm { display: flex; flex-direction: column; gap: 8px; }
+[data-portal="v2"] .s-warm button {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  min-height: 52px; padding: 10px 14px; border: 1px solid var(--border-btn);
+  border-radius: var(--radius-control-lg); background: var(--raised);
+  text-align: left; cursor: pointer;
+}
+[data-portal="v2"] .s-warm button b { font: 700 14px var(--font-ui); color: var(--text); }
+[data-portal="v2"] .s-warm button span { font: 400 12px var(--font-ui); color: var(--text-3); }
+[data-portal="v2"] .s-warm button[aria-pressed="true"] { border-color: var(--ink); background: var(--quiet); }
+
+/* ── A recording. Title, date, audio — and nowhere to put a mark. ────────── */
+[data-portal="v2"] .s-take { align-items: flex-start; }
+[data-portal="v2"] .s-audio { display: block; width: 100%; margin-top: 8px; height: 38px; }
+
+/* ── The band, and the week number in the curriculum list ────────────────── */
+[data-portal="v2"] .s-band { font-size: 44px; line-height: 1; }
+/* "Not yet" is WORDS, not a number — the coverage floor withholds a figure and
+   a greyed-out "0" would state the opposite of what the floor means. */
+[data-portal="v2"] .s-band.is-none {
+  font-family: var(--font-ui); font-size: 26px; font-weight: 800; color: var(--text-3);
+}
+[data-portal="v2"] .s-wk {
+  flex: 0 0 34px; height: 34px; display: grid; place-items: center;
+  border-radius: var(--radius-control-sm); background: var(--inset);
+  font: 700 13px var(--font-ui); font-variant-numeric: tabular-nums; color: var(--text-2);
+}
+
+/* ── The unmarked competencies ───────────────────────────────────────────── */
+/* Named, visible and uncounted — but as a set of names with ONE explanation
+   above them, not eight rows each carrying the same sentence. */
+[data-portal="v2"] .s-none-list { display: flex; flex-wrap: wrap; gap: 6px; }
+[data-portal="v2"] .s-none {
+  padding: 7px 11px; border-radius: var(--radius-pill);
+  background: var(--raised); border: 1px dashed var(--border-btn);
+  font: 600 12.5px var(--font-ui); color: var(--text-on-chip);
+}
+
+/* ── Repertoire ──────────────────────────────────────────────────────────── */
+[data-portal="v2"] .s-rep { align-items: flex-start; }
+[data-portal="v2"] .s-rep-seg { display: flex; margin-top: 10px; max-width: 280px; }
+[data-portal="v2"] .s-rep-seg button { min-height: 40px; }
 
 /* ── Desktop: the same information given room, not a different product ────── */
 @media (min-width: 900px) {
@@ -959,6 +1170,12 @@
   [data-portal="v2"] .i-marks, [data-portal="v2"] .i-auth,
   [data-portal="v2"] .p-actions, [data-portal="v2"] .i-bands { max-width: 560px; }
   [data-portal="v2"] .i-next { max-width: 620px; }
+  /* The student cards share the instructor card's measure: a 23px serif
+     headline across a 1180px column is a line nobody reads to the end. */
+  [data-portal="v2"] .s-hero, [data-portal="v2"] .s-next { max-width: 620px; }
+  [data-portal="v2"] .s-week, [data-portal="v2"] .s-mins,
+  [data-portal="v2"] .s-warm { max-width: 520px; }
+
 
   [data-portal="v2"] .p-scroll { padding: 8px 32px 48px; max-width: 1180px; }
   [data-portal="v2"] .p-top {
@@ -978,6 +1195,12 @@
   [data-portal="v2"] .p-methods { max-width: 420px; }
   [data-portal="v2"] .p-methods span { min-height: 34px; }
   [data-portal="v2"] .p-kpis { max-width: 520px; }
+  /* A competency bar is read as a PROPORTION. MEASURED at 1440 the bars
+     ran the full 1,110px column, where a 100% and a 96% are the same
+     picture and the eye has no reference length. The design draws them
+     at phone measure and gives them a fixed track on a desktop. */
+  [data-portal="v2"] .p-crit { max-width: 560px; }
+
   /* 34px is the DESKTOP control height §1 names ("Desktop controls ≥24px, 34px
      used here"). It applies here and at no narrower width. */
   [data-portal="v2"] button.p-ghost, [data-portal="v2"] a.p-ghost,

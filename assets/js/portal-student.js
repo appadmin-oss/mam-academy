@@ -1,0 +1,990 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   MAM Academy — the student portal (redesign, 21 Sep 2026)
+
+   Five destinations from the canonical design (`portals-mobile.dc.html`
+   `data-phone="studentv2"` and `HANDOFF-student-guardian.md` §2):
+   Home · Train · Learn · Attend · More, plus Fees and Repertoire off the More
+   sheet. Mirrors `portal-instructor.js` deliberately — same primitives, same
+   write discipline, same a11y storage key — so the two portals cannot drift
+   into two dialects of one design system.
+
+   ── The rules this file is built around ─────────────────────────────────────
+
+   1. **No inline styles, anywhere.** Every visual decision is a named
+      component in `assets/css/portal-v2.css`. The legacy dashboard this
+      replaces carries ~3,100 lines of inline `<script>` and its own private
+      copies of three cards; that is why a change to it could not be reviewed
+      as a diff.
+
+   2. **Never an optimistic tick.** A control goes busy and stays busy until
+      the server answers. The sharp case here is the practice log: a dishonest
+      success loses the entry, and a lost entry breaks the streak the whole
+      loop is built on — the one number this portal asks a child to trust.
+
+   3. **The refusals are the SERVER's and this file does not re-derive them.**
+      There is no branch here that computes a rank, a risk score or a mastery
+      figure. `mam_mastery_publishable()` decides what may be shown; the check-in
+      window is `mam_checkin_window()`'s five-way `state`, never a client-side
+      "15 minutes"; and the unevidenced competencies arrive as ROWS that this
+      file renders rather than as an absence it could quietly skip.
+
+   One request per screen — `GET /api/student/portal?screen=…`. The readers are
+   on Nigerian mobile data, where six round trips to paint a dashboard is the
+   difference between a screen that appears and one that unfolds.
+   ───────────────────────────────────────────────────────────────────────────── */
+(function () {
+  'use strict';
+
+  var P   = window.MAM_PORTAL || {};
+  var API = window.MAM_API;
+  var esc = P.escapeHtml || function (s) { return String(s == null ? '' : s); };
+
+  var S = {
+    screen: 'home', home: null, attend: null, train: null,
+    money: null, rep: null, busy: false, rec: null
+  };
+
+  var $  = function (sel, root) { return (root || document).querySelector(sel); };
+  var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+  var main = $('#main');
+
+  /* ── Small helpers ──────────────────────────────────────────────────────── */
+
+  /* Server timestamps are UTC and arrive without a zone (`2026-09-21 14:00:00`).
+     Appending `Z` where one is absent is what stops a Lagos student reading a
+     2pm class as 1pm — the same trap `mam_db()` pins the MySQL session zone for. */
+  function dt(v) {
+    if (!v) return null;
+    var d = new Date(String(v).replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(String(v)) ? '' : 'Z'));
+    return isNaN(d) ? null : d;
+  }
+  function fmtTime(v) { var d = dt(v); return d ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; }
+  function fmtDate(v) { var d = dt(v); return d ? d.toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''; }
+  function fmtDay(v)  {
+    var d = dt(v); if (!d) return '';
+    var today = new Date(), t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    var days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - t0) / 86400000);
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Tomorrow';
+    if (days === -1) return 'Yesterday';
+    return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+  function initials(name) {
+    return String(name || '?').trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase();
+  }
+  function plural(n, one, many) { return Number(n) === 1 ? one : many; }
+  function money(cents) {
+    var v = (Number(cents) || 0) / 100;
+    return '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function mins(m) {
+    m = Number(m) || 0;
+    if (m < 60) return m + ' min';
+    var h = Math.floor(m / 60), r = m % 60;
+    return h + 'h' + (r ? ' ' + r + 'm' : '');
+  }
+  function startsIn(min) {
+    var m = Number(min);
+    if (isNaN(m)) return 'Scheduled';
+    if (m > 1440) return 'Later this week';
+    if (m > 90)   return 'Later today';
+    if (m > 1)    return 'Starts in ' + m + ' ' + plural(m, 'minute', 'minutes');
+    if (m >= 0)   return 'Starts now';
+    if (m > -90)  return 'Started ' + Math.abs(m) + ' ' + plural(Math.abs(m), 'minute', 'minutes') + ' ago';
+    return 'Earlier today';
+  }
+
+  var toastTimer = null;
+  function toast(msg, tone) {
+    var t = $('#toast');
+    $('#toastText').textContent = msg;
+    t.className = 'p-toast' + (tone ? ' is-' + tone : '');
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.hidden = true; }, 5600);
+  }
+
+  /**
+   * Every write on this portal goes through here.
+   *
+   * The control goes busy and STAYS busy until the server answers; there is no
+   * branch that paints success before the response. A practice log that "saved"
+   * and did not is worse than one that failed loudly — the child keeps the
+   * streak in their head and the academy's copy quietly disagrees.
+   */
+  function write(btn, req, onOk, okMsg) {
+    if (S.busy) return;
+    S.busy = true;
+    var label = btn ? btn.innerHTML : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch p-spin" aria-hidden="true"></i> Saving…'; }
+    req.then(function (r) {
+      S.busy = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = label; }
+      if (okMsg) toast(okMsg, 'good');
+      if (onOk) onOk(r);
+    }).catch(function (err) {
+      S.busy = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = label; }
+      toast((P.errText ? P.errText(err, 'That did not save.') : 'That did not save.'), 'bad');
+    });
+  }
+
+  /* A competency bar's width is DATA, not styling — it comes from the mark, so
+     it is applied from `data-pct` after paint rather than written into a
+     `style=` attribute in a template. Same convention as the guardian portal:
+     the markup stays declarative and the stylesheet keeps every visual
+     decision, which is the only reason a card has one definition here. */
+  function paintBars() {
+    $$('.p-bar > span[data-pct]').forEach(function (el) {
+      el.style.width = Math.max(0, Math.min(100, Number(el.getAttribute('data-pct')) || 0)) + '%';
+    });
+  }
+  function paint(html) { main.innerHTML = html; main.scrollTop = 0; paintBars(); }
+  function loading(what) {
+    return '<div class="p-empty"><i class="fa-solid fa-circle-notch p-spin" aria-hidden="true"></i><p>' + esc(what) + '</p></div>';
+  }
+  function empty(icon, text) {
+    return '<div class="p-empty"><i class="fa-solid fa-' + icon + '" aria-hidden="true"></i><p>' + text + '</p></div>';
+  }
+  function h1(title, sub) {
+    return '<h1 class="p-h1">' + esc(title) + '</h1>'
+      + (sub ? '<p class="p-body p-lead">' + esc(sub) + '</p>' : '');
+  }
+  function errOf(err, fallback) { return esc(P.errText ? P.errText(err, fallback) : fallback); }
+  function notice(text, tone, icon) {
+    return '<div class="p-notice' + (tone ? ' is-' + tone : '') + '">'
+      + '<i class="fa-solid fa-' + (icon || 'circle-info') + '" aria-hidden="true"></i><span>' + esc(text) + '</span></div>';
+  }
+  function screenReq(screen, extra) {
+    return API.request('student/portal?screen=' + screen + (extra || ''), { method: 'GET' });
+  }
+
+  /* ── 1 · Home ───────────────────────────────────────────────────────────── */
+
+  /* "Good morning" is read at a glance and must not be wrong at 7pm. */
+  function greeting() {
+    var h = new Date().getHours();
+    return h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening');
+  }
+
+  function renderHome() {
+    paint(loading('Loading today…'));
+    screenReq('home').then(function (d) {
+      S.home = d;
+      applyIdentity(d);
+      var html = '<div class="p-stack">';
+
+      var me = d.me || {};
+      html += '<h1 class="p-h1">' + esc(greeting() + (me.first ? ', ' + me.first : '')) + '</h1>';
+
+      /* ⚠️ ORDER. An imminent class outranks the next step, always.
+         MEASURED with a class eight minutes away: the provider's next step was
+         "Practise today" (correct — the student had already checked in), and
+         rendering the step first put a heading reading "NEXT · Practise today"
+         directly above a card saying the class starts in eight minutes. The
+         step was right and the page was lying about which came first.
+
+         And when the step IS the check-in, the class card already carries that
+         button, so the hero is suppressed rather than shown twice. */
+      var n = d.next;
+      var ns = d.next_step;
+      var imminent = n && Number(n.starts_in_min) != null && Number(n.starts_in_min) < 120;
+
+      if (imminent) html += nextClassCard(n, false);
+      if (ns && !(imminent && ns.kind === 'checkin')) {
+        html += '<section class="s-hero' + (ns.kind === 'clear' ? ' is-calm' : '') + '">'
+          + '<div class="p-label">' + esc(ns.kind === 'clear' ? 'Nothing outstanding' : (imminent ? 'After that' : 'Next')) + '</div>'
+          + '<h2 class="s-hero-title">' + esc(ns.title) + '</h2>'
+          + (ns.body ? '<p class="s-hero-body">' + esc(ns.body) + '</p>' : '')
+          + '<div class="s-hero-acts"><button type="button" class="is-wide" data-screen="' + esc(ns.screen) + '">'
+          + esc(ns.cta) + '</button></div></section>';
+      }
+      if (n && !imminent) html += nextClassCard(n, false);
+
+      /* The streak, and the sentence that travels with it. §2.3 refuses a
+         cohort board outright; the private note is what keeps this number a
+         commitment device rather than the first step back towards one. */
+      var pr = d.practice || {};
+      html += '<section class="p-card">'
+        /* ⚠️ `mam_practice_stats()` computes `weekMin` over a ROLLING seven days
+           and `weekDays` over the CALENDAR week (Monday to Sunday). Labelling
+           the figure "this week" above those dots states something the dots
+           contradict — on a Monday it read "1h 10m this week" over seven empty
+           squares. The figure is described for what it actually measures. */
+        + '<div class="p-line"><span class="p-label">Practice</span>'
+        + '<b class="p-num">' + esc(mins(pr.weekMin)) + ' in 7 days</b></div>'
+        + weekDots(pr.weekDays)
+        + '<div class="s-streak-line"><span class="s-flame"><i class="fa-solid fa-fire" aria-hidden="true"></i>'
+        + esc((Number(pr.streak) || 0) + ' ' + plural(pr.streak, 'day', 'days')) + '</span>'
+        + '<button type="button" class="p-ghost" data-screen="train">Log practice</button></div>'
+        + '<p class="p-caption s-private"><i class="fa-solid fa-lock" aria-hidden="true"></i> '
+        + esc(d.streak_private) + '</p>'
+        + '</section>';
+
+      var ann = d.announcements || [];
+      if (ann.length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">From your class</span></div>'
+          + '<div class="p-rows">' + ann.map(function (a) {
+            return '<div class="p-row"><span class="p-row-main">'
+              + '<span class="p-title">' + esc(a.title || 'Announcement') + '</span>'
+              + '<span class="p-caption">' + esc([a.author, a.class_title, fmtDay(a.created_at)].filter(Boolean).join(' · ')) + '</span>'
+              + (a.body ? '<span class="p-body s-ann-body">' + esc(a.body) + '</span>' : '')
+              + '</span></div>';
+          }).join('') + '</div></section>';
+      }
+
+      var owed = d.owed || {};
+      if (Number(owed.cents) > 0) html += owedCard(owed);
+
+      paint(html + '</div>');
+    }).catch(bootError('Could not load today.'));
+  }
+
+  /* Mon–Sun, the real week. Dots are not decorative here — they are the only
+     place a child sees which day they missed, so the day letters stay visible
+     rather than being carried by colour alone. */
+  function weekDots(days) {
+    if (!days || !days.length) return '';
+    return '<div class="s-week" role="img" aria-label="'
+      + esc(days.filter(function (x) { return x.on; }).length + ' of 7 days practised this week') + '">'
+      + days.map(function (x) {
+        return '<span class="s-dot' + (x.on ? ' is-on' : '') + (x.today ? ' is-today' : '') + '">' + esc(x.d) + '</span>';
+      }).join('') + '</div>';
+  }
+
+  /**
+   * The next class, with whatever the window permits.
+   *
+   * ⚠️ `state` is the SERVER's five-way answer (closed → open →
+   * readiness_passed → in_progress → ended). The button exists only in the
+   * three states where the door is actually open, and the sentence under it is
+   * `mam_checkin_window()`'s own — not a "15 minutes" this file invented.
+   */
+  function nextClassCard(n, full) {
+    var w = n.window || {};
+    var st = String(w.state || '');
+    var att = n.attendance || null;
+    var inWindow = st === 'open' || st === 'readiness_passed' || st === 'in_progress';
+    /* ⚠️ The SESSION's title leads, not the module's. `topic` is the lesson the
+       session delivers and the two are different strings — MEASURED, the same
+       session appeared as "Circle of fifths" here and as "Scales &
+       sight-reading" in the register a student had just checked into, which
+       reads as two classes. The topic is kept, below, where it adds. */
+    var meta = [n.cohort_title, fmtDay(n.scheduled_at), fmtTime(n.scheduled_at),
+                n.mode === 'online' ? 'Online' : null].filter(Boolean).join(' · ');
+    var topic = n.topic && n.topic !== n.title ? n.topic : null;
+    var html = '<section class="s-next">'
+      + '<div class="p-label">' + esc(startsIn(n.starts_in_min)) + '</div>'
+      + '<h2 class="s-next-title">' + esc(n.title || n.cohort_title || 'Your next class') + '</h2>'
+      + '<div class="s-next-meta">' + esc(meta) + '</div>'
+      + (topic ? '<div class="s-next-meta">' + esc('This week: ' + topic) + '</div>' : '');
+
+    if (att && att.checked_in_at) {
+      html += '<div class="s-next-state"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> '
+        + esc('Checked in at ' + fmtTime(att.checked_in_at)
+              + (Number(att.minutes_late) > 0 ? ' · ' + att.minutes_late + ' min late' : '')) + '</div>';
+      /* Clocking out is the other half of the clock (schema v81) and it lives
+         on this card, because the card is what replaced the separate "today"
+         row. Without it a student who checks in has no way to record leaving,
+         and the duration stored against the session is never written. */
+      if (!att.clocked_out_at) {
+        html += '<div class="s-next-acts"><button type="button" class="is-quiet" data-clockout="'
+          + esc(n.session_id) + '">Clock out</button></div>';
+      } else {
+        html += '<div class="s-next-note">' + esc('Clocked out at ' + fmtTime(att.clocked_out_at)
+          + (att.duration_min != null ? ' · ' + mins(att.duration_min) + ' present' : '')) + '</div>';
+      }
+    } else if (inWindow) {
+      html += '<div class="s-next-acts"><button type="button" class="is-wide" data-checkin="'
+        + esc(n.session_id) + '">Check in</button></div>';
+    } else if (st === 'closed') {
+      html += '<div class="s-next-state">' + esc('Check-in opens ' + fmtTime(w.opens_at)) + '</div>';
+    } else if (st === 'ended') {
+      html += '<div class="s-next-state">' + esc('That class has finished.') + '</div>';
+    }
+    if (w.message) html += '<p class="s-next-note">' + esc(w.message) + '</p>';
+    html += '</section>';
+
+    if (full && n.prep_instructions) {
+      html += '<section class="p-card"><div class="p-label">Before the class</div>'
+        + '<p class="p-prose p-gap-t">' + esc(n.prep_instructions) + '</p>'
+        + '<div class="p-actions p-gap-t"><button type="button" class="p-outline" data-screen="train">Open the practice room</button></div>'
+        + '</section>';
+    }
+    return html;
+  }
+
+  function owedCard(owed) {
+    return '<section class="p-card is-urgent"><div class="p-line"><span class="p-label is-bad">Outstanding</span>'
+      + '<b class="p-num">' + esc(money(owed.cents)) + '</b></div>'
+      + (owed.due_on ? '<p class="p-caption p-gap-t">' + esc('Due ' + fmtDate(owed.due_on)) + '</p>' : '')
+      /* ⛔ §3.4: nothing is withheld from a child over money, and the sentence
+         sits with the figure rather than in a policy page nobody opens. */
+      + '<p class="p-body s-soft">' + esc(owed.notice) + '</p>'
+      + '<div class="p-actions p-gap-t"><button type="button" class="p-outline" data-screen="money">See the detail</button></div>'
+      + '</section>';
+  }
+
+  /* ── 2 · Train ──────────────────────────────────────────────────────────── */
+
+  function renderTrain() {
+    paint(loading('Loading the practice room…'));
+    screenReq('train').then(function (d) {
+      S.train = d;
+      var html = h1('Train', 'Practise, teach it back, keep it warm.') + '<div class="p-stack">';
+
+      var t = d.target;
+      if (t) {
+        var done = t.prep === 'completed';
+        html += '<section class="p-card' + (done ? '' : ' is-focus') + '">'
+          + '<div class="p-line"><span class="p-label">' + esc(t.week_no ? 'Week ' + t.week_no : 'This week') + '</span>'
+          + (done ? '<span class="p-chip is-good">Prepared</span>' : '') + '</div>'
+          + '<h2 class="p-h2 p-gap-t">' + esc(t.title || 'Your module') + '</h2>'
+          + (t.body ? '<p class="p-prose p-gap-t">' + esc(t.body) + '</p>' : '')
+          + (t.session_at ? '<p class="p-caption p-gap-t">' + esc('For your class ' + fmtDay(t.session_at) + ', ' + fmtTime(t.session_at)) + '</p>' : '')
+          + '<div class="p-actions p-gap-t">'
+          + '<button type="button" class="' + (done ? 'p-outline' : 'p-primary') + '" data-prepare="' + esc(t.lesson_id) + '" data-done="' + (done ? '0' : '1') + '">'
+          + (done ? 'Mark as not done' : 'I have prepared this') + '</button></div>'
+          + '</section>';
+      }
+
+      /* The practice log. A number and a focus, nothing else: every extra field
+         is a reason not to log at all, and an unlogged day is the failure. */
+      var pr = d.practice || {};
+      html += '<section class="p-card"><div class="p-line"><span class="p-label">Log today\'s practice</span>'
+        + '<b class="p-num">' + esc(mins(pr.weekMin)) + ' in 7 days</b></div>'
+        + weekDots(pr.weekDays)
+        + '<div class="s-mins p-gap-t" role="group" aria-label="How long did you practise?">'
+        + [10, 20, 30, 45, 60].map(function (m) {
+            return '<button type="button" data-min="' + m + '" aria-pressed="false">' + m + '</button>';
+          }).join('')
+        + '</div>'
+        + '<label class="p-field p-gap-t"><span>What did you work on? (optional)</span>'
+        + '<input type="text" id="pracFocus" maxlength="120" placeholder="Scales, the tricky bar in Book 2…"></label>'
+        + '<button type="button" class="p-action" id="pracSave">Log it</button>'
+        + '</section>';
+
+      var logs = d.logs || [];
+      if (logs.length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Recently</span></div>'
+          + '<div class="p-rows">' + logs.map(function (l) {
+            return '<div class="p-row"><span class="p-row-main">'
+              + '<span class="p-title">' + esc(mins(l.minutes)) + '</span>'
+              + '<span class="p-caption">' + esc([l.focus, fmtDay(l.logged_on)].filter(Boolean).join(' · ')) + '</span>'
+              + '</span></div>';
+          }).join('') + '</div></section>';
+      }
+
+      /* Teach it back. Three self-checks, formative only — the sentence the
+         provider sends is not optional chrome, it is the whole reason this is
+         not another graded task. */
+      if (t) {
+        var tb = d.teachback;
+        html += '<section class="p-card"><div class="p-line"><span class="p-label">Teach it back</span>'
+          + (tb ? '<span class="p-chip' + (tb.status === 'reviewed' ? ' is-good' : '') + '">' + esc(tb.status || 'sent') + '</span>' : '')
+          + '</div>'
+          + '<p class="p-body p-gap-t">Explain this week\'s idea as if to someone who has never met it.</p>'
+          + '<div class="s-checks">' + (d.teachback_checks || []).map(function (c) {
+              return '<button type="button" class="s-check" role="checkbox" aria-checked="false" data-check="' + esc(c.key) + '">'
+                + '<span class="s-check-box" aria-hidden="true"><i class="fa-solid fa-check"></i></span>'
+                + '<span>' + esc(c.label) + '</span></button>';
+            }).join('') + '</div>'
+          + '<label class="p-field p-gap-t"><span>In your own words</span>'
+          + '<textarea id="tbBody" maxlength="4000" placeholder="It works because…">'
+          + esc(tb && tb.body ? tb.body : '') + '</textarea></label>'
+          + '<button type="button" class="p-action" id="tbSend" data-lesson="' + esc(t.lesson_id) + '">'
+          + (tb ? 'Send it again' : 'Send it') + '</button>'
+          + '<p class="p-caption s-soft">' + esc(d.teachback_notice) + '</p>'
+          + '</section>';
+      }
+
+      /* Keep it warm — spaced retrieval, opt-in, never scored. The interval is
+         the honest answer to "how well did that come back", so the labels are
+         about recall and not about performance. */
+      html += '<section class="p-card"><div class="p-label">Keep it warm</div>'
+        + '<p class="p-body p-gap-t">Try last week\'s piece from memory first. Then say how it went.</p>'
+        + '<div class="s-warm p-gap-t">' + (d.warm_intervals || []).map(function (w) {
+            return '<button type="button" data-warm="' + esc(w.key) + '" data-days="' + esc(w.days) + '">'
+              + '<b>' + esc(w.label) + '</b><span>' + esc('again in ' + w.days + ' ' + plural(w.days, 'day', 'days')) + '</span></button>';
+          }).join('') + '</div>'
+        + '<p class="p-caption s-soft">' + esc(d.warm_notice) + '</p></section>';
+
+      var takes = d.takes || [];
+      if (takes.length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Your recordings</span></div>'
+          + '<div class="p-rows">' + takes.map(function (k) {
+            /* ⛔ §2.1: a take carries its audio and its status. There is no
+               score here because nothing automatic marks a child's playing. */
+            return '<div class="p-row s-take"><span class="p-row-main">'
+              + '<span class="p-title">' + esc(k.title || 'Take') + '</span>'
+              + '<span class="p-caption">' + esc([fmtDay(k.submitted_at), k.status].filter(Boolean).join(' · ')) + '</span>'
+              + (k.artifact_url ? '<audio class="s-audio" controls preload="none" src="' + esc(k.artifact_url) + '"></audio>' : '')
+              + '</span></div>';
+          }).join('') + '</div></section>';
+      }
+
+      paint(html + '</div>');
+    }).catch(function (err) { paint(h1('Train') + empty('triangle-exclamation', errOf(err, 'Could not load the practice room.'))); });
+  }
+
+  /* ── 3 · Learn ──────────────────────────────────────────────────────────── */
+
+  function renderLearn() {
+    paint(loading('Loading where you stand…'));
+    screenReq('learn').then(function (d) {
+      var m = d.mastery;
+      var html = h1('Where I stand') + '<div class="p-stack">';
+
+      if (!m) {
+        html += '<section class="p-card">' + empty('seedling', 'Nothing has been assessed yet. It will appear here as your work is marked.') + '</section>';
+      } else if (!m.sufficient) {
+        /* ⛔ §2.2 and gotcha #12: below the coverage floor there is NO
+           composite — not a composite with a warning. "Not enough evidence
+           yet" is a different statement from a number, and it is the true one. */
+        html += '<section class="p-card"><div class="p-label">MAM Mastery Score</div>'
+          + '<div class="p-fig s-band is-none">Not yet</div>'
+          + '<p class="p-body">' + esc(m.withheld_reason === 'not_assessed'
+              ? 'Nothing has been marked yet, so there is no score to show. That is not a zero.'
+              : 'There is not enough of your work marked yet for a score that would mean anything. The parts that have been marked are below.') + '</p>'
+          + (d.coverage && d.coverage.sentence ? '<p class="p-caption p-gap-t">' + esc(d.coverage.sentence) + '</p>' : '')
+          + '</section>';
+      } else {
+        html += '<section class="p-card"><div class="p-label">MAM Mastery Score</div>'
+          + '<div class="p-fig s-band">' + esc(m.band ? m.band.label : '') + '</div>'
+          + '<div class="p-title">' + esc(m.level_label || '') + (m.provisional ? ' · provisional' : '') + '</div>'
+          + (m.level_blurb ? '<p class="p-body p-gap-t">' + esc(m.level_blurb) + '</p>' : '')
+          + (d.coverage && d.coverage.sentence ? '<p class="p-caption p-gap-t">' + esc(d.coverage.sentence) + '</p>' : '')
+          + (m.bounds ? '<p class="p-caption">' + esc('With the rest still unmarked, the finished figure could land anywhere from '
+              + m.bounds.min + ' to ' + m.bounds.max + '.') + '</p>' : '')
+          + '</section>';
+      }
+
+      /* §2.2 rule 4 — horizontal bars, one per competency. A radar chart makes
+         a shape out of eleven numbers and invites a child to read the shape. */
+      var comps = (m && m.components) || [];
+      if (comps.length) {
+        html += '<section class="p-card"><div class="p-label">What is marked</div><div class="p-gap-t">'
+          + comps.map(function (c) {
+            var pct = Math.max(0, Math.min(100, Number(c.pct) || 0));
+            var tone = pct >= 80 ? 'is-strong' : (pct >= 60 ? 'is-secure' : 'is-working');
+            return '<div class="p-crit"><div class="p-crit-head">'
+              + '<span class="p-crit-name">' + esc(c.label) + '</span>'
+              + '<span class="p-crit-grade p-num">' + esc(Math.round(pct) + '%') + '</span></div>'
+              + '<div class="p-bar" role="img" aria-label="' + esc(c.label + ': ' + Math.round(pct) + ' per cent') + '">'
+              + '<span class="' + tone + '" data-pct="' + pct + '"></span></div></div>';
+          }).join('') + '</div></section>';
+      }
+
+      /* §2.2 rule 3 — "not enough evidence yet" is a VISIBLE ROW. A zero here
+         would report an unassessed beginner as failing, and silence would let
+         them read a thin score as a complete one. */
+      var un = d.unevidenced || [];
+      if (un.length) {
+        /* §2.2 rule 3 keeps these as VISIBLE, NAMED rows — but the explanation
+           is written ONCE. MEASURED at 390: repeating it under each of eight
+           competencies made the card 1,180px tall and the eight names, which
+           are the actual information, read as captions on a wall of identical
+           sentences. */
+        html += '<section class="p-card is-quiet"><div class="p-label">Not enough evidence yet</div>'
+          + '<p class="p-body p-gap-t">These parts of your work have not been marked. They are not counted '
+          + 'for you or against you — they are simply not in the score yet.</p>'
+          + '<div class="s-none-list p-gap-t">' + un.map(function (c) {
+            return '<span class="s-none">' + esc(c.name) + '</span>';
+          }).join('') + '</div></section>';
+      }
+
+      /* §2.2 rule 5 — the threshold is the academy's convention, and says so. */
+      if (d.convention) html += notice(d.convention, null, 'circle-question');
+
+      var att = (m && m.attendance) || null;
+      if (att && att.sessions) {
+        /* §24: attendance and punctuality are reported BESIDE the score and are
+           never components of it — musical ability is not disciplinary record. */
+        html += '<section class="p-card"><div class="p-label">Beside the score</div>'
+          + '<div class="p-kpis p-gap-t">'
+          + kpi(att.attendance_pct == null ? null : Math.round(att.attendance_pct) + '%', 'Attendance')
+          + kpi(att.punctuality_pct == null ? null : Math.round(att.punctuality_pct) + '%', 'Punctuality')
+          + kpi(att.sessions, 'Sessions')
+          + '</div>'
+          + '<p class="p-caption p-gap-t">These sit beside your score, never inside it.</p></section>';
+      }
+
+      var en = d.enrolments || [];
+      if (en.length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Your courses</span></div>'
+          + '<div class="p-rows">' + en.map(function (e) {
+            return '<div class="p-row"><span class="p-row-main">'
+              + '<span class="p-title">' + esc(e.course) + '</span>'
+              + '<span class="p-caption">' + esc([e.level, e.cohort].filter(Boolean).join(' · ')) + '</span></span>'
+              + (e.status === 'completed' ? '<span class="p-chip is-good">Completed</span>' : '') + '</div>';
+          }).join('') + '</div></section>';
+      }
+
+      var wk = d.weeks || [];
+      if (wk.length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">The weeks ahead</span></div>'
+          + '<div class="p-rows">' + wk.map(function (w) {
+            return '<div class="p-row"><span class="s-wk">' + esc(w.week_no != null ? w.week_no : '·') + '</span>'
+              + '<span class="p-row-main"><span class="p-title">' + esc(w.title || 'Module') + '</span></span></div>';
+          }).join('') + '</div></section>';
+      }
+
+      paint(html + '</div>');
+    }).catch(function (err) { paint(h1('Where I stand') + empty('triangle-exclamation', errOf(err, 'Could not load your results.'))); });
+  }
+
+  /* A KPI whose value is unknown reads "—", never 0. An unassessed student is
+     not a failing one, and this is the third surface in the repo to say so. */
+  function kpi(val, label) {
+    var none = val == null || val === '';
+    return '<div class="p-kpi"><b class="p-num' + (none ? ' is-none' : '') + '">' + esc(none ? '—' : val) + '</b>'
+      + '<span>' + esc(label) + '</span></div>';
+  }
+
+  /* ── 4 · Attend ─────────────────────────────────────────────────────────── */
+
+  function renderAttend() {
+    paint(loading('Loading your classes…'));
+    screenReq('attend').then(function (d) {
+      S.attend = d;
+      var html = h1('Attend') + '<div class="p-stack">';
+
+      /* The "today" row and the next-class card are the SAME session whenever
+         today's class is still ahead — showing both listed one class twice,
+         once as a record and once as a thing to do. The card wins: it carries
+         the clock, the window and the preparation. */
+      var t = d.today;
+      if (t && d.next && Number(d.next.session_id) === Number(t.session_id)) t = null;
+      if (t && t.checked_in) {
+        html += '<section class="p-card is-flush"><div class="p-row">'
+          + '<i class="fa-solid fa-circle-check p-row-ico is-good" aria-hidden="true"></i>'
+          + '<span class="p-row-main"><span class="p-title">' + esc(t.title || 'Today\'s class') + '</span>'
+          + '<span class="p-caption">' + esc('Checked in · ' + (t.status || 'present')) + '</span></span>'
+          + '<button type="button" class="p-ghost" data-clockout="' + esc(t.session_id) + '">Clock out</button>'
+          + '</div></section>';
+      }
+
+      if (d.next) html += nextClassCard(d.next, true);
+      else if (!t) html += '<section class="p-card">' + empty('calendar-xmark', 'No classes scheduled just now.') + '</section>';
+
+      if (d.config && d.config.self_enabled === false) {
+        html += notice('Your academy takes the register in class, so there is nothing for you to check in to here.', null, 'clipboard-check');
+      }
+
+      html += '<section class="p-card"><div class="p-kpis">'
+        + kpi(d.rate == null ? null : Math.round(d.rate) + '%', 'Attendance')
+        + kpi(d.week == null ? null : (d.total_weeks ? d.week + ' of ' + d.total_weeks : d.week), 'Week')
+        + kpi((d.recent || []).length, 'Marked')
+        + '</div></section>';
+
+      var r = d.recent || [];
+      if (r.length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Your record</span></div>'
+          + '<div class="p-rows">' + r.map(function (a) {
+            var s = String(a.status || '');
+            var tone = (s === 'present' || s === 'excused') ? 'is-good'
+              : (s === 'absent' || s === 'unauthorised') ? 'is-bad' : 'is-warn';
+            var label = { present: 'Present', late: 'Late', absent: 'Absent', excused: 'Authorised',
+                          unauthorised: 'Unauthorised', left_early: 'Left early',
+                          technical_failure: 'Technical problem', rescheduled: 'Rescheduled' }[s] || s;
+            return '<div class="p-row"><span class="p-row-main">'
+              + '<span class="p-title">' + esc(a.title || 'Class') + '</span>'
+              + '<span class="p-caption">' + esc([fmtDay(a.scheduled_at),
+                  Number(a.minutes_late) > 0 ? a.minutes_late + ' min late' : null,
+                  a.mode === 'online' ? 'Online' : null].filter(Boolean).join(' · ')) + '</span></span>'
+              + '<span class="p-chip ' + tone + '">' + esc(label) + '</span></div>';
+          }).join('') + '</div></section>';
+      }
+
+      var mk = d.makeup || [];
+      if (mk.length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Make-up classes</span></div>'
+          + '<div class="p-rows">' + mk.map(function (g) {
+            return (g.options || []).map(function (o) {
+              return '<div class="p-row"><span class="p-row-main">'
+                + '<span class="p-title">' + esc(o.title || o.cohort_title || 'Session') + '</span>'
+                + '<span class="p-caption">' + esc([fmtDay(o.scheduled_at), fmtTime(o.scheduled_at), o.instructor_name].filter(Boolean).join(' · ')
+                  + ' · for ' + (g.missed && g.missed.title ? g.missed.title : 'a missed class')) + '</span></span></div>';
+            }).join('');
+          }).join('') + '</div>'
+          + '<div class="p-card-foot"><p class="p-caption">' + esc(d.makeup_rule) + '</p></div></section>';
+      }
+
+      paint(html + '</div>');
+    }).catch(function (err) { paint(h1('Attend') + empty('triangle-exclamation', errOf(err, 'Could not load your classes.'))); });
+  }
+
+  /* ── 5 · Fees & charges ─────────────────────────────────────────────────── */
+
+  function renderMoney() {
+    paint(loading('Loading your fees…'));
+    screenReq('money').then(function (d) {
+      S.money = d;
+      var owed = d.owed || {};
+      var led = d.ledger || {};
+      var html = h1('Fees & charges') + '<div class="p-stack">'
+        + '<section class="p-card"><div class="p-label">Outstanding</div>'
+        + '<div class="p-fig p-money">' + esc(money(owed.cents)) + '</div>'
+        + (owed.due_on ? '<p class="p-caption">' + esc('Due ' + fmtDate(owed.due_on)) + '</p>' : '')
+        + '<p class="p-body s-soft">' + esc(owed.notice) + '</p></section>';
+
+      var inv = d.invoices || [];
+      if (inv.length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Invoices</span></div>'
+          + '<div class="p-rows">' + inv.map(function (i) {
+            /* `fee_invoices` has no `overdue` status — overdue is DERIVED from
+               `due_on` on read, which is what the console does too. */
+            var over = i.due_on && ['issued', 'part_paid'].indexOf(String(i.status)) >= 0 && dt(i.due_on) && dt(i.due_on) < new Date();
+            return '<div class="p-row"><span class="p-row-main">'
+              + '<span class="p-title">' + esc(i.public_ref || ('Invoice ' + i.id)) + '</span>'
+              + '<span class="p-caption">' + esc([i.issued_on ? 'Issued ' + fmtDate(i.issued_on) : null,
+                  i.due_on ? 'due ' + fmtDate(i.due_on) : null].filter(Boolean).join(' · ')) + '</span></span>'
+              + '<span class="p-chip' + (over ? ' is-bad' : (i.status === 'paid' ? ' is-good' : '')) + '">'
+              + esc(over ? 'Overdue' : String(i.status || '').replace('_', ' ')) + '</span></div>';
+          }).join('') + '</div></section>';
+      }
+
+      var ch = led.charges || [];
+      if (ch.length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Punctuality</span></div>'
+          + '<div class="p-rows">' + ch.map(function (c) {
+            var exc = c.exception;
+            /* A charge recorded with charging OFF is amount 0 and is NOT a
+               debt. Showing it at zero rather than hiding it is the point —
+               otherwise a student cannot tell whether the academy noticed. */
+            return '<div class="p-row"><span class="p-row-main">'
+              + '<span class="p-title">' + esc(c.session_title || 'Late arrival') + '</span>'
+              + '<span class="p-caption">' + esc([fmtDate(c.scheduled_at || c.created_at), c.status,
+                  exc ? 'waiver ' + (exc.status || 'requested') : null].filter(Boolean).join(' · ')) + '</span></span>'
+              + '<span class="p-num p-strong">' + esc(money(c.amount_usd_cents)) + '</span>'
+              + (!exc && ['outstanding', 'disputed'].indexOf(String(c.status)) >= 0
+                  ? '<button type="button" class="p-ghost" data-waive="' + esc(c.id) + '">Ask</button>' : '')
+              + '</div>';
+          }).join('') + '</div>'
+          + '<div class="p-card-foot"><p class="p-caption">If a charge is wrong, ask for it to be looked at. Nothing is decided until somebody has.</p></div>'
+          + '</section>';
+      }
+
+      if (!inv.length && !ch.length && !Number(owed.cents)) {
+        html += '<section class="p-card">' + empty('circle-check', 'Nothing owing and nothing charged.') + '</section>';
+      }
+
+      paint(html + '</div>');
+    }).catch(function (err) { paint(h1('Fees & charges') + empty('triangle-exclamation', errOf(err, 'Could not load your fees.'))); });
+  }
+
+  /* ── 6 · Repertoire ─────────────────────────────────────────────────────── */
+
+  var REP_STATUS = [['learning', 'Learning'], ['polished', 'Polished'], ['performed', 'Performed']];
+
+  function renderRepertoire() {
+    paint(loading('Loading your repertoire…'));
+    screenReq('repertoire').then(function (d) {
+      S.rep = d;
+      var list = d.repertoire || [];
+      var html = h1('Repertoire', 'Everything you are working on, and everything you have played.')
+        + '<div class="p-stack">'
+        + '<section class="p-card"><div class="p-label">Add a piece</div>'
+        + '<label class="p-field p-gap-t"><span>Title</span><input type="text" id="repTitle" maxlength="160" placeholder="Minuet in G"></label>'
+        + '<label class="p-field"><span>Composer (optional)</span><input type="text" id="repComposer" maxlength="160"></label>'
+        + '<button type="button" class="p-action" id="repAdd">Add it</button></section>';
+
+      if (list.length) {
+        html += '<section class="p-card is-flush"><div class="p-rows">' + list.map(function (r) {
+          return '<div class="p-row s-rep" data-rep="' + esc(r.id) + '"><span class="p-row-main">'
+            + '<span class="p-title">' + esc(r.title) + '</span>'
+            + (r.composer ? '<span class="p-caption">' + esc(r.composer) + '</span>' : '')
+            + '<span class="p-seg s-rep-seg" role="group" aria-label="' + esc('Status of ' + r.title) + '">'
+            + REP_STATUS.map(function (o) {
+                return '<button type="button" data-repstatus="' + o[0] + '" data-rep="' + esc(r.id) + '" aria-selected="'
+                  + (String(r.status) === o[0] ? 'true' : 'false') + '">' + o[1] + '</button>';
+              }).join('') + '</span></span>'
+            + '<button type="button" class="p-ghost" data-repdel="' + esc(r.id) + '" aria-label="' + esc('Remove ' + r.title) + '">'
+            + '<i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></div>';
+        }).join('') + '</div></section>';
+      } else {
+        html += '<section class="p-card">' + empty('music', 'Nothing here yet. Add the first piece you are learning.') + '</section>';
+      }
+
+      paint(html + '</div>');
+    }).catch(function (err) { paint(h1('Repertoire') + empty('triangle-exclamation', errOf(err, 'Could not load your repertoire.'))); });
+  }
+
+  /* ── Display & access ───────────────────────────────────────────────────── */
+
+  /**
+   * The same screen the guardian and instructor portals have, against the SAME
+   * storage key. That is deliberate: it is one person's preference about their
+   * own eyes, not a per-portal setting, and a student who is also a guardian
+   * would otherwise set larger text twice and wonder which one took.
+   */
+  function renderA11y() {
+    var r = document.documentElement;
+    var cur = {
+      text: r.getAttribute('data-text') || 'md',
+      ease: r.getAttribute('data-ease') === '1',
+      lowdata: r.getAttribute('data-lowdata') === '1',
+      theme: r.getAttribute('data-theme') || 'system'
+    };
+    paint(h1('Display & access', 'These settings are kept on this device.')
+      + '<div class="p-stack">'
+      + '<section class="p-card"><h2 class="p-title" id="tsLabel">Text size</h2>'
+      + '<div class="p-seg p-gap-t" role="group" aria-labelledby="tsLabel">'
+      + [['md', 'Normal'], ['lg', 'Larger'], ['xl', 'Largest']].map(function (o) {
+          return '<button type="button" data-text-size="' + o[0] + '" aria-selected="'
+            + (cur.text === o[0] ? 'true' : 'false') + '">' + o[1] + '</button>';
+        }).join('') + '</div></section>'
+      + '<section class="p-card"><h2 class="p-title" id="thLabel">Appearance</h2>'
+      + '<div class="p-seg p-gap-t" role="group" aria-labelledby="thLabel">'
+      + [['system', 'Match my device'], ['light', 'Light'], ['dark', 'Dark']].map(function (o) {
+          return '<button type="button" data-theme-set="' + o[0] + '" aria-selected="'
+            + (cur.theme === o[0] ? 'true' : 'false') + '">' + o[1] + '</button>';
+        }).join('') + '</div></section>'
+      + '<section class="p-card">'
+      + '<button type="button" class="p-switch" role="switch" aria-checked="' + (cur.ease ? 'true' : 'false')
+      + '" data-toggle="ease"><span>Easier to read</span><span class="p-track" aria-hidden="true"></span></button>'
+      + '<p class="p-caption">Wider spacing, more line height, and a face with clearer letter shapes.</p>'
+      + '<button type="button" class="p-switch" role="switch" aria-checked="' + (cur.lowdata ? 'true' : 'false')
+      + '" data-toggle="lowdata"><span>Use less data</span><span class="p-track" aria-hidden="true"></span></button>'
+      + '<p class="p-caption">Skips the web fonts and the photographs. On a metered connection the fonts '
+      + 'are the largest thing this page downloads.</p>'
+      + '</section></div>');
+  }
+
+  /* ── Routing ────────────────────────────────────────────────────────────── */
+
+  var SCREENS = {
+    home: renderHome, train: renderTrain, learn: renderLearn, attend: renderAttend,
+    money: renderMoney, repertoire: renderRepertoire, a11y: renderA11y
+  };
+  /* Which bar item lights for a screen the bar does not itself carry. Fees and
+     Repertoire light NOTHING rather than borrowing another tab's highlight — a
+     bar that claims you are on Home while you are reading an invoice is worse
+     than a bar that claims nothing. */
+  var TAB_OF = { home: 'home', train: 'train', learn: 'learn', attend: 'attend' };
+
+  function go(screen, arg) {
+    if (!SCREENS[screen]) screen = 'home';
+    S.screen = screen;
+    closeSheet();
+    $$('#nav button[data-screen]').forEach(function (b) {
+      var on = b.dataset.screen === TAB_OF[screen];
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    location.hash = screen + (arg ? '/' + arg : '');
+    SCREENS[screen](arg);
+  }
+
+  function closeSheet() { var s = $('#sheet'); if (s) s.hidden = true; }
+
+  /* ── Events. One delegated listener; every control is a real <button>. ───── */
+
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+
+    if (t.closest('[data-sheet-open]')) { $('#sheet').hidden = false; return; }
+    if (t.closest('[data-sheet-close]')) { closeSheet(); return; }
+
+    var nav = t.closest('[data-screen]');
+    if (nav) { go(nav.dataset.screen, null); return; }
+
+    /* Check in. The gate is the server's — this only asks. `mode` follows the
+       session's own mode so an online student is not recorded as onsite. */
+    var ci = t.closest('[data-checkin]');
+    if (ci) {
+      var n = (S.attend && S.attend.next) || (S.home && S.home.next) || {};
+      write(ci, API.request('student/checkin', {
+        method: 'POST',
+        body: { action: 'checkin', session_id: Number(ci.dataset.checkin), mode: n.mode || 'onsite' }
+      }), function () { go('attend'); }, 'Checked in. Your instructor can see you are here.');
+      return;
+    }
+    var co = t.closest('[data-clockout]');
+    if (co) {
+      write(co, API.request('student/checkin', {
+        method: 'POST', body: { action: 'clock_out', session_id: Number(co.dataset.clockout) }
+      }), function () { go('attend'); }, 'Clocked out.');
+      return;
+    }
+
+    var prep = t.closest('[data-prepare]');
+    if (prep) {
+      write(prep, API.request('student/preclass', {
+        method: 'POST',
+        body: { action: 'prepare', lesson_id: Number(prep.dataset.prepare), done: prep.dataset.done === '1' }
+      }), function () { renderTrain(); }, 'Noted.');
+      return;
+    }
+
+    var m = t.closest('.s-mins button');
+    if (m) {
+      $$('.s-mins button').forEach(function (b) { b.setAttribute('aria-pressed', b === m ? 'true' : 'false'); });
+      return;
+    }
+    if (t.closest('#pracSave')) {
+      var chosen = $('.s-mins button[aria-pressed="true"]');
+      if (!chosen) { toast('How long did you practise? Pick a length first.', 'bad'); return; }
+      write(t.closest('#pracSave'), API.request('student/practice-log', {
+        method: 'POST',
+        body: { minutes: Number(chosen.dataset.min), focus: ($('#pracFocus') || {}).value || null }
+      }), function () { renderTrain(); }, 'Logged. That is today kept.');
+      return;
+    }
+
+    var chk = t.closest('.s-check');
+    if (chk) { chk.setAttribute('aria-checked', chk.getAttribute('aria-checked') === 'true' ? 'false' : 'true'); return; }
+
+    if (t.closest('#tbSend')) {
+      var tbBtn = t.closest('#tbSend');
+      var body = ($('#tbBody') || {}).value || '';
+      if (!body.trim()) { toast('Write your explanation first — a sentence or two is plenty.', 'bad'); return; }
+      /* The three self-checks are FORMATIVE and travel with the explanation as
+         the student's own words, not as a score: `teachbacks` has no field for
+         them and inventing one would make this the graded task §2.1 refuses. */
+      var ticked = $$('.s-check[aria-checked="true"]').map(function (c) { return c.textContent.trim(); });
+      write(tbBtn, API.request('student/preclass', {
+        method: 'POST',
+        body: {
+          action: 'teachback', lesson_id: Number(tbBtn.dataset.lesson), kind: 'written',
+          body: body + (ticked.length ? '\n\n— ' + ticked.join('\n— ') : '')
+        }
+      }), function () { renderTrain(); }, 'Sent. It is never marked and never counts towards your band.');
+      return;
+    }
+
+    /* Keep it warm is a device-local reminder, not a record. There is no
+       endpoint because there is nothing the academy should be told: the moment
+       it is stored and reported it stops being retrieval practice. */
+    var warm = t.closest('[data-warm]');
+    if (warm) {
+      var days = Number(warm.dataset.days) || 1;
+      try {
+        var due = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+        localStorage.setItem('mam-warm-due', due);
+      } catch (er) {}
+      $$('[data-warm]').forEach(function (b) { b.setAttribute('aria-pressed', b === warm ? 'true' : 'false'); });
+      toast('Good. Come back to it in ' + days + ' ' + plural(days, 'day', 'days') + '.', 'good');
+      return;
+    }
+
+    var waive = t.closest('[data-waive]');
+    if (waive) {
+      var why = window.prompt('Why should this charge be looked at again?');
+      if (why == null) return;
+      write(waive, API.request('student/accountability', {
+        method: 'POST',
+        body: { action: 'request_exception', charge_id: Number(waive.dataset.waive), reason_code: 'other', detail: why }
+      }), function () { renderMoney(); }, 'Asked. Somebody will look at it.');
+      return;
+    }
+
+    if (t.closest('#repAdd')) {
+      var title = ($('#repTitle') || {}).value || '';
+      if (!title.trim()) { toast('What is the piece called?', 'bad'); return; }
+      write(t.closest('#repAdd'), API.request('student/repertoire', {
+        method: 'POST',
+        body: { action: 'add', title: title, composer: ($('#repComposer') || {}).value || null, status: 'learning' }
+      }), function () { renderRepertoire(); }, 'Added.');
+      return;
+    }
+    var rs = t.closest('[data-repstatus]');
+    if (rs) {
+      write(rs, API.request('student/repertoire', {
+        method: 'POST', body: { action: 'update', id: Number(rs.dataset.rep), status: rs.dataset.repstatus }
+      }), function () { renderRepertoire(); }, 'Updated.');
+      return;
+    }
+    var rd = t.closest('[data-repdel]');
+    if (rd) {
+      write(rd, API.request('student/repertoire', {
+        method: 'POST', body: { action: 'delete', id: Number(rd.dataset.repdel) }
+      }), function () { renderRepertoire(); }, 'Removed.');
+      return;
+    }
+
+    if (t.hasAttribute && (t.hasAttribute('data-text-size') || t.hasAttribute('data-theme-set') || t.hasAttribute('data-toggle'))) {
+      e.preventDefault();
+      var root = document.documentElement, prefs = {};
+      try { prefs = JSON.parse(localStorage.getItem('mam-guardian-a11y') || '{}'); } catch (er) { prefs = {}; }
+      if (t.hasAttribute('data-text-size')) {
+        var tv = t.getAttribute('data-text-size');
+        prefs.text = tv === 'md' ? null : tv;
+        if (prefs.text) root.setAttribute('data-text', prefs.text); else root.removeAttribute('data-text');
+      }
+      if (t.hasAttribute('data-theme-set')) {
+        var th = t.getAttribute('data-theme-set');
+        prefs.theme = th === 'system' ? null : th;
+        if (prefs.theme) root.setAttribute('data-theme', prefs.theme);
+        else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) root.setAttribute('data-theme', 'dark');
+        else root.removeAttribute('data-theme');
+      }
+      if (t.hasAttribute('data-toggle')) {
+        var tk = t.getAttribute('data-toggle');
+        prefs[tk] = !prefs[tk];
+        var attr = tk === 'ease' ? 'data-ease' : 'data-lowdata';
+        if (prefs[tk]) root.setAttribute(attr, '1'); else root.removeAttribute(attr);
+      }
+      try { localStorage.setItem('mam-guardian-a11y', JSON.stringify(prefs)); } catch (er) {}
+      renderA11y();
+      return;
+    }
+
+    if (t.closest('#signOut')) {
+      API.request('auth/logout', { method: 'POST' }).catch(function () {})
+        .then(function () { location.href = '/portal/login'; });
+    }
+  });
+
+  window.addEventListener('hashchange', function () {
+    var parts = location.hash.replace('#', '').split('/');
+    if (parts[0] && parts[0] !== S.screen) go(parts[0], parts[1]);
+  });
+
+  window.addEventListener('offline', function () {
+    toast('You are offline. What is on screen is the last thing we loaded, and nothing you '
+      + 'change will be saved until you have data again.', 'bad');
+  });
+
+  /* ── Boot ───────────────────────────────────────────────────────────────── */
+
+  function applyIdentity(d) {
+    var me = d.me || {};
+    $('#whoName').textContent = me.name || 'Student';
+    $('#whoMeta').textContent = 'Student';
+    $('#railName').textContent = me.name || 'Student';
+    $('#railInitials').textContent = initials(me.name);
+    var en = (d.next && d.next.cohort_title) || '';
+    $('#railCourse').textContent = en;
+    var owed = Number((d.owed || {}).cents) || 0;
+    var badge = $('#moneyBadge'), sheetOwed = $('#sheetOwed');
+    if (owed > 0) {
+      badge.hidden = false;
+      badge.setAttribute('aria-label', money(owed) + ' outstanding');
+      sheetOwed.hidden = false; sheetOwed.textContent = money(owed);
+    } else {
+      badge.hidden = true; sheetOwed.hidden = true;
+    }
+  }
+
+  function bootError(fallback) {
+    return function (err) {
+      var code = (err && err.body && err.body.error) || '';
+      if (code === 'unauthorized' || code === 'forbidden' || (err && err.status === 401)) {
+        location.href = '/portal/login?next=' + encodeURIComponent('/portal/student/');
+        return;
+      }
+      paint(empty('triangle-exclamation', errOf(err, fallback)
+        + '<br><br>If this keeps happening, the academy office can help.'));
+    };
+  }
+
+  screenReq('home')
+    .then(function (d) {
+      S.home = d;
+      applyIdentity(d);
+      var parts = location.hash.replace('#', '').split('/');
+      go(SCREENS[parts[0]] ? parts[0] : 'home', parts[1]);
+    })
+    .catch(bootError('Could not load your portal.'));
+})();

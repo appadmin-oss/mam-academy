@@ -181,7 +181,7 @@ t_eq(preg_match_all('/\sstyle="/', $parent), 0,
  * class and a cohort, and walked all 23 tabs.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-$stu = (string) file_get_contents(dirname(__DIR__, 2) . '/portal/student/index.html');
+$stu = (string) file_get_contents(dirname(__DIR__, 2) . '/portal/student/classic.html');
 
 t_group('student portal — every control has a name');
 

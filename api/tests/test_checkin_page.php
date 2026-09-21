@@ -89,7 +89,10 @@ t_ok(strpos($ci, "=== null || d.attendance_rate === undefined") !== false
 $ciAttend = (string) file_get_contents(dirname(__DIR__, 2) . '/attend.php');
 t_ok(substr_count($ciAttend, "href=\"/checkin\"") >= 1,
     'attend.php offers /checkin when the QR itself is the problem');
-$ciPortal = (string) file_get_contents(dirname(__DIR__, 2) . '/portal/student/index.html');
+// The legacy 23-tab dashboard, preserved at classic.html when the student
+// portal v2 took over index.html. These assertions describe THAT surface and
+// follow it, exactly as the instructor tests follow instructor/classic.html.
+$ciPortal = (string) file_get_contents(dirname(__DIR__, 2) . '/portal/student/classic.html');
 t_ok(strpos($ciPortal, 'href="/checkin"') !== false, 'and the portal tab links to it');
 
 t_group('/checkin — the rate it displays cannot exceed 100%');

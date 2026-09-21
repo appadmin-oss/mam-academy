@@ -226,6 +226,10 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->post('/progress',            $f('student/progress.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('student_progress', 20, 600)]);
     // Per-session instructor-submitted progress reports for the student.
     $r->get ('/session-reports',     $f('student/session-reports.php'),     [mw_role('student')]);
+    // The student portal v2 — ONE payload per screen (Home/Train/Learn/Attend/More).
+    // Mirrors GET /api/instructor/portal; see api/lib/student-portal.php for why
+    // a provider layer rather than six more routes.
+    $r->get ('/portal',              $f('student/portal.php'),              [mw_role('student')]);
     // Waitlist: join or leave a cohort queue when class is at capacity.
     $r->get ('/waitlist',            $f('student/waitlist.php'),            [mw_role('student')]);
     $r->post('/waitlist',            $f('student/waitlist.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('student_waitlist', 20, 600)]);

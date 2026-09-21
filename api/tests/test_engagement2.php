@@ -23,7 +23,7 @@ t_ok(!file_exists(__DIR__ . '/../lib/leaderboard.php'), 'api/lib/leaderboard.php
 t_ok(!file_exists(__DIR__ . '/../routes/student/leaderboard.php'), 'the student leaderboard route file is deleted');
 t_ok(strpos(file_get_contents(__DIR__ . '/../index.php'), "student/leaderboard.php") === false,
     'no route registers the cohort board');
-t_ok(strpos(file_get_contents(__DIR__ . '/../../portal/student/index.html'), 'leaderboardArea') === false,
+t_ok(strpos(file_get_contents(__DIR__ . '/../../portal/student/classic.html'), 'leaderboardArea') === false,
     'the student portal renders no cohort board');
 // The studio board is NOT collateral damage.
 t_ok(function_exists('mam_studio_leaderboard'), 'the studio practice-tool board is untouched');

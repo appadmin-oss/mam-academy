@@ -158,7 +158,7 @@ t_ok(strpos($dnAdmin, 'width:24px;height:24px;min-width:24px;min-height:24px') !
 
 t_group('dashboards — empty panels offer something to do');
 
-$dnStudent = file_get_contents(__DIR__ . '/../../portal/student/index.html');
+$dnStudent = file_get_contents(__DIR__ . '/../../portal/student/classic.html');
 $dnParent  = file_get_contents(__DIR__ . '/../../portal/parent/index.html');
 t_ok(strpos($dnStudent, 'function empty(icon, text, action)') !== false,
     'the shared empty state takes an action');
@@ -199,7 +199,7 @@ t_group('dashboards — every page requests the same portal assets');
  * them agree": a page left on a previous version serves users the old
  * stylesheet against new markup, which is the actual failure.
  */
-$dnPages = ['portal/student/index.html', 'portal/parent/index.html',
+$dnPages = ['portal/student/classic.html', 'portal/student/index.html', 'portal/parent/index.html',
             'portal/instructor/classic.html', 'portal/instructor/index.html', 'portal/login.html',
             'portal/signup.html', 'portal/reset.html', 'portal/choose.html'];
 foreach (['css/portal.css' => 'stylesheet', 'js/portal.js' => 'portal kit'] as $asset => $label) {
