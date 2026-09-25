@@ -53,8 +53,8 @@
   .prog-card{position:relative;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(224,138,26,0.05),var(--bg-surface));border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px 26px;transition:transform .25s var(--ease),border-color .25s var(--ease),box-shadow .25s var(--ease)}
   .prog-card:hover{transform:translateY(-4px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
   .prog-card.featured{border-color:var(--border-gold);background:linear-gradient(180deg,rgba(224,138,26,0.13),var(--bg-surface));box-shadow:var(--glow-gold)}
-  .prog-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--gold),var(--gold-bright));color:#1A120B;font-size:0.7rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;padding:6px 16px;border-radius:999px;white-space:nowrap}
-  .prog-eyebrow{font-size:0.74rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold-bright)}
+  .prog-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--gold),var(--gold-bright));color:#1A120B;font-size:0.75rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;padding:6px 16px;border-radius:999px;white-space:nowrap}
+  .prog-eyebrow{font-size:0.75rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold-bright)}
   .prog-name{font-family:var(--font-serif);font-size:1.8rem;line-height:1.1;margin:6px 0 4px;color:var(--text)}
   .prog-tag{font-size:0.86rem;color:var(--text-muted);margin-bottom:16px;min-height:2.4em}
   .prog-price{display:flex;align-items:baseline;gap:6px;font-family:var(--font-display);font-size:2.4rem;color:var(--text);line-height:1}
@@ -82,10 +82,10 @@
   .lvl{position:relative;z-index:1;text-align:center;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:20px 14px;transition:border-color .2s,transform .2s}
   .lvl:hover{border-color:var(--border-gold);transform:translateY(-3px)}
   .lvl-dot{width:54px;height:54px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-display);font-size:1.3rem;color:#1A120B;background:linear-gradient(135deg,var(--gold),var(--gold-bright));border:4px solid var(--bg)}
-  .lvl-grade{font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)}
+  .lvl-grade{font-size:0.75rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)}
   .lvl-name{font-weight:700;color:var(--text);margin:3px 0 6px;font-size:0.98rem}
   .lvl-price{font-family:var(--font-display);font-size:1.5rem;color:var(--gold-bright)}
-  .lvl-price small{font-family:var(--font-body);font-size:0.68rem;color:var(--text-muted);font-weight:600}
+  .lvl-price small{font-family:var(--font-body);font-size:0.75rem;color:var(--text-muted);font-weight:600}
   @media(max-width:640px){.level-rail{grid-template-columns:1fr 1fr}.level-rail::before{display:none}}
 
   /* Estimator */

@@ -54,7 +54,7 @@
           <p style="font-size:0.98rem;color:var(--text-soft);line-height:1.75;margin-top:18px">At MAM, students are not only taught how to play. They are taught how to <em>think, perform, interpret, communicate</em> and <em>lead creatively</em>.</p>
 
           <div style="margin-top:22px;padding:20px 22px;background:rgba(224,138,26,0.06);border-left:3px solid var(--gold);border-radius:0 var(--radius-sm) var(--radius-sm) 0">
-            <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:10px">A Short History</div>
+            <div style="font-size:0.75rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:10px">A Short History</div>
             <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 18px;font-size:0.92rem;color:var(--text-soft);line-height:1.65">
               <strong style="color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.04em">Pre-2008</strong><span>Began unofficially among the <strong>KFolks</strong> — a circle of musicians, friends and creatives</span>
               <strong style="color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.04em">5 May 2008</strong><span><strong>Officially commissioned</strong> as MAM Academy</span>

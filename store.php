@@ -45,7 +45,7 @@
 .st-categories button{flex-shrink:0;padding:8px 14px;border-radius:100px;font-size:0.84rem;font-weight:700;color:var(--text-muted);background:var(--bg-surface);border:1px solid var(--border);cursor:pointer;letter-spacing:0.01em;transition:all .15s var(--ease);min-height:36px}
 .st-categories button:hover{border-color:var(--border-gold);color:var(--text)}
 .st-categories button.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
-.st-categories .count{margin-left:6px;font-size:0.72rem;opacity:0.55}
+.st-categories .count{margin-left:6px;font-size:0.75rem;opacity:0.7}
 .st-categories button.active .count{opacity:0.7}
 
 /* ── Grid + cards ──────────────────────────────────────────────

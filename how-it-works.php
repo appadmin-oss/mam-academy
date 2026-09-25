@@ -42,7 +42,7 @@
   .hiw-card{background:var(--bg-surface,#1A120B);border:1px solid var(--border,rgba(255,255,255,.14));border-radius:16px;padding:20px 22px}
   .hiw-card h3{font-family:var(--font-serif,Georgia,serif);font-size:1.28rem;color:var(--text,#fff);margin:0 0 6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .hiw-card h3 i{color:var(--gold-bright,#FCC647);font-size:1rem}
-  .hiw-eyebrow{font-size:.68rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--gold-bright,#FCC647)}
+  .hiw-eyebrow{font-size:.75rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-bright,#FCC647)}
   .hiw-card p{color:var(--text-soft,#cbb89e);font-size:.95rem;line-height:1.65;margin:6px 0 0}
   .hiw-card p a{color:var(--gold-bright,#FCC647);text-decoration:underline;text-underline-offset:2px}
   .hiw-timeframe{display:inline-block;margin-top:10px;font-size:.76rem;font-weight:700;color:var(--gold-bright,#FCC647);background:rgba(224,138,26,.12);border:1px solid var(--border-gold,rgba(224,138,26,.4));border-radius:100px;padding:3px 11px}

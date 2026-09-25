@@ -67,7 +67,7 @@
 .nt-ex:hover{border-color:var(--border-gold)}
 .nt-ex.active{border-color:var(--gold);background:var(--bg-raised)}
 .nt-ex strong{font-size:0.9rem}
-.nt-ex span{font-size:0.74rem;color:var(--text-muted)}
+.nt-ex span{font-size:0.75rem;color:var(--text-muted)}
 .nt-note{}
 .nt-render+.nt-note,p.nt-note{color:var(--text-muted);font-size:0.88rem;line-height:1.6;margin:20px auto 0;max-width:680px;text-align:center}
 .nt-empty{display:flex;align-items:center;justify-content:center;gap:10px;min-height:160px;color:var(--text-muted);font-size:0.95rem;text-align:center;padding:0 16px}

@@ -135,12 +135,12 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
   padding:22px 20px;text-align:center;
 }
 .su-info-card-icon{font-size:1.6rem;margin-bottom:10px}
-.su-info-card-label{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--su-muted);margin-bottom:6px}
+.su-info-card-label{font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--su-muted);margin-bottom:6px}
 .su-info-card-value{font-size:1.05rem;font-weight:700;color:#fff;line-height:1.3}
 .su-info-card-sub{font-size:.78rem;color:var(--su-muted);margin-top:4px}
 /* ── About / description section ───────────────────── */
 .su-about{padding:clamp(52px,8vw,90px) 24px;max-width:780px;margin:0 auto}
-.su-section-eyebrow{font-size:.7rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--su-amber);margin-bottom:10px}
+.su-section-eyebrow{font-size:.75rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--su-amber);margin-bottom:10px}
 .su-section-title{font-family:'Cinzel',serif;font-size:clamp(1.3rem,3vw,1.9rem);color:#fff;margin:0 0 20px;line-height:1.25}
 .su-description{font-size:1.02rem;color:var(--su-muted);line-height:1.75;margin:0 0 32px}
 .su-highlights{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px}

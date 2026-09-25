@@ -703,7 +703,7 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .hero-pause{width:44px;height:44px;margin-left:4px;border-radius:50%;background:rgba(0,0,0,.5);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:.8rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s var(--ease),border-color .2s var(--ease)}
 .hero-pause:hover{background:rgba(224,138,26,.75);border-color:var(--gold)}
 
-.scroll-cue{flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:9px;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(251,247,243,.66);pointer-events:none;white-space:nowrap}
+.scroll-cue{flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:9px;font-size:.75rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(251,247,243,.66);pointer-events:none;white-space:nowrap}
 .scroll-cue-icon{color:var(--gold-bright);font-size:.62rem;animation:scrollCue 3s ease-in-out infinite}
 @keyframes scrollCue{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(3px);opacity:1}}
 
@@ -782,7 +782,7 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .next-step-back:hover{color:var(--gold-bright);border-color:var(--border-gold);background:rgba(224,138,26,0.04)}
 .next-step-back i{font-size:1.1rem;transition:transform 0.2s var(--ease)}
 .next-step-back:hover i{transform:translateX(-4px)}
-.next-step-back-label{font-size:0.7rem;letter-spacing:0.14em;text-transform:uppercase;font-weight:800;color:var(--text-muted);margin-bottom:3px}
+.next-step-back-label{font-size:0.75rem;letter-spacing:0.1em;text-transform:uppercase;font-weight:800;color:var(--text-muted);margin-bottom:3px}
 .next-step-back strong{display:block;color:var(--text);font-weight:700;font-size:0.95rem}
 .next-step-back:hover strong{color:var(--gold-bright)}
 
@@ -866,7 +866,7 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .mode-card:hover{transform:translateY(-6px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
 .mode-img{height:240px;background-size:cover;background-position:center;position:relative}
 .mode-img::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(18,13,8,0.1) 30%,rgba(18,13,8,0.9))}
-.mode-badge{position:absolute;top:18px;left:18px;padding:6px 14px;background:rgba(18,13,8,0.85);backdrop-filter:blur(10px);border:1px solid var(--border-gold);border-radius:100px;font-size:0.72rem;font-weight:800;color:var(--gold-bright);letter-spacing:0.14em;text-transform:uppercase;z-index:2}
+.mode-badge{position:absolute;top:18px;left:18px;padding:6px 14px;background:rgba(18,13,8,0.85);backdrop-filter:blur(10px);border:1px solid var(--border-gold);border-radius:100px;font-size:0.75rem;font-weight:800;color:var(--gold-bright);letter-spacing:0.1em;text-transform:uppercase;z-index:2}
 .mode-content{padding:32px}
 .mode-title{font-family:var(--font-serif);font-size:1.8rem;font-weight:700;margin-bottom:10px;line-height:1.2;text-wrap:balance}
 .mode-desc{font-size:0.95rem;color:var(--text-soft);line-height:1.7;margin-bottom:20px}
@@ -936,8 +936,8 @@ html:not(.textclip) .highlight-purple{-webkit-text-fill-color:currentColor!impor
 .pathway-card{position:relative;padding:32px 26px 28px;border-radius:var(--radius-lg);background:var(--bg-card);border:1px solid var(--border);transition:all 0.35s var(--ease);display:flex;flex-direction:column}
 .pathway-card:hover{transform:translateY(-6px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
 .pathway-card.featured{border-color:var(--border-gold);background:linear-gradient(180deg,rgba(224,138,26,0.1),var(--bg-card))}
-.pathway-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);padding:5px 14px;border-radius:100px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-size:0.7rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;white-space:nowrap}
-.pathway-level{font-size:0.72rem;font-weight:800;color:var(--gold-bright);letter-spacing:0.14em;text-transform:uppercase;margin-bottom:8px}
+.pathway-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);padding:5px 14px;border-radius:100px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-size:0.75rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap}
+.pathway-level{font-size:0.75rem;font-weight:800;color:var(--gold-bright);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px}
 .pathway-name{font-family:var(--font-serif);font-size:1.45rem;font-weight:700;color:var(--text);margin-bottom:6px;line-height:1.2}
 .pathway-trinity{font-size:0.78rem;color:var(--text-muted);font-style:italic;margin-bottom:20px}
 .pathway-price{font-family:var(--font-display);font-size:2.4rem;line-height:1;color:var(--text);margin-bottom:4px;display:flex;align-items:baseline;gap:4px}
@@ -1687,7 +1687,7 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
 .showcase-row:last-child{margin-bottom:0}
 .showcase-row.reverse .frame{order:2}            /* image to the right */
 .showcase-copy{max-width:520px}
-.showcase-kicker{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:12px}
+.showcase-kicker{display:inline-block;font-size:.75rem;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:12px}
 .showcase-heading{font-family:var(--font-serif);font-size:clamp(1.55rem,3.4vw,2.4rem);line-height:1.12;letter-spacing:-.01em;color:var(--text);margin-bottom:14px}
 .showcase-copy p{color:var(--text-muted);font-size:1.02rem;line-height:1.7;margin:0 0 22px}
 
@@ -1780,3 +1780,33 @@ html.reveal-fallback .fade-in-up,html.reveal-fallback .fade-in{opacity:1!importa
    the whole point — the cookie banner and this can no longer overlap. */
 .mam-dock > .floating-enroll.in-dock{position:static;width:auto;max-width:none;align-self:flex-end;bottom:auto;right:auto}
 .mam-dock > .floating-enroll.in-dock.visible{transform:none}
+
+/* ── The 12px text floor ────────────────────────────────────────────────────
+   The design's §4 states "Never below 12px" for text. The sweep behind this
+   note covers the whole public site — this file plus the page-level <style>
+   blocks in pathways / summer / about / notation / store / how-it-works — and
+   raised every rule that styles WORDS to 0.75rem: eyebrows, badges, mode and
+   level chips, the store's category count, price footnotes.
+
+   Several rules had to give the width back in letter-spacing (.mode-badge,
+   .pathway-level, .pathway-badge, .prog-badge, .scroll-cue, .showcase-kicker,
+   .su-section-eyebrow). Uppercase at 0.14em tracking is already wide, and
+   raising the size without loosening it pushes a pill wider than the thing it
+   labels. The size is the accessibility requirement; the tracking is not, so
+   the tracking is what moved. ⚠️ .scroll-cue lives in the hero-footer flex ROW
+   that CLAUDE.md records as collision-prone — re-check .hero-proof ×
+   .hero-dots × .scroll-cue at 1920/1440/1180/900/430/390/320 after touching
+   its size or tracking, not just the page's overflow.
+
+   Left below the floor on purpose, because they size a GLYPH, not language:
+     .unique-list li i · .policy-points li i · .prog-feats li i
+     .pay-card-covers li i · .breadcrumb i · .scroll-cue-icon   — icons
+     .journey-sep                                                — a separator
+   Growing those changes a mark's weight against the line it sits on; it does
+   not make anything more legible, because there is nothing to read.
+
+   Verified in a real browser at 390/768/1280/1440 over fifteen pages: sixty
+   page/width combinations with no rendered text under 12px, no horizontal
+   overflow, and no JS errors. A grep cannot check this — a rule can be
+   overridden, inherited, or inside a media query that never matches — so the
+   check that counts is the rendered page. */
