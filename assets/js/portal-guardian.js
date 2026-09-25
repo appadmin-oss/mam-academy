@@ -245,7 +245,7 @@
        policy it is. */
     if (d.boundaries && d.boundaries.length) {
       out.push('<section class="p-card is-quiet">'
-        + '<h2 class="p-label">What you can see, and what stays theirs</h2>'
+        + '<h2 class="p-title">What you can see, and what stays theirs</h2>'
         + '<div class="p-gap-t"></div>'
         + d.boundaries.map(function (b) {
             return '<p class="p-body">' + esc(b.why) + '</p>';

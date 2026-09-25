@@ -168,8 +168,16 @@
    the mock breaking its own contractual minimum for exactly the audience §4
    names as the reason for it ("Guardians skew older … mid-range Android"). The
    11px LABEL survives because it is a tracked 800-weight all-caps section
-   heading of one or two words, which §1 lists in its own scale, and is never
-   running text. */
+   heading of a FEW WORDS, which §1 lists in its own scale, and is never
+   running text.
+   ⚠️ That last clause is the whole of the exception, and it is load-bearing:
+   at 11px, 800 weight, all-caps and 0.14em tracking, a SENTENCE is the least
+   legible thing on the page — which is the opposite of what a heading style is
+   for, and it lands on the audience §4 names as the reason for the floor
+   ("Guardians skew older … mid-range Android"). The guardian consent panel had
+   drifted into heading itself "What you can see, and what stays theirs" this
+   way; it is a .p-title now. A label long enough to read as a sentence is a
+   .p-title, not a smaller label. */
 [data-portal="v2"] .p-h1 {
   font: 700 26px/1.15 var(--font-serif);
   letter-spacing: -0.01em; text-wrap: balance;

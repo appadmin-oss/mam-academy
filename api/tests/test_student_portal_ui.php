@@ -399,3 +399,35 @@ foreach ($APPS as $who => $file) {
    the textarea is prefilled with the last submission, so appending compounded
    on every resubmit. */
 t_ok(!preg_match("/body: body \+ \(ticked/", $sj), 'the self-checks are not appended to the teach-back');
+
+/* ── The 11px .p-label exception, and the only thing keeping it honest ───────
+   portal-v2.css sets a 12px floor for running text per the design's §4, and
+   grants .p-label one documented exception at 11px: a tracked 800-weight
+   all-caps section heading of a few words. The exception is defensible only
+   while that last clause is true. At 11px, 800 weight, all-caps and 0.14em
+   tracking a SENTENCE is the least legible thing on the page, and it lands on
+   the audience §4 names as the reason for the floor.
+
+   It had already drifted: the guardian consent panel headed itself "What you
+   can see, and what stays theirs" — eight words and a comma — as a .p-label.
+   A browser sweep found it; this keeps it found. Six words is the line: it
+   admits the real headings ("Not enough evidence yet", "1 · The instructor or
+   the office") and refuses anything that reads as prose. A label that wants to
+   be longer wants to be a .p-title. Only tokens carrying a LETTER count — the
+   "1 ·" in "1 · The instructor or the office" is an ordinal marker, not
+   language, and counting the numeral and the separator as words refuses a
+   heading that reads as five. */
+foreach ($APPS as $PL_who => $PL_file) {
+    $PL_src = (string) @file_get_contents($PL_file);
+    if ($PL_src === '') continue;
+    // Only literal strings — an interpolated label is data, not a heading we can measure.
+    if (!preg_match_all('/class="p-label[^"]*">([^\'"<+]{1,120})</', $PL_src, $PL_m)) continue;
+    foreach (array_unique($PL_m[1]) as $PL_text) {
+        $PL_text = trim($PL_text);
+        if ($PL_text === '') continue;
+        $PL_words = array_filter(preg_split('/\s+/', $PL_text), fn($w) => preg_match('/\pL/u', $w));
+        t_ok(count($PL_words) <= 6,
+            "$PL_who: .p-label \"$PL_text\" is a heading, not a sentence "
+            . '(11px all-caps at 0.14em tracking — make it a .p-title)');
+    }
+}
