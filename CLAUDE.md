@@ -1756,6 +1756,66 @@ api/tests/test_console.php      the guards below
   `$cents / 100` is a float even when it divides exactly and a strict comparison
   makes every KPI tile grow two decimals.
 
+### The console on a phone (2026-09-28)
+
+Two halves, and they answer different questions.
+
+**Every console table stacks below 720px.** MEASURED at 390px before this: 23
+of the 31 screens scrolled a table sideways and the vetting matrix hid 918px
+against 390 visible — more of the row off the screen than on it, with nothing
+to say so, while `admin/index.php` had stacked its tables since its own
+redesign. `ac_label_table_cells()` (in `_ui.php`, run over the buffered screen
+in `console.php`) stamps each body cell with its column's header.
+- **Derived, never hand-written.** Not only to avoid 229 attributes:
+  `vetting.php` emits one column per required clearance in a `foreach`, so its
+  headers do not exist until the row is rendered. Deriving also stops the label
+  drifting from the header.
+- ⚠️ **It sets explicit ARIA roles, and they are load-bearing.** `display:block`
+  on a table element DROPS its implicit role, so the legacy `table.stack`
+  pattern hands a screen reader an unstructured run of text at exactly the
+  width where the visual structure has gone. The roles are what make the
+  stacking rule safe.
+- A header spanning columns labels the FIRST and leaves the rest empty (the map
+  advances by colspan, never by array position), and a cell spanning the whole
+  table is a message, not a value, so the empty state is left alone.
+- The label sits BESIDE the value (54% of the 677 body cells are bare text),
+  and ABOVE it for a cell holding a block — otherwise its second line starts at
+  the left margin and reads as a separate unlabelled field.
+- `test_console.php` strips the added attributes back off and compares against
+  a bare DOM round-trip: the helper may add attributes and change nothing else.
+
+**`admin/phone.php` is the frame's `#5b` subset** — Decide · Today · Assign ·
+Look up, with `api/lib/console-phone.php` for the reads, `partials/admin-phone/`
+for the renderers and the `.ap-*` block of `admin-v2.css`. Linked from the
+console rail; links back.
+- ⚠️ **It is a separate entry, not a breakpoint, and that is the whole point.**
+  Thirty-one screens behind a media query are still thirty-one screens. The
+  frame's argument is about consequence, not layout: *"Amending a record,
+  voiding an invoice and closing a period are deliberately unavailable here. A
+  consequential, hard-to-reverse action taken one-handed on a bus is how a
+  ledger acquires a mystery."* The desktop console stays reachable on a phone.
+- **The refusal is `MAM_PHONE_REFUSED_ACTIONS`, in the read layer.** Every
+  phone write posts to `/admin/` like the desktop console's, so the only thing
+  keeping a consequential action off this surface is which action names its
+  files mention — which makes it greppable, and `test_console_phone.php` greps
+  every phone file for each one. Nobody can eyeball four renderers and be sure
+  none grew a delete button.
+- **`_console=phone:<panel>`** extends `mam_admin_console_return()` rather than
+  adding a second hook, and is VALIDATED against `mam_phone_panel_ok()` exactly
+  as a console screen is validated against `mam_console_screens()`.
+- **Assign lists what is refused, with the reason.** A list that silently drops
+  the ineligible teaches a registrar the class does not exist. A full cohort
+  offers the waitlist instead.
+- ⚠️ **The frame contradicts itself:** its caption says "Three destinations"
+  while its own tab bar and the handoff both say four. Four is right; a test
+  pins it so nobody "corrects" the code to the caption.
+- **Not faked:** the frame's WhatsApp row is absent — there is no messaging
+  provider configured, and a dead button is refused here as elsewhere. The room
+  clash IS real (`class_sessions.room_id` and `rooms` both exist). Today
+  resolves its date through `mam_calendar_today()`, never the server clock.
+- Controls are 52px here, the one place this surface departs from the console's
+  own scale: the desk's density is wrong for a thumb.
+
 ## Running the site against MySQL, and what only MySQL finds
 
 The suite ran on SQLite alone for its whole life. `api/tests/run.php` now reads

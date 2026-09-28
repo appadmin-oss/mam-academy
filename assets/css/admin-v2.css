@@ -854,3 +854,262 @@
   [data-admin="v2"] .ac-strip { margin: -16px -14px 16px; padding: 12px 14px 0; }
   [data-admin="v2"] .ac-strip-tabs { gap: 16px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE PHONE SUBSET (admin/phone.php) — design frame #5b
+   ───────────────────────────────────────────────────────────────────────────
+   Four panels, a bottom tab bar, and deliberately fewer verbs than the desk.
+   The `.ap-*` prefix keeps it separate from `.ac-*`: these are not the
+   console's components at a narrow width, they are a different surface that
+   happens to share the tokens. Nothing here is loaded by console.php.
+
+   Sizes follow the console's own scale (README-admin-console.md), EXCEPT
+   where a finger is involved: a control is 52px here rather than 32, because
+   the desk's density is wrong for a thumb on a bus. That is the one place
+   this surface deliberately departs from the shared scale.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+[data-admin="v2"] .ap-body {
+  margin: 0; background: var(--ac-app); color: var(--ac-ink);
+  font-family: var(--ac-sans); -webkit-text-size-adjust: 100%;
+}
+
+/* ── The top bar: who you are, and the way back to the desk ─────────────── */
+[data-admin="v2"] .ap-top {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px) * 0);
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  background: var(--ac-surface); border-bottom: 1px solid var(--ac-line);
+}
+[data-admin="v2"] .ap-top-id { flex: 1; min-width: 0; }
+[data-admin="v2"] .ap-top-name { font-size: 15px; font-weight: 700; line-height: 1.2; }
+[data-admin="v2"] .ap-top-sub {
+  font-size: 12px; color: var(--ac-ink-4); margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+[data-admin="v2"] .ap-top-desk {
+  flex: 0 0 auto; display: inline-flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px;
+  min-width: 52px; min-height: 44px; padding: 0 10px;
+  border: 1px solid var(--ac-line-3); border-radius: 12px;
+  background: var(--ac-surface); color: var(--ac-ink-3);
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; text-decoration: none;
+}
+[data-admin="v2"] .ap-top-desk i { font-size: 14px; }
+
+/* ── The scroll region. The bottom padding clears the tab bar AND the home
+      indicator; without the safe-area term the last card sits under the bar
+      on any phone with a gesture bar. ─────────────────────────────────────── */
+[data-admin="v2"] .ap-main {
+  padding: 16px 16px calc(104px + env(safe-area-inset-bottom, 0px));
+  max-width: 720px; margin: 0 auto;
+}
+[data-admin="v2"] .ap-main:focus { outline: none; }
+
+[data-admin="v2"] .ap-h1 {
+  font-family: var(--ac-serif); font-size: 26px; font-weight: 700;
+  margin: 0 0 3px; line-height: 1.15;
+}
+[data-admin="v2"] .ap-lede {
+  margin: 0 0 16px; font-size: 13.5px; color: var(--ac-ink-4); line-height: 1.55;
+}
+[data-admin="v2"] .ap-stack { display: flex; flex-direction: column; gap: 14px; }
+
+[data-admin="v2"] .ap-card {
+  background: var(--ac-surface); border: 1px solid var(--ac-line-2);
+  border-radius: 18px; padding: 18px; margin-bottom: 14px;
+}
+[data-admin="v2"] .ap-stack > .ap-card { margin-bottom: 0; }
+[data-admin="v2"] .ap-card.is-bad { border: 1.5px solid var(--ac-bad); }
+[data-admin="v2"] .ap-card.is-picked { border: 1.5px solid var(--ac-accent); }
+[data-admin="v2"] .ap-card-t { font-size: 16px; font-weight: 700; margin: 8px 0 3px; }
+[data-admin="v2"] .ap-card-b { font-size: 13px; line-height: 1.6; color: var(--ac-ink-2); margin: 0 0 14px; }
+[data-admin="v2"] .ap-empty { text-align: left; }
+[data-admin="v2"] .ap-empty .ap-card-b { margin-bottom: 0; }
+
+[data-admin="v2"] .ap-eyebrow {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ac-ink-4); margin-bottom: 10px;
+}
+[data-admin="v2"] .ap-eyebrow.is-bad  { color: var(--ac-bad); }
+[data-admin="v2"] .ap-eyebrow.is-warn { color: var(--ac-warn); }
+[data-admin="v2"] .ap-card .ap-eyebrow { margin-bottom: 0; }
+
+[data-admin="v2"] .ap-quiet {
+  padding: 12px 14px; background: var(--ac-sunken); border-radius: 12px;
+  font-size: 12.5px; color: var(--ac-ink-4); line-height: 1.6; margin: 0 0 14px;
+}
+[data-admin="v2"] .ap-notice {
+  margin: 14px 0 0; padding: 14px 16px; background: var(--ac-sunken);
+  border: 1px solid var(--ac-line-2); border-radius: 14px;
+  font-size: 12.5px; color: var(--ac-ink-4); line-height: 1.65;
+}
+
+/* ── Controls. 52px, because this is the one surface held in one hand while
+      standing up; WCAG 2.5.8 asks 24 and the frame asks 52. ──────────────── */
+[data-admin="v2"] .ap-acts { display: flex; gap: 10px; flex-wrap: wrap; }
+[data-admin="v2"] .ap-btn {
+  flex: 1 1 auto; min-height: 52px; padding: 0 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--ac-line-3); border-radius: 14px;
+  background: var(--ac-surface); color: var(--ac-ink);
+  font-family: inherit; font-size: 15px; font-weight: 700;
+  text-decoration: none; cursor: pointer; text-align: center;
+}
+[data-admin="v2"] .ap-btn--primary { border-color: var(--ac-ink); background: var(--ac-ink); color: #fff; }
+[data-admin="v2"] .ap-btn--sm { flex: 0 0 auto; min-height: 44px; font-size: 13.5px; padding: 0 14px; }
+[data-admin="v2"] .ap-btn:focus-visible,
+[data-admin="v2"] .ap-tab:focus-visible { outline: 2px solid var(--ac-accent); outline-offset: 2px; }
+
+[data-admin="v2"] .ap-form { margin: 0; }
+[data-admin="v2"] .ap-label {
+  display: block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ac-ink-4); margin: 0 0 6px;
+}
+/* ⚠️ 16px is a FLOOR on every control that takes text. Safari on iOS zooms
+   the page in below it and does not zoom back out — the same rule the portals
+   hold, and never to be "fixed" with user-scalable=no. */
+[data-admin="v2"] .ap-input {
+  width: 100%; box-sizing: border-box; padding: 11px 13px; margin: 0 0 12px;
+  border: 1px solid var(--ac-line-3); border-radius: 12px;
+  background: var(--ac-surface); color: var(--ac-ink);
+  font-family: inherit; font-size: 16px; line-height: 1.5; resize: vertical;
+}
+
+/* ── Search ─────────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ap-search {
+  display: flex; align-items: center; gap: 10px; padding: 0 6px 0 14px;
+  background: var(--ac-surface); border: 1.5px solid var(--ac-ink);
+  border-radius: 14px; min-height: 54px; margin-bottom: 14px;
+}
+[data-admin="v2"] .ap-search > i { color: var(--ac-ink-4); font-size: 14px; flex: 0 0 auto; }
+/* ⚠️ `align-self: stretch` is the accessibility fix, not the cosmetics.
+   MEASURED: the input's own box was 258×20 inside a 54px strip, so the thing
+   that looks like a 54px search field had a 20px tap target — a miss lands on
+   the container, which focuses nothing without JS. Stretching the input makes
+   the target the strip. */
+[data-admin="v2"] .ap-search-in {
+  flex: 1; min-width: 0; align-self: stretch; min-height: 44px;
+  border: 0; background: none; outline: none;
+  font-family: inherit; font-size: 16px; color: var(--ac-ink);
+}
+[data-admin="v2"] .ap-search-go {
+  flex: 0 0 auto; min-height: 44px; padding: 0 14px; border: 0;
+  border-radius: 10px; background: var(--ac-ink); color: #fff;
+  font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+
+/* ── A person ───────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ap-who { display: flex; align-items: center; gap: 14px; }
+[data-admin="v2"] .ap-who-main { flex: 1; min-width: 0; }
+[data-admin="v2"] .ap-who-n { font-size: 16px; font-weight: 700; }
+[data-admin="v2"] .ap-who-s {
+  font-size: 12.5px; color: var(--ac-ink-4); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+[data-admin="v2"] .ap-facts { margin: 14px 0 0; display: flex; flex-direction: column; gap: 9px; }
+[data-admin="v2"] .ap-fact { display: flex; gap: 10px; font-size: 13px; }
+[data-admin="v2"] .ap-fact dt { flex: 0 0 96px; color: var(--ac-ink-4); margin: 0; }
+[data-admin="v2"] .ap-fact dd { flex: 1; min-width: 0; margin: 0; font-weight: 600; }
+[data-admin="v2"] .ap-dim { color: var(--ac-ink-4); font-weight: 400; }
+[data-admin="v2"] .ap-owed { color: var(--ac-bad); font-weight: 700; }
+[data-admin="v2"] .ap-inline { color: var(--ac-ink); text-decoration: underline; text-underline-offset: 2px; }
+
+/* ── Today's list ───────────────────────────────────────────────────────── */
+[data-admin="v2"] .ap-list { list-style: none; margin: 10px 0 0; padding: 0; }
+[data-admin="v2"] .ap-line {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 0; border-top: 1px solid var(--ac-line);
+}
+[data-admin="v2"] .ap-line:first-child { border-top: 0; }
+[data-admin="v2"] .ap-time {
+  font-family: var(--ac-num); font-size: 19px; flex: 0 0 52px;
+  font-variant-numeric: tabular-nums;
+}
+[data-admin="v2"] .ap-line-main { flex: 1; min-width: 0; }
+[data-admin="v2"] .ap-line-t { display: block; font-size: 14.5px; font-weight: 700; }
+[data-admin="v2"] .ap-line-s { display: block; font-size: 12.5px; color: var(--ac-ink-4); margin-top: 2px; }
+
+[data-admin="v2"] .ap-figs { display: flex; gap: 10px; margin-top: 12px; }
+[data-admin="v2"] .ap-fig {
+  flex: 1; text-align: center; padding: 12px 8px;
+  background: var(--ac-sunken); border-radius: 12px;
+}
+[data-admin="v2"] .ap-fig.is-bad { background: var(--ac-bad-w); }
+[data-admin="v2"] .ap-fig-n {
+  display: block; font-family: var(--ac-num); font-size: 24px; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+[data-admin="v2"] .ap-fig.is-bad .ap-fig-n, [data-admin="v2"] .ap-fig.is-bad .ap-fig-l { color: var(--ac-bad); }
+[data-admin="v2"] .ap-fig-l { display: block; font-size: 11px; color: var(--ac-ink-4); margin-top: 4px; }
+
+/* ── An assignable class ────────────────────────────────────────────────── */
+[data-admin="v2"] .ap-opt-form { margin: 0; }
+[data-admin="v2"] .ap-opt {
+  width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 12px;
+  text-align: left; min-height: 64px; padding: 15px 16px;
+  background: var(--ac-surface); border: 1px solid var(--ac-line-2);
+  border-radius: 16px; font-family: inherit; color: var(--ac-ink); cursor: pointer;
+}
+[data-admin="v2"] .ap-opt.is-off { background: var(--ac-sunken); cursor: default; }
+[data-admin="v2"] .ap-opt-main { flex: 1; min-width: 0; }
+[data-admin="v2"] .ap-opt-t { display: block; font-size: 15px; font-weight: 700; }
+[data-admin="v2"] .ap-opt-s { display: block; font-size: 12.5px; color: var(--ac-ink-4); margin-top: 3px; }
+[data-admin="v2"] .ap-opt-s.is-bad { color: var(--ac-bad); font-weight: 600; }
+[data-admin="v2"] .ap-opt-cap { flex: 0 0 auto; text-align: right; }
+[data-admin="v2"] .ap-opt-n { display: block; font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ac-good); }
+[data-admin="v2"] .ap-opt-l { display: block; font-size: 11px; color: var(--ac-ink-4); margin-top: 2px; }
+
+[data-admin="v2"] .ap-links { list-style: none; margin: 10px 0 0; padding: 0; }
+[data-admin="v2"] .ap-links li { border-top: 1px solid var(--ac-line); }
+[data-admin="v2"] .ap-links li:first-child { border-top: 0; }
+[data-admin="v2"] .ap-links a {
+  display: flex; align-items: center; min-height: 52px;
+  font-size: 15px; font-weight: 600; color: var(--ac-ink); text-decoration: none;
+}
+[data-admin="v2"] .ap-fails { margin: 10px 0 0; padding-left: 18px; font-size: 12px; color: var(--ac-ink-4); line-height: 1.6; }
+
+/* ── Flash. An ERROR is assertive and does not time out; a success is a
+      polite status. The same split the portals hold. ──────────────────────── */
+[data-admin="v2"] .ap-flash {
+  display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px;
+  padding: 13px 15px; border-radius: 14px; font-size: 13.5px; line-height: 1.5;
+}
+[data-admin="v2"] .ap-flash.is-good { background: var(--ac-good-w); color: var(--ac-good); }
+[data-admin="v2"] .ap-flash.is-bad  { background: var(--ac-bad-w);  color: var(--ac-bad); }
+
+/* ── The tab bar ────────────────────────────────────────────────────────── */
+[data-admin="v2"] .ap-tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex;
+  background: var(--ac-surface); border-top: 1px solid var(--ac-line);
+  padding: 6px 4px calc(10px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -6px 20px rgba(24, 32, 44, 0.05);
+}
+[data-admin="v2"] .ap-tab {
+  flex: 1; min-height: 56px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px; position: relative;
+  font-size: 11px; font-weight: 500; color: var(--ac-ink-4);
+  text-decoration: none; background: none; border: 0; font-family: inherit;
+}
+[data-admin="v2"] .ap-tab.is-on { color: var(--ac-ink); font-weight: 700; }
+[data-admin="v2"] .ap-tab-mark {
+  position: absolute; top: 0; width: 22px; height: 3px;
+  border-radius: 100px; background: var(--ac-accent); opacity: 0;
+}
+[data-admin="v2"] .ap-tab.is-on .ap-tab-mark { opacity: 1; }
+[data-admin="v2"] .ap-tab-ico { position: relative; }
+[data-admin="v2"] .ap-tab-ico i { font-size: 18px; }
+[data-admin="v2"] .ap-tab-dot {
+  position: absolute; top: -3px; right: -6px; width: 8px; height: 8px;
+  border-radius: 50%; background: var(--ac-bad); border: 2px solid var(--ac-surface);
+}
+
+/* From a tablet up the panels centre rather than stretch — the surface stays
+   what it is, it does not try to become the console. */
+@media (min-width: 721px) {
+  [data-admin="v2"] .ap-tabs { padding-left: 0; padding-right: 0; }
+  [data-admin="v2"] .ap-tab { max-width: 180px; margin: 0 auto; }
+}

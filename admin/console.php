@@ -196,10 +196,17 @@ foreach ($nav as $g) {
           <?php if ($n > 0): ?><span class="ac-navcount"><?= $n ?></span><?php endif; ?>
         </a>
       <?php endforeach; ?>
-      <div class="ac-navgroup">Legacy</div>
+      <div class="ac-navgroup">Other surfaces</div>
       <a class="ac-nav" href="/admin/" title="The 37-view admin">
         <span class="ac-navbar"></span><i class="fa-solid fa-table-columns"></i>
         <span class="ac-navlabel">Old dashboard</span>
+      </a>
+      <?php /* The phone subset. It has to be findable from a desk once, or
+               nobody ever discovers it — an admin bookmarks it from here and
+               then reaches it directly. It links back. */ ?>
+      <a class="ac-nav" href="/admin/phone.php" title="Four panels for a phone: decide, today, assign, look up">
+        <span class="ac-navbar"></span><i class="fa-solid fa-mobile-screen-button"></i>
+        <span class="ac-navlabel">Phone view</span>
       </a>
     </div>
 

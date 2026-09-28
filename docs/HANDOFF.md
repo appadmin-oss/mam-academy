@@ -44,7 +44,8 @@ of the `docs/*-audit-*.md` files and comes out of here.
 | **Homepage hero redesign** | ✅ **shipped** — the card is gone; §4o |
 | **The suite runs against MySQL** | ✅ **shipped** — found 7 defects that existed only there |
 | **Every route swept against MySQL, logs read** | ✅ clean — found 3 more (break-glass 401s) |
-| The console's phone subset (`#5b`) | not built — §6.2 |
+| The console's phone subset (`#5b`) | ✅ **shipped 2026-09-28** — `admin/phone.php`, four panels, reversible actions only; the refusal is in the read layer and greppable |
+| Console tables on a phone | ✅ **shipped 2026-09-28** — every table stacks below 720px with a derived label and explicit ARIA roles; was 23 of 31 screens scrolling sideways |
 | **Instructor portal redesign** | ✅ **shipped 2026-09-19** — seven screens on portal-v2; the legacy 13-tab dashboard stays at `classic.html`. `docs/design/2026-08-portal-redesign/BUILD-NOTES-instructor.md` |
 | **Portal UX audit (WCAG 2.2 AA + conventions)** | ✅ **shipped 2026-09-21** — 4 major and 9 minor findings, all fixed and pinned; §4s |
 | **Student portal redesign** | ✅ **shipped 2026-09-21** — five destinations on portal-v2; the legacy dashboard stays at `classic.html`. All three portals now share one palette and one a11y key; §4r |

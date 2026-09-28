@@ -130,6 +130,7 @@ require $ROOT . '/lib/student-portal.php';     // student portal v2 read provide
 require $ROOT . '/lib/fees.php';              // fee invoices, four kinds of aid, payment plans (v87)
 require $ROOT . '/lib/guardian-comms.php';    // guardian threads, channels, make-up credits (v88)
 require $ROOT . '/lib/console.php';           // admin console read model (one provider per screen)
+require $ROOT . '/lib/console-phone.php';     // the console's phone subset (frame #5b)
 
 require __DIR__ . '/assert.php';
 

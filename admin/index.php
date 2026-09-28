@@ -106,8 +106,24 @@ function mam_admin_console_return(string $screen): void {
     // unrecognised name means this was not a console POST, so leave the
     // handler's own redirect alone.
     $screen = strtolower(trim($screen));
-    if (!function_exists('mam_console_screens') || !in_array($screen, mam_console_screens(), true)) return;
-    register_shutdown_function(function () use ($screen) {
+
+    /* The phone subset (admin/phone.php) posts to the same handlers, so it
+       reuses this hook rather than growing a second one — there is one
+       implementation of "waive" and one place that decides where a handler
+       returns to. `phone:<panel>` is validated against that surface's own
+       panel list, exactly as a console screen is validated against
+       mam_console_screens(): an unrecognised name means this was not a POST
+       from either console, so the handler's own redirect is left alone. */
+    $base = '/admin/console.php?';
+    $key  = 'v';
+    if (strncmp($screen, 'phone:', 6) === 0) {
+        $screen = substr($screen, 6);
+        if (!function_exists('mam_phone_panel_ok') || !mam_phone_panel_ok($screen)) return;
+        $base = '/admin/phone.php?'; $key = 'p';
+    } elseif (!function_exists('mam_console_screens') || !in_array($screen, mam_console_screens(), true)) {
+        return;
+    }
+    register_shutdown_function(function () use ($screen, $base, $key) {
         if (headers_sent()) return;
         $loc = null;
         foreach (headers_list() as $h) {
@@ -116,10 +132,10 @@ function mam_admin_console_return(string $screen): void {
         if ($loc === null || $loc === '' || $loc[0] !== '?') return;
         $q = [];
         parse_str(ltrim($loc, '?'), $q);
-        $keep = ['v' => $screen];
+        $keep = [$key => $screen];
         foreach (['ok', 'err'] as $k) if (isset($q[$k]) && is_string($q[$k])) $keep[$k] = $q[$k];
         header_remove('Location');
-        header('Location: /admin/console.php?' . http_build_query($keep));
+        header('Location: ' . $base . http_build_query($keep));
     });
 }
 
