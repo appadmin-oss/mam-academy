@@ -404,6 +404,97 @@
 [data-admin="v2"] .ac-table tbody tr:hover td { background: var(--ac-sunken); }
 [data-admin="v2"] .ac-table tbody tr.is-selected td { background: var(--ac-accent-w); }
 [data-admin="v2"] .ac-num, [data-admin="v2"] .ac-table .ac-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── The table on a phone: a row becomes a card ─────────────────────────────
+   The console is desktop-first and the frame says so, but a table that scrolls
+   sideways hides most of itself on a phone. MEASURED before this rule at
+   390px: 23 of the 31 screens had a horizontally scrolling table, and the
+   vetting matrix hid 918px — more of the row off-screen than on it, with no
+   indication that anything was missing.
+
+   `admin/index.php` already solved this with `table.stack`, so the console was
+   the weaker of the two surfaces on the thing a registrar is most likely to
+   reach for away from a desk. This is that pattern in the console's idiom,
+   with two differences, both of which matter:
+
+   • The label is DERIVED from the column's own header at render time
+     (`ac_label_table_cells()`), never hand-written per cell. The legacy
+     version invites the label and the header to drift apart, and cannot
+     express a column that only exists at runtime.
+   • The table keeps its ARIA roles. ⚠️ Setting `display:block` on a table
+     element drops its implicit role, so the legacy pattern hands a screen
+     reader an unstructured run of text at exactly the width where the visual
+     structure has gone too. The roles are stated explicitly in the same
+     helper, which is what makes this rule safe to apply. */
+@media (max-width: 720px) {
+  [data-admin="v2"] .ac-tablewrap { overflow-x: visible; }
+  [data-admin="v2"] .ac-table,
+  [data-admin="v2"] .ac-table tbody,
+  [data-admin="v2"] .ac-table tr,
+  [data-admin="v2"] .ac-table td { display: block; width: auto; }
+  /* The header row is not hidden from the layout only — each cell now carries
+     its own label, so repeating the header would say everything twice. */
+  [data-admin="v2"] .ac-table thead { display: none; }
+  [data-admin="v2"] .ac-table tr {
+    border: 1px solid var(--ac-line-2); border-radius: var(--ac-r-lg);
+    padding: 6px 2px; margin: 0 0 10px; background: var(--ac-surface);
+  }
+  [data-admin="v2"] .ac-table tbody tr:last-child { margin-bottom: 0; }
+  [data-admin="v2"] .ac-table td {
+    border-bottom: 0; padding: 6px 14px; text-align: left;
+  }
+  /* The label sits BESIDE the value, not above it — the frame's own Look up
+     panel does the same ("Stage", "Enrolment", "Balance" in a fixed left
+     column). Stacking it cost a line per cell and put the median row card at
+     245px of an 844px phone, about three rows a screen.
+
+     `inline-block` rather than a flex or grid column, because a cell's content
+     is not one thing: MEASURED over the 677 body cells the console renders,
+     54% are bare text and 23% a single inline element — those flow onto the
+     label's line — while the ~18% carrying a block child (a name over its
+     `.ac-sub` email) let that child break below exactly as it does now. A flex
+     or grid column would have to name the value, and a bare text node cannot
+     be named by a selector.
+
+     `min-width`, not `width`: a long label (the vetting matrix has
+     "Safeguarding training") pushes its own value along rather than being
+     truncated. The column stops lining up at that point, which is the right
+     way round — a ragged label column is a cosmetic loss, a clipped one hides
+     which column a value belongs to. */
+  [data-admin="v2"] .ac-table td::before {
+    content: attr(data-label); display: inline-block; min-width: 92px;
+    margin-right: 10px; vertical-align: baseline;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ac-ink-4);
+  }
+  /* ⚠️ …but only where the value is a single run. A cell holding a BLOCK —
+     a name over its `.ac-sub` email, a two-line figure — breaks that block
+     onto the next line starting at the left margin, where it reads as its own
+     unlabelled field rather than as part of this one. MEASURED on the students
+     screen: "0 courses" sat beside LEARNING and "1 legacy class" underneath it
+     at x=0, looking like a separate row.
+
+     Those cells keep the label ABOVE, which is how a card states a value with
+     more than one part. `:has()` is what makes the distinction expressible;
+     where it is unsupported every cell simply keeps the inline label, which is
+     the slightly ragged version rather than a broken one. */
+  [data-admin="v2"] .ac-table td:has(> div)::before,
+  [data-admin="v2"] .ac-table td:has(> ul)::before,
+  [data-admin="v2"] .ac-table td:has(> p)::before,
+  [data-admin="v2"] .ac-table td:has(> table)::before {
+    display: block; min-width: 0; margin: 0 0 3px;
+  }
+  /* A cell whose column has no name of its own — an actions column, the second
+     half of a spanned header — would otherwise print an empty label box. */
+  [data-admin="v2"] .ac-table td[data-label=""]::before { display: none; }
+  /* A figure right-aligned in a column reads as centred nonsense in a card. */
+  [data-admin="v2"] .ac-table .ac-num { text-align: left; }
+  [data-admin="v2"] .ac-table tbody tr:hover td { background: transparent; }
+  [data-admin="v2"] .ac-table tbody tr.is-selected {
+    border-color: var(--ac-accent); background: var(--ac-accent-w);
+  }
+  [data-admin="v2"] .ac-table tbody tr.is-selected td { background: transparent; }
+}
 [data-admin="v2"] .ac-mono { font-family: var(--ac-mono); font-size: 12px; }
 [data-admin="v2"] .ac-strong { font-weight: 700; }
 [data-admin="v2"] .ac-sub { font-size: 11.5px; color: var(--ac-ink-4); margin-top: 3px; line-height: 1.5; }

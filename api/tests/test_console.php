@@ -378,3 +378,89 @@ $MK_src = file_get_contents(dirname(__DIR__) . '/lib/marking.php');
 foreach (['detectPitch', 'autoscore', 'auto_score', 'analyse_audio'] as $MK_no) {
     t_ok(!str_contains($MK_src, $MK_no), "marking.php contains no '$MK_no' — it helps a human mark, it never marks");
 }
+
+t_group('console — a table row becomes a labelled card on a phone');
+
+/* MEASURED before this existed, at 390px: 23 of the 31 screens had a table
+   scrolling sideways, and the vetting matrix hid 918px — more of the row off
+   the screen than on it, with nothing to say so. `admin/index.php` already
+   stacked its tables, so the console was the weaker surface on the thing a
+   registrar reaches for away from a desk.
+
+   The label is derived from the column's own header rather than hand-written
+   per cell, which is what these assertions are really protecting: a written
+   label can drift from its header, and cannot follow a column that does not
+   exist until runtime. */
+require_once dirname(dirname(__DIR__)) . '/partials/admin-console/_ui.php';
+
+$CT_in = '<div class="ac-tablewrap"><table class="ac-table">'
+    . '<thead><tr><th>Instructor</th><th>Identity</th><th colspan="2">Clearance</th></tr></thead>'
+    . '<tbody>'
+    . '<tr><td>Ada &amp; Co</td><td><span class="ac-pill">Missing</span></td><td>No</td><td>—</td></tr>'
+    . '<tr><td colspan="4"><div class="ac-empty">Nothing yet.</div></td></tr>'
+    . '</tbody></table></div>';
+$CT_out = ac_label_table_cells($CT_in);
+
+t_ok(str_contains($CT_out, 'data-label="Instructor"'), 'a body cell takes its label from its own column header');
+t_ok(str_contains($CT_out, 'data-label="Identity"'), '…including a cell whose value is an element rather than text');
+t_ok(str_contains($CT_out, 'data-label="Clearance"'),
+    'a header spanning two columns labels the FIRST of them');
+t_ok(substr_count($CT_out, 'data-label=""') === 1,
+    '…and the second carries an EMPTY label, not the next header along — the map advances by colspan, never by position');
+
+/* The empty state is a message, not a value. Labelling it with the first
+   column's name would read as a row whose Instructor is "Nothing yet." */
+t_ok(!preg_match('/colspan="4"[^>]*data-label/', $CT_out),
+    'a cell spanning the whole table is left unlabelled');
+
+/* ⚠️ Setting display:block on a table element DROPS its implicit ARIA role,
+   so the phone layout would hand a screen reader an unstructured run of text
+   at exactly the width where the visual structure has gone too. This is what
+   makes the stacking rule safe to apply. */
+t_ok(str_contains($CT_out, '<table class="ac-table" role="table"') || str_contains($CT_out, 'role="table"'),
+    'the table states its role explicitly, because the phone layout changes its display');
+foreach (['rowgroup', 'row', 'columnheader', 'cell'] as $CT_role) {
+    t_ok(str_contains($CT_out, 'role="' . $CT_role . '"'), "…and so does every $CT_role");
+}
+
+/* LOSSLESS. The helper runs over every console screen on every page load, so
+   the one thing it must never do is quietly rewrite the markup around the
+   attribute it adds. Compared against a bare DOM round-trip so that
+   normalisation is not mistaken for damage. */
+$CT_roundtrip = static function (string $html): string {
+    $prev = libxml_use_internal_errors(true);
+    $doc  = new DOMDocument();
+    $ok = $doc->loadHTML('<?xml encoding="UTF-8" ?><div data-ac-root="1">' . $html . '</div>',
+        LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors(); libxml_use_internal_errors($prev);
+    if (!$ok) return $html;
+    $root = $doc->getElementsByTagName('div')->item(0); $o = '';
+    foreach ($root->childNodes as $c) $o .= $doc->saveHTML($c);
+    return $o;
+};
+$CT_stripped = preg_replace('/ (?:data-label|role)="[^"]*"/', '', $CT_out);
+t_eq($CT_stripped, $CT_roundtrip($CT_in),
+    'the helper adds attributes and changes NOTHING else');
+
+// A screen with no table must not pay for a DOM parse, and must come back identical.
+$CT_plain = '<div class="ac-card"><p>No table here. Naira: ₦1,500 — em dash kept.</p></div>';
+t_eq(ac_label_table_cells($CT_plain), $CT_plain, 'a screen with no table is returned untouched, byte for byte');
+
+// Non-ASCII must survive: DOMDocument reads a fragment as Latin-1 unless told.
+t_ok(str_contains(ac_label_table_cells(
+        '<table class="ac-table"><thead><tr><th>Owed</th></tr></thead><tbody><tr><td>₦1,500 · naïve</td></tr></tbody></table>'),
+     '₦1,500 · naïve'),
+    'UTF-8 survives the round trip — a naira sign must not become mojibake');
+
+/* The shell has to actually call it, or every assertion above is about a
+   function nothing runs. */
+$CT_shell = (string) file_get_contents(dirname(dirname(__DIR__)) . '/admin/console.php');
+t_ok(str_contains($CT_shell, 'ac_label_table_cells('),
+    'the console shell runs the labeller over the rendered screen');
+
+// And the stylesheet has to have the rule the labels exist for.
+$CT_css = (string) file_get_contents(dirname(dirname(__DIR__)) . '/assets/css/admin-v2.css');
+t_ok(str_contains($CT_css, 'content: attr(data-label)'),
+    'the phone rule prints the label it is given');
+t_ok(preg_match('/@media \(max-width: 720px\)/', $CT_css) === 1,
+    'the stacking is confined to a phone — the desktop table is unchanged');

@@ -275,7 +275,17 @@ foreach ($nav as $g) {
       <?php
         $file = __DIR__ . '/../partials/admin-console/' . $screen . '.php';
         if (is_file($file)) {
+            /* Buffered so `ac_label_table_cells()` can stamp each body cell
+               with its own column's header. The phone layout stacks a row into
+               a card, and a value in a card needs to say what it is — deriving
+               the label here means it cannot drift from the header, and it
+               works for the screens whose columns are generated at runtime
+               (vetting.php emits one per required clearance), which a
+               hand-written attribute cannot. The helper is a no-op on a screen
+               with no table. */
+            ob_start();
             include $file;
+            echo ac_label_table_cells((string) ob_get_clean());
         } else {
             ac_head($labels[$screen] ?? 'Screen', 'This screen has no renderer yet.');
         }

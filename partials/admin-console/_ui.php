@@ -182,3 +182,118 @@ function ac_money_dual(int $usdCents, ?float $rate = null): string {
 function ac_table_empty(int $cols, string $text): void { ?>
   <tr><td colspan="<?= (int) $cols ?>"><div class="ac-empty"><?= ac_h($text) ?></div></td></tr>
 <?php }
+
+/**
+ * Stamp `data-label` onto every body cell of every `.ac-table`, taking the
+ * label from the column's own header.
+ *
+ * ── WHY THIS IS DERIVED AND NOT WRITTEN INTO THE PARTIALS ─────────────────
+ * The phone layout turns each row into a card, and a cell in a card has to
+ * carry its own column name or it is a value with nothing to say what it is.
+ * The legacy dashboard does this with a hand-written `data-label` on each
+ * `<td>` (admin/index.php, `table.stack`). Copying that here would mean 229
+ * attributes across 32 partials — and it would be WRONG, not merely tedious:
+ * `vetting.php` emits one column per required clearance type in a `foreach`,
+ * so its headers are not known until the row is rendered. A hand-written
+ * label cannot follow a column that does not exist until runtime.
+ *
+ * Deriving it from the `<thead>` also means the label cannot drift from the
+ * header, which is the failure the legacy pattern invites: rename a column and
+ * the desktop says one thing while the phone says another.
+ *
+ * ⚠️ A header cell may span columns, so the map is built by ADVANCING a column
+ * index by each `colspan`, never by array position. Same on the way out — a
+ * cell spanning the table (the empty state that `ac_table_empty()` writes) is
+ * skipped rather than labelled with the first column's name.
+ *
+ * Lossless by construction and by test: `test_console.php` strips the
+ * attribute back off every screen's output and asserts the result is byte
+ * for byte what went in, so this can never quietly rewrite a screen.
+ */
+function ac_label_table_cells(string $html): string {
+    // Nothing to do, and no reason to pay for a DOM parse.
+    if (stripos($html, 'ac-table') === false) return $html;
+
+    $prev = libxml_use_internal_errors(true);
+    $doc  = new DOMDocument();
+    /* The fragment is a fragment: no <html>, no doctype, and the encoding
+       stated up front because DOMDocument otherwise reads it as Latin-1 and
+       turns every naira sign into mojibake. */
+    $ok = $doc->loadHTML(
+        '<?xml encoding="UTF-8" ?><div data-ac-root="1">' . $html . '</div>',
+        LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+    );
+    libxml_clear_errors();
+    libxml_use_internal_errors($prev);
+    if (!$ok) return $html;               // Unparseable: ship the screen as it is.
+
+    $root = $doc->getElementsByTagName('div')->item(0);
+    if (!$root || !$root->hasAttribute('data-ac-root')) return $html;
+
+    foreach (iterator_to_array($doc->getElementsByTagName('table')) as $table) {
+        if (strpos(' ' . $table->getAttribute('class') . ' ', ' ac-table ') === false) continue;
+
+        /* ⚠️ EXPLICIT ROLES, and they are not decoration. The phone layout sets
+           `display:block` on the table, its rows and its cells to stack them as
+           cards — and changing `display` on a table element DROPS that element's
+           implicit ARIA role. A stacked table without these reads to a screen
+           reader as an unstructured run of text, which is precisely the
+           regression the legacy `table.stack` pattern shipped. Stating each role
+           restores the structure the layout took away.
+
+           They are set unconditionally rather than at the breakpoint because a
+           role cannot be applied by a media query. On a desktop each one names
+           exactly the implicit role it replaces, so it changes nothing there. */
+        $table->setAttribute('role', 'table');
+        foreach ($table->getElementsByTagName('thead') as $g) $g->setAttribute('role', 'rowgroup');
+        foreach ($table->getElementsByTagName('tbody') as $g) $g->setAttribute('role', 'rowgroup');
+        foreach ($table->getElementsByTagName('tr')    as $r) $r->setAttribute('role', 'row');
+        foreach ($table->getElementsByTagName('th')    as $c) {
+            $c->setAttribute('role', $c->getAttribute('scope') === 'row' ? 'rowheader' : 'columnheader');
+        }
+        foreach ($table->getElementsByTagName('td')    as $c) $c->setAttribute('role', 'cell');
+
+        // Column index → header text, advancing by colspan.
+        $labels = [];
+        $head   = null;
+        foreach ($table->childNodes as $child) {
+            if ($child instanceof DOMElement && strtolower($child->nodeName) === 'thead') { $head = $child; break; }
+        }
+        if (!$head) continue;
+        $headRow = null;
+        foreach ($head->getElementsByTagName('tr') as $tr) { $headRow = $tr; break; }
+        if (!$headRow) continue;
+        $col = 0;
+        foreach ($headRow->childNodes as $th) {
+            if (!($th instanceof DOMElement) || strtolower($th->nodeName) !== 'th') continue;
+            $span = max(1, (int) ($th->getAttribute('colspan') ?: 1));
+            $text = trim(preg_replace('/\s+/u', ' ', (string) $th->textContent));
+            for ($i = 0; $i < $span; $i++) $labels[$col + $i] = $i === 0 ? $text : '';
+            $col += $span;
+        }
+        $width = $col;
+        if (!$width) continue;
+
+        foreach ($table->getElementsByTagName('tbody') as $body) {
+            foreach ($body->getElementsByTagName('tr') as $tr) {
+                $col = 0;
+                foreach ($tr->childNodes as $td) {
+                    if (!($td instanceof DOMElement) || strtolower($td->nodeName) !== 'td') continue;
+                    $span = max(1, (int) ($td->getAttribute('colspan') ?: 1));
+                    /* A cell spanning the whole table is a message, not a
+                       value — the empty state, a full-width note. Labelling it
+                       with the first column's name is worse than not labelling
+                       it, so it is left alone. */
+                    if ($span < $width && !$td->hasAttribute('data-label')) {
+                        $td->setAttribute('data-label', $labels[$col] ?? '');
+                    }
+                    $col += $span;
+                }
+            }
+        }
+    }
+
+    $out = '';
+    foreach ($root->childNodes as $child) $out .= $doc->saveHTML($child);
+    return $out;
+}
