@@ -56,7 +56,7 @@ a{color:var(--gold);text-decoration:none}
 .landing-card h2{font-family:'Cormorant Garamond',serif;font-size:2rem;font-weight:700;margin-bottom:6px}
 .landing-eyebrow{font-size:0.78rem;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-soft);margin-bottom:10px}
 .landing-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:14px 0 24px}
-.landing-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;background:var(--gold-light);border-radius:20px;font-size:0.77rem;color:var(--text-muted);font-weight:500}
+.landing-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 11px;background:var(--gold-light);border-radius:20px;font-size:0.77rem;color:var(--text-muted);font-weight:500}
 .landing-chip i{color:var(--gold);font-size:0.72rem}
 .field{margin-bottom:16px;text-align:left}
 .field label{display:block;font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em}
@@ -157,8 +157,8 @@ table{width:100%;border-collapse:collapse;font-size:0.87rem}
 th{text-align:left;font-weight:600;color:var(--text-muted);font-size:0.74rem;text-transform:uppercase;letter-spacing:0.06em;padding:9px 14px;border-bottom:1.5px solid var(--border)}
 td{padding:9px 14px;border-bottom:1px solid var(--border-soft);vertical-align:middle}
 tr:last-child td{border-bottom:none}
-.score-bar{height:6px;background:var(--border);border-radius:3px;margin-top:4px;min-width:60px}
-.score-fill{height:100%;border-radius:3px}
+.score-bar{height:6px;background:var(--border);border-radius:4px;margin-top:4px;min-width:60px}
+.score-fill{height:100%;border-radius:4px}
 
 /* Certificates */
 .cert-list{padding:0}

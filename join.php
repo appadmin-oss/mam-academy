@@ -180,7 +180,7 @@ http_response_code($errorCode === 'not_found' ? 404 : ($errorCode === 'not_enrol
   }
   .box {
     background: #fff;
-    border-radius: 14px;
+    border-radius:12px;
     padding: 40px 32px;
     max-width: 420px;
     width: 100%;

@@ -24,11 +24,11 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-
 .header h1{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:700}
 .header p{font-size:0.88rem;opacity:0.88;margin-top:2px}
 .container{max-width:860px;margin:0 auto;padding:24px 20px}
-.student-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px 24px;display:flex;align-items:center;gap:18px;margin-bottom:20px}
+.student-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 24px;display:flex;align-items:center;gap:18px;margin-bottom:20px}
 .student-avatar{width:56px;height:56px;border-radius:50%;background:var(--gold-light);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;color:var(--gold);flex-shrink:0}
 .student-name{font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:700}
 .student-meta{font-size:0.84rem;color:var(--muted);margin-top:2px}
-.section{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:20px;overflow:hidden}
+.section{background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:20px;overflow:hidden}
 .section-head{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
 .section-head h2{font-size:0.95rem;font-weight:700;flex:1}
 .section-head i{color:var(--gold)}

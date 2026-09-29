@@ -66,7 +66,7 @@ if ($showChooser) {
 .pc-card{
   display:flex;flex-direction:column;align-items:flex-start;gap:10px;
   background:#1A120B;border:1.5px solid rgba(224,138,26,.22);
-  border-radius:18px;padding:clamp(20px,4vw,28px);
+  border-radius:16px;padding:clamp(20px,4vw,28px);
   text-align:left;cursor:pointer;text-decoration:none;
   transition:transform .18s,box-shadow .18s,border-color .18s;
 }
@@ -898,7 +898,7 @@ if ($showChooser) {
     /* Step-1 additions: conditional substeps, save badge, included-courses note,
        silent-session note. Scoped to apply-specific classes. */
     .substep{margin-top:6px}
-    .prog-badge{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:#34D399;color:#062b1e;font-size:0.66rem;font-weight:800;letter-spacing:0.03em;vertical-align:middle}
+    .prog-badge{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:100px;background:#34D399;color:#062b1e;font-size:0.66rem;font-weight:800;letter-spacing:0.03em;vertical-align:middle}
     .substep-note{display:flex;gap:8px;align-items:flex-start;font-size:0.84rem;color:var(--text-muted);margin:10px 2px 0;line-height:1.5}
     .substep-note i{color:var(--gold-bright);margin-top:2px}
     .compulsory-note{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin:0 0 14px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.28);border-radius:12px;font-size:0.86rem;color:var(--text-soft);line-height:1.5}
@@ -907,7 +907,7 @@ if ($showChooser) {
     .session-note i{color:var(--gold-bright);font-size:1.05rem}
     .session-note span{display:block;font-size:0.78rem;color:var(--text-muted);margin-top:2px}
     .summary-discount span:last-child{color:#34D399;font-weight:700}
-    .pay-card{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;padding:22px;margin:0 0 22px;background:linear-gradient(160deg,rgba(224,138,26,0.10),var(--bg-surface));border:1px solid var(--border-gold);border-radius:18px}
+    .pay-card{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;padding:22px;margin:0 0 22px;background:linear-gradient(160deg,rgba(224,138,26,0.10),var(--bg-surface));border:1px solid var(--border-gold);border-radius:16px}
     @media (max-width:560px){.pay-card{grid-template-columns:1fr;text-align:center}.pay-card-covers{text-align:left}}
     .pay-card-amount{font-family:var(--font-display);font-size:3.4rem;line-height:1;color:var(--text);letter-spacing:0.02em}
     .pay-card-meta{font-size:0.84rem;color:var(--text-muted);margin-top:6px;letter-spacing:0.02em}

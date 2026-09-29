@@ -121,7 +121,7 @@
   <style>
     .mam-photos{display:grid;grid-template-columns:1.2fr 1fr;gap:22px;align-items:stretch}
     @media (max-width:760px){.mam-photos{grid-template-columns:1fr}}
-    .mam-photo{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--border-gold,rgba(224,138,26,.35));background:linear-gradient(135deg,#241710,#120D08);min-height:300px;margin:0}
+    .mam-photo{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--border-gold,rgba(224,138,26,.35));background:linear-gradient(135deg,#241710,#120D08);min-height:300px;margin:0}
     .mam-photo img{width:100%;height:100%;object-fit:cover;display:block;min-height:300px}
     .mam-photo figcaption{position:absolute;left:0;right:0;bottom:0;padding:16px 18px;background:linear-gradient(transparent,rgba(10,7,4,.88));color:#fff;font-size:.92rem;font-weight:600}
     .mam-photo.is-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}

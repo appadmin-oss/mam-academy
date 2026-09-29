@@ -31,7 +31,7 @@
 <style>
   /* Self-contained journey layout — uses the site design tokens so it matches
      the dark-gold system in both the light and dark palettes. */
-  .hiw-intro{max-width:720px;margin:0 auto 8px;text-align:center;color:var(--text-soft);font-size:1.02rem;line-height:1.7}
+  .hiw-intro{max-width:var(--measure);margin:0 auto 8px;text-align:center;color:var(--text-soft);font-size:1.02rem;line-height:1.7}
   .hiw-steps{max-width:820px;margin:36px auto 0;position:relative;padding-left:8px}
   .hiw-step{position:relative;display:grid;grid-template-columns:56px 1fr;gap:20px;padding:0 0 30px 0}
   .hiw-step:last-child{padding-bottom:0}
@@ -43,10 +43,10 @@
   .hiw-card h3{font-family:var(--font-serif,Georgia,serif);font-size:1.28rem;color:var(--text,#fff);margin:0 0 6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .hiw-card h3 i{color:var(--gold-bright,#FCC647);font-size:1rem}
   .hiw-eyebrow{font-size:.75rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-bright,#FCC647)}
-  .hiw-card p{color:var(--text-soft,#cbb89e);font-size:.95rem;line-height:1.65;margin:6px 0 0}
+  .hiw-card p{max-width:var(--measure);color:var(--text-soft,#cbb89e);font-size:.95rem;line-height:1.65;margin:6px 0 0}
   .hiw-card p a{color:var(--gold-bright,#FCC647);text-decoration:underline;text-underline-offset:2px}
   .hiw-timeframe{display:inline-block;margin-top:10px;font-size:.76rem;font-weight:700;color:var(--gold-bright,#FCC647);background:rgba(224,138,26,.12);border:1px solid var(--border-gold,rgba(224,138,26,.4));border-radius:100px;padding:3px 11px}
-  .hiw-reassure{max-width:820px;margin:34px auto 0;display:flex;gap:12px;align-items:flex-start;background:rgba(224,138,26,.06);border:1px dashed var(--border-gold,rgba(224,138,26,.4));border-radius:14px;padding:16px 18px;color:var(--text-soft,#cbb89e);font-size:.92rem;line-height:1.6}
+  .hiw-reassure{max-width:820px;margin:34px auto 0;display:flex;gap:12px;align-items:flex-start;background:rgba(224,138,26,.06);border:1px dashed var(--border-gold,rgba(224,138,26,.4));border-radius:12px;padding:16px 18px;color:var(--text-soft,#cbb89e);font-size:.92rem;line-height:1.6}
   .hiw-reassure i{color:var(--gold-bright,#FCC647);margin-top:3px;flex-shrink:0}
   .hiw-cta{max-width:820px;margin:36px auto 0;text-align:center}
   .hiw-cta .btn{margin:6px}

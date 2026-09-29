@@ -256,7 +256,7 @@
 .choice-card-price{font-family:var(--font-display);font-size:1.35rem;color:var(--gold-bright);line-height:1;flex-shrink:0;letter-spacing:0.02em}
 /* Non-price descriptor pill shown where a price used to be — tuition is never
    displayed in the form (it's discussed after the Auditer and is negotiable). */
-.choice-card-tag{flex-shrink:0;font-size:0.75rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--gold-bright);background:rgba(224,138,26,0.12);border:1px solid var(--border-gold);border-radius:999px;padding:4px 10px;white-space:nowrap}
+.choice-card-tag{flex-shrink:0;font-size:0.75rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--gold-bright);background:rgba(224,138,26,0.12);border:1px solid var(--border-gold);border-radius:100px;padding:4px 10px;white-space:nowrap}
 .choice-card-desc{font-size:0.84rem;color:var(--text-muted);line-height:1.55}
 .choice-card-icon{display:none}
 .choice-card:hover .choice-card-icon{opacity:1;border-color:var(--border-gold)}
@@ -273,7 +273,7 @@
 .btn-step:focus-visible,.btn-pay:focus-visible{outline:2px solid var(--gold-bright);outline-offset:3px}
 
 /* Consent block: bigger tap target, clearer checked state for feedback. */
-.consent{display:flex;gap:13px;align-items:flex-start;cursor:pointer;padding:16px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);margin-bottom:20px;transition:border-color 0.2s var(--ease),background 0.2s var(--ease)}
+.consent{display:flex;gap:12px;align-items:flex-start;cursor:pointer;padding:16px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);margin-bottom:20px;transition:border-color 0.2s var(--ease),background 0.2s var(--ease)}
 .consent:hover{border-color:var(--border-gold)}
 .consent:has(input:checked){border-color:var(--gold-bright);background:rgba(224,138,26,0.06)}
 .consent:has(input:focus-visible){outline:2px solid var(--gold-bright);outline-offset:2px}
@@ -428,12 +428,12 @@ body.mam-advisor-open #applyMobileBar{display:none!important}
    the wizard — the form stays fully visible and usable beneath it. --- */
 .adv-invite-host{display:block;margin:0 0 20px}
 .adv-invite{display:flex;align-items:center;justify-content:space-between;gap:16px 20px;flex-wrap:wrap;padding:16px 20px;border-radius:var(--radius-md,16px);border:1px solid var(--border-gold,var(--border));background:linear-gradient(135deg,rgba(224,138,26,0.12),rgba(251,191,36,0.04))}
-.adv-invite-text{display:flex;flex-direction:column;gap:3px;min-width:min(100%,260px)}
+.adv-invite-text{display:flex;flex-direction:column;gap:4px;min-width:min(100%,260px)}
 .adv-invite-title{font-weight:800;font-size:1rem;color:var(--text);display:inline-flex;align-items:center;gap:8px}
 .adv-invite-title i{color:var(--gold-bright)}
 .adv-invite-sub{font-size:0.88rem;color:var(--text-soft);line-height:1.5}
 .adv-invite-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.adv-invite-go{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:11px 20px;border-radius:11px;font-weight:800;font-size:0.92rem;cursor:pointer;border:1.5px solid transparent;background:linear-gradient(135deg,var(--gold),var(--gold-light,var(--gold-bright)));color:#1A120B}
+.adv-invite-go{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:11px 20px;border-radius:12px;font-weight:800;font-size:0.92rem;cursor:pointer;border:1.5px solid transparent;background:linear-gradient(135deg,var(--gold),var(--gold-light,var(--gold-bright)));color:#1A120B}
 .adv-invite-go:hover{filter:brightness(1.05)}
 .adv-invite-go:focus-visible,.adv-invite-dismiss:focus-visible{outline:2px solid var(--gold-bright);outline-offset:2px}
 .adv-invite-dismiss{background:none;border:0;color:var(--text-muted);font-size:0.86rem;font-weight:600;cursor:pointer;min-height:44px;padding:10px 14px;border-radius:8px}
@@ -469,7 +469,7 @@ body.mam-advisor-open #applyMobileBar{display:none!important}
 .adv-opt.selected{border-color:var(--gold);background:linear-gradient(135deg,rgba(224,138,26,0.14),rgba(251,191,36,0.05))}
 .adv-opt.selected i{color:var(--gold-bright)}
 .adv-nav{display:flex;justify-content:space-between;gap:12px;margin-top:22px}
-.adv-btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:11px;font-weight:800;font-size:0.95rem;cursor:pointer;border:1.5px solid transparent}
+.adv-btn{display:inline-flex;align-items:center;gap:8px;padding:13px 22px;border-radius:12px;font-weight:800;font-size:0.95rem;cursor:pointer;border:1.5px solid transparent}
 .adv-btn.ghost{background:transparent;border-color:var(--border);color:var(--text-soft)}
 .adv-btn.ghost:hover:not(:disabled){border-color:var(--gold-bright);color:var(--text)}
 .adv-btn.primary{background:linear-gradient(135deg,var(--gold),var(--gold-light,var(--gold-bright)));color:#1A120B}
@@ -508,7 +508,7 @@ body.mam-advisor-open #applyMobileBar{display:none!important}
 /* Advisor: AI "your advisor" note + the summary-panel recommendation chip */
 .adv-reco-note{margin:0 0 12px;padding:12px 14px;border-radius:10px;background:rgba(99,102,241,0.09);border:1px solid rgba(99,102,241,0.28);color:var(--text-soft);font-size:0.88rem;line-height:1.6}
 .adv-reco-note-badge{display:inline-flex;align-items:center;gap:6px;font-size:0.68rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#A5B4FC;margin-right:8px}
-.adv-chip{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 14px;padding:11px 14px;border-radius:11px;background:linear-gradient(135deg,rgba(224,138,26,0.12),rgba(251,191,36,0.05));border:1px solid var(--border-gold,var(--border));font-size:0.86rem;color:var(--text-soft)}
+.adv-chip{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 14px;padding:11px 14px;border-radius:12px;background:linear-gradient(135deg,rgba(224,138,26,0.12),rgba(251,191,36,0.05));border:1px solid var(--border-gold,var(--border));font-size:0.86rem;color:var(--text-soft)}
 .adv-chip strong{color:var(--text)}
 .adv-chip i{color:var(--gold-bright);margin-right:5px}
 .adv-chip button{flex-shrink:0;background:transparent;border:1px solid var(--border);color:var(--gold-bright);border-radius:8px;padding:5px 12px;font-size:0.78rem;font-weight:700;cursor:pointer}
@@ -909,7 +909,7 @@ body[data-fac-app] .resume-banner button:hover { border-color: var(--gold-bright
 .fac-inline-disc { display: inline; }
 .fac-inline-disc > summary { display: inline; list-style: none; cursor: pointer; color: var(--gold-bright); font-weight: 650; white-space: nowrap; }
 .fac-inline-disc > summary::-webkit-details-marker { display: none; }
-.fac-inline-disc > summary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, 0.32); border-radius: 6px; }
+.fac-inline-disc > summary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(252, 198, 71, 0.32); border-radius:8px; }
 .fac-inline-body { margin: 14px 0 0; font-size: 14px; line-height: 1.6; color: var(--text-muted); }
 .fac-inline-body p { margin: 0 0 10px; }
 .fac-inline-body p:last-child { margin-bottom: 0; }
@@ -933,7 +933,7 @@ body[data-fac-app] .resume-banner button:hover { border-color: var(--gold-bright
 .fac-consent input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
 .fac-consent-box {
   width: 24px; height: 24px; flex-shrink: 0; margin-top: 2px;
-  border: 1.5px solid var(--border-strong); border-radius: 6px;
+  border: 1.5px solid var(--border-strong); border-radius:8px;
   display: flex; align-items: center; justify-content: center; color: var(--fac-ink);
   transition: background 0.15s ease, border-color 0.15s ease;
 }
@@ -1053,7 +1053,7 @@ body[data-fac-app] .resume-banner button:hover { border-color: var(--gold-bright
 
   .fac-sofar { display: flex; flex-direction: column; gap: 14px; padding-top: 24px; border-top: 1px solid var(--fac-line); }
   .fac-sofar-head { font-size: 12.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
-  .fac-sofar-item { display: flex; flex-direction: column; gap: 3px; }
+  .fac-sofar-item { display: flex; flex-direction: column; gap:4px; }
   .fac-sofar-name { font-size: 14.5px; font-weight: 650; color: var(--text); line-height: 1.3; }
   .fac-sofar-detail { font-size: 13px; color: var(--text-faint); }
   .fac-sofar-foot { font-size: 13px; color: var(--text-faint); line-height: 1.55; margin: 0; }
@@ -1158,8 +1158,8 @@ html.js .a-appbar{display:flex}
 .a-exit{min-height:44px;padding:0 4px;background:none;border:0;color:var(--text-muted);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0}
 .a-exit:hover,.a-exit:focus-visible{color:var(--gold-bright)}
 
-.a-prog{position:relative;height:2px;margin:0 20px;background:rgba(232,201,160,0.16);border-radius:1px;overflow:hidden}
-.a-prog-fill{display:block;height:100%;width:0;background:var(--gold-bright);border-radius:1px;transition:width 0.35s var(--ease)}
+.a-prog{position:relative;height:2px;margin:0 20px;background:rgba(232,201,160,0.16);border-radius:4px;overflow:hidden}
+.a-prog-fill{display:block;height:100%;width:0;background:var(--gold-bright);border-radius:4px;transition:width 0.35s var(--ease)}
 @media (prefers-reduced-motion:reduce){.a-prog-fill{transition:none}}
 
 /* ── Screens ─────────────────────────────────────────────────────────────── */
@@ -1192,11 +1192,11 @@ html.js .a-appbar{display:flex}
    and the keyboard has to be able to reach a radio group. */
 .a-row input,.a-card input,.a-reg input,.a-consent input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
 .a-mark{flex-shrink:0;width:24px;height:24px;border:1.5px solid var(--border-strong);border-radius:50%;display:flex;align-items:center;justify-content:center;color:transparent;font-size:11px;transition:background 0.18s var(--ease),border-color 0.18s var(--ease),color 0.18s var(--ease)}
-.a-reg .a-mark,.a-consent .a-mark{border-radius:6px}
+.a-reg .a-mark,.a-consent .a-mark{border-radius:8px}
 /* A circle means pick ONE and a rounded square means pick as many as you like.
    The extra-courses rows are checkboxes, so they get the square — the shape is
    the only thing on the row that says which kind of choice this is. */
-.a-row:has(input[type="checkbox"]) .a-mark{border-radius:6px}
+.a-row:has(input[type="checkbox"]) .a-mark{border-radius:8px}
 :checked ~ .a-mark,.a-row input:checked + .a-mark,.a-card input:checked + .a-mark,.a-reg input:checked + .a-mark,.a-consent input:checked + .a-mark{background:var(--gold-bright);border-color:var(--gold-bright);color:#1A120B}
 .a-row input:focus-visible + .a-mark,.a-card input:focus-visible + .a-mark,.a-reg input:focus-visible + .a-mark,.a-consent input:focus-visible + .a-mark{outline:2px solid var(--gold-bright);outline-offset:3px}
 
@@ -1216,7 +1216,7 @@ html.js .a-appbar{display:flex}
 /* ── Cards (1a only — two options that need a sentence each) ─────────────── */
 
 .a-cards{display:flex;flex-direction:column;gap:10px}
-.a-card{position:relative;display:flex;align-items:flex-start;gap:14px;padding:16px;border:1.5px solid rgba(232,201,160,0.30);border-radius:14px;cursor:pointer;transition:border-color 0.18s var(--ease),background 0.18s var(--ease)}
+.a-card{position:relative;display:flex;align-items:flex-start;gap:14px;padding:16px;border:1.5px solid rgba(232,201,160,0.30);border-radius:12px;cursor:pointer;transition:border-color 0.18s var(--ease),background 0.18s var(--ease)}
 .a-card:has(input:checked){border-color:var(--gold-bright);background:rgba(252,198,71,0.12)}
 .a-card .a-mark{margin-top:1px}
 .a-card-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
@@ -1369,7 +1369,7 @@ html.js .a-bar{display:flex}
   .a-fields .field:has(.field-textarea),.a-fields > .field:only-child{grid-column:1 / -1}
   /* `align-self:stretch` is load-bearing: the column has to opt back out of the
      grid's `align-items:start`, or its left rule stops partway down. */
-  .a-side{display:flex;flex-direction:column;gap:26px;align-self:stretch;position:sticky;top:24px;padding-left:40px;border-left:1px solid rgba(232,201,160,0.16)}
+  .a-side{display:flex;flex-direction:column;gap:24px;align-self:stretch;position:sticky;top:24px;padding-left:40px;border-left:1px solid rgba(232,201,160,0.16)}
   /* ⚠️ Both need the `html.js` prefix, not just the first. `html.js .js-only
      { display: revert }` is (0,2,1) and beats a bare `.a-prog` (0,1,0) even
      inside a media query — the sixth appearance of this trap in this file.
@@ -1400,7 +1400,7 @@ html.js .a-bar{display:flex}
 .apply-main{background:none;border:0;border-radius:0;padding:26px 20px;overflow:visible;box-shadow:none}
 .apply-main::before{display:none}
 .a-sub .field-error{margin-top:-8px}
-.a-noscript{margin:26px 20px;padding:16px;border:1.5px solid var(--border-strong);border-radius:14px;display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.6;color:var(--text-soft)}
+.a-noscript{margin:26px 20px;padding:16px;border:1.5px solid var(--border-strong);border-radius:12px;display:flex;flex-direction:column;gap:10px;font-size:14px;line-height:1.6;color:var(--text-soft)}
 .a-noscript a{color:var(--gold-bright);text-decoration:underline;text-underline-offset:2px}
 /* The intake is resolved silently from the academic calendar and is already a
    row on the review screen. As a dashed panel under EVERY screen of step 1 it

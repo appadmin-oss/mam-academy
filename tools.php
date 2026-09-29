@@ -40,7 +40,7 @@
 <link rel="stylesheet" href="assets/css/main.css?v=20260920">
 <style>
 .tools-shell{max-width:1180px;margin:0 auto;padding:32px 22px 96px}
-.tools-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:6px;background:var(--bg-surface);border:1px solid var(--border);border-radius:18px;margin:14px 0 26px;width:fit-content;max-width:100%}
+.tools-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:6px;background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;margin:14px 0 26px;width:fit-content;max-width:100%}
 .tools-tabs button{padding:10px 18px;border-radius:12px;font-size:0.88rem;font-weight:700;color:var(--text-muted);background:transparent;border:0;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:42px;white-space:nowrap;transition:background .18s var(--ease),color .18s var(--ease)}
 .tools-tabs button:hover{color:var(--text)}
 .tools-tabs button.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
@@ -52,11 +52,11 @@
 .tool-pill{display:inline-block;vertical-align:middle;font-size:0.6rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;padding:3px 8px;border-radius:100px;background:rgba(224,138,26,0.16);color:var(--gold-bright,#FCC647);border:1px solid var(--border-gold,rgba(224,138,26,0.4));margin-left:8px}
 /* Mobile: a single clean scroll-row instead of a wrapped pill blob. */
 @media (max-width:760px){
-  .tools-tabs{flex-wrap:nowrap;overflow-x:auto;width:100%;border-radius:14px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tools-tabs{flex-wrap:nowrap;overflow-x:auto;width:100%;border-radius:12px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .tools-tabs::-webkit-scrollbar{display:none}
   .tools-tabs button{flex:0 0 auto}
 }
-.tool-panel{display:none;background:var(--bg-surface);border:1px solid var(--border);border-radius:18px;padding:clamp(20px,3vw,36px);box-shadow:0 14px 36px rgba(0,0,0,0.25)}
+.tool-panel{display:none;background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;padding:clamp(20px,3vw,36px);box-shadow:0 14px 36px rgba(0,0,0,0.25)}
 .tool-panel.active{display:block;animation:fadeUp .3s var(--ease)}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .tool-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:22px}
@@ -64,7 +64,7 @@
 .tool-head p{margin:0;color:var(--text-soft);font-size:0.94rem;line-height:1.6}
 
 /* ── Metronome ─────────────────────────────────────────────────── */
-.met-display{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;margin-bottom:24px;padding:24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px}
+.met-display{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;margin-bottom:24px;padding:24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:12px}
 .met-bpm{font-family:var(--font-display);font-size:clamp(4rem,12vw,7rem);line-height:1;color:var(--gold-bright,#FCC647);letter-spacing:0.02em;text-align:center;min-width:160px}
 .met-bpm small{display:block;font-family:var(--font-body);font-size:0.78rem;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;font-weight:700;margin-top:8px;letter-spacing:0.14em}
 .met-beats{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;min-height:36px}
@@ -92,7 +92,7 @@
 .met-trainer-toggle input{width:16px;height:16px;accent-color:var(--gold-bright,#FCC647)}
 
 /* ── Tuner ─────────────────────────────────────────────────────── */
-.tuner-display{padding:30px 24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;text-align:center;margin-bottom:18px}
+.tuner-display{padding:30px 24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;text-align:center;margin-bottom:18px}
 .tuner-note{font-family:var(--font-display);font-size:clamp(5rem,14vw,8rem);line-height:1;color:var(--gold-bright,#FCC647);letter-spacing:0.02em;min-height:1em}
 .tuner-octave{font-family:var(--font-body);font-size:0.5em;color:var(--text-muted);vertical-align:super;margin-left:6px}
 .tuner-freq{font-size:0.95rem;color:var(--text-soft);margin-top:8px;font-variant-numeric:tabular-nums}
@@ -108,12 +108,12 @@
 .tuner-start.listening{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff}
 .tuner-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
 .tuner-a4{display:inline-flex;align-items:center;gap:8px;font-size:0.84rem;font-weight:700;color:var(--text-muted)}
-.tuner-a4 input{width:78px;padding:9px 10px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:9px;color:var(--text);font-size:0.92rem;min-height:42px}
+.tuner-a4 input{width:78px;padding:9px 10px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.92rem;min-height:42px}
 .tuner-ref{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;background:transparent;border:1px solid var(--border-gold);color:var(--gold-bright);font-weight:700;border-radius:10px;min-height:44px;cursor:pointer}
 .tuner-ref:hover{background:rgba(224,138,26,0.06)}
 
 /* ── Pomodoro ──────────────────────────────────────────────────── */
-.pomo-display{text-align:center;padding:36px 24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
+.pomo-display{text-align:center;padding:36px 24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;margin-bottom:18px}
 .pomo-ring-wrap{position:relative;width:180px;height:180px;margin:0 auto}
 .pomo-ring-wrap canvas{display:block}
 .pomo-ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
@@ -141,7 +141,7 @@
 .pomo-auto input{width:16px;height:16px;accent-color:var(--gold-bright,#FCC647)}
 
 /* ── Ear training ──────────────────────────────────────────────── */
-.ear-display{padding:24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
+.ear-display{padding:24px;background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;margin-bottom:18px}
 .ear-score{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;font-size:0.92rem;color:var(--text-muted)}
 .ear-score b{color:var(--text);font-family:var(--font-display);font-size:1.3rem;letter-spacing:0.02em}
 .ear-question{text-align:center;padding:30px 14px;border-radius:12px;background:var(--bg-elevated);border:1px solid var(--border)}
@@ -163,14 +163,14 @@
 .ear-best{text-align:center;font-size:0.82rem;color:var(--gold-bright,#FCC647);font-weight:700;margin:-6px 0 14px}
 
 /* ── Speed & Pitch trainer (premium) ──────────────────────────── */
-.sp-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:48px 22px;border:2px dashed var(--border-gold);border-radius:14px;background:linear-gradient(180deg,rgba(252,198,71,0.05),var(--bg-raised));text-align:center;cursor:pointer;transition:all .2s var(--ease)}
+.sp-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:48px 22px;border:2px dashed var(--border-gold);border-radius:12px;background:linear-gradient(180deg,rgba(252,198,71,0.05),var(--bg-raised));text-align:center;cursor:pointer;transition:all .2s var(--ease)}
 .sp-drop:hover,.sp-drop.is-drag{background:linear-gradient(180deg,rgba(252,198,71,0.12),var(--bg-raised));border-color:var(--gold-bright);transform:translateY(-2px)}
 .sp-drop i{font-size:2rem;color:var(--gold-bright)}
 .sp-drop strong{font-size:1rem;color:var(--text);font-weight:700}
 .sp-drop span{font-size:0.84rem;color:var(--text-muted)}
 
 .sp-player{display:grid;gap:22px}
-.sp-track{background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;padding:18px 20px}
+.sp-track{background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
 .sp-meta{display:flex;align-items:center;gap:12px;margin-bottom:14px}
 .sp-meta i{flex-shrink:0;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;display:flex;align-items:center;justify-content:center;font-size:1.1rem}
 .sp-meta-text{flex:1;min-width:0}
@@ -221,7 +221,7 @@
 }
 
 /* ── Beat Maker (step sequencer) ───────────────────────────────── */
-.seq-transport{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;padding:18px;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;margin-bottom:18px}
+.seq-transport{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;padding:18px;background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;margin-bottom:18px}
 .seq-play{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.05em;font-size:1rem;border-radius:12px;border:0;cursor:pointer;min-height:54px;box-shadow:0 8px 22px rgba(224,138,26,0.4)}
 .seq-play.playing{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;box-shadow:0 8px 22px rgba(244,66,59,0.45)}
 .seq-field{flex:1;min-width:150px}
@@ -229,11 +229,11 @@
 .seq-field label b{font-family:var(--font-display);font-size:1.1rem;color:var(--gold-bright,#FCC647);letter-spacing:0.02em;font-weight:normal}
 .seq-field input[type=range]{width:100%;margin:0;accent-color:var(--gold-bright,#FCC647)}
 
-.seq-grid{display:flex;gap:10px;align-items:flex-start;background:var(--bg-raised);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:18px}
+.seq-grid{display:flex;gap:10px;align-items:flex-start;background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:18px}
 .seq-tracks{flex-shrink:0;width:172px}
 .seq-track-row{display:flex;align-items:center;gap:6px;height:46px;box-sizing:border-box}
 .seq-track-name{flex:1;min-width:0;font-size:0.82rem;font-weight:700;color:var(--text-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.seq-chip{width:26px;height:26px;flex-shrink:0;border-radius:7px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text-muted);font-size:0.72rem;font-weight:800;cursor:pointer;line-height:1;padding:0}
+.seq-chip{width:26px;height:26px;flex-shrink:0;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text-muted);font-size:0.72rem;font-weight:800;cursor:pointer;line-height:1;padding:0}
 .seq-chip.seq-mute.on{background:#F4423B;border-color:#F4423B;color:#fff}
 .seq-chip.seq-solo.on{background:#34D399;border-color:#34D399;color:#0E0A06}
 .seq-tvol{width:48px;flex-shrink:0;accent-color:var(--gold-bright,#FCC647)}
@@ -258,7 +258,7 @@
 .seq-steps-field{display:inline-flex;align-items:center;gap:8px;font-size:0.78rem;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted)}
 .seq-steps-field select{padding:9px 12px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.9rem;font-weight:600;min-height:42px;cursor:pointer}
 
-.seq-chain{width:96px;padding:8px 10px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:9px;color:var(--text);font-size:0.9rem;letter-spacing:0.18em;text-transform:uppercase;font-weight:800}
+.seq-chain{width:96px;padding:8px 10px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.9rem;letter-spacing:0.18em;text-transform:uppercase;font-weight:800}
 .seq-chain:focus{outline:none;border-color:var(--gold-bright)}
 .seq-tbtn[disabled]{opacity:0.45;cursor:not-allowed}
 .seq-tbtn.playing{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;border-color:transparent}
@@ -293,11 +293,11 @@
 .pg-breakdown{display:flex;justify-content:center;gap:22px;margin-bottom:14px}
 .pg-breakdown b{display:block;font-size:1.3rem;color:var(--text)}
 .pg-breakdown span{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted)}
-.pg-rows{display:flex;flex-direction:column;gap:5px;max-height:140px;overflow:auto;margin-bottom:16px;text-align:left}
+.pg-rows{display:flex;flex-direction:column;gap:4px;max-height:140px;overflow:auto;margin-bottom:16px;text-align:left}
 .pg-rowline{display:flex;align-items:center;gap:10px;font-size:0.82rem;color:var(--text-soft)}
 .pg-rowline span:first-child{width:42px;font-weight:700}
-.pg-bar{flex:1;height:8px;background:var(--bg-raised);border-radius:5px;overflow:hidden}
-.pg-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-bright));border-radius:5px}
+.pg-bar{flex:1;height:8px;background:var(--bg-raised);border-radius:4px;overflow:hidden}
+.pg-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-bright));border-radius:4px}
 .pg-meter{margin:16px 0}
 .pg-readout{display:flex;justify-content:center;gap:clamp(18px,6vw,52px);margin-bottom:14px}
 .pg-r{text-align:center}.pg-r-l{display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin-bottom:3px}
@@ -313,7 +313,7 @@
 .pg-verdict.good{color:#34D399}.pg-verdict.off{color:#F4C56A}
 .pg-cents{text-align:center;font-variant-numeric:tabular-nums;color:var(--text-muted);font-size:0.9rem}
 .pg-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
-.pg-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:11px;border:1px solid var(--border-strong);background:var(--bg-raised);color:var(--text);font-weight:700;font-size:0.92rem;cursor:pointer;min-height:46px}
+.pg-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;border:1px solid var(--border-strong);background:var(--bg-raised);color:var(--text);font-weight:700;font-size:0.92rem;cursor:pointer;min-height:46px}
 .pg-btn:hover{border-color:var(--border-gold)}
 .pg-primary{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
 .pg-running .pg-primary{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff}

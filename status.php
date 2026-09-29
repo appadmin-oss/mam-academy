@@ -78,7 +78,7 @@ $siteName = 'MAM Academy';
 }
 .st-field input::placeholder { color:#4A3520; }
 .st-submit {
-  width:100%; padding:15px 20px; border:none; border-radius:13px;
+  width:100%; padding:15px 20px; border:none; border-radius:12px;
   font-weight:800; font-size:1rem; letter-spacing:.04em; cursor:pointer;
   background:linear-gradient(135deg,#C97B10,var(--st-gold-lt));
   color:#0A0602; margin-top:2px;
@@ -94,8 +94,8 @@ $siteName = 'MAM Academy';
 }
 .st-quick-link {
   font-size:.8rem; color:var(--st-muted); text-decoration:none;
-  display:inline-flex; align-items:center; gap:5px;
-  padding:5px 12px; border:1px solid rgba(224,138,26,.18); border-radius:999px;
+  display:inline-flex; align-items:center; gap:4px;
+  padding:5px 12px; border:1px solid rgba(224,138,26,.18); border-radius:100px;
   transition:border-color .15s, color .15s;
 }
 .st-quick-link:hover { border-color:var(--st-gold); color:var(--st-gold); }
@@ -137,7 +137,7 @@ $siteName = 'MAM Academy';
   background:var(--stage-bg,rgba(224,138,26,.1));
   border:1px solid var(--stage-border,rgba(224,138,26,.22));
   color:var(--stage-color,var(--st-gold)); font-size:.75rem; font-weight:700;
-  padding:4px 12px; border-radius:999px; letter-spacing:.04em;
+  padding:4px 12px; border-radius:100px; letter-spacing:.04em;
 }
 
 /* Progress rail */

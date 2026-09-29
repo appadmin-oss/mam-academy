@@ -104,7 +104,7 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
   display:inline-flex; align-items:center; gap:6px;
   background:rgba(0,0,0,.38); border:1px solid rgba(245,158,11,.3);
   color:#E5C88A; font-size:.78rem; font-weight:600;
-  padding:5px 13px; border-radius:999px; backdrop-filter:blur(6px);
+  padding:5px 13px; border-radius:100px; backdrop-filter:blur(6px);
 }
 .su-hero-chip i { color:var(--su-amber); font-size:.7rem; }
 .su-hero-ctas{display:flex;gap:12px;flex-wrap:wrap}
@@ -131,7 +131,7 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
   gap:20px;max-width:960px;margin:0 auto;
 }
 .su-info-card{
-  background:#120B04;border:1px solid var(--su-border);border-radius:14px;
+  background:#120B04;border:1px solid var(--su-border);border-radius:12px;
   padding:22px 20px;text-align:center;
 }
 .su-info-card-icon{font-size:1.6rem;margin-bottom:10px}
@@ -161,7 +161,7 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
 .su-disc{
   background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);
   color:var(--su-amber);font-size:.85rem;font-weight:600;
-  padding:8px 18px;border-radius:999px;letter-spacing:.04em;
+  padding:8px 18px;border-radius:100px;letter-spacing:.04em;
 }
 /* ── Application form section ───────────────────────── */
 .su-apply{padding:clamp(52px,8vw,90px) 24px}
@@ -220,7 +220,7 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
 .su-submit-btn{
   width:100%;padding:16px;background:linear-gradient(135deg,var(--su-amber),#FBBF24);
   color:#0E0A06;font-weight:800;font-size:1.05rem;letter-spacing:.04em;
-  border:none;border-radius:11px;cursor:pointer;transition:transform .15s,box-shadow .15s;
+  border:none;border-radius:12px;cursor:pointer;transition:transform .15s,box-shadow .15s;
   margin-top:4px;
 }
 .su-submit-btn:hover:not([disabled]){transform:translateY(-2px);box-shadow:0 8px 24px rgba(245,158,11,.3)}

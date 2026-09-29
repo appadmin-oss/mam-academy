@@ -48,8 +48,8 @@
 .legal-intro{color:var(--text-soft);line-height:1.82;font-size:1.02rem;margin-bottom:8px}
 
 /* ── Segmented policy selector ── */
-.policy-tabs{display:inline-flex;gap:3px;margin:30px 0 0;padding:4px;background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap}
-.policy-tab{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:9px;font-size:.85rem;font-weight:600;color:var(--text-muted);transition:all .18s var(--ease);cursor:pointer;border:0;background:transparent;font-family:var(--font-body)}
+.policy-tabs{display:inline-flex;gap:4px;margin:30px 0 0;padding:4px;background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap}
+.policy-tab{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:10px;font-size:.85rem;font-weight:600;color:var(--text-muted);transition:all .18s var(--ease);cursor:pointer;border:0;background:transparent;font-family:var(--font-body)}
 .policy-tab:hover{color:var(--text-soft)}
 .policy-tab.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#231a12;box-shadow:var(--shadow-sm)}
 .policy-tab i{font-size:.9em}
@@ -66,7 +66,7 @@
 /* ── Numbered clauses (document style, not cards) ── */
 .rule{display:flex;gap:16px;padding:16px 0;border-bottom:1px solid var(--border)}
 .rule:last-child{border-bottom:none}
-.rule-n{flex-shrink:0;width:26px;height:26px;border-radius:7px;background:var(--bg-raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-body);font-weight:700;color:var(--text-muted);font-size:.82rem;font-variant-numeric:tabular-nums;transition:all .16s}
+.rule-n{flex-shrink:0;width:26px;height:26px;border-radius:8px;background:var(--bg-raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--font-body);font-weight:700;color:var(--text-muted);font-size:.82rem;font-variant-numeric:tabular-nums;transition:all .16s}
 .rule:hover .rule-n{border-color:var(--border-gold);color:var(--gold-bright)}
 .rule-b{flex:1;min-width:0}
 .rule-b strong{display:block;color:var(--text);font-size:.98rem;margin-bottom:5px;font-weight:600}
@@ -75,11 +75,11 @@
 .rule:has(.fine) .rule-n{background:rgba(232,150,31,.14);border-color:var(--border-gold);color:var(--gold-bright)}
 
 /* ── Fine pill (policy penalty amounts — NGN contractual base) ── */
-.fine{display:inline-flex;align-items:center;gap:3px;padding:2px 9px 2px 6px;border-radius:6px;background:rgba(232,150,31,.12);border:1px solid rgba(232,150,31,.32);color:var(--gold-bright);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:.87em;vertical-align:baseline;cursor:default}
+.fine{display:inline-flex;align-items:center;gap:4px;padding:2px 9px 2px 6px;border-radius:8px;background:rgba(232,150,31,.12);border:1px solid rgba(232,150,31,.32);color:var(--gold-bright);font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:.87em;vertical-align:baseline;cursor:default}
 .fine::before{content:'!';display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;background:rgba(232,150,31,.38);font-size:.7em;font-weight:900;color:var(--gold-bright)}
 
 /* ── Amount pill (programme fees — USD base, FX-converted) ── */
-.amt{display:inline-flex;align-items:center;padding:2px 9px;border-radius:6px;background:rgba(252,198,71,.1);border:1px solid rgba(252,198,71,.25);color:var(--gold-bright);font-weight:700;white-space:nowrap;font-size:.9em;cursor:default}
+.amt{display:inline-flex;align-items:center;padding:2px 9px;border-radius:8px;background:rgba(252,198,71,.1);border:1px solid rgba(252,198,71,.25);color:var(--gold-bright);font-weight:700;white-space:nowrap;font-size:.9em;cursor:default}
 
 /* ── Always-visible fees block ── */
 .policy-static{display:block;margin:0 0 8px;padding:28px 30px;background:linear-gradient(160deg,rgba(224,138,26,.07),var(--bg-surface));border:1px solid var(--border-gold);border-radius:var(--radius-md);scroll-margin-top:96px}
@@ -137,7 +137,7 @@
 .hb-list li .lico{flex-shrink:0;margin-top:3px;font-size:.8rem;width:14px;text-align:center}
 /* discipline ladder */
 .disc-ladder{display:flex;flex-direction:column;gap:6px;margin:14px 0}
-.disc-rung{display:flex;align-items:flex-start;gap:13px;padding:12px 15px;border-radius:10px;border:1px solid var(--border);font-size:.87rem;color:var(--text-soft);line-height:1.55}
+.disc-rung{display:flex;align-items:flex-start;gap:12px;padding:12px 15px;border-radius:10px;border:1px solid var(--border);font-size:.87rem;color:var(--text-soft);line-height:1.55}
 .disc-badge{font-size:.57rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;padding:3px 8px;border-radius:4px;white-space:nowrap;flex-shrink:0;margin-top:3px}
 .disc-rung.d1{background:rgba(52,211,153,.05)}.disc-rung.d1 .disc-badge{background:rgba(52,211,153,.15);color:#34D399}
 .disc-rung.d2{background:rgba(251,191,36,.05)}.disc-rung.d2 .disc-badge{background:rgba(251,191,36,.15);color:#FBBF24}

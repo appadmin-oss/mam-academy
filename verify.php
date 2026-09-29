@@ -21,7 +21,7 @@ $refGet = trim((string)($_GET['ref'] ?? ''));
   :root{--gold:#C79A3A;--gold-bright:#E8961F;--ink:#1B2430;--muted:#5b6472;--border:#e4e6ea;--bg:#f4f5f7;--card:#fff;--ok:#1FA971;--bad:#E0574F}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.10);max-width:520px;width:100%;overflow:hidden}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.10);max-width:520px;width:100%;overflow:hidden}
   .card-head{padding:22px 26px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
   .card-head img{width:38px;height:38px}
   .card-head b{font-family:Cinzel,serif;letter-spacing:.04em;font-size:1.05rem}

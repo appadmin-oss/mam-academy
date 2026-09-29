@@ -26,12 +26,12 @@ header('Content-Type: text/html; charset=utf-8');
   *{box-sizing:border-box}
   html,body{margin:0;height:100%}
   body{background:radial-gradient(120% 100% at 50% 0,#241710,#120D08);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;display:flex;align-items:center;justify-content:center;padding:18px}
-  .card{width:100%;max-width:320px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px 22px 16px;box-shadow:0 18px 50px rgba(0,0,0,.45);text-align:center}
+  .card{width:100%;max-width:320px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 22px 16px;box-shadow:0 18px 50px rgba(0,0,0,.45);text-align:center}
   .bpm{font-size:64px;font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;color:var(--gold)}
   .bpm small{display:block;font-size:11px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin-top:8px}
   input[type=range]{width:100%;margin:18px 0 6px;accent-color:var(--gold2)}
   .row{display:flex;gap:8px;justify-content:center;align-items:center;margin-top:6px}
-  button{font:inherit;cursor:pointer;border-radius:11px;border:1px solid var(--line);background:transparent;color:var(--ink);padding:10px 14px;font-weight:700;min-height:44px}
+  button{font:inherit;cursor:pointer;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--ink);padding:10px 14px;font-weight:700;min-height:44px}
   .play{flex:1;background:linear-gradient(135deg,var(--gold2),var(--gold));color:#1A120B;border:0;font-size:15px}
   .beats{display:flex;gap:7px;justify-content:center;margin:16px 0 2px}
   .dot{width:13px;height:13px;border-radius:50%;background:rgba(251,247,243,.18);transition:transform .05s,background .05s}

@@ -54,7 +54,7 @@ $MAM_CI_VER = '20260819a';
   .ci-cohort{font-size:.9rem;color:var(--text-muted,#9a8264)}
   /* The countdown is the page's one moving part, and it is the answer to the
      only question the student has: am I in time? */
-  .ci-count{margin:16px 0;padding:14px 16px;border-radius:14px;font-weight:600;
+  .ci-count{margin:16px 0;padding:14px 16px;border-radius:12px;font-weight:600;
     display:flex;gap:10px;align-items:flex-start;line-height:1.45;font-size:.95rem}
   .ci-count.ok{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.35);color:#6EE7B7}
   .ci-count.soon{background:rgba(224,138,26,.13);border:1px solid rgba(224,138,26,.4);color:#FCC647}

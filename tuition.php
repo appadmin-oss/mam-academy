@@ -28,13 +28,13 @@
   .tu-field span{display:block;font-size:.82rem;color:#cbb89e;margin-bottom:6px;font-weight:600}
   .tu-field input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid rgba(224,138,26,.3);background:#120c07;color:#fff;font-size:1rem}
   .tu-field input:focus{outline:none;border-color:#E08A1A}
-  .tu-btn{margin-top:6px;width:100%;padding:13px 18px;border:0;border-radius:11px;font-weight:800;letter-spacing:.04em;cursor:pointer;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;font-size:1rem}
+  .tu-btn{margin-top:6px;width:100%;padding:13px 18px;border:0;border-radius:12px;font-weight:800;letter-spacing:.04em;cursor:pointer;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;font-size:1rem}
   .tu-btn[disabled]{opacity:.6;cursor:default}
   .tu-amount{text-align:center;margin:8px 0 20px}
   .tu-amount .v{font-size:3rem;font-weight:800;color:#FBBF24;line-height:1;font-variant-numeric:tabular-nums}
   .tu-amount .c{font-size:.82rem;color:#9a8264;letter-spacing:.1em;text-transform:uppercase;margin-top:8px}
   .tu-pay{display:grid;gap:10px;margin-top:8px}
-  .tu-pay button{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;border-radius:11px;border:1px solid rgba(224,138,26,.35);background:#120c07;color:#fff;font-weight:700;font-size:.96rem;cursor:pointer;min-height:48px}
+  .tu-pay button{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;border-radius:12px;border:1px solid rgba(224,138,26,.35);background:#120c07;color:#fff;font-weight:700;font-size:.96rem;cursor:pointer;min-height:48px}
   .tu-pay button.primary{background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border:0}
   .tu-note{margin-top:16px;padding:12px 14px;border-radius:10px;font-size:.9rem;line-height:1.5}
   .tu-note.err{background:rgba(244,63,94,.12);border:1px solid rgba(244,63,94,.5);color:#FECDD3}

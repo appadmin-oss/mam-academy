@@ -38,11 +38,11 @@
 .book-h1 .accent{color:var(--gold-bright)}
 .book-lede{font-size:clamp(1.02rem,2.2vw,1.18rem);color:var(--text-soft);line-height:1.7;max-width:680px;margin:0 0 28px}
 
-.book-grid{display:grid;grid-template-columns:1.15fr 0.85fr;gap:34px;align-items:start;margin-top:36px}
+.book-grid{display:grid;grid-template-columns:1.15fr 0.85fr;gap:32px;align-items:start;margin-top:36px}
 @media (max-width:880px){.book-grid{grid-template-columns:1fr}}
 
 /* gate (left) — the persuasive payment card */
-.gate{position:relative;background:linear-gradient(180deg,rgba(224,138,26,0.08),var(--bg-surface) 60%);border:1px solid var(--border-gold);border-radius:22px;padding:28px;box-shadow:0 18px 48px rgba(0,0,0,0.35);overflow:hidden}
+.gate{position:relative;background:linear-gradient(180deg,rgba(224,138,26,0.08),var(--bg-surface) 60%);border:1px solid var(--border-gold);border-radius:20px;padding:28px;box-shadow:0 18px 48px rgba(0,0,0,0.35);overflow:hidden}
 .gate::before{content:'';position:absolute;inset:0;background:radial-gradient(70% 60% at 100% 0%,rgba(252,198,71,0.14),transparent 60%);pointer-events:none}
 .gate-title{position:relative;font-family:var(--font-serif);font-size:1.45rem;font-weight:700;color:var(--text);margin:0 0 6px}
 .gate-sub{position:relative;color:var(--text-muted);margin:0 0 18px;font-size:0.94rem}
@@ -69,26 +69,26 @@
 
 /* truth column (right) — transparency, no doubt */
 .truth{display:flex;flex-direction:column;gap:18px}
-.truth-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:18px;padding:22px}
+.truth-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;padding:22px}
 .truth-card h3{font-family:var(--font-serif);font-size:1.1rem;font-weight:700;color:var(--text);margin:0 0 8px;display:flex;align-items:center;gap:9px}
-.truth-card h3 i{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,rgba(252,198,71,0.22),rgba(252,198,71,0.06));color:var(--gold-bright);display:inline-flex;align-items:center;justify-content:center;font-size:0.95rem;border:1px solid var(--border-gold)}
+.truth-card h3 i{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,rgba(252,198,71,0.22),rgba(252,198,71,0.06));color:var(--gold-bright);display:inline-flex;align-items:center;justify-content:center;font-size:0.95rem;border:1px solid var(--border-gold)}
 .truth-card p{margin:0;color:var(--text-soft);font-size:0.92rem;line-height:1.7}
 .truth-card.callout{background:linear-gradient(160deg,rgba(99,102,241,0.10),var(--bg-surface));border-color:rgba(165,180,252,0.35)}
 .truth-card.callout h3 i{background:linear-gradient(135deg,rgba(165,180,252,0.2),rgba(99,102,241,0.06));color:#A5B4FC;border-color:rgba(165,180,252,0.35)}
 
 /* unlocked embed (post-payment) */
-.embed-wrap{position:relative;background:var(--bg-surface);border:1px solid var(--border-gold);border-radius:22px;padding:18px;box-shadow:0 18px 48px rgba(0,0,0,0.35)}
+.embed-wrap{position:relative;background:var(--bg-surface);border:1px solid var(--border-gold);border-radius:20px;padding:18px;box-shadow:0 18px 48px rgba(0,0,0,0.35)}
 .embed-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 4px 14px}
 .embed-head h2{font-family:var(--font-serif);font-size:1.4rem;font-weight:700;color:var(--text);margin:0}
 .embed-head .ok-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:100px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.4);color:#A7F3D0;font-size:0.76rem;font-weight:700;letter-spacing:0.04em}
-.embed-frame{display:block;width:100%;height:760px;border:0;border-radius:14px;background:#0E0A06;box-shadow:inset 0 0 0 1px var(--border)}
+.embed-frame{display:block;width:100%;height:760px;border:0;border-radius:12px;background:#0E0A06;box-shadow:inset 0 0 0 1px var(--border)}
 @media (max-width:600px){.embed-frame{height:680px}}
 .embed-fallback{padding:24px;text-align:center;color:var(--text-soft);font-size:0.94rem;line-height:1.7}
 
 .spinner{display:inline-block;width:18px;height:18px;border:2.5px solid rgba(26,18,11,0.25);border-top-color:#1A120B;border-radius:50%;animation:spin 0.8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-.no-ref{background:var(--bg-surface);border:1px solid var(--border);border-radius:18px;padding:38px 28px;text-align:center}
+.no-ref{background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;padding:38px 28px;text-align:center}
 .no-ref h2{font-family:var(--font-serif);font-size:1.5rem;font-weight:700;color:var(--text);margin:0 0 10px}
 .no-ref p{color:var(--text-soft);margin:0 auto 18px;max-width:520px;line-height:1.7}
 </style>

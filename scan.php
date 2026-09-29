@@ -51,14 +51,14 @@ declare(strict_types=1);
     background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.16);color:var(--text,#fff)}
   /* The viewfinder is square: a card QR is square, and a letterboxed preview
      makes people hunt for the frame. */
-  .sc-cam{position:relative;aspect-ratio:1;border-radius:14px;overflow:hidden;background:#000;
+  .sc-cam{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;background:#000;
     border:1px solid rgba(255,255,255,.14)}
   .sc-cam video{width:100%;height:100%;object-fit:cover;display:block}
   .sc-reticle{position:absolute;inset:18%;border:2px solid rgba(252,198,71,.85);border-radius:12px;
     pointer-events:none;box-shadow:0 0 0 100vmax rgba(0,0,0,.35)}
   .sc-camoff{display:flex;align-items:center;justify-content:center;height:100%;padding:24px;
     text-align:center;color:var(--text-soft,#cbb89e);font-size:.93rem;line-height:1.55}
-  button.sc-btn{width:100%;min-height:56px;margin-top:12px;font:700 1.02rem Inter,sans-serif;border-radius:14px;
+  button.sc-btn{width:100%;min-height:56px;margin-top:12px;font:700 1.02rem Inter,sans-serif;border-radius:12px;
     display:flex;align-items:center;justify-content:center;gap:9px}
   button.sc-btn.sc-wide{min-height:62px;font-size:1.08rem}
   .sc-row{display:flex;gap:10px;align-items:center;padding:11px 12px;border-radius:12px;margin-top:8px;

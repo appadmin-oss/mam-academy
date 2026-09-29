@@ -44,7 +44,7 @@
 
   /* Hero stat strip */
   .pw-stats{display:flex;flex-wrap:wrap;gap:14px;margin-top:26px}
-  .pw-stat{display:flex;align-items:center;gap:10px;padding:10px 16px;border:1px solid var(--border-gold);border-radius:999px;background:rgba(224,138,26,0.08);font-size:0.9rem;color:var(--text-soft)}
+  .pw-stat{display:flex;align-items:center;gap:10px;padding:10px 16px;border:1px solid var(--border-gold);border-radius:100px;background:rgba(224,138,26,0.08);font-size:0.9rem;color:var(--text-soft)}
   .pw-stat i{color:var(--gold-bright)}
   .pw-stat b{color:var(--text)}
 
@@ -53,7 +53,7 @@
   .prog-card{position:relative;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(224,138,26,0.05),var(--bg-surface));border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px 26px;transition:transform .25s var(--ease),border-color .25s var(--ease),box-shadow .25s var(--ease)}
   .prog-card:hover{transform:translateY(-4px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
   .prog-card.featured{border-color:var(--border-gold);background:linear-gradient(180deg,rgba(224,138,26,0.13),var(--bg-surface));box-shadow:var(--glow-gold)}
-  .prog-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--gold),var(--gold-bright));color:#1A120B;font-size:0.75rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;padding:6px 16px;border-radius:999px;white-space:nowrap}
+  .prog-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--gold),var(--gold-bright));color:#1A120B;font-size:0.75rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;padding:6px 16px;border-radius:100px;white-space:nowrap}
   .prog-eyebrow{font-size:0.75rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold-bright)}
   .prog-name{font-family:var(--font-serif);font-size:1.8rem;line-height:1.1;margin:6px 0 4px;color:var(--text)}
   .prog-tag{font-size:0.86rem;color:var(--text-muted);margin-bottom:16px;min-height:2.4em}
@@ -78,7 +78,7 @@
 
   /* Level rail */
   .level-rail{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;position:relative}
-  .level-rail::before{content:'';position:absolute;left:6%;right:6%;top:34px;height:3px;background:linear-gradient(90deg,var(--gold),var(--gold-bright));border-radius:2px;opacity:0.35;z-index:0}
+  .level-rail::before{content:'';position:absolute;left:6%;right:6%;top:34px;height:3px;background:linear-gradient(90deg,var(--gold),var(--gold-bright));border-radius:4px;opacity:0.35;z-index:0}
   .lvl{position:relative;z-index:1;text-align:center;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:20px 14px;transition:border-color .2s,transform .2s}
   .lvl:hover{border-color:var(--border-gold);transform:translateY(-3px)}
   .lvl-dot{width:54px;height:54px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;font-family:var(--font-display);font-size:1.3rem;color:#1A120B;background:linear-gradient(135deg,var(--gold),var(--gold-bright));border:4px solid var(--bg)}
@@ -99,10 +99,11 @@
   .seg{display:flex;flex-wrap:wrap;gap:8px}
   .seg button{flex:1;min-width:max-content;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text-soft);font-size:0.86rem;font-weight:600;cursor:pointer;transition:all .18s var(--ease)}
   .seg button:hover{border-color:var(--border-gold)}
+  @media (pointer:coarse){.seg button{min-height:44px}}
   .seg button.on{background:linear-gradient(135deg,var(--gold),var(--gold-bright));color:#1A120B;border-color:transparent;font-weight:800}
   .calc-step{display:flex;align-items:center;justify-content:space-between;gap:12px}
   .stepper{display:inline-flex;align-items:center;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden}
-  .stepper button{width:42px;height:42px;background:var(--bg);color:var(--gold-bright);border:none;font-size:1.1rem;cursor:pointer}
+  .stepper button{flex:0 0 44px;width:44px;height:44px;background:var(--bg);color:var(--gold-bright);border:none;font-size:1.1rem;cursor:pointer}
   .stepper button:hover{background:rgba(224,138,26,0.12)}
   .stepper span{min-width:46px;text-align:center;font-weight:800;color:var(--text);font-size:1rem}
   .calc-switch{display:flex;align-items:center;gap:10px;cursor:pointer;color:var(--text-soft);font-size:0.9rem}
@@ -115,8 +116,8 @@
   .calc-line.muted span{color:var(--text-muted);font-weight:500}
   .calc-total{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:16px;padding-top:14px;border-top:2px solid var(--border-gold)}
   .calc-total .lbl{font-size:0.82rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted)}
-  .calc-total .amt{font-family:var(--font-display);font-size:2.6rem;line-height:1;color:var(--gold-bright)}
-  .calc-fine{font-size:0.76rem;color:var(--text-muted);margin:14px 0 18px;line-height:1.5}
+  .calc-total .amt{font-variant-numeric:var(--num);font-family:var(--font-display);font-size:2.6rem;line-height:1;color:var(--gold-bright)}
+  .calc-fine{font-size:0.8rem;max-width:var(--measure);color:var(--text-muted);margin:14px 0 18px;line-height:1.6}
   .calc-cta{display:flex;flex-direction:column;gap:10px}
 
   /* Formula steps */

@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="assets/css/main.css?v=20260920">
 <style>
   .co-wrap{max-width:1080px;margin:0 auto}
-  .co-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:26px;align-items:start}
+  .co-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;align-items:start}
   @media (max-width:860px){.co-grid{grid-template-columns:1fr}}
   .co-card{background:#1A120B;border:1px solid rgba(224,138,26,.32);border-radius:16px;padding:24px;box-shadow:0 12px 36px rgba(0,0,0,.28)}
   .co-card h2{font-family:'Cinzel',serif;color:#fff;margin:0 0 16px;font-size:1.2rem}
@@ -26,10 +26,10 @@
   .co-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media (max-width:520px){.co-row{grid-template-columns:1fr}}
   .co-pay{display:grid;gap:10px;margin-top:6px}
-  .co-pay label{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:11px;border:1px solid rgba(224,138,26,.3);background:#120c07;cursor:pointer;font-weight:600;color:#e7d9c2}
+  .co-pay label{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:12px;border:1px solid rgba(224,138,26,.3);background:#120c07;cursor:pointer;font-weight:600;color:#e7d9c2}
   .co-pay label:has(input:checked){border-color:#E08A1A;background:rgba(224,138,26,.12);color:#fff}
   .co-pay input{accent-color:#E08A1A;width:18px;height:18px}
-  .co-line{display:flex;gap:13px;padding:13px 0;border-bottom:1px solid rgba(224,138,26,.14)}
+  .co-line{display:flex;gap:12px;padding:13px 0;border-bottom:1px solid rgba(224,138,26,.14)}
   .co-line-thumb{width:54px;height:54px;border-radius:10px;flex:0 0 auto;background:linear-gradient(135deg,rgba(252,198,71,.16),#241710);display:flex;align-items:center;justify-content:center;color:#FBBF24;overflow:hidden}
   .co-line-thumb img{width:100%;height:100%;object-fit:cover}
   .co-line-main{flex:1;min-width:0}

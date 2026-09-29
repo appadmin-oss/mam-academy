@@ -173,7 +173,7 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
   .btn {
     display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
     border: 1px solid var(--line); background: #2C2015; color: var(--ink);
-    border-radius: 9px; padding: 9px 15px; font: inherit; font-size: 13px; font-weight: 600;
+    border-radius:10px; padding: 9px 15px; font: inherit; font-size: 13px; font-weight: 600;
   }
   .btn:hover:not(:disabled) { border-color: var(--gold) }
   .btn:disabled { opacity: .45; cursor: not-allowed }
@@ -201,7 +201,7 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
   /* ── Card grid ─────────────────────────────────────────────────────────── */
   .grid { display: flex; flex-wrap: wrap; gap: 18px; padding: 20px 22px 60px; align-items: flex-start; }
   .cell {
-    position: relative; border-radius: 14px; padding: 10px;
+    position: relative; border-radius:12px; padding: 10px;
     border: 1px solid var(--line); background: var(--panel);
     display: flex; flex-direction: column; gap: 8px; align-items: center;
   }
@@ -212,7 +212,7 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
   .cell .meta { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.45; width: var(--cardw,210px) }
   .cell .meta b { color: var(--ink); display: block; font-size: 12px }
   .cell .pick { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); cursor: pointer }
-  .flag { font-size: 10px; padding: 1px 6px; border-radius: 5px; background: #3A2A1B; color: #F0C36B }
+  .flag { font-size: 10px; padding: 1px 6px; border-radius:4px; background: #3A2A1B; color: #F0C36B }
   .flag.bad { background: #4A1F1F; color: var(--bad) }
   .flag.ok  { background: #17372B; color: var(--ok) }
 
@@ -237,7 +237,7 @@ foreach ($cards as $c) { if (!$c['has_photo']) $noPhoto++; }
   .veil .box { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 26px 30px; width: min(460px,92vw); text-align: center }
   .veil h3 { font-family: 'Barlow Condensed',sans-serif; font-size: 22px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px }
   .veil p { color: var(--muted); font-size: 12px; margin-bottom: 14px }
-  .track { height: 8px; border-radius: 99px; background: #150F0A; overflow: hidden; margin-bottom: 14px }
+  .track { height: 8px; border-radius:100px; background: #150F0A; overflow: hidden; margin-bottom: 14px }
   .track i { display: block; height: 100%; width: 0; background: var(--gold); transition: width .2s }
   #vlog { max-height: 130px; overflow: auto; text-align: left; font-size: 11px; color: var(--muted); line-height: 1.6 }
 

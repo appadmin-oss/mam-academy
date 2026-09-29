@@ -38,7 +38,7 @@
 .team-card{position:relative;display:flex;gap:16px;align-items:flex-start;padding:22px 22px 22px 26px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);transition:transform .3s var(--ease),border-color .3s,box-shadow .3s;overflow:hidden}
 .team-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent,var(--gold))}
 .team-card:hover{transform:translateY(-4px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
-.team-avatar{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.2rem;letter-spacing:0.04em;color:#1A120B;flex-shrink:0;background:linear-gradient(135deg,var(--accent,var(--gold)),var(--gold-light));box-shadow:0 6px 16px color-mix(in srgb,var(--accent,var(--gold)) 35%,transparent)}
+.team-avatar{width:54px;height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.2rem;letter-spacing:0.04em;color:#1A120B;flex-shrink:0;background:linear-gradient(135deg,var(--accent,var(--gold)),var(--gold-light));box-shadow:0 6px 16px color-mix(in srgb,var(--accent,var(--gold)) 35%,transparent)}
 .team-info{min-width:0}
 .team-name{font-size:1.04rem;font-weight:700;color:var(--text);line-height:1.2}
 .team-role{font-size:0.72rem;color:color-mix(in srgb,var(--accent,var(--gold-bright)) 66%,#fff);font-weight:800;letter-spacing:0.08em;text-transform:uppercase;margin:4px 0 8px}

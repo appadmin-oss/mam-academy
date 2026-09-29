@@ -157,15 +157,15 @@ $ogDesc    = $recital
   .colophon a{color:var(--gold-deep)}
 
   .actions{display:flex;gap:10px;justify-content:center;margin-top:34px;flex-wrap:wrap}
-  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 20px;border:1px solid var(--ink);border-radius:999px;background:transparent;color:var(--ink);font:inherit;font-size:.86rem;font-weight:600;cursor:pointer;text-decoration:none}
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:10px 20px;border:1px solid var(--ink);border-radius:100px;background:transparent;color:var(--ink);font:inherit;font-size:.86rem;font-weight:600;cursor:pointer;text-decoration:none}
   .btn:hover{background:var(--ink);color:#fff}
 
   /* Listing */
-  .card{display:block;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:22px 24px;margin-bottom:14px;text-decoration:none;color:inherit}
+  .card{display:block;background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:22px 24px;margin-bottom:14px;text-decoration:none;color:inherit}
   .card:hover{border-color:var(--gold)}
   .card h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:700}
   .card p{color:var(--muted);font-size:.9rem;margin-top:5px}
-  .pill{display:inline-block;font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid var(--gold);color:var(--gold-deep);margin-bottom:9px}
+  .pill{display:inline-block;font-size:.66rem;letter-spacing:.16em;text-transform:uppercase;font-weight:700;padding:3px 10px;border-radius:100px;border:1px solid var(--gold);color:var(--gold-deep);margin-bottom:9px}
   .empty{text-align:center;color:var(--muted);padding:60px 0;font-family:'Cormorant Garamond',Georgia,serif;font-size:1.2rem}
 
   /* A programme is printed and folded. Give it real paper margins, drop
