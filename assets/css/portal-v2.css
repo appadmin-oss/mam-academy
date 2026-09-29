@@ -186,7 +186,11 @@
 [data-portal="v2"] .p-name    { font: 700 17px/1.25 var(--font-ui); }
 [data-portal="v2"] .p-title   { font: 700 15px/1.3 var(--font-ui); color: var(--text); }
 [data-portal="v2"] .p-body    { font: 400 13.5px/1.6 var(--font-ui); color: var(--text-2); }
-[data-portal="v2"] .p-prose   { font: 400 14.5px/1.7 var(--font-ui); color: var(--text); }
+/* The READING register (.p-body is the card-supporting one). 14.5/1.7 sat
+   just under the 15px floor and just over the 1.65 leading ceiling — half a
+   pixel and a twentieth of a line, but this is the role the portals use when
+   a student or guardian has a paragraph to actually read. */
+[data-portal="v2"] .p-prose   { font: 400 15px/1.65 var(--font-ui); color: var(--text); }
 [data-portal="v2"] .p-meta    { font: 400 12.5px/1.55 var(--font-ui); color: var(--text-3); }
 [data-portal="v2"] .p-caption { font: 400 12px/1.45 var(--font-ui); color: var(--text-3); }
 [data-portal="v2"] .p-label {
@@ -314,10 +318,10 @@
 [data-portal="v2"] button:disabled, [data-portal="v2"] [aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
 
 /* ── Segmented control ────────────────────────────────────────────────────── */
-[data-portal="v2"] .p-seg { display: flex; background: var(--sunken); padding: 2px; border-radius: 9px; gap: 2px; }
+[data-portal="v2"] .p-seg { display: flex; background: var(--sunken); padding: 2px; border-radius: var(--radius-control-sm); gap: 2px; }
 [data-portal="v2"] .p-seg button {
   flex: 1; min-height: 44px; border: 0; background: transparent; cursor: pointer;
-  border-radius: 7px; font: 600 13px var(--font-ui); font-family: var(--font-ui);
+  border-radius: var(--radius-control); font: 600 13px var(--font-ui); font-family: var(--font-ui);
   /* MUST be --text-on-chip: this sits on --sunken, where --text-3 is 4.44:1. */
   color: var(--text-on-chip);
 }
@@ -622,7 +626,7 @@
 [data-portal="v2"] .p-switch:first-of-type { border-top: 0; }
 [data-portal="v2"] .p-switch .p-track {
   width: 48px; height: 28px; flex: 0 0 auto; position: relative;
-  border-radius: 999px; background: var(--inset); transition: background .15s;
+  border-radius: var(--radius-pill); background: var(--inset); transition: background .15s;
 }
 [data-portal="v2"] .p-switch[aria-checked="true"] .p-track { background: var(--accent); }
 [data-portal="v2"] .p-switch .p-track::after {
@@ -1103,8 +1107,13 @@
 }
 [data-portal="v2"] .i-search i { color: var(--text-3); font-size: 14px; }
 /* 16px is mandatory: iOS zooms the viewport on focus at anything below it. */
+/* ⚠️ `align-self: stretch` is the target, not decoration. MEASURED at 390:
+   the wrapper is 52px and the input's own line box 21px, and clicking a flex
+   container's padding does not focus a child input — so two thirds of the
+   control an instructor can see did nothing when tapped. Stretching the input
+   makes the target the same shape as the affordance. */
 [data-portal="v2"] .i-search input {
-  flex: 1; min-width: 0; border: 0; background: none;
+  flex: 1; min-width: 0; align-self: stretch; border: 0; background: none;
   font: 400 16px var(--font-ui); font-family: var(--font-ui);
   color: var(--text); outline: none;
 }
@@ -1278,7 +1287,7 @@
 }
 [data-portal="v2"] .s-check-box {
   flex: 0 0 auto; width: 24px; height: 24px; display: grid; place-items: center;
-  border: 1.5px solid var(--border-btn); border-radius: 7px; background: var(--raised);
+  border: 1.5px solid var(--border-btn); border-radius: var(--radius-control); background: var(--raised);
 }
 [data-portal="v2"] .s-check-box i { font-size: 11px; color: transparent; }
 [data-portal="v2"] .s-check[aria-checked="true"] .s-check-box { background: var(--ink); border-color: var(--ink); }
@@ -1383,7 +1392,7 @@
     margin: 0 0 14px; padding: 0 6px 14px; border-bottom: 1px solid var(--hairline);
     text-decoration: none; color: var(--text);
   }
-  [data-portal="v2"] .p-rail-brand img { border-radius: 7px; flex: 0 0 auto; }
+  [data-portal="v2"] .p-rail-brand img { border-radius: var(--radius-control); flex: 0 0 auto; }
   [data-portal="v2"] .p-rail-word { display: block; font: 400 15px/1 var(--font-fig); letter-spacing: 0.06em; }
   [data-portal="v2"] .p-rail-sub {
     display: block; margin-top: 3px; font: 400 12px/1 var(--font-ui);

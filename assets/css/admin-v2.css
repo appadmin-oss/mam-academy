@@ -177,7 +177,12 @@
 [data-admin="v2"] .ac-navlist { padding: 10px 0 14px; display: flex; flex-direction: column; }
 [data-admin="v2"] .ac-navgroup {
   padding: 14px 14px 6px; font-size: 10px; font-weight: 800;
-  letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.38);
+  /* MEASURED 3.48:1 at 0.38 on --ac-ink. These are 10px uppercase, which
+     1.4.3 judges as small text and holds to 4.5:1 — the 10px size is the
+     package's own (see the scale note above) so the alpha is what had to
+     move. 0.50 computes to 4.97:1 and stays clearly subordinate to the
+     0.72 the nav links themselves carry. */
+  letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.50);
 }
 [data-admin="v2"] .ac-nav {
   position: relative; display: flex; align-items: center; gap: 11px;
@@ -239,7 +244,7 @@
 [data-admin="v2"] .ac-search span:first-of-type { flex: 1; }
 [data-admin="v2"] .ac-kbd, [data-admin="v2"] kbd {
   display: inline-flex; align-items: center; height: 19px; padding: 0 5px;
-  border-radius: 4px; background: var(--ac-chip); color: var(--ac-ink-3);
+  border-radius: var(--ac-r-sm); background: var(--ac-chip); color: var(--ac-ink-3);
   font-family: inherit; font-size: 11px; font-weight: 700;
 }
 [data-admin="v2"] .ac-spacer { flex: 1; }
@@ -329,7 +334,7 @@
   border-bottom: 1px solid var(--ac-line);
 }
 [data-admin="v2"] .ac-cardtitle { font-size: 13px; font-weight: 700; }
-[data-admin="v2"] .ac-cardmeta { font-size: 11.5px; color: var(--ac-ink-4); }
+[data-admin="v2"] .ac-cardmeta { font-size: 11.5px; color: var(--ac-ink-4); font-variant-numeric: tabular-nums; }
 [data-admin="v2"] .ac-cardbody { padding: 14px 16px; }
 [data-admin="v2"] .ac-cardfoot {
   padding: 11px 16px; background: var(--ac-sunken); border-top: 1px solid var(--ac-line);
@@ -379,7 +384,7 @@
 [data-admin="v2"] .ac-pill--accent { background: var(--ac-accent); color: var(--ac-ink); }
 [data-admin="v2"] .ac-tag {
   display: inline-flex; align-items: center; height: 18px; padding: 0 6px;
-  border-radius: 4px; background: var(--ac-chip); color: var(--ac-ink-3);
+  border-radius: var(--ac-r-sm); background: var(--ac-chip); color: var(--ac-ink-3);
   /* 10px, the floor of the console's own scale (the eyebrow), not 9.5px:
      nothing in the design package is set below 10px. */
   font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
@@ -497,7 +502,7 @@
 }
 [data-admin="v2"] .ac-mono { font-family: var(--ac-mono); font-size: 12px; }
 [data-admin="v2"] .ac-strong { font-weight: 700; }
-[data-admin="v2"] .ac-sub { font-size: 11.5px; color: var(--ac-ink-4); margin-top: 3px; line-height: 1.5; }
+[data-admin="v2"] .ac-sub { font-size: 11.5px; color: var(--ac-ink-4); margin-top: 3px; line-height: 1.5; font-variant-numeric: tabular-nums; }
 [data-admin="v2"] .ac-empty { padding: 26px 16px; text-align: center; color: var(--ac-ink-4); font-size: 12.5px; }
 [data-admin="v2"] .ac-empty-t { font-size: 14px; font-weight: 700; color: var(--ac-ink); margin-bottom: 6px; }
 
@@ -587,7 +592,7 @@
 [data-admin="v2"] .ac-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
 [data-admin="v2"] .ac-switch {
   position: relative; flex: 0 0 auto; width: 44px; height: 26px;
-  border-radius: 999px; background: var(--ac-chip); cursor: pointer;
+  border-radius: var(--ac-pill); background: var(--ac-chip); cursor: pointer;
 }
 [data-admin="v2"] .ac-switch::after {
   content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
@@ -842,7 +847,7 @@
    second thing to keep in step. */
 [data-admin="v2"] .ac-strip-count {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 100px;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--ac-pill);
   background: var(--ac-chip); color: var(--ac-ink-3);
   font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums;
 }
@@ -892,7 +897,7 @@
   flex: 0 0 auto; display: inline-flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 2px;
   min-width: 52px; min-height: 44px; padding: 0 10px;
-  border: 1px solid var(--ac-line-3); border-radius: 12px;
+  border: 1px solid var(--ac-line-3); border-radius: var(--ac-r-lg);
   background: var(--ac-surface); color: var(--ac-ink-3);
   font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
   text-transform: uppercase; text-decoration: none;
@@ -919,7 +924,7 @@
 
 [data-admin="v2"] .ap-card {
   background: var(--ac-surface); border: 1px solid var(--ac-line-2);
-  border-radius: 18px; padding: 18px; margin-bottom: 14px;
+  border-radius: var(--ac-r-2xl); padding: 18px; margin-bottom: 14px;
 }
 [data-admin="v2"] .ap-stack > .ap-card { margin-bottom: 0; }
 [data-admin="v2"] .ap-card.is-bad { border: 1.5px solid var(--ac-bad); }
@@ -938,12 +943,12 @@
 [data-admin="v2"] .ap-card .ap-eyebrow { margin-bottom: 0; }
 
 [data-admin="v2"] .ap-quiet {
-  padding: 12px 14px; background: var(--ac-sunken); border-radius: 12px;
+  padding: 12px 14px; background: var(--ac-sunken); border-radius: var(--ac-r-lg);
   font-size: 12.5px; color: var(--ac-ink-4); line-height: 1.6; margin: 0 0 14px;
 }
 [data-admin="v2"] .ap-notice {
   margin: 14px 0 0; padding: 14px 16px; background: var(--ac-sunken);
-  border: 1px solid var(--ac-line-2); border-radius: 14px;
+  border: 1px solid var(--ac-line-2); border-radius: var(--ac-r-xl);
   font-size: 12.5px; color: var(--ac-ink-4); line-height: 1.65;
 }
 
@@ -953,7 +958,7 @@
 [data-admin="v2"] .ap-btn {
   flex: 1 1 auto; min-height: 52px; padding: 0 16px;
   display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid var(--ac-line-3); border-radius: 14px;
+  border: 1px solid var(--ac-line-3); border-radius: var(--ac-r-xl);
   background: var(--ac-surface); color: var(--ac-ink);
   font-family: inherit; font-size: 15px; font-weight: 700;
   text-decoration: none; cursor: pointer; text-align: center;
@@ -973,7 +978,7 @@
    hold, and never to be "fixed" with user-scalable=no. */
 [data-admin="v2"] .ap-input {
   width: 100%; box-sizing: border-box; padding: 11px 13px; margin: 0 0 12px;
-  border: 1px solid var(--ac-line-3); border-radius: 12px;
+  border: 1px solid var(--ac-line-3); border-radius: var(--ac-r-lg);
   background: var(--ac-surface); color: var(--ac-ink);
   font-family: inherit; font-size: 16px; line-height: 1.5; resize: vertical;
 }
@@ -982,7 +987,7 @@
 [data-admin="v2"] .ap-search {
   display: flex; align-items: center; gap: 10px; padding: 0 6px 0 14px;
   background: var(--ac-surface); border: 1.5px solid var(--ac-ink);
-  border-radius: 14px; min-height: 54px; margin-bottom: 14px;
+  border-radius: var(--ac-r-xl); min-height: 54px; margin-bottom: 14px;
 }
 [data-admin="v2"] .ap-search > i { color: var(--ac-ink-4); font-size: 14px; flex: 0 0 auto; }
 /* ⚠️ `align-self: stretch` is the accessibility fix, not the cosmetics.
@@ -997,7 +1002,7 @@
 }
 [data-admin="v2"] .ap-search-go {
   flex: 0 0 auto; min-height: 44px; padding: 0 14px; border: 0;
-  border-radius: 10px; background: var(--ac-ink); color: #fff;
+  border-radius: var(--ac-r-md); background: var(--ac-ink); color: #fff;
   font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
 }
 
@@ -1036,7 +1041,7 @@
 [data-admin="v2"] .ap-figs { display: flex; gap: 10px; margin-top: 12px; }
 [data-admin="v2"] .ap-fig {
   flex: 1; text-align: center; padding: 12px 8px;
-  background: var(--ac-sunken); border-radius: 12px;
+  background: var(--ac-sunken); border-radius: var(--ac-r-lg);
 }
 [data-admin="v2"] .ap-fig.is-bad { background: var(--ac-bad-w); }
 [data-admin="v2"] .ap-fig-n {
@@ -1052,7 +1057,7 @@
   width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 12px;
   text-align: left; min-height: 64px; padding: 15px 16px;
   background: var(--ac-surface); border: 1px solid var(--ac-line-2);
-  border-radius: 16px; font-family: inherit; color: var(--ac-ink); cursor: pointer;
+  border-radius: var(--ac-r-2xl); font-family: inherit; color: var(--ac-ink); cursor: pointer;
 }
 [data-admin="v2"] .ap-opt.is-off { background: var(--ac-sunken); cursor: default; }
 [data-admin="v2"] .ap-opt-main { flex: 1; min-width: 0; }
@@ -1076,7 +1081,7 @@
       polite status. The same split the portals hold. ──────────────────────── */
 [data-admin="v2"] .ap-flash {
   display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px;
-  padding: 13px 15px; border-radius: 14px; font-size: 13.5px; line-height: 1.5;
+  padding: 13px 15px; border-radius: var(--ac-r-xl); font-size: 13.5px; line-height: 1.5;
 }
 [data-admin="v2"] .ap-flash.is-good { background: var(--ac-good-w); color: var(--ac-good); }
 [data-admin="v2"] .ap-flash.is-bad  { background: var(--ac-bad-w);  color: var(--ac-bad); }
@@ -1097,7 +1102,7 @@
 [data-admin="v2"] .ap-tab.is-on { color: var(--ac-ink); font-weight: 700; }
 [data-admin="v2"] .ap-tab-mark {
   position: absolute; top: 0; width: 22px; height: 3px;
-  border-radius: 100px; background: var(--ac-accent); opacity: 0;
+  border-radius: var(--ac-pill); background: var(--ac-accent); opacity: 0;
 }
 [data-admin="v2"] .ap-tab.is-on .ap-tab-mark { opacity: 1; }
 [data-admin="v2"] .ap-tab-ico { position: relative; }

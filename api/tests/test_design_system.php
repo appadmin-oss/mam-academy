@@ -117,3 +117,78 @@ if (preg_match('/\.footer-wordmark span\{[^}]*color:rgba\(232,\s*201,\s*160,\s*(
 } else {
     t_ok(false, 'the footer wordmark colour is still an rgba on --footer-bg this test can check');
 }
+
+t_group('design system — the portal and console scales');
+
+/* These two sheets are SEPARATE design systems from the public site's, each
+   with its own named scale, and both were already in far better shape. What
+   they had was drift: literals sitting beside the tokens that define the very
+   same value. A literal is how a scale grows a step nobody chose. */
+
+$DS_pv2 = (string) file_get_contents($DS_root . '/assets/css/portal-v2.css');
+$DS_av2 = (string) file_get_contents($DS_root . '/assets/css/admin-v2.css');
+
+/* The console: 16 literals against seven tokens (--ac-r 8, -sm 6, -md 10,
+   -lg 12, -xl 14, -2xl 16, --ac-pill 100), including a second spelling of the
+   pill at 999px. Now none — every radius names its step. */
+preg_match_all('/border-radius:\s*(\d+)px/', $DS_av2, $m);
+t_eq(array_values(array_unique($m[1])), [],
+    'the admin console states every radius as a token, never a literal');
+
+/* The portals keep exactly one literal, and it is not a surface radius: the
+   4px on the shared :focus-visible outline. A focus ring is a different kind
+   of corner from a card, so it does not belong on the card ladder. */
+preg_match_all('/border-radius:\s*(\d+)px/', $DS_pv2, $m);
+t_eq(array_values(array_unique($m[1])), ['4'],
+    'the only literal radius left in the portals is the focus ring, which is not a surface');
+
+/* ⚠️ MEASURED at 390: the instructor student-search wrapper is 52px tall and
+   the <input> inside it 21px. Clicking a flex container's padding does not
+   focus a child input, so two thirds of the control an instructor could see
+   did nothing when tapped — a target that fails while looking fine. */
+t_ok(preg_match('/\.i-search input \{[^}]*align-self:\s*stretch/s', $DS_pv2) === 1,
+    'the search input fills its 52px shell, so the target is the shape of the affordance');
+
+/* .p-body (13.5px) is the card-supporting register and .p-prose the READING
+   one. Only the latter is held to the body-copy band. */
+t_ok(preg_match('/\.p-prose\s*\{\s*font:\s*\d+\s+(\d+(?:\.\d+)?)px\/(\d+(?:\.\d+)?)/', $DS_pv2, $m) === 1
+     && (float) $m[1] >= 15 && (float) $m[2] <= 1.65,
+    'the portals\' reading register sits inside 15-17px / 1.55-1.65 (got '
+    . ($m[1] ?? '?') . 'px/' . ($m[2] ?? '?') . ')');
+
+/* MEASURED 3.48:1 at alpha 0.38 on --ac-ink. The rail's group headings are
+   10px uppercase, which 1.4.3 treats as small text and holds to 4.5:1. The
+   10px is the design package's own scale, so the alpha is what had to move. */
+if (preg_match('/\.ac-navgroup \{[^}]*color:\s*rgba\(255,\s*255,\s*255,\s*([0-9.]+)\)/s', $DS_av2, $m)) {
+    t_ok((float) $m[1] >= 0.50,
+        'the rail group headings clear 4.5:1 on --ac-ink (alpha ' . $m[1] . ', needs >= 0.50)');
+} else {
+    t_ok(false, 'the .ac-navgroup colour is still an rgba this test can check');
+}
+
+/* ⚠️ console.php and phone.php SHARE admin-v2.css but carried different
+   ?v= values (2026.08.20 and 2026.09.28). A browser caches by full URL, so
+   the same file was fetched twice and the two pages could be running
+   different versions of one stylesheet — which is the exact failure the
+   query string exists to prevent. */
+$DS_vers = [];
+foreach (['admin/console.php' => 'admin-v2', 'admin/phone.php' => 'admin-v2'] as $DS_f => $DS_sheet) {
+    if (preg_match('~' . $DS_sheet . '\.css\?v=([^"\']+)~', (string) file_get_contents($DS_root . '/' . $DS_f), $m)) {
+        $DS_vers[$DS_f] = $m[1];
+    }
+}
+t_eq(count(array_unique($DS_vers)), 1,
+    'the two admin pages request ONE version of the stylesheet they share: ' . json_encode($DS_vers));
+
+/* The same rule for the three portals, which CLAUDE.md already states: bump
+   portal-v2.css?v= on ALL THREE pages or a browser keeps the copy with the
+   bug in it on whichever one you forgot. */
+$DS_pvers = [];
+foreach (['student', 'instructor', 'parent'] as $DS_p) {
+    if (preg_match('~portal-v2\.css\?v=([^"\']+)~',
+            (string) file_get_contents($DS_root . '/portal/' . $DS_p . '/index.html'), $m)) {
+        $DS_pvers[$DS_p] = $m[1];
+    }
+}
+t_eq(count(array_unique($DS_pvers)), 1,
+    'all three portals request ONE version of portal-v2.css: ' . json_encode($DS_pvers));
