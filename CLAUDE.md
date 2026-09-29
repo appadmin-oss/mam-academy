@@ -363,8 +363,32 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      contract for any DPI below the export node's own resolution.
    - **A root HTML page that loads `bootstrap.php`** must `header_remove('Content-Type')`
      + set `text/html` (bootstrap forces `application/json`, so the page renders as source
-     text) AND `define('MAM_RESPONSE_SENT', true)` (its shutdown handler otherwise appends
+     text) AND `define('MAM_HTML_RESPONSE', true)` (its shutdown handler otherwise appends
      `{"error":"no_response"}` into the markup). `/admin/` and `/card-studio` both do.
+     ⚠️ **It is `MAM_HTML_RESPONSE`, and this note used to say `MAM_RESPONSE_SENT`,
+     which was a security bug.** `mam_json()` opens with
+     `if (defined('MAM_RESPONSE_SENT')) return;` — it means "bytes already went
+     out". A page defining that up front to silence the shutdown net was also
+     telling `mam_json()` a response had been written, so **every `mam_fail()`
+     on that page returned instead of exiting and execution ran on past the
+     guard**. Two things followed, both MEASURED on 2026-09-29:
+     • `admin/index.php`'s CSRF and same-origin checks were inert. A POST with
+       an expired token logged "CSRF FAILED → mam_fail" and then "CSRF PASSED"
+       on the next line, ran the handler, and answered `302` — the same
+       response as a successful save. ~140 write handlers, unprotected.
+     • `/card-studio` was an **auth bypass**: it defines the constant BEFORE
+       `mam_require_admin()`, so an unauthenticated GET returned **200 and
+       14,506 bytes** of the admin studio. It answers 401 now.
+     `MAM_RESPONSE_SENT` now means only what `mam_json()` reads it as, and a
+     route that has genuinely streamed bytes (`media-headshot`, `og-image`)
+     still sets it. The shutdown net accepts either. `test_admin_screens.php`
+     asserts no page pre-defines the wrong one.
+     ⚠️ The admin's two guards **redirect with `err=`** rather than calling
+     `mam_fail()`: every caller is a browser posting a form, a JSON 403 renders
+     as raw text, and the silent 302 it replaced was indistinguishable from
+     success. And the same-origin check must **strip the port** before
+     comparing — `HTTP_HOST` carries it, `parse_url()`'s host never does, so a
+     bare comparison refuses every admin form on any install not on 80/443.
    - **`mam_setting()` ignores the default registered in `mam_settings_schema()`** — a new
      setting reads empty until someone saves the admin form. Use
      `mam_setting_or_default()` where the shipped default IS the intended value (the

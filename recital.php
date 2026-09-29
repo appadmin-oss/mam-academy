@@ -17,7 +17,7 @@ require_once __DIR__ . '/api/lib/bootstrap.php';
 // envelope; both must be undone for an HTML page (CLAUDE.md gotcha #5).
 header_remove('Content-Type');
 header('Content-Type: text/html; charset=utf-8');
-if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
+if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
 
 $slug = trim((string) ($_GET['slug'] ?? ''));
 $e    = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');

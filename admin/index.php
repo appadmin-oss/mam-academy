@@ -34,7 +34,7 @@ if (!($adminUser && mam_user_has_role($adminUser, 'admin'))) {
     } else {
         $next = rawurlencode('/admin/');
         header('Location: /portal/login?next=' . $next);
-        if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
+        if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
         exit;
     }
 }
@@ -45,7 +45,7 @@ header('Content-Type: text/html; charset=utf-8');
 // This is a server-rendered HTML page, not a JSON route — tell the bootstrap
 // shutdown handler so it doesn't append a {"error":"no_response"} envelope
 // after our markup (which also truncated some views under output buffering).
-if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
+if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
 
 $view  = $_GET['v'] ?? 'overview';
 $flash = null;
@@ -574,14 +574,62 @@ window.onload = function() {
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // Same-origin defence (in case the session cookie is the auth path
     // — Basic Auth wouldn't normally be sent cross-site, but be safe).
+    /* ⚠️ These two guards were INERT until 2026-09-29, and the way they failed
+       is worth keeping in mind. This page defines a constant to stop the API
+       shutdown net appending a JSON envelope to its HTML; that same constant
+       made `mam_json()` return instead of exit, so `mam_fail()` here logged
+       nothing, stopped nothing, and execution ran straight on into the
+       handler. An expired token answered 302 — byte for byte what a
+       successful save answers. See MAM_HTML_RESPONSE in bootstrap.php.
+
+       They answer with a REDIRECT rather than mam_fail's JSON because every
+       caller here is a browser posting a form. A JSON 403 rendered as raw
+       text in the tab tells an admin nothing about what to do; worse, the
+       previous silent 302 told them the save had worked. A stale token is
+       overwhelmingly a tab left open past the two-hour window, so the message
+       says exactly that, and says the change was not saved. */
+    $backTo = static function (string $msg): void {
+        $screen = strtolower(trim((string) ($_POST['_console'] ?? '')));
+        $to = '/admin/';
+        if ($screen !== '') {
+            if (strncmp($screen, 'phone:', 6) === 0) {
+                $panel = substr($screen, 6);
+                if (function_exists('mam_phone_panel_ok') && mam_phone_panel_ok($panel)) {
+                    $to = '/admin/phone.php?p=' . rawurlencode($panel) . '&';
+                }
+            } elseif (function_exists('mam_console_screens') && in_array($screen, mam_console_screens(), true)) {
+                $to = '/admin/console.php?v=' . rawurlencode($screen) . '&';
+            }
+        }
+        if ($to === '/admin/') $to .= '?';
+        header('Location: ' . $to . 'err=' . urlencode($msg));
+        exit;
+    };
+
+    /* ⚠️ Compare HOST TO HOST. `HTTP_HOST` carries the port when it is not the
+       scheme's default ("127.0.0.1:8221"), while `parse_url(..., PHP_URL_HOST)`
+       never does — so a bare comparison is false for every install not on 80
+       or 443 and refuses every admin form on a staging or dev port. It read as
+       correct for as long as this guard was inert; the moment it started
+       firing it rejected a legitimate POST from the console itself. */
     $origin = $_SERVER['HTTP_ORIGIN'] ?? ($_SERVER['HTTP_REFERER'] ?? '');
-    $host   = $_SERVER['HTTP_HOST'] ?? '';
-    if ($origin !== '' && $host !== '' && parse_url($origin, PHP_URL_HOST) !== $host) {
-        mam_fail('cross_origin_blocked', 403);
+    $host   = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    if ($host !== '' && $host[0] === '[') {
+        // An IPv6 literal: "[::1]:8221" -> "[::1]". parse_url KEEPS the
+        // brackets, so they are kept here too rather than trimmed.
+        $end  = strpos($host, ']');
+        $host = $end !== false ? substr($host, 0, $end + 1) : $host;
+    } elseif (($pos = strrpos($host, ':')) !== false) {
+        $host = substr($host, 0, $pos);          // "127.0.0.1:8221" -> "127.0.0.1"
+    }
+    if ($origin !== '' && $host !== '' && (string) parse_url($origin, PHP_URL_HOST) !== $host) {
+        mam_log('warn', 'admin_cross_origin_blocked', ['origin' => (string) $origin]);
+        $backTo('That request came from another site and was refused. Nothing was changed.');
     }
     $csrf = $_POST['csrf_token'] ?? '';
     if (!mam_csrf_verify($csrf)) {
-        mam_fail('csrf_invalid', 403);
+        mam_log('warn', 'admin_csrf_rejected', ['action' => (string) ($_POST['action'] ?? '')]);
+        $backTo('Your session expired before that was saved, so nothing was changed. Please try again — the page has a fresh token now.');
     }
 
     $action = $_POST['action'] ?? '';

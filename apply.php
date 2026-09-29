@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/api/lib/bootstrap.php';
 header_remove('Content-Type');
 header('Content-Type: text/html; charset=utf-8');
-if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
+if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
 
 $today       = date('Y-m-d');
 $_sumOpen    = (string)mam_setting('summer_app_open',  '');

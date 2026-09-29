@@ -141,7 +141,14 @@ $PH_shell = (string) file_get_contents(dirname(dirname(__DIR__)) . '/admin/phone
    claim the response, or it renders as source text with a no_response
    envelope appended (gotcha #5). */
 t_ok(str_contains($PH_shell, "header_remove('Content-Type')"), 'the shell resets the JSON content type');
-t_ok(str_contains($PH_shell, 'MAM_RESPONSE_SENT'), 'the shell claims the response');
+/* ⚠️ MAM_HTML_RESPONSE, not MAM_RESPONSE_SENT. The latter is what mam_json()
+   reads to mean "bytes already sent", so a page defining it up front turned
+   every mam_fail() on that page into a no-op that returned and let execution
+   continue — see test_admin_screens.php, where that left the admin CSRF gate
+   inert. This page suppresses the JSON envelope without making that claim. */
+t_ok(str_contains($PH_shell, 'MAM_HTML_RESPONSE'), 'the shell suppresses the JSON envelope');
+t_ok(!str_contains($PH_shell, "define('MAM_RESPONSE_SENT'"),
+    '…without telling mam_json() a response has already gone out');
 t_ok(str_contains($PH_shell, 'mam_require_admin') && str_contains($PH_shell, 'mam_user_has_role'),
     'the shell is admin-gated, break-glass included');
 t_ok(str_contains($PH_shell, 'mam_console_failures'),

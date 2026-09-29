@@ -41,7 +41,7 @@ if (!($adminUser && mam_user_has_role($adminUser, 'admin'))) {
         mam_require_admin();
     } else {
         header('Location: /portal/login?next=' . rawurlencode('/admin/phone.php'));
-        if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
+        if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
         exit;
     }
 }
@@ -51,7 +51,7 @@ if (!($adminUser && mam_user_has_role($adminUser, 'admin'))) {
 header_remove('Content-Type');
 header('Content-Type: text/html; charset=utf-8');
 header('Referrer-Policy: same-origin');
-if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
+if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
 
 if ($adminUser && (int) ($adminUser['must_change_password'] ?? 0) === 1) {
     header('Location: /admin/?v=account'); exit;

@@ -29,7 +29,7 @@ header('Content-Type: text/html; charset=utf-8');
 // anything that finishes without calling mam_ok()/mam_fail() — it assumes every
 // request is an API route. An HTML page must claim the response itself or that
 // JSON lands in the middle of the markup. /admin/index.php does the same.
-if (!defined('MAM_RESPONSE_SENT')) define('MAM_RESPONSE_SENT', true);
+if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
 
 /* ── Auth: a logged-in admin, or HTTP Basic as a fallback (mirrors /admin/). ── */
 $adminUser = mam_current_user();

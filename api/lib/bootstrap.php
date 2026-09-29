@@ -103,7 +103,24 @@ register_shutdown_function(function () {
     // Defensive: if a route handler returned WITHOUT calling mam_ok/mam_fail,
     // we'd otherwise send a 200 OK with the buffer contents (garbage). Force
     // a JSON envelope so the client always sees valid JSON.
-    if (!defined('MAM_RESPONSE_SENT')) {
+    /* ⚠️ TWO different questions, and they used to share one constant.
+       `MAM_RESPONSE_SENT` means "bytes have already gone to the client", and
+       `mam_json()` reads it to avoid writing a second body. `MAM_HTML_RESPONSE`
+       means "this request renders its own HTML, so do not append an envelope
+       to it" — which is all a server-rendered page ever wanted.
+
+       An HTML page that said MAM_RESPONSE_SENT up front to suppress this net
+       was also telling mam_json() a response had been written, so every
+       `mam_fail()` on that page RETURNED INSTEAD OF EXITING and execution
+       carried on past the guard. MEASURED on admin/index.php: a POST with an
+       expired CSRF token logged "CSRF FAILED -> mam_fail" and then "CSRF
+       PASSED" on the next line, ran the handler, and answered 302 — the same
+       response as a successful save. That left the CSRF and same-origin gates
+       on ~140 admin write handlers inert.
+
+       Either constant satisfies this net; only genuinely-written bytes may set
+       MAM_RESPONSE_SENT. */
+    if (!defined('MAM_RESPONSE_SENT') && !defined('MAM_HTML_RESPONSE')) {
         mam_emit_failure_json(500, 'no_response', 'Route handler returned without writing a response');
     }
 });
