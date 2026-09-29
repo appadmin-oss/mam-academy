@@ -41,8 +41,52 @@ function mam_app_key(): string {
                 'hint' => 'APP_KEY is empty in api/.env — generated a persistent fallback at storage/.app_key so forms work. Set a real APP_KEY (32+ chars) in .env for full control.',
             ]);
         }
+        return $key = $generated;
+    }
+
+    /* ⚠️ THE WRITE FAILED, AND THIS IS THE WORST STATE THE APP CAN BE IN.
+       Returning the generated key anyway gives every PHP process a DIFFERENT
+       signing key, so nothing signed in one request verifies in the next:
+
+         · every CSRF token is rejected — the whole site's forms stop
+           submitting, with `csrf_invalid` and no other symptom;
+         · every attendance QR, faculty invite link, application draft key and
+           unsubscribe link becomes unverifiable.
+
+       MEASURED with the persist blocked: three consecutive processes minted
+       three unrelated keys. It is silent, it is total, and it looks like a
+       front-end bug — which is why it is logged at ERROR with the real
+       consequence, and why `mam_app_key_persisted()` exists for the health
+       route and the console to report rather than guess.
+
+       ⚠️ There is deliberately NO fallback to a world-writable directory.
+       This key signs attendance and invitation tokens; on the shared hosting
+       this academy runs on, a key in a shared /tmp is a worse failure than a
+       broken form. An unwritable storage directory is an operator fix
+       (`chmod`/`chown` on api/storage, or set APP_KEY in api/.env), and
+       inventing somewhere else to put a secret is not this function's call. */
+    $GLOBALS['__mam_app_key_ephemeral'] = true;
+    if (function_exists('mam_log')) {
+        mam_log('error', 'app_key_not_persisted', [
+            'file'   => $file,
+            'writable_dir' => is_dir(MAM_STORAGE) ? is_writable(MAM_STORAGE) : false,
+            'impact' => 'APP_KEY is unset AND storage/.app_key could not be written, so each process signs with a different key. Every form will fail with csrf_invalid and every signed link will be rejected. Fix: set APP_KEY (32+ chars) in api/.env, or make api/storage writable.',
+        ]);
     }
     return $key = $generated;
+}
+
+/**
+ * Is the signing key STABLE across processes?
+ *
+ * False means the key is regenerated per process — see the block above. A
+ * caller reporting on system health must use this rather than measuring the
+ * key's length: an ephemeral key is a perfectly well-formed 64 characters, so
+ * a length check reports "fine" in exactly the state where nothing works.
+ */
+function mam_app_key_persisted(): bool {
+    mam_app_key();                       // resolve it, so the flag is set
+    return empty($GLOBALS['__mam_app_key_ephemeral']);
 }
 
 /**

@@ -94,3 +94,64 @@ t_ok(str_contains($pj, 'retry_after'),
 $lh = (string) file_get_contents(dirname(__DIR__, 2) . '/portal/login.html');
 t_ok(str_contains($lh, 'retry_after') && str_contains($lh, 'Too many failed attempts'),
     'and so does the sign-in page, saying failed attempts — not attempts');
+
+t_group('the signing key must be STABLE, and say so when it is not');
+
+/* ⚠️ The failure this guards is the worst silent state the app has. When
+   APP_KEY is unset AND storage/.app_key cannot be written, mam_app_key()
+   returns a freshly generated key to EVERY process. Nothing signed in one
+   request verifies in the next:
+
+     · every CSRF token is rejected, so the whole site's forms stop
+       submitting with `csrf_invalid` and no other symptom;
+     · attendance QR tokens, faculty invite links, application draft keys and
+       unsubscribe links all become unverifiable.
+
+   MEASURED with the persist blocked: three consecutive processes minted three
+   unrelated keys. It reads as a front-end bug, which is why the detection has
+   to be a predicate the health route and the console can report. */
+
+t_ok(function_exists('mam_app_key_persisted'),
+    'there is a predicate for whether the signing key survives the request');
+t_ok(mam_app_key_persisted(),
+    'the suite runs with a stable key — if this fails, every other CSRF assertion is meaningless');
+
+/* A length check is NOT the test. An ephemeral key is a perfectly well-formed
+   64 characters, so `strlen() >= 32` reports healthy in exactly the state
+   where nothing works — which is what /api/health used to do. */
+$SK_health = (string) @file_get_contents(MAM_API_ROOT . '/routes/health.php');
+t_ok(str_contains($SK_health, 'mam_app_key_persisted()'),
+    'the health route reports the key\'s STABILITY, not merely its length');
+t_ok(!preg_match("/'csrf'\s*=>\s*strlen\(mam_app_key\(\)\)\s*>=\s*32\s*,/", $SK_health),
+    '…and no longer reports csrf healthy on a length check alone');
+
+/* The console surfaces it where an admin looking for "why are the forms
+   broken" will actually be. */
+$SK_con = (string) @file_get_contents(MAM_API_ROOT . '/lib/console.php');
+t_ok(str_contains($SK_con, "'signing'"), 'the console health card carries the signing state');
+t_ok(str_contains($SK_con, 'mam_app_key_persisted'), '…derived from the predicate, not re-implemented');
+$SK_sys = (string) @file_get_contents(dirname(MAM_API_ROOT) . '/partials/admin-console/system.php');
+t_ok(str_contains($SK_sys, "signing"), 'the System screen renders it');
+
+/* ⚠️ No fallback to a shared directory. This key signs attendance and
+   invitation tokens; on shared hosting a key in a world-writable /tmp is a
+   worse failure than a broken form. An unwritable storage directory is an
+   operator fix, not something this function may route around. */
+$SK_csrf = (string) @file_get_contents(MAM_API_ROOT . '/lib/csrf.php');
+/* Comments stripped first: the reason for the rule is written in this very
+   file, and a test that cannot tell the explanation from the implementation
+   forbids documenting the decision. (Second time this bit — the phone
+   subset's WhatsApp guard had the same flaw.) */
+$SK_code = preg_replace('~/\*.*?\*/|//[^\n]*~s', '', $SK_csrf);
+t_ok(!preg_match('~sys_get_temp_dir\s*\(~', $SK_code),
+    'mam_app_key() never falls back to a shared temp directory for a signing key');
+t_ok(str_contains($SK_csrf, 'app_key_not_persisted'),
+    'the unpersisted case is logged under its own name, at error');
+
+/* The honest-message rule: the old log line said it had "generated a
+   persistent fallback ... so forms work". On the branch where the write
+   FAILED that sentence is false, and it is the sentence an operator would
+   have found while hunting a broken form. */
+$SK_pos = strpos($SK_csrf, 'app_key_not_persisted');
+t_ok($SK_pos !== false && !str_contains(substr($SK_csrf, $SK_pos, 600), 'so forms work'),
+    'the failure branch does not claim forms work');

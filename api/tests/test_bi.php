@@ -141,3 +141,73 @@ t_eq(mam_bi_retention(30)['active'], $BI_old['active'], 'a practice log outside 
 // Housekeeping: this file's throwaway course would inflate the catalogue test's
 // absolute count of 12. FKs cascade the cohort and enrolments with it.
 mam_db()->prepare('DELETE FROM courses WHERE id = ?')->execute([$BI_course]);
+
+t_group('month arithmetic clamps — the silent axis-shortening bug');
+
+/* ⚠️ Stepping months from TODAY'S DATE rather than the 1st is the trap
+   CLAUDE.md records for card expiry, and the revenue chart had it backwards:
+   `strtotime('-N months')` rolls FORWARD when the day does not exist in the
+   target month, so two steps land in one month and another is skipped.
+
+   MEASURED before the fix: from 2026-09-29 a twelve-month window produced
+   ELEVEN buckets (February gone — 2026-09-29 minus seven months is the
+   non-existent 2026-02-29, which rolls into March); from 2026-08-31 it
+   produced SEVEN. The chart never reported a gap. It drew a shorter axis, so
+   a month's revenue appeared to belong to a month it did not.
+
+   Month-END dates are the whole test — a mid-month date passes either way,
+   which is why this went unnoticed until the calendar reached the 29th. */
+foreach (['2026-01-31', '2026-03-31', '2026-05-31', '2026-08-31', '2026-12-31',
+          '2026-09-29', '2026-09-30', '2024-02-29', '2026-07-15'] as $BI_day) {
+    $BI_w = mam_bi_revenue_by_month(12, $BI_day);
+    t_eq(count($BI_w), 12, "a 12-month window from $BI_day has 12 buckets");
+    t_eq(count(array_unique(array_column($BI_w, 'month'))), 12,
+        "…and from $BI_day they are 12 DISTINCT months, none collapsed onto another");
+    // Oldest first, strictly ascending, no gaps.
+    $BI_ms = array_column($BI_w, 'month');
+    t_eq($BI_ms, array_values(array_filter($BI_ms)), "…with no empty month key from $BI_day");
+    $BI_sorted = $BI_ms; sort($BI_sorted);
+    t_eq($BI_ms, $BI_sorted, "…in ascending order from $BI_day");
+    t_eq(end($BI_ms), substr($BI_day, 0, 7), "…ending on the month asked for, from $BI_day");
+}
+
+t_group('mam_add_months — one clamp, shared by the card and the clearance');
+
+/* Both surfaces date a real entitlement: how long an ID card opens a door, and
+   how long a safeguarding clearance lets an instructor teach a child. Rolling
+   forward silently EXTENDS both, which is the wrong direction to be wrong in. */
+$MA = [
+    ['2026-08-31',  6, '2027-02-28'],   // Feb has no 31st — the vetting bug
+    ['2026-12-31',  6, '2027-06-30'],
+    ['2026-03-31',  6, '2026-09-30'],
+    ['2026-01-31',  1, '2026-02-28'],
+    ['2026-01-31',  6, '2026-07-31'],   // the day DOES exist — must not move
+    ['2024-01-31',  1, '2024-02-29'],   // a leap February
+    ['2024-02-29', 12, '2025-02-28'],   // leap day into a common year
+    ['2026-06-15', 12, '2027-06-15'],   // mid-month is untouched
+    ['2026-08-31', -6, '2026-02-28'],   // stepping BACKWARDS clamps too
+    ['2026-01-15', -1, '2025-12-15'],   // …and crosses the year correctly
+];
+foreach ($MA as [$MA_in, $MA_n, $MA_want]) {
+    t_eq(mam_add_months($MA_in, $MA_n), $MA_want, "$MA_in " . ($MA_n >= 0 ? '+' : '') . "$MA_n months");
+}
+t_eq(mam_add_months('not a date', 3), null, 'an unparseable date returns null rather than today');
+
+/* The clamp is never LATER than the naive result — the property that makes it
+   safe for a validity period. */
+foreach (['2026-01-31', '2026-03-31', '2026-08-31', '2026-05-31'] as $MA_d) {
+    $MA_naive = date('Y-m-d', strtotime($MA_d . ' +6 months'));
+    t_ok(mam_add_months($MA_d, 6) <= $MA_naive,
+        "$MA_d: clamping never grants MORE time than asked for (naive gave $MA_naive)");
+}
+
+/* One implementation. vetting.php carried a comment claiming it clamped while
+   calling strtotime() directly; cards.php had the real clamp. They must not
+   drift apart again. */
+foreach (['vetting', 'cards'] as $MA_lib) {
+    $MA_src = (string) @file_get_contents(MAM_API_ROOT . '/lib/' . $MA_lib . '.php');
+    t_ok(str_contains($MA_src, 'mam_add_months('),
+        "$MA_lib.php dates its expiry through the shared clamp");
+    t_ok(!preg_match("/strtotime\(\s*\\\$\w+\s*\.\s*' \+' \. \\\$months/", $MA_src),
+        "$MA_lib.php no longer adds months with a bare strtotime()");
+}

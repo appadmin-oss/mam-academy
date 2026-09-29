@@ -442,6 +442,28 @@ $CT_stripped = preg_replace('/ (?:data-label|role)="[^"]*"/', '', $CT_out);
 t_eq($CT_stripped, $CT_roundtrip($CT_in),
     'the helper adds attributes and changes NOTHING else');
 
+/* ⚠️ That assertion compares against a DOM ROUND TRIP, not against the input,
+   and the distinction matters: the round trip is not byte-identical. MEASURED
+   over the 31 console screens, three differ, in two benign ways — a boolean
+   attribute loses its empty value (`selected=""` becomes `selected`) and an
+   attribute carrying double quotes is re-delimited with single ones
+   (`onsubmit="…&quot;x&quot;"` becomes `onsubmit='…"x"'`). Both parse
+   identically, which is why the helper is safe to run on every page load, but
+   "lossless" overstates it and the difference should not be discovered again
+   from scratch.
+
+   The one case worth pinning is the re-delimiting, because it is only safe
+   while the serializer escapes a value that contains BOTH quote characters —
+   an apostrophe in a confirm message is very much this codebase's voice. */
+$CT_apos = ac_label_table_cells(
+    '<table class="ac-table"><thead><tr><th>A</th></tr></thead><tbody><tr><td>'
+    . '<form onsubmit="return confirm(&quot;Revoke Ada&#39;s sessions?&quot;)"><button>Go</button></form>'
+    . '</td></tr></tbody></table>');
+t_ok(str_contains($CT_apos, 'Ada&#39;s') || str_contains($CT_apos, 'onsubmit="'),
+    'an inline handler containing an apostrophe keeps double-quote delimiters — re-delimiting it would break the JS');
+t_ok(!preg_match("~onsubmit='[^']*'[^']*'~", $CT_apos),
+    '…and never produces a handler terminated early by its own apostrophe');
+
 // A screen with no table must not pay for a DOM parse, and must come back identical.
 $CT_plain = '<div class="ac-card"><p>No table here. Naira: ₦1,500 — em dash kept.</p></div>';
 t_eq(ac_label_table_cells($CT_plain), $CT_plain, 'a screen with no table is returned untouched, byte for byte');

@@ -10,6 +10,15 @@ $behind = ($d['schema']['target'] ?? null) !== null
     'Automations, outbound events, mail and the schema',
     '<a class="ac-btn" href="/admin/?v=diag">Diagnostics</a>'); ?>
 
+<?php /* Above the schema warning on purpose: an unstable signing key breaks
+         every form on the site, and an admin arriving here because "the forms
+         are not submitting" should meet the reason first. */ ?>
+<?php if (isset($h['signing']) && empty($h['signing']['stable'])): ?>
+  <?php ac_banner('bad', 'fa-key',
+    '<strong>The signing key is not stable between requests.</strong> '
+    . ac_h((string) ($h['signing']['detail'] ?? ''))); ?>
+<?php endif; ?>
+
 <?php if ($behind): ?>
   <?php ac_banner('bad', 'fa-database',
     '<strong>The database is behind the code.</strong> Schema ' . (int) $d['schema']['version']

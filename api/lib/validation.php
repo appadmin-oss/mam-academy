@@ -623,3 +623,39 @@ function mam_honeypot(array $src, string $key = '_honeypot'): void {
         mam_ok(['accepted' => true, 'reference' => 'NA-' . bin2hex(random_bytes(3))]);
     }
 }
+
+/**
+ * Add whole months to a date, CLAMPING to the last day of the target month.
+ *
+ * ── WHY THIS EXISTS, AND WHY IT LIVES HERE ────────────────────────────────
+ * `strtotime('+N months')` does not do what a person means by "six months
+ * from now". When the day does not exist in the target month it rolls FORWARD
+ * into the next one, so 31 August plus six months is 3 March rather than the
+ * end of February. MEASURED against the real settings:
+ *
+ *   · a vetting clearance issued 2026-08-31 expired 2027-03-03, three days
+ *     later than the academy granted — on the safeguarding gate, which is the
+ *     highest-consequence control in this repo;
+ *   · 2026-03-31 + 6 gave 1 October instead of 30 September;
+ *   · the BI revenue chart, stepping BACKWARDS the same way, silently drew
+ *     seven months where twelve were asked for.
+ *
+ * `cards.php` had already worked this out and clamped correctly for ID-card
+ * expiry, while `vetting.php` carried a comment SAYING it clamped and a line
+ * that did not. One implementation, in the file the harness and production
+ * both load (gotcha #1), is what stops those two drifting apart again.
+ *
+ * Clamping is the conservative direction for a validity period: the last day
+ * of the target month is never later than the caller intended, where rolling
+ * forward silently extends a clearance.
+ */
+function mam_add_months(string $date, int $months): ?string {
+    $ts = strtotime($date);
+    if ($ts === false) return null;
+    $y = (int) date('Y', $ts); $m = (int) date('n', $ts); $d = (int) date('j', $ts);
+    $tm  = $m + $months;
+    $ty  = $y + (int) floor(($tm - 1) / 12);
+    $tmo = (($tm - 1) % 12 + 12) % 12 + 1;          // correct for a NEGATIVE $months too
+    $last = (int) date('t', mktime(0, 0, 0, $tmo, 1, $ty));
+    return date('Y-m-d', mktime(0, 0, 0, $tmo, min($d, $last), $ty));
+}

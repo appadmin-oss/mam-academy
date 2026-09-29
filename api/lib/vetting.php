@@ -155,11 +155,19 @@ function mam_vetting_record(
     if ($expiresOn === null) {
         $months = MAM_VETTING_TYPES[$type]['months'];
         if ($months !== null) {
-            // Clamp to the end of the target month: strtotime('+1 month') on the
-            // 31st lands in the month AFTER next (the same trap the ID-card
-            // expiry sweep documents).
-            $ts = strtotime($issuedOn . ' +' . $months . ' months');
-            $expiresOn = $ts ? date('Y-m-d', $ts) : null;
+            /* Clamp to the end of the target month: strtotime('+1 month') on
+               the 31st lands in the month AFTER next (the same trap the
+               ID-card expiry sweep documents).
+
+               ⚠️ This comment was here BEFORE the clamp was. The line under it
+               called strtotime() directly, which is precisely the behaviour
+               the comment says is being avoided — MEASURED, a clearance issued
+               2026-08-31 expired 2027-03-03 instead of 2027-02-28, three extra
+               days of validity on a child-safeguarding check. A comment that
+               states the opposite of its code is worse than none, because a
+               reviewer reads it and moves on. `mam_add_months()` is now the one
+               implementation, shared with cards.php. */
+            $expiresOn = mam_add_months($issuedOn, (int) $months);
         }
     }
     // An expiry before the issue date is a data-entry slip, not a lapsed check;

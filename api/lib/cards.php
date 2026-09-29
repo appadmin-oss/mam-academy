@@ -102,15 +102,14 @@ function mam_card_validity_months(bool $isSummer): int {
 function mam_card_expiry_at(bool $isSummer, string $issuedAt): string {
     $months = mam_card_validity_months($isSummer);
     $ts = strtotime($issuedAt) ?: time();
-    // strtotime('+2 months') on the 31st lands in the following month; clamping to
-    // the end of the target month is what a human means by "two months".
-    $y = (int)date('Y', $ts); $m = (int)date('n', $ts); $d = (int)date('j', $ts);
-    $tm = $m + $months;
-    $ty = $y + intdiv($tm - 1, 12);
-    $tmo = (($tm - 1) % 12) + 1;
-    $last = (int)date('t', mktime(0, 0, 0, $tmo, 1, $ty));
-    $td = min($d, $last);
-    return date('Y-m-d H:i:s', mktime((int)date('G', $ts), (int)date('i', $ts), (int)date('s', $ts), $tmo, $td, $ty));
+    /* strtotime('+2 months') on the 31st lands in the following month; clamping
+       to the end of the target month is what a human means by "two months".
+       The date arithmetic is `mam_add_months()` (validation.php) so this and
+       the vetting gate cannot drift — this file had the clamp and vetting had
+       only a comment claiming one. The TIME of day is preserved here, which is
+       why the helper returns a date and the clock is reapplied. */
+    $day = mam_add_months(date('Y-m-d', $ts), (int) $months) ?: date('Y-m-d', $ts);
+    return $day . ' ' . date('H:i:s', $ts);
 }
 
 /** Has the card lapsed? A NULL expires_at (a pre-v59 row the backfill missed)

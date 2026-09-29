@@ -39,8 +39,13 @@ if ($authorized) {
         'stripe'         => (bool)mam_env('STRIPE_SECRET_KEY'),
         'smtp'           => (bool)mam_env('MAIL_HOST'),
         'admin'          => (bool)(mam_env('ADMIN_USER') && mam_env('ADMIN_PASSWORD_HASH')),
-        'csrf'           => strlen(mam_app_key()) >= 32,
-        'app_key_source' => strlen(trim((string)mam_env('APP_KEY', ''))) >= 32 ? 'env' : 'auto',
+        /* ⚠️ Not a length check. An UNPERSISTED key is a well-formed 64
+           characters and changes every process, so `strlen() >= 32` reported
+           healthy in precisely the state where every form on the site fails
+           with csrf_invalid. `mam_app_key_persisted()` is the real question. */
+        'csrf'           => strlen(mam_app_key()) >= 32 && mam_app_key_persisted(),
+        'app_key_source' => strlen(trim((string)mam_env('APP_KEY', ''))) >= 32 ? 'env'
+                            : (mam_app_key_persisted() ? 'auto' : 'EPHEMERAL — not persisted; set APP_KEY or make api/storage writable'),
     ];
 }
 

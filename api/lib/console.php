@@ -553,12 +553,23 @@ function mam_console_health(): array {
     $badSig = mam_console_int('health.sig', "SELECT COUNT(*) FROM webhook_events WHERE signature_valid = 0");
     $rate  = mam_console_try('health.fx', fn() => mam_usd_to_ngn_rate(false), 0.0);
     $auditHead = mam_console_int('health.audit', "SELECT COALESCE(MAX(id), 0) FROM audit_log");
+    /* ⚠️ The signing key's STABILITY, not its length. When APP_KEY is unset
+       and storage/.app_key cannot be written, every process signs with a
+       different key: every form on the site fails with csrf_invalid and every
+       attendance QR and invitation link is rejected. It is silent and total,
+       and it presents as "the forms are broken" — so it belongs on the health
+       card, above the mail queue, rather than in a log nobody reads. */
+    $keyOk = !function_exists('mam_app_key_persisted') || mam_app_key_persisted();
+
     return [
         'outbox'   => ['stuck' => $stuck, 'sent_24h' => $sent],
         'webhooks' => ['unverified' => $badSig],
         'fx'       => ['rate' => $rate ? (float) $rate : null],
         'audit'    => ['head' => $auditHead],
-        'nominal'  => ($stuck === 0 && $badSig === 0),
+        'signing'  => ['stable' => $keyOk,
+                       'detail' => $keyOk ? null
+                           : 'APP_KEY is unset and api/storage/.app_key could not be written, so each request signs with a different key. Every form will fail and every signed link will be rejected. Set APP_KEY (32+ characters) in api/.env, or make api/storage writable.'],
+        'nominal'  => ($stuck === 0 && $badSig === 0 && $keyOk),
     ];
 }
 

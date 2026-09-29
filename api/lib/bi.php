@@ -26,7 +26,23 @@ function mam_bi_revenue_where(): string {
  */
 function mam_bi_revenue_by_month(int $months = 12, ?string $today = null): array {
     $today = $today ?: date('Y-m-d');
-    $start = date('Y-m-01', strtotime($today . ' -' . max(0, $months - 1) . ' months'));
+    /* ⚠️ Step months from the FIRST of the month, never from today's date.
+       `strtotime('-N months')` clamps into the following month when the day
+       does not exist in the target, so counting back from a late date lands
+       twice in the same month and skips another entirely.
+
+       MEASURED: from 2026-09-29 a twelve-month window produced ELEVEN
+       buckets — February vanished, because 2026-09-29 minus seven months is
+       2026-02-29, which is not a date, so it rolled into March. From
+       2026-08-31 it produced SEVEN: five months silently collapsed. The chart
+       did not report a gap; it simply drew a shorter axis, so revenue looked
+       like it belonged to a month it did not.
+
+       Same family as the card-expiry note in CLAUDE.md ("+1 month on the 31st
+       lands in the month AFTER next"). Anchoring to the 1st makes every step
+       exact, because the 1st exists in every month. */
+    $anchor = date('Y-m-01', strtotime($today));
+    $start = date('Y-m-01', strtotime($anchor . ' -' . max(0, $months - 1) . ' months'));
     $rows  = mam_db_all(
         "SELECT created_at, amount_usd_cents FROM payments
           WHERE " . mam_bi_revenue_where() . " AND created_at >= ?",
@@ -36,7 +52,7 @@ function mam_bi_revenue_by_month(int $months = 12, ?string $today = null): array
     // rather than vanishing and making the axis lie about the time span.
     $buckets = [];
     for ($i = max(0, $months - 1); $i >= 0; $i--) {
-        $buckets[date('Y-m', strtotime($today . ' -' . $i . ' months'))] = ['cents' => 0, 'payments' => 0, 'unpriced' => 0];
+        $buckets[date('Y-m', strtotime($anchor . ' -' . $i . ' months'))] = ['cents' => 0, 'payments' => 0, 'unpriced' => 0];
     }
     foreach ($rows as $r) {
         $m = substr((string) $r['created_at'], 0, 7);
