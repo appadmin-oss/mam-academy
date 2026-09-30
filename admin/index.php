@@ -3383,7 +3383,13 @@ nav a{display:flex;align-items:center}
       'paystack' => !!mam_env('PAYSTACK_SECRET_KEY'),
       'flw'      => !!mam_env('FLW_SECRET_KEY'),
       'smtp'     => !!mam_env('MAIL_HOST'),
-      'key'      => strlen((string)mam_env('APP_KEY')) >= 32,
+      /* STABILITY, not "is the env var set". An install with no APP_KEY in
+         .env runs correctly on the persisted storage/.app_key that
+         mam_app_key() writes on first boot, and this panel used to show that
+         install a red cross for a key that was fine — while the real failure,
+         a key that cannot be persisted at all and so changes every request,
+         showed the same red cross. Same predicate /api/health reports. */
+      'key'      => mam_app_key_persisted(),
     ];
     // Schema-version check — surfaces the #1 production gotcha: a MySQL DB
     // that's behind on migrations because schema-mysql.sql wasn't run after
@@ -3402,7 +3408,11 @@ nav a{display:flex;align-items:center}
       echo '<script>function mamRunMigrate(){fetch("/api/admin/migrate",{method:"POST",headers:{"X-CSRF-Token":"'.htmlspecialchars($csrf,ENT_QUOTES).'","Content-Type":"application/json"},credentials:"same-origin"}).then(r=>r.json()).then(j=>{alert("Migration "+(j.ok?"succeeded":"failed")+": schema "+j.before+" → "+j.after);location.reload();}).catch(e=>alert("Failed: "+e.message));}</script>';
       echo '</div>';
     }
-    if (!$health['key']) echo '<div class="banner warn">⚠️ APP_KEY is missing or too short — CSRF tokens and admin forms will fail. Set <code>APP_KEY</code> in <code>api/.env</code> (hex, ≥32 chars).</div>';
+    /* The banner has to explain the predicate above it. "Missing or too short"
+       was the old check's diagnosis and is now the wrong one: an unset APP_KEY
+       is fine — mam_app_key() persists a generated one. What this reports is a
+       key that could not be persisted AT ALL, so it changes every request. */
+    if (!$health['key']) echo '<div class="banner warn">⚠️ The signing key is not persisted, so it changes on every request — CSRF tokens, invite links and ID-card signatures will all fail. Either set <code>APP_KEY</code> in <code>api/.env</code> (hex, ≥32 chars) or make <code>api/storage</code> writable so a generated key can be stored.</div>';
     if (!$health['paystack'] && !$health['flw']) echo '<div class="banner warn">⚠️ No payment provider configured. Set <code>PAYSTACK_SECRET_KEY</code> or <code>FLW_SECRET_KEY</code>.</div>';
     if (!$health['smtp']) echo '<div class="banner">ℹ️ SMTP not configured — outgoing mail falls back to PHP <code>mail()</code>.</div>';
     // Operational readiness: config that silently degrades a feature when left
