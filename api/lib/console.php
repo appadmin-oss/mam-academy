@@ -1667,6 +1667,10 @@ function mam_console_dataprotection(): array {
         'purposes' => mam_console_try('dp.purp', fn() => mam_dp_purposes(), []) ?: [],
         'retention' => mam_console_try('dp.ret', fn() => mam_dp_retention(), []) ?: [],
         'mode' => mam_console_try('dp.mode', fn() => mam_dp_retention_mode(), 'report'),
+        /* The application log FILES. Always the dry-run form: a read provider
+           that could delete would make opening a screen a destructive act. */
+        'logs' => mam_console_try('dp.logs', fn() => mam_dp_prune_app_logs(true), []) ?: [],
+        'log_keep_days' => mam_console_try('dp.logdays', fn() => mam_dp_log_retention_days(), 90),
         'processors' => mam_console_try('dp.proc', fn() => mam_dp_processor_registry(), []) ?: [],
         'tier' => mam_console_try('dp.tier', fn() => mam_dp_tier(6), []) ?: [],
         'deadlines' => defined('MAM_DP_DEADLINES') ? MAM_DP_DEADLINES : [],

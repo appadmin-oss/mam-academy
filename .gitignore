@@ -8,3 +8,7 @@ api/storage/og/
 api/storage/export/
 # Uploaded headshots — real people's photographs, never committed.
 api/storage/uploads/
+# The job runner's flock. Running the cron on a checkout left this in
+# `git status`, where the repo's own rule is to stage paths explicitly —
+# so a `git add -A` would have committed a runtime lock.
+api/storage/.run-jobs.lock

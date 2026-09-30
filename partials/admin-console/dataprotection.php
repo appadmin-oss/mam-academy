@@ -77,6 +77,21 @@ $open = array_values(array_filter($d['requests'] ?? [], fn($r) => empty($r['clos
                     (string) ($r['action'] ?? '') === 'delete' ? 'bad' : 'warn') ?></td>
               </tr>
             <?php endforeach; endif; ?>
+            <?php
+              /* Not a table, and deliberately not an entry in the code
+                 registry above — that one is asserted table-by-table against
+                 the live schema. It is listed here because the SCHEDULE has to
+                 account for every store of personal data, and a log line
+                 carries an IP and a user agent like any row does. */
+              $lg = (array) ($d['logs'] ?? []);
+            ?>
+            <tr>
+              <td>Application logs <span class="ac-sub">IP and user agent per line<?= isset($lg['overdue']) && (int) $lg['overdue'] > 0
+                  ? ' · ' . (int) $lg['overdue'] . ' file' . ((int) $lg['overdue'] === 1 ? '' : 's') . ' past the period' : '' ?></span></td>
+              <td class="ac-mono">api/logs/app-*.log</td>
+              <td class="ac-num"><?= (int) ($d['log_keep_days'] ?? 90) ?> d</td>
+              <td><?= ac_pill('DELETE', 'bad') ?></td>
+            </tr>
           </tbody>
         </table>
       </div>

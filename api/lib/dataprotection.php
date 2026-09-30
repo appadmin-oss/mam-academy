@@ -1139,6 +1139,113 @@ function mam_dp_retention_sweep(bool $dryRun = false): array {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * ── THE APPLICATION LOG IS PERSONAL DATA TOO ──────────────────────────────
+ * `mam_log()` writes one JSON line per event into api/logs/app-YYYY-MM-DD.log,
+ * and every line carries an IP address, a user agent and whatever `meta` the
+ * call site passed. That is personal data on exactly the footing as the rows
+ * the schedule above governs — but it is a FILE, so nothing in this lib saw
+ * it. Nothing pruned it either: the daily files accumulated for the life of
+ * the install, on shared hosting, outside the register that exists to say
+ * what the academy keeps and for how long.
+ *
+ * ⚠️ This is deliberately NOT an entry in `mam_dp_retention()`. That registry
+ * is asserted table-by-table against the LIVE SCHEMA — every rule must name a
+ * real table and a real date column — so a file-based rule would either break
+ * that test or force it to be weakened. The test is the thing keeping the
+ * register honest, so the file rule lives beside it instead of inside it, and
+ * `mam_dp_register()` reports it as its own row.
+ *
+ * Three decisions worth keeping:
+ *
+ *  • The day is read from the FILENAME, never from mtime. A restore from
+ *    backup, an rsync or a filesystem copy rewrites every mtime, which would
+ *    make a whole history of logs look like it was written today — the sweep
+ *    would then keep them all, silently, forever. The name states which day
+ *    the file covers and is the only thing that survives being moved.
+ *
+ *  • Only the exact `app-YYYY-MM-DD.log` pattern is ever considered. The
+ *    directory is not globbed. Anything else somebody has put in api/logs —
+ *    a capture they are mid-investigation on, a .gitignore — is not this
+ *    function's to delete.
+ *
+ *  • The gate is the SAME `dp_retention_mode` the table sweep honours, and
+ *    `$dryRun` overrides `enforce` rather than being overridden by it. The
+ *    admin's preview button must not become destructive because a setting
+ *    changed underneath it — the invariant the table sweep already holds.
+ */
+
+/** `app-YYYY-MM-DD.log`, and nothing else in the directory. */
+const MAM_DP_LOG_FILE_RE = '/^app-(\d{4}-\d{2}-\d{2})\.log$/';
+
+/**
+ * How long a diagnostic log line is kept. Shorter than the 365 days on
+ * `mail_log` and `card_scans` on purpose: those are records of something the
+ * academy did, while this is diagnostic exhaust whose only purpose is working
+ * out what went wrong recently. Once that need has passed the line is just a
+ * retained IP address.
+ */
+function mam_dp_log_retention_days(): int {
+    $d = (int) mam_setting_or_default('dp_log_retention_days', 90);
+    // A zero or a negative from a mistyped setting would delete today's log.
+    return $d >= 1 ? $d : 90;
+}
+
+/**
+ * Sweep the application log files. Never throws — it runs from cron beside
+ * jobs that matter more, and a log file it cannot unlink must not stop them.
+ *
+ * @return array{mode:string,applied:bool,scanned:int,overdue:int,deleted:int,
+ *               bytes:int,cutoff:string,errors:int}
+ */
+function mam_dp_prune_app_logs(bool $dryRun = false): array {
+    $mode = mam_dp_retention_mode();
+    $act  = !$dryRun && $mode === 'enforce';
+    $days = mam_dp_log_retention_days();
+
+    // Adjudicated in the academy's own zone, like every other date in the
+    // system, so a server clock in another zone cannot shift the boundary.
+    $cutoff = gmdate('Y-m-d', time() - ($days * 86400));
+    $today  = gmdate('Y-m-d');
+
+    $out = ['mode' => $mode, 'applied' => $act, 'scanned' => 0, 'overdue' => 0,
+            'deleted' => 0, 'bytes' => 0, 'cutoff' => $cutoff, 'errors' => 0];
+
+    if ($mode === 'off' && !$dryRun) { $out['skipped'] = true; return $out; }
+    if (!defined('MAM_LOGS') || !is_dir(MAM_LOGS)) return $out;
+
+    $entries = @scandir(MAM_LOGS);
+    if ($entries === false) return $out;
+
+    foreach ($entries as $name) {
+        if (!preg_match(MAM_DP_LOG_FILE_RE, $name, $m)) continue;
+        $out['scanned']++;
+        $day = $m[1];
+        if ($day === $today) continue;          // never the file being written
+        if ($day >= $cutoff) continue;          // ISO dates compare as strings
+        $out['overdue']++;
+
+        $path = MAM_LOGS . '/' . $name;
+        $size = (int) @filesize($path);
+        if (!$act) continue;
+        if (@unlink($path)) { $out['deleted']++; $out['bytes'] += $size; }
+        else { $out['errors']++; }
+    }
+
+    if ($out['deleted'] > 0) {
+        // The register has to be able to show that the deletion happened; an
+        // unrecorded deletion is indistinguishable from never having kept the
+        // data at all.
+        try {
+            mam_audit('dp.logs_pruned', 'app_logs', null, [
+                'deleted' => $out['deleted'], 'bytes' => $out['bytes'],
+                'cutoff'  => $cutoff, 'days' => $days,
+            ]);
+        } catch (\Throwable $e) { /* never fail a sweep over its own audit row */ }
+    }
+    return $out;
+}
+
+/**
  * The ROPA for display: each purpose, its annotation, and — the load-bearing
  * part — whether the tables it names still exist. A purpose pointing at a
  * dropped table means the register has drifted from the code, which is the
@@ -1234,6 +1341,12 @@ function mam_dp_summary(): array {
         'processors'       => count($procs),
         'processor_gaps'   => count($procGaps),
         'retention_mode'   => mam_dp_retention_mode(),
+        /* The application log FILES, reported beside the table schedule so
+           the register accounts for every store of personal data and not
+           only the ones that happen to be rows. Always a dry run here: a
+           screen that reads the register must never delete anything. */
+        'logs'             => mam_dp_prune_app_logs(true),
+        'log_keep_days'    => mam_dp_log_retention_days(),
         'retention_flagged' => array_sum(array_map(static fn(array $e): int => (int) $e['overdue'], $scan)),
         'purposes'         => count(mam_dp_purposes()),
         'purposes_unreviewed' => $unreviewed,

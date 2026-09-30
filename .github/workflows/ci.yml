@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.1', '8.2', '8.3']
+        php: ['8.1', '8.2', '8.3', '8.4']
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +42,75 @@ jobs:
       # mirror fails the build rather than being discovered on a deploy.
       - name: Verify the schema-v2 SQLite mirror is not stale
         run: php api/tools/schema-v2-sqlite.php --check
+
+  mysql:
+    # ── THE PRODUCTION ENGINE ────────────────────────────────────────────
+    # The job above runs the suite on SQLite, which is the DEVELOPMENT
+    # database. Production runs MySQL/MariaDB, and seven defects have already
+    # existed only there — a role ENUM with no 'parent' that made every
+    # guardian account uncreatable, date('c') into DATETIME columns that
+    # silently dropped every mail_log row, an ON DELETE SET NULL on a
+    # CHECK-referenced column that took four tables out of the schema, and
+    # four more. Every one of them passed a green SQLite build. Until this
+    # job existed the production engine was never exercised before a deploy.
+    #
+    # MariaDB rather than MySQL 8 deliberately: db/schema-mysql.sql uses
+    # `ADD COLUMN IF NOT EXISTS`, which is MariaDB syntax, and the file's own
+    # notes say MySQL 8 needs the migration blocks run once by hand. Covering
+    # MySQL 8 as well means making the schema portable first; that is a
+    # separate piece of work, not something to fake with a second matrix row.
+    name: PHP tests against MariaDB
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: ci
+          MARIADB_DATABASE: mam_suite
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_mysql, mbstring, curl, openssl, json
+          coverage: none
+
+      # ⚠️ --force is required, not defensive. The file re-runs its own
+      # migration blocks, so a fresh database throws ~35 "duplicate column"
+      # errors and everything after them still applies. WITHOUT --force the
+      # first error stops the import and you get 18 tables instead of ~130 —
+      # and the suite then fails in a way that looks like a code regression.
+      - name: Apply the MySQL schema
+        run: |
+          mariadb -h 127.0.0.1 -P 3306 -u root -pci             -e "DROP DATABASE IF EXISTS mam_suite; CREATE DATABASE mam_suite CHARACTER SET utf8mb4;"
+          mariadb -h 127.0.0.1 -P 3306 -u root -pci --force mam_suite < db/schema-mysql.sql
+
+      # The import above cannot fail the build (--force swallows errors), so
+      # the table count is what proves it actually landed. A stopped import
+      # leaves 18; a good one leaves ~130.
+      - name: Verify the schema actually imported
+        run: |
+          COUNT=$(mariadb -h 127.0.0.1 -P 3306 -u root -pci -N -B             -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='mam_suite';")
+          echo "tables: $COUNT"
+          if [ "$COUNT" -lt 100 ]; then
+            echo "::error::Only $COUNT tables — the schema import stopped early (is --force still on?)"
+            exit 1
+          fi
+
+      # 14 files introspect sqlite_master/PRAGMA and skip themselves here;
+      # run.php prints which. The rest of the suite runs against MariaDB.
+      - name: Run the suite against MariaDB
+        env:
+          DB_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=mam_suite;charset=utf8mb4'
+          DB_USERNAME: root
+          DB_PASSWORD: ci
+        run: php api/tests/run.php
 
   js:
     name: JS syntax

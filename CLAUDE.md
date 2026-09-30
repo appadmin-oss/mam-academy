@@ -709,6 +709,29 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      aspirational register lists the vendor somebody once considered and omits
      the SMTP host that has carried every password-reset email for a year; `gap`
      = live and no DPA on file.
+   - **The application LOG is personal data, and it is swept too.**
+     `mam_log()` writes a JSON line per event into `api/logs/app-YYYY-MM-DD.log`
+     carrying an IP, a user agent and whatever `meta` the call site passed.
+     Nothing ever deleted those files — the one store of personal data living
+     on the filesystem sat outside the whole layer, accumulating for the life
+     of the install on shared hosting. `mam_dp_prune_app_logs()` sweeps them
+     from `run-jobs.php` under the SAME `dp_retention_mode` gate, with
+     `dp_log_retention_days` (90) as the period. Three things to keep:
+     it is deliberately **NOT** an entry in `mam_dp_retention()` — that
+     registry is asserted table-by-table against the live schema, so a
+     file-based rule would break the test that keeps the register honest;
+     the day comes from the **FILENAME, never mtime**, because a restore or an
+     rsync rewrites every mtime and would make a whole history look like it
+     was written today; and only the exact `app-YYYY-MM-DD.log` pattern is
+     touched, never a glob of the directory. Covered by
+     `test_log_retention.php`.
+   - ⚠️ **`mam_log()` takes the IP from `mam_client_ip()`, never `REMOTE_ADDR`.**
+     MEASURED: with a request arriving at Cloudflare edge `172.68.10.5` carrying
+     `CF-Connecting-IP: 102.89.44.17`, the log recorded **the edge** while
+     `mam_audit()` — from the same request — recorded the caller. Every line
+     named the CDN, so the one field anybody reaches for during an incident was
+     useless, and the two writers disagreed about the same request. It was the
+     only direct `REMOTE_ADDR` read outside the resolver itself.
 
 ## Security posture (don't weaken)
 
@@ -1845,6 +1868,19 @@ console rail; links back.
 The suite ran on SQLite alone for its whole life. `api/tests/run.php` now reads
 `DB_DSN` / `DB_USERNAME` / `DB_PASSWORD` from the environment and skips the 14
 files that introspect `sqlite_master` or `PRAGMA`:
+
+✅ **CI runs this now** — the `mysql` job in `.github/workflows/ci.yml`, against
+**MariaDB 10.11**. Being able to run it by hand was not the same as running it:
+every one of the seven defects below passed a green SQLite build, so the
+production engine was unexercised before a deploy. The job also asserts the
+**table count is ≥100** after the import, because `--force` swallows errors and
+a stopped import leaves exactly **18** tables while the build stays green — the
+failure then looks like a code regression. MariaDB and not MySQL 8 deliberately:
+`db/schema-mysql.sql` uses `ADD COLUMN IF NOT EXISTS`, which is MariaDB syntax
+(the file says so in two places), so covering MySQL 8 means making the schema
+portable first. The PHP matrix now includes **8.4**, which is what this repo is
+developed on and what `fees.php`'s money arithmetic was measured against.
+
 
 ```bash
 DB_DSN='mysql:host=127.0.0.1;dbname=mam_suite;charset=utf8mb4' \

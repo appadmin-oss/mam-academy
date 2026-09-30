@@ -208,6 +208,7 @@ function mam_settings_schema(): array {
         ['Data protection',         'dp_officer',                  'Data Protection Officer (name and contact) — published in the privacy notice', '', ''],
         ['Data protection',         'dp_request_days',             'Days the academy commits to answering a rights request in (the NDPA sets no deadline; 30 is the professional expectation)', 30, 'days'],
         ['Data protection',         'dp_retention_mode',           'Retention sweep: off | report | enforce. `report` counts and audits; only `enforce` deletes.', 'report', ''],
+        ['Data protection',         'dp_log_retention_days',       'Days of application log files (api/logs) to keep. A log line holds an IP and a user agent, so it is personal data; the same off|report|enforce mode gates the sweep.', 90, 'days'],
         ['Data protection',         'dp_ndpc_registration',        'NDPC registration reference, once registered', '', ''],
         ['Accountability',          'late_charge_enabled',         'Charge STUDENTS for late arrival (1=on, 0=off). Off = lateness is recorded, no money owed.', 0, ''],
         ['Accountability',          'late_charge_student_usd',     'Student late-arrival charge', 1, '$'],

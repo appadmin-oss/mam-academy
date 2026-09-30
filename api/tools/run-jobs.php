@@ -67,6 +67,17 @@ if (function_exists('mam_dp_retention_sweep') && (!function_exists('mam_automati
     $rt = mam_dp_retention_sweep();
     printf("retention  : mode %s, deleted %d, anonymised %d, flagged %d\n",
         $rt['mode'], $rt['deleted'], $rt['anonymised'], $rt['flagged']);
+
+    /* The same schedule, applied to the application log FILES. They carry an
+       IP and a user agent per line, so they are personal data on the same
+       footing as the tables above — and until this ran, nothing ever removed
+       them. Same gate, same automation flag, so an academy that has not opted
+       into enforcement gets a count and no deletion. */
+    if (function_exists('mam_dp_prune_app_logs')) {
+        $lp = mam_dp_prune_app_logs();
+        printf("log prune  : mode %s, kept after %s, overdue %d, deleted %d (%d KB)\n",
+            $lp['mode'], $lp['cutoff'], $lp['overdue'], $lp['deleted'], (int) round($lp['bytes'] / 1024));
+    }
 }
 
 // §28 academic emails — the four swept types (gated behind academic_emails_enabled).
