@@ -1,6 +1,9 @@
 api/logs/*.log
 api/storage/mam.db*
 api/storage/.app_key
+# Not secret — it identifies which key an archive was taken under, so a
+# restore can tell before it starts. Still install-specific, so not committed.
+api/storage/.app_key.fingerprint
 api/.env
 api/storage/og/
 # ETL snapshots hold a full copy of the database — identity, payments,

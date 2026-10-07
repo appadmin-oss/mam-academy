@@ -79,6 +79,7 @@ require $ROOT . '/lib/enrol-complete.php'; // one-action enrolment completion
 require $ROOT . '/lib/vetting.php';        // instructor vetting + safeguarding gate
 require $ROOT . '/lib/calendar.php';       // the academic calendar as data
 require $ROOT . '/lib/dataprotection.php'; // NDPA compliance layer
+require $ROOT . '/lib/backup.php';         // snapshot freshness + pruning
 require $ROOT . '/lib/v2/readmodel.php';   // v2 read model (fails closed when unconfigured)
 require $ROOT . '/lib/invoicing.php';       // application invoice lifecycle (auto-invoice + expiry)
 require $ROOT . '/lib/jobs.php';            // automation spine (events + jobs)

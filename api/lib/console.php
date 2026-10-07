@@ -1734,6 +1734,11 @@ function mam_console_system(): array {
         'state' => $state,
         'on' => $on,
         'total' => count($registry),
+        /* Whether a backup is still happening. This screen already carries the
+           signing-key banner, and the two belong together: a restore needs the
+           archive AND the key that signed what is in it. */
+        'backup' => mam_console_try('sy.backup', fn() => mam_backup_status(), []) ?: [],
+        'backups' => mam_console_try('sy.backups', fn() => mam_backup_list(6), []) ?: [],
         'events' => mam_console_rows('sy.events',
             "SELECT id, provider, event_type, status, signature_valid, error, received_at
                FROM webhook_events ORDER BY id DESC LIMIT 30"),

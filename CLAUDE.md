@@ -1955,6 +1955,56 @@ more: `recitals.php`, `id-cards.php` and `session-remind.php` still called
 during a recovery nobody could even read the programme. Use
 **`mam_admin_require_actor()`**; `test_console.php` now asserts the class.
 
+## Backups — the app WATCHES, the cron takes them
+
+`api/tools/export.php` already wrote a lossless, checksummed, verifiable
+snapshot long before any of this: it is the ETL rollback artifact and it is
+good. What was missing was everything around it — **nothing ran it**,
+DEPLOYMENT.md never said the words backup or restore, the uploaded files were
+in no archive, and nothing deleted an old one.
+
+- ⚠️ **`api/lib/backup.php` does NOT take the backup, deliberately.** The
+  obvious design shells out to export.php; it is wrong twice. Shared hosting
+  commonly disables `exec`/`proc_open`, so the backup would never happen and
+  the failure would be invisible — the exact disease. And export.php is
+  **standalone on purpose** (it loads no application code because `mam_db()`
+  runs the migrator, and a pre-migration safety net must never migrate), so
+  pulling it into a bootstrapped process destroys the property that makes it
+  trustworthy. The cron runs it directly (DEPLOYMENT.md §7) and the lib answers
+  the question that actually prevents the classic failure: **is a backup still
+  happening?** A job that stopped eleven months ago looks exactly like one that
+  works, until somebody needs it.
+- **A snapshot is dated by its DIRECTORY NAME, never mtime** — the same rule
+  the log sweep holds. A restore or an rsync rewrites every mtime and would
+  report a year of dead backups as healthy.
+- **A directory with no `manifest.json` died mid-write and is NOT a backup.**
+  It reports as `incomplete`; the status still says `none`. That is the one
+  broken state which otherwise looks exactly like success.
+- **No uploaded files is `partial`, not "ok with a note".** `--with-uploads` is
+  not optional: without it a restore returns with every headshot and every
+  recording of a child missing, and those cannot be re-derived from any table.
+- ⚠️ **The signing key is NOT in the archive and must not be** — that turns a
+  data backup into a credential store. But a restore needs it: `mam_card_sign()`
+  derives a printed ID card's HMAC from it. So the manifest carries a
+  **fingerprint** (`mam_backup_key_fingerprint()`), and `mam_backup_status()`
+  compares it. It is written to `storage/.app_key.fingerprint` by the daily job
+  and **READ** by export.php — never recomputed there, because a second copy of
+  `mam_app_key()`'s fallback chain is exactly what had ID cards signed with a
+  public constant.
+- **The newest complete snapshot is never pruned, whatever its age.** A
+  retention rule that can leave an academy with no backup has done more harm
+  than the retention it enforced. `mam_backup_rmdir()` deletes recursively, so
+  it refuses anything that is not a `YYYYmmdd-HHMMSS` directory **directly
+  inside** the export root — both halves matter, and a test that only exercised
+  the filename pattern let the containing-directory check be deleted without
+  failing.
+- ⚠️ **There is no one-command restore from a snapshot into a running v1
+  database.** `v2-load.php` targets the *v2* schema. The snapshot is the
+  engine-independent verifiable record that also carries the files; the
+  **engine dump** (DEPLOYMENT.md §8.2 — `mysqldump --single-transaction`, or
+  SQLite's `VACUUM INTO`, which needs no `sqlite3` binary) is what you restore
+  from in a hurry. Take both.
+
 ## Where to look
 - **Research plan: `docs/research-plan-2026-08-17.md`** — the five commissioned
   research documents reconciled: where they agree, the seven places they conflict

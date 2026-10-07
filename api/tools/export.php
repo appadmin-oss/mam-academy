@@ -115,11 +115,21 @@ $opts = [
     'tables'     => [],
     'quiet'      => false,
     'verifyOnly' => null,
+    'uploads'    => false,
+    'keyFp'      => null,
 ];
 foreach (array_slice($argv, 1) as $arg) {
     if ($arg === '--verify-roundtrip') { $opts['roundtrip'] = true; continue; }
     if ($arg === '--pretty')           { $opts['pretty']    = true; continue; }
     if ($arg === '--quiet')            { $opts['quiet']     = true; continue; }
+    if ($arg === '--with-uploads')     { $opts['uploads']   = true; continue; }
+    /* SUPPLIED, never derived here. Resolving the signing key would mean
+       reproducing mam_app_key()'s fallback chain in a file that deliberately
+       loads no application code — and a second copy of that resolution is
+       exactly the drift that had ID cards signed with a constant. The caller
+       that already has the real resolver passes the fingerprint in; a run
+       without it records "not supplied" rather than a guess. */
+    if (str_starts_with($arg, '--key-fingerprint=')) { $opts['keyFp'] = substr($arg, 18); continue; }
     if (str_starts_with($arg, '--out='))    { $opts['out'] = substr($arg, 6); continue; }
     if (str_starts_with($arg, '--verify-only=')) { $opts['verifyOnly'] = rtrim(substr($arg, 14), '/'); continue; }
     if (str_starts_with($arg, '--tables=')) {
@@ -127,7 +137,8 @@ foreach (array_slice($argv, 1) as $arg) {
         continue;
     }
     if ($arg === '--help' || $arg === '-h') {
-        fwrite(STDOUT, "Usage: php api/tools/export.php [--out=DIR] [--tables=a,b] [--verify-roundtrip] [--verify-only=DIR] [--pretty] [--quiet]\n");
+        fwrite(STDOUT, "Usage: php api/tools/export.php [--out=DIR] [--tables=a,b] [--with-uploads]\n"
+            . "       [--key-fingerprint=HEX] [--verify-roundtrip] [--verify-only=DIR] [--pretty] [--quiet]\n");
         exit(0);
     }
     fwrite(STDERR, "Unknown argument: $arg\n");
@@ -224,8 +235,119 @@ if ($opts['verifyOnly'] !== null) {
     $say(sprintf('  ✓ all %d tables match their manifest checksums (%d rows)%s',
         count($manifest['tables']), (int) ($manifest['total_rows'] ?? 0),
         $restore ? '' : ' — file fidelity only'));
+    /* State the files explicitly, both ways. "Intact" over a line that never
+       mentions the uploads reads the same whether they were verified, absent,
+       or never captured — and the difference is whether a restore returns the
+       children's photographs. */
+    $vUp = $manifest['uploads'] ?? null;
+    if (is_array($vUp) && !empty($vUp['sha256'])) {
+        $say(sprintf('  ✓ all %d uploaded file(s) match their sha256', count($vUp['sha256'])));
+    } else {
+        $say('  ⚠ this archive holds NO uploaded files — headshots and recordings are not in it'
+            . ' (it was taken without --with-uploads)');
+    }
     $say('  This snapshot is intact.');
     exit(0);
+}
+
+/**
+ * The signing-key fingerprint, from the flag or from the file the application
+ * publishes for exactly this purpose (`storage/.app_key.fingerprint`, written
+ * by `mam_backup_write_fingerprint()` on the daily job).
+ *
+ * ⚠️ It is READ, never derived. Deriving it would mean a second copy of
+ * mam_app_key()'s fallback chain inside a file that deliberately loads no
+ * application code — and a second copy of that exact resolution is what had
+ * ID cards signed with a constant printed in the repository. Reading a value
+ * the authoritative resolver wrote cannot drift from it; recomputing it can.
+ * A missing file is reported honestly rather than guessed at.
+ */
+function mam_export_key_fingerprint(?string $flag): string {
+    if ($flag !== null && $flag !== '') return $flag;
+    $path = MAM_EXPORT_API_ROOT . '/storage/.app_key.fingerprint';
+    if (is_readable($path)) {
+        $fp = trim((string) @file_get_contents($path));
+        if ($fp !== '') return $fp;
+    }
+    return 'not supplied';
+}
+
+/* ── the uploaded FILES ─────────────────────────────────────────────────
+ * A snapshot of the database alone is not a backup of this academy. The
+ * headshots and the recorded takes under api/storage/uploads are children's
+ * photographs and recordings of children playing: the rows that point at them
+ * can be restored from the tables, and the files themselves cannot be
+ * re-derived from anything. They were in no snapshot at all.
+ *
+ * Copied with a per-file sha256 for the same reason every table carries a
+ * checksum — a directory of photographs nobody can verify is a directory of
+ * photographs nobody should trust. --verify-only checks them too.
+ */
+
+/** Recursively list files under $root, as paths RELATIVE to it. */
+function mam_export_upload_files(string $root): array {
+    if (!is_dir($root)) return [];
+    $out = [];
+    $it  = new RecursiveIteratorIterator(
+        // SKIP_DOTS, and never follow a symlink: a link pointing out of the
+        // uploads tree would copy arbitrary files from the server into an
+        // archive somebody later hands to a third party.
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+    foreach ($it as $f) {
+        /** @var SplFileInfo $f */
+        if ($f->isLink() || !$f->isFile()) continue;
+        $rel = ltrim(str_replace('\\', '/', substr($f->getPathname(), strlen($root))), '/');
+        if ($rel !== '') $out[] = $rel;
+    }
+    sort($out);          // stable order, so two runs produce one manifest
+    return $out;
+}
+
+/**
+ * Copy the uploads tree into the snapshot and return the manifest entry.
+ * Returns ['files'=>N,'bytes'=>N,'sha256'=>[rel=>hash],'skipped'=>[...]].
+ */
+function mam_export_copy_uploads(string $srcRoot, string $destRoot): array {
+    $res = ['files' => 0, 'bytes' => 0, 'sha256' => [], 'skipped' => []];
+    $rels = mam_export_upload_files($srcRoot);
+    if (!$rels) return $res;
+
+    foreach ($rels as $rel) {
+        $src = $srcRoot . '/' . $rel;
+        $dst = $destRoot . '/' . $rel;
+        $dir = dirname($dst);
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            $res['skipped'][] = "$rel (cannot create directory)";
+            continue;
+        }
+        if (!@copy($src, $dst)) { $res['skipped'][] = "$rel (copy failed)"; continue; }
+        // Hash the COPY, not the source: that proves what landed in the
+        // archive, which is the thing a restore will read.
+        $hash = @hash_file('sha256', $dst);
+        if ($hash === false) { $res['skipped'][] = "$rel (unreadable after copy)"; continue; }
+        $res['sha256'][$rel] = $hash;
+        $res['bytes'] += (int) @filesize($dst);
+        $res['files']++;
+    }
+    return $res;
+}
+
+/** Verify an archive's copied uploads against the manifest that shipped with it. */
+function mam_export_verify_uploads(string $dir, array $manifest): array {
+    $bad = [];
+    $up  = $manifest['uploads'] ?? null;
+    if (!is_array($up) || empty($up['sha256'])) return $bad;   // none captured
+    foreach ((array) $up['sha256'] as $rel => $want) {
+        $path = $dir . '/uploads/' . $rel;
+        if (!is_file($path)) { $bad[] = "uploads/$rel: missing from the archive"; continue; }
+        $have = @hash_file('sha256', $path);
+        if ($have !== $want) {
+            $bad[] = sprintf('uploads/%s: sha256 %s != %s', $rel, substr((string) $want, 0, 12), substr((string) $have, 0, 12));
+        }
+    }
+    return $bad;
 }
 
 /* ── export ────────────────────────────────────────────────────────────── */
@@ -266,6 +388,13 @@ $manifest = [
     'driver'         => $driver,
     'schema_version' => $schemaVersion,
     'app_version'    => null,   // deliberately not loaded: see the header note
+    /* The signing key is NOT in this archive and must not be: it would turn a
+       data backup into a credential store. But a restore depends on it —
+       mam_card_sign() derives an ID card's HMAC from it, so a restore with the
+       wrong key leaves every printed card failing at a door with nothing to
+       say why. The fingerprint answers "is the key I have the one this data
+       was signed with" without carrying the key itself. */
+    'signing_key_fingerprint' => mam_export_key_fingerprint($opts['keyFp']),
     'tables'         => [],
 ];
 $totalRows = 0;
@@ -318,6 +447,22 @@ if ($driver === 'sqlite') {
         } catch (Throwable $e) { /* evidence only — never fail an export over it */ }
     }
 }
+if ($opts['uploads']) {
+    $upSrc = MAM_EXPORT_API_ROOT . '/storage/uploads';
+    $up    = mam_export_copy_uploads($upSrc, $outDir . '/uploads');
+    $manifest['uploads'] = $up;
+    $say(sprintf('  %-28s %6d files %s', 'uploads/', $up['files'],
+        $up['bytes'] > 0 ? round($up['bytes'] / 1024) . ' KB' : ''));
+    foreach ($up['skipped'] as $sk) fwrite(STDERR, "  WARNING uploads: $sk\n");
+} else {
+    /* Stated, not omitted. An archive that is silent about the files is
+       indistinguishable from one taken when there were none — and the
+       difference is whether a restore comes back with the children's
+       photographs or without them. */
+    $manifest['uploads'] = ['captured' => false,
+        'note' => 'Run with --with-uploads to include api/storage/uploads in the archive.'];
+}
+
 $manifest['restore_verified'] = ($driver === 'sqlite');
 $manifest['ddl']        = $ddlMap;
 $manifest['total_rows'] = $totalRows;
@@ -432,6 +577,8 @@ function mam_export_roundtrip(string $dir, array $manifest, array $ddl, bool $re
                 $table, substr($want, 0, 12), substr($have, 0, 12), (int) ($meta['rows'] ?? 0), count($back));
         }
     }
+
+    foreach (mam_export_verify_uploads($dir, $manifest) as $m) $mismatches[] = $m;
 
     if ($scratch !== null) @unlink($scratch);
     return $mismatches;

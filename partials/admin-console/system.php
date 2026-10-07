@@ -19,6 +19,20 @@ $behind = ($d['schema']['target'] ?? null) !== null
     . ac_h((string) ($h['signing']['detail'] ?? ''))); ?>
 <?php endif; ?>
 
+<?php
+  /* Beside the signing-key banner on purpose: a restore needs BOTH the archive
+     and the key that signed what is in it, and an academy that has one without
+     the other finds out at a door when an ID card will not verify. */
+  $bk = (array) ($d['backup'] ?? []);
+  $bkState = (string) ($bk['state'] ?? '');
+?>
+<?php if ($bkState !== '' && $bkState !== 'ok'): ?>
+  <?php ac_banner($bkState === 'none' || $bkState === 'stale' ? 'bad' : 'warn', 'fa-box-archive',
+    '<strong>' . ($bkState === 'none' ? 'There is no backup.'
+      : ($bkState === 'stale' ? 'The backup is stale.' : 'The backup is incomplete.')) . '</strong> '
+    . ac_h((string) ($bk['message'] ?? ''))); ?>
+<?php endif; ?>
+
 <?php if ($behind): ?>
   <?php ac_banner('bad', 'fa-database',
     '<strong>The database is behind the code.</strong> Schema ' . (int) $d['schema']['version']
@@ -145,6 +159,38 @@ $behind = ($d['schema']['target'] ?? null) !== null
         </div>
       <?php ac_card_close('The job runner holds an exclusive lock, so two crons overlapping cannot run the same sweep twice.'); ?>
     <?php endif; ?>
+
+    <?php
+      /* Visible even when nothing is wrong: an admin cannot confirm a backup
+         is working from a banner that only appears when it has stopped. */
+      $bkList = (array) ($d['backups'] ?? []);
+      ac_card_open('Backups', $bkState !== '' ? strtoupper($bkState) : '');
+    ?>
+      <div class="ac-cardbody">
+        <?php if (!$bkList): ?>
+          <p class="ac-note">No snapshot has ever been written to
+            <span class="ac-mono">api/storage/export</span>. DEPLOYMENT.md carries the cron line;
+            without it nothing here could be restored.</p>
+        <?php else: ?>
+          <div class="ac-defs">
+            <?php foreach (array_slice($bkList, 0, 5) as $b): ?>
+              <?php
+                $lbl = $b['complete']
+                  ? (int) $b['tables'] . ' tables · ' . (int) $b['rows'] . ' rows · '
+                    . ($b['has_uploads'] ? (int) $b['upload_files'] . ' files' : '<strong>no files</strong>')
+                  : '<strong>incomplete</strong> — no manifest, written while the export was interrupted';
+                /* ac_def(label, valueHtml) — the LABEL is escaped and only the
+                   value takes markup, so the age chip belongs on the value side.
+                   Putting it in the label printed the <span> as visible text. */
+                ac_def((string) $b['name'],
+                  '<span class="ac-subi">' . (int) ($b['age_hours'] ?? 0) . 'h</span> · ' . $lbl);
+              ?>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+        <p class="ac-note"><?= ac_h((string) ($bk['message'] ?? '')) ?></p>
+      </div>
+    <?php ac_card_close('Verify one before trusting it: <span class="ac-mono">php api/tools/export.php --verify-only=api/storage/export/&lt;stamp&gt;</span> — it exits 2 if the archive does not match its own manifest.'); ?>
 
     <?php ac_card_open('Reading a failure'); ?>
       <div class="ac-cardbody">

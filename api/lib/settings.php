@@ -209,6 +209,8 @@ function mam_settings_schema(): array {
         ['Data protection',         'dp_request_days',             'Days the academy commits to answering a rights request in (the NDPA sets no deadline; 30 is the professional expectation)', 30, 'days'],
         ['Data protection',         'dp_retention_mode',           'Retention sweep: off | report | enforce. `report` counts and audits; only `enforce` deletes.', 'report', ''],
         ['Data protection',         'dp_log_retention_days',       'Days of application log files (api/logs) to keep. A log line holds an IP and a user agent, so it is personal data; the same off|report|enforce mode gates the sweep.', 90, 'days'],
+        ['Data protection',         'backup_max_age_hours',        'Warn when the newest database snapshot is older than this. The backup job stopping silently is the failure this catches.', 36, 'hours'],
+        ['Data protection',         'backup_keep_days',            'Days of snapshots to keep. Each is a full copy of every table and every uploaded photograph; the newest is never deleted whatever its age.', 30, 'days'],
         ['Data protection',         'dp_ndpc_registration',        'NDPC registration reference, once registered', '', ''],
         ['Accountability',          'late_charge_enabled',         'Charge STUDENTS for late arrival (1=on, 0=off). Off = lateness is recorded, no money owed.', 0, ''],
         ['Accountability',          'late_charge_student_usd',     'Student late-arrival charge', 1, '$'],

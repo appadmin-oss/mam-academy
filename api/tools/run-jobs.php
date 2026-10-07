@@ -78,6 +78,31 @@ if (function_exists('mam_dp_retention_sweep') && (!function_exists('mam_automati
         printf("log prune  : mode %s, kept after %s, overdue %d, deleted %d (%d KB)\n",
             $lp['mode'], $lp['cutoff'], $lp['overdue'], $lp['deleted'], (int) round($lp['bytes'] / 1024));
     }
+
+    /* A snapshot is a full copy of every table AND every uploaded photograph,
+       so these are the largest personal-data stores on the disk. Same gate. */
+    if (function_exists('mam_backup_prune')) {
+        $bp = mam_backup_prune();
+        printf("snapshots  : mode %s, kept %d, overdue %d, deleted %d (%d MB)\n",
+            $bp['mode'], $bp['kept'], $bp['overdue'], $bp['deleted'], (int) round($bp['bytes'] / 1048576));
+    }
+}
+
+/* ── Is a backup still happening? ──────────────────────────────────────────
+   This job does NOT take the backup — export.php is standalone on purpose and
+   shared hosting often disables exec, so the cron runs it directly (see
+   DEPLOYMENT.md). What this does is publish the key fingerprint the exporter
+   stamps into each manifest, and say out loud when the newest snapshot has
+   gone stale. A backup job that quietly stopped looks exactly like one that is
+   working, right until somebody needs it. */
+if (function_exists('mam_backup_write_fingerprint')) {
+    mam_backup_write_fingerprint();
+    $bs = mam_backup_status();
+    printf("backup     : %s — %s\n", strtoupper($bs['state']), $bs['message']);
+    if ($bs['state'] !== 'ok') {
+        fwrite(STDERR, "WARNING backup " . $bs['state'] . ": " . $bs['message'] . "\n");
+        if (function_exists('mam_log')) mam_log('warn', 'backup_' . $bs['state'], ['message' => $bs['message']]);
+    }
 }
 
 // §28 academic emails — the four swept types (gated behind academic_emails_enabled).
