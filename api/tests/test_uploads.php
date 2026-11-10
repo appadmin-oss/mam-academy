@@ -89,6 +89,28 @@ t_eq(mam_validate_summer_application($base + ['headshotUrl' => 'https://res.clou
 t_eq(mam_validate_summer_application($base + ['headshotUrl' => 'http://insecure.example.com/x.jpg'])['headshotUrl'], '',
     'a plain http headshot is still dropped');
 
+// The main application validator, with and without a first-party photo. The
+// photo check once returned early, so a photo cost the applicant every field
+// validated after it (DOB, track, guardian, policy, registration fee,
+// extra_courses) — and on MySQL, where extra_courses is NOT NULL, the whole
+// submission failed with save_failed.
+$app = [
+    'firstName' => 'Ada', 'lastName' => 'Obi', 'email' => 'ada.app@example.com',
+    'phone' => '+2348012345678', 'pathway' => 'standard', 'mode' => 'online',
+    'level' => 'cert', 'expression' => 'classical', 'program' => 'classical',
+    'discipline' => 'piano', 'sex' => 'female', 'address' => '12 Road',
+    'lga' => 'Ikeja', 'state' => 'Lagos', 'dob' => '2016-01-01',
+    'parentName' => 'Ngozi Obi', 'parentPhone' => '+2348011111111',
+    'policyAgreed' => true, 'policySignedName' => 'Ngozi Obi', 'includeRegistration' => true,
+];
+$noPhoto = mam_validate_application($app);
+$withPhoto = mam_validate_application($app + ['headshotUrl' => $url]);
+t_eq($withPhoto['headshotUrl'], $url, 'the application validator keeps a first-party headshot URL');
+t_eq(array_keys($withPhoto), array_keys($noPhoto), 'a photo does not cut the validated record short');
+foreach (['dob', 'programTrack', 'parentName', 'policyAgreed', 'policySignedName', 'includeRegistration', 'extraCourses'] as $k) {
+    t_eq($withPhoto[$k] ?? 'MISSING', $noPhoto[$k], "with a photo, $k is still validated");
+}
+
 /* ── The card face renders the stored photo ──────────────────────────────── */
 require_once dirname(MAM_API_ROOT) . '/partials/id-card-face.php';
 t_eq(mam_card_face_fields(['photo_url' => $url])['photo'], $url, 'the card face accepts a first-party photo');

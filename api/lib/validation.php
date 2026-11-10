@@ -354,14 +354,19 @@ function mam_validate_application(array $in): array {
         // same-origin — it must be accepted, or every upload that did not go to
         // Cloudinary is silently dropped here and the registration arrives with no
         // photograph. That is the failure this whole path exists to prevent.
-        if (function_exists('mam_upload_is_own_url') && mam_upload_is_own_url($hs)) {
-            $out['headshotUrl'] = $hs;
-            return $out;
-        }
+        //
+        // It must NOT return early, though: this check sits halfway through the
+        // validator, and an early `return $out` here once skipped everything
+        // below it — date of birth, programme track, guardian, policy signature,
+        // the $5 registration flag and extra_courses. Every applicant who uploaded
+        // a photo got either a silently gutted record or, on a production table
+        // whose extra_courses is NOT NULL, "Submission failed: save_failed".
         $valid = filter_var($hs, FILTER_VALIDATE_URL) && stripos($hs, 'https://') === 0;
         $host = $valid ? parse_url($hs, PHP_URL_HOST) : '';
         $allowedHosts = ['res.cloudinary.com'];
-        if (!$valid || !in_array($host, $allowedHosts, true)) {
+        if (function_exists('mam_upload_is_own_url') && mam_upload_is_own_url($hs)) {
+            $out['headshotUrl'] = $hs;
+        } elseif (!$valid || !in_array($host, $allowedHosts, true)) {
             $errors[] = 'headshotUrl';
             $out['headshotUrl'] = null;
         } else {
