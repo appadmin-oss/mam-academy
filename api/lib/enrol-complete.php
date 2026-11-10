@@ -381,3 +381,33 @@ function mam_enrol_incomplete(int $limit = 50): array
           ORDER BY a.created_at DESC
           LIMIT " . max(1, min(200, $limit)));
 }
+
+/**
+ * Applications damaged by the registration-photo bug (fixed 2026-11).
+ *
+ * mam_validate_application() used to `return` as soon as it accepted a
+ * first-party headshot (/api/media/headshot?k=…), so every field validated
+ * after the photo was never set and was stored as NULL: date of birth, age
+ * band, programme track, guardian, readiness, the policy agreement and its
+ * signature, and the registration flag (so the $5 booking fee was left out of
+ * the total). Those values were never stored anywhere, so they cannot be
+ * rebuilt from the database — the family has to be asked again.
+ *
+ * The fingerprint is the photo URL plus the two fields every valid submission
+ * sets and this bug always left NULL. A healthy application can't match it:
+ * program_track is always 'MAM' or 'KTAMS' and the policy has to be agreed.
+ * This is the admin's way to find them, since the host has no shell to run SQL.
+ */
+function mam_application_damaged(int $limit = 200): array
+{
+    return mam_db_all(
+        "SELECT a.id, a.reference, a.status, a.total_usd, a.created_at,
+                c.first_name, c.last_name, c.email, c.phone
+           FROM applications a
+           LEFT JOIN customers c ON c.id = a.customer_id
+          WHERE a.headshot_url LIKE '/api/media/headshot%'
+            AND a.program_track IS NULL
+            AND a.policy_agreed IS NULL
+          ORDER BY a.created_at DESC
+          LIMIT " . max(1, min(500, $limit)));
+}

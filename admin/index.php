@@ -3184,6 +3184,14 @@ nav a{display:flex;align-items:center}
         $needs[] = ['enrolment' . ($n === 1 ? '' : 's') . ' to finish — accepted, but not in a class yet',
                     '?v=applications&f=incomplete', $n, 'Finish'];
     }
+    // Applications the registration-photo bug stored without DOB, guardian,
+    // signed policy or the $5 booking fee. Not recoverable from the database,
+    // so the family has to be asked again (see mam_application_damaged()).
+    if (function_exists('mam_application_damaged') && ($n = count(mam_application_damaged(500)))) {
+        $navBadges['applications'] = ($navBadges['applications'] ?? 0) + $n;
+        $needs[] = ['application' . ($n === 1 ? '' : 's') . ' missing details after the photo bug — contact the family',
+                    '?v=applications&f=damaged', $n, 'Review'];
+    }
     if ($n = $cnt("SELECT COUNT(*) FROM payments WHERE status = 'pending_bank_transfer'")) { $navBadges['payments'] = $n; $needs[] = ['bank transfer' . ($n === 1 ? '' : 's') . ' awaiting your confirmation', '?v=payments&f=bank', $n, 'Confirm']; }
 
     // Sidebar nav grouped by domain — [view => [label, FontAwesome icon]].
@@ -3883,6 +3891,11 @@ nav a{display:flex;align-items:center}
           foreach (mam_enrol_incomplete(200) as $ic) $incompleteIds[(int)$ic['id']] = true;
       }
       $onlyIncomplete = (($_GET['f'] ?? '') === 'incomplete');
+      $damagedIds = [];
+      if (function_exists('mam_application_damaged')) {
+          foreach (mam_application_damaged(500) as $dm) $damagedIds[(int)$dm['id']] = true;
+      }
+      $onlyDamaged = (($_GET['f'] ?? '') === 'damaged');
 
       $perPage = 50; $page = mam_admin_page(); $total = (int)mam_admin_scalar('SELECT COUNT(*) FROM applications'); $off = ($page - 1) * $perPage;
       $rows = mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email, c.phone, c.sex, c.address, c.lga, c.state, c.country, c.age_range FROM applications a LEFT JOIN customers c ON c.id=a.customer_id ORDER BY a.created_at DESC LIMIT ' . $perPage . ' OFFSET ' . $off);
@@ -3892,6 +3905,13 @@ nav a{display:flex;align-items:center}
           // subquery here would be a second definition of the same thing that
           // could drift from the first.
           $rows  = array_values(array_filter($rows, fn ($r) => isset($incompleteIds[(int)$r['id']])));
+          $total = count($rows);
+      }
+      if ($onlyDamaged) {
+          // Not paged like the main list: the damaged set is fetched whole, so a
+          // damaged application on page 3 isn't hidden by a page-1 filter.
+          $ids = array_keys($damagedIds);
+          $rows = $ids ? mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email, c.phone, c.sex, c.address, c.lga, c.state, c.country, c.age_range FROM applications a LEFT JOIN customers c ON c.id=a.customer_id WHERE a.id IN (' . implode(',', array_map('intval', $ids)) . ') ORDER BY a.created_at DESC') : [];
           $total = count($rows);
       }
       if (!$rows): ?>
@@ -3917,6 +3937,10 @@ nav a{display:flex;align-items:center}
               <br><a href="?v=applications&amp;app=<?= (int)$r['id'] ?>" class="pill pending"
                  style="margin-top:4px;text-decoration:none;display:inline-flex"
                  title="Accepted, but not in a class yet">Finish enrolment</a>
+            <?php endif; ?>
+            <?php if (isset($damagedIds[(int)$r['id']])): ?>
+              <br><span class="pill pending" style="margin-top:4px;display:inline-flex"
+                 title="Submitted with a photo before the November fix: date of birth, guardian, signed policy and the $5 booking fee were not saved. Ask the family again.">Details lost</span>
             <?php endif; ?>
           </td>
           <td data-label="Student"><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong>

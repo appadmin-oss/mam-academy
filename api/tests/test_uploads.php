@@ -148,3 +148,21 @@ t_eq((string)mam_db_row('SELECT avatar_url FROM users WHERE id = ?', [$pcUser])[
     'and mirrored to the holder’s portal avatar');
 try { mam_card_set_photo((int)$pcCard['id'], 'javascript:alert(1)', false); t_ok(false, 'a javascript: photo is refused'); }
 catch (RuntimeException $e) { t_eq($e->getMessage(), 'invalid_photo_url', 'a javascript: photo is refused'); }
+
+/* ── Finding the applications the photo bug already damaged ───────────────── */
+// The admin's only way to find them (the host has no shell), so it must catch a
+// damaged row and must not flag a healthy one, with or without a photo.
+$dmgPhoto = '/api/media/headshot?k=202609/' . str_repeat('b', 32);
+$dmgBad = mam_db_insert('applications', ['reference' => 'MAM-DMG-BAD', 'pathway' => 'standard',
+    'mode' => 'online', 'status' => 'submitted', 'total_usd' => 156, 'headshot_url' => $dmgPhoto,
+    'program_track' => null, 'policy_agreed' => null]); // what the bug wrote: explicit NULLs
+$dmgOk = mam_db_insert('applications', ['reference' => 'MAM-DMG-OK', 'pathway' => 'standard',
+    'mode' => 'online', 'status' => 'submitted', 'total_usd' => 161, 'headshot_url' => $dmgPhoto,
+    'program_track' => 'KTAMS', 'policy_agreed' => 1]);
+$dmgNoPhoto = mam_db_insert('applications', ['reference' => 'MAM-DMG-NOPHOTO', 'pathway' => 'standard',
+    'mode' => 'online', 'status' => 'submitted', 'total_usd' => 161, 'program_track' => 'MAM', 'policy_agreed' => 1]);
+$dmgIds = array_map(fn ($r) => (int)$r['id'], mam_application_damaged(500));
+t_ok(in_array($dmgBad, $dmgIds, true), 'an application the photo bug gutted is listed as damaged');
+t_ok(!in_array($dmgOk, $dmgIds, true), 'a complete application with a photo is not');
+t_ok(!in_array($dmgNoPhoto, $dmgIds, true), 'a complete application without a photo is not');
+mam_db()->prepare('DELETE FROM applications WHERE id IN (?, ?, ?)')->execute([$dmgBad, $dmgOk, $dmgNoPhoto]);
