@@ -142,9 +142,9 @@ Model competencies explicitly (`skills`, `skill_assessments`) — *rhythm readin
 | Phase | Outcome | Key work | Status |
 |-------|---------|----------|--------|
 | **L1 · Unify & formalize** | One enrolment model with an enforced lifecycle | Enrolment state machine + `enrolment_events` audit; **then** introduce `cohorts`, migrate `classes`/`enrollments` | 🟢 **lifecycle shipped (v18)**; cohort merge next |
-| **L2 · Sessions & submissions** | Real teaching loop | `sessions`/attendance on cohorts; `submissions`+`feedback` with file artifacts + rubrics; instructor & student UIs | ⬜ |
+| **L2 · Sessions & submissions** | Real teaching loop | `sessions`/attendance on cohorts; `submissions`+`feedback` with file artifacts + rubrics; instructor & student UIs | ✅ (schema v81, `session_attendance`, rubrics, `submission_reviews`; audit 2026-11) |
 | **L3 · Automation spine** | The platform runs itself | `events`+`jobs` tables; single cron `run-jobs.php` (generalising the v17 outbox cron); notification service; auto-progression, reminders, digests, at-risk nudges | 🟡 outbox primitive shipped |
-| **L4 · AI optimization** | Measurably better outcomes | `api/lib/ai.php` gateway + guardrails; placement assist, practice coach, grading assist, syllabus/narrative generation; skill graph | ⬜ |
+| **L4 · AI optimization** | Measurably better outcomes | `api/lib/ai.php` gateway + guardrails; placement assist, practice coach, grading assist, syllabus/narrative generation; skill graph | ✅ gateway + narrative, feedback draft, practice coach, placement (`ai.php`); ⬜ skill graph (audit 2026-11) |
 | **L5 · Analytics & hardening** | Enterprise operations | Cohort/retention/at-risk dashboards; RBAC matrix; observability; a11y AA; pagination/indexes; export/delete; load + contract tests | ⬜ |
 
 **Sequencing rationale:** L1 removes the structural debt everything else would inherit; automation (L3) and AI (L4) are only as good as the unified, audited data they sit on. **Relative effort:** L1-cohorts ≈ M, L2 ≈ L, L3 ≈ M, L4 ≈ L (mostly prompt/eval/gateway work + UI), L5 ≈ M.

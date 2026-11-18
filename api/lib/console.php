@@ -679,7 +679,7 @@ function mam_console_application(int $id): ?array {
    3–4. Money: invoices, ledger
    ───────────────────────────────────────────────────────────────────────── */
 
-function mam_console_invoices(): array {
+function mam_console_invoices(array $q = []): array {
     $aging = ['current' => 0, 'd30' => 0, 'd60' => 0, 'd60p' => 0];
     foreach (mam_console_rows('inv.aging',
         "SELECT due_on, total_usd_cents, paid_minor, total_minor, status FROM fee_invoices
@@ -712,7 +712,34 @@ function mam_console_invoices(): array {
         'outstanding' => mam_console_outstanding_cents(),
         'collected'   => mam_console_collected_cents(),
         'grace_days'  => (int) mam_console_try('inv.grace', fn() => (int) mam_setting_num('fee_grace_days', 14), 14),
+        // The office's side (HANDOFF §4t): who can be invoiced, the plans a
+        // guardian asked for that nobody has agreed, and the invoice that is open.
+        'students' => mam_console_rows('inv.students',
+            "SELECT DISTINCT u.id, u.name, u.email FROM users u
+               LEFT JOIN user_roles r ON r.user_id = u.id
+              WHERE (u.role = 'student' OR r.role = 'student') AND COALESCE(u.status, 'active') <> 'deleted'
+              ORDER BY u.name LIMIT 3000"),
+        'plans_waiting' => mam_console_rows('inv.plans',
+            "SELECT p.id, p.invoice_id, p.instalments, p.created_at, i.public_ref, s.name student
+               FROM fee_payment_plans p JOIN fee_invoices i ON i.id = p.invoice_id
+               LEFT JOIN users s ON s.id = i.student_id
+              WHERE p.status = 'active' AND p.approved_by IS NULL ORDER BY p.created_at LIMIT 50"),
+        'detail' => isset($q['id']) && (int) $q['id'] > 0 ? mam_console_try('inv.detail', fn() => mam_console_invoice_detail((int) $q['id']), null) : null,
+        'methods' => MAM_FEE_PAY_METHODS,
     ];
+}
+
+/** One invoice, for the console: the family's own view plus what only the office sees. */
+function mam_console_invoice_detail(int $id): ?array {
+    $inv = mam_fee_invoice_get($id);
+    if (!$inv) return null;
+    $row = mam_db_row('SELECT student_id, guardian_id, status, total_minor, paid_minor FROM fee_invoices WHERE id = ?', [$id]);
+    $inv['payments'] = mam_fee_payments_for($id);
+    $inv['awards'] = mam_db_all("SELECT * FROM fee_aid_awards WHERE student_id = ? ORDER BY status = 'active' DESC, id DESC", [(int) $row['student_id']]);
+    $inv['plan_row'] = mam_db_row("SELECT * FROM fee_payment_plans WHERE invoice_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [$id]);
+    $inv['editable'] = mam_fee_editable(['status' => $row['status']]);
+    $inv['has_guardian'] = $row['guardian_id'] !== null;
+    return $inv;
 }
 
 function mam_console_ledger(): array {

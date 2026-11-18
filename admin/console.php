@@ -101,7 +101,7 @@ $providers = [
     'calendar'       => fn() => mam_console_calendar(),
     'events'         => fn() => mam_console_events($_GET),
     'files'          => fn() => mam_console_files(),
-    'invoices'       => fn() => mam_console_invoices(),
+    'invoices'       => fn() => mam_console_invoices($_GET),
     'ledger'         => fn() => mam_console_ledger(),
     'pricebooks'     => fn() => mam_console_pricebooks(),
     'charges'        => fn() => mam_console_charges(),

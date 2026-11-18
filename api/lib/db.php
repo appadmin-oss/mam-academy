@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 90;
+const MAM_SCHEMA_TARGET = 91;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3560,6 +3560,36 @@ function mam_db_migrate(PDO $db): void {
               created_at TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX idx_iaref_app ON instructor_application_referees(application_id);
+        ",
+        /* 91 — money the office RECEIVES against a fee invoice (fees.php,
+           mam_fee_payment_record). Schema v87 built invoices, aid and plans, and
+           nothing could mark any of it paid: `paid_minor` moved only in tests.
+           A family pays the academy by bank transfer, cash or POS today, so the
+           office records what arrived — one row per payment, never an edited
+           total, so a statement can list each receipt and an auditor can add
+           them up. A mistake is VOIDED with a reason, never deleted. */
+        91 => "
+            CREATE TABLE IF NOT EXISTS fee_payments (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              invoice_id    INTEGER NOT NULL REFERENCES fee_invoices(id) ON DELETE CASCADE,
+              amount_minor  INTEGER NOT NULL,
+              currency      TEXT    NOT NULL,
+              method        TEXT    NOT NULL DEFAULT 'transfer'
+                            CHECK(method IN ('transfer','cash','pos','card','other')),
+              reference     TEXT,
+              received_on   TEXT    NOT NULL,
+              note          TEXT,
+              status        TEXT    NOT NULL DEFAULT 'recorded'
+                            CHECK(status IN ('recorded','void')),
+              void_reason   TEXT,
+              voided_at     TEXT,
+              recorded_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+              CHECK(amount_minor > 0 AND amount_minor = CAST(amount_minor AS INTEGER)),
+              CHECK(length(currency) = 3),
+              CHECK(status <> 'void' OR void_reason IS NOT NULL)
+            );
+            CREATE INDEX IF NOT EXISTS idx_feepay_invoice ON fee_payments(invoice_id, status);
         ",
     ];
 

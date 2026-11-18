@@ -71,7 +71,12 @@ try {
     $cust = mam_db_row('SELECT id FROM customers WHERE email = ?', [$v['email']]);
     if ($cust) {
         $customerId = (int)$cust['id'];
-        mam_db_update('customers', [
+        /* A value this submission does not carry must never write NULL over one an
+           earlier application stored. The registration-photo bug (6fd1028) returned
+           from validation before dob/age/country/city were set, and this update then
+           blanked them on the SHARED customer row — erasing a returning family's
+           details from their other, healthy applications too. */
+        mam_db_update('customers', array_filter([
             'first_name' => $v['firstName'],
             'last_name'  => $v['lastName'],
             'phone'      => $v['phone'],
@@ -79,12 +84,12 @@ try {
             'address'    => $v['address'],
             'lga'        => $v['lga'],
             'state'      => $v['state'],
-            'country'    => $v['country'],
-            'city'       => $v['city'],
-            'age_range'  => $v['ageRange'],
-            'dob'        => $v['dob'],
+            'country'    => $v['country'] ?? null,
+            'city'       => $v['city'] ?? null,
+            'age_range'  => $v['ageRange'] ?? null,
+            'dob'        => $v['dob'] ?? null,
             'updated_at' => date('Y-m-d H:i:s'),
-        ], ['id' => $customerId]);
+        ], static fn($x) => $x !== null && $x !== ''), ['id' => $customerId]);
     } else {
         $customerId = mam_db_insert('customers', [
             'email'      => $v['email'],

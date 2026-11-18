@@ -67,6 +67,14 @@ function mam_automations_registry(): array {
             'default' => true,
             'live'    => true,
         ],
+        'fee_reminders' => [
+            'group' => 'Admissions & payments',
+            'trigger' => 'A fee invoice reaches its due date, or is 3 or 7 days late',
+            'action'  => 'Email the billing guardian a reminder (never suspends anything)',
+            'icon'    => 'bell',
+            'default' => true,
+            'live'    => true,
+        ],
         'payment_retry' => [
             'group' => 'Admissions & payments',
             'trigger' => 'A payment fails',

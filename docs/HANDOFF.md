@@ -1222,12 +1222,10 @@ since that file was never changed.
   `mam_enrol_complete()`, and nothing here bypasses it. Deliberately not
   automatic on approval: a candidate who claimed five courses may be taken on
   for two.
-- **`.step-num` renders at 11.84px**, below the 12px floor. It is the STUDENT
-  wizard's shared component and predates this work, so it was reported rather
-  than silently restyled on a live form. One-line fix in `apply.css` when
-  somebody owns the student wizard's type scale.
-- The design handoff for this page has not arrived; it is built on the
-  student wizard's existing system so that it can be restyled in one place.
+- ~~**`.step-num` renders at 11.84px**~~ — **done** (0.75rem = 12px; see the
+  paragraph above). This bullet was left open by mistake (audit 2026-11).
+- ~~The design handoff for this page has not arrived~~ — it did:
+  `docs/design/2026-09-instructor-application/`, built in the 2026-09 rework.
 
 ---
 
@@ -1493,14 +1491,18 @@ request. It *is* in `api/tests/run.php`.
    | The pinned "in use" actions column | ❌ **dropped** — the frame replaces it with a grouped rail + live badge counts. Deliberate, but it is a loss for an admin who used the same four screens daily. |
    | `table.stack` + `data-label` mobile tables | ❌ **not carried.** The console scrolls its tables horizontally instead. The frame is explicit that the console is desktop-first, but this is weaker on a phone than what `admin/index.php` already does, and it is the gap most likely to be noticed first. |
 
-2. **The console's phone subset (`#5b` in the frame) is not built.** Four
+2. ~~**The console's phone subset (`#5b` in the frame) is not built.**~~ —
+   **done 2026-09-28** (`admin/phone.php`; see CLAUDE.md "The console on a
+   phone"), and console tables now stack below 720px (`ac_label_table_cells`).
+   The original note, kept for its reasoning: Four
    panels — Decide / Today / Assign / Look up — deliberately narrower than the
    desktop console, with amending a record, voiding an invoice and closing a
    period unavailable on purpose ("a consequential, hard-to-reverse action taken
    one-handed on a bus is how a ledger acquires a mystery"). The desktop console
    is responsive down to 320px and usable there, so this is an enhancement
    rather than a blocker — but it is the other half of the frame.
-3. **The student and instructor portals are still on the old palette.**
+3. ~~**The student and instructor portals are still on the old palette.**~~ —
+   **done** in the 2026-09 redesigns (`portal-student.js`, `portal-instructor.js`).
    `portal-v2.css` is scoped, so they and the guardian portal coexist; those two
    dashboards are the remaining redesign work.
 4. **Features in those designs that do not exist yet.** Expect some. Build them
@@ -1620,3 +1622,78 @@ actually clicked.
    courses, tell me which and I will add the map. Right now they correctly
    refuse to guess and go to the admin backlog instead.
 4. The research you mentioned — send it and I will fold it in here.
+
+
+## 4t. Audit 2026-11-18 — the office's side of fees, and six defects
+
+Re-audit with MAM as the focus: every open item in this file, the research plan
+and the two proposals checked against the CODE (several were stale, both ways),
+plus a bug hunt over 2026-09-29 → 2026-11-10. Branch `afv/mam-audit` (the owner
+no longer wants `claude/` branch names). Suite 6706 → **6770, 0 failed**.
+
+### Fees had no office side at all (the headline finding)
+
+v87 (§4n) shipped invoices, aid, payment plans and bursary applications, and
+"Five subsystems … all built" was true of the LIBRARY only. Nothing outside it
+and its tests called `mam_fee_invoice_open`, `mam_fee_line_add`,
+`mam_fee_credit_apply` or `mam_bursary_decide`. So: no invoice could ever be
+raised (every family's Fees screen was empty), a guardian could apply for a
+bursary and nobody could answer, nothing marked anything paid (`paid_minor`
+moved only in tests), and a plan a guardian "requested" was ACTIVE on creation
+with `approved_by` null and nothing reading it.
+
+Built:
+- **v91 `fee_payments`** — money the office receives (transfer, cash, POS, card),
+  one row per payment, VOIDED with a reason, never deleted. `mam_fee_recalc()`
+  takes payments as the authority once an invoice has any, so a void brings the
+  balance back (the old rule only ever let paid go up). Recorded payments are
+  receipts on the guardian's statement. Overpayment is refused (`more_than_due`).
+- **Plans**: `mam_fee_plan_approve()`; a requested plan reads as a request on the
+  guardian portal until approved; `mam_fee_plan_allocate()` marks instalments
+  paid in order from the money received, back to pending on a void.
+- **Reminders**: `mam_fee_dunning_sweep()` on `MAM_FEE_DUNNING_DAYS` (due date,
+  +3, +7), to the billing guardian, ONE email per invoice per run and only ever
+  forward (claimed with a compare-and-set on `dunning_stage`), following the
+  next instalment once a plan is approved. Automation `fee_reminders`, wired into
+  `run-jobs.php` and "Run scheduled sweeps now". It suspends nothing.
+- **Console**: Invoices gained New invoice, Plans waiting for approval, and an
+  invoice view with every action (lines, waive, issue, void, aid, credit,
+  payments, plan approve/decline). Bursaries gained a decision form, with the
+  band ceiling stated. Handlers in `admin/index.php` under a new **`fees`**
+  capability, super-only by default like refunds. Driven end to end in a browser.
+- Still NOT built: **paying a fee invoice online.** The guardian's Pay button
+  says the office will send a payment link; wiring Paystack/Flutterwave to
+  `fee_invoices` is the next piece, and should settle through
+  `mam_fee_payment_record()` so there is one way an invoice becomes paid.
+
+### Six defects in the recent work, fixed
+
+1. **A backup that failed to copy a photo reported itself complete.**
+   `uploads.skipped` was written and read by nothing: export exited 0, status
+   said ok, `--verify-only` said intact. Now the export exits 3, verify fails,
+   status is `partial`.
+2. **The instructor application refused its own uploaded headshot** on an
+   install without Cloudinary (https-only validator) — the fourth "store
+   succeeds, downstream guard drops it". Uses `mam_upload_photo_url_ok()`.
+3. **The photo bug also wiped a returning family's stored age, country and
+   city**, because the customer upsert wrote NULLs over the shared row. The
+   upsert now never writes an empty value over a stored one, and the damaged
+   listing says when a family has other applications affected.
+4. A backup taken with `--with-uploads` on an install with no photos was told
+   to add `--with-uploads`.
+5. Snapshot names were server-local time read as UTC (`gmdate` now).
+6. Two `?v=` assertions in `test_design_system.php` passed when a file stopped
+   matching.
+Also: the "Finish enrolment" filter only filtered the page on screen.
+
+### Still open, and whose decision
+
+Unchanged owner questions (§9): when safeguarding moves to `enforce` and who
+the DSO is; employees or contractors; the handbook's fines; the mastery floors;
+course aliases; the read model. From the research plan, buildable without an
+owner but not done here: a capped aid fund, a refund record against the
+calendar, transcripts, the "Enrolment" relabel (terms.php is legal text),
+opt-in staff 2FA, a report-only strict CSP, MySQL 8 portability.
+Not verified: whether short APP_KEY installs (<32 chars) have printed cards
+that now fail to verify after f4d33fc — nothing marks them; and the restore
+runbook does not name `api/storage/.app_key`.

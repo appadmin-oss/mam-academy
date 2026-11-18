@@ -402,7 +402,11 @@ function mam_application_damaged(int $limit = 200): array
 {
     return mam_db_all(
         "SELECT a.id, a.reference, a.status, a.total_usd, a.created_at,
-                c.first_name, c.last_name, c.email, c.phone
+                c.first_name, c.last_name, c.email, c.phone,
+                -- A RETURNING family's other applications share this customer row,
+                -- and the same bug wrote NULL over the age, country and city stored
+                -- on it. Counted so the screen can say so, not only of this one.
+                (SELECT COUNT(*) FROM applications o WHERE o.customer_id = a.customer_id AND o.id <> a.id) AS other_apps
            FROM applications a
            LEFT JOIN customers c ON c.id = a.customer_id
           WHERE a.headshot_url LIKE '/api/media/headshot%'

@@ -142,8 +142,15 @@ function mam_faculty_validate(array $in): array {
     if ($phone !== '' && mb_strlen($phone) > 40) $errors[] = 'phone';
     if (mb_strlen($links) > 1000) $errors[] = 'links';
     // URL fields must be https and sane, when provided.
-    foreach ([['cv_url', $cv], ['headshot_url', $shot]] as [$k, $v]) {
-        if ($v !== '' && !preg_match('#^https://[^\s"\'<>]{4,500}$#i', $v)) $errors[] = $k;
+    if ($cv !== '' && !preg_match('#^https://[^\s"\'<>]{4,500}$#i', $cv)) $errors[] = 'cv_url';
+    /* The headshot uses the SAME predicate as the student forms and the card:
+       our own first-party `/api/media/headshot?k=…` URL, or https. An https-only
+       rule here refused the photo the uploader had just stored (installs without
+       Cloudinary), so a candidate could not submit — the fourth appearance of
+       "a store succeeds and a downstream guard drops it". */
+    if ($shot !== '' && !(function_exists('mam_upload_photo_url_ok') ? mam_upload_photo_url_ok($shot)
+                                                                        : (bool) preg_match('#^https://[^\s"\'<>]{4,500}$#i', $shot))) {
+        $errors[] = 'headshot_url';
     }
 
     return ['errors' => $errors, 'data' => [

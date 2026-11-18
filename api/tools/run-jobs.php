@@ -55,6 +55,9 @@ if (function_exists('mam_automation_card_expiry_sweep')) {
     printf("id cards   : expiry warnings %d, lapsed cards retired %d
 ", $ce['warned'], $ce['retired']);
 }
+if (function_exists('mam_fee_dunning_sweep')) {
+    printf("fees       : overdue reminders sent %d\n", mam_fee_dunning_sweep());
+}
 if (function_exists('mam_automation_week_drip_sweep')) {
     printf("week drip  : modules released %d\n", mam_automation_week_drip_sweep());
 }

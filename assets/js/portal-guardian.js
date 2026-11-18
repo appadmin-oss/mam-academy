@@ -570,7 +570,8 @@
       + esc(inv.charge ? inv.charge.amount : inv.due) + '</button>'
       + '<div class="p-methods"><span>Card</span><span>Transfer</span><span>USSD</span></div>'
       + (inv.plan
-          ? '<div class="p-card-foot"><h3 class="p-label">Your payment plan</h3>'
+          ? '<div class="p-card-foot"><h3 class="p-label">' + (inv.plan.approved === false
+                ? 'Payment plan requested — the office will confirm the dates' : 'Your payment plan') + '</h3>'
             + inv.plan.schedule.map(function (i) {
                 return '<div class="p-line"><span>Instalment ' + esc(i.seq) + ' · ' + esc(fmtDate(i.due_on))
                   + '</span><b>' + esc(i.amount) + '</b>'

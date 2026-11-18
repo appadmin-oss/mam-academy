@@ -488,7 +488,17 @@ function mam_fee_recalc(int $invoiceId): array {
     $paid = (int) (mam_db_row("SELECT COALESCE(SUM(amount_minor),0) AS s FROM fee_plan_instalments i
         JOIN fee_payment_plans p ON p.id = i.plan_id
         WHERE p.invoice_id = ? AND i.status = 'paid'", [$invoiceId])['s'] ?? 0);
-    if ($paid < (int) $inv['paid_minor']) $paid = (int) $inv['paid_minor'];
+    /* Payments the office recorded (v91, mam_fee_payment_record) are the
+     * authority once an invoice has any: they can go DOWN as well as up, because
+     * a payment recorded in error is voided and the balance must come back.
+     * Without any, the older rule stands — paid never falls below what was stored. */
+    $hasPayments = (bool) mam_db_row('SELECT 1 FROM fee_payments WHERE invoice_id = ? LIMIT 1', [$invoiceId]);
+    if ($hasPayments) {
+        $received = (int) (mam_db_row("SELECT COALESCE(SUM(amount_minor),0) AS s FROM fee_payments WHERE invoice_id = ? AND status = 'recorded'", [$invoiceId])['s'] ?? 0);
+        if ($received > $paid) $paid = $received;
+    } elseif ($paid < (int) $inv['paid_minor']) {
+        $paid = (int) $inv['paid_minor'];
+    }
     if ($paid > $total) $paid = $total;
 
     $status = (string) $inv['status'];
@@ -726,8 +736,11 @@ function mam_fee_plan_for(int $invoiceId): ?array {
         $rows[] = ['seq' => (int) $i['seq'], 'due_on' => $i['due_on'], 'status' => $i['status'],
             'amount_minor' => (int) $i['amount_minor'], 'amount' => mam_fee_display((int) $i['amount_minor'], $cur)];
     }
+    // A plan a guardian asked for and the office has not yet agreed is shown as
+    // such: the schedule is a proposal until somebody approves it.
     return ['id' => (int) $p['id'], 'instalments' => (int) $p['instalments'],
-            'status' => $p['status'], 'schedule' => $rows];
+            'status' => $p['status'], 'approved' => $p['approved_by'] !== null && (int) $p['approved_by'] > 0,
+            'schedule' => $rows];
 }
 
 /** Cancel a plan. The debt does not go away; the schedule does. */
@@ -829,6 +842,24 @@ function mam_fee_receipts(int $studentId, int $limit = 25): array {
           ORDER BY at DESC LIMIT " . $limit, [$studentId]
     );
     $out = [];
+    /* Payments the office recorded against a fee invoice (v91). In the invoice's
+     * own currency, never converted — the receipt says what the family paid. */
+    foreach (mam_db_all(
+        "SELECT fp.id, fp.amount_minor, fp.currency, fp.method, fp.reference, fp.received_on, fi.public_ref
+           FROM fee_payments fp JOIN fee_invoices fi ON fi.id = fp.invoice_id
+          WHERE fi.student_id = ? AND fp.status = 'recorded'
+          ORDER BY fp.received_on DESC, fp.id DESC LIMIT " . $limit, [$studentId]) as $f) {
+        $out[] = [
+            'id'        => 'fee-' . (int) $f['id'],
+            'reference' => $f['reference'] ?: $f['public_ref'],
+            'purpose'   => 'Fees · ' . $f['public_ref'],
+            'at'        => $f['received_on'],
+            'amount'    => mam_fee_display((int) $f['amount_minor'], (string) $f['currency']),
+            'charged'   => null,
+            'unpriced'  => false,
+            'method'    => $f['method'],
+        ];
+    }
     foreach ($rows as $p) {
         $usd = $p['amount_usd_cents'] !== null ? (int) $p['amount_usd_cents'] : null;
         $out[] = [
@@ -845,7 +876,8 @@ function mam_fee_receipts(int $studentId, int $limit = 25): array {
             'unpriced'  => $usd === null,
         ];
     }
-    return $out;
+    usort($out, static fn($x, $y) => strcmp((string) $y['at'], (string) $x['at']));
+    return array_slice($out, 0, $limit);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -960,4 +992,194 @@ function mam_bursary_for_guardian(int $parentId, int $studentId): array {
     }
     unset($r);
     return $rows;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   The office's side: payments received, plans agreed, reminders sent
+   (schema v91; HANDOFF §4t). v87 built invoices, aid and plans and gave the
+   office no way to act on any of them — no invoice could be raised, no bursary
+   decided, nothing marked paid. These are what the console's actions call.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+const MAM_FEE_PAY_METHODS = ['transfer' => 'Bank transfer', 'cash' => 'Cash', 'pos' => 'POS terminal', 'card' => 'Card', 'other' => 'Other'];
+
+/**
+ * Record money received against an issued invoice: one row per payment, in the
+ * invoice's own currency. Refused on a draft (nothing is owed yet), a void
+ * invoice, and for more than is still due — an overpayment is a conversation
+ * and a refund, not a negative balance.
+ */
+function mam_fee_payment_record(int $invoiceId, $amount, string $method, ?int $actorId = null, array $opts = []): int {
+    $inv = mam_db_row('SELECT * FROM fee_invoices WHERE id = ?', [$invoiceId]);
+    if (!$inv) throw new RuntimeException('invoice_not_found');
+    if ($inv['status'] === 'draft') throw new RuntimeException('not_issued');
+    if ($inv['status'] === 'void') throw new RuntimeException('invoice_void');
+    if (!isset(MAM_FEE_PAY_METHODS[$method])) throw new InvalidArgumentException('bad_method');
+    $minor = mam_fee_to_minor($amount);
+    if ($minor <= 0) throw new InvalidArgumentException('bad_amount');
+    $due = (int) $inv['total_minor'] - (int) $inv['paid_minor'];
+    if ($due <= 0) throw new RuntimeException('nothing_owing');
+    if ($minor > $due) throw new RuntimeException('more_than_due');
+    $on = trim((string) ($opts['received_on'] ?? ''));
+    if ($on === '') $on = function_exists('mam_calendar_today') ? mam_calendar_today() : date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $on)) throw new InvalidArgumentException('bad_date');
+    $ref = trim((string) ($opts['reference'] ?? ''));
+
+    $id = mam_db_insert('fee_payments', [
+        'invoice_id'   => $invoiceId,
+        'amount_minor' => $minor,
+        'currency'     => (string) $inv['currency'],
+        'method'       => $method,
+        'reference'    => $ref !== '' ? mb_substr($ref, 0, 120) : null,
+        'received_on'  => $on,
+        'note'         => trim((string) ($opts['note'] ?? '')) !== '' ? mb_substr(trim((string) $opts['note']), 0, 500) : null,
+        'status'       => 'recorded',
+        'recorded_by'  => mam_fee_actor($actorId),
+        'created_at'   => date('Y-m-d H:i:s'),
+    ]);
+    $t = mam_fee_recalc($invoiceId);
+    mam_fee_plan_allocate($invoiceId);
+    mam_audit('fee_payment_record', 'fee_invoice', $invoiceId, [
+        'payment' => $id, 'minor' => $minor, 'method' => $method, 'ref' => $ref, 'by' => mam_fee_actor($actorId),
+    ]);
+    return $id;
+}
+
+/** Void a payment recorded in error. The row stays, with the reason; the balance comes back. */
+function mam_fee_payment_void(int $paymentId, string $reason, ?int $actorId = null): void {
+    $reason = trim($reason);
+    if ($reason === '') throw new InvalidArgumentException('reason_required');
+    $p = mam_db_row('SELECT * FROM fee_payments WHERE id = ?', [$paymentId]);
+    if (!$p) throw new RuntimeException('payment_not_found');
+    if ($p['status'] === 'void') throw new RuntimeException('already_void');
+    mam_db_update('fee_payments', ['status' => 'void', 'void_reason' => mb_substr($reason, 0, 500), 'voided_at' => date('Y-m-d H:i:s')], ['id' => $paymentId]);
+    mam_fee_recalc((int) $p['invoice_id']);
+    mam_fee_plan_allocate((int) $p['invoice_id']);
+    mam_audit('fee_payment_void', 'fee_invoice', (int) $p['invoice_id'], ['payment' => $paymentId, 'reason' => $reason, 'by' => mam_fee_actor($actorId)]);
+}
+
+/** Every payment on an invoice, recorded and void, oldest first. */
+function mam_fee_payments_for(int $invoiceId): array {
+    return mam_db_all('SELECT fp.*, u.name AS recorded_by_name FROM fee_payments fp
+        LEFT JOIN users u ON u.id = fp.recorded_by WHERE fp.invoice_id = ? ORDER BY fp.received_on, fp.id', [$invoiceId]);
+}
+
+/**
+ * Mark a plan's instalments paid, in order, as far as the money received
+ * covers them — and back to pending when a void takes it away. The plan never
+ * holds money of its own; it is a schedule laid over `paid_minor`.
+ */
+function mam_fee_plan_allocate(int $invoiceId): void {
+    $p = mam_db_row("SELECT id FROM fee_payment_plans WHERE invoice_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [$invoiceId]);
+    if (!$p) return;
+    if (!mam_db_row('SELECT 1 FROM fee_payments WHERE invoice_id = ? LIMIT 1', [$invoiceId])) return;
+    $received = (int) (mam_db_row("SELECT COALESCE(SUM(amount_minor),0) AS s FROM fee_payments WHERE invoice_id = ? AND status = 'recorded'", [$invoiceId])['s'] ?? 0);
+    // The plan was laid over the balance at the time, so money paid before it
+    // existed is not this plan's: count only what came in on top of that.
+    $planned = (int) (mam_db_row('SELECT COALESCE(SUM(amount_minor),0) AS s FROM fee_plan_instalments WHERE plan_id = ?', [(int) $p['id']])['s'] ?? 0);
+    $inv = mam_db_row('SELECT total_minor FROM fee_invoices WHERE id = ?', [$invoiceId]);
+    $before = max(0, (int) $inv['total_minor'] - $planned);
+    $left = max(0, $received - $before);
+    $allPaid = true; $newlyPaid = false;
+    foreach (mam_db_all('SELECT id, amount_minor, status FROM fee_plan_instalments WHERE plan_id = ? ORDER BY seq', [(int) $p['id']]) as $i) {
+        $covered = $left >= (int) $i['amount_minor'];
+        if ($covered) $left -= (int) $i['amount_minor'];
+        else $allPaid = false;
+        $want = $covered ? 'paid' : 'pending';
+        if ($i['status'] !== $want) {
+            mam_db_update('fee_plan_instalments', ['status' => $want, 'paid_at' => $want === 'paid' ? date('Y-m-d H:i:s') : null], ['id' => (int) $i['id']]);
+            if ($want === 'paid') $newlyPaid = true;
+        }
+    }
+    // A cleared instalment starts the reminder ladder afresh for the next one.
+    if ($newlyPaid) mam_db_update('fee_invoices', ['dunning_stage' => 0], ['id' => $invoiceId]);
+    if ($allPaid) mam_db_update('fee_payment_plans', ['status' => 'completed'], ['id' => (int) $p['id']]);
+}
+
+/**
+ * The office agrees a plan a guardian asked for. Until then the guardian sees it
+ * as a request, and reminders keep to the invoice's own due date.
+ */
+function mam_fee_plan_approve(int $planId, ?int $actorId): void {
+    $p = mam_db_row('SELECT * FROM fee_payment_plans WHERE id = ?', [$planId]);
+    if (!$p) throw new RuntimeException('plan_not_found');
+    if ($p['status'] !== 'active') throw new RuntimeException('not_active');
+    if ($p['approved_by'] !== null && (int) $p['approved_by'] > 0) throw new RuntimeException('already_approved');
+    $by = mam_fee_actor($actorId);
+    if ($by === null) throw new InvalidArgumentException('approver_required');
+    mam_db_update('fee_payment_plans', ['approved_by' => $by], ['id' => $planId]);
+    // The dates that count are the instalments' now, so the reminders start again.
+    mam_db_update('fee_invoices', ['dunning_stage' => 0], ['id' => (int) $p['invoice_id']]);
+    mam_audit('fee_plan_approve', 'fee_invoice', (int) $p['invoice_id'], ['plan' => $planId, 'by' => $by]);
+}
+
+/**
+ * Overdue reminders to the billing guardian, on the published ladder
+ * (MAM_FEE_DUNNING_DAYS: the due date, then three and seven days after it).
+ *
+ * One email per invoice per run at most, and only ever FORWARD: an invoice
+ * found already a week late gets the seven-day note once, not three notes at
+ * once. After the last step the next step is a person — nothing here, or
+ * anywhere, suspends a child's lessons, report or record over money. A plan the
+ * office approved moves the date that counts to the next unpaid instalment.
+ */
+function mam_fee_dunning_sweep(int $limit = 100): int {
+    if (function_exists('mam_automation_on') && !mam_automation_on('fee_reminders')) return 0;
+    $today = function_exists('mam_calendar_today') ? mam_calendar_today() : date('Y-m-d');
+    $appUrl = rtrim((string) mam_env('APP_URL', ''), '/');
+    $sent = 0;
+    $rows = mam_db_all(
+        "SELECT fi.*, g.email AS guardian_email, g.name AS guardian_name, s.name AS student_name
+           FROM fee_invoices fi
+           JOIN users g ON g.id = fi.guardian_id
+           JOIN users s ON s.id = fi.student_id
+          WHERE fi.status IN ('issued','part_paid') AND fi.due_on IS NOT NULL AND fi.due_on <= ?
+            AND fi.dunning_stage < ?
+          ORDER BY fi.due_on, fi.id LIMIT " . max(1, $limit),
+        [$today, count(MAM_FEE_DUNNING_DAYS)]
+    );
+    foreach ($rows as $inv) {
+        if ((string) $inv['guardian_email'] === '') continue;
+        $dueOn = (string) $inv['due_on'];
+        $plan = mam_db_row("SELECT id FROM fee_payment_plans WHERE invoice_id = ? AND status = 'active' AND approved_by IS NOT NULL ORDER BY id DESC LIMIT 1", [(int) $inv['id']]);
+        if ($plan) {
+            $next = mam_db_row("SELECT due_on FROM fee_plan_instalments WHERE plan_id = ? AND status = 'pending' ORDER BY seq LIMIT 1", [(int) $plan['id']]);
+            if (!$next) continue;
+            $dueOn = (string) $next['due_on'];
+        }
+        $late = (int) floor((strtotime($today) - strtotime($dueOn)) / 86400);
+        if ($late < 0) continue;
+        $stage = 0;
+        foreach (MAM_FEE_DUNNING_DAYS as $i => $d) if ($late >= $d) $stage = $i + 1;
+        if ($stage <= (int) $inv['dunning_stage']) continue;
+        // Claim the step first, so two overlapping runs cannot both send it.
+        $won = mam_db()->prepare('UPDATE fee_invoices SET dunning_stage = ?, dunning_last = ? WHERE id = ? AND dunning_stage = ?');
+        $won->execute([$stage, date('Y-m-d H:i:s'), (int) $inv['id'], (int) $inv['dunning_stage']]);
+        if ($won->rowCount() < 1) continue;
+        $due = mam_fee_display((int) $inv['total_minor'] - (int) $inv['paid_minor'], (string) $inv['currency']);
+        $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES);
+        $first = trim(explode(' ', (string) $inv['guardian_name'])[0] ?? '') ?: 'there';
+        $lead = $late === 0
+            ? 'The fees for ' . $h($inv['student_name']) . ' (' . $h($inv['public_ref']) . ') fall due today.'
+            : 'The fees for ' . $h($inv['student_name']) . ' (' . $h($inv['public_ref']) . ') were due on ' . $h($dueOn) . ' and ' . $h($due) . ' is still outstanding.';
+        $last = $stage >= count(MAM_FEE_DUNNING_DAYS);
+        $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>"
+            . ($late === 0 ? 'A reminder: fees due today' : 'Fees outstanding') . "</h2>"
+            . "<p style='color:#4A3624;font-size:15px'>Hi " . $h($first) . " — {$lead}</p>"
+            . "<p style='color:#4A3624;font-size:15px'>Amount due: <strong>" . $h($due) . "</strong>.</p>"
+            . ($last ? "<p style='color:#4A3624;font-size:15px'>This is our last automatic reminder. If paying is difficult right now, reply to this email or call the academy office — a payment plan or a bursary may help, and nothing about " . $h($inv['student_name']) . "'s lessons, report or record is held back over fees.</p>"
+                     : "<p style='color:#4A3624;font-size:15px'>If you have already paid, thank you — please ignore this. Nothing about " . $h($inv['student_name']) . "'s lessons, report or record is held back over fees.</p>")
+            . ($appUrl !== '' ? mam_email_button($appUrl . '/portal/parent/', 'See the invoice') : '');
+        $html = mam_email_layout([
+            'header' => 'MAM ACADEMY',
+            'preheader' => ($late === 0 ? 'Fees due today for ' : 'Fees outstanding for ') . (string) $inv['student_name'],
+            'reason' => 'You received this because you are the billing contact for ' . (string) $inv['student_name'] . ' at MAM Academy.',
+            'body' => $inner,
+        ]);
+        $ok = mam_send((string) $inv['guardian_email'], ($late === 0 ? 'Fees due today: ' : 'Fees outstanding: ') . (string) $inv['public_ref'], $html, 'fee_reminder', true);
+        mam_audit('fee_reminder', 'fee_invoice', (int) $inv['id'], ['stage' => $stage, 'late_days' => $late, 'sent' => $ok]);
+        if ($ok) $sent++;
+    }
+    return $sent;
 }

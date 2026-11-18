@@ -661,6 +661,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'wallet_credit' => 'users',
         'faculty_invite' => 'users', 'faculty_app_status' => 'users', 'faculty_request_review' => 'users',
         'faculty_assign_subjects' => 'users',
+        // Fees (fees.php, console Invoices / Bursaries). Money, so super-only by
+        // default, like refunds and bank confirmations above.
+        'fee_invoice_open' => 'fees', 'fee_line_add' => 'fees', 'fee_line_waive' => 'fees',
+        'fee_invoice_issue' => 'fees', 'fee_invoice_void' => 'fees', 'fee_aid_award' => 'fees',
+        'fee_aid_revoke' => 'fees', 'fee_credit_apply' => 'fees', 'fee_payment_record' => 'fees',
+        'fee_payment_void' => 'fees', 'fee_plan_approve' => 'fees', 'fee_plan_cancel' => 'fees',
+        'bursary_decide' => 'fees',
         'module_proposal_review' => 'curriculum',
         'curriculum_clone' => 'curriculum',
         // Programming a recital is an academic judgement about what a
@@ -1818,6 +1825,102 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
        Records CAPABILITY only. The safeguarding gate governs actual placement
        with students (mam_lms_approve / mam_enrol_complete) and is untouched by
        this — see mam_faculty_assign_subjects(). */
+    /* ── Fees: the office's side of fees.php (HANDOFF §4t) ──────────────────
+       v87 shipped invoices, aid, plans and bursary applications with no way for
+       the office to act on any of them. Every action here calls the library;
+       none re-implements a rule (the order of aid, the band ceiling, the
+       overpayment refusal all live in fees.php). They return to the console's
+       Invoices or Bursaries screen, to the invoice that was open. */
+    if (str_starts_with((string) $action, 'fee_') || $action === 'bursary_decide') {
+        $invId = (int) ($_POST['invoice_id'] ?? 0);
+        $back = static function (string $kind, string $msg, int $inv = 0, string $screen = 'invoices'): void {
+            $q = ['v' => $screen];
+            if ($inv > 0) $q['id'] = $inv;
+            $q[$kind] = $msg;
+            header('Location: /admin/console.php?' . http_build_query($q)); exit;
+        };
+        $say = [
+            'invoice_not_found' => 'That invoice no longer exists.', 'invoice_closed' => 'That invoice is paid or void, so it cannot be changed.',
+            'not_issued' => 'Issue the invoice first.', 'invoice_void' => 'That invoice is void.', 'already_issued' => 'That invoice was already issued.',
+            'no_lines' => 'Add at least one line before issuing.', 'reason_required' => 'Give a reason; it is kept on the record.',
+            'label_required' => 'Describe the line.', 'bad_qty' => 'The quantity must be 1 or more.', 'bad_amount' => 'Enter an amount above zero.',
+            'waiver_exceeds_line' => 'A waiver cannot be more than the line.', 'pct_or_amount' => 'Give a percentage or an amount, not both.',
+            'bad_pct' => 'A percentage from 1 to 100.', 'award_not_active' => 'That award is no longer active.',
+            'not_gift_aid' => 'Only a bursary or a scholarship is applied as a credit; a waiver goes on a line, and the sibling discount applies itself.',
+            'award_other_student' => 'That award belongs to another student.', 'already_applied' => 'That award is already on this invoice.',
+            'nothing_to_credit' => 'There is nothing left on this invoice for aid to cover.', 'more_than_due' => 'That is more than is still owed. Record what was owed and refund the rest.',
+            'nothing_owing' => 'Nothing is owed on this invoice.', 'bad_method' => 'Choose how it was paid.', 'bad_date' => 'Give the date as YYYY-MM-DD.',
+            'already_void' => 'That payment was already voided.', 'already_approved' => 'That plan is already approved.', 'not_active' => 'That plan is not active.',
+            'already_decided' => 'That application was already decided.', 'outcome_note_required' => 'Write the note the family will read.',
+            'above_published_band' => 'That is above the published band; the band is a ceiling.', 'student_not_found' => 'Choose a student.',
+            'bad_kind' => 'Choose the kind of aid.', 'already_revoked' => 'That award was already revoked.',
+        ];
+        $fail = static function (Throwable $e) use ($say, $back, $invId, $action): void {
+            $code = $e->getMessage();
+            mam_log('warn', 'admin_fee_action_refused', ['action' => $action, 'code' => $code]);
+            $back('err', $say[$code] ?? 'That did not work (' . $code . ').', $invId, $action === 'bursary_decide' ? 'bursaries' : 'invoices');
+        };
+        try {
+            $actor = mam_admin_require_actor();
+            $by = (int) $actor['id'];
+            switch ($action) {
+                case 'fee_invoice_open':
+                    $sid = (int) ($_POST['student_id'] ?? 0);
+                    $new = mam_fee_invoice_open($sid, null, $by, ['term_label' => trim((string) ($_POST['term_label'] ?? '')), 'note' => trim((string) ($_POST['note'] ?? '')) ?: null]);
+                    $back('ok', 'Draft invoice opened. Add its lines, then issue it.', $new);
+                case 'fee_line_add':
+                    mam_fee_line_add($invId, in_array($_POST['kind'] ?? '', ['tuition','materials','exam','registration','recital','late','other'], true) ? (string) $_POST['kind'] : 'other',
+                        (string) ($_POST['label'] ?? ''), (string) ($_POST['unit'] ?? '0'), max(1, (int) ($_POST['qty'] ?? 1)));
+                    $back('ok', 'Line added.', $invId);
+                case 'fee_line_waive':
+                    mam_fee_line_waive((int) ($_POST['line_id'] ?? 0), !empty($_POST['all']) ? true : (string) ($_POST['amount'] ?? '0'), (string) ($_POST['reason'] ?? ''), $by);
+                    $back('ok', 'Waiver recorded on the line.', $invId);
+                case 'fee_invoice_issue':
+                    $due = trim((string) ($_POST['due_on'] ?? ''));
+                    if ($due !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $due)) throw new InvalidArgumentException('bad_date');
+                    mam_fee_invoice_issue($invId, $by, $due !== '' ? $due : null);
+                    $back('ok', 'Issued. The family can see it now.', $invId);
+                case 'fee_invoice_void':
+                    mam_fee_invoice_void($invId, (string) ($_POST['reason'] ?? ''), $by);
+                    $back('ok', 'Invoice voided. It stays on the record with the reason.', $invId);
+                case 'fee_aid_award':
+                    $sid = (int) ($_POST['student_id'] ?? 0);
+                    mam_fee_aid_award($sid, (string) ($_POST['kind'] ?? ''), [
+                        'pct' => trim((string) ($_POST['pct'] ?? '')), 'amount' => trim((string) ($_POST['amount'] ?? '')),
+                        'basis' => trim((string) ($_POST['basis'] ?? '')) ?: null, 'note' => trim((string) ($_POST['note'] ?? '')) ?: null,
+                        'term_label' => trim((string) ($_POST['term_label'] ?? '')) ?: null,
+                    ], $by);
+                    $back('ok', 'Aid awarded. Apply it to an invoice to take effect.', $invId);
+                case 'fee_aid_revoke':
+                    mam_fee_aid_revoke((int) ($_POST['award_id'] ?? 0), (string) ($_POST['reason'] ?? ''), $by);
+                    $back('ok', 'Award revoked. Credits already on issued invoices stand until those invoices change.', $invId);
+                case 'fee_credit_apply':
+                    $ov = trim((string) ($_POST['amount'] ?? ''));
+                    mam_fee_credit_apply($invId, (int) ($_POST['award_id'] ?? 0), $by, $ov !== '' ? $ov : null);
+                    $back('ok', 'Aid applied to the invoice.', $invId);
+                case 'fee_payment_record':
+                    mam_fee_payment_record($invId, (string) ($_POST['amount'] ?? '0'), (string) ($_POST['method'] ?? ''), $by, [
+                        'reference' => (string) ($_POST['reference'] ?? ''), 'received_on' => (string) ($_POST['received_on'] ?? ''), 'note' => (string) ($_POST['note'] ?? ''),
+                    ]);
+                    $back('ok', 'Payment recorded. It is on the family\'s statement as a receipt.', $invId);
+                case 'fee_payment_void':
+                    mam_fee_payment_void((int) ($_POST['payment_id'] ?? 0), (string) ($_POST['reason'] ?? ''), $by);
+                    $back('ok', 'Payment voided; the balance is owed again.', $invId);
+                case 'fee_plan_approve':
+                    mam_fee_plan_approve((int) ($_POST['plan_id'] ?? 0), $by);
+                    $back('ok', 'Plan approved. Reminders now follow its instalments.', $invId);
+                case 'fee_plan_cancel':
+                    mam_fee_plan_cancel((int) ($_POST['plan_id'] ?? 0), (string) ($_POST['reason'] ?? ''), $by);
+                    $back('ok', 'Plan cancelled. The balance is due on the invoice\'s own date.', $invId);
+                case 'bursary_decide':
+                    $st = (string) ($_POST['status'] ?? '');
+                    $pct = trim((string) ($_POST['pct'] ?? ''));
+                    $r = mam_bursary_decide((int) ($_POST['app_id'] ?? 0), $st, $by, (string) ($_POST['outcome_note'] ?? ''), $pct !== '' ? (float) $pct : null);
+                    $back('ok', $st === 'awarded' ? 'Bursary awarded at ' . rtrim(rtrim(number_format((float) $r['awarded_pct'], 1), '0'), '.') . '%. Apply it to the family\'s invoice.' : ($st === 'assessing' ? 'Marked as being assessed.' : 'Decision recorded.'), 0, 'bursaries');
+            }
+        } catch (Throwable $e) { $fail($e); }
+    }
+
     if ($action === 'faculty_assign_subjects') {
         $fid = (int)($_POST['app_id'] ?? 0);
         try {
@@ -2302,6 +2405,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (function_exists('mam_automation_session_reminder_sweep')) $r['reminders'] = mam_automation_session_reminder_sweep();
         if (function_exists('mam_automation_ktams_birthday_sweep'))   $r['birthdays'] = mam_automation_ktams_birthday_sweep();
         if (function_exists('mam_automation_week_drip_sweep'))         $r['drip']      = mam_automation_week_drip_sweep();
+        if (function_exists('mam_fee_dunning_sweep'))                  $r['fee_reminders'] = mam_fee_dunning_sweep();
         // §28 — academic email sweeps (gated behind academic_emails_enabled; a no-op when off).
         $ae = function_exists('mam_acadmail_run_all_sweeps') ? mam_acadmail_run_all_sweeps() : ['enabled' => false];
         $r['academic_emails'] = $ae;
@@ -3893,7 +3997,7 @@ nav a{display:flex;align-items:center}
       $onlyIncomplete = (($_GET['f'] ?? '') === 'incomplete');
       $damagedIds = [];
       if (function_exists('mam_application_damaged')) {
-          foreach (mam_application_damaged(500) as $dm) $damagedIds[(int)$dm['id']] = true;
+          foreach (mam_application_damaged(500) as $dm) $damagedIds[(int)$dm['id']] = (int) ($dm['other_apps'] ?? 0);
       }
       $onlyDamaged = (($_GET['f'] ?? '') === 'damaged');
 
@@ -3904,7 +4008,10 @@ nav a{display:flex;align-items:center}
           // three tables to establish "in no course", and re-expressing it as a
           // subquery here would be a second definition of the same thing that
           // could drift from the first.
-          $rows  = array_values(array_filter($rows, fn ($r) => isset($incompleteIds[(int)$r['id']])));
+          // Fetched whole, like the damaged set below: filtering the drawn page
+          // hid every incomplete enrolment that was not on page 1.
+          $ids = array_keys($incompleteIds);
+          $rows = $ids ? mam_db_all('SELECT a.*, c.first_name, c.last_name, c.email, c.phone, c.sex, c.address, c.lga, c.state, c.country, c.age_range FROM applications a LEFT JOIN customers c ON c.id=a.customer_id WHERE a.id IN (' . implode(',', array_map('intval', $ids)) . ') ORDER BY a.created_at DESC') : [];
           $total = count($rows);
       }
       if ($onlyDamaged) {
@@ -3941,6 +4048,9 @@ nav a{display:flex;align-items:center}
             <?php if (isset($damagedIds[(int)$r['id']])): ?>
               <br><span class="pill pending" style="margin-top:4px;display:inline-flex"
                  title="Submitted with a photo before the November fix: date of birth, guardian, signed policy and the $5 booking fee were not saved. Ask the family again.">Details lost</span>
+              <?php if ($damagedIds[(int)$r['id']] > 0): ?>
+                <br><span class="muted" style="font-size:12px">Returning family: the same bug cleared the age, country and city stored for them, so their <?= (int)$damagedIds[(int)$r['id']] ?> other application<?= $damagedIds[(int)$r['id']] === 1 ? '' : 's' ?> now show<?= $damagedIds[(int)$r['id']] === 1 ? 's' : '' ?> those blank too. Confirm them when you call.</span>
+              <?php endif; ?>
             <?php endif; ?>
           </td>
           <td data-label="Student"><strong><?= htmlspecialchars(mam_name($r['first_name'] ?? null, $r['last_name'] ?? null)) ?></strong>

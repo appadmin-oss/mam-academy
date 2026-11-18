@@ -242,6 +242,9 @@ if ($opts['verifyOnly'] !== null) {
     $vUp = $manifest['uploads'] ?? null;
     if (is_array($vUp) && !empty($vUp['sha256'])) {
         $say(sprintf('  ✓ all %d uploaded file(s) match their sha256', count($vUp['sha256'])));
+    } elseif (is_array($vUp) && ($vUp['captured'] ?? true) !== false) {
+        // Taken WITH --with-uploads on an install that had none yet.
+        $say('  ✓ uploads were captured; the install had no uploaded files at the time');
     } else {
         $say('  ⚠ this archive holds NO uploaded files — headshots and recordings are not in it'
             . ' (it was taken without --with-uploads)');
@@ -338,7 +341,13 @@ function mam_export_copy_uploads(string $srcRoot, string $destRoot): array {
 function mam_export_verify_uploads(string $dir, array $manifest): array {
     $bad = [];
     $up  = $manifest['uploads'] ?? null;
-    if (!is_array($up) || empty($up['sha256'])) return $bad;   // none captured
+    if (!is_array($up)) return $bad;
+    /* A file that could not be copied is a file a restore will not bring back.
+       It used to be written to `skipped`, warned about on stderr, and then read
+       by nothing: the export exited 0, the status page said ok and this check
+       said "intact". */
+    foreach ((array) ($up['skipped'] ?? []) as $sk) $bad[] = 'uploads: NOT captured — ' . $sk;
+    if (empty($up['sha256'])) return $bad;   // none captured (or none existed)
     foreach ((array) $up['sha256'] as $rel => $want) {
         $path = $dir . '/uploads/' . $rel;
         if (!is_file($path)) { $bad[] = "uploads/$rel: missing from the archive"; continue; }
@@ -354,7 +363,9 @@ function mam_export_verify_uploads(string $dir, array $manifest): array {
 
 $db     = mam_export_connect();
 $driver = $db->getAttribute(PDO::ATTR_DRIVER_NAME);
-$stamp  = date('Ymd-His');
+// UTC, like every other timestamp here: backup.php reads this name as UTC, and
+// this script loads no bootstrap that would pin the zone for it.
+$stamp  = gmdate('Ymd-His');
 $outDir = rtrim($opts['out'] ?? (dirname(__DIR__) . '/storage/export/' . $stamp), '/');
 
 if (!is_dir($outDir) && !@mkdir($outDir, 0775, true) && !is_dir($outDir)) {
@@ -454,6 +465,7 @@ if ($opts['uploads']) {
     $say(sprintf('  %-28s %6d files %s', 'uploads/', $up['files'],
         $up['bytes'] > 0 ? round($up['bytes'] / 1024) . ' KB' : ''));
     foreach ($up['skipped'] as $sk) fwrite(STDERR, "  WARNING uploads: $sk\n");
+    $uploadsIncomplete = count($up['skipped']);
 } else {
     /* Stated, not omitted. An archive that is silent about the files is
        indistinguishable from one taken when there were none — and the
@@ -584,10 +596,16 @@ function mam_export_roundtrip(string $dir, array $manifest, array $ddl, bool $re
     return $mismatches;
 }
 
+/* Exit non-zero when an upload could not be copied: the cron that runs this
+   must see a failure, not a success with a warning on stderr nobody reads. */
+$uploadsIncomplete = $uploadsIncomplete ?? 0;
+if ($uploadsIncomplete > 0) {
+    fwrite(STDERR, "  ✗ $uploadsIncomplete uploaded file(s) could not be copied — this snapshot would NOT restore them.\n");
+}
 if (!$opts['roundtrip']) {
     $say('');
     $say('Snapshot written. Run again with --verify-roundtrip to PROVE it is lossless.');
-    exit(0);
+    exit($uploadsIncomplete > 0 ? 3 : 0);
 }
 
 $say('');

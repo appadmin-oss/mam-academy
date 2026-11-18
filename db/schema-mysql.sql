@@ -3142,3 +3142,28 @@ CREATE TABLE IF NOT EXISTS instructor_application_referees (
   CONSTRAINT fk_iaref_app FOREIGN KEY (application_id) REFERENCES instructor_applications(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (90) ON DUPLICATE KEY UPDATE version = version;
+
+-- v91 — money the office receives against a fee invoice (fees.php mam_fee_payment_record).
+CREATE TABLE IF NOT EXISTS fee_payments (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  invoice_id    INT NOT NULL,
+  amount_minor  BIGINT NOT NULL,
+  currency      CHAR(3) NOT NULL,
+  method        VARCHAR(12) NOT NULL DEFAULT 'transfer',
+  reference     VARCHAR(120),
+  received_on   DATE NOT NULL,
+  note          VARCHAR(500),
+  status        VARCHAR(12) NOT NULL DEFAULT 'recorded',
+  void_reason   VARCHAR(500),
+  voided_at     DATETIME,
+  recorded_by   INT NULL,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_feepay_invoice (invoice_id, status),
+  CONSTRAINT fk_feepay_invoice FOREIGN KEY (invoice_id)  REFERENCES fee_invoices(id) ON DELETE CASCADE,
+  CONSTRAINT fk_feepay_by      FOREIGN KEY (recorded_by) REFERENCES users(id)        ON DELETE SET NULL,
+  CONSTRAINT chk_feepay_amount CHECK (amount_minor > 0),
+  CONSTRAINT chk_feepay_method CHECK (method IN ('transfer','cash','pos','card','other')),
+  CONSTRAINT chk_feepay_status CHECK (status IN ('recorded','void')),
+  CONSTRAINT chk_feepay_void   CHECK (status <> 'void' OR void_reason IS NOT NULL)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (91) ON DUPLICATE KEY UPDATE version = version;

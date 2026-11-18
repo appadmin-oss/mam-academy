@@ -177,6 +177,9 @@ foreach (['admin/console.php' => 'admin-v2', 'admin/phone.php' => 'admin-v2'] as
         $DS_vers[$DS_f] = $m[1];
     }
 }
+// Counted first: a file whose ?v= stopped matching would drop out of the
+// comparison and leave it passing over the rest.
+t_eq(count($DS_vers), 2, 'both admin pages carry a ?v= on the shared stylesheet');
 t_eq(count(array_unique($DS_vers)), 1,
     'the two admin pages request ONE version of the stylesheet they share: ' . json_encode($DS_vers));
 
@@ -190,5 +193,6 @@ foreach (['student', 'instructor', 'parent'] as $DS_p) {
         $DS_pvers[$DS_p] = $m[1];
     }
 }
+t_eq(count($DS_pvers), 3, 'all three portals carry a ?v= on portal-v2.css');
 t_eq(count(array_unique($DS_pvers)), 1,
     'all three portals request ONE version of portal-v2.css: ' . json_encode($DS_pvers));

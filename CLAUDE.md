@@ -1086,6 +1086,14 @@ easy to "simplify" into being wrong:
     charge is labelled an estimate.
   - **There is no column and no function that suspends anything over money.** The
     refusal is kept by leaving the mechanism unbuilt.
+  - **The office's side (v91, HANDOFF §4t).** Money received is `fee_payments`, one
+    row per payment, voided never deleted; once an invoice has any, they are the
+    authority for `paid_minor` (so a void brings the balance back).
+    `mam_fee_plan_allocate()` lays them over a plan's instalments. A plan a guardian
+    asks for is a REQUEST until `mam_fee_plan_approve()`. `mam_fee_dunning_sweep()`
+    is the reminder ladder (automation `fee_reminders`), forward-only and claimed by
+    compare-and-set. Console actions are `fee_*` / `bursary_decide` under the
+    `fees` capability. Online payment of a fee invoice is NOT built yet.
   - A **bursary** is assessed on a declared income BAND; there is no hardship /
     circumstances / case_text column and nothing linking it to an admission
     decision, both asserted by test. The published table is a CEILING a committee
@@ -2141,8 +2149,9 @@ in no archive, and nothing deleted an old one.
 - Deploy/runbook: `DEPLOYMENT.md`. Env reference: `api/.env.example`.
 
 ## Workflow
-- **Work on a topic branch off the current tip of `master`** — `claude/<topic>`, e.g.
-  `claude/enrolment-audit-fixes`. Don't commit straight to `master`, and don't open PRs
+- **Work on a topic branch off the current tip of `master`** — **`afv/<topic>`**, e.g.
+  `afv/enrolment-audit-fixes`. ⚠️ The owner (2026-11-18): never create a branch whose
+  name starts with `claude/`. Don't commit straight to `master`, and don't open PRs
   unless asked. (This used to name one specific branch, `claude/pensive-fermi-st9hvv`,
   which silently went 14 commits stale behind `master` — naming a branch here dates
   badly, so verify with `git log --oneline -3` + `git status -sb` and cut a fresh branch

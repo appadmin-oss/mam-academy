@@ -97,8 +97,14 @@ function mam_backup_list(int $limit = 50): array {
             'complete'    => $man !== null,
             'tables'      => is_array($man) ? count((array) ($man['tables'] ?? [])) : 0,
             'rows'        => is_array($man) ? (int) ($man['total_rows'] ?? 0) : 0,
-            'has_uploads' => is_array($up) && !empty($up['sha256']),
+            /* Captured means the archive was taken WITH --with-uploads — on a
+               fresh install that can be zero files, which is not the same as
+               taking it without them. A manifest from before `captured` existed
+               has either sha256 entries or the explicit `captured:false`. */
+            'has_uploads' => is_array($up) && ($up['captured'] ?? true) !== false
+                             && (!empty($up['sha256']) || (int) ($up['files'] ?? 0) === 0 && array_key_exists('sha256', $up)),
             'upload_files' => is_array($up) ? (int) ($up['files'] ?? 0) : 0,
+            'upload_skipped' => is_array($up) ? count((array) ($up['skipped'] ?? [])) : 0,
             'key_fp'      => is_array($man) ? (string) ($man['signing_key_fingerprint'] ?? 'not supplied') : '',
         ];
     }
@@ -159,6 +165,12 @@ function mam_backup_status(): array {
            re-derived from any table. */
         $out['state'] = 'partial';
         $out['message'] = 'The newest snapshot holds no uploaded files — headshots and recordings would not survive a restore. Add --with-uploads to the backup command.';
+        return $out;
+    }
+    if (($latest['upload_skipped'] ?? 0) > 0) {
+        $out['state'] = 'partial';
+        $out['message'] = sprintf('The newest snapshot is missing %d uploaded file(s) that could not be copied (disk space or permissions). They would not survive a restore.',
+            (int) $latest['upload_skipped']);
         return $out;
     }
     if ($out['key_matches'] === false) {

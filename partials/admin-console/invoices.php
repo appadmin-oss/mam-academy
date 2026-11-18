@@ -22,6 +22,241 @@ $a = $d['aging'] ?? [];
       '<a class="ac-btn ac-btn--sm" href="/admin/?v=payments">Match it</a>'); ?>
 <?php endif; ?>
 
+<?php $det = $d['detail'] ?? null; $methods = $d['methods'] ?? []; ?>
+<?php if (isset($_GET['id']) && !$det): ?>
+  <?php ac_banner('bad', 'fa-circle-question', 'That invoice could not be found. It may have been opened in another tab and the list has moved on.'); ?>
+<?php endif; ?>
+
+<?php if ($det): $editable = !empty($det['editable']); $cur = (string) $det['currency']; ?>
+  <?php ac_card_open('Invoice ' . (string) $det['ref'], (string) $det['student_name'] . ' · ' . (string) $det['term_label'],
+      ac_status((string) $det['status']) . ' <a class="ac-btn ac-btn--sm" href="' . ac_h(ac_url('invoices')) . '">Close</a>'); ?>
+    <div class="ac-cardbody">
+      <?php if (!$det['has_guardian']): ?>
+        <?php ac_banner('warn', 'fa-user-slash', 'No billing guardian is linked to this student, so the family cannot see this invoice and reminders have nobody to go to. Link a guardian first.'); ?>
+      <?php endif; ?>
+      <div class="ac-defs">
+        <?php
+          ac_def('Billed to', ac_h((string) ($det['guardian'] ?: '— nobody linked')));
+          ac_def('Gross', ac_h((string) $det['gross']));
+          if ($det['waiver'])  ac_def('Less waivers', ac_h((string) $det['waiver']));
+          if ($det['aid'])     ac_def('Less aid', ac_h((string) $det['aid']));
+          if ($det['sibling']) ac_def('Less sibling discount', ac_h((string) $det['sibling']));
+          ac_def('Total', '<strong>' . ac_h((string) $det['total']) . '</strong>');
+          ac_def('Paid', ac_h((string) $det['paid']));
+          ac_def('Still owed', '<strong>' . ac_h((string) $det['due']) . '</strong>');
+          if ($det['due_on']) ac_def('Due', ac_h((string) $det['due_on']) . ($det['overdue_days'] ? ' ' . ac_pill('Overdue ' . (int) $det['overdue_days'] . 'd', 'bad') : ''));
+          if ($det['frozen_rate_label']) ac_def('Rate frozen at issue', ac_h((string) $det['frozen_rate_label']));
+          if ($det['void_reason']) ac_def('Voided because', ac_h((string) $det['void_reason']));
+        ?>
+      </div>
+    </div>
+  <?php ac_card_close(); ?>
+
+  <div class="ac-cols ac-cols--main">
+    <div class="ac-stack">
+      <?php ac_card_open('Lines', count($det['lines']) . ''); ?>
+        <div class="ac-tablewrap">
+          <table class="ac-table">
+            <thead><tr><th>Line</th><th class="ac-num">Qty</th><th class="ac-num">Amount</th><th class="ac-num">Waived</th><?= $editable ? '<th>Waive</th>' : '' ?></tr></thead>
+            <tbody>
+              <?php if (!$det['lines']): ?>
+                <?php ac_table_empty($editable ? 5 : 4, 'No lines yet. Add tuition, materials or an exam fee below.'); ?>
+              <?php else: foreach ($det['lines'] as $l): ?>
+                <tr>
+                  <td><div class="ac-strong"><?= ac_h((string) $l['label']) ?></div><div class="ac-sub"><?= ac_h((string) $l['kind']) ?><?= $l['waiver_reason'] ? ' · waived: ' . ac_h((string) $l['waiver_reason']) : '' ?></div></td>
+                  <td class="ac-num"><?= (int) $l['qty'] ?></td>
+                  <td class="ac-num"><?= ac_h((string) $l['amount']) ?></td>
+                  <td class="ac-num"><?= ac_h((string) ($l['waiver'] ?? '—')) ?></td>
+                  <?php if ($editable): ?>
+                    <td>
+                      <?php ac_form('fee_line_waive', 'invoices', ['invoice_id' => (int) $det['id'], 'line_id' => (int) $l['id']], 'class="ac-row"'); ?>
+                        <label class="ac-field"><span class="ac-label">Amount</span><input class="ac-input ac-input--sm" name="amount" inputmode="decimal" placeholder="0.00" aria-label="Amount to waive on <?= ac_h((string) $l['label']) ?>"></label>
+                        <label class="ac-field"><span class="ac-label">Reason</span><input class="ac-input ac-input--sm" name="reason" required aria-label="Reason for the waiver"></label>
+                        <button type="submit" class="ac-btn ac-btn--sm">Waive</button>
+                      <?php ac_form_end(); ?>
+                    </td>
+                  <?php endif; ?>
+                </tr>
+              <?php endforeach; endif; ?>
+            </tbody>
+          </table>
+        </div>
+        <?php if ($editable): ?>
+          <div class="ac-cardbody">
+            <?php ac_form('fee_line_add', 'invoices', ['invoice_id' => (int) $det['id']]); ?>
+              <div class="ac-grid ac-grid--2">
+                <label class="ac-field"><span class="ac-label">Kind</span>
+                  <select class="ac-select" name="kind">
+                    <?php foreach (['tuition' => 'Tuition', 'materials' => 'Materials', 'exam' => 'Exam fee', 'registration' => 'Registration', 'recital' => 'Recital', 'other' => 'Other'] as $k => $lbl): ?>
+                      <option value="<?= ac_h($k) ?>"><?= ac_h($lbl) ?></option>
+                    <?php endforeach; ?>
+                  </select></label>
+                <label class="ac-field"><span class="ac-label">Description</span><input class="ac-input" name="label" required placeholder="Piano, Grade 3 — spring term"></label>
+                <label class="ac-field"><span class="ac-label">Unit price (<?= ac_h($cur) ?>)</span><input class="ac-input" name="unit" inputmode="decimal" required placeholder="300.00"></label>
+                <label class="ac-field"><span class="ac-label">Quantity</span><input class="ac-input" name="qty" type="number" min="1" value="1"></label>
+              </div>
+              <div class="ac-row ac-mt"><button type="submit" class="ac-btn">Add the line</button></div>
+            <?php ac_form_end(); ?>
+          </div>
+        <?php endif; ?>
+      <?php ac_card_close('Prices are typed in the invoice\'s own currency. A waiver reduces the line and is never a cash entry.'); ?>
+
+      <?php ac_card_open('Payments received', count($det['payments']) . ''); ?>
+        <div class="ac-tablewrap">
+          <table class="ac-table">
+            <thead><tr><th>Received</th><th>How</th><th class="ac-num">Amount</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              <?php if (!$det['payments']): ?>
+                <?php ac_table_empty(5, 'Nothing recorded yet.'); ?>
+              <?php else: foreach ($det['payments'] as $p): ?>
+                <tr>
+                  <td><?= ac_h((string) $p['received_on']) ?><div class="ac-sub"><?= ac_h(trim((string) ($p['reference'] ?? '') . ($p['recorded_by_name'] ? ' · by ' . $p['recorded_by_name'] : ''))) ?></div></td>
+                  <td><?= ac_h((string) ($methods[$p['method']] ?? $p['method'])) ?></td>
+                  <td class="ac-num"><?= ac_h(mam_fee_display((int) $p['amount_minor'], (string) $p['currency'])) ?></td>
+                  <td><?= $p['status'] === 'void' ? ac_pill('Void', 'bad') . '<div class="ac-sub">' . ac_h((string) $p['void_reason']) . '</div>' : ac_status('recorded', 'Recorded') ?></td>
+                  <td><?php if ($p['status'] !== 'void'): ?>
+                    <?php ac_form('fee_payment_void', 'invoices', ['invoice_id' => (int) $det['id'], 'payment_id' => (int) $p['id']], 'class="ac-row"'); ?>
+                      <input class="ac-input ac-input--sm" name="reason" required placeholder="Why it is void" aria-label="Reason for voiding this payment">
+                      <button type="submit" class="ac-btn ac-btn--sm ac-btn--danger">Void</button>
+                    <?php ac_form_end(); ?>
+                  <?php endif; ?></td>
+                </tr>
+              <?php endforeach; endif; ?>
+            </tbody>
+          </table>
+        </div>
+        <?php if (in_array($det['status'], ['issued', 'part_paid'], true) && (int) $det['due_minor'] > 0): ?>
+          <div class="ac-cardbody">
+            <?php ac_form('fee_payment_record', 'invoices', ['invoice_id' => (int) $det['id']]); ?>
+              <div class="ac-grid ac-grid--2">
+                <label class="ac-field"><span class="ac-label">Amount (<?= ac_h($cur) ?>)</span><input class="ac-input" name="amount" inputmode="decimal" required placeholder="<?= ac_h(mam_fee_from_minor((int) $det['due_minor'])) ?>"></label>
+                <label class="ac-field"><span class="ac-label">How it was paid</span>
+                  <select class="ac-select" name="method" required>
+                    <?php foreach ($methods as $k => $lbl): ?><option value="<?= ac_h($k) ?>"><?= ac_h($lbl) ?></option><?php endforeach; ?>
+                  </select></label>
+                <label class="ac-field"><span class="ac-label">Received on</span><input class="ac-input" type="date" name="received_on"></label>
+                <label class="ac-field"><span class="ac-label">Bank or teller reference</span><input class="ac-input" name="reference" maxlength="120"></label>
+              </div>
+              <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Record the payment</button>
+                <span class="ac-hint">At most what is still owed. It appears on the family's statement as a receipt.</span></div>
+            <?php ac_form_end(); ?>
+          </div>
+        <?php endif; ?>
+      <?php ac_card_close('A payment recorded in error is voided with a reason, never deleted; the balance comes back and the record shows both.'); ?>
+    </div>
+
+    <div class="ac-stack">
+      <?php if ($det['status'] === 'draft'): ?>
+        <?php ac_card_open('Issue'); ?>
+          <div class="ac-cardbody">
+            <?php ac_form('fee_invoice_issue', 'invoices', ['invoice_id' => (int) $det['id']]); ?>
+              <label class="ac-field"><span class="ac-label">Due on (leave empty for the usual terms)</span><input class="ac-input" type="date" name="due_on"></label>
+              <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Issue to the family</button></div>
+            <?php ac_form_end(); ?>
+          </div>
+        <?php ac_card_close('Issuing freezes the exchange rate and makes the invoice visible. Lines can still be added while it is unpaid.'); ?>
+      <?php endif; ?>
+
+      <?php if ($editable): ?>
+        <?php ac_card_open('Aid on this invoice', $det['aid'] ? (string) $det['aid'] : 'none'); ?>
+          <div class="ac-cardbody">
+            <?php $gift = array_values(array_filter($det['awards'], fn($a) => $a['status'] === 'active' && in_array($a['kind'], ['bursary', 'scholarship'], true))); ?>
+            <?php if ($gift): ?>
+              <?php ac_form('fee_credit_apply', 'invoices', ['invoice_id' => (int) $det['id']]); ?>
+                <label class="ac-field"><span class="ac-label">Apply an award</span>
+                  <select class="ac-select" name="award_id">
+                    <?php foreach ($gift as $a): ?>
+                      <option value="<?= (int) $a['id'] ?>"><?= ac_h(ucfirst((string) $a['kind']) . ' · ' . ($a['pct'] !== null ? rtrim(rtrim(number_format((float) $a['pct'], 1), '0'), '.') . '%' : mam_fee_display((int) $a['amount_minor'], (string) $a['currency'])) . ($a['basis'] ? ' · ' . $a['basis'] : '')) ?></option>
+                    <?php endforeach; ?>
+                  </select></label>
+                <div class="ac-row ac-mt"><button type="submit" class="ac-btn">Apply</button></div>
+              <?php ac_form_end(); ?>
+            <?php else: ?>
+              <p class="ac-note">No active bursary or scholarship for this student. Award one below, or decide their bursary application.</p>
+            <?php endif; ?>
+            <details class="ac-mt"><summary>Award aid to <?= ac_h((string) $det['student_name']) ?></summary>
+              <?php ac_form('fee_aid_award', 'invoices', ['invoice_id' => (int) $det['id'], 'student_id' => (int) $det['student_id'], 'term_label' => (string) $det['term_label']]); ?>
+                <div class="ac-grid ac-grid--2">
+                  <label class="ac-field"><span class="ac-label">Kind</span>
+                    <select class="ac-select" name="kind"><option value="scholarship">Scholarship (merit)</option><option value="bursary">Bursary (need)</option><option value="sibling">Sibling discount</option></select></label>
+                  <label class="ac-field"><span class="ac-label">Percentage</span><input class="ac-input" name="pct" inputmode="decimal" placeholder="e.g. 25"></label>
+                  <label class="ac-field"><span class="ac-label">…or a fixed amount</span><input class="ac-input" name="amount" inputmode="decimal" placeholder="e.g. 100.00"></label>
+                  <label class="ac-field"><span class="ac-label">Basis</span><input class="ac-input" name="basis" placeholder="Audition result, June"></label>
+                </div>
+                <div class="ac-row ac-mt"><button type="submit" class="ac-btn">Award</button></div>
+              <?php ac_form_end(); ?>
+            </details>
+          </div>
+        <?php ac_card_close('A bursary from an application is decided on the Bursaries screen, against the published band.'); ?>
+      <?php endif; ?>
+
+      <?php if ($det['plan']): $pr = $det['plan_row']; ?>
+        <?php ac_card_open('Payment plan', (int) $det['plan']['instalments'] . ' instalments', $det['plan']['approved'] ? ac_pill('Approved', 'good') : ac_pill('Requested', 'warn')); ?>
+          <div class="ac-cardbody">
+            <div class="ac-defs">
+              <?php foreach ($det['plan']['schedule'] as $i) ac_def('#' . (int) $i['seq'] . ' · ' . ac_h((string) $i['due_on']), ac_h((string) $i['amount']) . ' ' . ac_status((string) $i['status'])); ?>
+            </div>
+            <div class="ac-row ac-mt">
+              <?php if (!$det['plan']['approved']) ac_action_btn('fee_plan_approve', 'invoices', ['invoice_id' => (int) $det['id'], 'plan_id' => (int) $det['plan']['id']], 'Approve the plan', 'ac-btn ac-btn--sm ac-btn--primary'); ?>
+            </div>
+            <?php ac_form('fee_plan_cancel', 'invoices', ['invoice_id' => (int) $det['id'], 'plan_id' => (int) $det['plan']['id']], 'class="ac-row ac-mt"'); ?>
+              <input class="ac-input ac-input--sm" name="reason" required placeholder="Why" aria-label="Reason for cancelling the plan">
+              <button type="submit" class="ac-btn ac-btn--sm"><?= $det['plan']['approved'] ? 'Cancel the plan' : 'Decline the request' ?></button>
+            <?php ac_form_end(); ?>
+          </div>
+        <?php ac_card_close('Approved, reminders follow the instalments; until then they follow the invoice\'s own due date.'); ?>
+      <?php endif; ?>
+
+      <?php if ($det['status'] !== 'void' && $det['status'] !== 'paid'): ?>
+        <?php ac_card_open('Void'); ?>
+          <div class="ac-cardbody">
+            <?php ac_form('fee_invoice_void', 'invoices', ['invoice_id' => (int) $det['id']]); ?>
+              <label class="ac-field"><span class="ac-label">Reason</span><input class="ac-input" name="reason" required placeholder="Raised twice in error"></label>
+              <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--danger">Void the invoice</button></div>
+            <?php ac_form_end(); ?>
+          </div>
+        <?php ac_card_close('A voided invoice stays on the record with its reason.'); ?>
+      <?php endif; ?>
+    </div>
+  </div>
+<?php endif; ?>
+
+<div class="ac-cols ac-cols--2">
+  <?php ac_card_open('New invoice'); ?>
+    <div class="ac-cardbody">
+      <?php ac_form('fee_invoice_open', 'invoices'); ?>
+        <div class="ac-grid ac-grid--2">
+          <label class="ac-field"><span class="ac-label">Student</span>
+            <select class="ac-select" name="student_id" required>
+              <option value="">Choose…</option>
+              <?php foreach ($d['students'] ?? [] as $st): ?>
+                <option value="<?= (int) $st['id'] ?>"><?= ac_h((string) $st['name'] . ' · ' . (string) $st['email']) ?></option>
+              <?php endforeach; ?>
+            </select></label>
+          <label class="ac-field"><span class="ac-label">Term (empty: the current one)</span><input class="ac-input" name="term_label" placeholder="Spring 2027"></label>
+        </div>
+        <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Open a draft</button>
+          <span class="ac-hint">Billed to the student's linked guardian. A draft is invisible to the family until issued.</span></div>
+      <?php ac_form_end(); ?>
+    </div>
+  <?php ac_card_close(); ?>
+
+  <?php ac_card_open('Plans waiting for approval', count($d['plans_waiting'] ?? []) . ''); ?>
+    <div class="ac-cardbody">
+      <?php if (!($d['plans_waiting'] ?? [])): ?>
+        <p class="ac-note">No family is waiting on a plan.</p>
+      <?php else: ?>
+        <div class="ac-defs">
+          <?php foreach ($d['plans_waiting'] as $pw): ?>
+            <?php ac_def(ac_h((string) $pw['student']) . ' · ' . (int) $pw['instalments'] . ' instalments',
+                '<a href="' . ac_h(ac_url('invoices', ['id' => (int) $pw['invoice_id']])) . '">' . ac_h((string) $pw['public_ref']) . '</a> · asked ' . ac_h(mam_console_age((string) $pw['created_at']))); ?>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </div>
+  <?php ac_card_close('A plan a family asks for is a request until the office agrees it.'); ?>
+</div>
+
 <?php ac_kpis([
     ['label' => 'Current', 'value' => mam_console_usd_short((int) ($a['current'] ?? 0)), 'note' => 'not yet due'],
     ['label' => '1–30 days', 'value' => mam_console_usd_short((int) ($a['d30'] ?? 0)), 'tone' => 'warn', 'note' => 'inside the grace window'],
@@ -36,13 +271,13 @@ $a = $d['aging'] ?? [];
                  <th>Status</th><th class="ac-num">Due</th></tr></thead>
       <tbody>
         <?php if (!($d['rows'] ?? [])): ?>
-          <?php ac_table_empty(6, 'No fee invoices issued. A tuition invoice is raised per term, per learner.'); ?>
+          <?php ac_table_empty(6, 'No fee invoices yet. Open one above: a tuition invoice is raised per term, per learner.'); ?>
         <?php else: foreach ($d['rows'] as $r):
           $overdueDays = $r['due_on'] && (string) $r['status'] !== 'paid'
               ? (int) floor((time() - (int) strtotime((string) $r['due_on'])) / 86400) : 0;
           $aid = (int) ($r['aid_minor'] ?? 0) + (int) ($r['waiver_minor'] ?? 0) + (int) ($r['sibling_minor'] ?? 0); ?>
           <tr>
-            <td class="ac-mono"><?= ac_h((string) ($r['public_ref'] ?: '#' . (int) $r['id'])) ?></td>
+            <td class="ac-mono"><a href="<?= ac_h(ac_url('invoices', ['id' => (int) $r['id']])) ?>"><?= ac_h((string) ($r['public_ref'] ?: '#' . (int) $r['id'])) ?></a></td>
             <td><div class="ac-strong"><?= ac_h((string) ($r['student'] ?: '—')) ?>
                 <?php if ($aid > 0): ?><?= ac_pill('aid', 'good') ?><?php endif; ?></div>
                 <?php if (!empty($r['guardian'])): ?><div class="ac-sub">billed to <?= ac_h((string) $r['guardian']) ?></div><?php endif; ?></td>

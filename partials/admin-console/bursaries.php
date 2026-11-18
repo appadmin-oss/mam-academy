@@ -38,7 +38,7 @@ foreach ($d['awards'] ?? [] as $a) {
         <thead><tr><th>Family</th><th>Band</th><th class="ac-num">Awarded</th><th>Status</th><th class="ac-num">Raised</th></tr></thead>
         <tbody>
           <?php if (!($d['rows'] ?? [])): ?>
-            <?php ac_table_empty(5, 'No bursary applications yet. The opt-in page is /scholarship.'); ?>
+            <?php ac_table_empty(5, 'No bursary applications yet. Guardians apply from their portal\'s Fees screen.'); ?>
           <?php else: foreach ($d['rows'] as $r): ?>
             <tr>
               <td>
@@ -57,6 +57,31 @@ foreach ($d['awards'] ?? [] as $a) {
             </tr>
             <?php if (!empty($r['outcome_note'])): ?>
               <tr><td colspan="5"><div class="ac-sub"><?= ac_h((string) $r['outcome_note']) ?></div></td></tr>
+            <?php endif; ?>
+            <?php if (in_array((string) $r['status'], ['submitted', 'assessing'], true)):
+              $ceil = null;
+              foreach ($d['bands'] ?? [] as $b) if (is_array($b) && ($b['code'] ?? null) === $r['income_band']) $ceil = $b['indicative_pct'] ?? null; ?>
+              <tr><td colspan="5">
+                <details><summary>Decide this application</summary>
+                  <?php ac_form('bursary_decide', 'bursaries', ['app_id' => (int) $r['id']]); ?>
+                    <div class="ac-grid ac-grid--2">
+                      <label class="ac-field"><span class="ac-label">Decision</span>
+                        <select class="ac-select" name="status" required>
+                          <option value="awarded" <?= $ceil === null ? 'disabled' : '' ?>>Award<?= $ceil === null ? ' — this band has no published award' : '' ?></option>
+                          <option value="declined">Decline</option>
+                          <option value="assessing">Still assessing</option>
+                          <option value="withdrawn">Withdrawn by the family</option>
+                        </select></label>
+                      <label class="ac-field"><span class="ac-label">Award %<?= $ceil !== null ? ' (at most ' . (int) $ceil . ')' : '' ?></span>
+                        <input class="ac-input" name="pct" inputmode="decimal" placeholder="<?= $ceil !== null ? (int) $ceil : '' ?>"></label>
+                    </div>
+                    <label class="ac-field ac-mt"><span class="ac-label">The note the family will read</span>
+                      <textarea class="ac-textarea" name="outcome_note" rows="2" placeholder="Needed for an award or a refusal. Never mentions the admissions file."></textarea></label>
+                    <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Record the decision</button>
+                      <span class="ac-hint">An award becomes aid on the student's record; apply it to their invoice on the Invoices screen.</span></div>
+                  <?php ac_form_end(); ?>
+                </details>
+              </td></tr>
             <?php endif; ?>
           <?php endforeach; endif; ?>
         </tbody>
